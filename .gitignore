@@ -25,6 +25,7 @@ playwright/.cache/
 # Coverage/reports
 coverage/
 reports/
+.sessions/
 
 # Yarn Berry
 .pnp.*

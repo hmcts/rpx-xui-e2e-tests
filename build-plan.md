@@ -114,3 +114,21 @@ This document outlines the steps to rebuild `rpx-xui-e2e-tests` from scratch usi
 - [ ] Knowledge base / onboarding docs published.
 
 Once the above phases are completed the RPX team will have a standalone, supportable Playwright framework that mirrors HMCTS best practice and is ready to evolve as `playwright-common` and TCoE guidance advance.
+
+## Progress Checkpoint
+| Phase | Status | Notes |
+| ----- | ------ | ----- |
+| 0. Discovery & Governance | ✅ Completed | Priorities + browser list agreed (desktop Chromium/Chrome/Edge/Firefox/WebKit) and repo ownership clarified. |
+| 1. Bootstrap | ✅ Completed | Yarn/Node toolchain, lint/format/test scripts, Playwright config and README landed. |
+| 2. Core Architecture | 🟡 In progress | Base folder structure + health smoke spec exist; page objects and tagging matrix still to flesh out. |
+| 3. Configuration & Secrets | ✅ Completed | `.env.example`, strict loader in `config/environment.ts`, env docs added. |
+| 4. Shared Utilities | 🟡 In progress | `fixtures/baseTest.ts` wires logger/API client; still need login/data fixtures. |
+| 5. Extended Capabilities | ⚪ Not started | Accessibility/perf/wiremock/Docker support pending. |
+| 6. CI/CD & Reporting | ⚪ Not started | Jenkins/GitHub pipeline work outstanding. |
+| 7. Test Migration Strategy | 🟡 In progress | Inventory started in `docs/migration.md`; next step is to port high-value smoke flows. |
+| 8. Quality Gates & Governance | ⚪ Not started | Lint rules + DoD defined, but no Husky hooks/tests yet. |
+
+**Immediate next steps**
+- Reuse the `playwright_tests_new` page objects from `rpx-xui-webapp` (or rebuild equivalent) and implement shared login/navigation helpers.
+- Prioritise migration of the legacy smoke specs listed in `docs/migration.md`, starting with Work Allocation, Staff Search, and Case Flags flows.
+- Plan CI/CD wiring (Jenkinsfile + nightly jobs) once the first migrated suite is stable.

@@ -4583,6 +4583,7 @@ __metadata:
     eslint-config-prettier: "npm:^9.1.0"
     eslint-plugin-import: "npm:^2.30.0"
     eslint-plugin-playwright: "npm:^2.0.0"
+    get-port: "npm:^7.1.0"
     globals: "npm:^16.0.0"
     husky: "npm:^9.1.6"
     lint-staged: "npm:^15.2.10"

@@ -10,6 +10,7 @@ export interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
+  // eslint-disable-next-line no-empty-pattern
   logger: async ({}, use, workerInfo) => {
     const logger = createLogger({
       serviceName: "rpx-xui-e2e-tests",
@@ -19,6 +20,7 @@ export const test = base.extend<Fixtures>({
     });
     await use(logger);
   },
+  // eslint-disable-next-line no-empty-pattern
   capturedApiCalls: async ({}, use) => {
     const calls: ApiLogEntry[] = [];
     await use(calls);
