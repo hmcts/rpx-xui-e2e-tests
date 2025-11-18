@@ -1,0 +1,57 @@
+{
+  "name": "rpx-xui-e2e-tests",
+  "version": "0.1.0",
+  "description": "Playwright smoke/regression tests for RPX Expert UI",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.9.0"
+  },
+  "packageManager": "yarn@4.11.0",
+  "scripts": {
+    "prepare": "husky install",
+    "postinstall": "playwright install",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist",
+    "lint": "eslint \"{config,fixtures,page-objects,tests,utils}/**/*.ts\" --max-warnings=0",
+    "lint:fix": "eslint \"{config,fixtures,page-objects,tests,utils}/**/*.ts\" --max-warnings=0 --fix",
+    "format": "prettier \"**/*.{ts,tsx,js,json,md,yml,yaml}\" --write",
+    "format:check": "prettier \"**/*.{ts,tsx,js,json,md,yml,yaml}\" --check",
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:headed": "PWDEBUG=1 playwright test --headed --project=chrome",
+    "test:ui": "playwright test --ui",
+    "verify": "yarn lint && yarn format:check && yarn test --reporter=list"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js}": "eslint --max-warnings=0",
+    "*.{json,md,yml,yaml}": "prettier --write"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.10.0",
+    "@hmcts/playwright-common": "^1.0.39",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.11.1",
+    "@playwright/test": "^1.56.1",
+    "@types/node": "^22.7.5",
+    "@typescript-eslint/eslint-plugin": "^8.8.0",
+    "@typescript-eslint/parser": "^8.8.0",
+    "eslint": "^9.11.1",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.30.0",
+    "eslint-plugin-playwright": "^2.0.0",
+    "globals": "^16.0.0",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "playwright": "^1.56.1",
+    "playwright-core": "^1.56.1",
+    "prettier": "^3.3.3",
+    "ts-node": "^10.9.2",
+    "tslib": "^2.7.0",
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.8.0"
+  }
+}

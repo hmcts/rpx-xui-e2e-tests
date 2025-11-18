@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "allowJs": false,
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "useDefineForClassFields": false,
+    "noEmit": true,
+    "types": ["node", "@playwright/test"],
+    "baseUrl": "."
+  },
+  "include": [
+    "playwright.config.ts",
+    "config/**/*.ts",
+    "fixtures/**/*.ts",
+    "page-objects/**/*.ts",
+    "tests/**/*.ts",
+    "utils/**/*.ts"
+  ]
+}
