@@ -33,6 +33,10 @@ Reusing or adapting this folder provides a shortcut to Phase 2 (page-object stru
 5. **Create case (from `playwright_tests_new`)** – adopt the POM flow and wire into this repo.
 6. **Extended regression (test-case, new-url, support)** – after smoke parity, refactor remaining suites to fixtures/POM.
 
+> **Note**: Set `STAFF_SEARCH_ENABLED=false` in `.env` when running against environments that do not expose the Staff UI (e.g., local Manage Case builds without the staff feature). The suite is skipped automatically when this flag is false.
+
+> **Data reminder**: Global search uses hard-coded case references (`1746778909032144` for AAT, `1662020492250902` for Demo). Update these IDs if the upstream data refresh changes them.
+
 For each migrated suite:
 - Port/clean selectors into the new `page-objects/` structure (components → pages).
 - Replace direct `page` calls with actions/fixtures to keep tests declarative.
