@@ -85,6 +85,8 @@ This document outlines the steps to rebuild `rpx-xui-e2e-tests` from scratch usi
 - Upload Playwright HTML + traces to build artifacts; optionally push JUnit to Azure DevOps / Jenkins Test Results.
 - Add GitHub Actions lint/test job for faster feedback (optional).
 
+> **Update**: `Jenkinsfile_CNP`, `Jenkinsfile_nightly`, and `.github/workflows/ci.yml` are in place. Jenkins currently runs lint + Chromium smoke, while GitHub Actions runs lint plus the public health-check spec. BrowserStack/Edge/perf/a11y stages will follow once those suites land in CI safely.
+
 ## Phase 7 – Test Migration Strategy
 1. **Inventory** the specs under `rpx-xui-webapp/playwright_tests` and `playwright_tests_new`. Categorise by domain (work allocation, staff UI, accessibility).
 2. **Prioritise** scenarios: start with smoke + user journeys critical for releases, then regression.
@@ -121,14 +123,14 @@ Once the above phases are completed the RPX team will have a standalone, support
 | 0. Discovery & Governance | ✅ Completed | Priorities + browser list agreed (desktop Chromium/Chrome/Edge/Firefox/WebKit) and repo ownership clarified. |
 | 1. Bootstrap | ✅ Completed | Yarn/Node toolchain, lint/format/test scripts, Playwright config and README landed. |
 | 2. Core Architecture | 🟡 In progress | Base folder structure + health smoke spec exist; page objects and tagging matrix still to flesh out. |
-| 3. Configuration & Secrets | ✅ Completed | `.env.example`, strict loader in `config/environment.ts`, env docs added. |
+| 3. Configuration & Secrets | ✅ Completed | Layered config manager (`config/baseConfig.json` + `envConfig.json`) + Zod validation keep defaults + env overrides aligned. |
 | 4. Shared Utilities | 🟡 In progress | `fixtures/baseTest.ts` wires logger/API client; still need login/data fixtures. |
-| 5. Extended Capabilities | ⚪ Not started | Accessibility/perf/wiremock/Docker support pending. |
-| 6. CI/CD & Reporting | ⚪ Not started | Jenkins/GitHub pipeline work outstanding. |
+| 5. Extended Capabilities | 🟡 In progress | Initial `tests/accessibility` (axe) + `tests/performance` (Lighthouse) suites added; need Wiremock/Docker + richer coverage. |
+| 6. CI/CD & Reporting | 🟡 In progress | Jenkinsfiles + GitHub Actions added; need Jenkins wiring + BrowserStack/Edge/a11y lanes. |
 | 7. Test Migration Strategy | 🟡 In progress | Inventory started in `docs/migration.md`; next step is to port high-value smoke flows. |
-| 8. Quality Gates & Governance | ⚪ Not started | Lint rules + DoD defined, but no Husky hooks/tests yet. |
+| 8. Quality Gates & Governance | 🟡 In progress | Husky pre-commit + doc updates landed; Vitest + expanded FAQ still pending. |
 
 **Immediate next steps**
 - Reuse the `playwright_tests_new` page objects from `rpx-xui-webapp` (or rebuild equivalent) and implement shared login/navigation helpers.
-- Prioritise migration of the legacy smoke specs listed in `docs/migration.md`, starting with Work Allocation, Staff Search, and Case Flags flows.
-- Plan CI/CD wiring (Jenkinsfile + nightly jobs) once the first migrated suite is stable.
+- Continue migrating the remaining legacy suites tracked in `docs/migration.md` (case list regression, URL propagation, support journeys) and tick them off as they land.
+- Hook the new Jenkins + GitHub Action jobs into the RPX environments and expand them with BrowserStack/Edge/accessibility/performance coverage once those suites stabilize.

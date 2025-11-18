@@ -20,9 +20,14 @@
     "format:check": "prettier \"**/*.{ts,tsx,js,json,md,yml,yaml}\" --check",
     "test": "playwright test",
     "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test tests/regression --grep @regression",
+    "test:a11y": "playwright test tests/accessibility --grep @a11y",
+    "test:perf": "playwright test tests/performance --grep @performance --project=chromium",
     "test:headed": "PWDEBUG=1 playwright test --headed --project=chrome",
     "test:ui": "playwright test --ui",
-    "verify": "yarn lint && yarn format:check && yarn test --reporter=list"
+    "verify": "yarn lint && yarn format:check && yarn test --reporter=list",
+    "scan:secrets": "node scripts/secret-scan.js",
+    "auth:generate-storage": "USE_STORAGE_STATE=1 node --loader ts-node/esm scripts/generate-storage-state.ts"
   },
   "lint-staged": {
     "*.{ts,tsx,js}": "eslint --max-warnings=0",
@@ -32,7 +37,8 @@
     "@axe-core/playwright": "^4.10.0",
     "@hmcts/playwright-common": "^1.0.39",
     "dotenv": "^16.4.5",
-    "get-port": "^7.1.0"
+    "get-port": "^7.1.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",

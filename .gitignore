@@ -11,6 +11,7 @@ pnpm-debug.log*
 playwright-report/
 test-results/
 playwright/.cache/
+storage/
 
 # Env & secrets
 .env

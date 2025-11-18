@@ -42,10 +42,10 @@ export async function completeServiceOfApplication({
   let serviceValue: string | undefined;
   for (let attempt = 0; attempt < 60; attempt += 1) {
     serviceValue = await nextStepSelect.evaluate((select) => {
-      const match = Array.from(select.options).find((option) =>
-        /Service of application/i.test(option.textContent ?? ""),
-      );
-      return match?.value ?? undefined;
+      const el = select as HTMLSelectElement;
+      const options = Array.from(el.options ?? []);
+      const match = options.find((option) => /Service of application/i.test(option.textContent ?? option.label ?? ""));
+      return match?.value;
     });
     if (serviceValue) {
       break;

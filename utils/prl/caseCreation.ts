@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { prlConfig } from "./config";
+import { prlConfig } from "../../config";
 
 const JSON_HEADERS = {
   Accept:

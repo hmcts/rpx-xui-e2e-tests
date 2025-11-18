@@ -1,0 +1,23 @@
+{
+  "defaultEnv": "aat",
+  "environments": {
+    "local": {
+      "app": {
+        "baseUrl": "http://localhost:3000",
+        "apiBaseUrl": "http://localhost:3000"
+      },
+      "features": {
+        "staffSearchEnabled": false
+      }
+    },
+    "aat": {
+      "app": {
+        "baseUrl": "https://manage-case.aat.platform.hmcts.net",
+        "apiBaseUrl": "https://manage-case.aat.platform.hmcts.net"
+      },
+      "reporting": {
+        "junitOutput": "test-results/junit/aat/results.xml"
+      }
+    }
+  }
+}

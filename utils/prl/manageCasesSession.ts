@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-import { prlConfig } from "./config";
+import { prlConfig } from "../../config";
 import { createDummySolicitorCase } from "./caseCreation";
 
 export class PrlManageCasesSession {
@@ -114,9 +114,14 @@ export class PrlManageCasesSession {
         })
         .first();
       if (await allCasesSelect.count()) {
-        await allCasesSelect
-          .selectOption({ label: /All cases/i })
-          .catch(() => {});
+        await allCasesSelect.evaluate((select) => {
+          const el = select as HTMLSelectElement;
+            const match = Array.from(el.options).find(o => /All cases/i.test(o.label || o.textContent || ""));
+            if (match) {
+              el.value = match.value;
+            }
+        });
+        await allCasesSelect.dispatchEvent('change');
       }
     }
 
@@ -181,7 +186,8 @@ export class PrlManageCasesSession {
     return await select.evaluate(
       (element, label) => {
         const target = label.toLowerCase();
-        return Array.from(element.options).some((option) =>
+        const el = element as HTMLSelectElement;
+        return Array.from(el.options ?? []).some((option) =>
           (option.textContent ?? "").toLowerCase().includes(target),
         );
       },

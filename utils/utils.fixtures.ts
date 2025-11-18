@@ -12,7 +12,7 @@ import {
 import os from "os";
 import path from "path";
 import { chromium, Page } from "playwright/test";
-import { config, Config } from "./config.utils.ts";
+import { config, Config } from "@utils/config.utils.ts";
 import { CookieUtils } from "./cookie.utils.ts";
 import { ValidatorUtils } from "./validator.utils.ts";
 import { UserUtils } from "./user.utils.ts";
@@ -74,26 +74,32 @@ export const utilsFixtures = {
   localeUtils: async ({ page }, use) => {
     await use(new LocaleUtils(page));
   },
-  lighthousePage: async (
-    { lighthousePort, page, SessionUtils },
-    use,
-    testInfo
-  ) => {
+  lighthousePage: async ({ lighthousePort, page, SessionUtils, config }, use, testInfo) => {
     // Prevent creating performance page if not needed
     if (testInfo.tags.includes("@performance")) {
+      const sessionFile = config.users.caseManager.sessionFile;
+      const cookieName = config.users.caseManager.cookieName ?? "xui-webapp";
+      if (!SessionUtils.isSessionValid(sessionFile, cookieName)) {
+        console.warn(
+          `[lighthouse] Session file "${sessionFile}" missing or expired; falling back to primary browser context.`
+        );
+        await use(page);
+        return;
+      }
       // Lighthouse opens a new page and as playwright doesn't share context we need to
       // explicitly create a new browser with shared context
       const userDataDir = path.join(os.tmpdir(), "pw", String(Math.random()));
       const context = await chromium.launchPersistentContext(userDataDir, {
         args: [`--remote-debugging-port=${lighthousePort}`],
       });
-      // Using the cookies from global setup, inject to the new browser
-      await context.addCookies(
-        SessionUtils.getCookies(config.users.caseManager.sessionFile)
-      );
-      // Provide the page to the test
-      await use(context.pages()[0]);
-      await context.close();
+      try {
+        // Using the cookies from global setup, inject to the new browser
+        await context.addCookies(SessionUtils.getCookies(sessionFile));
+        // Provide the page to the test
+        await use(context.pages()[0]);
+      } finally {
+        await context.close();
+      }
     } else {
       await use(page);
     }

@@ -1,4 +1,4 @@
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, type ReporterDescription } from "@playwright/test";
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
 
@@ -7,13 +7,13 @@ loadEnv({ path: envFile, override: true });
 
 const junitOutput = process.env.PLAYWRIGHT_JUNIT_OUTPUT ?? "test-results/junit/results.xml";
 const defaultReporter = process.env.PLAYWRIGHT_DEFAULT_REPORTER ?? (process.env.CI ? "dot" : "list");
-const configuredReporters = (process.env.PLAYWRIGHT_REPORTERS ?? "")
+const configuredReporters: ReporterDescription[] = (process.env.PLAYWRIGHT_REPORTERS ?? "")
   .split(",")
   .map((entry) => entry.trim())
   .filter(Boolean)
-  .map((name) => [name] as [string, Record<string, unknown>?]);
+  .map((name) => [name] as ReporterDescription);
 
-const reporters: [string, Record<string, unknown>?][] = [];
+const reporters: ReporterDescription[] = [];
 
 if (configuredReporters.length > 0) {
   reporters.push(...configuredReporters);
@@ -45,12 +45,11 @@ export default defineConfig({
     extraHTTPHeaders: {
       "x-test-run-id": process.env.TEST_RUN_ID ?? `local-${Date.now()}`,
     },
+    storageState: process.env.USE_STORAGE_STATE === "1" ? path.resolve(process.cwd(), "storage/caseManager.json") : undefined,
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chromium"] } },
-    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } },
-    { name: "msedge", use: { ...devices["Desktop Edge"], channel: "msedge" } },
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "chromium", use: { ...devices["Desktop Chromium"], storageState: process.env.USE_STORAGE_STATE === "1" ? path.resolve(process.cwd(), "storage/caseManager.json") : undefined } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"], storageState: process.env.USE_STORAGE_STATE === "1" ? path.resolve(process.cwd(), "storage/judge.json") : undefined } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],
   metadata: {

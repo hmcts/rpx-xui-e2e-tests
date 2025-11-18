@@ -1,0 +1,7 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "Running pre-commit checks (secrets + lint + formatting)..."
+yarn scan:secrets
+yarn lint
+yarn format:check

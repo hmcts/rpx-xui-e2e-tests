@@ -1,0 +1,25 @@
+{
+  "app": {
+    "baseUrl": "http://localhost:3333",
+    "apiBaseUrl": "http://localhost:3333",
+    "healthEndpoint": "/health"
+  },
+  "idam": {
+    "webUrl": "https://idam-web-public.aat.platform.hmcts.net",
+    "testingSupportUrl": "https://idam-testing-support-api.aat.platform.hmcts.net",
+    "clientId": "xuiwebapp",
+    "returnPath": "/oauth2/callback"
+  },
+  "s2s": {
+    "url": "http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease",
+    "microservice": "xui_webapp"
+  },
+  "features": {
+    "staffSearchEnabled": true,
+    "caseFlagsEnabled": false
+  },
+  "reporting": {
+    "junitOutput": "test-results/junit/results.xml",
+    "htmlOutput": "playwright-report"
+  }
+}

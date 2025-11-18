@@ -1,6 +1,6 @@
 import { Page } from "@playwright/test";
 
-import config from "../../../utils/config.utils.ts";
+import { config } from "@utils/config.utils.ts";
 import { Base } from "../../base.ts";
 
 export class CaseListPage extends Base {

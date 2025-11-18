@@ -1,7 +1,7 @@
 import { test } from "../../../fixtures/test";
 import { PrlCaseTabsPage } from "../../../page-objects/prl/manage-cases/caseTabs.page";
 import { createDummySolicitorCase } from "../../../utils/prl/caseCreation";
-import { prlConfig, validatePrlConfig } from "../../../utils/prl/config";
+import { prlConfig, validatePrlConfig } from "../../../config";
 import { PrlManageCasesSession } from "../../../utils/prl/manageCasesSession";
 
 test.describe("@prl @manage-cases Case tabs", () => {

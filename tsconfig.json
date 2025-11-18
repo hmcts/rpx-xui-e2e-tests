@@ -15,7 +15,13 @@
     "useDefineForClassFields": false,
     "noEmit": true,
     "types": ["node", "@playwright/test"],
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@config/*": ["config/*"],
+      "@pages/*": ["page-objects/*"],
+      "@utils/*": ["utils/*"],
+      "@fixtures/*": ["fixtures/*"]
+    }
   },
   "include": [
     "playwright.config.ts",

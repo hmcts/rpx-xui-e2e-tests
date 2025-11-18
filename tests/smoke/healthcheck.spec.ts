@@ -1,6 +1,6 @@
 import { expect } from "@playwright/test";
 
-import { environment } from "../../config/environment";
+import { environment } from "../../config";
 import { test } from "../../fixtures/baseTest";
 
 const buildHealthUrl = () => {

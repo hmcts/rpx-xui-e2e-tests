@@ -1,0 +1,85 @@
+#!groovy
+@Library("Infrastructure")
+
+def type = "nodejs"
+def product = "rpx"
+def component = "xui-e2e-tests"
+def channel = "#xui-pipeline"
+
+def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+
+static LinkedHashMap<String, Object> secret(String secretName, String envVar) {
+  [
+    $class     : 'AzureKeyVaultSecret',
+    secretType : 'Secret',
+    name       : secretName,
+    version    : '',
+    envVariable: envVar
+  ]
+}
+
+def secrets = [
+  'rpx-${env}': [
+    secret('mc-s2s-client-secret', 'S2S_SECRET'),
+    secret('mc-idam-client-secret', 'IDAM_SECRET'),
+  ]
+]
+
+withNightlyPipeline(type, product, component) {
+  enableSlackNotifications(channel)
+  loadVaultSecrets(secrets)
+
+  env.APP_BASE_URL = 'https://manage-case.aat.platform.hmcts.net'
+  env.APP_HEALTH_ENDPOINT = '/health'
+  env.APP_API_BASE_URL = env.APP_BASE_URL
+  env.IDAM_WEB_URL = 'https://idam-web-public.aat.platform.hmcts.net'
+  env.IDAM_TESTING_SUPPORT_URL = 'https://idam-testing-support-api.aat.platform.hmcts.net'
+  env.IDAM_CLIENT_ID = 'xuiwebapp'
+  env.IDAM_RETURN_URL = "${env.APP_BASE_URL}/oauth2/callback"
+  env.S2S_URL = 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease'
+  env.S2S_MICROSERVICE_NAME = 'xui_webapp'
+  // Legacy tests still obtain credentials from config/appTestConfig.js, but the environment
+  // loader enforces these keys, so populate them with placeholders until the new user flow lands.
+  env.CASEMANAGER_USERNAME = env.CASEMANAGER_USERNAME ?: 'not-used'
+  env.CASEMANAGER_PASSWORD = env.CASEMANAGER_PASSWORD ?: 'not-used'
+  env.JUDGE_USERNAME = env.JUDGE_USERNAME ?: 'not-used'
+  env.JUDGE_PASSWORD = env.JUDGE_PASSWORD ?: 'not-used'
+
+  afterAlways('DependencyCheckNightly') {
+    stage('Install dependencies') {
+      try {
+        yarnBuilder.yarn('install --immutable')
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      }
+    }
+
+    stage('Lint') {
+      try {
+        yarnBuilder.yarn('lint')
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      }
+    }
+
+    stage('Smoke tests - Chromium') {
+      env.PLAYWRIGHT_JUNIT_OUTPUT = 'test-results/junit/cnp-smoke.xml'
+      try {
+        yarnBuilder.yarn('test:smoke --project=chromium')
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      } finally {
+        publishHTML([
+          allowMissing         : true,
+          alwaysLinkToLastBuild: true,
+          keepAll              : true,
+          reportDir            : "playwright-report",
+          reportFiles          : 'index.html',
+          reportName           : 'Chromium smoke'
+        ])
+        junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
+        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'playwright-report/**'
+      }
+    }
+  }
+}

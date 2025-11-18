@@ -1,7 +1,7 @@
 import { ApiClient, createLogger, type ApiLogEntry } from "@hmcts/playwright-common";
 import { test as base } from "@playwright/test";
 
-import { environment } from "../config/environment";
+import { environment } from "../config";
 
 export interface Fixtures {
   logger: ReturnType<typeof createLogger>;

@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
-import { prlConfig } from "../../../utils/prl/config";
+import { prlConfig } from "../../../config";
 
 export class PrlCaseListPage {
   private readonly page: Page;

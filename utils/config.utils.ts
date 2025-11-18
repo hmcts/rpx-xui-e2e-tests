@@ -1,20 +1,12 @@
+// DEPRECATED: This module is a compatibility shim. Prefer importing from `@config`.
+// It adapts the new centralized config (`config/index.ts`) to the legacy shape expected
+// by older page objects and utilities. Once all imports migrate, this file can be removed.
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-
-import dotenv from "dotenv";
-
-import { UserUtils } from "./user.utils.ts";
+import { environment, prlConfig } from "../config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sessionPath = path.resolve(__dirname, "../../.sessions/");
-
-// This needs to be placed somewhere before attempting to access any environment variables
-dotenv.config();
-
-// This should be removed when we move to API based user creation
-const userUtils = new UserUtils();
-const caseManager = userUtils.getUserCredentials("IAC_CaseOfficer_R1");
-const judge = userUtils.getUserCredentials("IAC_Judge_WA_R1");
 
 export interface UserCredentials {
   username: string;
@@ -36,44 +28,41 @@ export interface Config {
   users: {
     caseManager: UserCredentials;
     judge: UserCredentials;
+    solicitor?: { username?: string; password?: string };
   };
   urls: Urls;
+  prl: typeof prlConfig;
+  environment: typeof environment;
 }
 
 export const config: Config = {
   users: {
     caseManager: {
-      username: caseManager.email,
-      password: caseManager.password,
-      sessionFile:
-        sessionPath + `${caseManager.email}.json`,
+      username: environment.caseManager.username,
+      password: environment.caseManager.password,
+      sessionFile: path.join(sessionPath, `${environment.caseManager.username}.json`),
       cookieName: "xui-webapp",
     },
     judge: {
-      username: judge.email,
-      password: judge.password,
-      sessionFile:
-        sessionPath + `${judge.email}.json`,
+      username: environment.judge.username,
+      password: environment.judge.password,
+      sessionFile: path.join(sessionPath, `${environment.judge.username}.json`),
       cookieName: "xui-webapp",
+    },
+    solicitor: {
+      username: prlConfig.solicitor.username,
+      password: prlConfig.solicitor.password,
     },
   },
   urls: {
-    exuiDefaultUrl: "https://manage-case.aat.platform.hmcts.net",
-    manageCaseBaseUrl:
-      process.env.MANAGE_CASES_BASE_URL ??
-      "https://manage-case.aat.platform.hmcts.net/cases",
-    citizenUrl:
-      process.env.CITIZEN_FRONTEND_BASE_URL ??
-      "https://privatelaw.aat.platform.hmcts.net/",
-    idamWebUrl:
-      process.env.IDAM_WEB_URL ??
-      "https://idam-web-public.aat.platform.hmcts.net",
-    idamTestingSupportUrl:
-      process.env.IDAM_TESTING_SUPPORT_URL ??
-      "https://idam-testing-support-api.aat.platform.hmcts.net",
-    serviceAuthUrl:
-      process.env.S2S_URL ??
-      "http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease",
+    exuiDefaultUrl: environment.appBaseUrl,
+    manageCaseBaseUrl: `${environment.appBaseUrl}/cases`,
+    citizenUrl: process.env.CITIZEN_FRONTEND_BASE_URL ?? "https://privatelaw.aat.platform.hmcts.net/",
+    idamWebUrl: environment.idamWebUrl,
+    idamTestingSupportUrl: environment.idamTestingSupportUrl,
+    serviceAuthUrl: environment.s2sUrl,
   },
+  prl: prlConfig,
+  environment,
 };
 export default config;
