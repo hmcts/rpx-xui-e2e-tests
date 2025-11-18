@@ -36,6 +36,8 @@ Reusing or adapting this folder provides a shortcut to Phase 2 (page-object stru
 > **Note**: Set `STAFF_SEARCH_ENABLED=false` in `.env` when running against environments that do not expose the Staff UI (e.g., local Manage Case builds without the staff feature). The suite is skipped automatically when this flag is false.
 
 > **Data reminder**: Global search uses hard-coded case references (`1746778909032144` for AAT, `1662020492250902` for Demo). Update these IDs if the upstream data refresh changes them.
+>
+> **Case flags setup**: The case flags smoke test expects `CASE_FLAGS_CASE_ID` to point to a CCD case with active flags visible to `USER_WITH_FLAGS`. Adjust the environment variable if data refreshes and set `CASE_FLAGS_ENABLED=true` only in environments where that data exists.
 
 For each migrated suite:
 - Port/clean selectors into the new `page-objects/` structure (components → pages).
@@ -43,3 +45,7 @@ For each migrated suite:
 - Capture ENV/dependency needs (e.g., test data case references) and document under `docs/data-strategy.md` (to be created).
 
 Maintaining this tracker as suites are moved will provide transparency on what remains in the legacy repo.
+
+## PRL Playwright Migration
+
+See `docs/prl-migration.md` for the dedicated PRL inventory and migration plan. The high-level approach mirrors the RPX phases: reuse the existing PRL page objects/journeys, adopt the Playwright Skeleton structure, and port smoke suites (Manage Cases + Citizen) before tackling broader regression coverage.

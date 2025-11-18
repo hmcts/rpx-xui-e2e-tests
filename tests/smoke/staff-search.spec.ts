@@ -8,10 +8,14 @@ const DEFAULT_SEARCH_TERM = "xui";
 
 const STAFF_URL_TEXT = "User list";
 
-const staffSearchEnabled = process.env.STAFF_SEARCH_ENABLED !== "false";
+const staffSearchEnabled =
+  process.env.STAFF_SEARCH_ENABLED === undefined ||
+  process.env.STAFF_SEARCH_ENABLED === "true";
 
-const describeOrSkip = staffSearchEnabled ? test.describe : test.describe.skip;
-describeOrSkip("@smoke @staff Staff search", () => {
+test.describe("@smoke @staff Staff search", () => {
+  // eslint-disable-next-line playwright/no-skipped-test
+  test.skip(!staffSearchEnabled, "Staff search disabled for this environment");
+
   test.beforeEach(async ({ loginAs }) => {
     await loginAs(STAFF_ADMIN);
   });

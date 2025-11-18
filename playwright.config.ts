@@ -41,7 +41,7 @@ export default defineConfig({
     baseURL: baseUrl,
     trace: "on-first-retry",
     video: videoMode as "retain-on-failure" | "off" | "on" | "on-first-retry",
-    screenshot: "only-on-failure",
+    screenshot: { mode: "only-on-failure", fullPage: true },
     extraHTTPHeaders: {
       "x-test-run-id": process.env.TEST_RUN_ID ?? `local-${Date.now()}`,
     },
