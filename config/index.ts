@@ -1,4 +1,6 @@
+import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { config as loadEnv } from "dotenv";
 import { z } from "zod";
@@ -8,10 +10,14 @@ import {
   applyFeatureToggles,
   layeredConfig,
   resolveReporterPaths,
-} from "./configManager";
+} from "./configManager.ts";
 
 // Load .env early (mirrors previous environment.ts behavior)
-const envFile = process.env.DOTENV_PATH ?? path.resolve(process.cwd(), ".env");
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const cwdEnvPath = path.resolve(process.cwd(), ".env");
+const repoEnvPath = path.resolve(moduleDir, "..", ".env");
+const envFile = process.env.DOTENV_PATH ?? (fs.existsSync(cwdEnvPath) ? cwdEnvPath : repoEnvPath);
+
 loadEnv({ path: envFile, override: true });
 applyFeatureToggles();
 resolveReporterPaths();
@@ -41,22 +47,28 @@ const EnvSchema = z.object({
 // Parse & surface aggregated errors (fail fast like legacy requireEnv logic)
 const parsed = EnvSchema.safeParse(process.env);
 if (!parsed.success) {
-  const formatted = parsed.error.errors
-    .map((e) => `${e.path.join('.')}: ${e.message}`)
-    .join("\n");
+  const formatted = parsed.error.errors.map((e) => `${e.path.join(".")}: ${e.message}`).join("\n");
   throw new Error(`Missing or invalid required environment variables:\n${formatted}`);
 }
 
 const env = parsed.data;
 
 const resolvedAppBaseUrl = (env.APP_BASE_URL ?? layeredConfig.app.baseUrl).replace(/\/$/, "");
-const resolvedApiBaseUrl = (env.APP_API_BASE_URL ?? layeredConfig.app.apiBaseUrl).replace(/\/$/, "");
-const resolvedHealthEndpoint = (env.APP_HEALTH_ENDPOINT ?? layeredConfig.app.healthEndpoint).startsWith("/")
-  ? env.APP_HEALTH_ENDPOINT ?? layeredConfig.app.healthEndpoint
+const resolvedApiBaseUrl = (env.APP_API_BASE_URL ?? layeredConfig.app.apiBaseUrl).replace(
+  /\/$/,
+  "",
+);
+const resolvedHealthEndpoint = (
+  env.APP_HEALTH_ENDPOINT ?? layeredConfig.app.healthEndpoint
+).startsWith("/")
+  ? (env.APP_HEALTH_ENDPOINT ?? layeredConfig.app.healthEndpoint)
   : `/${env.APP_HEALTH_ENDPOINT ?? layeredConfig.app.healthEndpoint}`;
 
 // ServiceConfig mirrors previous environment.ts shape for backward compatibility
-export interface UserCredentials { username: string; password: string; }
+export interface UserCredentials {
+  username: string;
+  password: string;
+}
 export interface ServiceConfig {
   appBaseUrl: string;
   appHealthEndpoint: string;

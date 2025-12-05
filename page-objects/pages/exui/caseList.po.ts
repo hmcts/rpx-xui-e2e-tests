@@ -5,9 +5,9 @@ import { Base } from "../../base.ts";
 
 export class CaseListPage extends Base {
   readonly container = this.page.locator("exui-case-home");
-  readonly jurisdictionSelect = this.page.locator("#wb-jurisdiction")
-  readonly caseTypeSelect = this.page.locator("#wb-case-type")
-  readonly textField0Input = this.page.locator("#TextField0")
+  readonly jurisdictionSelect = this.page.locator("#wb-jurisdiction");
+  readonly caseTypeSelect = this.page.locator("#wb-case-type");
+  readonly textField0Input = this.page.locator("#TextField0");
 
   constructor(page: Page) {
     super(page);

@@ -18,11 +18,16 @@ interface AuthFixtureDependencies {
 export const authFixtures = {
   async loginAs(
     { idamPage, page, userUtils, config }: AuthFixtureDependencies,
-    use: (fn: AuthFixtures["loginAs"]) => Promise<void>
+    use: (fn: AuthFixtures["loginAs"]) => Promise<void>,
   ): Promise<void> {
     await use(async (userIdentifier: string) => {
       const { email, password } = userUtils.getUserCredentials(userIdentifier);
       await page.goto(config.urls.manageCaseBaseUrl);
+      // Accept analytics/essential cookies banner on the IdAM login page if present
+      const acceptCookies = page.getByRole("button", { name: /Accept additional cookies/i });
+      if (await acceptCookies.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        await acceptCookies.click();
+      }
       await idamPage.login({ username: email, password });
     });
   },

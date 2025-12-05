@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 type PlainObject = Record<string, unknown>;
 
@@ -35,8 +36,9 @@ interface EnvironmentConfigFile {
   environments?: Record<string, Partial<LayeredConfig>>;
 }
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const readJson = <T>(relativePath: string): T => {
-  const filePath = path.resolve(process.cwd(), "config", relativePath);
+  const filePath = path.resolve(__dirname, relativePath);
   const contents = fs.readFileSync(filePath, "utf-8");
   return JSON.parse(contents) as T;
 };
@@ -59,7 +61,7 @@ const mergeObjects = <T extends PlainObject>(base: T, override?: Partial<T>): T 
     ) {
       result[key] = mergeObjects(
         result[key] as PlainObject,
-        overrideValue as PlainObject
+        overrideValue as PlainObject,
       ) as T[keyof T];
       return;
     }
@@ -75,10 +77,7 @@ const baseConfig = readJson<LayeredConfig>("baseConfig.json");
 const envConfigFile = readJson<EnvironmentConfigFile>("envConfig.json");
 
 const activeEnv =
-  process.env.TEST_ENV ??
-  process.env.TEST_ENVIRONMENT ??
-  envConfigFile.defaultEnv ??
-  "local";
+  process.env.TEST_ENV ?? process.env.TEST_ENVIRONMENT ?? envConfigFile.defaultEnv ?? "local";
 
 const envOverride = envConfigFile.environments?.[activeEnv];
 export const layeredConfig: LayeredConfig = mergeObjects(baseConfig, envOverride);

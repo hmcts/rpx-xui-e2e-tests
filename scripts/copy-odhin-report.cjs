@@ -1,0 +1,213 @@
+#!/usr/bin/env node
+/**
+ * Copies the Odhin report into a publishable folder and injects API coverage.
+ * Inspired by rpx-xui-webapp/scripts/copy-odhin-report.js.
+ *
+ * Sources:
+ *  - Odhin: $PW_ODHIN_OUTPUT (defaults to test-results/odhin-report)
+ *  - Coverage: coverage/api (lcov-report + coverage-summary.json)
+ *
+ * Behaviour:
+ *  - If the Odhin folder is missing, exit quietly.
+ *  - Copies coverage into <odhin>/coverage
+ *  - Renames coverage index to api-coverage-report.html
+ *  - Injects a dashboard coverage block + a Coverage tab iframe pointing at the copied report
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const odhinRoot = path.resolve(process.env.PW_ODHIN_OUTPUT ?? "test-results/odhin-report");
+const coverageRoot = path.resolve(process.env.COVERAGE_INPUT ?? "coverage/api");
+const coverageTarget = path.join(odhinRoot, "coverage");
+
+try {
+  if (!fs.existsSync(odhinRoot)) {
+    console.warn("copy-odhin-report: odhin folder not found, skipping");
+    process.exit(0);
+  }
+
+  if (fs.existsSync(coverageRoot)) {
+    fs.rmSync(coverageTarget, { recursive: true, force: true });
+    fs.mkdirSync(coverageTarget, { recursive: true });
+    fs.cpSync(coverageRoot, coverageTarget, { recursive: true, force: true });
+
+    const coverageIndex = renameCoverageIndex(findCoverageIndex(coverageTarget));
+    const summary = loadCoverageSummary(coverageTarget);
+    if (coverageIndex) {
+      injectCoverageLink(odhinRoot, path.relative(odhinRoot, coverageIndex), summary);
+      injectCoverageTab(odhinRoot, path.relative(odhinRoot, coverageIndex));
+    } else {
+      console.warn("copy-odhin-report: coverage index not found; skipping coverage injection");
+    }
+  } else {
+    console.warn("copy-odhin-report: coverage folder not found, skipping coverage injection");
+  }
+} catch (error) {
+  console.warn(`copy-odhin-report: ${error.message}`);
+  process.exit(0); // best-effort
+}
+
+function findCoverageIndex(rootDir) {
+  const preferred = path.join(rootDir, "index.html");
+  if (fs.existsSync(preferred)) {
+    return preferred;
+  }
+  const lcovIndex = path.join(rootDir, "lcov-report", "index.html");
+  if (fs.existsSync(lcovIndex)) {
+    return lcovIndex;
+  }
+  return undefined;
+}
+
+function renameCoverageIndex(indexPath) {
+  if (!indexPath) return undefined;
+  const newPath = path.join(path.dirname(indexPath), "api-coverage-report.html");
+  try {
+    fs.renameSync(indexPath, newPath);
+    return newPath;
+  } catch {
+    return indexPath;
+  }
+}
+
+function loadCoverageSummary(rootDir) {
+  const summaryPath = path.join(rootDir, "coverage-summary.json");
+  if (!fs.existsSync(summaryPath)) {
+    return undefined;
+  }
+  try {
+    const json = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
+    return json?.total;
+  } catch (err) {
+    console.warn(`copy-odhin-report: unable to parse coverage summary: ${err.message}`);
+    return undefined;
+  }
+}
+
+function injectCoverageLink(reportFolder, relativeCoveragePath, totals) {
+  const files = fs.readdirSync(reportFolder).filter((f) => f.toLowerCase().endsWith(".html"));
+  const rows = totals
+    ? [
+        ["Lines", totals.lines],
+        ["Functions", totals.functions],
+        ["Branches", totals.branches],
+        ["Statements", totals.statements],
+      ]
+        .map(([label, data]) => {
+          const pct = typeof data?.pct === "number" ? data.pct.toFixed(2) : "n/a";
+          const covered = data?.covered ?? 0;
+          const total = data?.total ?? 0;
+          return `<tr>
+      <td class="fs-6 text-secondary-emphasis text-start summary-row-left-column">${label}</td>
+      <td class="text-secondary-emphasis">${pct}%</td>
+      <td class="text-secondary-emphasis">${covered}</td>
+      <td class="text-secondary-emphasis">${total}</td>
+    </tr>`;
+        })
+        .join("\n")
+    : "";
+
+  const block = `
+          <div class="row ms-3 me-3">
+            <div class="col-12">
+              <div class="mt-3 mb-3 odhin-thin-border dashboard-block">
+                <div class="info-box-header">Coverage</div>
+                <p class="text-secondary-emphasis small mb-2 ps-2">
+                  Source: ${relativeCoveragePath}. Metrics read from coverage-summary.json.
+                </p>
+                <div class="odhin-table">
+                  <div class="table-responsive">
+                    <table class="table table-sm mb-0 testcase-run-info-table">
+                      <thead>
+                        <tr>
+                          <th class="odhin-text-3">Metric</th>
+                          <th class="odhin-text-3">Percent</th>
+                          <th class="odhin-text-3">Covered</th>
+                          <th class="odhin-text-3">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${rows || '<tr><td colspan="4" class="text-secondary-emphasis">Summary unavailable</td></tr>'}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>`;
+  files.forEach((file) => {
+    const fullPath = path.join(reportFolder, file);
+    try {
+      let html = fs.readFileSync(fullPath, "utf8");
+      if (!html.includes('id="TabDashboard"')) {
+        return;
+      }
+      html = html.replace(
+        /<div class="row ms-3 me-3">\s*<div class="col-12[^>]*>\s*<div class="mt-3 mb-3 odhin-thin-border dashboard-block">\s*<div class="info-box-header">Coverage[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*<\/div>/m,
+        "",
+      );
+
+      const tabDashPattern =
+        /(<div[^>]+id="TabDashboard"[\s\S]*?)(<\/div>\s*<div[^>]+id="TabTests")/m;
+      if (tabDashPattern.test(html)) {
+        html = html.replace(
+          tabDashPattern,
+          (_m, before, after) => `${before}\n${block}\n</div>\n${after}`,
+        );
+      }
+      fs.writeFileSync(fullPath, html, "utf8");
+    } catch {
+      // ignore
+    }
+  });
+}
+
+function injectCoverageTab(reportFolder, relativeCoveragePath) {
+  const files = fs.readdirSync(reportFolder).filter((f) => f.toLowerCase().endsWith(".html"));
+  const tabButton = `
+\t\t\t\t\t\t<button
+\t\t\t\t\t\t\tclass="main-tablinks"
+\t\t\t\t\t\t\tonclick="openMainTab(event, 'TabCoverage')"
+\t\t\t\t\t\t>
+\t\t\t\t\t\t\tCoverage
+\t\t\t\t\t\t</button>`;
+  const tabPane = `
+<div id="TabCoverage" style="display: none" class="main-tabcontent">
+  <div class="container-fluid text-center mt-3 mb-5">
+    <div class="row ms-3 me-3">
+      <div class="col-12">
+        <div class="mt-3 mb-3 odhin-thin-border dashboard-block">
+          <div class="info-box-header">Coverage report</div>
+          <p class="text-secondary-emphasis small mb-3 ps-2">
+            Source: ${relativeCoveragePath}.
+          </p>
+          <div class="odhin-table-no-scroll">
+            <div class="table-responsive">
+              <iframe src="${relativeCoveragePath}" style="width:100%;min-height:900px;border:0;"></iframe>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+
+  files.forEach((file) => {
+    const fullPath = path.join(reportFolder, file);
+    try {
+      let html = fs.readFileSync(fullPath, "utf8");
+      if (html.includes('id="TabCoverage"')) {
+        return;
+      }
+      const tabBlock = /(<div class="tab">[\s\S]*?)(<\/div>\s*<\/div>\s*<\/div>\s*<\/div>)/m;
+      if (tabBlock.test(html)) {
+        html = html.replace(tabBlock, `$1${tabButton}$2`);
+      }
+      html = html.replace("</body>", `${tabPane}\n</body>`);
+      fs.writeFileSync(fullPath, html, "utf8");
+    } catch {
+      // ignore
+    }
+  });
+}

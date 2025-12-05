@@ -38,6 +38,8 @@ withNightlyPipeline(type, product, component) {
   env.IDAM_RETURN_URL = "${env.APP_BASE_URL}/oauth2/callback"
   env.S2S_URL = 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease'
   env.S2S_MICROSERVICE_NAME = 'xui_webapp'
+  env.PLAYWRIGHT_HTML = '1'
+  env.PLAYWRIGHT_JSON_OUTPUT = 'test-results/json/cnp-smoke.json'
   // Legacy tests still obtain credentials from config/appTestConfig.js, but the environment
   // loader enforces these keys, so populate them with placeholders until the new user flow lands.
   env.CASEMANAGER_USERNAME = env.CASEMANAGER_USERNAME ?: 'not-used'
@@ -69,6 +71,11 @@ withNightlyPipeline(type, product, component) {
       } catch (Error) {
         unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
       } finally {
+        try {
+          yarnBuilder.yarn('check:flake')
+        } catch (Error) {
+          unstable(message: "Flake budget exceeded: " + Error.toString())
+        }
         publishHTML([
           allowMissing         : true,
           alwaysLinkToLastBuild: true,

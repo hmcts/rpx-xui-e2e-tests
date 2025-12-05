@@ -19,6 +19,7 @@
     "format": "prettier \"**/*.{ts,tsx,js,json,md,yml,yaml}\" --write",
     "format:check": "prettier \"**/*.{ts,tsx,js,json,md,yml,yaml}\" --check",
     "test": "playwright test",
+    "test:api": "playwright test --project=api",
     "test:smoke": "playwright test --grep @smoke",
     "test:regression": "playwright test tests/regression --grep @regression",
     "test:a11y": "playwright test tests/accessibility --grep @a11y",
@@ -27,7 +28,9 @@
     "test:ui": "playwright test --ui",
     "verify": "yarn lint && yarn format:check && yarn test --reporter=list",
     "scan:secrets": "node scripts/secret-scan.js",
-    "auth:generate-storage": "USE_STORAGE_STATE=1 node --loader ts-node/esm scripts/generate-storage-state.ts"
+    "auth:generate-storage": "USE_STORAGE_STATE=1 node --loader ts-node/esm scripts/generate-storage-state.ts",
+    "check:flake": "node scripts/check-flake-budget.js",
+    "test:api:coverage": "PW_ODHIN_OUTPUT=${PW_ODHIN_OUTPUT:-test-results/odhin-report} PLAYWRIGHT_REPORTERS=dot,odhin PLAYWRIGHT_ODHIN=1 PW_ODHIN_START_SERVER=0 PLAYWRIGHT_HTML=0 PLAYWRIGHT_JSON_OUTPUT=test-results/json/api.json bash -c 'set -o pipefail; EXIT=0; c8 -o coverage/api --reporter=lcov --reporter=text-summary --reporter=json-summary playwright test --project=api --grep @api || EXIT=$?; mkdir -p '\"'\"'$PW_ODHIN_OUTPUT'\"'\"' && cp coverage/api/coverage-summary.json '\"'\"'$PW_ODHIN_OUTPUT'\"'\"'/coverage-summary.json || true; node scripts/copy-odhin-report.cjs || true; exit $EXIT'"
   },
   "lint-staged": {
     "*.{ts,tsx,js}": "eslint --max-warnings=0",
@@ -46,6 +49,7 @@
     "@types/node": "^22.7.5",
     "@typescript-eslint/eslint-plugin": "^8.8.0",
     "@typescript-eslint/parser": "^8.8.0",
+    "c8": "^9.1.0",
     "eslint": "^9.11.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.30.0",
@@ -53,6 +57,7 @@
     "globals": "^16.0.0",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
+    "odhin-reports-playwright": "1.1.8",
     "playwright": "^1.56.1",
     "playwright-core": "^1.56.1",
     "prettier": "^3.3.3",

@@ -19,9 +19,7 @@ export class PrlManageCasesSession {
   }
 
   async openCaseDetails(caseId: string): Promise<void> {
-    await this.page.goto(
-      `${prlConfig.manageCasesBaseUrl}/cases/case-details/${caseId}`,
-    );
+    await this.page.goto(`${prlConfig.manageCasesBaseUrl}/cases/case-details/${caseId}`);
     await this.page.waitForLoadState("domcontentloaded");
     const header = this.page.locator("ccd-case-header, exui-case-navigation");
     await expect(header.first()).toBeVisible({ timeout: 30_000 });
@@ -29,39 +27,27 @@ export class PrlManageCasesSession {
 
   async openFirstCase(): Promise<void> {
     await this.page.goto(`${prlConfig.manageCasesBaseUrl}/cases/case-list`);
-    await expect(
-      this.page.getByRole("heading", { name: /case list/i }),
-    ).toBeVisible();
-    const firstLink = this.page
-      .locator('a[aria-label^="go to case with Case reference:"]')
-      .first();
+    await expect(this.page.getByRole("heading", { name: /case list/i })).toBeVisible();
+    const firstLink = this.page.locator('a[aria-label^="go to case with Case reference:"]').first();
     await expect(firstLink).toBeVisible();
     const href = await firstLink.getAttribute("href");
     const ariaLabel = await firstLink.getAttribute("aria-label");
     const match =
-      href?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i) ||
-      ariaLabel?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i);
+      href?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i) || ariaLabel?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i);
     if (!match) {
       throw new Error("Unable to determine case reference from case list");
     }
     await this.openCaseDetails(match[1].replace(/-/g, ""));
   }
 
-  async findCaseWithEvent(
-    eventName: string,
-    maxCandidates = 10,
-  ): Promise<string> {
+  async findCaseWithEvent(eventName: string, maxCandidates = 10): Promise<string> {
     const listUrl = `${prlConfig.manageCasesBaseUrl}/cases/case-list`;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       await this.page.goto(listUrl);
       await this.page.waitForLoadState("domcontentloaded");
       await this.configureCaseListFilters();
-      await expect(
-        this.page.getByRole("heading", { name: /case list/i }),
-      ).toBeVisible();
-      const caseLinks = this.page.locator(
-        'a[aria-label^="go to case with Case reference:"]',
-      );
+      await expect(this.page.getByRole("heading", { name: /case list/i })).toBeVisible();
+      const caseLinks = this.page.locator('a[aria-label^="go to case with Case reference:"]');
       const total = await caseLinks.count();
       if (total === 0) {
         if (attempt === 2) {
@@ -89,9 +75,7 @@ export class PrlManageCasesSession {
       }
       await this.seedCaseList();
     }
-    throw new Error(
-      `Unable to find a case with Next step option matching "${eventName}"`,
-    );
+    throw new Error(`Unable to find a case with Next step option matching "${eventName}"`);
   }
 
   private async configureCaseListFilters(): Promise<void> {
@@ -101,9 +85,7 @@ export class PrlManageCasesSession {
       await this.waitForCaseListSpinner();
     }
 
-    const allCasesRadio = this.page
-      .getByRole("radio", { name: /all cases/i })
-      .first();
+    const allCasesRadio = this.page.getByRole("radio", { name: /all cases/i }).first();
     if (await allCasesRadio.count()) {
       await allCasesRadio.check({ force: true });
     } else {
@@ -116,12 +98,14 @@ export class PrlManageCasesSession {
       if (await allCasesSelect.count()) {
         await allCasesSelect.evaluate((select) => {
           const el = select as HTMLSelectElement;
-            const match = Array.from(el.options).find(o => /All cases/i.test(o.label || o.textContent || ""));
-            if (match) {
-              el.value = match.value;
-            }
+          const match = Array.from(el.options).find((o) =>
+            /All cases/i.test(o.label || o.textContent || ""),
+          );
+          if (match) {
+            el.value = match.value;
+          }
         });
-        await allCasesSelect.dispatchEvent('change');
+        await allCasesSelect.dispatchEvent("change");
       }
     }
 
@@ -163,8 +147,7 @@ export class PrlManageCasesSession {
     const href = await link.getAttribute("href");
     const ariaLabel = await link.getAttribute("aria-label");
     const match =
-      href?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i) ||
-      ariaLabel?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i);
+      href?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i) || ariaLabel?.match(/(\d{4}-\d{4}-\d{4}-\d{4})/i);
     if (!match) {
       return null;
     }
@@ -172,9 +155,7 @@ export class PrlManageCasesSession {
   }
 
   private async caseSupportsEvent(eventName: string): Promise<boolean> {
-    const select = this.page
-      .getByRole("combobox", { name: /next step/i })
-      .first();
+    const select = this.page.getByRole("combobox", { name: /next step/i }).first();
     if ((await select.count()) === 0) {
       return false;
     }
@@ -183,15 +164,12 @@ export class PrlManageCasesSession {
     } catch {
       return false;
     }
-    return await select.evaluate(
-      (element, label) => {
-        const target = label.toLowerCase();
-        const el = element as HTMLSelectElement;
-        return Array.from(el.options ?? []).some((option) =>
-          (option.textContent ?? "").toLowerCase().includes(target),
-        );
-      },
-      eventName.toLowerCase(),
-    );
+    return await select.evaluate((element, label) => {
+      const target = label.toLowerCase();
+      const el = element as HTMLSelectElement;
+      return Array.from(el.options ?? []).some((option) =>
+        (option.textContent ?? "").toLowerCase().includes(target),
+      );
+    }, eventName.toLowerCase());
   }
 }

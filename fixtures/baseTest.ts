@@ -14,6 +14,8 @@ export const test = base.extend<Fixtures>({
   logger: async ({}, use, workerInfo) => {
     const logger = createLogger({
       serviceName: "rpx-xui-e2e-tests",
+      // Pretty stdout by default; override with LOG_FORMAT env
+      format: process.env.LOG_FORMAT ?? (process.env.CI ? "json" : "pretty"),
       defaultMeta: {
         workerId: workerInfo.workerIndex,
       },

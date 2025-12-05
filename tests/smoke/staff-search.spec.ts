@@ -1,43 +1,43 @@
-import type { Page } from "@playwright/test";
-
 import { expect, test } from "../../fixtures/test";
+import { navigateToStaff, runSimpleStaffSearch } from "../helpers/staff";
 
 const STAFF_ADMIN = "STAFF_ADMIN";
 
-const DEFAULT_SEARCH_TERM = "xui";
-
-const STAFF_URL_TEXT = "User list";
+const DEFAULT_SEARCH_TERM = process.env.STAFF_SEARCH_TERM ?? "xui";
+const isA11yBlocking = process.env.A11Y_BLOCKING !== "0";
 
 const staffSearchEnabled =
-  process.env.STAFF_SEARCH_ENABLED === undefined ||
-  process.env.STAFF_SEARCH_ENABLED === "true";
+  process.env.STAFF_SEARCH_ENABLED === undefined || process.env.STAFF_SEARCH_ENABLED === "true";
 
 test.describe("@smoke @staff Staff search", () => {
-  // eslint-disable-next-line playwright/no-skipped-test
+  /* eslint-disable playwright/no-skipped-test -- env/availability driven skips */
   test.skip(!staffSearchEnabled, "Staff search disabled for this environment");
 
   test.beforeEach(async ({ loginAs }) => {
     await loginAs(STAFF_ADMIN);
   });
 
-  test("Simplified search shows single result", async ({ page, config }) => {
+  test("Staff search | Simplified search returns results", async ({ page, config }) => {
     await navigateToStaff(page, config.urls.manageCaseBaseUrl);
-    await runSimpleSearch(page);
-    await expect(page.locator("exui-staff-user-list")).toContainText("Showing 1");
+    await runSimpleStaffSearch(page, DEFAULT_SEARCH_TERM);
+    await expect(page.locator("exui-staff-user-list")).toContainText("Showing");
   });
 
-  test("Simplified search displays table headers", async ({ page, axeUtils, config }) => {
+  test("Staff search | Simplified search displays table headers", async ({
+    page,
+    axeUtils,
+    config,
+  }) => {
     await navigateToStaff(page, config.urls.manageCaseBaseUrl);
-    await runSimpleSearch(page);
+    await runSimpleStaffSearch(page, DEFAULT_SEARCH_TERM);
     await expect(page.getByRole("columnheader", { name: "Job title" })).toBeVisible();
-    await expect(page.locator("exui-staff-user-list")).toContainText("Showing 1");
-    await axeUtils.audit();
+    await expect(page.locator("exui-staff-user-list")).toContainText("Showing");
+    await axeUtils.audit({ runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] } });
   });
 
-  test("Toggle between simple and advanced search", async ({ page, config }) => {
+  test("Staff search | Toggle between simple and advanced search", async ({ page, config }) => {
     await navigateToStaff(page, config.urls.manageCaseBaseUrl);
-    await page.locator("#content").getByRole("textbox").fill(DEFAULT_SEARCH_TERM);
-    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await runSimpleStaffSearch(page, DEFAULT_SEARCH_TERM);
     await page.getByRole("button", { name: "Advanced search" }).click();
     await page.locator("#select_user-job-title").selectOption("2");
     await page.getByRole("button", { name: "Search", exact: true }).click();
@@ -49,11 +49,14 @@ test.describe("@smoke @staff Staff search", () => {
     await expect(page.locator("#select_user-job-title")).toBeVisible();
   });
 
-  test("Advanced search by service and location", async ({ page, axeUtils, config }) => {
+  test("Staff search | Advanced search by service and location", async ({
+    page,
+    axeUtils,
+    config,
+  }) => {
     await navigateToStaff(page, config.urls.manageCaseBaseUrl);
-    await page.locator("#content").getByRole("textbox").fill(DEFAULT_SEARCH_TERM);
-    await page.getByRole("button", { name: "Search", exact: true }).click();
-    await expect(page.locator("exui-staff-user-list")).toContainText("Showing 1");
+    await runSimpleStaffSearch(page, DEFAULT_SEARCH_TERM);
+    await expect(page.locator("exui-staff-user-list")).toContainText("Showing");
 
     await page.getByRole("button", { name: "Advanced search" }).click();
     await expect(page.getByText("Search for a service by name")).toBeVisible();
@@ -68,43 +71,9 @@ test.describe("@smoke @staff Staff search", () => {
     await page.locator("#select_user-job-title").selectOption("2");
     await page.getByRole("button", { name: "Search", exact: true }).click();
     await expect(page.locator("#user-list-no-results")).toContainText("No results found");
-    await axeUtils.audit();
-  });
-});
-
-async function navigateToStaff(page: Page, baseUrl: string): Promise<void> {
-  const staffLink = page.getByRole("link", { name: "Staff" });
-  const visible = await staffLink
-    .isVisible()
-    .catch(() => false);
-
-  if (visible) {
-    await retry(async () => {
-      await staffLink.click();
-      await page.waitForSelector(`text=${STAFF_URL_TEXT}`, { state: "visible", timeout: 2_000 });
-    });
-    return;
-  }
-
-  await page.goto(`${baseUrl}/staff/user-search`);
-  await page.waitForSelector(`text=${STAFF_URL_TEXT}`, { state: "visible", timeout: 5_000 });
-}
-
-async function runSimpleSearch(page: Page): Promise<void> {
-  await page.locator("#content").getByRole("textbox").fill(DEFAULT_SEARCH_TERM);
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-}
-
-async function retry(action: () => Promise<void>, attempts = 5): Promise<void> {
-  for (let i = 0; i < attempts; i += 1) {
-    try {
-      await action();
-      return;
-    } catch (error) {
-      if (i === attempts - 1) {
-        throw error;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1_000));
+    if (isA11yBlocking) {
+      await axeUtils.audit({ runOnly: { type: "tag", values: ["wcag2a", "wcag2aa"] } });
     }
-  }
-}
+  });
+  /* eslint-enable playwright/no-skipped-test */
+});

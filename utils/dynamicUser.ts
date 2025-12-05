@@ -7,13 +7,20 @@ export interface TempUser {
 }
 
 interface CreateUserOptions {
-  role: "solicitor" | "caseworker" | "judge" | string;
+  /**
+   * Known values such as "solicitor" / "caseworker" / "judge" are treated specially,
+   * but any string is accepted to keep the helper flexible.
+   */
+  role: string;
   prefix?: string;
 }
 
 // Placeholder implementation. In production, this would POST to
 // environment.idamTestingSupportUrl or IDAM_TESTING_SUPPORT_USERS_URL.
-export async function createTempUser({ role, prefix = "auto" }: CreateUserOptions): Promise<TempUser> {
+export async function createTempUser({
+  role,
+  prefix = "auto",
+}: CreateUserOptions): Promise<TempUser> {
   const base = `${prefix}-${role}-${Date.now()}@example.test`; // synthetic email
   const password = `P@ssw0rd${Math.floor(Math.random() * 10000)}`;
   // TODO: integrate with IDAM testing support API:
@@ -25,7 +32,10 @@ export async function createTempUser({ role, prefix = "auto" }: CreateUserOption
 export function getStaticRoleUser(role: string): TempUser | undefined {
   switch (role) {
     case "caseManager":
-      return { username: environment.caseManager.username, password: environment.caseManager.password };
+      return {
+        username: environment.caseManager.username,
+        password: environment.caseManager.password,
+      };
     case "judge":
       return { username: environment.judge.username, password: environment.judge.password };
     default:

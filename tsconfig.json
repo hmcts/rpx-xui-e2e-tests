@@ -29,6 +29,7 @@
     "fixtures/**/*.ts",
     "page-objects/**/*.ts",
     "tests/**/*.ts",
-    "utils/**/*.ts"
+    "utils/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

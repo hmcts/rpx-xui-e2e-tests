@@ -7,7 +7,7 @@ import {
   SessionUtils,
   TableUtils,
   WaitUtils,
-  ServiceAuthUtils
+  ServiceAuthUtils,
 } from "@hmcts/playwright-common";
 import os from "os";
 import path from "path";
@@ -81,7 +81,7 @@ export const utilsFixtures = {
       const cookieName = config.users.caseManager.cookieName ?? "xui-webapp";
       if (!SessionUtils.isSessionValid(sessionFile, cookieName)) {
         console.warn(
-          `[lighthouse] Session file "${sessionFile}" missing or expired; falling back to primary browser context.`
+          `[lighthouse] Session file "${sessionFile}" missing or expired; falling back to primary browser context.`,
         );
         await use(page);
         return;
@@ -111,5 +111,5 @@ export const utilsFixtures = {
   },
   userUtils: async ({}, use) => {
     await use(new UserUtils());
-  }
+  },
 };

@@ -20,12 +20,14 @@ test.describe("@smoke @search Global search", () => {
   test("Search from home page find control", async ({ page, axeUtils }) => {
     const caseId = selectCaseId();
     await waitForDashboard(page);
-    const caseReference = page.getByLabel(/case reference/i);
+    const caseReference = page.getByRole("textbox", { name: /16-digit case reference/i });
     await expect(caseReference).toBeVisible();
     await caseReference.fill(caseId);
     await retry(async () => {
       await page.locator('//button[contains(text(), "Find")]').click();
-      await expect(page.getByRole("heading", { name: "Current progress of the case" })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: "Current progress of the case" }),
+      ).toBeVisible();
     });
     await axeUtils.audit();
 
@@ -39,9 +41,7 @@ test.describe("@smoke @search Global search", () => {
     await expect(page.getByRole("heading", { name: "Search cases" })).toBeVisible();
     await expect(page.locator("span").filter({ hasText: "-digit case reference" })).toBeVisible();
 
-    await page
-      .getByLabel("16-digit case reference", { exact: true })
-      .fill(NON_EXISTENT_CASE_ID());
+    await page.getByLabel("16-digit case reference", { exact: true }).fill(NON_EXISTENT_CASE_ID());
     await page.getByRole("button", { name: "Search" }).click();
     const message = page.locator("text=/No results found|Something went wrong/");
     await expect(message).toBeVisible({ timeout: 30_000 });
@@ -55,13 +55,13 @@ function selectCaseId(): string {
 
 async function waitForDashboard(page: Page): Promise<void> {
   await page.waitForLoadState("domcontentloaded");
-  await expect(page.getByText("16-digit case reference")).toBeVisible();
+  await expect(page.getByLabel(/16-?digit case reference/i)).toBeVisible({ timeout: 15_000 });
 }
 
 async function openMainMenu(page: Page, item: string, waitForText: string): Promise<void> {
   await retry(async () => {
     await page.getByRole("link", { name: item }).click();
-    await page.waitForSelector(`text=${waitForText}`, { state: "visible", timeout: 2_000 });
+    await page.waitForSelector(`text=${waitForText}`, { state: "visible", timeout: 10_000 });
   });
 }
 

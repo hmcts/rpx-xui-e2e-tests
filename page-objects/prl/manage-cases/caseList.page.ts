@@ -8,9 +8,7 @@ export class PrlCaseListPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.caseLinks = page.locator(
-      'a[aria-label^="go to case with Case reference:"]',
-    );
+    this.caseLinks = page.locator('a[aria-label^="go to case with Case reference:"]');
   }
 
   async goto(): Promise<void> {
@@ -56,8 +54,6 @@ export class PrlCaseListPage {
 
   private async waitForSpinner(): Promise<void> {
     const spinner = this.page.locator("xuilib-loading-spinner");
-    await expect
-      .poll(async () => await spinner.count(), { timeout: 30_000 })
-      .toBe(0);
+    await expect.poll(async () => await spinner.count(), { timeout: 30_000 }).toBe(0);
   }
 }

@@ -3,8 +3,11 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "../../fixtures/test";
 
 const CASE_WORKER = "IAC_CaseOfficer_R2";
+const workAllocationEnabled =
+  process.env.WORK_ALLOCATION_ENABLED === undefined ||
+  process.env.WORK_ALLOCATION_ENABLED === "true";
 
-test.describe("@smoke @wa Work allocation navigation", () => {
+const runSuite = () => {
   test.beforeEach(async ({ loginAs }) => {
     await loginAs(CASE_WORKER);
   });
@@ -42,7 +45,10 @@ test.describe("@smoke @wa Work allocation navigation", () => {
     await axeUtils.audit();
   });
 
-  test("Primary navigation covers My work, All work, Create case, Case list", async ({ page, axeUtils }) => {
+  test("Primary navigation covers My work, All work, Create case, Case list", async ({
+    page,
+    axeUtils,
+  }) => {
     await navigateToMyWork(page);
     await assertPrimaryNav(page);
 
@@ -66,7 +72,14 @@ test.describe("@smoke @wa Work allocation navigation", () => {
     await assertPrimaryNav(page);
     await axeUtils.audit();
   });
-});
+};
+
+if (workAllocationEnabled) {
+  test.describe("@smoke @wa Work allocation navigation", runSuite);
+} else {
+  // eslint-disable-next-line playwright/no-skipped-test
+  test.describe.skip("@smoke @wa Work allocation navigation", runSuite);
+}
 
 async function assertPrimaryNav(page: Page) {
   await expect(page.getByRole("link", { name: "My work" })).toBeVisible();
@@ -78,7 +91,7 @@ async function assertPrimaryNav(page: Page) {
 
 async function assertTaskTableColumns(
   page: Page,
-  options: { showPerson: boolean; showHearingDate: boolean }
+  options: { showPerson: boolean; showHearingDate: boolean },
 ) {
   await expect(page.getByRole("button", { name: "▼ Case name ▲" })).toBeVisible();
   await expect(page.getByRole("button", { name: "▼ Case category ▲" })).toBeVisible();
@@ -97,7 +110,23 @@ async function assertTaskTableColumns(
 
 async function navigateToMyWork(page: Page) {
   await page.getByRole("link", { name: "My work" }).click();
+  if (await isNotAuthorised(page)) {
+    throw new Error(
+      "Work allocation user is not authorised in this environment. Verify role setup or set WORK_ALLOCATION_ENABLED=false to disable this suite.",
+    );
+  }
   await expect(page.getByRole("heading", { name: "My work" })).toBeVisible();
   await expect(page.getByText("Use the work filter to show")).toBeVisible();
   await expect(page.locator('[data-test="search-result-summary__text"]')).toBeVisible();
+}
+
+async function isNotAuthorised(page: Page): Promise<boolean> {
+  try {
+    await page
+      .getByRole("heading", { name: /not authoris/i })
+      .waitFor({ state: "visible", timeout: 3_000 });
+    return true;
+  } catch {
+    return false;
+  }
 }

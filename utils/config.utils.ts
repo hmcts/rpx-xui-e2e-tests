@@ -57,7 +57,8 @@ export const config: Config = {
   urls: {
     exuiDefaultUrl: environment.appBaseUrl,
     manageCaseBaseUrl: `${environment.appBaseUrl}/cases`,
-    citizenUrl: process.env.CITIZEN_FRONTEND_BASE_URL ?? "https://privatelaw.aat.platform.hmcts.net/",
+    citizenUrl:
+      process.env.CITIZEN_FRONTEND_BASE_URL ?? "https://privatelaw.aat.platform.hmcts.net/",
     idamWebUrl: environment.idamWebUrl,
     idamTestingSupportUrl: environment.idamTestingSupportUrl,
     serviceAuthUrl: environment.s2sUrl,

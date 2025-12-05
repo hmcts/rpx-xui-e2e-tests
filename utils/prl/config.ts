@@ -7,8 +7,7 @@ const requireEnv = (key: string): string => {
 };
 
 export const prlConfig = {
-  manageCasesBaseUrl:
-    process.env.APP_BASE_URL ?? "https://manage-case.aat.platform.hmcts.net",
+  manageCasesBaseUrl: process.env.APP_BASE_URL ?? "https://manage-case.aat.platform.hmcts.net",
   caseTabsCaseId: process.env.PRL_CASE_TABS_CASE_ID,
   solicitor: {
     username: process.env.SOLICITOR_USERNAME,

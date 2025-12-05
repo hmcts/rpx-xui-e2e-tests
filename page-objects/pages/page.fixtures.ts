@@ -23,7 +23,7 @@ export const pageFixtures = {
   determinePage: async (
     { page, lighthousePage }: { page: Page; lighthousePage: Page },
     use: (p: Page) => Promise<void>,
-    testInfo: TestInfo
+    testInfo: TestInfo,
   ) => {
     if (testInfo.tags.includes("@performance")) {
       await use(lighthousePage);
@@ -33,31 +33,31 @@ export const pageFixtures = {
   },
   caseDetailsPage: async (
     { determinePage }: { determinePage: Page },
-    use: (value: CaseDetailsPage) => Promise<void>
+    use: (value: CaseDetailsPage) => Promise<void>,
   ) => {
     await use(new CaseDetailsPage(determinePage));
   },
   caseListPage: async (
     { determinePage }: { determinePage: Page },
-    use: (value: CaseListPage) => Promise<void>
+    use: (value: CaseListPage) => Promise<void>,
   ) => {
     await use(new CaseListPage(determinePage));
   },
   createCasePage: async (
     { determinePage }: { determinePage: Page },
-    use: (value: CreateCasePage) => Promise<void>
+    use: (value: CreateCasePage) => Promise<void>,
   ) => {
     await use(new CreateCasePage(determinePage));
   },
   mediaViewerPage: async (
     { determinePage }: { determinePage: Page },
-    use: (value: ExuiMediaViewerPage) => Promise<void>
+    use: (value: ExuiMediaViewerPage) => Promise<void>,
   ) => {
     await use(new ExuiMediaViewerPage(determinePage));
   },
   idamPage: async (
     { determinePage }: { determinePage: Page },
-    use: (value: IdamPage) => Promise<void>
+    use: (value: IdamPage) => Promise<void>,
   ) => {
     await use(new IdamPage(determinePage));
   },

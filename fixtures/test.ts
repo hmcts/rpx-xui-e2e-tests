@@ -6,10 +6,7 @@ import { utilsFixtures, type UtilsFixtures } from "../utils/utils.fixtures.ts";
 import { authFixtures, type AuthFixtures } from "./auth.fixtures.ts";
 import { test as base, expect } from "./baseTest";
 
-export interface CustomFixtures
-  extends PageFixtures,
-    UtilsFixtures,
-    AuthFixtures {}
+export interface CustomFixtures extends PageFixtures, UtilsFixtures, AuthFixtures {}
 
 interface WorkerFixtures {
   lighthousePort: number;

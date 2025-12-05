@@ -22,9 +22,7 @@ export class PrlCaseTabsPage {
   async expectTabCount(minTabs = 3): Promise<void> {
     const count = await this.tabItems.count();
     if (count === 0) {
-      const matTabs = this.angularTabHeader.locator(
-        "[role='tab'], .mat-tab-label",
-      );
+      const matTabs = this.angularTabHeader.locator("[role='tab'], .mat-tab-label");
       const matCount = await matTabs.count();
       expect(matCount).toBeGreaterThanOrEqual(minTabs);
       return;
@@ -40,9 +38,7 @@ export class PrlCaseTabsPage {
     expect(texts.length).toBeGreaterThan(0);
     for (const name of expected) {
       expect(texts).toEqual(
-        expect.arrayContaining([
-          expect.stringMatching(new RegExp(`^${name}`, "i")),
-        ]),
+        expect.arrayContaining([expect.stringMatching(new RegExp(`^${name}`, "i"))]),
       );
     }
   }
@@ -52,9 +48,7 @@ export class PrlCaseTabsPage {
     if (count > 0) {
       return Array.from({ length: count }, (_, idx) => this.tabItems.nth(idx));
     }
-    const matTabs = this.angularTabHeader.locator(
-      "[role='tab'], .mat-tab-label",
-    );
+    const matTabs = this.angularTabHeader.locator("[role='tab'], .mat-tab-label");
     await expect(matTabs.first()).toBeVisible({ timeout: 10_000 });
     const matCount = await matTabs.count();
     return Array.from({ length: matCount }, (_, idx) => matTabs.nth(idx));

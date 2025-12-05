@@ -10,8 +10,7 @@ const JSON_HEADERS = {
 };
 
 const SUBMIT_HEADERS = {
-  Accept:
-    "application/vnd.uk.gov.hmcts.ccd-data-store-api.create-case.v2+json;charset=UTF-8",
+  Accept: "application/vnd.uk.gov.hmcts.ccd-data-store-api.create-case.v2+json;charset=UTF-8",
   Experimental: "true",
   "Content-type": "application/json; charset=UTF-8",
 };

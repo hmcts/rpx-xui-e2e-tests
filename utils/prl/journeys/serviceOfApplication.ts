@@ -44,7 +44,9 @@ export async function completeServiceOfApplication({
     serviceValue = await nextStepSelect.evaluate((select) => {
       const el = select as HTMLSelectElement;
       const options = Array.from(el.options ?? []);
-      const match = options.find((option) => /Service of application/i.test(option.textContent ?? option.label ?? ""));
+      const match = options.find((option) =>
+        /Service of application/i.test(option.textContent ?? option.label ?? ""),
+      );
       return match?.value;
     });
     if (serviceValue) {
@@ -62,9 +64,7 @@ export async function completeServiceOfApplication({
 
   await page.getByLabel(/personally served/i).check();
   await page.getByLabel(/Court bailiff/i).check();
-  const localAuthority = page.getByLabel(
-    /Does the local Authority need to be served/i,
-  );
+  const localAuthority = page.getByLabel(/Does the local Authority need to be served/i);
   if (await localAuthority.isVisible()) {
     await localAuthority.check();
   }
@@ -76,9 +76,7 @@ export async function completeServiceOfApplication({
   const submitButton = page.getByRole("button", { name: /submit/i });
   await submitButton.waitFor({ state: "visible", timeout: 10_000 });
   await submitButton.click();
-  await page
-    .getByText(/Service of application/, { exact: false })
-    .waitFor({ timeout: 15_000 });
+  await page.getByText(/Service of application/, { exact: false }).waitFor({ timeout: 15_000 });
 
   return caseRef;
 }
