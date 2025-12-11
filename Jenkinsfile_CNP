@@ -7,7 +7,8 @@ properties([
     projectUrlStr: 'https://github.com/hmcts/rpx-xui-e2e-tests'
   ],
   pipelineTriggers([
-    [$class: 'GitHubPushTrigger']
+    [$class: 'GitHubPushTrigger',
+    cron('15 9-18 * * *')]
   ]),
   parameters([
     string(
@@ -41,9 +42,9 @@ properties([
 @Library("Infrastructure")
 
 def type = "nodejs"
-def product = "rpx"
-def component = "xui-e2e-tests"
-def channel = "#exui-pipelines"
+def product = 'xui'
+def component = 'xui-e2e-tests'
+def channel   = '#xui-pipeline'
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
 
