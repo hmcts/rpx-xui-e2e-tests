@@ -33,6 +33,7 @@ dist/
 *.swp
 *.swo
 *.tgz
+$PW_ODHIN_OUTPUT/
 
 # Yarn Berry
 .pnp.*
