@@ -1,10 +1,12 @@
 import { test, expect } from "../../fixtures/test.ts";
 
 test.describe("@regression create case", () => {
+  test.slow();
+  test.setTimeout(60_000);
+
   test.beforeEach(async ({ idamPage, determinePage, userUtils, config }) => {
     if (!config.users.solicitor?.username || !config.users.solicitor?.password) {
-      // eslint-disable-next-line playwright/no-skipped-test
-      test.skip("Solicitor credentials are not configured");
+      throw new Error("Solicitor credentials are not configured");
     }
 
     await determinePage.goto(config.urls.manageCaseBaseUrl);

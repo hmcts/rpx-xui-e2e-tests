@@ -7,7 +7,12 @@ const CASE_WORKER = "IAC_CaseOfficer_R2";
 const RUN_PERF = process.env.RUN_PERF === "1";
 
 test.describe("@performance Manage Case dashboard lighthouse", () => {
-  test.skip(!RUN_PERF, "Set RUN_PERF=1 to run performance checks.");
+  if (!RUN_PERF) {
+    test("performance disabled", async () => {
+      throw new Error("Set RUN_PERF=1 to run performance checks.");
+    });
+    return;
+  }
 
   test.beforeEach(async ({ loginAs }) => {
     await loginAs(CASE_WORKER);

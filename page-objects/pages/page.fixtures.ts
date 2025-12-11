@@ -4,12 +4,14 @@ import { Page, type TestInfo } from "@playwright/test";
 import { CaseDetailsPage } from "./exui/caseDetails.po.ts";
 import { CaseListPage } from "./exui/caseList.po.ts";
 import { CreateCasePage } from "./exui/createCase.po.ts";
+import { TaskListPage } from "./exui/taskList.po.ts";
 
 export interface PageFixtures {
   determinePage: Page;
   caseDetailsPage: CaseDetailsPage;
   caseListPage: CaseListPage;
   createCasePage: CreateCasePage;
+  taskListPage: TaskListPage;
   mediaViewerPage: ExuiMediaViewerPage;
   idamPage: IdamPage;
 }
@@ -48,6 +50,12 @@ export const pageFixtures = {
     use: (value: CreateCasePage) => Promise<void>,
   ) => {
     await use(new CreateCasePage(determinePage));
+  },
+  taskListPage: async (
+    { determinePage }: { determinePage: Page },
+    use: (value: TaskListPage) => Promise<void>,
+  ) => {
+    await use(new TaskListPage(determinePage));
   },
   mediaViewerPage: async (
     { determinePage }: { determinePage: Page },

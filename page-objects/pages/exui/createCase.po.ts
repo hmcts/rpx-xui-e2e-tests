@@ -42,7 +42,9 @@ export class CreateCasePage extends Base {
     const gender = "Male";
     const placeholderValue = `auto-${Date.now()}`;
     await this.createCaseButton.click();
+    await this.waitForEnabled(this.jurisdictionSelect);
     await this.jurisdictionSelect.selectOption(jurisdiction);
+    await this.waitForEnabled(this.caseTypeSelect);
     await this.caseTypeSelect.selectOption(caseType);
     await this.startButton.click();
     await this.page.getByLabel(gender, { exact: true }).check();
@@ -70,5 +72,15 @@ export class CreateCasePage extends Base {
     await this.continueButton.click();
     await this.testSubmitButton.click();
     await this.exuiSpinnerComponent.wait();
+  }
+
+  private async waitForEnabled(select: import("@playwright/test").Locator): Promise<void> {
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      const enabled = await select.isEnabled().catch(() => false);
+      if (enabled) return;
+      await this.page.waitForTimeout(500);
+    }
+    throw new Error("Select stayed disabled after waiting 30s");
   }
 }

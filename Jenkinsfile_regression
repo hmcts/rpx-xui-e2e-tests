@@ -1,0 +1,104 @@
+#!groovy
+
+properties([
+  parameters([
+    string(
+      name: 'APP_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net',
+      description: 'Base URL for EXUI (AAT by default)'
+    ),
+    string(
+      name: 'APP_API_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net',
+      description: 'API base URL (usually same as APP_BASE_URL)'
+    ),
+    string(
+      name: 'TAGS',
+      defaultValue: '@regression',
+      description: 'Playwright grep expression (e.g. @regression or @case-flags)'
+    ),
+    string(
+      name: 'PROJECT',
+      defaultValue: 'chromium',
+      description: 'Playwright project (chromium, firefox, webkit, chrome, etc.)'
+    ),
+    string(
+      name: 'WORKERS',
+      defaultValue: '4',
+      description: 'Number of Playwright workers'
+    )
+  ])
+])
+
+@Library("Infrastructure")
+
+def type = "nodejs"
+def product = "rpx"
+def component = "xui-e2e-tests"
+def channel = "#rpx-notifications"
+
+static Map < String, Object > secret(String secretName, String envVariable) {
+  [
+    $class: 'AzureKeyVaultSecret',
+    secretType: 'Secret',
+    name: secretName,
+    envVariable: envVariable
+  ]
+}
+
+// TODO: align secret names with Key Vault entries; values are mapped to env vars used by the tests.
+def secrets = [
+  "rpx-aat": [
+    secret('idam-secret', 'IDAM_SECRET'),
+    secret('s2s-secret', 'S2S_SECRET'),
+    secret('case-manager-username', 'CASEMANAGER_USERNAME'),
+    secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
+    secret('judge-username', 'JUDGE_USERNAME'),
+    secret('judge-password', 'JUDGE_PASSWORD'),
+    secret('solicitor-username', 'SOLICITOR_USERNAME'),
+    secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('staff-admin-username', 'USER_STAFF_ADMIN_USERNAME'),
+    secret('staff-admin-password', 'USER_STAFF_ADMIN_PASSWORD'),
+    secret('user-with-flags-username', 'USER_USER_WITH_FLAGS_USERNAME'),
+    secret('user-with-flags-password', 'USER_USER_WITH_FLAGS_PASSWORD'),
+    secret('iac-caseofficer-username', 'USER_IAC_CASEOFFICER_R2_USERNAME'),
+    secret('iac-caseofficer-password', 'USER_IAC_CASEOFFICER_R2_PASSWORD'),
+  ]
+]
+
+def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+
+withNightlyPipeline(type, product, component, 120) {
+  loadVaultSecrets(secrets)
+  env.APP_BASE_URL = params.APP_BASE_URL
+  env.APP_API_BASE_URL = params.APP_API_BASE_URL
+  env.PLAYWRIGHT_JUNIT_OUTPUT = "test-results/junit/results.xml"
+  enableSlackNotifications(channel)
+
+  stage("Install dependencies") {
+    yarnBuilder.yarn("install --immutable")
+    yarnBuilder.yarn("playwright install --with-deps")
+  }
+
+  stage("Run regression") {
+    try {
+      // Odhin + dot reporters, JUnit output for CI
+      env.PLAYWRIGHT_REPORTERS = "dot,odhin"
+      env.PLAYWRIGHT_ODHIN = "1"
+      env.PW_ODHIN_OUTPUT = "test-results/odhin-report"
+      yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=${params.PROJECT} --workers=${params.WORKERS} --reporter=dot,junit")
+    } catch (Error) {
+      unstable(message: "${STAGE_NAME} unstable: " + Error.toString())
+    } finally {
+      publishHTML([
+        allowMissing: true,
+        alwaysLinkToLastBuild: true,
+        keepAll: true,
+        reportDir: "test-results/odhin-report",
+        reportFiles: 'playwright-odhin.html',
+        reportName: "Playwright Odhin report"
+      ])
+      steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
+    }
+  }
+}

@@ -74,12 +74,15 @@ const runSuite = () => {
   });
 };
 
-if (workAllocationEnabled) {
-  test.describe("@smoke @wa Work allocation navigation", runSuite);
-} else {
-  // eslint-disable-next-line playwright/no-skipped-test
-  test.describe.skip("@smoke @wa Work allocation navigation", runSuite);
-}
+test.describe("@smoke @wa Work allocation navigation", () => {
+  if (!workAllocationEnabled) {
+    test("work allocation disabled", async () => {
+      throw new Error("WORK_ALLOCATION_ENABLED=false; enable to run work allocation smoke tests.");
+    });
+    return;
+  }
+  runSuite();
+});
 
 async function assertPrimaryNav(page: Page) {
   await expect(page.getByRole("link", { name: "My work" })).toBeVisible();

@@ -55,7 +55,7 @@ const runStaffRegression = () => {
     await page.locator("#user_type").selectOption("Legal office");
     await page.getByLabel("CICA Caseworker").check();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByRole("heading", { name: "Check answers" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Check your answers/i })).toBeVisible();
 
     await page.getByRole("link", { name: "Change name" }).click();
     await page.locator("#first_name").fill("FirstName2");
@@ -66,9 +66,15 @@ const runStaffRegression = () => {
   });
 };
 
-if (staffSearchEnabled) {
-  test.describe("@regression @staff Staff management journeys", runStaffRegression);
-} else {
-  // eslint-disable-next-line playwright/no-skipped-test
-  test.describe.skip("@regression @staff Staff management journeys", runStaffRegression);
-}
+test.describe("@regression @staff Staff management journeys", () => {
+  test.slow();
+  test.setTimeout(60_000);
+
+  if (!staffSearchEnabled) {
+    test("staff search disabled", async () => {
+      throw new Error("STAFF_SEARCH_ENABLED=false; enable to run staff management journeys.");
+    });
+    return;
+  }
+  runStaffRegression();
+});

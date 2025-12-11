@@ -5,24 +5,29 @@ properties([
   disableConcurrentBuilds(),
   parameters([
     string(
-      name: 'MANAGE_CASE_BASE_URL',
+      name: 'APP_BASE_URL',
       defaultValue: 'https://manage-case.aat.platform.hmcts.net',
-      description: 'Base URL for RPX Expert UI'
+      description: 'Manage Cases base URL (AAT default)'
+    ),
+    string(
+      name: 'APP_API_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net',
+      description: 'API base URL (usually same as APP_BASE_URL)'
+    ),
+    string(
+      name: 'TAGS_TO_RUN',
+      defaultValue: '@smoke',
+      description: 'Comma separated Playwright tags (blank = full suite)'
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
       defaultValue: '4',
       description: 'Workers passed to Playwright (--workers)'
     ),
-    string(
-      name: 'TAGS_TO_RUN',
-      defaultValue: '@smoke',
-      description: 'Comma separated list of Playwright tags to include (blank means full suite)'
-    ),
     choice(
       name: 'BROWSER_TO_RUN',
       choices: ['chromium', 'chrome', 'msedge', 'firefox', 'webkit', 'all'],
-      description: 'Browser (Playwright project) to exercise'
+      description: 'Browser (Playwright project)'
     ),
   ])
 ])
@@ -46,15 +51,28 @@ static LinkedHashMap<String, Object> secret(String secretName, String envVar) {
   ]
 }
 
+// Update secret names to match your Key Vault entries.
 def secrets = [
   'rpx-${env}': [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
     secret('mc-idam-client-secret', 'IDAM_SECRET'),
+    secret('case-manager-username', 'CASEMANAGER_USERNAME'),
+    secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
+    secret('judge-username', 'JUDGE_USERNAME'),
+    secret('judge-password', 'JUDGE_PASSWORD'),
+    secret('solicitor-username', 'SOLICITOR_USERNAME'),
+    secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('staff-admin-username', 'USER_STAFF_ADMIN_USERNAME'),
+    secret('staff-admin-password', 'USER_STAFF_ADMIN_PASSWORD'),
+    secret('user-with-flags-username', 'USER_USER_WITH_FLAGS_USERNAME'),
+    secret('user-with-flags-password', 'USER_USER_WITH_FLAGS_PASSWORD'),
+    secret('iac-caseofficer-username', 'USER_IAC_CASEOFFICER_R2_USERNAME'),
+    secret('iac-caseofficer-password', 'USER_IAC_CASEOFFICER_R2_PASSWORD'),
   ]
 ]
 
 String buildPlaywrightCommand(String tags, String browser, String workers) {
-  def command = "test --workers=${workers}"
+  def command = "playwright test --workers=${workers} --reporter=dot,junit"
   if (tags?.trim()) {
     tags.split(',').each { tag ->
       def trimmed = tag.trim()
@@ -73,26 +91,26 @@ withNightlyPipeline(type, product, component, 600) {
   enableSlackNotifications(channel)
   loadVaultSecrets(secrets)
 
-  env.APP_BASE_URL = params.MANAGE_CASE_BASE_URL
+  env.APP_BASE_URL = params.APP_BASE_URL
+  env.APP_API_BASE_URL = params.APP_API_BASE_URL
   env.APP_HEALTH_ENDPOINT = '/health'
-  env.APP_API_BASE_URL = env.APP_BASE_URL
   env.IDAM_WEB_URL = 'https://idam-web-public.aat.platform.hmcts.net'
   env.IDAM_TESTING_SUPPORT_URL = 'https://idam-testing-support-api.aat.platform.hmcts.net'
   env.IDAM_CLIENT_ID = 'xuiwebapp'
   env.IDAM_RETURN_URL = "${env.APP_BASE_URL}/oauth2/callback"
   env.S2S_URL = 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease'
   env.S2S_MICROSERVICE_NAME = 'xui_webapp'
-  env.PLAYWRIGHT_HTML = '1'
+  env.PLAYWRIGHT_REPORTERS = "dot,odhin"
+  env.PLAYWRIGHT_ODHIN = "1"
+  env.PW_ODHIN_OUTPUT = "test-results/odhin-report"
+  env.PLAYWRIGHT_JUNIT_OUTPUT = "test-results/junit/nightly-${params.BROWSER_TO_RUN}.xml"
   env.PLAYWRIGHT_JSON_OUTPUT = "test-results/json/nightly-${params.BROWSER_TO_RUN}.json"
-  env.CASEMANAGER_USERNAME = env.CASEMANAGER_USERNAME ?: 'not-used'
-  env.CASEMANAGER_PASSWORD = env.CASEMANAGER_PASSWORD ?: 'not-used'
-  env.JUDGE_USERNAME = env.JUDGE_USERNAME ?: 'not-used'
-  env.JUDGE_PASSWORD = env.JUDGE_PASSWORD ?: 'not-used'
 
   afterAlways('DependencyCheckNightly') {
     stage('Install dependencies') {
       try {
         yarnBuilder.yarn('install --immutable')
+        yarnBuilder.yarn('playwright install --with-deps')
       } catch (Error) {
         unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
       }
@@ -104,7 +122,6 @@ withNightlyPipeline(type, product, component, 600) {
         params.BROWSER_TO_RUN,
         params.FUNCTIONAL_TESTS_WORKERS
       )
-      env.PLAYWRIGHT_JUNIT_OUTPUT = "test-results/junit/nightly-${params.BROWSER_TO_RUN}.xml"
       try {
         yarnBuilder.yarn(command)
       } catch (Error) {
@@ -119,12 +136,12 @@ withNightlyPipeline(type, product, component, 600) {
           allowMissing         : true,
           alwaysLinkToLastBuild: true,
           keepAll              : true,
-          reportDir            : "playwright-report",
-          reportFiles          : 'index.html',
+          reportDir            : "test-results/odhin-report",
+          reportFiles          : 'playwright-odhin.html',
           reportName           : "Nightly ${params.BROWSER_TO_RUN}"
         ])
         junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
-        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'playwright-report/**'
+        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
       }
     }
   }

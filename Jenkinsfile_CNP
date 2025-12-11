@@ -1,4 +1,43 @@
 #!groovy
+
+properties([
+  [
+    $class       : 'GithubProjectProperty',
+    displayName  : 'rpx-xui-e2e-tests',
+    projectUrlStr: 'https://github.com/hmcts/rpx-xui-e2e-tests'
+  ],
+  pipelineTriggers([
+    [$class: 'GitHubPushTrigger']
+  ]),
+  parameters([
+    string(
+      name: 'APP_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net',
+      description: 'Manage Cases base URL (AAT default)'
+    ),
+    string(
+      name: 'APP_API_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net',
+      description: 'API base URL (usually same as APP_BASE_URL)'
+    ),
+    string(
+      name: 'TAGS',
+      defaultValue: '@smoke',
+      description: 'Playwright grep (e.g. @smoke)'
+    ),
+    choice(
+      name: 'BROWSER',
+      choices: ['chromium', 'chrome', 'msedge', 'firefox', 'webkit'],
+      description: 'Playwright project/browser to run'
+    ),
+    string(
+      name: 'WORKERS',
+      defaultValue: '4',
+      description: 'Playwright workers'
+    ),
+  ])
+])
+
 @Library("Infrastructure")
 
 def type = "nodejs"
@@ -18,39 +57,50 @@ static LinkedHashMap<String, Object> secret(String secretName, String envVar) {
   ]
 }
 
+// Update secret names to match your Key Vault entries.
 def secrets = [
   'rpx-${env}': [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
     secret('mc-idam-client-secret', 'IDAM_SECRET'),
+    secret('case-manager-username', 'CASEMANAGER_USERNAME'),
+    secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
+    secret('judge-username', 'JUDGE_USERNAME'),
+    secret('judge-password', 'JUDGE_PASSWORD'),
+    secret('solicitor-username', 'SOLICITOR_USERNAME'),
+    secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('staff-admin-username', 'USER_STAFF_ADMIN_USERNAME'),
+    secret('staff-admin-password', 'USER_STAFF_ADMIN_PASSWORD'),
+    secret('user-with-flags-username', 'USER_USER_WITH_FLAGS_USERNAME'),
+    secret('user-with-flags-password', 'USER_USER_WITH_FLAGS_PASSWORD'),
+    secret('iac-caseofficer-username', 'USER_IAC_CASEOFFICER_R2_USERNAME'),
+    secret('iac-caseofficer-password', 'USER_IAC_CASEOFFICER_R2_PASSWORD'),
   ]
 ]
 
-withNightlyPipeline(type, product, component) {
+withNightlyPipeline(type, product, component, 180) {
   enableSlackNotifications(channel)
   loadVaultSecrets(secrets)
 
-  env.APP_BASE_URL = 'https://manage-case.aat.platform.hmcts.net'
+  env.APP_BASE_URL = params.APP_BASE_URL
+  env.APP_API_BASE_URL = params.APP_API_BASE_URL
   env.APP_HEALTH_ENDPOINT = '/health'
-  env.APP_API_BASE_URL = env.APP_BASE_URL
   env.IDAM_WEB_URL = 'https://idam-web-public.aat.platform.hmcts.net'
   env.IDAM_TESTING_SUPPORT_URL = 'https://idam-testing-support-api.aat.platform.hmcts.net'
   env.IDAM_CLIENT_ID = 'xuiwebapp'
   env.IDAM_RETURN_URL = "${env.APP_BASE_URL}/oauth2/callback"
   env.S2S_URL = 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease'
   env.S2S_MICROSERVICE_NAME = 'xui_webapp'
-  env.PLAYWRIGHT_HTML = '1'
+  env.PLAYWRIGHT_REPORTERS = "dot,odhin"
+  env.PLAYWRIGHT_ODHIN = "1"
+  env.PW_ODHIN_OUTPUT = "test-results/odhin-report"
+  env.PLAYWRIGHT_JUNIT_OUTPUT = 'test-results/junit/cnp-smoke.xml'
   env.PLAYWRIGHT_JSON_OUTPUT = 'test-results/json/cnp-smoke.json'
-  // Legacy tests still obtain credentials from config/appTestConfig.js, but the environment
-  // loader enforces these keys, so populate them with placeholders until the new user flow lands.
-  env.CASEMANAGER_USERNAME = env.CASEMANAGER_USERNAME ?: 'not-used'
-  env.CASEMANAGER_PASSWORD = env.CASEMANAGER_PASSWORD ?: 'not-used'
-  env.JUDGE_USERNAME = env.JUDGE_USERNAME ?: 'not-used'
-  env.JUDGE_PASSWORD = env.JUDGE_PASSWORD ?: 'not-used'
 
   afterAlways('DependencyCheckNightly') {
     stage('Install dependencies') {
       try {
         yarnBuilder.yarn('install --immutable')
+        yarnBuilder.yarn('playwright install --with-deps')
       } catch (Error) {
         unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
       }
@@ -64,10 +114,9 @@ withNightlyPipeline(type, product, component) {
       }
     }
 
-    stage('Smoke tests - Chromium') {
-      env.PLAYWRIGHT_JUNIT_OUTPUT = 'test-results/junit/cnp-smoke.xml'
+    stage('Smoke tests') {
       try {
-        yarnBuilder.yarn('test:smoke --project=chromium')
+        yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=${params.BROWSER} --workers=${params.WORKERS} --reporter=dot,junit")
       } catch (Error) {
         unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
       } finally {
@@ -80,12 +129,12 @@ withNightlyPipeline(type, product, component) {
           allowMissing         : true,
           alwaysLinkToLastBuild: true,
           keepAll              : true,
-          reportDir            : "playwright-report",
-          reportFiles          : 'index.html',
-          reportName           : 'Chromium smoke'
+          reportDir            : "test-results/odhin-report",
+          reportFiles          : 'playwright-odhin.html',
+          reportName           : 'Chromium smoke (Odhin)'
         ])
         junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
-        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'playwright-report/**'
+        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
       }
     }
   }

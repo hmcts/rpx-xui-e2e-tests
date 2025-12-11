@@ -96,19 +96,45 @@ const shard =
     ? { total: shardTotal, current: shardCurrent }
     : undefined;
 
-const storageStatePath = (name: string): string | undefined => {
+const normaliseStorageName = (name: string): string[] => {
+  const cleaned = name.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  switch (cleaned) {
+    case "casemanager":
+      return ["caseManager", "casemanager"];
+    case "staffadmin":
+    case "staff_admin":
+    case "staff-admin":
+      return ["staff_admin", "staffadmin"];
+    default:
+      return [cleaned];
+  }
+};
+
+const storageStatePath = (defaultName: string, projectName: string): string | undefined => {
   if (process.env.USE_STORAGE_STATE !== "1") {
     return undefined;
   }
-  const candidate = path.resolve(process.cwd(), "storage", `${name}.json`);
-  return fs.existsSync(candidate) ? candidate : undefined;
+  const override =
+    process.env[`PLAYWRIGHT_STORAGE_USER_${projectName.toUpperCase()}`] ??
+    process.env.PLAYWRIGHT_STORAGE_USER;
+  const candidates = override
+    ? normaliseStorageName(override)
+    : normaliseStorageName(defaultName);
+
+  for (const name of candidates) {
+    const candidate = path.resolve(process.cwd(), "storage", `${name}.json`);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
 };
 
 export default defineConfig({
   testDir: "./tests",
   testMatch: ["**/*.spec.ts", "**/*.test.ts", "**/*.api.ts"],
   fullyParallel: true,
-  timeout: 90_000,
+  timeout: 30_000,
   expect: {
     timeout: 15_000,
   },
@@ -121,6 +147,7 @@ export default defineConfig({
     trace: "on-first-retry",
     video: videoMode as "retain-on-failure" | "off" | "on" | "on-first-retry",
     screenshot: { mode: "only-on-failure", fullPage: true },
+    viewport: { width: 1920, height: 1080 },
     extraHTTPHeaders: {
       "x-test-run-id": process.env.TEST_RUN_ID ?? `local-${Date.now()}`,
     },
@@ -136,12 +163,12 @@ export default defineConfig({
     {
       name: "chromium",
       testIgnore: ["**/tests/api/**"],
-      use: { ...devices["Desktop Chromium"], storageState: storageStatePath("caseManager") },
+      use: { ...devices["Desktop Chromium"], storageState: storageStatePath("caseManager", "chromium") },
     },
     {
       name: "firefox",
       testIgnore: ["**/tests/api/**"],
-      use: { ...devices["Desktop Firefox"], storageState: storageStatePath("judge") },
+      use: { ...devices["Desktop Firefox"], storageState: storageStatePath("judge", "firefox") },
     },
     {
       name: "webkit",

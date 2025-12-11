@@ -58,6 +58,7 @@ Non-secret defaults now live in `config/baseConfig.json`, with environment-speci
 | `yarn test:api:coverage`       | Run the API suite with c8 coverage (outputs to `coverage/api`, copies summary into Odhin, injects coverage tab into the Odhin report; Odhin server disabled). |
 | `yarn test:smoke`              | Run specs tagged with `@smoke`.                                                                                                                               |
 | `yarn test:regression`         | Run specs tagged with `@regression` (under `tests/regression`).                                                                                               |
+| `yarn test:integration`        | Route-mocked EXUI integration flows (under `tests/integration`, tagged `@integration`, Chromium only).                                                        |
 | `yarn test:a11y`               | Execute the axe-powered accessibility suite in `tests/accessibility`.                                                                                         |
 | `yarn test:perf`               | Run @performance Lighthouse checks (Chromium-only). Set `RUN_PERF=1` to enable.                                                                               |
 | `yarn test:headed`             | Launches Chrome headed with the Inspector for debugging.                                                                                                      |
@@ -168,11 +169,12 @@ Legacy modules (e.g. `utils/config.utils.ts`) have shims to the centralized conf
 Generate authenticated storage states for faster test startup:
 
 ```bash
-yarn auth:generate-storage   # creates storage/caseManager.json & storage/judge.json
+yarn auth:generate-storage   # creates storage/caseManager.json & storage/judge.json (+ solicitor/staff_admin when env vars exist)
 USE_STORAGE_STATE=1 yarn test --project=chromium --grep @smoke
+# Override user for UI projects: PLAYWRIGHT_STORAGE_USER=solicitor USE_STORAGE_STATE=1 yarn test:integration
 ```
 
-When `USE_STORAGE_STATE=1` is set, Playwright will reuse the saved cookies/session instead of performing a full interactive login. Regenerate states whenever credentials rotate.
+When `USE_STORAGE_STATE=1` is set, Playwright will reuse the saved cookies/session instead of performing a full interactive login. Regenerate states whenever credentials rotate. `PLAYWRIGHT_STORAGE_USER` (or `PLAYWRIGHT_STORAGE_USER_CHROMIUM`) picks which saved file to use; defaults stay on `caseManager`/`judge`.
 If the storage files are missing or invalid, runs automatically fall back to live login to avoid hard failures.
 
 ### Dynamic User Provisioning (Scaffold)
@@ -209,6 +211,8 @@ Additionally, `.github/workflows/ci.yml` runs on pushes/PRs to provide fast feed
 
 - Continue migrating the remaining regression suites (case list, URL propagation, support flows) and tick them off in `docs/migration.md`.
 - Replace the `config/appTestConfig.js` fallback with real dynamic user creation backed by IDAM testing-support APIs so persona env vars become the sole source of truth.
-- Expand CI (Jenkins + GitHub Actions) to run the new @regression/@a11y/@performance suites once data prerequisites are solved.
+- Expand CI (Jenkins) to run the new @regression/@a11y/@performance suites once data prerequisites are solved.
 - Add Vitest/unit coverage for config helpers + utilities and document the troubleshooting/FAQ section promised in the build plan.
 - Extend the consolidated config with CCD/data seeding helpers and eventually drop the compatibility shim in `utils/config.utils.ts`.
+- Jenkins regression entry point: see `Jenkinsfile_regression` (AAT defaults). Parameters: `APP_BASE_URL`, `APP_API_BASE_URL`, `TAGS` (e.g. `@regression` or `@case-flags`), `PROJECT`, `WORKERS`. Secrets load from Key Vault (update secret names to match your vault). Odhin report is enabled by default (outputs to `test-results/odhin-report/playwright-odhin.html`).
+- Jenkins PR/nightly mirrors `prl-e2e-tests` structure via `Jenkinsfile_CNP` (smoke) and `Jenkinsfile_nightly` (parameterised tags/browsers/workers with Odhin + JUnit artifacts).
