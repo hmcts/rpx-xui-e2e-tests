@@ -43,7 +43,7 @@ properties([
 def type = "nodejs"
 def product = "rpx"
 def component = "xui-e2e-tests"
-def channel = "#xui-pipeline"
+def channel = "#exui-pipelines"
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
 
@@ -78,6 +78,23 @@ def secrets = [
     secret('user-with-flags-password', 'USER_USER_WITH_FLAGS_PASSWORD'),
     secret('iac-caseofficer-username', 'USER_IAC_CASEOFFICER_R2_USERNAME'),
     secret('iac-caseofficer-password', 'USER_IAC_CASEOFFICER_R2_PASSWORD'),
+    secret('courtadmin-username', 'CASEWORKER_USERNAME'),
+    secret('courtadmin-password', 'CASEWORKER_PASSWORD'),
+    secret('court-admin-stoke-username', 'COURT_ADMIN_STOKE_USERNAME'),
+    secret('court-admin-stoke-password', 'COURT_ADMIN_STOKE_PASSWORD'),
+    secret('s2s-token-url', 'S2S_URL'),
+    secret('ccd-datastore-username', 'CCD_DATA_STORE_CLIENT_USERNAME'),
+    secret('ccd-datastore-password', 'CCD_DATA_STORE_CLIENT_PASSWORD'),
+    secret('ccd-datastore-client-id', 'CCD_DATA_STORE_CLIENT_ID'),
+    secret('ccd-datastore-client-secret', 'CCD_DATA_STORE_SECRET'),
+    secret('ccd-datastore-url', 'CCD_DATA_STORE_URL'),
+    secret('manage-case-redirect-uri', 'MANAGE_CASE_REDIRECT_URI'),
+    secret('jurisdiction', 'JURISDICTION'),
+    secret('case-type', 'CASE_TYPE'),
+    secret('idam-api-url', 'IDAM_API_URL'),
+    secret('prl-cos-aat-url', 'PRL_COS_API_URL'),
+    secret('prl-noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
+    secret('prl-noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
   ]
 ]
 
