@@ -51,9 +51,13 @@ static LinkedHashMap<String, Object> secret(String secretName, String envVar) {
   ]
 }
 
-// Update secret names to match your Key Vault entries.
+def matchingEnv = "aat"
+if (params.APP_BASE_URL.contains("demo") || params.APP_API_BASE_URL.contains("demo")) {
+  matchingEnv = "demo"
+}
+
 def secrets = [
-  'rpx-${env}': [
+  "rpx-${matchingEnv}": [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
     secret('mc-idam-client-secret', 'IDAM_SECRET'),
     secret('case-manager-username', 'CASEMANAGER_USERNAME'),

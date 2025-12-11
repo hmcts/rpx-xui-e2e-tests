@@ -36,3 +36,6 @@ reports/
 !.yarn/releases/
 !.yarn/sdks/
 !.yarn/versions/
+
+jenkins-war/
+jenkins.war

@@ -46,11 +46,15 @@ static Map < String, Object > secret(String secretName, String envVariable) {
   ]
 }
 
-// TODO: align secret names with Key Vault entries; values are mapped to env vars used by the tests.
+def matchingEnv = "aat"
+if (params.APP_BASE_URL.contains("demo") || params.APP_API_BASE_URL.contains("demo")) {
+  matchingEnv = "demo"
+}
+
 def secrets = [
-  "rpx-aat": [
-    secret('idam-secret', 'IDAM_SECRET'),
-    secret('s2s-secret', 'S2S_SECRET'),
+  "rpx-${matchingEnv}": [
+    secret('mc-s2s-client-secret', 'S2S_SECRET'),
+    secret('mc-idam-client-secret', 'IDAM_SECRET'),
     secret('case-manager-username', 'CASEMANAGER_USERNAME'),
     secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
     secret('judge-username', 'JUDGE_USERNAME'),
@@ -72,33 +76,52 @@ withNightlyPipeline(type, product, component, 120) {
   loadVaultSecrets(secrets)
   env.APP_BASE_URL = params.APP_BASE_URL
   env.APP_API_BASE_URL = params.APP_API_BASE_URL
-  env.PLAYWRIGHT_JUNIT_OUTPUT = "test-results/junit/results.xml"
+  env.APP_HEALTH_ENDPOINT = '/health'
+  env.IDAM_WEB_URL = 'https://idam-web-public.aat.platform.hmcts.net'
+  env.IDAM_TESTING_SUPPORT_URL = 'https://idam-testing-support-api.aat.platform.hmcts.net'
+  env.IDAM_CLIENT_ID = 'xuiwebapp'
+  env.IDAM_RETURN_URL = "${env.APP_BASE_URL}/oauth2/callback"
+  env.S2S_URL = 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease'
+  env.S2S_MICROSERVICE_NAME = 'xui_webapp'
+  env.PLAYWRIGHT_REPORTERS = "dot,odhin"
+  env.PLAYWRIGHT_ODHIN = "1"
+  env.PW_ODHIN_OUTPUT = "test-results/odhin-report"
+  env.PLAYWRIGHT_JUNIT_OUTPUT = "test-results/junit/regression-${params.PROJECT}.xml"
+  env.PLAYWRIGHT_JSON_OUTPUT = "test-results/json/regression-${params.PROJECT}.json"
   enableSlackNotifications(channel)
 
-  stage("Install dependencies") {
-    yarnBuilder.yarn("install --immutable")
-    yarnBuilder.yarn("playwright install --with-deps")
-  }
+  afterAlways('DependencyCheckNightly') {
+    stage("Install dependencies") {
+      try {
+        yarnBuilder.yarn("install --immutable")
+        yarnBuilder.yarn("playwright install --with-deps")
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      }
+    }
 
-  stage("Run regression") {
-    try {
-      // Odhin + dot reporters, JUnit output for CI
-      env.PLAYWRIGHT_REPORTERS = "dot,odhin"
-      env.PLAYWRIGHT_ODHIN = "1"
-      env.PW_ODHIN_OUTPUT = "test-results/odhin-report"
-      yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=${params.PROJECT} --workers=${params.WORKERS} --reporter=dot,junit")
-    } catch (Error) {
-      unstable(message: "${STAGE_NAME} unstable: " + Error.toString())
-    } finally {
-      publishHTML([
-        allowMissing: true,
-        alwaysLinkToLastBuild: true,
-        keepAll: true,
-        reportDir: "test-results/odhin-report",
-        reportFiles: 'playwright-odhin.html',
-        reportName: "Playwright Odhin report"
-      ])
-      steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
+    stage("Run regression") {
+      try {
+        yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=${params.PROJECT} --workers=${params.WORKERS} --reporter=dot,junit")
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} unstable: " + Error.toString())
+      } finally {
+        try {
+          yarnBuilder.yarn('check:flake')
+        } catch (Error) {
+          unstable(message: "Flake budget exceeded: " + Error.toString())
+        }
+        publishHTML([
+          allowMissing: true,
+          alwaysLinkToLastBuild: true,
+          keepAll: true,
+          reportDir: "test-results/odhin-report",
+          reportFiles: 'playwright-odhin.html',
+          reportName: "Regression (${params.PROJECT})"
+        ])
+        junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
+        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
+      }
     }
   }
 }

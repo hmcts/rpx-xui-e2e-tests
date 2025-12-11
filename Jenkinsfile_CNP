@@ -57,9 +57,13 @@ static LinkedHashMap<String, Object> secret(String secretName, String envVar) {
   ]
 }
 
-// Update secret names to match your Key Vault entries.
+def matchingEnv = "aat"
+if (params.APP_BASE_URL.contains("demo") || params.APP_API_BASE_URL.contains("demo")) {
+  matchingEnv = "demo"
+}
+
 def secrets = [
-  'rpx-${env}': [
+  "rpx-${matchingEnv}": [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
     secret('mc-idam-client-secret', 'IDAM_SECRET'),
     secret('case-manager-username', 'CASEMANAGER_USERNAME'),
@@ -93,8 +97,8 @@ withNightlyPipeline(type, product, component, 180) {
   env.PLAYWRIGHT_REPORTERS = "dot,odhin"
   env.PLAYWRIGHT_ODHIN = "1"
   env.PW_ODHIN_OUTPUT = "test-results/odhin-report"
-  env.PLAYWRIGHT_JUNIT_OUTPUT = 'test-results/junit/cnp-smoke.xml'
-  env.PLAYWRIGHT_JSON_OUTPUT = 'test-results/json/cnp-smoke.json'
+  env.PLAYWRIGHT_JUNIT_OUTPUT = "test-results/junit/cnp-${params.BROWSER}.xml"
+  env.PLAYWRIGHT_JSON_OUTPUT = "test-results/json/cnp-${params.BROWSER}.json"
 
   afterAlways('DependencyCheckNightly') {
     stage('Install dependencies') {
@@ -114,27 +118,55 @@ withNightlyPipeline(type, product, component, 180) {
       }
     }
 
-    stage('Smoke tests') {
-      try {
-        yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=${params.BROWSER} --workers=${params.WORKERS} --reporter=dot,junit")
-      } catch (Error) {
-        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-      } finally {
+    onPR() {
+      stage('PR smoke - Chromium') {
         try {
-          yarnBuilder.yarn('check:flake')
+          yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=chromium --workers=${params.WORKERS} --reporter=dot,junit")
         } catch (Error) {
-          unstable(message: "Flake budget exceeded: " + Error.toString())
+          unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+        } finally {
+          try {
+            yarnBuilder.yarn('check:flake')
+          } catch (Error) {
+            unstable(message: "Flake budget exceeded: " + Error.toString())
+          }
+          publishHTML([
+            allowMissing         : true,
+            alwaysLinkToLastBuild: true,
+            keepAll              : true,
+            reportDir            : "test-results/odhin-report",
+            reportFiles          : 'playwright-odhin.html',
+            reportName           : 'PR smoke (Odhin)'
+          ])
+          junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
+          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
         }
-        publishHTML([
-          allowMissing         : true,
-          alwaysLinkToLastBuild: true,
-          keepAll              : true,
-          reportDir            : "test-results/odhin-report",
-          reportFiles          : 'playwright-odhin.html',
-          reportName           : 'Chromium smoke (Odhin)'
-        ])
-        junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
-        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
+      }
+    }
+
+    onMaster() {
+      stage('Smoke tests') {
+        try {
+          yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=${params.BROWSER} --workers=${params.WORKERS} --reporter=dot,junit")
+        } catch (Error) {
+          unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+        } finally {
+          try {
+            yarnBuilder.yarn('check:flake')
+          } catch (Error) {
+            unstable(message: "Flake budget exceeded: " + Error.toString())
+          }
+          publishHTML([
+            allowMissing         : true,
+            alwaysLinkToLastBuild: true,
+            keepAll              : true,
+            reportDir            : "test-results/odhin-report",
+            reportFiles          : 'playwright-odhin.html',
+            reportName           : "Smoke (${params.BROWSER})"
+          ])
+          junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
+          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
+        }
       }
     }
   }

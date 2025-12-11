@@ -203,6 +203,8 @@ Two Jenkins pipelines live in the repo:
 - `Jenkinsfile_CNP` – PR/branch safety net that installs dependencies, lints, and runs the Chromium smoke suite (`yarn test:smoke --project=chromium`). Reports are archived via the Playwright HTML output plus JUnit results.
 - `Jenkinsfile_nightly` – cron-triggered nightly (weekdays 22:00 UTC by default) with parameters for base URL, browser, tags, and worker count. By default it runs the tagged smoke suite on Chromium but can be pointed at any Playwright project and additional tag combinations.
 
+Both pipelines now derive the Key Vault to read from based on the target URL: if `APP_BASE_URL` or `APP_API_BASE_URL` contains `demo`, secrets come from `rpx-demo`; otherwise they come from `rpx-aat`. PR builds run the Chromium smoke lane only; the default branch runs the configured browser/tag combination. All lanes publish Odhin + JUnit reports to `test-results/**`.
+
 Both pipelines load `IDAM_SECRET` / `S2S_SECRET` from Key Vault and now populate the unified set consumed by `config/index.ts`. Persona credentials are provided via environment variables (e.g. `USER_IAC_CASEOFFICER_R2_USERNAME`); the legacy `config/appTestConfig.js` acts only as a fallback until dynamic user provisioning lands.
 
 Additionally, `.github/workflows/ci.yml` runs on pushes/PRs to provide fast feedback (lint + the public health-check spec using Chromium with safe placeholder environment variables). Extend this workflow as more suites become self-contained.
