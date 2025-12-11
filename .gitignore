@@ -27,6 +27,12 @@ storage/
 coverage/
 reports/
 .sessions/
+dist/
+*.tsbuildinfo
+.eslintcache
+*.swp
+*.swo
+*.tgz
 
 # Yarn Berry
 .pnp.*
