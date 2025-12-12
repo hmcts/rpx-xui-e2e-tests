@@ -1,0 +1,34 @@
+{
+  "environment": "aat",
+  "urls": {
+    "xui": "https://manage-case.aat.platform.hmcts.net",
+    "api": "https://manage-case.aat.platform.hmcts.net"
+  },
+  "test": {
+    "timeout": 60000,
+    "expectTimeout": 30000,
+    "retries": 0,
+    "workers": 4,
+    "wiremock": {
+      "enabled": false,
+      "baseUrl": "http://localhost:8888",
+      "autoTearDownMappings": true
+    },
+    "reporting": {
+      "html": {
+        "outputFolder": "playwright-report"
+      },
+      "junit": {
+        "outputFile": "playwright-junit.xml"
+      },
+      "odhin": {
+        "outputFolder": "test-results/odhin-report",
+        "index": "playwright-odhin.html"
+      }
+    }
+  },
+  "users": {
+    "aat": {},
+    "demo": {}
+  }
+}

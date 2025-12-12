@@ -1,0 +1,25 @@
+{
+  "default_profile": "default",
+  "profiles": {
+    "default": {
+      "model": "gpt-5.1-codex-max",
+      "model_reasoning_effort": "high",
+      "temperature": 0.2,
+      "max_output_tokens": 2048
+    }
+  },
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-filesystem",
+        "--root",
+        "/Users/andrew.grizhenkov/Projects/travel_demo"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp@latest"]
+    }
+  }
+}

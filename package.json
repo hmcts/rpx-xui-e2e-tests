@@ -1,0 +1,40 @@
+{
+  "name": "rpx-xui-e2e-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "yarn@4.12.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "setup": "yarn playwright install --with-deps",
+    "lint": "yarn tsc -p tsconfig.json && yarn eslint .",
+    "lint:fix": "yarn eslint . --fix",
+    "test:all": "yarn playwright test",
+    "test:smoke": "yarn playwright test src/tests --project=chromium --grep @smoke",
+    "test:regression": "yarn playwright test src/tests --project=chromium --grep @regression",
+    "test:api": "yarn playwright test src/tests/api --project=api",
+    "test:a11y": "yarn playwright test src/tests --project=chromium --grep @accessibility",
+    "test:visual": "yarn playwright test src/tests --project=chromium --grep @visual"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
+    "@eslint/js": "^9.11.1",
+    "@hmcts/playwright-common": "^1.0.39",
+    "@playwright/test": "^1.57.0",
+    "@types/lodash": "^4.17.16",
+    "@types/node": "^22.13.0",
+    "dotenv": "^17.0.0",
+    "eslint": "^9.11.1",
+    "eslint-plugin-playwright": "^2.2.0",
+    "lodash": "^4.17.21",
+    "odhin-reports-playwright": "^1.1.8",
+    "playwright": "^1.57.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.8.0",
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "workbench.startupEditor": "readme",
+  "workbench.editorAssociations": {
+    "*.md": "vscode.markdown.preview.editor"
+  },
+  "files.associations": {
+    "agents.md": "markdown"
+  },
+  "workbench.editor.customEditors": {
+    "agents.md": {
+      "viewType": "default",
+      "priority": "default"
+    }
+  },
+  "playwright.envFiles": ["rpx-xui-e2e-tests/.env"],
+  "playwright.projectRoot": "rpx-xui-e2e-tests",
+  "git.confirmSync": false,
+  "window.titleBarStyle": "custom",
+  "window.title": "Secure Development Workspace",
+  "security.workspace.trust.banner": "always",
+  "workbench.startupEditorMessage": "Before using AI-assisted tools, review Responsible AI policy in agents.md",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "chatgpt.openOnStartup": true,
+  "chatgpt.commentCodeLensEnabled": true
+}

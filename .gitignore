@@ -1,0 +1,25 @@
+# Node/Yarn
+node_modules/
+.pnp.*
+.yarn/*
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/patches
+.npmrc
+
+# Build and tooling
+dist/
+out/
+coverage/
+playwright-report/
+test-results/
+playwright-junit.xml
+browserstackSetupConfig.json
+
+# Environment / local
+.env
+.env.*.local
+.DS_Store
+*.log
+*.tsbuildinfo
