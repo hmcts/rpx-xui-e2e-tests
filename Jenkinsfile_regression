@@ -1,0 +1,127 @@
+#!groovy
+
+properties([
+  parameters([
+    string(
+      name: 'APP_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net',
+      description: 'Base URL for EXUI (AAT by default)'
+    ),
+    string(
+      name: 'APP_API_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net',
+      description: 'API base URL (usually same as APP_BASE_URL)'
+    ),
+    string(
+      name: 'TAGS',
+      defaultValue: '@regression',
+      description: 'Playwright grep expression (e.g. @regression or @case-flags)'
+    ),
+    string(
+      name: 'PROJECT',
+      defaultValue: 'chromium',
+      description: 'Playwright project (chromium, firefox, webkit, chrome, etc.)'
+    ),
+    string(
+      name: 'WORKERS',
+      defaultValue: '4',
+      description: 'Number of Playwright workers'
+    )
+  ])
+])
+
+@Library("Infrastructure")
+
+def type = "nodejs"
+def product = "rpx"
+def component = "xui-e2e-tests"
+def channel = "#rpx-notifications"
+
+static Map < String, Object > secret(String secretName, String envVariable) {
+  [
+    $class: 'AzureKeyVaultSecret',
+    secretType: 'Secret',
+    name: secretName,
+    envVariable: envVariable
+  ]
+}
+
+def matchingEnv = "aat"
+if (params.APP_BASE_URL.contains("demo") || params.APP_API_BASE_URL.contains("demo")) {
+  matchingEnv = "demo"
+}
+
+def secrets = [
+  "rpx-${matchingEnv}": [
+    secret('mc-s2s-client-secret', 'S2S_SECRET'),
+    secret('mc-idam-client-secret', 'IDAM_SECRET'),
+    secret('case-manager-username', 'CASEMANAGER_USERNAME'),
+    secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
+    secret('judge-username', 'JUDGE_USERNAME'),
+    secret('judge-password', 'JUDGE_PASSWORD'),
+    secret('solicitor-username', 'SOLICITOR_USERNAME'),
+    secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('staff-admin-username', 'USER_STAFF_ADMIN_USERNAME'),
+    secret('staff-admin-password', 'USER_STAFF_ADMIN_PASSWORD'),
+    secret('user-with-flags-username', 'USER_USER_WITH_FLAGS_USERNAME'),
+    secret('user-with-flags-password', 'USER_USER_WITH_FLAGS_PASSWORD'),
+    secret('iac-caseofficer-username', 'USER_IAC_CASEOFFICER_R2_USERNAME'),
+    secret('iac-caseofficer-password', 'USER_IAC_CASEOFFICER_R2_PASSWORD'),
+  ]
+]
+
+def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+
+withNightlyPipeline(type, product, component, 120) {
+  loadVaultSecrets(secrets)
+  env.APP_BASE_URL = params.APP_BASE_URL
+  env.APP_API_BASE_URL = params.APP_API_BASE_URL
+  env.APP_HEALTH_ENDPOINT = '/health'
+  env.IDAM_WEB_URL = 'https://idam-web-public.aat.platform.hmcts.net'
+  env.IDAM_TESTING_SUPPORT_URL = 'https://idam-testing-support-api.aat.platform.hmcts.net'
+  env.IDAM_CLIENT_ID = 'xuiwebapp'
+  env.IDAM_RETURN_URL = "${env.APP_BASE_URL}/oauth2/callback"
+  env.S2S_URL = 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease'
+  env.S2S_MICROSERVICE_NAME = 'xui_webapp'
+  env.PLAYWRIGHT_REPORTERS = "dot,odhin"
+  env.PLAYWRIGHT_ODHIN = "1"
+  env.PW_ODHIN_OUTPUT = "test-results/odhin-report"
+  env.PLAYWRIGHT_JUNIT_OUTPUT = "test-results/junit/regression-${params.PROJECT}.xml"
+  env.PLAYWRIGHT_JSON_OUTPUT = "test-results/json/regression-${params.PROJECT}.json"
+  enableSlackNotifications(channel)
+
+  afterAlways('DependencyCheckNightly') {
+    stage("Install dependencies") {
+      try {
+        yarnBuilder.yarn("install --immutable")
+        yarnBuilder.yarn("playwright install --with-deps")
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      }
+    }
+
+    stage("Run regression") {
+      try {
+        yarnBuilder.yarn("playwright test --grep \"${params.TAGS}\" --project=${params.PROJECT} --workers=${params.WORKERS} --reporter=dot,junit")
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} unstable: " + Error.toString())
+      } finally {
+        try {
+          yarnBuilder.yarn('check:flake')
+        } catch (Error) {
+          unstable(message: "Flake budget exceeded: " + Error.toString())
+        }
+        publishHTML([
+          allowMissing: true,
+          alwaysLinkToLastBuild: true,
+          keepAll: true,
+          reportDir: "test-results/odhin-report",
+          reportFiles: 'playwright-odhin.html',
+          reportName: "Regression (${params.PROJECT})"
+        ])
+        junit allowEmptyResults: true, testResults: 'test-results/junit/**/*.xml'
+        steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/**/*'
+      }
+    }
+  }
+}
