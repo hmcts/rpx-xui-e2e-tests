@@ -7,8 +7,7 @@ properties([
     projectUrlStr: 'https://github.com/hmcts/rpx-xui-e2e-tests'
   ],
   pipelineTriggers([
-    [$class: 'GitHubPushTrigger',
-    cron('15 9-18 * * *')]
+    [$class: 'GitHubPushTrigger']
   ]),
   parameters([
     string(
