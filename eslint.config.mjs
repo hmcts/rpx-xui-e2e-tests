@@ -32,6 +32,14 @@ export default tseslint.config(
     }
   },
   {
-    ignores: ["src/tests/ui/E2E/**", "src/tests/ui/functional-integration/**", "src/tests/api/**"]
+    ignores: [
+      "src/tests/ui/E2E/**",
+      "src/tests/ui/functional-integration/**",
+      "src/tests/api/**",
+      "functional-output/**",
+      "reports/**",
+      "playwright-report/**",
+      "test-results/**"
+    ]
   }
 );
