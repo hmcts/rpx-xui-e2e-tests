@@ -33,7 +33,9 @@ pipeline {
             echo "nvm not found, using system node"
           fi
           node -v
-          corepack enable
+          export COREPACK_HOME="${WORKSPACE}/.corepack"
+          export PATH="${COREPACK_HOME}:${PATH}"
+          mkdir -p "${COREPACK_HOME}"
           corepack prepare yarn@4.12.0 --activate
           yarn -v
           yarn install --frozen-lockfile
