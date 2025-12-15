@@ -33,12 +33,8 @@ pipeline {
             echo "nvm not found, using system node"
           fi
           node -v
-          export COREPACK_HOME="${WORKSPACE}/.corepack"
-          export PATH="${COREPACK_HOME}:${PATH}"
-          mkdir -p "${COREPACK_HOME}"
-          corepack prepare yarn@4.12.0 --activate
-          corepack yarn -v
-          corepack yarn install --frozen-lockfile
+          npx -y yarn@4.12.0 -v
+          npx -y yarn@4.12.0 install --frozen-lockfile
         '''
       }
     }
@@ -54,9 +50,7 @@ pipeline {
           else
             echo "nvm not found, using system node"
           fi
-          export COREPACK_HOME="${WORKSPACE}/.corepack"
-          export PATH="${COREPACK_HOME}:${PATH}"
-          corepack yarn lint --verbose | tee lint.log
+          npx -y yarn@4.12.0 lint --verbose | tee lint.log
         '''
         archiveArtifacts artifacts: 'lint.log', allowEmptyArchive: true
       }
@@ -73,9 +67,7 @@ pipeline {
           else
             echo "nvm not found, using system node"
           fi
-          export COREPACK_HOME="${WORKSPACE}/.corepack"
-          export PATH="${COREPACK_HOME}:${PATH}"
-          PW_ODHIN_LINK_COVERAGE=true corepack yarn test:api:odhin:coverage | tee api-tests.log
+          PW_ODHIN_LINK_COVERAGE=true npx -y yarn@4.12.0 test:api:odhin:coverage | tee api-tests.log
         '''
         archiveArtifacts artifacts: 'api-tests.log', allowEmptyArchive: true
 
