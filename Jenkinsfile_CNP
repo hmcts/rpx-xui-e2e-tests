@@ -40,8 +40,6 @@ properties([
 
 @Library("Infrastructure")
 
-import uk.gov.hmcts.contino.AppPipelineDsl
-
 def type = "nodejs"
 def product = "xui"
 def component = "rpx-xui-e2e-tests"
@@ -115,9 +113,18 @@ withPipeline(type, product, component) {
   env.CITIZEN_FRONTEND_BASE_URL = params.CITIZEN_FRONTEND_BASE_URL
   env.MANAGE_CASES_BASE_URL = params.MANAGE_CASES_BASE_URL
   env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  enableSlackNotifications(channel)
   onPR() {
     afterAlways('DependencyCheckNightly') {
+      stage('Lint') {
+        try {
+          sh 'yarn lint --verbose > lint.log 2>&1'
+        } catch (Error) {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+          error("${STAGE_NAME} failed: ${Error}")
+        } finally {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+        }
+      }
       stage('API Odhin coverage') {
         try {
           yarnBuilder.yarn('test:api:odhin:coverage')
@@ -140,6 +147,16 @@ withPipeline(type, product, component) {
   }
   onMaster() {
     afterAlways('DependencyCheckNightly') {
+      stage('Lint') {
+        try {
+          sh 'yarn lint --verbose > lint.log 2>&1'
+        } catch (Error) {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+          error("${STAGE_NAME} failed: ${Error}")
+        } finally {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+        }
+      }
       stage('API Odhin coverage') {
         try {
           yarnBuilder.yarn('test:api:odhin:coverage')
