@@ -1,0 +1,262 @@
+#!groovy
+
+properties([
+  // H allow predefined but random minute see https://en.wikipedia.org/wiki/Cron#Non-standard_characters
+  pipelineTriggers([cron('H 12 * * 1-5')]),
+  parameters([
+    string(
+      name: 'CITIZEN_FRONTEND_BASE_URL',
+      defaultValue: 'https://privatelaw.aat.platform.hmcts.net/',
+      description: 'The Citizen URL to test against'
+    ),
+    string(
+      name: 'MANAGE_CASES_BASE_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net/cases',
+      description: 'The Manage Cases URL to test against'
+    ),
+    string(
+      name: 'FUNCTIONAL_TESTS_WORKERS',
+      defaultValue: '4',
+      description: 'Number of workers running functional tests'
+    ),
+    booleanParam(
+      name: 'skipCitizenTests',
+      defaultValue: false,
+      description: 'Tick the checkbox for skipping Citizen application tests.'
+    ),
+    booleanParam(
+      name: 'skipManageCasesTests',
+      defaultValue: false,
+      description: 'Tick the checkbox for skipping Manage Cases application tests.'
+    ),
+    string(
+      name: 'tag',
+      defaultValue: '',
+      description: 'Test tag to be used'
+    ),
+    string(
+      name: 'tests',
+      defaultValue: '',
+      description: 'Space separated list of test names to be used'
+    ),
+    choice(
+      name: 'browser',
+      choices: ['chromium', 'firefox', 'webkit', 'MicrosoftEdge', 'MobileChrome', 'MobileSafari'],
+      description: 'Which browser to use'
+    ),
+  ])
+])
+
+@Library("Infrastructure")
+
+def type  = "nodejs"
+def product = "prl"
+def component = "e2e-tests"
+def channel = "#prl-tech-notifications"
+
+static Map < String, Object > secret(String secretName, String envVariable) {
+  [
+    $class: 'AzureKeyVaultSecret',
+    secretType: 'Secret',
+    name: secretName,
+    envVariable: envVariable
+  ]
+}
+
+def matchingEnv = "aat"
+
+if(params.skipManageCasesTests) {
+  matchingEnv = params.CITIZEN_FRONTEND_BASE_URL.contains("demo") ? "demo" : matchingEnv
+} else {
+  matchingEnv = params.MANAGE_CASES_BASE_URL.contains("demo") ? "demo" : matchingEnv
+}
+
+def secrets = [
+  "prl-${matchingEnv}": [
+    secret('solicitor-user', 'SOLICITOR_USERNAME'),
+    secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('citizen-user', 'CITIZEN_USERNAME'),
+    secret('citizen-password', 'CITIZEN_PASSWORD'),
+    secret('prl-cos-idam-client-secret', 'IDAM_SECRET'),
+    secret('idam-web-url', 'IDAM_WEB_URL'),
+    secret('idam-citizen-password', 'IDAM_CITIZEN_USER_PASSWORD'),
+    secret('idam-testing-support-users-url', 'IDAM_TESTING_SUPPORT_USERS_URL'),
+    secret('idam-testing-support-url', 'IDAM_TESTING_SUPPORT_URL'),
+    secret('judge-testuser-one', 'JUDGE_USERNAME'),
+    secret('judge-testpassword', 'JUDGE_PASSWORD'),
+    secret('case-manager-swansea-username', 'CASEMANAGER_USERNAME'),
+    secret('case-manager-swansea-password', 'CASEMANAGER_PASSWORD'),
+    secret('da-citizen-case-create-courtnav-client-secret', 'COURTNAV_SECRET'),
+    secret('da-citizen-case-create-courtnav-username', 'COURTNAV_USERNAME'),
+    secret('da-citizen-case-create-courtnav-password', 'COURTNAV_PASSWORD'),
+    secret('da-citizen-case-create-courtnav-subscription-key', 'COURTNAV_SUBSCRIPTION_KEY_CREATE_CASE'),
+    secret('da-citizen-case-create-courtnav-url', 'COURTNAV_CASE_URL'),
+    secret('da-citizen-courtnav-add-doc-url', 'COURTNAV_DOC_URL'),
+    secret('da-citizen-courtnav-subscription-key-add-doc', 'COURTNAV_SUBSCRIPTION_KEY_ADD_DOC'),
+    secret('courtadmin-username', 'CASEWORKER_USERNAME'),
+    secret('courtadmin-password', 'CASEWORKER_PASSWORD'),
+    secret('court-admin-stoke-username', 'COURT_ADMIN_STOKE_USERNAME'),
+    secret('court-admin-stoke-password', 'COURT_ADMIN_STOKE_PASSWORD'),
+    secret('s2s-token-url', 'S2S_URL'),
+    secret('ccd-datastore-username', 'CCD_DATA_STORE_CLIENT_USERNAME'),
+    secret('ccd-datastore-password', 'CCD_DATA_STORE_CLIENT_PASSWORD'),
+    secret('ccd-datastore-client-id', 'CCD_DATA_STORE_CLIENT_ID'),
+    secret('ccd-datastore-client-secret', 'CCD_DATA_STORE_SECRET'),
+    secret('ccd-datastore-url', 'CCD_DATA_STORE_URL'),
+    secret('manage-case-redirect-uri', 'MANAGE_CASE_REDIRECT_URI'),
+    secret('jurisdiction', 'JURISDICTION'),
+    secret('case-type', 'CASE_TYPE'),
+    secret('idam-api-url', 'IDAM_API_URL'),
+    secret('prl-cos-aat-url', 'PRL_COS_API_URL'),
+    secret('prl-noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
+    secret('prl-noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
+    secret('e2e-tests-github-token', 'GITHUB_TOKEN'),
+  ]
+]
+
+def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+
+withNightlyPipeline(type, product, component, 600) {
+  loadVaultSecrets(secrets)
+  env.CITIZEN_FRONTEND_BASE_URL = params.CITIZEN_FRONTEND_BASE_URL
+  env.MANAGE_CASES_BASE_URL = params.MANAGE_CASES_BASE_URL
+  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  enableSlackNotifications(channel)
+
+  afterAlways('DependencyCheckNightly') {
+    stage('Delete nightly dev branch') {
+      try {
+        yarnBuilder.yarn('delete-nightly-dev-branch prl-e2e-tests')
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      }
+    }
+    if(params.tests || params.tag) {
+      stage("${params.tag} ${params.tests ? "custom" : ""} tests - ${params.browser}") {
+        try {
+          yarnBuilder.yarn('playwright install --with-deps')
+          yarnBuilder.yarn("playwright test ${params.tests} ${params.tag ? "--grep ${params.tag}": ""} --project ${params.browser}")
+        } catch (Error) {
+          unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+        } finally {
+          publishHTML([
+                  allowMissing: true,
+                  alwaysLinkToLastBuild: true,
+                  keepAll: true,
+                  reportDir: "playwright-report",
+                  reportFiles: 'index.html',
+                  reportName: "${params.tag} custom tests - ${params.browser}"
+          ])
+          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/CitizenFunctional/*'
+        }
+      }
+    } else {
+      if (!params.skipCitizenTests) {
+        stage('Citizen E2E tests - Chrome with accessibility') {
+          try {
+            yarnBuilder.yarn('test:citizenFrontendChrome')
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing: true,
+              alwaysLinkToLastBuild: true,
+              keepAll: true,
+              reportDir: "playwright-report",
+              reportFiles: 'index.html',
+              reportName: 'Citizen Chrome E2E Test Report'
+            ])
+            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/CitizenFunctional/*'
+          }
+        }
+        stage('Citizen E2E tests Smoke - Firefox') {
+          try {
+            yarnBuilder.yarn('test:citizenFrontendFirefox')
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing: true,
+              alwaysLinkToLastBuild: true,
+              keepAll: true,
+              reportDir: "playwright-report",
+              reportFiles: 'index.html',
+              reportName: 'Citizen Firefox E2E Test Report'
+            ])
+            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/CitizenFunctional/*'
+          }
+        }
+        stage('Citizen E2E tests Smoke - Webkit') {
+          try {
+            yarnBuilder.yarn('test:citizenFrontendSafari')
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing: true,
+              alwaysLinkToLastBuild: true,
+              keepAll: true,
+              reportDir: "playwright-report",
+              reportFiles: 'index.html',
+              reportName: 'Citizen Webkit E2E Test Report'
+            ])
+            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/CitizenFunctional/*'
+          }
+        }
+      }
+      if (!params.skipManageCasesTests) {
+        stage('Manage Cases E2E tests - Chrome with accessibility') {
+          try {
+            yarnBuilder.yarn('test:manageCasesChrome')
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing: true,
+              alwaysLinkToLastBuild: true,
+              keepAll: true,
+              reportDir: "playwright-report",
+              reportFiles: 'index.html',
+              reportName: 'Manage Cases Chrome E2E Test Report'
+            ])
+            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/ManageCasesFunctional/*'
+          }
+        }
+        stage('Manage Cases E2E tests Smoke - Firefox') {
+          try {
+            yarnBuilder.yarn('test:manageCasesFirefox')
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing: true,
+              alwaysLinkToLastBuild: true,
+              keepAll: true,
+              reportDir: "playwright-report",
+              reportFiles: 'index.html',
+              reportName: 'Manage Cases Firefox E2E Test Report'
+            ])
+            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/ManageCasesFunctional/*'
+          }
+        }
+        stage('Manage Cases E2E tests Smoke - Webkit') {
+          try {
+            yarnBuilder.yarn('test:manageCasesSafari')
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+                    allowMissing: true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: "playwright-report",
+                    reportFiles: 'index.html',
+                    reportName: 'Manage Cases Webkit E2E Test Report'
+            ])
+            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/ManageCasesFunctional/*'
+          }
+        }
+      }
+    }
+  }
+}

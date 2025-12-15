@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "github.copilot",
+    "ms-azuretools.vscode-azureappservice",
+    "tamasfe.even-better-toml",
+    "adamhartford.vscode-base16-css",
+    "eamodio.gitlens"
+  ]
+}

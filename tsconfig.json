@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node", "playwright", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@config/*": ["config/*"],
+      "@fixtures/*": ["src/fixtures/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@page-objects/*": ["src/page-objects/*"],
+      "@tests/*": ["src/tests/*"],
+      "@utils/*": ["src/utils/*"],
+      "@data/*": ["src/data/*"],
+      "@wiremock/*": ["src/wiremock/*"]
+    },
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "config/**/*.ts", "playwright.config.ts"],
+  "exclude": ["node_modules", "dist", ".yarn", "src/tests/ui/E2E/**/*", "src/tests/ui/functional-integration/**/*"]
+}

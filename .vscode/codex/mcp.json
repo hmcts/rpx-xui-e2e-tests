@@ -1,0 +1,21 @@
+{
+  "servers": {
+    "playwright": {
+      "command": "mcp-playwright",
+      "args": []
+    },
+
+    "filesystem": {
+      "command": "mcp-filesystem",
+      "args": [],
+      "permissions": {
+        "read": ["./"],
+        "write": ["./"]
+      }
+    },
+    "git": {
+      "command": "mcp-git",
+      "args": []
+    }
+  }
+}
