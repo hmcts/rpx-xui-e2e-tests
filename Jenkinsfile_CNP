@@ -125,9 +125,9 @@ withNightlyPipeline(type, product, component, 600) {
           archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
         }
       }
-      stage('Run changed tests - Chrome') {
+      stage('API Odhin coverage') {
         try {
-          yarnBuilder.yarn('test:changes')
+          yarnBuilder.yarn('test:api:odhin:coverage')
         } catch (Error) {
           unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
         } finally {
@@ -135,11 +135,12 @@ withNightlyPipeline(type, product, component, 600) {
                   allowMissing         : true,
                   alwaysLinkToLastBuild: true,
                   keepAll              : true,
-                  reportDir            : "playwright-report",
+                  reportDir            : "functional-output/tests/playwright-api/odhin-report",
                   reportFiles          : 'index.html',
-                  reportName           : 'Changed Chrome E2E Test Report'
+                  reportName           : 'API Odhin Coverage'
           ])
-          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/ChangedTests/*'
+          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
+          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests/coverage/api-playwright/**'
         }
       }
     }
@@ -156,42 +157,22 @@ withNightlyPipeline(type, product, component, 600) {
           archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
         }
       }
-      if (!params.skipCitizenTests) {
-        stage('Citizen E2E smoke tests - Chrome') {
-          try {
-            yarnBuilder.yarn('test:citizenSmoke')
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            publishHTML([
-                    allowMissing         : true,
-                    alwaysLinkToLastBuild: true,
-                    keepAll              : true,
-                    reportDir            : "playwright-report",
-                    reportFiles          : 'index.html',
-                    reportName           : 'Citizen Chrome E2E Smoke Test Report'
-            ])
-            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/CitizenFunctional/*'
-          }
-        }
-      }
-      if (!params.skipManageCasesTests) {
-        stage('Manage Cases E2E smoke tests - Chrome') {
-          try {
-            yarnBuilder.yarn('test:manageCasesSmoke')
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            publishHTML([
-                    allowMissing         : true,
-                    alwaysLinkToLastBuild: true,
-                    keepAll              : true,
-                    reportDir            : "playwright-report",
-                    reportFiles          : 'index.html',
-                    reportName           : 'Manage Cases Chrome E2E Smoke Test Report'
-            ])
-            steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests-results/ManageCasesFunctional/*'
-          }
+      stage('API Odhin coverage') {
+        try {
+          yarnBuilder.yarn('test:api:odhin:coverage')
+        } catch (Error) {
+          unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+        } finally {
+          publishHTML([
+                  allowMissing         : true,
+                  alwaysLinkToLastBuild: true,
+                  keepAll              : true,
+                  reportDir            : "functional-output/tests/playwright-api/odhin-report",
+                  reportFiles          : 'index.html',
+                  reportName           : 'API Odhin Coverage'
+          ])
+          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
+          steps.archiveArtifacts allowEmptyArchive: true, artifacts: 'reports/tests/coverage/api-playwright/**'
         }
       }
     }
