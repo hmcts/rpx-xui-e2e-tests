@@ -115,6 +115,16 @@ withNightlyPipeline(type, product, component, 600) {
   enableSlackNotifications(channel)
   onPR() {
     afterAlways('DependencyCheckNightly') {
+      stage('Lint') {
+        try {
+          sh 'yarn lint --verbose > lint.log 2>&1'
+        } catch (Error) {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+          error("${STAGE_NAME} failed: ${Error}")
+        } finally {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+        }
+      }
       stage('Run changed tests - Chrome') {
         try {
           yarnBuilder.yarn('test:changes')
@@ -136,6 +146,16 @@ withNightlyPipeline(type, product, component, 600) {
   }
   onMaster() {
     afterAlways('DependencyCheckNightly') {
+      stage('Lint') {
+        try {
+          sh 'yarn lint --verbose > lint.log 2>&1'
+        } catch (Error) {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+          error("${STAGE_NAME} failed: ${Error}")
+        } finally {
+          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
+        }
+      }
       if (!params.skipCitizenTests) {
         stage('Citizen E2E smoke tests - Chrome') {
           try {
