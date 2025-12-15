@@ -25,9 +25,15 @@ pipeline {
         sh '''
           set -e
           export NVM_DIR="${NVM_DIR}"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          nvm install
-          nvm use
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            . "$NVM_DIR/nvm.sh"
+            nvm install
+            nvm use
+          else
+            echo "nvm not found, using system node"
+          fi
+          node -v
+          yarn -v
           yarn install --frozen-lockfile
         '''
       }
@@ -38,8 +44,12 @@ pipeline {
         sh '''
           set -o pipefail
           export NVM_DIR="${NVM_DIR}"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          nvm use
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            . "$NVM_DIR/nvm.sh"
+            nvm use
+          else
+            echo "nvm not found, using system node"
+          fi
           yarn lint --verbose | tee lint.log
         '''
         archiveArtifacts artifacts: 'lint.log', allowEmptyArchive: true
@@ -51,8 +61,12 @@ pipeline {
         sh '''
           set -o pipefail
           export NVM_DIR="${NVM_DIR}"
-          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-          nvm use
+          if [ -s "$NVM_DIR/nvm.sh" ]; then
+            . "$NVM_DIR/nvm.sh"
+            nvm use
+          else
+            echo "nvm not found, using system node"
+          fi
           PW_ODHIN_LINK_COVERAGE=true yarn test:api:odhin:coverage | tee api-tests.log
         '''
         archiveArtifacts artifacts: 'api-tests.log', allowEmptyArchive: true
