@@ -1,3 +1,7 @@
+import { getLogger } from "../logger-config.js";
+
+const logger = getLogger("global-teardown");
+
 export default async function globalTeardown(): Promise<void> {
-  // Placeholder for cleaning up resources such as wiremock stubs or temp auth states.
+  logger.info("Global teardown complete");
 }

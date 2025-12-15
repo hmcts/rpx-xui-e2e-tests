@@ -14,6 +14,7 @@ out/
 coverage/
 playwright-report/
 test-results/
+functional-output/
 playwright-junit.xml
 browserstackSetupConfig.json
 
@@ -23,3 +24,5 @@ browserstackSetupConfig.json
 .DS_Store
 *.log
 *.tsbuildinfo
+.sessions/aat/default.json
+rpx-e2e-pw-plan.md

@@ -2,5 +2,6 @@
   "environment": "aat",
   "urls": {},
   "test": {},
+  "ui": {},
   "users": {}
 }

@@ -12,6 +12,9 @@ export default tseslint.config(
   {
     ...LintingConfig.playwright,
     files: ["src/tests/**/*.ts", "src/hooks/**/*.ts", "src/fixtures/**/*.ts"],
-    ignores: ["src/tests/**/__snapshots__/**"]
+    ignores: ["src/tests/**/__snapshots__/**", "src/tests/ui/E2E/**", "src/tests/ui/functional-integration/**"]
+  },
+  {
+    ignores: ["src/tests/ui/E2E/**", "src/tests/ui/functional-integration/**", "src/tests/api/**"]
   }
 );

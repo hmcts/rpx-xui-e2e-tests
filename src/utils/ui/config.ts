@@ -16,7 +16,11 @@ export interface ResolvedConfig {
 }
 
 function resolveSessionDir(): string {
-  return process.env.SESSION_DIR ?? path.resolve(process.cwd(), ".sessions");
+  return (
+    process.env.SESSION_DIR ??
+    CONFIG.ui?.sessionDir ??
+    path.resolve(process.cwd(), ".sessions")
+  );
 }
 
 function parseUsersFromEnv(): Record<string, UserConfig> {

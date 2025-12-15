@@ -5,14 +5,26 @@
     "api": "https://manage-case.aat.platform.hmcts.net"
   },
   "test": {
+    "TRI": "unset",
+    "projectName": "rpx-xui-e2e-tests",
     "timeout": 60000,
     "expectTimeout": 30000,
     "retries": 0,
-    "workers": 4,
+    "workers": 8,
+    "apiRequestTimeout": 10000,
+    "maxWaitForHealthy": 60,
+    "navigationRetries": 3,
+    "accessibility": {
+      "autoscanEnabled": true,
+      "axeTags": "wcag21a,best-practice"
+    },
     "wiremock": {
       "enabled": false,
       "baseUrl": "http://localhost:8888",
-      "autoTearDownMappings": true
+      "autoTearDownMappings": true,
+      "endpoints": {
+        "health": "/__admin/health"
+      }
     },
     "reporting": {
       "html": {
@@ -26,6 +38,10 @@
         "index": "playwright-odhin.html"
       }
     }
+  },
+  "ui": {
+    "sessionDir": ".sessions",
+    "defaultUserKey": "default"
   },
   "users": {
     "aat": {},

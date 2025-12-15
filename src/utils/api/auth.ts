@@ -1,20 +1,28 @@
 function hasUserCredentials(): boolean {
   return Boolean(
     (process.env.API_USERNAME && process.env.API_PASSWORD) ||
-      (process.env.IDAM_USERNAME && process.env.IDAM_PASSWORD)
+      (process.env.IDAM_USERNAME && process.env.IDAM_PASSWORD) ||
+      (process.env.CASEMANAGER_USERNAME && process.env.CASEMANAGER_PASSWORD)
   );
+}
+
+function hasClientCredentials(): boolean {
+  return hasIdamEnv();
 }
 
 export function hasApiAuth(): boolean {
   if (process.env.API_BEARER_TOKEN) {
     return true;
   }
-  return hasUserCredentials() && hasIdamEnv();
+  if (hasUserCredentials() && hasIdamEnv()) {
+    return true;
+  }
+  return hasClientCredentials();
 }
 
 import { IdamUtils, ServiceAuthUtils, createLogger } from "@hmcts/playwright-common";
 
-const logger = createLogger({ serviceName: "api-auth", format: "json" });
+const logger = createLogger({ serviceName: "api-auth", format: "pretty" });
 
 export interface UserCredentials {
   username: string;
@@ -31,8 +39,14 @@ function hasIdamEnv(): boolean {
 }
 
 function readUserCredentials(): UserCredentials | undefined {
-  const username = process.env.API_USERNAME ?? process.env.IDAM_USERNAME;
-  const password = process.env.API_PASSWORD ?? process.env.IDAM_PASSWORD;
+  const username =
+    process.env.API_USERNAME ??
+    process.env.IDAM_USERNAME ??
+    process.env.CASEMANAGER_USERNAME;
+  const password =
+    process.env.API_PASSWORD ??
+    process.env.IDAM_PASSWORD ??
+    process.env.CASEMANAGER_PASSWORD;
   if (!username || !password) {
     logger.info("API_USERNAME/API_PASSWORD not set; proceeding without user-based auth.");
     return undefined;
@@ -73,6 +87,38 @@ async function getIdamToken(credentials: UserCredentials): Promise<string | unde
   }
 }
 
+async function getClientCredentialsToken(): Promise<string | undefined> {
+  if (!hasIdamEnv()) {
+    logger.info("IDAM env vars missing; skipping client-credentials token generation.");
+    return undefined;
+  }
+  if (!idamUtils) {
+    try {
+      idamUtils = new IdamUtils({ logger });
+    } catch (error) {
+      logger.warn(`Failed to initialise IdamUtils: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+  try {
+    const rawScope = process.env.IDAM_OAUTH2_SCOPE ?? "profile roles";
+    const scope = rawScope
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((item) => item.toLowerCase() !== "openid" && item.toLowerCase() !== "offline_access")
+      .join(" ") || "profile roles";
+    return await idamUtils.generateIdamToken({
+      grantType: "client_credentials",
+      clientId: process.env.IDAM_CLIENT_ID ?? process.env.CLIENT_ID ?? "",
+      clientSecret: process.env.IDAM_CLIENT_SECRET ?? process.env.IDAM_SECRET ?? "",
+      scope
+    });
+  } catch (error) {
+    logger.warn(`Failed to generate client-credentials token: ${(error as Error).message}`);
+    return undefined;
+  }
+}
+
 async function getServiceToken(): Promise<string | undefined> {
   const microservice = process.env.S2S_MICROSERVICE_NAME ?? process.env.MICROSERVICE;
   if (!microservice) {
@@ -107,10 +153,14 @@ export async function buildAuthHeaders(): Promise<Record<string, string>> {
   if (bearer) {
     headers.Authorization = bearer.startsWith("Bearer ") ? bearer : `Bearer ${bearer}`;
   } else {
-    const credentials = readUserCredentials();
-    const idamToken = credentials ? await getIdamToken(credentials) : undefined;
-    if (idamToken) {
-      headers.Authorization = `Bearer ${idamToken}`;
+    const token =
+      (await getClientCredentialsToken()) ??
+      (await (async () => {
+        const credentials = readUserCredentials();
+        return credentials ? await getIdamToken(credentials) : undefined;
+      })());
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
     }
   }
 
