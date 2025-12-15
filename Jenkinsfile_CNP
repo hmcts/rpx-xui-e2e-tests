@@ -40,13 +40,18 @@ properties([
 
 @Library("Infrastructure")
 
+import uk.gov.hmcts.contino.AppPipelineDsl
+
+def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+
+
 def type = "nodejs"
 def product = "xui"
 def component = "rpx-xui-e2e-tests"
 def vault = "rpx"
 def channel   = '#xui-pipeline'
 
-static Map < String, Object > secret(String secretName, String envVariable) {
+static LinkedHashMap <String, Object> secret(String secretName, String envVariable) {
   [
     $class: 'AzureKeyVaultSecret',
     secretType: 'Secret',
@@ -107,7 +112,33 @@ def secrets = [
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
 
-withNightlyPipeline(type, product, component, 600) {
+def secrets = [
+  'rpx-${env}': [
+    secret('mc-s2s-client-secret', 'S2S_SECRET'),
+    secret('mc-idam-client-secret', 'IDAM_SECRET'),
+    secret('webapp-redis6-connection-string', 'REDISCLOUD_URL'),
+    secret('test-email', 'TEST_EMAIL'),
+    secret('test-password', 'TEST_PASSWORD'),
+    secret('appinsights-instrumentationkey-mc', 'APPINSIGHTS_INSTRUMENTATIONKEY'),
+    secret('appinsights-connection-string-mc', 'APPINSIGHTS_CONNECTION_STRING'),
+    secret('system-user-name', 'SYSTEM_USER_NAME'),
+    secret('system-user-password', 'SYSTEM_USER_PASSWORD'),
+    secret('launch-darkly-client-id', 'LAUNCH_DARKLY_CLIENT_ID'),
+  ],
+  ]
+
+static LinkedHashMap<String, Object> secret(String secretName, String envVar) {
+    [ $class: 'AzureKeyVaultSecret',
+      secretType: 'Secret',
+      name: secretName,
+      version: '',
+      envVariable: envVar
+    ]
+}
+
+
+withPipeline(type, product, component) {
+  enableSlackNotifications(channel)
   loadVaultSecrets(secrets)
   env.CITIZEN_FRONTEND_BASE_URL = params.CITIZEN_FRONTEND_BASE_URL
   env.MANAGE_CASES_BASE_URL = params.MANAGE_CASES_BASE_URL
