@@ -12,7 +12,24 @@ export default tseslint.config(
   {
     ...LintingConfig.playwright,
     files: ["src/tests/**/*.ts", "src/hooks/**/*.ts", "src/fixtures/**/*.ts"],
-    ignores: ["src/tests/**/__snapshots__/**", "src/tests/ui/E2E/**", "src/tests/ui/functional-integration/**"]
+    ignores: [
+      "src/tests/**/__snapshots__/**",
+      "src/tests/ui/E2E/**",
+      "src/tests/ui/functional-integration/**",
+      "src/tests/unit/**"
+    ]
+  },
+  {
+    files: ["src/tests/unit/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off"
+    }
+  },
+  {
+    files: ["scripts/**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off"
+    }
   },
   {
     ignores: ["src/tests/ui/E2E/**", "src/tests/ui/functional-integration/**", "src/tests/api/**"]
