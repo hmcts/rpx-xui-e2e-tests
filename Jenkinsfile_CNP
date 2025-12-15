@@ -33,6 +33,8 @@ pipeline {
             echo "nvm not found, using system node"
           fi
           node -v
+          corepack enable
+          corepack prepare yarn@4.12.0 --activate
           yarn -v
           yarn install --frozen-lockfile
         '''
