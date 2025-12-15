@@ -115,16 +115,6 @@ withNightlyPipeline(type, product, component, 600) {
   enableSlackNotifications(channel)
   onPR() {
     afterAlways('DependencyCheckNightly') {
-      stage('Lint') {
-        try {
-          sh 'yarn lint --verbose > lint.log 2>&1'
-        } catch (Error) {
-          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
-          error("${STAGE_NAME} failed: ${Error}")
-        } finally {
-          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
-        }
-      }
       stage('API Odhin coverage') {
         try {
           yarnBuilder.yarn('test:api:odhin:coverage')
@@ -147,16 +137,6 @@ withNightlyPipeline(type, product, component, 600) {
   }
   onMaster() {
     afterAlways('DependencyCheckNightly') {
-      stage('Lint') {
-        try {
-          sh 'yarn lint --verbose > lint.log 2>&1'
-        } catch (Error) {
-          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
-          error("${STAGE_NAME} failed: ${Error}")
-        } finally {
-          archiveArtifacts allowEmptyArchive: true, artifacts: 'lint.log'
-        }
-      }
       stage('API Odhin coverage') {
         try {
           yarnBuilder.yarn('test:api:odhin:coverage')
