@@ -78,9 +78,9 @@ withNightlyPipeline(type, product, component, 300) {
           allowMissing         : true,
           alwaysLinkToLastBuild: true,
           keepAll              : true,
-          reportDir            : "playwright-report",
-          reportFiles          : 'index.html',
-          reportName           : 'API smoke report'
+          reportDir            : "test-results/odhin-report",
+          reportFiles          : 'playwright-odhin.html',
+          reportName           : 'API Odhín report'
         ])
         junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
         archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'

@@ -116,7 +116,7 @@ const resolveReporters = (): ReporterDescription[] => {
             title: process.env.PW_ODHIN_TITLE ?? "rpx-xui-e2e Playwright",
             testEnvironment:
               process.env.PW_ODHIN_ENV ??
-              `${process.env.TEST_ENV ?? (process.env.CI ? "ci" : "local")} | workers=${resolveWorkerCount()}`,
+              `${process.env.TEST_ENV ?? process.env.TEST_ENVIRONMENT ?? (process.env.CI ? "ci" : "local")} | workers=${resolveWorkerCount()}`,
             project: process.env.PW_ODHIN_PROJECT ?? "rpx-xui-e2e-tests",
             release:
               process.env.PW_ODHIN_RELEASE ??
