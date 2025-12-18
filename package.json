@@ -8,7 +8,8 @@
   },
   "packageManager": "yarn@4.12.0",
   "scripts": {
-    "setup": "yarn install --immutable && yarn get-secrets rpx-aat && yarn playwright install --with-deps",
+    "pwinstall": "yarn playwright install --with-deps",
+    "setup": "yarn install --immutable && yarn get-secrets rpx-aat && yarn pwinstall && yarn playwright install webkit && yarn playwright install firefox",
     "get-secrets": "node ./node_modules/@hmcts/playwright-common/dist/scripts/get-secrets.js",
     "lint": "yarn tsc -p tsconfig.json && yarn eslint .",
     "test:api": "PLAYWRIGHT_REPORTERS=list,html yarn playwright test --project=api",
