@@ -25,7 +25,8 @@ export interface ApiFixtures {
 }
 
 export const test = base.extend<ApiFixtures>({
-  logger: async ({}, use, workerInfo) => {
+  logger: async ({ request }, use, workerInfo) => {
+    void request;
     const logger = createLogger({
       serviceName: "rpx-xui-node-api",
       defaultMeta: { workerId: workerInfo.workerIndex },
@@ -33,7 +34,8 @@ export const test = base.extend<ApiFixtures>({
     });
     await use(logger);
   },
-  apiLogs: async ({}, use, testInfo) => {
+  apiLogs: async ({ request }, use, testInfo) => {
+    void request;
     const entries: ApiLogEntry[] = [];
     await use(entries);
     if (entries.length) {

@@ -124,7 +124,9 @@ const resolveReporters = (): ReporterDescription[] => {
             testFolder: process.env.PW_ODHIN_TEST_FOLDER ?? "src/tests",
             startServer: safeBoolean(process.env.PW_ODHIN_START_SERVER, false),
             consoleLog: safeBoolean(process.env.PW_ODHIN_CONSOLE_LOG, true),
+            simpleConsoleLog: safeBoolean(process.env.PW_ODHIN_SIMPLE_CONSOLE_LOG, false),
             consoleError: safeBoolean(process.env.PW_ODHIN_CONSOLE_ERROR, true),
+            consoleTestOutput: safeBoolean(process.env.PW_ODHIN_CONSOLE_TEST_OUTPUT, true),
             testOutput: resolveOdhinTestOutput(),
             apiLogs: process.env.PW_ODHIN_API_LOGS ?? "summary"
           }
