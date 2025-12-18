@@ -70,7 +70,7 @@ withNightlyPipeline(type, product, component, 300) {
 
     stage('API smoke') {
       try {
-        yarnBuilder.yarn('test:api')
+        yarnBuilder.yarn('test:api:coverage')
       } catch (Error) {
         unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
       } finally {

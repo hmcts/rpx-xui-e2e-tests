@@ -1,5 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
+#!/usr/bin/env node
+const fs = require("fs");
+const path = require("path");
 
 const summaryPath = process.env.COVERAGE_SUMMARY_PATH ?? "coverage/coverage-summary.json";
 const textOutPath = process.env.COVERAGE_TEXT_PATH ?? "coverage/coverage-summary.txt";
