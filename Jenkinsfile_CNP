@@ -1,0 +1,90 @@
+#!groovy
+
+properties([
+  [$class: 'GithubProjectProperty', projectUrlStr: 'https://github.com/hmcts/rpx-xui-e2e-tests'],
+  pipelineTriggers([[$class: 'GitHubPushTrigger']]),
+  parameters([
+    string(
+      name: 'TEST_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net/',
+      description: 'Base URL under test'
+    ),
+      string(
+      name: 'S2S_URL',
+      defaultValue: 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease',
+      description: 'S2S URL under test'
+    ),
+    string(
+      name: 'TEST_ENV',
+      defaultValue: 'aat',
+      description: 'Environment name (aat/demo)'
+    ),
+    string(
+      name: 'FUNCTIONAL_TESTS_WORKERS',
+      defaultValue: '2',
+      description: 'Number of Playwright workers'
+    )
+  ])
+])
+
+@Library("Infrastructure")
+
+def type = "nodejs"
+def product = "rpx"
+def component = "xui-e2e-tests"
+def channel = "#xui-tech"
+
+static Map<String, Object> secret(String secretName, String envVariable) {
+  [
+    $class     : 'AzureKeyVaultSecret',
+    secretType : 'Secret',
+    name       : secretName,
+    envVariable: envVariable
+  ]
+}
+
+// Populate with real Key Vault secret names once known; empty list keeps the pattern intact.
+def secrets = [
+  "rpx-${params.TEST_ENV}": [
+    secret('mc-s2s-client-secret', 'S2S_SECRET'),
+    secret('mc-idam-client-secret', 'IDAM_SECRET'),
+    secret('s2s-url', 'S2S_URL'),
+    secret('solicitor-username', 'SOLICITOR_USERNAME'),
+    secret('solicitor-password', 'SOLICITOR_PASSWORD')
+  ]
+]
+
+def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+
+withNightlyPipeline(type, product, component, 300) {
+  loadVaultSecrets(secrets)
+  env.TEST_URL = params.TEST_URL
+  env.TEST_ENV = params.TEST_ENV
+  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  enableSlackNotifications(channel)
+
+  afterAlways('DependencyCheckNightly') {
+    stage('Lint') {
+      yarnBuilder.yarn('lint')
+    }
+
+    stage('API smoke') {
+      try {
+        yarnBuilder.yarn('test:api')
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      } finally {
+        publishHTML([
+          allowMissing         : true,
+          alwaysLinkToLastBuild: true,
+          keepAll              : true,
+          reportDir            : "playwright-report",
+          reportFiles          : 'index.html',
+          reportName           : 'API smoke report'
+        ])
+        junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
+        archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
+      }
+    }
+  }
+}

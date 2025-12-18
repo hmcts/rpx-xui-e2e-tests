@@ -1,0 +1,83 @@
+#!groovy
+
+properties([
+  pipelineTriggers([cron('H 3 * * 1-5')]),
+  parameters([
+    string(
+      name: 'TEST_URL',
+      defaultValue: 'https://manage-case.aat.platform.hmcts.net/',
+      description: 'Base URL under test'
+    ),
+    string(
+      name: 'TEST_ENV',
+      defaultValue: 'aat',
+      description: 'Environment name (aat/demo)'
+    ),
+    string(
+      name: 'FUNCTIONAL_TESTS_WORKERS',
+      defaultValue: '2',
+      description: 'Number of Playwright workers'
+    ),
+    string(
+      name: 'tag',
+      defaultValue: '@smoke',
+      description: 'Optional grep tag for focused runs'
+    )
+  ])
+])
+
+@Library("Infrastructure")
+
+def type = "nodejs"
+def product = "rpx"
+def component = "xui-e2e-tests"
+def channel = "#xui-tech"
+
+static Map<String, Object> secret(String secretName, String envVariable) {
+  [
+    $class     : 'AzureKeyVaultSecret',
+    secretType : 'Secret',
+    name       : secretName,
+    envVariable: envVariable
+  ]
+}
+
+def secrets = [
+  "rpx-${params.TEST_ENV}": [
+    // secret('idam-secret', 'IDAM_SECRET'),
+    // secret('s2s-url', 'S2S_URL'),
+    // secret('api-user', 'API_USER_SOLICITOR_USERNAME'),
+  ]
+]
+
+def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+
+withNightlyPipeline(type, product, component, 400) {
+  loadVaultSecrets(secrets)
+  env.TEST_URL = params.TEST_URL
+  env.TEST_ENV = params.TEST_ENV
+  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  enableSlackNotifications(channel)
+
+  afterAlways('DependencyCheckNightly') {
+    stage('API nightly') {
+      try {
+        def tagArg = params.tag ? "--grep ${params.tag}" : ""
+        yarnBuilder.yarn("playwright test --project=api ${tagArg}")
+      } catch (Error) {
+        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+      } finally {
+        publishHTML([
+          allowMissing         : true,
+          alwaysLinkToLastBuild: true,
+          keepAll              : true,
+          reportDir            : "playwright-report",
+          reportFiles          : 'index.html',
+          reportName           : 'API nightly report'
+        ])
+        junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
+        archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
+      }
+    }
+  }
+}
