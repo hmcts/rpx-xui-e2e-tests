@@ -1,8 +1,12 @@
 import { createRequire } from "node:module";
 import { cpus } from "node:os";
+import path from "node:path";
 
 import { CommonConfig } from "@hmcts/playwright-common";
 import { defineConfig, type ReporterDescription } from "@playwright/test";
+import { config as loadEnv } from "dotenv";
+
+loadEnv({ path: path.resolve(process.cwd(), ".env") });
 
 const require = createRequire(import.meta.url);
 const { version: appVersion } = require("./package.json") as { version: string };

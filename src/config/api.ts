@@ -6,33 +6,35 @@ const testEnv = ["aat", "demo"].includes(testEnvRaw) ? testEnvRaw : "aat";
 
 type EnvUser = { e?: string; sec?: string };
 
+const pick = (...vars: Array<string | undefined>) => vars.find((v) => v && v.trim().length > 0);
+
 const envUsers: Record<"aat" | "demo", Record<string, EnvUser>> = {
   aat: {
     solicitor: {
-      e: process.env.SOLICITOR_USERNAME,
-      sec: process.env.SOLICITOR_PASSWORD
+      e: pick(process.env.SOLICITOR_USERNAME, process.env.PRL_SOLICITOR_USERNAME),
+      sec: pick(process.env.SOLICITOR_PASSWORD, process.env.PRL_SOLICITOR_PASSWORD)
     },
     caseOfficer_r1: {
-      e: process.env.CASEOFFICER_R1_USERNAME,
-      sec: process.env.CASEOFFICER_R1_PASSWORD
+      e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME),
+      sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD)
     },
     caseOfficer_r2: {
-      e: process.env.CASEOFFICER_R2_USERNAME,
-      sec: process.env.CASEOFFICER_R2_PASSWORD
+      e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME),
+      sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD)
     }
   },
   demo: {
     solicitor: {
-      e: process.env.SOLICITOR_USERNAME,
-      sec: process.env.SOLICITOR_PASSWORD
+      e: pick(process.env.SOLICITOR_USERNAME, process.env.PRL_SOLICITOR_USERNAME),
+      sec: pick(process.env.SOLICITOR_PASSWORD, process.env.PRL_SOLICITOR_PASSWORD)
     },
     caseOfficer_r1: {
-      e: process.env.CASEOFFICER_R1_USERNAME,
-      sec: process.env.CASEOFFICER_R1_PASSWORD
+      e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME),
+      sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD)
     },
     caseOfficer_r2: {
-      e: process.env.CASEOFFICER_R2_USERNAME,
-      sec: process.env.CASEOFFICER_R2_PASSWORD
+      e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME),
+      sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD)
     }
   }
 };

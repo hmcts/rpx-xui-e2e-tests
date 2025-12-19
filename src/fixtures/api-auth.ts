@@ -12,6 +12,9 @@ const baseUrl = stripTrailingSlash(config.baseUrl);
 const storageRoot = path.resolve(process.cwd(), "test-results", "storage-states", "api");
 const storagePromises = new Map<string, Promise<string>>();
 
+const mask = (value?: string) => (value ? "***" : "missing");
+const present = (value?: string) => (value && value.trim().length > 0 ? "yes" : "no");
+
 const logger = createLogger({ serviceName: "node-api-auth", format: "pretty" });
 
 export async function ensureStorageState(role: ApiUserRole): Promise<string> {
@@ -58,7 +61,18 @@ async function createStorageState(role: ApiUserRole): Promise<string> {
   await fs.mkdir(path.dirname(storagePath), { recursive: true });
 
   const credentials = getCredentials(role);
-  if (isTokenBootstrapEnabled()) {
+  logger.info(
+    `auth:createStorageState role=${role} env=${config.testEnv} baseUrl=${baseUrl} user=${mask(credentials.username)} pass=${mask(
+      credentials.password
+    )}`
+  );
+  logger.info(
+    `auth:token-env IDAM_WEB_URL=${present(process.env.IDAM_WEB_URL)} IDAM_TESTING_SUPPORT_URL=${present(
+      process.env.IDAM_TESTING_SUPPORT_URL
+    )} S2S_URL=${present(process.env.S2S_URL)} IDAM_SECRET=${present(process.env.IDAM_SECRET)} (mode=auto)`
+  );
+
+  if (isTokenBootstrapAvailable()) {
     const tokenLoginSucceeded = await tryTokenBootstrap(role, credentials, storagePath);
     if (tokenLoginSucceeded) {
       return storagePath;
@@ -83,6 +97,11 @@ async function tryTokenBootstrap(
   const s2sUrl = process.env.S2S_URL;
 
   if (!clientSecret || !idamWebUrl || !idamTestingSupportUrl || !s2sUrl) {
+    logger.warn(
+      `token bootstrap skipped: missing envs (IDAM_SECRET=${present(clientSecret)}, IDAM_WEB_URL=${present(
+        idamWebUrl
+      )}, IDAM_TESTING_SUPPORT_URL=${present(idamTestingSupportUrl)}, S2S_URL=${present(s2sUrl)})`
+    );
     return false;
   }
 
@@ -217,14 +236,7 @@ async function tryReadState(storagePath: string): Promise<{ cookies?: Array<Stor
   return undefined;
 }
 
-function isTokenBootstrapEnabled(): boolean {
-  const mode = process.env.API_AUTH_MODE ?? process.env.API_USE_TOKEN_LOGIN;
-  if (mode && ["form", "off", "false", "0", "no"].includes(mode.toLowerCase())) {
-    return false;
-  }
-  if (mode && ["token", "true", "1", "yes"].includes(mode.toLowerCase())) {
-    return true;
-  }
+function isTokenBootstrapAvailable(): boolean {
   const hasIdamEnv = !!process.env.IDAM_SECRET && !!process.env.IDAM_WEB_URL && !!process.env.IDAM_TESTING_SUPPORT_URL;
   const hasS2S = !!process.env.S2S_URL;
   return hasIdamEnv && hasS2S;

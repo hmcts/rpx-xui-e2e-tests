@@ -1,5 +1,3 @@
-import type { TaskListResponse } from "./types";
-
 export interface TaskSearchOptions {
   userIds?: string[];
   locations?: string[];
@@ -13,6 +11,7 @@ export interface TaskSearchOptions {
 
 /**
  * Builds the payload expected by /workallocation/task.
+ * Mirrors the legacy TaskRequestBody helper but in a typed form.
  */
 export function buildTaskSearchRequest(
   view: "MyTasks" | "AvailableTasks" | "AllWork",
@@ -67,13 +66,10 @@ export interface SeededTaskResult {
  * Attempts to fetch a deterministic task id for tests.
  * Falls back to undefined if no task is found.
  */
-export async function seedTaskId(apiClient: unknown, locationId?: string): Promise<SeededTaskResult | undefined> {
-  const client = apiClient as {
-    post: (
-      path: string,
-      options?: { data?: unknown; throwOnError?: boolean }
-    ) => Promise<{ data?: TaskListResponse; status: number }>;
-  };
+export async function seedTaskId(
+  apiClient: { post: (path: string, opts: Record<string, unknown>) => Promise<{ data?: { tasks?: Array<{ id?: string }> }; status: number }> },
+  locationId?: string
+): Promise<SeededTaskResult | undefined> {
   const candidateStates: Array<{ type: SeededTaskResult["type"]; states: string[]; view: "MyTasks" | "AvailableTasks" }> = [
     { type: "assigned", states: ["assigned"], view: "MyTasks" },
     { type: "unassigned", states: ["unassigned"], view: "AvailableTasks" }
@@ -86,10 +82,10 @@ export async function seedTaskId(apiClient: unknown, locationId?: string): Promi
       searchBy: "caseworker",
       pageSize: 5
     });
-    const response = await client.post("workallocation/task", {
+    const response = (await apiClient.post("workallocation/task", {
       data: body,
       throwOnError: false
-    });
+    })) as { data?: { tasks?: Array<{ id?: string }> }; status: number };
     if (response.status === 200 && Array.isArray(response.data?.tasks) && response.data.tasks.length > 0) {
       const id = response.data.tasks[0]?.id;
       if (id) {

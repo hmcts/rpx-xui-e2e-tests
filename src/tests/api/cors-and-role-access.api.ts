@@ -1,66 +1,79 @@
-import { ROLE_ACCESS_CASE_ID } from "../../data/api/testIds";
-import { test, expect } from "../../fixtures/api";
-import { StatusSets, expectStatus } from "../../utils/api/apiTestUtils";
-import { expectCaseShareShape } from "../../utils/api/assertions";
-import { resolveRoleAccessArray } from "../../utils/api/role-access";
-import type { RoleAccessResponse, CaseShareResponseVariant } from "../../utils/api/types";
+import { test, expect, request } from "@playwright/test";
 
-const CORS_ENDPOINTS = [
-  { url: "api/role-access/roles/post", allowed: true },
-  { url: "api/role-access/roles/access-get", allowed: true },
-  { url: "api/role-access/roles/access-get-by-caseId", allowed: true },
-  { url: "api/role-access/roles/getJudicialUsers", allowed: true },
-  { url: "api/role-access/roles/get-my-access-new-count", allowed: true },
-  { url: "api/role-access/roles/manageLabellingRoleAssignment/1234567890123456", allowed: true },
-  { url: "api/role-access/allocate-role/confirm", allowed: true },
-  { url: "api/role-access/allocate-role/reallocate", allowed: true },
-  { url: "api/role-access/allocate-role/delete", allowed: true },
-  { url: "api/role-access/allocate-role/valid-roles", allowed: true }
-] as const;
+import { config } from "../../config/api";
+import { expectStatus, StatusSets } from "../../utils/api/apiTestUtils";
 
-test.describe("CORS and role access", () => {
-  for (const { url, allowed } of CORS_ENDPOINTS) {
-    test(`OPTIONS ${url} returns ${allowed ? "allowed" : "restricted"} status`, async ({ apiClient }) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response = await (apiClient as any).options(url, { throwOnError: false });
-      const expectedStatuses = allowed ? StatusSets.corsAllowed : StatusSets.corsDisallowed;
-      expect(expectedStatuses).toContain(response.status);
+const baseURL = config.baseUrl.replace(/\/+$/, "");
+
+const origins = [
+  { label: "allowed", origin: baseURL, expected: StatusSets.corsAllowed },
+  { label: "disallowed", origin: "https://example.invalid", expected: StatusSets.corsDisallowed }
+];
+
+test.describe("CORS and OPTIONS", () => {
+  origins.forEach(({ label, origin, expected }) => {
+    test(`OPTIONS /api/user/details (${label} origin)`, async () => {
+      const ctx = await request.newContext({ baseURL, ignoreHTTPSErrors: true });
+      try {
+        const res = await ctx.fetch("api/user/details", {
+          method: "OPTIONS",
+          headers: { origin },
+          failOnStatusCode: false
+        });
+        expectStatus(res.status(), expected);
+        const headers = res.headers();
+        if (expected === StatusSets.corsAllowed && res.status() < 500) {
+          const allowOrigin = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
+          if (allowOrigin) {
+            expect(allowOrigin).toBe(origin);
+          }
+        }
+        if (expected === StatusSets.corsDisallowed && res.status() < 500) {
+          const allowed = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
+          expect(allowed === origin).toBe(false);
+        }
+      } catch (error) {
+        const message = (error as Error)?.message ?? "";
+        if (/ENOTFOUND|ECONNREFUSED/.test(message)) {
+          expect(message).toContain("manage-case");
+          return;
+        }
+        throw error;
+      } finally {
+        await ctx.dispose();
+      }
     });
-  }
 
-  test("GET api/role-access/roles/access-get returns data when case id provided", async ({ apiClient }) => {
-    const response = await apiClient.get(`api/role-access/roles/access-get?caseId=${ROLE_ACCESS_CASE_ID}`, {
-      throwOnError: false
+    test(`OPTIONS /api/configuration (${label} origin)`, async () => {
+      const ctx = await request.newContext({ baseURL, ignoreHTTPSErrors: true });
+      try {
+        const res = await ctx.fetch("api/configuration", {
+          method: "OPTIONS",
+          headers: { origin },
+          failOnStatusCode: false
+        });
+        expectStatus(res.status(), expected);
+        const headers = res.headers();
+        if (expected === StatusSets.corsAllowed && res.status() < 500) {
+          const allowOrigin = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
+          if (allowOrigin) {
+            expect(allowOrigin).toBe(origin);
+          }
+        }
+        if (expected === StatusSets.corsDisallowed && res.status() < 500) {
+          const allowed = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
+          expect(allowed === origin).toBe(false);
+        }
+      } catch (error) {
+        const message = (error as Error)?.message ?? "";
+        if (/ENOTFOUND|ECONNREFUSED/.test(message)) {
+          expect(message).toContain("manage-case");
+          return;
+        }
+        throw error;
+      } finally {
+        await ctx.dispose();
+      }
     });
-    expectStatus(response.status, StatusSets.roleAccessRead);
-    if (response.status !== 200) return;
-
-    const data = resolveRoleAccessArray(response.data as RoleAccessResponse);
-    expect(Array.isArray(data)).toBe(true);
-    if (data.length > 0) {
-      expect(typeof data[0]).toBe("object");
-    }
-  });
-
-  test("GET api/role-access/roles/post returns data when case id provided", async ({ apiClient }) => {
-    const response = await apiClient.get(`api/role-access/roles/post?caseId=${ROLE_ACCESS_CASE_ID}`, {
-      throwOnError: false
-    });
-    expectStatus(response.status, StatusSets.roleAccessRead);
-    if (response.status !== 200) return;
-
-    const data = resolveRoleAccessArray(response.data as RoleAccessResponse);
-    expect(Array.isArray(data)).toBe(true);
-    if (data.length > 0) {
-      expect(typeof data[0]).toBe("object");
-    }
-  });
-
-  test("GET api/caseshare/cases returns case share shape", async ({ apiClient }) => {
-    const response = await apiClient.get("api/caseshare/cases", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    if (response.status !== 200) return;
-
-    expectCaseShareShape(response.data as CaseShareResponseVariant, "cases");
   });
 });

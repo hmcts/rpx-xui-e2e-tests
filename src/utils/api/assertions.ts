@@ -1,45 +1,132 @@
 import { expect } from "@playwright/test";
 
-import type { TaskListResponse } from "./types";
+import {
+  AddressLookupResponseSchema,
+  AnnotationPayloadSchema,
+  BookmarkPayloadSchema,
+  CaseShareResponseSchema,
+  RoleAssignmentSchema,
+  TaskListSchema
+} from "./types";
 
-export function expectCaseShareShape(response: unknown, property: "cases" | "sharedCases") {
-  const asObject = isObject(response) ? response : undefined;
-  const entries = Array.isArray(asObject?.[property])
-    ? (asObject as Record<string, unknown[]>)[property]
-    : isObject((asObject as { payload?: unknown })?.payload) &&
-        Array.isArray(((asObject as { payload?: Record<string, unknown> }).payload?.[property] as unknown[]))
-      ? ((asObject as { payload?: Record<string, unknown> }).payload?.[property] as unknown[])
-      : [];
-
-  expect(Array.isArray(entries)).toBe(true);
-  if (entries.length === 0) return;
-
-  expect(entries[0]).toEqual(
-    expect.objectContaining({
-      id: expect.any(String),
-      caseRef: expect.any(String),
-      caseTitle: expect.any(String)
-    })
-  );
-}
-
-export function expectTaskList(result: TaskListResponse) {
-  expect(result).toBeTruthy();
-  expect(Array.isArray(result.tasks)).toBe(true);
-
-  if (result.tasks.length > 0) {
-    const task = result.tasks[0];
-    expect(task).toEqual(
+export function expectTaskList(payload: unknown) {
+  const parsed = TaskListSchema.parse(payload);
+  expect(parsed).toBeTruthy();
+  expect(typeof parsed).toBe("object");
+  expect(Array.isArray(parsed.tasks)).toBe(true);
+  if ((parsed.tasks?.length ?? 0) > 0) {
+    expect(parsed.tasks![0]).toEqual(
       expect.objectContaining({
         id: expect.any(String),
-        name: expect.any(String),
-        type: expect.any(String),
-        state: expect.any(String)
+        task_state: expect.any(String)
       })
     );
   }
+  return parsed;
 }
 
-function isObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+export function expectRoleAssignmentShape(role: unknown) {
+  const parsed = RoleAssignmentSchema.parse(role);
+  expect(parsed).toEqual(
+    expect.objectContaining({
+      roleCategory: expect.any(String),
+      roleName: expect.any(String)
+    })
+  );
+  if (parsed.actorId !== undefined) {
+    expect(typeof parsed.actorId).toBe("string");
+  }
+  if (parsed.actions !== undefined) {
+    expect(Array.isArray(parsed.actions)).toBe(true);
+  }
+  return parsed;
+}
+
+export function expectBookmarkShape(bookmark: unknown) {
+  const parsed = BookmarkPayloadSchema.parse(bookmark);
+  expect(parsed).toEqual(
+    expect.objectContaining({
+      id: expect.any(String),
+      name: expect.any(String),
+      documentId: expect.any(String)
+    })
+  );
+  return parsed;
+}
+
+export function expectAnnotationShape(annotation: unknown) {
+  const parsed = AnnotationPayloadSchema.parse(annotation);
+  expect(parsed).toEqual(
+    expect.objectContaining({
+      id: expect.any(String),
+      documentId: expect.any(String),
+      annotationSetId: expect.any(String)
+    })
+  );
+  return parsed;
+}
+
+export function expectCaseShareShape(payload: unknown, property: string) {
+  const parsed = CaseShareResponseSchema.parse(payload);
+  switch (property) {
+    case "organisations":
+      expect(parsed).toEqual(
+        expect.objectContaining({
+          organisations: expect.arrayContaining([
+            expect.objectContaining({
+              organisationIdentifier: expect.any(String),
+              name: expect.any(String)
+            })
+          ])
+        })
+      );
+      break;
+    case "users":
+      expect(parsed).toEqual(
+        expect.objectContaining({
+          users: expect.arrayContaining([
+            expect.objectContaining({
+              userIdentifier: expect.any(String),
+              email: expect.any(String)
+            })
+          ])
+        })
+      );
+      break;
+    case "cases":
+    case "sharedCases":
+      expect(parsed).toEqual(
+        expect.objectContaining({
+          [property]: expect.arrayContaining([
+            expect.objectContaining({
+              caseId: expect.any(String),
+              sharedWith: expect.any(Array)
+            })
+          ])
+        })
+      );
+      break;
+    default:
+      break;
+  }
+  return parsed;
+}
+
+export function expectAddressLookupShape(response: unknown) {
+  const parsed = AddressLookupResponseSchema.parse(response);
+  expect(parsed).toHaveProperty("results");
+  expect(parsed).toHaveProperty("header");
+  expect(Array.isArray(parsed.results)).toBe(true);
+  if ((parsed.results?.length ?? 0) > 0) {
+    const dpa = parsed.results![0]?.DPA;
+    expect(dpa).toBeTruthy();
+    expect(dpa).toEqual(
+      expect.objectContaining({
+        POSTCODE: expect.any(String),
+        ADDRESS: expect.any(String),
+        POST_TOWN: expect.any(String)
+      })
+    );
+  }
+  return parsed;
 }

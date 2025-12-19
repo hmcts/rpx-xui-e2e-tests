@@ -16,7 +16,11 @@ export const StatusSets = {
   corsAllowed: [200, 204, 400, 401, 403] as const,
   corsDisallowed: [200, 204, 400, 401, 403, 404] as const,
   retryable: [200, 401, 403, 404, 500, 502, 504] as const,
-  roleAccessRetryable: [200, 400, 401, 403, 404, 409, 500, 502, 504] as const
+  roleAccessRetryable: [200, 400, 401, 403, 404, 409, 500, 502, 504] as const,
+  roleAccessGuarded: [200, 401, 403, 404, 500, 502, 504] as const,
+  bookmark: [200, 201, 204, 400, 401, 403, 404, 409, 500] as const,
+  documentView: [200, 401, 403, 404] as const,
+  unauthenticated: [401, 403] as const
 };
 
 export type StatusSetName = keyof typeof StatusSets;

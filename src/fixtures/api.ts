@@ -95,7 +95,7 @@ async function createNodeApiClient(
     "Content-Type": "application/json",
     "X-Correlation-Id": randomUUID()
   };
-  if (role !== "anonymous" && shouldAutoInjectXsrf()) {
+  if (role !== "anonymous") {
     const xsrf = await getStoredCookie(role as ApiUserRole, "XSRF-TOKEN");
     if (xsrf) {
       defaultHeaders["X-XSRF-TOKEN"] = xsrf;
@@ -129,7 +129,7 @@ async function createNodeApiClient(
     }
   }
 
-  return new PlaywrightApiClient({
+  const client = new PlaywrightApiClient({
     baseUrl,
     name: `node-api-${role}`,
     logger,
@@ -137,13 +137,16 @@ async function createNodeApiClient(
     onResponse: (entry) => entries.push(entry),
     requestFactory: async () => context
   });
+
+  // Add OPTIONS support expected by the legacy tests.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (client as any).options = (path: string, options?: Record<string, unknown>) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (client as any).performRequest("OPTIONS", path, options);
+
+  return client;
 }
 
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
-}
-
-function shouldAutoInjectXsrf(): boolean {
-  const flag = process.env.API_AUTO_XSRF ?? process.env.API_AUTH_AUTO_XSRF;
-  return flag ? ["1", "true", "yes", "on"].includes(flag.toLowerCase()) : false;
 }
