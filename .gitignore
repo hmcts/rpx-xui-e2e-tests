@@ -23,5 +23,8 @@ reports/
 # Env files
 .env
 
+# macOS
+.DS_Store
+
 
 framework_plan.md

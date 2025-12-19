@@ -15,8 +15,8 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '2',
-      description: 'Number of Playwright workers'
+      defaultValue: '8',
+      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
     ),
     string(
       name: 'tag',
@@ -42,11 +42,56 @@ static Map<String, Object> secret(String secretName, String envVariable) {
   ]
 }
 
+// Populate with real Key Vault secret names once known; empty list keeps the pattern intact.
 def secrets = [
   "rpx-${params.TEST_ENV}": [
-    // secret('idam-secret', 'IDAM_SECRET'),
-    // secret('s2s-url', 'S2S_URL'),
-    // secret('api-user', 'API_USER_SOLICITOR_USERNAME'),
+    secret('mc-s2s-client-secret', 'S2S_SECRET'),
+    secret('mc-idam-client-secret', 'IDAM_SECRET'),
+    secret('idam-web-url', 'IDAM_WEB_URL'),
+    secret('idam-testing-support-url', 'IDAM_TESTING_SUPPORT_URL'),
+    secret('idam-testing-support-users-url', 'IDAM_TESTING_SUPPORT_USERS_URL'),
+    secret('idam-client-id', 'IDAM_CLIENT_ID'),
+    secret('idam-oauth2-scope', 'IDAM_OAUTH2_SCOPE'),
+    secret('idam-return-url', 'IDAM_RETURN_URL'),
+    secret('s2s-url', 'S2S_URL'),
+    secret('s2s-microservice-name', 'S2S_MICROSERVICE_NAME'),
+    secret('api-auth-mode', 'API_AUTH_MODE'),
+    secret('api-auto-xsrf', 'API_AUTO_XSRF'),
+    secret('idam-citizen-user-password', 'IDAM_CITIZEN_USER_PASSWORD'),
+    secret('citizen-username', 'CITIZEN_USERNAME'),
+    secret('citizen-password', 'CITIZEN_PASSWORD'),
+    secret('prl-solicitor-username', 'PRL_SOLICITOR_USERNAME'),
+    secret('prl-solicitor-password', 'PRL_SOLICITOR_PASSWORD'),
+    secret('solicitor-username', 'SOLICITOR_USERNAME'),
+    secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('judge-username', 'JUDGE_USERNAME'),
+    secret('judge-password', 'JUDGE_PASSWORD'),
+    secret('case-manager-username', 'CASEMANAGER_USERNAME'),
+    secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
+    secret('caseworker-r1-username', 'CASEWORKER_R1_USERNAME'),
+    secret('caseworker-r1-password', 'CASEWORKER_R1_PASSWORD'),
+    secret('caseworker-r2-username', 'CASEWORKER_R2_USERNAME'),
+    secret('caseworker-r2-password', 'CASEWORKER_R2_PASSWORD'),
+    secret('court-admin-stoke-username', 'COURT_ADMIN_STOKE_USERNAME'),
+    secret('court-admin-stoke-password', 'COURT_ADMIN_STOKE_PASSWORD'),
+    secret('noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
+    secret('noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
+    secret('wa-solicitor-username', 'WA_SOLICITOR_USERNAME'),
+    secret('wa-solicitor-password', 'WA_SOLICITOR_PASSWORD'),
+    secret('courtnav-secret', 'COURTNAV_SECRET'),
+    secret('courtnav-username', 'COURTNAV_USERNAME'),
+    secret('courtnav-password', 'COURTNAV_PASSWORD'),
+    secret('courtnav-subscription-key-create-case', 'COURTNAV_SUBSCRIPTION_KEY_CREATE_CASE'),
+    secret('courtnav-case-url', 'COURTNAV_CASE_URL'),
+    secret('courtnav-doc-url', 'COURTNAV_DOC_URL'),
+    secret('courtnav-subscription-key-add-doc', 'COURTNAV_SUBSCRIPTION_KEY_ADD_DOC'),
+    secret('ccd-data-store-client-username', 'CCD_DATA_STORE_CLIENT_USERNAME'),
+    secret('ccd-data-store-client-password', 'CCD_DATA_STORE_CLIENT_PASSWORD'),
+    secret('ccd-data-store-client-id', 'CCD_DATA_STORE_CLIENT_ID'),
+    secret('ccd-data-store-secret', 'CCD_DATA_STORE_SECRET'),
+    secret('ccd-data-store-url', 'CCD_DATA_STORE_URL'),
+    secret('manage-case-redirect-uri', 'MANAGE_CASE_REDIRECT_URI'),
+    secret('prl-cos-api-url', 'PRL_COS_API_URL')
   ]
 ]
 
@@ -57,6 +102,8 @@ withNightlyPipeline(type, product, component, 400) {
   env.TEST_URL = params.TEST_URL
   env.TEST_ENV = params.TEST_ENV
   env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
   enableSlackNotifications(channel)
 
   afterAlways('DependencyCheckNightly') {
@@ -71,9 +118,9 @@ withNightlyPipeline(type, product, component, 400) {
           allowMissing         : true,
           alwaysLinkToLastBuild: true,
           keepAll              : true,
-          reportDir            : "playwright-report",
-          reportFiles          : 'index.html',
-          reportName           : 'API nightly report'
+          reportDir            : "test-results/odhin-report",
+          reportFiles          : 'playwright-odhin.html',
+          reportName           : 'API nightly report (Odhín)'
         ])
         junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
         archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
