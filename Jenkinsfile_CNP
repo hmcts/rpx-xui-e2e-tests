@@ -110,6 +110,10 @@ withNightlyPipeline(type, product, component, 300) {
       yarnBuilder.yarn('lint')
     }
 
+    stage('Install Playwright Browsers') {
+      yarnBuilder.yarn('pwinstall')
+    }
+
     stage('Tests') {
       parallel(
         'API tests': {
