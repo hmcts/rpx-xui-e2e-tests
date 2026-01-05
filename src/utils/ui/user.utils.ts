@@ -4,13 +4,13 @@ export interface UserCredentials {
 }
 
 const USER_ENV_MAP: Record<string, { username: string; password: string }> = {
-  SOLICITOR: {
-    username: "PRL_SOLICITOR_USERNAME",
-    password: "PRL_SOLICITOR_PASSWORD"
-  },
   PRL_SOLICITOR: {
     username: "PRL_SOLICITOR_USERNAME",
     password: "PRL_SOLICITOR_PASSWORD"
+  },
+  SOLICITOR: {
+    username: "SOLICITOR_USERNAME",
+    password: "SOLICITOR_PASSWORD"
   },
   CASEWORKER_R1: {
     username: "CASEWORKER_R1_USERNAME",
