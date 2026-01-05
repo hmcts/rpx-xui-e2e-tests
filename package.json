@@ -12,23 +12,29 @@
     "setup": "yarn install --immutable && yarn get-secrets rpx-aat && yarn pwinstall && yarn playwright install webkit && yarn playwright install firefox",
     "get-secrets": "node ./node_modules/@hmcts/playwright-common/dist/scripts/get-secrets.js",
     "lint": "yarn tsc -p tsconfig.json && yarn eslint .",
-    "test:api": "PLAYWRIGHT_REPORTERS=list,html yarn playwright test --project=api",
-    "test:api:ci": "PLAYWRIGHT_REPORTERS=list,junit yarn playwright test --project=api",
-    "test:api:odhin": "PLAYWRIGHT_REPORTERS=list,odhin yarn playwright test --project=api"
+    "test:api": "PW_ODHIN_OUTPUT=test-results/odhin-report PLAYWRIGHT_REPORTERS=list,odhin yarn playwright test --project=api",
+    "test:api:ci": "PW_ODHIN_OUTPUT=test-results/odhin-report PLAYWRIGHT_REPORTERS=list,odhin,junit yarn playwright test --project=api",
+    "test:api:html": "PLAYWRIGHT_REPORTERS=list,html yarn playwright test --project=api",
+    "test:api:coverage": "rm -rf coverage && (PW_ODHIN_OUTPUT=test-results/odhin-report PW_ODHIN_LINK_COVERAGE=true PLAYWRIGHT_REPORTERS=list,odhin yarn c8 --reporter=lcov --reporter=json-summary --reporter=text --reporter=text-summary --reporter=html --report-dir ./coverage playwright test --project=api || true) && (node ./scripts/reportCoverage.cjs || true) && (PW_ODHIN_OUTPUT=test-results/odhin-report PW_ODHIN_LINK_COVERAGE=true node ./scripts/copy-odhin-report.cjs || true)"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",
     "@hmcts/playwright-common": "^1.0.39",
     "@playwright/test": "^1.57.0",
     "@types/node": "^22.9.0",
+    "@types/uuid": "^9.0.7",
     "@typescript-eslint/eslint-plugin": "^8.8.0",
     "@typescript-eslint/parser": "^8.8.0",
+    "c8": "^9.1.0",
+    "dotenv": "^16.4.5",
     "eslint": "^9.11.1",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-playwright": "^2.1.0",
     "odhin-reports-playwright": "^1.1.8",
     "prettier": "^3.3.3",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8"
   }
 }

@@ -1,8 +1,12 @@
 import { createRequire } from "node:module";
 import { cpus } from "node:os";
+import path from "node:path";
 
 import { CommonConfig } from "@hmcts/playwright-common";
 import { defineConfig, type ReporterDescription } from "@playwright/test";
+import { config as loadEnv } from "dotenv";
+
+loadEnv({ path: path.resolve(process.cwd(), ".env") });
 
 const require = createRequire(import.meta.url);
 const { version: appVersion } = require("./package.json") as { version: string };
@@ -116,7 +120,7 @@ const resolveReporters = (): ReporterDescription[] => {
             title: process.env.PW_ODHIN_TITLE ?? "rpx-xui-e2e Playwright",
             testEnvironment:
               process.env.PW_ODHIN_ENV ??
-              `${process.env.TEST_ENV ?? (process.env.CI ? "ci" : "local")} | workers=${resolveWorkerCount()}`,
+              `${process.env.TEST_ENV ?? process.env.TEST_ENVIRONMENT ?? (process.env.CI ? "ci" : "local")} | workers=${resolveWorkerCount()}`,
             project: process.env.PW_ODHIN_PROJECT ?? "rpx-xui-e2e-tests",
             release:
               process.env.PW_ODHIN_RELEASE ??
@@ -124,7 +128,9 @@ const resolveReporters = (): ReporterDescription[] => {
             testFolder: process.env.PW_ODHIN_TEST_FOLDER ?? "src/tests",
             startServer: safeBoolean(process.env.PW_ODHIN_START_SERVER, false),
             consoleLog: safeBoolean(process.env.PW_ODHIN_CONSOLE_LOG, true),
+            simpleConsoleLog: safeBoolean(process.env.PW_ODHIN_SIMPLE_CONSOLE_LOG, false),
             consoleError: safeBoolean(process.env.PW_ODHIN_CONSOLE_ERROR, true),
+            consoleTestOutput: safeBoolean(process.env.PW_ODHIN_CONSOLE_TEST_OUTPUT, true),
             testOutput: resolveOdhinTestOutput(),
             apiLogs: process.env.PW_ODHIN_API_LOGS ?? "summary"
           }
