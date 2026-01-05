@@ -7,6 +7,8 @@ import { CommonConfig } from "@hmcts/playwright-common";
 import { defineConfig, type ReporterDescription, devices } from "@playwright/test";
 import { config as loadEnv } from "dotenv";
 
+import { resolveUiStoragePath, shouldUseUiStorage } from "./src/utils/ui/storage-state.utils.js";
+
 loadEnv({ path: path.resolve(process.cwd(), ".env") });
 
 const require = createRequire(import.meta.url);
@@ -183,6 +185,7 @@ const chromiumExecutablePath = resolveChromiumExecutablePath();
 
 export default defineConfig({
   testDir: "./src/tests",
+  globalSetup: "./src/global/ui.global.setup.ts",
   ...CommonConfig.recommended,
   fullyParallel: true,
   workers: resolveWorkerCount(),
@@ -209,6 +212,7 @@ export default defineConfig({
         trace: "retain-on-failure",
         screenshot: "only-on-failure",
         video: "retain-on-failure",
+        storageState: shouldUseUiStorage() ? resolveUiStoragePath() : undefined,
         launchOptions: chromiumExecutablePath
           ? {
               executablePath: chromiumExecutablePath

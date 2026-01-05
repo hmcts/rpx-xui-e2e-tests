@@ -16,8 +16,8 @@
     "test:api:ci": "PLAYWRIGHT_REPORTERS=list,odhin,junit yarn playwright test --project=api",
     "test:api:html": "PLAYWRIGHT_REPORTERS=list,html yarn playwright test --project=api",
     "test:api:coverage": "rm -rf coverage && (PW_ODHIN_LINK_COVERAGE=true PLAYWRIGHT_REPORTERS=list,odhin yarn c8 --reporter=lcov --reporter=json-summary --reporter=text --reporter=text-summary --reporter=html --report-dir ./coverage playwright test --project=api || true) && (node ./scripts/reportCoverage.cjs || true) && (PW_ODHIN_LINK_COVERAGE=true node ./scripts/copy-odhin-report.cjs || true)",
-    "test:ui": "PLAYWRIGHT_REPORTERS=list,odhin yarn playwright test --project=ui",
-    "test:ui:smoke": "PLAYWRIGHT_REPORTERS=list,odhin yarn playwright test --project=ui --grep @smoke"
+    "test:ui": "PW_UI_STORAGE=1 PW_UI_STORAGE_PATH=test-results/storage-states/ui/solicitor.json PLAYWRIGHT_REPORTERS=list,odhin yarn playwright test --project=ui",
+    "test:ui:smoke": "PW_UI_STORAGE=1 PW_UI_STORAGE_PATH=test-results/storage-states/ui/solicitor.json PLAYWRIGHT_REPORTERS=list,odhin yarn playwright test --project=ui --grep @smoke"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",

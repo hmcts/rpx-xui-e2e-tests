@@ -4,14 +4,8 @@ import { expect, test } from "../../../fixtures/ui";
 
 test.describe("Verify creating cases works as expected", () => {
   test.setTimeout(360_000);
-  test.beforeEach(async ({ idamPage, caseListPage, userUtils, config }) => {
+  test.beforeEach(async ({ caseListPage, config }) => {
     await caseListPage.page.goto(config.urls.manageCaseBaseUrl);
-
-    const { email, password } = userUtils.getUserCredentials("SOLICITOR");
-    await idamPage.login({
-      username: email,
-      password
-    });
     await caseListPage.acceptAnalyticsCookies();
   });
 

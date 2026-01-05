@@ -138,7 +138,9 @@ withNightlyPipeline(type, product, component, 300) {
           def uiOdhinEnv = [
             'PW_ODHIN_OUTPUT=test-results/odhin-report-ui',
             'PW_ODHIN_TARGET=test-results/odhin-report-ui',
-            'PW_ODHIN_SKIP_API_ENDPOINTS=true'
+            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PW_UI_STORAGE=1',
+            'PW_UI_STORAGE_PATH=test-results/storage-states/ui/solicitor.json'
           ]
           try {
             withEnv(uiOdhinEnv) {
