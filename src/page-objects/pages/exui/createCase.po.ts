@@ -1,5 +1,5 @@
 import { faker } from "@faker-js/faker";
-import { Page } from "@playwright/test";
+import { expect, type Locator, Page } from "@playwright/test";
 
 import { Base } from "../../base";
 
@@ -44,8 +44,8 @@ export class CreateCasePage extends Base {
   async createDivorceCase(jurisdiction: string, caseType: string, textField0: string) {
     const gender = faker.helpers.arrayElement(["Male", "Female", "Not given"]);
     await this.createCaseButton.click();
-    await this.jurisdictionSelect.selectOption(jurisdiction);
-    await this.caseTypeSelect.selectOption(caseType);
+    await this.selectOptionWhenReady(this.jurisdictionSelect, jurisdiction);
+    await this.selectOptionWhenReady(this.caseTypeSelect, caseType);
     await this.startButton.click();
     await this.page.getByLabel(gender, { exact: true }).check();
     await this.person1Title.click();
@@ -73,5 +73,42 @@ export class CreateCasePage extends Base {
     await this.testSubmitButton.click();
     await this.exuiSpinnerComponent.wait();
   }
-}
 
+  private async selectOptionWhenReady(
+    select: Locator,
+    desired: string,
+    timeoutMs = 60_000
+  ): Promise<void> {
+    const valueSelector = desired.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const optionByLabel = select.locator("option", { hasText: desired });
+    const optionByValue = select.locator(`option[value="${valueSelector}"]`);
+
+    try {
+      await expect(select).toBeVisible({ timeout: timeoutMs });
+      await expect(select).toBeEnabled({ timeout: timeoutMs });
+      await expect
+        .poll(async () => (await optionByLabel.count()) + (await optionByValue.count()), {
+          timeout: timeoutMs
+        })
+        .toBeGreaterThan(0);
+    } catch {
+      const options = await select.locator("option").evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const label = (node.textContent ?? "").trim();
+          const value = node.getAttribute("value") ?? "";
+          return `${label || "(blank)"}${value ? ` [${value}]` : ""}`;
+        })
+      );
+      const available = options.length ? options.join(", ") : "none";
+      throw new Error(
+        `CreateCase: option "${desired}" not available. Available options: ${available}`
+      );
+    }
+
+    if ((await optionByLabel.count()) > 0) {
+      await select.selectOption({ label: desired });
+    } else {
+      await select.selectOption({ value: desired });
+    }
+  }
+}

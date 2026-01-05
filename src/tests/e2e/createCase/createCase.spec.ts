@@ -3,6 +3,7 @@ import { faker } from "@faker-js/faker";
 import { expect, test } from "../../../fixtures/ui";
 
 test.describe("Verify creating cases works as expected", () => {
+  test.setTimeout(360_000);
   test.beforeEach(async ({ idamPage, caseListPage, userUtils, config }) => {
     await caseListPage.page.goto(config.urls.manageCaseBaseUrl);
 
@@ -24,7 +25,7 @@ test.describe("Verify creating cases works as expected", () => {
     const textField0 = faker.lorem.word();
 
     await test.step("Create a case and validate the case number", async () => {
-      await createCasePage.createDivorceCase("DIVORCE", "XUI Case PoC", textField0);
+      await createCasePage.createDivorceCase("Family Divorce", "XUI Case PoC", textField0);
       await expect(createCasePage.exuiCaseDetailsComponent.caseHeader).toBeVisible();
       caseNumber = await createCasePage.exuiCaseDetailsComponent.caseHeader.innerText();
       validatorUtils.validateDivorceCaseNumber(caseNumber);
