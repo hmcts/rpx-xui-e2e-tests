@@ -107,24 +107,56 @@ withNightlyPipeline(type, product, component, 400) {
   enableSlackNotifications(channel)
 
   afterAlways('DependencyCheckNightly') {
-    stage('API nightly') {
-      try {
-        def tagArg = params.tag ? "--grep ${params.tag}" : ""
-        yarnBuilder.yarn("playwright test --project=api ${tagArg}")
-      } catch (Error) {
-        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-      } finally {
-        publishHTML([
-          allowMissing         : true,
-          alwaysLinkToLastBuild: true,
-          keepAll              : true,
-          reportDir            : "test-results/odhin-report",
-          reportFiles          : 'playwright-odhin.html',
-          reportName           : 'API nightly report (Odhín)'
-        ])
-        junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-        archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
-      }
+    stage('Nightly tests') {
+      parallel(
+        'API nightly': {
+          try {
+            def tagArg = params.tag ? "--grep ${params.tag}" : ""
+            yarnBuilder.yarn("playwright test --project=api ${tagArg}")
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "test-results/odhin-report",
+              reportFiles          : 'playwright-odhin.html',
+              reportName           : 'API nightly report (Odhín)'
+            ])
+            junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
+          }
+        },
+        'UI nightly': {
+          def uiOdhinEnv = [
+            'PW_ODHIN_OUTPUT=test-results/odhin-report-ui',
+            'PW_ODHIN_TARGET=test-results/odhin-report-ui',
+            'PW_ODHIN_SKIP_API_ENDPOINTS=true'
+          ]
+          try {
+            def tagArg = params.tag ? "--grep ${params.tag}" : ""
+            withEnv(uiOdhinEnv) {
+              yarnBuilder.yarn("playwright test --project=ui ${tagArg}")
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            withEnv(uiOdhinEnv) {
+              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            }
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "test-results/odhin-report-ui",
+              reportFiles          : 'playwright-odhin.html',
+              reportName           : 'UI nightly report (Odhín)'
+            ])
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report-ui/**'
+          }
+        }
+      )
     }
   }
 }

@@ -110,23 +110,54 @@ withNightlyPipeline(type, product, component, 300) {
       yarnBuilder.yarn('lint')
     }
 
-    stage('API smoke') {
-      try {
-        yarnBuilder.yarn('test:api:coverage')
-      } catch (Error) {
-        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-      } finally {
-        publishHTML([
-          allowMissing         : true,
-          alwaysLinkToLastBuild: true,
-          keepAll              : true,
-          reportDir            : "test-results/odhin-report",
-          reportFiles          : 'playwright-odhin.html',
-          reportName           : 'API Odhín report'
-        ])
-        junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-        archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
-      }
+    stage('Tests') {
+      parallel(
+        'API tests': {
+          try {
+            yarnBuilder.yarn('test:api:coverage')
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "test-results/odhin-report",
+              reportFiles          : 'playwright-odhin.html',
+              reportName           : 'API Odhín report'
+            ])
+            junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
+          }
+        },
+        'UI tests': {
+          def uiOdhinEnv = [
+            'PW_ODHIN_OUTPUT=test-results/odhin-report-ui',
+            'PW_ODHIN_TARGET=test-results/odhin-report-ui',
+            'PW_ODHIN_SKIP_API_ENDPOINTS=true'
+          ]
+          try {
+            withEnv(uiOdhinEnv) {
+              yarnBuilder.yarn('test:ui')
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            withEnv(uiOdhinEnv) {
+              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            }
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "test-results/odhin-report-ui",
+              reportFiles          : 'playwright-odhin.html',
+              reportName           : 'UI Odhín report'
+            ])
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report-ui/**'
+          }
+        }
+      )
     }
   }
 }

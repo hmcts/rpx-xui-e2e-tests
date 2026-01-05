@@ -1,9 +1,10 @@
+import { existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { cpus } from "node:os";
+import { cpus, homedir } from "node:os";
 import path from "node:path";
 
 import { CommonConfig } from "@hmcts/playwright-common";
-import { defineConfig, type ReporterDescription } from "@playwright/test";
+import { defineConfig, type ReporterDescription, devices } from "@playwright/test";
 import { config as loadEnv } from "dotenv";
 
 loadEnv({ path: path.resolve(process.cwd(), ".env") });
@@ -145,6 +146,41 @@ const resolveReporters = (): ReporterDescription[] => {
   return reporters;
 };
 
+const resolveChromiumExecutablePath = (): string | undefined => {
+  const override = process.env.PW_CHROMIUM_PATH;
+  if (override?.trim()) return override;
+  if (process.platform !== "darwin" || process.arch !== "arm64") {
+    return undefined;
+  }
+  const root =
+    process.env.PLAYWRIGHT_BROWSERS_PATH ??
+    path.join(homedir(), "Library", "Caches", "ms-playwright");
+  if (!existsSync(root)) return undefined;
+  const candidates = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("chromium-"))
+    .map((entry) => entry.name)
+    .sort((a, b) => {
+      const aNum = Number.parseInt(a.replace("chromium-", ""), 10);
+      const bNum = Number.parseInt(b.replace("chromium-", ""), 10);
+      return (Number.isNaN(bNum) ? 0 : bNum) - (Number.isNaN(aNum) ? 0 : aNum);
+    });
+  for (const name of candidates) {
+    const exe = path.join(
+      root,
+      name,
+      "chrome-mac-arm64",
+      "Google Chrome for Testing.app",
+      "Contents",
+      "MacOS",
+      "Google Chrome for Testing"
+    );
+    if (existsSync(exe)) return exe;
+  }
+  return undefined;
+};
+
+const chromiumExecutablePath = resolveChromiumExecutablePath();
+
 export default defineConfig({
   testDir: "./src/tests",
   ...CommonConfig.recommended,
@@ -161,9 +197,30 @@ export default defineConfig({
   },
   projects: [
     {
+      name: "ui",
+      testMatch: /src\/tests\/e2e\/.*\.spec\.ts/,
+      retries: process.env.CI ? 1 : 0,
+      outputDir: "test-results/ui",
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: process.env.PW_UI_CHANNEL,
+        viewport: { width: 1920, height: 1080 },
+        headless: true,
+        trace: "retain-on-failure",
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        launchOptions: chromiumExecutablePath
+          ? {
+              executablePath: chromiumExecutablePath
+            }
+          : undefined
+      }
+    },
+    {
       name: "api",
       testMatch: /src\/tests\/api\/.*\.api\.ts/,
       retries: process.env.CI ? 1 : 0,
+      outputDir: "test-results/api",
       use: {
         headless: true,
         screenshot: "off",
