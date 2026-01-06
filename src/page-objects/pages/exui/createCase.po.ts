@@ -71,7 +71,7 @@ export class CreateCasePage extends Base {
     await this.textField2Input.fill(faker.lorem.word());
     await this.continueButton.click();
     await this.testSubmitButton.click();
-    await this.exuiSpinnerComponent.wait();
+    await this.waitForUiIdleState();
   }
 
   private async selectOptionWhenReady(

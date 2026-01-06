@@ -3,7 +3,7 @@ export interface UserCredentials {
   password: string;
 }
 
-const USER_ENV_MAP: Record<string, { username: string; password: string }> = {
+export const USER_ENV_MAP: Record<string, { username: string; password: string }> = {
   PRL_SOLICITOR: {
     username: "PRL_SOLICITOR_USERNAME",
     password: "PRL_SOLICITOR_PASSWORD"
@@ -20,6 +20,10 @@ const USER_ENV_MAP: Record<string, { username: string; password: string }> = {
     username: "CASEWORKER_R2_USERNAME",
     password: "CASEWORKER_R2_PASSWORD"
   },
+  STAFF_ADMIN: {
+    username: "STAFF_ADMIN_USERNAME",
+    password: "STAFF_ADMIN_PASSWORD"
+  },
   JUDGE: {
     username: "JUDGE_USERNAME",
     password: "JUDGE_PASSWORD"
@@ -27,6 +31,10 @@ const USER_ENV_MAP: Record<string, { username: string; password: string }> = {
   CASEMANAGER: {
     username: "CASEMANAGER_USERNAME",
     password: "CASEMANAGER_PASSWORD"
+  },
+  COURT_ADMIN: {
+    username: "COURT_ADMIN_USERNAME",
+    password: "COURT_ADMIN_PASSWORD"
   }
 };
 

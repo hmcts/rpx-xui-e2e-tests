@@ -15,6 +15,11 @@ export class CaseListPage extends Base {
     super(page);
   }
 
+  async openCaseByReference(cleanedCaseNumber: string): Promise<void> {
+    const caseLink = this.page.locator(`a:has-text("${cleanedCaseNumber}")`);
+    await caseLink.first().waitFor({ state: "visible" });
+    await caseLink.first().click();
+  }
 
   public async searchByJurisdiction(jurisdiction: string): Promise<void> {
     await this.jurisdictionSelect.selectOption(jurisdiction);
@@ -30,21 +35,24 @@ export class CaseListPage extends Base {
 
   public async applyFilters(): Promise<void> {
     await this.exuiCaseListComponent.filters.applyFilterBtn.click();
-    await this.exuiSpinnerComponent.wait();
+    await this.waitForUiIdleState();
   }
 
   async goto() {
     await this.exuiHeader.selectHeaderMenuItem("Case list");
+    await this.waitForReady();
   }
 
   async navigateTo() {
     await this.page.goto("/cases", { waitUntil: "domcontentloaded" });
+    await this.waitForReady();
   }
 
   async waitForReady(timeoutMs = 30_000): Promise<void> {
     await this.page.waitForURL(/\/cases/i, { timeout: timeoutMs });
     await this.container.waitFor({ state: "visible", timeout: timeoutMs });
     await this.jurisdictionSelect.waitFor({ state: "visible", timeout: timeoutMs });
+    await this.waitForUiIdleState({ timeoutMs });
   }
 
   async getPaginationFinalItem(): Promise<string | undefined> {
