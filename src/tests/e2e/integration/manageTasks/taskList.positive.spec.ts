@@ -1,6 +1,8 @@
 import type { Cookie } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
+import { ensureUiStorageStateForUser } from "../../../../utils/ui/session-storage.utils.js";
+import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
 import {
   buildDeterministicMyTasksListMock,
   buildMyTaskListMock
@@ -8,8 +10,6 @@ import {
 import { extractUserIdFromCookies } from "../utils/extractUserIdFromCookies.js";
 import { loadSessionCookies } from "../utils/session.utils.js";
 import { formatUiDate, readTaskTable } from "../utils/tableUtils.js";
-import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
-import { ensureUiStorageStateForUser } from "../../../../utils/ui/session-storage.utils.js";
 
 const userIdentifier = "STAFF_ADMIN";
 let sessionCookies: Cookie[] = [];

@@ -71,8 +71,10 @@ def secrets = [
     secret('caseworker-r1-password', 'CASEWORKER_R1_PASSWORD'),
     secret('caseworker-r2-username', 'CASEWORKER_R2_USERNAME'),
     secret('caseworker-r2-password', 'CASEWORKER_R2_PASSWORD'),
-    // secret('court-admin-stoke-username', 'COURT_ADMIN_STOKE_USERNAME'),
-    // secret('court-admin-stoke-password', 'COURT_ADMIN_STOKE_PASSWORD'),
+    secret('court-admin-username', 'COURT_ADMIN_USERNAME'),
+    secret('court-admin-password', 'COURT_ADMIN_PASSWORD'),
+    secret('staff-admin-username', 'STAFF_ADMIN_USERNAME'),
+    secret('staff-admin-password', 'STAFF_ADMIN_PASSWORD'),
     // secret('noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
     // secret('noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
     // secret('wa-solicitor-username', 'WA_SOLICITOR_USERNAME'),
@@ -139,7 +141,13 @@ withNightlyPipeline(type, product, component, 300) {
             'PW_ODHIN_OUTPUT=test-results/odhin-report-ui',
             'PW_ODHIN_TARGET=test-results/odhin-report-ui',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
-            'PW_UI_STORAGE=1'
+            'PW_UI_STORAGE=1',
+            'PW_UI_STORAGE_TTL_MIN=15',
+            'PW_UI_LOGIN_TIMEOUT_MS=120000',
+            'PW_UI_IDLE_TIMEOUT_MS=60000',
+            'PW_UI_IDLE_QUIET_MS=400',
+            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+            'PW_UI_FAIL_ON_HTTP_4XX=0'
           ]
           try {
             withEnv(uiOdhinEnv) {

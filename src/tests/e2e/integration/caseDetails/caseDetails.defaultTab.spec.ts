@@ -16,9 +16,6 @@ const configuredUsers = explicitUsersEnv
       .filter(Boolean)
   : [];
 const includesCourtAdmin = configuredUsers.includes(userIdentifier);
-const shouldSkip =
-  !hasCourtAdminCreds || (Boolean(explicitUsersEnv) && !includesCourtAdmin);
-
 const installTabSelectionTracker = async (page: Page) => {
   await page.addInitScript(() => {
     const w = window as unknown as {
@@ -40,7 +37,7 @@ const installTabSelectionTracker = async (page: Page) => {
       const name = selected[0];
       if (w.__tabSelectionLast !== name) {
         w.__tabSelectionLast = name;
-        w.__tabSelections.push(name);
+        w.__tabSelections?.push(name);
       }
     };
 
@@ -109,14 +106,14 @@ const findCaseByReference = async (page: Page, caseReference: string) => {
 test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.describe("Case details default tab selection", () => {
-  test.skip(!hasCourtAdminCreds, "COURT_ADMIN credentials not set");
-  test.skip(
-    Boolean(explicitUsersEnv) && !includesCourtAdmin,
-    "PW_UI_USERS excludes COURT_ADMIN"
-  );
-
-  test.beforeAll(async () => {
-    if (shouldSkip) {
+  test.beforeAll(async ({ browser }, testInfo) => {
+    void browser;
+    if (!hasCourtAdminCreds) {
+      testInfo.skip(true, "COURT_ADMIN credentials not set");
+      return;
+    }
+    if (Boolean(explicitUsersEnv) && !includesCourtAdmin) {
+      testInfo.skip(true, "PW_UI_USERS excludes COURT_ADMIN");
       return;
     }
     await ensureUiStorageStateForUser(userIdentifier, { strict: true });
