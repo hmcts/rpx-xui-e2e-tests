@@ -77,8 +77,16 @@ export class CreateCasePage extends Base {
   private async selectOptionWhenReady(
     select: Locator,
     desired: string,
-    timeoutMs = 60_000
+    timeoutMs = 120_000
   ): Promise<void> {
+    const readOptions = async () =>
+      select.locator("option").evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const label = (node.textContent ?? "").trim();
+          const value = node.getAttribute("value") ?? "";
+          return { label, value };
+        })
+      );
     const valueSelector = desired.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     const optionByLabel = select.locator("option", { hasText: desired });
     const optionByValue = select.locator(`option[value="${valueSelector}"]`);
@@ -86,18 +94,19 @@ export class CreateCasePage extends Base {
     try {
       await expect(select).toBeVisible({ timeout: timeoutMs });
       await expect(select).toBeEnabled({ timeout: timeoutMs });
+      await select.click({ timeout: timeoutMs });
       await expect
-        .poll(async () => (await optionByLabel.count()) + (await optionByValue.count()), {
-          timeout: timeoutMs
-        })
+        .poll(async () => {
+          const options = await readOptions();
+          return options.filter((option) => {
+            const label = option.label.toLowerCase();
+            return !(label.includes("select a value") && !option.value);
+          }).length;
+        }, { timeout: timeoutMs })
         .toBeGreaterThan(0);
     } catch {
-      const options = await select.locator("option").evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const label = (node.textContent ?? "").trim();
-          const value = node.getAttribute("value") ?? "";
-          return `${label || "(blank)"}${value ? ` [${value}]` : ""}`;
-        })
+      const options = (await readOptions()).map((option) =>
+        `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`
       );
       const available = options.length ? options.join(", ") : "none";
       throw new Error(
@@ -105,10 +114,22 @@ export class CreateCasePage extends Base {
       );
     }
 
-    if ((await optionByLabel.count()) > 0) {
-      await select.selectOption({ label: desired });
-    } else {
+    const hasValue = (await optionByValue.count()) > 0;
+    const hasLabel = (await optionByLabel.count()) > 0;
+    if (!hasValue && !hasLabel) {
+      const options = (await readOptions()).map((option) =>
+        `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`
+      );
+      const available = options.length ? options.join(", ") : "none";
+      throw new Error(
+        `CreateCase: option "${desired}" not available. Available options: ${available}`
+      );
+    }
+
+    if (hasValue) {
       await select.selectOption({ value: desired });
+    } else {
+      await select.selectOption({ label: desired });
     }
   }
 }

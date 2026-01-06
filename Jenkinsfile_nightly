@@ -107,6 +107,23 @@ withNightlyPipeline(type, product, component, 400) {
   enableSlackNotifications(channel)
 
   afterAlways('DependencyCheckNightly') {
+    stage('Agent Cache Probe') {
+      sh '''
+        set -euo pipefail
+        PROBE_DIR="${HOME}/.cache/persistence-probe"
+        PROBE_FILE="${PROBE_DIR}/marker.txt"
+        if [ -f "${PROBE_FILE}" ]; then
+          echo "Agent cache probe: marker found (cache likely persists across runs)."
+          echo "Last marker:"
+          cat "${PROBE_FILE}"
+        else
+          echo "Agent cache probe: marker not found (agent likely ephemeral or new)."
+        fi
+        mkdir -p "${PROBE_DIR}"
+        date -u +"%Y-%m-%dT%H:%M:%SZ" > "${PROBE_FILE}"
+      '''
+    }
+
     stage('Install Playwright Browsers') {
       yarnBuilder.yarn('pwinstall')
     }

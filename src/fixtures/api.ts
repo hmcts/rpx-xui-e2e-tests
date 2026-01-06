@@ -38,7 +38,11 @@ export const test = base.extend<ApiFixtures>({
     void request;
     const entries: ApiLogEntry[] = [];
     await use(entries);
-    if (entries.length) {
+    if (process.env.PLAYWRIGHT_DEBUG_API !== "1" || !entries.length) {
+      return;
+    }
+
+    {
       const pretty = entries.map((entry) => JSON.stringify(entry, null, 2)).join("\n\n---\n\n");
       await testInfo.attach("node-api-calls.json", {
         body: JSON.stringify(entries, null, 2),
