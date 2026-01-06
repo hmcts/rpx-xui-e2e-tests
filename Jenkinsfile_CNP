@@ -108,7 +108,7 @@ withNightlyPipeline(type, product, component, 300) {
   afterAlways('DependencyCheckNightly') {
     stage('Agent Cache Probe') {
       sh '''
-        set -euo pipefail
+        set -eu
         PROBE_DIR="${HOME}/.cache/persistence-probe"
         PROBE_FILE="${PROBE_DIR}/marker.txt"
         if [ -f "${PROBE_FILE}" ]; then

@@ -1,7 +1,7 @@
 #!groovy
 
 properties([
-  pipelineTriggers([cron('H 3 * * 1-5')]),
+  pipelineTriggers([cron('0 19 * * 1-5')]),
   parameters([
     string(
       name: 'TEST_URL',
@@ -109,7 +109,7 @@ withNightlyPipeline(type, product, component, 400) {
   afterAlways('DependencyCheckNightly') {
     stage('Agent Cache Probe') {
       sh '''
-        set -euo pipefail
+        set -eu
         PROBE_DIR="${HOME}/.cache/persistence-probe"
         PROBE_FILE="${PROBE_DIR}/marker.txt"
         if [ -f "${PROBE_FILE}" ]; then
