@@ -38,7 +38,13 @@ export class CaseListPage extends Base {
   }
 
   async navigateTo() {
-    await this.page.goto("/cases");
+    await this.page.goto("/cases", { waitUntil: "domcontentloaded" });
+  }
+
+  async waitForReady(timeoutMs = 30_000): Promise<void> {
+    await this.page.waitForURL(/\/cases/i, { timeout: timeoutMs });
+    await this.container.waitFor({ state: "visible", timeout: timeoutMs });
+    await this.jurisdictionSelect.waitFor({ state: "visible", timeout: timeoutMs });
   }
 
   async getPaginationFinalItem(): Promise<string | undefined> {
