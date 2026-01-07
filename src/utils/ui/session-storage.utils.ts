@@ -7,6 +7,7 @@ import { chromium, request, type BrowserContext, type Page } from "@playwright/t
 import config from "./config.utils.js";
 import { resolveUiStoragePathForUser } from "./storage-state.utils.js";
 import { UserUtils } from "./user.utils.js";
+import { decodeJwtPayload } from "./jwt.utils.js";
 
 const resolveStorageTtlMs = (): number => {
   const raw = process.env.PW_UI_STORAGE_TTL_MIN;
@@ -39,6 +40,41 @@ const resolveIdamHost = (): string | undefined => {
   } catch {
     return undefined;
   }
+};
+
+const readStorageStateSubject = (storagePath: string): string | undefined => {
+  if (!fs.existsSync(storagePath)) return undefined;
+  try {
+    const state = JSON.parse(fs.readFileSync(storagePath, "utf8"));
+    const cookies = Array.isArray(state.cookies) ? state.cookies : [];
+    const authCookie = cookies.find((cookie) => cookie?.name === "__auth__");
+    if (!authCookie?.value) return undefined;
+    const payload = decodeJwtPayload(authCookie.value);
+    const subject = payload?.sub ?? payload?.subname ?? payload?.email;
+    return typeof subject === "string" && subject.trim() ? subject : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const normalizeUserValue = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed ? trimmed : undefined;
+};
+
+const isEmailLike = (value: string | undefined): boolean =>
+  Boolean(value && value.includes("@"));
+
+const storageStateMatchesUser = (storagePath: string, expectedEmail: string): boolean => {
+  const expected = normalizeUserValue(expectedEmail);
+  if (!expected) return true;
+  const actual = normalizeUserValue(readStorageStateSubject(storagePath));
+  if (!actual) return false;
+  if (!isEmailLike(actual)) {
+    return true;
+  }
+  return actual === expected;
 };
 
 const waitForIdamLogin = async (page: Page) => {
@@ -220,12 +256,31 @@ export const ensureUiStorageStateForUser = async (
   const manualUsers = resolveManualUserIdentifiers();
   const normalisedUser = userIdentifier.trim().toUpperCase();
 
-  const needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
-    ignoreTtl: manualUsers.has(normalisedUser)
+  const ignoreTtl = manualUsers.has(normalisedUser);
+  let expectedEmail: string | undefined;
+  let expectedPassword: string | undefined;
+  const userUtils = new UserUtils();
+  try {
+    ({ email: expectedEmail, password: expectedPassword } = userUtils.getUserCredentials(userIdentifier));
+  } catch {
+    // If creds are missing, we'll surface this later when we need to login.
+  }
+
+  let needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
+    ignoreTtl
   });
+  if (expectedEmail && !storageStateMatchesUser(storagePath, expectedEmail)) {
+    needsRefresh = true;
+  }
 
   if (!needsRefresh) {
     return;
+  }
+
+  if (expectedEmail && !storageStateMatchesUser(storagePath, expectedEmail)) {
+    if (fs.existsSync(storagePath)) {
+      fs.unlinkSync(storagePath);
+    }
   }
 
   if (manualUsers.has(normalisedUser)) {
@@ -237,17 +292,25 @@ export const ensureUiStorageStateForUser = async (
     return;
   }
 
-  let email: string;
-  let password: string;
-  const userUtils = new UserUtils();
-  try {
-    ({ email, password } = userUtils.getUserCredentials(userIdentifier));
-  } catch (error) {
-    if (strict) {
-      throw error;
+  let email = expectedEmail;
+  let password = expectedPassword;
+  if (!email || !password) {
+    try {
+      ({ email, password } = userUtils.getUserCredentials(userIdentifier));
+    } catch (error) {
+      if (strict) {
+        throw error;
+      }
+      const message = error instanceof Error ? error.message : "missing credentials";
+      console.warn(`[ui.session] Skipping ${userIdentifier}: ${message}`);
+      return;
     }
-    const message = error instanceof Error ? error.message : "missing credentials";
-    console.warn(`[ui.session] Skipping ${userIdentifier}: ${message}`);
+  }
+  if (!email || !password) {
+    if (strict) {
+      throw new Error(`Missing credentials for ${userIdentifier}.`);
+    }
+    console.warn(`[ui.session] Skipping ${userIdentifier}: missing credentials.`);
     return;
   }
 
