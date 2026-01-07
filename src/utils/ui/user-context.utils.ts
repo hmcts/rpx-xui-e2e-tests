@@ -17,7 +17,9 @@ const pickFirstString = (value: unknown, fallback?: string): string | undefined 
 
 const normalizeRoles = (value: unknown): string[] | undefined => {
   if (!Array.isArray(value)) return undefined;
-  const roles = value.filter((role): role is string => typeof role === "string" && role.trim());
+  const roles = value.filter(
+    (role): role is string => typeof role === "string" && role.trim().length > 0
+  );
   return roles.length ? Array.from(new Set(roles)) : undefined;
 };
 

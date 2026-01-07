@@ -5,9 +5,9 @@ import { IdamPage } from "@hmcts/playwright-common";
 import { chromium, request, type BrowserContext, type Page } from "@playwright/test";
 
 import config from "./config.utils.js";
+import { decodeJwtPayload } from "./jwt.utils.js";
 import { resolveUiStoragePathForUser } from "./storage-state.utils.js";
 import { UserUtils } from "./user.utils.js";
-import { decodeJwtPayload } from "./jwt.utils.js";
 
 const resolveStorageTtlMs = (): number => {
   const raw = process.env.PW_UI_STORAGE_TTL_MIN;
@@ -47,7 +47,7 @@ const readStorageStateSubject = (storagePath: string): string | undefined => {
   try {
     const state = JSON.parse(fs.readFileSync(storagePath, "utf8"));
     const cookies = Array.isArray(state.cookies) ? state.cookies : [];
-    const authCookie = cookies.find((cookie) => cookie?.name === "__auth__");
+    const authCookie = cookies.find((cookie: { name?: string; value?: string }) => cookie?.name === "__auth__");
     if (!authCookie?.value) return undefined;
     const payload = decodeJwtPayload(authCookie.value);
     const subject = payload?.sub ?? payload?.subname ?? payload?.email;
