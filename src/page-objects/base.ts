@@ -38,4 +38,9 @@ export abstract class Base {
     await waitForUiIdleUtil(this.page, options);
     await this.exuiSpinnerComponent.wait();
   }
+
+  async waitForUiIdleStateLenient(timeoutMs = 30_000): Promise<void> {
+    await waitForUiIdleUtil(this.page, { timeoutMs, idleMs: 1000 }).catch(() => undefined);
+    await this.exuiSpinnerComponent.wait();
+  }
 }

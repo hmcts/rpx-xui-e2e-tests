@@ -2,7 +2,6 @@ import type { Cookie } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
 import { ensureUiStorageStateForUser } from "../../../../utils/ui/session-storage.utils.js";
-import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
 import {
   buildDeterministicMyTasksListMock,
   buildMyTaskListMock
@@ -14,8 +13,6 @@ import { formatUiDate, readTaskTable } from "../utils/tableUtils.js";
 const userIdentifier = "STAFF_ADMIN";
 let sessionCookies: Cookie[] = [];
 let taskListMockResponse: ReturnType<typeof buildMyTaskListMock>;
-
-test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async () => {
   await ensureUiStorageStateForUser(userIdentifier, { strict: true });

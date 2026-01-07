@@ -121,8 +121,21 @@ class UiNetworkTracker {
   async waitForIdle(timeoutMs: number, idleMs: number): Promise<void> {
     const start = Date.now();
     const quietMs = Math.max(0, idleMs);
+    let lastPendingCount = this.pending.size;
+    let lastPendingChange = Date.now();
 
     while (Date.now() - start < timeoutMs) {
+      if (this.pending.size !== lastPendingCount) {
+        lastPendingCount = this.pending.size;
+        lastPendingChange = Date.now();
+      }
+
+      if (this.pending.size > 0 && Date.now() - lastPendingChange > timeoutMs) {
+        // Treat stalled requests as idle so UI waits don't hang forever.
+        this.pending.clear();
+        return;
+      }
+
       if (this.lastError) {
         const { status, url } = this.lastError;
         this.lastError = null;

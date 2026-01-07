@@ -1,8 +1,8 @@
-import type { Page } from "@playwright/test";
+import type { Cookie, Page } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
 import { ensureUiStorageStateForUser } from "../../../../utils/ui/session-storage.utils.js";
-import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
+import { loadSessionCookies } from "../utils/session.utils.js";
 
 const userIdentifier = "COURT_ADMIN";
 const hasCourtAdminCreds = Boolean(
@@ -16,6 +16,7 @@ const configuredUsers = explicitUsersEnv
       .filter(Boolean)
   : [];
 const includesCourtAdmin = configuredUsers.includes(userIdentifier);
+let sessionCookies: Cookie[] = [];
 const installTabSelectionTracker = async (page: Page) => {
   await page.addInitScript(() => {
     const w = window as unknown as {
@@ -75,7 +76,49 @@ const getTabSelectionChanges = async (page: Page): Promise<string[]> =>
     return w.__tabSelections ?? [];
   });
 
+const resolveExplicitTabTarget = (url: string): string | null => {
+  try {
+    const parsed = new URL(url);
+    const hash = parsed.hash.replace(/^#/, "").trim();
+    if (hash) return hash;
+
+    const params = parsed.searchParams;
+    const keys = [
+      "tab",
+      "tabId",
+      "tabid",
+      "tabName",
+      "tabname",
+      "tabLabel",
+      "tablabel",
+      "tab-title",
+      "tabtitle"
+    ];
+    for (const key of keys) {
+      const value = params.get(key);
+      if (value?.trim()) return value.trim();
+    }
+  } catch {
+    const hashIndex = url.indexOf("#");
+    if (hashIndex >= 0) {
+      const fragment = url.slice(hashIndex + 1).trim();
+      if (fragment) return fragment;
+    }
+  }
+
+  const pathMatch = url.match(/\/tab[s]?\/([^/?#]+)/i);
+  return pathMatch?.[1] ?? null;
+};
+
+const assertNoExplicitTabOverride = (page: Page, label: string) => {
+  const explicit = resolveExplicitTabTarget(page.url());
+  if (explicit && !/summary/i.test(explicit)) {
+    throw new Error(`${label}: URL explicitly targets tab "${explicit}"`);
+  }
+};
+
 const assertSummaryTabIsDefault = async (page: Page, label: string) => {
+  assertNoExplicitTabOverride(page, label);
   await page.waitForSelector('div[role="tab"][aria-selected="true"]');
   await page.waitForTimeout(750);
   const selections = await getTabSelectionChanges(page);
@@ -86,26 +129,8 @@ const assertSummaryTabIsDefault = async (page: Page, label: string) => {
   expect(onlySummary, `${label}: summary tab should remain selected`).toBe(true);
 };
 
-const findCaseByReference = async (page: Page, caseReference: string) => {
-  let caseReferenceInput = page.getByLabel(/case reference/i);
-  if (!(await caseReferenceInput.first().isVisible().catch(() => false))) {
-    caseReferenceInput = page.locator(
-      'input#caseReference, input[name="caseReference"], input[aria-label*="case reference" i], input[placeholder*="case reference" i]'
-    );
-  }
-
-  await caseReferenceInput.first().fill(caseReference);
-
-  let findButton = page.getByRole("button", { name: /find case/i });
-  if (!(await findButton.first().isVisible().catch(() => false))) {
-    findButton = page.getByRole("button", { name: /^find$/i });
-  }
-  await findButton.first().click();
-};
-
-test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
-
-test.describe("Case details default tab selection", () => {
+test.describe("@EXUI-3895 Case details default tab selection", () => {
+  let caseMeta: { jurisdiction?: string; caseType?: string } = {};
   test.beforeAll(async ({ browser }, testInfo) => {
     void browser;
     if (!hasCourtAdminCreds) {
@@ -117,17 +142,32 @@ test.describe("Case details default tab selection", () => {
       return;
     }
     await ensureUiStorageStateForUser(userIdentifier, { strict: true });
+    const { cookies } = loadSessionCookies(userIdentifier);
+    sessionCookies = cookies;
   });
 
-  test("Summary tab remains default when opening case details", async ({
+  test.beforeEach(async ({ page }) => {
+    if (sessionCookies.length) {
+      await page.context().addCookies(sessionCookies);
+    }
+  });
+
+  test("@EXUI-3895 Summary tab remains default when opening case details", async ({
     caseListPage,
     caseDetailsPage,
+    caseSearchPage,
     page,
     config
   }) => {
     await installTabSelectionTracker(page);
 
     await test.step("Open case details from case list", async () => {
+      const caseDetailsResponse = page.waitForResponse((response) => {
+        return (
+          response.request().method() === "GET" &&
+          response.url().includes("/internal/cases/")
+        );
+      });
       await caseListPage.page.goto(config.urls.manageCaseBaseUrl, {
         waitUntil: "domcontentloaded"
       });
@@ -138,6 +178,15 @@ test.describe("Case details default tab selection", () => {
       await caseListPage.exuiCaseListComponent.selectCaseByIndex(0);
       await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
       await caseDetailsPage.waitForReady();
+
+      const response = await caseDetailsResponse.catch(() => null);
+      if (response) {
+        const data = await response.json().catch(() => null);
+        caseMeta = {
+          jurisdiction: data?.case_type?.jurisdiction?.name ?? undefined,
+          caseType: data?.case_type?.name ?? undefined
+        };
+      }
     });
 
     const caseReference = await caseDetailsPage.exuiCaseDetailsComponent.getCaseNumber();
@@ -145,12 +194,20 @@ test.describe("Case details default tab selection", () => {
 
     await test.step("Return to case list", async () => {
       await caseDetailsPage.exuiCaseDetailsComponent.returnToCaseList();
-      await caseListPage.waitForReady();
+      await caseListPage.waitForUiIdleStateLenient(45_000);
     });
 
     await test.step("Open case details via Find Case", async () => {
       await resetTabSelectionTracker(page);
-      await findCaseByReference(page, caseReference);
+      await caseSearchPage.goto();
+      await caseSearchPage.waitForReady();
+      await caseSearchPage.ensureFiltersVisible();
+      await caseSearchPage.selectJurisdiction(caseMeta.jurisdiction);
+      await caseSearchPage.selectCaseType(caseMeta.caseType);
+      await caseSearchPage.waitForDynamicFilters();
+      await caseSearchPage.fillCcdNumber(caseReference);
+      await caseSearchPage.applyFilters();
+      await caseSearchPage.openFirstResult();
       await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
       await caseDetailsPage.waitForReady();
     });
