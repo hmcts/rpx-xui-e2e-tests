@@ -17,6 +17,7 @@ import type {
 
 import { CaseDetailsPage } from "./exui/caseDetails.po";
 import { CaseListPage } from "./exui/caseList.po";
+import { CaseSearchPage } from "./exui/caseSearch.po";
 import { CreateCasePage } from "./exui/createCase.po";
 import { TaskListPage } from "./exui/taskList.po";
 
@@ -24,6 +25,7 @@ export interface PageFixtures {
   determinePage: Page;
   caseDetailsPage: CaseDetailsPage;
   caseListPage: CaseListPage;
+  caseSearchPage: CaseSearchPage;
   taskListPage: TaskListPage;
   createCasePage: CreateCasePage;
   mediaViewerPage: ExuiMediaViewerPage;
@@ -58,6 +60,12 @@ export const pageFixtures = {
     use: (page: CaseListPage) => Promise<void>
   ) => {
     await use(new CaseListPage(determinePage));
+  },
+  caseSearchPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: CaseSearchPage) => Promise<void>
+  ) => {
+    await use(new CaseSearchPage(determinePage));
   },
   taskListPage: async (
     { determinePage }: FixtureArgs,

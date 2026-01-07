@@ -6,6 +6,11 @@ import {
 import { Page } from "@playwright/test";
 
 import { ensureAnalyticsAccepted } from "../utils/ui/analytics.utils.js";
+import {
+  installUiNetworkTracker,
+  type UiIdleOptions,
+  waitForUiIdle as waitForUiIdleUtil,
+} from "../utils/ui/ui-idle.utils.js";
 
 import { ExuiHeaderComponent } from "./components/index.js";
 
@@ -22,9 +27,20 @@ export abstract class Base {
     this.exuiCaseDetailsComponent = new ExuiCaseDetailsComponent(page);
     this.exuiHeader = new ExuiHeaderComponent(page);
     this.exuiSpinnerComponent = new ExuiSpinnerComponent(page);
+    installUiNetworkTracker(page);
   }
 
   async acceptAnalyticsCookies(): Promise<void> {
     await ensureAnalyticsAccepted(this.page);
+  }
+
+  async waitForUiIdleState(options?: UiIdleOptions): Promise<void> {
+    await waitForUiIdleUtil(this.page, options);
+    await this.exuiSpinnerComponent.wait();
+  }
+
+  async waitForUiIdleStateLenient(timeoutMs = 30_000): Promise<void> {
+    await waitForUiIdleUtil(this.page, { timeoutMs, idleMs: 1000 }).catch(() => undefined);
+    await this.exuiSpinnerComponent.wait();
   }
 }

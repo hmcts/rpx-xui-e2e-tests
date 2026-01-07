@@ -9,7 +9,10 @@ import { config as loadEnv } from "dotenv";
 
 import { resolveUiStoragePath, shouldUseUiStorage } from "./src/utils/ui/storage-state.utils.js";
 
-loadEnv({ path: path.resolve(process.cwd(), ".env") });
+loadEnv({
+  path: path.resolve(process.cwd(), ".env"),
+  override: !process.env.CI
+});
 
 const require = createRequire(import.meta.url);
 const { version: appVersion } = require("./package.json") as { version: string };

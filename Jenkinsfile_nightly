@@ -1,7 +1,7 @@
 #!groovy
 
 properties([
-  pipelineTriggers([cron('H 3 * * 1-5')]),
+  pipelineTriggers([cron('0 19 * * 1-5')]),
   parameters([
     string(
       name: 'TEST_URL',
@@ -138,7 +138,12 @@ withNightlyPipeline(type, product, component, 400) {
             'PW_ODHIN_TARGET=test-results/odhin-report-ui',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
             'PW_UI_STORAGE=1',
-            'PW_UI_STORAGE_PATH=test-results/storage-states/ui/solicitor.json'
+            'PW_UI_STORAGE_TTL_MIN=15',
+            'PW_UI_LOGIN_TIMEOUT_MS=120000',
+            'PW_UI_IDLE_TIMEOUT_MS=60000',
+            'PW_UI_IDLE_QUIET_MS=400',
+            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+            'PW_UI_FAIL_ON_HTTP_4XX=0'
           ]
           try {
             def tagArg = params.tag ? "--grep ${params.tag}" : ""

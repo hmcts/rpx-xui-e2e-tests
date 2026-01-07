@@ -28,3 +28,7 @@ reports/
 
 
 framework_plan.md
+execplan-ui-idle-waits.md
+execplan-ui-tests-porting.md
+securebydesign-ui-tests-porting.md
+securebydesign-ui-idle-waits.md

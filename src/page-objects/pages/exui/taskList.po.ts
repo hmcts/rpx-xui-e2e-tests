@@ -21,10 +21,17 @@ export class TaskListPage extends Base {
     await this.selectAllServicesFilter.check();
     await this.selectAllTypesOfWorksFilter.check();
     await this.applyFilterButton.click();
+    await this.waitForUiIdleState();
   }
 
   async goto() {
-    await this.page.goto("/work/my-work/list");
+    await this.page.goto("/work/my-work/list", { waitUntil: "domcontentloaded" });
+    await this.waitForReady();
+  }
+
+  async waitForReady(timeoutMs = 30_000): Promise<void> {
+    await this.taskListFilterToggle.waitFor({ state: "visible", timeout: timeoutMs });
+    await this.waitForUiIdleState({ timeoutMs });
   }
 
   async getResultsText() {
