@@ -100,7 +100,7 @@ async function createNodeApiClient(
     "X-Correlation-Id": randomUUID()
   };
   if (role !== "anonymous") {
-    const xsrf = await getStoredCookie(role as ApiUserRole, "XSRF-TOKEN");
+    const xsrf = await getStoredCookie(role as ApiUserRole, "XSRF-TOKEN", baseUrl);
     if (xsrf) {
       defaultHeaders["X-XSRF-TOKEN"] = xsrf;
     }

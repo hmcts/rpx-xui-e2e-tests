@@ -36,7 +36,11 @@ export async function ensureStorageState(role: ApiUserRole): Promise<string> {
   return storagePath;
 }
 
-export async function getStoredCookie(role: ApiUserRole, cookieName: string): Promise<string | undefined> {
+export async function getStoredCookie(
+  role: ApiUserRole,
+  cookieName: string,
+  url?: string
+): Promise<string | undefined> {
   let storagePath = await ensureStorageState(role);
   let state = await tryReadState(storagePath);
 
@@ -50,8 +54,14 @@ export async function getStoredCookie(role: ApiUserRole, cookieName: string): Pr
     throw new Error(`Unable to read storage state for role "${role}".`);
   }
 
+  const hostname = url ? new URL(url).hostname : undefined;
   const cookie = Array.isArray(state.cookies)
-    ? state.cookies.find((c: { name?: string }) => c.name === cookieName)
+    ? state.cookies.find((c: { name?: string; domain?: string }) => {
+        if (c.name !== cookieName) return false;
+        if (!hostname) return true;
+        const domain = c.domain?.replace(/^\./, "");
+        return domain ? hostname === domain || hostname.endsWith(`.${domain}`) : false;
+      })
     : undefined;
   return cookie?.value;
 }

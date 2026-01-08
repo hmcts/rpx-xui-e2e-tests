@@ -323,7 +323,21 @@ export const ensureUiStorageStateForUser = async (
     const idamPage = new IdamPage(page);
 
     await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-    const loginFields = await waitForIdamLogin(page);
+    let loginFields: Awaited<ReturnType<typeof waitForIdamLogin>> | null = null;
+    try {
+      loginFields = await waitForIdamLogin(page);
+    } catch (error) {
+      if (fs.existsSync(storagePath)) {
+        fs.unlinkSync(storagePath);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      if (strict) {
+        throw error;
+      }
+      console.warn(`[ui.session] ${message}`);
+      await context.close();
+      return;
+    }
 
     if (loginFields) {
       if (await idamPage.usernameInput.isVisible().catch(() => false)) {

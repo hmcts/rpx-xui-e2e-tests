@@ -1,5 +1,6 @@
 import { expect } from "@playwright/test";
 
+import { config } from "../../config/api";
 import { ensureStorageState, getStoredCookie, type ApiUserRole } from "../../fixtures/api-auth";
 
 // Central map of commonly reused status code sets to reduce magic arrays in tests.
@@ -23,6 +24,8 @@ export const StatusSets = {
   unauthenticated: [401, 403] as const
 };
 
+const baseUrl = config.baseUrl.replace(/\/+$/, "");
+
 export type StatusSetName = keyof typeof StatusSets;
 
 export function expectStatus(actual: number, allowed: ReadonlyArray<number>) {
@@ -33,7 +36,7 @@ export function expectStatus(actual: number, allowed: ReadonlyArray<number>) {
 
 export async function buildXsrfHeaders(role: ApiUserRole): Promise<Record<string, string>> {
   await ensureStorageState(role);
-  const xsrf = await getStoredCookie(role, "XSRF-TOKEN");
+  const xsrf = await getStoredCookie(role, "XSRF-TOKEN", baseUrl);
   return xsrf ? { "X-XSRF-TOKEN": xsrf } : {};
 }
 

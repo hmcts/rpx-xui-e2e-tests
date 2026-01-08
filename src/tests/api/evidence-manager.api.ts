@@ -13,6 +13,7 @@ import { expectAnnotationShape, expectBookmarkShape } from "../../utils/api/asse
 import { AnnotationPayload, BookmarkPayload } from "../../utils/api/types";
 
 const configuredDocId = EM_DOC_ID ?? config.em[config.testEnv as keyof typeof config.em]?.docId;
+const baseURL = config.baseUrl.replace(/\/+$/, "");
 let sharedDocId: string | undefined;
 const invalidDocId = uuid();
 
@@ -312,7 +313,7 @@ async function uploadSyntheticDoc(): Promise<string> {
 }
 
 async function buildCookieHeaders() {
-  const xsrf = await getStoredCookie("solicitor", "XSRF-TOKEN");
+  const xsrf = await getStoredCookie("solicitor", "XSRF-TOKEN", baseURL);
   const headers: Record<string, string> = {};
   if (xsrf) {
     headers["X-XSRF-TOKEN"] = xsrf;
