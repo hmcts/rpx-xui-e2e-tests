@@ -12,6 +12,10 @@ export const USER_ENV_MAP: Record<string, { username: string; password: string }
     username: "SOLICITOR_USERNAME",
     password: "SOLICITOR_PASSWORD"
   },
+  CIVIL_SOLICITOR: {
+    username: "CIVIL_SOLICITOR_USERNAME",
+    password: "CIVIL_SOLICITOR_PASSWORD"
+  },
   CASEWORKER_R1: {
     username: "CASEWORKER_R1_USERNAME",
     password: "CASEWORKER_R1_PASSWORD"
@@ -35,6 +39,10 @@ export const USER_ENV_MAP: Record<string, { username: string; password: string }
   COURT_ADMIN: {
     username: "COURT_ADMIN_USERNAME",
     password: "COURT_ADMIN_PASSWORD"
+  },
+  CIVIL_HMCTS_STAFF: {
+    username: "CIVIL_HMCTS_STAFF_USERNAME",
+    password: "CIVIL_HMCTS_STAFF_PASSWORD"
   }
 };
 
