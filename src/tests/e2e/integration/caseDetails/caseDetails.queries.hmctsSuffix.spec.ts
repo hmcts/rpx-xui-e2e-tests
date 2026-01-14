@@ -41,6 +41,32 @@ type CaseMeta = {
   caseType?: string;
 };
 
+type CaseOverride = {
+  caseReference: string;
+  jurisdiction: string;
+  caseType: string;
+};
+
+const normalizeEnvValue = (value: string | undefined): string | undefined => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+};
+
+const getCaseOverride = (): CaseOverride | null => {
+  const caseReference = normalizeEnvValue(process.env.EXUI_3695_CASE_REFERENCE);
+  const jurisdiction = normalizeEnvValue(process.env.EXUI_3695_CASE_JURISDICTION);
+  const caseType = normalizeEnvValue(process.env.EXUI_3695_CASE_TYPE);
+  if (!caseReference || !jurisdiction || !caseType) return null;
+  return { caseReference, jurisdiction, caseType };
+};
+
+const getCaseListIndex = (): number | null => {
+  const raw = normalizeEnvValue(process.env.PW_UI_CASE_LIST_INDEX);
+  if (!raw) return null;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
 const normalizeEmail = (value: string | undefined): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim().toLowerCase();
@@ -173,7 +199,7 @@ const waitForCaseListResults = async (
   throw new Error("No case list results available to select.");
 };
 
-const pickRandomCaseId = async (
+const pickCaseFromList = async (
   page: Page,
   caseListPage: CaseListPage,
   caseDetailsPage: CaseDetailsPage
@@ -193,7 +219,8 @@ const pickRandomCaseId = async (
   }
 
   const total = await waitForCaseListResults(caseListPage, 60_000);
-  const index = Math.floor(Math.random() * total);
+  const preferredIndex = getCaseListIndex();
+  const index = preferredIndex !== null ? Math.min(preferredIndex, total - 1) : 0;
   await caseListPage.exuiCaseListComponent.selectCaseByIndex(index);
   await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
   await caseDetailsPage.waitForReady();
@@ -424,11 +451,12 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
     const queryBody = `EXUI-3695 suffix check ${Date.now()}`;
     const responseBody = `EXUI-3695 response ${Date.now()}`;
 
+    const caseOverride = getCaseOverride();
     let caseReference = "";
     let caseMeta: CaseMeta = {};
 
-    await test.step("Pick a random case and raise a non-hearing query as solicitor", async () => {
-      const { context, page, caseDetailsPage, caseListPage } = await createContextForUser(
+    await test.step("Select a case and raise a non-hearing query as solicitor", async () => {
+      const { context, page, caseDetailsPage, caseListPage, caseSearchPage } = await createContextForUser(
         browser,
         baseUrl,
         manageCasesUrl,
@@ -440,9 +468,26 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
         "Solicitor"
       );
       try {
-        const selection = await pickRandomCaseId(page, caseListPage, caseDetailsPage);
-        caseReference = selection.caseReference;
-        caseMeta = selection.caseMeta;
+        if (caseOverride) {
+          caseReference = caseOverride.caseReference;
+          caseMeta = { jurisdiction: caseOverride.jurisdiction, caseType: caseOverride.caseType };
+
+          await caseSearchPage.goto();
+          await caseSearchPage.waitForReady();
+          await caseSearchPage.ensureFiltersVisible();
+          await caseSearchPage.selectJurisdiction(caseOverride.jurisdiction);
+          await caseSearchPage.selectCaseType(caseOverride.caseType);
+          await caseSearchPage.waitForDynamicFilters();
+          await caseSearchPage.fillCcdNumber(caseOverride.caseReference);
+          await caseSearchPage.applyFilters();
+          await caseSearchPage.openFirstResult();
+          await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
+          await caseDetailsPage.waitForReady();
+        } else {
+          const selection = await pickCaseFromList(page, caseListPage, caseDetailsPage);
+          caseReference = selection.caseReference;
+          caseMeta = selection.caseMeta;
+        }
 
         await ensureQueriesTabSelected(page);
         await openRaiseQueryFlow(page);
@@ -479,17 +524,28 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
         "HMCTS staff"
       );
       try {
-        if (!caseMeta.jurisdiction || !caseMeta.caseType) {
-          throw new Error("Case metadata missing for Find case search.");
+        const jurisdiction = caseOverride?.jurisdiction ?? caseMeta.jurisdiction;
+        const caseType = caseOverride?.caseType ?? caseMeta.caseType;
+        const caseNumber = caseOverride?.caseReference ?? caseReference;
+
+        if (!jurisdiction || !caseType) {
+          throw new Error(
+            "Case metadata missing for Find case search. Provide EXUI_3695_CASE_JURISDICTION and EXUI_3695_CASE_TYPE to override."
+          );
+        }
+        if (!caseNumber) {
+          throw new Error(
+            "Case reference missing for Find case search. Provide EXUI_3695_CASE_REFERENCE to override."
+          );
         }
 
         await caseSearchPage.goto();
         await caseSearchPage.waitForReady();
         await caseSearchPage.ensureFiltersVisible();
-        await caseSearchPage.selectJurisdiction(caseMeta.jurisdiction);
-        await caseSearchPage.selectCaseType(caseMeta.caseType);
+        await caseSearchPage.selectJurisdiction(jurisdiction);
+        await caseSearchPage.selectCaseType(caseType);
         await caseSearchPage.waitForDynamicFilters();
-        await caseSearchPage.fillCcdNumber(caseReference);
+        await caseSearchPage.fillCcdNumber(caseNumber);
         await caseSearchPage.applyFilters();
         await caseSearchPage.openFirstResult();
         await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
