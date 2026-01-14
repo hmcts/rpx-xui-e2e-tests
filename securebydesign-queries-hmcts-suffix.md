@@ -1,6 +1,6 @@
 # Secure-by-Design Plan: HMCTS suffix query UI test
 
-This Secure-by-Design plan follows `../.agent/SECURE.md` and covers the EXUI query suffix test added in this repository.
+This Secure-by-Design plan follows `.agent/SECURE.md` and covers the EXUI query suffix test added in this repository.
 
 ## Purpose
 
@@ -33,7 +33,6 @@ Run the new EXUI-3695 test and confirm "-HMCTS" suffix appears in "Last submitte
 
 - Decision: Use UI navigation to open queries and respond, avoiding direct query-management URLs.
   Rationale: aligns with the "no URL usage" requirement and keeps the test on real user flows.
-  Date/Author: 2025-02-14 / Codex.
 
 ## Progress Notes
 

@@ -1,6 +1,6 @@
+import { IdamPage } from "@hmcts/playwright-common";
 import type { Browser, Cookie, Locator, Page, Response } from "@playwright/test";
 
-import { IdamPage } from "@hmcts/playwright-common";
 import { expect, test as baseTest } from "../../../../fixtures/ui";
 import { CaseDetailsPage } from "../../../../page-objects/pages/exui/caseDetails.po.js";
 import { CaseListPage } from "../../../../page-objects/pages/exui/caseList.po.js";
@@ -376,11 +376,13 @@ const getUserDetailsEmail = async (page: Page, baseUrl: string): Promise<string 
   if (!response.ok()) return undefined;
   const data = (await response.json().catch(() => null)) as { userInfo?: Record<string, unknown> } | null;
   const userInfo = data?.userInfo ?? {};
-  const email =
-    (typeof userInfo.email === "string" && userInfo.email.trim()) ||
-    (typeof userInfo.uid === "string" && userInfo.uid.trim()) ||
-    (typeof userInfo.sub === "string" && userInfo.sub.trim());
-  return normalizeEmail(email ?? undefined);
+
+  const candidateEmail =
+    (typeof userInfo.email === "string" ? userInfo.email.trim() : "") ||
+    (typeof userInfo.uid === "string" ? userInfo.uid.trim() : "") ||
+    (typeof userInfo.sub === "string" ? userInfo.sub.trim() : "");
+
+  return normalizeEmail(candidateEmail || undefined);
 };
 
 test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
@@ -410,7 +412,9 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
   });
 
   test("@EXUI-3695 HMCTS suffix appears for staff responders", async ({ browser, config }) => {
-    if (!solicitorSession || !hmctsSession) {
+    const solicitor = solicitorSession;
+    const hmcts = hmctsSession;
+    if (!solicitor || !hmcts) {
       throw new Error("Session setup missing; verify CIVIL user credentials.");
     }
 
@@ -428,7 +432,7 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
         browser,
         baseUrl,
         manageCasesUrl,
-        solicitorSession,
+        solicitor,
         {
           username: solicitorEmail,
           password: process.env.CIVIL_SOLICITOR_PASSWORD ?? ""
@@ -463,11 +467,11 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
     });
 
     await test.step("Respond as HMCTS staff and verify suffixes", async () => {
-      const { context, page, caseDetailsPage, caseListPage, caseSearchPage } = await createContextForUser(
+      const { context, page, caseDetailsPage, caseSearchPage } = await createContextForUser(
         browser,
         baseUrl,
         manageCasesUrl,
-        hmctsSession,
+        hmcts,
         {
           username: hmctsEmail,
           password: process.env.CIVIL_HMCTS_STAFF_PASSWORD ?? ""
