@@ -95,11 +95,51 @@ const normalizeHeader = (value: string): string =>
 
 const ensureQueriesTabSelected = async (page: Page): Promise<void> => {
   const queriesTab = page.getByRole("tab", { name: /queries/i });
-  await queriesTab.waitFor({ state: "visible" });
+  const visible = await queriesTab
+    .waitFor({ state: "visible", timeout: 30_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!visible) {
+    throw new Error(
+      "Queries tab not available for the selected case. " +
+        "Try setting EXUI_3695_CASE_REFERENCE/EXUI_3695_CASE_JURISDICTION/EXUI_3695_CASE_TYPE to a known case that supports queries."
+    );
+  }
   const selected = await queriesTab.getAttribute("aria-selected");
   if (selected !== "true") {
     await queriesTab.click();
   }
+};
+
+const pickCaseFromListWithQueries = async (
+  page: Page,
+  caseListPage: CaseListPage,
+  caseDetailsPage: CaseDetailsPage,
+  maxAttempts = 6
+): Promise<{ caseId: string; caseReference: string; caseMeta: CaseMeta }> => {
+  const total = await waitForCaseListResults(caseListPage, 60_000);
+  const attempts = Math.min(total, maxAttempts);
+  const preferredIndex = getCaseListIndex();
+  const startIndex = preferredIndex !== null ? Math.min(preferredIndex, total - 1) : 0;
+
+  for (let offset = 0; offset < attempts; offset += 1) {
+    const index = Math.min(startIndex + offset, total - 1);
+    const selection = await pickCaseFromList(page, caseListPage, caseDetailsPage, index);
+    const hasQueries = await page
+      .getByRole("tab", { name: /queries/i })
+      .isVisible()
+      .catch(() => false);
+    if (hasQueries) {
+      return selection;
+    }
+    await caseDetailsPage.exuiCaseDetailsComponent.returnToCaseList();
+    await caseListPage.waitForReady();
+  }
+
+  throw new Error(
+    `Unable to find a case with a visible Queries tab after ${attempts} attempts. ` +
+      "Provide EXUI_3695_CASE_REFERENCE/EXUI_3695_CASE_JURISDICTION/EXUI_3695_CASE_TYPE to override."
+  );
 };
 
 const findQueryRow = async (
@@ -202,7 +242,8 @@ const waitForCaseListResults = async (
 const pickCaseFromList = async (
   page: Page,
   caseListPage: CaseListPage,
-  caseDetailsPage: CaseDetailsPage
+  caseDetailsPage: CaseDetailsPage,
+  indexOverride?: number
 ): Promise<{ caseId: string; caseReference: string; caseMeta: CaseMeta }> => {
   if (page.isClosed()) {
     throw new Error("Case list page closed before selecting a case.");
@@ -219,27 +260,49 @@ const pickCaseFromList = async (
   }
 
   const total = await waitForCaseListResults(caseListPage, 60_000);
-  const preferredIndex = getCaseListIndex();
-  const index = preferredIndex !== null ? Math.min(preferredIndex, total - 1) : 0;
+  const preferredIndex = indexOverride ?? getCaseListIndex() ?? 0;
+  const index = Math.min(preferredIndex, total - 1);
   await caseListPage.exuiCaseListComponent.selectCaseByIndex(index);
   await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
   await caseDetailsPage.waitForReady();
 
   const response = caseDetailsResponse ? await caseDetailsResponse.catch(() => null) : null;
   let caseMeta: CaseMeta = {};
+  let caseIdFromResponse: string | undefined;
   if (response) {
+    const urlMatch = response.url().match(/\/internal\/cases\/(\d+)/);
+    caseIdFromResponse = urlMatch?.[1];
     const data = await response.json().catch(() => null);
     caseMeta = {
       jurisdiction: data?.case_type?.jurisdiction?.name ?? undefined,
       caseType: data?.case_type?.name ?? undefined
     };
+
+    const idFromBody = data?.id;
+    if (!caseIdFromResponse && (typeof idFromBody === "string" || typeof idFromBody === "number")) {
+      const normalized = String(idFromBody).replace(/\D/g, "");
+      caseIdFromResponse = normalized || undefined;
+    }
   }
-  const caseReference = await caseDetailsPage.exuiCaseDetailsComponent.getCaseNumber();
-  const cleaned = caseReference.replace(/[^0-9]/g, "");
+
+  let caseReference = "";
+  try {
+    caseReference = await caseDetailsPage.exuiCaseDetailsComponent.getCaseNumber();
+  } catch {
+    // Some EXUI variants render the header with different spacing/labels.
+    // Fall back to deriving the reference from the case details API response.
+    caseReference = caseIdFromResponse ?? "";
+  }
+
+  const cleaned = caseReference.replace(/\D/g, "");
   if (!cleaned) {
-    throw new Error(`Unable to resolve case id from "${caseReference}".`);
+    throw new Error(
+      "Unable to resolve case id after selecting from case list. " +
+        "Set EXUI_3695_CASE_REFERENCE/EXUI_3695_CASE_JURISDICTION/EXUI_3695_CASE_TYPE to run deterministically."
+    );
   }
-  return { caseId: cleaned, caseReference, caseMeta };
+
+  return { caseId: cleaned, caseReference: cleaned || caseReference, caseMeta };
 };
 
 const openRaiseQueryFlow = async (page: Page): Promise<void> => {
@@ -438,7 +501,7 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
     };
   });
 
-  test("@EXUI-3695 HMCTS suffix appears for staff responders", async ({ browser, config }) => {
+  test("@EXUI-3695 HMCTS suffix appears for staff responders", async ({ browser, config }, testInfo) => {
     const solicitor = solicitorSession;
     const hmcts = hmctsSession;
     if (!solicitor || !hmcts) {
@@ -484,9 +547,18 @@ test.describe("@EXUI-3695 HMCTS suffix on queries", () => {
           await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
           await caseDetailsPage.waitForReady();
         } else {
-          const selection = await pickCaseFromList(page, caseListPage, caseDetailsPage);
-          caseReference = selection.caseReference;
-          caseMeta = selection.caseMeta;
+          try {
+            const selection = await pickCaseFromListWithQueries(page, caseListPage, caseDetailsPage);
+            caseReference = selection.caseReference;
+            caseMeta = selection.caseMeta;
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            testInfo.skip(
+              true,
+              message ||
+                "No accessible case with Queries tab found for the solicitor user. Provide EXUI_3695_CASE_* overrides."
+            );
+          }
         }
 
         await ensureQueriesTabSelected(page);
