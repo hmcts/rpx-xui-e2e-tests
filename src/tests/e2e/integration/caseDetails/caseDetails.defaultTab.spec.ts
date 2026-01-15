@@ -8,6 +8,7 @@ const userIdentifier = "COURT_ADMIN";
 const hasCourtAdminCreds = Boolean(
   process.env.COURT_ADMIN_USERNAME && process.env.COURT_ADMIN_PASSWORD
 );
+test.use({ storageState: { cookies: [], origins: [] } });
 const explicitUsersEnv = (process.env.PW_UI_USERS ?? process.env.PW_UI_USER)?.trim();
 const configuredUsers = explicitUsersEnv
   ? explicitUsersEnv

@@ -63,3 +63,12 @@ Coverage and endpoint artifacts:
 ## Notes on API attachments
 
 API attachments are redacted by default; set `PLAYWRIGHT_DEBUG_API=1` locally to include raw payloads in attachments.
+
+## UI storage state controls
+
+UI tests use pre-authenticated storage state files under `test-results/storage-states/ui/`.
+You can control which users are created and whether missing/failed sessions should fail the run.
+
+- `PW_UI_USERS` / `PW_UI_USER`: comma-separated list of UI users to pre-auth (e.g., `COURT_ADMIN`).
+- `PW_UI_STORAGE`: enable/disable storage state usage (default: on).
+- `PW_UI_STORAGE_STRICT=1`: fail early if storage state cannot be created (e.g., bad credentials or login error).

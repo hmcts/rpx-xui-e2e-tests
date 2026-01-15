@@ -146,6 +146,8 @@ withNightlyPipeline(type, product, component, 400) {
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PW_UI_USERS=COURT_ADMIN',
+            'PW_UI_STORAGE_STRICT=1',
             'PW_UI_STORAGE=1',
             'PW_UI_STORAGE_TTL_MIN=15',
             'PW_UI_LOGIN_TIMEOUT_MS=120000',
