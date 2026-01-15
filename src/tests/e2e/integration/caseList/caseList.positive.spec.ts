@@ -38,7 +38,7 @@ test.describe(`Case List as ${userIdentifier}`, () => {
     });
 
     await test.step("Verify user can see a list shows the expected layout given the mock response", async () => {
-      expect(await caseListPage.caseListResultsAmount.textContent()).toBe(
+      await expect(caseListPage.caseListResultsAmount).toHaveText(
         `Showing 1 to ${Math.min(caseListMockResponse.results.length, 25)} of ${caseListMockResponse.total} results`
       );
       const table = await tableUtils.mapExuiTable(caseListPage.exuiCaseListComponent.caseListTable);
@@ -50,7 +50,7 @@ test.describe(`Case List as ${userIdentifier}`, () => {
         expect(table[i]["Text Field 1"]).toBe(expectedFields.TextField1);
         expect(table[i]["Text Field 2"]).toBe(expectedFields.TextField2);
       }
-      expect(await caseListPage.pagination.isVisible()).toBeTruthy();
+      await expect(caseListPage.pagination).toBeVisible();
       expect(await caseListPage.getPaginationFinalItem()).toBe("Next");
     });
   });

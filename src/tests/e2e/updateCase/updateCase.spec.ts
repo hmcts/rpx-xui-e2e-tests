@@ -2,6 +2,13 @@ import { faker } from "@faker-js/faker";
 
 import { expect, test } from "../../../fixtures/ui";
 
+const formatOptions = (options: Array<{ label: string; value: string }>): string =>
+  options.length
+    ? options
+        .map((option) => `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`)
+        .join(", ")
+    : "none";
+
 test.describe("Verify creating and updating a case works as expected", () => {
   test.beforeEach(async ({ caseListPage, config }) => {
     await caseListPage.page.goto(config.urls.manageCaseBaseUrl);
@@ -15,12 +22,34 @@ test.describe("Verify creating and updating a case works as expected", () => {
     caseListPage,
     caseDetailsPage,
     page
-  }) => {
+  }, testInfo) => {
     let caseNumber = "";
     const textField0 = faker.lorem.word();
+    const desiredJurisdiction = "DIVORCE";
+    const desiredCaseType = "XUI Case PoC";
+    const selection = await createCasePage.resolveCreateCaseSelection(
+      desiredJurisdiction,
+      desiredCaseType
+    );
+    if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
+      const availableJurisdictions = formatOptions(selection.availableJurisdictions);
+      const availableCaseTypes = formatOptions(selection.availableCaseTypes);
+      testInfo.skip(
+        true,
+        `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
+          `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
+      );
+      return;
+    }
+    const jurisdictionValue =
+      selection.selectedJurisdiction.value || selection.selectedJurisdiction.label;
+    const jurisdictionLabel =
+      selection.selectedJurisdiction.label || selection.selectedJurisdiction.value;
+    const caseTypeValue = selection.selectedCaseType.value || selection.selectedCaseType.label;
+    const caseTypeLabel = selection.selectedCaseType.label || selection.selectedCaseType.value;
 
     await test.step("Create a case and validate the case number", async () => {
-      await createCasePage.createDivorceCase("DIVORCE", "XUI Case PoC", textField0);
+      await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, textField0);
       await expect(createCasePage.exuiCaseDetailsComponent.caseHeader).toBeVisible();
       caseNumber = await createCasePage.exuiCaseDetailsComponent.caseHeader.innerText();
       validatorUtils.validateDivorceCaseNumber(caseNumber);
@@ -28,11 +57,15 @@ test.describe("Verify creating and updating a case works as expected", () => {
 
     await test.step("Find the created case in the case list", async () => {
       await caseListPage.goto();
-      await caseListPage.searchByJurisdiction("Family Divorce");
-      await caseListPage.searchByCaseType("XUI Case PoC");
+      await caseListPage.searchByJurisdiction(jurisdictionLabel);
+      await caseListPage.searchByCaseType(caseTypeLabel);
       await caseListPage.searchByTextField0(textField0);
       await caseListPage.exuiCaseListComponent.searchByCaseState("Case created");
       await caseListPage.applyFilters();
+      const cleanedCaseNumber = caseNumber.replace(/^#/, "");
+      await expect
+        .poll(async () => caseListPage.hasCaseReference(cleanedCaseNumber), { timeout: 120_000 })
+        .toBe(true);
     });
 
     await test.step("Open the created case", async () => {
@@ -42,7 +75,7 @@ test.describe("Verify creating and updating a case works as expected", () => {
     });
 
     await test.step("Start Update Case event", async () => {
-      await page.waitForSelector("#next-step");
+      await expect(page.locator("#next-step")).toBeVisible();
       await page.getByLabel("Next step").selectOption("3: Object");
       await page.getByRole("button", { name: "Go" }).click();
       await caseDetailsPage.waitForEventFormReady("#Person2_FirstName");

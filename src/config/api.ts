@@ -1,8 +1,17 @@
-const rawBaseUrl = process.env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net/";
-const baseUrl = rawBaseUrl.endsWith("/") ? rawBaseUrl : `${rawBaseUrl}/`;
+export const resolveBaseUrl = (value?: string): string => {
+  const raw = value ?? "https://manage-case.aat.platform.hmcts.net/";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+};
 
-const testEnvRaw = process.env.TEST_ENV ?? "aat";
-const testEnv = ["aat", "demo"].includes(testEnvRaw) ? testEnvRaw : "aat";
+export const resolveTestEnv = (value?: string): "aat" | "demo" => {
+  if (value && ["aat", "demo"].includes(value)) {
+    return value as "aat" | "demo";
+  }
+  return "aat";
+};
+
+const baseUrl = resolveBaseUrl(process.env.TEST_URL);
+const testEnv = resolveTestEnv(process.env.TEST_ENV);
 
 type EnvUser = { e?: string; sec?: string };
 
@@ -125,3 +134,8 @@ export const config = {
 };
 
 export type ApiTestConfig = typeof config;
+
+export const __test__ = {
+  resolveBaseUrl,
+  resolveTestEnv
+};

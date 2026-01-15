@@ -1,5 +1,6 @@
 import {
   ApiClient,
+  buildApiAttachment,
   createLogger,
   ExuiMediaViewerPage,
   IdamPage,
@@ -120,6 +121,7 @@ export const pageFixtures = {
       baseUrl: process.env.BACKEND_BASE_URL,
       logger,
       onResponse: (entry) => capturedCalls.push(entry),
+      onError: (error) => capturedCalls.push(error.logEntry),
       captureRawBodies: process.env.PLAYWRIGHT_DEBUG_API === "1",
     });
 
@@ -127,10 +129,22 @@ export const pageFixtures = {
     await client.dispose();
 
     if (capturedCalls.length) {
-      await testInfo.attach("api-calls.json", {
-        body: JSON.stringify(capturedCalls, null, 2),
-        contentType: "application/json",
-      });
+      const shouldAttach =
+        process.env.PLAYWRIGHT_DEBUG_API === "1" ||
+        testInfo.status !== testInfo.expectedStatus;
+      if (shouldAttach) {
+        const includeRaw = process.env.PLAYWRIGHT_DEBUG_API === "1";
+        const safeEntries = capturedCalls.map((entry) => {
+          const attachment = buildApiAttachment(entry, { includeRaw });
+          return typeof attachment.body === "string"
+            ? JSON.parse(attachment.body)
+            : attachment.body;
+        });
+        await testInfo.attach("api-calls.json", {
+          body: JSON.stringify(safeEntries, null, 2),
+          contentType: "application/json",
+        });
+      }
     }
   },
 };

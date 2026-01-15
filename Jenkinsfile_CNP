@@ -32,7 +32,7 @@ properties([
 def type = "nodejs"
 def product = "rpx"
 def component = "xui-e2e-tests"
-def channel = "#xui-tech"
+def channel = "#xui-pipeline"
 
 static Map<String, Object> secret(String secretName, String envVariable) {
   [
@@ -119,8 +119,14 @@ withNightlyPipeline(type, product, component, 300) {
     stage('Tests') {
       parallel(
         'API tests': {
+          def apiOdhinEnv = [
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
+            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
+          ]
           try {
-            yarnBuilder.yarn('test:api:coverage')
+            withEnv(apiOdhinEnv) {
+              yarnBuilder.yarn('test:api:coverage')
+            }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
@@ -128,19 +134,21 @@ withNightlyPipeline(type, product, component, 300) {
               allowMissing         : true,
               alwaysLinkToLastBuild: true,
               keepAll              : true,
-              reportDir            : "test-results/odhin-report",
+              reportDir            : "functional-output/tests/api_functional/odhin-report",
               reportFiles          : 'playwright-odhin.html',
               reportName           : 'API Odhín report'
             ])
             junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report/**'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
           }
         },
         'UI tests': {
           def uiOdhinEnv = [
-            'PW_ODHIN_OUTPUT=test-results/odhin-report-ui',
-            'PW_ODHIN_TARGET=test-results/odhin-report-ui',
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
+            'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PW_UI_USERS=COURT_ADMIN',
+            'PW_UI_STORAGE_STRICT=1',
             'PW_UI_STORAGE=1',
             'PW_UI_STORAGE_TTL_MIN=15',
             'PW_UI_LOGIN_TIMEOUT_MS=120000',
@@ -163,11 +171,11 @@ withNightlyPipeline(type, product, component, 300) {
               allowMissing         : true,
               alwaysLinkToLastBuild: true,
               keepAll              : true,
-              reportDir            : "test-results/odhin-report-ui",
+              reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
               reportFiles          : 'playwright-odhin.html',
               reportName           : 'UI Odhín report'
             ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/odhin-report-ui/**'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
           }
         }
       )

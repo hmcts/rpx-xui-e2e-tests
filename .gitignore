@@ -1,3 +1,6 @@
+# macOS
+.DS_Store
+
 # Dependencies and Yarn Berry artifacts
 node_modules/
 .pnp.*
@@ -13,6 +16,7 @@ node_modules/
 # Playwright artifacts
 playwright-report/
 test-results/
+functional-output/
 playwright-junit.xml
 
 # Coverage and logs
@@ -22,9 +26,6 @@ reports/
 
 # Env files
 .env
-
-# macOS
-.DS_Store
 
 
 framework_plan.md

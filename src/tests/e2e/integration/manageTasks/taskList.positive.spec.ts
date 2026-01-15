@@ -1,12 +1,25 @@
-import type { Cookie } from "@playwright/test";
+import type { Cookie, Page } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
+import type { TaskListPage } from "../../../../page-objects/pages/exui/taskList.po.js";
 import { ensureUiStorageStateForUser } from "../../../../utils/ui/session-storage.utils.js";
 import { loadSessionCookies } from "../utils/session.utils.js";
 import { readTaskTable } from "../utils/tableUtils.js";
 
 const userIdentifier = "COURT_ADMIN";
 let sessionCookies: Cookie[] = [];
+
+const assertTasksState = async (page: Page, taskListPage: TaskListPage): Promise<void> => {
+  const noTasksMessage = page.getByText("You have no assigned tasks.");
+  const emptyVisible = await noTasksMessage.isVisible().catch(() => false);
+  if (emptyVisible) {
+    await expect(noTasksMessage).toBeVisible();
+    return;
+  }
+
+  const table = await readTaskTable(taskListPage.taskListTable);
+  expect(table.length).toBeGreaterThan(0);
+};
 
 test.beforeAll(async () => {
   await ensureUiStorageStateForUser(userIdentifier, { strict: true });
@@ -32,7 +45,7 @@ test.describe(`Task List as ${userIdentifier}`, () => {
     });
 
     await test.step("Verify the user is not blocked by authorization", async () => {
-      await expect(page.getByText("Sorry, you're not authorised to perform this action")).not.toBeVisible();
+      await expect(page.getByText("Sorry, you're not authorised to perform this action")).toBeHidden();
     });
   });
 
@@ -43,16 +56,8 @@ test.describe(`Task List as ${userIdentifier}`, () => {
       await taskListPage.exuiSpinnerComponent.wait();
     });
 
-    const noTasksMessage = page.getByText("You have no assigned tasks.");
-    if (await noTasksMessage.isVisible().catch(() => false)) {
-      await test.step("Verify empty state when no tasks are assigned", async () => {
-        await expect(noTasksMessage).toBeVisible();
-      });
-    } else {
-      await test.step("Verify at least one task row is available", async () => {
-        const table = await readTaskTable(taskListPage.taskListTable);
-        expect(table.length).toBeGreaterThan(0);
-      });
-    }
+    await test.step("Verify empty state or tasks list renders", async () => {
+      await assertTasksState(page, taskListPage);
+    });
   });
 });

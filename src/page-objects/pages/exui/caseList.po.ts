@@ -1,4 +1,4 @@
-import type { Locator, Page } from "@playwright/test";
+import { expect, type Locator, Page } from "@playwright/test";
 
 import { Base } from "../../base";
 
@@ -24,12 +24,12 @@ export class CaseListPage extends Base {
 
   public async searchByJurisdiction(jurisdiction: string): Promise<void> {
     const select = await this.resolveJurisdictionSelect();
-    await select.selectOption(jurisdiction);
+    await this.selectOptionWhenReady(select, jurisdiction, "jurisdiction");
   }
 
   public async searchByCaseType(caseType: string): Promise<void> {
     const select = await this.resolveCaseTypeSelect();
-    await select.selectOption(caseType);
+    await this.selectOptionWhenReady(select, caseType, "case type");
   }
 
   public async searchByTextField0(textField0: string): Promise<void> {
@@ -39,7 +39,11 @@ export class CaseListPage extends Base {
 
   public async applyFilters(): Promise<void> {
     await this.exuiCaseListComponent.filters.applyFilterBtn.click();
-    await this.waitForUiIdleState();
+    try {
+      await this.waitForUiIdleState({ timeoutMs: 60_000 });
+    } catch {
+      await this.waitForUiIdleStateLenient(60_000);
+    }
   }
 
   async goto() {
@@ -55,12 +59,21 @@ export class CaseListPage extends Base {
   async waitForReady(timeoutMs = 30_000): Promise<void> {
     await this.page.waitForURL(/\/cases/i, { timeout: timeoutMs });
     await this.container.waitFor({ state: "visible", timeout: timeoutMs });
-    await this.waitForUiIdleState({ timeoutMs });
+    try {
+      await this.waitForUiIdleState({ timeoutMs });
+    } catch {
+      await this.waitForUiIdleStateLenient(timeoutMs);
+    }
   }
 
   async getPaginationFinalItem(): Promise<string | undefined> {
     const items = (await this.pagination.locator("li").allTextContents()).map((i) => i.trim());
     return items.length > 0 ? items[items.length - 1] : undefined;
+  }
+
+  async hasCaseReference(caseReference: string): Promise<boolean> {
+    const link = this.page.locator(`a:has-text("${caseReference}")`);
+    return (await link.count()) > 0;
   }
 
   private async ensureFiltersVisible(timeoutMs = 30_000): Promise<void> {
@@ -87,7 +100,7 @@ export class CaseListPage extends Base {
           return candidate.locator.first();
         }
       }
-      await this.page.waitForTimeout(250);
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
     const labels = candidates.map((candidate) => candidate.label).join(", ");
     throw new Error(`Case list filters not visible after ${timeoutMs}ms (tried: ${labels}).`);
@@ -117,6 +130,61 @@ export class CaseListPage extends Base {
       ],
       timeoutMs
     );
+  }
+
+  private async selectOptionWhenReady(
+    select: Locator,
+    desired: string,
+    label: string,
+    timeoutMs = 120_000
+  ): Promise<void> {
+    const readOptions = async () => this.readSelectOptions(select);
+    const normalized = desired.trim().toLowerCase();
+    const matchOption = (options: Array<{ label: string; value: string }>) =>
+      options.find(
+        (option) =>
+          option.value.trim().toLowerCase() === normalized ||
+          option.label.trim().toLowerCase() === normalized
+      );
+    const options = this.filterSelectableOptions(await readOptions());
+    const hasOption = matchOption(options);
+    if (!hasOption) {
+      await expect
+        .poll(async () => {
+          const current = this.filterSelectableOptions(await readOptions());
+          return Boolean(matchOption(current));
+        }, { timeout: timeoutMs })
+        .toBe(true);
+    }
+    const resolved = matchOption(this.filterSelectableOptions(await readOptions()));
+    if (!resolved) {
+      const available = (await readOptions())
+        .map((option) => `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`)
+        .join(", ");
+      throw new Error(`Case list: option "${desired}" not available for ${label}. Available options: ${available || "none"}`);
+    }
+    if (resolved.value) {
+      await select.selectOption({ value: resolved.value });
+    } else {
+      await select.selectOption({ label: resolved.label });
+    }
+  }
+
+  private async readSelectOptions(select: Locator): Promise<Array<{ label: string; value: string }>> {
+    return select.locator("option").evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const label = (node.textContent ?? "").trim();
+        const value = node.getAttribute("value") ?? "";
+        return { label, value };
+      })
+    );
+  }
+
+  private filterSelectableOptions(options: Array<{ label: string; value: string }>): Array<{ label: string; value: string }> {
+    return options.filter((option) => {
+      const label = option.label.toLowerCase();
+      return !(label.includes("select a value") && !option.value);
+    });
   }
 
   private async resolveTextField0Input(timeoutMs = 60_000) {

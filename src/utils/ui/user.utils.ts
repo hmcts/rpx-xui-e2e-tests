@@ -24,6 +24,10 @@ export const USER_ENV_MAP: Record<string, { username: string; password: string }
     username: "STAFF_ADMIN_USERNAME",
     password: "STAFF_ADMIN_PASSWORD"
   },
+  SEARCH_EMPLOYMENT_CASE: {
+    username: "SEARCH_EMPLOYMENT_CASE_USERNAME",
+    password: "SEARCH_EMPLOYMENT_CASE_PASSWORD"
+  },
   JUDGE: {
     username: "JUDGE_USERNAME",
     password: "JUDGE_PASSWORD"
@@ -35,6 +39,10 @@ export const USER_ENV_MAP: Record<string, { username: string; password: string }
   COURT_ADMIN: {
     username: "COURT_ADMIN_USERNAME",
     password: "COURT_ADMIN_PASSWORD"
+  },
+  USER_WITH_FLAGS: {
+    username: "USER_WITH_FLAGS_USERNAME",
+    password: "USER_WITH_FLAGS_PASSWORD"
   }
 };
 
@@ -47,6 +55,15 @@ const getEnvOrThrow = (name: string): string => {
 };
 
 export class UserUtils {
+  public hasUserCredentials(userIdentifier: string): boolean {
+    const key = userIdentifier.trim().toUpperCase();
+    const mapping = USER_ENV_MAP[key];
+    if (!mapping) {
+      return false;
+    }
+    return Boolean(process.env[mapping.username] && process.env[mapping.password]);
+  }
+
   public getUserCredentials(userIdentifier: string): UserCredentials {
     const key = userIdentifier.trim().toUpperCase();
     const mapping = USER_ENV_MAP[key];

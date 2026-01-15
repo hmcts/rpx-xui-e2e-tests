@@ -1,5 +1,6 @@
 import fs from "node:fs";
 
+import { SessionUtils } from "@hmcts/playwright-common";
 import type { Cookie } from "@playwright/test";
 
 import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
@@ -19,13 +20,7 @@ export function loadSessionCookies(userIdentifier: string): LoadedSession {
 
   if (fs.existsSync(storageFile)) {
     try {
-      const state = JSON.parse(fs.readFileSync(storageFile, "utf8"));
-      if (Array.isArray(state.cookies)) {
-        cookies = state.cookies.filter(
-          (cookie: Partial<Cookie>): cookie is Cookie =>
-            typeof cookie?.name === "string" && typeof cookie?.value === "string"
-        );
-      }
+      cookies = SessionUtils.getCookies(storageFile);
     } catch {
       // no-op: tests will proceed without session cookies
     }

@@ -7,12 +7,23 @@
 const fs = require("fs");
 const path = require("path");
 
+let scanApiEndpoints;
+let readCoverageSummary;
+let buildCoverageRows;
+
 const truthy = new Set(["1", "true", "yes", "on"]);
 const isTruthy = (value) => truthy.has(String(value ?? "").trim().toLowerCase());
 
-const configuredOutput = process.env.PW_ODHIN_OUTPUT ?? path.join("test-results", "odhin-report");
+const configuredOutput =
+  process.env.PLAYWRIGHT_REPORT_FOLDER ??
+  process.env.PW_ODHIN_OUTPUT ??
+  path.join("test-results", "odhin-report");
 const htmlOutput = process.env.PLAYWRIGHT_HTML_OUTPUT ?? "playwright-report";
-const configuredTarget = process.env.PW_ODHIN_TARGET ?? path.join("test-results", "odhin-report");
+const configuredTarget =
+  process.env.PW_ODHIN_TARGET ??
+  process.env.PLAYWRIGHT_REPORT_TARGET ??
+  process.env.PLAYWRIGHT_REPORT_FOLDER ??
+  path.join("test-results", "odhin-report");
 const candidateSources = Array.from(new Set([configuredOutput, htmlOutput, configuredTarget]));
 const existingSource = candidateSources.map((p) => path.resolve(p)).find((p) => fs.existsSync(p));
 const target = path.resolve(configuredTarget);
@@ -21,50 +32,63 @@ const coverageRoot = path.resolve("coverage");
 const coverageTarget = path.join(target, "coverage");
 const coverageLinkFlag = process.env.PW_ODHIN_LINK_COVERAGE === "true";
 const skipApiEndpoints = isTruthy(process.env.PW_ODHIN_SKIP_API_ENDPOINTS);
+const apiEndpointsOutput = process.env.PW_API_ENDPOINTS_OUTPUT ?? path.join("coverage", "api-endpoints.json");
 
-try {
-  if (!existingSource) {
-    console.warn("copy-odhin-report: no odhin/html report found; expected one of: " + candidateSources.join(", "));
+async function main() {
+  const common = await import("@hmcts/playwright-common");
+  ({ scanApiEndpoints, readCoverageSummary, buildCoverageRows } = common);
+
+  try {
+    if (!existingSource) {
+      console.warn("copy-odhin-report: no odhin/html report found; expected one of: " + candidateSources.join(", "));
+      process.exit(0);
+    }
+
+    const resolvedSource = existingSource;
+    const resolvedTarget = target;
+    const sourceIsTarget = path.resolve(resolvedSource) === path.resolve(resolvedTarget);
+
+    fs.mkdirSync(targetRoot, { recursive: true });
+    if (!sourceIsTarget) {
+      fs.rmSync(resolvedTarget, { recursive: true, force: true });
+      fs.cpSync(resolvedSource, resolvedTarget, { recursive: true, force: true });
+    } else if (!fs.existsSync(resolvedTarget)) {
+      console.warn(`copy-odhin-report: expected report at ${resolvedTarget} but it is missing.`);
+      process.exit(0);
+    }
+
+    if (!skipApiEndpoints) {
+      const apiRoot = path.resolve("src", "tests", "api");
+      const { endpoints, totalHits } = collectApiEndpoints(apiRoot);
+      if (endpoints.length) {
+        writeApiEndpoints(apiEndpointsOutput, { endpoints, totalHits });
+        injectNodeApiTab(resolvedTarget, endpoints, totalHits);
+      }
+    }
+
+    if (coverageLinkFlag && fs.existsSync(coverageRoot)) {
+      fs.rmSync(coverageTarget, { recursive: true, force: true });
+      fs.cpSync(coverageRoot, coverageTarget, { recursive: true, force: true });
+      const coverageIndex = renameCoverageIndex(findCoverageIndex(coverageTarget));
+      const coverageSummary = readCoverageSummary(path.join(coverageTarget, "coverage-summary.json"));
+      const coverageRows = coverageSummary ? buildCoverageRows(coverageSummary.totals) : undefined;
+      if (coverageIndex) {
+        injectCoverageLink(resolvedTarget, path.relative(resolvedTarget, coverageIndex), coverageRows);
+        injectCoverageTab(resolvedTarget, path.relative(resolvedTarget, coverageIndex));
+      } else {
+        console.warn("copy-odhin-report: coverage index not found; skipping coverage block injection.");
+      }
+    }
+  } catch (error) {
+    console.warn(`copy-odhin-report: ${error.message}`);
     process.exit(0);
   }
-
-  const resolvedSource = existingSource;
-  const resolvedTarget = target;
-  const sourceIsTarget = path.resolve(resolvedSource) === path.resolve(resolvedTarget);
-
-  fs.mkdirSync(targetRoot, { recursive: true });
-  if (!sourceIsTarget) {
-    fs.rmSync(resolvedTarget, { recursive: true, force: true });
-    fs.cpSync(resolvedSource, resolvedTarget, { recursive: true, force: true });
-  } else if (!fs.existsSync(resolvedTarget)) {
-    console.warn(`copy-odhin-report: expected report at ${resolvedTarget} but it is missing.`);
-    process.exit(0);
-  }
-
-  if (!skipApiEndpoints) {
-    const apiRoot = path.resolve("src", "tests", "api");
-    const { endpoints, totalHits } = collectApiEndpoints(apiRoot);
-    if (endpoints.length) {
-      injectNodeApiTab(resolvedTarget, endpoints, totalHits);
-    }
-  }
-
-  if (coverageLinkFlag && fs.existsSync(coverageRoot)) {
-    fs.rmSync(coverageTarget, { recursive: true, force: true });
-    fs.cpSync(coverageRoot, coverageTarget, { recursive: true, force: true });
-    const coverageIndex = renameCoverageIndex(findCoverageIndex(coverageTarget));
-    const coverageSummary = loadCoverageSummary(coverageTarget);
-    if (coverageIndex) {
-      injectCoverageLink(resolvedTarget, path.relative(resolvedTarget, coverageIndex), coverageSummary);
-      injectCoverageTab(resolvedTarget, path.relative(resolvedTarget, coverageIndex));
-    } else {
-      console.warn("copy-odhin-report: coverage index not found; skipping coverage block injection.");
-    }
-  }
-} catch (error) {
-  console.warn(`copy-odhin-report: ${error.message}`);
-  process.exit(0);
 }
+
+main().catch((error) => {
+  console.warn(`copy-odhin-report: ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(0);
+});
 
 function findCoverageIndex(rootDir) {
   const preferred = path.join(rootDir, "index.html");
@@ -85,38 +109,16 @@ function renameCoverageIndex(indexPath) {
   }
 }
 
-function loadCoverageSummary(rootDir) {
-  const summaryPath = path.join(rootDir, "coverage-summary.json");
-  if (!fs.existsSync(summaryPath)) {
-    return undefined;
-  }
-  try {
-    const json = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
-    return json?.total;
-  } catch (err) {
-    console.warn(`copy-odhin-report: unable to parse coverage summary: ${err.message}`);
-    return undefined;
-  }
-}
-
-function injectCoverageLink(reportFolder, relativeCoveragePath, totals) {
+function injectCoverageLink(reportFolder, relativeCoveragePath, rows) {
   const files = fs.readdirSync(reportFolder).filter((f) => f.toLowerCase().endsWith(".html"));
-  const rows = totals
-    ? [
-        ["Lines", totals.lines],
-        ["Functions", totals.functions],
-        ["Branches", totals.branches],
-        ["Statements", totals.statements]
-      ]
-        .map(([label, data]) => {
-          const pct = typeof data?.pct === "number" ? data.pct.toFixed(2) : "n/a";
-          const covered = data?.covered ?? 0;
-          const total = data?.total ?? 0;
+  const rowHtml = rows?.length
+    ? rows
+        .map((row) => {
           return `<tr>
-      <td class="fs-6 text-secondary-emphasis text-start summary-row-left-column">${label}</td>
-      <td class="text-secondary-emphasis">${pct}%</td>
-      <td class="text-secondary-emphasis">${covered}</td>
-      <td class="text-secondary-emphasis">${total}</td>
+      <td class="fs-6 text-secondary-emphasis text-start summary-row-left-column">${row.metric}</td>
+      <td class="text-secondary-emphasis">${row.percent}</td>
+      <td class="text-secondary-emphasis">${row.covered}</td>
+      <td class="text-secondary-emphasis">${row.total}</td>
     </tr>`;
         })
         .join("\n")
@@ -142,7 +144,7 @@ function injectCoverageLink(reportFolder, relativeCoveragePath, totals) {
                         </tr>
                       </thead>
                       <tbody>
-                        ${rows || '<tr><td colspan="4" class="text-secondary-emphasis">Summary unavailable</td></tr>'}
+                        ${rowHtml || '<tr><td colspan="4" class="text-secondary-emphasis">Summary unavailable</td></tr>'}
                       </tbody>
                     </table>
                   </div>
@@ -223,39 +225,24 @@ function injectCoverageTab(reportFolder, relativeCoveragePath) {
 }
 
 function collectApiEndpoints(rootDir) {
-  if (!fs.existsSync(rootDir)) {
+  if (!scanApiEndpoints || !fs.existsSync(rootDir)) {
     return { endpoints: [], totalHits: 0 };
   }
-  const files = walkFiles(rootDir).filter((f) => f.endsWith(".ts"));
-  const counts = new Map();
-  const apiRegex = /\b(apiClient|anonymousClient|client)\.(get|post|put|delete)\s*\(\s*['"`]([^'"`]+)['"`]/g;
-  files.forEach((file) => {
-    const content = fs.readFileSync(file, "utf8");
-    let match;
-    while ((match = apiRegex.exec(content)) !== null) {
-      const endpoint = match[3];
-      counts.set(endpoint, (counts.get(endpoint) ?? 0) + 1);
-    }
-  });
-  const totalHits = Array.from(counts.values()).reduce((sum, n) => sum + n, 0);
-  const endpoints = Array.from(counts.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([endpoint, hits]) => ({ endpoint, hits }));
-  return { endpoints, totalHits };
+  try {
+    return scanApiEndpoints(rootDir, { useAst: true });
+  } catch (error) {
+    console.warn(`copy-odhin-report: endpoint scan failed: ${error instanceof Error ? error.message : String(error)}`);
+    return { endpoints: [], totalHits: 0 };
+  }
 }
 
-function walkFiles(dir) {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  let files = [];
-  for (const entry of entries) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files = files.concat(walkFiles(full));
-    } else if (entry.isFile()) {
-      files.push(full);
-    }
+function writeApiEndpoints(outputPath, result) {
+  try {
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, JSON.stringify(result, null, 2), "utf8");
+  } catch (error) {
+    console.warn(`copy-odhin-report: unable to write api-endpoints output: ${error instanceof Error ? error.message : String(error)}`);
   }
-  return files;
 }
 
 function injectNodeApiTab(reportFolder, endpoints, totalHits) {

@@ -11,16 +11,20 @@ test.describe("Postcode lookup", () => {
     test(`GET ${path}`, async ({ apiClient }) => {
       const response = await apiClient.get<unknown>(path, { throwOnError: false });
       expectStatus(response.status, expected);
-      if (response.status === 200) {
-        expect(response.data).toBeTruthy();
-        if (Array.isArray(response.data) && response.data.length > 0) {
-          expect((response.data as unknown[])[0]).toEqual(
-            expect.objectContaining({
-              DPA: expect.anything()
-            })
-          );
-        }
-      }
+      assertPostcodeLookupResponse(response);
     });
   }
 });
+
+function assertPostcodeLookupResponse(response: { status: number; data: unknown }): void {
+  if (response.status === 200) {
+    expect(response.data).toBeTruthy();
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      expect((response.data as unknown[])[0]).toEqual(
+        expect.objectContaining({
+          DPA: expect.anything()
+        })
+      );
+    }
+  }
+}
