@@ -262,7 +262,7 @@ function assertStaffRefData(response: { status: number; data: any }): void {
   }
 }
 
-function assertMyAccessCount(response: { status: number; data: any }): void {
+function assertMyAccessCount(response: { status: number; data?: unknown }): void {
   const data = response.data as any;
   if (response.status === 200) {
     if (typeof data === "number") {

@@ -129,7 +129,7 @@ export async function withRetry<T extends { status: number }>(
       error && typeof error === "object" && "status" in error
         ? Number((error as { status?: unknown }).status)
         : undefined;
-    if (lastResponse && Number.isFinite(status) && retryStatuses.includes(status)) {
+    if (lastResponse && typeof status === "number" && retryStatuses.includes(status)) {
       return lastResponse;
     }
     throw error;
