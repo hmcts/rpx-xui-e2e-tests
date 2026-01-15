@@ -55,7 +55,6 @@ def secrets = [
     secret('idam-return-url', 'IDAM_RETURN_URL'),
     secret('s2s-url', 'S2S_URL'),
     secret('s2s-microservice-name', 'S2S_MICROSERVICE_NAME'),
-    secret('api-auth-mode', 'API_AUTH_MODE'),
     secret('api-auto-xsrf', 'API_AUTO_XSRF'),
     secret('idam-citizen-user-password', 'IDAM_CITIZEN_USER_PASSWORD'),
     secret('citizen-username', 'CITIZEN_USERNAME'),
