@@ -21,24 +21,9 @@ test.describe("CORS and OPTIONS", () => {
           failOnStatusCode: false
         });
         expectStatus(res.status(), expected);
-        const headers = res.headers();
-        if (expected === StatusSets.corsAllowed && res.status() < 500) {
-          const allowOrigin = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
-          if (allowOrigin) {
-            expect(allowOrigin).toBe(origin);
-          }
-        }
-        if (expected === StatusSets.corsDisallowed && res.status() < 500) {
-          const allowed = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
-          expect(allowed === origin).toBe(false);
-        }
+        assertCorsHeaders(res.status(), res.headers(), origin, expected);
       } catch (error) {
-        const message = (error as Error)?.message ?? "";
-        if (/ENOTFOUND|ECONNREFUSED/.test(message)) {
-          expect(message).toContain("manage-case");
-          return;
-        }
-        throw error;
+        handleCorsError(error);
       } finally {
         await ctx.dispose();
       }
@@ -53,27 +38,39 @@ test.describe("CORS and OPTIONS", () => {
           failOnStatusCode: false
         });
         expectStatus(res.status(), expected);
-        const headers = res.headers();
-        if (expected === StatusSets.corsAllowed && res.status() < 500) {
-          const allowOrigin = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
-          if (allowOrigin) {
-            expect(allowOrigin).toBe(origin);
-          }
-        }
-        if (expected === StatusSets.corsDisallowed && res.status() < 500) {
-          const allowed = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
-          expect(allowed === origin).toBe(false);
-        }
+        assertCorsHeaders(res.status(), res.headers(), origin, expected);
       } catch (error) {
-        const message = (error as Error)?.message ?? "";
-        if (/ENOTFOUND|ECONNREFUSED/.test(message)) {
-          expect(message).toContain("manage-case");
-          return;
-        }
-        throw error;
+        handleCorsError(error);
       } finally {
         await ctx.dispose();
       }
     });
   });
 });
+
+function assertCorsHeaders(
+  status: number,
+  headers: Record<string, string>,
+  origin: string,
+  expected: ReadonlyArray<number>
+): void {
+  if (expected === StatusSets.corsAllowed && status < 500) {
+    const allowOrigin = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
+    if (allowOrigin) {
+      expect(allowOrigin).toBe(origin);
+    }
+  }
+  if (expected === StatusSets.corsDisallowed && status < 500) {
+    const allowed = headers["access-control-allow-origin"] || headers["Access-Control-Allow-Origin"];
+    expect(allowed === origin).toBe(false);
+  }
+}
+
+function handleCorsError(error: unknown): void {
+  const message = (error as Error)?.message ?? "";
+  if (/ENOTFOUND|ECONNREFUSED/.test(message)) {
+    expect(message).toContain("manage-case");
+    return;
+  }
+  throw error;
+}

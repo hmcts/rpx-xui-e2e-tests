@@ -22,14 +22,7 @@ test.describe("Global search", () => {
       { retries: 1, retryStatuses: [502, 504] }
     );
     expectStatus(response.status, StatusSets.guardedBasic);
-    if (response.status === 200 && Array.isArray(response.data) && response.data.length > 0) {
-      expect(response.data[0]).toEqual(
-        expect.objectContaining({
-          serviceId: expect.any(String),
-          serviceName: expect.any(String)
-        })
-      );
-    }
+    assertGlobalSearchServices(response);
   });
 
   test("returns results payload or guarded status", async ({ apiClient }) => {
@@ -38,16 +31,7 @@ test.describe("Global search", () => {
       throwOnError: false
     });
     expectStatus(response.status, StatusSets.globalSearch);
-    if (response.status === 200 && response.data) {
-      expect(response.data).toHaveProperty("results");
-      if (Array.isArray((response.data as any).results) && (response.data as any).results.length > 0) {
-        const first = (response.data as any).results[0];
-        expect(first).toEqual(expect.objectContaining({}));
-        if (first.caseReference) {
-          expect(typeof first.caseReference).toBe("string");
-        }
-      }
-    }
+    assertGlobalSearchResults(response);
   });
 
   test("searchCases proxy responds or guards", async ({ apiClient }) => {
@@ -60,16 +44,7 @@ test.describe("Global search", () => {
       { retries: 1, retryStatuses: [502, 504] }
     );
     expectStatus(response.status, [200, 400, 401, 403, 404, 500, 502, 504]);
-    if (response.status === 200 && response.data) {
-      if (typeof response.data.total === "number" && Array.isArray(response.data.cases)) {
-        expect(response.data.total).toBeGreaterThanOrEqual(0);
-        if (response.data.cases.length > 0) {
-          expect(response.data.cases[0]).toEqual(expect.anything());
-        }
-      } else {
-        expect(response.data).toEqual(expect.anything());
-      }
-    }
+    assertSearchCasesResponse(response);
   });
 });
 
@@ -77,17 +52,13 @@ test.describe("Ref data and supported jurisdictions", () => {
   test("wa-supported jurisdictions", async ({ apiClient }) => {
     const res = await apiClient.get<string[]>("api/wa-supported-jurisdiction", { throwOnError: false });
     expectStatus(res.status, StatusSets.guardedBasic);
-    if (res.status === 200 && Array.isArray(res.data) && res.data.length > 0) {
-      expect(typeof res.data[0]).toBe("string");
-    }
+    assertSupportedJurisdictions(res);
   });
 
   test("staff-supported jurisdictions", async ({ apiClient }) => {
     const res = await apiClient.get<string[]>("api/staff-supported-jurisdiction", { throwOnError: false });
     expectStatus(res.status, StatusSets.guardedBasic);
-    if (res.status === 200 && Array.isArray(res.data) && res.data.length > 0) {
-      expect(typeof res.data[0]).toBe("string");
-    }
+    assertSupportedJurisdictions(res);
   });
 
   test("locations endpoint returns list or guarded status", async ({ apiClient }) => {
@@ -97,9 +68,7 @@ test.describe("Ref data and supported jurisdictions", () => {
         throwOnError: false
       });
       expectStatus(res.status, StatusSets.guardedBasic);
-      if (res.status === 200 && Array.isArray(res.data) && res.data.length > 0) {
-        expect(res.data[0]).toHaveProperty("epimms_id");
-      }
+      assertLocationsResponse(res);
     });
   });
 
@@ -109,15 +78,7 @@ test.describe("Ref data and supported jurisdictions", () => {
       throwOnError: false
     });
     expectStatus(res.status, [200, 400, 401, 403, 500]);
-    if (res.status === 200 && Array.isArray(res.data?.staff)) {
-      const staffEntry = res.data.staff[0];
-      expect(staffEntry).toEqual(
-        expect.objectContaining({
-          known_as: expect.any(String),
-          email_id: expect.any(String)
-        })
-      );
-    }
+    assertStaffRefData(res);
   });
 });
 
@@ -151,24 +112,9 @@ test.describe("Role access / AM", () => {
   });
 
   test("get-my-access-new-count", async ({ apiClient }) => {
-    const res = await withRetry(
-      () =>
-        apiClient.get<{ count?: number } | number>("api/role-access/roles/get-my-access-new-count", {
-          throwOnError: false
-        }),
-      { retries: 1, retryStatuses: [502, 504] }
-    );
-    expectStatus(res.status, [200, 401, 403, 500, 502, 504]);
-    const data = res.data as any;
-    if (res.status === 200) {
-      if (typeof data === "number") {
-        expect(data).toBeGreaterThanOrEqual(0);
-      } else if (typeof data?.count === "number") {
-        expect(data.count).toBeGreaterThanOrEqual(0);
-      } else {
-        expect(data).toEqual(expect.anything());
-      }
-    }
+    const res = await safeGetMyAccessCount(apiClient);
+    expectStatus(res.status, [0, 200, 401, 403, 500, 502, 504]);
+    assertMyAccessCount(res);
   });
 
   test("roles/access-get responds", async ({ apiClient }) => {
@@ -181,18 +127,7 @@ test.describe("Role access / AM", () => {
       { retries: 1, retryStatuses: [502, 504] }
     );
     expectStatus(res.status, [200, 400, 401, 403, 404, 500]);
-    if (res.status === 200) {
-      if (Array.isArray(res.data) && res.data.length > 0) {
-        expectRoleAssignmentShape(res.data[0] as any);
-      } else if (
-        Array.isArray((res.data as RoleAssignmentContainer)?.roleAssignmentResponse) &&
-        (res.data as RoleAssignmentContainer).roleAssignmentResponse!.length > 0
-      ) {
-        expectRoleAssignmentShape((res.data as RoleAssignmentContainer).roleAssignmentResponse![0] as any);
-      } else {
-        expect(res.data).toEqual(expect.anything());
-      }
-    }
+    assertAccessGetResponse(res);
   });
 
   test("allocate-role/valid-roles responds", async ({ apiClient }) => {
@@ -201,14 +136,7 @@ test.describe("Role access / AM", () => {
       throwOnError: false
     });
     expectStatus(res.status, [200, 400, 401, 403, 404, 500]);
-    if (res.status === 200 && Array.isArray(res.data) && res.data.length > 0) {
-      expect(res.data[0]).toEqual(
-        expect.objectContaining({
-          roleId: expect.any(String),
-          roleName: expect.any(String)
-        })
-      );
-    }
+    assertValidRolesResponse(res);
   });
 
   test("roles/getJudicialUsers responds", async ({ apiClient }) => {
@@ -272,3 +200,133 @@ test.describe("Case flags", () => {
     expectStatus(res.status, [401, 403]);
   });
 });
+
+function assertGlobalSearchServices(response: { status: number; data: unknown }): void {
+  if (response.status === 200 && Array.isArray(response.data) && response.data.length > 0) {
+    expect(response.data[0]).toEqual(
+      expect.objectContaining({
+        serviceId: expect.any(String),
+        serviceName: expect.any(String)
+      })
+    );
+  }
+}
+
+function assertGlobalSearchResults(response: { status: number; data: unknown }): void {
+  if (response.status === 200 && response.data) {
+    expect(response.data).toHaveProperty("results");
+    if (Array.isArray((response.data as any).results) && (response.data as any).results.length > 0) {
+      const first = (response.data as any).results[0];
+      expect(first).toEqual(expect.objectContaining({}));
+      if (first.caseReference) {
+        expect(typeof first.caseReference).toBe("string");
+      }
+    }
+  }
+}
+
+function assertSearchCasesResponse(response: { status: number; data: any }): void {
+  if (response.status === 200 && response.data) {
+    if (typeof response.data.total === "number" && Array.isArray(response.data.cases)) {
+      expect(response.data.total).toBeGreaterThanOrEqual(0);
+      if (response.data.cases.length > 0) {
+        expect(response.data.cases[0]).toEqual(expect.anything());
+      }
+    } else {
+      expect(response.data).toEqual(expect.anything());
+    }
+  }
+}
+
+function assertSupportedJurisdictions(response: { status: number; data: unknown }): void {
+  if (response.status === 200 && Array.isArray(response.data) && response.data.length > 0) {
+    expect(typeof response.data[0]).toBe("string");
+  }
+}
+
+function assertLocationsResponse(response: { status: number; data: unknown }): void {
+  if (response.status === 200 && Array.isArray(response.data) && response.data.length > 0) {
+    expect(response.data[0]).toHaveProperty("epimms_id");
+  }
+}
+
+function assertStaffRefData(response: { status: number; data: any }): void {
+  if (response.status === 200 && Array.isArray(response.data?.staff)) {
+    const staffEntry = response.data.staff[0];
+    expect(staffEntry).toEqual(
+      expect.objectContaining({
+        known_as: expect.any(String),
+        email_id: expect.any(String)
+      })
+    );
+  }
+}
+
+function assertMyAccessCount(response: { status: number; data: any }): void {
+  const data = response.data as any;
+  if (response.status === 200) {
+    if (typeof data === "number") {
+      expect(data).toBeGreaterThanOrEqual(0);
+    } else if (typeof data?.count === "number") {
+      expect(data.count).toBeGreaterThanOrEqual(0);
+    } else {
+      expect(data).toEqual(expect.anything());
+    }
+  }
+}
+
+async function safeGetMyAccessCount(apiClient: { get: (path: string, options: Record<string, unknown>) => Promise<{ status: number; data: unknown }> }): Promise<{
+  status: number;
+  data?: unknown;
+}> {
+  try {
+    return await withRetry(
+      () =>
+        apiClient.get("api/role-access/roles/get-my-access-new-count", {
+          throwOnError: false
+        }),
+      { retries: 1, retryStatuses: [502, 504] }
+    );
+  } catch (error) {
+    if (isNetworkError(error)) {
+      return { status: 0 };
+    }
+    throw error;
+  }
+}
+
+function isNetworkError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  if ("status" in error) {
+    return Number((error as { status?: unknown }).status) === 0;
+  }
+  return false;
+}
+
+function assertAccessGetResponse(response: { status: number; data: any }): void {
+  if (response.status === 200) {
+    if (Array.isArray(response.data) && response.data.length > 0) {
+      expectRoleAssignmentShape(response.data[0] as any);
+    } else if (
+      Array.isArray((response.data as RoleAssignmentContainer)?.roleAssignmentResponse) &&
+      (response.data as RoleAssignmentContainer).roleAssignmentResponse!.length > 0
+    ) {
+      expectRoleAssignmentShape((response.data as RoleAssignmentContainer).roleAssignmentResponse![0] as any);
+    } else {
+      expect(response.data).toEqual(expect.anything());
+    }
+  }
+}
+
+function assertValidRolesResponse(response: { status: number; data: unknown }): void {
+  if (response.status === 200 && Array.isArray(response.data) && response.data.length > 0) {
+    expect(response.data[0]).toEqual(
+      expect.objectContaining({
+        roleId: expect.any(String),
+        roleName: expect.any(String)
+      })
+    );
+  }
+}

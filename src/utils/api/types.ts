@@ -28,9 +28,15 @@ export interface UserDetailsResponse {
 export interface Task {
   id?: string;
   task_state?: string;
+  task_title?: string;
   state?: string;
   assignee?: string | null;
   assigned_to?: string | null;
+  case_id?: string | null;
+  case_name?: string | null;
+  location_name?: string | null;
+  created_date?: string | null;
+  due_date?: string | null;
   [key: string]: unknown;
 }
 

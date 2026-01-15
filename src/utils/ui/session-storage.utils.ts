@@ -349,9 +349,13 @@ export const ensureUiStorageStateForUser = async (
       return;
     }
 
-    await page.waitForSelector("exui-header", { timeout: resolveLoginTimeoutMs() }).catch(() => {
-      // Proceed even if header is slow to render; cookies are already present.
-    });
+    await page
+      .locator("exui-header")
+      .first()
+      .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
+      .catch(() => {
+        // Proceed even if header is slow to render; cookies are already present.
+      });
 
     await addAnalyticsCookie(context, baseUrl);
     await context.storageState({ path: storagePath });

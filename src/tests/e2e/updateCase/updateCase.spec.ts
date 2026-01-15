@@ -42,7 +42,7 @@ test.describe("Verify creating and updating a case works as expected", () => {
     });
 
     await test.step("Start Update Case event", async () => {
-      await page.waitForSelector("#next-step");
+      await expect(page.locator("#next-step")).toBeVisible();
       await page.getByLabel("Next step").selectOption("3: Object");
       await page.getByRole("button", { name: "Go" }).click();
       await caseDetailsPage.waitForEventFormReady("#Person2_FirstName");

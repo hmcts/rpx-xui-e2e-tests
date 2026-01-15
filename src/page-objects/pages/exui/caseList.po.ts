@@ -55,7 +55,11 @@ export class CaseListPage extends Base {
   async waitForReady(timeoutMs = 30_000): Promise<void> {
     await this.page.waitForURL(/\/cases/i, { timeout: timeoutMs });
     await this.container.waitFor({ state: "visible", timeout: timeoutMs });
-    await this.waitForUiIdleState({ timeoutMs });
+    try {
+      await this.waitForUiIdleState({ timeoutMs });
+    } catch {
+      await this.waitForUiIdleStateLenient(timeoutMs);
+    }
   }
 
   async getPaginationFinalItem(): Promise<string | undefined> {
@@ -87,7 +91,7 @@ export class CaseListPage extends Base {
           return candidate.locator.first();
         }
       }
-      await this.page.waitForTimeout(250);
+      await new Promise((resolve) => setTimeout(resolve, 250));
     }
     const labels = candidates.map((candidate) => candidate.label).join(", ");
     throw new Error(`Case list filters not visible after ${timeoutMs}ms (tried: ${labels}).`);

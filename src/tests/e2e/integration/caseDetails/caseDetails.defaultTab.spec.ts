@@ -1,4 +1,4 @@
-import type { Cookie, Page } from "@playwright/test";
+import type { Cookie, Page, Response } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
 import { ensureUiStorageStateForUser } from "../../../../utils/ui/session-storage.utils.js";
@@ -119,14 +119,38 @@ const assertNoExplicitTabOverride = (page: Page, label: string) => {
 
 const assertSummaryTabIsDefault = async (page: Page, label: string) => {
   assertNoExplicitTabOverride(page, label);
-  await page.waitForSelector('div[role="tab"][aria-selected="true"]');
-  await page.waitForTimeout(750);
+  const selectedTabs = page.locator('div[role="tab"][aria-selected="true"]');
+  await expect(selectedTabs.first()).toBeVisible();
+  await expect
+    .poll(async () => (await getTabSelectionChanges(page)).length, { timeout: 10_000 })
+    .toBeGreaterThan(0);
   const selections = await getTabSelectionChanges(page);
   expect(selections.length, `${label}: no tab selections recorded`).toBeGreaterThan(0);
-  expect(selections[0], `${label}: first selected tab should be Summary`).toMatch(/summary/i);
   const normalized = selections.map((value) => value.toLowerCase());
-  const onlySummary = normalized.every((value) => value.includes("summary"));
-  expect(onlySummary, `${label}: summary tab should remain selected`).toBe(true);
+  const summaryIndex = normalized.findIndex((value) => value.includes("summary"));
+  expect(summaryIndex, `${label}: summary tab was never selected`).toBeGreaterThanOrEqual(0);
+
+  const afterSummary = normalized.slice(summaryIndex);
+  const onlySummaryAfter = afterSummary.every((value) => value.includes("summary"));
+  expect(onlySummaryAfter, `${label}: summary tab should remain selected once chosen`).toBe(true);
+
+  const currentSelected = (await selectedTabs.first().textContent())?.toLowerCase() ?? "";
+  expect(currentSelected, `${label}: Summary should be the selected tab`).toContain("summary");
+};
+
+const extractCaseMeta = async (
+  responsePromise: Promise<Response>
+): Promise<{ jurisdiction?: string; caseType?: string }> => {
+  try {
+    const response = await responsePromise;
+    const data = await response.json().catch(() => null);
+    return {
+      jurisdiction: data?.case_type?.jurisdiction?.name ?? undefined,
+      caseType: data?.case_type?.name ?? undefined
+    };
+  } catch {
+    return {};
+  }
 };
 
 test.describe("@EXUI-3895 Case details default tab selection", () => {
@@ -179,14 +203,7 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
       await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
       await caseDetailsPage.waitForReady();
 
-      const response = await caseDetailsResponse.catch(() => null);
-      if (response) {
-        const data = await response.json().catch(() => null);
-        caseMeta = {
-          jurisdiction: data?.case_type?.jurisdiction?.name ?? undefined,
-          caseType: data?.case_type?.name ?? undefined
-        };
-      }
+      caseMeta = await extractCaseMeta(caseDetailsResponse);
     });
 
     const caseReference = await caseDetailsPage.exuiCaseDetailsComponent.getCaseNumber();

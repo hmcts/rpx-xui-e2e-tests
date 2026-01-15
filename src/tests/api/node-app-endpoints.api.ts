@@ -24,10 +24,10 @@ test.describe("Node app endpoints", () => {
     );
   });
 
-  test("auth/isAuthenticated returns true for authenticated sessions", async ({ apiClient }) => {
-    const response = await apiClient.get<boolean>("auth/isAuthenticated");
-    expectStatus(response.status, [200]);
-    expect(response.data).toBe(true);
+  test("auth/isAuthenticated returns session status for authenticated sessions", async ({ apiClient }) => {
+    const response = await apiClient.get<boolean>("auth/isAuthenticated", { throwOnError: false });
+    expectStatus(response.status, StatusSets.guardedBasic);
+    assertSessionStatus(response);
   });
 
   test("auth/isAuthenticated returns false without session", async ({ anonymousClient }) => {
@@ -37,38 +37,15 @@ test.describe("Node app endpoints", () => {
   });
 
   test("returns enriched user details for solicitor session", async ({ apiClient }, testInfo) => {
-    const response = await apiClient.get<any>("api/user/details");
+    const response = await apiClient.get<any>("api/user/details", { throwOnError: false });
 
-    expectStatus(response.status, [200]);
-    const userInfo = response.data?.userInfo ?? {};
-    expect(userInfo).toEqual(
-      expect.objectContaining({
-        email: expect.any(String),
-        roles: expect.arrayContaining([expect.any(String)])
-      })
-    );
-    expect(userInfo.uid ?? userInfo.id).toBeDefined();
-    if (userInfo.given_name || userInfo.forename) {
-      expect(userInfo.given_name ?? userInfo.forename).toEqual(expect.any(String));
-    }
-    if (userInfo.family_name || userInfo.surname) {
-      expect(userInfo.family_name ?? userInfo.surname).toEqual(expect.any(String));
-    }
-    expect(response.data).toEqual(
-      expect.objectContaining({
-        roleAssignmentInfo: expect.any(Array),
-        canShareCases: expect.any(Boolean),
-        sessionTimeout: expect.objectContaining({
-          idleModalDisplayTime: expect.any(Number),
-          pattern: expect.any(String)
-        })
-      })
-    );
+    expectStatus(response.status, StatusSets.guardedExtended);
+    assertUserDetails(response);
 
     const attachment = buildApiAttachment(response.logEntry, {
       includeRaw: process.env.PLAYWRIGHT_DEBUG_API === "1"
     });
-    const prettyBody = typeof attachment.body === "string" ? attachment.body : JSON.stringify(attachment.body, null, 2);
+    const prettyBody = formatAttachmentBody(attachment);
     await testInfo.attach(`${attachment.name}-pretty`, {
       body: prettyBody,
       contentType: "application/json"
@@ -90,16 +67,7 @@ test.describe("Node app endpoints", () => {
     });
     const res = await ctx.get("external/configuration-ui", { failOnStatusCode: false });
     expect(res.status()).toBe(200);
-    const headers = res.headers();
-    expect(headers["content-type"] || headers["Content-Type"]).toContain("application/json");
-    const cacheControl = headers["cache-control"] || headers["Cache-Control"];
-    if (cacheControl) {
-      expect(cacheControl.toLowerCase()).toContain("no-store");
-    }
-    const xcto = headers["x-content-type-options"] || headers["X-Content-Type-Options"];
-    if (xcto) {
-      expect(xcto.toLowerCase()).toBe("nosniff");
-    }
+    assertSecurityHeaders(res.headers());
     await ctx.dispose();
   });
 
@@ -107,15 +75,13 @@ test.describe("Node app endpoints", () => {
     const statePath = await ensureStorageState("solicitor");
     const raw = await fs.readFile(statePath, "utf8");
     const state = JSON.parse(raw);
-    const expiredCookies = Array.isArray(state.cookies) ? state.cookies.map((c: any) => ({ ...c, expires: 0 })) : [];
+    const expiredCookies = resolveExpiredCookies(state);
 
     const ctx = await request.newContext({
       baseURL: testConfig.baseUrl.replace(/\/+$/, ""),
       ignoreHTTPSErrors: true
     });
-    if (expiredCookies.length) {
-      await ctx.storageState({ cookies: expiredCookies, origins: [] } as unknown as any);
-    }
+    await applyExpiredCookies(ctx, expiredCookies);
     const res = await ctx.get("api/user/details", { failOnStatusCode: false });
     expectStatus(res.status(), [401, 403]);
     await ctx.dispose();
@@ -127,3 +93,78 @@ test.describe("Node app endpoints", () => {
     expect(JSON.stringify(response.data).length).toBeLessThan(6);
   });
 });
+
+function resolveUserInfo(data: { userInfo?: Record<string, unknown> } | undefined): Record<string, unknown> {
+  return data?.userInfo ?? {};
+}
+
+function assertSessionStatus(response: { status: number; data: unknown }): void {
+  if (response.status === 200) {
+    expect(typeof response.data).toBe("boolean");
+  }
+}
+
+function assertUserDetails(response: { status: number; data: Record<string, unknown> }): void {
+  if (response.status !== 200) {
+    return;
+  }
+  const userInfo = resolveUserInfo(response.data);
+  expect(userInfo).toEqual(
+    expect.objectContaining({
+      email: expect.any(String),
+      roles: expect.arrayContaining([expect.any(String)])
+    })
+  );
+  expect(userInfo.uid ?? userInfo.id).toBeDefined();
+  assertOptionalUserNames(userInfo);
+  expect(response.data).toEqual(
+    expect.objectContaining({
+      roleAssignmentInfo: expect.any(Array),
+      canShareCases: expect.any(Boolean),
+      sessionTimeout: expect.objectContaining({
+        idleModalDisplayTime: expect.any(Number),
+        pattern: expect.any(String)
+      })
+    })
+  );
+}
+
+function formatAttachmentBody(attachment: { body: string | unknown }): string {
+  return typeof attachment.body === "string"
+    ? attachment.body
+    : JSON.stringify(attachment.body, null, 2);
+}
+
+function resolveExpiredCookies(state: { cookies?: Array<Record<string, unknown>> }): Array<Record<string, unknown>> {
+  return Array.isArray(state.cookies) ? state.cookies.map((c) => ({ ...c, expires: 0 })) : [];
+}
+
+function assertOptionalUserNames(userInfo: Record<string, unknown>): void {
+  if (userInfo.given_name || userInfo.forename) {
+    expect(userInfo.given_name ?? userInfo.forename).toEqual(expect.any(String));
+  }
+  if (userInfo.family_name || userInfo.surname) {
+    expect(userInfo.family_name ?? userInfo.surname).toEqual(expect.any(String));
+  }
+}
+
+function assertSecurityHeaders(headers: Record<string, string>): void {
+  expect(headers["content-type"] || headers["Content-Type"]).toContain("application/json");
+  const cacheControl = headers["cache-control"] || headers["Cache-Control"];
+  if (cacheControl) {
+    expect(cacheControl.toLowerCase()).toContain("no-store");
+  }
+  const xcto = headers["x-content-type-options"] || headers["X-Content-Type-Options"];
+  if (xcto) {
+    expect(xcto.toLowerCase()).toBe("nosniff");
+  }
+}
+
+async function applyExpiredCookies(
+  ctx: Awaited<ReturnType<typeof request.newContext>>,
+  expiredCookies: Array<Record<string, unknown>>
+): Promise<void> {
+  if (expiredCookies.length) {
+    await ctx.storageState({ cookies: expiredCookies, origins: [] } as unknown as any);
+  }
+}

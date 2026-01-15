@@ -9,9 +9,13 @@ test.describe("Authenticated routes require session", () => {
         throwOnError: false
       });
       expectStatus(response.status, [...StatusSets.guardedBasic, 500, 502]);
-      if (response.status === 401 && response.data) {
-        expect(response.data).toMatchObject({ message: "Unauthorized" });
-      }
+      assertUnauthorizedMessage(response);
     });
   });
 });
+
+function assertUnauthorizedMessage(response: { status: number; data?: unknown }): void {
+  if (response.status === 401 && response.data) {
+    expect(response.data).toMatchObject({ message: "Unauthorized" });
+  }
+}

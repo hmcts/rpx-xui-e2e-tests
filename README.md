@@ -34,3 +34,32 @@ Key env vars to tag:
 - `IDAM_SECRET`, `IDAM_WEB_URL`, `IDAM_TESTING_SUPPORT_URL`, `S2S_URL`, `S2S_MICROSERVICE_NAME`
 - User creds: `SOLICITOR_USERNAME` / `SOLICITOR_PASSWORD`, `CASEOFFICER_R1_USERNAME` / `CASEOFFICER_R1_PASSWORD`, `CASEOFFICER_R2_USERNAME` / `CASEOFFICER_R2_PASSWORD`
 - Optional sample IDs: `WA_SAMPLE_TASK_ID`, `WA_SAMPLE_ASSIGNED_TASK_ID`, `ROLE_ACCESS_CASE_ID`, `EM_DOC_ID`
+
+## Playwright suite updates
+
+- Adopted `@hmcts/playwright-common` defaults and helpers for retries/backoff, viewport defaults, safer API attachments, and coverage/endpoint reporting utilities.
+- Ported Playwright API and UI suites from `rpx-xui-webapp` (coverage/contract tests, work-allocation helpers, and case flags UI).
+- Case flags UI tests are gated by credentials for `SEARCH_EMPLOYMENT_CASE` and `USER_WITH_FLAGS` (tests only run when those users are available).
+- Config coverage tests exercise `playwright.config.ts`, `src/config/api.ts`, and `src/utils/ui/config.utils.ts` helpers.
+
+## Reporting outputs (API vs UI)
+
+Odhin reports are split for Jenkins publishing. You can override paths using `PLAYWRIGHT_REPORT_FOLDER` (output folder) and `PW_ODHIN_TARGET` (copy target).
+
+- API Odhin output (raw): `functional-output/tests/playwright-api/odhin-report`
+- API Odhin publish target: `functional-output/tests/api_functional/odhin-report`
+- UI Odhin output/publish: `functional-output/tests/playwright-e2e/odhin-report`
+
+HTML and JUnit report defaults remain:
+
+- HTML: `playwright-report/` (override with `PLAYWRIGHT_HTML_OUTPUT`)
+- JUnit: `playwright-junit.xml` (override with `PLAYWRIGHT_JUNIT_OUTPUT`)
+
+Coverage and endpoint artifacts:
+
+- Coverage: `coverage/` (includes `coverage-summary.txt` and `coverage-summary-rows.json`)
+- Endpoint scan output: `coverage/api-endpoints.json`
+
+## Notes on API attachments
+
+API attachments are redacted by default; set `PLAYWRIGHT_DEBUG_API=1` locally to include raw payloads in attachments.

@@ -143,12 +143,12 @@ class UiNetworkTracker {
       }
 
       if (this.pending.size === 0) {
-        await this.page.waitForTimeout(quietMs);
+        await new Promise((resolve) => setTimeout(resolve, quietMs));
         if (this.pending.size === 0) {
           return;
         }
       } else {
-        await this.page.waitForTimeout(50);
+        await new Promise((resolve) => setTimeout(resolve, 50));
       }
     }
 

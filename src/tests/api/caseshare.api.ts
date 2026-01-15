@@ -40,15 +40,7 @@ test.describe("Case share endpoints", () => {
         expect([200, 500, 502, 504]).toContain(response.status);
         expect(response.data).toBeTruthy();
 
-        const entries = resolveEntries(response.data, property);
-        expect(Array.isArray(entries)).toBe(true);
-        if (entries.length > 0) {
-          if (typeof schema === "function") {
-            schema(response.data as CaseShareResponseVariant, property as "cases" | "sharedCases");
-          } else {
-            expect(entries[0]).toEqual(schema);
-          }
-        }
+        assertCaseShareEntries(response.data, property, schema);
       });
     });
   }
@@ -69,4 +61,16 @@ function resolveEntries(data: unknown, property: string): unknown[] {
     }
   }
   return [];
+}
+
+function assertCaseShareEntries(data: unknown, property: string, schema: unknown): void {
+  const entries = resolveEntries(data, property);
+  expect(Array.isArray(entries)).toBe(true);
+  if (entries.length > 0) {
+    if (typeof schema === "function") {
+      schema(data as CaseShareResponseVariant, property as "cases" | "sharedCases");
+    } else {
+      expect(entries[0]).toEqual(schema);
+    }
+  }
 }

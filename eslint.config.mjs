@@ -1,38 +1,41 @@
+import { LintingConfig } from "@hmcts/playwright-common";
 import pluginJs from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import pluginImport from "eslint-plugin-import";
-import pluginPlaywright from "eslint-plugin-playwright";
 import tseslint from "typescript-eslint";
 
+const ignored = {
+  ignores: [
+    ...LintingConfig.ignored.ignores,
+    "node_modules",
+    "playwright-report",
+    "scripts/**",
+    "test-results",
+    "coverage",
+    "reports"
+  ]
+};
+
 export default tseslint.config(
+  ignored,
+  pluginJs.configs.recommended,
+  ...LintingConfig.tseslintRecommended,
+  LintingConfig.tseslintPlugin,
+  LintingConfig.playwright,
+  prettier,
   {
-    ignores: [
-      "node_modules",
-      ".yarn",
-      "playwright-report",
-      "test-results",
-      "coverage",
-      "reports"
-    ]
-  },
-  {
-    extends: [
-      pluginJs.configs.recommended,
-      ...tseslint.configs.recommended,
-      prettier
-    ],
     files: ["**/*.ts"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module"
     },
     plugins: {
-      import: pluginImport,
-      playwright: pluginPlaywright
+      import: pluginImport
     },
     rules: {
       "playwright/no-skipped-test": "warn",
       "playwright/no-focused-test": "error",
+      "playwright/prefer-web-first-assertions": "warn",
       "import/order": [
         "warn",
         {
