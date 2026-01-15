@@ -52,9 +52,14 @@ const resolveDefaultUserIdentifier = (): string | undefined => {
   return identifiers[0];
 };
 
-export const resolveUiStoragePath = (): string => {
+export const resolveUiStoragePath = (): string | undefined => {
   const override = process.env.PW_UI_STORAGE_PATH;
   if (override?.trim()) return override;
+  const usersEnv = process.env.PW_UI_USERS ?? process.env.PW_UI_USER;
+  const discovered = discoverUsersFromEnv();
+  if (!usersEnv?.trim() && discovered.length === 0) {
+    return undefined;
+  }
   const defaultUser = resolveDefaultUserIdentifier();
   return resolveUiStoragePathForUser(defaultUser);
 };

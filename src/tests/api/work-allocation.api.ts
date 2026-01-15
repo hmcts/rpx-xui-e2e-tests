@@ -198,7 +198,9 @@ test.describe("Work allocation (write)", () => {
 
   test.describe("work baskets", () => {
     test("returns work-basket inputs", async ({ apiClient }) => {
-      const response = await apiClient.get("workallocation/work-basket-inputs");
+      const response = await apiClient.get("workallocation/work-basket-inputs", {
+        throwOnError: false
+      });
       expectStatus(response.status, StatusSets.guardedExtended);
       assertWorkBasketInputs(response);
     });
