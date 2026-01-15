@@ -3,6 +3,15 @@ import { expect, type Locator, Page } from "@playwright/test";
 
 import { Base } from "../../base";
 
+export type SelectOption = { label: string; value: string };
+
+export interface CreateCaseSelection {
+  availableJurisdictions: SelectOption[];
+  availableCaseTypes: SelectOption[];
+  selectedJurisdiction?: SelectOption;
+  selectedCaseType?: SelectOption;
+}
+
 export class CreateCasePage extends Base {
   readonly container = this.page.locator("exui-case-home");
   readonly createCaseButton = this.container.getByRole("link", { name: "Create case" });
@@ -70,8 +79,67 @@ export class CreateCasePage extends Base {
     super(page);
   }
 
+  async ensureCreateCasePage(timeoutMs = 120_000): Promise<void> {
+    const onCreatePage = await this.startButton.isVisible().catch(() => false);
+    if (!onCreatePage) {
+      await this.createCaseButton.click();
+    }
+    await expect(this.startButton).toBeVisible({ timeout: timeoutMs });
+    await expect(this.jurisdictionSelect).toBeVisible({ timeout: timeoutMs });
+  }
+
+  async resolveCreateCaseSelection(
+    desiredJurisdiction: string,
+    desiredCaseType: string
+  ): Promise<CreateCaseSelection> {
+    await this.ensureCreateCasePage();
+    await expect
+      .poll(async () => {
+        const options = this.filterSelectableOptions(
+          await this.readSelectOptions(this.jurisdictionSelect)
+        );
+        return options.length;
+      }, { timeout: 120_000 })
+      .toBeGreaterThan(0);
+    const availableJurisdictions = this.filterSelectableOptions(
+      await this.readSelectOptions(this.jurisdictionSelect)
+    );
+    const selectedJurisdiction = this.matchOption(availableJurisdictions, desiredJurisdiction);
+    if (!selectedJurisdiction) {
+      return {
+        availableJurisdictions,
+        availableCaseTypes: [],
+        selectedJurisdiction,
+        selectedCaseType: undefined
+      };
+    }
+
+    await this.selectOptionWhenReady(
+      this.jurisdictionSelect,
+      this.resolveOptionValue(selectedJurisdiction)
+    );
+    await expect
+      .poll(async () => {
+        const options = this.filterSelectableOptions(
+          await this.readSelectOptions(this.caseTypeSelect)
+        );
+        return options.length;
+      }, { timeout: 120_000 })
+      .toBeGreaterThan(0);
+    const availableCaseTypes = this.filterSelectableOptions(
+      await this.readSelectOptions(this.caseTypeSelect)
+    );
+    const selectedCaseType = this.matchOption(availableCaseTypes, desiredCaseType);
+    return {
+      availableJurisdictions,
+      availableCaseTypes,
+      selectedJurisdiction,
+      selectedCaseType
+    };
+  }
+
   async createCase(jurisdiction: string, caseType: string, eventType?: string) {
-    await this.createCaseButton.click();
+    await this.ensureCreateCasePage();
     await this.selectOptionWhenReady(this.jurisdictionSelect, jurisdiction);
     await this.selectOptionWhenReady(this.caseTypeSelect, caseType);
     if (eventType) {
@@ -176,14 +244,7 @@ export class CreateCasePage extends Base {
     desired: string,
     timeoutMs = 120_000
   ): Promise<void> {
-    const readOptions = async () =>
-      select.locator("option").evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const label = (node.textContent ?? "").trim();
-          const value = node.getAttribute("value") ?? "";
-          return { label, value };
-        })
-      );
+    const readOptions = async () => this.readSelectOptions(select);
     const valueSelector = desired.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     const optionByLabel = select.locator("option", { hasText: desired });
     const optionByValue = select.locator(`option[value="${valueSelector}"]`);
@@ -194,11 +255,8 @@ export class CreateCasePage extends Base {
       await select.click({ timeout: timeoutMs });
       await expect
         .poll(async () => {
-          const options = await readOptions();
-          return options.filter((option) => {
-            const label = option.label.toLowerCase();
-            return !(label.includes("select a value") && !option.value);
-          }).length;
+          const options = this.filterSelectableOptions(await readOptions());
+          return options.length;
         }, { timeout: timeoutMs })
         .toBeGreaterThan(0);
     } catch {
@@ -228,5 +286,35 @@ export class CreateCasePage extends Base {
     } else {
       await select.selectOption({ label: desired });
     }
+  }
+
+  private async readSelectOptions(select: Locator): Promise<SelectOption[]> {
+    return select.locator("option").evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const label = (node.textContent ?? "").trim();
+        const value = node.getAttribute("value") ?? "";
+        return { label, value };
+      })
+    );
+  }
+
+  private filterSelectableOptions(options: SelectOption[]): SelectOption[] {
+    return options.filter((option) => {
+      const label = option.label.toLowerCase();
+      return !(label.includes("select a value") && !option.value);
+    });
+  }
+
+  private matchOption(options: SelectOption[], desired: string): SelectOption | undefined {
+    const normalized = desired.trim().toLowerCase();
+    return options.find(
+      (option) =>
+        option.value.trim().toLowerCase() === normalized ||
+        option.label.trim().toLowerCase() === normalized
+    );
+  }
+
+  private resolveOptionValue(option: SelectOption): string {
+    return option.value || option.label;
   }
 }

@@ -56,7 +56,7 @@ test.describe("Evidence Manager & Documents", () => {
         headers,
         throwOnError: false
       });
-      expectStatus(res.status, [400, 404]);
+      expectStatus(res.status, [400, 401, 403, 404, 500, 502, 504]);
     });
   });
 

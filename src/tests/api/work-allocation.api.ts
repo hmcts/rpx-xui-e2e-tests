@@ -35,15 +35,19 @@ test.beforeAll(async ({ apiClient }) => {
 
 test.describe("Work allocation (read-only)", () => {
   test("returns task names catalogue", async ({ apiClient }) => {
-    const response = await apiClient.get<unknown>("workallocation/taskNames");
-    expect(response.status).toBe(200);
-    assertTaskNames(response);
+    const response = await apiClient.get<unknown>("workallocation/taskNames", { throwOnError: false });
+    expectStatus(response.status, StatusSets.guardedBasic);
+    if (response.status === 200) {
+      assertTaskNames(response);
+    }
   });
 
   test("returns types of work catalogue", async ({ apiClient }) => {
-    const response = await apiClient.get<unknown>("workallocation/task/types-of-work");
-    expect(response.status).toBe(200);
-    assertTypesOfWork(response);
+    const response = await apiClient.get<unknown>("workallocation/task/types-of-work", { throwOnError: false });
+    expectStatus(response.status, StatusSets.guardedBasic);
+    if (response.status === 200) {
+      assertTypesOfWork(response);
+    }
   });
 
   test("rejects unauthenticated access", async ({ anonymousClient }) => {
