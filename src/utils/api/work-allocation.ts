@@ -15,7 +15,7 @@ export interface TaskSearchOptions {
  */
 export function buildTaskSearchRequest(
   view: "MyTasks" | "AvailableTasks" | "AllWork",
-  options: TaskSearchOptions = {}
+  options: TaskSearchOptions = {},
 ) {
   const {
     userIds = [],
@@ -25,22 +25,38 @@ export function buildTaskSearchRequest(
     states = [],
     pageNumber = 1,
     pageSize = 25,
-    searchBy = "caseworker"
+    searchBy = "caseworker",
   } = options;
 
-  const searchParameters: Array<{ key: string; operator: "IN"; values: string[] }> = [];
+  const searchParameters: Array<{
+    key: string;
+    operator: "IN";
+    values: string[];
+  }> = [];
 
   if (userIds.length) {
     searchParameters.push({ key: "user", operator: "IN", values: userIds });
   }
   if (locations.length) {
-    searchParameters.push({ key: "location", operator: "IN", values: locations });
+    searchParameters.push({
+      key: "location",
+      operator: "IN",
+      values: locations,
+    });
   }
   if (jurisdictions.length) {
-    searchParameters.push({ key: "jurisdiction", operator: "IN", values: jurisdictions });
+    searchParameters.push({
+      key: "jurisdiction",
+      operator: "IN",
+      values: jurisdictions,
+    });
   }
   if (taskTypes.length) {
-    searchParameters.push({ key: "taskType", operator: "IN", values: taskTypes });
+    searchParameters.push({
+      key: "taskType",
+      operator: "IN",
+      values: taskTypes,
+    });
   }
   if (states.length) {
     searchParameters.push({ key: "state", operator: "IN", values: states });
@@ -51,9 +67,9 @@ export function buildTaskSearchRequest(
       search_by: searchBy,
       sorting_parameters: [{ sort_by: "dueDate", sort_order: "asc" }],
       search_parameters: searchParameters,
-      pagination_parameters: { page_number: pageNumber, page_size: pageSize }
+      pagination_parameters: { page_number: pageNumber, page_size: pageSize },
     },
-    view
+    view,
   };
 }
 
@@ -67,12 +83,21 @@ export interface SeededTaskResult {
  * Falls back to undefined if no task is found.
  */
 export async function seedTaskId(
-  apiClient: { post: (path: string, opts: Record<string, unknown>) => Promise<{ data?: { tasks?: Array<{ id?: string }> }; status: number }> },
-  locationId?: string
+  apiClient: {
+    post: (
+      path: string,
+      opts: Record<string, unknown>,
+    ) => Promise<{ data?: { tasks?: Array<{ id?: string }> }; status: number }>;
+  },
+  locationId?: string,
 ): Promise<SeededTaskResult | undefined> {
-  const candidateStates: Array<{ type: SeededTaskResult["type"]; states: string[]; view: "MyTasks" | "AvailableTasks" }> = [
+  const candidateStates: Array<{
+    type: SeededTaskResult["type"];
+    states: string[];
+    view: "MyTasks" | "AvailableTasks";
+  }> = [
     { type: "assigned", states: ["assigned"], view: "MyTasks" },
-    { type: "unassigned", states: ["unassigned"], view: "AvailableTasks" }
+    { type: "unassigned", states: ["unassigned"], view: "AvailableTasks" },
   ];
 
   for (const candidate of candidateStates) {
@@ -80,13 +105,17 @@ export async function seedTaskId(
       locations: locationId ? [locationId] : [],
       states: candidate.states,
       searchBy: "caseworker",
-      pageSize: 5
+      pageSize: 5,
     });
     const response = (await apiClient.post("workallocation/task", {
       data: body,
-      throwOnError: false
+      throwOnError: false,
     })) as { data?: { tasks?: Array<{ id?: string }> }; status: number };
-    if (response.status === 200 && Array.isArray(response.data?.tasks) && response.data.tasks.length > 0) {
+    if (
+      response.status === 200 &&
+      Array.isArray(response.data?.tasks) &&
+      response.data.tasks.length > 0
+    ) {
       const id = response.data.tasks[0]?.id;
       if (id) {
         return { id, type: candidate.type };

@@ -9,7 +9,10 @@ const trimTrailingSlash = (value) => value.replace(/\/+$/, "");
 const resolveUserIdentifier = () => {
   const fromEnv = process.env.PW_UI_USER ?? process.env.PW_UI_USERS;
   if (fromEnv?.trim()) {
-    const [first] = fromEnv.split(",").map((value) => value.trim()).filter(Boolean);
+    const [first] = fromEnv
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
     if (first) return first;
   }
   const [, , arg] = process.argv;
@@ -18,17 +21,26 @@ const resolveUserIdentifier = () => {
 };
 
 const toStorageName = (value) =>
-  value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-");
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-");
 
 const resolveStoragePath = (userIdentifier) => {
   const override = process.env.PW_UI_STORAGE_PATH;
   if (override?.trim()) return override;
-  const baseDir = path.join(process.cwd(), "test-results", "storage-states", "ui");
+  const baseDir = path.join(
+    process.cwd(),
+    "test-results",
+    "storage-states",
+    "ui",
+  );
   return path.join(baseDir, `${toStorageName(userIdentifier)}.json`);
 };
 
 const resolveManageCaseUrl = () => {
-  const baseUrl = process.env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net";
+  const baseUrl =
+    process.env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net";
   const trimmed = trimTrailingSlash(baseUrl);
   return trimmed.endsWith("/cases") ? trimmed : `${trimmed}/cases`;
 };
@@ -49,7 +61,9 @@ const timeoutMs = resolveTimeoutMs();
 console.log(`[ui-session] Recording session for ${userIdentifier}`);
 console.log(`[ui-session] Target URL: ${manageCaseUrl}`);
 console.log(`[ui-session] Storage path: ${storagePath}`);
-console.log(`[ui-session] Waiting up to ${Math.round(timeoutMs / 1000)}s for login...`);
+console.log(
+  `[ui-session] Waiting up to ${Math.round(timeoutMs / 1000)}s for login...`,
+);
 
 fs.mkdirSync(path.dirname(storagePath), { recursive: true });
 
@@ -59,11 +73,16 @@ const page = await context.newPage();
 
 try {
   await page.goto(manageCaseUrl, { waitUntil: "domcontentloaded" });
-  await page.waitForSelector("exui-header, exui-case-home", { timeout: timeoutMs });
+  await page.waitForSelector("exui-header, exui-case-home", {
+    timeout: timeoutMs,
+  });
   await context.storageState({ path: storagePath });
   console.log("[ui-session] Session saved.");
 } catch (error) {
-  console.error("[ui-session] Failed to record session.", error instanceof Error ? error.message : error);
+  console.error(
+    "[ui-session] Failed to record session.",
+    error instanceof Error ? error.message : error,
+  );
   process.exitCode = 1;
 } finally {
   await context.close();

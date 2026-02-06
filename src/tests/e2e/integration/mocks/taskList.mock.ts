@@ -5,11 +5,21 @@ export const actions = [
   { id: "complete", title: "Mark as done" },
   { id: "go", title: "Go to task" },
   { id: "reassign", title: "Reassign task" },
-  { id: "unclaim", title: "Unassign task" }
+  { id: "unclaim", title: "Unassign task" },
 ];
 
 export const permissions = {
-  values: ["read", "own", "manage", "execute", "cancel", "complete", "claim", "assign", "unassign"]
+  values: [
+    "read",
+    "own",
+    "manage",
+    "execute",
+    "cancel",
+    "complete",
+    "claim",
+    "assign",
+    "unassign",
+  ],
 };
 
 export const caseCategories = ["Protection", "Human rights", "EUSS"];
@@ -20,7 +30,10 @@ export const dateOptions = [
   { label: "tomorrow", value: faker.date.soon({ days: 1 }) },
   { label: "next week", value: faker.date.soon({ days: 7 }) },
   { label: "next month", value: faker.date.soon({ days: 30 }) },
-  { label: "future", value: faker.date.soon({ days: faker.number.int({ min: 14, max: 180 }) }) }
+  {
+    label: "future",
+    value: faker.date.soon({ days: faker.number.int({ min: 14, max: 180 }) }),
+  },
 ];
 
 export function buildMyTaskListMock(rowCount = 3, assignee: string) {
@@ -84,13 +97,13 @@ export function buildMyTaskListMock(rowCount = 3, assignee: string) {
       task_field: taskTitle,
       due_date_field: formatDate(dueDate),
       next_hearing_date: hearingDate ? formatDate(hearingDate) : null,
-      priority_field: priority
+      priority_field: priority,
     };
   });
 
   return {
     tasks,
-    total_records: rowCount
+    total_records: rowCount,
   };
 }
 
@@ -104,7 +117,7 @@ export function buildDeterministicMyTasksListMock(assignee: string) {
       due_date: new Date(Date.now() - 86400000 * 7).toISOString(),
       priority_field: "urgent",
       minor_priority: 5,
-      major_priority: 1000
+      major_priority: 1000,
     },
     {
       case_name: "Jones LLC",
@@ -114,7 +127,7 @@ export function buildDeterministicMyTasksListMock(assignee: string) {
       due_date: new Date().toISOString(),
       priority_field: "high",
       minor_priority: 500,
-      major_priority: 5000
+      major_priority: 5000,
     },
     {
       case_name: "Brown Group",
@@ -124,7 +137,7 @@ export function buildDeterministicMyTasksListMock(assignee: string) {
       due_date: new Date(Date.now() + 86400000).toISOString(),
       priority_field: "medium",
       minor_priority: 500,
-      major_priority: 5000
+      major_priority: 5000,
     },
     {
       case_name: "Taylor Inc",
@@ -134,17 +147,18 @@ export function buildDeterministicMyTasksListMock(assignee: string) {
       due_date: new Date(Date.now() + 86400000 * 25).toISOString(),
       priority_field: "low",
       minor_priority: 500,
-      major_priority: 5000
-    }
+      major_priority: 5000,
+    },
   ];
 
   const staticWarningList = {
     values: [
       {
         warningCode: "123",
-        warningText: "This warning message is here to test the warning banner functionality."
-      }
-    ]
+        warningText:
+          "This warning message is here to test the warning banner functionality.",
+      },
+    ],
   };
 
   const tasks = baseTasks.map((task, index) => {
@@ -190,12 +204,12 @@ export function buildDeterministicMyTasksListMock(assignee: string) {
       task_field: task.task_title,
       due_date_field: task.due_date,
       next_hearing_date: null,
-      priority_field: task.priority_field
+      priority_field: task.priority_field,
     };
   });
 
   return {
     tasks,
-    total_records: tasks.length
+    total_records: tasks.length,
   };
 }

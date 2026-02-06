@@ -15,9 +15,9 @@ export function buildCaseListMock(rowCount = 2) {
         regular_expression: null,
         fixed_list_items: [],
         complex_fields: [],
-        collection_field_type: null
+        collection_field_type: null,
       },
-      display_context_parameter: null
+      display_context_parameter: null,
     },
     {
       label: "Text Field 0",
@@ -32,9 +32,9 @@ export function buildCaseListMock(rowCount = 2) {
         regular_expression: null,
         fixed_list_items: [],
         complex_fields: [],
-        collection_field_type: null
+        collection_field_type: null,
       },
-      display_context_parameter: null
+      display_context_parameter: null,
     },
     {
       label: "Text Field 1",
@@ -49,9 +49,9 @@ export function buildCaseListMock(rowCount = 2) {
         regular_expression: null,
         fixed_list_items: [],
         complex_fields: [],
-        collection_field_type: null
+        collection_field_type: null,
       },
-      display_context_parameter: null
+      display_context_parameter: null,
     },
     {
       label: "Text Field 2",
@@ -66,32 +66,37 @@ export function buildCaseListMock(rowCount = 2) {
         regular_expression: null,
         fixed_list_items: [],
         complex_fields: [],
-        collection_field_type: null
+        collection_field_type: null,
       },
-      display_context_parameter: null
-    }
+      display_context_parameter: null,
+    },
   ];
 
   const maxResults = 25;
   const now = new Date();
   const results = Array.from({ length: Math.min(rowCount, maxResults) }, () => {
-    const caseReference = `#${faker.number.int({ min: 1000, max: 9999 })}-${faker.number.int({
+    const caseReference = `#${faker.number.int({ min: 1000, max: 9999 })}-${faker.number.int(
+      {
+        min: 1000,
+        max: 9999,
+      },
+    )}-${faker.number.int({ min: 1000, max: 9999 })}-${faker.number.int({
       min: 1000,
-      max: 9999
-    })}-${faker.number.int({ min: 1000, max: 9999 })}-${faker.number.int({
-      min: 1000,
-      max: 9999
+      max: 9999,
     })}`;
 
     const createdDate = faker.date.between({
       from: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-      to: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000)
+      to: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
     });
     const lastStateModifiedDate = faker.date.between({
       from: createdDate,
-      to: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000)
+      to: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
     });
-    const lastModifiedDate = faker.date.between({ from: lastStateModifiedDate, to: now });
+    const lastModifiedDate = faker.date.between({
+      from: lastStateModifiedDate,
+      to: now,
+    });
 
     return {
       case_id: caseReference,
@@ -107,16 +112,37 @@ export function buildCaseListMock(rowCount = 2) {
         "[CASE_TYPE]": "xuiTestJurisdiction",
         TextField1: faker.lorem.word(),
         "[CASE_REFERENCE]": caseReference,
-        "[LAST_MODIFIED_DATE]": lastModifiedDate.toISOString()
-      }
+        "[LAST_MODIFIED_DATE]": lastModifiedDate.toISOString(),
+      },
     };
   });
 
   return {
     columns,
     results,
-    total: rowCount
+    total: rowCount,
   };
+}
+
+export function buildCaseListJurisdictionsMock() {
+  return [
+    {
+      id: "DIVORCE",
+      name: "Family Divorce",
+      caseTypes: [
+        {
+          id: "xuiTestJurisdiction",
+          name: "XUI Case PoC",
+          states: [
+            {
+              id: "CaseCreated",
+              name: "Case Created",
+            },
+          ],
+        },
+      ],
+    },
+  ];
 }
 
 export default buildCaseListMock;

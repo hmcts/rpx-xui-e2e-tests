@@ -98,7 +98,7 @@ def secrets = [
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
 
-withNightlyPipeline(type, product, component, 300) {
+withPipeline(type, product, component) {
   loadVaultSecrets(secrets)
   env.TEST_URL = params.TEST_URL
   env.TEST_ENV = params.TEST_ENV
@@ -107,9 +107,9 @@ withNightlyPipeline(type, product, component, 300) {
   env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
   enableSlackNotifications(channel)
 
-  afterAlways('DependencyCheckNightly') {
+  afterAlways('test') {
     stage('Lint') {
-      yarnBuilder.yarn('lint')
+      yarnBuilder.yarn('lint:ci')
     }
 
     stage('Install Playwright Browsers') {
@@ -125,7 +125,7 @@ withNightlyPipeline(type, product, component, 300) {
           ]
           try {
             withEnv(apiOdhinEnv) {
-              yarnBuilder.yarn('test:api:coverage')
+              yarnBuilder.yarn('test:api:pw:coverage')
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -159,7 +159,7 @@ withNightlyPipeline(type, product, component, 300) {
           ]
           try {
             withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('test:ui')
+              yarnBuilder.yarn('test:playwrightE2E')
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -176,6 +176,35 @@ withNightlyPipeline(type, product, component, 300) {
               reportName           : 'UI Odhín report'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
+          }
+        },
+        'Integration tests': {
+          def integrationOdhinEnv = [
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report',
+            'PW_ODHIN_TARGET=functional-output/tests/playwright-integration/odhin-report',
+            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+            'PW_UI_FAIL_ON_HTTP_4XX=0'
+          ]
+          try {
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn('test:playwright:integration')
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            }
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "functional-output/tests/playwright-integration/odhin-report",
+              reportFiles          : 'playwright-odhin.html',
+              reportName           : 'Integration Odhín report'
+            ])
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
           }
         }
       )

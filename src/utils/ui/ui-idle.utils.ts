@@ -39,7 +39,10 @@ const buildAllowlist = (): RegExp | null => {
   return new RegExp(`^https?://(?:${pattern})(?:/|$)`, "i");
 };
 
-const DEFAULT_IDLE_TIMEOUT_MS = parseNumber(process.env.PW_UI_IDLE_TIMEOUT_MS, 30_000);
+const DEFAULT_IDLE_TIMEOUT_MS = parseNumber(
+  process.env.PW_UI_IDLE_TIMEOUT_MS,
+  30_000,
+);
 const DEFAULT_IDLE_QUIET_MS = parseNumber(process.env.PW_UI_IDLE_QUIET_MS, 400);
 const FAIL_ON_HTTP_ERRORS = process.env.PW_UI_FAIL_ON_HTTP_ERRORS === "1";
 const FAIL_ON_4XX = process.env.PW_UI_FAIL_ON_HTTP_4XX === "1";
@@ -73,7 +76,10 @@ class UiNetworkTracker {
   private readonly ignorePatterns: RegExp[];
   private readonly failOnStatus: number;
 
-  constructor(private readonly page: Page, options: UiNetworkTrackerOptions) {
+  constructor(
+    private readonly page: Page,
+    options: UiNetworkTrackerOptions,
+  ) {
     this.allowlist = options.allowlist;
     this.ignorePatterns = options.ignorePatterns;
     this.failOnStatus = options.failOnStatus;
@@ -153,7 +159,7 @@ class UiNetworkTracker {
     }
 
     throw new Error(
-      `UI network idle timeout after ${timeoutMs}ms (pending requests: ${this.pending.size}).`
+      `UI network idle timeout after ${timeoutMs}ms (pending requests: ${this.pending.size}).`,
     );
   }
 }
@@ -167,7 +173,11 @@ export const installUiNetworkTracker = (page: Page): UiNetworkTracker => {
   const tracker = new UiNetworkTracker(page, {
     allowlist: buildAllowlist(),
     ignorePatterns: DEFAULT_IGNORE_PATTERNS,
-    failOnStatus: FAIL_ON_HTTP_ERRORS ? (FAIL_ON_4XX ? 400 : 500) : Number.POSITIVE_INFINITY,
+    failOnStatus: FAIL_ON_HTTP_ERRORS
+      ? FAIL_ON_4XX
+        ? 400
+        : 500
+      : Number.POSITIVE_INFINITY,
   });
 
   trackers.set(page, tracker);
@@ -175,7 +185,10 @@ export const installUiNetworkTracker = (page: Page): UiNetworkTracker => {
   return tracker;
 };
 
-export const waitForUiIdle = async (page: Page, options: UiIdleOptions = {}): Promise<void> => {
+export const waitForUiIdle = async (
+  page: Page,
+  options: UiIdleOptions = {},
+): Promise<void> => {
   const tracker = installUiNetworkTracker(page);
   const timeoutMs = options.timeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
   const idleMs = options.idleMs ?? DEFAULT_IDLE_QUIET_MS;

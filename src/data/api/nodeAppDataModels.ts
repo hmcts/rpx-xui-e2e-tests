@@ -19,13 +19,13 @@ function getUserDetailsOidc(): UserDetails {
         ...getUserDetailsLocationInfo(),
         caseId: "",
         caseType: "",
-        roleType: "ORGANISATION"
-      }
+        roleType: "ORGANISATION",
+      },
     ],
     sessionTimeout: {
       idleModalDisplayTime: 10,
       pattern: ".",
-      totalIdleTime: 480
+      totalIdleTime: 480,
     },
     userInfo: {
       uid: randomUUID(),
@@ -39,8 +39,8 @@ function getUserDetailsOidc(): UserDetails {
       email: "",
       identity: "",
       iss: "",
-      subname: ""
-    }
+      subname: "",
+    },
   };
 }
 
@@ -51,7 +51,7 @@ function getUserDetailsOauth(): UserDetails {
     sessionTimeout: {
       idleModalDisplayTime: 10,
       pattern: ".",
-      totalIdleTime: 480
+      totalIdleTime: 480,
     },
     userInfo: {
       id: randomUUID(),
@@ -61,8 +61,8 @@ function getUserDetailsOauth(): UserDetails {
       active: true,
       roles: ["caseworker", "caseworker-ia", "caseworker-ia-iacjudge"],
       token: "Bearer eyJ0eXAiOiJKV1Q",
-      roleCategory: "LEGAL_OPS"
-    }
+      roleCategory: "LEGAL_OPS",
+    },
   };
 }
 
@@ -70,14 +70,14 @@ function getUserDetailsLocationInfo(): Record<string, unknown> {
   return {
     jurisdiction: "IA",
     isCaseAllocator: true,
-    substantive: true
+    substantive: true,
   };
 }
 
 const nodeAppDataModels = {
   getUserDetailsOidc,
   getUserDetailsOauth,
-  getUserDetailsLocationInfo
+  getUserDetailsLocationInfo,
 };
 
 export default nodeAppDataModels;

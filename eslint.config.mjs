@@ -10,10 +10,12 @@ const ignored = {
     "node_modules",
     "playwright-report",
     "scripts/**",
+    "transform-v4-to-v3-audit.cjs",
+    "yarn-audit-*",
     "test-results",
     "coverage",
-    "reports"
-  ]
+    "reports",
+  ],
 };
 
 export default tseslint.config(
@@ -27,10 +29,10 @@ export default tseslint.config(
     files: ["**/*.ts"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "module"
+      sourceType: "module",
     },
     plugins: {
-      import: pluginImport
+      import: pluginImport,
     },
     rules: {
       "playwright/no-skipped-test": "warn",
@@ -40,9 +42,9 @@ export default tseslint.config(
         "warn",
         {
           "newlines-between": "always",
-          alphabetize: { order: "asc", caseInsensitive: true }
-        }
-      ]
-    }
-  }
+          alphabetize: { order: "asc", caseInsensitive: true },
+        },
+      ],
+    },
+  },
 );

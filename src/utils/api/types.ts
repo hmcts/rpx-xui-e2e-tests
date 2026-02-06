@@ -108,14 +108,14 @@ export const TaskSchema = z
     task_state: z.string().optional(),
     state: z.string().optional(),
     assignee: z.string().nullable().optional(),
-    assigned_to: z.string().nullable().optional()
+    assigned_to: z.string().nullable().optional(),
   })
   .passthrough();
 
 export const TaskListSchema = z
   .object({
     tasks: z.array(TaskSchema).optional(),
-    total_records: z.number().nonnegative().optional()
+    total_records: z.number().nonnegative().optional(),
   })
   .passthrough();
 
@@ -125,34 +125,34 @@ export const RoleAssignmentSchema = z
     roleName: z.string().optional(),
     roleId: z.string().optional(),
     actorId: z.string().optional(),
-    actions: z.array(z.unknown()).optional()
+    actions: z.array(z.unknown()).optional(),
   })
   .passthrough();
 
 export const RoleAssignmentContainerSchema = z
   .object({
-    roleAssignmentResponse: z.array(RoleAssignmentSchema).optional()
+    roleAssignmentResponse: z.array(RoleAssignmentSchema).optional(),
   })
   .passthrough();
 
 export const CaseShareOrganisationSchema = z
   .object({
     organisationIdentifier: z.string().optional(),
-    name: z.string().optional()
+    name: z.string().optional(),
   })
   .passthrough();
 
 export const CaseShareUserSchema = z
   .object({
     userIdentifier: z.string().optional(),
-    email: z.string().optional()
+    email: z.string().optional(),
   })
   .passthrough();
 
 export const CaseShareCaseSchema = z
   .object({
     caseId: z.string().optional(),
-    sharedWith: z.array(z.unknown()).optional()
+    sharedWith: z.array(z.unknown()).optional(),
   })
   .passthrough();
 
@@ -162,7 +162,7 @@ export const CaseShareResponseSchema = z
     users: z.array(CaseShareUserSchema).optional(),
     cases: z.array(CaseShareCaseSchema).optional(),
     sharedCases: z.array(CaseShareCaseSchema).optional(),
-    payload: z.any().optional()
+    payload: z.any().optional(),
   })
   .passthrough();
 
@@ -176,7 +176,7 @@ export const BookmarkPayloadSchema = z
     xCoordinate: z.number().optional(),
     yCoordinate: z.number().optional(),
     parent: z.string().nullable().optional(),
-    previous: z.string().nullable().optional()
+    previous: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -186,7 +186,7 @@ export const AnnotationRectangleSchema = z
     x: z.number().optional(),
     y: z.number().optional(),
     width: z.number().optional(),
-    height: z.number().optional()
+    height: z.number().optional(),
   })
   .passthrough();
 
@@ -199,7 +199,7 @@ export const AnnotationPayloadSchema = z
     rectangles: z.array(AnnotationRectangleSchema).optional(),
     type: z.string().optional(),
     documentId: z.string().optional(),
-    annotationSetId: z.string().optional()
+    annotationSetId: z.string().optional(),
   })
   .passthrough();
 
@@ -213,15 +213,15 @@ export const AddressLookupResponseSchema = z
               .object({
                 POSTCODE: z.string().optional(),
                 ADDRESS: z.string().optional(),
-                POST_TOWN: z.string().optional()
+                POST_TOWN: z.string().optional(),
               })
               .passthrough()
-              .optional()
+              .optional(),
           })
-          .passthrough()
+          .passthrough(),
       )
       .optional(),
-    header: z.unknown().optional()
+    header: z.unknown().optional(),
   })
   .passthrough();
 
@@ -260,17 +260,27 @@ export interface BookmarkPayload {
 }
 
 export function isTaskList(payload: unknown): payload is TaskListResponse {
-  return !!payload && typeof payload === "object" && Array.isArray((payload as any).tasks);
+  return (
+    !!payload &&
+    typeof payload === "object" &&
+    Array.isArray((payload as any).tasks)
+  );
 }
 
-export function extractCaseShareEntries(payload: CaseShareResponseVariant, property: string): unknown[] {
+export function extractCaseShareEntries(
+  payload: CaseShareResponseVariant,
+  property: string,
+): unknown[] {
   if (!payload || typeof payload !== "object") return [];
   const direct = (payload as any)[property];
   if (Array.isArray(direct)) return direct;
   const nested = (payload as any).payload;
-  if (nested && typeof nested === "object" && Array.isArray((nested as any)[property])) {
+  if (
+    nested &&
+    typeof nested === "object" &&
+    Array.isArray((nested as any)[property])
+  ) {
     return (nested as any)[property];
   }
   return [];
 }
- 

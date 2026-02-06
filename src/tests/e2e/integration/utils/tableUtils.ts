@@ -1,7 +1,11 @@
 import type { Locator } from "@playwright/test";
 
-export async function readTaskTable(tableLocator: Locator): Promise<Array<Record<string, string>>> {
-  const headerLocators = await tableLocator.locator("thead th").elementHandles();
+export async function readTaskTable(
+  tableLocator: Locator,
+): Promise<Array<Record<string, string>>> {
+  const headerLocators = await tableLocator
+    .locator("thead th")
+    .elementHandles();
   const headers: string[] = [];
   for (const th of headerLocators) {
     const button = await th.$("button");
@@ -27,10 +31,12 @@ export async function readTaskTable(tableLocator: Locator): Promise<Array<Record
         if (aTag) {
           rowObj[headers[j]] = (await aTag.textContent())?.trim() || "";
         } else {
-          rowObj[headers[j]] = (await cellLocators[j]?.textContent())?.trim() || "";
+          rowObj[headers[j]] =
+            (await cellLocators[j]?.textContent())?.trim() || "";
         }
       } else {
-        rowObj[headers[j]] = (await cellLocators[j]?.textContent())?.trim() || "";
+        rowObj[headers[j]] =
+          (await cellLocators[j]?.textContent())?.trim() || "";
       }
     }
     tableData.push(rowObj);

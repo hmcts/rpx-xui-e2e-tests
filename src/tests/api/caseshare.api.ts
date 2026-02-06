@@ -9,34 +9,37 @@ const CASESHARE_ENDPOINTS = [
     property: "organisations",
     schema: expect.objectContaining({
       organisationIdentifier: expect.any(String),
-      name: expect.any(String)
-    })
+      name: expect.any(String),
+    }),
   },
   {
     path: "caseshare/users",
     property: "users",
     schema: expect.objectContaining({
       userIdentifier: expect.any(String),
-      email: expect.any(String)
-    })
+      email: expect.any(String),
+    }),
   },
   {
     path: "caseshare/cases",
     property: "cases",
-    schema: expectCaseShareShape
+    schema: expectCaseShareShape,
   },
   {
     path: "caseshare/case-assignments",
     property: "sharedCases",
-    schema: expectCaseShareShape
-  }
+    schema: expectCaseShareShape,
+  },
 ] as const;
 
 test.describe("Case share endpoints", () => {
   for (const { path, property, schema } of CASESHARE_ENDPOINTS) {
     test(`GET ${path}`, async ({ apiClient }) => {
       await withXsrf("solicitor", async (headers) => {
-        const response = await apiClient.get(path, { headers: { ...headers, experimental: "true" }, throwOnError: false });
+        const response = await apiClient.get(path, {
+          headers: { ...headers, experimental: "true" },
+          throwOnError: false,
+        });
         expect([200, 500, 502, 504]).toContain(response.status);
         expect(response.data).toBeTruthy();
 
@@ -63,12 +66,19 @@ function resolveEntries(data: unknown, property: string): unknown[] {
   return [];
 }
 
-function assertCaseShareEntries(data: unknown, property: string, schema: unknown): void {
+function assertCaseShareEntries(
+  data: unknown,
+  property: string,
+  schema: unknown,
+): void {
   const entries = resolveEntries(data, property);
   expect(Array.isArray(entries)).toBe(true);
   if (entries.length > 0) {
     if (typeof schema === "function") {
-      schema(data as CaseShareResponseVariant, property as "cases" | "sharedCases");
+      schema(
+        data as CaseShareResponseVariant,
+        property as "cases" | "sharedCases",
+      );
     } else {
       expect(entries[0]).toEqual(schema);
     }

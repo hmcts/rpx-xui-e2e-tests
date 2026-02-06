@@ -12,8 +12,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": [
-    "playwright.config.ts",
-    "src/**/*.ts"
-  ]
+  "include": ["playwright.config.ts", "src/**/*.ts"]
 }
