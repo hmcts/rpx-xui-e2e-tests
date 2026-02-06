@@ -10,6 +10,8 @@ const ignored = {
     "node_modules",
     "playwright-report",
     "scripts/**",
+    "transform-v4-to-v3-audit.cjs",
+    "yarn-audit-*",
     "test-results",
     "coverage",
     "reports",
