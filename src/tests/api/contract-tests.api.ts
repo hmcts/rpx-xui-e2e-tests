@@ -2,13 +2,22 @@ import { z } from "zod";
 
 import { test, expect } from "../../fixtures/api";
 import { expectStatus, StatusSets } from "../../utils/api/apiTestUtils";
-import { expectContract, WorkAllocationSchemas, SearchSchemas } from "../../utils/api/contractValidation";
-import { TaskBuilder, TaskListBuilder, LocationBuilder, TestData } from "../../utils/api/testDataBuilders";
+import {
+  expectContract,
+  WorkAllocationSchemas,
+  SearchSchemas,
+} from "../../utils/api/contractValidation";
+import {
+  TaskBuilder,
+  TaskListBuilder,
+  LocationBuilder,
+  TestData,
+} from "../../utils/api/testDataBuilders";
 
 const serviceCodes = ["IA", "CIVIL", "PRIVATELAW"];
 const locationSchema = z.object({
   id: z.string(),
-  locationName: z.string()
+  locationName: z.string(),
 });
 
 test.describe("Work Allocation API Contracts", () => {
@@ -22,12 +31,12 @@ test.describe("Work Allocation API Contracts", () => {
   test("POST /workallocation/task contract", async ({ apiClient }) => {
     const searchRequest = {
       view: "MyTasks",
-      searchRequest: []
+      searchRequest: [],
     };
 
     const response = await apiClient.post("workallocation/task", {
       data: searchRequest,
-      throwOnError: false
+      throwOnError: false,
     });
 
     expectStatus(response.status, [200, 401, 403, 500, 502]);
@@ -35,19 +44,27 @@ test.describe("Work Allocation API Contracts", () => {
   });
 
   test("GET /api/user/details contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/user/details", { throwOnError: false });
+    const response = await apiClient.get("api/user/details", {
+      throwOnError: false,
+    });
     expectStatus(response.status, StatusSets.guardedBasic);
     assertUserDetailsContract(response);
   });
 
   test("GET /workallocation/taskNames contract", async ({ apiClient }) => {
-    const response = await apiClient.get("workallocation/taskNames", { throwOnError: false });
+    const response = await apiClient.get("workallocation/taskNames", {
+      throwOnError: false,
+    });
     expectStatus(response.status, StatusSets.guardedBasic);
     assertTaskNamesContract(response);
   });
 
-  test("GET /workallocation/task/types-of-work contract", async ({ apiClient }) => {
-    const response = await apiClient.get("workallocation/task/types-of-work", { throwOnError: false });
+  test("GET /workallocation/task/types-of-work contract", async ({
+    apiClient,
+  }) => {
+    const response = await apiClient.get("workallocation/task/types-of-work", {
+      throwOnError: false,
+    });
     expectStatus(response.status, StatusSets.guardedBasic);
     assertWorkTypesContract(response);
   });
@@ -55,19 +72,27 @@ test.describe("Work Allocation API Contracts", () => {
 
 test.describe("Search and Ref Data API Contracts", () => {
   test("GET /api/globalSearch/services contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/globalSearch/services", { throwOnError: false });
+    const response = await apiClient.get("api/globalSearch/services", {
+      throwOnError: false,
+    });
     expectStatus(response.status, StatusSets.guardedBasic);
     assertGlobalSearchServicesContract(response);
   });
 
   test("GET /api/wa-supported-jurisdiction contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/wa-supported-jurisdiction", { throwOnError: false });
+    const response = await apiClient.get("api/wa-supported-jurisdiction", {
+      throwOnError: false,
+    });
     expectStatus(response.status, StatusSets.guardedBasic);
     assertSupportedJurisdictionsContract(response);
   });
 
-  test("GET /api/staff-supported-jurisdiction contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/staff-supported-jurisdiction", { throwOnError: false });
+  test("GET /api/staff-supported-jurisdiction contract", async ({
+    apiClient,
+  }) => {
+    const response = await apiClient.get("api/staff-supported-jurisdiction", {
+      throwOnError: false,
+    });
     expectStatus(response.status, StatusSets.guardedBasic);
     assertSupportedJurisdictionsContract(response);
   });
@@ -99,10 +124,13 @@ test.describe("Test Data Builders Validation", () => {
     const tasks = [
       new TaskBuilder().withId("task-1").assigned().build(),
       new TaskBuilder().withId("task-2").unassigned().build(),
-      new TaskBuilder().withId("task-3").completed().build()
+      new TaskBuilder().withId("task-3").completed().build(),
     ];
 
-    const taskList = new TaskListBuilder().withTasks(tasks).withTotalRecords(50).build();
+    const taskList = new TaskListBuilder()
+      .withTasks(tasks)
+      .withTotalRecords(50)
+      .build();
 
     expect(taskList.tasks).toHaveLength(3);
     expect(taskList.total_records).toBe(50);
@@ -117,7 +145,9 @@ test.describe("Test Data Builders Validation", () => {
       .build();
 
     expect(location.id).toBe("loc-456");
-    expect(location.locationName).toBe("Birmingham Civil and Family Justice Centre");
+    expect(location.locationName).toBe(
+      "Birmingham Civil and Family Justice Centre",
+    );
     expect(location.services).toEqual(["IA", "CIVIL", "PRIVATELAW"]);
   });
 
@@ -141,22 +171,29 @@ test.describe("Test Data Builders Validation", () => {
   });
 
   test("TaskBuilder.buildMany creates multiple tasks with incremental IDs", () => {
-    const builder = new TaskBuilder().withTitle("Standard Task").assigned("user-1");
+    const builder = new TaskBuilder()
+      .withTitle("Standard Task")
+      .assigned("user-1");
     const tasks = builder.buildMany(3);
 
     expect(tasks).toHaveLength(3);
     expect(tasks[0].id).toBe("default-task-id-0");
     expect(tasks[1].id).toBe("default-task-id-1");
     expect(tasks[2].id).toBe("default-task-id-2");
-    expect(tasks.every((task) => task.task_title === "Standard Task")).toBe(true);
+    expect(tasks.every((task) => task.task_title === "Standard Task")).toBe(
+      true,
+    );
     expect(tasks.every((task) => task.assignee === "user-1")).toBe(true);
   });
 });
 
-function assertLocationContract(response: { status: number; data?: unknown }, endpoint: string): void {
+function assertLocationContract(
+  response: { status: number; data?: unknown },
+  endpoint: string,
+): void {
   if (response.status === 200 && Array.isArray(response.data)) {
     expectContract(response.data, WorkAllocationSchemas.LocationList, {
-      context: { endpoint, status: response.status }
+      context: { endpoint, status: response.status },
     });
     assertLocationSchema(response.data);
   }
@@ -168,10 +205,17 @@ function assertLocationSchema(data: unknown[]): void {
   }
 }
 
-function assertTaskListContract(response: { status: number; data?: unknown }): void {
+function assertTaskListContract(response: {
+  status: number;
+  data?: unknown;
+}): void {
   if (response.status === 200) {
     expectContract(response.data, WorkAllocationSchemas.TaskList, {
-      context: { endpoint: "workallocation/task", view: "MyTasks", status: response.status }
+      context: {
+        endpoint: "workallocation/task",
+        view: "MyTasks",
+        status: response.status,
+      },
     });
     assertTaskListShape(response.data);
   }
@@ -182,7 +226,10 @@ function assertTaskListShape(data: unknown): void {
   expect(taskListData).toHaveProperty("tasks");
   expect(Array.isArray(taskListData.tasks)).toBe(true);
   if (taskListData.tasks.length > 0) {
-    const firstTask = taskListData.tasks[0] as { id: unknown; task_state: unknown };
+    const firstTask = taskListData.tasks[0] as {
+      id: unknown;
+      task_state: unknown;
+    };
     expect(firstTask).toHaveProperty("id");
     expect(firstTask).toHaveProperty("task_state");
     expect(typeof firstTask.id).toBe("string");
@@ -190,8 +237,15 @@ function assertTaskListShape(data: unknown): void {
   }
 }
 
-function assertUserDetailsContract(response: { status: number; data?: unknown }): void {
-  if (response.status === 200 && response.data && typeof response.data === "object") {
+function assertUserDetailsContract(response: {
+  status: number;
+  data?: unknown;
+}): void {
+  if (
+    response.status === 200 &&
+    response.data &&
+    typeof response.data === "object"
+  ) {
     const userData = response.data as Record<string, unknown>;
     const userInfo = userData.userInfo as Record<string, unknown> | undefined;
     if (userInfo && typeof userInfo === "object") {
@@ -200,7 +254,10 @@ function assertUserDetailsContract(response: { status: number; data?: unknown })
   }
 }
 
-function assertTaskNamesContract(response: { status: number; data?: unknown }): void {
+function assertTaskNamesContract(response: {
+  status: number;
+  data?: unknown;
+}): void {
   if (response.status === 200 && response.data !== undefined) {
     if (Array.isArray(response.data)) {
       expect(response.data.length).toBeGreaterThanOrEqual(0);
@@ -208,7 +265,10 @@ function assertTaskNamesContract(response: { status: number; data?: unknown }): 
   }
 }
 
-function assertWorkTypesContract(response: { status: number; data?: unknown }): void {
+function assertWorkTypesContract(response: {
+  status: number;
+  data?: unknown;
+}): void {
   if (response.status === 200 && response.data !== undefined) {
     if (Array.isArray(response.data)) {
       expect(response.data.length).toBeGreaterThanOrEqual(0);
@@ -216,10 +276,16 @@ function assertWorkTypesContract(response: { status: number; data?: unknown }): 
   }
 }
 
-function assertGlobalSearchServicesContract(response: { status: number; data?: unknown }): void {
+function assertGlobalSearchServicesContract(response: {
+  status: number;
+  data?: unknown;
+}): void {
   if (response.status === 200 && Array.isArray(response.data)) {
     expectContract(response.data, SearchSchemas.GlobalSearchServices, {
-      context: { endpoint: "api/globalSearch/services", status: response.status }
+      context: {
+        endpoint: "api/globalSearch/services",
+        status: response.status,
+      },
     });
     assertServiceShape(response.data);
   }
@@ -233,7 +299,10 @@ function assertServiceShape(data: unknown[]): void {
   }
 }
 
-function assertSupportedJurisdictionsContract(response: { status: number; data?: unknown }): void {
+function assertSupportedJurisdictionsContract(response: {
+  status: number;
+  data?: unknown;
+}): void {
   if (response.status === 200) {
     expect(response.data).toBeDefined();
   }

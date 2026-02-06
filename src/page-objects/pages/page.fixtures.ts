@@ -4,7 +4,7 @@ import {
   createLogger,
   ExuiMediaViewerPage,
   IdamPage,
-  type ApiLogEntry
+  type ApiLogEntry,
 } from "@hmcts/playwright-common";
 import type {
   Page,
@@ -47,55 +47,58 @@ type FixtureArgs = PageFixtures &
  * This is the same behaviour as a beforeEach/afterEach hook
  */
 export const pageFixtures = {
-  determinePage: async ({ page }: FixtureArgs, use: (page: Page) => Promise<void>) => {
+  determinePage: async (
+    { page }: FixtureArgs,
+    use: (page: Page) => Promise<void>,
+  ) => {
     await use(page);
   },
   caseDetailsPage: async (
     { determinePage }: FixtureArgs,
-    use: (page: CaseDetailsPage) => Promise<void>
+    use: (page: CaseDetailsPage) => Promise<void>,
   ) => {
     await use(new CaseDetailsPage(determinePage));
   },
   caseListPage: async (
     { determinePage }: FixtureArgs,
-    use: (page: CaseListPage) => Promise<void>
+    use: (page: CaseListPage) => Promise<void>,
   ) => {
     await use(new CaseListPage(determinePage));
   },
   caseSearchPage: async (
     { determinePage }: FixtureArgs,
-    use: (page: CaseSearchPage) => Promise<void>
+    use: (page: CaseSearchPage) => Promise<void>,
   ) => {
     await use(new CaseSearchPage(determinePage));
   },
   taskListPage: async (
     { determinePage }: FixtureArgs,
-    use: (page: TaskListPage) => Promise<void>
+    use: (page: TaskListPage) => Promise<void>,
   ) => {
     await use(new TaskListPage(determinePage));
   },
   createCasePage: async (
     { determinePage }: FixtureArgs,
-    use: (page: CreateCasePage) => Promise<void>
+    use: (page: CreateCasePage) => Promise<void>,
   ) => {
     await use(new CreateCasePage(determinePage));
   },
   mediaViewerPage: async (
     { determinePage }: FixtureArgs,
-    use: (page: ExuiMediaViewerPage) => Promise<void>
+    use: (page: ExuiMediaViewerPage) => Promise<void>,
   ) => {
     await use(new ExuiMediaViewerPage(determinePage));
   },
   idamPage: async (
     { determinePage }: FixtureArgs,
-    use: (page: IdamPage) => Promise<void>
+    use: (page: IdamPage) => Promise<void>,
   ) => {
     await use(new IdamPage(determinePage));
   },
   logger: async (
     { request }: FixtureArgs,
     use: (logger: ReturnType<typeof createLogger>) => Promise<void>,
-    workerInfo: WorkerInfo
+    workerInfo: WorkerInfo,
   ) => {
     void request;
     const logger = createLogger({
@@ -106,7 +109,7 @@ export const pageFixtures = {
   },
   capturedCalls: async (
     { request }: FixtureArgs,
-    use: (calls: ApiLogEntry[]) => Promise<void>
+    use: (calls: ApiLogEntry[]) => Promise<void>,
   ) => {
     void request;
     const calls: ApiLogEntry[] = [];
@@ -115,7 +118,7 @@ export const pageFixtures = {
   apiClient: async (
     { logger, capturedCalls }: FixtureArgs,
     use: (client: ApiClient) => Promise<void>,
-    testInfo: TestInfo
+    testInfo: TestInfo,
   ) => {
     const client = new ApiClient({
       baseUrl: process.env.BACKEND_BASE_URL,

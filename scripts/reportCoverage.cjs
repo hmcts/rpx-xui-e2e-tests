@@ -2,17 +2,21 @@
 const fs = require("fs");
 const path = require("path");
 
-const summaryPath = process.env.COVERAGE_SUMMARY_PATH ?? "coverage/coverage-summary.json";
-const textOutPath = process.env.COVERAGE_TEXT_PATH ?? "coverage/coverage-summary.txt";
-const rowsOutPath = process.env.COVERAGE_ROWS_PATH ?? "coverage/coverage-summary-rows.json";
+const summaryPath =
+  process.env.COVERAGE_SUMMARY_PATH ?? "coverage/coverage-summary.json";
+const textOutPath =
+  process.env.COVERAGE_TEXT_PATH ?? "coverage/coverage-summary.txt";
+const rowsOutPath =
+  process.env.COVERAGE_ROWS_PATH ?? "coverage/coverage-summary-rows.json";
 
 async function main() {
-  const { readCoverageSummary, buildCoverageRows, formatCoverageText } = await import("@hmcts/playwright-common");
+  const { readCoverageSummary, buildCoverageRows, formatCoverageText } =
+    await import("@hmcts/playwright-common");
   const summary = readCoverageSummary(summaryPath);
 
   if (!summary) {
     console.log(
-      `No coverage summary found at ${path.resolve(summaryPath)}; skipping report generation.`
+      `No coverage summary found at ${path.resolve(summaryPath)}; skipping report generation.`,
     );
     return;
   }
@@ -28,6 +32,8 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.warn(`reportCoverage: ${err instanceof Error ? err.message : String(err)}`);
+  console.warn(
+    `reportCoverage: ${err instanceof Error ? err.message : String(err)}`,
+  );
   process.exit(0);
 });

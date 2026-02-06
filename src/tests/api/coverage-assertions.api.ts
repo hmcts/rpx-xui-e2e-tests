@@ -7,7 +7,7 @@ import {
   expectBookmarkShape,
   expectAnnotationShape,
   expectCaseShareShape,
-  expectAddressLookupShape
+  expectAddressLookupShape,
 } from "../../utils/api/assertions";
 import { extractCaseShareEntries, isTaskList } from "../../utils/api/types";
 
@@ -16,7 +16,7 @@ test.describe("Assertion shape validators", () => {
     expectTaskList({ tasks: [], total_records: 0 });
     expectTaskList({
       tasks: [{ id: "task-1", task_state: "assigned" }],
-      total_records: 1
+      total_records: 1,
     });
   });
 
@@ -25,35 +25,43 @@ test.describe("Assertion shape validators", () => {
       roleCategory: "LEGAL",
       roleName: "caseworker",
       actorId: "user-1",
-      actions: ["read"]
+      actions: ["read"],
     });
     expectRoleAssignmentShape({
       roleCategory: "LEGAL",
-      roleName: "caseworker"
+      roleName: "caseworker",
     });
   });
 
   test("expectBookmarkShape and expectAnnotationShape accept minimal payloads", () => {
-    expectBookmarkShape({ id: "bookmark-1", name: "Bookmark", documentId: "doc-1" });
-    expectAnnotationShape({ id: "anno-1", documentId: "doc-1", annotationSetId: "set-1" });
+    expectBookmarkShape({
+      id: "bookmark-1",
+      name: "Bookmark",
+      documentId: "doc-1",
+    });
+    expectAnnotationShape({
+      id: "anno-1",
+      documentId: "doc-1",
+      annotationSetId: "set-1",
+    });
   });
 
   test("expectCaseShareShape handles property variants", () => {
     expectCaseShareShape(
       { organisations: [{ organisationIdentifier: "org-1", name: "Org" }] },
-      "organisations"
+      "organisations",
     );
     expectCaseShareShape(
       { users: [{ userIdentifier: "user-1", email: "user@example.com" }] },
-      "users"
+      "users",
     );
     expectCaseShareShape(
       { cases: [{ caseId: "case-1", sharedWith: [] }] },
-      "cases"
+      "cases",
     );
     expectCaseShareShape(
       { sharedCases: [{ caseId: "case-2", sharedWith: [] }] },
-      "sharedCases"
+      "sharedCases",
     );
     expectCaseShareShape({ payload: {} }, "unknown");
   });
@@ -66,11 +74,11 @@ test.describe("Assertion shape validators", () => {
           DPA: {
             POSTCODE: "E1 1AA",
             ADDRESS: "1 Example Street",
-            POST_TOWN: "London"
-          }
-        }
+            POST_TOWN: "London",
+          },
+        },
       ],
-      header: {}
+      header: {},
     });
   });
 
@@ -78,10 +86,22 @@ test.describe("Assertion shape validators", () => {
     expect(isTaskList({ tasks: [] })).toBe(true);
     expect(isTaskList({})).toBe(false);
 
-    const direct = extractCaseShareEntries({ cases: [{ caseId: "case-1" }] }, "cases");
-    const nested = extractCaseShareEntries({ payload: { cases: [{ caseId: "case-2" }] } }, "cases");
-    const missing = extractCaseShareEntries({ foo: "bar" } as unknown as Record<string, unknown>, "cases");
-    const empty = extractCaseShareEntries(null as unknown as Record<string, unknown>, "cases");
+    const direct = extractCaseShareEntries(
+      { cases: [{ caseId: "case-1" }] },
+      "cases",
+    );
+    const nested = extractCaseShareEntries(
+      { payload: { cases: [{ caseId: "case-2" }] } },
+      "cases",
+    );
+    const missing = extractCaseShareEntries(
+      { foo: "bar" } as unknown as Record<string, unknown>,
+      "cases",
+    );
+    const empty = extractCaseShareEntries(
+      null as unknown as Record<string, unknown>,
+      "cases",
+    );
     expect(direct).toHaveLength(1);
     expect(nested).toHaveLength(1);
     expect(missing).toEqual([]);

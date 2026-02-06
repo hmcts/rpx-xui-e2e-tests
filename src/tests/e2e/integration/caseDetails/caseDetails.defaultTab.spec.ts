@@ -6,10 +6,12 @@ import { loadSessionCookies } from "../utils/session.utils.js";
 
 const userIdentifier = "COURT_ADMIN";
 const hasCourtAdminCreds = Boolean(
-  process.env.COURT_ADMIN_USERNAME && process.env.COURT_ADMIN_PASSWORD
+  process.env.COURT_ADMIN_USERNAME && process.env.COURT_ADMIN_PASSWORD,
 );
 test.use({ storageState: { cookies: [], origins: [] } });
-const explicitUsersEnv = (process.env.PW_UI_USERS ?? process.env.PW_UI_USER)?.trim();
+const explicitUsersEnv = (
+  process.env.PW_UI_USERS ?? process.env.PW_UI_USER
+)?.trim();
 const configuredUsers = explicitUsersEnv
   ? explicitUsersEnv
       .split(",")
@@ -31,7 +33,7 @@ const installTabSelectionTracker = async (page: Page) => {
 
     const recordSelection = () => {
       const selected = Array.from(
-        document.querySelectorAll('div[role="tab"][aria-selected="true"]')
+        document.querySelectorAll('div[role="tab"][aria-selected="true"]'),
       )
         .map((element) => element.textContent?.trim() || "")
         .filter(Boolean);
@@ -50,13 +52,15 @@ const installTabSelectionTracker = async (page: Page) => {
       observer.observe(document.documentElement, {
         subtree: true,
         attributes: true,
-        attributeFilter: ["aria-selected"]
+        attributeFilter: ["aria-selected"],
       });
       recordSelection();
     };
 
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", startObserver, { once: true });
+      document.addEventListener("DOMContentLoaded", startObserver, {
+        once: true,
+      });
     } else {
       startObserver();
     }
@@ -65,7 +69,10 @@ const installTabSelectionTracker = async (page: Page) => {
 
 const resetTabSelectionTracker = async (page: Page) => {
   await page.evaluate(() => {
-    const w = window as unknown as { __tabSelections?: string[]; __tabSelectionLast?: string | null };
+    const w = window as unknown as {
+      __tabSelections?: string[];
+      __tabSelectionLast?: string | null;
+    };
     w.__tabSelections = [];
     w.__tabSelectionLast = null;
   });
@@ -93,7 +100,7 @@ const resolveExplicitTabTarget = (url: string): string | null => {
       "tabLabel",
       "tablabel",
       "tab-title",
-      "tabtitle"
+      "tabtitle",
     ];
     for (const key of keys) {
       const value = params.get(key);
@@ -123,31 +130,50 @@ const assertSummaryTabIsDefault = async (page: Page, label: string) => {
   const selectedTabs = page.locator('div[role="tab"][aria-selected="true"]');
   await expect(selectedTabs.first()).toBeVisible();
   await expect
-    .poll(async () => (await getTabSelectionChanges(page)).length, { timeout: 10_000 })
+    .poll(async () => (await getTabSelectionChanges(page)).length, {
+      timeout: 10_000,
+    })
     .toBeGreaterThan(0);
   const selections = await getTabSelectionChanges(page);
-  expect(selections.length, `${label}: no tab selections recorded`).toBeGreaterThan(0);
+  expect(
+    selections.length,
+    `${label}: no tab selections recorded`,
+  ).toBeGreaterThan(0);
   const normalized = selections.map((value) => value.toLowerCase());
-  const summaryIndex = normalized.findIndex((value) => value.includes("summary"));
-  expect(summaryIndex, `${label}: summary tab was never selected`).toBeGreaterThanOrEqual(0);
+  const summaryIndex = normalized.findIndex((value) =>
+    value.includes("summary"),
+  );
+  expect(
+    summaryIndex,
+    `${label}: summary tab was never selected`,
+  ).toBeGreaterThanOrEqual(0);
 
   const afterSummary = normalized.slice(summaryIndex);
-  const onlySummaryAfter = afterSummary.every((value) => value.includes("summary"));
-  expect(onlySummaryAfter, `${label}: summary tab should remain selected once chosen`).toBe(true);
+  const onlySummaryAfter = afterSummary.every((value) =>
+    value.includes("summary"),
+  );
+  expect(
+    onlySummaryAfter,
+    `${label}: summary tab should remain selected once chosen`,
+  ).toBe(true);
 
-  const currentSelected = (await selectedTabs.first().textContent())?.toLowerCase() ?? "";
-  expect(currentSelected, `${label}: Summary should be the selected tab`).toContain("summary");
+  const currentSelected =
+    (await selectedTabs.first().textContent())?.toLowerCase() ?? "";
+  expect(
+    currentSelected,
+    `${label}: Summary should be the selected tab`,
+  ).toContain("summary");
 };
 
 const extractCaseMeta = async (
-  responsePromise: Promise<Response>
+  responsePromise: Promise<Response>,
 ): Promise<{ jurisdiction?: string; caseType?: string }> => {
   try {
     const response = await responsePromise;
     const data = await response.json().catch(() => null);
     return {
       jurisdiction: data?.case_type?.jurisdiction?.name ?? undefined,
-      caseType: data?.case_type?.name ?? undefined
+      caseType: data?.case_type?.name ?? undefined,
     };
   } catch {
     return {};
@@ -156,6 +182,7 @@ const extractCaseMeta = async (
 
 test.describe("@EXUI-3895 Case details default tab selection", () => {
   let caseMeta: { jurisdiction?: string; caseType?: string } = {};
+
   test.beforeAll(async ({ browser }, testInfo) => {
     void browser;
     if (!hasCourtAdminCreds) {
@@ -182,7 +209,7 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
     caseDetailsPage,
     caseSearchPage,
     page,
-    config
+    config,
   }) => {
     await installTabSelectionTracker(page);
 
@@ -194,11 +221,13 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
         );
       });
       await caseListPage.page.goto(config.urls.manageCaseBaseUrl, {
-        waitUntil: "domcontentloaded"
+        waitUntil: "domcontentloaded",
       });
       await caseListPage.acceptAnalyticsCookies();
       await caseListPage.waitForReady();
-      await caseListPage.exuiCaseListComponent.resultLinks.first().waitFor({ state: "visible" });
+      await caseListPage.exuiCaseListComponent.resultLinks
+        .first()
+        .waitFor({ state: "visible" });
       await resetTabSelectionTracker(page);
       await caseListPage.exuiCaseListComponent.selectCaseByIndex(0);
       await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
@@ -207,7 +236,8 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
       caseMeta = await extractCaseMeta(caseDetailsResponse);
     });
 
-    const caseReference = await caseDetailsPage.exuiCaseDetailsComponent.getCaseNumber();
+    const caseReference =
+      await caseDetailsPage.exuiCaseDetailsComponent.getCaseNumber();
     await assertSummaryTabIsDefault(page, "Case list navigation");
 
     await test.step("Return to case list", async () => {

@@ -14,36 +14,39 @@ export interface UiUtilsFixtures {
 }
 
 export const uiUtilsFixtures = {
-  config: async ({ request }: PlaywrightTestArgs, use: (value: Config) => Promise<void>) => {
+  config: async (
+    { request }: PlaywrightTestArgs,
+    use: (value: Config) => Promise<void>,
+  ) => {
     void request;
     await use(config);
   },
   userUtils: async (
     { request }: PlaywrightTestArgs,
-    use: (value: UserUtils) => Promise<void>
+    use: (value: UserUtils) => Promise<void>,
   ) => {
     void request;
     await use(new UserUtils());
   },
   validatorUtils: async (
     { request }: PlaywrightTestArgs,
-    use: (value: ValidatorUtils) => Promise<void>
+    use: (value: ValidatorUtils) => Promise<void>,
   ) => {
     void request;
     await use(new ValidatorUtils());
   },
   tableUtils: async (
     { request }: PlaywrightTestArgs,
-    use: (value: TableUtils) => Promise<void>
+    use: (value: TableUtils) => Promise<void>,
   ) => {
     void request;
     await use(new TableUtils());
   },
   waitUtils: async (
     { request }: PlaywrightTestArgs,
-    use: (value: WaitUtils) => Promise<void>
+    use: (value: WaitUtils) => Promise<void>,
   ) => {
     void request;
     await use(new WaitUtils());
-  }
+  },
 };

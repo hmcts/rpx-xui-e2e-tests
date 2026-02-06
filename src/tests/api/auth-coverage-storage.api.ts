@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any, playwright/no-conditional-in-test */
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -8,21 +8,6 @@ import { config } from "../../config/api";
 import { __test__ as authTest } from "../../fixtures/api-auth";
 
 test.describe.configure({ mode: "serial" });
-
-const createStateSequence = (counter: { value: number }) => async () => {
-  counter.value += 1;
-  return counter.value === 1 ? "state-1" : "state-2";
-};
-
-const readSecondState = async (storagePath: string) =>
-  storagePath === "state-2" ? { cookies: [] } : undefined;
-
-const readTokenState = async (storagePath: string) => {
-  if (storagePath === "state-2") {
-    return { cookies: [{ name: "XSRF-TOKEN", value: "token" }] };
-  }
-  return undefined;
-};
 
 test.describe("Auth helper coverage - storage operations", () => {
   test("tryReadState returns parsed state or undefined for invalid content", async () => {
@@ -39,58 +24,97 @@ test.describe("Auth helper coverage - storage operations", () => {
     const bad = await authTest.tryReadState(badPath);
     expect(bad).toBeUndefined();
 
-    const missing = await authTest.tryReadState(path.join(tmpDir, "missing.json"));
+    const missing = await authTest.tryReadState(
+      path.join(tmpDir, "missing.json"),
+    );
     expect(missing).toBeUndefined();
   });
 
-  test("ensureStorageStateWith caches and rebuilds when state missing", async () => {
-    const storagePromises = new Map<string, Promise<string>>();
-    const createCalls = { value: 0 };
+  test("ensureStorageStateWith rebuilds missing state and reuses fresh state", async () => {
+    let stateExists = false;
+    let createCalls = 0;
+    let lockCalls = 0;
     const deps = {
-      storagePromises,
-      createStorageState: createStateSequence(createCalls),
-      tryReadState: readSecondState,
-      unlink: async () => {
-        throw new Error("unlink failed");
-      }
+      createStorageState: async () => {
+        createCalls += 1;
+        stateExists = true;
+        return "state-2";
+      },
+      tryReadState: async () => {
+        if (!stateExists) {
+          return undefined;
+        }
+        return { cookies: [] };
+      },
+      unlink: async () => undefined,
+      acquireLock: async () => {
+        lockCalls += 1;
+        return async () => undefined;
+      },
+      resolveStoragePath: () => "state-2",
+      resolveLockPath: () => "state-2.lock",
+      isStorageStateReusable: async () => true,
     };
 
-    const first = await authTest.ensureStorageStateWith("solicitor", deps as any);
+    const first = await authTest.ensureStorageStateWith(
+      "solicitor",
+      deps as any,
+    );
     expect(first).toBe("state-2");
-    const second = await authTest.ensureStorageStateWith("solicitor", deps as any);
+    const second = await authTest.ensureStorageStateWith(
+      "solicitor",
+      deps as any,
+    );
     expect(second).toBe("state-2");
-    expect(createCalls.value).toBe(2);
+    expect(createCalls).toBe(1);
+    expect(lockCalls).toBe(2);
   });
 
-  test("getStoredCookieWith rebuilds corrupted state and throws when still missing", async () => {
-    const storagePromises = new Map<string, Promise<string>>();
-    const createCalls = { value: 0 };
+  test("getStoredCookieWith returns cookie and throws when state remains missing", async () => {
     const deps = {
-      storagePromises,
       createStorageState: async () => {
-        createCalls.value += 1;
-        return `state-${createCalls.value}`;
+        return "state-2";
       },
-      tryReadState: readTokenState,
-      unlink: async () => {}
+      tryReadState: async (storagePath: string) => {
+        if (storagePath !== "state-2") {
+          return undefined;
+        }
+        return { cookies: [{ name: "XSRF-TOKEN", value: "token" }] };
+      },
+      unlink: async () => undefined,
+      acquireLock: async () => async () => undefined,
+      resolveStoragePath: () => "state-2",
+      resolveLockPath: () => "state-2.lock",
+      isStorageStateReusable: async () => true,
     };
 
-    const value = await authTest.getStoredCookieWith("solicitor", "XSRF-TOKEN", deps as any);
+    const value = await authTest.getStoredCookieWith(
+      "solicitor",
+      "XSRF-TOKEN",
+      deps as any,
+    );
     expect(value).toBe("token");
 
     const emptyDeps = {
-      storagePromises: new Map<string, Promise<string>>(),
       createStorageState: async () => "state-1",
       tryReadState: async () => undefined,
-      unlink: async () => {}
+      unlink: async () => undefined,
+      acquireLock: async () => async () => undefined,
+      resolveStoragePath: () => "state-1",
+      resolveLockPath: () => "state-1.lock",
+      isStorageStateReusable: async () => false,
     };
-    await expect(authTest.getStoredCookieWith("solicitor", "XSRF-TOKEN", emptyDeps as any)).rejects.toThrow(
-      "Unable to read storage state"
-    );
+    await expect(
+      authTest.getStoredCookieWith("solicitor", "XSRF-TOKEN", emptyDeps as any),
+    ).rejects.toThrow("Unable to read storage state");
   });
 
   test("createStorageStateWith honors token bootstrap and falls back to form login", async () => {
-    const storageRoot = path.join(process.cwd(), "test-results", "auth-storage");
+    const storageRoot = path.join(
+      process.cwd(),
+      "test-results",
+      "auth-storage",
+    );
     let formCalls = 0;
     const onForm = async () => {
       formCalls += 1;
@@ -102,7 +126,7 @@ test.describe("Auth helper coverage - storage operations", () => {
       getCredentials: () => ({ username: "test-user", password: "mock-pass" }),
       isTokenBootstrapEnabled: () => true,
       tryTokenBootstrap: async () => true,
-      createStorageStateViaForm: onForm
+      createStorageStateViaForm: onForm,
     });
     expect(tokenSuccess).toContain(path.join(config.testEnv, "solicitor.json"));
     expect(formCalls).toBe(0);
@@ -113,9 +137,11 @@ test.describe("Auth helper coverage - storage operations", () => {
       getCredentials: () => ({ username: "test-user", password: "mock-pass" }),
       isTokenBootstrapEnabled: () => true,
       tryTokenBootstrap: async () => false,
-      createStorageStateViaForm: onForm
+      createStorageStateViaForm: onForm,
     });
-    expect(tokenFallback).toContain(path.join(config.testEnv, "solicitor.json"));
+    expect(tokenFallback).toContain(
+      path.join(config.testEnv, "solicitor.json"),
+    );
     expect(formCalls).toBe(1);
   });
 });

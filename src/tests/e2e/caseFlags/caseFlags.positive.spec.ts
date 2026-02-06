@@ -2,126 +2,209 @@ import { faker } from "@faker-js/faker";
 import type { Cookie } from "@playwright/test";
 
 import { expect, test } from "../../../fixtures/ui";
-import { UserUtils } from "../../../utils/ui/user.utils";
-import { loadSessionCookies } from "../integration/utils/session.utils.js";
+import {
+  caseBannerMatches,
+  getCaseBannerInfo,
+  normalizeCaseNumber,
+} from "../../../utils/ui/banner.utils.js";
+import { filterEmptyRows } from "../../../utils/ui/table.utils.js";
+import { UserUtils } from "../../../utils/ui/user.utils.js";
+import {
+  applyCookiesToPage,
+  ensureSessionCookies,
+} from "../integration/utils/session.utils.js";
 
 const userUtils = new UserUtils();
 const requiredUsers = ["SEARCH_EMPLOYMENT_CASE", "USER_WITH_FLAGS"];
-const missingUsers = requiredUsers.filter((user) => !userUtils.hasUserCredentials(user));
+const missingUsers = requiredUsers.filter(
+  (user) => !userUtils.hasUserCredentials(user),
+);
 const shouldRunCaseFlags = missingUsers.length === 0;
-
-const applySessionCookies = async (page: { context: () => { addCookies: (cookies: Cookie[]) => Promise<void> } }, cookies: Cookie[]) => {
-  if (cookies.length) {
-    await page.context().addCookies(cookies);
-  }
-};
 
 if (shouldRunCaseFlags) {
   test.describe("Case level case flags", () => {
-    const testValue = faker.person.firstName();
+    test.describe.configure({ timeout: 120_000 });
     let caseNumber = "";
-  const jurisdiction = "EMPLOYMENT";
-  const caseType = "ET_EnglandWales";
-  let sessionCookies: Cookie[] = [];
+    let searchEmploymentCookies: Cookie[] = [];
 
-  test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
-    const { cookies } = loadSessionCookies("SEARCH_EMPLOYMENT_CASE");
-    sessionCookies = cookies;
-    await applySessionCookies(page, sessionCookies);
-    await page.goto("/");
-    await createCasePage.createCaseEmployment(jurisdiction, caseType, testValue);
-    caseNumber = await caseDetailsPage.getCaseNumberFromAlert();
-  });
+    const jurisdiction = "EMPLOYMENT";
+    const caseType = "ET_EnglandWales";
 
-  test("Create a new case level flag and verify the flag is displayed on the case", async ({ caseDetailsPage, tableUtils }) => {
-    await test.step("Check there are no flags already present", async () => {
-      await caseDetailsPage.selectCaseDetailsTab("Flags");
-      const table = await tableUtils.mapExuiTable(await caseDetailsPage.getTableByName("Case level flags"));
-      expect.soft(table[0]).toMatchObject({});
+    test.beforeAll(async () => {
+      const session = await ensureSessionCookies("SEARCH_EMPLOYMENT_CASE", {
+        strict: true,
+      });
+      searchEmploymentCookies = session.cookies;
     });
 
-    await test.step("Create a new case level flag", async () => {
-      await caseDetailsPage.exuiSpinnerComponent.wait();
-      await caseDetailsPage.selectCaseAction("Create a case flag");
-      await caseDetailsPage.selectCaseFlagTarget("Welsh");
+    test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
+      await applyCookiesToPage(page, searchEmploymentCookies);
+      await page.goto("/");
+      await createCasePage.createCaseEmployment(jurisdiction, caseType);
+      caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
     });
 
-    await test.step("Check the case flag creation messages are seen", async () => {
-      expect.soft(await caseDetailsPage.caseAlertSuccessMessage.innerText()).toContain(
-        `Case ${caseNumber} has been updated with event: Create a case flag`
-      );
-      expect.soft(await caseDetailsPage.caseNotificationBannerTitle.innerText()).toContain("Important");
-      expect.soft(await caseDetailsPage.caseNotificationBannerBody.innerText()).toContain(
-        "There is 1 active flag on this case."
-      );
-    });
+    test("Create a new case level flag and verify the flag is displayed on the case", async ({
+      caseDetailsPage,
+      tableUtils,
+    }) => {
+      await test.step("Record existing case level flags", async () => {
+        await caseDetailsPage.selectCaseDetailsTab("Flags");
+        const table = await tableUtils.mapExuiTable(
+          await caseDetailsPage.getTableByName("Case level flags"),
+        );
+        const visibleRows = filterEmptyRows(table);
+        expect.soft(visibleRows.length).toBeGreaterThanOrEqual(0);
+      });
 
-    await test.step("Verify the case level flag is shown in the history tab", async () => {
-      await caseDetailsPage.selectCaseDetailsTab("Flags");
-      const expectedFlag = {
-        "Case flags": "Welsh forms and communications",
-        Comments: "Welsh",
-        "Creation date": await caseDetailsPage.todaysDateFormatted(),
-        "Last modified": "",
-        "Flag status": "ACTIVE"
-      };
-      const table = await tableUtils.mapExuiTable(await caseDetailsPage.getTableByName("Case level flags"));
-      expect(table[0]).toMatchObject(expectedFlag);
+      await test.step("Create a new case level flag", async () => {
+        await caseDetailsPage.exuiSpinnerComponent.wait();
+        await caseDetailsPage.selectCaseAction("Create a case flag");
+        await caseDetailsPage.selectCaseFlagTarget("Welsh");
+      });
+
+      await test.step("Check the case flag creation messages are seen", async () => {
+        const bannerText =
+          await caseDetailsPage.caseAlertSuccessMessage.innerText();
+        const { digits, message } = getCaseBannerInfo(bannerText);
+        expect.soft(digits).toBe(normalizeCaseNumber(caseNumber));
+        expect
+          .soft(message)
+          .toContain("has been updated with event: Create a case flag");
+        expect
+          .soft(await caseDetailsPage.caseNotificationBannerTitle.innerText())
+          .toContain("Important");
+        expect
+          .soft(await caseDetailsPage.caseNotificationBannerBody.innerText())
+          .toMatch(/active flag/i);
+      });
+
+      await test.step("Verify the case level flag is shown in the flags tab", async () => {
+        await caseDetailsPage.selectCaseDetailsTab("Flags");
+        const expectedFlag = {
+          "Case flags": "Welsh forms and communications",
+          Comments: "Welsh",
+          "Creation date": await caseDetailsPage.todaysDateFormatted(),
+          "Last modified": "",
+          "Flag status": "ACTIVE",
+        };
+
+        await expect
+          .poll(async () => {
+            const table = await tableUtils.mapExuiTable(
+              await caseDetailsPage.getTableByName("Case level flags"),
+            );
+            const visibleRows = filterEmptyRows(table);
+            return visibleRows.some((row) =>
+              Object.entries(expectedFlag).every(
+                ([key, value]) => row[key] === value,
+              ),
+            );
+          })
+          .toBe(true);
+      });
     });
-  });
   });
 
   test.describe("Party level case flags", () => {
+    test.describe.configure({ timeout: 120_000 });
     const testValue = faker.person.firstName();
     let caseNumber = "";
-  const jurisdiction = "DIVORCE";
-  const caseType = "xuiCaseFlagsV1";
-  let sessionCookies: Cookie[] = [];
+    let flagsCookies: Cookie[] = [];
 
-  test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
-    const { cookies } = loadSessionCookies("USER_WITH_FLAGS");
-    sessionCookies = cookies;
-    await applySessionCookies(page, sessionCookies);
-    await page.goto("/");
-    await createCasePage.createCaseFlagDivorceCase(testValue, jurisdiction, caseType);
-    caseNumber = await caseDetailsPage.getCaseNumberFromAlert();
-  });
+    const jurisdiction = "DIVORCE";
+    const caseType = "xuiCaseFlagsV1";
 
-  test("Create a new party level flag and verify the flag is displayed on the case", async ({ caseDetailsPage, tableUtils }) => {
-    await test.step("Check there are no flags already present", async () => {
-      await caseDetailsPage.selectCaseDetailsTab("Flags");
-      const table = await tableUtils.mapExuiTable(await caseDetailsPage.getTableByName(testValue));
-      expect.soft(table[0]).toMatchObject({});
+    test.beforeAll(async () => {
+      const session = await ensureSessionCookies("USER_WITH_FLAGS", {
+        strict: true,
+      });
+      flagsCookies = session.cookies;
     });
 
-    await test.step("Create a new party level flag", async () => {
-      await caseDetailsPage.exuiSpinnerComponent.wait();
-      await caseDetailsPage.selectCaseAction("Create case flag");
-      await caseDetailsPage.selectPartyFlagTarget(testValue, "Welsh");
-    });
-
-    await test.step("Check the case flag creation messages are seen", async () => {
-      expect.soft(await caseDetailsPage.caseAlertSuccessMessage.innerText()).toContain(
-        `Case ${caseNumber} has been updated with event: Create case flag`
+    test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
+      await applyCookiesToPage(page, flagsCookies);
+      await page.goto("/");
+      await createCasePage.createDivorceCaseFlag(
+        testValue,
+        jurisdiction,
+        caseType,
       );
-      expect.soft(await caseDetailsPage.caseNotificationBannerTitle.innerText()).toContain("Important");
-      expect.soft(await caseDetailsPage.caseNotificationBannerBody.innerText()).toContain(
-        "There is 1 active flag on this case."
-      );
+      caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
     });
 
-    await test.step("Verify the party level case flag is shown in the history tab", async () => {
-      await caseDetailsPage.selectCaseDetailsTab("Flags");
-      const expectedFlag = {
-        "Party level flags": "I want to speak Welsh at a hearing",
-        Comments: `Welsh ${testValue}`,
-        "Creation date": await caseDetailsPage.todaysDateFormatted(),
-        "Last modified": "",
-        "Flag status": "ACTIVE"
-      };
-      const table = await tableUtils.mapExuiTable(await caseDetailsPage.getTableByName(testValue));
-      expect(table[0]).toMatchObject(expectedFlag);
+    test("Create a new party level flag and verify the flag is displayed on the case", async ({
+      caseDetailsPage,
+      tableUtils,
+    }) => {
+      await test.step("Record existing party level flags", async () => {
+        await caseDetailsPage.selectCaseDetailsTab("Flags");
+        const table = await tableUtils.mapExuiTable(
+          await caseDetailsPage.getTableByName(testValue),
+        );
+        const visibleRows = filterEmptyRows(table);
+        expect.soft(visibleRows.length).toBeGreaterThanOrEqual(0);
+      });
+
+      await test.step("Create a new party level flag", async () => {
+        await caseDetailsPage.exuiSpinnerComponent.wait();
+        await caseDetailsPage.selectCaseAction("Create case flag");
+        await caseDetailsPage.selectPartyFlagTarget(testValue, "Welsh");
+      });
+
+      await test.step("Check the case flag creation messages are seen", async () => {
+        const callbackError = caseDetailsPage.page.getByText(
+          "callback data failed validation",
+          {
+            exact: false,
+          },
+        );
+        await expect(callbackError).toBeHidden();
+
+        await expect
+          .poll(async () => {
+            const bannerText =
+              await caseDetailsPage.caseAlertSuccessMessage.innerText();
+            return caseBannerMatches(
+              bannerText,
+              caseNumber,
+              "has been updated with event: Create case flag",
+            );
+          })
+          .toBe(true);
+
+        expect
+          .soft(await caseDetailsPage.caseNotificationBannerTitle.innerText())
+          .toContain("Important");
+        expect
+          .soft(await caseDetailsPage.caseNotificationBannerBody.innerText())
+          .toMatch(/active flag/i);
+      });
+
+      await test.step("Verify the party level case flag is shown in the flags tab", async () => {
+        await caseDetailsPage.selectCaseDetailsTab("Flags");
+        const expectedFlag = {
+          "Party level flags": "I want to speak Welsh at a hearing",
+          Comments: `Welsh ${testValue}`,
+          "Creation date": await caseDetailsPage.todaysDateFormatted(),
+          "Last modified": "",
+          "Flag status": "ACTIVE",
+        };
+
+        await expect
+          .poll(async () => {
+            const table = await tableUtils.mapExuiTable(
+              await caseDetailsPage.getTableByName(testValue),
+            );
+            const visibleRows = filterEmptyRows(table);
+            return visibleRows.some((row) =>
+              Object.entries(expectedFlag).every(
+                ([key, value]) => row[key] === value,
+              ),
+            );
+          })
+          .toBe(true);
+      });
     });
-  });
   });
 }

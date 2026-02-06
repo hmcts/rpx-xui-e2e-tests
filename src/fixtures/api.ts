@@ -5,16 +5,51 @@ import {
   ApiClient as PlaywrightApiClient,
   type ApiLogEntry,
   buildApiAttachment,
-  createLogger
+  createLogger,
 } from "@hmcts/playwright-common";
 import { test as base, expect, request } from "@playwright/test";
 
 import { config } from "../config/api";
+import {
+  attachFailureDiagnosis,
+  buildFailureDiagnosis,
+  isFailureStatus,
+} from "../utils/diagnostics/failure-diagnosis.utils.js";
 
-import { ensureStorageState, getStoredCookie, type ApiUserRole } from "./api-auth";
+import {
+  ensureStorageState,
+  getStoredCookie,
+  type ApiUserRole,
+} from "./api-auth";
 
 const baseUrl = stripTrailingSlash(config.baseUrl);
 type LoggerInstance = ReturnType<typeof createLogger>;
+
+const parsePositiveInt = (
+  value: string | undefined,
+  fallback: number,
+): number => {
+  if (!value?.trim()) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed <= 0) return fallback;
+  return parsed;
+};
+
+const resolveLoggerFormat = (): "pretty" | "json" => {
+  const reporters = process.env.PLAYWRIGHT_REPORTERS ?? "";
+  const odhinEnabled = reporters
+    .split(",")
+    .some((value) => value.trim() === "odhin");
+  if (odhinEnabled || !process.stdout.isTTY) {
+    return "json";
+  }
+  return "pretty";
+};
+
+const apiSlowThresholdMs = parsePositiveInt(
+  process.env.API_SLOW_THRESHOLD_MS,
+  5000,
+);
 
 export interface ApiFixtures {
   apiClient: PlaywrightApiClient;
@@ -30,42 +65,92 @@ export const test = base.extend<ApiFixtures>({
     const logger = createLogger({
       serviceName: "rpx-xui-node-api",
       defaultMeta: { workerId: workerInfo.workerIndex },
-      format: "pretty"
+      format: resolveLoggerFormat(),
     });
     await use(logger);
   },
-  apiLogs: async ({ request }, use, testInfo) => {
-    void request;
+  apiLogs: async ({ logger }, use, testInfo) => {
     const entries: ApiLogEntry[] = [];
     await use(entries);
-    if (!entries.length) {
+
+    const shouldAttachApiCalls =
+      entries.length > 0 &&
+      (process.env.PLAYWRIGHT_DEBUG_API === "1" ||
+        testInfo.status !== testInfo.expectedStatus);
+    if (shouldAttachApiCalls) {
+      const includeRaw = false;
+      const safeEntries = entries.map((entry) => {
+        const attachment = buildApiAttachment(entry, { includeRaw });
+        return typeof attachment.body === "string"
+          ? JSON.parse(attachment.body)
+          : attachment.body;
+      });
+      const pretty = safeEntries
+        .map((entry) => JSON.stringify(entry, null, 2))
+        .join("\n\n---\n\n");
+
+      await testInfo.attach("node-api-calls.json", {
+        body: JSON.stringify(safeEntries, null, 2),
+        contentType: "application/json",
+      });
+      await testInfo.attach("node-api-calls.pretty.txt", {
+        body: pretty,
+        contentType: "text/plain",
+      });
+    }
+
+    if (!isFailureStatus(testInfo.status)) {
       return;
     }
 
-    const shouldAttach =
-      process.env.PLAYWRIGHT_DEBUG_API === "1" ||
-      testInfo.status !== testInfo.expectedStatus;
-    if (!shouldAttach) {
-      return;
-    }
+    const diagnosis = buildFailureDiagnosis({
+      testTitle: testInfo.title,
+      errorMessage: testInfo.error?.message ?? "",
+      apiErrors: entries
+        .filter(
+          (entry) => typeof entry.status === "number" && entry.status >= 400,
+        )
+        .map((entry) => ({
+          method: entry.method,
+          status: entry.status,
+          url: entry.url,
+        })),
+      slowCalls: entries
+        .filter(
+          (entry) =>
+            typeof entry.durationMs === "number" &&
+            Number.isFinite(entry.durationMs) &&
+            entry.durationMs > apiSlowThresholdMs,
+        )
+        .map((entry) => ({
+          method: entry.method,
+          durationMs: entry.durationMs,
+          url: entry.url,
+        })),
+      networkFailures: entries
+        .filter(
+          (entry) => typeof entry.error === "string" && entry.error.trim(),
+        )
+        .map((entry) => ({
+          method: entry.method,
+          reason: entry.error ?? "request failed",
+          url: entry.url,
+        })),
+      slowThresholdMs: apiSlowThresholdMs,
+    });
 
-    const includeRaw = process.env.PLAYWRIGHT_DEBUG_API === "1";
-    const safeEntries = entries.map((entry) => {
-      const attachment = buildApiAttachment(entry, { includeRaw });
-      return typeof attachment.body === "string"
-        ? JSON.parse(attachment.body)
-        : attachment.body;
+    logger.error("api:failure-diagnosis", {
+      testTitle: testInfo.title,
+      failureType: diagnosis.failureType,
+      apiErrors: diagnosis.apiErrors.length,
+      serverErrors: diagnosis.serverErrors.length,
+      clientErrors: diagnosis.clientErrors.length,
+      slowCalls: diagnosis.slowCalls.length,
+      networkFailures: diagnosis.networkFailures.length,
+      networkTimeout: diagnosis.networkTimeout,
     });
-    const pretty = safeEntries.map((entry) => JSON.stringify(entry, null, 2)).join("\n\n---\n\n");
 
-    await testInfo.attach("node-api-calls.json", {
-      body: JSON.stringify(safeEntries, null, 2),
-      contentType: "application/json"
-    });
-    await testInfo.attach("node-api-calls.pretty.txt", {
-      body: pretty,
-      contentType: "text/plain"
-    });
+    await attachFailureDiagnosis(testInfo, diagnosis);
   },
   apiClient: async ({ logger, apiLogs }, use) => {
     const client = await createNodeApiClient("solicitor", logger, apiLogs);
@@ -96,12 +181,14 @@ export const test = base.extend<ApiFixtures>({
     } finally {
       await Promise.all(clients.map((client) => client.dispose()));
     }
-  }
+  },
 });
 
 export { expect, buildApiAttachment };
 
-const shouldAutoInjectXsrf = (env: NodeJS.ProcessEnv = process.env): boolean => {
+const shouldAutoInjectXsrf = (
+  env: NodeJS.ProcessEnv = process.env,
+): boolean => {
   const flag = env.API_AUTO_XSRF ?? env.API_AUTH_AUTO_XSRF;
   return flag ? ["1", "true", "yes", "on"].includes(flag.toLowerCase()) : false;
 };
@@ -109,9 +196,12 @@ const shouldAutoInjectXsrf = (env: NodeJS.ProcessEnv = process.env): boolean => 
 async function createNodeApiClient(
   role: ApiUserRole | "anonymous",
   logger: LoggerInstance,
-  entries: ApiLogEntry[]
+  entries: ApiLogEntry[],
 ): Promise<PlaywrightApiClient> {
-  const storageState = role === "anonymous" ? undefined : await ensureStorageState(role as ApiUserRole);
+  const storageState =
+    role === "anonymous"
+      ? undefined
+      : await ensureStorageState(role as ApiUserRole);
   const defaultHeaders = await buildDefaultHeaders(role);
   const context = await buildRequestContext(role, storageState, defaultHeaders);
 
@@ -123,7 +213,7 @@ async function createNodeApiClient(
     correlationId: defaultHeaders["X-Correlation-Id"],
     onResponse: (entry) => entries.push(entry),
     onError: (error) => entries.push(error.logEntry),
-    requestFactory: async () => context
+    requestFactory: async () => context,
   });
 
   // Add OPTIONS support expected by the legacy tests.
@@ -146,15 +236,18 @@ type HeaderDeps = {
 
 async function buildDefaultHeaders(
   role: ApiUserRole | "anonymous",
-  deps: HeaderDeps = {}
+  deps: HeaderDeps = {},
 ): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "X-Correlation-Id": randomUUID()
+    "X-Correlation-Id": randomUUID(),
   };
   const shouldInject = (deps.shouldAutoInjectXsrf ?? shouldAutoInjectXsrf)();
   if (role !== "anonymous" && shouldInject) {
-    const xsrf = await (deps.getStoredCookie ?? getStoredCookie)(role as ApiUserRole, "XSRF-TOKEN");
+    const xsrf = await (deps.getStoredCookie ?? getStoredCookie)(
+      role as ApiUserRole,
+      "XSRF-TOKEN",
+    );
     if (xsrf) {
       headers["X-XSRF-TOKEN"] = xsrf;
     }
@@ -172,9 +265,10 @@ async function buildRequestContext(
   role: ApiUserRole | "anonymous",
   storageState: string | undefined,
   defaultHeaders: Record<string, string>,
-  deps: RequestContextDeps = {}
+  deps: RequestContextDeps = {},
 ) {
-  const requestFactory = deps.requestFactory ?? ((options) => request.newContext(options));
+  const requestFactory =
+    deps.requestFactory ?? ((options) => request.newContext(options));
   const ensureState = deps.ensureStorageState ?? ensureStorageState;
   const unlinkFile = deps.unlink ?? fs.unlink;
 
@@ -183,7 +277,7 @@ async function buildRequestContext(
       baseURL: baseUrl,
       storageState: statePath,
       ignoreHTTPSErrors: true,
-      extraHTTPHeaders: defaultHeaders
+      extraHTTPHeaders: defaultHeaders,
     });
 
   try {
@@ -191,7 +285,11 @@ async function buildRequestContext(
   } catch (error) {
     const message = (error as Error)?.message ?? "";
     const statePath = role === "anonymous" ? undefined : storageState;
-    if (role !== "anonymous" && statePath && /Unexpected end of JSON input/i.test(message)) {
+    if (
+      role !== "anonymous" &&
+      statePath &&
+      /Unexpected end of JSON input/i.test(message)
+    ) {
       try {
         await unlinkFile(statePath);
       } catch {
@@ -208,5 +306,5 @@ export const __test__ = {
   buildDefaultHeaders,
   buildRequestContext,
   shouldAutoInjectXsrf,
-  stripTrailingSlash
+  stripTrailingSlash,
 };

@@ -7,8 +7,12 @@ export class CaseListPage extends Base {
   readonly jurisdictionSelect = this.page.locator("#wb-jurisdiction");
   readonly caseTypeSelect = this.page.locator("#wb-case-type");
   readonly textField0Input = this.page.locator("#TextField0");
-  readonly filterToggle = this.page.getByRole("button", { name: /show filter|hide filter/i });
-  readonly caseListResultsAmount = this.page.locator("#search-result .pagination-top");
+  readonly filterToggle = this.page.getByRole("button", {
+    name: /show filter|hide filter/i,
+  });
+  readonly caseListResultsAmount = this.page.locator(
+    "#search-result .pagination-top",
+  );
   readonly caseSearchResultsMessage = this.page.locator("#search-result");
   readonly pagination = this.page.locator(".ngx-pagination");
 
@@ -67,7 +71,9 @@ export class CaseListPage extends Base {
   }
 
   async getPaginationFinalItem(): Promise<string | undefined> {
-    const items = (await this.pagination.locator("li").allTextContents()).map((i) => i.trim());
+    const items = (await this.pagination.locator("li").allTextContents()).map(
+      (i) => i.trim(),
+    );
     return items.length > 0 ? items[items.length - 1] : undefined;
   }
 
@@ -80,42 +86,65 @@ export class CaseListPage extends Base {
     if (!(await this.filterToggle.isVisible().catch(() => false))) {
       return;
     }
-    const label = (await this.filterToggle.textContent().catch(() => ""))?.toLowerCase();
+    const label = (
+      await this.filterToggle.textContent().catch(() => "")
+    )?.toLowerCase();
     if (label?.includes("show")) {
       await this.filterToggle.click();
-      await this.filterToggle.waitFor({ state: "visible", timeout: timeoutMs }).catch(() => {
-        // If the toggle disappears, continue and wait for inputs.
-      });
+      await this.filterToggle
+        .waitFor({ state: "visible", timeout: timeoutMs })
+        .catch(() => {
+          // If the toggle disappears, continue and wait for inputs.
+        });
     }
   }
 
   private async waitForFirstVisible(
     candidates: Array<{ locator: Locator; label: string }>,
-    timeoutMs = 60_000
+    timeoutMs = 60_000,
   ) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       for (const candidate of candidates) {
-        if (await candidate.locator.first().isVisible().catch(() => false)) {
+        if (
+          await candidate.locator
+            .first()
+            .isVisible()
+            .catch(() => false)
+        ) {
           return candidate.locator.first();
         }
       }
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
     const labels = candidates.map((candidate) => candidate.label).join(", ");
-    throw new Error(`Case list filters not visible after ${timeoutMs}ms (tried: ${labels}).`);
+    throw new Error(
+      `Case list filters not visible after ${timeoutMs}ms (tried: ${labels}).`,
+    );
   }
 
   private async resolveJurisdictionSelect(timeoutMs = 60_000) {
     await this.ensureFiltersVisible(timeoutMs);
     return this.waitForFirstVisible(
       [
-        { locator: this.page.locator("#wb-jurisdiction"), label: "#wb-jurisdiction" },
-        { locator: this.page.getByLabel(/jurisdiction/i), label: "label:jurisdiction" },
-        { locator: this.page.locator("select[name='jurisdiction']"), label: "select[name='jurisdiction']" },
-        { locator: this.page.locator("select[formcontrolname='jurisdiction']"), label: "select[formcontrolname='jurisdiction']" }
+        {
+          locator: this.page.locator("#wb-jurisdiction"),
+          label: "#wb-jurisdiction",
+        },
+        {
+          locator: this.page.getByLabel(/jurisdiction/i),
+          label: "label:jurisdiction",
+        },
+        {
+          locator: this.page.locator("select[name='jurisdiction']"),
+          label: "select[name='jurisdiction']",
+        },
+        {
+          locator: this.page.locator("select[formcontrolname='jurisdiction']"),
+          label: "select[formcontrolname='jurisdiction']",
+        },
       ],
-      timeoutMs
+      timeoutMs,
     );
   }
 
@@ -124,11 +153,20 @@ export class CaseListPage extends Base {
     return this.waitForFirstVisible(
       [
         { locator: this.page.locator("#wb-case-type"), label: "#wb-case-type" },
-        { locator: this.page.getByLabel(/case type/i), label: "label:case type" },
-        { locator: this.page.locator("select[name='caseType']"), label: "select[name='caseType']" },
-        { locator: this.page.locator("select[formcontrolname='caseType']"), label: "select[formcontrolname='caseType']" }
+        {
+          locator: this.page.getByLabel(/case type/i),
+          label: "label:case type",
+        },
+        {
+          locator: this.page.locator("select[name='caseType']"),
+          label: "select[name='caseType']",
+        },
+        {
+          locator: this.page.locator("select[formcontrolname='caseType']"),
+          label: "select[formcontrolname='caseType']",
+        },
       ],
-      timeoutMs
+      timeoutMs,
     );
   }
 
@@ -136,7 +174,7 @@ export class CaseListPage extends Base {
     select: Locator,
     desired: string,
     label: string,
-    timeoutMs = 120_000
+    timeoutMs = 120_000,
   ): Promise<void> {
     const readOptions = async () => this.readSelectOptions(select);
     const normalized = desired.trim().toLowerCase();
@@ -144,24 +182,34 @@ export class CaseListPage extends Base {
       options.find(
         (option) =>
           option.value.trim().toLowerCase() === normalized ||
-          option.label.trim().toLowerCase() === normalized
+          option.label.trim().toLowerCase() === normalized,
       );
     const options = this.filterSelectableOptions(await readOptions());
     const hasOption = matchOption(options);
     if (!hasOption) {
       await expect
-        .poll(async () => {
-          const current = this.filterSelectableOptions(await readOptions());
-          return Boolean(matchOption(current));
-        }, { timeout: timeoutMs })
+        .poll(
+          async () => {
+            const current = this.filterSelectableOptions(await readOptions());
+            return Boolean(matchOption(current));
+          },
+          { timeout: timeoutMs },
+        )
         .toBe(true);
     }
-    const resolved = matchOption(this.filterSelectableOptions(await readOptions()));
+    const resolved = matchOption(
+      this.filterSelectableOptions(await readOptions()),
+    );
     if (!resolved) {
       const available = (await readOptions())
-        .map((option) => `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`)
+        .map(
+          (option) =>
+            `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`,
+        )
         .join(", ");
-      throw new Error(`Case list: option "${desired}" not available for ${label}. Available options: ${available || "none"}`);
+      throw new Error(
+        `Case list: option "${desired}" not available for ${label}. Available options: ${available || "none"}`,
+      );
     }
     if (resolved.value) {
       await select.selectOption({ value: resolved.value });
@@ -170,17 +218,21 @@ export class CaseListPage extends Base {
     }
   }
 
-  private async readSelectOptions(select: Locator): Promise<Array<{ label: string; value: string }>> {
+  private async readSelectOptions(
+    select: Locator,
+  ): Promise<Array<{ label: string; value: string }>> {
     return select.locator("option").evaluateAll((nodes) =>
       nodes.map((node) => {
         const label = (node.textContent ?? "").trim();
         const value = node.getAttribute("value") ?? "";
         return { label, value };
-      })
+      }),
     );
   }
 
-  private filterSelectableOptions(options: Array<{ label: string; value: string }>): Array<{ label: string; value: string }> {
+  private filterSelectableOptions(
+    options: Array<{ label: string; value: string }>,
+  ): Array<{ label: string; value: string }> {
     return options.filter((option) => {
       const label = option.label.toLowerCase();
       return !(label.includes("select a value") && !option.value);
@@ -192,10 +244,16 @@ export class CaseListPage extends Base {
     return this.waitForFirstVisible(
       [
         { locator: this.page.locator("#TextField0"), label: "#TextField0" },
-        { locator: this.page.getByLabel(/text field 0/i), label: "label:text field 0" },
-        { locator: this.page.locator("input[name='TextField0']"), label: "input[name='TextField0']" }
+        {
+          locator: this.page.getByLabel(/text field 0/i),
+          label: "label:text field 0",
+        },
+        {
+          locator: this.page.locator("input[name='TextField0']"),
+          label: "input[name='TextField0']",
+        },
       ],
-      timeoutMs
+      timeoutMs,
     );
   }
 }

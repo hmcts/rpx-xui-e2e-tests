@@ -12,8 +12,8 @@ const ignored = {
     "scripts/**",
     "test-results",
     "coverage",
-    "reports"
-  ]
+    "reports",
+  ],
 };
 
 export default tseslint.config(
@@ -27,10 +27,10 @@ export default tseslint.config(
     files: ["**/*.ts"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "module"
+      sourceType: "module",
     },
     plugins: {
-      import: pluginImport
+      import: pluginImport,
     },
     rules: {
       "playwright/no-skipped-test": "warn",
@@ -40,9 +40,9 @@ export default tseslint.config(
         "warn",
         {
           "newlines-between": "always",
-          alphabetize: { order: "asc", caseInsensitive: true }
-        }
-      ]
-    }
-  }
+          alphabetize: { order: "asc", caseInsensitive: true },
+        },
+      ],
+    },
+  },
 );

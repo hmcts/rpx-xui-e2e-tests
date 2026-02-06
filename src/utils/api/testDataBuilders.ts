@@ -10,7 +10,7 @@ export class TaskBuilder {
     case_name: null,
     location_name: null,
     created_date: new Date().toISOString(),
-    due_date: null
+    due_date: null,
   };
 
   withId(id: string): this {
@@ -57,7 +57,8 @@ export class TaskBuilder {
   }
 
   createdOn(date: string | Date): this {
-    this.task.created_date = typeof date === "string" ? date : date.toISOString();
+    this.task.created_date =
+      typeof date === "string" ? date : date.toISOString();
     return this;
   }
 
@@ -91,7 +92,7 @@ export class TaskBuilder {
 export class TaskListBuilder {
   private readonly taskList: Partial<TaskListResponse> = {
     tasks: [],
-    total_records: 0
+    total_records: 0,
   };
 
   withTasks(tasks: Task[]): this {
@@ -125,7 +126,7 @@ export class TaskListBuilder {
 export class TaskSearchBuilder {
   private readonly searchRequest: Record<string, unknown> = {
     view: "MyTasks",
-    searchRequest: []
+    searchRequest: [],
   };
 
   view(viewName: "MyTasks" | "AllWork" | "AvailableTasks"): this {
@@ -136,7 +137,7 @@ export class TaskSearchBuilder {
   inLocations(locationIds: string[]): this {
     this.searchRequest.searchRequest = [
       ...(this.searchRequest.searchRequest as unknown[]),
-      { key: "location", operator: "IN", values: locationIds }
+      { key: "location", operator: "IN", values: locationIds },
     ];
     return this;
   }
@@ -144,7 +145,7 @@ export class TaskSearchBuilder {
   withStates(states: string[]): this {
     this.searchRequest.searchRequest = [
       ...(this.searchRequest.searchRequest as unknown[]),
-      { key: "state", operator: "IN", values: states }
+      { key: "state", operator: "IN", values: states },
     ];
     return this;
   }
@@ -152,7 +153,7 @@ export class TaskSearchBuilder {
   forJurisdiction(jurisdiction: string): this {
     this.searchRequest.searchRequest = [
       ...(this.searchRequest.searchRequest as unknown[]),
-      { key: "jurisdiction", operator: "EQUAL", values: [jurisdiction] }
+      { key: "jurisdiction", operator: "EQUAL", values: [jurisdiction] },
     ];
     return this;
   }
@@ -169,7 +170,9 @@ export class TaskSearchBuilder {
   }
 
   sortBy(field: string, order: "asc" | "desc" = "asc"): this {
-    (this.searchRequest as { sortedBy?: { field: string; order: string } }).sortedBy = { field, order };
+    (
+      this.searchRequest as { sortedBy?: { field: string; order: string } }
+    ).sortedBy = { field, order };
     return this;
   }
 
@@ -179,10 +182,14 @@ export class TaskSearchBuilder {
 }
 
 export class LocationBuilder {
-  private readonly location: { id: string; locationName: string; services: string[] } = {
+  private readonly location: {
+    id: string;
+    locationName: string;
+    services: string[];
+  } = {
     id: "default-location-id",
     locationName: "Default Location",
-    services: []
+    services: [],
   };
 
   withId(id: string): this {
@@ -221,9 +228,9 @@ export class UserDetailsBuilder {
       id: "default-user-id",
       uid: "default-user-id",
       email: "test@example.com",
-      name: "Test User"
+      name: "Test User",
     },
-    roleAssignmentInfo: []
+    roleAssignmentInfo: [],
   };
 
   withId(id: string): this {
@@ -247,7 +254,7 @@ export class UserDetailsBuilder {
     this.userDetails.roleAssignmentInfo = roles.map((role) => ({
       roleName: role,
       roleType: "CASE",
-      classification: "PUBLIC"
+      classification: "PUBLIC",
     }));
     return this;
   }
@@ -259,7 +266,8 @@ export class UserDetailsBuilder {
 
 export const TestData = {
   task: (): Task => new TaskBuilder().build(),
-  assignedTask: (assignee = "user-1"): Task => new TaskBuilder().assigned(assignee).build(),
+  assignedTask: (assignee = "user-1"): Task =>
+    new TaskBuilder().assigned(assignee).build(),
   unassignedTask: (): Task => new TaskBuilder().unassigned().build(),
   taskList: (count: number): TaskListResponse => {
     const tasks = new TaskBuilder().buildMany(count);
@@ -269,5 +277,5 @@ export const TestData = {
   location: (id: string, name: string): Record<string, unknown> =>
     new LocationBuilder().withId(id).withName(name).build(),
   user: (id: string, email: string): Record<string, unknown> =>
-    new UserDetailsBuilder().withId(id).withEmail(email).build()
+    new UserDetailsBuilder().withId(id).withEmail(email).build(),
 };

@@ -8,14 +8,20 @@ import { extractCaseShareEntries } from "./types";
  */
 export async function seedRoleAccessCaseId(
   apiClient: any,
-  deps: { withXsrfFn?: typeof withXsrf } = {}
+  deps: { withXsrfFn?: typeof withXsrf } = {},
 ): Promise<string | undefined> {
   const withXsrfFn = deps.withXsrfFn ?? withXsrf;
   try {
     return await withXsrfFn("solicitor", async (headers) => {
-      const res = await apiClient.get("caseshare/cases", { headers, throwOnError: false });
+      const res = await apiClient.get("caseshare/cases", {
+        headers,
+        throwOnError: false,
+      });
       const cases = extractCaseShareEntries(res.data as any, "cases");
-      const first = Array.isArray(cases) && cases.length > 0 ? (cases[0] as any) : undefined;
+      const first =
+        Array.isArray(cases) && cases.length > 0
+          ? (cases[0] as any)
+          : undefined;
       const id = first?.caseId ?? first?.case_id;
       return typeof id === "string" && id.trim().length > 0 ? id : undefined;
     });
@@ -23,4 +29,3 @@ export async function seedRoleAccessCaseId(
     return undefined;
   }
 }
- 

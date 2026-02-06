@@ -2,22 +2,37 @@
 import type { ApiClient } from "@hmcts/playwright-common";
 
 import { config as testConfig } from "../../config/api";
-import { WA_SAMPLE_ASSIGNED_TASK_ID, WA_SAMPLE_TASK_ID } from "../../data/api/testIds";
+import {
+  WA_SAMPLE_ASSIGNED_TASK_ID,
+  WA_SAMPLE_TASK_ID,
+} from "../../data/api/testIds";
 import { test, expect } from "../../fixtures/api";
 import { ensureStorageState } from "../../fixtures/api-auth";
-import { expectStatus, StatusSets, withRetry, withXsrf } from "../../utils/api/apiTestUtils";
+import {
+  expectStatus,
+  StatusSets,
+  withRetry,
+  withRequiredXsrf,
+} from "../../utils/api/apiTestUtils";
 import { expectTaskList } from "../../utils/api/assertions";
 import { buildTaskSearchRequest } from "../../utils/api/work-allocation";
 
-const { sampleTaskId, envTaskId, envAssignedTaskId, sampleMyTaskId } = buildSampleIds();
+const { sampleTaskId, envTaskId, envAssignedTaskId, sampleMyTaskId } =
+  buildSampleIds();
 const serviceCodes = ["IA", "CIVIL", "PRIVATELAW"];
-const waConfig = testConfig.workallocation[testConfig.testEnv as keyof typeof testConfig.workallocation];
+const waConfig =
+  testConfig.workallocation[
+    testConfig.testEnv as keyof typeof testConfig.workallocation
+  ];
 let cachedLocationId = buildLocationIds();
-let resolvedUserId = waConfig?.judgeUser?.id ?? (waConfig as any)?.legalOpsUser?.id;
+let resolvedUserId =
+  waConfig?.judgeUser?.id ?? (waConfig as any)?.legalOpsUser?.id;
 
 test.beforeAll(async ({ apiClient }) => {
-  const userRes = await apiClient.get<{ userInfo?: { uid?: string; id?: string } }>("api/user/details", {
-    throwOnError: false
+  const userRes = await apiClient.get<{
+    userInfo?: { uid?: string; id?: string };
+  }>("api/user/details", {
+    throwOnError: false,
   });
   if (userRes.status === 200) {
     resolvedUserId = resolveUserId(userRes.data) ?? resolvedUserId;
@@ -25,9 +40,12 @@ test.beforeAll(async ({ apiClient }) => {
 
   const locationRes = await apiClient.get<Array<{ id?: string }>>(
     `workallocation/location?serviceCodes=${encodeURIComponent(serviceCodes.join(","))}`,
-    { throwOnError: false }
+    { throwOnError: false },
   );
-  const resolvedLocationId = resolveLocationId(locationRes.status, locationRes.data);
+  const resolvedLocationId = resolveLocationId(
+    locationRes.status,
+    locationRes.data,
+  );
   if (resolvedLocationId) {
     cachedLocationId = resolvedLocationId;
   }
@@ -35,30 +53,32 @@ test.beforeAll(async ({ apiClient }) => {
 
 test.describe("Work allocation (read-only)", () => {
   test("returns task names catalogue", async ({ apiClient }) => {
-    const response = await apiClient.get<unknown>("workallocation/taskNames", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    if (response.status === 200) {
-      assertTaskNames(response);
-    }
+    const response = await apiClient.get<unknown>("workallocation/taskNames", {
+      throwOnError: false,
+    });
+    assertGuardedCatalogueResponse(response, assertTaskNames);
   });
 
   test("returns types of work catalogue", async ({ apiClient }) => {
-    const response = await apiClient.get<unknown>("workallocation/task/types-of-work", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    if (response.status === 200) {
-      assertTypesOfWork(response);
-    }
+    const response = await apiClient.get<unknown>(
+      "workallocation/task/types-of-work",
+      { throwOnError: false },
+    );
+    assertGuardedCatalogueResponse(response, assertTypesOfWork);
   });
 
   test("rejects unauthenticated access", async ({ anonymousClient }) => {
-    for (const endpoint of ["workallocation/location", "workallocation/taskNames"]) {
+    for (const endpoint of [
+      "workallocation/location",
+      "workallocation/taskNames",
+    ]) {
       const res = await anonymousClient.get(endpoint, { throwOnError: false });
       expectStatus(res.status, [401, 403]);
     }
 
     const res = await anonymousClient.post("workallocation/task", {
       data: buildTaskSearchRequest("MyTasks", { states: ["assigned"] }),
-      throwOnError: false
+      throwOnError: false,
     });
     expectStatus(res.status, [401, 403]);
   });
@@ -68,7 +88,9 @@ test.describe("Work allocation (read-only)", () => {
       await assertMyTasks(apiClient);
     });
 
-    test("AvailableTasks returns structured response", async ({ apiClient }) => {
+    test("AvailableTasks returns structured response", async ({
+      apiClient,
+    }) => {
       await assertAvailableTasks(apiClient);
     });
 
@@ -81,77 +103,116 @@ test.describe("Work allocation (read-only)", () => {
 test.describe("Work allocation (write)", () => {
   test.describe("search with XSRF", () => {
     test("MyTasks returns guarded status", async ({ apiClient }) => {
-      const response = await withXsrf("solicitor", (headers) =>
+      const response = await withRequiredXsrf("solicitor", (headers) =>
         apiClient.post<TaskListResponse>("workallocation/task", {
           data: buildTaskSearchRequest("MyTasks"),
           headers,
-          throwOnError: false
-        })
+          throwOnError: false,
+        }),
       );
       expectStatus(response.status, StatusSets.retryable);
     });
   });
 
   test.describe("task metadata", () => {
-    const endpoints = ["task/roles", "task/types", "tasks", "taskCategories", "task/job-types"];
+    const endpoints = [
+      "task/roles",
+      "task/types",
+      "tasks",
+      "taskCategories",
+      "task/job-types",
+    ];
     endpoints.forEach((endpoint) => {
-      test(`${endpoint} responds with guarded status`, async ({ apiClient }) => {
-        const response = await apiClient.get<any>(`workallocation/${endpoint}`, { throwOnError: false });
+      test(`${endpoint} responds with guarded status`, async ({
+        apiClient,
+      }) => {
+        const response = await apiClient.get<any>(
+          `workallocation/${endpoint}`,
+          { throwOnError: false },
+        );
         expectStatus(response.status, StatusSets.guardedExtended);
       });
     });
   });
 
   test.describe("task actions (anonymous)", () => {
-    const actions = ["claim", "unclaim", "complete", "assign", "unassign", "cancel"];
+    const actions = [
+      "claim",
+      "unclaim",
+      "complete",
+      "assign",
+      "unassign",
+      "cancel",
+    ];
 
     actions.forEach((action) => {
       test(`rejects unauthenticated ${action}`, async ({ anonymousClient }) => {
-        const response = await anonymousClient.post("workallocation/task/12345/" + action, {
-          data: {},
-          throwOnError: false
-        });
+        const response = await anonymousClient.post(
+          "workallocation/task/12345/" + action,
+          {
+            data: {},
+            throwOnError: false,
+          },
+        );
         expectStatus(response.status, StatusSets.unauthenticated);
       });
     });
   });
 
   test.describe("task actions (auth)", () => {
-    const actions = ["claim", "assign", "unassign", "unclaim", "complete", "cancel"];
-    const taskId = () => envTaskId ?? sampleTaskId ?? "00000000-0000-0000-0000-000000000000";
+    const actions = [
+      "claim",
+      "assign",
+      "unassign",
+      "unclaim",
+      "complete",
+      "cancel",
+    ];
+    const taskId = () =>
+      envTaskId ?? sampleTaskId ?? "00000000-0000-0000-0000-000000000000";
 
     actions.forEach((action) => {
-      test(`${action} without xsrf returns guarded status`, async ({ apiClient }) => {
+      test(`${action} without xsrf returns guarded status`, async ({
+        apiClient,
+      }) => {
         await ensureStorageState("solicitor");
-        const response = await apiClient.post(`workallocation/task/${taskId()}/${action}`, {
-          data: {},
-          headers: {},
-          throwOnError: false
-        });
-        expectStatus(response.status, [200, 204, 401, 403, 404, 502]);
+        const response = await apiClient.post(
+          `workallocation/task/${taskId()}/${action}`,
+          {
+            data: {},
+            headers: { "X-XSRF-TOKEN": "" },
+            throwOnError: false,
+          },
+        );
+        expectStatus(response.status, [200, 204, 400, 401, 403, 404, 502]);
       });
     });
 
     actions.forEach((action) => {
       test(`${action} with invalid XSRF token`, async ({ apiClient }) => {
         await ensureStorageState("solicitor");
-        const response = await apiClient.post(`workallocation/task/${taskId()}/${action}`, {
-          data: {},
-          headers: { "X-XSRF-TOKEN": "invalid-token" },
-          throwOnError: false
-        });
+        const response = await apiClient.post(
+          `workallocation/task/${taskId()}/${action}`,
+          {
+            data: {},
+            headers: { "X-XSRF-TOKEN": "invalid-token" },
+            throwOnError: false,
+          },
+        );
         expectStatus(response.status, [400, 401, 403, 409, 500, 502]);
       });
     });
 
     actions.forEach((action) => {
-      test(`${action} with XSRF header returns guarded status`, async ({ apiClient }) => {
-        const response = await withXsrf("solicitor", (headers) =>
+      test(`${action} with XSRF header returns guarded status`, async ({
+        apiClient,
+      }) => {
+        const response = await withRequiredXsrf("solicitor", (headers) =>
           apiClient.post(`workallocation/task/${taskId()}/${action}`, {
             data: {},
             headers,
-            throwOnError: false
-          })
+            throwOnError: false,
+          }),
         );
         expectStatus(response.status, [200, 204, 400, 403, 404, 409, 502]);
       });
@@ -162,18 +223,58 @@ test.describe("Work allocation (write)", () => {
     const fallbackId = "00000000-0000-0000-0000-000000000000";
 
     const positiveActions: Array<{ action: string; taskId: () => string }> = [
-      { action: "claim", taskId: () => envTaskId ?? sampleTaskId ?? fallbackId },
-      { action: "unclaim", taskId: () => envAssignedTaskId ?? envTaskId ?? sampleMyTaskId ?? sampleTaskId ?? fallbackId },
-      { action: "complete", taskId: () => envAssignedTaskId ?? envTaskId ?? sampleMyTaskId ?? sampleTaskId ?? fallbackId },
-      { action: "assign", taskId: () => envTaskId ?? sampleTaskId ?? fallbackId },
-      { action: "unassign", taskId: () => envAssignedTaskId ?? envTaskId ?? sampleMyTaskId ?? sampleTaskId ?? fallbackId },
-      { action: "cancel", taskId: () => envAssignedTaskId ?? envTaskId ?? sampleMyTaskId ?? sampleTaskId ?? fallbackId }
+      {
+        action: "claim",
+        taskId: () => envTaskId ?? sampleTaskId ?? fallbackId,
+      },
+      {
+        action: "unclaim",
+        taskId: () =>
+          envAssignedTaskId ??
+          envTaskId ??
+          sampleMyTaskId ??
+          sampleTaskId ??
+          fallbackId,
+      },
+      {
+        action: "complete",
+        taskId: () =>
+          envAssignedTaskId ??
+          envTaskId ??
+          sampleMyTaskId ??
+          sampleTaskId ??
+          fallbackId,
+      },
+      {
+        action: "assign",
+        taskId: () => envTaskId ?? sampleTaskId ?? fallbackId,
+      },
+      {
+        action: "unassign",
+        taskId: () =>
+          envAssignedTaskId ??
+          envTaskId ??
+          sampleMyTaskId ??
+          sampleTaskId ??
+          fallbackId,
+      },
+      {
+        action: "cancel",
+        taskId: () =>
+          envAssignedTaskId ??
+          envTaskId ??
+          sampleMyTaskId ??
+          sampleTaskId ??
+          fallbackId,
+      },
     ];
 
     positiveActions.forEach(({ action, taskId }) => {
-      test(`${action} returns allowed status with XSRF`, async ({ apiClient }) => {
-        const response = await withXsrf("solicitor", (headers) =>
-          postTaskAction(apiClient, action, taskId(), headers)
+      test(`${action} returns allowed status with XSRF`, async ({
+        apiClient,
+      }) => {
+        const response = await withRequiredXsrf("solicitor", (headers) =>
+          postTaskAction(apiClient, action, taskId(), headers),
         );
 
         expectStatus(response.status, StatusSets.actionWithConflicts);
@@ -183,18 +284,21 @@ test.describe("Work allocation (write)", () => {
 
   test.describe("caseworkers & people", () => {
     test("lists caseworkers", async ({ apiClient }) => {
-      const response = await withXsrf("solicitor", (headers) =>
+      const response = await withRequiredXsrf("solicitor", (headers) =>
         apiClient.get("workallocation/caseworker", {
           headers,
-          throwOnError: false
-        })
+          throwOnError: false,
+        }),
       );
       expectStatus(response.status, StatusSets.guardedExtended);
       assertCaseworkers(response);
     });
 
     test("returns judicial users", async ({ apiClient }) => {
-      const response = await apiClient.get("workallocation/task/judicialusers", { throwOnError: false });
+      const response = await apiClient.get(
+        "workallocation/task/judicialusers",
+        { throwOnError: false },
+      );
       expectStatus(response.status, StatusSets.guardedExtended);
       assertJudicialUsers(response);
     });
@@ -202,9 +306,12 @@ test.describe("Work allocation (write)", () => {
 
   test.describe("work baskets", () => {
     test("returns work-basket inputs", async ({ apiClient }) => {
-      const response = await apiClient.get("workallocation/work-basket-inputs", {
-        throwOnError: false
-      });
+      const response = await apiClient.get(
+        "workallocation/work-basket-inputs",
+        {
+          throwOnError: false,
+        },
+      );
       expectStatus(response.status, StatusSets.guardedExtended);
       assertWorkBasketInputs(response);
     });
@@ -212,31 +319,41 @@ test.describe("Work allocation (write)", () => {
 });
 
 test.describe("Work allocation (requires session)", () => {
-  test("unauthenticated task search returns guarded status", async ({ anonymousClient }) => {
+  test("unauthenticated task search returns guarded status", async ({
+    anonymousClient,
+  }) => {
     const response = await anonymousClient.post("workallocation/task", {
       data: buildTaskSearchRequest("MyTasks"),
-      throwOnError: false
+      throwOnError: false,
     });
     expectStatus(response.status, [401, 403]);
   });
 
   test("session creation with storage state", async ({ apiClient }) => {
     await ensureStorageState("solicitor");
-    const response = await apiClient.get("auth/isAuthenticated", { throwOnError: false });
+    const response = await apiClient.get("auth/isAuthenticated", {
+      throwOnError: false,
+    });
     expectStatus(response.status, [200, 401, 403]);
   });
 });
 
 function toArray<T>(value: unknown): T[] {
   if (Array.isArray(value)) return value;
-  if (typeof value === "object" && value !== null) return Object.values(value) as T[];
+  if (typeof value === "object" && value !== null)
+    return Object.values(value) as T[];
   return [];
 }
 
-function resolveWorkBasketInputs(value: unknown): Array<Record<string, unknown>> {
+function resolveWorkBasketInputs(
+  value: unknown,
+): Array<Record<string, unknown>> {
   if (Array.isArray(value)) return value as Array<Record<string, unknown>>;
   if (value && typeof value === "object") {
-    const typed = value as { workbasketInputs?: Array<Record<string, unknown>>; workBasketInputs?: Array<Record<string, unknown>> };
+    const typed = value as {
+      workbasketInputs?: Array<Record<string, unknown>>;
+      workBasketInputs?: Array<Record<string, unknown>>;
+    };
     if (Array.isArray(typed.workbasketInputs)) return typed.workbasketInputs;
     if (Array.isArray(typed.workBasketInputs)) return typed.workBasketInputs;
   }
@@ -257,9 +374,19 @@ function assertTypesOfWork(response: { status: number; data: unknown }): void {
   if (types.length > 0 && typeof types[0] === "object" && types[0] !== null) {
     expect(types[0]).toEqual(
       expect.objectContaining({
-        id: expect.any(String)
-      })
+        id: expect.any(String),
+      }),
     );
+  }
+}
+
+function assertGuardedCatalogueResponse(
+  response: { status: number; data: unknown },
+  assertCatalogueBody: (response: { status: number; data: unknown }) => void,
+): void {
+  expectStatus(response.status, StatusSets.guardedBasic);
+  if (response.status === 200) {
+    assertCatalogueBody(response);
   }
 }
 
@@ -273,25 +400,29 @@ async function assertMyTasks(apiClient: ApiClient): Promise<void> {
     userIds: [resolvedUserId],
     locations: toLocationList(cachedLocationId),
     states: ["assigned"],
-    searchBy: "caseworker"
+    searchBy: "caseworker",
   });
   const response = await withRetry(
     () =>
       apiClient.post<TaskListResponse>("workallocation/task", {
         data: body,
-        throwOnError: false
+        throwOnError: false,
       }),
     {
       retries: 1,
-      retryStatuses: [502, 504]
-    }
+      retryStatuses: [502, 504],
+    },
   );
 
   if (response.status !== 200) {
     return;
   }
   const parsed = expectTaskList(response.data);
-  if (Array.isArray(parsed.tasks) && parsed.tasks.length > 0 && typeof parsed.total_records === "number") {
+  if (
+    Array.isArray(parsed.tasks) &&
+    parsed.tasks.length > 0 &&
+    typeof parsed.total_records === "number"
+  ) {
     expect(parsed.total_records).toBeGreaterThanOrEqual(parsed.tasks.length);
   }
 }
@@ -300,18 +431,18 @@ async function assertAvailableTasks(apiClient: ApiClient): Promise<void> {
   const body = buildTaskSearchRequest("AvailableTasks", {
     locations: toLocationList(cachedLocationId),
     states: ["unassigned"],
-    searchBy: "caseworker"
+    searchBy: "caseworker",
   });
   const response = await withRetry(
     () =>
       apiClient.post<TaskListResponse>("workallocation/task", {
         data: body,
-        throwOnError: false
+        throwOnError: false,
       }),
     {
       retries: 1,
-      retryStatuses: [502, 504]
-    }
+      retryStatuses: [502, 504],
+    },
   );
   if (response.status === 200) {
     expectTaskList(response.data);
@@ -322,18 +453,18 @@ async function assertAllWork(apiClient: ApiClient): Promise<void> {
   const body = buildTaskSearchRequest("AllWork", {
     locations: toLocationList(cachedLocationId),
     states: ["assigned", "unassigned"],
-    searchBy: "caseworker"
+    searchBy: "caseworker",
   });
   const response = await withRetry(
     () =>
       apiClient.post<TaskListResponse>("workallocation/task", {
         data: body,
-        throwOnError: false
+        throwOnError: false,
       }),
     {
       retries: 1,
-      retryStatuses: [502, 504]
-    }
+      retryStatuses: [502, 504],
+    },
   );
   if (response.status !== 200) {
     expect(response.status).toBeGreaterThanOrEqual(400);
@@ -346,13 +477,13 @@ async function postTaskAction(
   apiClient: ApiClient,
   action: string,
   taskId: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
 ): Promise<{ status: number }> {
   const before = await fetchTaskById(apiClient, taskId);
   const res = await apiClient.post(`workallocation/task/${taskId}/${action}`, {
     data: {},
     headers,
-    throwOnError: false
+    throwOnError: false,
   });
 
   if (res.status === 200 || res.status === 204) {
@@ -370,13 +501,16 @@ function assertCaseworkers(response: { status: number; data: unknown }): void {
       expect.objectContaining({
         firstName: expect.any(String),
         lastName: expect.any(String),
-        idamId: expect.any(String)
-      })
+        idamId: expect.any(String),
+      }),
     );
   }
 }
 
-function assertJudicialUsers(response: { status: number; data: unknown }): void {
+function assertJudicialUsers(response: {
+  status: number;
+  data: unknown;
+}): void {
   const data = response.data as any;
   if (response.status === 200 && Array.isArray(data) && data.length > 0) {
     expect(data[0]).toEqual(
@@ -385,46 +519,69 @@ function assertJudicialUsers(response: { status: number; data: unknown }): void 
         firstName: expect.any(String),
         idamId: expect.any(String),
         surname: expect.any(String),
-        title: expect.any(String)
-      })
+        title: expect.any(String),
+      }),
     );
   }
 }
 
-function assertWorkBasketInputs(response: { status: number; data: unknown }): void {
+function assertWorkBasketInputs(response: {
+  status: number;
+  data: unknown;
+}): void {
   const inputs = resolveWorkBasketInputs(response.data);
   if (response.status === 200 && Array.isArray(inputs) && inputs.length > 0) {
     expect(inputs[0]).toEqual(
       expect.objectContaining({
         label: expect.any(String),
         field: expect.objectContaining({
-          id: expect.any(String)
-        })
-      })
+          id: expect.any(String),
+        }),
+      }),
     );
   }
 }
 
 function buildSampleIds() {
   const sampleTaskId = process.env.WA_SAMPLE_TASK_ID || WA_SAMPLE_TASK_ID;
-  const sampleAssignedTaskId = process.env.WA_SAMPLE_ASSIGNED_TASK_ID || WA_SAMPLE_ASSIGNED_TASK_ID;
-  const envCfg = testConfig.workallocation[testConfig.testEnv as keyof typeof testConfig.workallocation];
+  const sampleAssignedTaskId =
+    process.env.WA_SAMPLE_ASSIGNED_TASK_ID || WA_SAMPLE_ASSIGNED_TASK_ID;
+  const envCfg =
+    testConfig.workallocation[
+      testConfig.testEnv as keyof typeof testConfig.workallocation
+    ];
   const envTaskId = envCfg?.iaCaseIds?.[0] ?? sampleTaskId;
-  const envAssignedTaskId = (envCfg as any)?.assignedTaskId ?? sampleAssignedTaskId;
+  const envAssignedTaskId =
+    (envCfg as any)?.assignedTaskId ?? sampleAssignedTaskId;
   const sampleMyTaskId = (envCfg as any)?.myTaskId;
 
-  return { sampleTaskId, sampleAssignedTaskId, envTaskId, envAssignedTaskId, sampleMyTaskId };
+  return {
+    sampleTaskId,
+    sampleAssignedTaskId,
+    envTaskId,
+    envAssignedTaskId,
+    sampleMyTaskId,
+  };
 }
 
 function buildLocationIds() {
-  return testConfig.workallocation[testConfig.testEnv as keyof typeof testConfig.workallocation]?.locationId ?? process.env.WA_LOCATION_ID;
+  return (
+    testConfig.workallocation[
+      testConfig.testEnv as keyof typeof testConfig.workallocation
+    ]?.locationId ?? process.env.WA_LOCATION_ID
+  );
 }
 
-function resolveUserId(data?: { userInfo?: { uid?: string; id?: string } }): string | undefined {
+function resolveUserId(data?: {
+  userInfo?: { uid?: string; id?: string };
+}): string | undefined {
   return data?.userInfo?.id ?? data?.userInfo?.uid;
 }
 
-function resolveLocationId(status: number, data?: Array<{ id?: string }>): string | undefined {
+function resolveLocationId(
+  status: number,
+  data?: Array<{ id?: string }>,
+): string | undefined {
   if (status !== 200 || !Array.isArray(data) || data.length === 0) {
     return undefined;
   }
@@ -438,14 +595,21 @@ function toLocationList(locationId?: string): string[] {
 type TaskListResponse = ReturnType<typeof expectTaskList>;
 
 async function fetchTaskById(apiClient: any, id: string) {
-  const res = await apiClient.get(`workallocation/task/${id}`, { throwOnError: false });
+  const res = await apiClient.get(`workallocation/task/${id}`, {
+    throwOnError: false,
+  });
   if (res.status !== 200) return undefined;
   const data = res.data as any;
-  const task = typeof data === "object" && data !== null ? (data.task ?? data) : undefined;
+  const task =
+    typeof data === "object" && data !== null ? (data.task ?? data) : undefined;
   return { task };
 }
 
-function assertStateTransition(action: string, before?: Record<string, unknown>, after?: Record<string, unknown>) {
+function assertStateTransition(
+  action: string,
+  before?: Record<string, unknown>,
+  after?: Record<string, unknown>,
+) {
   if (!before || !after) return;
   if (before.id !== after.id) return;
 

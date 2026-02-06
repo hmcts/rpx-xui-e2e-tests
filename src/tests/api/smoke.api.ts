@@ -8,7 +8,7 @@ test.describe("@api @smoke", () => {
     const baseURL = resolveBaseUrl();
     const apiRequest = await request.newContext({
       baseURL,
-      ignoreHTTPSErrors: true
+      ignoreHTTPSErrors: true,
     });
 
     const response = await apiRequest.get("/health");
