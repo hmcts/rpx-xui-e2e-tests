@@ -1,0 +1,16 @@
+# CI-generated Yarn audit artifacts (not source files)
+transform-v4-to-v3-audit.cjs
+format-v4-audit.cjs
+yarn-audit-result-formatted
+yarn-audit-issues-result-summary
+yarn-audit-issues-advisories
+yarn-audit-known-issues
+
+# Local/runtime outputs
+node_modules
+coverage
+reports
+functional-output
+test-results
+playwright-report
+playwright-junit.xml
