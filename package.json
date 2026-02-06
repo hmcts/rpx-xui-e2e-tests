@@ -8,6 +8,8 @@
   },
   "packageManager": "yarn@4.12.0",
   "scripts": {
+    "prelint": "yarn install --immutable",
+    "lint:ci": "yarn install --immutable && yarn lint:prettier && yarn lint:src && yarn lint:api",
     "pwinstall": "yarn playwright install --with-deps",
     "setup": "yarn install --immutable && yarn get-secrets rpx-aat && yarn pwinstall && yarn playwright install webkit && yarn playwright install firefox",
     "get-secrets": "node ./node_modules/@hmcts/playwright-common/dist/scripts/get-secrets.js",

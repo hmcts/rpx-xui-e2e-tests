@@ -108,8 +108,7 @@ withNightlyPipeline(type, product, component, 400) {
 
   afterAlways('DependencyCheckNightly') {
     stage('Lint') {
-      yarnBuilder.yarn('install --immutable')
-      yarnBuilder.yarn('lint')
+      yarnBuilder.yarn('lint:ci')
     }
 
     stage('Install Playwright Browsers') {
