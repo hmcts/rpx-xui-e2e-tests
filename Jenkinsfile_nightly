@@ -107,6 +107,11 @@ withNightlyPipeline(type, product, component, 400) {
   enableSlackNotifications(channel)
 
   afterAlways('DependencyCheckNightly') {
+    stage('Lint') {
+      yarnBuilder.yarn('install --immutable')
+      yarnBuilder.yarn('lint')
+    }
+
     stage('Install Playwright Browsers') {
       yarnBuilder.yarn('pwinstall')
     }
