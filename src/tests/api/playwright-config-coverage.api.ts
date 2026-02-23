@@ -16,6 +16,8 @@ let configModule: TestableConfigModule;
 const buildConfig = (env: EnvMap) => configModule.__test__.buildConfig(env);
 const resolveWorkerCount = (env: EnvMap) =>
   configModule.__test__.resolveWorkerCount(env);
+const resolveRetryCount = (env: EnvMap) =>
+  configModule.__test__.resolveRetryCount(env);
 const resolveBranchName = (env: EnvMap) =>
   configModule.__test__.resolveBranchName(env);
 
@@ -74,6 +76,13 @@ test.describe("Playwright config coverage", () => {
     expect(defaultCount).toBeGreaterThanOrEqual(1);
   });
 
+  test("resolveRetryCount enforces minimum of 4 retries", () => {
+    expect(resolveRetryCount({ PLAYWRIGHT_RETRIES: "1" })).toBe(4);
+    expect(resolveRetryCount({ PLAYWRIGHT_RETRIES: "4" })).toBe(4);
+    expect(resolveRetryCount({ PLAYWRIGHT_RETRIES: "7" })).toBe(7);
+    expect(resolveRetryCount({ PLAYWRIGHT_RETRIES: undefined })).toBe(4);
+  });
+
   test("resolveConfigModule prefers __test__ and default exports", () => {
     const withTest = resolveConfigModule({
       __test__: {
@@ -121,7 +130,7 @@ test.describe("Playwright config coverage", () => {
       (project) => project.name === "api",
     );
     expect(apiProject).toBeDefined();
-    expect(apiProject?.retries).toBe(1);
+    expect(apiProject?.retries).toBe(4);
   });
 
   test("config allows PLAYWRIGHT_VIDEO override for UI and integration projects", () => {

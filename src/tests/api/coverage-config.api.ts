@@ -10,14 +10,14 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("Configuration resolution coverage", () => {
   test("api config helpers resolve env values", () => {
-    expect(apiConfigTest.resolveBaseUrl(undefined)).toBe(
+    expect(apiConfigTest.resolveBaseUrl()).toBe(
       "https://manage-case.aat.platform.hmcts.net/",
     );
     expect(apiConfigTest.resolveBaseUrl("https://example.test")).toBe(
       "https://example.test/",
     );
 
-    expect(apiConfigTest.resolveTestEnv(undefined)).toBe("aat");
+    expect(apiConfigTest.resolveTestEnv()).toBe("aat");
     expect(apiConfigTest.resolveTestEnv("demo")).toBe("demo");
     expect(apiConfigTest.resolveTestEnv("aat")).toBe("aat");
     expect(apiConfigTest.resolveTestEnv("prod")).toBe("aat");

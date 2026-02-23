@@ -307,7 +307,7 @@ export class CaseDetailsPage extends Base {
         state: "visible",
         timeout: TABLE_VISIBLE_TIMEOUT_MS,
       });
-      return tableUtils.mapExuiTable(documentsTable);
+      return tableUtils.parseDataTable(documentsTable);
     }
 
     const fallbackTable = this.caseDocumentsTable.first();
@@ -315,54 +315,16 @@ export class CaseDetailsPage extends Base {
       state: "visible",
       timeout: TABLE_VISIBLE_TIMEOUT_MS,
     });
-    return tableUtils.mapExuiTable(fallbackTable);
+    return tableUtils.parseDataTable(fallbackTable);
   }
 
   async trRowsToObjectInPage(
     selector: string | Locator,
   ): Promise<Record<string, string>> {
-    const fn = (rows: Element[]) => {
-      const sanitize = (text: string) =>
-        text.replace(/[▲▼⇧⇩⯅⯆]\s*$/g, "").trim();
-      const output: Record<string, string> = {};
-
-      for (const row of rows) {
-        if (row instanceof HTMLElement && row.hidden) {
-          continue;
-        }
-        const style = window.getComputedStyle(row);
-        if (style.display === "none" || style.visibility === "hidden") {
-          continue;
-        }
-        if (row.getClientRects().length === 0) {
-          continue;
-        }
-
-        const cells = Array.from(row.querySelectorAll("th, td"));
-        if (cells.length < 2) {
-          continue;
-        }
-
-        const key = sanitize(cells[0].textContent || cells[0].innerText || "");
-        if (!key) {
-          continue;
-        }
-
-        const value = cells
-          .slice(1)
-          .map((cell) => sanitize(cell.textContent || cell.innerText || ""))
-          .filter(Boolean)
-          .join(" ")
-          .replace(/\s+/g, " ")
-          .trim();
-
-        output[key] = value;
-      }
-
-      return output;
-    };
-
-    return this.runOnRows(selector, fn);
+    return tableUtils.parseKeyValueTable(
+      selector,
+      typeof selector === "string" ? this.page : undefined,
+    );
   }
 
   async mapHistoryTable(): Promise<Record<string, string>[]> {
@@ -370,24 +332,7 @@ export class CaseDetailsPage extends Base {
       throw new Error("History table not found on page");
     }
 
-    const headers = (
-      await this.historyTable.locator("thead tr th").allInnerTexts()
-    ).map((header) => header.replace(/\t.*/g, ""));
-
-    const rows = this.historyTable.locator("tbody tr");
-    const rowCount = await rows.count();
-    const data: Record<string, string>[] = [];
-
-    for (let i = 0; i < rowCount; i++) {
-      const cells = await rows.nth(i).locator("th, td").allInnerTexts();
-      const row: Record<string, string> = {};
-      for (let j = 0; j < headers.length; j++) {
-        row[headers[j]] = cells[j] ?? "";
-      }
-      data.push(row);
-    }
-
-    return data;
+    return tableUtils.parseDataTable(this.historyTable);
   }
 
   async getUpdateCaseHistoryInfo(): Promise<{
@@ -403,22 +348,6 @@ export class CaseDetailsPage extends Base {
     const expectedDate = await this.todaysDateFormatted();
 
     return { updateRow, updateDate, updateAuthor, expectedDate };
-  }
-
-  private async runOnRows<T>(
-    selector: string | Locator,
-    fn: (rows: Element[]) => T,
-  ): Promise<T> {
-    if (typeof selector === "string") {
-      if (!/^[a-zA-Z0-9._#[\]="'\s:>+~-]+$/.test(selector)) {
-        throw new Error(
-          "Invalid CSS selector: contains potentially unsafe characters",
-        );
-      }
-      return this.page.locator(`${selector} tr`).evaluateAll(fn);
-    }
-
-    return selector.locator("tr").evaluateAll(fn);
   }
 
   private async waitForSpinnerToComplete(

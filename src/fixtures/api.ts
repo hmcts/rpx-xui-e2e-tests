@@ -69,7 +69,8 @@ export const test = base.extend<ApiFixtures>({
     });
     await use(logger);
   },
-  apiLogs: async ({ logger }, use, testInfo) => {
+  apiLogs: async ({ request, logger }, use, testInfo) => {
+    const requestContext = request.constructor?.name ?? "unknown";
     const entries: ApiLogEntry[] = [];
     await use(entries);
 
@@ -137,17 +138,30 @@ export const test = base.extend<ApiFixtures>({
           url: entry.url,
         })),
       slowThresholdMs: apiSlowThresholdMs,
+      testStatus: testInfo.status,
+      setupMarker: "api-fixture",
+      executionSignals: {
+        totalRequestsObserved: entries.length,
+        backendRequestsObserved: entries.length,
+      },
     });
 
     logger.error("api:failure-diagnosis", {
       testTitle: testInfo.title,
+      requestContext,
       failureType: diagnosis.failureType,
+      phaseMarker: diagnosis.phaseMarker,
+      backendWait: diagnosis.backendWait,
+      likelyRootCause: diagnosis.likelyRootCause,
+      topSuspect: diagnosis.topSuspect,
       apiErrors: diagnosis.apiErrors.length,
       serverErrors: diagnosis.serverErrors.length,
       clientErrors: diagnosis.clientErrors.length,
       slowCalls: diagnosis.slowCalls.length,
       networkFailures: diagnosis.networkFailures.length,
       networkTimeout: diagnosis.networkTimeout,
+      timeoutSuspects: diagnosis.timeoutSuspects.slice(0, 2),
+      slowEndpointSummary: diagnosis.slowEndpointSummary.slice(0, 2),
     });
 
     await attachFailureDiagnosis(testInfo, diagnosis);

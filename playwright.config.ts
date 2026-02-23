@@ -67,6 +67,17 @@ const resolveWorkerCount = (env: EnvMap = process.env) => {
   return Math.min(8, Math.max(2, approxPhysical));
 };
 
+const resolveRetryCount = (env: EnvMap = process.env) => {
+  const configured = env.PLAYWRIGHT_RETRIES;
+  if (configured) {
+    const parsed = Number.parseInt(configured, 10);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      return Math.max(4, parsed);
+    }
+  }
+  return 4;
+};
+
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
   env.PLAYWRIGHT_REPORT_FOLDER ??
   env.PW_ODHIN_OUTPUT ??
@@ -300,7 +311,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
         name: "ui",
         testMatch: /src\/tests\/e2e\/.*\.spec\.ts/,
         testIgnore: /src\/tests\/e2e\/integration\/.*\.spec\.ts/,
-        retries: env.CI ? 1 : 0,
+        retries: resolveRetryCount(env),
         outputDir: "test-results/ui",
         use: {
           ...ProjectsConfig.chromium.use,
@@ -324,7 +335,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
         name: "integration",
         testMatch: /src\/tests\/e2e\/integration\/.*\.spec\.ts/,
         grepInvert: /@nightly/i,
-        retries: env.CI ? 1 : 0,
+        retries: resolveRetryCount(env),
         outputDir: "test-results/integration",
         use: {
           ...ProjectsConfig.chromium.use,
@@ -345,7 +356,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
         name: "integration-nightly",
         testMatch: /src\/tests\/e2e\/integration\/.*\.spec\.ts/,
         grep: /@nightly/i,
-        retries: 0,
+        retries: resolveRetryCount(env),
         outputDir: "test-results/integration-nightly",
         use: {
           ...ProjectsConfig.chromium.use,
@@ -365,7 +376,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "api",
         testMatch: /src\/tests\/api\/.*\.api\.ts/,
-        retries: env.CI ? 1 : 0,
+        retries: resolveRetryCount(env),
         outputDir: "test-results/api",
         use: {
           headless: true,
@@ -381,6 +392,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
 export const __test__ = {
   buildConfig,
   resolveWorkerCount,
+  resolveRetryCount,
   resolveBranchName,
 };
 

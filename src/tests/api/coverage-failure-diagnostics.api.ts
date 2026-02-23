@@ -85,6 +85,18 @@ test.describe("Failure diagnosis utility coverage", () => {
 
     expect(
       failureDiagnosisTest.classifyFailureType({
+        errorMessage: "Test timeout of 30000ms exceeded",
+        serverErrors: [],
+        clientErrors: [],
+        slowCalls: [],
+        networkFailures: [],
+        testStatus: "timedOut",
+        executionSignals: { backendRequestsObserved: 0 },
+      }),
+    ).toBe("TIMEOUT_NO_API_ACTIVITY");
+
+    expect(
+      failureDiagnosisTest.classifyFailureType({
         errorMessage: "waiting for locator('.govuk-button')",
         serverErrors: [],
         clientErrors: [],
@@ -119,6 +131,12 @@ test.describe("Failure diagnosis utility coverage", () => {
       testTitle: "example failure",
       errorMessage:
         "Timeout calling https://example.test/api/cases?token=secret",
+      testStatus: "timedOut",
+      setupMarker: "api-fixture",
+      executionSignals: {
+        totalRequestsObserved: 5,
+        backendRequestsObserved: 3,
+      },
       apiErrors: [
         {
           method: "get",
@@ -147,12 +165,21 @@ test.describe("Failure diagnosis utility coverage", () => {
     expect(diagnosis.annotations.map((annotation) => annotation.type)).toEqual(
       expect.arrayContaining([
         "Failure type",
+        "Phase marker",
+        "Backend wait",
+        "Likely root cause",
+        "Top suspect",
         "API errors",
         "Slow calls",
         "Network failures",
+        "Timeout suspects",
       ]),
     );
     expect(diagnosis.text).toContain("Failure type: DOWNSTREAM_API_5XX");
+    expect(diagnosis.text).toContain("Likely root cause:");
+    expect(diagnosis.phaseMarker).toBe("backend-5xx");
+    expect(diagnosis.backendWait).toBe("yes");
+    expect(diagnosis.topSuspect.length).toBeGreaterThan(0);
     expect(JSON.stringify(diagnosis.data)).not.toContain("token=secret");
     expect(JSON.stringify(diagnosis.data)).toContain("/cases/[REDACTED]");
   });

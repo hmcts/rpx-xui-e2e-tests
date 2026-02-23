@@ -165,20 +165,31 @@ test.describe("Document upload V1", () => {
       await caseDetailsPage.selectCaseDetailsTab("Documents");
       await caseDetailsPage.caseActionGoButton.waitFor({ state: "visible" });
 
-      const table = await caseDetailsPage.getDocumentsList();
-      expect(
-        table.length,
-        "Documents table should contain at least 1 row",
-      ).toBeGreaterThan(0);
-      expect(table[0]).toMatchObject({
-        Number: "1",
-        Document: testFileName,
-        "Document Category": "Misc",
-        "Type of Document": "Other",
-      });
+      await expect
+        .poll(
+          async () => {
+            const table = await caseDetailsPage.getDocumentsList();
+            return (
+              table.find(
+                (row: Record<string, string>) => row.Document === testFileName,
+              ) ?? null
+            );
+          },
+          {
+            timeout: 20_000,
+            message:
+              "Uploaded document row should be visible in the Documents tab table",
+          },
+        )
+        .toMatchObject({
+          Number: "1",
+          Document: testFileName,
+          "Document Category": "Misc",
+          "Type of Document": "Other",
+        });
 
       const documentsTable = caseDetailsPage.caseDocumentsTable.first();
-      const parsedRows = await tableUtils.mapExuiTable(documentsTable);
+      const parsedRows = await tableUtils.parseDataTable(documentsTable);
       const hasUploadedDocument = parsedRows.some(
         (row: Record<string, string>) => row.Document === testFileName,
       );

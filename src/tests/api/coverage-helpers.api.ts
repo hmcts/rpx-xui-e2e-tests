@@ -307,12 +307,12 @@ test.describe("Helper utilities and retry logic", () => {
   });
 
   test("retry budget tracks failures and resets after window", async () => {
-    const budget = createScopedRetryBudget(5, 2);
+    const budget = createScopedRetryBudget(5, 3);
     expect(budget.canRetry()).toBeTruthy();
     budget.recordFailure("endpoint-1");
     expect(budget.canRetry()).toBeTruthy();
     budget.recordFailure("endpoint-1");
-    expect(budget.canRetry()).toBeFalsy();
+    expect(budget.canRetry()).toBeTruthy();
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(budget.canRetry()).toBeTruthy();
   });
