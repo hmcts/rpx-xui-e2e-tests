@@ -4975,7 +4975,7 @@ __metadata:
     typescript: "npm:^5.1.6"
     xhr2: "npm:^0.2.1"
     xmlhttprequest: "npm:^1.8.0"
-  checksum: 10c0/be2182f771de1b4ccb1b6dd3ec99e5c3242f93c23f2a034233c158b4c137265d03e5a98a9b22e8381dc591ab278917e5dd0a7f5480b8ff75d125babdcc4dcedf
+  checksum: 10c0/f67f42f3db919816c0cc7938dbe5c329e57b54e8cca4a08acfe26102ac158dcc31872df6f6fffb73b9f5a49f2c94cc1f46c87e641aff53a43a3d7df717235fc0
   languageName: node
   linkType: hard
 
