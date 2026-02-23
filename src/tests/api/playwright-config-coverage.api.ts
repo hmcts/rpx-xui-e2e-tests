@@ -27,7 +27,10 @@ type ConfigShape = {
   projects?: Array<{
     name?: string;
     retries?: number;
-    use?: { launchOptions?: { executablePath?: string } };
+    use?: {
+      video?: string;
+      launchOptions?: { executablePath?: string };
+    };
   }>;
 };
 
@@ -119,6 +122,18 @@ test.describe("Playwright config coverage", () => {
     );
     expect(apiProject).toBeDefined();
     expect(apiProject?.retries).toBe(1);
+  });
+
+  test("config allows PLAYWRIGHT_VIDEO override for UI and integration projects", () => {
+    const config = buildConfig({
+      PLAYWRIGHT_VIDEO: "off",
+    });
+    const shape = config as ConfigShape;
+    expect(getProjectByName(shape, "ui")?.use?.video).toBe("off");
+    expect(getProjectByName(shape, "integration")?.use?.video).toBe("off");
+    expect(getProjectByName(shape, "integration-nightly")?.use?.video).toBe(
+      "off",
+    );
   });
 
   test("config defaults to local reporter values", () => {

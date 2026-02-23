@@ -15,73 +15,265 @@ const testEnv = resolveTestEnv(process.env.TEST_ENV);
 
 type EnvUser = { e?: string; sec?: string };
 
-const pick = (...vars: Array<string | undefined>) =>
-  vars.find((v) => v && v.trim().length > 0);
+type EnvCredentialPair = { username?: string; password?: string };
+
+const hasText = (value?: string): value is string =>
+  Boolean(value && value.trim().length > 0);
+
+const pickCredentials = (...pairs: EnvCredentialPair[]): EnvUser => {
+  for (const pair of pairs) {
+    if (hasText(pair.username) && hasText(pair.password)) {
+      return { e: pair.username, sec: pair.password };
+    }
+  }
+
+  // Keep partial values visible in logs when only one side is configured.
+  const fallbackUsername = pairs.map((pair) => pair.username).find(hasText);
+  const fallbackPassword = pairs.map((pair) => pair.password).find(hasText);
+
+  return { e: fallbackUsername, sec: fallbackPassword };
+};
 
 const envUsers: Record<"aat" | "demo", Record<string, EnvUser>> = {
   aat: {
-    solicitor: {
-      e: pick(
-        process.env.SOLICITOR_USERNAME,
-        process.env.PRL_SOLICITOR_USERNAME,
-      ),
-      sec: pick(
-        process.env.SOLICITOR_PASSWORD,
-        process.env.PRL_SOLICITOR_PASSWORD,
-      ),
-    },
-    caseOfficer_r1: {
-      e: pick(
-        process.env.CASEOFFICER_R1_USERNAME,
-        process.env.CASEWORKER_R1_USERNAME,
-      ),
-      sec: pick(
-        process.env.CASEOFFICER_R1_PASSWORD,
-        process.env.CASEWORKER_R1_PASSWORD,
-      ),
-    },
-    caseOfficer_r2: {
-      e: pick(
-        process.env.CASEOFFICER_R2_USERNAME,
-        process.env.CASEWORKER_R2_USERNAME,
-      ),
-      sec: pick(
-        process.env.CASEOFFICER_R2_PASSWORD,
-        process.env.CASEWORKER_R2_PASSWORD,
-      ),
-    },
+    solicitor: pickCredentials(
+      {
+        username: process.env.SOLICITOR_USERNAME,
+        password: process.env.SOLICITOR_PASSWORD,
+      },
+      {
+        username: process.env.PRL_SOLICITOR_USERNAME,
+        password: process.env.PRL_SOLICITOR_PASSWORD,
+      },
+      {
+        username: process.env.TEST_EMAIL,
+        password: process.env.TEST_PASSWORD,
+      },
+      {
+        username: process.env.SYSTEM_USER_NAME,
+        password: process.env.SYSTEM_USER_PASSWORD,
+      },
+      {
+        username: process.env.COURT_ADMIN_USERNAME,
+        password: process.env.COURT_ADMIN_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R1_USERNAME,
+        password: process.env.CASEWORKER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEOFFICER_R1_USERNAME,
+        password: process.env.CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_GLOBALSEARCH_USERNAME,
+        password: process.env.CASEWORKER_GLOBALSEARCH_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R1_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R2_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.STAFF_ADMIN_USERNAME,
+        password: process.env.STAFF_ADMIN_PASSWORD,
+      },
+      {
+        username: process.env.PROD_LIKE_USERNAME,
+        password: process.env.PROD_LIKE_PASSWORD,
+      },
+    ),
+    caseOfficer_r1: pickCredentials(
+      {
+        username: process.env.CASEOFFICER_R1_USERNAME,
+        password: process.env.CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R1_USERNAME,
+        password: process.env.CASEWORKER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEOFFICER_R2_USERNAME,
+        password: process.env.CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R2_USERNAME,
+        password: process.env.CASEWORKER_R2_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R1_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R2_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.SYSTEM_USER_NAME,
+        password: process.env.SYSTEM_USER_PASSWORD,
+      },
+      {
+        username: process.env.COURT_ADMIN_USERNAME,
+        password: process.env.COURT_ADMIN_PASSWORD,
+      },
+    ),
+    caseOfficer_r2: pickCredentials(
+      {
+        username: process.env.CASEOFFICER_R2_USERNAME,
+        password: process.env.CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R2_USERNAME,
+        password: process.env.CASEWORKER_R2_PASSWORD,
+      },
+      {
+        username: process.env.CASEOFFICER_R1_USERNAME,
+        password: process.env.CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R1_USERNAME,
+        password: process.env.CASEWORKER_R1_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R2_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R1_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.SYSTEM_USER_NAME,
+        password: process.env.SYSTEM_USER_PASSWORD,
+      },
+      {
+        username: process.env.COURT_ADMIN_USERNAME,
+        password: process.env.COURT_ADMIN_PASSWORD,
+      },
+    ),
   },
   demo: {
-    solicitor: {
-      e: pick(
-        process.env.SOLICITOR_USERNAME,
-        process.env.PRL_SOLICITOR_USERNAME,
-      ),
-      sec: pick(
-        process.env.SOLICITOR_PASSWORD,
-        process.env.PRL_SOLICITOR_PASSWORD,
-      ),
-    },
-    caseOfficer_r1: {
-      e: pick(
-        process.env.CASEOFFICER_R1_USERNAME,
-        process.env.CASEWORKER_R1_USERNAME,
-      ),
-      sec: pick(
-        process.env.CASEOFFICER_R1_PASSWORD,
-        process.env.CASEWORKER_R1_PASSWORD,
-      ),
-    },
-    caseOfficer_r2: {
-      e: pick(
-        process.env.CASEOFFICER_R2_USERNAME,
-        process.env.CASEWORKER_R2_USERNAME,
-      ),
-      sec: pick(
-        process.env.CASEOFFICER_R2_PASSWORD,
-        process.env.CASEWORKER_R2_PASSWORD,
-      ),
-    },
+    solicitor: pickCredentials(
+      {
+        username: process.env.SOLICITOR_USERNAME,
+        password: process.env.SOLICITOR_PASSWORD,
+      },
+      {
+        username: process.env.PRL_SOLICITOR_USERNAME,
+        password: process.env.PRL_SOLICITOR_PASSWORD,
+      },
+      {
+        username: process.env.TEST_EMAIL,
+        password: process.env.TEST_PASSWORD,
+      },
+      {
+        username: process.env.SYSTEM_USER_NAME,
+        password: process.env.SYSTEM_USER_PASSWORD,
+      },
+      {
+        username: process.env.COURT_ADMIN_USERNAME,
+        password: process.env.COURT_ADMIN_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R1_USERNAME,
+        password: process.env.CASEWORKER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEOFFICER_R1_USERNAME,
+        password: process.env.CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_GLOBALSEARCH_USERNAME,
+        password: process.env.CASEWORKER_GLOBALSEARCH_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R1_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R2_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.STAFF_ADMIN_USERNAME,
+        password: process.env.STAFF_ADMIN_PASSWORD,
+      },
+      {
+        username: process.env.PROD_LIKE_USERNAME,
+        password: process.env.PROD_LIKE_PASSWORD,
+      },
+    ),
+    caseOfficer_r1: pickCredentials(
+      {
+        username: process.env.CASEOFFICER_R1_USERNAME,
+        password: process.env.CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R1_USERNAME,
+        password: process.env.CASEWORKER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEOFFICER_R2_USERNAME,
+        password: process.env.CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R2_USERNAME,
+        password: process.env.CASEWORKER_R2_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R1_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R2_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.SYSTEM_USER_NAME,
+        password: process.env.SYSTEM_USER_PASSWORD,
+      },
+      {
+        username: process.env.COURT_ADMIN_USERNAME,
+        password: process.env.COURT_ADMIN_PASSWORD,
+      },
+    ),
+    caseOfficer_r2: pickCredentials(
+      {
+        username: process.env.CASEOFFICER_R2_USERNAME,
+        password: process.env.CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R2_USERNAME,
+        password: process.env.CASEWORKER_R2_PASSWORD,
+      },
+      {
+        username: process.env.CASEOFFICER_R1_USERNAME,
+        password: process.env.CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.CASEWORKER_R1_USERNAME,
+        password: process.env.CASEWORKER_R1_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R2_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R2_PASSWORD,
+      },
+      {
+        username: process.env.IAC_CASEOFFICER_R1_USERNAME,
+        password: process.env.IAC_CASEOFFICER_R1_PASSWORD,
+      },
+      {
+        username: process.env.SYSTEM_USER_NAME,
+        password: process.env.SYSTEM_USER_PASSWORD,
+      },
+      {
+        username: process.env.COURT_ADMIN_USERNAME,
+        password: process.env.COURT_ADMIN_PASSWORD,
+      },
+    ),
   },
 };
 
@@ -187,4 +379,5 @@ export type ApiTestConfig = typeof config;
 export const __test__ = {
   resolveBaseUrl,
   resolveTestEnv,
+  pickCredentials,
 };

@@ -47,6 +47,14 @@ def secrets = [
   "rpx-${params.TEST_ENV}": [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
     secret('mc-idam-client-secret', 'IDAM_SECRET'),
+    secret('webapp-redis6-connection-string', 'REDISCLOUD_URL'),
+    secret('test-email', 'TEST_EMAIL'),
+    secret('test-password', 'TEST_PASSWORD'),
+    secret('appinsights-instrumentationkey-mc', 'APPINSIGHTS_INSTRUMENTATIONKEY'),
+    secret('appinsights-connection-string-mc', 'APPINSIGHTS_CONNECTION_STRING'),
+    secret('system-user-name', 'SYSTEM_USER_NAME'),
+    secret('system-user-password', 'SYSTEM_USER_PASSWORD'),
+    secret('launch-darkly-client-id', 'LAUNCH_DARKLY_CLIENT_ID'),
     secret('idam-web-url', 'IDAM_WEB_URL'),
     secret('idam-testing-support-url', 'IDAM_TESTING_SUPPORT_URL'),
     secret('idam-testing-support-users-url', 'IDAM_TESTING_SUPPORT_USERS_URL'),
@@ -148,6 +156,35 @@ def secrets = [
 ]
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+def testVaultName = "rpx-${params.TEST_ENV}"
+def runtimeTestSecrets = secrets[testVaultName] ?: []
+
+def withTestVaultSecrets = { Closure body ->
+  if (runtimeTestSecrets.isEmpty()) {
+    error("No runtime test secrets configured for vault ${testVaultName}. Check TEST_ENV and Jenkins secret map.")
+  }
+  withAzureKeyvault(
+    azureKeyVaultSecrets: runtimeTestSecrets,
+    keyVaultURLOverride: "https://${testVaultName}.vault.azure.net/",
+    applicationIDOverride: env.AZURE_CLIENT_ID,
+    applicationSecretOverride: env.AZURE_CLIENT_SECRET
+  ) {
+    body.call()
+  }
+}
+
+def logCredentialPresence = {
+  sh(
+    label: 'Credential preflight',
+    script: '''
+      set +x
+      present() { [ -n "${!1:-}" ] && echo yes || echo no; }
+      echo "Credential preflight: SOLICITOR_USERNAME=$(present SOLICITOR_USERNAME) PRL_SOLICITOR_USERNAME=$(present PRL_SOLICITOR_USERNAME) CASEWORKER_R1_USERNAME=$(present CASEWORKER_R1_USERNAME) COURT_ADMIN_USERNAME=$(present COURT_ADMIN_USERNAME) TEST_EMAIL=$(present TEST_EMAIL)"
+      echo "Credential preflight: SOLICITOR_PASSWORD=$(present SOLICITOR_PASSWORD) PRL_SOLICITOR_PASSWORD=$(present PRL_SOLICITOR_PASSWORD) CASEWORKER_R1_PASSWORD=$(present CASEWORKER_R1_PASSWORD) COURT_ADMIN_PASSWORD=$(present COURT_ADMIN_PASSWORD) TEST_PASSWORD=$(present TEST_PASSWORD)"
+      echo "Credential preflight: FPL_GLOBAL_SEARCH_USERNAME=$(present FPL_GLOBAL_SEARCH_USERNAME) FPL_GLOBAL_SEARCH_PASSWORD=$(present FPL_GLOBAL_SEARCH_PASSWORD) SEARCH_EMPLOYMENT_CASE_USERNAME=$(present SEARCH_EMPLOYMENT_CASE_USERNAME) SEARCH_EMPLOYMENT_CASE_PASSWORD=$(present SEARCH_EMPLOYMENT_CASE_PASSWORD) USER_WITH_FLAGS_USERNAME=$(present USER_WITH_FLAGS_USERNAME) USER_WITH_FLAGS_PASSWORD=$(present USER_WITH_FLAGS_PASSWORD)"
+    '''
+  )
+}
 
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
@@ -172,12 +209,16 @@ withNightlyPipeline(type, product, component, 400) {
         'API nightly': {
           def apiOdhinEnv = [
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
+            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+            'PW_ODHIN_INDEX=playwright-odhin-api.html'
           ]
           try {
             def tagArg = params.tag ? "--grep \"${params.tag}\"" : ""
-            withEnv(apiOdhinEnv) {
-              yarnBuilder.yarn("test:api:pw ${tagArg}")
+            withTestVaultSecrets {
+              logCredentialPresence()
+              withEnv(apiOdhinEnv) {
+                yarnBuilder.yarn("test:api:pw ${tagArg}")
+              }
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -187,8 +228,8 @@ withNightlyPipeline(type, product, component, 400) {
               alwaysLinkToLastBuild: true,
               keepAll              : true,
               reportDir            : "functional-output/tests/api_functional/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'API nightly report (Odhín)'
+              reportFiles          : 'playwright-odhin-api.html',
+              reportName           : 'Odhín nightly report-api'
             ])
             junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
@@ -198,7 +239,9 @@ withNightlyPipeline(type, product, component, 400) {
           def uiOdhinEnv = [
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+            'PW_ODHIN_INDEX=playwright-odhin-e2e.html',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PLAYWRIGHT_VIDEO=off',
             'PW_UI_USERS=COURT_ADMIN',
             'PW_UI_STORAGE_STRICT=1',
             'PW_UI_STORAGE=1',
@@ -211,8 +254,11 @@ withNightlyPipeline(type, product, component, 400) {
           ]
           try {
             def tagArg = params.tag ? "--grep \"${params.tag}\"" : ""
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn("test:playwrightE2E ${tagArg}")
+            withTestVaultSecrets {
+              logCredentialPresence()
+              withEnv(uiOdhinEnv) {
+                yarnBuilder.yarn("test:playwrightE2E ${tagArg}")
+              }
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -225,8 +271,8 @@ withNightlyPipeline(type, product, component, 400) {
               alwaysLinkToLastBuild: true,
               keepAll              : true,
               reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'UI nightly report (Odhín)'
+              reportFiles          : 'playwright-odhin-e2e.html',
+              reportName           : 'Odhín nightly report-e2e'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
           }
@@ -235,14 +281,19 @@ withNightlyPipeline(type, product, component, 400) {
           def integrationOdhinEnv = [
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-integration/odhin-report',
+            'PW_ODHIN_INDEX=playwright-odhin-integration.html',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PLAYWRIGHT_VIDEO=off',
             'PW_UI_FAIL_ON_HTTP_ERRORS=0',
             'PW_UI_FAIL_ON_HTTP_4XX=0'
           ]
           try {
             def tagArg = params.tag ? "--grep \"${params.tag}\"" : ""
-            withEnv(integrationOdhinEnv) {
-              yarnBuilder.yarn("test:playwright:integration ${tagArg}")
+            withTestVaultSecrets {
+              logCredentialPresence()
+              withEnv(integrationOdhinEnv) {
+                yarnBuilder.yarn("test:playwright:integration ${tagArg}")
+              }
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -255,8 +306,8 @@ withNightlyPipeline(type, product, component, 400) {
               alwaysLinkToLastBuild: true,
               keepAll              : true,
               reportDir            : "functional-output/tests/playwright-integration/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'Integration nightly report (Odhín)'
+              reportFiles          : 'playwright-odhin-integration.html',
+              reportName           : 'Odhín nightly report-integration'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
           }

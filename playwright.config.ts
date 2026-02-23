@@ -221,6 +221,28 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
   return reporters;
 };
 
+type PlaywrightVideoMode =
+  | "off"
+  | "on"
+  | "retain-on-failure"
+  | "on-first-retry";
+
+const resolveVideoMode = (
+  env: EnvMap = process.env,
+  fallback: PlaywrightVideoMode = "retain-on-failure",
+): PlaywrightVideoMode => {
+  const configured = env.PLAYWRIGHT_VIDEO?.trim().toLowerCase();
+  if (
+    configured === "off" ||
+    configured === "on" ||
+    configured === "retain-on-failure" ||
+    configured === "on-first-retry"
+  ) {
+    return configured;
+  }
+  return fallback;
+};
+
 const resolveChromiumExecutablePath = (
   env: EnvMap = process.env,
 ): string | undefined => {
@@ -287,7 +309,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: true,
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: resolveVideoMode(env),
           storageState: shouldUseUiStorage()
             ? resolveUiStoragePath()
             : undefined,
@@ -311,7 +333,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: true,
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: resolveVideoMode(env),
           launchOptions: chromiumExecutablePath
             ? {
                 executablePath: chromiumExecutablePath,
@@ -332,7 +354,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: true,
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: resolveVideoMode(env),
           launchOptions: chromiumExecutablePath
             ? {
                 executablePath: chromiumExecutablePath,

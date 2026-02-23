@@ -21,6 +21,26 @@ test.describe("Configuration resolution coverage", () => {
     expect(apiConfigTest.resolveTestEnv("demo")).toBe("demo");
     expect(apiConfigTest.resolveTestEnv("aat")).toBe("aat");
     expect(apiConfigTest.resolveTestEnv("prod")).toBe("aat");
+
+    expect(
+      apiConfigTest.pickCredentials(
+        { username: "", password: "" },
+        { username: "fallback.user@example.com", password: "fallback-pass" },
+      ),
+    ).toEqual({
+      e: "fallback.user@example.com",
+      sec: "fallback-pass",
+    });
+
+    expect(
+      apiConfigTest.pickCredentials(
+        { username: "partial.user@example.com" },
+        { password: "partial-pass" },
+      ),
+    ).toEqual({
+      e: "partial.user@example.com",
+      sec: "partial-pass",
+    });
   });
 
   test("ui config helpers resolve env values", async () => {
