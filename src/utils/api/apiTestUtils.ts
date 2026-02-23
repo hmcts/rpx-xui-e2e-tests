@@ -94,7 +94,12 @@ export async function withRequiredXsrf<T>(
 
 export async function withRetry<T extends { status: number }>(
   fn: () => Promise<T>,
-  opts: { retries?: number; retryStatuses?: number[] } = {},
+  opts: {
+    retries?: number;
+    retryStatuses?: number[];
+    maxElapsedMs?: number;
+    requestTimeoutMs?: number;
+  } = {},
 ): Promise<T> {
   const retries = opts.retries ?? 1;
   if (retries < 0) {
@@ -102,6 +107,13 @@ export async function withRetry<T extends { status: number }>(
   }
   const retryStatuses = opts.retryStatuses ?? [502, 504];
   const attempts = Math.max(1, retries + 1);
+  const requestTimeoutMs = opts.requestTimeoutMs ?? 30_000;
+  const derivedMaxElapsedMs = Math.max(
+    DEFAULT_RETRY_MAX_ELAPSED_MS,
+    requestTimeoutMs * attempts +
+      DEFAULT_RETRY_BASE_MS * Math.max(0, attempts - 1),
+  );
+  const maxElapsedMs = opts.maxElapsedMs ?? derivedMaxElapsedMs;
   let lastResponse: T | undefined;
 
   const parseRetryAfterMs = (
@@ -155,7 +167,7 @@ export async function withRetry<T extends { status: number }>(
       attempts,
       DEFAULT_RETRY_BASE_MS,
       DEFAULT_RETRY_MAX_MS,
-      DEFAULT_RETRY_MAX_ELAPSED_MS,
+      maxElapsedMs,
       shouldRetry,
     );
   } catch (error) {

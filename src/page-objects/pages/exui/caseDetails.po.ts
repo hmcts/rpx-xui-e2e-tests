@@ -21,6 +21,16 @@ export class CaseDetailsPage extends Base {
   readonly caseActionsDropdown = this.page.locator("#next-step");
 
   readonly caseActionGoButton = this.page.locator(".event-trigger button");
+  readonly caseSummaryHeading = this.page
+    .locator("h2")
+    .filter({ hasText: "Case information" })
+    .first();
+  readonly caseProgressMessage = this.page
+    .locator("#progress_legalOfficer_updateTrib_dismissed_under_rule_31")
+    .first();
+  readonly extend26WeekTimelineLink = this.page.getByRole("link", {
+    name: /extend 26 week timeline/i,
+  });
 
   readonly submitCaseFlagButton = this.page.locator('.button[type="submit"]');
 

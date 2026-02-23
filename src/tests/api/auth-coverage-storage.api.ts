@@ -6,6 +6,7 @@ import { test, expect } from "@playwright/test";
 
 import { config } from "../../config/api";
 import { __test__ as authTest } from "../../fixtures/api-auth";
+import { CookieUtils } from "../../utils/ui/cookie.utils";
 
 test.describe.configure({ mode: "serial" });
 
@@ -143,5 +144,46 @@ test.describe("Auth helper coverage - storage operations", () => {
       path.join(config.testEnv, "solicitor.json"),
     );
     expect(formCalls).toBe(1);
+  });
+
+  test("cookie utils handle missing cookies and missing __userid__ safely", async () => {
+    const writes: string[] = [];
+    const fsStub = {
+      readFileSync: () => JSON.stringify({}),
+      writeFileSync: (_path: string, content: string) => {
+        writes.push(content);
+      },
+      existsSync: () => true,
+      mkdirSync: () => undefined,
+    };
+
+    const cookieUtils = new CookieUtils(fsStub as never);
+    await expect(
+      cookieUtils.addManageCasesAnalyticsCookie("/tmp/session.json"),
+    ).resolves.toBeUndefined();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).not.toContain("hmcts-exui-cookies-undefined");
+
+    const fsWithUser = {
+      ...fsStub,
+      readFileSync: () =>
+        JSON.stringify({
+          cookies: [{ name: "__userid__", value: "user-123" }],
+        }),
+    };
+    const cookieUtilsWithUser = new CookieUtils(fsWithUser as never);
+    const writesWithUser: string[] = [];
+    (
+      fsWithUser as { writeFileSync: (_path: string, content: string) => void }
+    ).writeFileSync = (_path: string, content: string) => {
+      writesWithUser.push(content);
+    };
+
+    await cookieUtilsWithUser.addManageCasesAnalyticsCookie(
+      "/tmp/session.json",
+    );
+    expect(writesWithUser.join("")).toContain(
+      `hmcts-exui-cookies-user-123-mc-accepted`,
+    );
   });
 });

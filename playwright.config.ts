@@ -178,6 +178,10 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           },
         ]);
         break;
+      case "flake-gate":
+      case "flake_gate":
+        reporters.push(["./common/reporters/flake-gate.reporter.cjs"]);
+        break;
       case "odhin":
       case "odhin-reports-playwright":
         reporters.push([

@@ -20,6 +20,9 @@ import { CaseDetailsPage } from "./exui/caseDetails.po";
 import { CaseListPage } from "./exui/caseList.po";
 import { CaseSearchPage } from "./exui/caseSearch.po";
 import { CreateCasePage } from "./exui/createCase.po";
+import { FindCasePage } from "./exui/findCase.po";
+import { GlobalSearchPage } from "./exui/globalSearch.po";
+import { SearchCasePage } from "./exui/searchCase.po";
 import { TaskListPage } from "./exui/taskList.po";
 
 export interface PageFixtures {
@@ -27,6 +30,9 @@ export interface PageFixtures {
   caseDetailsPage: CaseDetailsPage;
   caseListPage: CaseListPage;
   caseSearchPage: CaseSearchPage;
+  searchCasePage: SearchCasePage;
+  findCasePage: FindCasePage;
+  globalSearchPage: GlobalSearchPage;
   taskListPage: TaskListPage;
   createCasePage: CreateCasePage;
   mediaViewerPage: ExuiMediaViewerPage;
@@ -70,6 +76,24 @@ export const pageFixtures = {
     use: (page: CaseSearchPage) => Promise<void>,
   ) => {
     await use(new CaseSearchPage(determinePage));
+  },
+  searchCasePage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: SearchCasePage) => Promise<void>,
+  ) => {
+    await use(new SearchCasePage(determinePage));
+  },
+  findCasePage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: FindCasePage) => Promise<void>,
+  ) => {
+    await use(new FindCasePage(determinePage));
+  },
+  globalSearchPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: GlobalSearchPage) => Promise<void>,
+  ) => {
+    await use(new GlobalSearchPage(determinePage));
   },
   taskListPage: async (
     { determinePage }: FixtureArgs,

@@ -8,11 +8,24 @@ import {
   withRetry,
   __test__ as apiTestUtilsTest,
 } from "../../utils/api/apiTestUtils";
+import { createScopedRetryBudget } from "../../utils/api/retryBudget";
 import { seedRoleAccessCaseId } from "../../utils/api/role-access";
+import {
+  buildRoleAllocationRequest,
+  ensureCcdCaseReference,
+} from "../../utils/api/waRequestGuardrails";
 import {
   buildTaskSearchRequest,
   seedTaskId,
 } from "../../utils/api/work-allocation";
+import {
+  isTransientWorkflowFailure,
+  retryOnTransientFailure,
+} from "../../utils/ui/transient-failure.utils";
+import {
+  resolveCaseReferenceFromGlobalSearch,
+  resolveNonExistentCaseReference,
+} from "../e2e/searchCase/case-reference.utils";
 
 const buildSeedTaskClient = () => {
   let calls = 0;
@@ -90,6 +103,20 @@ test.describe("Helper utilities and retry logic", () => {
 
     const defaultRes = await withRetry(async () => ({ status: 200 }));
     expect(defaultRes.status).toBe(200);
+
+    let timeoutAttempts = 0;
+    const timeoutRes = await withRetry(
+      async () => {
+        timeoutAttempts += 1;
+        if (timeoutAttempts === 1) {
+          throw new Error("apiRequestContext.fetch: Timeout 30000ms exceeded");
+        }
+        return { status: 200 };
+      },
+      { retries: 1 },
+    );
+    expect(timeoutRes.status).toBe(200);
+    expect(timeoutAttempts).toBe(2);
 
     await expect(
       withRetry(async () => ({ status: 200 }), { retries: -1 }),
@@ -277,5 +304,106 @@ test.describe("Helper utilities and retry logic", () => {
   test("resolveRoleAccessCaseId returns env or default", () => {
     expect(resolveRoleAccessCaseId("case-1")).toBe("case-1");
     expect(resolveRoleAccessCaseId()).toBe("1234567890123456");
+  });
+
+  test("retry budget tracks failures and resets after window", async () => {
+    const budget = createScopedRetryBudget(5, 2);
+    expect(budget.canRetry()).toBeTruthy();
+    budget.recordFailure("endpoint-1");
+    expect(budget.canRetry()).toBeTruthy();
+    budget.recordFailure("endpoint-1");
+    expect(budget.canRetry()).toBeFalsy();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(budget.canRetry()).toBeTruthy();
+  });
+
+  test("transient failure helpers retry only transient errors", async () => {
+    expect(isTransientWorkflowFailure(new Error("status 503"))).toBeTruthy();
+    expect(
+      isTransientWorkflowFailure(
+        new Error("Target page, context or browser has been closed"),
+      ),
+    ).toBeFalsy();
+
+    let attempts = 0;
+    const recovered = await retryOnTransientFailure(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error("NETWORK_TIMEOUT");
+      }
+      return "ok";
+    });
+    expect(recovered).toBe("ok");
+    expect(attempts).toBe(2);
+
+    await expect(
+      retryOnTransientFailure(async () => {
+        throw new Error("hard failure");
+      }),
+    ).rejects.toThrow("hard failure");
+  });
+
+  test("work-allocation guardrails validate case IDs and payload defaults", () => {
+    expect(() => ensureCcdCaseReference("not-a-case", "test")).toThrow(
+      "caseId must be a 16-digit CCD reference",
+    );
+    const caseId = ensureCcdCaseReference("1234567890123456", "test");
+    expect(caseId).toBe("1234567890123456");
+    const payload = buildRoleAllocationRequest("1234567890123456");
+    expect(payload.caseType).toBeTruthy();
+    expect(payload.jurisdiction).toBeTruthy();
+  });
+
+  test("case reference resolvers cover successful and synthetic non-existent lookup", async () => {
+    const page = {
+      waitForTimeout: async () => undefined,
+      request: {
+        post: async () => ({
+          status: () => 200,
+          json: async () => ({
+            results: [
+              { caseReference: "1234567890123456", stateId: "Submitted" },
+            ],
+          }),
+          text: async () => "",
+        }),
+        get: async () => ({
+          status: () => 404,
+          text: async () => "",
+        }),
+      },
+    };
+
+    const resolved = await resolveCaseReferenceFromGlobalSearch(
+      page as unknown as Parameters<
+        typeof resolveCaseReferenceFromGlobalSearch
+      >[0],
+      { preferredStates: ["submitted"] },
+    );
+    expect(resolved).toBe("1234567890123456");
+
+    const pageNoResults = {
+      waitForTimeout: async () => undefined,
+      request: {
+        post: async () => ({
+          status: () => 200,
+          json: async () => ({ results: [] }),
+          text: async () => "",
+        }),
+        get: async () => ({
+          status: () => 404,
+          text: async () => "",
+        }),
+      },
+    };
+
+    const nonExistent = await resolveNonExistentCaseReference(
+      pageNoResults as unknown as Parameters<
+        typeof resolveNonExistentCaseReference
+      >[0],
+      { jurisdictionIds: ["PUBLICLAW"] },
+      1,
+    );
+    expect(nonExistent).toMatch(/^9\d{15}$/);
   });
 });

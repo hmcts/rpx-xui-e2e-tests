@@ -25,17 +25,35 @@ export class CaseSearchPage extends Base {
   }
 
   async goto(): Promise<void> {
+    if (/\/cases\/case-search/i.test(this.page.url())) {
+      return;
+    }
+
     const navFindCase = this.page
       .locator(".hmcts-primary-navigation__search")
       .getByRole("link", { name: /find case/i })
       .first();
     if (await navFindCase.isVisible().catch(() => false)) {
       await Promise.all([
-        this.page.waitForLoadState("domcontentloaded"),
+        this.page.waitForURL(/\/cases\/case-search/i),
         navFindCase.click(),
       ]);
     } else {
-      await this.exuiHeader.selectHeaderMenuItem("Find case");
+      const mainMenuFindCase = this.page
+        .locator(".hmcts-primary-navigation__item")
+        .filter({ hasText: /find case/i })
+        .first();
+      if (await mainMenuFindCase.isVisible().catch(() => false)) {
+        await Promise.all([
+          this.page.waitForURL(/\/cases\/case-search/i),
+          mainMenuFindCase.click(),
+        ]);
+      } else {
+        await this.page.goto("/cases/case-search", {
+          waitUntil: "domcontentloaded",
+        });
+        await this.page.waitForURL(/\/cases\/case-search/i);
+      }
     }
   }
 

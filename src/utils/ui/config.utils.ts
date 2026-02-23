@@ -14,6 +14,41 @@ const getEnvVar = (
   return value;
 };
 
+export function resolveTestEnv(value?: string): string {
+  return value !== undefined &&
+    (value.includes("aat") || value.includes("demo"))
+    ? value
+    : "aat";
+}
+
+export function resolvePreviewConfig(
+  previewConfigs: Array<{ previewUrl: string; demoUrl: string }>,
+  testUrl?: string,
+): { demoUrl: string } | undefined {
+  if (!testUrl) {
+    return undefined;
+  }
+  const matchingPreviewToDemo = previewConfigs.filter((conf) =>
+    testUrl.includes(conf.previewUrl),
+  );
+  if (matchingPreviewToDemo.length === 1) {
+    return { demoUrl: matchingPreviewToDemo[0].demoUrl };
+  }
+  return undefined;
+}
+
+export function applyPreviewConfig(
+  previewConfig: { demoUrl: string } | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  if (!previewConfig) {
+    return false;
+  }
+  env.TEST_ENV = "demo";
+  env.TEST_URL = previewConfig.demoUrl;
+  return true;
+}
+
 export interface Urls {
   exuiDefaultUrl: string;
   manageCaseBaseUrl: string;
@@ -27,7 +62,10 @@ export interface Config {
   urls: Urls;
 }
 
-const testEnv = process.env.TEST_ENV ?? "aat";
+const previewConfig = resolvePreviewConfig([], process.env.TEST_URL);
+applyPreviewConfig(previewConfig);
+
+const testEnv = resolveTestEnv(process.env.TEST_ENV);
 const exuiDefaultUrl = trimTrailingSlash(
   resolveUrl(
     process.env.TEST_URL,
@@ -69,4 +107,7 @@ export default config;
 export const __test__ = {
   resolveUrl,
   getEnvVar,
+  resolveTestEnv,
+  resolvePreviewConfig,
+  applyPreviewConfig,
 };
