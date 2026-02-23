@@ -2,7 +2,7 @@ import { expect, test } from "../../../fixtures/ui";
 
 test.use({ storageState: undefined });
 
-test("IDAM entrypoint is available and shows login or authenticated landing page", async ({
+test("@smoke IDAM entrypoint is available and shows login or authenticated landing page", async ({
   idamPage,
   page,
 }) => {

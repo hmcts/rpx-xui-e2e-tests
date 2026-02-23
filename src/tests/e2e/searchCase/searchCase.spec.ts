@@ -1,6 +1,5 @@
 import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { UserUtils } from "../../../utils/ui/user.utils.js";
 import { ensureSessionCookies } from "../integration/utils/session.utils.js";
 
 import {
@@ -12,78 +11,75 @@ import {
   PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
 } from "./searchCase.setup.js";
 
-const userUtils = new UserUtils();
 const userIdentifier = "FPL_GLOBAL_SEARCH";
 
-if (userUtils.hasUserCredentials(userIdentifier)) {
-  test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
+test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
-  test.describe("FPL global search user - 16-digit case search", () => {
-    let availableCaseReference = "";
+test.describe("FPL global search user - 16-digit case search", () => {
+  let availableCaseReference = "";
 
-    test.beforeAll(async () => {
-      await ensureSessionCookies(userIdentifier, { strict: true });
-    });
+  test.beforeAll(async () => {
+    await ensureSessionCookies(userIdentifier, { strict: true });
+  });
 
-    test.beforeEach(async ({ page }) => {
-      await openHomeWithCapturedSession(page);
-      availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
-        page,
-        PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
-      );
-    });
-
-    test("Search by 16-digit case reference", async ({
-      caseDetailsPage,
-      searchCasePage,
+  test.beforeEach(async ({ page }) => {
+    await openHomeWithCapturedSession(page);
+    availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
       page,
-    }) => {
-      const caseNumber = availableCaseReference;
+      PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
+    );
+  });
 
-      await test.step("Search using 16-digit case reference", async () => {
-        await searchCasePage.searchWith16DigitCaseId(caseNumber);
-      });
+  test("Search by 16-digit case reference", async ({
+    caseDetailsPage,
+    searchCasePage,
+    page,
+  }) => {
+    const caseNumber = availableCaseReference;
 
-      await expect(page).toHaveURL(/\/cases\/case-details\//);
-      const caseNumberFromUrl = await caseDetailsPage.getCaseNumberFromUrl();
-      expect.soft(caseNumberFromUrl).toContain(caseNumber);
-      await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
-
-      await test.step("Verify optional case details notifications and progress panel", async () => {
-        if (await caseDetailsPage.caseNotificationBannerTitle.isVisible()) {
-          await expect
-            .soft(caseDetailsPage.caseNotificationBannerTitle)
-            .toContainText("Important");
-        }
-        if (await caseDetailsPage.caseNotificationBannerBody.isVisible()) {
-          await expect
-            .soft(caseDetailsPage.caseNotificationBannerBody)
-            .toContainText("active flags on this case");
-        }
-        if (await searchCasePage.caseProgressPanel.isVisible()) {
-          await expect
-            .soft(caseDetailsPage.caseProgressMessage)
-            .toContainText("Current progress of the case");
-        }
-      });
+    await test.step("Search using 16-digit case reference", async () => {
+      await searchCasePage.searchWith16DigitCaseId(caseNumber);
     });
 
-    test("Search invalid 16-digit case reference shows no results", async ({
-      searchCasePage,
-      page,
-    }) => {
-      const invalidCaseReference = await resolveNonExistentCaseReference(page, {
-        jurisdictionIds: ["PUBLICLAW"],
-      });
+    await expect(page).toHaveURL(/\/cases\/case-details\//);
+    const caseNumberFromUrl = await caseDetailsPage.getCaseNumberFromUrl();
+    expect.soft(caseNumberFromUrl).toContain(caseNumber);
+    await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
 
-      await test.step("Submit a non-existent 16 digit case reference", async () => {
-        await searchCasePage.searchWith16DigitCaseId(invalidCaseReference);
-      });
-
-      await test.step("Search results not found content is shown", async () => {
-        await expect(searchCasePage.noResultsHeading).toBeVisible();
-        await expect(searchCasePage.backLink).toBeVisible();
-      });
+    await test.step("Verify optional case details notifications and progress panel", async () => {
+      if (await caseDetailsPage.caseNotificationBannerTitle.isVisible()) {
+        await expect
+          .soft(caseDetailsPage.caseNotificationBannerTitle)
+          .toContainText("Important");
+      }
+      if (await caseDetailsPage.caseNotificationBannerBody.isVisible()) {
+        await expect
+          .soft(caseDetailsPage.caseNotificationBannerBody)
+          .toContainText("active flags on this case");
+      }
+      if (await searchCasePage.caseProgressPanel.isVisible()) {
+        await expect
+          .soft(caseDetailsPage.caseProgressMessage)
+          .toContainText("Current progress of the case");
+      }
     });
   });
-}
+
+  test("Search invalid 16-digit case reference shows no results", async ({
+    searchCasePage,
+    page,
+  }) => {
+    const invalidCaseReference = await resolveNonExistentCaseReference(page, {
+      jurisdictionIds: ["PUBLICLAW"],
+    });
+
+    await test.step("Submit a non-existent 16 digit case reference", async () => {
+      await searchCasePage.searchWith16DigitCaseId(invalidCaseReference);
+    });
+
+    await test.step("Search results not found content is shown", async () => {
+      await expect(searchCasePage.noResultsHeading).toBeVisible();
+      await expect(searchCasePage.backLink).toBeVisible();
+    });
+  });
+});

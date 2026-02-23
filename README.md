@@ -42,7 +42,7 @@ Key env vars to tag:
 
 - Adopted `@hmcts/playwright-common` defaults and helpers for retries/backoff, viewport defaults, safer API attachments, and coverage/endpoint reporting utilities.
 - Ported Playwright API and UI suites from `rpx-xui-webapp` (coverage/contract tests, work-allocation helpers, and case flags UI).
-- Case flags UI tests are gated by credentials for `SEARCH_EMPLOYMENT_CASE` and `USER_WITH_FLAGS` (tests only run when those users are available).
+- Credential-dependent UI tests are always discovered and reported; missing credentials now fail setup rather than silently removing tests from discovery.
 - Config coverage tests exercise `playwright.config.ts`, `src/config/api.ts`, and `src/utils/ui/config.utils.ts` helpers.
 
 ## Reporting outputs (API vs UI)
@@ -111,7 +111,7 @@ Linting:
 
 Playwright execution:
 
-- `yarn test:ui` (project `ui`)
+- `yarn test:ui` (project `ui`, excludes `@smoke`)
 - `yarn test:ui:smoke` (project `ui`, `--grep @smoke`)
 - `yarn test:integration` (project `integration`)
 - `yarn test:integration:nightly` (project `integration-nightly`, intended for non-blocking nightly runs)
