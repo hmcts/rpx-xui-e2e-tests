@@ -43,9 +43,7 @@ static Map<String, Object> secret(String secretName, String envVariable) {
   ]
 }
 
-// Populate with real Key Vault secret names once known; empty list keeps the pattern intact.
-def secrets = [
-  "rpx-${params.TEST_ENV}": [
+def sharedRuntimeSecrets = [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
     secret('mc-idam-client-secret', 'IDAM_SECRET'),
     secret('webapp-redis6-connection-string', 'REDISCLOUD_URL'),
@@ -153,7 +151,11 @@ def secrets = [
     // secret('ccd-data-store-url', 'CCD_DATA_STORE_URL'),
     // secret('manage-case-redirect-uri', 'MANAGE_CASE_REDIRECT_URI'),
     // secret('prl-cos-api-url', 'PRL_COS_API_URL')
-  ]
+]
+
+def secrets = [
+  'rpx-aat' : sharedRuntimeSecrets,
+  'rpx-demo': sharedRuntimeSecrets
 ]
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
@@ -185,6 +187,29 @@ def logCredentialPresence = {
       echo "Credential preflight: FPL_GLOBAL_SEARCH_USERNAME=$(present FPL_GLOBAL_SEARCH_USERNAME) FPL_GLOBAL_SEARCH_PASSWORD=$(present FPL_GLOBAL_SEARCH_PASSWORD) SEARCH_EMPLOYMENT_CASE_USERNAME=$(present SEARCH_EMPLOYMENT_CASE_USERNAME) SEARCH_EMPLOYMENT_CASE_PASSWORD=$(present SEARCH_EMPLOYMENT_CASE_PASSWORD) USER_WITH_FLAGS_USERNAME=$(present USER_WITH_FLAGS_USERNAME) USER_WITH_FLAGS_PASSWORD=$(present USER_WITH_FLAGS_PASSWORD)"
     '''
   )
+}
+
+def publishOdhinHtmlIfPresent = { String reportDir, String reportFile, String reportName ->
+  if (fileExists(reportDir)) {
+    publishHTML([
+      allowMissing         : true,
+      alwaysLinkToLastBuild: true,
+      keepAll              : true,
+      reportDir            : reportDir,
+      reportFiles          : reportFile,
+      reportName           : reportName
+    ])
+  } else {
+    echo "Skipping Odhin HTML publish for ${reportName}: missing ${reportDir}"
+  }
+}
+
+def publishJunitIfPresent = { String reportFile ->
+  if (fileExists(reportFile)) {
+    junit(testResults: reportFile, allowEmptyResults: true)
+  } else {
+    echo "Skipping JUnit publish: missing ${reportFile}"
+  }
 }
 
 withPipeline(type, product, component) {
@@ -223,15 +248,12 @@ withPipeline(type, product, component) {
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/api_functional/odhin-report",
-              reportFiles          : 'playwright-odhin-api.html',
-              reportName           : 'Odhín report-api'
-            ])
-            junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
+            publishOdhinHtmlIfPresent(
+              'functional-output/tests/api_functional/odhin-report',
+              'playwright-odhin-api.html',
+              'Odhín report-api'
+            )
+            publishJunitIfPresent('playwright-junit.xml')
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
           }
         },
@@ -265,14 +287,11 @@ withPipeline(type, product, component) {
             withEnv(uiOdhinEnv) {
               yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
             }
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
-              reportFiles          : 'playwright-odhin-e2e.html',
-              reportName           : 'Odhín report-e2e'
-            ])
+            publishOdhinHtmlIfPresent(
+              'functional-output/tests/playwright-e2e/odhin-report',
+              'playwright-odhin-e2e.html',
+              'Odhín report-e2e'
+            )
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
           }
         },
@@ -299,14 +318,11 @@ withPipeline(type, product, component) {
             withEnv(integrationOdhinEnv) {
               yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
             }
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/playwright-integration/odhin-report",
-              reportFiles          : 'playwright-odhin-integration.html',
-              reportName           : 'Odhín report-integration'
-            ])
+            publishOdhinHtmlIfPresent(
+              'functional-output/tests/playwright-integration/odhin-report',
+              'playwright-odhin-integration.html',
+              'Odhín report-integration'
+            )
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
           }
         }
