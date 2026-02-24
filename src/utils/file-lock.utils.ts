@@ -21,7 +21,14 @@ type LockFileState = {
 const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 const lockHost = os.hostname();
-const lockBootAt = Date.now() - Math.round(os.uptime() * 1_000);
+const getLockBootAt = (): number | undefined => {
+  try {
+    return Date.now() - Math.round(os.uptime() * 1_000);
+  } catch {
+    return undefined;
+  }
+};
+const lockBootAt = getLockBootAt();
 
 const isErrno = (
   error: unknown,

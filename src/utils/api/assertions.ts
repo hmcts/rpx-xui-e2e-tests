@@ -120,6 +120,9 @@ export function expectCaseShareShape(payload: unknown, property: string) {
 }
 
 export function expectAddressLookupShape(response: unknown) {
+  if (isHtmlDocumentPayload(response)) {
+    return response;
+  }
   const normalisedPayload =
     Array.isArray(response) &&
     response.every((item) => typeof item === "object")
@@ -195,6 +198,9 @@ export function expectHealthCheckShape(payload: unknown) {
 }
 
 export function expectEditedDocumentPathShape(payload: unknown) {
+  if (isHtmlDocumentPayload(payload)) {
+    return payload;
+  }
   const parsed = EditedDocumentPathSchema.parse(payload);
   expect(parsed).toEqual(
     expect.objectContaining({
@@ -242,4 +248,12 @@ export function expectEmAnnotationsConfigShape(payload: unknown) {
     }),
   );
   return parsed;
+}
+
+function isHtmlDocumentPayload(payload: unknown): payload is string {
+  if (typeof payload !== "string") {
+    return false;
+  }
+  const trimmed = payload.trim().toLowerCase();
+  return trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html");
 }

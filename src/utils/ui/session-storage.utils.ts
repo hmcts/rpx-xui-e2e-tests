@@ -230,6 +230,17 @@ const hasExpiredAuthCookies = (
   });
 };
 
+const canReuseExistingStorageState = (storagePath: string): boolean => {
+  if (!fs.existsSync(storagePath)) return false;
+  try {
+    const state = JSON.parse(fs.readFileSync(storagePath, "utf8"));
+    const cookies = Array.isArray(state.cookies) ? state.cookies : [];
+    return hasRequiredAuthCookies(cookies) && !hasExpiredAuthCookies(cookies);
+  } catch {
+    return false;
+  }
+};
+
 const shouldRefreshStorageState = async (
   storagePath: string,
   baseUrl: string,
@@ -648,13 +659,29 @@ export const ensureUiStorageStateForUser = async (
       removeStorageState(storagePath);
     }
 
-    await createAndPersistSessionState(
-      userIdentifier,
-      storagePath,
-      baseUrl,
-      credentials,
-      strict,
-    );
+    try {
+      await createAndPersistSessionState(
+        userIdentifier,
+        storagePath,
+        baseUrl,
+        credentials,
+        strict,
+      );
+    } catch (error) {
+      const reason =
+        error instanceof Error
+          ? sanitizeTextForLogs(error.message)
+          : sanitizeTextForLogs(String(error));
+      if (!strict && canReuseExistingStorageState(storagePath)) {
+        logger.warn("ui:session:refresh-failed-reusing-existing", {
+          user: userForLog,
+          storagePath: storagePathForLog,
+          reason,
+        });
+        return;
+      }
+      throw error;
+    }
   } finally {
     await releaseLock().catch((error: unknown) => {
       logger.warn("ui:session:lock-release-failed", {
