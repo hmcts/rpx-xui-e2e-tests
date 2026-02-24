@@ -5,8 +5,15 @@ import {
   AnnotationPayloadSchema,
   BookmarkPayloadSchema,
   CaseShareResponseSchema,
+  EmAnnotationsConfigSchema,
+  EmClientConfigSchema,
+  EditedDocumentPathSchema,
+  ExternalConfigCheckSchema,
+  FeatureFlagConfigValueSchema,
+  HealthCheckResponseSchema,
   RoleAssignmentSchema,
   TaskListSchema,
+  UserDetailsResponseSchema,
 } from "./types";
 
 export function expectTaskList(payload: unknown) {
@@ -113,7 +120,12 @@ export function expectCaseShareShape(payload: unknown, property: string) {
 }
 
 export function expectAddressLookupShape(response: unknown) {
-  const parsed = AddressLookupResponseSchema.parse(response);
+  const normalisedPayload =
+    Array.isArray(response) &&
+    response.every((item) => typeof item === "object")
+      ? { results: response, header: undefined }
+      : response;
+  const parsed = AddressLookupResponseSchema.parse(normalisedPayload);
   expect(parsed).toHaveProperty("results");
   expect(parsed).toHaveProperty("header");
   expect(Array.isArray(parsed.results)).toBe(true);
@@ -128,5 +140,106 @@ export function expectAddressLookupShape(response: unknown) {
       }),
     );
   }
+  return parsed;
+}
+
+export function expectUserDetailsShape(payload: unknown) {
+  const parsed = UserDetailsResponseSchema.parse(payload);
+  expect(parsed.userInfo).toEqual(
+    expect.objectContaining({
+      email: expect.any(String),
+      roles: expect.arrayContaining([expect.any(String)]),
+    }),
+  );
+  expect(parsed.userInfo?.uid ?? parsed.userInfo?.id).toBeDefined();
+  if (parsed.userInfo?.given_name || parsed.userInfo?.forename) {
+    expect(parsed.userInfo?.given_name ?? parsed.userInfo?.forename).toEqual(
+      expect.any(String),
+    );
+  }
+  if (parsed.userInfo?.family_name || parsed.userInfo?.surname) {
+    expect(parsed.userInfo?.family_name ?? parsed.userInfo?.surname).toEqual(
+      expect.any(String),
+    );
+  }
+  expect(parsed).toEqual(
+    expect.objectContaining({
+      roleAssignmentInfo: expect.any(Array),
+      canShareCases: expect.any(Boolean),
+      sessionTimeout: expect.objectContaining({
+        idleModalDisplayTime: expect.any(Number),
+        pattern: expect.any(String),
+      }),
+    }),
+  );
+  return parsed;
+}
+
+export function expectExternalConfigCheckShape(payload: unknown) {
+  const parsed = ExternalConfigCheckSchema.parse(payload);
+  expect(parsed.clientId).toEqual(expect.any(String));
+  expect(parsed.protocol).toEqual(expect.any(String));
+  return parsed;
+}
+
+export function expectFeatureFlagValueShape(payload: unknown) {
+  return FeatureFlagConfigValueSchema.parse(payload);
+}
+
+export function expectHealthCheckShape(payload: unknown) {
+  const parsed = HealthCheckResponseSchema.parse(payload);
+  if (parsed.healthState !== undefined) {
+    expect(typeof parsed.healthState).toBe("boolean");
+  }
+  return parsed;
+}
+
+export function expectEditedDocumentPathShape(payload: unknown) {
+  const parsed = EditedDocumentPathSchema.parse(payload);
+  expect(parsed).toEqual(
+    expect.objectContaining({
+      path: expect.any(String),
+      docstore: expect.any(String),
+    }),
+  );
+  return parsed;
+}
+
+export function expectEmClientConfigShape(payload: unknown) {
+  const parsed = EmClientConfigSchema.parse(payload);
+  expect(parsed).toEqual(
+    expect.objectContaining({
+      baseUrl: expect.any(String),
+      oauth2RedirectUrl: expect.any(String),
+      api: expect.objectContaining({
+        baseUrl: expect.any(String),
+        annotationsUrl: expect.any(String),
+        annotationsV2Url: expect.any(String),
+        tagsUrl: expect.any(String),
+      }),
+    }),
+  );
+  return parsed;
+}
+
+export function expectEmAnnotationsConfigShape(payload: unknown) {
+  const parsed = EmAnnotationsConfigSchema.parse(payload);
+  expect(parsed).toEqual(
+    expect.objectContaining({
+      emAnno: expect.objectContaining({
+        endpoint: expect.any(String),
+        documentsEndpoint: expect.any(String),
+        annotationsEndpoint: expect.any(String),
+        tagsEndpoint: expect.any(String),
+        summariesEndpoint: expect.any(String),
+      }),
+      emNpa: expect.objectContaining({
+        endpoint: expect.any(String),
+      }),
+      emRendition: expect.objectContaining({
+        endpoint: expect.any(String),
+      }),
+    }),
+  );
   return parsed;
 }

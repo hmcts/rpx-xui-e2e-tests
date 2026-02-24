@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { promises as fs } from "node:fs";
 
 import { request } from "@playwright/test";
@@ -7,6 +6,16 @@ import { config as testConfig } from "../../config/api";
 import { expect, test, buildApiAttachment } from "../../fixtures/api";
 import { ensureStorageState } from "../../fixtures/api-auth";
 import { expectStatus, StatusSets } from "../../utils/api/apiTestUtils";
+import {
+  expectExternalConfigCheckShape,
+  expectFeatureFlagValueShape,
+  expectHealthCheckShape,
+  expectUserDetailsShape,
+} from "../../utils/api/assertions";
+import type {
+  HealthCheckResponse,
+  UserDetailsResponse,
+} from "../../utils/api/types";
 
 test.describe("Node app endpoints", () => {
   test("serves external configuration without authentication", async ({
@@ -45,12 +54,7 @@ test.describe("Node app endpoints", () => {
       "external/config/check",
     );
     expectStatus(response.status, [200]);
-    expect(response.data).toEqual(
-      expect.objectContaining({
-        clientId: expect.any(String),
-        protocol: expect.any(String),
-      }),
-    );
+    expectExternalConfigCheckShape(response.data);
   });
 
   test("auth/isAuthenticated returns session status for authenticated sessions", async ({
@@ -81,9 +85,12 @@ test.describe("Node app endpoints", () => {
   test("returns enriched user details for solicitor session", async ({
     apiClient,
   }, testInfo) => {
-    const response = await apiClient.get<any>("api/user/details", {
-      throwOnError: false,
-    });
+    const response = await apiClient.get<UserDetailsResponse>(
+      "api/user/details",
+      {
+        throwOnError: false,
+      },
+    );
 
     expectStatus(response.status, StatusSets.guardedExtended);
     assertUserDetails(response);
@@ -130,8 +137,11 @@ test.describe("Node app endpoints", () => {
     const ctx = await request.newContext({
       baseURL: testConfig.baseUrl.replace(/\/+$/, ""),
       ignoreHTTPSErrors: true,
+      storageState: {
+        cookies: expiredCookies,
+        origins: [],
+      },
     });
-    await applyExpiredCookies(ctx, expiredCookies);
     const res = await ctx.get("api/user/details", { failOnStatusCode: false });
     expectStatus(res.status(), [401, 403]);
     await ctx.dispose();
@@ -140,18 +150,18 @@ test.describe("Node app endpoints", () => {
   test("returns configuration value for feature flag query", async ({
     apiClient,
   }) => {
-    const response = await apiClient.get<any>(
+    const response = await apiClient.get<unknown>(
       "api/configuration?configurationKey=termsAndConditionsEnabled",
     );
     expectStatus(
       response.status,
       StatusSets.guardedBasic.filter((s) => s !== 403),
     ); // 200 or 401
-    expect(JSON.stringify(response.data).length).toBeLessThan(6);
+    assertFeatureFlagConfigResponse(response);
   });
 
   test("healthCheck responds with healthState", async ({ anonymousClient }) => {
-    const response = await anonymousClient.get<{ healthState?: boolean }>(
+    const response = await anonymousClient.get<HealthCheckResponse>(
       "api/healthCheck?path=",
       { throwOnError: false },
     );
@@ -160,11 +170,16 @@ test.describe("Node app endpoints", () => {
   });
 });
 
-function resolveUserInfo(
-  data: { userInfo?: Record<string, unknown> } | undefined,
-): Record<string, unknown> {
-  return data?.userInfo ?? {};
-}
+type SessionCookie = {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires: number;
+  httpOnly: boolean;
+  secure: boolean;
+  sameSite: "Strict" | "Lax" | "None";
+};
 
 function assertSessionStatus(response: {
   status: number;
@@ -177,39 +192,32 @@ function assertSessionStatus(response: {
 
 function assertHealthCheckResponse(response: {
   status: number;
-  data?: { healthState?: unknown };
+  data?: HealthCheckResponse;
 }): void {
   if (response.status === 200) {
-    expect(typeof response.data?.healthState).toBe("boolean");
+    expectHealthCheckShape(response.data);
   }
 }
 
 function assertUserDetails(response: {
   status: number;
-  data: Record<string, unknown>;
+  data: UserDetailsResponse;
 }): void {
   if (response.status !== 200) {
     return;
   }
-  const userInfo = resolveUserInfo(response.data);
-  expect(userInfo).toEqual(
-    expect.objectContaining({
-      email: expect.any(String),
-      roles: expect.arrayContaining([expect.any(String)]),
-    }),
-  );
-  expect(userInfo.uid ?? userInfo.id).toBeDefined();
-  assertOptionalUserNames(userInfo);
-  expect(response.data).toEqual(
-    expect.objectContaining({
-      roleAssignmentInfo: expect.any(Array),
-      canShareCases: expect.any(Boolean),
-      sessionTimeout: expect.objectContaining({
-        idleModalDisplayTime: expect.any(Number),
-        pattern: expect.any(String),
-      }),
-    }),
-  );
+  expectUserDetailsShape(response.data);
+}
+
+function assertFeatureFlagConfigResponse(response: {
+  status: number;
+  data: unknown;
+}): void {
+  if (response.status !== 200) {
+    return;
+  }
+  expectFeatureFlagValueShape(response.data);
+  expect(JSON.stringify(response.data).length).toBeLessThan(6);
 }
 
 function formatAttachmentBody(attachment: { body: string | unknown }): string {
@@ -219,24 +227,11 @@ function formatAttachmentBody(attachment: { body: string | unknown }): string {
 }
 
 function resolveExpiredCookies(state: {
-  cookies?: Array<Record<string, unknown>>;
-}): Array<Record<string, unknown>> {
+  cookies?: SessionCookie[];
+}): SessionCookie[] {
   return Array.isArray(state.cookies)
-    ? state.cookies.map((c) => ({ ...c, expires: 0 }))
+    ? state.cookies.map((cookie) => ({ ...cookie, expires: 0 }))
     : [];
-}
-
-function assertOptionalUserNames(userInfo: Record<string, unknown>): void {
-  if (userInfo.given_name || userInfo.forename) {
-    expect(userInfo.given_name ?? userInfo.forename).toEqual(
-      expect.any(String),
-    );
-  }
-  if (userInfo.family_name || userInfo.surname) {
-    expect(userInfo.family_name ?? userInfo.surname).toEqual(
-      expect.any(String),
-    );
-  }
 }
 
 function assertSecurityHeaders(headers: Record<string, string>): void {
@@ -266,16 +261,4 @@ function assertUiConfigResponse(
       oAuthCallback: expect.any(String),
     }),
   );
-}
-
-async function applyExpiredCookies(
-  ctx: Awaited<ReturnType<typeof request.newContext>>,
-  expiredCookies: Array<Record<string, unknown>>,
-): Promise<void> {
-  if (expiredCookies.length) {
-    await ctx.storageState({
-      cookies: expiredCookies,
-      origins: [],
-    } as unknown as any);
-  }
 }

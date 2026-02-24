@@ -399,7 +399,7 @@ test.describe("Builder and task helper coverage", () => {
       options: { states: ["assigned"] },
       key: "state",
     },
-  ] as const;
+  ]; // removed 'as const' - readonly arrays conflict with mutable string[] expected by buildTaskSearchRequest
 
   searchFilterCases.forEach(({ title, options, key }) => {
     test(`buildTaskSearchRequest ${title}`, () => {
@@ -454,14 +454,14 @@ test.describe("Builder and task helper coverage", () => {
   });
 
   test("seedTaskId falls back to unassigned when first result is empty", async () => {
-    let calls = 0;
+    const stubbedResponses = [
+      { status: 200, data: { tasks: [] } },
+      { status: 200, data: { tasks: [{ id: "task-unassigned" }] } },
+    ];
+    let callIndex = 0;
     const apiClient = {
-      post: async () => {
-        calls += 1;
-        return calls === 1
-          ? { status: 200, data: { tasks: [] } }
-          : { status: 200, data: { tasks: [{ id: "task-unassigned" }] } };
-      },
+      post: async () =>
+        stubbedResponses[Math.min(callIndex++, stubbedResponses.length - 1)],
     };
     const seeded = await seedTaskId(apiClient, "loc-1");
     expect(seeded).toEqual({ id: "task-unassigned", type: "unassigned" });
@@ -508,7 +508,7 @@ test.describe("Builder and task helper coverage", () => {
     const recordedBodies: Array<Record<string, unknown>> = [];
     const apiClient = {
       post: async (_path: string, opts: { data?: Record<string, unknown> }) => {
-        if (opts.data) recordedBodies.push(opts.data);
+        recordedBodies.push(opts.data ?? {});
         return { status: 200, data: { tasks: [{ id: "task-1" }] } };
       },
     };

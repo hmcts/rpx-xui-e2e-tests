@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { promises as fs } from "node:fs";
 
 import type { ApiClient } from "@hmcts/playwright-common";
@@ -15,10 +14,18 @@ import {
   withXsrf,
 } from "../../utils/api/apiTestUtils";
 import {
+  expectEmAnnotationsConfigShape,
+  expectEmClientConfigShape,
+  expectEditedDocumentPathShape,
   expectAnnotationShape,
   expectBookmarkShape,
 } from "../../utils/api/assertions";
-import { AnnotationPayload, BookmarkPayload } from "../../utils/api/types";
+import {
+  AnnotationPayload,
+  BookmarkPayload,
+  EmAnnotationsResponseSchema,
+  EmUploadResponseSchema,
+} from "../../utils/api/types";
 
 const configuredDocId =
   EM_DOC_ID ?? config.em[config.testEnv as keyof typeof config.em]?.docId;
@@ -196,11 +203,7 @@ async function assertDocumentBinary(
   );
   expectStatus(res.status, [200, 204, 401, 403, 404, 500]);
   if (res.status === 200) {
-    const buf = res.data as ArrayBuffer;
-    const len = (buf as any)?.byteLength;
-    if (typeof len === "number") {
-      expect(len).toBeGreaterThan(0);
-    }
+    expect(res.data.byteLength).toBeGreaterThan(0);
   }
 }
 
@@ -215,11 +218,9 @@ async function assertAnnotationLifecycle(
     throwOnError: false,
   });
   expectStatus(createRes.status, [200, 204, 401, 403, 404, 409, 500]);
-  if (
-    createRes.status === 200 &&
-    Array.isArray((createRes.data as any)?.annotations)
-  ) {
-    const created = (createRes.data as any).annotations?.[0];
+  if (createRes.status === 200) {
+    const parsed = EmAnnotationsResponseSchema.safeParse(createRes.data);
+    const created = parsed.success ? parsed.data.annotations?.[0] : undefined;
     if (created) {
       expectAnnotationShape(created);
       const deleteRes = await apiClient.delete(
@@ -261,57 +262,20 @@ function assertEditedDocumentPath(res: {
   status: number;
   data: unknown;
 }): void {
-  if (
-    res.status === 200 &&
-    res.data &&
-    typeof res.data === "object" &&
-    !Array.isArray(res.data)
-  ) {
-    expect(res.data as any).toEqual(
-      expect.objectContaining({
-        path: expect.any(String),
-        docstore: expect.any(String),
-      }),
-    );
+  if (res.status === 200) {
+    expectEditedDocumentPathShape(res.data);
   }
 }
 
 function assertClientConfig(res: { status: number; data: unknown }): void {
   if (res.status === 200) {
-    expect(res.data).toEqual(
-      expect.objectContaining({
-        baseUrl: expect.any(String),
-        oauth2RedirectUrl: expect.any(String),
-        api: expect.objectContaining({
-          baseUrl: expect.any(String),
-          annotationsUrl: expect.any(String),
-          annotationsV2Url: expect.any(String),
-          tagsUrl: expect.any(String),
-        }),
-      }),
-    );
+    expectEmClientConfigShape(res.data);
   }
 }
 
 function assertAnnotationsConfig(res: { status: number; data: unknown }): void {
   if (res.status === 200) {
-    expect(res.data).toEqual(
-      expect.objectContaining({
-        emAnno: expect.objectContaining({
-          endpoint: expect.any(String),
-          documentsEndpoint: expect.any(String),
-          annotationsEndpoint: expect.any(String),
-          tagsEndpoint: expect.any(String),
-          summariesEndpoint: expect.any(String),
-        }),
-        emNpa: expect.objectContaining({
-          endpoint: expect.any(String),
-        }),
-        emRendition: expect.objectContaining({
-          endpoint: expect.any(String),
-        }),
-      }),
-    );
+    expectEmAnnotationsConfigShape(res.data);
   }
 }
 
@@ -324,12 +288,11 @@ async function buildAnnotation(
     throwOnError: false,
   });
   expectStatus(annotation.status, [200, 401, 403, 404, 500, 502, 504]);
-  if (
-    annotation.status === 200 &&
-    Array.isArray((annotation.data as any)?.annotations) &&
-    (annotation.data as any).annotations.length > 0
-  ) {
-    return (annotation.data as any).annotations[0];
+  if (annotation.status === 200) {
+    const parsed = EmAnnotationsResponseSchema.safeParse(annotation.data);
+    if (parsed.success && (parsed.data.annotations?.length ?? 0) > 0) {
+      return parsed.data.annotations![0];
+    }
   }
   const annoId = uuid();
   const rectId = uuid();
@@ -359,7 +322,7 @@ function buildBookmarkPayload(): BookmarkPayload {
     pageNumber: 1,
     xCoordinate: Math.floor(Math.random() * 5) + 5,
     yCoordinate: Math.floor(Math.random() * 5) + 5,
-  } as any;
+  };
 }
 
 async function safeBookmarkCreateWithoutXsrf(
@@ -413,10 +376,12 @@ async function uploadSyntheticDoc(): Promise<string> {
       headers: { experimental: "true" },
       failOnStatusCode: false,
     });
-    const body = await res.json().catch(() => ({}) as any);
+    const body = EmUploadResponseSchema.parse(
+      await res.json().catch(() => ({})),
+    );
     const docId =
-      (Array.isArray(body?.documents) && body.documents[0]?.documentId) ||
-      body?.documentId;
+      (Array.isArray(body.documents) && body.documents[0]?.documentId) ||
+      body.documentId;
     return typeof docId === "string" && docId.trim().length > 0
       ? docId
       : uuid();
@@ -441,7 +406,18 @@ async function getBearerToken(): Promise<string | undefined> {
   const parsed = JSON.parse(raw);
   const bearerCookie =
     Array.isArray(parsed.cookies) && parsed.cookies.length > 0
-      ? parsed.cookies.find((c: any) => c.name === "__auth__")
+      ? parsed.cookies.find((c: unknown) => {
+          if (!c || typeof c !== "object") {
+            return false;
+          }
+          const cookie = c as { name?: unknown };
+          return cookie.name === "__auth__";
+        })
       : undefined;
-  return bearerCookie?.value;
+  if (!bearerCookie || typeof bearerCookie !== "object") {
+    return undefined;
+  }
+  return typeof (bearerCookie as { value?: unknown }).value === "string"
+    ? ((bearerCookie as { value?: string }).value ?? undefined)
+    : undefined;
 }

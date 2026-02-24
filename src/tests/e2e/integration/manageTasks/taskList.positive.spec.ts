@@ -1,17 +1,19 @@
 import type { Cookie } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
+import { formatUiDate } from "../../../../utils/ui/date.utils.js";
 import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
 import { UserUtils } from "../../../../utils/ui/user.utils.js";
+import { setupTaskListMockRoutes } from "../helpers/index.js";
 import {
   buildDeterministicMyTasksListMock,
   buildMyTaskListMock,
 } from "../mocks/taskList.mock.js";
+import { TEST_USERS } from "../testData/index.js";
 import { extractUserIdFromCookies } from "../utils/extractUserIdFromCookies.js";
 import { ensureSessionCookies } from "../utils/session.utils.js";
-import { formatUiDate, readTaskTable } from "../utils/tableUtils.js";
 
-const userIdentifier = "STAFF_ADMIN";
+const userIdentifier = TEST_USERS.STAFF_ADMIN;
 const shouldRunTaskList = new UserUtils().hasUserCredentials(userIdentifier);
 let sessionCookies: Cookie[] = [];
 let taskListMockResponse: ReturnType<typeof buildMyTaskListMock>;
@@ -20,7 +22,11 @@ const getNormalizedPriority = (value: unknown): string => {
   if (value === undefined || value === null) {
     return "";
   }
-  return String(value).toLowerCase();
+  if (typeof value === "string") return value.toLowerCase();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return `${value}`.toLowerCase();
+  }
+  return JSON.stringify(value).toLowerCase();
 };
 
 if (shouldRunTaskList) {
@@ -41,17 +47,11 @@ if (shouldRunTaskList) {
   test.describe(`Task List as ${userIdentifier}`, () => {
     test(`User ${userIdentifier} can view assigned tasks on the task list page`, async ({
       taskListPage,
+      tableUtils,
       page,
     }) => {
       await test.step("Setup route mock for task list", async () => {
-        await page.route("**/workallocation/task*", async (route) => {
-          const body = JSON.stringify(taskListMockResponse);
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body,
-          });
-        });
+        await setupTaskListMockRoutes(page, taskListMockResponse);
       });
 
       await test.step("Navigate to the my tasks list page", async () => {
@@ -64,7 +64,9 @@ if (shouldRunTaskList) {
         await expect(taskListPage.taskListResultsAmount).toHaveText(
           `Showing 1 to ${Math.min(taskListMockResponse.tasks.length, 25)} of ${taskListMockResponse.total_records} results`,
         );
-        const table = await readTaskTable(taskListPage.taskListTable);
+        const table = await tableUtils.parseWorkAllocationTable(
+          taskListPage.taskListTable,
+        );
         for (let i = 0; i < table.length; i++) {
           const expectedCaseName = taskListMockResponse.tasks[i].case_name;
           expect(table[i]["Case name"]).toBe(expectedCaseName);
@@ -94,14 +96,7 @@ if (shouldRunTaskList) {
       const emptyMockResponse = { tasks: [], total_records: 0 };
 
       await test.step("Setup route mock for empty task list", async () => {
-        await page.route("**/workallocation/task*", async (route) => {
-          const body = JSON.stringify(emptyMockResponse);
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body,
-          });
-        });
+        await setupTaskListMockRoutes(page, emptyMockResponse);
       });
 
       await test.step("Navigate to the my tasks list page", async () => {
@@ -119,6 +114,7 @@ if (shouldRunTaskList) {
 
     test(`User ${userIdentifier} sees all types of priority tasks with specific due dates`, async ({
       taskListPage,
+      tableUtils,
       page,
     }) => {
       const deterministicMockResponse = buildDeterministicMyTasksListMock(
@@ -126,14 +122,7 @@ if (shouldRunTaskList) {
       );
 
       await test.step("Setup route mock for deterministic task list", async () => {
-        await page.route("**/workallocation/task*", async (route) => {
-          const body = JSON.stringify(deterministicMockResponse);
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body,
-          });
-        });
+        await setupTaskListMockRoutes(page, deterministicMockResponse);
       });
 
       await test.step("Navigate to the my tasks list page", async () => {
@@ -146,7 +135,9 @@ if (shouldRunTaskList) {
         await expect(taskListPage.taskListResultsAmount).toHaveText(
           "Showing 1 to 4 of 4 results",
         );
-        const table = await readTaskTable(taskListPage.taskListTable);
+        const table = await tableUtils.parseWorkAllocationTable(
+          taskListPage.taskListTable,
+        );
         expect(table.length).toBe(4);
 
         for (let i = 0; i < table.length; i++) {

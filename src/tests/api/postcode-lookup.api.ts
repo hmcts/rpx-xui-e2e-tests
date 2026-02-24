@@ -1,5 +1,6 @@
 import { test, expect } from "../../fixtures/api";
 import { expectStatus, StatusSets } from "../../utils/api/apiTestUtils";
+import { expectAddressLookupShape } from "../../utils/api/assertions";
 
 const endpoints = [
   {
@@ -30,12 +31,6 @@ function assertPostcodeLookupResponse(response: {
 }): void {
   if (response.status === 200) {
     expect(response.data).toBeTruthy();
-    if (Array.isArray(response.data) && response.data.length > 0) {
-      expect((response.data as unknown[])[0]).toEqual(
-        expect.objectContaining({
-          DPA: expect.anything(),
-        }),
-      );
-    }
+    expectAddressLookupShape(response.data);
   }
 }

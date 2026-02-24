@@ -1,9 +1,10 @@
 import { expect, test } from "../../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
 import { welshTranslationsSmall } from "../mocks/welshLanguage.mock.js";
+import { TEST_USERS } from "../testData/index.js";
 import { ensureSessionCookies } from "../utils/session.utils.js";
 
-const userIdentifier = "SOLICITOR";
+const userIdentifier = TEST_USERS.SOLICITOR;
 
 test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 

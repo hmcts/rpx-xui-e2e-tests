@@ -25,6 +25,17 @@ export interface UserDetailsResponse {
   [key: string]: unknown;
 }
 
+export interface ExternalConfigCheckResponse {
+  clientId: string;
+  protocol: string;
+  [key: string]: unknown;
+}
+
+export interface HealthCheckResponse {
+  healthState?: boolean;
+  [key: string]: unknown;
+}
+
 export interface Task {
   id?: string;
   task_state?: string;
@@ -129,6 +140,55 @@ export const RoleAssignmentSchema = z
   })
   .passthrough();
 
+export const UserInfoSchema = z
+  .object({
+    uid: z.string().optional(),
+    id: z.string().optional(),
+    roles: z.array(z.string()).optional(),
+    email: z.string().optional(),
+    given_name: z.string().optional(),
+    forename: z.string().optional(),
+    family_name: z.string().optional(),
+    surname: z.string().optional(),
+  })
+  .passthrough();
+
+export const SessionTimeoutSchema = z
+  .object({
+    idleModalDisplayTime: z.number().optional(),
+    pattern: z.string().optional(),
+  })
+  .passthrough();
+
+export const UserDetailsResponseSchema = z
+  .object({
+    userInfo: UserInfoSchema.optional(),
+    roleAssignmentInfo: z.array(z.unknown()).optional(),
+    canShareCases: z.boolean().optional(),
+    sessionTimeout: SessionTimeoutSchema.optional(),
+  })
+  .passthrough();
+
+export const ExternalConfigCheckSchema = z
+  .object({
+    clientId: z.string(),
+    protocol: z.string(),
+  })
+  .passthrough();
+
+export const FeatureFlagConfigValueSchema = z.union([
+  z.boolean(),
+  z.number(),
+  z.string(),
+  z.null(),
+]);
+
+export const HealthCheckResponseSchema = z
+  .object({
+    healthState: z.boolean().optional(),
+  })
+  .passthrough();
+
 export const RoleAssignmentContainerSchema = z
   .object({
     roleAssignmentResponse: z.array(RoleAssignmentSchema).optional(),
@@ -200,6 +260,65 @@ export const AnnotationPayloadSchema = z
     type: z.string().optional(),
     documentId: z.string().optional(),
     annotationSetId: z.string().optional(),
+  })
+  .passthrough();
+
+export const EditedDocumentPathSchema = z
+  .object({
+    path: z.string().optional(),
+    docstore: z.string().optional(),
+  })
+  .passthrough();
+
+export const EmClientConfigSchema = z
+  .object({
+    baseUrl: z.string(),
+    oauth2RedirectUrl: z.string(),
+    api: z
+      .object({
+        baseUrl: z.string(),
+        annotationsUrl: z.string(),
+        annotationsV2Url: z.string(),
+        tagsUrl: z.string(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export const EmAnnotationsConfigSchema = z
+  .object({
+    emAnno: z
+      .object({
+        endpoint: z.string(),
+        documentsEndpoint: z.string(),
+        annotationsEndpoint: z.string(),
+        tagsEndpoint: z.string(),
+        summariesEndpoint: z.string(),
+      })
+      .passthrough(),
+    emNpa: z.object({ endpoint: z.string() }).passthrough(),
+    emRendition: z.object({ endpoint: z.string() }).passthrough(),
+  })
+  .passthrough();
+
+export const EmAnnotationsResponseSchema = z
+  .object({
+    annotations: z.array(AnnotationPayloadSchema).optional(),
+  })
+  .passthrough();
+
+export const EmUploadResponseSchema = z
+  .object({
+    documentId: z.string().optional(),
+    documents: z
+      .array(
+        z
+          .object({
+            documentId: z.string().optional(),
+          })
+          .passthrough(),
+      )
+      .optional(),
   })
   .passthrough();
 

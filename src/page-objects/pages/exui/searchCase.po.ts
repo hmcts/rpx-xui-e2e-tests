@@ -77,8 +77,9 @@ export class SearchCasePage extends Base {
       if (!errorMsg.includes("intercepts pointer events")) {
         throw error;
       }
+      // CCD spinner overlay intercepts: force retry is required after confirming "intercepts pointer events" error (agents.md §6.2.10)
       await findButton.click({
-        force: true,
+        force: true, // eslint-disable-line playwright/no-force-option
         timeout: EXUI_TIMEOUTS.SEARCH_BUTTON_CLICK,
       });
     }

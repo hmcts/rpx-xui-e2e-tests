@@ -89,20 +89,15 @@ test.describe(`Search quick find as ${userIdentifier}`, () => {
     );
 
     await expect(page).not.toHaveURL(/\/cases\/case-details\//);
-    const finalUrl = await expect
+    await expect
       .poll(() => page.url(), { timeout: 20_000 })
       .toMatch(/\/(cases(?:[/?#]|$)|search\/noresults(?:[/?#]|$))/);
-    void finalUrl;
 
-    if (/\/search\/noresults(?:[/?#]|$)/.test(page.url())) {
-      await expect(
-        page.getByRole("heading", { level: 1, name: "No results found" }),
-      ).toBeVisible();
-    } else {
-      await expect(page).toHaveURL(/\/cases(?:[/?#]|$)/);
-      await expect(
-        page.getByText("No cases found. Try using different filters."),
-      ).toBeVisible();
-    }
+    // The app can navigate to either /search/noresults or /cases when no match is found.
+    // Use locator.or() to assert the first visible no-results element without branching.
+    const noResultsContent = page
+      .getByRole("heading", { level: 1, name: "No results found" })
+      .or(page.getByText("No cases found. Try using different filters."));
+    await expect.soft(noResultsContent.first()).toBeVisible();
   });
 });

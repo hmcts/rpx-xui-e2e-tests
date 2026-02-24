@@ -12,7 +12,7 @@ test.beforeAll(async () => {
   await ensureSessionCookies(userIdentifier, { strict: true });
 });
 
-// TODO : Enable and complete negative test case when functionality is available
+// Feature-gated negative coverage: enable explicitly via PW_ENABLE_NEGATIVE_CASE_TESTS=true.
 if (process.env.PW_ENABLE_NEGATIVE_CASE_TESTS === "true") {
   test.describe(`Case List as ${userIdentifier}`, () => {
     test(`User ${userIdentifier} should not be able to submit a case without filling in required fields`, async ({

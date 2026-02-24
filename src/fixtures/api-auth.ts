@@ -426,7 +426,12 @@ async function createStorageStateViaForm(
       );
     }
   } catch (error) {
-    throw new Error(`Failed to login as ${role}: ${formatUnknownError(error)}`);
+    throw new Error(
+      `Failed to login as ${role}: ${formatUnknownError(error)}`,
+      {
+        cause: error,
+      },
+    );
   } finally {
     await context.dispose();
   }
@@ -436,7 +441,7 @@ function getCredentials(role: ApiUserRole): {
   username: string;
   password: string;
 } {
-  const envUsers = config.users[config.testEnv as keyof typeof config.users];
+  const envUsers = config.users[config.testEnv];
   const userConfig = envUsers?.[role];
   if (!userConfig) {
     throw new Error(
@@ -451,7 +456,7 @@ function getCredentials(role: ApiUserRole): {
 }
 
 function extractCsrf(html: string): string | undefined {
-  const match = html.match(/name="_csrf"\s+value="([^"]+)"/i);
+  const match = /name="_csrf"\s+value="([^"]+)"/i.exec(html);
   return match?.[1];
 }
 
@@ -469,7 +474,7 @@ function sanitizeUrlForLogs(urlValue: string): string {
 }
 
 function sanitizePathForLogs(pathValue: string): string {
-  return pathValue.replace(
+  return pathValue.replaceAll(
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
     "[REDACTED_EMAIL]",
   );
@@ -516,16 +521,19 @@ function isTokenBootstrapEnabled(
 function formatUnknownError(error: unknown): string {
   const redactSensitive = (value: string): string =>
     value
-      .replace(/\b[Bb]earer\s+[A-Za-z0-9\-._~+/]+=*/g, "Bearer [REDACTED]")
-      .replace(
+      .replaceAll(/\b[Bb]earer\s+[A-Za-z0-9\-._~+/]+=*/g, "Bearer [REDACTED]")
+      .replaceAll(
         /\b(password|passwd|secret|token|client_secret)\b\s*[:=]\s*[^\s,;]+/gi,
         "$1=[REDACTED]",
       )
-      .replace(
+      .replaceAll(
         /([?&](?:code|token|state|password|secret)=)[^&#]+/gi,
         "$1[REDACTED]",
       )
-      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]");
+      .replaceAll(
+        /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi,
+        "[REDACTED_EMAIL]",
+      );
 
   if (error instanceof Error) {
     return redactSensitive(error.message);

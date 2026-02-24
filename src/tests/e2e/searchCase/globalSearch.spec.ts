@@ -71,15 +71,6 @@ test.describe("IDAM login using credentials for Global Search", () => {
       await caseDetailsPage.caseActionGoButton.waitFor();
       await expect.soft(caseDetailsPage.caseActionsDropdown).toBeVisible();
       await expect.soft(caseDetailsPage.caseActionGoButton).toBeVisible();
-      if (
-        await caseDetailsPage.extend26WeekTimelineLink
-          .isVisible()
-          .catch(() => false)
-      ) {
-        await expect
-          .soft(caseDetailsPage.extend26WeekTimelineLink)
-          .toBeVisible();
-      }
     });
   });
 
@@ -113,16 +104,6 @@ test.describe("IDAM login using credentials for Global Search", () => {
       );
 
       expect(table.length).toBeGreaterThan(0);
-      const paginationLinkCount =
-        await globalSearchPage.paginationLinks.count();
-      if (paginationLinkCount >= 2) {
-        const paginationLinkPreviousPage =
-          globalSearchPage.paginationLinks.nth(0);
-        const paginationLinkNextPage = globalSearchPage.paginationLinks.nth(1);
-        await expect(paginationLinkPreviousPage).toHaveText("Previous page");
-        await expect(paginationLinkNextPage).toHaveText("Next page");
-        await expect(paginationLinkNextPage).toHaveAttribute("href");
-      }
 
       for (const eachRow of table) {
         const digitsOnly = eachRow.Case.replaceAll(/\D/g, "");

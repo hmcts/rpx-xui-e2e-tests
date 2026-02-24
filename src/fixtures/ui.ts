@@ -25,6 +25,7 @@ import {
   acceptAnalyticsCookiesOnPage,
   installAnalyticsAutoAccept,
 } from "../utils/ui/analytics.utils.js";
+import { buildJurisdictionBootstrapFallbackMock } from "../utils/ui/jurisdiction-fallback.mock.js";
 import { attachUiUserContext } from "../utils/ui/user-context.utils.js";
 import {
   uiUtilsFixtures,
@@ -46,6 +47,20 @@ const parsePositiveInt = (
   const parsed = Number.parseInt(value, 10);
   if (Number.isNaN(parsed) || parsed <= 0) return fallback;
   return parsed;
+};
+
+const truthy = new Set(["1", "true", "yes", "on"]);
+const falsy = new Set(["0", "false", "no", "off"]);
+
+const parseBooleanFlag = (
+  value: string | undefined,
+  fallback: boolean,
+): boolean => {
+  if (value === undefined) return fallback;
+  const normalised = value.trim().toLowerCase();
+  if (truthy.has(normalised)) return true;
+  if (falsy.has(normalised)) return false;
+  return fallback;
 };
 
 const resolveLoggerFormat = (): "pretty" | "json" => {
@@ -72,6 +87,28 @@ const maxTrackedSignals = parsePositiveInt(
   500,
 );
 
+const JURISDICTION_BOOTSTRAP_5XX_MARKER =
+  "jurisdiction-bootstrap-5xx-circuit-breaker";
+const JURISDICTION_BOOTSTRAP_MOCK_FALLBACK_MARKER =
+  "jurisdiction-bootstrap-mock-fallback";
+const JURISDICTION_BOOTSTRAP_PATH_FRAGMENT = "/aggregated/caseworkers/";
+const JURISDICTION_BOOTSTRAP_SUFFIX = "/jurisdictions";
+const JURISDICTION_BOOTSTRAP_ROUTE =
+  "**/aggregated/caseworkers/**/jurisdictions*";
+
+type JurisdictionBootstrapCircuitBreakerState = {
+  marker: string;
+  status: number;
+  url: string;
+  timestamp: string;
+};
+
+type PageWithCircuitBreaker = {
+  __jurisdictionBootstrapCircuitBreaker?: JurisdictionBootstrapCircuitBreakerState;
+  __jurisdictionBootstrapFallbackUsed?: boolean;
+  __jurisdictionBootstrapFallbackReason?: string;
+};
+
 export const test = base.extend<UiFixtures>({
   ...pageFixtures,
   ...uiUtilsFixtures,
@@ -90,9 +127,118 @@ export const test = base.extend<UiFixtures>({
   ],
   attachFailureDiagnostics: [
     async ({ page }, use, testInfo) => {
+      const pageWithCircuitBreaker = page as typeof page &
+        PageWithCircuitBreaker;
+      const fallbackOnRetry = parseBooleanFlag(
+        process.env.PW_JURISDICTIONS_FALLBACK_ON_RETRY,
+        true,
+      );
+      const fallbackForce = parseBooleanFlag(
+        process.env.PW_JURISDICTIONS_FALLBACK_FORCE,
+        false,
+      );
+      const isRetryAttempt = testInfo.retry > 0;
+      const shouldUseJurisdictionsFallback =
+        fallbackForce || (fallbackOnRetry && isRetryAttempt);
+      let retryMarkerAnnotated = false;
+      let fallbackAnnotated = false;
+
       const apiErrors: ApiErrorSignal[] = [];
       const slowCalls: SlowCallSignal[] = [];
       const networkFailures: NetworkFailureSignal[] = [];
+
+      const annotateRetryMarker = (description: string) => {
+        if (retryMarkerAnnotated) {
+          return;
+        }
+        testInfo.annotations.push({
+          type: "Retry marker",
+          description,
+        });
+        retryMarkerAnnotated = true;
+      };
+
+      const annotateFallbackMode = (description: string) => {
+        if (fallbackAnnotated) {
+          return;
+        }
+        testInfo.annotations.push({
+          type: "Fallback mode",
+          description,
+        });
+        fallbackAnnotated = true;
+      };
+
+      const jurisdictionBootstrapRouteHandler = async (
+        route: Parameters<typeof page.route>[1] extends (
+          ...args: infer TArgs
+        ) => unknown
+          ? TArgs[0]
+          : never,
+      ) => {
+        const requestUrl = route.request().url();
+        const sanitizedUrl = sanitizeUrlForLogs(requestUrl);
+        let liveResponse;
+        try {
+          liveResponse = await route.fetch();
+        } catch (error) {
+          if (!shouldUseJurisdictionsFallback) {
+            throw error;
+          }
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason = `request-failed: ${sanitizeErrorText(String(error), 160)}`;
+          annotateFallbackMode(
+            [
+              "Mocked /aggregated/caseworkers/*/jurisdictions after upstream request failure.",
+              `Mode=${fallbackForce ? "forced" : "retry-only"}.`,
+              `retry=${testInfo.retry}.`,
+            ].join(" "),
+          );
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+          });
+          return;
+        }
+
+        if (testInfo.retry === 0 && liveResponse.status() >= 500) {
+          pageWithCircuitBreaker.__jurisdictionBootstrapCircuitBreaker = {
+            marker: JURISDICTION_BOOTSTRAP_5XX_MARKER,
+            status: liveResponse.status(),
+            url: sanitizedUrl,
+            timestamp: new Date().toISOString(),
+          };
+          annotateRetryMarker(
+            "Known transient dependency outage on /aggregated/caseworkers/*/jurisdictions (5xx) on first attempt.",
+          );
+        }
+
+        if (shouldUseJurisdictionsFallback && liveResponse.status() >= 500) {
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason = `upstream-http-${liveResponse.status()}`;
+          annotateFallbackMode(
+            [
+              "Mocked /aggregated/caseworkers/*/jurisdictions after upstream 5xx response.",
+              `status=${liveResponse.status()}.`,
+              `Mode=${fallbackForce ? "forced" : "retry-only"}.`,
+              `retry=${testInfo.retry}.`,
+            ].join(" "),
+          );
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+          });
+          return;
+        }
+
+        await route.fulfill({ response: liveResponse });
+      };
+      await page.route(
+        JURISDICTION_BOOTSTRAP_ROUTE,
+        jurisdictionBootstrapRouteHandler,
+      );
 
       const trackSignal = <T>(collection: T[], entry: T) => {
         collection.push(entry);
@@ -114,6 +260,20 @@ export const test = base.extend<UiFixtures>({
             status,
             url: sanitizeUrlForLogs(url),
           });
+        }
+
+        const lowerUrl = url.toLowerCase();
+        if (
+          status >= 500 &&
+          lowerUrl.includes(JURISDICTION_BOOTSTRAP_PATH_FRAGMENT) &&
+          lowerUrl.includes(JURISDICTION_BOOTSTRAP_SUFFIX)
+        ) {
+          pageWithCircuitBreaker.__jurisdictionBootstrapCircuitBreaker = {
+            marker: JURISDICTION_BOOTSTRAP_5XX_MARKER,
+            status,
+            url: sanitizeUrlForLogs(url),
+            timestamp: new Date().toISOString(),
+          };
         }
       };
 
@@ -160,6 +320,10 @@ export const test = base.extend<UiFixtures>({
 
       await use(undefined);
 
+      await page.unroute(
+        JURISDICTION_BOOTSTRAP_ROUTE,
+        jurisdictionBootstrapRouteHandler,
+      );
       page.off("response", onResponse);
       page.off("requestfinished", onRequestFinished);
       page.off("requestfailed", onRequestFailed);
@@ -168,6 +332,12 @@ export const test = base.extend<UiFixtures>({
         return;
       }
 
+      const setupMarker =
+        pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed
+          ? JURISDICTION_BOOTSTRAP_MOCK_FALLBACK_MARKER
+          : (pageWithCircuitBreaker.__jurisdictionBootstrapCircuitBreaker
+              ?.marker ?? "ui-fixture");
+
       const diagnosis = buildFailureDiagnosis({
         testTitle: testInfo.title,
         errorMessage: testInfo.error?.message ?? "",
@@ -175,7 +345,24 @@ export const test = base.extend<UiFixtures>({
         slowCalls,
         networkFailures,
         slowThresholdMs,
+        testStatus: testInfo.status,
+        setupMarker,
+        fallbackUsed:
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed ?? false,
+        fallbackReason:
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason,
       });
+
+      if (setupMarker === JURISDICTION_BOOTSTRAP_5XX_MARKER) {
+        annotateRetryMarker(
+          "Known transient dependency outage on /aggregated/caseworkers/*/jurisdictions (5xx).",
+        );
+      }
+      if (setupMarker === JURISDICTION_BOOTSTRAP_MOCK_FALLBACK_MARKER) {
+        annotateRetryMarker(
+          "Downstream /aggregated/caseworkers/*/jurisdictions instability detected; retry switched to mock fallback.",
+        );
+      }
 
       uiFailureLogger.error("ui:failure-diagnosis", {
         testTitle: testInfo.title,

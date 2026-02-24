@@ -1,13 +1,13 @@
 import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
+import { TEST_USERS } from "../integration/testData/index.js";
 import { ensureSessionCookies } from "../integration/utils/session.utils.js";
-import { readTaskTable } from "../integration/utils/tableUtils.js";
 
-test.use({ storageState: resolveUiStoragePathForUser("STAFF_ADMIN") });
+test.use({ storageState: resolveUiStoragePathForUser(TEST_USERS.STAFF_ADMIN) });
 
 test.describe("Verify the my tasks page tabs appear as expected", () => {
   test.beforeAll(async () => {
-    await ensureSessionCookies("STAFF_ADMIN", { strict: true });
+    await ensureSessionCookies(TEST_USERS.STAFF_ADMIN, { strict: true });
   });
 
   test.beforeEach(async ({ page, taskListPage }) => {
@@ -34,6 +34,7 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
 
   test("Verify My tasks actions appear as expected", async ({
     taskListPage,
+    tableUtils,
   }) => {
     await test.step("Navigate to the task list page", async () => {
       await expect(taskListPage.taskListTable).toBeVisible();
@@ -42,7 +43,9 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
     });
 
     await test.step("Check my available tasks has data in the table", async () => {
-      const table = await readTaskTable(taskListPage.taskListTable);
+      const table = await tableUtils.parseWorkAllocationTable(
+        taskListPage.taskListTable,
+      );
       expect(table.length).toBeGreaterThan(0);
     });
 
@@ -59,6 +62,7 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
 
   test("Verify Available tasks actions appear as expected", async ({
     taskListPage,
+    tableUtils,
   }) => {
     await test.step("Navigate to the task list page", async () => {
       await taskListPage.selectWorkMenuItem("Available tasks");
@@ -68,7 +72,9 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
     });
 
     await test.step("Check my available tasks has data in the table", async () => {
-      const table = await readTaskTable(taskListPage.taskListTable);
+      const table = await tableUtils.parseWorkAllocationTable(
+        taskListPage.taskListTable,
+      );
       expect(table.length).toBeGreaterThan(0);
     });
 

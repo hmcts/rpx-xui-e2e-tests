@@ -46,7 +46,10 @@ export class CookieUtils {
       state.cookies = cookies;
       this.fs.writeFileSync(sessionPath, JSON.stringify(state, null, 2));
     } catch (error) {
-      throw new Error(`Failed to read or write session data: ${error}`);
+      throw new Error(
+        `Failed to read or write session data: ${error instanceof Error ? error.message : JSON.stringify(error ?? "")}`,
+        { cause: error },
+      );
     }
   }
 
@@ -79,7 +82,10 @@ export class CookieUtils {
         "utf-8",
       );
     } catch (error) {
-      throw new Error(`Failed to write session file: ${error}`);
+      throw new Error(
+        `Failed to write session file: ${error instanceof Error ? error.message : JSON.stringify(error ?? "")}`,
+        { cause: error },
+      );
     }
   }
 }

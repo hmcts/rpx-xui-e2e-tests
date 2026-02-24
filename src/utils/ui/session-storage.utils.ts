@@ -34,12 +34,12 @@ const logger = createLogger({
 
 const redactSensitiveForLogs = (value: string): string =>
   value
-    .replace(
+    .replaceAll(
       /([?&](?:code|token|state|password|secret)=)[^&#]+/gi,
       "$1[REDACTED]",
     )
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]")
-    .replace(/\b\d{12,}\b/g, "[REDACTED_ID]");
+    .replaceAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[REDACTED_EMAIL]")
+    .replaceAll(/\b\d{12,}\b/g, "[REDACTED_ID]");
 
 const sanitizeUrlForLogs = (urlValue: string): string => {
   try {
@@ -51,7 +51,7 @@ const sanitizeUrlForLogs = (urlValue: string): string => {
 };
 
 const sanitizeTextForLogs = (value: string): string =>
-  redactSensitiveForLogs(value).replace(/\s+/g, " ").trim();
+  redactSensitiveForLogs(value).replaceAll(/\s+/g, " ").trim();
 
 const sanitizeUserIdentifierForLogs = (value: string): string =>
   sanitizeTextForLogs(value);
@@ -114,11 +114,11 @@ const readStorageStateSubject = (storagePath: string): string | undefined => {
 const normalizeUserValue = (value: string | undefined): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim().toLowerCase();
-  return trimmed ? trimmed : undefined;
+  return trimmed || undefined;
 };
 
 const isEmailLike = (value: string | undefined): boolean =>
-  Boolean(value && value.includes("@"));
+  Boolean(value?.includes("@"));
 
 const storageStateMatchesUser = (
   storagePath: string,
@@ -321,7 +321,7 @@ const addAnalyticsCookie = async (context: BrowserContext, baseUrl: string) => {
   if (!userId) return;
 
   let domain: string;
-  let secure = false;
+  let secure: boolean;
   try {
     const parsed = new URL(baseUrl);
     domain = parsed.hostname;

@@ -48,11 +48,10 @@ test.describe("Verify creating and updating a case works as expected", () => {
       await createCasePage.clickContinueAndWaitForNext(
         "after updating case fields",
       );
-      await createCasePage.ensureSubmitButtonVisible(
-        "after updating case fields",
-      );
-      await expect(createCasePage.submitButton).toBeEnabled();
-      await createCasePage.submitButton.click();
+      await createCasePage.clickSubmitAndWait("after updating case fields", {
+        timeoutMs: 150_000,
+        maxAutoAdvanceAttempts: 12,
+      });
       await caseDetailsPage.exuiSpinnerComponent.wait();
       await expect.soft(caseDetailsPage.caseAlertSuccessMessage).toBeVisible();
     });
@@ -76,10 +75,19 @@ test.describe("Verify creating and updating a case works as expected", () => {
         "Last Name": updatedLastName,
       };
 
-      const table = await caseDetailsPage.trRowsToObjectInPage(
-        caseDetailsPage.someMoreDataTable,
-      );
-      expect.soft(table).toMatchObject(expectedValues);
+      await expect
+        .poll(
+          async () =>
+            caseDetailsPage.trRowsToObjectInPage(
+              caseDetailsPage.someMoreDataTable,
+            ),
+          {
+            timeout: 30_000,
+            message:
+              "Some more data table should contain updated first and last name values",
+          },
+        )
+        .toMatchObject(expectedValues);
     });
 
     await test.step("Verify that event details are shown on the History tab", async () => {

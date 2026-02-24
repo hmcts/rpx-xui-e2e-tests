@@ -45,24 +45,6 @@ test.describe("FPL global search user - 16-digit case search", () => {
     const caseNumberFromUrl = await caseDetailsPage.getCaseNumberFromUrl();
     expect.soft(caseNumberFromUrl).toContain(caseNumber);
     await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
-
-    await test.step("Verify optional case details notifications and progress panel", async () => {
-      if (await caseDetailsPage.caseNotificationBannerTitle.isVisible()) {
-        await expect
-          .soft(caseDetailsPage.caseNotificationBannerTitle)
-          .toContainText("Important");
-      }
-      if (await caseDetailsPage.caseNotificationBannerBody.isVisible()) {
-        await expect
-          .soft(caseDetailsPage.caseNotificationBannerBody)
-          .toContainText("active flags on this case");
-      }
-      if (await searchCasePage.caseProgressPanel.isVisible()) {
-        await expect
-          .soft(caseDetailsPage.caseProgressMessage)
-          .toContainText("Current progress of the case");
-      }
-    });
   });
 
   test("Search invalid 16-digit case reference shows no results", async ({

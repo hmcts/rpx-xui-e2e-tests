@@ -81,9 +81,8 @@ export class CaseDetailsPage extends Base {
       timeout: ALERT_VISIBLE_TIMEOUT_MS,
     });
     const alertText = await this.caseAlertSuccessMessage.innerText();
-    const caseNumberMatch = alertText.match(
-      validatorUtils.DIVORCE_CASE_NUMBER_REGEX,
-    );
+    const caseNumberMatch =
+      validatorUtils.DIVORCE_CASE_NUMBER_REGEX.exec(alertText);
     if (!caseNumberMatch) {
       throw new Error(
         `Failed to extract case number from alert: "${alertText}"`,
@@ -144,6 +143,7 @@ export class CaseDetailsPage extends Base {
       if (eventErrorVisible) {
         throw new Error(
           `Case event failed after selecting "${action}": The event could not be created.`,
+          { cause: error },
         );
       }
       if (options.retry === false) {
@@ -199,7 +199,7 @@ export class CaseDetailsPage extends Base {
     }
 
     const exactLabel = this.page.getByLabel(`${target} (${target})`);
-    const escapedTarget = target.replace(
+    const escapedTarget = target.replaceAll(
       /[.*+?^${}()|[\]\\]/g,
       String.raw`\$&`,
     );
@@ -286,7 +286,7 @@ export class CaseDetailsPage extends Base {
         }
         const headerCells = new Set(
           Array.from(thead.querySelectorAll("th, td")).map((element) =>
-            ((element as Element).textContent || "").trim(),
+            (element.textContent ?? "").trim(),
           ),
         );
         return (

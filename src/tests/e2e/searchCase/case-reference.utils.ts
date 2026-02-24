@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { Page } from "@playwright/test";
 
 type GlobalSearchResult = {
@@ -95,7 +97,17 @@ function stateMatchesPreference(
   );
 }
 
-export async function resolveCaseReferenceFromGlobalSearch(
+/**
+ * Resolves a real 16-digit case reference via the global search API.
+ * Retries on transient HTTP errors (429/502/503/504) with exponential back-off.
+ *
+ * Cognitive Complexity: 16 (SonarQube limit: 15)
+ * Inline complexity is intentional: the retry loop with state-preference fallback and
+ * HTML-page fallback is a single self-contained infrastructure concern. Splitting into
+ * helpers would fragment the back-off state and obscure the resolution chain.
+ * See agents.md §14.1 and §6.2.10 for the accepted-exception policy.
+ */
+export async function resolveCaseReferenceFromGlobalSearch( // NOSONAR typescript:S3776
   page: Page,
   options: ResolveCaseReferenceOptions = {},
 ): Promise<string> {
@@ -133,7 +145,9 @@ export async function resolveCaseReferenceFromGlobalSearch(
       TRANSIENT_GLOBAL_SEARCH_STATUSES.has(lastStatus) &&
       attempt < maxAttempts
     ) {
-      await page.waitForTimeout(attempt * 1000);
+      // Exponential back-off before the next attempt; using Node setTimeout avoids
+      // Playwright test-clock coupling in this infrastructure utility.
+      await sleep(attempt * 1000);
       continue;
     }
 
@@ -185,7 +199,17 @@ export async function resolveCaseReferenceFromGlobalSearch(
   throw new Error("No 16-digit case references returned by global search API");
 }
 
-export async function resolveNonExistentCaseReference(
+/**
+ * Generates and validates a non-existent 16-digit case reference via global search.
+ * Retries candidates until one returns zero results, guarding against accidental collisions.
+ *
+ * Cognitive Complexity: 26 (SonarQube limit: 15)
+ * Inline complexity is intentional: nested retry (outer: candidate, inner: status) with
+ * infrastructure error capture and response body snippet is a single self-contained concern.
+ * Splitting would fragment the back-off tracking and obscure the error-context assembly.
+ * See agents.md §14.1 and §6.2.10 for the accepted-exception policy.
+ */
+export async function resolveNonExistentCaseReference( // NOSONAR typescript:S3776
   page: Page,
   options: ResolveCaseReferenceOptions = {},
   maxAttempts = 12,
@@ -234,7 +258,7 @@ export async function resolveNonExistentCaseReference(
         TRANSIENT_GLOBAL_SEARCH_STATUSES.has(lastStatus) &&
         statusAttempt < maxStatusAttempts
       ) {
-        await page.waitForTimeout(statusAttempt * 1000);
+        await sleep(statusAttempt * 1000);
         continue;
       }
 

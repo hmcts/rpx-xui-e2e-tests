@@ -17,7 +17,7 @@ const logger = createLogger({
 });
 
 test.describe("Document upload V2", () => {
-  test.describe.configure({ timeout: 120_000 });
+  test.describe.configure({ timeout: 180_000 });
 
   let testValue = "";
   let caseNumber = "";

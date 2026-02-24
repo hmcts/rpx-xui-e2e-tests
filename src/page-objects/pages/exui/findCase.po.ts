@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { Locator, Page } from "@playwright/test";
 
 import { Base } from "../../base";
@@ -86,7 +88,8 @@ export class FindCasePage extends Base {
           throw error;
         }
 
-        await this.page.waitForTimeout(EXUI_TIMEOUTS.CREATE_CASE_RETRY_BACKOFF);
+        // Node-native sleep avoids Playwright test-clock coupling in this navigation-retry backoff.
+        await sleep(EXUI_TIMEOUTS.CREATE_CASE_RETRY_BACKOFF);
         await this.page.goto("/cases");
         await this.exuiSpinnerComponent.wait();
       }

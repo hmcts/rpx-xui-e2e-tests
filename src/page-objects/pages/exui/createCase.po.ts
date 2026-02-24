@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { faker } from "@faker-js/faker";
 import { createLogger } from "@hmcts/playwright-common";
 import { Page, Locator, expect } from "@playwright/test";
@@ -8,6 +10,20 @@ const logger = createLogger({
   serviceName: "create-case",
   format: "pretty",
 });
+
+const JURISDICTION_BOOTSTRAP_5XX_MARKER =
+  "jurisdiction-bootstrap-5xx-circuit-breaker";
+
+type JurisdictionBootstrapCircuitBreakerState = {
+  marker: string;
+  status: number;
+  url: string;
+  timestamp: string;
+};
+
+type PageWithCircuitBreaker = Page & {
+  __jurisdictionBootstrapCircuitBreaker?: JurisdictionBootstrapCircuitBreakerState;
+};
 
 export class CreateCasePage extends Base {
   readonly container = this.page.locator("exui-case-home");
@@ -257,11 +273,40 @@ export class CreateCasePage extends Base {
   private async waitForSelectReady(selector: string, timeoutMs = 20000) {
     await this.page.waitForFunction(
       (sel) => {
-        const el = document.querySelector(sel) as HTMLSelectElement | null;
-        return !!el && el.options.length > 1 && !el.disabled;
+        // NOSONAR typescript:S7862 -- cast needed to access HTMLSelectElement.options/disabled in browser context
+        const el = document.querySelector(sel);
+        return (
+          !!el &&
+          (el as HTMLSelectElement).options.length > 1 &&
+          !(el as HTMLSelectElement).disabled
+        );
       },
       selector,
       { timeout: timeoutMs },
+    );
+  }
+
+  private async waitForStartButtonEnabled(timeoutMs = 15_000): Promise<void> {
+    await this.startButton.waitFor({ state: "visible", timeout: timeoutMs });
+    await expect(this.startButton).toBeEnabled({ timeout: timeoutMs });
+  }
+
+  private getJurisdictionBootstrapCircuitBreakerState():
+    | JurisdictionBootstrapCircuitBreakerState
+    | undefined {
+    const pageWithCircuitBreaker = this.page as PageWithCircuitBreaker;
+    return pageWithCircuitBreaker.__jurisdictionBootstrapCircuitBreaker;
+  }
+
+  private throwIfJurisdictionBootstrapCircuitBreakerActive(
+    context: string,
+  ): void {
+    const state = this.getJurisdictionBootstrapCircuitBreakerState();
+    if (state?.marker !== JURISDICTION_BOOTSTRAP_5XX_MARKER) {
+      return;
+    }
+    throw new Error(
+      `[RETRY_MARKER:${JURISDICTION_BOOTSTRAP_5XX_MARKER}] Known transient backend failure during ${context}: ${state.url} returned HTTP ${state.status} at ${state.timestamp}`,
     );
   }
 
@@ -373,6 +418,96 @@ export class CreateCasePage extends Base {
   }
 
   /**
+   * Check whether the Continue button is currently visible and enabled.
+   * Extracted from {@link clickSubmitAndWait} to reduce cognitive complexity.
+   */
+  private async isContinueReady(): Promise<boolean> {
+    const visible = await this.continueButton.isVisible().catch(() => false);
+    if (!visible) return false;
+    return this.continueButton.isEnabled().catch(() => false);
+  }
+
+  /**
+   * Handle the case where Continue remains intercepted by a spinner overlay on the second attempt.
+   * Extracted from {@link retryClickContinueAfterSpinnerIntercept} to reduce cognitive complexity.
+   */
+  private async handleForceContinueAfterDoubleIntercept(
+    context: string,
+    clickTimeout: number,
+    allowDisabledSkip: boolean,
+    cause: unknown,
+  ): Promise<"force" | "skip"> {
+    if (allowDisabledSkip) {
+      logger.debug(
+        "Continue retry still blocked by spinner overlay; skipping this attempt",
+        { context },
+      );
+      return "skip";
+    }
+    await this.assertNoEventCreationError(context);
+    const hasValidationError = await this.checkForErrorMessage(undefined, 1000);
+    if (hasValidationError) {
+      throw new Error(`Validation error after ${context}`, { cause });
+    }
+    this.assertPageOpen(`before force-clicking Continue ${context}`);
+    // eslint-disable-next-line playwright/no-force-option -- CCD spinner overlay; force is the documented resilience fallback (agents.md §6.2.10)
+    await this.continueButton.click({ force: true, timeout: clickTimeout });
+    return "force";
+  }
+
+  /**
+   * Retry clicking Continue after the initial click was intercepted by a spinner overlay.
+   * Extracted from {@link clickContinueAndWait} to reduce cognitive complexity.
+   *
+   * @returns "ok" – retried successfully; "skip" – caller should skip; "force" – force-clicked
+   */
+  private async retryClickContinueAfterSpinnerIntercept(
+    context: string,
+    clickTimeout: number,
+    allowDisabledSkip: boolean,
+  ): Promise<"ok" | "skip" | "force"> {
+    logger.warn(
+      "Continue click intercepted by spinner; retrying after spinner wait",
+      { context },
+    );
+    await this.page
+      .locator("xuilib-loading-spinner")
+      .first()
+      .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {
+        // Best-effort wait; if spinner persists, retry may still fail with a clear click error.
+      });
+    this.assertPageOpen(`while retrying Continue ${context}`);
+    try {
+      await this.continueButton.click({ timeout: clickTimeout });
+      return "ok";
+    } catch (retryError) {
+      if (this.isPageOrContextClosedError(retryError)) {
+        throw new Error(`Page closed while retrying Continue ${context}`, {
+          cause: retryError,
+        });
+      }
+      const retryMessage = String(retryError);
+      if (retryMessage.includes("intercepts pointer events")) {
+        return this.handleForceContinueAfterDoubleIntercept(
+          context,
+          clickTimeout,
+          allowDisabledSkip,
+          retryError,
+        );
+      }
+      if (allowDisabledSkip && retryMessage.includes("disabled")) {
+        logger.debug(
+          "Continue became disabled during retry; skipping this attempt",
+          { context },
+        );
+        return "skip";
+      }
+      throw retryError;
+    }
+  }
+
+  /**
    * Click continue button in CCD wizard with comprehensive error detection
    *
    * **Defensive Pattern**: Multi-layered validation prevents clicking disabled buttons,
@@ -430,63 +565,19 @@ export class CreateCasePage extends Base {
       });
     } catch (error) {
       if (this.isPageOrContextClosedError(error)) {
-        throw new Error(`Page closed while clicking Continue ${context}`);
+        throw new Error(`Page closed while clicking Continue ${context}`, {
+          cause: error,
+        });
       }
       const message = String(error);
-      if (!message.includes("intercepts pointer events")) {
-        throw error;
-      }
-      logger.warn(
-        "Continue click intercepted by spinner; retrying after spinner wait",
-        { context },
+      if (!message.includes("intercepts pointer events")) throw error;
+      const retryOutcome = await this.retryClickContinueAfterSpinnerIntercept(
+        context,
+        clickTimeout,
+        allowDisabledSkip,
       );
-      await this.page
-        .locator("xuilib-loading-spinner")
-        .first()
-        .waitFor({ state: "hidden", timeout: 10000 })
-        .catch(() => {
-          // Best-effort wait; if spinner persists, retry may still fail with a clear click error.
-        });
-      this.assertPageOpen(`while retrying Continue ${context}`);
-      try {
-        await this.continueButton.click({ timeout: clickTimeout });
-      } catch (retryError) {
-        if (this.isPageOrContextClosedError(retryError)) {
-          throw new Error(`Page closed while retrying Continue ${context}`);
-        }
-        const retryMessage = String(retryError);
-        if (retryMessage.includes("intercepts pointer events")) {
-          if (allowDisabledSkip) {
-            logger.debug(
-              "Continue retry still blocked by spinner overlay; skipping this attempt",
-              { context },
-            );
-            return false;
-          }
-          await this.assertNoEventCreationError(context);
-          const hasValidationError = await this.checkForErrorMessage(
-            undefined,
-            1000,
-          );
-          if (hasValidationError) {
-            throw new Error(`Validation error after ${context}`);
-          }
-          this.assertPageOpen(`before force-clicking Continue ${context}`);
-          await this.continueButton.click({
-            force: true,
-            timeout: clickTimeout,
-          });
-          return true;
-        }
-        if (allowDisabledSkip && retryMessage.includes("disabled")) {
-          logger.debug(
-            "Continue became disabled during retry; skipping this attempt",
-            { context },
-          );
-          return false;
-        }
-        throw retryError;
-      }
+      if (retryOutcome === "skip") return false;
+      if (retryOutcome === "force") return true;
     }
     await this.waitForSpinnerToComplete(`after ${context}`);
     await this.assertNoEventCreationError(context);
@@ -504,7 +595,8 @@ export class CreateCasePage extends Base {
   }
 
   private isPageOrContextClosedError(error: unknown): boolean {
-    const message = String(error ?? "");
+    const message =
+      error instanceof Error ? error.message : JSON.stringify(error ?? "");
     return (
       message.includes("Target page, context or browser has been closed") ||
       message.includes("Target closed") ||
@@ -523,15 +615,131 @@ export class CreateCasePage extends Base {
     return this.clickContinueAndWait(context, options);
   }
 
-  private async waitForSpinnerToComplete(context: string, timeoutMs?: number) {
-    const effectiveTimeoutMs = timeoutMs ?? 120000;
+  private async clickSubmitButtonWithRetry(context: string): Promise<void> {
+    this.assertPageOpen(`before clicking Submit ${context}`);
+    await this.submitButton.waitFor({ state: "visible", timeout: 10000 });
+    await this.submitButton.scrollIntoViewIfNeeded();
+    await expect(this.submitButton).toBeEnabled({ timeout: 10000 });
+
+    try {
+      await this.submitButton.click({ timeout: 15000 });
+    } catch (error) {
+      if (this.isPageOrContextClosedError(error)) {
+        throw new Error(`Page closed while clicking Submit ${context}`, {
+          cause: error,
+        });
+      }
+      const message =
+        error instanceof Error ? error.message : JSON.stringify(error ?? "");
+      if (!message.includes("intercepts pointer events")) {
+        throw error;
+      }
+      logger.warn("Submit click intercepted by spinner; retrying with force", {
+        context,
+      });
+      // eslint-disable-next-line playwright/no-force-option -- CCD spinner overlay intercepts the submit click; force retry is the documented CCD resilience pattern (agents.md §6.2.10)
+      await this.submitButton.click({ force: true, timeout: 15000 });
+    }
+  }
+
+  async clickSubmitAndWait(
+    // NOSONAR typescript:S3776 -- self-contained CCD wizard submit polling loop; complexity is intentional (agents.md §6.2.10)
+    context: string,
+    options: { timeoutMs?: number; maxAutoAdvanceAttempts?: number } = {},
+  ): Promise<void> {
+    const timeoutMs = options.timeoutMs ?? 60_000;
+    const deadline = Date.now() + timeoutMs;
+    let autoAdvanceCount = 0;
+    const maxAutoAdvanceAttempts =
+      options.maxAutoAdvanceAttempts ??
+      Math.max(2, Math.min(10, Math.floor(timeoutMs / 15_000)));
+
+    while (Date.now() < deadline) {
+      this.assertPageOpen(`while waiting for submit button ${context}`);
+      await this.assertNoEventCreationError(
+        `while waiting for submit ${context}`,
+      );
+
+      const submitVisible = await this.submitButton
+        .isVisible()
+        .catch(() => false);
+      if (submitVisible) {
+        await this.clickSubmitButtonWithRetry(context);
+        await this.waitForSpinnerToComplete(
+          `after submit ${context}`,
+          timeoutMs,
+        );
+        await this.assertNoEventCreationError(`after submit ${context}`);
+        const hasValidationError = await this.checkForErrorMessage(
+          undefined,
+          1000,
+        );
+        if (hasValidationError) {
+          throw new Error(`Validation error after submit ${context}`);
+        }
+        return;
+      }
+
+      if (await this.isContinueReady()) {
+        const nextAttempt = autoAdvanceCount + 1;
+        if (nextAttempt > maxAutoAdvanceAttempts) {
+          throw new Error(
+            `Exceeded ${maxAutoAdvanceAttempts} auto-advance attempts before submit ${context}`,
+          );
+        }
+        autoAdvanceCount = nextAttempt;
+        await this.clickContinueAndWaitForNext(
+          `auto-advance ${autoAdvanceCount} before submit ${context}`,
+          { allowDisabledSkip: true, timeoutMs: 12_000 },
+        );
+        continue;
+      }
+
+      const spinnerVisible = await this.page
+        .locator("xuilib-loading-spinner")
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (spinnerVisible) {
+        await this.waitForSpinnerToComplete(
+          `while waiting for submit ${context}`,
+          12_000,
+        ).catch(() => {
+          // Keep polling; spinner may be intermittent in CCD.
+        });
+        // Node-native sleep avoids Playwright test-clock coupling in this infrastructure PO.
+        await sleep(300);
+        continue;
+      }
+
+      await sleep(500);
+    }
+
+    const visibleActionButtons = await this.page
+      .getByRole("button")
+      .allInnerTexts()
+      .then((texts) =>
+        texts
+          .map((text) => text.trim())
+          .filter((text) => text.length > 0)
+          .filter((text) => /(continue|submit|save)/i.test(text))
+          .slice(0, 10),
+      )
+      .catch(() => []);
+
+    throw new Error(
+      `Submit button did not become available ${context}. URL=${this.page.url()} autoAdvance=${autoAdvanceCount}/${maxAutoAdvanceAttempts} visibleActionButtons=${visibleActionButtons.join(" | ") || "none"}`,
+    );
+  }
+
+  private async waitForSpinnerToComplete(context: string, timeoutMs = 120_000) {
     const spinner = this.page.locator("xuilib-loading-spinner").first();
     try {
-      await spinner.waitFor({ state: "hidden", timeout: effectiveTimeoutMs });
+      await spinner.waitFor({ state: "hidden", timeout: timeoutMs });
     } catch (error) {
       const stillVisible = await spinner.isVisible().catch(() => false);
       if (stillVisible) {
-        throw new Error(`Spinner still visible ${context}`);
+        throw new Error(`Spinner still visible ${context}`, { cause: error });
       }
       logger.warn(
         "Spinner hidden wait failed, proceeding because spinner not visible",
@@ -700,53 +908,86 @@ export class CreateCasePage extends Base {
     return false;
   }
 
+  /**
+   * Navigate to the CCD case-filter page if not already there.
+   * Extracted from {@link createCase} to reduce cognitive complexity.
+   */
+  private async ensureOnCaseFilterPage(): Promise<void> {
+    if (this.page.url().includes("/cases/case-filter")) return;
+    try {
+      await this.createCaseButton.waitFor({ state: "visible", timeout: 5000 });
+      await this.createCaseButton.click();
+    } catch (error: unknown) {
+      logger.debug(
+        "Create case button not visible, navigating to filter page",
+        {
+          error: error instanceof Error ? error.message : JSON.stringify(error),
+        },
+      );
+      if (this.page.isClosed()) {
+        throw new Error(
+          "Page closed while navigating to case filter from createCase button fallback",
+          { cause: error },
+        );
+      }
+      await this.page.goto("/cases/case-filter");
+    }
+  }
+
+  /**
+   * Select jurisdiction, case type and optional event type on the case-filter page.
+   * Extracted from {@link createCase} to reduce cognitive complexity.
+   */
+  private async selectCaseFilterOptions(
+    jurisdiction: string,
+    caseType: string,
+    eventType?: string,
+  ): Promise<void> {
+    await this.jurisdictionSelect.waitFor({ state: "visible" });
+    await this.waitForSelectReady("#cc-jurisdiction", 30000);
+    await this.selectOptionSmart(this.jurisdictionSelect, jurisdiction);
+
+    await this.caseTypeSelect.waitFor({ state: "visible" });
+    await this.waitForSelectReady("#cc-case-type", 30000);
+    await this.selectOptionSmart(this.caseTypeSelect, caseType);
+
+    if (eventType) {
+      await this.eventTypeSelect.click();
+      await this.waitForSelectReady("#cc-event", 30000);
+      await this.selectOptionSmart(this.eventTypeSelect, eventType);
+    }
+  }
+
   async createCase(jurisdiction: string, caseType: string, eventType?: string) {
-    const maxAttempts = 2;
+    const maxAttempts = 3;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        if (!this.page.url().includes("/cases/case-filter")) {
-          try {
-            await this.createCaseButton.waitFor({
-              state: "visible",
-              timeout: 5000,
-            });
-            await this.createCaseButton.click();
-          } catch (error: unknown) {
-            // Button not visible - navigate directly to filter page
-            logger.debug(
-              "Create case button not visible, navigating to filter page",
-              {
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : JSON.stringify(error),
-              },
-            );
-            await this.page.goto("/cases/case-filter");
-          }
-        }
-        await this.jurisdictionSelect.waitFor({ state: "visible" });
-        await this.waitForSelectReady("#cc-jurisdiction", 30000);
-        await this.selectOptionSmart(this.jurisdictionSelect, jurisdiction);
-
-        await this.caseTypeSelect.waitFor({ state: "visible" });
-        await this.waitForSelectReady("#cc-case-type", 30000);
-        await this.selectOptionSmart(this.caseTypeSelect, caseType);
-        if (eventType) {
-          await this.eventTypeSelect.click();
-          await this.waitForSelectReady("#cc-event", 30000);
-          await this.selectOptionSmart(this.eventTypeSelect, eventType);
-        }
-        await this.startButton.click();
+        this.throwIfJurisdictionBootstrapCircuitBreakerActive(
+          "createCase bootstrap",
+        );
+        await this.ensureOnCaseFilterPage();
+        await this.selectCaseFilterOptions(jurisdiction, caseType, eventType);
+        this.throwIfJurisdictionBootstrapCircuitBreakerActive(
+          "before Start click",
+        );
+        await this.waitForStartButtonEnabled(15_000);
+        await this.startButton.click({ timeout: 15_000 });
         return;
       } catch (error) {
-        if (attempt === maxAttempts) {
+        if (
+          String(error).includes(
+            `[RETRY_MARKER:${JURISDICTION_BOOTSTRAP_5XX_MARKER}]`,
+          )
+        ) {
           throw error;
         }
+        if (attempt === maxAttempts) throw error;
         logger.warn("Create case selection failed; retrying case filter", {
           attempt,
           maxAttempts,
+          error: error instanceof Error ? error.message : String(error),
         });
+        if (this.page.isClosed()) throw error;
         await this.page.goto("/cases/case-filter");
       }
     }
@@ -1149,7 +1390,7 @@ export class CreateCasePage extends Base {
         .isVisible()
         .catch(() => false);
       if (!continueVisible) {
-        await this.page.waitForTimeout(500);
+        await sleep(500);
         continue;
       }
 
@@ -1157,7 +1398,7 @@ export class CreateCasePage extends Base {
         `auto-advance to submit ${context}`,
         { allowDisabledSkip: true, timeoutMs: 10000 },
       );
-      await this.page.waitForTimeout(300);
+      await sleep(300);
     }
     throw new Error(
       `Submit button did not become visible before ${context} (${timeoutMs}ms)`,

@@ -1,3 +1,13 @@
+/**
+ * Formats an ISO date string as "D Month YYYY" (e.g. "1 February 2026").
+ * Used to match the long-date format displayed in EXUI work-allocation tables.
+ */
+export function formatUiDate(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const date = new Date(iso);
+  return `${date.getDate()} ${date.toLocaleString("en-GB", { month: "long" })} ${date.getFullYear()}`;
+}
+
 export function normalizeLongDate(value: string): string {
   const regex = /(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/;
   const match = regex.exec(value);

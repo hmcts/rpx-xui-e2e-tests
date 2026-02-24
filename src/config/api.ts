@@ -1,6 +1,7 @@
-export const resolveBaseUrl = (value?: string): string => {
-  const raw = value ?? "https://manage-case.aat.platform.hmcts.net/";
-  return raw.endsWith("/") ? raw : `${raw}/`;
+export const resolveBaseUrl = (
+  value = "https://manage-case.aat.platform.hmcts.net/",
+): string => {
+  return value.endsWith("/") ? value : `${value}/`;
 };
 
 export const resolveTestEnv = (value?: string): "aat" | "demo" => {
