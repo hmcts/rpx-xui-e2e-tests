@@ -35,7 +35,7 @@ export const StatusSets = {
   roleAccessGuarded: [200, 401, 403, 404, 500, 502, 504] as const,
   bookmark: [200, 201, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
   documentView: [200, 401, 403, 404] as const,
-  unauthenticated: [401, 403] as const,
+  unauthenticated: [401, 403, 502, 504] as const,
 };
 
 export type StatusSetName = keyof typeof StatusSets;
@@ -107,7 +107,7 @@ export async function withRetry<T extends { status: number }>(
   }
   const retryStatuses = opts.retryStatuses ?? [502, 504];
   const attempts = Math.max(1, retries + 1);
-  const requestTimeoutMs = opts.requestTimeoutMs ?? 30_000;
+  const requestTimeoutMs = opts.requestTimeoutMs ?? 45_000;
   const derivedMaxElapsedMs = Math.max(
     DEFAULT_RETRY_MAX_ELAPSED_MS,
     requestTimeoutMs * attempts +
