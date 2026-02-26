@@ -262,17 +262,23 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
             await caseSearchPage.applyFilters();
             await caseSearchPage.openFirstResult();
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message =
+              error instanceof Error ? error.message : String(error);
             const unavailableFilter =
               message.includes("Search filter option") &&
               message.includes("not found");
             if (!unavailableFilter) {
               throw error;
             }
-            await submitHeaderQuickSearch(caseReference, caseListPage, caseSearchPage, {
-              navigationMode: "shell",
-              waitForSpinner: true,
-            });
+            await submitHeaderQuickSearch(
+              caseReference,
+              caseListPage,
+              caseSearchPage,
+              {
+                navigationMode: "shell",
+                waitForSpinner: true,
+              },
+            );
           }
           await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
           await caseDetailsPage.waitForReady();
@@ -283,9 +289,9 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
             if (page.isClosed()) {
               return;
             }
-            await page.goto("/cases", { waitUntil: "domcontentloaded" }).catch(
-              () => undefined,
-            );
+            await page
+              .goto("/cases", { waitUntil: "domcontentloaded" })
+              .catch(() => undefined);
             await caseListPage.waitForReady(60_000).catch(() => undefined);
           },
         },
