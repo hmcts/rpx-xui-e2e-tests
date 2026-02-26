@@ -1,8 +1,8 @@
+import { execSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { cpus, homedir } from "node:os";
 import path from "node:path";
-import { execSync } from "node:child_process";
 
 import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
 import {
@@ -62,9 +62,9 @@ const resolveWorkerCount = (env: EnvMap = process.env) => {
   }
   const logical = cpus()?.length ?? 1;
   if (env.CI) return 1;
-  if (logical <= 2) return 1;
+  if (logical <= 4) return 1;
   const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(8, Math.max(2, approxPhysical));
+  return Math.min(2, Math.max(1, approxPhysical));
 };
 
 const resolveRetryCount = (env: EnvMap = process.env) => {
@@ -72,10 +72,10 @@ const resolveRetryCount = (env: EnvMap = process.env) => {
   if (configured) {
     const parsed = Number.parseInt(configured, 10);
     if (!Number.isNaN(parsed) && parsed >= 0) {
-      return Math.max(4, parsed);
+      return parsed;
     }
   }
-  return 4;
+  return env.CI ? 2 : 0;
 };
 
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
@@ -240,7 +240,7 @@ type PlaywrightVideoMode =
 
 const resolveVideoMode = (
   env: EnvMap = process.env,
-  fallback: PlaywrightVideoMode = "retain-on-failure",
+  fallback: PlaywrightVideoMode = "off",
 ): PlaywrightVideoMode => {
   const configured = env.PLAYWRIGHT_VIDEO?.trim().toLowerCase();
   if (
@@ -291,12 +291,20 @@ const resolveChromiumExecutablePath = (
   return undefined;
 };
 
+const heavyUiSpecPatterns = [
+  /src\/tests\/e2e\/documentUpload\/.*\.spec\.ts/,
+  /src\/tests\/e2e\/myWork\/myTasks\.spec\.ts/,
+  /src\/tests\/e2e\/caseFlags\/.*\.spec\.ts/,
+  /src\/tests\/e2e\/updateCase\/.*\.spec\.ts/,
+];
+
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const chromiumExecutablePath = resolveChromiumExecutablePath(env);
   return {
     testDir: "./src/tests",
     globalSetup: "./src/global/ui.global.setup.ts",
     ...CommonConfig.recommended,
+    preserveOutput: "failures-only",
     fullyParallel: true,
     workers: resolveWorkerCount(env),
     reporter: resolveReporters(env),
@@ -310,7 +318,11 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "ui",
         testMatch: /src\/tests\/e2e\/.*\.spec\.ts/,
-        testIgnore: /src\/tests\/e2e\/integration\/.*\.spec\.ts/,
+        testIgnore: [
+          /src\/tests\/e2e\/integration\/.*\.spec\.ts/,
+          /src\/tests\/integration\/.*\.spec\.ts/,
+          ...heavyUiSpecPatterns,
+        ],
         retries: resolveRetryCount(env),
         outputDir: "test-results/ui",
         use: {
@@ -332,8 +344,31 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
         },
       },
       {
+        name: "ui-heavy",
+        testMatch: heavyUiSpecPatterns,
+        retries: resolveRetryCount(env),
+        outputDir: "test-results/ui-heavy",
+        use: {
+          ...ProjectsConfig.chromium.use,
+          channel: env.PW_UI_CHANNEL,
+          viewport: CommonConfig.DEFAULT_VIEWPORT,
+          headless: true,
+          trace: "retain-on-failure",
+          screenshot: "only-on-failure",
+          video: resolveVideoMode(env),
+          storageState: shouldUseUiStorage()
+            ? resolveUiStoragePath()
+            : undefined,
+          launchOptions: chromiumExecutablePath
+            ? {
+                executablePath: chromiumExecutablePath,
+              }
+            : undefined,
+        },
+      },
+      {
         name: "integration",
-        testMatch: /src\/tests\/e2e\/integration\/.*\.spec\.ts/,
+        testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
         grepInvert: /@nightly/i,
         retries: resolveRetryCount(env),
         outputDir: "test-results/integration",
@@ -354,7 +389,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       },
       {
         name: "integration-nightly",
-        testMatch: /src\/tests\/e2e\/integration\/.*\.spec\.ts/,
+        testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
         grep: /@nightly/i,
         retries: resolveRetryCount(env),
         outputDir: "test-results/integration-nightly",

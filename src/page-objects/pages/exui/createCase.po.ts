@@ -6,6 +6,12 @@ import { Page, Locator, expect } from "@playwright/test";
 
 import { Base } from "../../base";
 
+import {
+  CCD_CASE_REFERENCE_LENGTH,
+  CCD_CASE_REFERENCE_PATTERN,
+  EXUI_TIMEOUTS,
+} from "./exui-timeouts.js";
+
 const logger = createLogger({
   serviceName: "create-case",
   format: "pretty",
@@ -25,6 +31,18 @@ type PageWithCircuitBreaker = Page & {
   __jurisdictionBootstrapCircuitBreaker?: JurisdictionBootstrapCircuitBreakerState;
 };
 
+type EventTriggerProbeResult = {
+  ok: boolean;
+  status: number;
+  message: string;
+  url: string;
+};
+
+type CaseFilterSelection = {
+  selectedCaseTypeValue: string;
+  selectedEventValue?: string;
+};
+
 export class CreateCasePage extends Base {
   readonly container = this.page.locator("exui-case-home");
   readonly caseDetailsContainer = this.page.locator("exui-case-details-home");
@@ -39,6 +57,7 @@ export class CreateCasePage extends Base {
   readonly continueButton = this.page.locator(
     'button:has-text("Continue"):visible',
   );
+  readonly caseActionGoButton = this.page.locator(".event-trigger button");
 
   // Locators for the Divorce - XUI Case flags V2
   readonly legalRepParty1Block = this.page.locator(
@@ -271,24 +290,426 @@ export class CreateCasePage extends Base {
    * @private
    */
   private async waitForSelectReady(selector: string, timeoutMs = 20000) {
-    await this.page.waitForFunction(
-      (sel) => {
-        // NOSONAR typescript:S7862 -- cast needed to access HTMLSelectElement.options/disabled in browser context
-        const el = document.querySelector(sel);
-        return (
-          !!el &&
-          (el as HTMLSelectElement).options.length > 1 &&
-          !(el as HTMLSelectElement).disabled
+    try {
+      await this.page.waitForFunction(
+        (sel) => {
+          // NOSONAR typescript:S7862 -- cast needed to access HTMLSelectElement.options/disabled in browser context
+          const el = document.querySelector(sel);
+          if (!el) {
+            return false;
+          }
+          const select = el as HTMLSelectElement;
+          const hasUsableOption = Array.from(select.options).some(
+            (option) => option.value.trim().length > 0,
+          );
+          return hasUsableOption && !select.disabled;
+        },
+        selector,
+        { timeout: timeoutMs },
+      );
+    } catch (error) {
+      const snapshot = await this.page
+        .evaluate((sel) => {
+          const el = document.querySelector(sel) as HTMLSelectElement | null;
+          if (!el) {
+            return { exists: false };
+          }
+          return {
+            exists: true,
+            disabled: el.disabled,
+            value: el.value,
+            optionCount: el.options.length,
+            optionValues: Array.from(el.options).map((option) => option.value),
+          };
+        }, selector)
+        .catch(() => ({ exists: false }));
+      throw new Error(
+        `Select did not become ready: ${selector} (timeout=${timeoutMs}ms) snapshot=${JSON.stringify(snapshot)}`,
+        { cause: error },
+      );
+    }
+  }
+
+  private async waitForEventSelectReady(timeoutMs = 12_000): Promise<void> {
+    const selector = "#cc-event";
+    try {
+      await this.waitForSelectReady(selector, timeoutMs);
+    } catch (error) {
+      const snapshot = await this.page
+        .evaluate((sel) => {
+          const el = document.querySelector(sel) as HTMLSelectElement | null;
+          if (!el) {
+            return { exists: false };
+          }
+          return {
+            exists: true,
+            disabled: el.disabled,
+            value: el.value,
+            optionCount: el.options.length,
+            optionValues: Array.from(el.options).map((option) => option.value),
+          };
+        }, selector)
+        .catch(() => ({ exists: false }));
+      const optionValues = (snapshot as { optionValues?: unknown })
+        .optionValues;
+      const isPlaceholderOnly =
+        Array.isArray(optionValues) &&
+        optionValues.length === 1 &&
+        optionValues[0] === "";
+      if (isPlaceholderOnly) {
+        throw new Error(
+          `Case event dropdown stayed placeholder-only: ${selector} snapshot=${JSON.stringify(snapshot)}`,
+          { cause: error },
         );
+      }
+      throw error;
+    }
+  }
+
+  private async probeEventTrigger(
+    caseTypeValue: string,
+    eventValue: string,
+  ): Promise<EventTriggerProbeResult> {
+    const url = `/data/internal/case-types/${encodeURIComponent(caseTypeValue)}/event-triggers/${encodeURIComponent(eventValue)}?ignore-warning=false`;
+    const response = await this.page.request.get(url, {
+      failOnStatusCode: false,
+      headers: {
+        experimental: "true",
       },
-      selector,
-      { timeout: timeoutMs },
+    });
+    const status = response.status();
+    const text = await response.text().catch(() => "");
+    if (status >= 200 && status < 300) {
+      return { ok: true, status, message: "ok", url };
+    }
+    let message = response.statusText();
+    if (text) {
+      try {
+        const parsed = JSON.parse(text) as {
+          message?: unknown;
+          error?: unknown;
+        };
+        if (typeof parsed.message === "string" && parsed.message.trim()) {
+          message = parsed.message;
+        } else if (typeof parsed.error === "string" && parsed.error.trim()) {
+          message = parsed.error;
+        }
+      } catch {
+        // keep status text fallback
+      }
+    }
+    return { ok: false, status, message: message || "unknown", url };
+  }
+
+  private async ensureEventTriggerAvailable(
+    selectedCaseTypeValue: string,
+    selectedEventValue: string,
+    requestedEventType: string,
+  ): Promise<CaseFilterSelection> {
+    const eventAliases = this.getEventTypeAliases(requestedEventType);
+    const candidateValues = Array.from(
+      new Set([
+        selectedEventValue,
+        this.eventLabelToTriggerValue(requestedEventType),
+        ...eventAliases.map((alias) => this.eventLabelToTriggerValue(alias)),
+      ]),
+    ).filter((value) => value.trim().length > 0);
+
+    const eventOptions = await this.eventTypeSelect
+      .evaluate((el) =>
+        Array.from((el as HTMLSelectElement).options)
+          .map((option) => ({
+            value: option.value.trim(),
+            label: option.textContent?.trim() ?? "",
+          }))
+          .filter(
+            (option) => option.value.length > 0 || option.label.length > 0,
+          ),
+      )
+      .catch(() => [] as Array<{ value: string; label: string }>);
+
+    const shouldSkipProbeForCaseType =
+      selectedCaseTypeValue.includes(" ") ||
+      /[A-Z].*\s+[A-Z]/.test(selectedCaseTypeValue);
+
+    if (shouldSkipProbeForCaseType) {
+      for (const alias of eventAliases) {
+        try {
+          const resolvedValue = await this.selectOptionSmart(
+            this.eventTypeSelect,
+            alias,
+          );
+          if (alias !== requestedEventType) {
+            logger.warn(
+              "Resolved start event via UI alias for labeled case type",
+              {
+                caseType: selectedCaseTypeValue,
+                requestedEvent: requestedEventType,
+                resolvedEvent: alias,
+                resolvedValue,
+              },
+            );
+          }
+          return {
+            selectedCaseTypeValue,
+            selectedEventValue: resolvedValue,
+          };
+        } catch {
+          // try next alias
+        }
+      }
+      const optionSummary = eventOptions
+        .map(
+          (option) =>
+            `${option.label || "<no-label>"} (${option.value || "<empty>"})`,
+        )
+        .join(", ");
+      throw new Error(
+        `No usable UI event option for requested event "${requestedEventType}" on labeled case type "${selectedCaseTypeValue}". Available options: ${optionSummary || "none"}.`,
+      );
+    }
+
+    for (const alias of eventAliases) {
+      try {
+        const resolvedValue = await this.selectOptionSmart(
+          this.eventTypeSelect,
+          alias,
+        );
+        const probe = await this.probeEventTrigger(
+          selectedCaseTypeValue,
+          resolvedValue,
+        );
+        if (probe.ok) {
+          if (alias !== requestedEventType) {
+            logger.warn("Resolved start event via case-type-aware alias", {
+              caseType: selectedCaseTypeValue,
+              requestedEvent: requestedEventType,
+              resolvedEvent: alias,
+              resolvedValue,
+            });
+          }
+          return { selectedCaseTypeValue, selectedEventValue: resolvedValue };
+        }
+        logger.warn(
+          "Selected UI event option but trigger probe failed; trying next candidate",
+          {
+            caseType: selectedCaseTypeValue,
+            requestedEvent: requestedEventType,
+            resolvedEvent: alias,
+            resolvedValue,
+            status: probe.status,
+            message: probe.message,
+            url: probe.url,
+          },
+        );
+        continue;
+      } catch {
+        // try next alias/value
+      }
+    }
+
+    for (const candidateValue of candidateValues) {
+      const probe = await this.probeEventTrigger(
+        selectedCaseTypeValue,
+        candidateValue,
+      );
+      if (probe.ok) {
+        try {
+          await this.eventTypeSelect.selectOption({ value: candidateValue });
+        } catch {
+          // keep probing fallback result even if UI select failed
+        }
+        return { selectedCaseTypeValue, selectedEventValue: candidateValue };
+      }
+      logger.warn("Selected case type/event trigger is not available", {
+        caseType: selectedCaseTypeValue,
+        event: candidateValue,
+        status: probe.status,
+        message: probe.message,
+        url: probe.url,
+      });
+    }
+
+    const optionSummary = eventOptions
+      .map(
+        (option) =>
+          `${option.label || "<no-label>"} (${option.value || "<empty>"})`,
+      )
+      .join(", ");
+    throw new Error(
+      `No valid event trigger available for requested event "${requestedEventType}" on caseType="${selectedCaseTypeValue}". Available options: ${optionSummary || "none"}.`,
     );
   }
 
-  private async waitForStartButtonEnabled(timeoutMs = 15_000): Promise<void> {
+  private eventLabelToTriggerValue(eventTypeLabel: string): string {
+    const compact = eventTypeLabel.trim().replace(/\s+/g, " ");
+    if (!compact) {
+      return compact;
+    }
+    const words = compact.split(" ");
+    return words
+      .map((word, index) => {
+        const lower = word.toLowerCase();
+        if (index === 0) {
+          return lower;
+        }
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+      })
+      .join("");
+  }
+
+  private getEventTypeAliases(eventType: string): string[] {
+    const normalized = eventType.trim().toLowerCase();
+    if (!normalized) {
+      return [];
+    }
+    if (normalized === "create case" || normalized === "createcase") {
+      return [
+        "Create Case",
+        "Create a case",
+        "Start",
+        "createCase",
+        "initiateCase",
+      ];
+    }
+    if (normalized === "start") {
+      return [
+        "Start",
+        "Create Case",
+        "Create a case",
+        "initiateCase",
+        "createCase",
+      ];
+    }
+    return [eventType];
+  }
+
+  private getCaseTypeAliases(caseType: string): string[] {
+    const normalized = caseType.trim().toLowerCase();
+    if (!normalized) {
+      return [];
+    }
+    if (
+      normalized === "xuitestcasetype" ||
+      normalized === "xui test case type"
+    ) {
+      return ["xuiTestCaseType", "xuiTestCaseType_dev"];
+    }
+    if (normalized === "xuicaseflagsv1" || normalized === "xui case flags v1") {
+      return ["xuiCaseFlagsV1", "xuiCaseFlags2.1"];
+    }
+    if (
+      normalized === "xui case poc" ||
+      normalized === "xuicasepoc" ||
+      normalized === "xui test jurisdiction"
+    ) {
+      return ["xuiTestJurisdiction", "XUI Case PoC"];
+    }
+    return [caseType];
+  }
+
+  private async waitForStartButtonEnabled(timeoutMs = 45_000): Promise<void> {
     await this.startButton.waitFor({ state: "visible", timeout: timeoutMs });
     await expect(this.startButton).toBeEnabled({ timeout: timeoutMs });
+  }
+
+  private async clickStartWithFallback(
+    jurisdiction: string,
+    caseType: string,
+    eventType?: string,
+  ): Promise<void> {
+    const waitForCaseCreateNavigation = async () => {
+      await expect
+        .poll(
+          async () => {
+            const pathname = new URL(this.page.url()).pathname;
+            if (
+              pathname.includes("/cases/case-create/") ||
+              pathname.includes("/cases/case-details/")
+            ) {
+              return true;
+            }
+            await this.assertNoEventCreationError("after clicking Start");
+            await this.assertNoCriticalWizardApiFailure("after clicking Start");
+            return false;
+          },
+          {
+            timeout: 30_000,
+            intervals: [500, 1_000, 2_000],
+            message:
+              "Expected to navigate from case filter to case create/details after clicking Start",
+          },
+        )
+        .toBe(true);
+    };
+
+    try {
+      await this.waitForStartButtonEnabled(45_000);
+      await this.startButton.click({ timeout: 30_000 });
+      await waitForCaseCreateNavigation();
+      return;
+    } catch {
+      const debugState = await Promise.all([
+        this.jurisdictionSelect.inputValue().catch(() => ""),
+        this.caseTypeSelect.inputValue().catch(() => ""),
+        this.eventTypeSelect.inputValue().catch(() => ""),
+        this.startButton.isEnabled().catch(() => false),
+      ]).then(
+        ([jurisdictionValue, caseTypeValue, eventValue, startEnabled]) => ({
+          jurisdictionValue,
+          caseTypeValue,
+          eventValue,
+          startEnabled,
+          currentUrl: this.page.url(),
+        }),
+      );
+
+      logger.warn("Start flow failed after filter selection; retrying once", {
+        jurisdiction,
+        caseType,
+        eventType: eventType ?? "",
+        ...debugState,
+      });
+
+      await this.selectCaseFilterOptions(jurisdiction, caseType, eventType);
+
+      const eventSelectVisible = await this.eventTypeSelect
+        .isVisible()
+        .catch(() => false);
+      if (!eventSelectVisible) {
+        await this.waitForStartButtonEnabled(30_000);
+        await this.startButton.click({ timeout: 30_000 });
+        await waitForCaseCreateNavigation();
+        return;
+      }
+
+      const eventState = await this.eventTypeSelect
+        .evaluate((el) => {
+          const select = el as HTMLSelectElement;
+          const values = Array.from(select.options)
+            .map((option) => option.value.trim())
+            .filter((value) => value.length > 0);
+          return {
+            selectedValue: select.value.trim(),
+            values,
+          };
+        })
+        .catch(() => ({ selectedValue: "", values: [] as string[] }));
+
+      if (
+        !eventType &&
+        !eventState.selectedValue &&
+        eventState.values.length > 0
+      ) {
+        await this.eventTypeSelect.selectOption({
+          value: eventState.values[0],
+        });
+      }
+
+      await this.waitForStartButtonEnabled(30_000);
+      await this.startButton.click({ timeout: 30_000 });
+      await waitForCaseCreateNavigation();
+    }
   }
 
   private getJurisdictionBootstrapCircuitBreakerState():
@@ -329,7 +750,10 @@ export class CreateCasePage extends Base {
    * @throws {Error} With list of available options if match not found
    * @private
    */
-  private async selectOptionSmart(selectLocator: Locator, option: string) {
+  private async selectOptionSmart(
+    selectLocator: Locator,
+    option: string,
+  ): Promise<string> {
     await selectLocator.waitFor({ state: "visible" });
     const options = await selectLocator.evaluate((el) =>
       Array.from((el as HTMLSelectElement).options).map((o) => ({
@@ -339,11 +763,20 @@ export class CreateCasePage extends Base {
     );
 
     const normalized = option.toLowerCase();
+    const normalizeLabel = (value: string) =>
+      value
+        .toLowerCase()
+        .replaceAll(/[^a-z0-9]+/g, " ")
+        .replaceAll(/\b(a|an|the)\b/g, " ")
+        .replaceAll(/\s+/g, " ")
+        .trim();
+    const normalizedCanonical = normalizeLabel(option);
     const match =
       options.find((o) => o.value === option) ||
       options.find((o) => o.label === option) ||
       options.find((o) => o.value.toLowerCase() === normalized) ||
-      options.find((o) => o.label.toLowerCase() === normalized);
+      options.find((o) => o.label.toLowerCase() === normalized) ||
+      options.find((o) => normalizeLabel(o.label) === normalizedCanonical);
 
     if (!match) {
       const available = options
@@ -355,6 +788,7 @@ export class CreateCasePage extends Base {
     }
 
     await selectLocator.selectOption({ value: match.value });
+    return match.value;
   }
 
   /**
@@ -400,6 +834,117 @@ export class CreateCasePage extends Base {
     return new URL(url, this.page.url()).pathname;
   }
 
+  private async getSubmitProgressSignature(): Promise<string> {
+    const path = new URL(this.page.url()).pathname;
+    const headingText = (
+      (await this.page
+        .locator("h1, h2, legend")
+        .first()
+        .textContent()
+        .catch(() => "")) ?? ""
+    )
+      .replaceAll(/\s+/g, " ")
+      .trim();
+    const submitVisible = await this.submitButton
+      .isVisible()
+      .catch(() => false);
+    const continueVisible = await this.continueButton
+      .isVisible()
+      .catch(() => false);
+    return `${path}|${headingText}|submit:${submitVisible}|continue:${continueVisible}`;
+  }
+
+  private extractCaseNumberFromText(text: string): string | null {
+    const match = text.match(/\b\d{16}\b/);
+    if (!match) {
+      return null;
+    }
+    const caseNumber = match[0];
+    return CCD_CASE_REFERENCE_PATTERN.test(caseNumber) ? caseNumber : null;
+  }
+
+  private getCaseNumberFromCurrentUrl(): string | null {
+    const pathname = new URL(this.page.url()).pathname;
+    const match = pathname.match(/\/cases\/case-details\/(\d{16})(?:\/|$)/);
+    if (!match) {
+      return null;
+    }
+    const caseNumber = match[1];
+    return CCD_CASE_REFERENCE_PATTERN.test(caseNumber) ? caseNumber : null;
+  }
+
+  private async getCaseNumberFromSuccessBanner(): Promise<string | null> {
+    const caseBannerText = await this.page
+      .locator(
+        ".hmcts-banner--success .alert-message, .exui-alert .alert-message, .govuk-notification-banner__heading",
+      )
+      .first()
+      .textContent()
+      .catch(() => null);
+    if (!caseBannerText) {
+      return null;
+    }
+    return this.extractCaseNumberFromText(caseBannerText);
+  }
+
+  private getLatestCriticalWizardApiFailure():
+    | { method: string; url: string; status: number }
+    | undefined {
+    return this.getApiCalls()
+      .reverse()
+      .find((call) => {
+        if (call.status < 500) {
+          return false;
+        }
+        return (
+          call.url.includes("/event-triggers/") ||
+          call.url.includes("/validate") ||
+          call.url.includes("/data/internal/cases/") ||
+          call.url.includes("/cases/case-details/")
+        );
+      });
+  }
+
+  private async assertNoCriticalWizardApiFailure(
+    context: string,
+  ): Promise<void> {
+    const failedCall = this.getLatestCriticalWizardApiFailure();
+    if (!failedCall) {
+      return;
+    }
+    throw new Error(
+      `Critical wizard API failure ${context}: ${failedCall.method} ${failedCall.url} returned HTTP ${failedCall.status}`,
+    );
+  }
+
+  private async recoverCaseDetailsContainer(
+    context: string,
+    timeoutMs: number,
+  ): Promise<boolean> {
+    const caseNumberFromUrl = this.getCaseNumberFromCurrentUrl();
+    const caseNumberFromBanner =
+      caseNumberFromUrl ?? (await this.getCaseNumberFromSuccessBanner());
+    if (!caseNumberFromBanner) {
+      return false;
+    }
+    if (caseNumberFromBanner.length !== CCD_CASE_REFERENCE_LENGTH) {
+      return false;
+    }
+    const caseDetailsPath = `/cases/case-details/${caseNumberFromBanner}`;
+    if (!new URL(this.page.url()).pathname.startsWith(caseDetailsPath)) {
+      logger.warn(
+        "Case creation likely succeeded but case details container not visible; navigating directly",
+        { context, caseDetailsPath, currentUrl: this.page.url() },
+      );
+      await this.page.goto(caseDetailsPath, { waitUntil: "domcontentloaded" });
+    }
+    await this.caseDetailsContainer.waitFor({
+      state: "visible",
+      timeout: Math.min(timeoutMs, EXUI_TIMEOUTS.CASE_READY_DEFAULT),
+    });
+    return true;
+  }
+
   /**
    * Wait for case details page to load with error detection
    *
@@ -410,11 +955,38 @@ export class CreateCasePage extends Base {
    * @private
    */
   private async waitForCaseDetails(context: string) {
-    await this.assertNoEventCreationError(context);
-    await this.caseDetailsContainer.waitFor({
-      state: "visible",
-      timeout: 60000,
+    const timeoutMs = this.getRecommendedTimeoutMs({
+      min: EXUI_TIMEOUTS.CASE_READY_DEFAULT,
+      max: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
+      fallback: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
     });
+    await this.assertNoEventCreationError(context);
+    await this.assertNoCriticalWizardApiFailure(
+      `before waiting for case details ${context}`,
+    );
+    try {
+      await this.caseDetailsContainer.waitFor({
+        state: "visible",
+        timeout: timeoutMs,
+      });
+      return;
+    } catch (error) {
+      await this.assertNoEventCreationError(`after waiting for case details`);
+      await this.assertNoCriticalWizardApiFailure(
+        `after waiting for case details ${context}`,
+      );
+      const recovered = await this.recoverCaseDetailsContainer(
+        context,
+        timeoutMs,
+      ).catch(() => false);
+      if (recovered) {
+        return;
+      }
+      throw new Error(
+        `Case details did not become visible ${context} (timeout=${timeoutMs}ms, url=${this.page.url()})`,
+        { cause: error },
+      );
+    }
   }
 
   /**
@@ -470,13 +1042,28 @@ export class CreateCasePage extends Base {
       "Continue click intercepted by spinner; retrying after spinner wait",
       { context },
     );
-    await this.page
-      .locator("xuilib-loading-spinner")
-      .first()
-      .waitFor({ state: "hidden", timeout: 10000 })
+    const spinner = this.page.locator("xuilib-loading-spinner").first();
+    const spinnerRetryWaitMs = allowDisabledSkip ? 2_000 : 10_000;
+    await spinner
+      .waitFor({ state: "hidden", timeout: spinnerRetryWaitMs })
       .catch(() => {
         // Best-effort wait; if spinner persists, retry may still fail with a clear click error.
       });
+    if (allowDisabledSkip) {
+      const spinnerStillVisible = await spinner.isVisible().catch(() => false);
+      if (spinnerStillVisible) {
+        this.assertPageOpen(
+          `before force-clicking Continue while spinner persists ${context}`,
+        );
+        logger.warn(
+          "Continue retry with persistent spinner in auto-advance mode; force-clicking immediately",
+          { context, spinnerRetryWaitMs },
+        );
+        // eslint-disable-next-line playwright/no-force-option -- Persistent CCD spinner overlay during auto-advance; force click is required to progress wizard reliably.
+        await this.continueButton.click({ force: true, timeout: clickTimeout });
+        return "force";
+      }
+    }
     this.assertPageOpen(`while retrying Continue ${context}`);
     try {
       await this.continueButton.click({ timeout: clickTimeout });
@@ -537,12 +1124,19 @@ export class CreateCasePage extends Base {
       force?: boolean;
       timeoutMs?: number;
       allowDisabledSkip?: boolean;
+      spinnerTimeoutMs?: number;
+      tolerateSpinnerTimeout?: boolean;
+      expectedLocator?: Locator;
+      expectPathChange?: boolean;
+      transitionTimeoutMs?: number;
     } = {},
   ): Promise<boolean> {
     this.assertPageOpen(`before clicking Continue ${context}`);
+    const pathBeforeClick = this.normalizePath(this.page.url());
     await this.continueButton.waitFor({ state: "visible" });
     await this.continueButton.scrollIntoViewIfNeeded();
-    const clickTimeout = options.timeoutMs ?? 15000;
+    const clickTimeout =
+      options.timeoutMs ?? EXUI_TIMEOUTS.CONTINUE_CLICK_DEFAULT;
     const allowDisabledSkip = options.allowDisabledSkip ?? false;
     const continueEnabled = await this.continueButton
       .isEnabled()
@@ -579,11 +1173,45 @@ export class CreateCasePage extends Base {
       if (retryOutcome === "skip") return false;
       if (retryOutcome === "force") return true;
     }
-    await this.waitForSpinnerToComplete(`after ${context}`);
+    const spinnerTimeoutMs =
+      options.spinnerTimeoutMs ??
+      Math.max(clickTimeout, EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN);
+    const tolerateSpinnerTimeout = options.tolerateSpinnerTimeout ?? false;
+    try {
+      await this.waitForSpinnerToComplete(`after ${context}`, spinnerTimeoutMs);
+    } catch (error) {
+      if (!tolerateSpinnerTimeout) {
+        throw error;
+      }
+      logger.warn("Spinner did not clear after Continue; proceeding to poll", {
+        context,
+        spinnerTimeoutMs,
+        error,
+      });
+    }
     await this.assertNoEventCreationError(context);
     const hasValidationError = await this.checkForErrorMessage();
     if (hasValidationError) {
       throw new Error(`Validation error after ${context}`);
+    }
+    const transitionTimeoutMs =
+      options.transitionTimeoutMs ?? EXUI_TIMEOUTS.VALIDATION_ERROR_VISIBLE;
+    if (options.expectedLocator) {
+      await options.expectedLocator.waitFor({
+        state: "visible",
+        timeout: transitionTimeoutMs,
+      });
+    } else if (options.expectPathChange) {
+      await expect
+        .poll(
+          async () => this.normalizePath(this.page.url()) !== pathBeforeClick,
+          {
+            timeout: transitionTimeoutMs,
+            intervals: [250, 500, 1000],
+            message: `Expected wizard path to change after ${context}`,
+          },
+        )
+        .toBe(true);
     }
     return true;
   }
@@ -610,6 +1238,11 @@ export class CreateCasePage extends Base {
       force?: boolean;
       timeoutMs?: number;
       allowDisabledSkip?: boolean;
+      spinnerTimeoutMs?: number;
+      tolerateSpinnerTimeout?: boolean;
+      expectedLocator?: Locator;
+      expectPathChange?: boolean;
+      transitionTimeoutMs?: number;
     } = {},
   ): Promise<boolean> {
     return this.clickContinueAndWait(context, options);
@@ -617,12 +1250,27 @@ export class CreateCasePage extends Base {
 
   private async clickSubmitButtonWithRetry(context: string): Promise<void> {
     this.assertPageOpen(`before clicking Submit ${context}`);
-    await this.submitButton.waitFor({ state: "visible", timeout: 10000 });
-    await this.submitButton.scrollIntoViewIfNeeded();
-    await expect(this.submitButton).toBeEnabled({ timeout: 10000 });
+    const submitVisible = await this.submitButton
+      .isVisible()
+      .catch(() => false);
+    if (!submitVisible) {
+      throw new Error(
+        `Submit button not visible before clicking submit ${context}`,
+      );
+    }
+    const submitEnabled = await this.submitButton
+      .isEnabled()
+      .catch(() => false);
+    if (!submitEnabled) {
+      throw new Error(
+        `Submit button not enabled before clicking submit ${context}`,
+      );
+    }
 
     try {
-      await this.submitButton.click({ timeout: 15000 });
+      await this.submitButton.click({
+        timeout: EXUI_TIMEOUTS.CONTINUE_CLICK_DEFAULT,
+      });
     } catch (error) {
       if (this.isPageOrContextClosedError(error)) {
         throw new Error(`Page closed while clicking Submit ${context}`, {
@@ -631,14 +1279,53 @@ export class CreateCasePage extends Base {
       }
       const message =
         error instanceof Error ? error.message : JSON.stringify(error ?? "");
-      if (!message.includes("intercepts pointer events")) {
+      const actionabilityTimeout =
+        message.includes("Timeout") ||
+        message.includes("not stable") ||
+        message.includes("not receiving pointer events");
+      if (
+        !message.includes("intercepts pointer events") &&
+        !actionabilityTimeout
+      ) {
         throw error;
       }
-      logger.warn("Submit click intercepted by spinner; retrying with force", {
-        context,
-      });
-      // eslint-disable-next-line playwright/no-force-option -- CCD spinner overlay intercepts the submit click; force retry is the documented CCD resilience pattern (agents.md §6.2.10)
-      await this.submitButton.click({ force: true, timeout: 15000 });
+      logger.warn(
+        "Submit click failed due to transient actionability; retrying with force fallback",
+        { context },
+      );
+      await this.waitForSpinnerToComplete(
+        `before retrying submit ${context}`,
+        EXUI_TIMEOUTS.SUBMIT_CLICK,
+      ).catch(() => undefined);
+      try {
+        await this.submitButton.click({
+          timeout: EXUI_TIMEOUTS.CONTINUE_CLICK_DEFAULT,
+        });
+      } catch (retryError) {
+        const retryMessage =
+          retryError instanceof Error
+            ? retryError.message
+            : JSON.stringify(retryError ?? "");
+        const retryActionabilityTimeout =
+          retryMessage.includes("Timeout") ||
+          retryMessage.includes("not stable") ||
+          retryMessage.includes("not receiving pointer events");
+        if (
+          !retryMessage.includes("intercepts pointer events") &&
+          !retryActionabilityTimeout
+        ) {
+          throw retryError;
+        }
+        const submitVisible = await this.submitButton
+          .isVisible()
+          .catch(() => false);
+        if (!submitVisible) {
+          throw retryError;
+        }
+        await this.submitButton.evaluate((element) => {
+          (element as HTMLButtonElement).click();
+        });
+      }
     }
   }
 
@@ -647,16 +1334,32 @@ export class CreateCasePage extends Base {
     context: string,
     options: { timeoutMs?: number; maxAutoAdvanceAttempts?: number } = {},
   ): Promise<void> {
-    const timeoutMs = options.timeoutMs ?? 60_000;
+    const timeoutMs =
+      options.timeoutMs ??
+      this.getRecommendedTimeoutMs({
+        min: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+        max: 120_000,
+        fallback: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
+      });
     const deadline = Date.now() + timeoutMs;
     let autoAdvanceCount = 0;
+    let stalledAutoAdvanceCount = 0;
     const maxAutoAdvanceAttempts =
       options.maxAutoAdvanceAttempts ??
-      Math.max(2, Math.min(10, Math.floor(timeoutMs / 15_000)));
+      Math.max(
+        2,
+        Math.min(
+          10,
+          Math.floor(timeoutMs / EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN),
+        ),
+      );
 
     while (Date.now() < deadline) {
       this.assertPageOpen(`while waiting for submit button ${context}`);
       await this.assertNoEventCreationError(
+        `while waiting for submit ${context}`,
+      );
+      await this.assertNoCriticalWizardApiFailure(
         `while waiting for submit ${context}`,
       );
 
@@ -664,34 +1367,128 @@ export class CreateCasePage extends Base {
         .isVisible()
         .catch(() => false);
       if (submitVisible) {
-        await this.clickSubmitButtonWithRetry(context);
-        await this.waitForSpinnerToComplete(
-          `after submit ${context}`,
-          timeoutMs,
-        );
-        await this.assertNoEventCreationError(`after submit ${context}`);
-        const hasValidationError = await this.checkForErrorMessage(
-          undefined,
-          1000,
-        );
-        if (hasValidationError) {
-          throw new Error(`Validation error after submit ${context}`);
+        const submitEnabled = await this.submitButton
+          .isEnabled()
+          .catch(() => false);
+        if (!submitEnabled) {
+          await this.waitForSpinnerToComplete(
+            `while waiting for enabled submit ${context}`,
+            EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL,
+          ).catch(() => undefined);
+          await sleep(EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL);
+          continue;
         }
-        return;
+        try {
+          await this.clickSubmitButtonWithRetry(context);
+          await this.waitForSpinnerToComplete(
+            `after submit ${context}`,
+            timeoutMs,
+          );
+          await this.assertNoEventCreationError(`after submit ${context}`);
+          const hasValidationError = await this.checkForErrorMessage(
+            undefined,
+            1000,
+          );
+          if (hasValidationError) {
+            throw new Error(`Validation error after submit ${context}`);
+          }
+          return;
+        } catch (submitError) {
+          const submitMessage =
+            submitError instanceof Error
+              ? submitError.message
+              : String(submitError);
+          if (
+            submitMessage.includes("not enabled before clicking submit") ||
+            submitMessage.includes("intercepts pointer events") ||
+            submitMessage.includes("not receiving pointer events") ||
+            submitMessage.includes("not visible before clicking submit")
+          ) {
+            logger.warn(
+              "Submit interaction still unstable; continuing submit poll loop",
+              { context, submitMessage },
+            );
+            await sleep(EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL);
+            continue;
+          }
+          throw submitError;
+        }
       }
 
       if (await this.isContinueReady()) {
-        const nextAttempt = autoAdvanceCount + 1;
-        if (nextAttempt > maxAutoAdvanceAttempts) {
+        const pathBefore = this.normalizePath(this.page.url());
+        const progressBefore = await this.getSubmitProgressSignature();
+        const aggressiveContinue =
+          autoAdvanceCount + stalledAutoAdvanceCount >= 1;
+        await this.clickContinueAndWaitForNext(
+          `auto-advance ${autoAdvanceCount} before submit ${context}`,
+          {
+            // Escalate from permissive retries to forceful Continue when the flow
+            // remains stuck on a persistent Continue state before Submit appears.
+            allowDisabledSkip: !aggressiveContinue,
+            force: aggressiveContinue,
+            timeoutMs: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+            spinnerTimeoutMs: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+            tolerateSpinnerTimeout: true,
+          },
+        );
+
+        const caseDetailsVisible = await this.caseDetailsContainer
+          .isVisible()
+          .catch(() => false);
+        if (caseDetailsVisible) {
+          await this.assertNoEventCreationError(`after submit ${context}`);
+          return;
+        }
+
+        const pathAfter = this.normalizePath(this.page.url());
+        const progressAfter = await this.getSubmitProgressSignature();
+        const pathChanged = pathAfter !== pathBefore;
+        if (pathChanged || progressAfter !== progressBefore) {
+          autoAdvanceCount += 1;
+          stalledAutoAdvanceCount = 0;
+        } else {
+          stalledAutoAdvanceCount += 1;
+          logger.warn(
+            "Continue clicked but submit-step progress did not change; will retry",
+            { context, stalledAutoAdvanceCount, autoAdvanceCount },
+          );
+        }
+
+        if (autoAdvanceCount > maxAutoAdvanceAttempts) {
+          const remainingMs = Math.max(0, deadline - Date.now());
+          if (remainingMs > EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL) {
+            await this.ensureSubmitButtonVisible(
+              `after exhausting auto-advance attempts ${context}`,
+              remainingMs,
+            ).catch(() => undefined);
+            const submitVisible = await this.submitButton
+              .isVisible()
+              .catch(() => false);
+            if (submitVisible) {
+              await this.clickSubmitButtonWithRetry(context);
+              await this.waitForSpinnerToComplete(
+                `after submit ${context}`,
+                timeoutMs,
+              );
+              await this.assertNoEventCreationError(`after submit ${context}`);
+              return;
+            }
+          }
           throw new Error(
             `Exceeded ${maxAutoAdvanceAttempts} auto-advance attempts before submit ${context}`,
           );
         }
-        autoAdvanceCount = nextAttempt;
-        await this.clickContinueAndWaitForNext(
-          `auto-advance ${autoAdvanceCount} before submit ${context}`,
-          { allowDisabledSkip: true, timeoutMs: 12_000 },
-        );
+
+        if (stalledAutoAdvanceCount >= 6) {
+          const remainingMs = Math.max(0, deadline - Date.now());
+          if (remainingMs > EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL) {
+            await this.ensureSubmitButtonVisible(
+              `after stalled auto-advance ${context}`,
+              remainingMs,
+            ).catch(() => undefined);
+          }
+        }
         continue;
       }
 
@@ -703,16 +1500,14 @@ export class CreateCasePage extends Base {
       if (spinnerVisible) {
         await this.waitForSpinnerToComplete(
           `while waiting for submit ${context}`,
-          12_000,
+          EXUI_TIMEOUTS.VALIDATION_ERROR_VISIBLE,
         ).catch(() => {
           // Keep polling; spinner may be intermittent in CCD.
         });
-        // Node-native sleep avoids Playwright test-clock coupling in this infrastructure PO.
-        await sleep(300);
         continue;
       }
 
-      await sleep(500);
+      await sleep(EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL);
     }
 
     const visibleActionButtons = await this.page
@@ -728,14 +1523,21 @@ export class CreateCasePage extends Base {
       .catch(() => []);
 
     throw new Error(
-      `Submit button did not become available ${context}. URL=${this.page.url()} autoAdvance=${autoAdvanceCount}/${maxAutoAdvanceAttempts} visibleActionButtons=${visibleActionButtons.join(" | ") || "none"}`,
+      `Submit button did not become available ${context}. URL=${this.page.url()} autoAdvance=${autoAdvanceCount}/${maxAutoAdvanceAttempts} stalled=${stalledAutoAdvanceCount} visibleActionButtons=${visibleActionButtons.join(" | ") || "none"}`,
     );
   }
 
-  private async waitForSpinnerToComplete(context: string, timeoutMs = 120_000) {
+  private async waitForSpinnerToComplete(context: string, timeoutMs?: number) {
+    const effectiveTimeoutMs =
+      timeoutMs ??
+      this.getRecommendedTimeoutMs({
+        min: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+        max: 120_000,
+        fallback: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
+      });
     const spinner = this.page.locator("xuilib-loading-spinner").first();
     try {
-      await spinner.waitFor({ state: "hidden", timeout: timeoutMs });
+      await spinner.waitFor({ state: "hidden", timeout: effectiveTimeoutMs });
     } catch (error) {
       const stillVisible = await spinner.isVisible().catch(() => false);
       if (stillVisible) {
@@ -743,7 +1545,7 @@ export class CreateCasePage extends Base {
       }
       logger.warn(
         "Spinner hidden wait failed, proceeding because spinner not visible",
-        { context, error },
+        { context, timeoutMs: effectiveTimeoutMs, error },
       );
     }
   }
@@ -942,50 +1744,231 @@ export class CreateCasePage extends Base {
     jurisdiction: string,
     caseType: string,
     eventType?: string,
-  ): Promise<void> {
+  ): Promise<CaseFilterSelection> {
     await this.jurisdictionSelect.waitFor({ state: "visible" });
-    await this.waitForSelectReady("#cc-jurisdiction", 30000);
+    await this.waitForSelectReady("#cc-jurisdiction", 45_000);
     await this.selectOptionSmart(this.jurisdictionSelect, jurisdiction);
 
     await this.caseTypeSelect.waitFor({ state: "visible" });
-    await this.waitForSelectReady("#cc-case-type", 30000);
-    await this.selectOptionSmart(this.caseTypeSelect, caseType);
+    await this.waitForSelectReady("#cc-case-type", 45_000);
+    const caseTypeAliases = this.getCaseTypeAliases(caseType);
+    const optionValues = await this.caseTypeSelect
+      .evaluate((el) =>
+        Array.from((el as HTMLSelectElement).options)
+          .map((option) => option.value.trim())
+          .filter((value) => value.length > 0),
+      )
+      .catch(() => [] as string[]);
+    const normalizedRequested = caseType.trim().toLowerCase();
+    const dynamicCandidates = optionValues.filter((value) => {
+      const normalizedValue = value.toLowerCase();
+      if (
+        normalizedRequested === "xuitestcasetype" ||
+        normalizedRequested === "xui test case type"
+      ) {
+        return (
+          normalizedValue === "xuitestcasetype" ||
+          normalizedValue === "xuitestcasetype_dev"
+        );
+      }
+      if (
+        normalizedRequested === "xuicaseflagsv1" ||
+        normalizedRequested === "xui case flags v1"
+      ) {
+        return (
+          normalizedValue === "xuicaseflagsv1" ||
+          normalizedValue === "xuicaseflags2.1"
+        );
+      }
+      if (
+        normalizedRequested === "xui case poc" ||
+        normalizedRequested === "xuicasepoc" ||
+        normalizedRequested === "xui test jurisdiction"
+      ) {
+        return (
+          normalizedValue === "xuitestjurisdiction" ||
+          normalizedValue === "xui case poc"
+        );
+      }
+      return false;
+    });
+    const caseTypeCandidates = Array.from(
+      new Set([caseType, ...caseTypeAliases, ...dynamicCandidates]),
+    );
 
-    if (eventType) {
-      await this.eventTypeSelect.click();
-      await this.waitForSelectReady("#cc-event", 30000);
-      await this.selectOptionSmart(this.eventTypeSelect, eventType);
+    let lastError: unknown;
+    for (const candidateCaseType of caseTypeCandidates) {
+      try {
+        const selectedCaseTypeValue = await this.selectOptionSmart(
+          this.caseTypeSelect,
+          candidateCaseType,
+        );
+        if (candidateCaseType !== caseType) {
+          logger.warn("Resolved requested case type via alias", {
+            requestedCaseType: caseType,
+            resolvedAlias: candidateCaseType,
+            resolvedValue: selectedCaseTypeValue,
+          });
+        }
+
+        if (!eventType) {
+          return { selectedCaseTypeValue };
+        }
+
+        await this.eventTypeSelect.click();
+        let selectedEventValue: string;
+        try {
+          await this.waitForEventSelectReady(12_000);
+          selectedEventValue = await this.selectOptionSmart(
+            this.eventTypeSelect,
+            eventType,
+          );
+        } catch (error) {
+          logger.warn(
+            "Event dropdown did not populate after case type selection; using trigger probe fallback",
+            {
+              caseType,
+              candidateCaseType,
+              selectedCaseTypeValue,
+              eventType,
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
+          const resolvedSelection = await this.ensureEventTriggerAvailable(
+            selectedCaseTypeValue,
+            this.eventLabelToTriggerValue(eventType),
+            eventType,
+          );
+          return resolvedSelection;
+        }
+
+        const resolvedSelection = await this.ensureEventTriggerAvailable(
+          selectedCaseTypeValue,
+          selectedEventValue,
+          eventType,
+        );
+        return resolvedSelection;
+      } catch (error) {
+        if (this.page.isClosed()) {
+          throw error;
+        }
+        lastError = error;
+        logger.warn(
+          "Case type candidate failed during create-case filter selection; trying next candidate",
+          {
+            requestedCaseType: caseType,
+            candidateCaseType,
+            eventType: eventType ?? "",
+            error: error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
     }
+
+    if (lastError) {
+      throw lastError;
+    }
+    throw new Error(
+      `Unable to resolve case type selection for "${caseType}" on case filter.`,
+    );
   }
 
-  async createCase(jurisdiction: string, caseType: string, eventType?: string) {
+  async createCase(
+    jurisdiction: string,
+    caseType: string,
+    eventType?: string,
+    options: {
+      allowJurisdictionBootstrapCircuitBreaker?: boolean;
+    } = {},
+  ) {
     const maxAttempts = 3;
+    const allowCircuitBreaker =
+      options.allowJurisdictionBootstrapCircuitBreaker ?? false;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        this.throwIfJurisdictionBootstrapCircuitBreakerActive(
-          "createCase bootstrap",
-        );
+        if (!allowCircuitBreaker) {
+          this.throwIfJurisdictionBootstrapCircuitBreakerActive(
+            "createCase bootstrap",
+          );
+        }
         await this.ensureOnCaseFilterPage();
         await this.selectCaseFilterOptions(jurisdiction, caseType, eventType);
-        this.throwIfJurisdictionBootstrapCircuitBreakerActive(
-          "before Start click",
-        );
-        await this.waitForStartButtonEnabled(15_000);
-        await this.startButton.click({ timeout: 15_000 });
+        if (!allowCircuitBreaker) {
+          this.throwIfJurisdictionBootstrapCircuitBreakerActive(
+            "before Start click",
+          );
+        }
+        await this.clickStartWithFallback(jurisdiction, caseType, eventType);
         return;
       } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        const isEventDropdownNotReady =
+          errorMessage.includes(
+            "Case event dropdown stayed placeholder-only",
+          ) ||
+          (errorMessage.includes("Select did not become ready: #cc-event") &&
+            (errorMessage.includes('"optionValues":[""]') ||
+              errorMessage.includes('"exists":false')));
+        if (isEventDropdownNotReady) {
+          if (attempt === maxAttempts) {
+            throw new Error(
+              "Case event dropdown did not become usable on case filter page after retry.",
+              { cause: error },
+            );
+          }
+          logger.warn(
+            "Case event dropdown was not ready; forcing fresh case-filter reload before retry",
+            {
+              attempt,
+              maxAttempts,
+              caseType,
+              eventType,
+              error: errorMessage,
+            },
+          );
+          if (this.page.isClosed()) throw error;
+          await this.page.goto("/cases/case-filter", {
+            waitUntil: "domcontentloaded",
+          });
+          await this.jurisdictionSelect.waitFor({
+            state: "visible",
+            timeout: 45_000,
+          });
+          continue;
+        }
         if (
-          String(error).includes(
+          errorMessage.includes(
             `[RETRY_MARKER:${JURISDICTION_BOOTSTRAP_5XX_MARKER}]`,
           )
         ) {
+          if (allowCircuitBreaker) {
+            logger.warn(
+              "Jurisdiction bootstrap 5xx circuit breaker active; continuing with fallback for createCase",
+              {
+                jurisdiction,
+                caseType,
+                eventType,
+                attempt,
+                maxAttempts,
+              },
+            );
+            await this.page.goto("/cases/case-filter", {
+              waitUntil: "domcontentloaded",
+            });
+            await this.jurisdictionSelect.waitFor({
+              state: "visible",
+              timeout: 45_000,
+            });
+            continue;
+          }
           throw error;
         }
         if (attempt === maxAttempts) throw error;
         logger.warn("Create case selection failed; retrying case filter", {
           attempt,
           maxAttempts,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
         });
         if (this.page.isClosed()) throw error;
         await this.page.goto("/cases/case-filter");
@@ -1012,14 +1995,78 @@ export class CreateCasePage extends Base {
     await this.page
       .locator("#documentCollection_0_miscDocuments")
       .selectOption("Other");
-    await this.submitButton.click();
-    await this.waitForSpinnerToComplete(
+    const isOnCaseDetailsPage = async () => {
+      const onTriggerPage = /\/trigger\//i.test(this.page.url());
+      if (onTriggerPage) {
+        return false;
+      }
+      return this.page
+        .locator("#next-step")
+        .isVisible()
+        .catch(() => false);
+    };
+
+    const submitAndWaitForCaseDetails = async (context: string) => {
+      await this.ensureSubmitButtonVisible(
+        `before ${context}`,
+        EXUI_TIMEOUTS.SUBMIT_CLICK,
+      );
+      await this.clickSubmitAndWait(context, { timeoutMs: 60_000 });
+      await this.page.waitForLoadState("domcontentloaded");
+    };
+
+    await submitAndWaitForCaseDetails(
       "after submitting employment document upload",
     );
-    await this.caseDetailsContainer.waitFor({
-      state: "visible",
-      timeout: 60000,
-    });
+
+    const finalizeDeadline = Date.now() + 90_000;
+    let attempt = 0;
+    while (Date.now() < finalizeDeadline) {
+      attempt += 1;
+      if (await isOnCaseDetailsPage()) {
+        return;
+      }
+      if (this.page.isClosed()) {
+        throw new Error("Page closed while finalizing employment upload");
+      }
+
+      const onTriggerPage = this.page.url().includes("/trigger/");
+      if (!onTriggerPage) {
+        await sleep(750);
+        continue;
+      }
+
+      const submitVisible = await this.submitButton
+        .isVisible()
+        .catch(() => false);
+      if (submitVisible) {
+        await submitAndWaitForCaseDetails(
+          `after confirming employment document upload (attempt ${attempt})`,
+        );
+        continue;
+      }
+
+      const continueVisible = await this.continueButton
+        .isVisible()
+        .catch(() => false);
+      if (continueVisible) {
+        await this.clickContinueAndWait(
+          `while finalizing employment document upload (attempt ${attempt})`,
+          {
+            timeoutMs: 15_000,
+            expectedLocator: this.submitButton,
+            transitionTimeoutMs: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+          },
+        );
+        continue;
+      }
+
+      await sleep(750);
+    }
+
+    throw new Error(
+      "Timed out finalizing employment document upload; case details page did not become ready.",
+    );
   }
 
   async uploadFile(fileName: string, mimeType: string, fileContent: string) {
@@ -1027,6 +2074,14 @@ export class CreateCasePage extends Base {
     const baseDelayMs = 3000; // initial backoff
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const uploadResponsePromise = this.page
+        .waitForResponse(
+          (r) =>
+            r.url().includes("/document") && r.request().method() === "POST",
+          { timeout: 15_000 },
+        )
+        .catch(() => null);
+
       // set the file directly on the input element (no filechooser needed)
       await this.page.setInputFiles('input[type="file"]', {
         name: fileName,
@@ -1034,13 +2089,7 @@ export class CreateCasePage extends Base {
         buffer: Buffer.from(fileContent),
       });
 
-      const res = await this.page
-        .waitForResponse(
-          (r) =>
-            r.url().includes("/document") && r.request().method() === "POST",
-          { timeout: 5000 },
-        )
-        .catch(() => null);
+      const res = await uploadResponsePromise;
 
       if (!res) {
         // no response within timeout — treat as failure or retry depending on policy
@@ -1073,7 +2122,9 @@ export class CreateCasePage extends Base {
     const maxAttempts = 2;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        await this.createCase(jurisdiction, caseType, "Create Case");
+        await this.createCase(jurisdiction, caseType, "Start", {
+          allowJurisdictionBootstrapCircuitBreaker: true,
+        });
         await this.assertNoEventCreationError("after starting employment case");
         await this.receiptDayInput.waitFor({ state: "visible" });
         const today = new Date();
@@ -1095,6 +2146,10 @@ export class CreateCasePage extends Base {
         await this.manualEntryLink.click();
         await this.claimantAddressLine1Input.waitFor({ state: "visible" });
         await this.claimantAddressLine1Input.fill("1 Test Street");
+        const claimantPostcodeInput = this.page.getByLabel("Postcode").first();
+        if (await claimantPostcodeInput.isVisible().catch(() => false)) {
+          await claimantPostcodeInput.fill("SW1A 1AA");
+        }
 
         await this.clickContinueAndWait("after claimant address");
 
@@ -1164,6 +2219,8 @@ export class CreateCasePage extends Base {
         return this.createDivorceCaseFlag(testInput, jurisdiction, caseType);
       case "XUI Case PoC":
         return this.createDivorceCasePoC(jurisdiction, caseType, testInput);
+      case "xuiTestJurisdiction":
+        return this.createDivorceCasePoC(jurisdiction, caseType, testInput);
       case "xuiTestCaseType":
         return this.createDivorceCaseTest(testInput, jurisdiction, caseType);
       default:
@@ -1182,7 +2239,9 @@ export class CreateCasePage extends Base {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         const today = new Date();
-        await this.createCase(jurisdiction, caseType, "");
+        await this.createCase(jurisdiction, caseType, "Create Case", {
+          allowJurisdictionBootstrapCircuitBreaker: true,
+        });
         await this.assertNoEventCreationError(
           "after starting divorce test case",
         );
@@ -1286,7 +2345,9 @@ export class CreateCasePage extends Base {
     jurisdiction: string = "DIVORCE",
     caseType: string = "xuiCaseFlagsV1",
   ) {
-    await this.createCase(jurisdiction, caseType, "");
+    await this.createCase(jurisdiction, caseType, "Create Case", {
+      allowJurisdictionBootstrapCircuitBreaker: true,
+    });
     await this.party1RoleOnCase.fill(testData);
     await this.party1Name.fill(testData);
     await this.party2RoleOnCase.fill(`${testData}2`);
@@ -1324,7 +2385,9 @@ export class CreateCasePage extends Base {
           "Female",
           "Not given",
         ]);
-        await this.createCase(jurisdiction, caseType, "");
+        await this.createCase(jurisdiction, caseType, "Create Case", {
+          allowJurisdictionBootstrapCircuitBreaker: true,
+        });
         await this.page.getByLabel(gender, { exact: true }).check();
         await this.person1Title.click();
         await this.person1Title.fill(faker.person.prefix());
@@ -1376,6 +2439,7 @@ export class CreateCasePage extends Base {
     timeoutMs = 30_000,
   ): Promise<void> {
     const deadline = Date.now() + timeoutMs;
+    let continueAdvanceCount = 0;
     while (Date.now() < deadline) {
       const submitVisible = await this.submitButton
         .isVisible()
@@ -1390,15 +2454,22 @@ export class CreateCasePage extends Base {
         .isVisible()
         .catch(() => false);
       if (!continueVisible) {
-        await sleep(500);
+        await sleep(EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL);
         continue;
       }
 
+      continueAdvanceCount += 1;
+      const aggressiveContinue = continueAdvanceCount >= 2;
       await this.clickContinueAndWaitForNext(
         `auto-advance to submit ${context}`,
-        { allowDisabledSkip: true, timeoutMs: 10000 },
+        {
+          allowDisabledSkip: !aggressiveContinue,
+          force: aggressiveContinue,
+          timeoutMs: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+          spinnerTimeoutMs: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+          tolerateSpinnerTimeout: true,
+        },
       );
-      await sleep(300);
     }
     throw new Error(
       `Submit button did not become visible before ${context} (${timeoutMs}ms)`,

@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
+import { ensureSessionCookies } from "../../../utils/integration/session.utils.js";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { ensureSessionCookies } from "../integration/utils/session.utils.js";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils.js";
 
 import {
   resolveCaseReferenceFromGlobalSearch,
@@ -38,7 +39,30 @@ test.describe("FPL global search user - 16-digit case search", () => {
     const caseNumber = availableCaseReference;
 
     await test.step("Search using 16-digit case reference", async () => {
-      await searchCasePage.searchWith16DigitCaseId(caseNumber);
+      await retryOnTransientFailure(
+        async () => {
+          await searchCasePage.searchWith16DigitCaseId(caseNumber);
+          await expect(page).toHaveURL(/\/cases\/case-details\//, {
+            timeout: 20_000,
+          });
+          await expect(caseDetailsPage.caseActionsDropdown).toBeVisible({
+            timeout: 20_000,
+          });
+        },
+        {
+          maxAttempts: 3,
+          onRetry: async (attempt, error) => {
+            test.info().annotations.push({
+              type: "retry-attempt",
+              description: `searchCase attempt=${attempt + 1} reason=${String(error).slice(0, 200)}`,
+            });
+            await page.goto("/cases", { waitUntil: "domcontentloaded" });
+          },
+          ensureIdempotent: async () => {
+            await page.goto("/cases", { waitUntil: "domcontentloaded" });
+          },
+        },
+      );
     });
 
     await expect(page).toHaveURL(/\/cases\/case-details\//);

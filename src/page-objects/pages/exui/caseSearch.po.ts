@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import { Base } from "../../base";
@@ -58,13 +60,45 @@ export class CaseSearchPage extends Base {
   }
 
   async waitForReady(timeoutMs = 30_000): Promise<void> {
-    await this.page
-      .getByRole("heading", { name: /search/i })
-      .waitFor({ timeout: timeoutMs });
-    await this.filterContainer.waitFor({
-      state: "visible",
+    await this.page.waitForURL(/\/(cases\/case-search|search)/i, {
       timeout: timeoutMs,
     });
+
+    const readinessCandidates = [
+      this.page.getByRole("heading", {
+        name: /find case|search cases|search/i,
+      }),
+      this.filterContainer,
+      this.jurisdictionSelect,
+      this.page.locator("#\\[CASE_REFERENCE\\]"),
+      this.page.locator("#exuiCaseReferenceSearch"),
+    ];
+
+    const deadline = Date.now() + timeoutMs;
+    let ready = false;
+    while (Date.now() < deadline) {
+      for (const candidate of readinessCandidates) {
+        if (
+          await candidate
+            .first()
+            .isVisible()
+            .catch(() => false)
+        ) {
+          ready = true;
+          break;
+        }
+      }
+      if (ready) {
+        break;
+      }
+      await sleep(250);
+    }
+
+    if (!ready) {
+      throw new Error(
+        `Case search page did not become ready within ${timeoutMs}ms. URL=${this.page.url()}`,
+      );
+    }
   }
 
   async ensureFiltersVisible(): Promise<void> {

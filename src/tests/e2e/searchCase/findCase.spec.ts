@@ -1,6 +1,6 @@
 import { expect, test } from "../../../fixtures/ui";
+import { ensureSessionCookies } from "../../../utils/integration/session.utils.js";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { ensureSessionCookies } from "../integration/utils/session.utils.js";
 
 import { resolveCaseReferenceFromGlobalSearch } from "./case-reference.utils.js";
 import {

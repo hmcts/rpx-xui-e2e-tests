@@ -1,16 +1,14 @@
 import { expect, test } from "../../../fixtures/ui";
-import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { TEST_USERS } from "../integration/testData/index.js";
-import { ensureSessionCookies } from "../integration/utils/session.utils.js";
-
-test.use({ storageState: resolveUiStoragePathForUser(TEST_USERS.STAFF_ADMIN) });
+import { ensureSessionCookies } from "../../../utils/integration/session.utils.js";
 
 test.describe("Verify the my tasks page tabs appear as expected", () => {
-  test.beforeAll(async () => {
-    await ensureSessionCookies(TEST_USERS.STAFF_ADMIN, { strict: true });
-  });
-
   test.beforeEach(async ({ page, taskListPage }) => {
+    const { cookies } = await ensureSessionCookies("STAFF_ADMIN", {
+      strict: true,
+    });
+    if (cookies.length) {
+      await page.context().addCookies(cookies);
+    }
     await taskListPage.goto();
     await Promise.race([
       page.waitForResponse(
@@ -38,8 +36,9 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
   }) => {
     await test.step("Navigate to the task list page", async () => {
       await expect(taskListPage.taskListTable).toBeVisible();
-      await taskListPage.exuiSpinnerComponent.wait();
-      await taskListPage.manageCaseButtons.nth(0).waitFor();
+      await taskListPage.waitForManageButton("my tasks tab", {
+        timeoutMs: 60_000,
+      });
     });
 
     await test.step("Check my available tasks has data in the table", async () => {
@@ -67,8 +66,9 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
     await test.step("Navigate to the task list page", async () => {
       await taskListPage.selectWorkMenuItem("Available tasks");
       await expect(taskListPage.taskListTable).toBeVisible();
-      await taskListPage.exuiSpinnerComponent.wait();
-      await taskListPage.manageCaseButtons.nth(0).waitFor();
+      await taskListPage.waitForManageButton("available tasks tab", {
+        timeoutMs: 60_000,
+      });
     });
 
     await test.step("Check my available tasks has data in the table", async () => {

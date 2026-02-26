@@ -62,7 +62,29 @@ export class CaseListPage extends Base {
 
   async waitForReady(timeoutMs = 30_000): Promise<void> {
     await this.page.waitForURL(/\/cases/i, { timeout: timeoutMs });
-    await this.container.waitFor({ state: "visible", timeout: timeoutMs });
+    try {
+      await this.container.waitFor({ state: "visible", timeout: timeoutMs });
+    } catch {
+      // Integration negative flows can keep /cases shell alive while case-home content
+      // does not render; accept header quick-search shell as ready.
+      await this.waitForFirstVisible(
+        [
+          {
+            locator: this.page.locator("#exuiCaseReferenceSearch"),
+            label: "#exuiCaseReferenceSearch",
+          },
+          {
+            locator: this.page.locator(".hmcts-primary-navigation"),
+            label: ".hmcts-primary-navigation",
+          },
+          {
+            locator: this.page.getByRole("link", { name: "Case list" }),
+            label: "link:Case list",
+          },
+        ],
+        timeoutMs,
+      );
+    }
     try {
       await this.waitForUiIdleState({ timeoutMs });
     } catch {

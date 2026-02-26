@@ -339,6 +339,7 @@ export const normaliseApiErrors = (
     method: normaliseMethod(signal.method),
     status: signal.status,
     url: sanitizeUrlForLogs(signal.url),
+    correlationId: sanitizeErrorText(signal.correlationId ?? "", 120),
   }));
   return {
     all,
@@ -363,6 +364,7 @@ export const normaliseNetworkFailures = (
     method: normaliseMethod(signal.method),
     url: sanitizeUrlForLogs(signal.url),
     reason: sanitizeErrorText(signal.reason, 200),
+    correlationId: sanitizeErrorText(signal.correlationId ?? "", 120),
   }));
 
 export const isFailureStatus = (status: TestInfo["status"]): boolean =>

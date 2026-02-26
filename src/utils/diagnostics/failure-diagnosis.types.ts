@@ -15,6 +15,7 @@ export interface ApiErrorSignal {
   method: string;
   url: string;
   status: number;
+  correlationId?: string;
 }
 
 export interface SlowCallSignal {
@@ -27,6 +28,7 @@ export interface NetworkFailureSignal {
   method: string;
   url: string;
   reason: string;
+  correlationId?: string;
 }
 
 export interface ExecutionSignals {
@@ -58,6 +60,10 @@ export interface FailureDiagnosisInput {
   fallbackUsed?: boolean;
   fallbackReason?: string;
   executionSignals?: ExecutionSignals;
+  retryDetails?: {
+    retryAttempt?: number;
+    retryReason?: string;
+  };
 }
 
 export interface SlowCallAggregate {
@@ -86,6 +92,10 @@ export interface FailureDiagnosis {
   slowCalls: SlowCallSignal[];
   networkFailures: NetworkFailureSignal[];
   networkTimeout: boolean;
+  retryDetails?: {
+    retryAttempt?: number;
+    retryReason?: string;
+  };
   annotations: Array<{ type: string; description: string }>;
   text: string;
   data: Record<string, unknown>;

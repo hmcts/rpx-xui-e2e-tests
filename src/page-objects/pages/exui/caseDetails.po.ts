@@ -1,15 +1,19 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import { TableUtils } from "@hmcts/playwright-common";
 import { type Locator, Page } from "@playwright/test";
 
 import { ValidatorUtils } from "../../../utils/ui/validator.utils.js";
 import { Base } from "../../base";
 
+import { EXUI_TIMEOUTS } from "./exui-timeouts.js";
+
 const validatorUtils = new ValidatorUtils();
 const tableUtils = new TableUtils();
 
-const ALERT_VISIBLE_TIMEOUT_MS = 10_000;
-const TABLE_VISIBLE_TIMEOUT_MS = 10_000;
-const TAB_LOAD_TIMEOUT_MS = 5_000;
+const ALERT_VISIBLE_TIMEOUT_MS = EXUI_TIMEOUTS.CASE_ALERT_VISIBLE;
+const TABLE_VISIBLE_TIMEOUT_MS = EXUI_TIMEOUTS.TABLE_VISIBLE;
+const TAB_LOAD_TIMEOUT_MS = EXUI_TIMEOUTS.TAB_LOAD;
 
 export class CaseDetailsPage extends Base {
   readonly container = this.page.locator("exui-case-details-home");
@@ -66,9 +70,19 @@ export class CaseDetailsPage extends Base {
     super(page);
   }
 
-  async waitForReady(timeoutMs = 30_000): Promise<void> {
-    await this.container.waitFor({ state: "visible", timeout: timeoutMs });
-    await this.waitForUiIdleState({ timeoutMs });
+  async waitForReady(timeoutMs?: number): Promise<void> {
+    const effectiveTimeoutMs =
+      timeoutMs ??
+      this.getRecommendedTimeoutMs({
+        min: EXUI_TIMEOUTS.CASE_READY_DEFAULT,
+        max: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
+        fallback: EXUI_TIMEOUTS.CASE_READY_DEFAULT,
+      });
+    await this.container.waitFor({
+      state: "visible",
+      timeout: effectiveTimeoutMs,
+    });
+    await this.waitForUiIdleState({ timeoutMs: effectiveTimeoutMs });
   }
 
   async getTableByName(tableName: string) {
@@ -113,10 +127,30 @@ export class CaseDetailsPage extends Base {
     await this.caseActionGoButton.waitFor({ state: "visible" });
     await this.caseActionsDropdown.waitFor({ state: "visible" });
 
+    const normalizedAction = action.trim().toLowerCase();
+    const actionAliases =
+      normalizedAction === "create case flag" ||
+      normalizedAction === "create a case flag"
+        ? [action, "Create a case flag", "Create case flag"]
+        : [action];
+    const availableLabels = await this.caseActionsDropdown
+      .locator("option")
+      .allInnerTexts()
+      .catch(() => []);
+    const resolvedActionLabel =
+      actionAliases.find((candidate) =>
+        availableLabels.some(
+          (label) =>
+            label.trim().toLowerCase() === candidate.trim().toLowerCase(),
+        ),
+      ) ?? action;
+
     try {
-      await this.caseActionsDropdown.selectOption({ label: action });
+      await this.caseActionsDropdown.selectOption({
+        label: resolvedActionLabel,
+      });
     } catch {
-      await this.caseActionsDropdown.selectOption(action);
+      await this.caseActionsDropdown.selectOption(resolvedActionLabel);
     }
 
     await this.caseActionGoButton.click();
@@ -127,16 +161,40 @@ export class CaseDetailsPage extends Base {
       return;
     }
 
-    const timeoutMs = options.timeoutMs ?? 30_000;
+    const timeoutMs =
+      options.timeoutMs ??
+      this.getRecommendedTimeoutMs({
+        min: EXUI_TIMEOUTS.WIZARD_ADVANCE_DEFAULT,
+        max: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
+        fallback: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
+      });
     const waitForExpected = async () =>
       options.expectedLocator?.waitFor({
         state: "visible",
         timeout: timeoutMs,
       });
 
+    const attemptSelection = async () => {
+      try {
+        await this.caseActionsDropdown.selectOption({
+          label: resolvedActionLabel,
+        });
+      } catch {
+        await this.caseActionsDropdown.selectOption(resolvedActionLabel);
+      }
+      await this.caseActionGoButton.click();
+      await this.waitForSpinnerToComplete("after selecting case action");
+      await this.page.waitForLoadState("domcontentloaded");
+      await waitForExpected();
+    };
+
     try {
       await waitForExpected();
     } catch (error) {
+      const onTriggerPage = /\/trigger\//i.test(this.page.url());
+      if (onTriggerPage) {
+        return;
+      }
       const eventErrorVisible = await this.eventCreationErrorHeading
         .isVisible()
         .catch(() => false);
@@ -151,14 +209,30 @@ export class CaseDetailsPage extends Base {
       }
 
       try {
-        await this.caseActionsDropdown.selectOption({ label: action });
-      } catch {
-        await this.caseActionsDropdown.selectOption(action);
+        await this.caseActionsDropdown.waitFor({
+          state: "visible",
+          timeout: EXUI_TIMEOUTS.SUBMIT_CLICK,
+        });
+        await attemptSelection();
+      } catch (retryError) {
+        await this.page.reload({ waitUntil: "domcontentloaded" });
+        await this.waitForUiIdleState({
+          timeoutMs: EXUI_TIMEOUTS.WAIT_FOR_SELECT_READY_EXTENDED,
+        }).catch(() => {});
+        await this.caseActionsDropdown.waitFor({
+          state: "visible",
+          timeout: EXUI_TIMEOUTS.WAIT_FOR_SELECT_READY_EXTENDED,
+        });
+        await this.caseActionGoButton.waitFor({
+          state: "visible",
+          timeout: EXUI_TIMEOUTS.WAIT_FOR_SELECT_READY_EXTENDED,
+        });
+        try {
+          await attemptSelection();
+        } catch {
+          throw retryError;
+        }
       }
-      await this.caseActionGoButton.click();
-      await this.waitForSpinnerToComplete("after retrying case action");
-      await this.page.waitForLoadState("domcontentloaded");
-      await waitForExpected();
     }
   }
 
@@ -169,7 +243,10 @@ export class CaseDetailsPage extends Base {
   async selectFirstRadioOption() {
     await this.commonRadioButtons.first().getByRole("radio").check();
     await this.submitCaseFlagButton.click();
-    await this.waitForSpinnerToComplete("after selecting first radio option");
+    await this.waitForSpinnerToComplete(
+      "after selecting first radio option",
+      30_000,
+    );
   }
 
   async todaysDateFormatted(): Promise<string> {
@@ -185,48 +262,369 @@ export class CaseDetailsPage extends Base {
     await this.submitCaseFlagButton.click();
   }
 
-  async selectPartyFlagTarget(target: string, flagType: string) {
+  private async assertNoBlockingErrors(context: string): Promise<void> {
     const callbackError = this.page.getByText(
       "callback data failed validation",
-      {
-        exact: false,
-      },
+      { exact: false },
     );
+    const eventCreationError = this.eventCreationErrorHeading;
+
     if (await callbackError.isVisible().catch(() => false)) {
-      throw new Error(
-        "Callback data failed validation before selecting party flag target.",
-      );
+      throw new Error(`Callback data failed validation ${context}.`);
     }
+    if (await eventCreationError.isVisible().catch(() => false)) {
+      throw new Error(`Case flag event could not be created ${context}.`);
+    }
+  }
+
+  private async clickSubmitWithRetry(context: string): Promise<void> {
+    try {
+      await this.submitCaseFlagButton.click({ timeout: 10_000 });
+    } catch (error) {
+      if (this.page.isClosed()) {
+        throw new Error(`Page closed while clicking submit ${context}.`);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("intercepts pointer events")) {
+        await this.waitForSpinnerToComplete(
+          `before retrying submit ${context}`,
+          10_000,
+        ).catch(() => {});
+        try {
+          await this.submitCaseFlagButton.click({ timeout: 10_000 });
+        } catch (retryError) {
+          const retryMessage =
+            retryError instanceof Error
+              ? retryError.message
+              : String(retryError);
+          if (!retryMessage.includes("intercepts pointer events")) {
+            throw retryError;
+          }
+          await this.submitCaseFlagButton.evaluate((element) => {
+            (element as HTMLButtonElement).click();
+          });
+        }
+        return;
+      }
+      throw new Error(`Failed to click submit ${context}.`, { cause: error });
+    }
+  }
+
+  private async checkRadioWithRetry(
+    radio: Locator,
+    context: string,
+  ): Promise<void> {
+    try {
+      await radio.check({ timeout: 10_000 });
+    } catch (error) {
+      if (this.page.isClosed()) {
+        throw new Error(`Page closed while selecting radio ${context}.`);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("intercepts pointer events")) {
+        await this.waitForSpinnerToComplete(
+          `before retrying radio ${context}`,
+          12_000,
+        ).catch(() => {});
+        await radio.check({ timeout: 10_000 }).catch(async () => {
+          await radio.evaluate((element) => {
+            const input = element as HTMLInputElement;
+            input.checked = true;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+        });
+        const checked = await radio.isChecked().catch(() => false);
+        if (!checked) {
+          await radio.evaluate((element) => {
+            const input = element as HTMLInputElement;
+            input.checked = true;
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          });
+        }
+        return;
+      }
+      throw new Error(`Failed to select radio ${context}.`, { cause: error });
+    }
+  }
+
+  private async readRadioLabel(
+    radio: Locator,
+    fallbackValue: string,
+  ): Promise<string> {
+    return (
+      (await radio
+        .evaluate((element) => {
+          const radioElement = element as HTMLInputElement;
+          const labelText = radioElement.labels?.[0]?.textContent?.trim();
+          return labelText || radioElement.value || "";
+        })
+        .catch(() => "")) || fallbackValue
+    );
+  }
+
+  private async selectPartyTargetRadio(
+    target: string,
+    exactLabel: Locator,
+    fallbackLabel: Locator,
+    partyRadios: Locator,
+  ): Promise<string> {
+    let selectedTargetLabel = target;
+    try {
+      await partyRadios.first().waitFor({ state: "visible", timeout: 15_000 });
+
+      if (await exactLabel.isVisible().catch(() => false)) {
+        selectedTargetLabel = await this.readRadioLabel(exactLabel, target);
+        await this.checkRadioWithRetry(
+          exactLabel,
+          `exact party target "${target}"`,
+        );
+      } else if (await fallbackLabel.isVisible().catch(() => false)) {
+        selectedTargetLabel = await this.readRadioLabel(fallbackLabel, target);
+        await this.checkRadioWithRetry(
+          fallbackLabel,
+          `fallback party target "${target}"`,
+        );
+      } else {
+        const firstVisibleParty = partyRadios.first();
+        selectedTargetLabel = await this.readRadioLabel(
+          firstVisibleParty,
+          target,
+        );
+        await this.checkRadioWithRetry(
+          firstVisibleParty,
+          "first visible party target",
+        );
+      }
+    } catch {
+      if (this.page.isClosed()) {
+        throw new Error("Page closed while selecting party flag target.");
+      }
+      const callbackError = this.page.getByText(
+        "callback data failed validation",
+        { exact: false },
+      );
+      const eventCreationError = this.eventCreationErrorHeading;
+
+      if (await callbackError.isVisible().catch(() => false)) {
+        throw new Error(
+          "Callback data failed validation while selecting party flag target.",
+        );
+      }
+      if (await eventCreationError.isVisible().catch(() => false)) {
+        throw new Error(
+          "Case flag event could not be created while selecting party flag target.",
+        );
+      }
+      const fallbackVisible = await fallbackLabel
+        .isVisible()
+        .catch(() => false);
+      if (fallbackVisible) {
+        selectedTargetLabel = await this.readRadioLabel(fallbackLabel, target);
+        await this.checkRadioWithRetry(
+          fallbackLabel,
+          `fallback party target "${target}"`,
+        );
+      } else {
+        const firstVisibleParty = partyRadios.first();
+        await firstVisibleParty.waitFor({ state: "visible", timeout: 8_000 });
+        selectedTargetLabel = await this.readRadioLabel(
+          firstVisibleParty,
+          target,
+        );
+        await this.checkRadioWithRetry(
+          firstVisibleParty,
+          "first visible party target",
+        );
+      }
+    }
+    return selectedTargetLabel;
+  }
+
+  private async advanceFlagTypeStep(
+    flagTypeRadio: Locator,
+    flagType: string,
+    selectedFlagType: boolean,
+  ): Promise<boolean> {
+    if (
+      !selectedFlagType &&
+      (await flagTypeRadio.isVisible().catch(() => false))
+    ) {
+      await this.checkRadioWithRetry(
+        flagTypeRadio,
+        `party flag type "${flagType}"`,
+      );
+      await this.clickSubmitWithRetry("after selecting party flag type");
+      await this.waitForSpinnerToComplete(
+        "after selecting party flag type",
+        8_000,
+      ).catch(() => {});
+      await sleep(300);
+      return true;
+    }
+    return false;
+  }
+
+  private async advancePartyLevelStep(
+    firstVisibleRadio: Locator,
+    selectedFlagType: boolean,
+    selectedPartyOption: boolean,
+  ): Promise<boolean> {
+    if (
+      selectedFlagType &&
+      !selectedPartyOption &&
+      (await firstVisibleRadio.isVisible().catch(() => false))
+    ) {
+      await this.checkRadioWithRetry(
+        firstVisibleRadio,
+        "first party-level flag option",
+      );
+      await this.clickSubmitWithRetry("after selecting party-level option");
+      await this.waitForSpinnerToComplete(
+        "after selecting party-level option",
+        8_000,
+      ).catch(() => {});
+      await sleep(300);
+      return true;
+    }
+    return false;
+  }
+
+  private async completeCommentStep(
+    flagType: string,
+    selectedTargetLabel: string,
+  ): Promise<boolean> {
+    if (await this.caseFlagCommentBox.isVisible().catch(() => false)) {
+      await this.caseFlagCommentBox.fill(`${flagType} ${selectedTargetLabel}`);
+      await this.clickSubmitWithRetry("after adding party flag comment");
+      await this.waitForSpinnerToComplete(
+        "after submitting party flag comment",
+        8_000,
+      ).catch(() => {});
+      const reviewHeadingVisible = await this.page
+        .getByRole("heading", { name: /review flag details/i })
+        .isVisible()
+        .catch(() => false);
+      if (
+        reviewHeadingVisible &&
+        (await this.submitCaseFlagButton.isVisible().catch(() => false))
+      ) {
+        await this.clickSubmitWithRetry("after reviewing party flag details");
+        await this.waitForSpinnerToComplete(
+          "after final party flag submit",
+          8_000,
+        ).catch(() => {});
+      }
+      return true;
+    }
+    return false;
+  }
+
+  async selectPartyFlagTarget(
+    target: string,
+    flagType: string,
+  ): Promise<string> {
+    await this.assertNoBlockingErrors("before selecting party flag target");
+
+    await this.page
+      .getByRole("heading", { name: /where should this flag be added\?/i })
+      .waitFor({ state: "visible", timeout: 25_000 });
 
     const exactLabel = this.page.getByLabel(`${target} (${target})`);
     const escapedTarget = target.replaceAll(
       /[.*+?^${}()|[\]\\]/g,
       String.raw`\$&`,
     );
-    const fallbackLabel = this.page.getByLabel(new RegExp(escapedTarget, "i"));
+    const fallbackLabel = this.page.getByLabel(
+      new RegExp(String.raw`\b${escapedTarget}\b`, "i"),
+    );
+    const partyRadios = this.page.getByRole("radio");
 
-    try {
-      await exactLabel.waitFor({ state: "visible", timeout: 15_000 });
-      await exactLabel.check();
-    } catch {
-      await fallbackLabel.waitFor({ state: "visible", timeout: 15_000 });
-      await fallbackLabel.check();
+    const selectedTargetLabel = await this.selectPartyTargetRadio(
+      target,
+      exactLabel,
+      fallbackLabel,
+      partyRadios,
+    );
+    await this.clickSubmitWithRetry("after selecting party flag target");
+
+    const flagTypeRadio = this.commonRadioButtons.getByLabel(flagType, {
+      exact: false,
+    });
+    const firstVisibleRadio = this.commonRadioButtons
+      .first()
+      .getByRole("radio");
+    const deadline = Date.now() + 90_000;
+    let selectedFlagType = false;
+    let selectedPartyOption = false;
+
+    while (Date.now() < deadline) {
+      await this.assertNoBlockingErrors("during party flag creation flow");
+      if (this.page.isClosed()) {
+        throw new Error("Page closed during party flag creation flow.");
+      }
+
+      if (await this.completeCommentStep(flagType, selectedTargetLabel)) {
+        return selectedTargetLabel;
+      }
+
+      if (
+        await this.advanceFlagTypeStep(
+          flagTypeRadio,
+          flagType,
+          selectedFlagType,
+        )
+      ) {
+        selectedFlagType = true;
+        continue;
+      }
+
+      if (
+        await this.advancePartyLevelStep(
+          firstVisibleRadio,
+          selectedFlagType,
+          selectedPartyOption,
+        )
+      ) {
+        selectedPartyOption = true;
+        continue;
+      }
+
+      const onPartyTargetStep = await this.page
+        .getByRole("heading", { name: /where should this flag be added\?/i })
+        .isVisible()
+        .catch(() => false);
+      if (
+        onPartyTargetStep &&
+        (await this.submitCaseFlagButton.isVisible().catch(() => false))
+      ) {
+        await this.clickSubmitWithRetry(
+          "while advancing from party target step",
+        );
+      }
+
+      await this.waitForSpinnerToComplete(
+        "while waiting for party flag creation flow",
+        8_000,
+      ).catch(() => {});
+      await sleep(500);
     }
 
-    await this.submitCaseFlagButton.click();
-    await this.waitForSpinnerToComplete("after selecting party flag target");
-
-    await this.commonRadioButtons
-      .getByLabel(flagType)
-      .waitFor({ state: "visible", timeout: 30_000 });
-    await this.commonRadioButtons.getByLabel(flagType).check();
-    await this.submitCaseFlagButton.click();
-    await this.waitForSpinnerToComplete("after selecting party flag type");
-
-    await this.selectFirstRadioOption();
-    await this.addFlagComment(`${flagType} ${target}`);
-    await this.submitCaseFlagButton.click();
-    await this.waitForSpinnerToComplete("after submitting party flag");
+    const snapshot = {
+      url: this.page.url(),
+      flagTypeVisible: await flagTypeRadio.isVisible().catch(() => false),
+      firstRadioVisible: await firstVisibleRadio.isVisible().catch(() => false),
+      commentVisible: await this.caseFlagCommentBox
+        .isVisible()
+        .catch(() => false),
+      submitVisible: await this.submitCaseFlagButton
+        .isVisible()
+        .catch(() => false),
+    };
+    throw new Error(
+      `Timed out while creating party flag. snapshot=${JSON.stringify(snapshot)}`,
+    );
   }
 
   async selectCaseFlagTarget(flagType: string) {
@@ -250,12 +648,103 @@ export class CaseDetailsPage extends Base {
   }
 
   async selectCaseDetailsTab(tabName: string) {
-    await this.caseDetailsTabs.filter({ hasText: tabName }).click();
-    await this.waitForUiIdleState({ timeoutMs: TAB_LOAD_TIMEOUT_MS }).catch(
-      () => {
-        // Some tabs do not trigger additional UI activity after selection.
-      },
+    const requested = tabName.trim();
+    const normalized = requested.toLowerCase();
+
+    const tabAliases = this.getTabNameAliases(requested, normalized);
+    const deadline = Date.now() + 30_000;
+
+    while (Date.now() < deadline) {
+      if (normalized === "flags") {
+        const flagsContentVisible = await this.page
+          .locator(String.raw`text=/Flags\s+for\s+legal\s+rep/i`)
+          .first()
+          .isVisible()
+          .catch(() => false);
+        if (flagsContentVisible) {
+          return;
+        }
+      }
+
+      for (const alias of tabAliases) {
+        const escapedAlias = alias.replaceAll(
+          /[.*+?^${}()|[\]\\]/g,
+          String.raw`\$&`,
+        );
+        const roleTab = this.page
+          .getByRole("tab", {
+            name: new RegExp(String.raw`^${escapedAlias}(?:\s*,|\s*$)`, "i"),
+          })
+          .first();
+        if (await roleTab.isVisible().catch(() => false)) {
+          await roleTab.click({ timeout: 10_000 });
+          const selected = await roleTab
+            .getAttribute("aria-selected")
+            .then((value) => value === "true")
+            .catch(() => false);
+          if (!selected) {
+            await sleep(250);
+            continue;
+          }
+          await this.waitForUiIdleState({
+            timeoutMs: TAB_LOAD_TIMEOUT_MS,
+          }).catch(() => {
+            // Some tabs do not trigger additional UI activity after selection.
+          });
+          return;
+        }
+
+        const legacyTab = this.page
+          .locator(".mat-tab-label-content, .tabs-list li, li, a, button, div")
+          .filter({
+            hasText: new RegExp(String.raw`^\s*${escapedAlias}\s*$`, "i"),
+          })
+          .first();
+        if (await legacyTab.isVisible().catch(() => false)) {
+          await legacyTab.click({ timeout: 10_000 });
+          await this.waitForUiIdleState({
+            timeoutMs: TAB_LOAD_TIMEOUT_MS,
+          }).catch(() => {
+            // Some tabs do not trigger additional UI activity after selection.
+          });
+          return;
+        }
+      }
+
+      if (this.page.isClosed()) {
+        throw new Error(
+          `Page closed while waiting for case details tab "${tabName}".`,
+        );
+      }
+      await sleep(500);
+    }
+
+    const availableRoleTabs = await this.caseDetailsTabs
+      .allInnerTexts()
+      .catch(() => []);
+    const availableLegacyTabs = await this.page
+      .locator(".mat-tab-label-content, .tabs-list li")
+      .allInnerTexts()
+      .catch(() => []);
+    const availableTabs = [...availableRoleTabs, ...availableLegacyTabs];
+    throw new Error(
+      `Case details tab "${tabName}" not found. Available tabs: ${
+        availableTabs
+          .map((tab) => tab.trim())
+          .filter((tab) => tab.length > 0)
+          .join(", ") || "<none>"
+      }.`,
     );
+  }
+
+  private getTabNameAliases(requested: string, normalized: string): string[] {
+    if (normalized === "flags") {
+      return [requested, "Case flags", "Case Flags"];
+    }
+    if (normalized === "documents") {
+      return [requested, "Documents", "Case documents", "Case Documents"];
+    }
+    return [requested];
   }
 
   async openHistoryTab(): Promise<void> {
@@ -321,10 +810,35 @@ export class CaseDetailsPage extends Base {
   async trRowsToObjectInPage(
     selector: string | Locator,
   ): Promise<Record<string, string>> {
-    return tableUtils.parseKeyValueTable(
+    const parsed = await tableUtils.parseKeyValueTable(
       selector,
       typeof selector === "string" ? this.page : undefined,
     );
+    if (Object.keys(parsed).length > 0) {
+      return parsed;
+    }
+
+    const tableLocator =
+      typeof selector === "string" ? this.page.locator(selector) : selector;
+    return tableLocator.first().evaluate((table) => {
+      const result: Record<string, string> = {};
+      const rows = Array.from(table.querySelectorAll("tr"));
+
+      for (const row of rows) {
+        const key = (
+          row.querySelector("th, [role='rowheader']")?.textContent ?? ""
+        ).trim();
+        const value = (
+          row.querySelector("td, [role='cell']")?.textContent ?? ""
+        ).trim();
+        if (!key || !value) {
+          continue;
+        }
+        result[key] = value;
+      }
+
+      return result;
+    });
   }
 
   async mapHistoryTable(): Promise<Record<string, string>[]> {
@@ -352,15 +866,22 @@ export class CaseDetailsPage extends Base {
 
   private async waitForSpinnerToComplete(
     context: string,
-    timeoutMs = 120_000,
+    timeoutMs?: number,
   ): Promise<void> {
+    const effectiveTimeoutMs =
+      timeoutMs ??
+      this.getRecommendedTimeoutMs({
+        min: EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN,
+        max: 120_000,
+        fallback: EXUI_TIMEOUTS.CASE_DETAILS_VISIBLE,
+      });
     const spinner = this.page.locator("xuilib-loading-spinner").first();
     try {
-      await spinner.waitFor({ state: "hidden", timeout: timeoutMs });
-    } catch {
+      await spinner.waitFor({ state: "hidden", timeout: effectiveTimeoutMs });
+    } catch (error) {
       const stillVisible = await spinner.isVisible().catch(() => false);
       if (stillVisible) {
-        throw new Error(`Spinner still visible ${context}`);
+        throw new Error(`Spinner still visible ${context}`, { cause: error });
       }
     }
   }

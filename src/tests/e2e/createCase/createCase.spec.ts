@@ -1,9 +1,9 @@
 import { faker } from "@faker-js/faker";
 
 import { expect, test } from "../../../fixtures/ui";
+import { ensureSessionCookies } from "../../../utils/integration/session.utils.js";
 import { normalizeCaseNumber } from "../../../utils/ui/banner.utils.js";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { ensureSessionCookies } from "../integration/utils/session.utils.js";
 
 const jurisdiction = "DIVORCE";
 const caseType = "XUI Case PoC";

@@ -3,10 +3,16 @@ export interface UserCredentials {
   password: string;
 }
 
-export const USER_ENV_MAP: Record<
-  string,
-  { username: string; password: string }
-> = {
+interface EnvCredentialPair {
+  username: string;
+  password: string;
+}
+
+interface UserEnvMapping extends EnvCredentialPair {
+  aliases?: EnvCredentialPair[];
+}
+
+export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
   PROD_LIKE: {
     username: "PROD_LIKE_USERNAME",
     password: "PROD_LIKE_PASSWORD",
@@ -14,26 +20,106 @@ export const USER_ENV_MAP: Record<
   PRL_SOLICITOR: {
     username: "PRL_SOLICITOR_USERNAME",
     password: "PRL_SOLICITOR_PASSWORD",
+    aliases: [
+      {
+        username: "SOLICITOR_USERNAME",
+        password: "SOLICITOR_PASSWORD",
+      },
+      {
+        username: "SOLICITOR_USER_NAME",
+        password: "SOLICITOR_PASSWORD",
+      },
+      {
+        username: "PROF_USER_EMAIL",
+        password: "PROF_USER_PASSWORD",
+      },
+    ],
   },
   SOLICITOR: {
     username: "SOLICITOR_USERNAME",
     password: "SOLICITOR_PASSWORD",
+    aliases: [
+      {
+        username: "SOLICITOR_USER_NAME",
+        password: "SOLICITOR_PASSWORD",
+      },
+      {
+        username: "PROF_USER_EMAIL",
+        password: "PROF_USER_PASSWORD",
+      },
+    ],
   },
   CASEWORKER_R1: {
     username: "CASEWORKER_R1_USERNAME",
     password: "CASEWORKER_R1_PASSWORD",
+    aliases: [
+      {
+        username: "CASEOFFICER_R1_USERNAME",
+        password: "CASEOFFICER_R1_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_USER_NAME",
+        password: "CASEWORKER_PASSWORD",
+      },
+      {
+        username: "CCD_CASEWORKER_E2E_EMAIL",
+        password: "CCD_CASEWORKER_E2E_PASSWORD",
+      },
+    ],
   },
   CASEWORKER_R2: {
     username: "CASEWORKER_R2_USERNAME",
     password: "CASEWORKER_R2_PASSWORD",
+    aliases: [
+      {
+        username: "CASEOFFICER_R2_USERNAME",
+        password: "CASEOFFICER_R2_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_USER_NAME",
+        password: "CASEWORKER_PASSWORD",
+      },
+    ],
   },
   STAFF_ADMIN: {
     username: "STAFF_ADMIN_USERNAME",
     password: "STAFF_ADMIN_PASSWORD",
+    aliases: [
+      {
+        username: "CASEOFFICER_R2_USERNAME",
+        password: "CASEOFFICER_R2_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_R2_USERNAME",
+        password: "CASEWORKER_R2_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_USER_NAME",
+        password: "CASEWORKER_PASSWORD",
+      },
+      {
+        username: "CASEOFFICER_R1_USERNAME",
+        password: "CASEOFFICER_R1_PASSWORD",
+      },
+    ],
   },
   FPL_GLOBAL_SEARCH: {
     username: "FPL_GLOBAL_SEARCH_USERNAME",
     password: "FPL_GLOBAL_SEARCH_PASSWORD",
+    aliases: [
+      {
+        username: "CASEOFFICER_R1_USERNAME",
+        password: "CASEOFFICER_R1_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_R1_USERNAME",
+        password: "CASEWORKER_R1_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_USER_NAME",
+        password: "CASEWORKER_PASSWORD",
+      },
+    ],
   },
   CASEWORKER_GLOBALSEARCH: {
     username: "CASEWORKER_GLOBALSEARCH_USERNAME",
@@ -118,6 +204,24 @@ export const USER_ENV_MAP: Record<
   SEARCH_EMPLOYMENT_CASE: {
     username: "SEARCH_EMPLOYMENT_CASE_USERNAME",
     password: "SEARCH_EMPLOYMENT_CASE_PASSWORD",
+    aliases: [
+      {
+        username: "SOLICITOR_USERNAME",
+        password: "SOLICITOR_PASSWORD",
+      },
+      {
+        username: "SOLICITOR_USER_NAME",
+        password: "SOLICITOR_PASSWORD",
+      },
+      {
+        username: "PROF_USER_EMAIL",
+        password: "PROF_USER_PASSWORD",
+      },
+      {
+        username: "CASEOFFICER_R1_USERNAME",
+        password: "CASEOFFICER_R1_PASSWORD",
+      },
+    ],
   },
   JUDGE: {
     username: "JUDGE_USERNAME",
@@ -130,10 +234,56 @@ export const USER_ENV_MAP: Record<
   COURT_ADMIN: {
     username: "COURT_ADMIN_USERNAME",
     password: "COURT_ADMIN_PASSWORD",
+    aliases: [
+      {
+        username: "CASEWORKER_USER_NAME",
+        password: "CASEWORKER_PASSWORD",
+      },
+      {
+        username: "CASEOFFICER_R2_USERNAME",
+        password: "CASEOFFICER_R2_PASSWORD",
+      },
+    ],
   },
   USER_WITH_FLAGS: {
     username: "USER_WITH_FLAGS_USERNAME",
     password: "USER_WITH_FLAGS_PASSWORD",
+    aliases: [
+      {
+        username: "CASEOFFICER_R1_USERNAME",
+        password: "CASEOFFICER_R1_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_R1_USERNAME",
+        password: "CASEWORKER_R1_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_USER_NAME",
+        password: "CASEWORKER_PASSWORD",
+      },
+    ],
+  },
+  DIVORCE_FLAGS_ADMIN: {
+    username: "DIVORCE_FLAGS_ADMIN_USERNAME",
+    password: "DIVORCE_FLAGS_ADMIN_PASSWORD",
+    aliases: [
+      {
+        username: "CASEOFFICER_R2_USERNAME",
+        password: "CASEOFFICER_R2_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_R2_USERNAME",
+        password: "CASEWORKER_R2_PASSWORD",
+      },
+      {
+        username: "CASEWORKER_USER_NAME",
+        password: "CASEWORKER_PASSWORD",
+      },
+      {
+        username: "CASEOFFICER_R1_USERNAME",
+        password: "CASEOFFICER_R1_PASSWORD",
+      },
+    ],
   },
   PROBATE_CW: {
     username: "PROBATE_CW_USERNAME",
@@ -141,12 +291,18 @@ export const USER_ENV_MAP: Record<
   },
 };
 
-const getEnvOrThrow = (name: string): string => {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+const resolveCredentialPair = (
+  mapping: UserEnvMapping,
+): UserCredentials | undefined => {
+  const candidates = [mapping, ...(mapping.aliases ?? [])];
+  for (const candidate of candidates) {
+    const email = process.env[candidate.username];
+    const password = process.env[candidate.password];
+    if (email && password) {
+      return { email, password };
+    }
   }
-  return value;
+  return undefined;
 };
 
 export class UserUtils {
@@ -156,9 +312,7 @@ export class UserUtils {
     if (!mapping) {
       return false;
     }
-    return Boolean(
-      process.env[mapping.username] && process.env[mapping.password],
-    );
+    return Boolean(resolveCredentialPair(mapping));
   }
 
   public getUserCredentials(userIdentifier: string): UserCredentials {
@@ -170,9 +324,16 @@ export class UserUtils {
       );
     }
 
-    return {
-      email: getEnvOrThrow(mapping.username),
-      password: getEnvOrThrow(mapping.password),
-    };
+    const credentials = resolveCredentialPair(mapping);
+    if (credentials) {
+      return credentials;
+    }
+
+    const expectedVars = [mapping, ...(mapping.aliases ?? [])]
+      .map((candidate) => `${candidate.username}/${candidate.password}`)
+      .join(", ");
+    throw new Error(
+      `Missing required environment variables for "${userIdentifier}". Expected one of: ${expectedVars}`,
+    );
   }
 }

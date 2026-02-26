@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { USER_ENV_MAP } from "./user.utils.js";
+import { USER_ENV_MAP, UserUtils } from "./user.utils.js";
 
 export const defaultUiUserIdentifiers = [
   "SOLICITOR",
@@ -45,13 +45,9 @@ const parseBoolean = (
 };
 
 const discoverUsersFromEnv = (): string[] => {
+  const userUtils = new UserUtils();
   const configured = Object.keys(USER_ENV_MAP);
-  return configured.filter((key) => {
-    const mapping = USER_ENV_MAP[key];
-    return Boolean(
-      process.env[mapping.username] && process.env[mapping.password],
-    );
-  });
+  return configured.filter((key) => userUtils.hasUserCredentials(key));
 };
 
 const parseUserIdentifiers = (value: string | undefined): string[] =>

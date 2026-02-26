@@ -109,6 +109,64 @@ type PageWithCircuitBreaker = {
   __jurisdictionBootstrapFallbackReason?: string;
 };
 
+type JurisdictionBootstrapPayload = Array<{
+  id?: unknown;
+  caseTypes?: Array<{
+    id?: unknown;
+  }>;
+}>;
+
+const defaultRequiredCreateCaseTypes: string[] = [];
+
+const parseRequiredCaseTypes = (value: string | undefined): string[] => {
+  if (!value?.trim()) {
+    return defaultRequiredCreateCaseTypes;
+  }
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+};
+
+const hasRequiredCaseTypes = (
+  payload: JurisdictionBootstrapPayload,
+  requiredEntries: string[],
+): boolean => {
+  const available = new Set<string>();
+  for (const jurisdiction of payload) {
+    const jurisdictionId =
+      typeof jurisdiction?.id === "string" ? jurisdiction.id : "";
+    if (!jurisdictionId) {
+      continue;
+    }
+    for (const caseType of jurisdiction.caseTypes ?? []) {
+      const caseTypeId = typeof caseType?.id === "string" ? caseType.id : "";
+      if (!caseTypeId) {
+        continue;
+      }
+      available.add(`${jurisdictionId}:${caseTypeId}`.toLowerCase());
+    }
+  }
+  const isRequirementSatisfied = (required: string): boolean => {
+    const [jurisdictionPart, caseTypePart] = required.split(":", 2);
+    if (!jurisdictionPart || !caseTypePart) {
+      return available.has(required.toLowerCase());
+    }
+    const jurisdiction = jurisdictionPart.trim().toLowerCase();
+    const alternatives = caseTypePart
+      .split("|")
+      .map((caseType) => caseType.trim().toLowerCase())
+      .filter((caseType) => caseType.length > 0);
+    if (alternatives.length === 0) {
+      return false;
+    }
+    return alternatives.some((caseType) =>
+      available.has(`${jurisdiction}:${caseType}`),
+    );
+  };
+  return requiredEntries.every((required) => isRequirementSatisfied(required));
+};
+
 export const test = base.extend<UiFixtures>({
   ...pageFixtures,
   ...uiUtilsFixtures,
@@ -137,6 +195,25 @@ export const test = base.extend<UiFixtures>({
         process.env.PW_JURISDICTIONS_FALLBACK_FORCE,
         false,
       );
+      const fallbackOnSlow = parseBooleanFlag(
+        process.env.PW_JURISDICTIONS_FALLBACK_ON_SLOW,
+        false,
+      );
+      const fallbackOnIncompletePayload = parseBooleanFlag(
+        process.env.PW_JURISDICTIONS_FALLBACK_ON_INCOMPLETE_PAYLOAD,
+        true,
+      );
+      const fallbackAfterFirst5xx = parseBooleanFlag(
+        process.env.PW_JURISDICTIONS_FALLBACK_AFTER_FIRST_5XX,
+        true,
+      );
+      const fallbackOnSlowThresholdMs = parsePositiveInt(
+        process.env.PW_JURISDICTIONS_FALLBACK_SLOW_THRESHOLD_MS,
+        4500,
+      );
+      const requiredCreateCaseTypes = parseRequiredCaseTypes(
+        process.env.PW_JURISDICTIONS_REQUIRED_CASE_TYPES,
+      );
       const isRetryAttempt = testInfo.retry > 0;
       const shouldUseJurisdictionsFallback =
         fallbackForce || (fallbackOnRetry && isRetryAttempt);
@@ -146,6 +223,7 @@ export const test = base.extend<UiFixtures>({
       const apiErrors: ApiErrorSignal[] = [];
       const slowCalls: SlowCallSignal[] = [];
       const networkFailures: NetworkFailureSignal[] = [];
+      let retryReason = "";
 
       const annotateRetryMarker = (description: string) => {
         if (retryMarkerAnnotated) {
@@ -178,11 +256,106 @@ export const test = base.extend<UiFixtures>({
       ) => {
         const requestUrl = route.request().url();
         const sanitizedUrl = sanitizeUrlForLogs(requestUrl);
+        const isContextClosedError = (error: unknown): boolean => {
+          const message = String(error ?? "");
+          return (
+            message.includes(
+              "Target page, context or browser has been closed",
+            ) ||
+            message.includes("Target closed") ||
+            message.includes("Test ended") ||
+            message.includes("browserContext.close")
+          );
+        };
+        const isTransientNetworkFetchError = (error: unknown): boolean => {
+          const message = String(error ?? "");
+          return (
+            message.includes("ECONNRESET") ||
+            message.includes("ETIMEDOUT") ||
+            message.includes("socket hang up") ||
+            message.includes("net::ERR_") ||
+            message.includes("read ECONNRESET")
+          );
+        };
+        const safeFulfill = async (
+          payload: Parameters<typeof route.fulfill>[0],
+          context: string,
+        ): Promise<boolean> => {
+          try {
+            await route.fulfill(payload);
+            return true;
+          } catch (error) {
+            const message = String(error);
+            if (!message.includes("Route is already handled")) {
+              throw error;
+            }
+            uiFailureLogger.warn("ui:route-already-handled", {
+              context,
+              url: sanitizedUrl,
+              retry: testInfo.retry,
+            });
+            return false;
+          }
+        };
+        const circuitBreakerAlreadySet =
+          pageWithCircuitBreaker.__jurisdictionBootstrapCircuitBreaker
+            ?.marker === JURISDICTION_BOOTSTRAP_5XX_MARKER;
+        if (fallbackAfterFirst5xx && circuitBreakerAlreadySet) {
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason =
+            "circuit-breaker-active";
+          annotateFallbackMode(
+            [
+              "Mocked /aggregated/caseworkers/*/jurisdictions after first observed upstream 5xx.",
+              `retry=${testInfo.retry}.`,
+            ].join(" "),
+          );
+          await safeFulfill(
+            {
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+            },
+            "jurisdiction-bootstrap-circuit-breaker-fallback",
+          );
+          return;
+        }
+        if (fallbackForce) {
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason =
+            "forced-mode";
+          annotateFallbackMode(
+            [
+              "Mocked /aggregated/caseworkers/*/jurisdictions in forced mode.",
+              `retry=${testInfo.retry}.`,
+            ].join(" "),
+          );
+          await safeFulfill(
+            {
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+            },
+            "jurisdiction-bootstrap-forced-fallback",
+          );
+          return;
+        }
         let liveResponse;
+        const fetchStartedAt = Date.now();
         try {
           liveResponse = await route.fetch();
         } catch (error) {
-          if (!shouldUseJurisdictionsFallback) {
+          if (isContextClosedError(error)) {
+            uiFailureLogger.warn("ui:route-fetch-context-closed", {
+              url: sanitizedUrl,
+              retry: testInfo.retry,
+            });
+            return;
+          }
+          const allowFallbackForFetchError =
+            shouldUseJurisdictionsFallback ||
+            isTransientNetworkFetchError(error);
+          if (!allowFallbackForFetchError) {
             throw error;
           }
           pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
@@ -190,15 +363,79 @@ export const test = base.extend<UiFixtures>({
           annotateFallbackMode(
             [
               "Mocked /aggregated/caseworkers/*/jurisdictions after upstream request failure.",
-              `Mode=${fallbackForce ? "forced" : "retry-only"}.`,
+              `Mode=${fallbackForce ? "forced" : shouldUseJurisdictionsFallback ? "retry-only" : "network-failure"}.`,
               `retry=${testInfo.retry}.`,
             ].join(" "),
           );
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
-          });
+          await safeFulfill(
+            {
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+            },
+            "jurisdiction-bootstrap-request-failed-fallback",
+          );
+          return;
+        }
+        const fetchDurationMs = Date.now() - fetchStartedAt;
+
+        if (
+          fallbackOnIncompletePayload &&
+          liveResponse.status() < 500 &&
+          requestUrl.includes("access=create")
+        ) {
+          const livePayload = (await liveResponse
+            .json()
+            .catch(() => null)) as JurisdictionBootstrapPayload | null;
+          if (
+            Array.isArray(livePayload) &&
+            !hasRequiredCaseTypes(livePayload, requiredCreateCaseTypes)
+          ) {
+            pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
+            pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason =
+              "missing-required-case-types";
+            annotateFallbackMode(
+              [
+                "Mocked /aggregated/caseworkers/*/jurisdictions after incomplete upstream create payload.",
+                `required=${requiredCreateCaseTypes.join(",")}.`,
+                `retry=${testInfo.retry}.`,
+              ].join(" "),
+            );
+            await safeFulfill(
+              {
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+              },
+              "jurisdiction-bootstrap-incomplete-payload-fallback",
+            );
+            return;
+          }
+        }
+
+        if (
+          fallbackOnSlow &&
+          liveResponse.status() < 500 &&
+          fetchDurationMs >= fallbackOnSlowThresholdMs
+        ) {
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
+          pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason = `slow-upstream-${fetchDurationMs}ms`;
+          annotateFallbackMode(
+            [
+              "Mocked /aggregated/caseworkers/*/jurisdictions after slow upstream response.",
+              `upstreamLatencyMs=${fetchDurationMs}.`,
+              `thresholdMs=${fallbackOnSlowThresholdMs}.`,
+              `retry=${testInfo.retry}.`,
+            ].join(" "),
+          );
+          await safeFulfill(
+            {
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+            },
+            "jurisdiction-bootstrap-slow-response-fallback",
+          );
           return;
         }
 
@@ -214,6 +451,33 @@ export const test = base.extend<UiFixtures>({
           );
         }
 
+        if (liveResponse.status() === 404) {
+          const responseText = await liveResponse.text().catch(() => "");
+          const hasUnknownCaseTypeSignal =
+            responseText.includes("Unknown case type") &&
+            responseText.includes("/jurisdictions");
+          if (hasUnknownCaseTypeSignal) {
+            pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
+            pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason =
+              "upstream-404-unknown-case-type";
+            annotateFallbackMode(
+              [
+                "Mocked /aggregated/caseworkers/*/jurisdictions after upstream 404 Unknown case type response.",
+                `retry=${testInfo.retry}.`,
+              ].join(" "),
+            );
+            await safeFulfill(
+              {
+                status: 200,
+                contentType: "application/json",
+                body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+              },
+              "jurisdiction-bootstrap-404-unknown-case-type-fallback",
+            );
+            return;
+          }
+        }
+
         if (shouldUseJurisdictionsFallback && liveResponse.status() >= 500) {
           pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed = true;
           pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason = `upstream-http-${liveResponse.status()}`;
@@ -225,15 +489,21 @@ export const test = base.extend<UiFixtures>({
               `retry=${testInfo.retry}.`,
             ].join(" "),
           );
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
-          });
+          await safeFulfill(
+            {
+              status: 200,
+              contentType: "application/json",
+              body: JSON.stringify(buildJurisdictionBootstrapFallbackMock()),
+            },
+            "jurisdiction-bootstrap-5xx-fallback",
+          );
           return;
         }
 
-        await route.fulfill({ response: liveResponse });
+        await safeFulfill(
+          { response: liveResponse },
+          "jurisdiction-bootstrap-pass-through",
+        );
       };
       await page.route(
         JURISDICTION_BOOTSTRAP_ROUTE,
@@ -247,6 +517,25 @@ export const test = base.extend<UiFixtures>({
         }
       };
 
+      const resolveCorrelationId = (
+        responseHeaders?: Record<string, string>,
+        requestHeaders?: Record<string, string>,
+      ): string => {
+        const fromResponse =
+          responseHeaders?.["x-correlation-id"] ??
+          responseHeaders?.["X-Correlation-Id"] ??
+          responseHeaders?.["x-request-id"] ??
+          responseHeaders?.["X-Request-Id"] ??
+          "";
+        const fromRequest =
+          requestHeaders?.["x-correlation-id"] ??
+          requestHeaders?.["X-Correlation-Id"] ??
+          requestHeaders?.["x-request-id"] ??
+          requestHeaders?.["X-Request-Id"] ??
+          "";
+        return sanitizeErrorText(fromResponse || fromRequest, 120);
+      };
+
       const onResponse = (response: Response) => {
         const url = response.url();
         if (!isBackendApiUrl(url)) {
@@ -255,10 +544,15 @@ export const test = base.extend<UiFixtures>({
 
         const status = response.status();
         if (status >= 400) {
+          const correlationId = resolveCorrelationId(
+            response.headers(),
+            response.request().headers(),
+          );
           trackSignal(apiErrors, {
             method: response.request().method(),
             status,
             url: sanitizeUrlForLogs(url),
+            correlationId,
           });
         }
 
@@ -307,10 +601,15 @@ export const test = base.extend<UiFixtures>({
           request.failure()?.errorText ?? "request failed",
           200,
         );
+        const correlationId = resolveCorrelationId(
+          undefined,
+          request.headers(),
+        );
         trackSignal(networkFailures, {
           method: request.method(),
           reason,
           url: sanitizeUrlForLogs(url),
+          correlationId,
         });
       };
 
@@ -332,11 +631,31 @@ export const test = base.extend<UiFixtures>({
         return;
       }
 
+      if (!page.isClosed()) {
+        const fallbackScreenshot = await page
+          .screenshot({ fullPage: true })
+          .catch(() => null);
+        if (fallbackScreenshot) {
+          await testInfo.attach("failure-screenshot-fallback.png", {
+            body: fallbackScreenshot,
+            contentType: "image/png",
+          });
+        }
+      }
+
       const setupMarker =
         pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed
           ? JURISDICTION_BOOTSTRAP_MOCK_FALLBACK_MARKER
           : (pageWithCircuitBreaker.__jurisdictionBootstrapCircuitBreaker
               ?.marker ?? "ui-fixture");
+
+      retryReason =
+        pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason ??
+        pageWithCircuitBreaker.__jurisdictionBootstrapCircuitBreaker?.url ??
+        networkFailures[0]?.reason ??
+        (apiErrors[0]
+          ? `${apiErrors[0].method} ${apiErrors[0].url} -> HTTP ${apiErrors[0].status}`
+          : "");
 
       const diagnosis = buildFailureDiagnosis({
         testTitle: testInfo.title,
@@ -351,6 +670,13 @@ export const test = base.extend<UiFixtures>({
           pageWithCircuitBreaker.__jurisdictionBootstrapFallbackUsed ?? false,
         fallbackReason:
           pageWithCircuitBreaker.__jurisdictionBootstrapFallbackReason,
+        retryDetails:
+          testInfo.retry > 0
+            ? {
+                retryAttempt: testInfo.retry + 1,
+                retryReason,
+              }
+            : undefined,
       });
 
       if (setupMarker === JURISDICTION_BOOTSTRAP_5XX_MARKER) {

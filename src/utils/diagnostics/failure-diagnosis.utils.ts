@@ -59,6 +59,7 @@ export const buildFailureDiagnosis = ({
   fallbackUsed = false,
   fallbackReason = "",
   executionSignals = {},
+  retryDetails,
 }: FailureDiagnosisInput): FailureDiagnosis => {
   const message = sanitizeErrorText(errorMessage ?? "");
   const { all, server, client } = normaliseApiErrors(apiErrors);
@@ -149,7 +150,10 @@ export const buildFailureDiagnosis = ({
       type: "API errors",
       description: toAnnotationText(
         all.map(
-          (signal) => `${signal.method} ${signal.url} -> HTTP ${signal.status}`,
+          (signal) =>
+            `${signal.method} ${signal.url} -> HTTP ${signal.status}${
+              signal.correlationId ? ` (cid=${signal.correlationId})` : ""
+            }`,
         ),
       ),
     });
@@ -176,8 +180,22 @@ export const buildFailureDiagnosis = ({
       type: "Network failures",
       description: toAnnotationText(
         normalisedNetworkFailures.map(
-          (signal) => `${signal.method} ${signal.url} -> ${signal.reason}`,
+          (signal) =>
+            `${signal.method} ${signal.url} -> ${signal.reason}${
+              signal.correlationId ? ` (cid=${signal.correlationId})` : ""
+            }`,
         ),
+      ),
+    });
+  }
+  if (retryDetails?.retryAttempt) {
+    annotations.push({
+      type: "Retry details",
+      description: truncate(
+        `attempt=${retryDetails.retryAttempt}${
+          retryDetails.retryReason ? ` reason=${retryDetails.retryReason}` : ""
+        }`,
+        DEFAULT_ANNOTATION_LIMIT,
       ),
     });
   }
@@ -197,6 +215,11 @@ export const buildFailureDiagnosis = ({
     `Fallback used: ${fallbackUsed ? "yes" : "no"}`,
     fallbackUsed && fallbackReason ? `Fallback reason: ${fallbackReason}` : "",
     `Backend wait: ${backendWait}`,
+    retryDetails?.retryAttempt
+      ? `Retry details: attempt=${retryDetails.retryAttempt}${
+          retryDetails.retryReason ? ` reason=${retryDetails.retryReason}` : ""
+        }`
+      : "",
     `Likely root cause: ${likelyRootCause}`,
     `Top suspect: ${topSuspect}`,
     message ? `Error: ${message}` : "",
@@ -229,6 +252,7 @@ export const buildFailureDiagnosis = ({
     slowCalls: normalisedSlowCalls,
     networkFailures: normalisedNetworkFailures,
     networkTimeout,
+    retryDetails,
     annotations,
     text,
     data: {
@@ -252,6 +276,7 @@ export const buildFailureDiagnosis = ({
       slowCalls: normalisedSlowCalls,
       networkFailures: normalisedNetworkFailures,
       networkTimeout,
+      retryDetails,
       executionSignals,
       timestamp: new Date().toISOString(),
     },

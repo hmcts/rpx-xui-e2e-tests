@@ -1,14 +1,14 @@
 export const TEST_DATA = {
   V2: {
     JURISDICTION: "DIVORCE",
-    CASE_TYPE: "xuiTestCaseType",
-    TAB_NAME: "Tab 1",
+    CASE_TYPE: "xuiTestJurisdiction",
+    TAB_NAME: "Data",
     TAB_CLASS: "tab1",
     ACTION: "Update case",
     FILE_NAME: "test.doc",
     FILE_TYPE: "application/msword",
     FILE_CONTENT: "Test Word document content",
-    TEXT_FIELD_LABEL: "Text Field",
+    TEXT_FIELD_LABEL: "Text Field 0",
     DOCUMENT_FIELD_LABEL: "Document 1",
   },
   V1: {

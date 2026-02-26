@@ -4,7 +4,7 @@ import {
   applyCookiesToPage,
   ensureSessionCookies,
   type LoadedSession,
-} from "../integration/utils/session.utils.js";
+} from "../../../utils/integration/session.utils.js";
 
 export { ensureSessionCookies, applyCookiesToPage };
 

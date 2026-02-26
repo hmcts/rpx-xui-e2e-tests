@@ -2,12 +2,11 @@
 import { test, expect } from "@playwright/test";
 
 import { __test__ as authTest } from "../../fixtures/api-auth";
-import { withEnv } from "../../utils/api/testEnv";
-
 import {
   buildAuthContext,
   createFormLoginContext,
-} from "./helpers/auth-bootstrap-test.utils";
+} from "../../utils/api/auth-bootstrap-test.utils";
+import { withEnv } from "../../utils/api/testEnv";
 
 type AuthEnvironmentKey =
   | "API_AUTH_MODE"

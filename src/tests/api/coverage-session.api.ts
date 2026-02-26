@@ -4,13 +4,13 @@ import path from "node:path";
 import { test, expect } from "@playwright/test";
 
 import { withEnv } from "../../utils/api/testEnv";
+import { loadSessionCookies } from "../../utils/integration/session.utils";
 import {
   ensureUiStorageStateForUser,
   resolveUiStorageTtlMinutes,
 } from "../../utils/ui/session-storage.utils";
 import { resolveUiStoragePathForUser } from "../../utils/ui/storage-state.utils";
 import { UserUtils } from "../../utils/ui/user.utils";
-import { loadSessionCookies } from "../e2e/integration/utils/session.utils";
 
 test.describe.configure({ mode: "serial" });
 
