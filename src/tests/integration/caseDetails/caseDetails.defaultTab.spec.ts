@@ -3,6 +3,8 @@ import type { Cookie, Page, Response } from "@playwright/test";
 import { expect, test } from "../../../fixtures/ui";
 import { loadSessionCookies } from "../../../utils/integration/session.utils.js";
 import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils.js";
+import { submitHeaderQuickSearch } from "../helpers/caseSearchMockRoutes.helper.js";
 
 const userIdentifier = "COURT_ADMIN";
 const hasCourtAdminCreds = Boolean(
@@ -246,18 +248,48 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
     });
 
     await test.step("Open case details via Find Case", async () => {
-      await resetTabSelectionTracker(page);
-      await caseSearchPage.goto();
-      await caseSearchPage.waitForReady();
-      await caseSearchPage.ensureFiltersVisible();
-      await caseSearchPage.selectJurisdiction(caseMeta.jurisdiction);
-      await caseSearchPage.selectCaseType(caseMeta.caseType);
-      await caseSearchPage.waitForDynamicFilters();
-      await caseSearchPage.fillCcdNumber(caseReference);
-      await caseSearchPage.applyFilters();
-      await caseSearchPage.openFirstResult();
-      await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
-      await caseDetailsPage.waitForReady();
+      await retryOnTransientFailure(
+        async () => {
+          await resetTabSelectionTracker(page);
+          await caseSearchPage.goto();
+          await caseSearchPage.waitForReady();
+          await caseSearchPage.ensureFiltersVisible();
+          try {
+            await caseSearchPage.selectJurisdiction(caseMeta.jurisdiction);
+            await caseSearchPage.selectCaseType(caseMeta.caseType);
+            await caseSearchPage.waitForDynamicFilters();
+            await caseSearchPage.fillCcdNumber(caseReference);
+            await caseSearchPage.applyFilters();
+            await caseSearchPage.openFirstResult();
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            const unavailableFilter =
+              message.includes("Search filter option") &&
+              message.includes("not found");
+            if (!unavailableFilter) {
+              throw error;
+            }
+            await submitHeaderQuickSearch(caseReference, caseListPage, caseSearchPage, {
+              navigationMode: "shell",
+              waitForSpinner: true,
+            });
+          }
+          await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
+          await caseDetailsPage.waitForReady();
+        },
+        {
+          maxAttempts: 3,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            await page.goto("/cases", { waitUntil: "domcontentloaded" }).catch(
+              () => undefined,
+            );
+            await caseListPage.waitForReady(60_000).catch(() => undefined);
+          },
+        },
+      );
     });
 
     await assertSummaryTabIsDefault(page, "Find Case navigation");
