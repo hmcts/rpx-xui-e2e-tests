@@ -201,9 +201,9 @@ test.describe("Document upload V2", () => {
                 waitUntil: "domcontentloaded",
               },
             );
-            await caseDetailsPage.waitForReady(READY_TIMEOUT_MS).catch(
-              () => undefined,
-            );
+            await caseDetailsPage
+              .waitForReady(READY_TIMEOUT_MS)
+              .catch(() => undefined);
           },
         },
       );
@@ -351,9 +351,9 @@ test.describe("Document upload V1", () => {
                 waitUntil: "domcontentloaded",
               },
             );
-            await caseDetailsPage.waitForReady(READY_TIMEOUT_MS).catch(
-              () => undefined,
-            );
+            await caseDetailsPage
+              .waitForReady(READY_TIMEOUT_MS)
+              .catch(() => undefined);
           },
         },
       );

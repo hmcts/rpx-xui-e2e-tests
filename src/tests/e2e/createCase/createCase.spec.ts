@@ -75,9 +75,9 @@ test.describe("Verify creating cases works as expected", () => {
             if (page.isClosed()) {
               return;
             }
-            await page.reload({ waitUntil: "domcontentloaded" }).catch(
-              () => undefined,
-            );
+            await page
+              .reload({ waitUntil: "domcontentloaded" })
+              .catch(() => undefined);
           },
         },
       );

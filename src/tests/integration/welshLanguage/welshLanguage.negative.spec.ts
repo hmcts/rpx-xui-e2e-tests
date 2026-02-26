@@ -61,9 +61,9 @@ test.describe("Verify users can switch the language", () => {
             if (page.isClosed()) {
               return;
             }
-            await page.goto("/cases", { waitUntil: "domcontentloaded" }).catch(
-              () => undefined,
-            );
+            await page
+              .goto("/cases", { waitUntil: "domcontentloaded" })
+              .catch(() => undefined);
             await caseListPage.waitForReady(60_000).catch(() => undefined);
           },
         },
