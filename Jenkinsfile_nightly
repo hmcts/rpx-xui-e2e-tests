@@ -16,7 +16,7 @@ properties([
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
       defaultValue: '8',
-      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
+      description: 'Total Playwright worker budget across parallel API/UI/Integration stages'
     ),
     string(
       name: 'tag',
@@ -188,14 +188,23 @@ def logCredentialPresence = {
   )
 }
 
-def publishOdhinHtmlIfPresent = { String reportDir, String reportFile, String reportName ->
+def publishOdhinHtmlIfPresent = { String reportDir, String reportFile, String reportName, List<String> fallbackReportFiles = [] ->
   if (fileExists(reportDir)) {
+    def candidateReportFiles = ([reportFile] + fallbackReportFiles).findAll { it?.trim() }
+    def selectedReportFile = candidateReportFiles.find { candidate ->
+      fileExists("${reportDir}/${candidate}")
+    } ?: reportFile
+    if (selectedReportFile != reportFile) {
+      echo "Publishing fallback Odhin file for ${reportName}: ${selectedReportFile}"
+    } else if (!fileExists("${reportDir}/${reportFile}")) {
+      echo "Odhin file not found for ${reportName}: expected ${reportFile} under ${reportDir}. Trying publishHTML with allowMissing."
+    }
     publishHTML([
       allowMissing         : true,
       alwaysLinkToLastBuild: true,
       keepAll              : true,
       reportDir            : reportDir,
-      reportFiles          : reportFile,
+      reportFiles          : selectedReportFile,
       reportName           : reportName
     ])
   } else {
@@ -211,12 +220,26 @@ def publishJunitIfPresent = { String reportFile ->
   }
 }
 
+def resolvePositiveInteger = { String rawValue, int fallbackValue ->
+  try {
+    def parsed = rawValue?.trim()?.toInteger()
+    return (parsed && parsed > 0) ? parsed : fallbackValue
+  } catch (ignored) {
+    return fallbackValue
+  }
+}
+
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
   env.TEST_URL = params.TEST_URL
   env.TEST_ENV = params.TEST_ENV
   env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  def totalWorkerBudget = resolvePositiveInteger(params.FUNCTIONAL_TESTS_WORKERS, 8)
+  def apiWorkers = Math.min(3, Math.max(1, (int) Math.floor(totalWorkerBudget / 4.0d)))
+  def integrationWorkers = Math.min(3, Math.max(1, (int) Math.floor(totalWorkerBudget / 4.0d)))
+  def uiWorkers = Math.min(4, Math.max(1, totalWorkerBudget - apiWorkers - integrationWorkers))
+  env.PLAYWRIGHT_WORKERS = uiWorkers.toString()
+  echo "Playwright worker budget: total=${totalWorkerBudget}, api=${apiWorkers}, ui=${uiWorkers}, integration=${integrationWorkers}"
   env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
   enableSlackNotifications(channel)
 
@@ -233,6 +256,7 @@ withNightlyPipeline(type, product, component, 400) {
       parallel(
         'API nightly': {
           def apiOdhinEnv = [
+            "PLAYWRIGHT_WORKERS=${apiWorkers}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
             'PW_ODHIN_INDEX=playwright-odhin-api.html'
@@ -259,6 +283,7 @@ withNightlyPipeline(type, product, component, 400) {
         },
         'UI nightly': {
           def uiOdhinEnv = [
+            "PLAYWRIGHT_WORKERS=${uiWorkers}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_INDEX=playwright-odhin-e2e.html',
@@ -274,6 +299,11 @@ withNightlyPipeline(type, product, component, 400) {
             'PW_UI_FAIL_ON_HTTP_ERRORS=0',
             'PW_UI_FAIL_ON_HTTP_4XX=0'
           ]
+          def uiOdhinCopyEnv = [
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e-all/odhin-report',
+            'PW_ODHIN_OUTPUT=functional-output/tests/playwright-e2e-all/odhin-report',
+            'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report'
+          ]
           try {
             def tagArg = params.tag ? "--grep \"${params.tag}\"" : ""
             withTestVaultSecrets {
@@ -285,19 +315,23 @@ withNightlyPipeline(type, product, component, 400) {
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+              withEnv(uiOdhinCopyEnv) {
+                yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+              }
             }
             publishOdhinHtmlIfPresent(
               'functional-output/tests/playwright-e2e/odhin-report',
               'playwright-odhin-e2e.html',
-              'Odhín nightly report-e2e'
+              'Odhín nightly report-e2e',
+              ['playwright-odhin-e2e-all.html']
             )
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**,functional-output/tests/playwright-e2e-all/odhin-report/**'
           }
         },
         'Integration nightly': {
           def integrationOdhinEnv = [
+            "PLAYWRIGHT_WORKERS=${integrationWorkers}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-integration/odhin-report',
             'PW_ODHIN_INDEX=playwright-odhin-integration.html',

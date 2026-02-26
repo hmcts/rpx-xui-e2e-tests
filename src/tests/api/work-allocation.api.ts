@@ -20,6 +20,8 @@ import { buildTaskSearchRequest } from "../../utils/api/work-allocation";
 const { sampleTaskId, envTaskId, envAssignedTaskId, sampleMyTaskId } =
   buildSampleIds();
 const serviceCodes = ["IA", "CIVIL", "PRIVATELAW"];
+const TASK_SEARCH_TIMEOUT_MS = 60_000;
+const TASK_SEARCH_RETRIES = 2;
 const waConfig =
   testConfig.workallocation[
     testConfig.testEnv as keyof typeof testConfig.workallocation
@@ -406,11 +408,13 @@ async function assertMyTasks(apiClient: ApiClient): Promise<void> {
     () =>
       apiClient.post<TaskListResponse>("workallocation/task", {
         data: body,
+        timeoutMs: TASK_SEARCH_TIMEOUT_MS,
         throwOnError: false,
       }),
     {
-      retries: 1,
+      retries: TASK_SEARCH_RETRIES,
       retryStatuses: [502, 504],
+      requestTimeoutMs: TASK_SEARCH_TIMEOUT_MS,
     },
   );
 
@@ -437,11 +441,13 @@ async function assertAvailableTasks(apiClient: ApiClient): Promise<void> {
     () =>
       apiClient.post<TaskListResponse>("workallocation/task", {
         data: body,
+        timeoutMs: TASK_SEARCH_TIMEOUT_MS,
         throwOnError: false,
       }),
     {
-      retries: 1,
+      retries: TASK_SEARCH_RETRIES,
       retryStatuses: [502, 504],
+      requestTimeoutMs: TASK_SEARCH_TIMEOUT_MS,
     },
   );
   if (response.status === 200) {
@@ -459,11 +465,13 @@ async function assertAllWork(apiClient: ApiClient): Promise<void> {
     () =>
       apiClient.post<TaskListResponse>("workallocation/task", {
         data: body,
+        timeoutMs: TASK_SEARCH_TIMEOUT_MS,
         throwOnError: false,
       }),
     {
-      retries: 1,
+      retries: TASK_SEARCH_RETRIES,
       retryStatuses: [502, 504],
+      requestTimeoutMs: TASK_SEARCH_TIMEOUT_MS,
     },
   );
   if (response.status !== 200) {

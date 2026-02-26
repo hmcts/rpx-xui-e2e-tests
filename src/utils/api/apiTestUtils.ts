@@ -140,7 +140,21 @@ export async function withRetry<T extends { status: number }>(
     if (isRetryableError(error)) return true;
     if (error && typeof error === "object" && "status" in error) {
       const status = Number((error as { status?: unknown }).status);
+      // ApiClientError uses status=0 for network-level failures (including fetch timeouts).
+      if (status === 0) return true;
       return Number.isFinite(status) && retryStatuses.includes(status);
+    }
+    if (error && typeof error === "object" && "message" in error) {
+      const message = String((error as { message?: unknown }).message ?? "")
+        .trim()
+        .toLowerCase();
+      if (
+        message.includes("timeout") ||
+        message.includes("fetch failed") ||
+        message.includes("network")
+      ) {
+        return true;
+      }
     }
     return false;
   };

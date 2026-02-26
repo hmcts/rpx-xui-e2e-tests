@@ -56,7 +56,7 @@ test.describe("Playwright config coverage", () => {
     configModule = await loadConfig();
   });
 
-  test("resolveWorkerCount covers configured, CI, and default", () => {
+  test("resolveWorkerCount covers configured, CI dynamic, and local default", () => {
     const configured = resolveWorkerCount({
       PLAYWRIGHT_WORKERS: "4",
       CI: undefined,
@@ -66,14 +66,24 @@ test.describe("Playwright config coverage", () => {
     const ciCount = resolveWorkerCount({
       PLAYWRIGHT_WORKERS: undefined,
       CI: "true",
+      PLAYWRIGHT_CI_CPU_CORES: "8",
+      PLAYWRIGHT_CI_MEMORY_MB: "8192",
     });
-    expect(ciCount).toBe(1);
+    expect(ciCount).toBe(4);
+
+    const ciMemoryBound = resolveWorkerCount({
+      PLAYWRIGHT_WORKERS: undefined,
+      CI: "true",
+      PLAYWRIGHT_CI_CPU_CORES: "16",
+      PLAYWRIGHT_CI_MEMORY_MB: "2048",
+    });
+    expect(ciMemoryBound).toBe(1);
 
     const defaultCount = resolveWorkerCount({
       PLAYWRIGHT_WORKERS: undefined,
       CI: undefined,
     });
-    expect(defaultCount).toBeGreaterThanOrEqual(1);
+    expect(defaultCount).toBe(6);
   });
 
   test("resolveRetryCount enforces minimum of 4 retries", () => {
@@ -103,6 +113,8 @@ test.describe("Playwright config coverage", () => {
   test("config uses CI overrides and env reporters", () => {
     const config = buildConfig({
       CI: "true",
+      PLAYWRIGHT_CI_CPU_CORES: "2",
+      PLAYWRIGHT_CI_MEMORY_MB: "2048",
       PLAYWRIGHT_REPORTERS: "dot,odhin",
       PLAYWRIGHT_REPORT_FOLDER: "custom-report",
       PW_ODHIN_OUTPUT: "legacy-report",

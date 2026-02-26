@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { cpus, homedir } from "node:os";
+import { cpus, homedir, totalmem } from "node:os";
 import path from "node:path";
 
 import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
@@ -32,6 +32,63 @@ const { version: appVersion } = require("./package.json") as {
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
+const ONE_MIB_BYTES = 1024 * 1024;
+const ONE_GIB_BYTES = ONE_MIB_BYTES * 1024;
+const LOCAL_DEFAULT_WORKERS = 6;
+const CI_MAX_WORKERS = 8;
+const CI_MEMORY_PER_WORKER_GIB = 2;
+
+const parsePositiveInteger = (
+  value: string | undefined,
+): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+  return parsed;
+};
+
+const resolveCgroupMemoryLimitBytes = (): number | undefined => {
+  const candidates = [
+    "/sys/fs/cgroup/memory.max",
+    "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+  ];
+  const hostTotalMemory = totalmem();
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) {
+      continue;
+    }
+    try {
+      const raw = readFileSync(candidate, "utf8").trim();
+      if (!raw || raw.toLowerCase() === "max") {
+        continue;
+      }
+      const parsed = Number.parseInt(raw, 10);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        continue;
+      }
+      if (parsed > hostTotalMemory * 4) {
+        continue;
+      }
+      return parsed;
+    } catch {
+      // Best-effort read; fall through to the next source.
+    }
+  }
+  return undefined;
+};
+
+const resolveCiMemoryBytes = (env: EnvMap): number => {
+  const configuredMemoryMb = parsePositiveInteger(env.PLAYWRIGHT_CI_MEMORY_MB);
+  if (configuredMemoryMb) {
+    return configuredMemoryMb * ONE_MIB_BYTES;
+  }
+  return resolveCgroupMemoryLimitBytes() ?? totalmem();
+};
+
+const resolveCiCpuCores = (env: EnvMap): number =>
+  parsePositiveInteger(env.PLAYWRIGHT_CI_CPU_CORES) ?? cpus()?.length ?? 1;
 
 const resolveDefaultReporterNames = (env: EnvMap) => {
   const override = env.PLAYWRIGHT_DEFAULT_REPORTER;
@@ -53,18 +110,27 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean) => {
 };
 
 const resolveWorkerCount = (env: EnvMap = process.env) => {
-  const configured = env.PLAYWRIGHT_WORKERS;
-  if (configured) {
-    const parsed = Number.parseInt(configured, 10);
-    if (!Number.isNaN(parsed) && parsed > 0) {
-      return parsed;
-    }
+  const configuredWorkers = parsePositiveInteger(env.PLAYWRIGHT_WORKERS);
+  if (configuredWorkers) {
+    return configuredWorkers;
   }
-  const logical = cpus()?.length ?? 1;
-  if (env.CI) return 1;
-  if (logical <= 4) return 1;
-  const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(2, Math.max(1, approxPhysical));
+
+  if (!safeBoolean(env.CI, false)) {
+    return LOCAL_DEFAULT_WORKERS;
+  }
+
+  const ciCpuCores = resolveCiCpuCores(env);
+  const ciMemoryBytes = resolveCiMemoryBytes(env);
+  const cpuBoundWorkers = Math.max(1, Math.floor(ciCpuCores / 2));
+  const memoryBoundWorkers = Math.max(
+    1,
+    Math.floor(ciMemoryBytes / (CI_MEMORY_PER_WORKER_GIB * ONE_GIB_BYTES)),
+  );
+
+  return Math.min(
+    CI_MAX_WORKERS,
+    Math.max(1, Math.min(cpuBoundWorkers, memoryBoundWorkers)),
+  );
 };
 
 const resolveRetryCount = (env: EnvMap = process.env) => {
