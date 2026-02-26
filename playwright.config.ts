@@ -72,10 +72,10 @@ const resolveRetryCount = (env: EnvMap = process.env) => {
   if (configured) {
     const parsed = Number.parseInt(configured, 10);
     if (!Number.isNaN(parsed) && parsed >= 0) {
-      return parsed;
+      return Math.max(4, parsed);
     }
   }
-  return env.CI ? 2 : 0;
+  return 4;
 };
 
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>

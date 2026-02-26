@@ -242,7 +242,7 @@ withNightlyPipeline(type, product, component, 400) {
             withTestVaultSecrets {
               logCredentialPresence()
               withEnv(apiOdhinEnv) {
-                yarnBuilder.yarn("test:api:pw ${tagArg}")
+                yarnBuilder.yarn("test:api:pw:coverage ${tagArg}")
               }
             }
           } catch (Error) {

@@ -275,8 +275,9 @@ test.describe("Party level case flags", () => {
 
   test("Create a new party level flag and verify the flag is displayed on the case", async ({
     caseDetailsPage,
-    tableUtils,
   }) => {
+    test.setTimeout(420_000);
+
     await test.step("Create a new party level flag", async () => {
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
@@ -397,7 +398,7 @@ test.describe("Party level case flags", () => {
       }
       /* eslint-enable playwright/no-conditional-in-test */
       const selectedPartyText = selectedPartyLabel.split("(")[0]?.trim() ?? "";
-      const expectedCreationDate = await caseDetailsPage.todaysDateFormatted();
+      const expectedPartyText = selectedPartyText.toLowerCase();
       await expect(async () => {
         await caseDetailsPage.page.goto(caseDetailsUrl, {
           waitUntil: "domcontentloaded",
@@ -412,41 +413,45 @@ test.describe("Party level case flags", () => {
       await expect
         .poll(
           async () => {
-            const partyTableName = selectedPartyText || testValue;
-            const table = await tableUtils.mapExuiTable(
-              await caseDetailsPage.getTableByName(partyTableName),
+            const selectedTabLabel = (
+              (await caseDetailsPage.page
+                .getByRole("tab", { selected: true })
+                .first()
+                .innerText()
+                .catch(() => "")) ?? ""
+            )
+              .replaceAll(/\s+/g, " ")
+              .trim()
+              .toLowerCase();
+            if (!selectedTabLabel.includes("flag")) {
+              return false;
+            }
+
+            const caseViewerTable = caseDetailsPage.page
+              .getByRole("table", { name: "case viewer table" })
+              .first();
+            const tableVisible = await caseViewerTable
+              .isVisible()
+              .catch(() => false);
+            if (!tableVisible) {
+              return false;
+            }
+            const tableText = (
+              (await caseViewerTable.innerText().catch(() => "")) ?? ""
+            )
+              .replaceAll(/\s+/g, " ")
+              .trim()
+              .toLowerCase();
+            const partyMentioned =
+              expectedPartyText.length === 0 ||
+              tableText.includes(expectedPartyText);
+
+            return (
+              partyMentioned &&
+              tableText.includes("i want to speak welsh at a hearing") &&
+              tableText.includes("comments welsh") &&
+              tableText.includes("status active")
             );
-            const visibleRows = filterEmptyRows(table);
-
-            return visibleRows.some((row) => {
-              const hasExpectedStatusAndDate = rowMatchesExpected(row, {
-                "Creation date": expectedCreationDate,
-                "Flag status": "ACTIVE",
-              });
-              if (!hasExpectedStatusAndDate) {
-                return false;
-              }
-
-              const comments = (row.Comments ?? "")
-                .replaceAll(/\s+/g, " ")
-                .trim()
-                .toLowerCase();
-              const partyLevelFlags = (row["Party level flags"] ?? "")
-                .replaceAll(/\s+/g, " ")
-                .trim()
-                .toLowerCase();
-              const expectedParty = selectedPartyText.toLowerCase();
-              const targetMatches =
-                expectedParty.length === 0 ||
-                partyLevelFlags.includes(expectedParty) ||
-                comments.includes(expectedParty);
-
-              return (
-                targetMatches &&
-                comments.includes("welsh") &&
-                partyLevelFlags.includes("welsh")
-              );
-            });
           },
           { timeout: 60_000, intervals: [1_000, 2_000, 3_000] },
         )

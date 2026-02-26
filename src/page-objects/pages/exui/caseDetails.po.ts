@@ -277,27 +277,36 @@ export class CaseDetailsPage extends Base {
     }
   }
 
+  private isPointerInterceptionError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return (
+      message.includes("intercepts pointer events") ||
+      message.includes("not receiving pointer events")
+    );
+  }
+
   private async clickSubmitWithRetry(context: string): Promise<void> {
+    await this.waitForSpinnerToComplete(
+      `before clicking submit ${context}`,
+      15_000,
+    ).catch(() => {});
     try {
-      await this.submitCaseFlagButton.click({ timeout: 10_000 });
+      await this.submitCaseFlagButton.click({ timeout: 4_000 });
     } catch (error) {
       if (this.page.isClosed()) {
         throw new Error(`Page closed while clicking submit ${context}.`);
       }
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("intercepts pointer events")) {
+      if (this.isPointerInterceptionError(error)) {
         await this.waitForSpinnerToComplete(
           `before retrying submit ${context}`,
-          10_000,
+          20_000,
         ).catch(() => {});
         try {
-          await this.submitCaseFlagButton.click({ timeout: 10_000 });
+          await this.submitCaseFlagButton.click({
+            timeout: 3_000,
+          });
         } catch (retryError) {
-          const retryMessage =
-            retryError instanceof Error
-              ? retryError.message
-              : String(retryError);
-          if (!retryMessage.includes("intercepts pointer events")) {
+          if (!this.isPointerInterceptionError(retryError)) {
             throw retryError;
           }
           await this.submitCaseFlagButton.evaluate((element) => {
@@ -314,19 +323,22 @@ export class CaseDetailsPage extends Base {
     radio: Locator,
     context: string,
   ): Promise<void> {
+    await this.waitForSpinnerToComplete(
+      `before selecting radio ${context}`,
+      15_000,
+    ).catch(() => {});
     try {
-      await radio.check({ timeout: 10_000 });
+      await radio.check({ timeout: 4_000 });
     } catch (error) {
       if (this.page.isClosed()) {
         throw new Error(`Page closed while selecting radio ${context}.`);
       }
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("intercepts pointer events")) {
+      if (this.isPointerInterceptionError(error)) {
         await this.waitForSpinnerToComplete(
           `before retrying radio ${context}`,
-          12_000,
+          20_000,
         ).catch(() => {});
-        await radio.check({ timeout: 10_000 }).catch(async () => {
+        await radio.check({ timeout: 3_000 }).catch(async () => {
           await radio.evaluate((element) => {
             const input = element as HTMLInputElement;
             input.checked = true;
@@ -655,17 +667,6 @@ export class CaseDetailsPage extends Base {
     const deadline = Date.now() + 30_000;
 
     while (Date.now() < deadline) {
-      if (normalized === "flags") {
-        const flagsContentVisible = await this.page
-          .locator(String.raw`text=/Flags\s+for\s+legal\s+rep/i`)
-          .first()
-          .isVisible()
-          .catch(() => false);
-        if (flagsContentVisible) {
-          return;
-        }
-      }
-
       for (const alias of tabAliases) {
         const escapedAlias = alias.replaceAll(
           /[.*+?^${}()|[\]\\]/g,
