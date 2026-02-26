@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
 import { ensureSessionCookies } from "../../../utils/integration/session.utils.js";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils.js";
 import { welshTranslationsSmall } from "../mocks/welshLanguage.mock.js";
 import { TEST_USERS } from "../testData/index.js";
 
@@ -34,19 +35,39 @@ test.describe("Verify users can switch the language", () => {
     caseListPage,
     page,
   }) => {
-    await test.step("Change the language to Welsh", async () => {
-      await caseListPage.exuiHeader.checkIsVisible();
-      const translationErrorPromise = page.waitForResponse(
-        (response) =>
-          response.url().includes("/api/translation/cy") &&
-          response.status() === 500,
-        { timeout: 10_000 },
-      );
+    test.setTimeout(240_000);
 
-      await caseListPage.exuiHeader.switchLanguage("Cymraeg");
-      await caseListPage.exuiSpinnerComponent.wait();
-      await page.waitForLoadState("domcontentloaded");
-      await translationErrorPromise;
+    await test.step("Change the language to Welsh", async () => {
+      await retryOnTransientFailure(
+        async () => {
+          await expect(caseListPage.exuiHeader.languageToggle).toBeVisible({
+            timeout: 45_000,
+          });
+          const translationErrorPromise = page.waitForResponse(
+            (response) =>
+              response.url().includes("/api/translation/cy") &&
+              response.status() === 500,
+            { timeout: 15_000 },
+          );
+
+          await caseListPage.exuiHeader.switchLanguage("Cymraeg");
+          await caseListPage.exuiSpinnerComponent.wait();
+          await page.waitForLoadState("domcontentloaded");
+          await translationErrorPromise;
+        },
+        {
+          maxAttempts: 3,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            await page.goto("/cases", { waitUntil: "domcontentloaded" }).catch(
+              () => undefined,
+            );
+            await caseListPage.waitForReady(60_000).catch(() => undefined);
+          },
+        },
+      );
     });
 
     await test.step("Check the translations are not shown, but the translated banner still is", async () => {

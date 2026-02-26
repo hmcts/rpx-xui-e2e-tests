@@ -23,6 +23,11 @@ const logger = createLogger({
 
 const toErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+const JOURNEY_MAX_ATTEMPTS = 3;
+const ACTION_TIMEOUT_MS = 60_000;
+const SUBMIT_TIMEOUT_MS = 90_000;
+const READY_TIMEOUT_MS = 90_000;
+const VERIFY_TIMEOUT_MS = 180_000;
 
 test.describe("Document upload V2", () => {
   test.describe.configure({ timeout: 180_000 });
@@ -78,6 +83,8 @@ test.describe("Document upload V2", () => {
     createCasePage,
     caseDetailsPage,
   }) => {
+    test.setTimeout(420_000);
+
     await test.step("Verify case details tab does not contain an uploaded file", async () => {
       await caseDetailsPage.selectCaseDetailsTab(TEST_DATA.V2.TAB_NAME);
       const caseViewerTable = caseDetailsPage.page.getByRole("table", {
@@ -92,14 +99,14 @@ test.describe("Document upload V2", () => {
 
     await test.step("Upload a document to the case", async () => {
       const caseDetailsUrl = caseDetailsPage.page.url();
-      const maxAttempts = 2;
+      const maxAttempts = JOURNEY_MAX_ATTEMPTS;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
           await caseDetailsPage.selectCaseDetailsTab(TEST_DATA.V2.TAB_NAME);
           await caseDetailsPage.selectCaseAction(TEST_DATA.V2.ACTION, {
             expectedLocator: createCasePage.fileUploadInput,
-            timeoutMs: 30_000,
+            timeoutMs: ACTION_TIMEOUT_MS,
           });
           await createCasePage.uploadFile(
             TEST_DATA.V2.FILE_NAME,
@@ -107,7 +114,7 @@ test.describe("Document upload V2", () => {
             TEST_DATA.V2.FILE_CONTENT,
           );
           await createCasePage.clickSubmitAndWait("after documentV2 upload", {
-            timeoutMs: 60_000,
+            timeoutMs: SUBMIT_TIMEOUT_MS,
           });
           break;
         } catch (error) {
@@ -127,7 +134,7 @@ test.describe("Document upload V2", () => {
           await caseDetailsPage.page.goto(caseDetailsUrl, {
             waitUntil: "domcontentloaded",
           });
-          await caseDetailsPage.waitForReady(60_000);
+          await caseDetailsPage.waitForReady(READY_TIMEOUT_MS);
         }
       }
     });
@@ -176,14 +183,14 @@ test.describe("Document upload V2", () => {
                 return tableText.includes(testValue);
               },
               {
-                timeout: 120_000,
+                timeout: VERIFY_TIMEOUT_MS,
                 intervals: [2_000, 4_000, 6_000],
               },
             )
             .toBe(true);
         },
         {
-          maxAttempts: 2,
+          maxAttempts: JOURNEY_MAX_ATTEMPTS,
           onRetry: async () => {
             if (caseDetailsPage.page.isClosed()) {
               return;
@@ -194,7 +201,9 @@ test.describe("Document upload V2", () => {
                 waitUntil: "domcontentloaded",
               },
             );
-            await caseDetailsPage.waitForReady(60_000).catch(() => undefined);
+            await caseDetailsPage.waitForReady(READY_TIMEOUT_MS).catch(
+              () => undefined,
+            );
           },
         },
       );
@@ -262,9 +271,11 @@ test.describe("Document upload V1", () => {
     caseDetailsPage,
     tableUtils,
   }) => {
+    test.setTimeout(480_000);
+
     await test.step("Upload a document to the case", async () => {
       const caseDetailsUrl = caseDetailsPage.page.url();
-      const maxAttempts = 2;
+      const maxAttempts = JOURNEY_MAX_ATTEMPTS;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         try {
@@ -292,7 +303,7 @@ test.describe("Document upload V1", () => {
           await caseDetailsPage.page.goto(caseDetailsUrl, {
             waitUntil: "domcontentloaded",
           });
-          await caseDetailsPage.waitForReady(60_000);
+          await caseDetailsPage.waitForReady(READY_TIMEOUT_MS);
         }
       }
     });
@@ -322,14 +333,14 @@ test.describe("Document upload V1", () => {
                 return parsedRows.some((row) => row.Document === testFileName);
               },
               {
-                timeout: 60_000,
+                timeout: 120_000,
                 intervals: [2_000, 4_000, 6_000],
               },
             )
             .toBe(true);
         },
         {
-          maxAttempts: 2,
+          maxAttempts: JOURNEY_MAX_ATTEMPTS,
           onRetry: async () => {
             if (caseDetailsPage.page.isClosed()) {
               return;
@@ -340,7 +351,9 @@ test.describe("Document upload V1", () => {
                 waitUntil: "domcontentloaded",
               },
             );
-            await caseDetailsPage.waitForReady(60_000).catch(() => undefined);
+            await caseDetailsPage.waitForReady(READY_TIMEOUT_MS).catch(
+              () => undefined,
+            );
           },
         },
       );

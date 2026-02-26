@@ -235,9 +235,9 @@ withNightlyPipeline(type, product, component, 400) {
   env.TEST_ENV = params.TEST_ENV
   env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
   def totalWorkerBudget = resolvePositiveInteger(params.FUNCTIONAL_TESTS_WORKERS, 8)
-  def apiWorkers = Math.min(3, Math.max(1, (int) Math.floor(totalWorkerBudget / 4.0d)))
-  def integrationWorkers = Math.min(3, Math.max(1, (int) Math.floor(totalWorkerBudget / 4.0d)))
-  def uiWorkers = Math.min(4, Math.max(1, totalWorkerBudget - apiWorkers - integrationWorkers))
+  def apiWorkers = Math.min(2, Math.max(1, (int) Math.floor(totalWorkerBudget / 4.0d)))
+  def integrationWorkers = Math.min(2, Math.max(1, (int) Math.floor(totalWorkerBudget / 4.0d)))
+  def uiWorkers = Math.min(2, Math.max(1, totalWorkerBudget - apiWorkers - integrationWorkers))
   env.PLAYWRIGHT_WORKERS = uiWorkers.toString()
   echo "Playwright worker budget: total=${totalWorkerBudget}, api=${apiWorkers}, ui=${uiWorkers}, integration=${integrationWorkers}"
   env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")

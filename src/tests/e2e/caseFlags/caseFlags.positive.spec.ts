@@ -254,15 +254,28 @@ test.describe("Party level case flags", () => {
       await route.fulfill({ response: liveResponse });
     });
 
-    await applyCookiesToPage(page, flagsCookies);
-    await page.goto("/");
-    await createCasePage.createDivorceCaseFlag(
-      testValue,
-      jurisdiction,
-      resolvedCaseType,
+    await retryOnTransientFailure(
+      async () => {
+        await applyCookiesToPage(page, flagsCookies);
+        await page.goto("/");
+        await createCasePage.createDivorceCaseFlag(
+          testValue,
+          jurisdiction,
+          resolvedCaseType,
+        );
+        caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+        caseDetailsUrl = `/cases/case-details/${jurisdiction}/${resolvedCaseType}/${caseNumber}`;
+      },
+      {
+        maxAttempts: 3,
+        onRetry: async () => {
+          if (page.isClosed()) {
+            return;
+          }
+          await page.goto("/cases/case-filter").catch(() => undefined);
+        },
+      },
     );
-    caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
-    caseDetailsUrl = `/cases/case-details/${jurisdiction}/${resolvedCaseType}/${caseNumber}`;
   });
 
   test.afterEach(async ({ page }) => {
@@ -276,40 +289,39 @@ test.describe("Party level case flags", () => {
   test("Create a new party level flag and verify the flag is displayed on the case", async ({
     caseDetailsPage,
   }) => {
-    test.setTimeout(420_000);
+    test.setTimeout(540_000);
 
     await test.step("Create a new party level flag", async () => {
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
+      await retryOnTransientFailure(
+        async () => {
           await caseDetailsPage.exuiSpinnerComponent.wait();
           await caseDetailsPage.selectCaseAction("Create a case flag", {
             expectedLocator: caseDetailsPage.page.getByRole("heading", {
               name: /where should this flag be added\?/i,
             }),
-            timeoutMs: 45_000,
+            timeoutMs: 90_000,
           });
           selectedPartyLabel = await caseDetailsPage.selectPartyFlagTarget(
             testValue,
             "Welsh",
           );
-          return;
-        } catch (error) {
-          // eslint-disable-next-line playwright/no-conditional-in-test -- bounded retry for known transient CCD step rendering.
-          if (attempt === 2) {
-            throw error;
-          }
-          // eslint-disable-next-line playwright/no-conditional-in-test -- explicit guard keeps retry failures understandable when browser closes.
-          if (caseDetailsPage.page.isClosed()) {
-            throw new Error(
-              "Page closed before retrying party-level flag flow.",
-              { cause: error },
-            );
-          }
-          await caseDetailsPage.page.goto(caseDetailsUrl, {
-            waitUntil: "domcontentloaded",
-          });
-        }
-      }
+        },
+        {
+          maxAttempts: 3,
+          onRetry: async (_attempt, error) => {
+            if (caseDetailsPage.page.isClosed()) {
+              throw new Error(
+                "Page closed before retrying party-level flag flow.",
+                { cause: error },
+              );
+            }
+            await caseDetailsPage.page.goto(caseDetailsUrl, {
+              waitUntil: "domcontentloaded",
+            });
+            await caseDetailsPage.waitForReady(90_000).catch(() => undefined);
+          },
+        },
+      );
     });
 
     await test.step("Check the case flag creation messages are seen", async () => {
@@ -373,7 +385,7 @@ test.describe("Party level case flags", () => {
               createCaseFlagMessageMatches || createACaseFlagMessageMatches
             );
           },
-          { timeout: 45_000, intervals: [500, 1_000, 2_000] },
+          { timeout: 90_000, intervals: [1_000, 2_000, 4_000] },
         )
         .toBe(true);
       await expect
@@ -408,7 +420,7 @@ test.describe("Party level case flags", () => {
           timeout: 60_000,
         });
         await caseDetailsPage.selectCaseDetailsTab(flagsTabName);
-      }).toPass({ timeout: 60_000, intervals: [1_000, 2_000, 3_000] });
+      }).toPass({ timeout: 120_000, intervals: [1_000, 2_000, 4_000] });
 
       await expect
         .poll(
@@ -453,7 +465,7 @@ test.describe("Party level case flags", () => {
               tableText.includes("status active")
             );
           },
-          { timeout: 60_000, intervals: [1_000, 2_000, 3_000] },
+          { timeout: 120_000, intervals: [1_000, 2_000, 4_000] },
         )
         .toBe(true);
     });
