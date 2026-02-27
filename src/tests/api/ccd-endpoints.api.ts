@@ -1,21 +1,73 @@
-import type { ApiClient } from "@hmcts/playwright-common";
-
-import { config as testConfig } from "../../config/api";
 import { test, expect } from "../../fixtures/api";
-import { withXsrf, expectStatus, StatusSets, withRetry } from "../../utils/api/apiTestUtils";
+import { config as testConfig } from "../../utils/ui/apiTestConfig";
+import {
+  withXsrf,
+  expectStatus,
+  withRetry,
+} from "../../utils/api/apiTestUtils";
+import { assertJurisdictionsForUser } from "../../utils/api/ccdUtils";
+import { stringifyCaseTypeId } from "../../utils/api/caseTypeIdUtils";
 
-test.describe("CCD endpoints", () => {
+test.describe("CCD endpoints", { tag: "@svc-ccd" }, () => {
   test("lists jurisdictions for current user", async ({ apiClient }) => {
-    await assertJurisdictionsForUser(apiClient);
+    const expectedNames =
+      testConfig.jurisdictionNames[testConfig.testEnv] ?? [];
+    await assertJurisdictionsForUser(apiClient, expectedNames);
   });
 
-  const jurisdictions = (testConfig.jurisdictions[testConfig.testEnv as "aat" | "demo"] ??
-    []) as Array<{ caseTypeIds?: string[] }>;
+  const jurisdictions = testConfig.jurisdictions[testConfig.testEnv] ?? [];
   for (const jurisdiction of jurisdictions) {
     const uniqueCaseTypes = Array.from(new Set(jurisdiction.caseTypeIds ?? []));
     for (const caseTypeId of uniqueCaseTypes) {
-      test(`work-basket inputs available for ${caseTypeId}`, async ({ apiClient }) => {
-        await assertWorkBasketInputs(apiClient, caseTypeId);
+      const caseTypeIdText = stringifyCaseTypeId(caseTypeId);
+      test(`work-basket inputs available for ${caseTypeIdText}`, async ({
+        apiClient,
+      }) => {
+        interface WorkbasketInput {
+          label?: string;
+          field?: {
+            id?: string;
+            field_type?: {
+              id?: string;
+              type?: string;
+            };
+          };
+          [key: string]: unknown;
+        }
+
+        interface WorkbasketData {
+          workbasketInputs?: WorkbasketInput[];
+          [key: string]: unknown;
+        }
+
+        const response = await apiClient.get<WorkbasketData>(
+          `data/internal/case-types/${encodeURIComponent(caseTypeIdText)}/work-basket-inputs`,
+          {
+            headers: { experimental: "true" },
+          },
+        );
+        expectStatus(response.status, [200, 401, 403, 500, 502, 504]);
+        const data = response.data;
+        expect(data).toBeTruthy();
+        expect(typeof data).toBe("object");
+        expect(Array.isArray(data.workbasketInputs)).toBe(true);
+
+        if (data.workbasketInputs) {
+          data.workbasketInputs.forEach((input) => {
+            expect(input).toEqual(
+              expect.objectContaining({
+                label: expect.any(String),
+                field: expect.objectContaining({
+                  id: expect.any(String),
+                  field_type: expect.objectContaining({
+                    id: expect.any(String),
+                    type: expect.any(String),
+                  }),
+                }),
+              }),
+            );
+          });
+        }
       });
     }
   }
@@ -27,90 +79,75 @@ test.describe("CCD endpoints", () => {
           apiClient.get("data/internal/profile", {
             headers: {
               ...headers,
-              experimental: "true"
+              experimental: "true",
             },
-              throwOnError: false
+            throwOnError: false,
           }),
-        { retries: 1, retryStatuses: [502, 504] }
-      )
+        { retries: 1, retryStatuses: [502, 504] },
+      ),
     );
 
     expectStatus(response.status, [200, 500, 502, 504]);
-    assertProfileData(response);
+    if (response.status === 200) {
+      expect(response.data).toBeTruthy();
+    }
   });
 });
 
-async function assertJurisdictionsForUser(apiClient: ApiClient): Promise<void> {
-  const user = await apiClient.get<{ userInfo?: { uid?: string; id?: string } }>("api/user/details", { throwOnError: false });
-  expectStatus(user.status, StatusSets.guardedExtended);
-  const uid = user.data?.userInfo?.uid ?? user.data?.userInfo?.id;
-  if (!uid || user.status !== 200) {
-    return;
-  }
-
-  const response = await withRetry(
-    () =>
-      apiClient.get<unknown[]>(`aggregated/caseworkers/${uid}/jurisdictions?access=read`, {
-        throwOnError: false
-      }),
-    { retries: 1, retryStatuses: [502, 504] }
-  );
-  expectStatus(response.status, [...StatusSets.guardedExtended, 504, 500]);
-  const jurisdictionsData = Array.isArray(response.data) ? (response.data as Array<{ name?: string }>) : [];
-  if (response.status !== 200 || jurisdictionsData.length === 0) {
-    return;
-  }
-
-  const expectedNames = testConfig.jurisdictionNames[testConfig.testEnv as "aat" | "demo"] ?? [];
-  const actualNames = jurisdictionsData.map((entry) => entry?.name).filter(Boolean);
-  if (expectedNames.length) {
-    const overlap = actualNames.filter((name) => expectedNames.includes(name as string));
-    expect(overlap.length).toBeGreaterThan(0);
-  }
-
-  jurisdictionsData.forEach((jurisdiction) => {
-    expect(jurisdiction).toEqual(
-      expect.objectContaining({
-        id: expect.any(String),
-        name: expect.any(String),
-        description: expect.any(String)
-      })
-    );
+test.describe("CCD helper coverage", { tag: "@svc-ccd" }, () => {
+  test("stringifyCaseTypeId handles basic variants", () => {
+    expect(stringifyCaseTypeId("XUI-1")).toBe("XUI-1");
+    expect(stringifyCaseTypeId(123)).toBe("123");
+    expect(stringifyCaseTypeId({ id: "AAT" })).toBe("AAT");
+    expect(stringifyCaseTypeId({ foo: "bar" })).toContain("foo");
+    expect(stringifyCaseTypeId(undefined)).toBe("");
   });
-}
 
-async function assertWorkBasketInputs(apiClient: ApiClient, caseTypeId: string): Promise<void> {
-  const response = await apiClient.get<unknown>(`data/internal/case-types/${caseTypeId}/work-basket-inputs`, {
-    headers: { experimental: "true" },
-    throwOnError: false
+  test("assertJurisdictionsForUser handles guarded status", async () => {
+    const apiClient = {
+      get: async () => ({ status: 403, data: undefined }),
+    };
+    await assertJurisdictionsForUser(apiClient as any, []);
   });
-  expectStatus(response.status, [200, 401, 403, 404, 500, 502, 504]);
-  if (response.status !== 200) {
-    return;
-  }
-  const data = response.data as { workbasketInputs?: Array<Record<string, unknown>> } | undefined;
-  expect(data).toBeTruthy();
-  expect(typeof data).toBe("object");
-  const inputs = Array.isArray(data?.workbasketInputs) ? data?.workbasketInputs ?? [] : [];
 
-  inputs.forEach((input) => {
-    expect(input).toEqual(
-      expect.objectContaining({
-        label: expect.any(String),
-        field: expect.objectContaining({
-          id: expect.any(String),
-          field_type: expect.objectContaining({
-            id: expect.any(String),
-            type: expect.any(String)
-          })
-        })
-      })
-    );
+  test("assertJurisdictionsForUser handles non-array payloads", async () => {
+    let calls = 0;
+    const apiClient = {
+      get: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return { status: 200, data: { userInfo: { uid: "user-1" } } };
+        }
+        return { status: 200, data: { foo: "bar" } };
+      },
+    };
+    await assertJurisdictionsForUser(apiClient as any, []);
   });
-}
 
-function assertProfileData(response: { status: number; data: unknown }): void {
-  if (response.status === 200) {
-    expect(response.data).toBeTruthy();
-  }
-}
+  test("assertJurisdictionsForUser handles missing user id", async () => {
+    const apiClient = {
+      get: async () => ({ status: 200, data: { userInfo: {} } }),
+    };
+    await assertJurisdictionsForUser(apiClient as any, []);
+  });
+
+  test("assertJurisdictionsForUser handles full payload", async () => {
+    let calls = 0;
+    const apiClient = {
+      get: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return { status: 200, data: { userInfo: { id: "user-1" } } };
+        }
+        return {
+          status: 200,
+          data: [
+            { id: "jur-1", name: "Jurisdiction 1", description: "Desc" },
+            { id: "jur-2", name: "Jurisdiction 2", description: "Desc" },
+          ],
+        };
+      },
+    };
+    await assertJurisdictionsForUser(apiClient as any, ["Jurisdiction 1"]);
+  });
+});

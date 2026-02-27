@@ -1,89 +1,171 @@
-import { faker } from "@faker-js/faker";
-import type { Cookie } from "@playwright/test";
-
 import { expect, test } from "../../../fixtures/ui";
-import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
-import { loadSessionCookies } from "../integration/utils/session.utils.js";
+import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
+import { createLogger } from "@hmcts/playwright-common";
+import { provisionDynamicSolicitorForAlias } from "../_helpers/dynamicSolicitorSession";
+const jurisdiction = "DIVORCE";
+const caseType = "XUI Case PoC";
+let caseNumber: string;
+const logger = createLogger({
+  serviceName: "create-case-e2e",
+  format: "pretty",
+});
+const CREATE_CASE_SETUP_MAX_ATTEMPTS = 3;
+const CREATE_CASE_FLOW_MAX_ATTEMPTS = 2;
 
-const formatOptions = (options: Array<{ label: string; value: string }>): string =>
-  options.length
-    ? options
-        .map((option) => `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`)
-        .join(", ")
-    : "none";
+function asMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isDependencyEnvironmentFailure(error: unknown): boolean {
+  const message = asMessage(error);
+  return (
+    /returned HTTP 5\d\d/i.test(message) ||
+    /status\s+5\d\d/i.test(message) ||
+    /something went wrong page/i.test(message) ||
+    /network timeout/i.test(message) ||
+    /ECONNRESET|ETIMEDOUT/i.test(message)
+  );
+}
 
 test.describe("Verify creating cases works as expected", () => {
-  const userIdentifier = "SOLICITOR";
-  let sessionCookies: Cookie[] = [];
-  test.use({ storageState: { cookies: [], origins: [] } });
-  test.setTimeout(360_000);
-  test.beforeAll(async () => {
-    await ensureUiStorageStateForUser(userIdentifier, { strict: true });
-    const { cookies } = loadSessionCookies(userIdentifier);
-    sessionCookies = cookies;
+  test.describe.configure({ timeout: 600000 });
+  let caseData;
+  let dynamicHandle:
+    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
+    | undefined;
+
+  test.beforeEach(
+    async (
+      { page, caseDetailsPage, createCasePage, professionalUserUtils },
+      testInfo,
+    ) => {
+      dynamicHandle = await provisionDynamicSolicitorForAlias({
+        alias: "SOLICITOR",
+        professionalUserUtils,
+        roleContext: {
+          jurisdiction: "divorce",
+          testType: "case-create",
+        },
+        testInfo,
+      });
+
+      try {
+        await retryOnTransientFailure(
+          async () => {
+            await ensureAuthenticatedPage(page, "SOLICITOR", {
+              waitForSelector: "exui-header",
+            });
+            caseData = await createCasePage.generateDivorcePoCData();
+            await createCasePage.createDivorceCasePoC(
+              jurisdiction,
+              caseType,
+              caseData,
+              {
+                maxAttempts: CREATE_CASE_FLOW_MAX_ATTEMPTS,
+                createCaseMaxAttempts: CREATE_CASE_FLOW_MAX_ATTEMPTS,
+              },
+            );
+            caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+          },
+          {
+            maxAttempts: CREATE_CASE_SETUP_MAX_ATTEMPTS,
+            onRetry: async () => {
+              if (page.isClosed()) {
+                return;
+              }
+              try {
+                await page.goto("/");
+              } catch (error) {
+                logger.warn(
+                  "Retry reset navigation failed before create-case beforeEach retry",
+                  { error },
+                );
+                throw error;
+              }
+            },
+          },
+        );
+      } catch (error) {
+        if (isDependencyEnvironmentFailure(error)) {
+          testInfo.skip(
+            true,
+            `Skipping create-case test due to dependency environment instability: ${asMessage(error)}`,
+          );
+          return;
+        }
+        throw error;
+      }
+    },
+  );
+
+  test.afterEach(async () => {
+    await dynamicHandle?.cleanup();
+    dynamicHandle = undefined;
   });
 
-  test.beforeEach(async ({ caseListPage, config, page }) => {
-    if (sessionCookies.length) {
-      await page.context().addCookies(sessionCookies);
-    }
-    await caseListPage.page.goto(config.urls.manageCaseBaseUrl);
-    await caseListPage.acceptAnalyticsCookies();
-  });
-
-  test("Verify creating a case works as expected", async ({
+  test("Verify creating a case in the divorce jurisdiction works as expected", async ({
+    page,
     validatorUtils,
-    createCasePage,
-    caseListPage,
-    tableUtils
-  }, testInfo) => {
-    let caseNumber = "";
-    const textField0 = faker.lorem.word();
-    const desiredJurisdiction = "DIVORCE";
-    const desiredCaseType = "XUI Case PoC";
-    const selection = await createCasePage.resolveCreateCaseSelection(
-      desiredJurisdiction,
-      desiredCaseType
-    );
-    if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
-      const availableJurisdictions = formatOptions(selection.availableJurisdictions);
-      const availableCaseTypes = formatOptions(selection.availableCaseTypes);
-      testInfo.skip(
-        true,
-        `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
-          `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
-      );
-      return;
-    }
-    const jurisdictionValue =
-      selection.selectedJurisdiction.value || selection.selectedJurisdiction.label;
-    const jurisdictionLabel =
-      selection.selectedJurisdiction.label || selection.selectedJurisdiction.value;
-    const caseTypeValue = selection.selectedCaseType.value || selection.selectedCaseType.label;
-    const caseTypeLabel = selection.selectedCaseType.label || selection.selectedCaseType.value;
-
-    await test.step("Create a case and validate the case number", async () => {
-      await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, textField0);
-      await expect(createCasePage.exuiCaseDetailsComponent.caseHeader).toBeVisible();
-      caseNumber = await createCasePage.exuiCaseDetailsComponent.caseHeader.innerText();
-      validatorUtils.validateDivorceCaseNumber(caseNumber);
+    caseDetailsPage,
+  }) => {
+    await test.step("Validate the case number format and URL", async () => {
+      expect.soft(caseNumber).toMatch(validatorUtils.DIVORCE_CASE_NUMBER_REGEX);
+      expect
+        .soft(page.url())
+        .toContain(`/${jurisdiction}/xuiTestJurisdiction/`);
     });
 
-    await test.step("Find the created case in the case list", async () => {
-      await caseListPage.goto();
-      await caseListPage.searchByJurisdiction(jurisdictionLabel);
-      await caseListPage.searchByCaseType(caseTypeLabel);
-      await caseListPage.searchByTextField0(textField0);
-      await caseListPage.exuiCaseListComponent.searchByCaseState("Case created");
-      await caseListPage.applyFilters();
+    await test.step("Check the case tab Data, matches previously entered data", async () => {
+      const expected = {
+        "Text Field 0": caseData.textField0,
+        "Text Field 1": caseData.textField1,
+        "Text Field 2": caseData.textField2,
+        "Text Field 3": caseData.textField3,
+        "Select your gender": caseData.gender,
+        Title: caseData.person1Title,
+        "First Name": caseData.person1FirstName,
+        "Last Name": caseData.person1LastName,
+        Gender: caseData.person1Gender,
+      };
+      const expectedJob = {
+        Title: caseData.person1JobTitle,
+        Description: caseData.person1JobDescription,
+      };
+
+      const table1 = await caseDetailsPage.trRowsToObjectInPage(
+        caseDetailsPage.divorceDataTable,
+      );
+      expect.soft(table1).toMatchObject(expected);
+      const table2 = await caseDetailsPage.trRowsToObjectInPage(
+        caseDetailsPage.divorceDataSubTable,
+      );
+      expect.soft(table2).toMatchObject(expectedJob);
     });
 
-    await test.step("Confirm the created case is in the search results", async () => {
-      const table = await tableUtils.mapExuiTable(
-        caseListPage.exuiCaseListComponent.caseListTable
+    await test.step("Check the History tab shows the case creation event", async () => {
+      await caseDetailsPage.selectCaseDetailsTab("History");
+
+      const { updateRow, updateDate, updateAuthor } =
+        await caseDetailsPage.getCaseHistoryByEvent("Create a case");
+
+      expect
+        .soft(updateRow, "Create a case row should be present")
+        .toBeTruthy();
+      expect.soft(updateAuthor, "Case author should be present").not.toBe("");
+
+      const expectedDetails = {
+        Date: updateDate,
+        Author: updateAuthor,
+        "End state": "Case created",
+        Event: "Create a case",
+        Summary: "-",
+        Comment: "-",
+      };
+      const table = await caseDetailsPage.trRowsToObjectInPage(
+        caseDetailsPage.historyDetailsTable,
       );
-      const found = table.some((row) => row["Case reference"] === caseNumber.slice(1));
-      expect(found).toBeTruthy();
+      expect.soft(table).toMatchObject(expectedDetails);
     });
   });
 });

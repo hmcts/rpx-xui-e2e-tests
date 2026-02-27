@@ -1,66 +1,97 @@
-const trimTrailingSlash = (value: string): string => value.replace(/\/+$/, "");
+import * as dotenv from "dotenv";
+import { fileURLToPath } from "url";
+import * as path from "node:path";
+import { UserUtils } from "./user.utils.js";
 
-const resolveUrl = (value: string | undefined, fallback: string): string =>
-  value && value.trim().length > 0 ? value : fallback;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const sessionPath = path.resolve(__dirname, "../../.sessions/");
 
-const getEnvVar = (name: string, env: NodeJS.ProcessEnv = process.env): string => {
-  const value = env[name];
-  if (!value) {
-    throw new Error(`Error: ${name} environment variable is not set`);
-  }
-  return value;
-};
+// This needs to be placed somewhere before attempting to access any environment variables
+dotenv.config();
 
-export interface Urls {
+// This should be removed when we move to API based user creation
+const userUtils = new UserUtils();
+const caseManager = userUtils.getUserCredentials("IAC_CaseOfficer_R1");
+const judge = userUtils.getUserCredentials("IAC_Judge_WA_R1");
+
+export interface UserCredentials {
+  username: string;
+  password: string;
+  sessionFile: string;
+  cookieName?: string;
+}
+
+interface Urls {
   exuiDefaultUrl: string;
   manageCaseBaseUrl: string;
+  citizenUrl: string;
   idamWebUrl: string;
   idamTestingSupportUrl: string;
   serviceAuthUrl: string;
 }
 
 export interface Config {
-  testEnv: string;
+  users: {
+    caseManager: UserCredentials;
+    judge: UserCredentials;
+  };
   urls: Urls;
 }
 
-const testEnv = process.env.TEST_ENV ?? "aat";
-const exuiDefaultUrl = trimTrailingSlash(
-  resolveUrl(process.env.TEST_URL, "https://manage-case.aat.platform.hmcts.net")
-);
-
-const manageCaseBaseUrl = trimTrailingSlash(
-  resolveUrl(
-    process.env.MANAGE_CASES_BASE_URL,
-    exuiDefaultUrl.endsWith("/cases") ? exuiDefaultUrl : `${exuiDefaultUrl}/cases`
-  )
-);
-
 export const config: Config = {
-  testEnv,
+  users: {
+    caseManager: {
+      username: caseManager.email,
+      password: caseManager.password,
+      sessionFile: sessionPath + `${caseManager.email}.json`,
+      cookieName: "xui-webapp",
+    },
+    judge: {
+      username: judge.email,
+      password: judge.password,
+      sessionFile: sessionPath + `${judge.email}.json`,
+      cookieName: "xui-webapp",
+    },
+  },
   urls: {
-    exuiDefaultUrl,
-    manageCaseBaseUrl,
+    exuiDefaultUrl: "https://manage-case.aat.platform.hmcts.net",
+    manageCaseBaseUrl: resolveUrl(
+      process.env.MANAGE_CASES_BASE_URL,
+      "https://manage-case.aat.platform.hmcts.net/cases",
+    ),
+    citizenUrl: resolveUrl(
+      process.env.CITIZEN_FRONTEND_BASE_URL,
+      "https://privatelaw.aat.platform.hmcts.net/",
+    ),
     idamWebUrl: resolveUrl(
       process.env.IDAM_WEB_URL,
-      "https://idam-web-public.aat.platform.hmcts.net"
+      "https://idam-web-public.aat.platform.hmcts.net",
     ),
-    idamTestingSupportUrl:
-      resolveUrl(
-        process.env.IDAM_TESTING_SUPPORT_URL,
-        "https://idam-testing-support-api.aat.platform.hmcts.net"
-      ),
-    serviceAuthUrl:
-      resolveUrl(
-        process.env.S2S_URL,
-        "http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease"
-      )
-  }
+    idamTestingSupportUrl: resolveUrl(
+      process.env.IDAM_TESTING_SUPPORT_URL,
+      "https://idam-testing-support-api.aat.platform.hmcts.net",
+    ),
+    serviceAuthUrl: resolveUrl(
+      process.env.S2S_URL,
+      "http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease",
+    ),
+  },
 };
 
-export default config;
+function resolveUrl(value: string | undefined, fallback: string): string {
+  return value || fallback;
+}
+
+function getEnvVar(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Error: ${name} environment variable is not set`);
+  }
+  return value;
+}
 
 export const __test__ = {
+  getEnvVar,
   resolveUrl,
-  getEnvVar
 };
+export default config;

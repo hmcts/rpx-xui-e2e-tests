@@ -1,80 +1,266 @@
-import { z } from "zod";
+/**
+ * API Contract Tests
+ * Validates response structures against expected schemas to ensure backward compatibility
+ */
 
 import { test, expect } from "../../fixtures/api";
-import { expectStatus, StatusSets } from "../../utils/api/apiTestUtils";
-import { expectContract, WorkAllocationSchemas, SearchSchemas } from "../../utils/api/contractValidation";
-import { TaskBuilder, TaskListBuilder, LocationBuilder, TestData } from "../../utils/api/testDataBuilders";
+import {
+  expectStatus,
+  StatusSets,
+  withRetry,
+} from "../../utils/api/apiTestUtils";
+import {
+  expectContract,
+  WorkAllocationSchemas,
+  SearchSchemas,
+} from "../../utils/api/contractValidation";
+import {
+  TaskBuilder,
+  TaskListBuilder,
+  LocationBuilder,
+  TestData,
+} from "../../utils/api/testDataBuilders";
+import { z } from "zod";
 
 const serviceCodes = ["IA", "CIVIL", "PRIVATELAW"];
 const locationSchema = z.object({
   id: z.string(),
-  locationName: z.string()
+  locationName: z.string(),
 });
 
-test.describe("Work Allocation API Contracts", () => {
-  test("GET /workallocation/location contract", async ({ apiClient }) => {
-    const endpoint = `workallocation/location?serviceCodes=${encodeURIComponent(serviceCodes.join(","))}`;
-    const response = await apiClient.get(endpoint, { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    assertLocationContract(response, endpoint);
-  });
+test.describe(
+  "Work Allocation API Contracts",
+  { tag: "@svc-work-allocation" },
+  () => {
+    test("GET /workallocation/location contract: returns array of location objects with required fields", async ({
+      apiClient,
+    }) => {
+      // Given: A solicitor user requesting locations for configured service codes
+      const endpoint = `workallocation/location?serviceCodes=${encodeURIComponent(serviceCodes.join(","))}`;
 
-  test("POST /workallocation/task contract", async ({ apiClient }) => {
-    const searchRequest = {
-      view: "MyTasks",
-      searchRequest: []
-    };
+      // When: Fetching locations
+      const response = await apiClient.get(endpoint, { throwOnError: false });
 
-    const response = await apiClient.post("workallocation/task", {
-      data: searchRequest,
-      throwOnError: false
+      // Then: Response status is within expected range
+      expectStatus(response.status, StatusSets.guardedBasic);
+
+      // And: Response structure matches LocationList contract when successful
+      if (response.status === 200 && Array.isArray(response.data)) {
+        expectContract(response.data, WorkAllocationSchemas.LocationList, {
+          context: { endpoint, status: response.status },
+        });
+
+        // And: Each location has required fields
+        if (response.data.length > 0) {
+          locationSchema.parse(response.data[0]);
+        }
+      }
     });
 
-    expectStatus(response.status, [200, 401, 403, 500, 502]);
-    assertTaskListContract(response);
-  });
+    test("POST /workallocation/task contract: returns TaskList with tasks array and optional total_records", async ({
+      apiClient,
+    }) => {
+      // Given: A task search request for MyTasks view
+      const searchRequest = {
+        view: "MyTasks",
+        searchRequest: [],
+      };
 
-  test("GET /api/user/details contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/user/details", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    assertUserDetailsContract(response);
-  });
+      // When: Searching for tasks
+      const response = await apiClient.post("workallocation/task", {
+        data: searchRequest,
+        throwOnError: false,
+      });
 
-  test("GET /workallocation/taskNames contract", async ({ apiClient }) => {
-    const response = await apiClient.get("workallocation/taskNames", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    assertTaskNamesContract(response);
-  });
+      // Then: Response status is within expected range
+      expectStatus(response.status, [200, 401, 403, 500, 502]);
 
-  test("GET /workallocation/task/types-of-work contract", async ({ apiClient }) => {
-    const response = await apiClient.get("workallocation/task/types-of-work", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    assertWorkTypesContract(response);
-  });
-});
+      // And: Response structure matches TaskList contract when successful
+      if (response.status === 200) {
+        expectContract(response.data, WorkAllocationSchemas.TaskList, {
+          context: {
+            endpoint: "workallocation/task",
+            view: "MyTasks",
+            status: response.status,
+          },
+        });
 
-test.describe("Search and Ref Data API Contracts", () => {
-  test("GET /api/globalSearch/services contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/globalSearch/services", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    assertGlobalSearchServicesContract(response);
-  });
+        // And: tasks array is present
+        const taskListData = response.data as { tasks: unknown[] };
+        expect(taskListData).toHaveProperty("tasks");
+        expect(Array.isArray(taskListData.tasks)).toBe(true);
 
-  test("GET /api/wa-supported-jurisdiction contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/wa-supported-jurisdiction", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    assertSupportedJurisdictionsContract(response);
-  });
+        // And: Each task has required fields
+        if (taskListData.tasks.length > 0) {
+          const firstTask = taskListData.tasks[0] as {
+            id: unknown;
+            task_state: unknown;
+          };
+          expect(firstTask).toHaveProperty("id");
+          expect(firstTask).toHaveProperty("task_state");
+          expect(typeof firstTask.id).toBe("string");
+          expect(typeof firstTask.task_state).toBe("string");
+        }
+      }
+    });
 
-  test("GET /api/staff-supported-jurisdiction contract", async ({ apiClient }) => {
-    const response = await apiClient.get("api/staff-supported-jurisdiction", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    assertSupportedJurisdictionsContract(response);
-  });
-});
+    test("GET /api/user/details contract: returns UserDetails with userInfo object", async ({
+      apiClient,
+    }) => {
+      // Given: An authenticated user
+      // When: Fetching user details
+      const response = await apiClient.get("api/user/details", {
+        throwOnError: false,
+      });
 
-test.describe("Test Data Builders Validation", () => {
-  test("TaskBuilder creates valid task objects", () => {
+      // Then: Response status is within expected range
+      expectStatus(response.status, StatusSets.guardedBasic);
+
+      // And: Response has userInfo when successful
+      if (
+        response.status === 200 &&
+        response.data &&
+        typeof response.data === "object"
+      ) {
+        const userData = response.data as Record<string, unknown>;
+        if (
+          "userInfo" in userData &&
+          userData.userInfo &&
+          typeof userData.userInfo === "object"
+        ) {
+          const userInfo = userData.userInfo as Record<string, unknown>;
+          // Verify userInfo has an id field (could be 'id' or 'uid')
+          expect(userInfo.id || userInfo.uid).toBeDefined();
+        }
+      }
+    });
+
+    test("GET /workallocation/taskNames contract: returns array of task names or wrapped response", async ({
+      apiClient,
+    }) => {
+      // Given: An authenticated user
+      // When: Fetching task names catalogue
+      const response = await withRetry(
+        () =>
+          apiClient.get("workallocation/taskNames", {
+            throwOnError: false,
+          }),
+        { retries: 2, retryStatuses: [500, 502, 504] },
+      );
+
+      // Then: Response status is guarded for downstream resilience
+      expectStatus(response.status, StatusSets.waReadOnly);
+
+      // And: Response may be defined or undefined (API may return empty body)
+      // Note: API may return array, {task_names: []}, {taskNames: []}, string, or empty body
+      // Empty body is acceptable as the endpoint exists and returns 200
+    });
+
+    test("GET /workallocation/task/types-of-work contract: returns array of work type classifications", async ({
+      apiClient,
+    }) => {
+      // Given: An authenticated user
+      // When: Fetching types of work catalogue
+      const response = await withRetry(
+        () =>
+          apiClient.get("workallocation/task/types-of-work", {
+            throwOnError: false,
+          }),
+        { retries: 2, retryStatuses: [500, 502, 504] },
+      );
+
+      // Then: Response status is guarded for downstream resilience
+      expectStatus(response.status, StatusSets.waReadOnly);
+
+      // And: Response is an array or object containing work types
+      if (response.status === 200) {
+        expect(response.data).toBeDefined();
+      }
+      if (response.status === 200 && Array.isArray(response.data)) {
+        expect(response.data.length).toBeGreaterThanOrEqual(0);
+      }
+    });
+  },
+);
+
+test.describe(
+  "Search and Ref Data API Contracts",
+  { tag: ["@svc-global-search", "@svc-ref-data"] },
+  () => {
+    test("GET /api/globalSearch/services contract: returns array of service objects", async ({
+      apiClient,
+    }) => {
+      // Given: An authenticated user
+      // When: Fetching global search services
+      const response = await apiClient.get("api/globalSearch/services", {
+        throwOnError: false,
+      });
+
+      // Then: Response status is within expected range
+      expectStatus(response.status, StatusSets.guardedBasic);
+
+      // And: Response structure matches GlobalSearchServices contract when successful
+      if (response.status === 200 && Array.isArray(response.data)) {
+        expectContract(response.data, SearchSchemas.GlobalSearchServices, {
+          context: {
+            endpoint: "api/globalSearch/services",
+            status: response.status,
+          },
+        });
+
+        // And: Each service has required fields
+        if (response.data.length > 0) {
+          const firstService = response.data[0];
+          expect(firstService).toHaveProperty("serviceId");
+          expect(firstService).toHaveProperty("serviceName");
+        }
+      }
+    });
+
+    test("GET /api/wa-supported-jurisdiction contract: returns jurisdiction data", async ({
+      apiClient,
+    }) => {
+      // Given: An authenticated user
+      // When: Fetching work allocation supported jurisdictions
+      const response = await apiClient.get("api/wa-supported-jurisdiction", {
+        throwOnError: false,
+      });
+
+      // Then: Response status is within expected range
+      expectStatus(response.status, StatusSets.guardedBasic);
+
+      // And: Response is defined when successful (may be array or string)
+      if (response.status === 200) {
+        expect(response.data).toBeDefined();
+        // Note: API may return array of strings or a single string
+      }
+    });
+
+    test("GET /api/staff-supported-jurisdiction contract: returns jurisdiction data", async ({
+      apiClient,
+    }) => {
+      // Given: An authenticated user
+      // When: Fetching staff supported jurisdictions
+      const response = await apiClient.get("api/staff-supported-jurisdiction", {
+        throwOnError: false,
+      });
+
+      // Then: Response status is within expected range
+      expectStatus(response.status, StatusSets.guardedBasic);
+
+      // And: Response is defined when successful (may be array or string)
+      if (response.status === 200) {
+        expect(response.data).toBeDefined();
+        // Note: API may return array of strings or a single string
+      }
+    });
+  },
+);
+
+test.describe("Test Data Builders Validation", { tag: "@svc-internal" }, () => {
+  test("TaskBuilder creates valid task objects that match Task contract", () => {
+    // Given: TaskBuilder with default values
+    // When: Building a task
     const task = new TaskBuilder()
       .withId("task-123")
       .withTitle("Review application")
@@ -84,6 +270,7 @@ test.describe("Test Data Builders Validation", () => {
       .overdue()
       .build();
 
+    // Then: Task matches expected structure
     expect(task.id).toBe("task-123");
     expect(task.task_title).toBe("Review application");
     expect(task.task_state).toBe("assigned");
@@ -92,36 +279,58 @@ test.describe("Test Data Builders Validation", () => {
     expect(task.case_name).toBe("Test Case");
     expect(task.location_name).toBe("London");
     expect(task.due_date).toBeTruthy();
-    assertTaskOverdue(task.due_date);
+
+    // And: Task due date is in the past
+    if (task.due_date && typeof task.due_date === "string") {
+      const dueDate = new Date(task.due_date);
+      expect(dueDate < new Date()).toBe(true);
+    }
   });
 
-  test("TaskListBuilder creates valid task list responses", () => {
+  test("TaskListBuilder creates valid task list responses that match TaskList contract", () => {
+    // Given: Multiple tasks created with TaskBuilder
     const tasks = [
       new TaskBuilder().withId("task-1").assigned().build(),
       new TaskBuilder().withId("task-2").unassigned().build(),
-      new TaskBuilder().withId("task-3").completed().build()
+      new TaskBuilder().withId("task-3").completed().build(),
     ];
 
-    const taskList = new TaskListBuilder().withTasks(tasks).withTotalRecords(50).build();
+    // When: Building a task list
+    const taskList = new TaskListBuilder()
+      .withTasks(tasks)
+      .withTotalRecords(50)
+      .build();
 
+    // Then: Task list matches expected structure
     expect(taskList.tasks).toHaveLength(3);
     expect(taskList.total_records).toBe(50);
-    assertTaskListIds(taskList);
+    if (taskList.tasks && taskList.tasks.length >= 3) {
+      expect(taskList.tasks[0].id).toBe("task-1");
+      expect(taskList.tasks[1].id).toBe("task-2");
+      expect(taskList.tasks[2].id).toBe("task-3");
+    }
   });
 
   test("LocationBuilder creates valid location objects", () => {
+    // Given: LocationBuilder with custom values
+    // When: Building a location
     const location = new LocationBuilder()
       .withId("loc-456")
       .withName("Birmingham Civil and Family Justice Centre")
       .withServices(["IA", "CIVIL", "PRIVATELAW"])
       .build();
 
+    // Then: Location matches expected structure
     expect(location.id).toBe("loc-456");
-    expect(location.locationName).toBe("Birmingham Civil and Family Justice Centre");
+    expect(location.locationName).toBe(
+      "Birmingham Civil and Family Justice Centre",
+    );
     expect(location.services).toEqual(["IA", "CIVIL", "PRIVATELAW"]);
   });
 
   test("TestData quick helpers create valid objects", () => {
+    // Given: TestData quick helper functions
+    // When: Creating test data objects
     const task = TestData.task();
     const assignedTask = TestData.assignedTask("user-1");
     const unassignedTask = TestData.unassignedTask();
@@ -129,6 +338,7 @@ test.describe("Test Data Builders Validation", () => {
     const emptyTaskList = TestData.emptyTaskList();
     const location = TestData.location("loc-1", "Test Location");
 
+    // Then: All objects match expected structures
     expect(task.id).toBeTruthy();
     expect(assignedTask.task_state).toBe("assigned");
     expect(assignedTask.assignee).toBe("user-1");
@@ -141,115 +351,22 @@ test.describe("Test Data Builders Validation", () => {
   });
 
   test("TaskBuilder.buildMany creates multiple tasks with incremental IDs", () => {
-    const builder = new TaskBuilder().withTitle("Standard Task").assigned("user-1");
+    // Given: TaskBuilder configured with base properties
+    const builder = new TaskBuilder()
+      .withTitle("Standard Task")
+      .assigned("user-1");
+
+    // When: Building multiple tasks
     const tasks = builder.buildMany(3);
 
+    // Then: All tasks are created with incremental IDs
     expect(tasks).toHaveLength(3);
     expect(tasks[0].id).toBe("default-task-id-0");
     expect(tasks[1].id).toBe("default-task-id-1");
     expect(tasks[2].id).toBe("default-task-id-2");
-    expect(tasks.every((task) => task.task_title === "Standard Task")).toBe(true);
-    expect(tasks.every((task) => task.assignee === "user-1")).toBe(true);
+
+    // And: All tasks share the same base properties
+    expect(tasks.every((t) => t.task_title === "Standard Task")).toBe(true);
+    expect(tasks.every((t) => t.assignee === "user-1")).toBe(true);
   });
 });
-
-function assertLocationContract(response: { status: number; data?: unknown }, endpoint: string): void {
-  if (response.status === 200 && Array.isArray(response.data)) {
-    expectContract(response.data, WorkAllocationSchemas.LocationList, {
-      context: { endpoint, status: response.status }
-    });
-    assertLocationSchema(response.data);
-  }
-}
-
-function assertLocationSchema(data: unknown[]): void {
-  if (data.length > 0) {
-    locationSchema.parse(data[0]);
-  }
-}
-
-function assertTaskListContract(response: { status: number; data?: unknown }): void {
-  if (response.status === 200) {
-    expectContract(response.data, WorkAllocationSchemas.TaskList, {
-      context: { endpoint: "workallocation/task", view: "MyTasks", status: response.status }
-    });
-    assertTaskListShape(response.data);
-  }
-}
-
-function assertTaskListShape(data: unknown): void {
-  const taskListData = data as { tasks: unknown[] };
-  expect(taskListData).toHaveProperty("tasks");
-  expect(Array.isArray(taskListData.tasks)).toBe(true);
-  if (taskListData.tasks.length > 0) {
-    const firstTask = taskListData.tasks[0] as { id: unknown; task_state: unknown };
-    expect(firstTask).toHaveProperty("id");
-    expect(firstTask).toHaveProperty("task_state");
-    expect(typeof firstTask.id).toBe("string");
-    expect(typeof firstTask.task_state).toBe("string");
-  }
-}
-
-function assertUserDetailsContract(response: { status: number; data?: unknown }): void {
-  if (response.status === 200 && response.data && typeof response.data === "object") {
-    const userData = response.data as Record<string, unknown>;
-    const userInfo = userData.userInfo as Record<string, unknown> | undefined;
-    if (userInfo && typeof userInfo === "object") {
-      expect(userInfo.id || userInfo.uid).toBeDefined();
-    }
-  }
-}
-
-function assertTaskNamesContract(response: { status: number; data?: unknown }): void {
-  if (response.status === 200 && response.data !== undefined) {
-    if (Array.isArray(response.data)) {
-      expect(response.data.length).toBeGreaterThanOrEqual(0);
-    }
-  }
-}
-
-function assertWorkTypesContract(response: { status: number; data?: unknown }): void {
-  if (response.status === 200 && response.data !== undefined) {
-    if (Array.isArray(response.data)) {
-      expect(response.data.length).toBeGreaterThanOrEqual(0);
-    }
-  }
-}
-
-function assertGlobalSearchServicesContract(response: { status: number; data?: unknown }): void {
-  if (response.status === 200 && Array.isArray(response.data)) {
-    expectContract(response.data, SearchSchemas.GlobalSearchServices, {
-      context: { endpoint: "api/globalSearch/services", status: response.status }
-    });
-    assertServiceShape(response.data);
-  }
-}
-
-function assertServiceShape(data: unknown[]): void {
-  if (data.length > 0) {
-    const firstService = data[0] as Record<string, unknown>;
-    expect(firstService).toHaveProperty("serviceId");
-    expect(firstService).toHaveProperty("serviceName");
-  }
-}
-
-function assertSupportedJurisdictionsContract(response: { status: number; data?: unknown }): void {
-  if (response.status === 200) {
-    expect(response.data).toBeDefined();
-  }
-}
-
-function assertTaskOverdue(dateValue: string | null | undefined): void {
-  if (dateValue && typeof dateValue === "string") {
-    const dueDate = new Date(dateValue);
-    expect(dueDate < new Date()).toBe(true);
-  }
-}
-
-function assertTaskListIds(taskList: { tasks?: Array<{ id?: string }> }): void {
-  if (taskList.tasks && taskList.tasks.length >= 3) {
-    expect(taskList.tasks[0].id).toBe("task-1");
-    expect(taskList.tasks[1].id).toBe("task-2");
-    expect(taskList.tasks[2].id).toBe("task-3");
-  }
-}

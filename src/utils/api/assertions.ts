@@ -1,25 +1,25 @@
 import { expect } from "@playwright/test";
-
 import {
-  AddressLookupResponseSchema,
   AnnotationPayloadSchema,
   BookmarkPayloadSchema,
   CaseShareResponseSchema,
   RoleAssignmentSchema,
-  TaskListSchema
+  TaskListSchema,
+  AddressLookupResponseSchema,
 } from "./types";
 
 export function expectTaskList(payload: unknown) {
   const parsed = TaskListSchema.parse(payload);
   expect(parsed).toBeTruthy();
   expect(typeof parsed).toBe("object");
-  expect(Array.isArray(parsed.tasks)).toBe(true);
-  if ((parsed.tasks?.length ?? 0) > 0) {
-    expect(parsed.tasks![0]).toEqual(
+  const tasks = parsed.tasks;
+  expect(Array.isArray(tasks)).toBe(true);
+  if (Array.isArray(tasks) && tasks.length > 0) {
+    expect(tasks[0]).toEqual(
       expect.objectContaining({
         id: expect.any(String),
-        task_state: expect.any(String)
-      })
+        task_state: expect.any(String),
+      }),
     );
   }
   return parsed;
@@ -30,8 +30,8 @@ export function expectRoleAssignmentShape(role: unknown) {
   expect(parsed).toEqual(
     expect.objectContaining({
       roleCategory: expect.any(String),
-      roleName: expect.any(String)
-    })
+      roleName: expect.any(String),
+    }),
   );
   if (parsed.actorId !== undefined) {
     expect(typeof parsed.actorId).toBe("string");
@@ -48,8 +48,8 @@ export function expectBookmarkShape(bookmark: unknown) {
     expect.objectContaining({
       id: expect.any(String),
       name: expect.any(String),
-      documentId: expect.any(String)
-    })
+      documentId: expect.any(String),
+    }),
   );
   return parsed;
 }
@@ -60,8 +60,8 @@ export function expectAnnotationShape(annotation: unknown) {
     expect.objectContaining({
       id: expect.any(String),
       documentId: expect.any(String),
-      annotationSetId: expect.any(String)
-    })
+      annotationSetId: expect.any(String),
+    }),
   );
   return parsed;
 }
@@ -75,10 +75,10 @@ export function expectCaseShareShape(payload: unknown, property: string) {
           organisations: expect.arrayContaining([
             expect.objectContaining({
               organisationIdentifier: expect.any(String),
-              name: expect.any(String)
-            })
-          ])
-        })
+              name: expect.any(String),
+            }),
+          ]),
+        }),
       );
       break;
     case "users":
@@ -87,10 +87,10 @@ export function expectCaseShareShape(payload: unknown, property: string) {
           users: expect.arrayContaining([
             expect.objectContaining({
               userIdentifier: expect.any(String),
-              email: expect.any(String)
-            })
-          ])
-        })
+              email: expect.any(String),
+            }),
+          ]),
+        }),
       );
       break;
     case "cases":
@@ -100,10 +100,10 @@ export function expectCaseShareShape(payload: unknown, property: string) {
           [property]: expect.arrayContaining([
             expect.objectContaining({
               caseId: expect.any(String),
-              sharedWith: expect.any(Array)
-            })
-          ])
-        })
+              sharedWith: expect.any(Array),
+            }),
+          ]),
+        }),
       );
       break;
     default:
@@ -116,16 +116,17 @@ export function expectAddressLookupShape(response: unknown) {
   const parsed = AddressLookupResponseSchema.parse(response);
   expect(parsed).toHaveProperty("results");
   expect(parsed).toHaveProperty("header");
-  expect(Array.isArray(parsed.results)).toBe(true);
-  if ((parsed.results?.length ?? 0) > 0) {
-    const dpa = parsed.results![0]?.DPA;
+  const results = parsed.results;
+  expect(Array.isArray(results)).toBe(true);
+  if (Array.isArray(results) && results.length > 0) {
+    const dpa = results[0].DPA;
     expect(dpa).toBeTruthy();
     expect(dpa).toEqual(
       expect.objectContaining({
         POSTCODE: expect.any(String),
         ADDRESS: expect.any(String),
-        POST_TOWN: expect.any(String)
-      })
+        POST_TOWN: expect.any(String),
+      }),
     );
   }
   return parsed;

@@ -1,20 +1,30 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { IdamUtils, ServiceAuthUtils, createLogger } from "@hmcts/playwright-common";
+import {
+  IdamUtils,
+  ServiceAuthUtils,
+  createLogger,
+} from "@hmcts/playwright-common";
 import { request } from "@playwright/test";
 
 import { config } from "../config/api";
 
-type UsersConfig = typeof config.users[keyof typeof config.users];
-export type ApiUserRole = (keyof UsersConfig) & string;
+type UsersConfig = (typeof config.users)[keyof typeof config.users];
+export type ApiUserRole = keyof UsersConfig & string;
 
 const baseUrl = stripTrailingSlash(config.baseUrl);
-const storageRoot = path.resolve(process.cwd(), "test-results", "storage-states", "api");
+const storageRoot = path.resolve(
+  process.cwd(),
+  "test-results",
+  "storage-states",
+  "api",
+);
 const storagePromises = new Map<string, Promise<string>>();
 
 const mask = (value?: string) => (value ? "***" : "missing");
-const present = (value?: string) => (value && value.trim().length > 0 ? "yes" : "no");
+const present = (value?: string) =>
+  value && value.trim().length > 0 ? "yes" : "no";
 
 const logger = createLogger({ serviceName: "node-api-auth", format: "pretty" });
 type LoggerInstance = ReturnType<typeof createLogger>;
@@ -39,8 +49,12 @@ type CreateStorageDeps = {
 
 type TokenBootstrapDeps = {
   env?: NodeJS.ProcessEnv;
-  idamUtils?: { generateIdamToken: (opts: Record<string, unknown>) => Promise<string> };
-  serviceAuthUtils?: { retrieveToken: (opts: Record<string, unknown>) => Promise<string> };
+  idamUtils?: {
+    generateIdamToken: (opts: Record<string, unknown>) => Promise<string>;
+  };
+  serviceAuthUtils?: {
+    retrieveToken: (opts: Record<string, unknown>) => Promise<string>;
+  };
   requestFactory?: typeof request.newContext;
   logger?: LoggerInstance;
   readState?: typeof tryReadState;
@@ -55,21 +69,26 @@ const defaultStorageDeps: StorageDeps = {
   storagePromises,
   createStorageState,
   tryReadState,
-  unlink: fs.unlink
+  unlink: fs.unlink,
 };
 
 export async function ensureStorageState(role: ApiUserRole): Promise<string> {
   return ensureStorageStateWith(role);
 }
 
-async function ensureStorageStateWith(role: ApiUserRole, deps: StorageDeps = defaultStorageDeps): Promise<string> {
+async function ensureStorageStateWith(
+  role: ApiUserRole,
+  deps: StorageDeps = defaultStorageDeps,
+): Promise<string> {
   const cacheKey = getCacheKey(role);
   if (!deps.storagePromises.has(cacheKey)) {
     deps.storagePromises.set(cacheKey, deps.createStorageState(role));
   }
   const storagePromise = deps.storagePromises.get(cacheKey);
   if (!storagePromise) {
-    throw new Error(`Storage promise not found for role "${role}" after initialisation`);
+    throw new Error(
+      `Storage promise not found for role "${role}" after initialisation`,
+    );
   }
   const storagePath = await storagePromise;
   const state = await deps.tryReadState(storagePath);
@@ -82,21 +101,26 @@ async function ensureStorageStateWith(role: ApiUserRole, deps: StorageDeps = def
     deps.storagePromises.set(cacheKey, deps.createStorageState(role));
     const rebuilt = deps.storagePromises.get(cacheKey);
     if (!rebuilt) {
-      throw new Error(`Storage promise not found for role "${role}" after rebuild`);
+      throw new Error(
+        `Storage promise not found for role "${role}" after rebuild`,
+      );
     }
     return rebuilt;
   }
   return storagePath;
 }
 
-export async function getStoredCookie(role: ApiUserRole, cookieName: string): Promise<string | undefined> {
+export async function getStoredCookie(
+  role: ApiUserRole,
+  cookieName: string,
+): Promise<string | undefined> {
   return getStoredCookieWith(role, cookieName);
 }
 
 async function getStoredCookieWith(
   role: ApiUserRole,
   cookieName: string,
-  deps: StorageDeps = defaultStorageDeps
+  deps: StorageDeps = defaultStorageDeps,
 ): Promise<string | undefined> {
   let storagePath = await ensureStorageStateWith(role, deps);
   let state = await deps.tryReadState(storagePath);
@@ -121,13 +145,19 @@ async function createStorageState(role: ApiUserRole): Promise<string> {
   return createStorageStateWith(role);
 }
 
-async function createStorageStateWith(role: ApiUserRole, deps: CreateStorageDeps = {}): Promise<string> {
+async function createStorageStateWith(
+  role: ApiUserRole,
+  deps: CreateStorageDeps = {},
+): Promise<string> {
   const root = deps.storageRoot ?? storageRoot;
   const mkdir = deps.mkdir ?? fs.mkdir;
   const getCreds = deps.getCredentials ?? getCredentials;
-  const shouldTokenBootstrap = (deps.isTokenBootstrapEnabled ?? isTokenBootstrapEnabled)();
+  const shouldTokenBootstrap = (
+    deps.isTokenBootstrapEnabled ?? isTokenBootstrapEnabled
+  )();
   const tryBootstrap = deps.tryTokenBootstrap ?? tryTokenBootstrap;
-  const loginViaForm = deps.createStorageStateViaForm ?? createStorageStateViaForm;
+  const loginViaForm =
+    deps.createStorageStateViaForm ?? createStorageStateViaForm;
 
   const storagePath = path.join(root, config.testEnv, `${role}.json`);
   await mkdir(path.dirname(storagePath), { recursive: true });
@@ -135,13 +165,13 @@ async function createStorageStateWith(role: ApiUserRole, deps: CreateStorageDeps
   const credentials = getCreds(role);
   logger.info(
     `auth:createStorageState role=${role} env=${config.testEnv} baseUrl=${baseUrl} user=${mask(credentials.username)} pass=${mask(
-      credentials.password
-    )}`
+      credentials.password,
+    )}`,
   );
   logger.info(
     `auth:token-env IDAM_WEB_URL=${present(process.env.IDAM_WEB_URL)} IDAM_TESTING_SUPPORT_URL=${present(
-      process.env.IDAM_TESTING_SUPPORT_URL
-    )} S2S_URL=${present(process.env.S2S_URL)} IDAM_SECRET=${present(process.env.IDAM_SECRET)} (mode=auto)`
+      process.env.IDAM_TESTING_SUPPORT_URL,
+    )} S2S_URL=${present(process.env.S2S_URL)} IDAM_SECRET=${present(process.env.IDAM_SECRET)} (mode=auto)`,
   );
 
   const tokenLoginSucceeded = shouldTokenBootstrap
@@ -159,13 +189,16 @@ async function tryTokenBootstrap(
   role: ApiUserRole,
   credentials: { username: string; password: string },
   storagePath: string,
-  deps: TokenBootstrapDeps = {}
+  deps: TokenBootstrapDeps = {},
 ): Promise<boolean> {
   const env = deps.env ?? process.env;
-  const clientId = env.IDAM_CLIENT_ID ?? env.SERVICES_IDAM_CLIENT_ID ?? "xuiwebapp";
+  const clientId =
+    env.IDAM_CLIENT_ID ?? env.SERVICES_IDAM_CLIENT_ID ?? "xuiwebapp";
   const clientSecret = env.IDAM_SECRET;
-  const scope = env.IDAM_OAUTH2_SCOPE ?? "openid profile roles manage-user search-user";
-  const microservice = env.S2S_MICROSERVICE_NAME ?? env.MICROSERVICE ?? "xui_webapp";
+  const scope =
+    env.IDAM_OAUTH2_SCOPE ?? "openid profile roles manage-user search-user";
+  const microservice =
+    env.S2S_MICROSERVICE_NAME ?? env.MICROSERVICE ?? "xui_webapp";
   const idamWebUrl = env.IDAM_WEB_URL;
   const idamTestingSupportUrl = env.IDAM_TESTING_SUPPORT_URL;
   const s2sUrl = env.S2S_URL;
@@ -176,8 +209,10 @@ async function tryTokenBootstrap(
 
   const activeLogger = deps.logger ?? logger;
   const idamUtils = deps.idamUtils ?? new IdamUtils({ logger: activeLogger });
-  const serviceAuthUtils = deps.serviceAuthUtils ?? new ServiceAuthUtils({ logger: activeLogger });
-  const requestFactory = deps.requestFactory ?? ((options) => request.newContext(options));
+  const serviceAuthUtils =
+    deps.serviceAuthUtils ?? new ServiceAuthUtils({ logger: activeLogger });
+  const requestFactory =
+    deps.requestFactory ?? ((options) => request.newContext(options));
   const readState = deps.readState ?? tryReadState;
 
   let context;
@@ -189,7 +224,7 @@ async function tryTokenBootstrap(
       scope,
       username: credentials.username,
       password: credentials.password,
-      redirectUri: env.IDAM_RETURN_URL ?? `${baseUrl}/oauth2/callback`
+      redirectUri: env.IDAM_RETURN_URL ?? `${baseUrl}/oauth2/callback`,
     });
     const serviceToken = await serviceAuthUtils.retrieveToken({ microservice });
 
@@ -198,27 +233,35 @@ async function tryTokenBootstrap(
       ignoreHTTPSErrors: true,
       extraHTTPHeaders: {
         Authorization: `Bearer ${accessToken}`,
-        ServiceAuthorization: `Bearer ${serviceToken}`
-      }
+        ServiceAuthorization: `Bearer ${serviceToken}`,
+      },
     });
 
     await context.get("auth/login", { failOnStatusCode: false });
-    const authCheck = await context.get("auth/isAuthenticated", { failOnStatusCode: false });
-    const isAuth = authCheck.status() === 200 ? await authCheck.json().catch(() => false) : false;
+    const authCheck = await context.get("auth/isAuthenticated", {
+      failOnStatusCode: false,
+    });
+    const isAuth =
+      authCheck.status() === 200
+        ? await authCheck.json().catch(() => false)
+        : false;
 
     await context.storageState({ path: storagePath });
     const state = await readState(storagePath);
-    const hasCookies = Array.isArray(state?.cookies) && state.cookies.length > 0;
+    const hasCookies =
+      Array.isArray(state?.cookies) && state.cookies.length > 0;
 
     if (isAuth && hasCookies) {
       return true;
     }
     activeLogger.warn(
-      `Token bootstrap for role "${role}" returned isAuthenticated=${String(isAuth)}; falling back to form login`
+      `Token bootstrap for role "${role}" returned isAuthenticated=${String(isAuth)}; falling back to form login`,
     );
     return false;
   } catch (error) {
-    activeLogger.warn(`Token bootstrap failed for role "${role}": ${formatUnknownError(error)}`);
+    activeLogger.warn(
+      `Token bootstrap failed for role "${role}": ${formatUnknownError(error)}`,
+    );
     return false;
   } finally {
     await context?.dispose();
@@ -229,14 +272,15 @@ async function createStorageStateViaForm(
   credentials: { username: string; password: string },
   storagePath: string,
   role: ApiUserRole,
-  deps: FormLoginDeps = {}
+  deps: FormLoginDeps = {},
 ): Promise<void> {
-  const requestFactory = deps.requestFactory ?? ((options) => request.newContext(options));
+  const requestFactory =
+    deps.requestFactory ?? ((options) => request.newContext(options));
   const extract = deps.extractCsrf ?? extractCsrf;
   const context = await requestFactory({
     baseURL: baseUrl,
     ignoreHTTPSErrors: true,
-    maxRedirects: 10
+    maxRedirects: 10,
   });
 
   try {
@@ -250,7 +294,7 @@ async function createStorageStateViaForm(
     const formPayload: Record<string, string> = {
       username: credentials.username,
       password: credentials.password,
-      save: "Sign in"
+      save: "Sign in",
     };
     if (csrfToken) {
       formPayload._csrf = csrfToken;
@@ -258,7 +302,9 @@ async function createStorageStateViaForm(
 
     const loginResponse = await context.post(loginUrl, { form: formPayload });
     if (loginResponse.status() >= 400) {
-      throw new Error(`POST ${loginUrl} responded with ${loginResponse.status()}`);
+      throw new Error(
+        `POST ${loginUrl} responded with ${loginResponse.status()}`,
+      );
     }
 
     await context.get("/");
@@ -270,16 +316,21 @@ async function createStorageStateViaForm(
   }
 }
 
-function getCredentials(role: ApiUserRole): { username: string; password: string } {
+function getCredentials(role: ApiUserRole): {
+  username: string;
+  password: string;
+} {
   const envUsers = config.users[config.testEnv as keyof typeof config.users];
   const userConfig = envUsers?.[role];
   if (!userConfig) {
-    throw new Error(`No credentials configured for role "${role}" in environment "${config.testEnv}"`);
+    throw new Error(
+      `No credentials configured for role "${role}" in environment "${config.testEnv}"`,
+    );
   }
 
   return {
     username: userConfig.e ?? "",
-    password: userConfig.sec ?? ""
+    password: userConfig.sec ?? "",
   };
 }
 
@@ -296,7 +347,9 @@ function getCacheKey(role: ApiUserRole): string {
   return `${config.testEnv}-${role}`;
 }
 
-async function tryReadState(storagePath: string): Promise<StorageState | undefined> {
+async function tryReadState(
+  storagePath: string,
+): Promise<StorageState | undefined> {
   try {
     const raw = await fs.readFile(storagePath, "utf8");
     const parsed = JSON.parse(raw);
@@ -309,15 +362,21 @@ async function tryReadState(storagePath: string): Promise<StorageState | undefin
   return undefined;
 }
 
-function isTokenBootstrapEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+function isTokenBootstrapEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
   const mode = env.API_AUTH_MODE ?? env.API_USE_TOKEN_LOGIN;
-  if (mode && ["form", "off", "false", "0", "no"].includes(mode.toLowerCase())) {
+  if (
+    mode &&
+    ["form", "off", "false", "0", "no"].includes(mode.toLowerCase())
+  ) {
     return false;
   }
   if (mode && ["token", "true", "1", "yes"].includes(mode.toLowerCase())) {
     return true;
   }
-  const hasIdamEnv = !!env.IDAM_SECRET && !!env.IDAM_WEB_URL && !!env.IDAM_TESTING_SUPPORT_URL;
+  const hasIdamEnv =
+    !!env.IDAM_SECRET && !!env.IDAM_WEB_URL && !!env.IDAM_TESTING_SUPPORT_URL;
   const hasS2S = !!env.S2S_URL;
   return hasIdamEnv && hasS2S;
 }
@@ -347,5 +406,5 @@ export const __test__ = {
   createStorageStateWith,
   tryTokenBootstrap,
   createStorageStateViaForm,
-  getCredentials
+  getCredentials,
 };

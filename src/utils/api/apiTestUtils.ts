@@ -1,20 +1,17 @@
-import {
-  DEFAULT_RETRY_BASE_MS,
-  DEFAULT_RETRY_MAX_ELAPSED_MS,
-  DEFAULT_RETRY_MAX_MS,
-  isRetryableError,
-  withRetry as commonWithRetry
-} from "@hmcts/playwright-common";
 import { expect } from "@playwright/test";
 
-import { ensureStorageState, getStoredCookie, type ApiUserRole } from "../../fixtures/api-auth";
+import { ensureStorageState, getStoredCookie, type ApiUserRole } from "./auth";
 
 // Central map of commonly reused status code sets to reduce magic arrays in tests.
 export const StatusSets = {
   guardedBasic: [200, 401, 403, 502, 504] as const,
   guardedExtended: [200, 401, 403, 404, 500, 502, 504] as const,
-  actionWithConflicts: [200, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
-  allocateRole: [200, 201, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
+  actionWithConflicts: [
+    200, 204, 400, 401, 403, 404, 409, 500, 502, 504,
+  ] as const,
+  allocateRole: [
+    200, 201, 204, 400, 401, 403, 404, 409, 500, 502, 504,
+  ] as const,
   roleAccessRead: [200, 400, 401, 403, 404, 500, 502, 504] as const,
   searchCases: [200, 400, 401, 403, 404, 500, 502, 504] as const,
   globalSearch: [200, 400, 401, 403, 500, 502, 504] as const,
@@ -24,118 +21,105 @@ export const StatusSets = {
   corsDisallowed: [200, 204, 400, 401, 403, 404] as const,
   retryable: [200, 401, 403, 404, 500, 502, 504] as const,
   roleAccessRetryable: [200, 400, 401, 403, 404, 409, 500, 502, 504] as const,
-  roleAccessGuarded: [200, 401, 403, 404, 500, 502, 504] as const,
-  bookmark: [200, 201, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
-  documentView: [200, 401, 403, 404] as const,
-  unauthenticated: [401, 403] as const
+  /** WA read-only endpoints: guards against downstream 5xx while accepting auth rejections */
+  waReadOnly: [200, 401, 403, 500, 502, 504] as const,
 };
 
 export type StatusSetName = keyof typeof StatusSets;
 
-export function expectStatus(actual: number, allowed: ReadonlyArray<number>) {
+export function expectStatus(
+  actual: number,
+  allowed: ReadonlyArray<number>,
+  message?: string,
+) {
   if (!allowed.includes(actual)) {
-    expect({ status: actual }).toEqual({ status: allowed[0] }); // emit a Playwright diff if fails
+    const hint =
+      message ?? `Expected status to be one of: ${allowed.join(", ")}`;
+    // Emit a Playwright diff if it fails, but keep the message readable.
+    expect({ status: actual }, hint).toEqual({ status: allowed[0] });
   }
 }
 
-export async function buildXsrfHeadersWith(
+export async function buildXsrfHeaders(
   role: ApiUserRole,
-  deps: {
-    ensureStorageState?: typeof ensureStorageState;
-    getStoredCookie?: typeof getStoredCookie;
-  } = {}
 ): Promise<Record<string, string>> {
-  const ensureState = deps.ensureStorageState ?? ensureStorageState;
-  const readCookie = deps.getStoredCookie ?? getStoredCookie;
-  await ensureState(role);
-  const xsrf = await readCookie(role, "XSRF-TOKEN");
-  return xsrf ? { "X-XSRF-TOKEN": xsrf } : {};
-}
-
-export async function buildXsrfHeaders(role: ApiUserRole): Promise<Record<string, string>> {
   return buildXsrfHeadersWith(role);
 }
 
-export async function withXsrf<T>(role: ApiUserRole, fn: (headers: Record<string, string>) => Promise<T>): Promise<T> {
+export async function withXsrf<T>(
+  role: ApiUserRole,
+  fn: (headers: Record<string, string>) => Promise<T>,
+): Promise<T> {
   const headers = await buildXsrfHeaders(role);
   return fn(headers);
 }
 
 export async function withRetry<T extends { status: number }>(
   fn: () => Promise<T>,
-  opts: { retries?: number; retryStatuses?: number[] } = {}
+  opts: {
+    retries?: number;
+    retryStatuses?: number[];
+    baseDelayMs?: number;
+    backoffFactor?: number;
+    maxDelayMs?: number;
+  } = {},
 ): Promise<T> {
   const retries = opts.retries ?? 1;
-  if (retries < 0) {
-    throw new Error("withRetry failed unexpectedly");
-  }
   const retryStatuses = opts.retryStatuses ?? [502, 504];
-  const attempts = Math.max(1, retries + 1);
-  let lastResponse: T | undefined;
+  const baseDelayMs = opts.baseDelayMs ?? 250;
+  const backoffFactor = opts.backoffFactor ?? 2;
+  const maxDelayMs = opts.maxDelayMs ?? 2_000;
+  let attempt = 0;
+  let lastError;
 
-  const parseRetryAfterMs = (headers?: Record<string, string>): number | undefined => {
-    if (!headers) return undefined;
-    const raw = headers["retry-after"] ?? headers["Retry-After"];
-    if (!raw) return undefined;
-    const trimmed = String(raw).trim();
-    if (!trimmed) return undefined;
-    const seconds = Number.parseInt(trimmed, 10);
-    if (!Number.isNaN(seconds)) {
-      return Math.min(Math.max(seconds, 0), 60) * 1000;
+  const waitBeforeRetry = async () => {
+    if (baseDelayMs <= 0) {
+      return;
     }
-    const date = Date.parse(trimmed);
-    if (!Number.isNaN(date)) {
-      const diff = date - Date.now();
-      return diff > 0 ? Math.min(diff, 60_000) : undefined;
-    }
-    return undefined;
-  };
-
-  const shouldRetry = (error: unknown): boolean => {
-    if (isRetryableError(error)) return true;
-    if (error && typeof error === "object" && "status" in error) {
-      const status = Number((error as { status?: unknown }).status);
-      return Number.isFinite(status) && retryStatuses.includes(status);
-    }
-    return false;
-  };
-
-  try {
-    return await commonWithRetry(
-      async () => {
-        const response = await fn();
-        lastResponse = response;
-        if (retryStatuses.includes(response.status)) {
-          const retryAfterMs = parseRetryAfterMs(
-            (response as { headers?: Record<string, string> }).headers
-          );
-          const error = new Error(`Retryable status: ${response.status}`);
-          (error as { status?: number; retryAfterMs?: number }).status = response.status;
-          if (retryAfterMs) {
-            (error as { retryAfterMs?: number }).retryAfterMs = retryAfterMs;
-          }
-          throw error;
-        }
-        return response;
-      },
-      attempts,
-      DEFAULT_RETRY_BASE_MS,
-      DEFAULT_RETRY_MAX_MS,
-      DEFAULT_RETRY_MAX_ELAPSED_MS,
-      shouldRetry
+    const delayMs = Math.min(
+      maxDelayMs,
+      Math.floor(baseDelayMs * Math.pow(backoffFactor, attempt)),
     );
-  } catch (error) {
-    const status =
-      error && typeof error === "object" && "status" in error
-        ? Number((error as { status?: unknown }).status)
-        : undefined;
-    if (lastResponse && typeof status === "number" && retryStatuses.includes(status)) {
-      return lastResponse;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  };
+
+  while (attempt <= retries) {
+    try {
+      const res = await fn();
+      if (retryStatuses.includes(res.status) && attempt < retries) {
+        await waitBeforeRetry();
+        attempt++;
+        continue;
+      }
+      return res;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) {
+        throw error;
+      }
+      await waitBeforeRetry();
     }
-    throw error;
+    attempt++;
   }
+  throw lastError ?? new Error("withRetry failed unexpectedly");
+}
+
+type BuildXsrfDeps = {
+  ensureStorageState?: typeof ensureStorageState;
+  getStoredCookie?: typeof getStoredCookie;
+};
+
+async function buildXsrfHeadersWith(
+  role: ApiUserRole,
+  deps: BuildXsrfDeps = {},
+): Promise<Record<string, string>> {
+  const ensure = deps.ensureStorageState ?? ensureStorageState;
+  const getCookie = deps.getStoredCookie ?? getStoredCookie;
+  await ensure(role);
+  const xsrf = await getCookie(role, "XSRF-TOKEN");
+  return xsrf ? { "X-XSRF-TOKEN": xsrf } : {};
 }
 
 export const __test__ = {
-  buildXsrfHeadersWith
+  buildXsrfHeadersWith,
 };

@@ -2,7 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { IdamPage } from "@hmcts/playwright-common";
-import { chromium, request, type BrowserContext, type Page } from "@playwright/test";
+import {
+  chromium,
+  request,
+  type BrowserContext,
+  type Page,
+} from "@playwright/test";
 
 import config from "./config.utils.js";
 import { decodeJwtPayload } from "./jwt.utils.js";
@@ -25,7 +30,8 @@ const resolveLoginTimeoutMs = (): number => {
 };
 
 const resolveManualUserIdentifiers = (): Set<string> => {
-  const raw = process.env.PW_UI_MANUAL_USERS ?? process.env.PW_UI_MANUAL_USER ?? "";
+  const raw =
+    process.env.PW_UI_MANUAL_USERS ?? process.env.PW_UI_MANUAL_USER ?? "";
   const values = raw
     .split(",")
     .map((value) => value.trim().toUpperCase())
@@ -47,7 +53,10 @@ const readStorageStateSubject = (storagePath: string): string | undefined => {
   try {
     const state = JSON.parse(fs.readFileSync(storagePath, "utf8"));
     const cookies = Array.isArray(state.cookies) ? state.cookies : [];
-    const authCookie = cookies.find((cookie: { name?: string; value?: string }) => cookie?.name === "__auth__");
+    const authCookie = cookies.find(
+      (cookie: { name?: string; value?: string }) =>
+        cookie?.name === "__auth__",
+    );
     if (!authCookie?.value) return undefined;
     const payload = decodeJwtPayload(authCookie.value);
     const subject = payload?.sub ?? payload?.subname ?? payload?.email;
@@ -66,7 +75,10 @@ const normalizeUserValue = (value: string | undefined): string | undefined => {
 const isEmailLike = (value: string | undefined): boolean =>
   Boolean(value && value.includes("@"));
 
-const storageStateMatchesUser = (storagePath: string, expectedEmail: string): boolean => {
+const storageStateMatchesUser = (
+  storagePath: string,
+  expectedEmail: string,
+): boolean => {
   const expected = normalizeUserValue(expectedEmail);
   if (!expected) return true;
   const actual = normalizeUserValue(readStorageStateSubject(storagePath));
@@ -81,23 +93,33 @@ const waitForIdamLogin = async (page: Page) => {
   const idamHost = resolveIdamHost();
   if (idamHost) {
     await page
-      .waitForURL((url) => url.hostname === idamHost, { timeout: resolveLoginTimeoutMs() })
+      .waitForURL((url) => url.hostname === idamHost, {
+        timeout: resolveLoginTimeoutMs(),
+      })
       .catch(() => {
         // Continue to selector wait even if hostname check times out.
       });
   }
 
   const usernameInput = page.locator(
-    'input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]'
+    'input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]',
   );
-  const passwordInput = page.locator('input#password, input[name="password"], input[type="password"]');
+  const passwordInput = page.locator(
+    'input#password, input[name="password"], input[type="password"]',
+  );
   const submitButton = page.locator('[name="save"], button[type="submit"]');
   const appReady = page.locator("exui-header, exui-case-home");
   const timeoutMs = resolveLoginTimeoutMs();
 
   const outcome = await Promise.race([
-    usernameInput.first().waitFor({ state: "visible", timeout: timeoutMs }).then(() => "login"),
-    appReady.first().waitFor({ state: "visible", timeout: timeoutMs }).then(() => "app")
+    usernameInput
+      .first()
+      .waitFor({ state: "visible", timeout: timeoutMs })
+      .then(() => "login"),
+    appReady
+      .first()
+      .waitFor({ state: "visible", timeout: timeoutMs })
+      .then(() => "app"),
   ]).catch(() => null);
 
   if (outcome === "app") {
@@ -113,18 +135,30 @@ const waitForIdamLogin = async (page: Page) => {
   return { usernameInput, passwordInput, submitButton };
 };
 
-const describeLoginFailure = async (page: Page): Promise<string | undefined> => {
+const describeLoginFailure = async (
+  page: Page,
+): Promise<string | undefined> => {
   const errorSelectors = [
     ".govuk-error-summary",
     ".error-summary",
     ".govuk-error-message",
     ".error-message",
-    "[role='alert']"
+    "[role='alert']",
   ];
   for (const selector of errorSelectors) {
     const locator = page.locator(selector);
-    if (await locator.first().isVisible().catch(() => false)) {
-      const text = (await locator.first().innerText().catch(() => ""))?.trim();
+    if (
+      await locator
+        .first()
+        .isVisible()
+        .catch(() => false)
+    ) {
+      const text = (
+        await locator
+          .first()
+          .innerText()
+          .catch(() => "")
+      )?.trim();
       if (text) {
         return `Login page error: ${text.replace(/\\s+/g, " ").slice(0, 300)}`;
       }
@@ -138,7 +172,9 @@ const hasRequiredAuthCookies = (cookies: { name: string }[]) => {
   return names.has("Idam.Session") && names.has("__auth__");
 };
 
-const hasExpiredAuthCookies = (cookies: { name: string; expires: number }[]) => {
+const hasExpiredAuthCookies = (
+  cookies: { name: string; expires: number }[],
+) => {
   const nowSeconds = Math.floor(Date.now() / 1000);
   return cookies.some((cookie) => {
     if (!["Idam.Session", "__auth__"].includes(cookie.name)) return false;
@@ -150,7 +186,7 @@ const hasExpiredAuthCookies = (cookies: { name: string; expires: number }[]) => 
 const shouldRefreshStorageState = async (
   storagePath: string,
   baseUrl: string,
-  options?: { ignoreTtl?: boolean }
+  options?: { ignoreTtl?: boolean },
 ): Promise<boolean> => {
   if (!fs.existsSync(storagePath)) return true;
   try {
@@ -168,23 +204,33 @@ const shouldRefreshStorageState = async (
   const ageMs = Date.now() - fs.statSync(storagePath).mtimeMs;
   if (ageMs <= ttlMs) return false;
 
-  const stillAuthenticated = await isStorageStateAuthenticated(storagePath, baseUrl);
+  const stillAuthenticated = await isStorageStateAuthenticated(
+    storagePath,
+    baseUrl,
+  );
   return !stillAuthenticated;
 };
 
 const waitForAuthCookies = async (
   context: BrowserContext,
   page: Page,
-  timeoutMs = resolveLoginTimeoutMs()
+  timeoutMs = resolveLoginTimeoutMs(),
 ): Promise<{ ok: boolean; reason?: string }> => {
   const deadline = Date.now() + timeoutMs;
-  const loginInput = page.locator('input#username, input[name="username"], input[type="email"]');
+  const loginInput = page.locator(
+    'input#username, input[name="username"], input[type="email"]',
+  );
   while (Date.now() < deadline) {
     const cookies = await context.cookies();
     if (hasRequiredAuthCookies(cookies)) {
       return { ok: true };
     }
-    if (await loginInput.first().isVisible().catch(() => false)) {
+    if (
+      await loginInput
+        .first()
+        .isVisible()
+        .catch(() => false)
+    ) {
       const failure = await describeLoginFailure(page);
       if (failure) {
         return { ok: false, reason: failure };
@@ -211,8 +257,8 @@ const addAnalyticsCookie = async (context: BrowserContext, baseUrl: string) => {
       expires: -1,
       httpOnly: false,
       secure,
-      sameSite: "Lax"
-    }
+      sameSite: "Lax",
+    },
   ]);
 };
 
@@ -226,7 +272,7 @@ const resolveAuthBaseUrl = (baseUrl: string): string => {
 
 const isStorageStateAuthenticated = async (
   storagePath: string,
-  baseUrl: string
+  baseUrl: string,
 ): Promise<boolean> => {
   if (!fs.existsSync(storagePath)) return false;
   const authBaseUrl = resolveAuthBaseUrl(baseUrl);
@@ -234,9 +280,11 @@ const isStorageStateAuthenticated = async (
     const context = await request.newContext({
       baseURL: authBaseUrl.replace(/\/+$/, ""),
       ignoreHTTPSErrors: true,
-      storageState: storagePath
+      storageState: storagePath,
     });
-    const res = await context.get("auth/isAuthenticated", { failOnStatusCode: false });
+    const res = await context.get("auth/isAuthenticated", {
+      failOnStatusCode: false,
+    });
     const ok = res.status() === 200;
     const data = ok ? await res.json().catch(() => null) : null;
     await context.dispose();
@@ -248,7 +296,7 @@ const isStorageStateAuthenticated = async (
 
 export const ensureUiStorageStateForUser = async (
   userIdentifier: string,
-  options?: { strict?: boolean }
+  options?: { strict?: boolean },
 ): Promise<void> => {
   const baseUrl = config.urls.manageCaseBaseUrl;
   const strict = options?.strict ?? false;
@@ -261,13 +309,14 @@ export const ensureUiStorageStateForUser = async (
   let expectedPassword: string | undefined;
   const userUtils = new UserUtils();
   try {
-    ({ email: expectedEmail, password: expectedPassword } = userUtils.getUserCredentials(userIdentifier));
+    ({ email: expectedEmail, password: expectedPassword } =
+      userUtils.getUserCredentials(userIdentifier));
   } catch {
     // If creds are missing, we'll surface this later when we need to login.
   }
 
   let needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
-    ignoreTtl
+    ignoreTtl,
   });
   if (expectedEmail && !storageStateMatchesUser(storagePath, expectedEmail)) {
     needsRefresh = true;
@@ -301,7 +350,8 @@ export const ensureUiStorageStateForUser = async (
       if (strict) {
         throw error;
       }
-      const message = error instanceof Error ? error.message : "missing credentials";
+      const message =
+        error instanceof Error ? error.message : "missing credentials";
       console.warn(`[ui.session] Skipping ${userIdentifier}: ${message}`);
       return;
     }
@@ -310,7 +360,9 @@ export const ensureUiStorageStateForUser = async (
     if (strict) {
       throw new Error(`Missing credentials for ${userIdentifier}.`);
     }
-    console.warn(`[ui.session] Skipping ${userIdentifier}: missing credentials.`);
+    console.warn(
+      `[ui.session] Skipping ${userIdentifier}: missing credentials.`,
+    );
     return;
   }
 

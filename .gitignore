@@ -3,12 +3,14 @@
 
 # Dependencies and Yarn Berry artifacts
 node_modules/
+.npm-cache/
 .pnp.*
 .yarn/cache/
 .yarn/unplugged/
 .yarn/build-state.yml
 .yarn/install-state.gz
-.yarn/patches/
+.yarn/patches/*
+!.yarn/patches/odhin-reports-playwright-npm-1.1.8-a445ed88b7.patch
 .yarn/plugins/
 .yarn/releases/
 .yarn/sdks/
@@ -16,6 +18,7 @@ node_modules/
 # Playwright artifacts
 playwright-report/
 test-results/
+.sessions/
 functional-output/
 playwright-junit.xml
 
@@ -33,3 +36,9 @@ execplan-ui-idle-waits.md
 execplan-ui-tests-porting.md
 securebydesign-ui-tests-porting.md
 securebydesign-ui-idle-waits.md
+
+# Agent loop artifacts
+DECISIONS.md
+PLAN.md
+RESULT.md
+TODO.md

@@ -14,7 +14,7 @@ export const installAnalyticsAutoAccept = async (page: Page): Promise<void> => {
 
       const buttons = Array.from(document.querySelectorAll("button"));
       const fallback = buttons.find((button) =>
-        /accept analytics cookies/i.test(button.textContent ?? "")
+        /accept analytics cookies/i.test(button.textContent ?? ""),
       );
       if (fallback instanceof HTMLElement) {
         fallback.click();
@@ -30,12 +30,15 @@ export const installAnalyticsAutoAccept = async (page: Page): Promise<void> => {
     });
     observer.observe(document.documentElement, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
   }, analyticsSelector);
 };
 
-const resolveCookieDomain = (page: Page, baseUrl?: string): string | undefined => {
+const resolveCookieDomain = (
+  page: Page,
+  baseUrl?: string,
+): string | undefined => {
   const candidate = baseUrl ?? page.url() ?? "";
   try {
     return new URL(candidate).hostname;
@@ -44,7 +47,10 @@ const resolveCookieDomain = (page: Page, baseUrl?: string): string | undefined =
   }
 };
 
-const setAnalyticsAcceptanceCookie = async (page: Page, baseUrl?: string): Promise<boolean> => {
+const setAnalyticsAcceptanceCookie = async (
+  page: Page,
+  baseUrl?: string,
+): Promise<boolean> => {
   const cookies = await page.context().cookies();
   const userId = cookies.find((cookie) => cookie.name === "__userid__")?.value;
   if (!userId) return false;
@@ -62,20 +68,24 @@ const setAnalyticsAcceptanceCookie = async (page: Page, baseUrl?: string): Promi
       expires: -1,
       httpOnly: false,
       secure,
-      sameSite: "Lax"
-    }
+      sameSite: "Lax",
+    },
   ]);
   return true;
 };
 
-export const acceptAnalyticsCookiesOnPage = async (page: Page): Promise<boolean> => {
+export const acceptAnalyticsCookiesOnPage = async (
+  page: Page,
+): Promise<boolean> => {
   const analyticsButton = page.locator(analyticsSelector);
   if (await analyticsButton.isVisible().catch(() => false)) {
     await analyticsButton.click();
     return true;
   }
 
-  const analyticsRoleButton = page.getByRole("button", { name: /accept analytics cookies/i });
+  const analyticsRoleButton = page.getByRole("button", {
+    name: /accept analytics cookies/i,
+  });
   if (await analyticsRoleButton.isVisible().catch(() => false)) {
     await analyticsRoleButton.click();
     return true;
@@ -86,7 +96,7 @@ export const acceptAnalyticsCookiesOnPage = async (page: Page): Promise<boolean>
 
 export const ensureAnalyticsAccepted = async (
   page: Page,
-  baseUrl?: string
+  baseUrl?: string,
 ): Promise<boolean> => {
   if (await acceptAnalyticsCookiesOnPage(page)) {
     return true;

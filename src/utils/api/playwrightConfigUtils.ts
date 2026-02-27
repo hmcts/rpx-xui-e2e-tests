@@ -1,11 +1,12 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import type { PlaywrightTestConfig } from "@playwright/test";
 
 export type EnvMap = Record<string, string | undefined>;
 
 export interface ConfigModule {
   __test__?: {
-    buildConfig: (env: EnvMap) => unknown;
+    buildConfig: (env: EnvMap) => PlaywrightTestConfig;
     resolveWorkerCount: (env: EnvMap) => number;
   };
   default?: ConfigModule;
@@ -14,7 +15,7 @@ export interface ConfigModule {
 
 export interface TestableConfigModule extends ConfigModule {
   __test__: {
-    buildConfig: (env: EnvMap) => unknown;
+    buildConfig: (env: EnvMap) => PlaywrightTestConfig;
     resolveWorkerCount: (env: EnvMap) => number;
   };
 }
@@ -31,5 +32,20 @@ export async function loadConfig(): Promise<TestableConfigModule> {
 }
 
 export function resolveConfigModule(loaded: ConfigModule): ConfigModule {
-  return loaded?.__test__ ? loaded : loaded?.default ?? loaded;
+  let current: ConfigModule = loaded;
+  const visited = new Set<ConfigModule>();
+
+  while (current && typeof current === "object" && !visited.has(current)) {
+    visited.add(current);
+    if (current.__test__) {
+      return current;
+    }
+    if (current.default) {
+      current = current.default as ConfigModule;
+      continue;
+    }
+    break;
+  }
+
+  return current ?? loaded;
 }
