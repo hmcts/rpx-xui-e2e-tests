@@ -2,8 +2,9 @@ import { expect, request as playwrightRequest } from "@playwright/test";
 import { v4 as uuid } from "uuid";
 
 import { config } from "../ui/apiTestConfig";
-import { ensureStorageState, getStoredCookie } from "./auth";
+
 import { expectAnnotationShape, expectBookmarkShape } from "./assertions";
+import { ensureStorageState, getStoredCookie } from "./auth";
 import { AnnotationPayload, BookmarkPayload } from "./types";
 
 type ApiClient = {

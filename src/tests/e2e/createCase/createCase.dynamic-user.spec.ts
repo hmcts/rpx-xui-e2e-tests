@@ -1,20 +1,12 @@
-import { createLogger } from "@hmcts/playwright-common";
-
 import { expect, test } from "../../../fixtures/ui";
-import type { ProvisionedProfessionalUser } from "../../../utils/ui/professional-user.utils";
 import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
 import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
+import { provisionDynamicSolicitorForAlias } from "../_helpers/dynamicSolicitorSession";
 
 const jurisdiction = "DIVORCE";
 const caseType = "XUI Case PoC";
 const CREATE_CASE_SETUP_MAX_ATTEMPTS = 3;
 const CREATE_CASE_FLOW_MAX_ATTEMPTS = 2;
-const REQUIRED_ENV_VARS = ["TEST_SOLICITOR_ORGANISATION_ID"] as const;
-
-const logger = createLogger({
-  serviceName: "create-case-dynamic-user-e2e",
-  format: "pretty",
-});
 
 function asMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -31,30 +23,6 @@ function isDependencyEnvironmentFailure(error: unknown): boolean {
   );
 }
 
-function missingRequiredEnvVars(): string[] {
-  return REQUIRED_ENV_VARS.filter((name) => !process.env[name]?.trim());
-}
-
-async function cleanupProvisionedUser(
-  provisioned: ProvisionedProfessionalUser | undefined,
-  cleanupFn: (args: {
-    user: ProvisionedProfessionalUser;
-    userIdentifier: string;
-    rolesToRemove: readonly string[];
-  }) => Promise<{ status: number; removedRoles: string[] }>,
-): Promise<void> {
-  const userIdentifier = provisioned?.organisationAssignment.userIdentifier;
-  if (!provisioned || !userIdentifier) {
-    return;
-  }
-
-  await cleanupFn({
-    user: provisioned,
-    userIdentifier,
-    rolesToRemove: provisioned.organisationAssignment.roles,
-  });
-}
-
 test.describe("Dynamic user create-case flow", () => {
   test("@dynamic-user creates solicitor user, authenticates, and creates divorce case", async ({
     page,
@@ -63,50 +31,18 @@ test.describe("Dynamic user create-case flow", () => {
     validatorUtils,
     professionalUserUtils,
   }, testInfo) => {
-    const missingVars = missingRequiredEnvVars();
-    if (missingVars.length > 0) {
-      testInfo.skip(
-        true,
-        `Missing dynamic-user prerequisites: ${missingVars.join(", ")}`,
-      );
-    }
-
-    const organisationId = process.env.TEST_SOLICITOR_ORGANISATION_ID!.trim();
-    let provisioned: ProvisionedProfessionalUser | undefined;
-    const previousSolicitorUsername = process.env.SOLICITOR_USERNAME;
-    const previousSolicitorPassword = process.env.SOLICITOR_PASSWORD;
+    const handle = await provisionDynamicSolicitorForAlias({
+      alias: "SOLICITOR",
+      professionalUserUtils,
+      roleContext: {
+        jurisdiction: "divorce",
+        testType: "case-create",
+      },
+      testInfo,
+      mode: "auto",
+    });
 
     try {
-      provisioned =
-        await professionalUserUtils.createSolicitorUserForOrganisation({
-          organisationId,
-          roleContext: {
-            jurisdiction: "divorce",
-            testType: "case-create",
-          },
-          mode: "auto",
-          outputCreatedUserData: true,
-        });
-
-      await testInfo.attach("dynamic-user-create-case-user.json", {
-        body: JSON.stringify(
-          {
-            id: provisioned.id,
-            email: provisioned.email,
-            forename: provisioned.forename,
-            surname: provisioned.surname,
-            roleNames: provisioned.roleNames,
-            organisationAssignment: provisioned.organisationAssignment,
-          },
-          null,
-          2,
-        ),
-        contentType: "application/json",
-      });
-
-      process.env.SOLICITOR_USERNAME = provisioned.email;
-      process.env.SOLICITOR_PASSWORD = provisioned.password;
-
       const createdCase = await retryOnTransientFailure(
         async () => {
           await ensureAuthenticatedPage(page, "SOLICITOR", {
@@ -190,30 +126,17 @@ test.describe("Dynamic user create-case flow", () => {
         Comment: "-",
       });
     } catch (error) {
+      // eslint-disable-next-line playwright/no-conditional-in-test -- dependency failure detection in catch block; re-throws on non-infrastructure errors
       if (isDependencyEnvironmentFailure(error)) {
+         
         testInfo.skip(
           true,
-          `Skipping dynamic create-case test due to dependency environment instability: ${asMessage(error)}`,
+          `Dynamic create-case flow skipped due to dependency environment instability: ${asMessage(error)}`,
         );
-        return;
       }
       throw error;
     } finally {
-      process.env.SOLICITOR_USERNAME = previousSolicitorUsername;
-      process.env.SOLICITOR_PASSWORD = previousSolicitorPassword;
-      try {
-        await cleanupProvisionedUser(
-          provisioned,
-          professionalUserUtils.cleanupOrganisationAssignment.bind(
-            professionalUserUtils,
-          ),
-        );
-      } catch (cleanupError) {
-        logger.warn("Failed to cleanup dynamic provisioned user assignment", {
-          error: asMessage(cleanupError),
-          username: provisioned?.email,
-        });
-      }
+      await handle.cleanup();
     }
   });
 });

@@ -21,8 +21,8 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '8',
-      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
+      defaultValue: '',
+      description: 'Optional Playwright worker override. Leave empty to auto-size from CPU+memory.'
     ),
     string(
       name: 'PW_MAX_FLAKY_TESTS',
@@ -129,10 +129,11 @@ def archivePlaywrightDiagnostics = {
 
 withNightlyPipeline(type, product, component, 300) {
   loadVaultSecrets(secrets)
+  def configuredWorkers = params.FUNCTIONAL_TESTS_WORKERS?.trim()
   env.TEST_URL = params.TEST_URL
   env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  env.FUNCTIONAL_TESTS_WORKERS = configuredWorkers ?: ''
+  env.PLAYWRIGHT_WORKERS = configuredWorkers ?: ''
   env.PW_FLAKE_GATE = '1'
   env.PW_MAX_FLAKY_TESTS = params.PW_MAX_FLAKY_TESTS
   env.PW_MAX_FLAKY_RATE = params.PW_MAX_FLAKY_RATE
@@ -154,9 +155,12 @@ withNightlyPipeline(type, product, component, 300) {
           def apiOdhinEnv = [
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+            'PLAYWRIGHT_PROJECT=api',
+            'PW_ODHIN_CONSOLE_TEST_OUTPUT=false',
+            'PW_ODHIN_TEST_OUTPUT=only-on-failure',
             'PLAYWRIGHT_REPORTERS=list,odhin,junit',
             'PLAYWRIGHT_JUNIT_OUTPUT=functional-output/tests/api_functional/playwright-junit.xml',
-            'PW_API_WORKERS=4'
+            'PW_API_WORKERS='
           ]
           try {
             withEnv(apiOdhinEnv) {
@@ -170,7 +174,7 @@ withNightlyPipeline(type, product, component, 300) {
               alwaysLinkToLastBuild: true,
               keepAll              : true,
               reportDir            : "functional-output/tests/api_functional/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
+              reportFiles          : 'xui-playwright-api.html',
               reportName           : 'API Odhín report'
             ])
             junit(testResults: "functional-output/tests/api_functional/playwright-junit.xml", allowEmptyResults: true)
@@ -183,7 +187,7 @@ withNightlyPipeline(type, product, component, 300) {
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PLAYWRIGHT_REPORTERS=list,odhin',
-            "PW_UI_WORKERS=${params.FUNCTIONAL_TESTS_WORKERS}",
+            "PW_UI_WORKERS=${configuredWorkers ?: ''}",
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
             'PW_UI_USERS=COURT_ADMIN',
             'PW_UI_STORAGE_STRICT=1',
@@ -210,7 +214,7 @@ withNightlyPipeline(type, product, component, 300) {
               alwaysLinkToLastBuild: true,
               keepAll              : true,
               reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
+              reportFiles          : 'xui-playwright-e2e.html',
               reportName           : 'UI Odhín report'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'

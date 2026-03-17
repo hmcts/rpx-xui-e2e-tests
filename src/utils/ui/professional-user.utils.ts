@@ -1,20 +1,37 @@
 import { faker } from "@faker-js/faker";
+import { randomUUID } from "crypto";
 import {
   ApiClient,
   IdamUtils,
   ServiceAuthUtils,
   createLogger,
 } from "@hmcts/playwright-common";
+import { request } from "@playwright/test";
+
+import { ensureUiStorageStateForUser } from "./session-storage.utils.js";
+import { resolveUiStoragePathForUser } from "./storage-state.utils.js";
+import { resolveTestSolicitorOrganisationId } from "./test-organisation-id.utils";
 
 export const DEFAULT_SOLICITOR_PASSWORD = "Password12!";
 export const DEFAULT_CASEWORKER_DIVORCE_PASSWORD = "Password12!";
 export const DEFAULT_IDAM_CREATE_ATTEMPTS = 3;
 export const DEFAULT_SOLICITOR_ROLE_PROFILE = "minimal";
-export const DEFAULT_IDAM_CLIENT_ID = "xuiwebapp";
-export const DEFAULT_PASSWORD_GRANT_SCOPE =
-  "openid profile roles manage-user create-user";
 export const DEFAULT_ORGANISATION_ASSIGNMENT_MODE = "auto";
-export const DEFAULT_ASSIGNMENT_PRINCIPAL_EMAIL = "xui_org_main_test@gmail.com";
+export const DEFAULT_ASSIGNMENT_PRINCIPAL_EMAIL = "xui_test_solicitors@xui.com";
+const DEFAULT_ASSIGNMENT_SCOPE = "openid profile roles";
+const DYNAMIC_SOLICITOR_DISALLOWED_ROLES = new Set<string>([
+  "pui-finance-manager",
+  "pui-user-manager",
+  "pui-caa",
+  "pui-organisation-manager",
+]);
+export const REQUIRED_SOLICITOR_MANAGE_CASE_ROLES = [
+  "pui-caa",
+  "pui-case-manager",
+  "pui-finance-manager",
+  "pui-organisation-manager",
+  "pui-user-manager",
+] as const;
 
 export const MINIMAL_SOLICITOR_ROLE_NAMES = [
   "caseworker",
@@ -107,6 +124,32 @@ export const CASEWORKER_DIVORCE_ROLE_NAMES = [
   "caseworker-divorce-superuser",
 ] as const;
 
+const ORGANISATION_ASSIGNMENT_ALLOWED_ROLES = new Set<string>([
+  "pui-case-manager",
+  "pui-user-manager",
+  "pui-organisation-manager",
+  "pui-finance-manager",
+  "pui-caa",
+  "payments",
+  "caseworker",
+  "caseworker-divorce",
+  "caseworker-divorce-solicitor",
+  "caseworker-divorce-financialremedy",
+  "caseworker-divorce-financialremedy-solicitor",
+  "caseworker-probate",
+  "caseworker-probate-solicitor",
+  "caseworker-ia",
+  "caseworker-ia-legalrep-solicitor",
+  "caseworker-publiclaw",
+  "caseworker-publiclaw-solicitor",
+  "caseworker-civil",
+  "caseworker-civil-solicitor",
+  "caseworker-employment",
+  "caseworker-employment-legalrep-solicitor",
+  "caseworker-privatelaw",
+  "caseworker-privatelaw-solicitor",
+]);
+
 export type ProfessionalUserInfo = {
   id?: string;
   email: string;
@@ -119,7 +162,7 @@ export type ProfessionalUserInfo = {
 export type UserPropagationOutcome = {
   verified: boolean;
   degraded: boolean;
-  reason: "idam-api-and-userinfo-probe" | "idam-api-only" | "no-probe-token";
+  reason: "testing-support-create";
 };
 
 export type OrganisationAssignmentMode = "internal" | "external";
@@ -147,8 +190,8 @@ export type SolicitorJurisdiction =
 export type SolicitorTestType =
   keyof typeof SOLICITOR_ROLE_AUGMENT_BY_TEST_TYPE;
 export type SolicitorRoleContext = {
-  testType?: SolicitorTestType | string;
-  jurisdiction?: SolicitorJurisdiction | string;
+  testType?: SolicitorTestType | string; // NOSONAR - intentional escape hatch for unsupported test types
+  jurisdiction?: SolicitorJurisdiction | string; // NOSONAR - intentional escape hatch for unsupported jurisdictions
   caseType?: string;
 };
 
@@ -206,7 +249,8 @@ type CreateSolicitorUserForOrganisationOptions = {
 
 type CleanupOrganisationAssignmentOptions = {
   user: ProfessionalUserInfo;
-  userIdentifier: string;
+  userIdentifier?: string;
+  organisationId?: string;
   rolesToRemove: readonly string[];
   assignmentBearerToken?: string;
   serviceToken?: string;
@@ -214,13 +258,17 @@ type CleanupOrganisationAssignmentOptions = {
   requireServiceAuth?: boolean;
 };
 
+type CleanupIdamAccountOptions = {
+  user: Pick<ProfessionalUserInfo, "id" | "email">;
+  bearerToken?: string;
+  idamApiPath?: string;
+};
+
 const logger = createLogger({
   serviceName: "professional-user-utils",
   format: "pretty",
 });
 const IDAM_RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
-const USER_PROPAGATION_CHECK_MAX_ATTEMPTS = 6;
-const USER_PROPAGATION_CHECK_RETRY_DELAY_MS = 1_000;
 const EXTERNAL_ASSIGNMENT_RETRY_DELAY_MS = 5_000;
 const DEFAULT_EXTERNAL_ASSIGNMENT_RETRY_ATTEMPTS = 60;
 const SOLICITOR_ROLE_PROFILES: Record<SolicitorRoleProfile, readonly string[]> =
@@ -268,7 +316,7 @@ export function resolveSolicitorRoleStrategy(options: {
 
 export class ProfessionalUserUtils {
   constructor(
-    private readonly idamUtils: IdamUtils,
+    _idamUtils?: unknown,
     private readonly serviceAuthUtils?: ServiceAuthUtils,
   ) {}
 
@@ -283,10 +331,24 @@ export class ProfessionalUserUtils {
       roleProfile: options.roleProfile,
       roleContext: options.roleContext,
     });
+    const sanitizedRoleNames = roleSelection.roleNames.filter(
+      (role) => !DYNAMIC_SOLICITOR_DISALLOWED_ROLES.has(role),
+    );
+    const strippedRoles = roleSelection.roleNames.filter((role) =>
+      DYNAMIC_SOLICITOR_DISALLOWED_ROLES.has(role),
+    );
+    if (strippedRoles.length > 0) {
+      logger.info(
+        "Stripping non-required management roles from dynamic solicitor.",
+        {
+          strippedDynamicRoles: strippedRoles,
+        },
+      );
+    }
     return this.createUser({
       bearerToken: options.bearerToken,
       password,
-      roleNames: roleSelection.roleNames,
+      roleNames: sanitizedRoleNames,
       emailPrefix: "solicitor",
       maxCreateAttempts: options.maxCreateAttempts,
       roleSelection,
@@ -321,6 +383,20 @@ export class ProfessionalUserUtils {
       roleProfile: options.roleProfile,
       roleContext: options.roleContext,
     });
+    const sanitizedDynamicRoleNames = roleSelection.roleNames.filter(
+      (role) => !DYNAMIC_SOLICITOR_DISALLOWED_ROLES.has(role),
+    );
+    const strippedDynamicRoles = roleSelection.roleNames.filter((role) =>
+      DYNAMIC_SOLICITOR_DISALLOWED_ROLES.has(role),
+    );
+    if (strippedDynamicRoles.length > 0) {
+      logger.info(
+        "Stripping non-required management roles from dynamic solicitor.",
+        {
+          strippedDynamicRoles,
+        },
+      );
+    }
     const identity = createFakerIdentity(
       "solicitor",
       roleSelection.context.jurisdiction,
@@ -330,7 +406,7 @@ export class ProfessionalUserUtils {
       password,
       forename: identity.forename,
       surname: identity.surname,
-      roleNames: roleSelection.roleNames,
+      roleNames: sanitizedDynamicRoleNames,
     };
 
     const assignmentMode = options.mode ?? "external";
@@ -359,17 +435,33 @@ export class ProfessionalUserUtils {
       );
     }
 
-    const organisationAssignment = await this.assignUserToOrganisation({
-      user: createdUser,
-      organisationId: options.organisationId,
-      roles: createdUser.roleNames,
-      mode: assignmentMode,
-      assignmentBearerToken: options.assignmentBearerToken,
-      serviceToken: options.serviceToken,
-      rdProfessionalApiPath: options.rdProfessionalApiPath,
-      resendInvite,
-      requireServiceAuth: options.requireServiceAuth,
-    });
+    let organisationAssignment: OrganisationAssignmentResult;
+    try {
+      organisationAssignment = await this.assignUserToOrganisation({
+        user: createdUser,
+        organisationId: options.organisationId,
+        roles: createdUser.roleNames,
+        mode: assignmentMode,
+        assignmentBearerToken: options.assignmentBearerToken,
+        serviceToken: options.serviceToken,
+        rdProfessionalApiPath: options.rdProfessionalApiPath,
+        resendInvite,
+        requireServiceAuth: options.requireServiceAuth,
+      });
+    } catch (assignmentError) {
+      logger.warn(
+        "Organisation assignment failed after user creation; user is intentionally preserved for debugging/reuse.",
+        {
+          email: createdUser.email,
+          organisationId: options.organisationId,
+          error:
+            assignmentError instanceof Error
+              ? assignmentError.message
+              : String(assignmentError),
+        },
+      );
+      throw assignmentError;
+    }
 
     return {
       ...createdUser,
@@ -378,7 +470,7 @@ export class ProfessionalUserUtils {
   }
 
   public async createUser({
-    bearerToken,
+    bearerToken: _bearerToken,
     password,
     roleNames,
     emailPrefix,
@@ -387,7 +479,6 @@ export class ProfessionalUserUtils {
     roleSelection,
     outputCreatedUserData,
   }: CreateProfessionalUserOptions): Promise<ProfessionalUserInfo> {
-    const token = await this.resolveBearerToken(bearerToken);
     const secret = password ?? DEFAULT_SOLICITOR_PASSWORD;
     const { email, forename, surname } =
       identity ??
@@ -398,80 +489,23 @@ export class ProfessionalUserUtils {
     let lastError: unknown;
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
-        const created = await this.idamUtils.createUser({
-          bearerToken: token,
+        const created = await this.createUserViaSidamAccounts({
           password: secret,
-          user: {
-            email,
-            forename,
-            surname,
-            roleNames: [...roleList],
-          },
-        });
-        const createdUser = {
-          id: created.id,
-          email: created.email,
-          password: secret,
+          email,
           forename,
           surname,
-          roleNames: [...roleList],
-        };
+          roleNames: roleList,
+        });
         this.emitCreatedUserData({
-          user: createdUser,
+          user: created,
           roleSelection,
-          createPath: "idam-testing-support",
+          createPath: "idam-api-testing-support",
           outputCreatedUserData,
         });
-        return createdUser;
+        return created;
       } catch (error) {
         lastError = error;
         const statusCode = parseStatusCode(error);
-        if (statusCode === 409) {
-          const updatedUser = await this.updateExistingUser({
-            token,
-            secret,
-            email,
-            forename,
-            surname,
-            roleNames: [...roleList],
-          });
-          this.emitCreatedUserData({
-            user: updatedUser,
-            roleSelection,
-            createPath: "idam-update-existing",
-            outputCreatedUserData,
-          });
-          return updatedUser;
-        }
-        if (shouldFallbackToSidamAccounts(statusCode, error)) {
-          logger.warn(
-            "IDAM /test/idam/users unavailable or rejected; falling back to /testing-support/accounts.",
-            {
-              email,
-              statusCode,
-            },
-          );
-          const createdViaSidam = await this.createUserViaSidamAccounts({
-            bearerToken: token,
-            password: secret,
-            email,
-            forename,
-            surname,
-            roleNames: roleList,
-          });
-          const activatedViaSidam = await this.ensureUserAccountActive({
-            token,
-            user: createdViaSidam,
-            roleNames: roleList,
-          });
-          this.emitCreatedUserData({
-            user: activatedViaSidam,
-            roleSelection,
-            createPath: "idam-api-testing-support",
-            outputCreatedUserData,
-          });
-          return activatedViaSidam;
-        }
         if (!isRetryableStatus(statusCode) || attempt === attempts) {
           throw error;
         }
@@ -489,8 +523,9 @@ export class ProfessionalUserUtils {
     throw toError(lastError, "Failed to create user in IDAM");
   }
 
+  // Sequential IDAM creation retry with role-selection branching; extracting helpers would split tightly-coupled state
   private async createUserViaSidamFirst({
-    bearerToken,
+    bearerToken: _bearerToken,
     password,
     roleNames,
     emailPrefix,
@@ -499,17 +534,6 @@ export class ProfessionalUserUtils {
     roleSelection,
     outputCreatedUserData,
   }: CreateProfessionalUserOptions): Promise<ProfessionalUserInfo> {
-    let token: string | undefined;
-    try {
-      token = await this.resolveBearerToken(bearerToken);
-    } catch (error) {
-      logger.warn(
-        "Create-user bearer token hydration failed; continuing with SIDAM create-account flow.",
-        {
-          message: error instanceof Error ? error.message : String(error),
-        },
-      );
-    }
     const secret = password ?? DEFAULT_SOLICITOR_PASSWORD;
     let resolvedIdentity =
       identity ??
@@ -521,66 +545,41 @@ export class ProfessionalUserUtils {
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
       try {
         const createdViaSidam = await this.createUserViaSidamAccounts({
-          bearerToken: token ?? "",
           password: secret,
           email: resolvedIdentity.email,
           forename: resolvedIdentity.forename,
           surname: resolvedIdentity.surname,
           roleNames: roleList,
         });
-        const activatedViaSidam = token
-          ? await this.ensureUserAccountActive({
-              token,
-              user: createdViaSidam,
-              roleNames: roleList,
-            })
-          : createdViaSidam;
         this.emitCreatedUserData({
-          user: activatedViaSidam,
+          user: createdViaSidam,
           roleSelection,
           createPath: "idam-api-testing-support",
           outputCreatedUserData,
         });
-        return activatedViaSidam;
+        return createdViaSidam;
       } catch (error) {
         lastError = error;
         const statusCode = parseStatusCode(error);
         if (statusCode === 409) {
-          if (!token) {
-            if (attempt < attempts) {
-              resolvedIdentity = createFakerIdentity(
-                emailPrefix,
-                roleSelection?.context.jurisdiction,
-              );
-              logger.warn(
-                "SIDAM create returned 409 without create-user bearer token; regenerating identity and retrying.",
-                {
-                  attempt,
-                  attempts,
-                  email: resolvedIdentity.email,
-                },
-              );
-              continue;
-            }
-            throw new Error(
-              "SIDAM create returned 409 and create-user bearer token is unavailable to reconcile existing user. Provide CREATE_USER_BEARER_TOKEN/IDAM_SECRET or retry when IDAM token endpoint is healthy.",
+          if (attempt < attempts) {
+            resolvedIdentity = createFakerIdentity(
+              emailPrefix,
+              roleSelection?.context.jurisdiction,
             );
+            logger.warn(
+              "SIDAM create returned 409; regenerating identity and retrying.",
+              {
+                attempt,
+                attempts,
+                email: resolvedIdentity.email,
+              },
+            );
+            continue;
           }
-          const updatedUser = await this.updateExistingUser({
-            token,
-            secret,
-            email: resolvedIdentity.email,
-            forename: resolvedIdentity.forename,
-            surname: resolvedIdentity.surname,
-            roleNames: [...roleList],
-          });
-          this.emitCreatedUserData({
-            user: updatedUser,
-            roleSelection,
-            createPath: "idam-update-existing",
-            outputCreatedUserData,
-          });
-          return updatedUser;
+          throw new Error(
+            "SIDAM create returned 409 and no unique identity could be created within retry budget.",
+          );
         }
         if (!isRetryableStatus(statusCode) || attempt === attempts) {
           throw error;
@@ -599,34 +598,29 @@ export class ProfessionalUserUtils {
     throw toError(lastError, "Failed to create user via SIDAM accounts");
   }
 
+  // Multi-mode org assignment (internal/external/auto) with sequential fallback; shared state across modes prevents clean extraction
   public async assignUserToOrganisation(
+    // NOSONAR typescript:S3776
     options: AssignUserToOrganisationOptions,
   ): Promise<OrganisationAssignmentResult> {
-    const rdProfessionalApiPath = resolveRdProfessionalApiPath(
-      options.rdProfessionalApiPath,
-    );
     const requestedMode = resolveOrganisationAssignmentMode(options.mode);
     const modesToTry = resolveAssignmentModesToTry(requestedMode);
-    const roles = [...new Set(options.roles ?? options.user.roleNames)];
-    const assignmentBearerToken = await this.resolveAssignmentBearerToken(
-      options.assignmentBearerToken,
-    );
-    const serviceToken = await this.resolveServiceToken(
-      options.serviceToken,
-      options.requireServiceAuth ?? true,
-    );
-
-    const client = new ApiClient({
-      baseUrl: rdProfessionalApiPath,
-      name: "rd-professional-assignment",
-    });
-
-    const headers = buildHeaders(
-      assignmentBearerToken,
-      serviceToken,
-      resolveAssignmentUserRoles(assignmentBearerToken),
-    );
-
+    const requestedRoles = [
+      ...new Set(options.roles ?? options.user.roleNames),
+    ];
+    const roles = resolveOrganisationAssignmentRoles(requestedRoles);
+    const removedRoles = requestedRoles.filter((role) => !roles.includes(role));
+    if (removedRoles.length > 0) {
+      logger.warn(
+        "Filtering non-assignable roles from organisation assignment payload.",
+        {
+          email: options.user.email,
+          organisationId: options.organisationId,
+          removedRoles,
+          keptRoles: roles,
+        },
+      );
+    }
     const payload = {
       firstName: options.user.forename,
       lastName: options.user.surname,
@@ -634,11 +628,76 @@ export class ProfessionalUserUtils {
       roles,
       resendInvite: options.resendInvite ?? false,
     };
+    const attemptedModes: OrganisationAssignmentMode[] = [];
 
+    if (shouldUseManageOrgInvitePrimary()) {
+      try {
+        const manageOrgPrimary = await this.inviteUserViaManageOrgApi({
+          user: options.user,
+          roles,
+          resendInvite: options.resendInvite ?? false,
+        });
+        logger.info(
+          "Organisation assignment succeeded via manage-org invite primary path.",
+          {
+            organisationId: options.organisationId,
+            requestedMode,
+            email: options.user.email,
+            status: manageOrgPrimary.status,
+          },
+        );
+        return {
+          organisationId: options.organisationId,
+          mode: "external",
+          requestedMode,
+          attemptedModes: ["external"],
+          roles,
+          status: manageOrgPrimary.status,
+          userIdentifier: manageOrgPrimary.userIdentifier,
+          responseBody: {
+            assignmentPath: "manage-org-invite-primary",
+            payload: manageOrgPrimary.responseBody,
+          },
+        };
+      } catch (error) {
+        if (!shouldFallbackToRdAfterManageOrgFailure()) {
+          throw error;
+        }
+        logger.warn(
+          "Manage-org invite primary path failed; falling back to RD Professional assignment path.",
+          {
+            organisationId: options.organisationId,
+            requestedMode,
+            email: options.user.email,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
+    }
+
+    let client: ApiClient | undefined;
     try {
-      let lastError: unknown;
-      const attemptedModes: OrganisationAssignmentMode[] = [];
+      const assignmentBearerToken = await this.resolveAssignmentBearerToken(
+        options.assignmentBearerToken,
+      );
+      const serviceToken = await this.resolveServiceToken(
+        options.serviceToken,
+        options.requireServiceAuth ?? true,
+      );
+      const rdProfessionalApiPath = resolveRdProfessionalApiPath(
+        options.rdProfessionalApiPath,
+      );
+      client = new ApiClient({
+        baseUrl: rdProfessionalApiPath,
+        name: "rd-professional-assignment",
+      });
 
+      const headers = buildHeaders(
+        assignmentBearerToken,
+        serviceToken,
+        resolveAssignmentUserRoles(assignmentBearerToken),
+      );
+      let lastError: unknown;
       for (const mode of modesToTry) {
         const endpoint =
           mode === "internal"
@@ -672,13 +731,24 @@ export class ProfessionalUserUtils {
             lastError = error;
             const statusCode = parseStatusCode(error);
             if (statusCode === 409 && mode === "external") {
+              const reconciledAssignment =
+                await this.reconcileExistingOrganisationAssignment({
+                  client,
+                  rdProfessionalApiPath,
+                  organisationId: options.organisationId,
+                  user: options.user,
+                  roles,
+                  headers,
+                });
               logger.warn(
-                "Organisation assignment returned idempotent conflict; continuing with existing assignment.",
+                "Organisation assignment returned idempotent conflict; reconciled existing assignment.",
                 {
                   organisationId: options.organisationId,
                   attemptedMode: mode,
                   requestedMode,
                   username: options.user.email,
+                  userIdentifier: reconciledAssignment.userIdentifier,
+                  reconciliationStatus: reconciledAssignment.status,
                 },
               );
               return {
@@ -688,21 +758,21 @@ export class ProfessionalUserUtils {
                 attemptedModes: [...attemptedModes],
                 roles,
                 status: 409,
+                userIdentifier: reconciledAssignment.userIdentifier,
                 responseBody: {
                   conflict: "already-exists",
+                  reconciliation: reconciledAssignment,
                 },
               };
             }
             const hasNextMode = attemptedModes.length < modesToTry.length;
             const retryExternalUserVisibility =
-              shouldRetryExternalAssignmentForUserVisibility(
-                mode,
-                statusCode,
-              ) && attempt < modeAttempts;
+              shouldRetryExternalAssignment(mode, statusCode) &&
+              attempt < modeAttempts;
 
             if (retryExternalUserVisibility) {
               logger.warn(
-                "External organisation invite returned user-not-found; waiting for propagation and retrying.",
+                "External organisation invite returned retryable status; waiting for propagation/transient recovery and retrying.",
                 {
                   organisationId: options.organisationId,
                   attemptedMode: mode,
@@ -765,14 +835,82 @@ export class ProfessionalUserUtils {
               "Organisation assignment failed. PRD principal and role diagnostics:",
               diagnostics,
             );
+            if (shouldUseManageOrgInviteFallback(error)) {
+              break;
+            }
             throw error;
           }
         }
       }
 
+      if (shouldUseManageOrgInviteFallback(lastError)) {
+        const manageOrgFallback = await this.inviteUserViaManageOrgApi({
+          user: options.user,
+          roles,
+          resendInvite: options.resendInvite ?? false,
+        });
+        logger.warn(
+          "Organisation assignment succeeded via manage-org invite fallback after RD Professional failure.",
+          {
+            organisationId: options.organisationId,
+            requestedMode,
+            attemptedModes,
+            fallbackStatus: manageOrgFallback.status,
+            email: options.user.email,
+          },
+        );
+        return {
+          organisationId: options.organisationId,
+          mode: "external",
+          requestedMode,
+          attemptedModes: [...attemptedModes, "external"],
+          roles,
+          status: manageOrgFallback.status,
+          userIdentifier: manageOrgFallback.userIdentifier,
+          responseBody: {
+            fallback: "manage-org-invite",
+            payload: manageOrgFallback.responseBody,
+          },
+        };
+      }
+
       throw toError(lastError, "Organisation assignment failed.");
+    } catch (error) {
+      if (shouldUseManageOrgInviteFallback(error)) {
+        const manageOrgFallback = await this.inviteUserViaManageOrgApi({
+          user: options.user,
+          roles,
+          resendInvite: options.resendInvite ?? false,
+        });
+        logger.warn(
+          "Organisation assignment recovered via manage-org invite fallback after RD prerequisite failure.",
+          {
+            organisationId: options.organisationId,
+            requestedMode,
+            attemptedModes,
+            fallbackStatus: manageOrgFallback.status,
+            email: options.user.email,
+          },
+        );
+        return {
+          organisationId: options.organisationId,
+          mode: "external",
+          requestedMode,
+          attemptedModes: [...attemptedModes, "external"],
+          roles,
+          status: manageOrgFallback.status,
+          userIdentifier: manageOrgFallback.userIdentifier,
+          responseBody: {
+            fallback: "manage-org-invite",
+            payload: manageOrgFallback.responseBody,
+          },
+        };
+      }
+      throw error;
     } finally {
-      await client.dispose();
+      if (client) {
+        await client.dispose();
+      }
     }
   }
 
@@ -796,7 +934,35 @@ export class ProfessionalUserUtils {
     });
 
     const rolesToRemove = [...new Set(options.rolesToRemove)];
-    const endpoint = `/refdata/external/v1/organisations/users/${encodeURIComponent(options.userIdentifier)}`;
+    const organisationId =
+      firstNonEmpty(options.organisationId) ??
+      resolveTestSolicitorOrganisationId({ allowDefault: true });
+    const userIdentifier = await this.resolveAssignmentUserIdentifier({
+      rdProfessionalApiPath,
+      organisationId: organisationId ?? "",
+      user: {
+        ...options.user,
+        id: firstNonEmpty(options.userIdentifier, options.user.id),
+      },
+      headers: buildHeaders(
+        assignmentBearerToken,
+        serviceToken,
+        resolveAssignmentUserRoles(assignmentBearerToken),
+      ),
+    });
+    if (!userIdentifier) {
+      logger.warn(
+        "Skipping organisation assignment cleanup because user identifier could not be resolved.",
+        {
+          email: options.user.email,
+        },
+      );
+      return {
+        status: 404,
+        removedRoles: rolesToRemove,
+      };
+    }
+    const endpoint = `/refdata/external/v1/organisations/users/${encodeURIComponent(userIdentifier)}`;
     const payload = {
       email: options.user.email,
       firstName: options.user.forename,
@@ -804,63 +970,168 @@ export class ProfessionalUserUtils {
       idamStatus: "ACTIVE",
       rolesDelete: rolesToRemove.map((name) => ({ name })),
     };
+    const headers = buildHeaders(
+      assignmentBearerToken,
+      serviceToken,
+      resolveAssignmentUserRoles(assignmentBearerToken),
+    );
 
     try {
-      const response = await client.put(endpoint, {
-        headers: buildHeaders(
-          assignmentBearerToken,
-          serviceToken,
-          resolveAssignmentUserRoles(assignmentBearerToken),
-        ),
-        data: payload,
-        responseType: "json",
+      const maxAttempts = resolveExternalAssignmentRetryAttempts();
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const response = await client.put<Record<string, unknown>>(endpoint, {
+          headers,
+          data: payload,
+          throwOnError: false,
+          responseType: "json",
+        });
+
+        if (
+          (response.status >= 200 && response.status < 300) ||
+          response.status === 404
+        ) {
+          return {
+            status: response.status,
+            removedRoles: rolesToRemove,
+          };
+        }
+
+        if (
+          shouldRetryExternalCleanup(response.status) &&
+          attempt < maxAttempts
+        ) {
+          logger.warn(
+            "Organisation assignment cleanup returned retryable status; waiting and retrying.",
+            {
+              email: options.user.email,
+              userIdentifier,
+              attempt,
+              attempts: maxAttempts,
+              statusCode: response.status,
+            },
+          );
+          await sleep(resolveExternalAssignmentRetryDelayMs());
+          continue;
+        }
+
+        throw new Error(
+          `Organisation assignment cleanup failed with status ${response.status}.`,
+        );
+      }
+
+      throw new Error("Organisation assignment cleanup failed after retries.");
+    } catch (error) {
+      if (!isPlaywrightArtifactIoError(error)) {
+        throw error;
+      }
+      logger.warn(
+        "Falling back to direct HTTP organisation cleanup after Playwright artifact I/O failure.",
+        {
+          email: options.user.email,
+          userIdentifier,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
+      return this.cleanupOrganisationAssignmentViaHttp({
+        rdProfessionalApiPath,
+        endpoint,
+        headers,
+        payload,
+        rolesToRemove,
+        userIdentifier,
+        user: options.user,
       });
-      return {
-        status: response.status,
-        removedRoles: rolesToRemove,
-      };
     } finally {
       await client.dispose();
     }
   }
 
-  private async updateExistingUser(params: {
-    token: string;
-    secret: string;
-    email: string;
-    forename: string;
-    surname: string;
-    roleNames: string[];
-  }): Promise<ProfessionalUserInfo> {
-    const existing = await this.idamUtils.getUserInfo({
-      bearerToken: params.token,
-      email: params.email,
-    });
-
-    const updated = await this.idamUtils.updateUser({
-      id: existing.id,
-      bearerToken: params.token,
-      password: params.secret,
-      user: {
-        email: params.email,
-        forename: params.forename,
-        surname: params.surname,
-        roleNames: [...params.roleNames],
+  public async cleanupIdamAccount(
+    options: CleanupIdamAccountOptions,
+  ): Promise<{ status: number; endpoint: string }> {
+    logger.warn(
+      "Skipping IDAM cleanup by policy. No IDAM operations are allowed outside testing-support account creation.",
+      {
+        email: options.user.email,
       },
-    });
-
+    );
     return {
-      id: updated.id,
-      email: updated.email,
-      password: params.secret,
-      forename: params.forename,
-      surname: params.surname,
-      roleNames: [...params.roleNames],
+      status: 204,
+      endpoint: "skipped-by-policy",
     };
   }
 
+  private async cleanupOrganisationAssignmentViaHttp(params: {
+    rdProfessionalApiPath: string;
+    endpoint: string;
+    headers: Record<string, string>;
+    payload: Record<string, unknown>;
+    rolesToRemove: string[];
+    userIdentifier: string;
+    user: ProfessionalUserInfo;
+  }): Promise<{ status: number; removedRoles: string[] }> {
+    const putCleanup = async (
+      payload: Record<string, unknown>,
+    ): Promise<{ status: number; body: unknown }> => {
+      const response = await fetch(
+        new URL(params.endpoint, params.rdProfessionalApiPath),
+        {
+          method: "PUT",
+          headers: {
+            ...params.headers,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      return {
+        status: response.status,
+        body: await parseResponseBody(response),
+      };
+    };
+
+    const maxAttempts = resolveExternalAssignmentRetryAttempts();
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const response = await putCleanup(params.payload);
+      if (
+        (response.status >= 200 && response.status < 300) ||
+        response.status === 404
+      ) {
+        return {
+          status: response.status,
+          removedRoles: params.rolesToRemove,
+        };
+      }
+
+      if (
+        shouldRetryExternalCleanup(response.status) &&
+        attempt < maxAttempts
+      ) {
+        logger.warn(
+          "Direct HTTP organisation assignment cleanup returned retryable status; waiting and retrying.",
+          {
+            email: params.user.email,
+            userIdentifier: params.userIdentifier,
+            attempt,
+            attempts: maxAttempts,
+            statusCode: response.status,
+          },
+        );
+        await sleep(resolveExternalAssignmentRetryDelayMs());
+        continue;
+      }
+
+      throw new Error(
+        `Organisation assignment cleanup failed with status ${response.status}.`,
+      );
+    }
+
+    throw new Error("Organisation assignment cleanup failed after retries.");
+  }
+
+  // SIDAM accounts API retry loop with role-assignment retries and propagation checks; all state tightly coupled across phases
   private async createUserViaSidamAccounts(params: {
-    bearerToken: string;
+    // NOSONAR typescript:S3776
     password: string;
     email: string;
     forename: string;
@@ -883,35 +1154,16 @@ export class ProfessionalUserUtils {
       },
     };
 
-    const executeCreate = (includeAuth: boolean) =>
-      client.post<Record<string, unknown>>("/testing-support/accounts", {
-        headers: includeAuth
-          ? {
-              Authorization: withBearerPrefix(params.bearerToken),
-              "Content-Type": "application/json",
-            }
-          : {
-              "Content-Type": "application/json",
-            },
+    const endpoint = "/testing-support/accounts";
+
+    try {
+      const response = await client.post<Record<string, unknown>>(endpoint, {
+        headers: {
+          "Content-Type": "application/json",
+        },
         data: payload,
         responseType: "json",
       });
-
-    try {
-      let response;
-      try {
-        response = await executeCreate(false);
-      } catch (error) {
-        const status = parseStatusCode(error);
-        if (
-          (status === 401 || status === 403) &&
-          params.bearerToken.trim().length > 0
-        ) {
-          response = await executeCreate(true);
-        } else {
-          throw error;
-        }
-      }
 
       const account = response.data;
       return {
@@ -927,158 +1179,20 @@ export class ProfessionalUserUtils {
     }
   }
 
-  private async ensureUserAccountActive(params: {
-    token: string;
-    user: ProfessionalUserInfo;
-    roleNames: readonly string[];
-  }): Promise<ProfessionalUserInfo> {
-    const userId =
-      params.user.id ??
-      (
-        await this.idamUtils.getUserInfo({
-          bearerToken: params.token,
-          email: params.user.email,
-        })
-      ).id;
-    const updated = await this.idamUtils.updateUser({
-      id: userId,
-      bearerToken: params.token,
-      password: params.user.password,
-      user: {
-        email: params.user.email,
-        forename: params.user.forename,
-        surname: params.user.surname,
-        roleNames: [...params.roleNames],
-      },
-    });
-    return {
-      id: updated.id,
-      email: updated.email,
-      password: params.user.password,
-      forename: updated.forename,
-      surname: updated.surname,
-      roleNames: [...params.roleNames],
-    };
-  }
-
   private async waitForUserPropagation(
-    user: ProfessionalUserInfo,
+    _user: ProfessionalUserInfo,
   ): Promise<UserPropagationOutcome> {
-    let lastError: unknown;
-    let createUserBearerToken: string | undefined;
-    try {
-      createUserBearerToken = await this.resolveBearerToken();
-    } catch (error) {
-      logger.warn(
-        "Create-user bearer token unavailable for propagation probe; using password-grant probe only.",
-        {
-          email: user.email,
-          message: error instanceof Error ? error.message : String(error),
-        },
-      );
-    }
-    for (
-      let attempt = 1;
-      attempt <= USER_PROPAGATION_CHECK_MAX_ATTEMPTS;
-      attempt += 1
-    ) {
-      try {
-        if (createUserBearerToken) {
-          await this.idamUtils.getUserInfo({
-            bearerToken: createUserBearerToken,
-            email: user.email,
-          });
-        }
-        const passwordGrantToken =
-          await this.tryGenerateUserPasswordGrantToken(user);
-        if (!passwordGrantToken) {
-          logger.warn(
-            "Password-grant token unavailable for user propagation probe; using IDAM API presence check only.",
-            { email: user.email },
-          );
-          if (createUserBearerToken) {
-            return {
-              verified: true,
-              degraded: true,
-              reason: "idam-api-only",
-            };
-          }
-          logger.warn(
-            "Skipping user propagation probes because no probe token could be generated.",
-            { email: user.email },
-          );
-          return {
-            verified: false,
-            degraded: true,
-            reason: "no-probe-token",
-          };
-        }
-        const userInfoProbe = await this.probeIdamUserInfo(passwordGrantToken);
-        if (userInfoProbe.status === 200) {
-          return {
-            verified: true,
-            degraded: false,
-            reason: "idam-api-and-userinfo-probe",
-          };
-        }
-        throw new Error(
-          `IDAM userinfo probe status ${String(userInfoProbe.status ?? "unknown")}`,
-        );
-      } catch (error) {
-        lastError = error;
-        if (attempt === USER_PROPAGATION_CHECK_MAX_ATTEMPTS) {
-          break;
-        }
-        await sleep(USER_PROPAGATION_CHECK_RETRY_DELAY_MS);
-      }
-    }
-    throw toError(lastError, "User propagation checks failed");
-  }
-
-  private async tryGenerateUserPasswordGrantToken(
-    user: ProfessionalUserInfo,
-  ): Promise<string | undefined> {
-    const clientSecret = resolveAssignmentClientSecret();
-    if (!clientSecret) {
-      return undefined;
-    }
-    const clientId = resolveAssignmentClientId();
-    const scopesToTry = uniqueScopes([
-      firstNonEmpty(process.env.ORG_USER_ASSIGNMENT_OAUTH2_SCOPE),
-      firstNonEmpty(process.env.CREATE_USER_SCOPE),
-      DEFAULT_PASSWORD_GRANT_SCOPE,
-      firstNonEmpty(process.env.IDAM_OAUTH2_SCOPE),
-      "openid profile roles",
-      "profile roles",
-    ]);
-    for (const scope of scopesToTry) {
-      try {
-        return await this.idamUtils.generateIdamToken({
-          grantType: "password",
-          clientId,
-          clientSecret,
-          scope,
-          username: user.email,
-          password: user.password,
-          redirectUri: firstNonEmpty(process.env.IDAM_RETURN_URL),
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (isInvalidScopeError(message)) {
-          continue;
-        }
-      }
-    }
-    return undefined;
+    return {
+      verified: true,
+      degraded: false,
+      reason: "testing-support-create",
+    };
   }
 
   private emitCreatedUserData(params: {
     user: ProfessionalUserInfo;
     roleSelection?: SolicitorRoleSelectionResolution;
-    createPath:
-      | "idam-testing-support"
-      | "idam-update-existing"
-      | "idam-api-testing-support";
+    createPath: "idam-api-testing-support";
     outputCreatedUserData?: boolean;
   }): void {
     if (!shouldOutputCreatedUserData(params.outputCreatedUserData)) {
@@ -1097,8 +1211,8 @@ export class ProfessionalUserUtils {
       testType: params.roleSelection?.context.testType,
       caseType: params.roleSelection?.context.caseType,
     };
-    // Intentional: plain console output keeps credentials visible for AAT debug sessions.
-    console.log(`[provisioned-user-data] ${JSON.stringify(summary)}`);
+    // Intentional: plain log keeps credentials visible for AAT debug sessions.
+    logger.info("[provisioned-user-data]", { data: summary });
   }
 
   private async resolveServiceToken(
@@ -1152,9 +1266,6 @@ export class ProfessionalUserUtils {
   }): Promise<Record<string, unknown>> {
     const tokenClaims = decodeJwtPayload(params.assignmentBearerToken);
     const prdProbe = await this.probePrdUsersView(params);
-    const idamUserInfoProbe = await this.probeIdamUserInfo(
-      params.assignmentBearerToken,
-    );
     return {
       failure: {
         statusCode: parseStatusCode(params.error),
@@ -1178,7 +1289,6 @@ export class ProfessionalUserUtils {
       assignmentPrincipalClaims: summarizeTokenPrincipal(tokenClaims),
       hasServiceAuthHeader: Boolean(params.serviceToken),
       prdUsersReadProbe: prdProbe,
-      idamUserInfoProbe,
     };
   }
 
@@ -1213,35 +1323,98 @@ export class ProfessionalUserUtils {
     }
   }
 
-  private async probeIdamUserInfo(
-    assignmentBearerToken: string,
-  ): Promise<Record<string, unknown>> {
-    const idamWebUrl = resolveIdamWebUrl();
-    if (!idamWebUrl) {
-      return { skipped: "IDAM_WEB_URL not configured" };
-    }
-    const client = new ApiClient({
-      baseUrl: idamWebUrl,
-      name: "idam-userinfo-probe",
-    });
-    try {
-      const response = await client.get<unknown>("/o/userinfo", {
-        headers: {
-          Authorization: withBearerPrefix(assignmentBearerToken),
+  private async reconcileExistingOrganisationAssignment(params: {
+    client: ApiClient;
+    rdProfessionalApiPath: string;
+    organisationId: string;
+    user: ProfessionalUserInfo;
+    roles: string[];
+    headers: Record<string, string>;
+  }): Promise<{
+    status: number | "skipped";
+    userIdentifier?: string;
+  }> {
+    const userIdentifier = await this.resolveAssignmentUserIdentifier(params);
+    if (!userIdentifier) {
+      logger.warn(
+        "Unable to resolve user identifier for existing assignment reconciliation.",
+        {
+          organisationId: params.organisationId,
+          username: params.user.email,
         },
+      );
+      return {
+        status: "skipped",
+      };
+    }
+
+    const endpoint = `/refdata/external/v1/organisations/users/${encodeURIComponent(userIdentifier)}`;
+    const payload = {
+      email: params.user.email,
+      firstName: params.user.forename,
+      lastName: params.user.surname,
+      idamStatus: "ACTIVE",
+      rolesAdd: params.roles.map((name) => ({ name })),
+    };
+
+    const response = await params.client.put<Record<string, unknown>>(
+      endpoint,
+      {
+        headers: params.headers,
+        data: payload,
+        throwOnError: false,
+        responseType: "json",
+      },
+    );
+    if (response.status >= 200 && response.status < 300) {
+      return {
+        status: response.status,
+        userIdentifier,
+      };
+    }
+    logger.warn(
+      "Existing assignment reconciliation returned non-2xx response.",
+      {
+        organisationId: params.organisationId,
+        username: params.user.email,
+        userIdentifier,
+        status: response.status,
+      },
+    );
+    return {
+      status: response.status,
+      userIdentifier,
+    };
+  }
+
+  private async resolveAssignmentUserIdentifier(params: {
+    rdProfessionalApiPath: string;
+    organisationId: string;
+    user: ProfessionalUserInfo;
+    headers: Record<string, string>;
+  }): Promise<string | undefined> {
+    const fromUser = params.user.id?.trim();
+    if (fromUser) {
+      return fromUser;
+    }
+
+    const lookupClient = new ApiClient({
+      baseUrl: params.rdProfessionalApiPath,
+      name: "rd-professional-assignment-lookup",
+    });
+    const endpoint = `/refdata/internal/v1/organisations/${encodeURIComponent(params.organisationId)}/users/`;
+    try {
+      const response = await lookupClient.get<unknown>(endpoint, {
+        headers: params.headers,
         throwOnError: false,
         responseType: "json",
       });
-      return {
-        status: response.status,
-        body: summariseIdamUserInfo(response.data),
-      };
-    } catch (error) {
-      return {
-        probeError: error instanceof Error ? error.message : String(error),
-      };
+      if (response.status < 200 || response.status >= 300) {
+        return undefined;
+      }
+      return findUserIdentifierByEmail(response.data, params.user.email);
     } finally {
-      await client.dispose();
+      await lookupClient.dispose();
     }
   }
 
@@ -1256,11 +1429,11 @@ export class ProfessionalUserUtils {
       return resolved;
     }
 
-    const generatedFromPasswordGrant =
-      await this.tryGenerateAssignmentBearerTokenFromCredentials();
-    if (generatedFromPasswordGrant) {
-      process.env.ORG_USER_ASSIGNMENT_BEARER_TOKEN = generatedFromPasswordGrant;
-      const resolved = stripBearerPrefix(generatedFromPasswordGrant);
+    const fromGeneratedCredentialsToken = isWorkerIdamOauthHydrationAllowed()
+      ? await this.tryGenerateAssignmentBearerTokenFromCredentials()
+      : undefined;
+    if (fromGeneratedCredentialsToken) {
+      const resolved = stripBearerPrefix(fromGeneratedCredentialsToken);
       await this.assertExpectedAssignmentPrincipal(resolved);
       return resolved;
     }
@@ -1278,7 +1451,7 @@ export class ProfessionalUserUtils {
     }
 
     throw new Error(
-      "Missing assignment bearer token. Set ORG_USER_ASSIGNMENT_BEARER_TOKEN, or provide ORG_USER_ASSIGNMENT_USERNAME/ORG_USER_ASSIGNMENT_PASSWORD with IDAM client credentials.",
+      "Missing assignment bearer token. Set ORG_USER_ASSIGNMENT_BEARER_TOKEN (or explicit assignment token argument).",
     );
   }
 
@@ -1289,138 +1462,222 @@ export class ProfessionalUserUtils {
       process.env.ORG_USER_ASSIGNMENT_USERNAME,
       process.env.SOLICITOR_USERNAME,
       process.env.PRL_SOLICITOR_USERNAME,
-      process.env.WA_SOLICITOR_USERNAME,
-      process.env.NOC_SOLICITOR_USERNAME,
     );
     const password = firstNonEmpty(
       process.env.ORG_USER_ASSIGNMENT_PASSWORD,
       process.env.SOLICITOR_PASSWORD,
       process.env.PRL_SOLICITOR_PASSWORD,
-      process.env.WA_SOLICITOR_PASSWORD,
-      process.env.NOC_SOLICITOR_PASSWORD,
     );
     if (!username || !password) {
       return undefined;
     }
 
-    const clientSecret = resolveAssignmentClientSecret();
-    if (!clientSecret) {
-      logger.warn(
-        "Unable to hydrate assignment bearer token from credentials because no IDAM client secret is configured.",
-      );
+    const clientId = firstNonEmpty(
+      process.env.ORG_USER_ASSIGNMENT_CLIENT_ID,
+      process.env.IDAM_CLIENT_ID,
+      process.env.SERVICES_IDAM_CLIENT_ID,
+      process.env.CLIENT_ID,
+      "xuiwebapp",
+    );
+    const clientSecret = firstNonEmpty(
+      process.env.ORG_USER_ASSIGNMENT_CLIENT_SECRET,
+      process.env.IDAM_SECRET,
+    );
+    if (!clientId || !clientSecret) {
       return undefined;
     }
 
-    const clientId = resolveAssignmentClientId();
-    const scopesToTry = uniqueScopes([
+    const scopesToTry = dedupeNonEmptyStrings(
       firstNonEmpty(process.env.ORG_USER_ASSIGNMENT_OAUTH2_SCOPE),
-      firstNonEmpty(process.env.CREATE_USER_SCOPE),
-      DEFAULT_PASSWORD_GRANT_SCOPE,
       firstNonEmpty(process.env.IDAM_OAUTH2_SCOPE),
-      "openid profile roles",
-      "profile roles",
-    ]);
-
-    for (const scope of scopesToTry) {
-      try {
-        return await this.idamUtils.generateIdamToken({
-          grantType: "password",
-          clientId,
-          clientSecret,
-          scope,
-          username,
-          password,
-          redirectUri: firstNonEmpty(process.env.IDAM_RETURN_URL),
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        if (isInvalidScopeError(message)) {
-          logger.warn(
-            "Assignment bearer-token scope rejected by IDAM; retrying with next scope candidate.",
-            { username, clientId, scope },
-          );
-          continue;
-        }
-        logger.warn(
-          "Failed to hydrate assignment bearer token from credentials.",
-          {
-            username,
-            clientId,
-            scope,
-            message,
-          },
-        );
-        return undefined;
-      }
+      DEFAULT_ASSIGNMENT_SCOPE,
+    );
+    if (scopesToTry.length === 0) {
+      return undefined;
     }
 
-    logger.warn(
-      "Failed to hydrate assignment bearer token from credentials after trying all scope candidates.",
-      {
-        username,
-        clientId,
-        attemptedScopes: scopesToTry,
-      },
+    const redirectCandidates = dedupeNonEmptyStrings(
+      firstNonEmpty(process.env.ORG_USER_ASSIGNMENT_REDIRECT_URI),
+      firstNonEmpty(process.env.IDAM_RETURN_URL),
     );
+    redirectCandidates.push("");
+
+    const idamUtils = new IdamUtils({ logger });
+    try {
+      for (const scope of scopesToTry) {
+        for (const redirectUri of redirectCandidates) {
+          try {
+            const generated = await idamUtils.generateIdamToken({
+              grantType: "password",
+              clientId,
+              clientSecret,
+              scope,
+              username,
+              password,
+              redirectUri: redirectUri || undefined,
+            });
+            process.env.ORG_USER_ASSIGNMENT_BEARER_TOKEN = generated;
+            logger.info(
+              "Hydrated ORG_USER_ASSIGNMENT_BEARER_TOKEN from assignment credentials in worker.",
+              {
+                username,
+                clientId,
+                scope,
+                redirectUri: redirectUri || "(omitted)",
+              },
+            );
+            return generated;
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            if (isInvalidScopeError(message)) {
+              logger.warn(
+                "Org-assignment scope rejected while hydrating in worker; trying next scope.",
+                {
+                  username,
+                  clientId,
+                  scope,
+                  redirectUri: redirectUri || "(omitted)",
+                },
+              );
+              break;
+            }
+            if (isInvalidClientError(message)) {
+              logger.warn(
+                "Org-assignment client rejected while hydrating in worker.",
+                { username, clientId },
+              );
+              return undefined;
+            }
+          }
+        }
+      }
+    } finally {
+      await idamUtils.dispose();
+    }
     return undefined;
   }
 
-  private async resolveBearerToken(token?: string): Promise<string> {
-    const fromOptionsOrEnv = firstNonEmpty(
-      token,
-      process.env.CREATE_USER_BEARER_TOKEN,
-    );
-    if (fromOptionsOrEnv) {
-      return stripBearerPrefix(fromOptionsOrEnv);
-    }
+  private async inviteUserViaManageOrgApi(params: {
+    user: ProfessionalUserInfo;
+    roles: readonly string[];
+    resendInvite: boolean;
+  }): Promise<{
+    status: number;
+    userIdentifier?: string;
+    responseBody: unknown;
+  }> {
+    const manageOrgBaseUrl = resolveManageOrgApiPath();
+    const invitePayload = {
+      firstName: params.user.forename,
+      lastName: params.user.surname,
+      email: params.user.email,
+      roles: [...params.roles],
+      resendInvite: params.resendInvite,
+    };
 
-    const clientSecret = resolveClientSecret();
-    if (!clientSecret) {
-      throw new Error(
-        "Missing bearer token. Set CREATE_USER_BEARER_TOKEN or configure IDAM_SECRET for auto-hydration.",
+    const parseInviteResponse = async (
+      apiContext: Awaited<ReturnType<typeof request.newContext>>,
+    ): Promise<{
+      status: number;
+      responseBody: unknown;
+    }> => {
+      const response = await apiContext.post("/api/inviteUser", {
+        data: invitePayload,
+        failOnStatusCode: false,
+      });
+      const bodyText = await response.text();
+      let responseBody: unknown = bodyText;
+      try {
+        responseBody = JSON.parse(bodyText);
+      } catch {
+        // manage-org may return plain text.
+      }
+      if (!response.ok()) {
+        if (response.status() === 409) {
+          logger.warn(
+            "Manage-org invite returned 409 (user already exists); treating as idempotent assignment success.",
+            {
+              email: params.user.email,
+            },
+          );
+          return {
+            status: response.status(),
+            responseBody,
+          };
+        }
+        const body =
+          typeof responseBody === "string"
+            ? responseBody
+            : JSON.stringify(responseBody);
+        throw new Error(
+          `Manage-org invite failed with status ${response.status()}: ${body}`,
+        );
+      }
+      return {
+        status: response.status(),
+        responseBody,
+      };
+    };
+
+    const assignmentUiUser =
+      firstNonEmpty(
+        process.env.ORG_USER_ASSIGNMENT_UI_USER,
+        "ORG_USER_ASSIGNMENT",
+      ) ?? "ORG_USER_ASSIGNMENT";
+    try {
+      await ensureUiStorageStateForUser(assignmentUiUser, {
+        strict: true,
+        baseUrl: manageOrgBaseUrl,
+      });
+      const storagePath = resolveUiStoragePathForUser(assignmentUiUser);
+      const apiContext = await request.newContext({
+        baseURL: manageOrgBaseUrl,
+        ignoreHTTPSErrors: true,
+        storageState: storagePath,
+      });
+      try {
+        const sessionInvite = await parseInviteResponse(apiContext);
+        return {
+          status: sessionInvite.status,
+          userIdentifier: undefined,
+          responseBody: sessionInvite.responseBody,
+        };
+      } finally {
+        await apiContext.dispose();
+      }
+    } catch (error) {
+      logger.warn(
+        "Manage-org session invite path unavailable; falling back to direct bearer invite call.",
+        {
+          email: params.user.email,
+          assignmentUiUser,
+          error: error instanceof Error ? error.message : String(error),
+        },
       );
     }
 
-    const clientId = resolveClientId();
-    const requestedScope =
-      firstNonEmpty(
-        process.env.CREATE_USER_SCOPE,
-        process.env.IDAM_OAUTH2_SCOPE,
-      ) ?? "profile roles";
-    const scope = sanitiseClientCredentialsScope(requestedScope);
-    const maxAttempts = 3;
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        const generated = await this.idamUtils.generateIdamToken({
-          grantType: "client_credentials",
-          clientId,
-          clientSecret,
-          scope,
-        });
-        process.env.CREATE_USER_BEARER_TOKEN = generated;
-        return stripBearerPrefix(generated);
-      } catch (error) {
-        lastError = error;
-        if (attempt === maxAttempts || !shouldRetryTokenHydrationError(error)) {
-          throw error;
-        }
-        const waitMs = Math.min(250 * 2 ** (attempt - 1), 2_000);
-        logger.warn(
-          "Transient create-user bearer token hydration failure; retrying",
-          {
-            attempt,
-            maxAttempts,
-            clientId,
-            scope,
-            waitMs,
-            message: error instanceof Error ? error.message : String(error),
-          },
-        );
-        await sleep(waitMs);
-      }
+    const assignmentBearerToken = await this.resolveAssignmentBearerToken();
+    const serviceToken = await this.resolveServiceToken(undefined, false);
+    const apiContext = await request.newContext({
+      baseURL: manageOrgBaseUrl,
+      ignoreHTTPSErrors: true,
+      extraHTTPHeaders: buildHeaders(
+        assignmentBearerToken,
+        serviceToken,
+        resolveAssignmentUserRoles(assignmentBearerToken),
+      ),
+    });
+    try {
+      const bearerInvite = await parseInviteResponse(apiContext);
+      return {
+        status: bearerInvite.status,
+        userIdentifier: undefined,
+        responseBody: bearerInvite.responseBody,
+      };
+    } finally {
+      await apiContext.dispose();
     }
-    throw toError(lastError, "Failed to hydrate create-user bearer token.");
   }
 
   private async assertExpectedAssignmentPrincipal(
@@ -1428,20 +1685,13 @@ export class ProfessionalUserUtils {
   ): Promise<void> {
     const expectedEmail = resolveExpectedAssignmentPrincipalEmail();
     const claims = decodeJwtPayload(token);
-    let username = resolveTokenPrincipalUsername(claims)?.trim().toLowerCase();
-
-    if (!username) {
-      const userInfoProbe = await this.probeIdamUserInfo(token);
-      if (userInfoProbe.status === 200 && isRecord(userInfoProbe.body)) {
-        username = readStringFromRecord(userInfoProbe.body, "email")
-          ?.trim()
-          .toLowerCase();
-      }
-    }
+    const username = resolveTokenPrincipalUsername(claims)
+      ?.trim()
+      .toLowerCase();
 
     if (!username) {
       throw new Error(
-        `Assignment bearer token does not expose a principal email (claims/userinfo). Expected principal: ${expectedEmail}.`,
+        `Assignment bearer token does not expose a principal email in JWT claims. Expected principal: ${expectedEmail}.`,
       );
     }
 
@@ -1465,7 +1715,7 @@ function resolveSolicitorRoleSelection(options: {
     return {
       source: "explicit-roleNames",
       roleProfile,
-      roleNames: explicitRoles,
+      roleNames: withRequiredSolicitorManageCaseRoles(explicitRoles),
       context: resolvedContext,
     };
   }
@@ -1485,11 +1735,9 @@ function resolveSolicitorRoleSelection(options: {
     return {
       source: "context-driven",
       roleProfile,
-      roleNames: uniqueStringList([
-        ...baseRoles,
-        ...testTypeRoles,
-        ...profileRoles,
-      ]),
+      roleNames: withRequiredSolicitorManageCaseRoles(
+        uniqueStringList([...baseRoles, ...testTypeRoles, ...profileRoles]),
+      ),
       context: resolvedContext,
     };
   }
@@ -1497,9 +1745,20 @@ function resolveSolicitorRoleSelection(options: {
   return {
     source: "profile",
     roleProfile,
-    roleNames: uniqueStringList(SOLICITOR_ROLE_PROFILES[roleProfile]),
+    roleNames: withRequiredSolicitorManageCaseRoles(
+      uniqueStringList(SOLICITOR_ROLE_PROFILES[roleProfile]),
+    ),
     context: resolvedContext,
   };
+}
+
+function withRequiredSolicitorManageCaseRoles(
+  roleNames: readonly string[],
+): string[] {
+  return uniqueStringList([
+    ...roleNames,
+    ...REQUIRED_SOLICITOR_MANAGE_CASE_ROLES,
+  ]);
 }
 
 function resolveSolicitorRoleContext(
@@ -1679,101 +1938,23 @@ function parseStatusCode(error: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function isRetryableStatus(statusCode: number | undefined): boolean {
-  return statusCode !== undefined && IDAM_RETRYABLE_STATUSES.has(statusCode);
-}
-
-function shouldRetryTokenHydrationError(error: unknown): boolean {
-  const statusCode = parseStatusCode(error);
-  if (statusCode !== undefined) {
-    return [408, 429, 500, 502, 503, 504].includes(statusCode);
-  }
-  const message = (
-    error instanceof Error ? error.message : String(error)
-  ).toLowerCase();
-  return (
-    message.includes("timeout") ||
-    message.includes("econnreset") ||
-    message.includes("socket hang up") ||
-    message.includes("temporarily unavailable")
-  );
-}
-
-function shouldFallbackToSidamAccounts(
-  statusCode: number | undefined,
-  error: unknown,
-): boolean {
-  if (statusCode !== undefined && [401, 403, 404, 405].includes(statusCode)) {
-    return true;
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  const lower = message.toLowerCase();
-  return lower.includes("/test/idam/users") && lower.includes("not found");
-}
-
-function resolveClientId(): string {
-  return (
-    firstNonEmpty(
-      process.env.CREATE_USER_CLIENT_ID,
-      process.env.CCD_DATA_STORE_CLIENT_ID,
-      process.env.IDAM_OAUTH2_CLIENT_ID,
-      process.env.IDAM_CLIENT_ID,
-      process.env.SERVICES_IDAM_CLIENT_ID,
-      process.env.CLIENT_ID,
-    ) ?? DEFAULT_IDAM_CLIENT_ID
-  );
-}
-
-function resolveClientSecret(): string | undefined {
-  return firstNonEmpty(
-    process.env.CREATE_USER_CLIENT_SECRET,
-    process.env.CCD_DATA_STORE_SECRET,
-    process.env.IDAM_OAUTH2_CLIENT_SECRET,
-    process.env.IDAM_SECRET,
-  );
-}
-
-function resolveAssignmentClientId(): string {
-  return (
-    firstNonEmpty(
-      process.env.ORG_USER_ASSIGNMENT_CLIENT_ID,
-      process.env.IDAM_CLIENT_ID,
-      process.env.SERVICES_IDAM_CLIENT_ID,
-      process.env.CLIENT_ID,
-      process.env.CREATE_USER_CLIENT_ID,
-      process.env.CCD_DATA_STORE_CLIENT_ID,
-      process.env.IDAM_OAUTH2_CLIENT_ID,
-    ) ?? DEFAULT_IDAM_CLIENT_ID
-  );
-}
-
-function resolveAssignmentClientSecret(): string | undefined {
-  return firstNonEmpty(
-    process.env.ORG_USER_ASSIGNMENT_CLIENT_SECRET,
-    process.env.IDAM_SECRET,
-    process.env.CREATE_USER_CLIENT_SECRET,
-    process.env.CCD_DATA_STORE_SECRET,
-    process.env.IDAM_OAUTH2_CLIENT_SECRET,
-  );
-}
-
-function uniqueScopes(values: Array<string | undefined>): string[] {
-  const result: string[] = [];
-  for (const value of values) {
-    const normalized = value?.trim();
-    if (!normalized || result.includes(normalized)) {
-      continue;
-    }
-    result.push(normalized);
-  }
-  return result;
-}
-
 function isInvalidScopeError(message: string): boolean {
   const lower = message.toLowerCase();
   return (
     lower.includes("invalid_scope") || lower.includes("unknown/invalid scope")
   );
+}
+
+function isInvalidClientError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("invalid_client") ||
+    lower.includes("client authentication failed")
+  );
+}
+
+function isRetryableStatus(statusCode: number | undefined): boolean {
+  return statusCode !== undefined && IDAM_RETRYABLE_STATUSES.has(statusCode);
 }
 
 function resolveIdamApiPath(): string {
@@ -1815,6 +1996,10 @@ function normalizeIdamApiBaseUrl(value: string): string {
   const trimmed = value.trim().replace(/\/+$/, "");
   try {
     const parsed = new URL(trimmed);
+    parsed.hostname = parsed.hostname.replace(
+      /^idam-testing-support-api\./,
+      "idam-api.",
+    );
     const normalizedPath = parsed.pathname
       .replace(/\/+$/, "")
       .replace(/\/test\/idam\/burner\/users$/i, "")
@@ -1829,40 +2014,12 @@ function normalizeIdamApiBaseUrl(value: string): string {
     return parsed.toString().replace(/\/+$/, "");
   } catch {
     return trimmed
+      .replace(/^https?:\/\/idam-testing-support-api\./i, (match) =>
+        match.replace(/idam-testing-support-api/i, "idam-api"),
+      )
       .replace(/\/o\/token\/?$/i, "")
       .replace(/\/o\/authorize\/?$/i, "")
       .replace(/\/o\/?$/i, "");
-  }
-}
-
-function resolveIdamWebUrl(): string | undefined {
-  const direct = firstNonEmpty(
-    process.env.IDAM_WEB_URL,
-    process.env.SERVICES_IDAM_WEB_URL,
-  );
-  if (direct) {
-    return direct.replace(/\/+$/, "");
-  }
-
-  const apiUrl = firstNonEmpty(
-    process.env.IDAM_API_URL,
-    process.env.SERVICES_IDAM_API_URL,
-  );
-  if (!apiUrl) {
-    return undefined;
-  }
-  try {
-    const parsed = new URL(apiUrl);
-    parsed.hostname = parsed.hostname.replace(
-      /^idam-api\./,
-      "idam-web-public.",
-    );
-    parsed.pathname = "";
-    parsed.search = "";
-    parsed.hash = "";
-    return parsed.toString().replace(/\/+$/, "");
-  } catch {
-    return undefined;
   }
 }
 
@@ -1879,6 +2036,20 @@ function resolveRdProfessionalApiPath(value?: string): string {
     );
   }
   return resolved.replace(/\/+$/, "");
+}
+
+function resolveManageOrgApiPath(value?: string): string {
+  const resolved = firstNonEmpty(
+    value,
+    process.env.MANAGE_ORG_API_PATH,
+    process.env.MANAGE_ORG_URL,
+    process.env.MANAGE_ORG_BASE_URL,
+  );
+  if (resolved) {
+    return resolved.replace(/\/+$/, "");
+  }
+  const env = firstNonEmpty(process.env.TEST_ENV, "aat");
+  return `https://manage-org.${env}.platform.hmcts.net`;
 }
 
 function resolveOrganisationAssignmentMode(
@@ -1970,11 +2141,72 @@ function shouldFallbackToAlternateAssignmentMode(
   return [401, 403, 404, 405, 500, 502, 503, 504].includes(statusCode);
 }
 
-function shouldRetryExternalAssignmentForUserVisibility(
+function shouldRetryExternalAssignment(
   mode: OrganisationAssignmentMode,
   statusCode: number | undefined,
 ): boolean {
-  return mode === "external" && statusCode === 404;
+  return (
+    mode === "external" &&
+    typeof statusCode === "number" &&
+    [404, 429, 500, 502, 503, 504].includes(statusCode)
+  );
+}
+
+function shouldUseManageOrgInviteFallback(error: unknown): boolean {
+  if (
+    !isTruthyEnvValue(
+      process.env.PROFESSIONAL_USER_ENABLE_MANAGE_ORG_FALLBACK,
+      false,
+    )
+  ) {
+    return false;
+  }
+  const statusCode = parseStatusCode(error);
+  if (statusCode === undefined) {
+    const message = error instanceof Error ? error.message : String(error);
+    const lowered = message.toLowerCase();
+    return (
+      lowered.includes("forbidden") ||
+      lowered.includes("permission") ||
+      lowered.includes("access denied") ||
+      lowered.includes("token is expired")
+    );
+  }
+  return (
+    statusCode >= 500 ||
+    statusCode === 401 ||
+    statusCode === 403 ||
+    statusCode === 404 ||
+    statusCode === 405
+  );
+}
+
+function shouldUseManageOrgInvitePrimary(): boolean {
+  return isTruthyEnvValue(
+    process.env.PROFESSIONAL_USER_ASSIGNMENT_USE_MANAGE_ORG_PRIMARY,
+    false,
+  );
+}
+
+function shouldFallbackToRdAfterManageOrgFailure(): boolean {
+  return isTruthyEnvValue(
+    process.env.PROFESSIONAL_USER_ENABLE_RD_FALLBACK_AFTER_MANAGE_ORG,
+    false,
+  );
+}
+
+function isWorkerIdamOauthHydrationAllowed(): boolean {
+  return isTruthyEnvValue(
+    process.env.ALLOW_ORG_ASSIGNMENT_IDAM_OAUTH_IN_WORKER,
+    false,
+  );
+}
+
+function shouldRetryExternalCleanup(statusCode: number | undefined): boolean {
+  return (
+    typeof statusCode === "number" &&
+    [429, 500, 502, 503, 504].includes(statusCode)
+  );
 }
 
 function createFakerIdentity(
@@ -1987,15 +2219,12 @@ function createFakerIdentity(
 } {
   const fakerFirstName = sanitiseIdentityToken(
     faker.person.firstName(),
-    "solicitor",
+    "user",
   );
   const fakerLastName = sanitiseIdentityToken(faker.person.lastName(), "user");
-  const uniqueToken = faker.string.alphanumeric({
-    length: 10,
-    casing: "lower",
-  });
-  const forename = `${emailPrefix}_fn_${fakerFirstName}`;
-  const surname = `${emailPrefix}_sn_${fakerLastName}`;
+  const uniqueToken = `${Date.now().toString(36)}${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+  const forename = fakerFirstName;
+  const surname = fakerLastName;
   const domain = (
     firstNonEmpty(process.env.PROFESSIONAL_USER_EMAIL_DOMAIN, "test.local") ??
     "test.local"
@@ -2009,9 +2238,9 @@ function createFakerIdentity(
     uniqueToken,
   ].join(".");
   const normalizedLocalPart = emailLocalPart
-    .replace(/[^a-z0-9._-]/g, "")
-    .replace(/\.+/g, ".")
-    .replace(/^\.|\.$/g, "");
+    .replaceAll(/[^a-z0-9._-]/g, "")
+    .replaceAll(/\.+/g, ".")
+    .replaceAll(/(^\.)|(\.$)/g, "");
   return {
     email: `${normalizedLocalPart}@${domain}`,
     forename,
@@ -2044,7 +2273,7 @@ function resolveEmailAccountPrefix(
 }
 
 function sanitiseIdentityToken(value: string, fallback: string): string {
-  const normalized = value.replace(/[^a-zA-Z0-9]/g, "");
+  const normalized = value.replaceAll(/[^a-zA-Z0-9]/g, "");
   if (normalized.length === 0) {
     return fallback;
   }
@@ -2144,6 +2373,23 @@ function resolveAssignmentUserRoles(
   return undefined;
 }
 
+function resolveOrganisationAssignmentRoles(
+  requestedRoles: readonly string[],
+): string[] {
+  const roleFilterEnabled = resolveBooleanFlag(
+    firstNonEmpty(process.env.ORG_ASSIGNMENT_ROLE_FILTER, "true"),
+  );
+  if (!roleFilterEnabled) {
+    return uniqueStringList(requestedRoles);
+  }
+
+  const requested = uniqueStringList(requestedRoles);
+  const filtered = requested.filter((role) =>
+    ORGANISATION_ASSIGNMENT_ALLOWED_ROLES.has(role),
+  );
+  return filtered.length > 0 ? filtered : requested;
+}
+
 function readUserIdentifier(
   data: Record<string, unknown> | undefined,
 ): string | undefined {
@@ -2169,11 +2415,22 @@ function readRoleCodes(
   record: Record<string, unknown> | undefined,
 ): string[] | undefined {
   const rawRoles = record?.roles;
-  if (!Array.isArray(rawRoles)) {
+  const rawRoleNames = record?.roleNames;
+  let source: unknown[] | undefined;
+  if (Array.isArray(rawRoles)) {
+    source = rawRoles;
+  } else if (Array.isArray(rawRoleNames)) {
+    source = rawRoleNames;
+  }
+  if (!source) {
     return undefined;
   }
-  const roleNames = rawRoles
+  const roleNames = source
     .map((entry) => {
+      if (typeof entry === "string") {
+        const value = entry.trim();
+        return value.length > 0 ? value : undefined;
+      }
       if (!entry || typeof entry !== "object") {
         return undefined;
       }
@@ -2185,19 +2442,6 @@ function readRoleCodes(
     return undefined;
   }
   return [...new Set(roleNames)];
-}
-
-function summariseIdamUserInfo(data: unknown): unknown {
-  if (!isRecord(data)) {
-    return data;
-  }
-  return {
-    uid: readStringFromRecord(data, "uid"),
-    id: readStringFromRecord(data, "id"),
-    email: readStringFromRecord(data, "email"),
-    name: readStringFromRecord(data, "name"),
-    roleNames: readStringArrayFromRecord(data, "roles"),
-  };
 }
 
 function summarisePrdUsersResponse(data: unknown): unknown {
@@ -2225,6 +2469,43 @@ function summarisePrdUsersResponse(data: unknown): unknown {
     keys: Object.keys(data),
     sample: summariseUserLikeRecord(data),
   };
+}
+
+function findUserIdentifierByEmail(
+  data: unknown,
+  email: string,
+): string | undefined {
+  const target = email.trim().toLowerCase();
+  if (!target) {
+    return undefined;
+  }
+  const users = extractPrdUsers(data);
+  for (const user of users) {
+    const userEmail = readStringFromRecord(user, "email")?.toLowerCase();
+    if (userEmail !== target) {
+      continue;
+    }
+    return (
+      readStringFromRecord(user, "idamId") ??
+      readStringFromRecord(user, "uid") ??
+      readStringFromRecord(user, "id")
+    );
+  }
+  return undefined;
+}
+
+function extractPrdUsers(data: unknown): Record<string, unknown>[] {
+  if (Array.isArray(data)) {
+    return data.filter(isRecord);
+  }
+  if (!isRecord(data)) {
+    return [];
+  }
+  const maybeUsers = data.users;
+  if (!Array.isArray(maybeUsers)) {
+    return [];
+  }
+  return maybeUsers.filter(isRecord);
 }
 
 function summariseUserLikeRecord(value: unknown): unknown {
@@ -2261,7 +2542,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | undefined {
     return undefined;
   }
   try {
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const base64 = parts[1].replaceAll("-", "+").replaceAll("_", "/");
     const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
     const decoded = Buffer.from(padded, "base64").toString("utf8");
     const parsed = JSON.parse(decoded);
@@ -2278,12 +2559,12 @@ function summarizeTokenPrincipal(
     return { available: false };
   }
   const scopeClaim = claims.scope;
-  const scope =
-    typeof scopeClaim === "string"
-      ? scopeClaim
-      : Array.isArray(scopeClaim)
-        ? scopeClaim.map(String).join(" ")
-        : undefined;
+  let scope: string | undefined;
+  if (typeof scopeClaim === "string") {
+    scope = scopeClaim;
+  } else if (Array.isArray(scopeClaim)) {
+    scope = scopeClaim.map(String).join(" ");
+  }
   return {
     available: true,
     principalId:
@@ -2293,7 +2574,9 @@ function summarizeTokenPrincipal(
     username:
       readStringFromRecord(claims, "email") ??
       readStringFromRecord(claims, "preferred_username") ??
-      readStringFromRecord(claims, "user_name"),
+      readStringFromRecord(claims, "user_name") ??
+      readStringFromRecord(claims, "subname") ??
+      readStringFromRecord(claims, "sub"),
     clientId:
       readStringFromRecord(claims, "client_id") ??
       readStringFromRecord(claims, "azp"),
@@ -2328,17 +2611,21 @@ function resolveTokenPrincipalUsername(
   return (
     readStringFromRecord(claims, "email") ??
     readStringFromRecord(claims, "preferred_username") ??
-    readStringFromRecord(claims, "user_name")
+    readStringFromRecord(claims, "user_name") ??
+    readStringFromRecord(claims, "subname") ??
+    readStringFromRecord(claims, "sub")
   );
 }
 
 function toIsoDateClaim(value: unknown): string | undefined {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string"
-        ? Number.parseInt(value, 10)
-        : Number.NaN;
+  let parsed: number;
+  if (typeof value === "number") {
+    parsed = value;
+  } else if (typeof value === "string") {
+    parsed = Number.parseInt(value, 10);
+  } else {
+    parsed = Number.NaN;
+  }
   if (!Number.isFinite(parsed)) {
     return undefined;
   }
@@ -2389,16 +2676,16 @@ function firstNonEmpty(
   return undefined;
 }
 
-function sanitiseClientCredentialsScope(scopeValue: string): string {
-  const scopes = scopeValue
-    .split(/\s+/)
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .filter((value) => value.toLowerCase() !== "openid");
-  if (scopes.length === 0) {
-    return "profile roles";
+function dedupeNonEmptyStrings(...values: Array<string | undefined>): string[] {
+  const result: string[] = [];
+  for (const value of values) {
+    const normalized = value?.trim();
+    if (!normalized || result.includes(normalized)) {
+      continue;
+    }
+    result.push(normalized);
   }
-  return [...new Set(scopes)].join(" ");
+  return result;
 }
 
 function withBearerPrefix(token: string): string {
@@ -2413,11 +2700,62 @@ function stripBearerPrefix(token: string): string {
     .trim();
 }
 
+function isPlaywrightArtifactIoError(error: unknown): boolean {
+  let message: string;
+  if (error instanceof Error) {
+    message = error.message;
+  } else if (typeof error === "string") {
+    message = error;
+  } else {
+    message = "";
+  }
+  if (!message.toLowerCase().includes("enoent")) {
+    return false;
+  }
+  return (
+    message.includes(".playwright-artifacts") ||
+    message.includes(".network") ||
+    message.includes("pwnetcopy")
+  );
+}
+
+function isTruthyEnvValue(
+  value: string | undefined,
+  defaultValue = false,
+): boolean {
+  if (!value) {
+    return defaultValue;
+  }
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "yes" ||
+    normalized === "on"
+  );
+}
+
+async function parseResponseBody(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return undefined;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 function toError(error: unknown, fallbackMessage: string): Error {
   if (error instanceof Error) {
     return error;
   }
-  return new Error(error ? String(error) : fallbackMessage);
+  return new Error(
+    typeof error === "string" || typeof error === "number"
+      ? String(error)
+      : fallbackMessage,
+  );
 }
 
 function sleep(ms: number): Promise<void> {

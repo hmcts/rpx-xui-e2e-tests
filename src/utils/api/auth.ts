@@ -1,7 +1,6 @@
 import { promises as fs } from "node:fs";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
-import * as lockfile from "../ui/lockfile.js";
 
 import {
   IdamUtils,
@@ -11,6 +10,8 @@ import {
 import { request } from "@playwright/test";
 
 import { config } from "../ui/apiTestConfig";
+import * as lockfile from "../ui/lockfile.js";
+
 import { AuthenticationError, ConfigurationError } from "./errors";
 type UsersConfig = (typeof config.users)[keyof typeof config.users];
 export type ApiUserRole = keyof UsersConfig;
@@ -22,7 +23,22 @@ const storageRoot = path.resolve(process.cwd(), ".sessions");
 // Note: storagePromises Map removed - replaced with filesystem-based locking
 // for proper cross-worker coordination (same approach as E2E sessionCapture.ts)
 
-const logger = createLogger({ serviceName: "node-api-auth", format: "pretty" });
+const resolveApiLogLevel = (): string => {
+  const configured = process.env.API_LOG_LEVEL ?? process.env.LOG_LEVEL;
+  if (configured?.trim()) {
+    return configured.trim().toLowerCase();
+  }
+  if (process.env.PLAYWRIGHT_DEBUG_API === "1") {
+    return "info";
+  }
+  return "fatal";
+};
+
+const logger = createLogger({
+  serviceName: "node-api-auth",
+  format: "pretty",
+  level: resolveApiLogLevel(),
+});
 type LoggerInstance = ReturnType<typeof createLogger>;
 
 function formatUnknownError(error: unknown): string {
@@ -128,7 +144,9 @@ async function ensureStorageStateWith(
     }
 
     // State missing, stale, or corrupted - create new one
-    if (!state) {
+    if (state) {
+      logger.info("Storage state stale, refreshing", { role, cacheKey });
+    } else {
       logger.info("Storage state missing or corrupted, creating new one", {
         role,
         cacheKey,
@@ -138,8 +156,6 @@ async function ensureStorageStateWith(
       } catch {
         // ignore unlink errors
       }
-    } else {
-      logger.info("Storage state stale, refreshing", { role, cacheKey });
     }
 
     return await deps.createStorageState(role);
@@ -207,7 +223,6 @@ async function createStorageStateWith(
   if (!tokenLoginSucceeded) {
     await loginViaForm(credentials, storagePath, role);
   }
-
   return storagePath;
 }
 
@@ -393,10 +408,16 @@ function getCredentials(role: ApiUserRole): {
     );
   }
 
-  return {
-    username: userConfig.e,
-    password: userConfig.sec,
-  };
+  const username = userConfig.e;
+  const password = userConfig.sec;
+  if (!username || !password) {
+    throw new ConfigurationError(
+      `Incomplete credentials for role "${role}" in environment "${config.testEnv}" - missing username or password`,
+      `users.${config.testEnv}.${role}`,
+      { role, testEnv: config.testEnv },
+    );
+  }
+  return { username, password };
 }
 
 function extractCsrf(html: string): string | undefined {

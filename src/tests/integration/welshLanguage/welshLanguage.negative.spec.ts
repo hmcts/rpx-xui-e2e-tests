@@ -1,7 +1,9 @@
-import { welshTranslationsSmall } from "../mocks/welshLanguage";
+import type { Cookie } from "playwright-core";
+
 import { expect, test } from "../../../fixtures/ui";
 import { ensureSessionCookies } from "../../../utils/ui/sessionCapture";
-let sessionCookies: any[] = [];
+import { welshTranslationsSmall } from "../mocks/welshLanguage";
+let sessionCookies: Cookie[] = [];
 
 test.describe("Verify users can switch the language", () => {
   test.beforeEach(async ({ page }) => {

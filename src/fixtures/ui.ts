@@ -1,17 +1,19 @@
+import { createLogger } from "@hmcts/playwright-common";
 import {
   test as baseTest,
   type Request,
   type Response,
   type TestInfo,
 } from "@playwright/test";
-import { createLogger } from "@hmcts/playwright-common";
 import getPort from "get-port";
+
 import {
   PageFixtures,
   pageFixtures,
 } from "../page-objects/pages/page.fixtures.js";
-import { UtilsFixtures, utilsFixtures } from "../utils/ui/utils.fixtures.js";
+import { runRegisteredDynamicSolicitorCleanups } from "../tests/e2e/_helpers/dynamicSolicitorSession";
 import { getSetupMarker } from "../utils/ui/sessionCapture";
+import { UtilsFixtures, utilsFixtures } from "../utils/ui/utils.fixtures.js";
 
 const logger = createLogger({
   serviceName: "test-framework",
@@ -1105,140 +1107,177 @@ async function attachFailureDiagnosis(
   });
 }
 
+async function attachFallbackFailureScreenshot(
+  page: {
+    isClosed: () => boolean;
+    screenshot: (options?: object) => Promise<Buffer>;
+  },
+  testInfo: TestInfo,
+): Promise<void> {
+  if (page.isClosed()) {
+    return;
+  }
+
+  try {
+    const screenshot = await page.screenshot({
+      fullPage: true,
+      animations: "disabled",
+    });
+    await testInfo.attach("Failure screenshot (fallback)", {
+      body: screenshot,
+      contentType: "image/png",
+    });
+  } catch (error) {
+    logger.warn("Failed to capture fallback screenshot", {
+      error: error instanceof Error ? error.message : String(error),
+      testTitle: testInfo.title,
+    });
+  }
+}
+
 // Gather all fixture types into a common type
 export type CustomFixtures = PageFixtures & UtilsFixtures;
 
 // Extend 'test' object using custom fixtures with enhanced failure diagnosis
-export const test = baseTest.extend<CustomFixtures, { lighthousePort: number }>(
-  {
-    ...pageFixtures,
-    ...utilsFixtures,
+export const test = baseTest.extend<
+  CustomFixtures & { _dynamicUserPostTestCleanup: void },
+  { lighthousePort: number }
+>({
+  ...pageFixtures,
+  ...utilsFixtures,
 
-    page: async ({ page }, use, testInfo) => {
-      const apiErrors: ApiError[] = [];
-      const failedRequests: FailedRequest[] = [];
-      const slowCalls: Array<{
-        url: string;
-        duration: number;
-        method: string;
-      }> = [];
-      const networkTimeoutRef = { value: false };
-      const liveTimerEnabled = isLiveTestTimerEnabled();
-      const liveTimerIntervalMs = getLiveTestTimerIntervalMs();
-      const testStartEpochMs = Date.now();
-      let mainFrameNavigationCount = 0;
-      let totalRequestsObserved = 0;
-      let backendRequestsObserved = 0;
-      let lastMainFrameUrl = sanitizeUrl(page.url() || "about:blank");
-      let liveTimerHandle: NodeJS.Timeout | undefined;
-      const maxTracked = 500;
-      const slowThreshold = getApiSlowThresholdMs();
-
-      if (liveTimerEnabled) {
-        logger.info("Test timer started", {
-          title: testInfo.title,
-          project: testInfo.project.name,
-          worker: process.env.TEST_WORKER_INDEX ?? "unknown",
-          intervalMs: liveTimerIntervalMs,
-        });
-        liveTimerHandle = setInterval(() => {
-          const elapsedMs = Date.now() - testStartEpochMs;
-          logger.info("Test in progress", {
-            title: testInfo.title,
-            elapsedMs,
-            elapsed: formatElapsed(elapsedMs),
-            worker: process.env.TEST_WORKER_INDEX ?? "unknown",
-            setupMarker: getSetupMarker(page),
-            lastUrl: lastMainFrameUrl,
-          });
-        }, liveTimerIntervalMs);
-        liveTimerHandle.unref?.();
-      }
-
-      page.on("framenavigated", (frame) => {
-        if (frame !== page.mainFrame()) {
-          return;
-        }
-        mainFrameNavigationCount += 1;
-        lastMainFrameUrl = sanitizeUrl(frame.url() || lastMainFrameUrl);
-      });
-      page.on("request", (request) => {
-        totalRequestsObserved += 1;
-        if (isBackendApi(request.url())) {
-          backendRequestsObserved += 1;
-        }
-      });
-
-      // Set up monitoring handlers
-      page.on("response", createResponseHandler(apiErrors, maxTracked));
-      page.on(
-        "requestfinished",
-        createRequestFinishedHandler(slowCalls, slowThreshold, maxTracked),
-      );
-      page.on(
-        "requestfailed",
-        createRequestFailedHandler(
-          failedRequests,
-          maxTracked,
-          networkTimeoutRef,
-        ),
-      );
-
+  _dynamicUserPostTestCleanup: [
+    async ({}, use, testInfo) => {
       try {
-        await use(page);
+        await use();
       } finally {
-        if (liveTimerHandle) {
-          clearInterval(liveTimerHandle);
-        }
+        await runRegisteredDynamicSolicitorCleanups(testInfo);
       }
+    },
+    { auto: true },
+  ],
 
-      // On test failure, classify the root cause and attach diagnosis
-      if (testInfo.status === "failed" || testInfo.status === "timedOut") {
-        const errorContext = collectErrorContext(testInfo);
-        await attachFailureDiagnosis({
-          testInfo,
-          testStatus: testInfo.status,
-          error: errorContext.diagnosticText,
-          primaryError: errorContext.primaryMessage,
-          actionableError: errorContext.actionableLine,
-          setupMarker: getSetupMarker(page),
-          apiErrors,
-          failedRequests,
-          slowCalls,
-          networkTimeout: networkTimeoutRef.value,
-          slowThreshold,
-          executionSignals: {
-            lastMainFrameUrl,
-            mainFrameNavigationCount,
-            totalRequestsObserved,
-            backendRequestsObserved,
-          },
-        });
-      }
+  page: async ({ page }, use, testInfo) => {
+    const apiErrors: ApiError[] = [];
+    const failedRequests: FailedRequest[] = [];
+    const slowCalls: Array<{
+      url: string;
+      duration: number;
+      method: string;
+    }> = [];
+    const networkTimeoutRef = { value: false };
+    const liveTimerEnabled = isLiveTestTimerEnabled();
+    const liveTimerIntervalMs = getLiveTestTimerIntervalMs();
+    const testStartEpochMs = Date.now();
+    let mainFrameNavigationCount = 0;
+    let totalRequestsObserved = 0;
+    let backendRequestsObserved = 0;
+    let lastMainFrameUrl = sanitizeUrl(page.url() || "about:blank");
+    let liveTimerHandle: NodeJS.Timeout | undefined;
+    const maxTracked = 500;
+    const slowThreshold = getApiSlowThresholdMs();
 
-      if (liveTimerEnabled) {
+    if (liveTimerEnabled) {
+      logger.info("Test timer started", {
+        title: testInfo.title,
+        project: testInfo.project.name,
+        worker: process.env.TEST_WORKER_INDEX ?? "unknown",
+        intervalMs: liveTimerIntervalMs,
+      });
+      liveTimerHandle = setInterval(() => {
         const elapsedMs = Date.now() - testStartEpochMs;
-        logger.info("Test timer finished", {
+        logger.info("Test in progress", {
           title: testInfo.title,
-          status: testInfo.status,
           elapsedMs,
           elapsed: formatElapsed(elapsedMs),
           worker: process.env.TEST_WORKER_INDEX ?? "unknown",
+          setupMarker: getSetupMarker(page),
+          lastUrl: lastMainFrameUrl,
         });
-      }
-    },
+      }, liveTimerIntervalMs);
+      liveTimerHandle.unref?.();
+    }
 
-    // Worker scoped fixtures need to be defined separately
-    lighthousePort: [
-      async ({ browserName }, use) => {
-        const port = await getPort();
-        logger.info("Allocated lighthouse port", { browserName, port });
-        await use(port);
-      },
-      { scope: "worker" },
-    ],
+    page.on("framenavigated", (frame) => {
+      if (frame !== page.mainFrame()) {
+        return;
+      }
+      mainFrameNavigationCount += 1;
+      lastMainFrameUrl = sanitizeUrl(frame.url() || lastMainFrameUrl);
+    });
+    page.on("request", (request) => {
+      totalRequestsObserved += 1;
+      if (isBackendApi(request.url())) {
+        backendRequestsObserved += 1;
+      }
+    });
+
+    // Set up monitoring handlers
+    page.on("response", createResponseHandler(apiErrors, maxTracked));
+    page.on(
+      "requestfinished",
+      createRequestFinishedHandler(slowCalls, slowThreshold, maxTracked),
+    );
+    page.on(
+      "requestfailed",
+      createRequestFailedHandler(failedRequests, maxTracked, networkTimeoutRef),
+    );
+
+    try {
+      await use(page);
+    } finally {
+      if (liveTimerHandle) {
+        clearInterval(liveTimerHandle);
+      }
+    }
+
+    // On test failure, classify the root cause and attach diagnosis
+    if (testInfo.status === "failed" || testInfo.status === "timedOut") {
+      await attachFallbackFailureScreenshot(page, testInfo);
+      const errorContext = collectErrorContext(testInfo);
+      await attachFailureDiagnosis({
+        testInfo,
+        testStatus: testInfo.status,
+        error: errorContext.diagnosticText,
+        primaryError: errorContext.primaryMessage,
+        actionableError: errorContext.actionableLine,
+        setupMarker: getSetupMarker(page),
+        apiErrors,
+        failedRequests,
+        slowCalls,
+        networkTimeout: networkTimeoutRef.value,
+        slowThreshold,
+        executionSignals: {
+          lastMainFrameUrl,
+          mainFrameNavigationCount,
+          totalRequestsObserved,
+          backendRequestsObserved,
+        },
+      });
+    }
+
+    if (liveTimerEnabled) {
+      const elapsedMs = Date.now() - testStartEpochMs;
+      logger.info("Test timer finished", {
+        title: testInfo.title,
+        status: testInfo.status,
+        elapsedMs,
+        elapsed: formatElapsed(elapsedMs),
+        worker: process.env.TEST_WORKER_INDEX ?? "unknown",
+      });
+    }
   },
-);
+
+  // Worker scoped fixtures need to be defined separately
+  lighthousePort: [
+    async ({ browserName }, use) => {
+      const port = await getPort();
+      logger.info("Allocated lighthouse port", { browserName, port });
+      await use(port);
+    },
+    { scope: "worker" },
+  ],
+});
 
 // If you were extending assertions, you would also import the "expect" property from this file
 export const expect = test.expect;

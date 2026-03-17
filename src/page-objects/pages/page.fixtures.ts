@@ -5,15 +5,19 @@ import {
   IdamPage,
   type ApiLogEntry,
 } from "@hmcts/playwright-common";
+import { Page } from "@playwright/test";
+
 import { CaseDetailsPage } from "./exui/caseDetails.po";
 import { CaseListPage } from "./exui/caseList.po";
-import { CreateCasePage } from "./exui/createCase.po";
-import { Page } from "@playwright/test";
-import { TaskListPage } from "./exui/taskList.po";
 import { CaseSearchPage } from "./exui/caseSearch.po";
-import { SearchCasePage } from "./exui/searchCase.po";
-import { GlobalSearchPage } from "./exui/globalSearch.po";
+import { CreateCasePage } from "./exui/createCase.po";
 import { FindCasePage } from "./exui/findCase.po";
+import { GlobalSearchPage } from "./exui/globalSearch.po";
+import { HearingViewEditSummaryPage } from "./exui/hearingViewEditSummary.po";
+import { HearingViewSummaryPage } from "./exui/hearingViewSummary.po";
+import { HearingsTabPage } from "./exui/hearingsTab.po";
+import { SearchCasePage } from "./exui/searchCase.po";
+import { TaskListPage } from "./exui/taskList.po";
 
 export interface PageFixtures {
   determinePage: Page;
@@ -25,6 +29,9 @@ export interface PageFixtures {
   searchCasePage: SearchCasePage;
   globalSearchPage: GlobalSearchPage;
   findCasePage: FindCasePage;
+  hearingsTabPage: HearingsTabPage;
+  hearingViewEditSummaryPage: HearingViewEditSummaryPage;
+  hearingViewSummaryPage: HearingViewSummaryPage;
   mediaViewerPage: ExuiMediaViewerPage;
   idamPage: IdamPage;
   apiClient: ApiClient;
@@ -68,6 +75,15 @@ export const pageFixtures = {
   },
   findCasePage: async ({ determinePage }, use) => {
     await use(new FindCasePage(determinePage));
+  },
+  hearingsTabPage: async ({ determinePage }, use) => {
+    await use(new HearingsTabPage(determinePage));
+  },
+  hearingViewEditSummaryPage: async ({ determinePage }, use) => {
+    await use(new HearingViewEditSummaryPage(determinePage));
+  },
+  hearingViewSummaryPage: async ({ determinePage }, use) => {
+    await use(new HearingViewSummaryPage(determinePage));
   },
   mediaViewerPage: async ({ determinePage }, use) => {
     await use(new ExuiMediaViewerPage(determinePage));

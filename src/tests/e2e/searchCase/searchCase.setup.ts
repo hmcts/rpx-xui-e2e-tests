@@ -1,7 +1,8 @@
 import { Page } from "@playwright/test";
-import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
-import { ResolveCaseReferenceOptions } from "../../../utils/ui/case-reference.utils";
+
 import { EXUI_TIMEOUTS } from "../../../page-objects/pages/exui/exui-timeouts";
+import { ResolveCaseReferenceOptions } from "../../../utils/ui/case-reference.utils";
+import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
 
 export const PUBLIC_LAW_CASE_REFERENCE_OPTIONS: ResolveCaseReferenceOptions = {
   jurisdictionIds: ["PUBLICLAW"],

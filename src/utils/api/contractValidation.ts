@@ -3,8 +3,8 @@
  * Validates response structures against expected schemas to ensure backward compatibility
  */
 
-import { expect } from "@playwright/test";
 import { createLogger } from "@hmcts/playwright-common";
+import { expect } from "@playwright/test";
 
 const logger = createLogger({
   serviceName: "contract-validation",

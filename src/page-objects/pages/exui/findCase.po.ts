@@ -1,5 +1,7 @@
 import { Locator, Page } from "@playwright/test";
+
 import { Base } from "../../base";
+
 import {
   EXUI_TIMEOUTS,
   CCD_CASE_REFERENCE_LENGTH,
@@ -104,7 +106,9 @@ export class FindCasePage extends Base {
               error instanceof Error ? error.message : JSON.stringify(error),
           },
         );
-        await this.page.waitForTimeout(EXUI_TIMEOUTS.CREATE_CASE_RETRY_BACKOFF);
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, EXUI_TIMEOUTS.CREATE_CASE_RETRY_BACKOFF),
+        );
         await this.page.goto("/cases");
         await this.exuiSpinnerComponent.wait();
       }
@@ -122,25 +126,27 @@ export class FindCasePage extends Base {
       timeout: EXUI_TIMEOUTS.GLOBAL_SEARCH_NAVIGATION,
     });
     await this.exuiSpinnerComponent.wait();
-    await this.page.waitForSelector(
-      [
-        "main h1",
-        ".search-block button[aria-controls]",
-        "#s-jurisdiction",
-        "#wb-jurisdiction",
-        "#cc-jurisdiction",
-        "#s-case-type",
-        "#wb-case-type",
-        "#cc-case-type",
-        '#dynamicFilters [id*="CASE_REFERENCE"]',
-        'input[id*="CASE_REFERENCE"]',
-        '.search-block button[type="submit"]',
-      ].join(", "),
-      {
+    await this.page
+      .locator(
+        [
+          "main h1",
+          ".search-block button[aria-controls]",
+          "#s-jurisdiction",
+          "#wb-jurisdiction",
+          "#cc-jurisdiction",
+          "#s-case-type",
+          "#wb-case-type",
+          "#cc-case-type",
+          '#dynamicFilters [id*="CASE_REFERENCE"]',
+          'input[id*="CASE_REFERENCE"]',
+          '.search-block button[type="submit"]',
+        ].join(", "),
+      )
+      .first()
+      .waitFor({
         state: "visible",
         timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE,
-      },
-    );
+      });
   }
 
   /**
@@ -314,6 +320,7 @@ export class FindCasePage extends Base {
     caseNumberFromUrl: string,
     originalCaseNumber: string,
   ): Promise<void> {
+    const fallbackCaseDetailsPath = `/cases/case-details/${caseNumberFromUrl}`;
     for (
       let attemptIndex = 0;
       attemptIndex < MAX_NAVIGATION_RETRY_ATTEMPTS;
@@ -321,6 +328,22 @@ export class FindCasePage extends Base {
     ) {
       await searchResultCaseLink.scrollIntoViewIfNeeded();
       await searchResultCaseLink.click();
+      await this.exuiSpinnerComponent.wait();
+      if (
+        await this.waitForCaseDetailsUrl(
+          caseNumberFromUrl,
+          EXUI_TIMEOUTS.CASE_DETAILS_NAVIGATION,
+        )
+      ) {
+        return;
+      }
+
+      const href = await searchResultCaseLink.getAttribute("href");
+      const fallbackTarget =
+        href && href.includes("/cases/case-details/")
+          ? href
+          : fallbackCaseDetailsPath;
+      await this.page.goto(fallbackTarget);
       await this.exuiSpinnerComponent.wait();
       if (
         await this.waitForCaseDetailsUrl(

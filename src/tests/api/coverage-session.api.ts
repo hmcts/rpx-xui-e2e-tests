@@ -1,17 +1,18 @@
-import { test, expect } from "@playwright/test";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { promises as fsp } from "node:fs";
+import * as path from "node:path";
+
+import type { IdamPage } from "@hmcts/playwright-common";
+import { test, expect } from "@playwright/test";
+import type { Cookie } from "playwright-core";
 
 import { CookieUtils } from "../../utils/ui/cookie.utils.js";
-import { UserUtils } from "../../utils/ui/user.utils.js";
-import type { IdamPage } from "@hmcts/playwright-common";
 import {
   isSessionFresh,
   loadSessionCookies,
   __test__ as sessionCaptureTest,
 } from "../../utils/ui/sessionCapture.js";
-import type { Cookie } from "playwright-core";
+import { UserUtils } from "../../utils/ui/user.utils.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -268,13 +269,24 @@ test.describe(
       expect(mkdirCalls).toBe(2); // Called once per sessionCaptureWith invocation
 
       let persistCalls = 0;
-      const page = {
-        goto: async () => {},
-        waitForSelector: async (selector: string) => {
+      const makeLocator = (selector: string) => ({
+        first() {
+          return this;
+        },
+        waitFor: async () => {
           if (selector === "exui-header") {
             throw new Error("missing header");
           }
         },
+        fill: async () => {},
+        isVisible: async () => true,
+        click: async () => {},
+        press: async () => {},
+      });
+      const page = {
+        goto: async () => {},
+        url: () => "https://example.test/auth/login",
+        locator: (selector: string) => makeLocator(selector),
       } as any;
       const context = {
         newPage: async () => page,

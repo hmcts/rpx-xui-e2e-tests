@@ -1,11 +1,12 @@
-import { test, expect } from "../../fixtures/api";
 import {
   WA_SAMPLE_ASSIGNED_TASK_ID,
   WA_SAMPLE_TASK_ID,
 } from "../../data/api/testIds";
+import { test, expect } from "../../fixtures/api";
 import {
   expectStatus,
   StatusSets,
+  withRetry,
   withXsrf,
 } from "../../utils/api/apiTestUtils";
 import {
@@ -16,6 +17,7 @@ import {
 const fallbackTaskId = "00000000-0000-0000-0000-000000000000";
 let taskId = fallbackTaskId;
 let taskSource: "dynamic" | "env-assigned" | "env-unassigned" | "none" = "none";
+const WA_CANCEL_REQUEST_TIMEOUT_MS = 60_000;
 
 const cancellationProcessMatrix = [
   {
@@ -66,12 +68,17 @@ test.describe("Work allocation cancellation API coverage", () => {
     const endpoint = `workallocation/task/${taskId}/cancel`;
     const startLogIndex = apiLogs.length;
 
-    const response = await withXsrf("solicitor", (headers) =>
-      apiClient.post(endpoint, {
-        data: { hasNoAssigneeOnComplete: false },
-        headers,
-        throwOnError: false,
-      }),
+    const response = await withRetry(
+      () =>
+        withXsrf("solicitor", (headers) =>
+          apiClient.post(endpoint, {
+            data: { hasNoAssigneeOnComplete: false },
+            headers,
+            throwOnError: false,
+            timeoutMs: WA_CANCEL_REQUEST_TIMEOUT_MS,
+          }),
+        ),
+      { retries: 2, retryStatuses: [500, 502, 503, 504] },
     );
 
     expectStatus(response.status, StatusSets.actionWithConflicts);
@@ -144,12 +151,17 @@ test.describe("Work allocation cancellation API coverage", () => {
       const endpoint = `workallocation/task/${taskId}/cancel?cancellation_process=${processCase.value}`;
       const startLogIndex = apiLogs.length;
 
-      const response = await withXsrf("solicitor", (headers) =>
-        apiClient.post(endpoint, {
-          data: { hasNoAssigneeOnComplete: false },
-          headers,
-          throwOnError: false,
-        }),
+      const response = await withRetry(
+        () =>
+          withXsrf("solicitor", (headers) =>
+            apiClient.post(endpoint, {
+              data: { hasNoAssigneeOnComplete: false },
+              headers,
+              throwOnError: false,
+              timeoutMs: WA_CANCEL_REQUEST_TIMEOUT_MS,
+            }),
+          ),
+        { retries: 2, retryStatuses: [500, 502, 503, 504] },
       );
 
       expectStatus(response.status, StatusSets.actionWithConflicts);

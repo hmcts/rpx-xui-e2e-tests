@@ -1,13 +1,15 @@
-import * as dotenv from "dotenv";
-import { fileURLToPath } from "url";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import * as dotenv from "dotenv";
+
 import { UserUtils } from "./user.utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const sessionPath = path.resolve(__dirname, "../../.sessions/");
 
 // This needs to be placed somewhere before attempting to access any environment variables
-dotenv.config();
+dotenv.config({ quiet: true });
 
 // This should be removed when we move to API based user creation
 const userUtils = new UserUtils();

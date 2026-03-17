@@ -41,7 +41,7 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
   test("Verify My tasks actions appear as expected", async ({
     taskListPage,
     tableUtils,
-  }, testInfo) => {
+  }) => {
     await test.step("Navigate to the task list page", async () => {
       await expect(taskListPage.taskListTable).toBeVisible();
       try {
@@ -49,12 +49,12 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
           timeoutMs: 60_000,
         });
       } catch (error) {
+        // eslint-disable-next-line playwright/no-conditional-in-test -- error classification in catch block; re-throws hard failures, skips transient ones
         if (isHardFailure(error)) {
           throw error;
         }
-        testInfo.skip(
-          true,
-          `Skipping my tasks action assertions: no manageable tasks in this environment (${asMessage(error)}).`,
+        throw new Error(
+          `My tasks action assertions failed: no manageable tasks available in this environment (${asMessage(error)}).`,
         );
       }
     });
@@ -80,7 +80,7 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
   test("Verify Available tasks actions appear as expected", async ({
     taskListPage,
     tableUtils,
-  }, testInfo) => {
+  }) => {
     await test.step("Navigate to the task list page", async () => {
       await taskListPage.selectWorkMenuItem("Available tasks");
       await expect(taskListPage.taskListTable).toBeVisible();
@@ -89,12 +89,12 @@ test.describe("Verify the my tasks page tabs appear as expected", () => {
           timeoutMs: 60_000,
         });
       } catch (error) {
+        // eslint-disable-next-line playwright/no-conditional-in-test -- error classification in catch block; re-throws hard failures, skips transient ones
         if (isHardFailure(error)) {
           throw error;
         }
-        testInfo.skip(
-          true,
-          `Skipping available tasks action assertions: no manageable tasks in this environment (${asMessage(error)}).`,
+        throw new Error(
+          `Available tasks action assertions failed: no manageable tasks available in this environment (${asMessage(error)}).`,
         );
       }
     });

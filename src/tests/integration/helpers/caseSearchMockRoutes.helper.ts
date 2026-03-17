@@ -1,8 +1,10 @@
 import { expect } from "@playwright/test";
 import type { Page, Route } from "@playwright/test";
+
 import type { CaseListPage } from "../../../page-objects/pages/exui/caseList.po";
 import type { GlobalSearchPage } from "../../../page-objects/pages/exui/globalSearch.po";
 import type { SearchCasePage } from "../../../page-objects/pages/exui/searchCase.po";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
 
 /**
  * Configuration for setting up Find Case mock routes.
@@ -396,12 +398,24 @@ export async function submitGlobalSearchFromMenu(
   globalSearchPage: GlobalSearchPage,
   page: Page,
 ): Promise<void> {
-  await caseListPage.navigateTo();
-  await globalSearchPage.searchLinkOnMenuBar.click();
-  await page.waitForURL(/\/search/);
-  await globalSearchPage.caseIdTextBox.waitFor({ state: "visible" });
-  await globalSearchPage.caseIdTextBox.fill(caseReference);
-  await globalSearchPage.servicesOption.selectOption("PUBLICLAW");
-  await globalSearchPage.searchButton.click();
-  await globalSearchPage.exuiSpinnerComponent.wait();
+  await retryOnTransientFailure(
+    async () => {
+      await caseListPage.navigateTo();
+      await globalSearchPage.searchLinkOnMenuBar.click();
+      await page.waitForURL(/\/search/);
+      await globalSearchPage.caseIdTextBox.waitFor({ state: "visible" });
+      await globalSearchPage.caseIdTextBox.fill(caseReference);
+      await globalSearchPage.servicesOption.selectOption("PUBLICLAW");
+      await globalSearchPage.searchButton.click();
+      await globalSearchPage.exuiSpinnerComponent.wait();
+    },
+    {
+      maxAttempts: 2,
+      onRetry: async () => {
+        await page
+          .reload({ waitUntil: "domcontentloaded" })
+          .catch(() => undefined);
+      },
+    },
+  );
 }

@@ -1,13 +1,13 @@
 import { faker } from "@faker-js/faker";
+
 import { expect, test } from "../../../fixtures/ui";
-import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
 import {
   caseBannerMatches,
   getTodayFormats,
   matchesToday,
 } from "../../../utils/ui/index";
+import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
 import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
-import { provisionDynamicSolicitorForAlias } from "../_helpers/dynamicSolicitorSession";
 let caseNumber: string;
 const updatedFirstName = faker.person.firstName();
 const updatedLastName = faker.person.lastName();
@@ -36,30 +36,14 @@ function isDependencyEnvironmentFailure(error: unknown): boolean {
 }
 
 test.describe("Verify creating and updating a case works as expected", () => {
-  test.describe.configure({ timeout: 300_000 });
-  let dynamicHandle:
-    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
-    | undefined;
+  test.describe.configure({ timeout: 240_000 });
 
   test.beforeEach(
-    async (
-      { page, createCasePage, caseDetailsPage, professionalUserUtils },
-      testInfo,
-    ) => {
-      dynamicHandle = await provisionDynamicSolicitorForAlias({
-        alias: "SOLICITOR",
-        professionalUserUtils,
-        roleContext: {
-          jurisdiction: "divorce",
-          testType: "case-create",
-        },
-        testInfo,
-      });
-
+    async ({ page, createCasePage, caseDetailsPage }) => {
       try {
         await retryOnTransientFailure(
           async () => {
-            await ensureAuthenticatedPage(page, "SOLICITOR", {
+            await ensureAuthenticatedPage(page, "PROD_LIKE", {
               waitForSelector: "exui-header",
               timeoutMs: 30_000,
             });
@@ -72,7 +56,6 @@ test.describe("Verify creating and updating a case works as expected", () => {
                 createCaseMaxAttempts: UPDATE_CASE_SETUP_CREATE_MAX_ATTEMPTS,
               },
             );
-            // Always collect case number from URL for consistency
             caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
           },
           {
@@ -87,27 +70,20 @@ test.describe("Verify creating and updating a case works as expected", () => {
         );
       } catch (error) {
         if (isDependencyEnvironmentFailure(error)) {
-          testInfo.skip(
-            true,
-            `Skipping update-case test due to dependency environment instability: ${asMessage(error)}`,
+          throw new Error(
+            `Update-case setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-          return;
         }
         throw error;
       }
     },
   );
 
-  test.afterEach(async () => {
-    await dynamicHandle?.cleanup();
-    dynamicHandle = undefined;
-  });
-
   test("Create, update and verify case history", async ({
     page,
     createCasePage,
     caseDetailsPage,
-  }, testInfo) => {
+  }) => {
     let caseDetailsUrl = "";
 
     await test.step("Start Update Case event", async () => {
@@ -128,13 +104,29 @@ test.describe("Verify creating and updating a case works as expected", () => {
             });
             await createCasePage.person2FirstNameInput.fill(updatedFirstName);
             await createCasePage.person2LastNameInput.fill(updatedLastName);
-            await createCasePage.clickSubmitAndWait(
-              "after updating case fields",
-              {
-                timeoutMs: 60_000,
-                maxAutoAdvanceAttempts: 3,
-              },
-            );
+            await createCasePage.ensureDoYouAgreeAnswered("Yes");
+            try {
+              await createCasePage.clickSubmitAndWait(
+                "after updating case fields",
+                {
+                  timeoutMs: 60_000,
+                  maxAutoAdvanceAttempts: 3,
+                },
+              );
+            } catch (submitError) {
+              const submitMessage = asMessage(submitError);
+              if (!/Do you agree\?\s*is required/i.test(submitMessage)) {
+                throw submitError;
+              }
+              await createCasePage.ensureDoYouAgreeAnswered("Yes");
+              await createCasePage.clickSubmitAndWait(
+                "after updating case fields (retry with agreement)",
+                {
+                  timeoutMs: 60_000,
+                  maxAutoAdvanceAttempts: 3,
+                },
+              );
+            }
           },
           {
             maxAttempts: 2,
@@ -157,11 +149,9 @@ test.describe("Verify creating and updating a case works as expected", () => {
         );
       } catch (error) {
         if (isDependencyEnvironmentFailure(error)) {
-          testInfo.skip(
-            true,
-            `Skipping update-case assertions due to dependency environment instability: ${asMessage(error)}`,
+          throw new Error(
+            `Update-case assertions failed due to dependency environment instability: ${asMessage(error)}`,
           );
-          return;
         }
         throw error;
       }

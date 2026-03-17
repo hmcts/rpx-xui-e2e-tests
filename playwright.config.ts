@@ -1,6 +1,7 @@
+import { execSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { cpus, homedir } from "node:os";
+import { cpus, homedir, totalmem } from "node:os";
 import path from "node:path";
 
 import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
@@ -20,7 +21,10 @@ export type EnvMap = Record<string, string | undefined>;
 
 loadEnv({
   path: path.resolve(process.cwd(), ".env"),
-  override: !process.env.CI,
+  quiet: true,
+  // Preserve explicitly exported shell variables for local/debug runs.
+  // .env should provide defaults only.
+  override: false,
 });
 
 const require = createRequire(import.meta.url);
@@ -30,16 +34,18 @@ const { version: appVersion } = require("./package.json") as {
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
+const isCiExecution = (env: EnvMap = process.env): boolean =>
+  Boolean(env.CI || env.JENKINS_URL || env.BUILD_ID || env.GITHUB_ACTIONS);
 
 const resolveDefaultReporterNames = (env: EnvMap) => {
-  const override = env.PLAYWRIGHT_DEFAULT_REPORTER;
-  if (override?.trim()) {
-    return override
-      .split(",")
-      .map((name) => name.trim())
-      .filter(Boolean);
-  }
-  return [env.CI ? "dot" : "list"];
+  const configured = env.PLAYWRIGHT_DEFAULT_REPORTER?.trim();
+  const primaryReporter =
+    configured && ["dot", "list", "line"].includes(configured)
+      ? configured
+      : isCiExecution(env)
+        ? "dot"
+        : "list";
+  return [primaryReporter, "odhin"];
 };
 
 const safeBoolean = (value: string | undefined, defaultValue: boolean) => {
@@ -59,16 +65,44 @@ const parsePositiveInt = (value: string | undefined): number | undefined => {
   return parsed;
 };
 
+const resolveCpuCores = (env: EnvMap = process.env): number => {
+  const configured =
+    parsePositiveInt(env.PLAYWRIGHT_CPU_CORES) ??
+    (isCiExecution(env)
+      ? parsePositiveInt(env.PLAYWRIGHT_CI_CPU_CORES)
+      : undefined);
+  if (configured) return configured;
+  return cpus()?.length ?? 1;
+};
+
+const resolveMemoryGiB = (env: EnvMap = process.env): number => {
+  const configuredMb =
+    parsePositiveInt(env.PLAYWRIGHT_MEMORY_MB) ??
+    (isCiExecution(env)
+      ? parsePositiveInt(env.PLAYWRIGHT_CI_MEMORY_MB)
+      : undefined);
+  if (configuredMb) return Math.max(1, Math.floor(configuredMb / 1024));
+  return Math.max(1, Math.floor(totalmem() / 1024 ** 3));
+};
+
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInt(env.PLAYWRIGHT_WORKERS);
   if (configured) {
     return configured;
   }
-  const logical = cpus()?.length ?? 1;
-  if (env.CI) return 1;
-  if (logical <= 2) return 1;
-  const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(8, Math.max(2, approxPhysical));
+  const cpuCores = resolveCpuCores(env);
+  const memoryGiB = resolveMemoryGiB(env);
+  if (cpuCores <= 2 || memoryGiB <= 2) return 1;
+
+  if (isCiExecution(env)) {
+    const cpuBudget = Math.max(2, cpuCores);
+    const memoryBudget = Math.max(1, Math.floor(memoryGiB / 1.5));
+    return Math.max(1, Math.min(12, cpuBudget, memoryBudget));
+  }
+
+  const cpuBudget = Math.max(1, Math.floor(cpuCores * 0.75));
+  const memoryBudget = Math.max(1, Math.floor(memoryGiB / 2));
+  return Math.max(1, Math.min(10, cpuBudget, memoryBudget));
 };
 
 const resolveUiWorkerCount = (
@@ -88,7 +122,7 @@ const resolveApiWorkerCount = (
     parsePositiveInt(env.PLAYWRIGHT_API_WORKERS);
   if (configured) return configured;
   // Keep API fan-out conservative in CI to reduce transient auth/rate-limit failures.
-  return env.CI
+  return isCiExecution(env)
     ? Math.max(1, Math.min(4, fallback))
     : Math.max(1, Math.min(6, fallback));
 };
@@ -96,15 +130,103 @@ const resolveApiWorkerCount = (
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
   env.PLAYWRIGHT_REPORT_FOLDER ??
   env.PW_ODHIN_OUTPUT ??
-  "test-results/odhin-report";
+  "functional-output/tests/playwright-e2e/odhin-report";
+
+const resolveOdhinIndexFilename = (env: EnvMap = process.env): string => {
+  const configured =
+    env.PLAYWRIGHT_REPORT_INDEX_FILENAME?.trim() ?? env.PW_ODHIN_INDEX?.trim();
+  if (configured) {
+    return configured;
+  }
+  const outputFolder = resolveOdhinOutputFolder(env).toLowerCase();
+  if (
+    outputFolder.includes("playwright-api") ||
+    outputFolder.includes("api_functional")
+  ) {
+    return "xui-playwright-api.html";
+  }
+  if (outputFolder.includes("playwright-integration")) {
+    return "xui-playwright-integration.html";
+  }
+  return "xui-playwright-e2e.html";
+};
+
+const resolveBranchName = (env: EnvMap = process.env): string => {
+  const envBranch =
+    env.PLAYWRIGHT_REPORT_BRANCH ??
+    env.GIT_BRANCH ??
+    env.BRANCH_NAME ??
+    env.GITHUB_REF_NAME ??
+    env.GITHUB_HEAD_REF ??
+    env.BUILD_SOURCEBRANCHNAME;
+  if (envBranch?.trim()) {
+    return envBranch.replace(/^refs\/heads\//, "").trim();
+  }
+  try {
+    const gitBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .trim()
+      .replace(/^refs\/heads\//, "");
+    if (gitBranch && gitBranch !== "HEAD") {
+      return gitBranch;
+    }
+  } catch {
+    // Fall back to local label when branch cannot be resolved.
+  }
+  return "local";
+};
 
 const resolveOdhinProject = (env: EnvMap = process.env) =>
-  env.PLAYWRIGHT_REPORT_PROJECT ?? env.PW_ODHIN_PROJECT ?? "rpx-xui-e2e-tests";
+  env.PLAYWRIGHT_REPORT_PROJECT ?? env.PW_ODHIN_PROJECT ?? "RPX XUI Webapp";
 
 const resolveOdhinRelease = (env: EnvMap = process.env) =>
   env.PLAYWRIGHT_REPORT_RELEASE ??
   env.PW_ODHIN_RELEASE ??
-  `${appVersion} | branch=${env.GIT_BRANCH ?? "local"}`;
+  `${appVersion} | branch=${resolveBranchName(env)}`;
+
+const resolveEnvironmentFromUrl = (baseUrl: string): string => {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "local";
+    }
+    if (hostname.includes(".aat.")) {
+      return "aat";
+    }
+    if (hostname.includes(".ithc.")) {
+      return "ithc";
+    }
+    if (hostname.includes(".demo.")) {
+      return "demo";
+    }
+    if (hostname.includes(".perftest.")) {
+      return "perftest";
+    }
+    return hostname;
+  } catch {
+    return "unknown";
+  }
+};
+
+const resolveOdhinTestEnvironment = (
+  env: EnvMap = process.env,
+  workerCount = resolveWorkerCount(env),
+): string => {
+  if (env.PW_ODHIN_ENV?.trim()) {
+    return env.PW_ODHIN_ENV;
+  }
+  const targetEnv =
+    env.TEST_TYPE ??
+    resolveEnvironmentFromUrl(
+      env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
+    );
+  const runContext = isCiExecution(env) ? "ci" : "local-run";
+  const cpuCores = resolveCpuCores(env);
+  const totalRamGiB = resolveMemoryGiB(env);
+  return `${targetEnv} | ${runContext} | workers=${workerCount} | agent_cpu_cores=${cpuCores} | agent_ram_gib=${totalRamGiB}`;
+};
 
 const resolveOdhinTestOutput = (
   env: EnvMap = process.env,
@@ -123,6 +245,35 @@ const resolveOdhinTestOutput = (
     }
   }
   return "only-on-failure";
+};
+
+const resolveOdhinConsoleTestOutput = (env: EnvMap = process.env): boolean => {
+  if (env.PW_ODHIN_CONSOLE_TEST_OUTPUT !== undefined) {
+    return safeBoolean(env.PW_ODHIN_CONSOLE_TEST_OUTPUT, true);
+  }
+  // Keep test stdout/stderr out of passed tests across all suites.
+  return false;
+};
+
+const resolveOdhinCaptureStdio = (env: EnvMap = process.env): boolean => {
+  if (env.PW_ODHIN_CAPTURE_STDIO !== undefined) {
+    return safeBoolean(env.PW_ODHIN_CAPTURE_STDIO, false);
+  }
+  // Keep Odhin stdout/stderr quiet by default; opt-in with PW_ODHIN_CAPTURE_STDIO=true.
+  return false;
+};
+
+const resolveUiVideoMode = (
+  env: EnvMap = process.env,
+): "off" | "retain-on-failure" => {
+  const configured = env.PW_UI_VIDEO?.trim().toLowerCase();
+  if (configured === "off") {
+    return "off";
+  }
+  if (configured === "retain-on-failure" || configured === "on-failure") {
+    return "retain-on-failure";
+  }
+  return isCiExecution(env) ? "off" : "retain-on-failure";
 };
 
 const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
@@ -169,14 +320,12 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
       case "odhin":
       case "odhin-reports-playwright":
         reporters.push([
-          "odhin-reports-playwright",
+          "./scripts/reporters/odhin-adaptive.reporter.cjs",
           {
             outputFolder: resolveOdhinOutputFolder(env),
-            indexFilename: env.PW_ODHIN_INDEX ?? "playwright-odhin.html",
-            title: env.PW_ODHIN_TITLE ?? "rpx-xui-e2e Playwright",
-            testEnvironment:
-              env.PW_ODHIN_ENV ??
-              `${env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "local")} | workers=${resolveWorkerCount(env)}`,
+            indexFilename: resolveOdhinIndexFilename(env),
+            title: env.PW_ODHIN_TITLE ?? "RPX XUI Playwright",
+            testEnvironment: resolveOdhinTestEnvironment(env),
             project: resolveOdhinProject(env),
             release: resolveOdhinRelease(env),
             testFolder: env.PW_ODHIN_TEST_FOLDER ?? "src/tests",
@@ -187,12 +336,10 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
               false,
             ),
             consoleError: safeBoolean(env.PW_ODHIN_CONSOLE_ERROR, true),
-            consoleTestOutput: safeBoolean(
-              env.PW_ODHIN_CONSOLE_TEST_OUTPUT,
-              true,
-            ),
+            consoleTestOutput: resolveOdhinConsoleTestOutput(env),
             testOutput: resolveOdhinTestOutput(env),
             apiLogs: env.PW_ODHIN_API_LOGS ?? "summary",
+            captureStdio: resolveOdhinCaptureStdio(env),
           },
         ]);
         break;
@@ -259,6 +406,13 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const uiWorkers = resolveUiWorkerCount(env, workerCount);
   const apiWorkers = resolveApiWorkerCount(env, workerCount);
   const chromiumExecutablePath = resolveChromiumExecutablePath(env);
+  const resolvedUiStorageState = shouldUseUiStorage()
+    ? resolveUiStoragePath()
+    : undefined;
+  const uiStorageState =
+    resolvedUiStorageState && existsSync(resolvedUiStorageState)
+      ? resolvedUiStorageState
+      : undefined;
   return {
     testDir: "./src/tests",
     globalSetup: "./src/global/ui.global.setup.ts",
@@ -276,7 +430,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "ui",
         testMatch: /src\/tests\/(e2e|integration)\/.*\.spec\.ts/,
-        retries: env.CI ? 1 : 0,
+        retries: isCiExecution(env) ? 1 : 0,
         workers: uiWorkers,
         outputDir: "test-results/ui",
         use: {
@@ -286,10 +440,8 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: true,
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
-          storageState: shouldUseUiStorage()
-            ? resolveUiStoragePath()
-            : undefined,
+          video: resolveUiVideoMode(env),
+          storageState: uiStorageState,
           launchOptions: chromiumExecutablePath
             ? {
                 executablePath: chromiumExecutablePath,
@@ -300,7 +452,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "api",
         testMatch: /src\/tests\/api\/.*\.api\.ts/,
-        retries: env.CI ? 1 : 0,
+        retries: isCiExecution(env) ? 1 : 0,
         workers: apiWorkers,
         outputDir: "test-results/api",
         use: {

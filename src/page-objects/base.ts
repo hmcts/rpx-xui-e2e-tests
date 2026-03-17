@@ -5,15 +5,18 @@ import {
   createLogger,
 } from "@hmcts/playwright-common";
 import { Page } from "@playwright/test";
+
 import { ensureAnalyticsAccepted } from "../utils/ui/analytics.utils.js";
 import {
   installUiNetworkTracker,
   type UiIdleOptions,
   waitForUiIdle as waitForUiIdleUtil,
 } from "../utils/ui/ui-idle.utils.js";
+
 import {
   ExuiFooterComponent,
   ExuiHeaderComponent,
+  ExuiBodyComponent,
 } from "./components/index.js";
 
 const logger = createLogger({ serviceName: "api-monitor", format: "pretty" });
@@ -35,6 +38,7 @@ export abstract class Base {
   readonly exuiCaseDetailsComponent = new ExuiCaseDetailsComponent(this.page);
   readonly exuiHeader = new ExuiHeaderComponent(this.page);
   readonly exuiFooter = new ExuiFooterComponent(this.page);
+  readonly exuiBodyComponent = new ExuiBodyComponent(this.page);
   readonly exuiSpinnerComponent = new ExuiSpinnerComponent(this.page);
   private static readonly monitoredPages = new WeakSet<Page>();
   private apiCalls: ApiCall[] = [];

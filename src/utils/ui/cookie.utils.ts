@@ -1,5 +1,7 @@
-import * as fs from "fs";
+import * as fs from "node:fs";
+
 import { Cookie } from "playwright-core";
+
 import { config } from "./config.utils.js";
 
 type FileSystem = Pick<
@@ -29,10 +31,7 @@ export class CookieUtils {
     sessionPath: string,
   ): Promise<void> {
     try {
-      const domain = (config.urls.exuiDefaultUrl as string).replace(
-        "https://",
-        "",
-      );
+      const domain = config.urls.exuiDefaultUrl.replace("https://", "");
       const state = JSON.parse(this.fs.readFileSync(sessionPath, "utf-8"));
       const userId = state.cookies.find(
         (cookie: Cookie) => cookie.name === "__userid__",
@@ -64,10 +63,7 @@ export class CookieUtils {
       if (dir && !this.fs.existsSync(dir)) {
         this.fs.mkdirSync(dir, { recursive: true });
       }
-      const domain = (config.urls.exuiDefaultUrl as string).replace(
-        "https://",
-        "",
-      );
+      const domain = config.urls.exuiDefaultUrl.replace("https://", "");
       const userId = cookies.find((c) => c.name === "__userid__")?.value;
       if (userId) {
         cookies.push({

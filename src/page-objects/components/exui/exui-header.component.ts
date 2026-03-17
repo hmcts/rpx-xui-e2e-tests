@@ -1,5 +1,6 @@
 import { WaitUtils } from "@hmcts/playwright-common";
 import { Page } from "@playwright/test";
+
 import { logger } from "../../../utils/ui/logger.utils";
 
 export class ExuiHeaderComponent {

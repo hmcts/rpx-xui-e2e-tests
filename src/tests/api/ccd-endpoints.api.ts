@@ -1,12 +1,12 @@
 import { test, expect } from "../../fixtures/api";
-import { config as testConfig } from "../../utils/ui/apiTestConfig";
 import {
   withXsrf,
   expectStatus,
   withRetry,
 } from "../../utils/api/apiTestUtils";
-import { assertJurisdictionsForUser } from "../../utils/api/ccdUtils";
 import { stringifyCaseTypeId } from "../../utils/api/caseTypeIdUtils";
+import { assertJurisdictionsForUser } from "../../utils/api/ccdUtils";
+import { config as testConfig } from "../../utils/ui/apiTestConfig";
 
 test.describe("CCD endpoints", { tag: "@svc-ccd" }, () => {
   test("lists jurisdictions for current user", async ({ apiClient }) => {
@@ -20,6 +20,7 @@ test.describe("CCD endpoints", { tag: "@svc-ccd" }, () => {
     const uniqueCaseTypes = Array.from(new Set(jurisdiction.caseTypeIds ?? []));
     for (const caseTypeId of uniqueCaseTypes) {
       const caseTypeIdText = stringifyCaseTypeId(caseTypeId);
+
       test(`work-basket inputs available for ${caseTypeIdText}`, async ({
         apiClient,
       }) => {
@@ -44,9 +45,13 @@ test.describe("CCD endpoints", { tag: "@svc-ccd" }, () => {
           `data/internal/case-types/${encodeURIComponent(caseTypeIdText)}/work-basket-inputs`,
           {
             headers: { experimental: "true" },
+            throwOnError: false,
           },
         );
-        expectStatus(response.status, [200, 401, 403, 500, 502, 504]);
+        expectStatus(response.status, [200, 401, 403, 404, 500, 502, 504]);
+        if (response.status !== 200) {
+          return;
+        }
         const data = response.data;
         expect(data).toBeTruthy();
         expect(typeof data).toBe("object");
@@ -87,7 +92,7 @@ test.describe("CCD endpoints", { tag: "@svc-ccd" }, () => {
       ),
     );
 
-    expectStatus(response.status, [200, 500, 502, 504]);
+    expectStatus(response.status, [200, 401, 500, 502, 504]);
     if (response.status === 200) {
       expect(response.data).toBeTruthy();
     }

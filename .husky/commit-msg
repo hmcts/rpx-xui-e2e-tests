@@ -1,0 +1,30 @@
+#!/bin/sh
+
+commit_msg_file="$1"
+
+if [ -z "$commit_msg_file" ] || [ ! -f "$commit_msg_file" ]; then
+  exit 0
+fi
+
+if [ "${AI_ASSISTED:-0}" != "1" ] && ! grep -qiE "\[Generated with HMCTS AI Assistant|AI-Assisted|AI Assisted|AI_ASSISTED" "$commit_msg_file"; then
+  exit 0
+fi
+
+missing=""
+for key in agent_name version prompt_id reviewer timestamp audit_reference; do
+  if ! grep -qiE "^${key}:" "$commit_msg_file"; then
+    missing="$missing $key"
+  fi
+done
+
+if [ -n "$missing" ]; then
+  echo "AI-assisted commit metadata is incomplete. Missing:$missing"
+  echo "Add commit trailers, for example:"
+  echo "  agent_name: HMCTS-Copilot-Playwright"
+  echo "  version: v1.0"
+  echo "  prompt_id: <id>"
+  echo "  reviewer: <name>"
+  echo "  timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "  audit_reference: HMCTS-AI-2025-04"
+  exit 1
+fi

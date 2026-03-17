@@ -1,23 +1,246 @@
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+import { IdamPage, createLogger } from "@hmcts/playwright-common";
 import {
   chromium,
   type BrowserContext,
   type Locator,
   type Page,
 } from "@playwright/test";
-import * as fs from "node:fs";
-import * as path from "node:path";
-import * as lockfile from "./lockfile.js";
-import { CookieUtils } from "./cookie.utils.js";
-import { UserUtils } from "./user.utils.js";
-import { IdamPage, createLogger } from "@hmcts/playwright-common";
 import { Cookie } from "playwright-core";
-import config from "./config.utils.js";
+
 import { StorageStateCorruptedError, SessionCaptureError } from "../api/errors";
+
+import config from "./config.utils.js";
+import { CookieUtils } from "./cookie.utils.js";
+import * as lockfile from "./lockfile.js";
+import { UserUtils } from "./user.utils.js";
 
 const logger = createLogger({
   serviceName: "session-capture",
   format: "pretty",
 });
+
+const IDAM_USERNAME_SELECTOR =
+  '[data-testid="idam-username-input"], input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]';
+const IDAM_PASSWORD_SELECTOR =
+  'input#password, input[name="password"], input[type="password"]';
+
+function currentPageUrl(page: Page): string {
+  try {
+    return typeof page.url === "function" ? page.url() : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
+const CHROME_ERROR_URL_PREFIX = "chrome-error://chromewebdata/";
+
+function isChromeErrorNavigationFailure(error: unknown, currentUrl: string): boolean {
+  const message = toError(error).message;
+  return (
+    currentUrl.startsWith(CHROME_ERROR_URL_PREFIX) ||
+    message.includes(CHROME_ERROR_URL_PREFIX)
+  );
+}
+
+function isTransientNavigationFailure(error: unknown, currentUrl: string): boolean {
+  const message = toError(error).message;
+  return (
+    isChromeErrorNavigationFailure(error, currentUrl) ||
+    message.includes("ERR_NAME_NOT_RESOLVED") ||
+    message.includes("ERR_INTERNET_DISCONNECTED") ||
+    message.includes("ERR_NETWORK_CHANGED") ||
+    message.includes("ERR_CONNECTION_RESET") ||
+    message.includes("ERR_CONNECTION_CLOSED") ||
+    message.includes("ERR_CONNECTION_TIMED_OUT") ||
+    message.includes("ERR_TIMED_OUT")
+  );
+}
+
+async function gotoAppTarget(
+  page: Page,
+  userIdentifier: string,
+  targetUrl: string,
+): Promise<void> {
+  const maxNavigationAttempts = 3;
+  let lastError: Error | null = null;
+
+  for (let navigationAttempt = 1; navigationAttempt <= maxNavigationAttempts; navigationAttempt += 1) {
+    try {
+      await page.goto(targetUrl);
+      const currentUrl = currentPageUrl(page);
+      if (currentUrl.startsWith(CHROME_ERROR_URL_PREFIX)) {
+        throw new Error(
+          `Navigation landed on ${CHROME_ERROR_URL_PREFIX} while opening ${targetUrl}`,
+        );
+      }
+      return;
+    } catch (error) {
+      const currentUrl = currentPageUrl(page);
+      const parsedError = toError(error);
+      const canRetry =
+        navigationAttempt < maxNavigationAttempts &&
+        isTransientNavigationFailure(parsedError, currentUrl);
+      lastError = parsedError;
+      logger.warn("Authenticated app navigation failed", {
+        userIdentifier,
+        targetUrl,
+        navigationAttempt,
+        maxNavigationAttempts,
+        canRetry,
+        currentUrl,
+        error: parsedError.message,
+        operation: "ensure-authenticated-page",
+      });
+      if (!canRetry) {
+        throw parsedError;
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, 1000 * navigationAttempt),
+      );
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+}
+
+async function gotoLoginTarget(
+  page: Page,
+  userIdentifier: string,
+  loginTarget: string,
+): Promise<void> {
+  const maxNavigationAttempts = 2;
+  let lastError: Error | null = null;
+
+  for (let navigationAttempt = 1; navigationAttempt <= maxNavigationAttempts; navigationAttempt += 1) {
+    try {
+      await page.goto(loginTarget, { waitUntil: "domcontentloaded" });
+      const currentUrl = currentPageUrl(page);
+      if (currentUrl.startsWith(CHROME_ERROR_URL_PREFIX)) {
+        throw new Error(
+          `Navigation landed on ${CHROME_ERROR_URL_PREFIX} while opening ${loginTarget}`,
+        );
+      }
+      return;
+    } catch (error) {
+      const currentUrl = currentPageUrl(page);
+      const parsedError = toError(error);
+      const canRetry =
+        navigationAttempt < maxNavigationAttempts &&
+        isChromeErrorNavigationFailure(parsedError, currentUrl);
+      lastError = parsedError;
+      logger.warn("Login navigation failed", {
+        userIdentifier,
+        loginTarget,
+        navigationAttempt,
+        maxNavigationAttempts,
+        canRetry,
+        currentUrl,
+        error: parsedError.message,
+        operation: "session-capture",
+      });
+      if (!canRetry) {
+        throw parsedError;
+      }
+      await new Promise<void>((resolve) =>
+        setTimeout(resolve, 1000 * navigationAttempt),
+      );
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+}
+
+function isClosedPageOrContextError(error: unknown): boolean {
+  const message = toError(error).message;
+  return (
+    /Failed to find browser context/i.test(message) ||
+    /Target page, context or browser has been closed/i.test(message) ||
+    /Protocol error \(Storage\.setCookies\)/i.test(message) ||
+    /page has been closed/i.test(message)
+  );
+}
+
+async function safeAddSessionCookies(
+  page: Page,
+  userIdentifier: string,
+  cookies: Cookie[],
+  operation: string,
+): Promise<void> {
+  if (!cookies.length) {
+    return;
+  }
+  if (page.isClosed()) {
+    throw new SessionCaptureError(
+      `Cannot add cookies for ${userIdentifier}: page closed during ${operation}`,
+      userIdentifier,
+      {
+        operation,
+        currentUrl: currentPageUrl(page),
+      },
+    );
+  }
+  try {
+    await page.context().addCookies(cookies);
+  } catch (error) {
+    if (isClosedPageOrContextError(error)) {
+      throw new SessionCaptureError(
+        `Failed to add cookies for ${userIdentifier}: browser context closed during ${operation}`,
+        userIdentifier,
+        {
+          operation,
+          currentUrl: currentPageUrl(page),
+          cookieCount: cookies.length,
+        },
+        toError(error),
+      );
+    }
+    throw error;
+  }
+}
+
+async function safeClearContextCookies(
+  page: Page,
+  userIdentifier: string,
+  operation: string,
+): Promise<void> {
+  if (page.isClosed()) {
+    throw new SessionCaptureError(
+      `Cannot clear cookies for ${userIdentifier}: page closed during ${operation}`,
+      userIdentifier,
+      {
+        operation,
+        currentUrl: currentPageUrl(page),
+      },
+    );
+  }
+  try {
+    await page.context().clearCookies();
+  } catch (error) {
+    if (isClosedPageOrContextError(error)) {
+      throw new SessionCaptureError(
+        `Failed to clear cookies for ${userIdentifier}: browser context closed during ${operation}`,
+        userIdentifier,
+        {
+          operation,
+          currentUrl: currentPageUrl(page),
+        },
+        toError(error),
+      );
+    }
+    throw error;
+  }
+}
 
 export interface LoadedSession {
   email: string;
@@ -218,14 +441,17 @@ export async function applySessionCookies(
   userIdentifier: string,
 ): Promise<LoadedSession> {
   const session = await ensureSessionCookies(userIdentifier);
-  if (session.cookies.length) {
-    await page.context().addCookies(session.cookies);
-  }
+  await safeAddSessionCookies(
+    page,
+    userIdentifier,
+    session.cookies,
+    "apply-session-cookies",
+  );
   return session;
 }
 
 async function isIdamLoginPage(page: Page): Promise<boolean> {
-  const currentUrl = page.url();
+  const currentUrl = currentPageUrl(page);
   if (currentUrl.includes("idam-web-public") || currentUrl.includes("/login")) {
     return true;
   }
@@ -235,6 +461,37 @@ async function isIdamLoginPage(page: Page): Promise<boolean> {
     idamPage.passwordInput.isVisible().catch(() => false),
   ]);
   return usernameVisible && passwordVisible;
+}
+
+async function acceptAccessCookiesIfPresent(page: Page): Promise<void> {
+  const acceptButton = page
+    .getByRole("button", { name: /accept additional cookies/i })
+    .first();
+  if (await acceptButton.isVisible().catch(() => false)) {
+    await acceptButton.click({ timeout: 2000 }).catch(() => undefined);
+  }
+}
+
+function hasRequiredAuthCookies(cookies: Cookie[]): boolean {
+  const names = new Set(cookies.map((cookie) => cookie.name));
+  return names.has("Idam.Session") && names.has("__auth__");
+}
+
+async function waitForRequiredAuthCookies(
+  page: Page,
+  timeoutMs: number,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const cookies = await page.context().cookies().catch(() => []);
+    if (hasRequiredAuthCookies(cookies)) {
+      return true;
+    }
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.min(500, deadline - Date.now())),
+    );
+  }
+  return false;
 }
 
 function getAppShellMarkers(
@@ -289,7 +546,7 @@ async function waitForAuthenticatedShell(
         `Login page detected while waiting for app shell for ${userIdentifier}`,
         userIdentifier,
         {
-          currentUrl: page.url(),
+          currentUrl: currentPageUrl(page),
           preferredSelector: preferredSelector ?? "none",
         },
       );
@@ -306,12 +563,14 @@ async function waitForAuthenticatedShell(
     if (remainingMs <= 0) {
       break;
     }
-    await page.waitForTimeout(Math.min(500, remainingMs));
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, Math.min(500, remainingMs)),
+    );
   }
 
   setSetupMarker(page, "shell-timeout");
   throw new Error(
-    `App shell not detected within ${timeoutMs}ms (preferred=${preferredSelector ?? "none"}, url=${page.url()}, markers=${markers
+    `App shell not detected within ${timeoutMs}ms (preferred=${preferredSelector ?? "none"}, url=${currentPageUrl(page)}, markers=${markers
       .map((marker) => marker.name)
       .join(",")})`,
   );
@@ -336,22 +595,15 @@ export async function ensureAuthenticatedPage(
     options.targetUrl ?? process.env.TEST_URL ?? config.urls.exuiDefaultUrl;
   const timeoutMs = options.timeoutMs ?? 60000;
   let session = await ensureSessionCookies(userIdentifier);
-  if (session.cookies.length) {
-    await page.context().addCookies(session.cookies);
-    markSetup("cookies-ready");
-  } else {
-    markSetup("cookies-ready");
-  }
-
-  await page.goto(targetUrl);
-  markSetup("navigated-app");
-
-  if (await isIdamLoginPage(page)) {
+  const forceRecaptureSession = async (
+    reason: "idam-before-shell" | "idam-during-shell-wait",
+  ) => {
     markSetup("idam-login");
     logger.warn("Session appears invalid; refreshing", {
       userIdentifier,
       email: session.email,
       targetUrl,
+      reason,
       operation: "session-refresh",
     });
     try {
@@ -363,19 +615,44 @@ export async function ensureAuthenticatedPage(
         userIdentifier,
         storageFile: session.storageFile,
         error: (error as Error).message,
+        reason,
         operation: "session-refresh",
       });
     }
 
-    await sessionCapture([userIdentifier]);
+    await sessionCapture([userIdentifier], { force: true });
     markSetup("session-refresh");
     session = loadSessionCookies(userIdentifier);
-    await page.context().clearCookies();
-    if (session.cookies.length) {
-      await page.context().addCookies(session.cookies);
-    }
-    await page.goto(targetUrl);
+    await safeClearContextCookies(
+      page,
+      userIdentifier,
+      "force-recapture-clear-cookies",
+    );
+    await safeAddSessionCookies(
+      page,
+      userIdentifier,
+      session.cookies,
+      "force-recapture-add-cookies",
+    );
+    await gotoAppTarget(page, userIdentifier, targetUrl);
+    await acceptAccessCookiesIfPresent(page);
     markSetup("navigated-app");
+  };
+
+  await safeAddSessionCookies(
+    page,
+    userIdentifier,
+    session.cookies,
+    "ensure-authenticated-page-add-cookies",
+  );
+  markSetup("cookies-ready");
+
+  await gotoAppTarget(page, userIdentifier, targetUrl);
+  await acceptAccessCookiesIfPresent(page);
+  markSetup("navigated-app");
+
+  if (await isIdamLoginPage(page)) {
+    await forceRecaptureSession("idam-before-shell");
 
     if (await isIdamLoginPage(page)) {
       markSetup("idam-login");
@@ -404,13 +681,40 @@ export async function ensureAuthenticatedPage(
         marker,
         selector: selectors,
         timeoutMs,
-        currentUrl: page.url(),
+        currentUrl: currentPageUrl(page),
         operation: "wait-for-shell",
       });
     };
     try {
       await waitForAppShell();
     } catch (error) {
+      const idamBounceDuringShellWait =
+        error instanceof SessionCaptureError &&
+        getSetupMarker(page) === "idam-login";
+      if (idamBounceDuringShellWait) {
+        logger.warn(
+          "IDAM login page detected while waiting for app shell; forcing session recapture",
+          {
+            userIdentifier,
+            selector: selectors,
+            timeoutMs,
+            error: (error as Error).message,
+            operation: "wait-for-shell",
+          },
+        );
+        await forceRecaptureSession("idam-during-shell-wait");
+        if (await isIdamLoginPage(page)) {
+          markSetup("idam-login");
+          throw new SessionCaptureError(
+            `Login failed for ${userIdentifier}`,
+            userIdentifier,
+            { email: session.email, targetUrl },
+            error as Error,
+          );
+        }
+        await waitForAppShell();
+        return session;
+      }
       markSetup("waiting-shell");
       logger.warn("App shell not detected; retrying once", {
         userIdentifier,
@@ -419,7 +723,8 @@ export async function ensureAuthenticatedPage(
         error: (error as Error).message,
         operation: "wait-for-shell",
       });
-      await page.goto(targetUrl);
+      await gotoAppTarget(page, userIdentifier, targetUrl);
+      await acceptAccessCookiesIfPresent(page);
       markSetup("navigated-app");
       await waitForAppShell();
     }
@@ -517,6 +822,7 @@ function ensureDirectory(fsApi: typeof fs, dirPath: string) {
 }
 
 async function loginAndPersistSession({
+  // NOSONAR typescript:S3776
   chromiumLauncher,
   idamFactory,
   env,
@@ -560,7 +866,8 @@ async function loginAndPersistSession({
       for (let attempt = 0; attempt < loginTargets.length; attempt += 1) {
         const loginTarget = loginTargets[attempt];
         try {
-          await page.goto(loginTarget);
+          await gotoLoginTarget(page, userIdentifier, loginTarget);
+          await acceptAccessCookiesIfPresent(page);
           const shellMarker = await waitForAuthenticatedShell(
             page,
             userIdentifier,
@@ -582,17 +889,60 @@ async function loginAndPersistSession({
             loginError = null;
             break;
           }
-          await idamPage.usernameInput.waitFor({
-            state: "visible",
-            timeout: 60000,
-          });
-          await idamPage.login({ username: email, password });
+          const usernameInput = page.locator(IDAM_USERNAME_SELECTOR).first();
+          const passwordInput = page.locator(IDAM_PASSWORD_SELECTOR).first();
+          const submitButton = idamPage.submitBtn.first();
+          const loginSurface = await Promise.race([
+            usernameInput
+              .waitFor({ state: "visible", timeout: 60000 })
+              .then(() => "login"),
+            page
+              .locator("exui-header, exui-case-home")
+              .first()
+              .waitFor({ state: "visible", timeout: 60000 })
+              .then(() => "app"),
+          ]).catch(() => null);
+
+          if (loginSurface === "app") {
+            loginError = null;
+            break;
+          }
+
+          if (loginSurface !== "login") {
+            await usernameInput.waitFor({
+              state: "visible",
+              timeout: 30000,
+            });
+          }
+
+          await usernameInput.fill(email);
+          await passwordInput.fill(password);
+          if (await submitButton.isVisible().catch(() => false)) {
+            await submitButton.click();
+          } else {
+            await passwordInput.press("Enter");
+          }
+          await acceptAccessCookiesIfPresent(page);
+
+          const postLoginShell = await waitForAuthenticatedShell(
+            page,
+            userIdentifier,
+            undefined,
+            15000,
+          ).catch(() => null);
+          const hasAuthCookies = await waitForRequiredAuthCookies(page, 15000);
+          if (!postLoginShell && !hasAuthCookies) {
+            throw new Error(
+              `IDAM login did not establish authenticated session for ${userIdentifier} (url=${currentPageUrl(page)}).`,
+            );
+          }
           loginError = null;
           logger.info("IDAM login successful", {
             userIdentifier,
             email,
             loginTarget,
             attempt: attempt + 1,
+            marker: postLoginShell ?? "auth-cookies",
             operation: "session-capture",
           });
           break;
@@ -604,7 +954,7 @@ async function loginAndPersistSession({
             loginTarget,
             attempt: attempt + 1,
             totalAttempts: loginTargets.length,
-            currentUrl: page.url(),
+            currentUrl: currentPageUrl(page),
             error: loginError.message,
             operation: "session-capture",
           });
@@ -617,7 +967,7 @@ async function loginAndPersistSession({
 
       // Wait for presence of the standard EXUI header component to confirm the app shell loaded.
       try {
-        await page.waitForSelector("exui-header", { timeout: 60000 });
+        await page.locator("exui-header").waitFor({ timeout: 60000 });
         logger.info("EXUI header detected", {
           userIdentifier,
           operation: "session-capture",

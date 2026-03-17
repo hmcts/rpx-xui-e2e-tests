@@ -1,5 +1,7 @@
 import { Page } from "@playwright/test";
+
 import { Base } from "../../base";
+
 import {
   EXUI_TIMEOUTS,
   CCD_CASE_REFERENCE_LENGTH,
@@ -58,7 +60,8 @@ export class SearchCasePage extends Base {
       timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE,
     });
     await this.caseIdTextBox.click();
-    await this.caseIdTextBox.fill(caseId);
+    await this.caseIdTextBox.fill("");
+    await this.caseIdTextBox.type(caseId, { delay: 15 });
     const primaryFindButtonVisible = await this.searchCaseFindButton
       .isVisible()
       .catch(() => false);
@@ -69,6 +72,7 @@ export class SearchCasePage extends Base {
       state: "visible",
       timeout: EXUI_TIMEOUTS.SEARCH_BUTTON_VISIBLE,
     });
+    await findButton.waitFor({ state: "attached" });
     await findButton.scrollIntoViewIfNeeded();
     try {
       await findButton.click({ timeout: EXUI_TIMEOUTS.SEARCH_BUTTON_CLICK });

@@ -1,14 +1,23 @@
+import { createLogger } from "@hmcts/playwright-common";
 import type { TestInfo } from "@playwright/test";
 
 import { expect, test } from "../../../fixtures/ui";
 import {
   EXTENDED_SOLICITOR_ROLE_NAMES,
   SOLICITOR_ROLE_NAMES,
-  type ProfessionalUserUtils,
   type ProvisionedProfessionalUser,
 } from "../../../utils/ui/professional-user.utils";
+import {
+  TEST_SOLICITOR_ORGANISATION_ID_ENV,
+  requireTestSolicitorOrganisationId,
+  resolveTestSolicitorOrganisationId,
+} from "../../../utils/ui/test-organisation-id.utils";
 
-const REQUIRED_ENV_VARS = ["TEST_SOLICITOR_ORGANISATION_ID"] as const;
+const logger = createLogger({
+  serviceName: "professional-user-provisioning",
+  format: "pretty",
+});
+
 const RD_PROFESSIONAL_ENV_VARS = [
   "RD_PROFESSIONAL_API_PATH",
   "RD_PROFESSIONAL_API_SERVICE",
@@ -32,7 +41,10 @@ function hasValue(name: string): boolean {
 }
 
 function getMissingEnvVars(): string[] {
-  const missing: string[] = REQUIRED_ENV_VARS.filter((name) => !hasValue(name));
+  const missing: string[] = [];
+  if (!resolveTestSolicitorOrganisationId({ allowDefault: true })) {
+    missing.push(TEST_SOLICITOR_ORGANISATION_ID_ENV);
+  }
   const hasCreateUserToken = hasValue("CREATE_USER_BEARER_TOKEN");
   const hasCreateUserHydrationPrereqs =
     hasValue("IDAM_WEB_URL") &&
@@ -146,46 +158,9 @@ function logProvisionedCredentialsIfEnabled(user: {
     return;
   }
   // Intentional: explicit env-gated output for AAT debug sessions.
-  console.log(
+  logger.info(
     `[provisioned-user-login] username=${user.email} password=${user.password}`,
   );
-}
-
-async function cleanupProvisionedUser(
-  professionalUserUtils: ProfessionalUserUtils,
-  provisioned: ProvisionedProfessionalUser | undefined,
-  testInfo: TestInfo,
-): Promise<void> {
-  const userIdentifier = provisioned?.organisationAssignment.userIdentifier;
-  if (!provisioned) {
-    return;
-  }
-  if (!userIdentifier) {
-    testInfo.annotations.push({
-      type: "cleanup-warning",
-      description:
-        "Skipping cleanup because organisation assignment did not return userIdentifier.",
-    });
-    return;
-  }
-
-  try {
-    const cleanup = await professionalUserUtils.cleanupOrganisationAssignment({
-      user: provisioned,
-      userIdentifier,
-      rolesToRemove: provisioned.organisationAssignment.roles,
-    });
-
-    await testInfo.attach("provisioned-user-cleanup.json", {
-      body: JSON.stringify(cleanup, null, 2),
-      contentType: "application/json",
-    });
-  } catch (error) {
-    testInfo.annotations.push({
-      type: "cleanup-warning",
-      description: error instanceof Error ? error.message : String(error),
-    });
-  }
 }
 
 async function attachProvisionedCredentials(
@@ -225,65 +200,18 @@ if (missingEnvVars.length > 0) {
       professionalUserUtils,
     }, testInfo) => {
       const createdUser = await professionalUserUtils.createSolicitorUser();
-      await attachProvisionedCredentials(createdUser, testInfo);
-
-      await testInfo.attach("provisioned-user-idam-only.json", {
-        body: JSON.stringify(
-          {
-            id: createdUser.id,
-            email: createdUser.email,
-            password: maybeRedactedPassword(createdUser.password),
-            forename: createdUser.forename,
-            surname: createdUser.surname,
-            roleNames: createdUser.roleNames,
-          },
-          null,
-          2,
-        ),
-        contentType: "application/json",
-      });
-
-      expect(createdUser.email).toContain(`@${expectedEmailDomain()}`);
-      expect(createdUser.forename).toContain("solicitor_fn_");
-      expect(createdUser.surname).toContain("solicitor_sn_");
-      for (const roleName of SOLICITOR_ROLE_NAMES) {
-        expect(createdUser.roleNames).toContain(roleName);
-      }
-    });
-
-    test("@dynamic-user provisions solicitor with lean roles and assigns to organisation", async ({
-      professionalUserUtils,
-    }, testInfo) => {
-      const organisationId = process.env.TEST_SOLICITOR_ORGANISATION_ID!.trim();
-      const assignmentMode = resolveProvisioningAssignmentMode();
-      let provisioned: ProvisionedProfessionalUser | undefined;
-
       try {
-        const createdUser = await professionalUserUtils.createSolicitorUser();
         await attachProvisionedCredentials(createdUser, testInfo);
 
-        const organisationAssignment =
-          await professionalUserUtils.assignUserToOrganisation({
-            user: createdUser,
-            organisationId,
-            roles: createdUser.roleNames,
-            mode: assignmentMode,
-          });
-        provisioned = {
-          ...createdUser,
-          organisationAssignment,
-        };
-
-        await testInfo.attach("provisioned-user.json", {
+        await testInfo.attach("provisioned-user-idam-only.json", {
           body: JSON.stringify(
             {
-              id: provisioned.id,
-              email: provisioned.email,
-              password: maybeRedactedPassword(provisioned.password),
-              forename: provisioned.forename,
-              surname: provisioned.surname,
-              roleNames: provisioned.roleNames,
-              organisationAssignment: provisioned.organisationAssignment,
+              id: createdUser.id,
+              email: createdUser.email,
+              password: maybeRedactedPassword(createdUser.password),
+              forename: createdUser.forename,
+              surname: createdUser.surname,
+              roleNames: createdUser.roleNames,
             },
             null,
             2,
@@ -291,39 +219,96 @@ if (missingEnvVars.length > 0) {
           contentType: "application/json",
         });
 
-        expect(provisioned.email).toContain(`@${expectedEmailDomain()}`);
-        expect(provisioned.forename).toContain("solicitor_fn_");
-        expect(provisioned.surname).toContain("solicitor_sn_");
-        expect(provisioned.organisationAssignment.organisationId).toBe(
-          organisationId,
-        );
-        expect(provisioned.organisationAssignment.requestedMode).toBe(
-          assignmentMode,
-        );
-        const expectedResolvedModes =
-          EXPECTED_RESOLVED_MODES_BY_REQUESTED[assignmentMode];
-        expect(expectedResolvedModes).toContain(
-          provisioned.organisationAssignment.mode,
-        );
-        expect([200, 201, 202]).toContain(
-          provisioned.organisationAssignment.status,
-        );
-
+        expect(createdUser.email).toContain(`@${expectedEmailDomain()}`);
+        expect(createdUser.forename).toMatch(/^[A-Za-z0-9]{1,24}$/);
+        expect(createdUser.surname).toMatch(/^[A-Za-z0-9]{1,24}$/);
+        expect(createdUser.forename.toLowerCase()).not.toContain("solicitor");
+        expect(createdUser.surname.toLowerCase()).not.toContain("solicitor");
         for (const roleName of SOLICITOR_ROLE_NAMES) {
-          expect(provisioned.roleNames).toContain(roleName);
-          expect(provisioned.organisationAssignment.roles).toContain(roleName);
-        }
-        for (const roleName of EXTENDED_ONLY_SOLICITOR_ROLES) {
-          expect(provisioned.roleNames).not.toContain(roleName);
-          expect(provisioned.organisationAssignment.roles).not.toContain(
-            roleName,
-          );
+          expect(createdUser.roleNames).toContain(roleName);
         }
       } finally {
-        await cleanupProvisionedUser(
-          professionalUserUtils,
-          provisioned,
-          testInfo,
+        testInfo.annotations.push({
+          type: "cleanup-info",
+          description:
+            "IDAM cleanup skipped by policy: only testing-support account creation is allowed.",
+        });
+      }
+    });
+
+    test("@dynamic-user provisions solicitor with lean roles and assigns to organisation", async ({
+      professionalUserUtils,
+    }, testInfo) => {
+      const organisationId = requireTestSolicitorOrganisationId(
+        "Provisioning test prerequisite",
+      );
+      const assignmentMode = resolveProvisioningAssignmentMode();
+      const createdUser = await professionalUserUtils.createSolicitorUser();
+      await attachProvisionedCredentials(createdUser, testInfo);
+
+      const organisationAssignment =
+        await professionalUserUtils.assignUserToOrganisation({
+          user: createdUser,
+          organisationId,
+          roles: createdUser.roleNames,
+          mode: assignmentMode,
+        });
+      const provisioned: ProvisionedProfessionalUser = {
+        ...createdUser,
+        organisationAssignment,
+      };
+
+      await testInfo.attach("provisioned-user.json", {
+        body: JSON.stringify(
+          {
+            id: provisioned.id,
+            email: provisioned.email,
+            password: maybeRedactedPassword(provisioned.password),
+            forename: provisioned.forename,
+            surname: provisioned.surname,
+            roleNames: provisioned.roleNames,
+            organisationAssignment: provisioned.organisationAssignment,
+          },
+          null,
+          2,
+        ),
+        contentType: "application/json",
+      });
+
+      testInfo.annotations.push({
+        type: "cleanup-info",
+        description:
+          "Provisioned solicitor is intentionally preserved (no post-test cleanup).",
+      });
+
+      expect(provisioned.email).toContain(`@${expectedEmailDomain()}`);
+      expect(provisioned.forename).toMatch(/^[A-Za-z0-9]{1,24}$/);
+      expect(provisioned.surname).toMatch(/^[A-Za-z0-9]{1,24}$/);
+      expect(provisioned.forename.toLowerCase()).not.toContain("solicitor");
+      expect(provisioned.surname.toLowerCase()).not.toContain("solicitor");
+      expect(provisioned.organisationAssignment.organisationId).toBe(
+        organisationId,
+      );
+      expect(provisioned.organisationAssignment.requestedMode).toBe(
+        assignmentMode,
+      );
+      const expectedResolvedModes =
+        EXPECTED_RESOLVED_MODES_BY_REQUESTED[assignmentMode];
+      expect(expectedResolvedModes).toContain(
+        provisioned.organisationAssignment.mode,
+      );
+      expect([200, 201, 202, 409]).toContain(
+        provisioned.organisationAssignment.status,
+      );
+
+      for (const roleName of SOLICITOR_ROLE_NAMES) {
+        expect(provisioned.roleNames).toContain(roleName);
+        expect(provisioned.organisationAssignment.roles).toContain(roleName);
+      }
+      for (const roleName of EXTENDED_ONLY_SOLICITOR_ROLES) {
+        expect(provisioned.roleNames).not.toContain(roleName);
+        expect(provisioned.organisationAssignment.roles).not.toContain(
+          roleName,
         );
       }
     });

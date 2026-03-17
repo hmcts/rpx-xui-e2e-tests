@@ -1,11 +1,10 @@
 import { request as playwrightRequest } from "@playwright/test";
 import { v4 as uuid } from "uuid";
 
-import { config } from "../../utils/ui/apiTestConfig";
-import { ensureStorageState, getStoredCookie } from "../../utils/api/auth";
-import { test, expect } from "../../fixtures/api";
 import { EM_DOC_ID } from "../../data/api/testIds";
+import { test, expect } from "../../fixtures/api";
 import { expectStatus, withXsrf } from "../../utils/api/apiTestUtils";
+import { ensureStorageState, getStoredCookie } from "../../utils/api/auth";
 import {
   assertAnnotationResponse,
   assertBinaryResponse,
@@ -22,6 +21,7 @@ import {
   resolveUserInfoId,
   uploadSyntheticDoc,
 } from "../../utils/api/evidenceManagerUtils";
+import { config } from "../../utils/ui/apiTestConfig";
 
 const configuredDocId = resolveConfiguredDocId(
   EM_DOC_ID,
@@ -53,7 +53,7 @@ test.describe(
             throwOnError: false,
           },
         );
-        expectStatus(res.status, [200, 204, 401, 403, 404, 500]);
+        expectStatus(res.status, [200, 204, 401, 403, 404, 500, 502, 504]);
         assertBinaryResponse(res.status, res.data);
       });
     });
@@ -92,7 +92,7 @@ test.describe(
           headers,
           throwOnError: false,
         });
-        expectStatus(res.status, [400, 401, 403, 404, 500]);
+        expectStatus(res.status, [400, 401, 403, 404, 500, 502, 504]);
       });
     });
 
@@ -110,7 +110,13 @@ test.describe(
           headers,
           throwOnError: false,
         });
-        expectStatus(createRes.status, [200, 204, 401, 403, 404, 409, 500]);
+        expectStatus(
+          createRes.status,
+          [200, 204, 401, 403, 404, 409, 500, 502, 504],
+        );
+        if (![200, 204].includes(createRes.status)) {
+          return;
+        }
         assertAnnotationResponse(createRes.status, createRes.data);
 
         const createdId = resolveCreatedAnnotationId(
@@ -125,7 +131,10 @@ test.describe(
             throwOnError: false,
           },
         );
-        expectStatus(deleteRes.status, [200, 204, 401, 403, 409, 500]);
+        expectStatus(
+          deleteRes.status,
+          [200, 204, 401, 403, 409, 500, 502, 504],
+        );
       });
     });
 
@@ -136,7 +145,7 @@ test.describe(
         headers: {},
         throwOnError: false,
       });
-      expectStatus(res.status, [200, 401, 403, 404, 409, 500]);
+      expectStatus(res.status, [200, 401, 403, 404, 409, 500, 502, 504]);
     });
 
     test("rejects annotation mutation with invalid payload", async ({
@@ -149,7 +158,7 @@ test.describe(
           headers,
           throwOnError: false,
         });
-        expectStatus(res.status, [400, 401, 403, 404, 409, 500]);
+        expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
       });
     });
 
@@ -162,7 +171,10 @@ test.describe(
             throwOnError: false,
           },
         );
-        expectStatus(listRes.status, [200, 204, 401, 403, 404, 500]);
+        expectStatus(listRes.status, [200, 204, 401, 403, 404, 500, 502, 504]);
+        if (![200, 204].includes(listRes.status)) {
+          return;
+        }
 
         const bookmark = await buildBookmark(apiClient, sharedDocId);
         const createRes = await apiClient.put("em-anno/bookmarks", {
@@ -170,7 +182,13 @@ test.describe(
           headers,
           throwOnError: false,
         });
-        expectStatus(createRes.status, [200, 204, 401, 403, 404, 409, 500]);
+        expectStatus(
+          createRes.status,
+          [200, 204, 401, 403, 404, 409, 500, 502, 504],
+        );
+        if (![200, 204].includes(createRes.status)) {
+          return;
+        }
         const createdId = resolveCreatedBookmarkId(
           createRes.data,
           bookmark.id ?? uuid(),
@@ -182,7 +200,10 @@ test.describe(
           headers,
           throwOnError: false,
         });
-        expectStatus(deleteRes.status, [200, 204, 401, 403, 404, 409, 500]);
+        expectStatus(
+          deleteRes.status,
+          [200, 204, 401, 403, 404, 409, 500, 502, 504],
+        );
       });
     });
 

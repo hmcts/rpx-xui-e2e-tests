@@ -89,6 +89,26 @@ const storageStateMatchesUser = (
   return actual === expected;
 };
 
+const isIgnorableArtifactsCloseError = (error: unknown): boolean => {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("apiRequestContext._wrapApiCall") &&
+    message.includes("ENOENT") &&
+    message.includes(".playwright-artifacts")
+  );
+};
+
+const closeContextSafely = async (context: BrowserContext): Promise<void> => {
+  try {
+    await context.close();
+  } catch (error) {
+    if (isIgnorableArtifactsCloseError(error)) {
+      return;
+    }
+    throw error;
+  }
+};
+
 const waitForIdamLogin = async (page: Page) => {
   const idamHost = resolveIdamHost();
   if (idamHost) {
@@ -296,9 +316,9 @@ const isStorageStateAuthenticated = async (
 
 export const ensureUiStorageStateForUser = async (
   userIdentifier: string,
-  options?: { strict?: boolean },
+  options?: { strict?: boolean; baseUrl?: string },
 ): Promise<void> => {
-  const baseUrl = config.urls.manageCaseBaseUrl;
+  const baseUrl = options?.baseUrl ?? config.urls.manageCaseBaseUrl;
   const strict = options?.strict ?? false;
   const storagePath = resolveUiStoragePathForUser(userIdentifier);
   const manualUsers = resolveManualUserIdentifiers();
@@ -397,7 +417,7 @@ export const ensureUiStorageStateForUser = async (
         throw new Error(message);
       }
       console.warn(`[ui.session] ${message}`);
-      await context.close();
+      await closeContextSafely(context);
       return;
     }
 
@@ -411,7 +431,7 @@ export const ensureUiStorageStateForUser = async (
 
     await addAnalyticsCookie(context, baseUrl);
     await context.storageState({ path: storagePath });
-    await context.close();
+    await closeContextSafely(context);
   } finally {
     await browser.close();
   }

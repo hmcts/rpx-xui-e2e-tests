@@ -1,0 +1,25 @@
+{
+  "change_id": "",
+  "summary": "",
+  "date_utc": "",
+  "author": "",
+  "reviewer": "",
+  "ai_assisted": true,
+  "ai_metadata": {
+    "agent_name": "",
+    "version": "",
+    "prompt_id": "",
+    "audit_reference": "HMCTS-AI-2025-04"
+  },
+  "risk_classification": "low|medium|high",
+  "evidence": {
+    "odhin": [],
+    "html": [],
+    "junit": [],
+    "logs": []
+  },
+  "approvals": {
+    "human_review_completed": false,
+    "manual_gate_ticket": ""
+  }
+}

@@ -153,7 +153,7 @@ function resolveCaseReferenceFromEnvFallback(): string | undefined {
  * });
  */
 // NOSONAR typescript:S3776 - Cognitive Complexity 16 acceptable per agents.md Section 6.2.10
-export async function resolveCaseReferenceFromGlobalSearch(
+export async function resolveCaseReferenceFromGlobalSearch( // NOSONAR typescript:S3776
   page: Page,
   options: ResolveCaseReferenceOptions = {},
 ): Promise<string> {
@@ -191,7 +191,7 @@ export async function resolveCaseReferenceFromGlobalSearch(
       TRANSIENT_GLOBAL_SEARCH_STATUSES.has(lastStatus) &&
       attempt < maxAttempts
     ) {
-      await page.waitForTimeout(attempt * 1000);
+      await new Promise<void>((resolve) => setTimeout(resolve, attempt * 1000));
       continue;
     }
 
@@ -322,7 +322,7 @@ export async function resolveCaseReferenceWithFallback(
  * await expect(searchPage.noResultsHeading).toBeVisible();
  */
 // NOSONAR typescript:S3776 - Cognitive Complexity 26 acceptable per agents.md Section 6.2.10
-export async function resolveNonExistentCaseReference(
+export async function resolveNonExistentCaseReference( // NOSONAR typescript:S3776
   page: Page,
   options: ResolveCaseReferenceOptions = {},
   maxAttempts = 12,
@@ -377,7 +377,9 @@ export async function resolveNonExistentCaseReference(
         TRANSIENT_GLOBAL_SEARCH_STATUSES.has(lastStatus) &&
         statusAttempt < maxStatusAttempts
       ) {
-        await page.waitForTimeout(statusAttempt * 1000);
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, statusAttempt * 1000),
+        );
         continue;
       }
 

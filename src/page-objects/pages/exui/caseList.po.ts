@@ -1,4 +1,5 @@
 import { Page } from "@playwright/test";
+
 import { Base } from "../../base";
 
 export class CaseListPage extends Base {
@@ -114,7 +115,33 @@ export class CaseListPage extends Base {
   }
 
   async waitForReady(timeoutMs = 30_000): Promise<void> {
-    await this.container.waitFor({ state: "visible", timeout: timeoutMs });
+    const readySignal = Promise.any([
+      this.container.waitFor({ state: "visible", timeout: timeoutMs }),
+      this.jurisdictionSelect.waitFor({ state: "visible", timeout: timeoutMs }),
+      this.caseListHeading.waitFor({ state: "visible", timeout: timeoutMs }),
+      this.quickSearchContainer.waitFor({
+        state: "visible",
+        timeout: timeoutMs,
+      }),
+    ]);
+    await readySignal.catch(async (error) => {
+      // One bounded retry for transient startup/navigation stalls in AAT.
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+      await Promise.any([
+        this.container.waitFor({ state: "visible", timeout: timeoutMs }),
+        this.jurisdictionSelect.waitFor({
+          state: "visible",
+          timeout: timeoutMs,
+        }),
+        this.caseListHeading.waitFor({ state: "visible", timeout: timeoutMs }),
+        this.quickSearchContainer.waitFor({
+          state: "visible",
+          timeout: timeoutMs,
+        }),
+      ]).catch(() => {
+        throw error;
+      });
+    });
     try {
       await this.waitForUiIdleState({ timeoutMs });
     } catch {

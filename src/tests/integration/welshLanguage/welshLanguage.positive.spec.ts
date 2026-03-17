@@ -1,6 +1,6 @@
-import { welshTranslationsSmall } from "../mocks/welshLanguage";
 import { expect, test } from "../../../fixtures/ui";
 import { ensureSessionCookies } from "../../../utils/ui/sessionCapture";
+import { welshTranslationsSmall } from "../mocks/welshLanguage";
 
 test.describe("Verify users can switch the language", () => {
   test.beforeEach(async ({ page }) => {
@@ -73,16 +73,16 @@ test.describe("Verify users can switch the language", () => {
     await test.step("Check the language can be switched back to English and the correct translations are shown", async () => {
       await caseListPage.exuiHeader.switchLanguage("English");
       await caseListPage.exuiSpinnerComponent.wait();
-      expect.soft(await caseListPage.exuiHeader.header.isVisible()).toBe(true);
-      expect
-        .soft(await caseListPage.exuiHeader.headerAppLink.innerText())
-        .toContain("Manage Cases");
-      expect
-        .soft(await caseListPage.exuiHeader.languageToggle.innerText())
-        .toContain("Cymraeg");
-      expect
-        .soft(await caseListPage.exuiHeader.signOutLink.innerText())
-        .toContain("Sign out");
+      await expect.soft(caseListPage.exuiHeader.header).toBeVisible();
+      await expect
+        .soft(caseListPage.exuiHeader.headerAppLink)
+        .toContainText("Manage Cases");
+      await expect
+        .soft(caseListPage.exuiHeader.languageToggle)
+        .toContainText("Cymraeg");
+      await expect
+        .soft(caseListPage.exuiHeader.signOutLink)
+        .toContainText("Sign out");
       await expect
         .soft(caseListPage.exuiHeader.notificationBanner)
         .toBeHidden();

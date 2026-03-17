@@ -2,12 +2,12 @@ import { expect } from "@playwright/test";
 
 import { expectStatus, withRetry, withXsrf } from "./apiTestUtils";
 import { expectTaskList } from "./assertions";
+import type { ApiUserRole } from "./auth";
 import type { Task, TaskListResponse, UserDetailsResponse } from "./types";
 import {
   buildTaskSearchRequest,
   type SeededTaskResult,
 } from "./work-allocation";
-import type { ApiUserRole } from "./auth";
 
 export function toArray<T>(payload: unknown): T[] {
   if (Array.isArray(payload)) {
@@ -160,14 +160,16 @@ export function assertCaseworkerListResponse(
   }
 }
 
+type WorkAllocationApiClientOptions = Record<string, unknown>;
+
 type WorkAllocationApiClient = {
   post: (
     path: string,
-    options?: any,
+    options?: WorkAllocationApiClientOptions,
   ) => Promise<{ status: number; data?: unknown }>;
   get?: (
     path: string,
-    options?: any,
+    options?: WorkAllocationApiClientOptions,
   ) => Promise<{ status: number; data?: unknown }>;
 };
 

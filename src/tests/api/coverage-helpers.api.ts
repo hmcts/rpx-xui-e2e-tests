@@ -1,17 +1,17 @@
 import { test, expect } from "@playwright/test";
 
+import { resolveRoleAccessCaseId } from "../../data/api/testIds";
+import { __test__ as fixturesTest } from "../../fixtures/api";
 import {
   expectStatus,
   withRetry,
   __test__ as apiTestUtilsTest,
 } from "../../utils/api/apiTestUtils";
-import { resolveRoleAccessCaseId } from "../../data/api/testIds";
-import { __test__ as fixturesTest } from "../../fixtures/api";
+import { seedRoleAccessCaseId } from "../../utils/api/role-access";
 import {
   buildTaskSearchRequest,
   seedTaskId,
 } from "../../utils/api/work-allocation";
-import { seedRoleAccessCaseId } from "../../utils/api/role-access";
 
 test.describe(
   "Helper utilities and retry logic",

@@ -1,3 +1,5 @@
+import { firstAllowedNonEmpty } from "./accountPolicy.js";
+
 export function resolveBaseUrl(value?: string): string {
   return value ? value : "https://manage-case.aat.platform.hmcts.net/";
 }
@@ -8,6 +10,58 @@ export function resolveTestEnv(value?: string): string {
     ? value
     : "aat";
 }
+
+const pickEnv = (...values: Array<string | undefined>): string | undefined =>
+  firstAllowedNonEmpty(...values);
+
+const resolveSolicitorCredentials = (): {
+  e?: string;
+  sec?: string;
+} => {
+  const candidates = [
+    {
+      username: process.env.SOLICITOR_USERNAME,
+      password: process.env.SOLICITOR_PASSWORD,
+    },
+    {
+      username: process.env.PRL_SOLICITOR_USERNAME,
+      password: process.env.PRL_SOLICITOR_PASSWORD,
+    },
+    {
+      username: process.env.WA_SOLICITOR_USERNAME,
+      password: process.env.WA_SOLICITOR_PASSWORD,
+    },
+    {
+      username: process.env.NOC_SOLICITOR_USERNAME,
+      password: process.env.NOC_SOLICITOR_PASSWORD,
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const username = pickEnv(candidate.username);
+    const password = candidate.password?.trim();
+    if (username && password) {
+      return { e: username, sec: password };
+    }
+  }
+
+  return {
+    e: pickEnv(
+      process.env.SOLICITOR_USERNAME,
+      process.env.PRL_SOLICITOR_USERNAME,
+      process.env.WA_SOLICITOR_USERNAME,
+      process.env.NOC_SOLICITOR_USERNAME,
+    ),
+    sec: pickEnv(
+      process.env.SOLICITOR_PASSWORD,
+      process.env.PRL_SOLICITOR_PASSWORD,
+      process.env.WA_SOLICITOR_PASSWORD,
+      process.env.NOC_SOLICITOR_PASSWORD,
+    ),
+  };
+};
+
+const solicitorCredentials = resolveSolicitorCredentials();
 
 export const config = {
   baseUrl: resolveBaseUrl(process.env.TEST_URL),
@@ -42,15 +96,12 @@ export const config = {
   testEnv: resolveTestEnv(process.env.TEST_ENV),
   users: {
     aat: {
-      solicitor: {
-        e: "xui_auto_test_user_solicitor@mailinator.com",
-        sec: "Monday01",
-      },
+      solicitor: solicitorCredentials,
       caseOfficer_r1: { e: "xui_auto_co_r1@justice.gov.uk", sec: "Welcome01" },
       caseOfficer_r2: { e: "xui_auto_co_r2@justice.gov.uk", sec: "Welcome01" },
     },
     demo: {
-      solicitor: { e: "peterxuisuperuser@mailnesia.com", sec: "Monday01" },
+      solicitor: solicitorCredentials,
       caseOfficer_r1: { e: "xui_caseofficer@justice.gov.uk", sec: "Welcome01" },
       caseOfficer_r2: {
         e: "CRD_func_test_demo_user@justice.gov.uk",

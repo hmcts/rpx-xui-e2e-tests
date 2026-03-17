@@ -26,7 +26,22 @@ const mask = (value?: string) => (value ? "***" : "missing");
 const present = (value?: string) =>
   value && value.trim().length > 0 ? "yes" : "no";
 
-const logger = createLogger({ serviceName: "node-api-auth", format: "pretty" });
+const resolveApiLogLevel = (): string => {
+  const configured = process.env.API_LOG_LEVEL ?? process.env.LOG_LEVEL;
+  if (configured?.trim()) {
+    return configured.trim().toLowerCase();
+  }
+  if (process.env.PLAYWRIGHT_DEBUG_API === "1") {
+    return "info";
+  }
+  return "fatal";
+};
+
+const logger = createLogger({
+  serviceName: "node-api-auth",
+  format: "pretty",
+  level: resolveApiLogLevel(),
+});
 type LoggerInstance = ReturnType<typeof createLogger>;
 
 type StorageState = { cookies?: Array<{ name?: string; value?: string }> };

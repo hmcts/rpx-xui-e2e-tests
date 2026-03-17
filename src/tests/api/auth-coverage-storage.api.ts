@@ -9,8 +9,8 @@ import path from "node:path";
 
 import { test, expect } from "@playwright/test";
 
-import { config } from "../../utils/ui/apiTestConfig";
 import { __test__ as authTest } from "../../utils/api/auth";
+import { config } from "../../utils/ui/apiTestConfig";
 
 test.describe.configure({ mode: "serial" });
 

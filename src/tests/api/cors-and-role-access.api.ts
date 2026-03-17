@@ -1,11 +1,11 @@
 import { test, expect, request } from "@playwright/test";
 
-import { config } from "../../utils/ui/apiTestConfig";
 import { expectStatus, StatusSets } from "../../utils/api/apiTestUtils";
 import {
   assertCorsHeaders,
   shouldIgnoreCorsError,
 } from "../../utils/api/corsUtils";
+import { config } from "../../utils/ui/apiTestConfig";
 
 const baseURL = config.baseUrl.replace(/\/+$/, "");
 

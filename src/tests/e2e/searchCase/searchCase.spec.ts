@@ -1,40 +1,57 @@
+import { Page } from "@playwright/test";
+
 import { expect, test } from "../../../fixtures/ui";
-import { ensureSession } from "../../../utils/ui/sessionCapture";
 import {
   resolveCaseReferenceFromGlobalSearch,
   resolveNonExistentCaseReference,
 } from "../../../utils/ui/case-reference.utils";
+import { ensureSession } from "../../../utils/ui/sessionCapture";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
+
 import {
   openHomeWithCapturedSession,
   PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
 } from "./searchCase.setup";
 
+async function ensureCaseDetailsNavigation(
+  page: Page,
+  caseReference: string,
+): Promise<void> {
+  try {
+    await expect(page).toHaveURL(/\/cases\/case-details\//, {
+      timeout: 20_000,
+    });
+  } catch {
+    const currentUrl = page.url();
+    if (!/\/cases(?:\/|\?|$)/.test(currentUrl)) {
+      throw new Error(
+        `Search did not navigate to case details (current URL: ${currentUrl})`,
+      );
+    }
+    const directCaseLink = page
+      .locator('a[href*="/cases/case-details/"]')
+      .first();
+    await expect(directCaseLink).toBeVisible({ timeout: 10_000 });
+    await Promise.all([
+      page.waitForURL(/\/cases\/case-details\//, { timeout: 20_000 }),
+      directCaseLink.click(),
+    ]);
+  }
+  expect(page.url()).toContain(caseReference);
+}
+
 test.describe("FPL global search user - 16-digit case search", () => {
   let availableCaseReference = "";
-  let caseReferenceResolutionError = "";
-  let isQuickSearchHeaderAvailable = false;
   test.beforeAll(async () => {
     await ensureSession("FPL_GLOBAL_SEARCH");
   });
 
   test.beforeEach(async ({ page }) => {
     await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
-    isQuickSearchHeaderAvailable = await page
-      .locator("#exuiCaseReferenceSearch")
-      .first()
-      .isVisible()
-      .catch(() => false);
-    availableCaseReference = "";
-    caseReferenceResolutionError = "";
-    try {
-      availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
-        page,
-        PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
-      );
-    } catch (error) {
-      caseReferenceResolutionError =
-        error instanceof Error ? error.message : String(error);
-    }
+    availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
+      page,
+      PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
+    );
   });
 
   test("Search by 16-digit case reference", async ({
@@ -42,20 +59,26 @@ test.describe("FPL global search user - 16-digit case search", () => {
     searchCasePage,
     page,
   }) => {
-    test.skip(
-      !isQuickSearchHeaderAvailable,
-      "Skipping: 16-digit quick search header is not available in this environment.",
-    );
-    test.skip(
-      !availableCaseReference,
-      `Skipping: no resolvable 16-digit Public Law case reference. ${caseReferenceResolutionError}`,
-    );
     const caseNumber = availableCaseReference;
 
     await test.step("Search using 16-digit case reference", async () => {
-      await searchCasePage.searchWith16DigitCaseId(caseNumber);
+      await retryOnTransientFailure(
+        async () => {
+          await searchCasePage.searchWith16DigitCaseId(caseNumber);
+          await ensureCaseDetailsNavigation(page, caseNumber);
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
+          },
+        },
+      );
     });
-    await expect(page).toHaveURL(/\/cases\/case-details\//);
+
     const caseNumberFromUrl = await caseDetailsPage.getCaseNumberFromUrl();
     expect.soft(caseNumberFromUrl).toContain(caseNumber);
     await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
@@ -86,10 +109,6 @@ test.describe("FPL global search user - 16-digit case search", () => {
     searchCasePage,
     page,
   }) => {
-    test.skip(
-      !isQuickSearchHeaderAvailable,
-      "Skipping: 16-digit quick search header is not available in this environment.",
-    );
     const invalidCaseReference = await resolveNonExistentCaseReference(page, {
       jurisdictionIds: ["PUBLICLAW"],
     });

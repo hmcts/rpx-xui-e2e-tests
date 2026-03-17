@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+import { withEnv } from "../../utils/api/testEnv";
+import { __test__ as apiTestConfigTest } from "../../utils/ui/apiTestConfig";
 import appTestConfig, {
   __test__ as appTestConfigTest,
 } from "../../utils/ui/appTestConfig";
-import { __test__ as apiTestConfigTest } from "../../utils/ui/apiTestConfig";
 import config, {
   __test__ as configUtilsTest,
 } from "../../utils/ui/config.utils.js";
-import { withEnv } from "../../utils/api/testEnv";
 
 test.describe.configure({ mode: "serial" });
 

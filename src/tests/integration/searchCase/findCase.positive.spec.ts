@@ -1,6 +1,10 @@
 import { expect, test } from "../../../fixtures/ui";
 import { applySessionCookies } from "../../../utils/ui/sessionCapture";
 import {
+  createFindCaseSearchResultsRouteHandler,
+  setupFindCaseMockRoutes,
+} from "../helpers/index";
+import {
   buildFindCaseCaseDetailsMock,
   buildFindCaseEmptySearchResultsMock,
   buildFindCaseJurisdictionsMock,
@@ -10,10 +14,6 @@ import {
   FIND_CASE_JURISDICTION_LABEL,
   getCaseReferenceFromFindCaseSearchPayload,
 } from "../mocks/findCase.mock";
-import {
-  createFindCaseSearchResultsRouteHandler,
-  setupFindCaseMockRoutes,
-} from "../helpers/index";
 import { TEST_CASE_REFERENCES, TEST_USERS } from "../testData/index";
 
 const userIdentifier = TEST_USERS.FPL_GLOBAL_SEARCH;

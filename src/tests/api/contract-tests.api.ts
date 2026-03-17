@@ -3,6 +3,8 @@
  * Validates response structures against expected schemas to ensure backward compatibility
  */
 
+import { z } from "zod";
+
 import { test, expect } from "../../fixtures/api";
 import {
   expectStatus,
@@ -20,7 +22,6 @@ import {
   LocationBuilder,
   TestData,
 } from "../../utils/api/testDataBuilders";
-import { z } from "zod";
 
 const serviceCodes = ["IA", "CIVIL", "PRIVATELAW"];
 const locationSchema = z.object({

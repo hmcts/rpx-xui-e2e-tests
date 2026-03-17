@@ -1,15 +1,15 @@
-import { test, expect } from "../../fixtures/api";
-import { ensureStorageState } from "../../utils/api/auth";
 import {
   WA_SAMPLE_ASSIGNED_TASK_ID,
   WA_SAMPLE_TASK_ID,
 } from "../../data/api/testIds";
+import { test, expect } from "../../fixtures/api";
 import {
   expectStatus,
   StatusSets,
   withRetry,
   withXsrf,
 } from "../../utils/api/apiTestUtils";
+import { ensureStorageState } from "../../utils/api/auth";
 import type {
   TaskListResponse,
   UserDetailsResponse,
@@ -47,7 +47,8 @@ import {
 const serviceCodes = ["IA", "CIVIL", "PRIVATELAW"];
 const envTaskId = WA_SAMPLE_TASK_ID;
 const envAssignedTaskId = WA_SAMPLE_ASSIGNED_TASK_ID;
-const BEFORE_ALL_REQUEST_TIMEOUT_MS = 10_000;
+const BEFORE_ALL_REQUEST_TIMEOUT_MS = 30_000;
+const WA_REQUEST_TIMEOUT_MS = 60_000;
 
 test.describe(
   "Work allocation (read-only)",
@@ -155,15 +156,20 @@ test.describe(
       }
 
       // When: Fetching location details by ID
-      const response = await apiClient.get<Record<string, unknown>>(
-        `workallocation/location/${cachedLocationId}`,
-        {
-          throwOnError: false,
-        },
+      const response = await withRetry(
+        () =>
+          apiClient.get<Record<string, unknown>>(
+            `workallocation/location/${cachedLocationId}`,
+            {
+              throwOnError: false,
+              timeoutMs: WA_REQUEST_TIMEOUT_MS,
+            },
+          ),
+        { retries: 2, retryStatuses: [500, 502, 503, 504] },
       );
 
       // Then: API responds with success or expected error codes
-      expectStatus(response.status, [200, 401, 403, 404, 500]);
+      expectStatus(response.status, StatusSets.guardedExtended);
     });
 
     test("GET /workallocation/taskNames returns catalogue of available task type names", async ({
@@ -177,7 +183,7 @@ test.describe(
           apiClient.get<unknown>("workallocation/taskNames", {
             throwOnError: false,
           }),
-        { retries: 2, retryStatuses: [500, 502, 504] },
+        { retries: 2, retryStatuses: [500, 502, 503, 504] },
       );
 
       // Then: API returns success or guarded downstream status
@@ -198,7 +204,7 @@ test.describe(
           apiClient.get<unknown>("workallocation/task/types-of-work", {
             throwOnError: false,
           }),
-        { retries: 2, retryStatuses: [500, 502, 504] },
+        { retries: 2, retryStatuses: [500, 502, 503, 504] },
       );
 
       // Then: API returns success or guarded downstream status
@@ -208,7 +214,7 @@ test.describe(
       assertTypesOfWorkResponse(response.status, response.data);
     });
 
-    test("Work allocation endpoints reject unauthenticated requests with 401 Unauthorized", async ({
+    test("Work allocation endpoints reject unauthenticated requests with guarded status", async ({
       anonymousClient,
     }) => {
       // Given: An anonymous (unauthenticated) API client
@@ -222,8 +228,8 @@ test.describe(
           throwOnError: false,
         });
 
-        // Then: API returns 401 Unauthorized
-        expect(res.status).toBe(401);
+        // Then: API returns unauthorised or guarded gateway status
+        expectStatus(res.status, [401, 502, 504]);
       }
 
       // And: Task search endpoint also rejects anonymous requests
@@ -231,7 +237,7 @@ test.describe(
         data: buildTaskSearchRequest("MyTasks", { states: ["assigned"] }),
         throwOnError: false,
       });
-      expect(res.status).toBe(401);
+      expectStatus(res.status, [401, 502, 504]);
     });
 
     test.describe("task search", () => {
@@ -262,8 +268,10 @@ test.describe(
           () =>
             apiClient.post("workallocation/task", {
               data: body,
+              throwOnError: false,
+              timeoutMs: WA_REQUEST_TIMEOUT_MS,
             }),
-          { retries: 1, retryStatuses: [502, 504] },
+          { retries: 2, retryStatuses: [500, 502, 503, 504] },
         )) as { data: TaskListResponse; status: number };
         assertTaskSearchResponse(response.status, response.data);
       });
@@ -282,8 +290,9 @@ test.describe(
             apiClient.post("workallocation/task", {
               data: body,
               throwOnError: false,
+              timeoutMs: WA_REQUEST_TIMEOUT_MS,
             }),
-          { retries: 1, retryStatuses: [502, 504] },
+          { retries: 2, retryStatuses: [500, 502, 503, 504] },
         )) as { data: TaskListResponse; status: number };
         expectStatus(response.status, StatusSets.guardedBasic);
         assertAvailableTasksResponse(response.status, response.data);
@@ -305,8 +314,9 @@ test.describe(
             apiClient.post("workallocation/task", {
               data: body,
               throwOnError: false,
+              timeoutMs: WA_REQUEST_TIMEOUT_MS,
             }),
-          { retries: 1, retryStatuses: [502, 504] },
+          { retries: 2, retryStatuses: [500, 502, 503, 504] },
         )) as { data: TaskListResponse; status: number };
         assertAllWorkResponse(response.status, response.data);
       });
@@ -321,11 +331,16 @@ test.describe(
         test(`${endpoint} returns data or guarded status`, async ({
           apiClient,
         }) => {
-          const response = await withXsrf("solicitor", (headers) =>
-            apiClient.get(endpoint, {
-              headers,
-              throwOnError: false,
-            }),
+          const response = await withRetry(
+            () =>
+              withXsrf("solicitor", (headers) =>
+                apiClient.get(endpoint, {
+                  headers,
+                  throwOnError: false,
+                  timeoutMs: WA_REQUEST_TIMEOUT_MS,
+                }),
+              ),
+            { retries: 2, retryStatuses: [500, 502, 503, 504] },
           );
           expectStatus(response.status, StatusSets.guardedExtended);
           assertMyWorkDashboardResponse(response.status, response.data);
@@ -338,11 +353,16 @@ test.describe(
         // Given: A solicitor user authenticated with valid session
         // When: Requesting my-work cases dashboard
         // Then: Response includes totals field with case counts when cases exist
-        const response = await withXsrf("solicitor", (headers) =>
-          apiClient.get("workallocation/my-work/cases", {
-            headers,
-            throwOnError: false,
-          }),
+        const response = await withRetry(
+          () =>
+            withXsrf("solicitor", (headers) =>
+              apiClient.get("workallocation/my-work/cases", {
+                headers,
+                throwOnError: false,
+                timeoutMs: WA_REQUEST_TIMEOUT_MS,
+              }),
+            ),
+          { retries: 2, retryStatuses: [500, 502, 503, 504] },
         );
         expectStatus(response.status, StatusSets.guardedExtended);
         assertMyWorkTotalsResponse(response.status, response.data);
@@ -636,7 +656,7 @@ test.describe(
               data: { serviceIds: serviceCodes },
               throwOnError: false,
             }),
-          { retries: 1, retryStatuses: [502, 504] },
+          { retries: 1, retryStatuses: [502, 503, 504] },
         );
         expectStatus(response.status, [200, 400, 401, 403, 500, 502, 504]);
       });

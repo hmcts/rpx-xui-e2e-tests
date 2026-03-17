@@ -1,5 +1,7 @@
 import { Locator, Page } from "@playwright/test";
+
 import { Base } from "../../base";
+
 import {
   EXUI_TIMEOUTS,
   CCD_CASE_REFERENCE_LENGTH,
@@ -128,9 +130,26 @@ export class GlobalSearchPage extends Base {
     searchResultCaseLink: Locator,
     caseId: string,
   ): Promise<void> {
+    const fallbackCaseDetailsPath = `/cases/case-details/${caseId}`;
     for (let attempt = 1; attempt <= MAX_NAVIGATION_RETRY_ATTEMPTS; attempt++) {
       await searchResultCaseLink.scrollIntoViewIfNeeded();
       await searchResultCaseLink.click();
+      await this.exuiSpinnerComponent.wait();
+      if (
+        await this.waitForCaseDetailsUrl(
+          caseId,
+          EXUI_TIMEOUTS.CASE_DETAILS_NAVIGATION,
+        )
+      ) {
+        return;
+      }
+
+      const href = await searchResultCaseLink.getAttribute("href");
+      const fallbackTarget =
+        href && href.includes("/cases/case-details/")
+          ? href
+          : fallbackCaseDetailsPath;
+      await this.page.goto(fallbackTarget);
       await this.exuiSpinnerComponent.wait();
       if (
         await this.waitForCaseDetailsUrl(

@@ -2,6 +2,7 @@ import type { Cookie, Page, Response } from "@playwright/test";
 
 import { expect, test } from "../../../fixtures/ui";
 import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
 import { loadSessionCookies } from "../utils/session.utils.js";
 
 const userIdentifier = "COURT_ADMIN";
@@ -182,6 +183,7 @@ const extractCaseMeta = async (
 
 test.describe("@EXUI-3895 Case details default tab selection", () => {
   let caseMeta: { jurisdiction?: string; caseType?: string } = {};
+
   test.beforeAll(async ({ browser }, testInfo) => {
     void browser;
     if (!hasCourtAdminCreds) {
@@ -213,26 +215,55 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
     await installTabSelectionTracker(page);
 
     await test.step("Open case details from case list", async () => {
-      const caseDetailsResponse = page.waitForResponse((response) => {
-        return (
-          response.request().method() === "GET" &&
-          response.url().includes("/internal/cases/")
-        );
-      });
-      await caseListPage.page.goto(config.urls.manageCaseBaseUrl, {
-        waitUntil: "domcontentloaded",
-      });
-      await caseListPage.acceptAnalyticsCookies();
-      await caseListPage.waitForReady();
-      await caseListPage.exuiCaseListComponent.resultLinks
-        .first()
-        .waitFor({ state: "visible" });
-      await resetTabSelectionTracker(page);
-      await caseListPage.exuiCaseListComponent.selectCaseByIndex(0);
-      await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
-      await caseDetailsPage.waitForReady();
+      await retryOnTransientFailure(
+        async () => {
+          const caseDetailsResponse = page.waitForResponse((response) => {
+            return (
+              response.request().method() === "GET" &&
+              response.url().includes("/internal/cases/")
+            );
+          });
+          await caseListPage.page.goto(config.urls.manageCaseBaseUrl, {
+            waitUntil: "domcontentloaded",
+          });
+          await caseListPage.acceptAnalyticsCookies();
+          await caseListPage.waitForReady();
+          const hasCaseLink =
+            await caseListPage.exuiCaseListComponent.resultLinks
+              .first()
+              .isVisible({ timeout: 30_000 })
+              .catch(() => false);
+          if (!hasCaseLink) {
+            throw new Error(
+              "SLOW_API_RESPONSE: case list result links were not visible in time",
+            );
+          }
+          await resetTabSelectionTracker(page);
+          await caseListPage.exuiCaseListComponent.selectCaseByIndex(0);
+          await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome(
+            45_000,
+          );
+          await caseDetailsPage.waitForReady();
 
-      caseMeta = await extractCaseMeta(caseDetailsResponse);
+          const response = await caseDetailsResponse;
+          if (response.status() >= 500) {
+            throw new Error(
+              `returned HTTP ${response.status()} while opening case details`,
+            );
+          }
+          caseMeta = await extractCaseMeta(Promise.resolve(response));
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            if (!page.isClosed()) {
+              await page.goto(config.urls.manageCaseBaseUrl, {
+                waitUntil: "domcontentloaded",
+              });
+            }
+          },
+        },
+      );
     });
 
     const caseReference =
@@ -245,18 +276,34 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
     });
 
     await test.step("Open case details via Find Case", async () => {
-      await resetTabSelectionTracker(page);
-      await caseSearchPage.goto();
-      await caseSearchPage.waitForReady();
-      await caseSearchPage.ensureFiltersVisible();
-      await caseSearchPage.selectJurisdiction(caseMeta.jurisdiction);
-      await caseSearchPage.selectCaseType(caseMeta.caseType);
-      await caseSearchPage.waitForDynamicFilters();
-      await caseSearchPage.fillCcdNumber(caseReference);
-      await caseSearchPage.applyFilters();
-      await caseSearchPage.openFirstResult();
-      await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
-      await caseDetailsPage.waitForReady();
+      await retryOnTransientFailure(
+        async () => {
+          await resetTabSelectionTracker(page);
+          await caseSearchPage.goto();
+          await caseSearchPage.waitForReady();
+          await caseSearchPage.ensureFiltersVisible();
+          await caseSearchPage.selectJurisdiction(caseMeta.jurisdiction);
+          await caseSearchPage.selectCaseType(caseMeta.caseType);
+          await caseSearchPage.waitForDynamicFilters();
+          await caseSearchPage.fillCcdNumber(caseReference);
+          await caseSearchPage.applyFilters();
+          await caseSearchPage.openFirstResult();
+          await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome(
+            45_000,
+          );
+          await caseDetailsPage.waitForReady();
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            if (!page.isClosed()) {
+              await page.goto(config.urls.manageCaseBaseUrl, {
+                waitUntil: "domcontentloaded",
+              });
+            }
+          },
+        },
+      );
     });
 
     await assertSummaryTabIsDefault(page, "Find Case navigation");

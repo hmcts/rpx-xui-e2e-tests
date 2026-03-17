@@ -19,8 +19,9 @@ export class TableUtils {
     const fn = (rows: Element[]) => {
       const sanitize = (value: string): string =>
         value
-          .replace(/[▲▼⇧⇩⯅⯆]\s*$/g, "")
-          .replace(/\s+/g, " ")
+          .replaceAll(/^[▲▼⇧⇩⯅⯆\s]+/g, "")
+          .replaceAll(/[▲▼⇧⇩⯅⯆\s]+$/g, "")
+          .replaceAll(/\s+/g, " ")
           .trim();
 
       if (!rows.length) {
@@ -50,7 +51,7 @@ export class TableUtils {
 
     if (typeof selector === "string") {
       const resolvedPage = ensurePageForSelector(selector, page);
-      return resolvedPage.$$eval(`${selector} tr`, fn);
+      return resolvedPage.locator(`${selector} tr`).evaluateAll(fn);
     }
     return selector.locator("tr").evaluateAll(fn);
   }
@@ -59,11 +60,16 @@ export class TableUtils {
     selector: string | Locator,
     page?: Page,
   ): Promise<TableRow> {
+    // Note: sanitize is intentionally duplicated inside each evaluateAll closure — these
+    // functions are serialised and executed in the browser context, so they cannot
+    // reference outer-scope helpers.
     const fn = (rows: Element[]) => {
       const sanitize = (value: string): string =>
+        // NOSONAR typescript:S1192 - intentional duplicate: browser-serialised closure cannot reference outer scope
         value
-          .replace(/[▲▼⇧⇩⯅⯆]\s*$/g, "")
-          .replace(/\s+/g, " ")
+          .replaceAll(/^[▲▼⇧⇩⯅⯆\s]+/g, "")
+          .replaceAll(/[▲▼⇧⇩⯅⯆\s]+$/g, "")
+          .replaceAll(/\s+/g, " ")
           .trim();
 
       const parsed: TableRow = {};
@@ -83,7 +89,7 @@ export class TableUtils {
             .map((cell) => cell.textContent ?? "")
             .join(" "),
         );
-        if (!Object.prototype.hasOwnProperty.call(parsed, key)) {
+        if (!Object.hasOwn(parsed, key)) {
           parsed[key] = value;
         }
       }
@@ -92,7 +98,7 @@ export class TableUtils {
 
     if (typeof selector === "string") {
       const resolvedPage = ensurePageForSelector(selector, page);
-      return resolvedPage.$$eval(`${selector} tr`, fn);
+      return resolvedPage.locator(`${selector} tr`).evaluateAll(fn);
     }
     return selector.locator("tr").evaluateAll(fn);
   }
@@ -101,7 +107,27 @@ export class TableUtils {
     selector: string | Locator,
     page?: Page,
   ): Promise<TableRow[]> {
-    return this.parseDataTable(selector, page);
+    const rows = await this.parseDataTable(selector, page);
+    return rows.filter((row) => {
+      const caseName = row["Case name"]?.trim() ?? "";
+      const caseCategory = row["Case category"]?.trim() ?? "";
+      const location = row["Location"]?.trim() ?? "";
+      const task = row["Task"]?.trim() ?? "";
+      const dueDate = row["Due date"]?.trim() ?? "";
+      const hearingDate = row["Hearing date"]?.trim() ?? "";
+      const priority = row["Priority"]?.trim() ?? "";
+      const populatedCells = [
+        caseName,
+        caseCategory,
+        location,
+        task,
+        dueDate,
+        hearingDate,
+        priority,
+      ].filter((value) => value.length > 0).length;
+
+      return populatedCells >= 4 && Boolean(caseName && location && task);
+    });
   }
 }
 

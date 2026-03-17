@@ -94,7 +94,7 @@ export interface AddressLookupResponse {
   [key: string]: unknown;
 }
 
-// Zod schemas (passthrough to allow extra fields)
+// Zod schemas (loose to allow extra fields - Zod v4 replaces .passthrough() with .loose())
 export const TaskSchema = z
   .object({
     id: z.string().nonempty().optional(),
@@ -103,14 +103,14 @@ export const TaskSchema = z
     assignee: z.string().nullable().optional(),
     assigned_to: z.string().nullable().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const TaskListSchema = z
   .object({
     tasks: z.array(TaskSchema).optional(),
     total_records: z.number().nonnegative().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const RoleAssignmentSchema = z
   .object({
@@ -120,34 +120,34 @@ export const RoleAssignmentSchema = z
     actorId: z.string().optional(),
     actions: z.array(z.unknown()).optional(),
   })
-  .passthrough();
+  .loose();
 
 export const RoleAssignmentContainerSchema = z
   .object({
     roleAssignmentResponse: z.array(RoleAssignmentSchema).optional(),
   })
-  .passthrough();
+  .loose();
 
 export const CaseShareOrganisationSchema = z
   .object({
     organisationIdentifier: z.string().optional(),
     name: z.string().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const CaseShareUserSchema = z
   .object({
     userIdentifier: z.string().optional(),
     email: z.string().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const CaseShareCaseSchema = z
   .object({
     caseId: z.string().optional(),
     sharedWith: z.array(z.unknown()).optional(),
   })
-  .passthrough();
+  .loose();
 
 export const CaseShareResponseSchema = z
   .object({
@@ -157,7 +157,7 @@ export const CaseShareResponseSchema = z
     sharedCases: z.array(CaseShareCaseSchema).optional(),
     payload: z.any().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const BookmarkPayloadSchema = z
   .object({
@@ -171,7 +171,7 @@ export const BookmarkPayloadSchema = z
     parent: z.string().nullable().optional(),
     previous: z.string().nullable().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const AnnotationRectangleSchema = z
   .object({
@@ -181,7 +181,7 @@ export const AnnotationRectangleSchema = z
     width: z.number().optional(),
     height: z.number().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const AnnotationPayloadSchema = z
   .object({
@@ -194,7 +194,7 @@ export const AnnotationPayloadSchema = z
     documentId: z.string().optional(),
     annotationSetId: z.string().optional(),
   })
-  .passthrough();
+  .loose();
 
 export const AddressLookupResponseSchema = z
   .object({
@@ -208,15 +208,15 @@ export const AddressLookupResponseSchema = z
                 ADDRESS: z.string().optional(),
                 POST_TOWN: z.string().optional(),
               })
-              .passthrough()
+              .loose()
               .optional(),
           })
-          .passthrough(),
+          .loose(),
       )
       .optional(),
     header: z.unknown().optional(),
   })
-  .passthrough();
+  .loose();
 
 export interface AnnotationRectangle {
   id?: string;
@@ -256,7 +256,7 @@ export function isTaskList(payload: unknown): payload is TaskListResponse {
   return (
     !!payload &&
     typeof payload === "object" &&
-    Array.isArray((payload as any).tasks)
+    Array.isArray((payload as { tasks: unknown }).tasks)
   );
 }
 

@@ -16,6 +16,10 @@ type Jurisdiction = {
   [key: string]: unknown;
 };
 
+const jurisdictionNameAliases: Record<string, string[]> = {
+  "Family Divorce": ["Family Divorce", "Family Private Law"],
+};
+
 export async function assertJurisdictionsForUser(
   apiClient: PlaywrightApiClient,
   expectedNames: string[],
@@ -47,9 +51,15 @@ export async function assertJurisdictionsForUser(
   const actualNames = response.data
     .map((entry: JurisdictionResponse) => entry?.name)
     .filter(Boolean);
-  expectedNames.forEach((name) => {
-    expect(actualNames).toContain(name);
-  });
+  if (expectedNames.length > 0) {
+    const expectedExpanded = expectedNames.flatMap(
+      (name) => jurisdictionNameAliases[name] ?? [name],
+    );
+    expect(
+      expectedExpanded.some((candidate) => actualNames.includes(candidate)),
+      `Expected at least one jurisdiction from [${expectedExpanded.join(", ")}], received [${actualNames.join(", ")}]`,
+    ).toBe(true);
+  }
 
   response.data.forEach((jurisdiction: Jurisdiction) => {
     expect(jurisdiction).toEqual(

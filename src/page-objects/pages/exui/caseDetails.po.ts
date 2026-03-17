@@ -1,8 +1,9 @@
 import { Locator, Page } from "@playwright/test";
-import { Base } from "../../base";
-import { ValidatorUtils } from "../../../utils/ui/validator.utils";
-import { TableUtils } from "../../../utils/ui/table.utils";
+
 import { TIMEOUTS } from "../../../tests/e2e/documentUpload/constants";
+import { TableUtils } from "../../../utils/ui/table.utils";
+import { ValidatorUtils } from "../../../utils/ui/validator.utils";
+import { Base } from "../../base";
 
 const validatorUtils = new ValidatorUtils();
 const tableUtils = new TableUtils();
@@ -102,6 +103,9 @@ export class CaseDetailsPage extends Base {
   readonly divorceDataSubTable = this.divorceDataTable.locator(
     "table.complex-panel-table table",
   );
+  readonly taskListContainer = this.page.locator(".active-tasks-container");
+  readonly taskItem = this.taskListContainer.locator("exui-case-task");
+  readonly taskAlerts = this.page.locator("#alertMessage");
 
   // Search case (16 Digit Search)
   readonly caseProgressMessage = this.page.locator(
@@ -156,8 +160,8 @@ export class CaseDetailsPage extends Base {
         "Invalid CSS selector: contains potentially unsafe characters",
       );
     }
-    // Selector string: use page.$$eval to run fn in page context
-    return this.page.$$eval(`${selector} tr`, fn);
+    // Selector string: use locator.evaluateAll to run fn in page context
+    return this.page.locator(`${selector} tr`).evaluateAll(fn);
   }
 
   getTableByName(tableName: string) {
@@ -286,6 +290,64 @@ export class CaseDetailsPage extends Base {
     return this.parseDataTable(fallbackTable);
   }
 
+  async getTaskKeyValueRows(): Promise<Record<string, string>[]> {
+    try {
+      await this.taskItem.first().waitFor({ state: "visible" });
+    } catch {
+      return [];
+    }
+
+    const taskCount = await this.taskItem.count();
+    if (taskCount === 0) {
+      return [];
+    }
+
+    const results: Record<string, string>[] = [];
+
+    for (let i = 0; i < taskCount; i += 1) {
+      const task = this.taskItem.nth(i);
+      const title = (await task.locator("p.govuk-body").innerText())
+        .replace(/\s+/g, " ")
+        .trim();
+      const rows = task.locator(".govuk-summary-list__row");
+      const rowCount = await rows.count();
+      const taskData: Record<string, string> = {};
+
+      if (title) {
+        taskData.Title = title;
+      }
+
+      for (let j = 0; j < rowCount; j += 1) {
+        const row = rows.nth(j);
+        const key = (
+          await row.locator(".govuk-summary-list__key .row-padding").innerText()
+        ).trim();
+        const valueEl = row.locator(".govuk-summary-list__value");
+        let value = (await valueEl.innerText()).replace(/\s+/g, " ").trim();
+        const rawHtml = (
+          await valueEl.evaluate((el: HTMLElement) => el.innerHTML || "")
+        ).trim();
+        const heading = await valueEl.evaluate((el: HTMLElement) => {
+          const found = el.querySelector("h1,h2,h3") as HTMLElement | null;
+          return found ? (found.textContent || "").trim() : "";
+        });
+        if (heading && !value.startsWith(heading)) {
+          value = `${heading}${value ? ` ${value}` : ""}`.trim();
+        }
+        if (key) {
+          taskData[key] = value;
+          taskData[`${key} HTML`] = rawHtml;
+        }
+      }
+
+      if (Object.keys(taskData).length > 0) {
+        results.push(taskData);
+      }
+    }
+
+    return results;
+  }
+
   async trRowsToObjectInPage(
     selector: string | Locator,
   ): Promise<Record<string, string>> {
@@ -337,16 +399,19 @@ export class CaseDetailsPage extends Base {
       });
 
       for (const row of dataRows) {
-        const cells = Array.from(row.querySelectorAll("th, td"));
+        const cells = Array.from(row.querySelectorAll("th, td")).filter(
+          (cell) =>
+            !(cell.tagName === "TD" && cell.classList.contains("case-field-change")),
+        );
         if (cells.length < 2) {
           continue;
         }
 
         // Clone the key cell and strip nested tables so nested content is ignored
-        const keyCellClone = (cells[0] as Element).cloneNode(true) as Element;
+        const keyCellClone = cells[0].cloneNode(true) as Element;
         keyCellClone.querySelectorAll("table").forEach((t) => t.remove());
         const rawKey = findFirstText(keyCellClone)
-          .replace(/[▲▼⇧⇩⯅⯆]\s*$/g, "")
+          .replaceAll(/[▲▼⇧⇩⯅⯆]\s*$/g, "")
           .trim();
         if (!rawKey) {
           continue;
@@ -354,17 +419,17 @@ export class CaseDetailsPage extends Base {
         const valueParts = cells
           .slice(1)
           .map((c) => {
-            const clone = (c as Element).cloneNode(true) as Element;
+            const clone = c.cloneNode(true) as Element;
             clone.querySelectorAll("table").forEach((t) => t.remove());
             return findFirstText(clone)
-              .replace(/[▲▼⇧⇩⯅⯆]\s*$/g, "")
+              .replaceAll(/[▲▼⇧⇩⯅⯆]\s*$/g, "")
               .trim();
           })
           .filter(Boolean);
         const value = valueParts.join(" ").replaceAll(/\s+/g, " ").trim();
 
         // Preserve the first occurrence of a repeated key (do not overwrite)
-        if (!Object.prototype.hasOwnProperty.call(out, rawKey)) {
+        if (!Object.hasOwn(out, rawKey)) {
           out[rawKey] = value;
         }
       }
@@ -395,14 +460,17 @@ export class CaseDetailsPage extends Base {
       // header is first tr
       const headerRow = rows[0];
       const sanitize = (s: string) =>
-        (s || "").replace(/[▲▼⇧⇩⯅⯆]\s*$/g, "").trim();
-      const headers = Array.from(headerRow.querySelectorAll("th, td")).map(
-        (h) => {
-          const clone = (h as Element).cloneNode(true) as Element;
+        (s || "").replaceAll(/[▲▼⇧⇩⯅⯆]\s*$/g, "").trim();
+      const headers = Array.from(headerRow.querySelectorAll("th, td"))
+        .filter(
+          (cell) =>
+            !(cell.tagName === "TD" && cell.classList.contains("case-field-change")),
+        )
+        .map((h) => {
+          const clone = h.cloneNode(true) as Element;
           clone.querySelectorAll("table").forEach((t) => t.remove());
           return sanitize(clone.textContent || "");
-        },
-      );
+        });
 
       // data rows are after header; filter hidden rows
       const dataRows = Array.from(rows)
@@ -425,19 +493,22 @@ export class CaseDetailsPage extends Base {
         });
 
       for (const row of dataRows) {
-        const cells = Array.from(row.querySelectorAll("th, td"));
+        const cells = Array.from(row.querySelectorAll("th, td")).filter(
+          (cell) =>
+            !(cell.tagName === "TD" && cell.classList.contains("case-field-change")),
+        );
         if (cells.length === 0) {
           continue;
         }
         const obj: Record<string, string> = {};
         for (let i = 0; i < cells.length; i++) {
           const key = headers[i] || `column_${i + 1}`;
-          const cellClone = (cells[i] as Element).cloneNode(true) as Element;
+          const cellClone = cells[i].cloneNode(true) as Element;
           cellClone.querySelectorAll("table").forEach((t) => t.remove());
           const cellText = cellClone.textContent || "";
-          const value = sanitize(cellText).replace(/\s+/g, " ");
+          const value = sanitize(cellText).replaceAll(/\s+/g, " ");
           // Preserve the first occurrence of a repeated header key in the row
-          if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+          if (!Object.hasOwn(obj, key)) {
             obj[key] = value;
           }
         }

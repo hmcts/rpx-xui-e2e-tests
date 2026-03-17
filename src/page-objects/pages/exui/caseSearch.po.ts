@@ -77,7 +77,21 @@ export class CaseSearchPage extends Base {
   }
 
   async waitForDynamicFilters(): Promise<void> {
-    await this.dynamicFilters.waitFor({ state: "visible", timeout: 30_000 });
+    try {
+      await this.dynamicFilters.waitFor({ state: "visible", timeout: 30_000 });
+    } catch (error) {
+      const currentUrl = this.page.url();
+      const selectedJurisdiction = await this.jurisdictionSelect
+        .inputValue()
+        .catch(() => "");
+      const selectedCaseType = await this.caseTypeSelect
+        .inputValue()
+        .catch(() => "");
+      throw new Error(
+        `SLOW_API_RESPONSE: dynamic filters were not visible within 30000ms (url=${currentUrl}, jurisdiction=${selectedJurisdiction || "unknown"}, caseType=${selectedCaseType || "unknown"})`,
+        { cause: error instanceof Error ? error : undefined },
+      );
+    }
   }
 
   async fillCcdNumber(caseReference: string): Promise<void> {

@@ -1,0 +1,29 @@
+agent:
+  name: ""
+  version: ""
+  owner: ""
+  model_provider: "Azure OpenAI"
+  model_name: ""
+  model_version: ""
+  purpose: ""
+  scope: ""
+
+risk:
+  classification: "low|medium|high"
+  harms_considered: []
+  mitigations: []
+
+data:
+  inputs: []
+  pii_handling: "mask"
+  retention_policy: ""
+  residency: "UK South"
+
+governance:
+  reviewer: ""
+  audit_reference: "HMCTS-AI-2025-04"
+  last_reviewed: ""
+  compliance:
+    - "UK GDPR"
+    - "ISO27001"
+    - "MoJ Security Policy"

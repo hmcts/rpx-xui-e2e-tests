@@ -1,5 +1,6 @@
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+
 import type { PlaywrightTestConfig } from "@playwright/test";
 
 export type EnvMap = Record<string, string | undefined>;

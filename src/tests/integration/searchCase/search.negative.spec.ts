@@ -104,6 +104,7 @@ test.describe(`Header quick search negative flows as ${userIdentifier}`, () => {
 
       expect(caseDetailsRequestSeen).toBeTruthy();
 
+      // eslint-disable-next-line playwright/no-conditional-in-test -- assertions branch on real HTTP status semantics (403 restricted vs other auth failures)
       if (status === 403) {
         await expect(page).toHaveURL(
           new RegExp(

@@ -1,0 +1,8 @@
+# Canonical Manifest Pointer
+
+The canonical HMCTS agent manifest for this repository is:
+
+- `.agent/AGENTS.md`
+
+This file is intentionally minimal to prevent configuration drift between duplicate manifests.
+Update `.agent/AGENTS.md` only.

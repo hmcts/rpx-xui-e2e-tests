@@ -1,3 +1,5 @@
+import { firstAllowedNonEmpty } from "./accountPolicy.js";
+
 export interface User {
   idamId: string;
   email: string;
@@ -15,7 +17,7 @@ export interface AppTestConfig {
   };
 }
 
-const prToTestInDemo: any[] = [];
+const prToTestInDemo: Array<{ previewUrl: string; demoUrl: string }> = [];
 
 export function resolvePreviewConfig(
   previewConfigs: Array<{ previewUrl: string; demoUrl: string }>,
@@ -58,6 +60,9 @@ export function resolveTestEnv(value?: string): string {
     : "aat";
 }
 
+const envValue = (name: string): string =>
+  firstAllowedNonEmpty(process.env[name]) ?? "";
+
 const data: AppTestConfig = {
   getTestEnvFromEnviornment: resolveTestEnv,
   testEnv: resolveTestEnv(process.env.TEST_ENV),
@@ -65,17 +70,19 @@ const data: AppTestConfig = {
     aat: [
       {
         idamId: "2d8727c0-44f7-4c2b-99b3-e3d53f90cded",
-        email: "xui_auto_test_user_solicitor@mailinator.com",
+        email: envValue("PROD_LIKE_USERNAME"),
         release: "general",
         userIdentifier: "PROD_LIKE",
-        key: "Monday01",
+        key: envValue("PROD_LIKE_PASSWORD"),
       },
       {
         idamId: "2d8727c0-44f7-4c2b-99b3-e3d53f90cded",
-        email: "xui_auto_test_user_solicitor@mailinator.com",
+        email:
+          envValue("SOLICITOR_USERNAME") || envValue("PRL_SOLICITOR_USERNAME"),
         release: "general",
         userIdentifier: "SOLICITOR",
-        key: "Monday01",
+        key:
+          envValue("SOLICITOR_PASSWORD") || envValue("PRL_SOLICITOR_PASSWORD"),
       },
       {
         idamId: "12b6a360-7f19-4985-b065-94320a891eaa",
@@ -249,16 +256,19 @@ const data: AppTestConfig = {
     demo: [
       {
         idamId: "12b6a360-7f19-4985-b065-94320a891eaa",
-        email: "peterxuisuperuser@mailnesia.com",
+        email: envValue("PROD_LIKE_USERNAME"),
         release: "general",
         userIdentifier: "PROD_LIKE",
-        key: "Monday01",
+        key: envValue("PROD_LIKE_PASSWORD"),
       },
       {
         idamId: "12b6a360-7f19-4985-b065-94320a891eaa",
-        email: "lukesuperuserxui_new@mailnesia.com",
+        email:
+          envValue("SOLICITOR_USERNAME") || envValue("PRL_SOLICITOR_USERNAME"),
         release: "general",
         userIdentifier: "SOLICITOR",
+        key:
+          envValue("SOLICITOR_PASSWORD") || envValue("PRL_SOLICITOR_PASSWORD"),
       },
       {
         idamId: "12b6a360-7f19-4985-b065-94320a891eaa",

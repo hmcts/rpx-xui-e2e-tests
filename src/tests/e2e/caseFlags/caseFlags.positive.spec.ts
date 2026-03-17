@@ -1,18 +1,21 @@
 import { faker } from "@faker-js/faker";
+
 import { expect, test } from "../../../fixtures/ui";
-import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
-import { filterEmptyRows } from "../../../utils/ui/index";
 import { caseBannerMatches } from "../../../utils/ui/banner.utils";
 import {
   isPageClosingError,
   rowMatchesExpected,
 } from "../../../utils/ui/case-flags.utils";
-import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
+import { filterEmptyRows } from "../../../utils/ui/index";
 import {
-  DIVORCE_FLAGS_DYNAMIC_SOLICITOR_ROLES,
-  EMPLOYMENT_DYNAMIC_SOLICITOR_ROLES,
-  provisionDynamicSolicitorForAlias,
-} from "../_helpers/dynamicSolicitorSession";
+  ensureAuthenticatedPage,
+  ensureSession,
+} from "../../../utils/ui/sessionCapture";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
+import { setupCaseForJourney } from "../_helpers/caseSetup";
+
+const PARTY_LEVEL_SUITE_TIMEOUT_MS = 300_000;
+const SESSION_BOOTSTRAP_TIMEOUT_MS = 300_000;
 
 function isMissingEmploymentCreateCaseOption(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
@@ -66,28 +69,18 @@ async function withTimeout<T>(
 }
 
 test.describe("Case level case flags", () => {
-  test.describe.configure({ timeout: 600000 });
+  test.describe.configure({ timeout: 180_000 });
   let caseNumber: string;
   const jurisdiction = "EMPLOYMENT";
   const caseType = "ET_EnglandWales";
-  let dynamicHandle:
-    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
-    | undefined;
+
+  test.beforeAll(async ({ browserName: _browserName }, testInfo) => {
+    testInfo.setTimeout(SESSION_BOOTSTRAP_TIMEOUT_MS);
+    await ensureSession("SEARCH_EMPLOYMENT_CASE");
+  });
+
   test.beforeEach(
-    async (
-      { page, createCasePage, caseDetailsPage, professionalUserUtils },
-      testInfo,
-    ) => {
-      dynamicHandle = await provisionDynamicSolicitorForAlias({
-        alias: "SEARCH_EMPLOYMENT_CASE",
-        professionalUserUtils,
-        roleNames: EMPLOYMENT_DYNAMIC_SOLICITOR_ROLES,
-        roleContext: {
-          jurisdiction: "employment",
-          testType: "case-create",
-        },
-        testInfo,
-      });
+    async ({ page, createCasePage, caseDetailsPage }, testInfo) => {
       try {
         await retryOnTransientFailure(
           async () => {
@@ -95,12 +88,27 @@ test.describe("Case level case flags", () => {
               (async () => {
                 await ensureAuthenticatedPage(page, "SEARCH_EMPLOYMENT_CASE", {
                   waitForSelector: "exui-header",
+                  timeoutMs: 45_000,
                 });
-                await createCasePage.createCaseEmployment(
+                const setup = await setupCaseForJourney({
+                  scenario: "case-flags-employment-case-level",
                   jurisdiction,
                   caseType,
-                );
-                caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+                  mode: "api-first",
+                  allowUiFallback: true,
+                  uiCreate: async () => {
+                    await createCasePage.createCaseEmployment(
+                      jurisdiction,
+                      caseType,
+                      { allowDraftClaimFallback: true },
+                    );
+                  },
+                  page,
+                  createCasePage,
+                  caseDetailsPage,
+                  testInfo,
+                });
+                caseNumber = setup.caseNumber;
               })(),
               120_000,
               "Case-level flags setup exceeded 120000ms while creating a case",
@@ -118,28 +126,19 @@ test.describe("Case level case flags", () => {
         );
       } catch (error) {
         if (isMissingEmploymentCreateCaseOption(error)) {
-          testInfo.skip(
-            true,
-            "Skipping employment case-flags tests: EMPLOYMENT/ET_EnglandWales not available in this environment.",
+          throw new Error(
+            "Employment case-flags tests cannot run: EMPLOYMENT/ET_EnglandWales is not available in this environment.",
           );
-          return;
         }
         if (isDependencyEnvironmentFailure(error)) {
-          testInfo.skip(
-            true,
-            `Skipping employment case-flags tests due to dependency environment instability: ${asMessage(error)}`,
+          throw new Error(
+            `Employment case-flags setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-          return;
         }
         throw error;
       }
     },
   );
-
-  test.afterEach(async () => {
-    await dynamicHandle?.cleanup();
-    dynamicHandle = undefined;
-  });
 
   test("Create a new case level flag and verify the flag is displayed on the case", async ({
     caseDetailsPage,
@@ -183,9 +182,9 @@ test.describe("Case level case flags", () => {
           );
         })
         .toBe(true);
-      expect
-        .soft(await caseDetailsPage.caseNotificationBannerTitle.isVisible())
-        .toBe(true);
+      await expect
+        .soft(caseDetailsPage.caseNotificationBannerTitle)
+        .toBeVisible();
       expect
         .soft(await caseDetailsPage.caseNotificationBannerTitle.innerText())
         .toContain("Important");
@@ -232,30 +231,19 @@ test.describe("Case level case flags", () => {
 });
 
 test.describe("Party level case flags", () => {
-  test.describe.configure({ timeout: 600000 });
+  test.describe.configure({ timeout: PARTY_LEVEL_SUITE_TIMEOUT_MS });
   const testValue = faker.person.firstName();
   let caseNumber: string;
   const jurisdiction = "DIVORCE";
   const caseType = "xuiCaseFlagsV1";
-  let dynamicHandle:
-    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
-    | undefined;
-  test.beforeEach(
-    async (
-      { page, createCasePage, caseDetailsPage, professionalUserUtils },
-      testInfo,
-    ) => {
-      dynamicHandle = await provisionDynamicSolicitorForAlias({
-        alias: "USER_WITH_FLAGS",
-        professionalUserUtils,
-        roleNames: DIVORCE_FLAGS_DYNAMIC_SOLICITOR_ROLES,
-        roleContext: {
-          jurisdiction: "divorce",
-          testType: "case-create",
-        },
-        testInfo,
-      });
 
+  test.beforeAll(async ({ browserName: _browserName }, testInfo) => {
+    testInfo.setTimeout(SESSION_BOOTSTRAP_TIMEOUT_MS);
+    await ensureSession("USER_WITH_FLAGS");
+  });
+
+  test.beforeEach(
+    async ({ page, createCasePage, caseDetailsPage }, testInfo) => {
       try {
         await retryOnTransientFailure(
           async () => {
@@ -264,12 +252,30 @@ test.describe("Party level case flags", () => {
                 await ensureAuthenticatedPage(page, "USER_WITH_FLAGS", {
                   waitForSelector: "exui-header",
                 });
-                await createCasePage.createDivorceCaseFlag(
-                  testValue,
+                const setup = await setupCaseForJourney({
+                  scenario: "case-flags-divorce-party-level",
                   jurisdiction,
                   caseType,
-                );
-                caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+                  mode: "api-first",
+                  allowUiFallback: true,
+                  apiPayload: {
+                    fieldValues: {
+                      testValue,
+                    },
+                  },
+                  uiCreate: async () => {
+                    await createCasePage.createDivorceCaseFlag(
+                      testValue,
+                      jurisdiction,
+                      caseType,
+                    );
+                  },
+                  page,
+                  createCasePage,
+                  caseDetailsPage,
+                  testInfo,
+                });
+                caseNumber = setup.caseNumber;
               })(),
               120_000,
               "Party-level flags setup exceeded 120000ms while creating a case",
@@ -287,21 +293,14 @@ test.describe("Party level case flags", () => {
         );
       } catch (error) {
         if (isDependencyEnvironmentFailure(error)) {
-          testInfo.skip(
-            true,
-            `Skipping party-level case-flags tests due to dependency environment instability: ${asMessage(error)}`,
+          throw new Error(
+            `Party-level case-flags setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-          return;
         }
         throw error;
       }
     },
   );
-
-  test.afterEach(async () => {
-    await dynamicHandle?.cleanup();
-    dynamicHandle = undefined;
-  });
 
   test("Create a new party level flag and verify the flag is displayed on the case", async ({
     caseDetailsPage,
@@ -356,9 +355,9 @@ test.describe("Party level case flags", () => {
           { timeout: 45000, intervals: [1000, 2000, 3000] },
         )
         .toBe(true);
-      expect
-        .soft(await caseDetailsPage.caseNotificationBannerTitle.isVisible())
-        .toBe(true);
+      await expect
+        .soft(caseDetailsPage.caseNotificationBannerTitle)
+        .toBeVisible();
       expect
         .soft(await caseDetailsPage.caseNotificationBannerTitle.innerText())
         .toContain("Important");

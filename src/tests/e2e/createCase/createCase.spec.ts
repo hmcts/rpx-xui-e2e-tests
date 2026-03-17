@@ -1,8 +1,8 @@
+import { createLogger } from "@hmcts/playwright-common";
+
 import { expect, test } from "../../../fixtures/ui";
 import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
 import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
-import { createLogger } from "@hmcts/playwright-common";
-import { provisionDynamicSolicitorForAlias } from "../_helpers/dynamicSolicitorSession";
 const jurisdiction = "DIVORCE";
 const caseType = "XUI Case PoC";
 let caseNumber: string;
@@ -31,29 +31,13 @@ function isDependencyEnvironmentFailure(error: unknown): boolean {
 test.describe("Verify creating cases works as expected", () => {
   test.describe.configure({ timeout: 600000 });
   let caseData;
-  let dynamicHandle:
-    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
-    | undefined;
 
   test.beforeEach(
-    async (
-      { page, caseDetailsPage, createCasePage, professionalUserUtils },
-      testInfo,
-    ) => {
-      dynamicHandle = await provisionDynamicSolicitorForAlias({
-        alias: "SOLICITOR",
-        professionalUserUtils,
-        roleContext: {
-          jurisdiction: "divorce",
-          testType: "case-create",
-        },
-        testInfo,
-      });
-
+    async ({ page, caseDetailsPage, createCasePage }) => {
       try {
         await retryOnTransientFailure(
           async () => {
-            await ensureAuthenticatedPage(page, "SOLICITOR", {
+            await ensureAuthenticatedPage(page, "PROD_LIKE", {
               waitForSelector: "exui-header",
             });
             caseData = await createCasePage.generateDivorcePoCData();
@@ -88,21 +72,14 @@ test.describe("Verify creating cases works as expected", () => {
         );
       } catch (error) {
         if (isDependencyEnvironmentFailure(error)) {
-          testInfo.skip(
-            true,
-            `Skipping create-case test due to dependency environment instability: ${asMessage(error)}`,
+          throw new Error(
+            `Create-case setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-          return;
         }
         throw error;
       }
     },
   );
-
-  test.afterEach(async () => {
-    await dynamicHandle?.cleanup();
-    dynamicHandle = undefined;
-  });
 
   test("Verify creating a case in the divorce jurisdiction works as expected", async ({
     page,

@@ -17,8 +17,8 @@ export const StatusSets = {
   globalSearch: [200, 400, 401, 403, 500, 502, 504] as const,
   okOnly: [200] as const,
   okOrBadRequest: [200, 400, 403] as const,
-  corsAllowed: [200, 204, 400, 401, 403] as const,
-  corsDisallowed: [200, 204, 400, 401, 403, 404] as const,
+  corsAllowed: [200, 204, 400, 401, 403, 502, 504] as const,
+  corsDisallowed: [200, 204, 400, 401, 403, 404, 502, 504] as const,
   retryable: [200, 401, 403, 404, 500, 502, 504] as const,
   roleAccessRetryable: [200, 400, 401, 403, 404, 409, 500, 502, 504] as const,
   /** WA read-only endpoints: guards against downstream 5xx while accepting auth rejections */

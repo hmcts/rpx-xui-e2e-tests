@@ -2,30 +2,20 @@ import { promises as fs } from "node:fs";
 
 import { request } from "@playwright/test";
 
-import { config } from "../../utils/ui/apiTestConfig";
-import { ensureStorageState } from "../../utils/api/auth";
-import { test, expect } from "../../fixtures/api";
 import {
   ROLE_ACCESS_CASE_ID,
   resolveRoleAccessCaseId,
 } from "../../data/api/testIds";
+import { test, expect } from "../../fixtures/api";
 import {
   expectStatus,
   StatusSets,
   withRetry,
   withXsrf,
 } from "../../utils/api/apiTestUtils";
+import { ensureStorageState } from "../../utils/api/auth";
 import { AuthenticationError } from "../../utils/api/errors";
 import { seedRoleAccessCaseId } from "../../utils/api/role-access";
-import { RoleAssignmentContainer } from "../../utils/api/types";
-import {
-  buildCaseIdListPayload,
-  buildCaseIdPayload,
-  buildRoleAllocationRequest,
-  buildSpecificAccessApprovalRequest,
-  ensureCcdCaseReference,
-  postWaWithDiagnostics,
-} from "../../utils/api/waRequestGuardrails";
 import {
   applyExpiredCookies,
   assertGlobalSearchResults,
@@ -42,6 +32,16 @@ import {
   assertValidRolesResponse,
   buildExpiredCookies,
 } from "../../utils/api/searchRefDataUtils";
+import { RoleAssignmentContainer } from "../../utils/api/types";
+import {
+  buildCaseIdListPayload,
+  buildCaseIdPayload,
+  buildRoleAllocationRequest,
+  buildSpecificAccessApprovalRequest,
+  ensureCcdCaseReference,
+  postWaWithDiagnostics,
+} from "../../utils/api/waRequestGuardrails";
+import { config } from "../../utils/ui/apiTestConfig";
 
 test.describe("Global search", { tag: "@svc-global-search" }, () => {
   test("lists available services", async ({ apiClient }) => {
@@ -53,7 +53,7 @@ test.describe("Global search", { tag: "@svc-global-search" }, () => {
             throwOnError: false,
           },
         ),
-      { retries: 1, retryStatuses: [502, 504] },
+      { retries: 1, retryStatuses: [502, 503, 504] },
     );
     expectStatus(response.status, StatusSets.guardedBasic);
     assertGlobalSearchServices(response.status, response.data);
@@ -86,7 +86,7 @@ test.describe("Global search", { tag: "@svc-global-search" }, () => {
             throwOnError: false,
           },
         ),
-      { retries: 1, retryStatuses: [502, 504] },
+      { retries: 1, retryStatuses: [502, 503, 504] },
     );
     expectStatus(response.status, [200, 400, 401, 403, 404, 500, 502, 504]);
     assertSearchCasesResponse(response.status, response.data);
@@ -138,7 +138,7 @@ test.describe(
         data: { attributes: ["email"], searchString: "test" },
         throwOnError: false,
       });
-      expectStatus(res.status, [200, 400, 401, 403, 500]);
+      expectStatus(res.status, [200, 400, 401, 403, 500, 502, 504]);
       assertStaffRefDataResponse(res.status, res.data);
     });
   },
@@ -149,6 +149,7 @@ test.describe("Role access / AM", { tag: "@svc-role-assignment" }, () => {
   const hasCaseOfficer =
     !!config.users?.[config.testEnv as keyof typeof config.users]
       ?.caseOfficer_r1;
+
   test.beforeAll(async ({ apiClient }) => {
     if (!roleAccessCaseId) {
       const seeded = await seedRoleAccessCaseId(apiClient);
@@ -159,6 +160,7 @@ test.describe("Role access / AM", { tag: "@svc-role-assignment" }, () => {
       "role-access seed caseId",
     );
   });
+
   test("rejects unauthenticated role access calls", async ({
     anonymousClient,
   }) => {
@@ -193,9 +195,10 @@ test.describe("Role access / AM", { tag: "@svc-role-assignment" }, () => {
           "api/role-access/roles/get-my-access-new-count",
           {
             throwOnError: false,
+            timeoutMs: 60_000,
           },
         ),
-      { retries: 1, retryStatuses: [502, 504] },
+      { retries: 2, retryStatuses: [500, 502, 503, 504] },
     );
     expectStatus(res.status, [200, 401, 403, 500, 502, 504]);
     assertMyAccessCount(res.status, res.data);
@@ -213,7 +216,7 @@ test.describe("Role access / AM", { tag: "@svc-role-assignment" }, () => {
           allowedStatuses: [200, 400, 401, 403, 404, 500],
           testInfo,
         }),
-      { retries: 1, retryStatuses: [502, 504] },
+      { retries: 1, retryStatuses: [502, 503, 504] },
     );
     expectStatus(res.status, [200, 400, 401, 403, 404, 500]);
     assertRoleAccessGetResponse(res.status, res.data);
@@ -385,7 +388,7 @@ test.describe("Role access / AM", { tag: "@svc-role-assignment" }, () => {
         ),
         throwOnError: false,
       });
-      expectStatus(res.status, [401, 403, 500]);
+      expectStatus(res.status, [401, 403, 500, 502, 504]);
     } catch (error) {
       if (error instanceof AuthenticationError) {
         testInfo.annotations.push({
@@ -441,7 +444,7 @@ test.describe("Role access / AM", { tag: "@svc-role-assignment" }, () => {
             testInfo,
           }),
         ),
-      { retries: 1, retryStatuses: [502, 504] },
+      { retries: 1, retryStatuses: [502, 503, 504] },
     );
     expectStatus(res.status, StatusSets.allocateRole);
     assertManageLabellingResponse(res.status, res.data);

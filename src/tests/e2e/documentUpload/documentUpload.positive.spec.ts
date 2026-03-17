@@ -1,21 +1,19 @@
 import { faker } from "@faker-js/faker";
-import { Response } from "@playwright/test";
-import { expect, test } from "../../../fixtures/ui";
-import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
-import { TEST_DATA } from "./constants";
-import { expectCaseBanner } from "../../../utils/ui/index";
 import { createLogger } from "@hmcts/playwright-common";
+import { Response } from "@playwright/test";
+
+import { expect, test } from "../../../fixtures/ui";
+import { expectCaseBanner } from "../../../utils/ui/index";
+import { ensureAuthenticatedPage } from "../../../utils/ui/sessionCapture";
 import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
-import {
-  EMPLOYMENT_DYNAMIC_SOLICITOR_ROLES,
-  provisionDynamicSolicitorForAlias,
-} from "../_helpers/dynamicSolicitorSession";
+
+import { TEST_DATA } from "./constants";
 
 const logger = createLogger({
   serviceName: "document-upload-tests",
   format: "pretty",
 });
-const DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS = 60_000;
+const DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS = 90_000;
 
 function asMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -25,8 +23,18 @@ function isDependencyEnvironmentFailure(error: unknown): boolean {
   const message = asMessage(error);
   return (
     /returned HTTP 5\d\d/i.test(message) ||
+    /returned HTTP 4\d\d/i.test(message) ||
     /status\s+5\d\d/i.test(message) ||
+    /status\s+4\d\d/i.test(message) ||
+    /critical backend dependency failure/i.test(message) ||
+    /validation error after submit/i.test(message) ||
+    /callback data failed validation/i.test(message) ||
+    /No case type found/i.test(message) ||
+    /aggregated\/caseworkers\/.*\/jurisdictions/i.test(message) ||
     /something went wrong page/i.test(message) ||
+    /waitForFunction:\s*Timeout \d+ms exceeded/i.test(message) ||
+    /did not become available/i.test(message) ||
+    /Upload timed out after \d+ retries/i.test(message) ||
     /network timeout/i.test(message) ||
     /ECONNRESET|ETIMEDOUT/i.test(message) ||
     /Target page, context or browser has been closed/i.test(message) ||
@@ -69,32 +77,17 @@ function isMissingEmploymentCreateCaseOption(error: unknown): boolean {
 }
 
 test.describe("Document upload V2", () => {
-  test.describe.configure({ timeout: 600000 });
+  test.describe.configure({ timeout: 180_000 });
   let testValue: string;
   let caseNumber: string;
-  let dynamicHandle:
-    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
-    | undefined;
+
   test.beforeAll(async () => {
     // Set deterministic seed once per suite
     faker.seed(12345);
   });
 
   test.beforeEach(
-    async (
-      { page, createCasePage, caseDetailsPage, professionalUserUtils },
-      testInfo,
-    ) => {
-      dynamicHandle = await provisionDynamicSolicitorForAlias({
-        alias: "SOLICITOR",
-        professionalUserUtils,
-        roleContext: {
-          jurisdiction: "divorce",
-          testType: "case-create",
-        },
-        testInfo,
-      });
-
+    async ({ page, createCasePage, caseDetailsPage }) => {
       // Generate fresh value per test for retry safety
       testValue = `${faker.person.firstName()}-${Date.now()}-w${process.env.TEST_WORKER_INDEX || "0"}`;
       logger.info("Generated test value", {
@@ -107,7 +100,7 @@ test.describe("Document upload V2", () => {
           async () => {
             await withTimeout(
               (async () => {
-                await ensureAuthenticatedPage(page, "SOLICITOR", {
+                await ensureAuthenticatedPage(page, "PROD_LIKE", {
                   waitForSelector: "exui-header",
                 });
                 await createCasePage.createDivorceCase(
@@ -118,8 +111,8 @@ test.describe("Document upload V2", () => {
                 caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
                 logger.info("Created divorce case", { caseNumber, testValue });
               })(),
-              120_000,
-              "Document upload V2 setup exceeded 120000ms while creating a case",
+              180_000,
+              "Document upload V2 setup exceeded 180000ms while creating a case",
             );
           },
           {
@@ -134,21 +127,14 @@ test.describe("Document upload V2", () => {
         );
       } catch (error) {
         if (isDependencyEnvironmentFailure(error)) {
-          testInfo.skip(
-            true,
-            `Skipping document-upload V2 test due to dependency environment instability: ${asMessage(error)}`,
+          throw new Error(
+            `Document-upload V2 setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-          return;
         }
         throw error;
       }
     },
   );
-
-  test.afterEach(async () => {
-    await dynamicHandle?.cleanup();
-    dynamicHandle = undefined;
-  });
 
   test("Check the documentV2 upload works as expected", async ({
     createCasePage,
@@ -172,15 +158,18 @@ test.describe("Document upload V2", () => {
     await test.step("Upload a document to the case", async () => {
       let successfulUpdateEventPosts = 0;
       const updateEventEndpointPattern = new RegExp(
-        `/data/cases/${caseNumber}/events(?:\\?|$)`,
+        String.raw`/data/cases/${caseNumber}/events(?:\?|$)`,
       );
       const onResponse = (response: Response) => {
+        // eslint-disable-next-line playwright/no-conditional-in-test -- response filter in network listener; not a test assertion
         if (response.request().method() !== "POST") {
           return;
         }
+        // eslint-disable-next-line playwright/no-conditional-in-test -- URL filter in network listener; not a test assertion
         if (!updateEventEndpointPattern.test(response.url())) {
           return;
         }
+        // eslint-disable-next-line playwright/no-conditional-in-test -- status counter in network listener; not a test assertion
         if (response.status() < 400) {
           successfulUpdateEventPosts += 1;
         }
@@ -189,6 +178,18 @@ test.describe("Document upload V2", () => {
       try {
         await retryOnTransientFailure(
           async () => {
+            const callbackErrorVisible = await caseDetailsPage.page
+              .getByText(
+                /The callback data failed validation|No case type found/i,
+              )
+              .first()
+              .isVisible()
+              .catch(() => false);
+            if (callbackErrorVisible) {
+              throw new Error(
+                "Upload blocked by callback validation error: No case type found",
+              );
+            }
             await caseDetailsPage.selectCaseDetailsTab(TEST_DATA.V2.TAB_NAME);
             await caseDetailsPage.selectCaseAction(TEST_DATA.V2.ACTION);
             await createCasePage.uploadFile(
@@ -196,7 +197,9 @@ test.describe("Document upload V2", () => {
               TEST_DATA.V2.FILE_TYPE,
               TEST_DATA.V2.FILE_CONTENT,
             );
-            await createCasePage.clickContinueMultipleTimes(4);
+            await createCasePage.clickContinueMultipleTimes(4, {
+              timeoutMs: DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS,
+            });
             await createCasePage.clickSubmitAndWait(
               "after uploading V2 document",
               {
@@ -226,6 +229,13 @@ test.describe("Document upload V2", () => {
             },
           },
         );
+      } catch (error) {
+        if (isDependencyEnvironmentFailure(error)) {
+          throw new Error(
+            `Document-upload V2 submit failed due to dependency environment instability: ${asMessage(error)}`,
+          );
+        }
+        throw error;
       } finally {
         caseDetailsPage.page.off("response", onResponse);
       }
@@ -278,6 +288,7 @@ test.describe("Document upload V2", () => {
       const bannerVisible = await caseDetailsPage.caseAlertSuccessMessage
         .isVisible()
         .catch(() => false);
+      // eslint-disable-next-line playwright/no-conditional-in-test -- banner assertion is optional; banner may not render in all environments
       if (bannerVisible) {
         const bannerText =
           await caseDetailsPage.caseAlertSuccessMessage.innerText();
@@ -307,34 +318,18 @@ test.describe("Document upload V2", () => {
 });
 
 test.describe("Document upload V1", () => {
-  test.describe.configure({ timeout: 600000 });
+  test.describe.configure({ timeout: 240_000 });
   let testValue: string;
   let testFileName: string;
   let caseNumber: string;
-  let dynamicHandle:
-    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
-    | undefined;
+
   test.beforeAll(async () => {
     // Set deterministic seed once per suite
     faker.seed(67890);
   });
 
   test.beforeEach(
-    async (
-      { page, createCasePage, caseDetailsPage, professionalUserUtils },
-      testInfo,
-    ) => {
-      dynamicHandle = await provisionDynamicSolicitorForAlias({
-        alias: "SEARCH_EMPLOYMENT_CASE",
-        professionalUserUtils,
-        roleNames: EMPLOYMENT_DYNAMIC_SOLICITOR_ROLES,
-        roleContext: {
-          jurisdiction: "employment",
-          testType: "case-create",
-        },
-        testInfo,
-      });
-
+    async ({ page, createCasePage, caseDetailsPage }) => {
       // Generate fresh values per test for retry safety
       testValue = `${faker.person.firstName()}-${Date.now()}-w${process.env.TEST_WORKER_INDEX || "0"}`;
       testFileName = `${faker.string.alphanumeric(8)}-${Date.now()}.pdf`;
@@ -349,11 +344,13 @@ test.describe("Document upload V1", () => {
           async () => {
             await ensureAuthenticatedPage(page, "SEARCH_EMPLOYMENT_CASE", {
               waitForSelector: "exui-header",
+              timeoutMs: 45_000,
             });
             await createCasePage.createCaseEmployment(
               TEST_DATA.V1.JURISDICTION,
               TEST_DATA.V1.CASE_TYPE,
             );
+            caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
           },
           {
             maxAttempts: 2,
@@ -367,18 +364,14 @@ test.describe("Document upload V1", () => {
         );
       } catch (error) {
         if (isMissingEmploymentCreateCaseOption(error)) {
-          testInfo.skip(
-            true,
-            "Skipping document-upload V1 tests: EMPLOYMENT/ET_EnglandWales not available in this environment.",
+          throw new Error(
+            "Document-upload V1 setup failed: EMPLOYMENT/ET_EnglandWales is not available in this environment.",
           );
-          return;
         }
         if (isDependencyEnvironmentFailure(error)) {
-          testInfo.skip(
-            true,
-            `Skipping document-upload V1 test due to dependency environment instability: ${asMessage(error)}`,
+          throw new Error(
+            `Document-upload V1 setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-          return;
         }
         throw error;
       }
@@ -386,15 +379,9 @@ test.describe("Document upload V1", () => {
         await createCasePage.checkForErrorMessage(),
         "Error message seen after creating employment case",
       ).toBe(false);
-      caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
       logger.info("Created employment case", { caseNumber, testValue });
     },
   );
-
-  test.afterEach(async () => {
-    await dynamicHandle?.cleanup();
-    dynamicHandle = undefined;
-  });
 
   test("Check the documentV1 upload works as expected", async ({
     createCasePage,
@@ -402,7 +389,9 @@ test.describe("Document upload V1", () => {
     tableUtils,
   }) => {
     await test.step("Start document upload process", async () => {
-      await caseDetailsPage.selectCaseDetailsEvent(TEST_DATA.V1.ACTION);
+      await caseDetailsPage.selectCaseAction(TEST_DATA.V1.ACTION, {
+        expectedLocator: createCasePage.page.locator("#documentCollection button"),
+      });
     });
 
     await test.step("Upload a document to the case", async () => {

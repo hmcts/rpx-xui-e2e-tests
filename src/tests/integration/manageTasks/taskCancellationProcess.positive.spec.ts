@@ -1,5 +1,10 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "../../../fixtures/ui";
+import type { TaskListPage } from "../../../page-objects/pages/exui/taskList.po";
 import { applySessionCookies } from "../../../utils/ui/sessionCapture";
+import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils";
+import { buildCaseDetailsMock } from "../mocks/search.mock";
 import { buildMyTaskListMock } from "../mocks/taskList.mock";
 import { extractUserIdFromCookies } from "../utils/extractUserIdFromCookies";
 import { logTaskCancellationAssertion } from "../utils/taskCancellationAssertionLogger";
@@ -9,8 +14,6 @@ import {
   type CancellationScenario,
   type CaseDetailsTemplate,
 } from "../utils/taskCancellationRoutes";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 const userIdentifier = "STAFF_ADMIN";
 const taskId = "22222222-2222-2222-2222-222222222222";
@@ -33,6 +36,32 @@ const cancellationMatrix: readonly CancellationScenario[] = [
 ] as const;
 
 test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
+  const openTaskListWithRetry = async (
+    taskListPage: TaskListPage,
+    page: Page,
+    context: string,
+  ) => {
+    await retryOnTransientFailure(
+      async () => {
+        await taskListPage.goto();
+        await taskListPage.exuiSpinnerComponent.wait();
+        await taskListPage.waitForManageButton(context, {
+          timeoutMs: 20_000,
+          pollMs: 500,
+        });
+        await expect(taskListPage.taskListTable).toBeVisible();
+      },
+      {
+        maxAttempts: 2,
+        onRetry: async () => {
+          if (!page.isClosed()) {
+            await page.reload();
+          }
+        },
+      },
+    );
+  };
+
   for (const matrixItem of cancellationMatrix) {
     test(`Cancel task sends expected request for ${matrixItem.scenario}`, async ({
       taskListPage,
@@ -57,9 +86,11 @@ test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
         await routeMyTaskCancellationFlow(page, taskId, task);
 
       await test.step("Navigate to My Work and open cancel action", async () => {
-        await taskListPage.goto();
-        await expect(taskListPage.taskListTable).toBeVisible();
-        await taskListPage.exuiSpinnerComponent.wait();
+        await openTaskListWithRetry(
+          taskListPage,
+          page,
+          `cancel-path:${matrixItem.scenario}`,
+        );
 
         await expect(taskListPage.taskListTable).toContainText(
           matrixItem.caseName,
@@ -165,9 +196,11 @@ test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
       await routeMyTaskCancellationFlow(page, taskId, task);
 
       await test.step("Open cancellation from My Work", async () => {
-        await taskListPage.goto();
-        await expect(taskListPage.taskListTable).toBeVisible();
-        await taskListPage.exuiSpinnerComponent.wait();
+        await openTaskListWithRetry(
+          taskListPage,
+          page,
+          `my-tasks-cancel:${matrixItem.scenario}`,
+        );
         await expect(taskListPage.taskListTable).toContainText(
           matrixItem.caseName,
         );
@@ -194,9 +227,21 @@ test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
     const scenario = cancellationMatrix[0];
     const { cookies } = await applySessionCookies(page, userIdentifier);
     const userId = extractUserIdFromCookies(cookies) || "test-user-id";
-    const caseDetailsTemplate = JSON.parse(
-      readFileSync(resolve(process.cwd(), "src/assets/getCase.json"), "utf8"),
+    const caseDetailsTemplate = buildCaseDetailsMock(
+      scenario.caseId,
     ) as CaseDetailsTemplate;
+    const caseDetailsTabs = Array.isArray(caseDetailsTemplate.tabs)
+      ? caseDetailsTemplate.tabs
+      : [];
+    caseDetailsTemplate.tabs = [
+      ...caseDetailsTabs,
+      {
+        id: "tasks",
+        label: "Tasks",
+        order: 2,
+        fields: [],
+      },
+    ];
 
     const task = {
       ...buildMyTaskListMock(userId, 1).tasks[0],
@@ -218,17 +263,45 @@ test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
     );
 
     await test.step("Open case-details task cancellation action", async () => {
-      await page.goto(
-        `/cases/case-details/${scenario.jurisdiction}/${scenario.caseTypeId}/${scenario.caseId}/tasks`,
+      const tasksUrl = `/cases/case-details/${scenario.jurisdiction}/${scenario.caseTypeId}/${scenario.caseId}/tasks`;
+
+      await retryOnTransientFailure(
+        async () => {
+          const taskApiCall = page.waitForResponse(
+            (response) =>
+              response
+                .url()
+                .includes(`/workallocation/case/task/${scenario.caseId}`) &&
+              response.request().method() === "GET",
+            { timeout: 30_000 },
+          );
+
+          await page.goto(tasksUrl, { waitUntil: "domcontentloaded" });
+          await expect(
+            page.getByRole("heading", { name: "Active tasks" }),
+          ).toBeVisible({ timeout: 20_000 });
+
+          await taskApiCall.catch(() => null);
+
+          const caseDetailsCancelAction =
+            taskListPage.caseDetailsTaskActionCancel.first();
+          await expect(caseDetailsCancelAction).toBeVisible({
+            timeout: 20_000,
+          });
+          await caseDetailsCancelAction.click();
+          await expect(taskListPage.confirmCancelTaskButton).toBeVisible({
+            timeout: 15_000,
+          });
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            if (!page.isClosed()) {
+              await page.goto(tasksUrl, { waitUntil: "domcontentloaded" });
+            }
+          },
+        },
       );
-      await expect(
-        page.getByRole("heading", { name: "Active tasks" }),
-      ).toBeVisible();
-      const caseDetailsCancelAction =
-        taskListPage.caseDetailsTaskActionCancel.first();
-      await expect(caseDetailsCancelAction).toBeVisible();
-      await caseDetailsCancelAction.click();
-      await expect(taskListPage.confirmCancelTaskButton).toBeVisible();
     });
 
     await test.step("Confirm cancellation removes task action from tab", async () => {
@@ -268,9 +341,7 @@ test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
     });
 
     await test.step("Open task actions and verify cancel is not available", async () => {
-      await taskListPage.goto();
-      await expect(taskListPage.taskListTable).toBeVisible();
-      await taskListPage.exuiSpinnerComponent.wait();
+      await openTaskListWithRetry(taskListPage, page, "non-cancellable-task");
       await taskListPage.manageCaseButtons.first().click();
       await expect(taskListPage.taskActionsRow).toBeVisible();
       await expect(taskListPage.taskActionCancel).toHaveCount(0);
@@ -300,8 +371,7 @@ test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
     });
 
     await test.step("Open cancellation for stale task", async () => {
-      await taskListPage.goto();
-      await expect(taskListPage.taskListTable).toBeVisible();
+      await openTaskListWithRetry(taskListPage, page, "stale-cancellation");
       await taskListPage.manageCaseButtons.first().click();
       await taskListPage.taskActionCancel.first().click();
     });
@@ -336,8 +406,11 @@ test.describe(`Task cancellation integration as ${userIdentifier}`, () => {
     });
 
     await test.step("Open cancellation for API failure scenario", async () => {
-      await taskListPage.goto();
-      await expect(taskListPage.taskListTable).toBeVisible();
+      await openTaskListWithRetry(
+        taskListPage,
+        page,
+        "api-failure-cancellation",
+      );
       await taskListPage.manageCaseButtons.first().click();
       await taskListPage.taskActionCancel.first().click();
     });

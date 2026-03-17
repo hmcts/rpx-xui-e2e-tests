@@ -12,7 +12,7 @@ class OdhinAdaptiveReporter {
         ? configuredLightweight
         : envLightweight
           ? envLightweight.toLowerCase() === "true"
-          : !process.env.CI;
+          : true;
 
     const normalizeTestOutputMode = (raw) => {
       if (raw === true || raw === false) {
@@ -30,8 +30,16 @@ class OdhinAdaptiveReporter {
       return "only-on-failure";
     };
 
-    // Keep stdout/stderr only for failed tests in default mode.
+    // Default mode suppresses stdout/stderr forwarding into Odhin to keep reports quiet.
     this.testOutputMode = normalizeTestOutputMode(options.testOutput);
+    const configuredCaptureStdio = options.captureStdio;
+    const envCaptureStdio = process.env.PW_ODHIN_CAPTURE_STDIO;
+    this.captureStdio =
+      typeof configuredCaptureStdio === "boolean"
+        ? configuredCaptureStdio
+        : envCaptureStdio
+          ? envCaptureStdio.toLowerCase() === "true"
+          : false;
     this.inner = new OdhinReporter(options);
   }
 
@@ -79,12 +87,18 @@ class OdhinAdaptiveReporter {
   }
 
   async onStdOut(chunk, test, result) {
+    if (!this.captureStdio) {
+      return;
+    }
     if (typeof this.inner.onStdOut === "function") {
       await this.inner.onStdOut(chunk, test, result);
     }
   }
 
   async onStdErr(chunk, test, result) {
+    if (!this.captureStdio) {
+      return;
+    }
     if (typeof this.inner.onStdErr === "function") {
       await this.inner.onStdErr(chunk, test, result);
     }

@@ -1,3 +1,5 @@
+import { firstAllowedNonEmpty } from "../utils/ui/accountPolicy.js";
+
 export const resolveBaseUrl = (value?: string): string => {
   const raw = value ?? "https://manage-case.aat.platform.hmcts.net/";
   return raw.endsWith("/") ? raw : `${raw}/`;
@@ -16,20 +18,57 @@ const testEnv = resolveTestEnv(process.env.TEST_ENV);
 type EnvUser = { e?: string; sec?: string };
 
 const pick = (...vars: Array<string | undefined>) =>
-  vars.find((v) => v && v.trim().length > 0);
+  firstAllowedNonEmpty(...vars);
+
+const resolveSolicitorCredentials = (): EnvUser => {
+  const candidates = [
+    {
+      username: process.env.SOLICITOR_USERNAME,
+      password: process.env.SOLICITOR_PASSWORD,
+    },
+    {
+      username: process.env.PRL_SOLICITOR_USERNAME,
+      password: process.env.PRL_SOLICITOR_PASSWORD,
+    },
+    {
+      username: process.env.WA_SOLICITOR_USERNAME,
+      password: process.env.WA_SOLICITOR_PASSWORD,
+    },
+    {
+      username: process.env.NOC_SOLICITOR_USERNAME,
+      password: process.env.NOC_SOLICITOR_PASSWORD,
+    },
+  ];
+
+  for (const candidate of candidates) {
+    const username = pick(candidate.username);
+    const password = candidate.password?.trim();
+    if (username && password) {
+      return { e: username, sec: password };
+    }
+  }
+
+  return {
+    e: pick(
+      process.env.SOLICITOR_USERNAME,
+      process.env.PRL_SOLICITOR_USERNAME,
+      process.env.WA_SOLICITOR_USERNAME,
+      process.env.NOC_SOLICITOR_USERNAME,
+    ),
+    sec: pick(
+      process.env.SOLICITOR_PASSWORD,
+      process.env.PRL_SOLICITOR_PASSWORD,
+      process.env.WA_SOLICITOR_PASSWORD,
+      process.env.NOC_SOLICITOR_PASSWORD,
+    ),
+  };
+};
+
+const solicitorCredentials = resolveSolicitorCredentials();
 
 const envUsers: Record<"aat" | "demo", Record<string, EnvUser>> = {
   aat: {
-    solicitor: {
-      e: pick(
-        process.env.SOLICITOR_USERNAME,
-        process.env.PRL_SOLICITOR_USERNAME,
-      ),
-      sec: pick(
-        process.env.SOLICITOR_PASSWORD,
-        process.env.PRL_SOLICITOR_PASSWORD,
-      ),
-    },
+    solicitor: solicitorCredentials,
     caseOfficer_r1: {
       e: pick(
         process.env.CASEOFFICER_R1_USERNAME,
@@ -52,16 +91,7 @@ const envUsers: Record<"aat" | "demo", Record<string, EnvUser>> = {
     },
   },
   demo: {
-    solicitor: {
-      e: pick(
-        process.env.SOLICITOR_USERNAME,
-        process.env.PRL_SOLICITOR_USERNAME,
-      ),
-      sec: pick(
-        process.env.SOLICITOR_PASSWORD,
-        process.env.PRL_SOLICITOR_PASSWORD,
-      ),
-    },
+    solicitor: solicitorCredentials,
     caseOfficer_r1: {
       e: pick(
         process.env.CASEOFFICER_R1_USERNAME,

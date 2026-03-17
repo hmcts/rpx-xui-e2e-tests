@@ -195,6 +195,7 @@ export async function routeCaseDetailsTaskActionFlow(
   const actionId = options.actionId ?? "cancel";
   const actionResponseStatus = options.actionResponseStatus ?? 200;
   let actionInvoked = false;
+  const assignee = typeof task.assignee === "string" ? task.assignee : "";
 
   await page.route("**/data/internal/cases/**", async (route: Route) => {
     await route.fulfill({
@@ -233,7 +234,6 @@ export async function routeCaseDetailsTaskActionFlow(
   await page.route(
     "**/workallocation/caseworker/getUsersByServiceName*",
     async (route: Route) => {
-      const assignee = typeof task.assignee === "string" ? task.assignee : "";
       await route.fulfill({
         status: 200,
         contentType: "application/json",

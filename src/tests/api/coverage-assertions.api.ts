@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 
+import nodeAppDataModels from "../../data/api/nodeAppDataModels";
 import {
   expectTaskList,
   expectRoleAssignmentShape,
@@ -9,7 +10,6 @@ import {
   expectAddressLookupShape,
 } from "../../utils/api/assertions";
 import { extractCaseShareEntries, isTaskList } from "../../utils/api/types";
-import nodeAppDataModels from "../../data/api/nodeAppDataModels";
 
 test.describe("Assertion shape validators", { tag: "@svc-internal" }, () => {
   test("expectTaskList covers empty and populated tasks", () => {

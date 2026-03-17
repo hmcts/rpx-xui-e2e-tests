@@ -88,8 +88,15 @@ export interface SeedTaskIdOptions {
  * Attempts to fetch a deterministic task id for tests.
  * Falls back to undefined if no task is found.
  */
+type SeedTaskApiClient = {
+  post: (
+    path: string,
+    options?: Record<string, unknown>,
+  ) => Promise<{ status: number; data?: unknown }>;
+};
+
 export async function seedTaskId(
-  apiClient: any,
+  apiClient: SeedTaskApiClient,
   locationId?: string,
   options: SeedTaskIdOptions = {},
 ): Promise<SeededTaskResult | undefined> {

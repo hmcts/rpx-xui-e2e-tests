@@ -28,6 +28,30 @@ test.beforeEach(async ({ page }) => {
       });
     },
   );
+
+  await page.route(
+    "**/data/internal/case-types/**/work-basket-inputs*",
+    async (route) => {
+      const body = JSON.stringify({ workbasketInputs: [] });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body,
+      });
+    },
+  );
+
+  await page.route(
+    "**/data/internal/case-types/**/search-inputs*",
+    async (route) => {
+      const body = JSON.stringify({ searchInputs: [] });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body,
+      });
+    },
+  );
 });
 
 test.describe(`Case List as ${userIdentifier}`, () => {
@@ -52,7 +76,7 @@ test.describe(`Case List as ${userIdentifier}`, () => {
     });
 
     await test.step("Verify user can see a list shows the expected layout given the mock response", async () => {
-      expect(await caseListPage.caseListResultsAmount.textContent()).toBe(
+      await expect(caseListPage.caseListResultsAmount).toHaveText(
         `Showing 1 to ${Math.min(caseListMockResponse.results.length, 25)} of ${caseListMockResponse.total} results`,
       );
       const table = await tableUtils.parseDataTable(
@@ -68,7 +92,7 @@ test.describe(`Case List as ${userIdentifier}`, () => {
         expect(table[i]["Text Field 1"]).toBe(expectedFields["TextField1"]);
         expect(table[i]["Text Field 2"]).toBe(expectedFields["TextField2"]);
       }
-      expect(await caseListPage.pagination.isVisible()).toBeTruthy();
+      await expect(caseListPage.pagination).toBeVisible();
       expect(await caseListPage.getPaginationFinalItem()).toBe("Next");
     });
   });
@@ -99,9 +123,9 @@ test.describe(`Case List as ${userIdentifier}`, () => {
 
     await test.step("Verify user sees empty case list UI", async () => {
       await expect(caseListPage.jurisdictionSelect).toBeVisible();
-      expect(
-        await caseListPage.caseSearchResultsMessage.textContent(),
-      ).toContain("No cases found. Try using different filters.");
+      await expect(caseListPage.caseSearchResultsMessage).toContainText(
+        "No cases found. Try using different filters.",
+      );
     });
   });
 });

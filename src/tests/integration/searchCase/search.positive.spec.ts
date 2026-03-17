@@ -1,6 +1,10 @@
 import { expect, test } from "../../../fixtures/ui";
 import { applySessionCookies } from "../../../utils/ui/sessionCapture";
 import {
+  createGlobalSearchResultsRouteHandler,
+  setupGlobalSearchMockRoutes,
+} from "../helpers/index";
+import {
   buildCaseDetailsMock,
   buildGlobalSearchNoResultsMock,
   buildGlobalSearchResultsMock,
@@ -9,10 +13,6 @@ import {
   INVALID_SEARCH_CASE_REFERENCE,
   VALID_SEARCH_CASE_REFERENCE,
 } from "../mocks/search.mock";
-import {
-  createGlobalSearchResultsRouteHandler,
-  setupGlobalSearchMockRoutes,
-} from "../helpers/index";
 import { TEST_USERS } from "../testData/index";
 
 const userIdentifier = TEST_USERS.FPL_GLOBAL_SEARCH;

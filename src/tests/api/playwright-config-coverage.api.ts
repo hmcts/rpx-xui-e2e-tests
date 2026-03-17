@@ -55,14 +55,18 @@ test.describe("Playwright config coverage", { tag: "@svc-internal" }, () => {
     const ciCount = resolveWorkerCount({
       PLAYWRIGHT_WORKERS: undefined,
       CI: "true",
+      PLAYWRIGHT_CI_CPU_CORES: "12",
+      PLAYWRIGHT_CI_MEMORY_MB: "16384",
     });
-    expect(ciCount).toBe(1);
+    expect(ciCount).toBe(10);
 
     const defaultCount = resolveWorkerCount({
       PLAYWRIGHT_WORKERS: undefined,
       CI: undefined,
+      PLAYWRIGHT_CPU_CORES: "8",
+      PLAYWRIGHT_MEMORY_MB: "16384",
     });
-    expect(defaultCount).toBeGreaterThanOrEqual(1);
+    expect(defaultCount).toBe(6);
   });
 
   test("resolveConfigModule prefers __test__ and default exports", () => {
@@ -106,17 +110,21 @@ test.describe("Playwright config coverage", { tag: "@svc-internal" }, () => {
     expect(reporterNames).toContain("junit");
     const [, odhinOptions] = getReporterTuple(
       reporterConfig,
-      "odhin-reports-playwright",
+      "./scripts/reporters/odhin-adaptive.reporter.cjs",
     );
     expect(odhinOptions?.outputFolder).toBe("custom-report");
     expect(odhinOptions?.project).toBe("Custom Project");
     expect(odhinOptions?.release).toBe("Custom Release");
+    expect(odhinOptions?.consoleTestOutput).toBe(false);
+    expect(odhinOptions?.testOutput).toBe("only-on-failure");
+    expect(odhinOptions?.captureStdio).toBe(false);
     expect(odhinOptions?.testEnvironment).toContain("ci");
     const uiProject = projectConfig.find((project) => project.name === "ui");
     const apiProject = projectConfig.find((project) => project.name === "api");
     expect(uiProject).toBeDefined();
     expect(uiProject?.workers).toBe(8);
     expect(uiProject?.use?.headless).toBe(true);
+    expect(uiProject?.use?.video).toBe("off");
     expect(apiProject).toBeDefined();
     expect(apiProject?.workers).toBe(4);
   });
@@ -138,8 +146,23 @@ test.describe("Playwright config coverage", { tag: "@svc-internal" }, () => {
     expect(reporterNames).toContain(
       "./scripts/reporters/flake-gate.reporter.cjs",
     );
-    expect(reporterNames).not.toContain("odhin-reports-playwright");
+    expect(reporterNames).toContain(
+      "./scripts/reporters/odhin-adaptive.reporter.cjs",
+    );
+    const [, odhinOptions] = getReporterTuple(
+      reporterConfig,
+      "./scripts/reporters/odhin-adaptive.reporter.cjs",
+    );
+    expect(odhinOptions?.indexFilename).toBe("xui-playwright-e2e.html");
+    expect(odhinOptions?.project).toBe("RPX XUI Webapp");
+    expect(odhinOptions?.consoleTestOutput).toBe(false);
+    expect(odhinOptions?.testOutput).toBe("only-on-failure");
+    expect(odhinOptions?.captureStdio).toBe(false);
+    expect(String(odhinOptions?.testEnvironment)).toContain("local-run");
     expect(useConfig.baseURL).toContain("manage-case");
+    const projectConfig = config.projects ?? [];
+    const uiProject = projectConfig.find((project) => project.name === "ui");
+    expect(uiProject?.use?.video).toBe("retain-on-failure");
   });
 
   test("config uses branch from environment when provided", async () => {
@@ -151,7 +174,7 @@ test.describe("Playwright config coverage", { tag: "@svc-internal" }, () => {
     const reporterConfig = config.reporter ?? [];
     const [, odhinOptions] = getReporterTuple(
       reporterConfig,
-      "odhin-reports-playwright",
+      "./scripts/reporters/odhin-adaptive.reporter.cjs",
     );
     expect(odhinOptions?.release).toContain(
       "branch=feat/EXUI-3618-case-search-e2e",

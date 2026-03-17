@@ -1,32 +1,25 @@
 import { test, expect } from "../../../fixtures/ui";
-import { ensureSession } from "../../../utils/ui/sessionCapture";
 import { resolveCaseReferenceFromGlobalSearch } from "../../../utils/ui/case-reference.utils";
+import { ensureSession } from "../../../utils/ui/sessionCapture";
+
 import {
   openHomeWithCapturedSession,
   PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
 } from "./searchCase.setup";
-import { provisionDynamicSolicitorForAlias } from "../_helpers/dynamicSolicitorSession";
 
 test.describe("FPL global search user - find case", () => {
   let availableCaseReference = "";
-  let caseReferenceResolutionError = "";
+
   test.beforeAll(async () => {
     await ensureSession("FPL_GLOBAL_SEARCH");
   });
 
   test.beforeEach(async ({ page }) => {
     await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
-    availableCaseReference = "";
-    caseReferenceResolutionError = "";
-    try {
-      availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
-        page,
-        PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
-      );
-    } catch (error) {
-      caseReferenceResolutionError =
-        error instanceof Error ? error.message : String(error);
-    }
+    availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
+      page,
+      PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
+    );
   });
 
   test("Find case using Public Law jurisdiction", async ({
@@ -35,10 +28,6 @@ test.describe("FPL global search user - find case", () => {
     caseDetailsPage,
     page,
   }) => {
-    test.skip(
-      !availableCaseReference,
-      `Skipping: no resolvable 16-digit Public Law case reference. ${caseReferenceResolutionError}`,
-    );
     const caseNumber = availableCaseReference;
     const jurisdiction = "Public Law";
     const caseType = "Public Law Applications";
@@ -93,26 +82,12 @@ test.describe("FPL global search user - find case", () => {
 });
 
 test.describe("Solicitor navigation to Find case (top-right)", () => {
-  let dynamicHandle:
-    | Awaited<ReturnType<typeof provisionDynamicSolicitorForAlias>>
-    | undefined;
-
-  test.beforeEach(async ({ page, professionalUserUtils }, testInfo) => {
-    dynamicHandle = await provisionDynamicSolicitorForAlias({
-      alias: "SOLICITOR",
-      professionalUserUtils,
-      roleContext: {
-        jurisdiction: "divorce",
-        testType: "case-create",
-      },
-      testInfo,
-    });
-    await openHomeWithCapturedSession(page, "SOLICITOR");
+  test.beforeAll(async () => {
+    await ensureSession("SOLICITOR");
   });
 
-  test.afterEach(async () => {
-    await dynamicHandle?.cleanup();
-    dynamicHandle = undefined;
+  test.beforeEach(async ({ page }) => {
+    await openHomeWithCapturedSession(page, "SOLICITOR");
   });
 
   test("Find case link appears on top-right and opens Find case page", async ({

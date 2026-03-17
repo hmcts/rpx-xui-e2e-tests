@@ -1,4 +1,8 @@
-import { IdamUtils, ServiceAuthUtils } from "@hmcts/playwright-common";
+import {
+  IdamUtils,
+  ServiceAuthUtils,
+  createLogger,
+} from "@hmcts/playwright-common";
 
 import { expect, test } from "../../../fixtures/api";
 import { config as uiConfig } from "../../../utils/ui/config.utils";
@@ -6,6 +10,11 @@ import {
   SOLICITOR_ROLE_NAMES,
   ProfessionalUserUtils,
 } from "../../../utils/ui/professional-user.utils";
+
+const logger = createLogger({
+  serviceName: "professional-user-provisioning",
+  format: "pretty",
+});
 
 function ensureProvisioningEnv(): void {
   process.env.IDAM_WEB_URL ??= uiConfig.urls.idamWebUrl;
@@ -66,13 +75,16 @@ function logProvisionedCredentialsIfEnabled(user: {
     return;
   }
   // Intentional: explicit env-gated output for AAT debug sessions.
-  console.log(
+  logger.info(
     `[provisioned-user-login] username=${user.email} password=${user.password}`,
   );
 }
 
 test.describe("Dynamic professional user provisioning (API)", () => {
-  test("@dynamic-user-api creates solicitor user in IDAM and prints login credentials", async ({}, testInfo) => {
+  test("@dynamic-user-api creates solicitor user in IDAM and prints login credentials", async ({
+    logger,
+  }, testInfo) => {
+    logger.info("Starting dynamic solicitor provisioning test");
     const professionalUserUtils = new ProfessionalUserUtils(
       new IdamUtils(),
       new ServiceAuthUtils(),
@@ -107,8 +119,10 @@ test.describe("Dynamic professional user provisioning (API)", () => {
     logProvisionedCredentialsIfEnabled(createdUser);
 
     expect(createdUser.email).toContain(`@${expectedEmailDomain()}`);
-    expect(createdUser.forename).toContain("solicitor_fn_");
-    expect(createdUser.surname).toContain("solicitor_sn_");
+    expect(createdUser.forename).toMatch(/^[A-Za-z0-9]{1,24}$/);
+    expect(createdUser.surname).toMatch(/^[A-Za-z0-9]{1,24}$/);
+    expect(createdUser.forename.toLowerCase()).not.toContain("solicitor");
+    expect(createdUser.surname.toLowerCase()).not.toContain("solicitor");
     for (const roleName of SOLICITOR_ROLE_NAMES) {
       expect(createdUser.roleNames).toContain(roleName);
     }

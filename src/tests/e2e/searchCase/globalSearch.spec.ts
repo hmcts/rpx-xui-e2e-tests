@@ -1,32 +1,26 @@
 import { test, expect } from "../../../fixtures/ui";
-import { ensureSession } from "../../../utils/ui/sessionCapture";
+import { CCD_CASE_REFERENCE_LENGTH } from "../../../page-objects/pages/exui/exui-timeouts";
 import { resolveCaseReferenceFromGlobalSearch } from "../../../utils/ui/case-reference.utils";
+import { ensureSession } from "../../../utils/ui/sessionCapture";
+
 import {
   openHomeWithCapturedSession,
   PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
 } from "./searchCase.setup";
-import { CCD_CASE_REFERENCE_LENGTH } from "../../../page-objects/pages/exui/exui-timeouts";
 
 test.describe("IDAM login using credentials for Global Search", () => {
   let availableCaseReference = "";
-  let caseReferenceResolutionError = "";
+
   test.beforeAll(async () => {
     await ensureSession("FPL_GLOBAL_SEARCH");
   });
 
   test.beforeEach(async ({ page }) => {
     await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
-    availableCaseReference = "";
-    caseReferenceResolutionError = "";
-    try {
-      availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
-        page,
-        PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
-      );
-    } catch (error) {
-      caseReferenceResolutionError =
-        error instanceof Error ? error.message : String(error);
-    }
+    availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
+      page,
+      PUBLIC_LAW_CASE_REFERENCE_OPTIONS,
+    );
   });
 
   test("Global Search - using case id and FPL jurisdiction", async ({
@@ -35,10 +29,6 @@ test.describe("IDAM login using credentials for Global Search", () => {
     tableUtils,
     page,
   }, testInfo) => {
-    test.skip(
-      !availableCaseReference,
-      `Skipping: no resolvable 16-digit Public Law case reference. ${caseReferenceResolutionError}`,
-    );
     const caseNumber = availableCaseReference;
 
     await test.step("Initiate Global Search", async () => {
@@ -95,12 +85,9 @@ test.describe("IDAM login using credentials for Global Search", () => {
     globalSearchPage,
     tableUtils,
   }) => {
-    test.skip(
-      !availableCaseReference,
-      `Skipping: no resolvable 16-digit Public Law case reference. ${caseReferenceResolutionError}`,
-    );
     const wildcardCaseReference = `${availableCaseReference.substring(0, 5)}*`;
     const wildcardPrefix = wildcardCaseReference.replace("*", "");
+
     await test.step("Initiate wildcard Global Search", async () => {
       await globalSearchPage.performGlobalSearchWithRetry(
         wildcardCaseReference,

@@ -11,15 +11,26 @@ import { test as base, request } from "@playwright/test";
 export { expect } from "@playwright/test";
 export { buildApiAttachment } from "@hmcts/playwright-common";
 
-import { config } from "../utils/ui/apiTestConfig";
 import {
   ensureStorageState,
   getStoredCookie,
   type ApiUserRole,
 } from "../utils/api/auth";
+import { config } from "../utils/ui/apiTestConfig";
 
 const baseUrl = stripTrailingSlash(config.baseUrl);
 type LoggerInstance = ReturnType<typeof createLogger>;
+
+const resolveApiLogLevel = (): string => {
+  const configured = process.env.API_LOG_LEVEL ?? process.env.LOG_LEVEL;
+  if (configured?.trim()) {
+    return configured.trim().toLowerCase();
+  }
+  if (process.env.PLAYWRIGHT_DEBUG_API === "1") {
+    return "info";
+  }
+  return "fatal";
+};
 
 export interface ApiFixtures {
   apiClient: PlaywrightApiClient;
@@ -97,11 +108,12 @@ function classifyFailure(
 }
 
 export const test = base.extend<ApiFixtures>({
-  logger: async ({}, use, workerInfo) => {
+  logger: async ({ browserName }, use, workerInfo) => {
     const logger = createLogger({
       serviceName: "rpx-xui-node-api",
-      defaultMeta: { workerId: workerInfo.workerIndex },
+      defaultMeta: { workerId: workerInfo.workerIndex, browserName },
       format: "pretty",
+      level: resolveApiLogLevel(),
     });
     await use(logger);
   },
@@ -143,7 +155,7 @@ export const test = base.extend<ApiFixtures>({
         )
         .map((entry) => ({
           url: sanitizeUrl(entry.url),
-          status: entry.status!,
+          status: entry.status,
           method: entry.method,
         }));
       const serverErrors = apiErrors.filter((e) => e.status >= 500);
