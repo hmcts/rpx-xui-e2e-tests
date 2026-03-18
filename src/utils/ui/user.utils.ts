@@ -8,7 +8,6 @@ export interface UserCredentials {
 type UserEnvMapping = {
   username: string;
   password: string;
-  requireEnv?: boolean;
 };
 
 const TRUTHY_VALUES = new Set(["1", "true", "yes", "on"]);
@@ -72,12 +71,10 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
   SOLICITOR: {
     username: "SOLICITOR_USERNAME",
     password: "SOLICITOR_PASSWORD",
-    requireEnv: true,
   },
   PROD_LIKE: {
     username: "PROD_LIKE_USERNAME",
     password: "PROD_LIKE_PASSWORD",
-    requireEnv: true,
   },
   FPL_GLOBAL_SEARCH: {
     username: "FPL_GLOBAL_SEARCH_USERNAME",
@@ -118,7 +115,6 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
   ORG_USER_ASSIGNMENT: {
     username: "ORG_USER_ASSIGNMENT_USERNAME",
     password: "ORG_USER_ASSIGNMENT_PASSWORD",
-    requireEnv: true,
   },
 };
 
@@ -141,10 +137,28 @@ const findConfiguredUser = (normalizedKey: string): User | undefined =>
     (user) => normalizeKey(user.userIdentifier) === normalizedKey,
   );
 
+function shouldPreferConfiguredAatUser(normalizedKey: string): boolean {
+  if (appTestConfig.testEnv !== "aat") {
+    return false;
+  }
+  if (shouldEnforceDynamicSolicitorGuard()) {
+    return false;
+  }
+  return normalizedKey === "SOLICITOR" || normalizedKey === "PROD_LIKE";
+}
+
 export class UserUtils {
   public hasUserCredentials(userIdentifier: string): boolean {
     const key = normalizeKey(userIdentifier);
     const envMapping = USER_ENV_MAP[key];
+    const configuredUser = findConfiguredUser(key);
+    if (
+      shouldPreferConfiguredAatUser(key) &&
+      configuredUser?.email &&
+      configuredUser.key
+    ) {
+      return true;
+    }
     const envUsername = envMapping
       ? process.env[envMapping.username]
       : undefined;
@@ -157,16 +171,25 @@ export class UserUtils {
       }
       return true;
     }
-    if (envMapping?.requireEnv) {
-      return false;
-    }
-    const configuredUser = findConfiguredUser(key);
     return Boolean(configuredUser?.email && configuredUser.key);
   }
 
   public getUserCredentials(userIdentifier: string): UserCredentials {
     const key = normalizeKey(userIdentifier);
     const mapping = USER_ENV_MAP[key];
+    const configuredUser = findConfiguredUser(key);
+
+    if (
+      shouldPreferConfiguredAatUser(key) &&
+      configuredUser?.email &&
+      configuredUser.key
+    ) {
+      assertDynamicSolicitorGuard(userIdentifier, configuredUser.email);
+      return {
+        email: configuredUser.email,
+        password: configuredUser.key,
+      };
+    }
 
     if (
       mapping &&
@@ -183,35 +206,12 @@ export class UserUtils {
       };
     }
 
-    if (mapping?.requireEnv) {
-      if (!process.env[mapping.username]) {
-        throw new Error(
-          `Missing required environment variable: ${mapping.username}`,
-        );
-      }
-      throw new Error(
-        `Missing required environment variable: ${mapping.password}`,
-      );
-    }
-
-    const configuredUser = findConfiguredUser(key);
     if (configuredUser?.email && configuredUser.key) {
       assertDynamicSolicitorGuard(userIdentifier, configuredUser.email);
       return {
         email: configuredUser.email,
         password: configuredUser.key,
       };
-    }
-
-    if (mapping) {
-      if (!process.env[mapping.username]) {
-        throw new Error(
-          `Missing required environment variable: ${mapping.username}`,
-        );
-      }
-      throw new Error(
-        `Missing required environment variable: ${mapping.password}`,
-      );
     }
 
     throw new Error(`User "${userIdentifier}" not found`);

@@ -45,7 +45,7 @@ Key env vars to tag:
 
 ## Global Token Hydration
 
-- `src/global/ui.global.setup.ts` does not hydrate auth tokens.
+- `src/global/ui.global.setup.ts` warms integration session users via session capture, mirroring `rpx-xui-webapp`.
 - `CREATE_USER_BEARER_TOKEN`, `ORG_USER_ASSIGNMENT_BEARER_TOKEN`, and `S2S_TOKEN` are resolved by the specific test utilities that need them.
 - This matches `rpx-xui-webapp`, where token resolution lives with dynamic-user/session helpers rather than Playwright global setup.
 

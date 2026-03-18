@@ -24,8 +24,46 @@ const logger = createLogger({
 
 const IDAM_USERNAME_SELECTOR =
   '[data-testid="idam-username-input"], input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]';
-const IDAM_PASSWORD_SELECTOR =
-  'input#password, input[name="password"], input[type="password"]';
+const IDAM_SUBMIT_FALLBACK_SELECTOR =
+  'button:has-text("Sign in"), button:has-text("Continue")';
+
+function getIdamUsernameCandidates(page: Page, idamPage: IdamPage): Locator[] {
+  return [
+    idamPage.usernameInput.first(),
+    page.locator(IDAM_USERNAME_SELECTOR).first(),
+  ];
+}
+
+function getIdamSubmitCandidates(page: Page, idamPage: IdamPage): Locator[] {
+  return [
+    idamPage.submitBtn.first(),
+    page.locator(IDAM_SUBMIT_FALLBACK_SELECTOR).first(),
+  ];
+}
+
+async function waitForFirstVisibleLocator(
+  page: Page,
+  candidates: Locator[],
+  timeoutMs: number,
+): Promise<Locator | null> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    for (const candidate of candidates) {
+      if (await candidate.isVisible().catch(() => false)) {
+        return candidate;
+      }
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      break;
+    }
+    await page.waitForTimeout(Math.min(250, remainingMs));
+  }
+
+  return null;
+}
 
 function currentPageUrl(page: Page): string {
   try {
@@ -173,6 +211,138 @@ async function gotoLoginTarget(
   if (lastError) {
     throw lastError;
   }
+}
+
+async function confirmAuthenticatedLogin(
+  page: Page,
+  userIdentifier: string,
+  email: string,
+  loginTarget: string,
+  attemptIndex: number,
+): Promise<void> {
+  await acceptAccessCookiesIfPresent(page);
+  const postLoginShell = await waitForAuthenticatedShell(
+    page,
+    userIdentifier,
+    undefined,
+    15000,
+  ).catch(() => null);
+  const hasAuthCookies = await waitForRequiredAuthCookies(page, 15000);
+  if (!postLoginShell && !hasAuthCookies) {
+    throw new Error(
+      `IDAM login did not establish authenticated session for ${userIdentifier} (url=${currentPageUrl(page)}).`,
+    );
+  }
+  logger.info("IDAM login successful", {
+    userIdentifier,
+    email,
+    loginTarget,
+    attempt: attemptIndex,
+    marker: postLoginShell ?? "auth-cookies",
+    operation: "session-capture",
+  });
+}
+
+async function executeLoginAttempt(
+  page: Page,
+  idamPage: IdamPage,
+  userIdentifier: string,
+  email: string,
+  password: string,
+  loginTarget: string,
+  attemptIndex: number,
+): Promise<void> {
+  await gotoLoginTarget(page, userIdentifier, loginTarget);
+  await acceptAccessCookiesIfPresent(page);
+  const shellMarker = await waitForAuthenticatedShell(
+    page,
+    userIdentifier,
+    undefined,
+    5000,
+  ).catch(() => null);
+  if (shellMarker) {
+    logger.info("Authenticated shell detected without IDAM form login", {
+      userIdentifier,
+      email,
+      loginTarget,
+      marker: shellMarker,
+      attempt: attemptIndex,
+      operation: "session-capture",
+    });
+    return;
+  }
+
+  const usernameCandidates = getIdamUsernameCandidates(page, idamPage);
+  const loginSurface = await Promise.race([
+    waitForFirstVisibleLocator(page, usernameCandidates, 60000).then(
+      (locator) => (locator ? "login" : null),
+    ),
+    page
+      .locator("exui-header, exui-case-home")
+      .first()
+      .waitFor({ state: "visible", timeout: 60000 })
+      .then(() => "app"),
+  ]).catch(() => null);
+
+  if (loginSurface === "app") {
+    return;
+  }
+
+  if (loginSurface !== "login") {
+    await idamPage.usernameInput.first().waitFor({
+      state: "visible",
+      timeout: 10000,
+    });
+    await idamPage.login({ username: email, password });
+    await confirmAuthenticatedLogin(
+      page,
+      userIdentifier,
+      email,
+      loginTarget,
+      attemptIndex,
+    );
+    return;
+  }
+
+  const usernameInput =
+    (await waitForFirstVisibleLocator(page, usernameCandidates, 1000)) ??
+    idamPage.usernameInput.first();
+  const passwordInput = idamPage.passwordInput.first();
+  const submitButton =
+    (await waitForFirstVisibleLocator(
+      page,
+      getIdamSubmitCandidates(page, idamPage),
+      1000,
+    )) ?? idamPage.submitBtn.first();
+
+  await usernameInput.fill(email);
+  await passwordInput.fill(password);
+  if (await submitButton.isVisible().catch(() => false)) {
+    await submitButton.click();
+  } else {
+    await passwordInput.press("Enter");
+  }
+  await confirmAuthenticatedLogin(
+    page,
+    userIdentifier,
+    email,
+    loginTarget,
+    attemptIndex,
+  );
+}
+
+async function requirePersistableSessionCookies(
+  context: Pick<BrowserContext, "cookies">,
+  userIdentifier: string,
+  currentUrl: string,
+): Promise<Cookie[]> {
+  const cookies = await context.cookies();
+  if (!hasRequiredAuthCookies(cookies)) {
+    throw new Error(
+      `Cannot persist unauthenticated session for ${userIdentifier} (url=${currentUrl}).`,
+    );
+  }
+  return cookies;
 }
 
 function isClosedPageOrContextError(error: unknown): boolean {
@@ -849,6 +1019,7 @@ async function loginAndPersistSession({
   sessionPath,
   persist,
   userIdentifier,
+  executeLoginAttemptFn = executeLoginAttempt,
 }: {
   chromiumLauncher: typeof chromium;
   idamFactory: (page: Page) => IdamPage;
@@ -859,6 +1030,7 @@ async function loginAndPersistSession({
   sessionPath: string;
   persist: typeof persistSession;
   userIdentifier: string;
+  executeLoginAttemptFn?: typeof executeLoginAttempt;
 }) {
   const browser = await chromiumLauncher.launch();
   const targetUrl = env.TEST_URL || activeConfig.urls.exuiDefaultUrl;
@@ -883,85 +1055,16 @@ async function loginAndPersistSession({
       for (let attempt = 0; attempt < loginTargets.length; attempt += 1) {
         const loginTarget = loginTargets[attempt];
         try {
-          await gotoLoginTarget(page, userIdentifier, loginTarget);
-          await acceptAccessCookiesIfPresent(page);
-          const shellMarker = await waitForAuthenticatedShell(
+          await executeLoginAttemptFn(
             page,
-            userIdentifier,
-            undefined,
-            5000,
-          ).catch(() => null);
-          if (shellMarker) {
-            logger.info(
-              "Authenticated shell detected without IDAM form login",
-              {
-                userIdentifier,
-                email,
-                loginTarget,
-                marker: shellMarker,
-                attempt: attempt + 1,
-                operation: "session-capture",
-              },
-            );
-            loginError = null;
-            break;
-          }
-          const usernameInput = page.locator(IDAM_USERNAME_SELECTOR).first();
-          const passwordInput = page.locator(IDAM_PASSWORD_SELECTOR).first();
-          const submitButton = idamPage.submitBtn.first();
-          const loginSurface = await Promise.race([
-            usernameInput
-              .waitFor({ state: "visible", timeout: 60000 })
-              .then(() => "login"),
-            page
-              .locator("exui-header, exui-case-home")
-              .first()
-              .waitFor({ state: "visible", timeout: 60000 })
-              .then(() => "app"),
-          ]).catch(() => null);
-
-          if (loginSurface === "app") {
-            loginError = null;
-            break;
-          }
-
-          if (loginSurface !== "login") {
-            await usernameInput.waitFor({
-              state: "visible",
-              timeout: 30000,
-            });
-          }
-
-          await usernameInput.fill(email);
-          await passwordInput.fill(password);
-          if (await submitButton.isVisible().catch(() => false)) {
-            await submitButton.click();
-          } else {
-            await passwordInput.press("Enter");
-          }
-          await acceptAccessCookiesIfPresent(page);
-
-          const postLoginShell = await waitForAuthenticatedShell(
-            page,
-            userIdentifier,
-            undefined,
-            15000,
-          ).catch(() => null);
-          const hasAuthCookies = await waitForRequiredAuthCookies(page, 15000);
-          if (!postLoginShell && !hasAuthCookies) {
-            throw new Error(
-              `IDAM login did not establish authenticated session for ${userIdentifier} (url=${currentPageUrl(page)}).`,
-            );
-          }
-          loginError = null;
-          logger.info("IDAM login successful", {
+            idamPage,
             userIdentifier,
             email,
+            password,
             loginTarget,
-            attempt: attempt + 1,
-            marker: postLoginShell ?? "auth-cookies",
-            operation: "session-capture",
-          });
+            attempt + 1,
+          );
+          loginError = null;
           break;
         } catch (attemptError) {
           loginError = attemptError as Error;
@@ -997,6 +1100,13 @@ async function loginAndPersistSession({
           operation: "session-capture",
         });
       }
+
+      const cookies = await requirePersistableSessionCookies(
+        context,
+        userIdentifier,
+        currentPageUrl(page),
+      );
+      await persist(sessionPath, cookies, context, userIdentifier);
     } catch (e) {
       logger.error("Login failed", {
         userIdentifier,
@@ -1012,9 +1122,6 @@ async function loginAndPersistSession({
         e as Error,
       );
     }
-
-    const cookies = await context.cookies();
-    await persist(sessionPath, cookies, context, userIdentifier);
   } finally {
     try {
       await browser.close();
@@ -1130,6 +1237,9 @@ async function sessionCaptureWith(
 }
 
 export const __test__ = {
+  confirmAuthenticatedLogin,
+  executeLoginAttempt,
   sessionCaptureWith,
   persistSession,
+  requirePersistableSessionCookies,
 };
