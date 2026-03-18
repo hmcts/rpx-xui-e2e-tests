@@ -163,6 +163,7 @@ withNightlyPipeline(type, product, component, 300) {
 
     stage('Tests') {
       parallel(
+        failFast: true,
         'API tests': {
           def apiOdhinEnv = [
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
@@ -182,6 +183,9 @@ withNightlyPipeline(type, product, component, 300) {
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
+            withEnv(apiOdhinEnv) {
+              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            }
             publishHTML([
               allowMissing         : true,
               alwaysLinkToLastBuild: true,
@@ -195,7 +199,52 @@ withNightlyPipeline(type, product, component, 300) {
             archivePlaywrightDiagnostics()
           }
         },
-        'UI tests': {
+        'Playwright Integration Tests': {
+          def integrationOdhinEnv = [
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report',
+            'PW_ODHIN_TARGET=functional-output/tests/playwright-integration/odhin-report',
+            'PLAYWRIGHT_REPORTERS=list,odhin',
+            'PW_ODHIN_CONSOLE_TEST_OUTPUT=false',
+            'PW_ODHIN_TEST_OUTPUT=only-on-failure',
+            'PW_ODHIN_CAPTURE_STDIO=false',
+            'PW_UI_VIDEO=off',
+            'ORG_USER_ASSIGNMENT_MODE=external',
+            'ORG_USER_ASSIGNMENT_MODE_ORDER=external,internal',
+            "PW_UI_WORKERS=${configuredWorkers ?: ''}",
+            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PW_UI_USERS=COURT_ADMIN',
+            'PW_UI_STORAGE_STRICT=1',
+            'PW_UI_STORAGE=1',
+            'PW_UI_STORAGE_TTL_MIN=15',
+            'PW_UI_LOGIN_TIMEOUT_MS=120000',
+            'PW_UI_IDLE_TIMEOUT_MS=60000',
+            'PW_UI_IDLE_QUIET_MS=400',
+            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+            'PW_UI_FAIL_ON_HTTP_4XX=0'
+          ]
+          try {
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn('test:playwright:integration')
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            }
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "functional-output/tests/playwright-integration/odhin-report",
+              reportFiles          : 'xui-playwright-e2e.html',
+              reportName           : 'Playwright Integration report'
+            ])
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
+            archivePlaywrightDiagnostics()
+          }
+        },
+        'Playwright E2E Tests': {
           def uiOdhinEnv = [
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
@@ -220,7 +269,7 @@ withNightlyPipeline(type, product, component, 300) {
           ]
           try {
             withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('test:ui')
+              yarnBuilder.yarn('test:playwrightE2E')
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
