@@ -16,6 +16,8 @@
     "outdated": "NPM_CONFIG_CACHE=.npm-cache npm outdated --depth=0",
     "lint:prettier": "prettier -c .",
     "lint:prettier:fix": "prettier -w .",
+    "lint:src:fix": "eslint --fix src",
+    "lint:api:fix": "eslint --fix src/tests/api src/utils/api src/data/api",
     "audit:ai:metadata": "node ./scripts/generate-ai-audit-metadata.cjs",
     "audit:ai:validate": "node ./scripts/validate-ai-governance.cjs",
     "audit:ai:export": "node ./scripts/export-ai-audit-log.cjs",
