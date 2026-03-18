@@ -269,31 +269,158 @@ test.describe(
       expect(mkdirCalls).toBe(2); // Called once per sessionCaptureWith invocation
 
       let persistCalls = 0;
-      const makeLocator = (selector: string) => ({
-        first() {
-          return this;
+      const pageState = {
+        currentUrl: "https://example.test/login",
+        loggedIn: false,
+      };
+      const performLogin = () => {
+        pageState.loggedIn = true;
+        pageState.currentUrl = "https://example.test/cases";
+      };
+      const createLocator = (
+        key: string,
+        handlers: {
+          isVisible?: () => Promise<boolean>;
+          waitFor?: () => Promise<void>;
+          fill?: () => Promise<void>;
+          press?: () => Promise<void>;
+          click?: () => Promise<void>;
         },
+      ) => {
+        const locator = {
+          first: () => locator,
+          isVisible: async () =>
+            handlers.isVisible ? handlers.isVisible() : false,
+          waitFor: async () => {
+            if (!handlers.waitFor) {
+              throw new Error(`Unexpected waitFor on locator ${key}`);
+            }
+            return handlers.waitFor();
+          },
+          fill: async () => {
+            if (!handlers.fill) {
+              throw new Error(`Unexpected fill on locator ${key}`);
+            }
+            return handlers.fill();
+          },
+          press: async () => {
+            if (!handlers.press) {
+              throw new Error(`Unexpected press on locator ${key}`);
+            }
+            return handlers.press();
+          },
+          click: async () => {
+            if (!handlers.click) {
+              throw new Error(`Unexpected click on locator ${key}`);
+            }
+            return handlers.click();
+          },
+        };
+        return locator;
+      };
+      const usernameLocator = createLocator("idam-username", {
+        isVisible: async () => !pageState.loggedIn,
+        waitFor: async () => undefined,
+        fill: async () => undefined,
+      });
+      const passwordLocator = createLocator("idam-password", {
+        isVisible: async () => !pageState.loggedIn,
+        fill: async () => undefined,
+        press: async () => performLogin(),
+      });
+      const submitLocator = createLocator("idam-submit", {
+        isVisible: async () => !pageState.loggedIn,
+        click: async () => performLogin(),
+      });
+      const shellLocator = createLocator("exui-shell", {
+        waitFor: async () => new Promise<void>(() => undefined),
+      });
+      const headerLocator = createLocator("exui-header", {
+        isVisible: async () => false,
         waitFor: async () => {
+          throw new Error("missing header");
+        },
+      });
+      const createCaseLinkLocator = createLocator("create-case-link", {
+        isVisible: async () => false,
+      });
+      const caseListLinkLocator = createLocator("case-list-link", {
+        isVisible: async () => false,
+      });
+      const nextStepLocator = createLocator("case-action-dropdown", {
+        isVisible: async () => false,
+      });
+      const jurisdictionLocator = createLocator("jurisdiction-select", {
+        isVisible: async () => false,
+      });
+      const acceptCookiesLocator = createLocator("accept-cookies", {
+        isVisible: async () => false,
+      });
+      const resolveSelectorLocator = (selector: string) => {
+        switch (selector) {
+          case '[data-testid="idam-username-input"], input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]':
+            return usernameLocator;
+          case 'button:has-text("Sign in"), button:has-text("Continue")':
+            return submitLocator;
+          case "exui-header, exui-case-home":
+            return shellLocator;
+          case "exui-header":
+            return headerLocator;
+          case "#next-step":
+            return nextStepLocator;
+          case "#cc-jurisdiction":
+            return jurisdictionLocator;
+          default:
+            throw new Error(`Unexpected selector ${selector}`);
+        }
+      };
+      const resolveRoleLocator = (role: string, name: string) => {
+        if (role === "button" && name === "/accept additional cookies/i") {
+          return acceptCookiesLocator;
+        }
+        if (role === "link" && name === "Create case") {
+          return createCaseLinkLocator;
+        }
+        if (role === "link" && name === "Case list") {
+          return caseListLinkLocator;
+        }
+        throw new Error(`Unexpected role locator ${role}:${name}`);
+      };
+      const page = {
+        goto: async () => {
+          pageState.currentUrl = "https://example.test/login";
+        },
+        url: () => pageState.currentUrl,
+        locator: (selector: string) => resolveSelectorLocator(selector),
+        getByRole: (role: string, options?: { name?: string | RegExp }) =>
+          resolveRoleLocator(
+            role,
+            options?.name instanceof RegExp
+              ? options.name.toString()
+              : String(options?.name ?? ""),
+          ),
+        waitForSelector: async (selector: string) => {
           if (selector === "exui-header") {
             throw new Error("missing header");
           }
+          throw new Error(`Unexpected waitForSelector ${selector}`);
         },
-        fill: async () => {},
-        isVisible: async () => true,
-        click: async () => {},
-        press: async () => {},
-      });
-      const page = {
-        goto: async () => {},
-        url: () => "https://example.test/auth/login",
-        locator: (selector: string) => makeLocator(selector),
+        waitForLoadState: async () => {},
+        waitForTimeout: async () => {},
       } as any;
       const context = {
         newPage: async () => page,
-        cookies: async () => [],
+        cookies: async () =>
+          pageState.loggedIn
+            ? [
+                baseCookie("Idam.Session", "session-1"),
+                baseCookie("__auth__", "auth-1"),
+              ]
+            : [],
         addCookies: async () => {},
-        storageState: async (_options: { path: string }) => ({}),
+        storageState: async () => ({}),
       } as any;
+      page.context = () => context;
       const browser = {
         newContext: async () => context,
         close: async () => {},
@@ -302,8 +429,12 @@ test.describe(
         launch: async () => browser,
       } as any;
       const idamPageFactory = (() => ({
-        usernameInput: { waitFor: async () => {} },
-        login: async () => {},
+        usernameInput: usernameLocator,
+        passwordInput: passwordLocator,
+        submitBtn: submitLocator,
+        login: async () => {
+          performLogin();
+        },
       })) as unknown as (page: any) => IdamPage;
       await sessionCaptureTest.sessionCaptureWith(["USER"], {
         fs: fsStub,

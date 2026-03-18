@@ -25,14 +25,6 @@ const DYNAMIC_SOLICITOR_DISALLOWED_ROLES = new Set<string>([
   "pui-caa",
   "pui-organisation-manager",
 ]);
-export const REQUIRED_SOLICITOR_MANAGE_CASE_ROLES = [
-  "pui-caa",
-  "pui-case-manager",
-  "pui-finance-manager",
-  "pui-organisation-manager",
-  "pui-user-manager",
-] as const;
-
 export const MINIMAL_SOLICITOR_ROLE_NAMES = [
   "caseworker",
   "caseworker-privatelaw",
@@ -1429,12 +1421,12 @@ export class ProfessionalUserUtils {
       return resolved;
     }
 
-    const fromGeneratedCredentialsToken = isWorkerIdamOauthHydrationAllowed()
-      ? await this.tryGenerateAssignmentBearerTokenFromCredentials()
-      : undefined;
+    const fromGeneratedCredentialsToken =
+      await this.tryGenerateAssignmentBearerTokenFromCredentials();
     if (fromGeneratedCredentialsToken) {
       const resolved = stripBearerPrefix(fromGeneratedCredentialsToken);
       await this.assertExpectedAssignmentPrincipal(resolved);
+      process.env.ORG_USER_ASSIGNMENT_BEARER_TOKEN = resolved;
       return resolved;
     }
 
@@ -1715,7 +1707,7 @@ function resolveSolicitorRoleSelection(options: {
     return {
       source: "explicit-roleNames",
       roleProfile,
-      roleNames: withRequiredSolicitorManageCaseRoles(explicitRoles),
+      roleNames: explicitRoles,
       context: resolvedContext,
     };
   }
@@ -1735,9 +1727,11 @@ function resolveSolicitorRoleSelection(options: {
     return {
       source: "context-driven",
       roleProfile,
-      roleNames: withRequiredSolicitorManageCaseRoles(
-        uniqueStringList([...baseRoles, ...testTypeRoles, ...profileRoles]),
-      ),
+      roleNames: uniqueStringList([
+        ...baseRoles,
+        ...testTypeRoles,
+        ...profileRoles,
+      ]),
       context: resolvedContext,
     };
   }
@@ -1745,20 +1739,9 @@ function resolveSolicitorRoleSelection(options: {
   return {
     source: "profile",
     roleProfile,
-    roleNames: withRequiredSolicitorManageCaseRoles(
-      uniqueStringList(SOLICITOR_ROLE_PROFILES[roleProfile]),
-    ),
+    roleNames: uniqueStringList(SOLICITOR_ROLE_PROFILES[roleProfile]),
     context: resolvedContext,
   };
-}
-
-function withRequiredSolicitorManageCaseRoles(
-  roleNames: readonly string[],
-): string[] {
-  return uniqueStringList([
-    ...roleNames,
-    ...REQUIRED_SOLICITOR_MANAGE_CASE_ROLES,
-  ]);
 }
 
 function resolveSolicitorRoleContext(
@@ -2191,13 +2174,6 @@ function shouldUseManageOrgInvitePrimary(): boolean {
 function shouldFallbackToRdAfterManageOrgFailure(): boolean {
   return isTruthyEnvValue(
     process.env.PROFESSIONAL_USER_ENABLE_RD_FALLBACK_AFTER_MANAGE_ORG,
-    false,
-  );
-}
-
-function isWorkerIdamOauthHydrationAllowed(): boolean {
-  return isTruthyEnvValue(
-    process.env.ALLOW_ORG_ASSIGNMENT_IDAM_OAUTH_IN_WORKER,
     false,
   );
 }

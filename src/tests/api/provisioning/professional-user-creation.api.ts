@@ -10,6 +10,7 @@ import {
   SOLICITOR_ROLE_NAMES,
   ProfessionalUserUtils,
 } from "../../../utils/ui/professional-user.utils";
+import { getProvisioningRuntimeStatus } from "./provisioning-runtime.utils";
 
 const logger = createLogger({
   serviceName: "professional-user-provisioning",
@@ -84,6 +85,9 @@ test.describe("Dynamic professional user provisioning (API)", () => {
   test("@dynamic-user-api creates solicitor user in IDAM and prints login credentials", async ({
     logger,
   }, testInfo) => {
+    const provisioningRuntime = await getProvisioningRuntimeStatus();
+    test.skip(!provisioningRuntime.available, provisioningRuntime.reason);
+
     logger.info("Starting dynamic solicitor provisioning test");
     const professionalUserUtils = new ProfessionalUserUtils(
       new IdamUtils(),

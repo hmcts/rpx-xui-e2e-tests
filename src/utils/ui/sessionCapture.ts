@@ -648,6 +648,9 @@ async function isIdamLoginPage(page: Page): Promise<boolean> {
 }
 
 async function acceptAccessCookiesIfPresent(page: Page): Promise<void> {
+  if (typeof (page as Partial<Page>).getByRole !== "function") {
+    return;
+  }
   const acceptButton = page
     .getByRole("button", { name: /accept additional cookies/i })
     .first();

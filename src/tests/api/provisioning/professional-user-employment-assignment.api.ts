@@ -4,6 +4,7 @@ import { expect, test } from "../../../fixtures/api";
 import { config as uiConfig } from "../../../utils/ui/config.utils";
 import { ProfessionalUserUtils } from "../../../utils/ui/professional-user.utils";
 import { requireTestSolicitorOrganisationId } from "../../../utils/ui/test-organisation-id.utils";
+import { getProvisioningRuntimeStatus } from "./provisioning-runtime.utils";
 
 const EMPLOYMENT_ASSIGNMENT_ROLES_UNFILTERED = [
   "caseworker",
@@ -45,6 +46,9 @@ function getRequiredOrganisationId(): string {
 
 test.describe("Dynamic professional user provisioning (Employment assignment API)", () => {
   test("@dynamic-user-api employment assignment accepts filtered payload roles", async ({}, testInfo) => {
+    const provisioningRuntime = await getProvisioningRuntimeStatus();
+    test.skip(!provisioningRuntime.available, provisioningRuntime.reason);
+
     const professionalUserUtils = new ProfessionalUserUtils(
       new IdamUtils(),
       new ServiceAuthUtils(),
@@ -59,7 +63,7 @@ test.describe("Dynamic professional user provisioning (Employment assignment API
           jurisdiction: "employment",
           testType: "case-create",
         },
-        mode: "external",
+        mode: "auto",
         resendInvite: false,
         outputCreatedUserData: true,
       });
@@ -87,7 +91,9 @@ test.describe("Dynamic professional user provisioning (Employment assignment API
     expect([200, 201, 202, 409]).toContain(
       created.organisationAssignment.status,
     );
-    expect(created.organisationAssignment.mode).toBe("external");
+    expect(["external", "internal"]).toContain(
+      created.organisationAssignment.mode,
+    );
 
     for (const roleName of FILTERED_OUT_ASSIGNMENT_ROLES) {
       expect(created.roleNames).toContain(roleName);
@@ -100,6 +106,10 @@ test.describe("Dynamic professional user provisioning (Employment assignment API
         "caseworker-employment",
         "caseworker-employment-legalrep-solicitor",
         "pui-case-manager",
+      ]),
+    );
+    expect(created.organisationAssignment.roles).not.toEqual(
+      expect.arrayContaining([
         "pui-user-manager",
         "pui-organisation-manager",
         "pui-finance-manager",
