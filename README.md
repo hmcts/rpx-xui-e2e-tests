@@ -45,15 +45,9 @@ Key env vars to tag:
 
 ## Global Token Hydration
 
-- `src/global/ui.global.setup.ts` now hydrates missing tokens once per test run:
-  - `CREATE_USER_BEARER_TOKEN` is no longer auto-hydrated via IDAM OAuth by policy. Supply this token explicitly via environment/KeyVault.
-  - `S2S_TOKEN` via `ServiceAuthUtils` (`S2S_URL` + `S2S_MICROSERVICE_NAME`/`MICROSERVICE`).
-- If you already provide `S2S_TOKEN`, setup keeps that value and skips generation.
-- Optional controls:
-  - `SKIP_CREATE_USER_TOKEN_SETUP=1`
-  - `ALLOW_CREATE_USER_TOKEN_FAILURE=1` (defaults to allowed outside CI; otherwise missing token fails setup)
-  - `SKIP_S2S_TOKEN_SETUP=1`
-  - `ALLOW_S2S_TOKEN_FAILURE=1` (defaults to allowed outside CI)
+- `src/global/ui.global.setup.ts` does not hydrate auth tokens.
+- `CREATE_USER_BEARER_TOKEN`, `ORG_USER_ASSIGNMENT_BEARER_TOKEN`, and `S2S_TOKEN` are resolved by the specific test utilities that need them.
+- This matches `rpx-xui-webapp`, where token resolution lives with dynamic-user/session helpers rather than Playwright global setup.
 
 ## Dynamic professional user utility
 
