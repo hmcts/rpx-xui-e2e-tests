@@ -36,7 +36,7 @@ test.describe("Verify creating cases works as expected", () => {
     try {
       await retryOnTransientFailure(
         async () => {
-          await ensureAuthenticatedPage(page, "PROD_LIKE", {
+          await ensureAuthenticatedPage(page, "SOLICITOR", {
             waitForSelector: "exui-header",
           });
           caseData = await createCasePage.generateDivorcePoCData();

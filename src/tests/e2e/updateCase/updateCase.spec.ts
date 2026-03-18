@@ -42,7 +42,7 @@ test.describe("Verify creating and updating a case works as expected", () => {
     try {
       await retryOnTransientFailure(
         async () => {
-          await ensureAuthenticatedPage(page, "PROD_LIKE", {
+          await ensureAuthenticatedPage(page, "SOLICITOR", {
             waitForSelector: "exui-header",
             timeoutMs: 30_000,
           });

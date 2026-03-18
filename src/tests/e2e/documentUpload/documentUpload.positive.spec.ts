@@ -99,7 +99,7 @@ test.describe("Document upload V2", () => {
         async () => {
           await withTimeout(
             (async () => {
-              await ensureAuthenticatedPage(page, "PROD_LIKE", {
+              await ensureAuthenticatedPage(page, "SOLICITOR", {
                 waitForSelector: "exui-header",
               });
               await createCasePage.createDivorceCase(
