@@ -83,6 +83,116 @@ function isApiOnlyRun(): boolean {
   );
 }
 
+function getCliFlagValues(flagName: string): string[] {
+  const argv = process.argv.slice(2);
+  const values: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === flagName) {
+      const next = argv[index + 1];
+      if (next && !next.startsWith("-")) {
+        values.push(next);
+        index += 1;
+      }
+      continue;
+    }
+    if (value.startsWith(`${flagName}=`)) {
+      values.push(value.slice(flagName.length + 1));
+    }
+  }
+
+  return values;
+}
+
+function getCliPositionalArgs(): string[] {
+  const argv = process.argv.slice(2);
+  const positional: string[] = [];
+  const flagsWithValues = new Set([
+    "--config",
+    "--grep",
+    "--grep-invert",
+    "--project",
+  ]);
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value.startsWith("-")) {
+      if (flagsWithValues.has(value)) {
+        index += 1;
+      }
+      continue;
+    }
+    positional.push(value);
+  }
+
+  return positional;
+}
+
+function containsDynamicUserReference(value: string | undefined): boolean {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return (
+    normalized.includes("dynamic-user") ||
+    normalized.includes("professionaluserprovisioning.spec")
+  );
+}
+
+function selectionExplicitlyExcludesDynamicUserTests(): boolean {
+  const grepInvertValues = [
+    ...getCliFlagValues("--grep-invert"),
+    firstNonEmpty(process.env.PW_E2E_DEFAULT_GREP_INVERT),
+  ].filter(Boolean);
+
+  if (grepInvertValues.some((value) => containsDynamicUserReference(value))) {
+    return true;
+  }
+
+  const grepValues = getCliFlagValues("--grep");
+  if (
+    grepValues.length > 0 &&
+    grepValues.every((value) => !containsDynamicUserReference(value))
+  ) {
+    return true;
+  }
+
+  const positionalArgs = getCliPositionalArgs().map((value) =>
+    value.toLowerCase(),
+  );
+  return (
+    positionalArgs.length > 0 &&
+    positionalArgs.every((value) => value.includes("src/tests/integration"))
+  );
+}
+
+function selectionRequiresCreateUserToken(): boolean {
+  if (
+    getCliPositionalArgs().some((value) =>
+      containsDynamicUserReference(value),
+    ) ||
+    getCliFlagValues("--grep").some((value) =>
+      containsDynamicUserReference(value),
+    )
+  ) {
+    return true;
+  }
+
+  if (selectionExplicitlyExcludesDynamicUserTests()) {
+    return false;
+  }
+
+  const positionalArgs = getCliPositionalArgs().map((value) =>
+    value.toLowerCase(),
+  );
+  if (positionalArgs.length === 0) {
+    return true;
+  }
+
+  return positionalArgs.some((value) => value.includes("src/tests/e2e"));
+}
+
 async function hydrateCreateUserToken(logger: LoggerInstance): Promise<void> {
   if (firstNonEmpty(process.env.CREATE_USER_BEARER_TOKEN)) {
     logger.info("CREATE_USER_BEARER_TOKEN already set; skipping hydration.");
@@ -91,6 +201,12 @@ async function hydrateCreateUserToken(logger: LoggerInstance): Promise<void> {
   if (isTruthy(process.env.SKIP_CREATE_USER_TOKEN_SETUP)) {
     logger.info(
       "Skipping CREATE_USER_BEARER_TOKEN hydration via SKIP_CREATE_USER_TOKEN_SETUP.",
+    );
+    return;
+  }
+  if (!selectionRequiresCreateUserToken()) {
+    logger.info(
+      "CREATE_USER_BEARER_TOKEN not required for selected test scope; skipping hydration guard.",
     );
     return;
   }
