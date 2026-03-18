@@ -4,7 +4,10 @@ import { expect, test } from "../../../fixtures/api";
 import { config as uiConfig } from "../../../utils/ui/config.utils";
 import { ProfessionalUserUtils } from "../../../utils/ui/professional-user.utils";
 import { requireTestSolicitorOrganisationId } from "../../../utils/ui/test-organisation-id.utils";
-import { getProvisioningRuntimeStatus } from "./provisioning-runtime.utils";
+import {
+  getEmploymentAssignmentPreflightStatus,
+  getProvisioningRuntimeStatus,
+} from "./provisioning-runtime.utils";
 
 const EMPLOYMENT_ASSIGNMENT_ROLES_UNFILTERED = [
   "caseworker",
@@ -48,6 +51,12 @@ test.describe("Dynamic professional user provisioning (Employment assignment API
   test("@dynamic-user-api employment assignment accepts filtered payload roles", async ({}, testInfo) => {
     const provisioningRuntime = await getProvisioningRuntimeStatus();
     test.skip(!provisioningRuntime.available, provisioningRuntime.reason);
+    const employmentAssignmentPreflight =
+      getEmploymentAssignmentPreflightStatus();
+    test.skip(
+      !employmentAssignmentPreflight.enabled,
+      employmentAssignmentPreflight.reason,
+    );
 
     const professionalUserUtils = new ProfessionalUserUtils(
       new IdamUtils(),
