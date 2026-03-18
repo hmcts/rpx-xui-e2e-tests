@@ -116,7 +116,8 @@ export const EMPLOYMENT_ET_ENGLANDWALES_CASE_DATA: Record<string, unknown> = {
   claimantWorkAddressQRespondent: {
     value: {
       code: "Mrs Test Auto",
-      label: "Mrs Test Auto - 78 East Wonford Hill, Exeter, EX1 3DD, United Kingdom",
+      label:
+        "Mrs Test Auto - 78 East Wonford Hill, Exeter, EX1 3DD, United Kingdom",
     },
     list_items: [
       {

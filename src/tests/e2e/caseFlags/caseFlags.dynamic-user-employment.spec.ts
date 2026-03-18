@@ -101,7 +101,9 @@ test.describe("Dynamic user case flags employment flow", () => {
       const existingFlags =
         await caseDetailsPage.waitForTableByName("Case level flags");
       const existingTable = await tableUtils.parseDataTable(existingFlags);
-      expect.soft(filterEmptyRows(existingTable).length).toBeGreaterThanOrEqual(0);
+      expect
+        .soft(filterEmptyRows(existingTable).length)
+        .toBeGreaterThanOrEqual(0);
 
       await caseDetailsPage.selectCaseAction("Create a case flag");
       await caseDetailsPage.selectCaseFlagTarget("Welsh");

@@ -41,7 +41,10 @@ function toError(error: unknown): Error {
 
 const CHROME_ERROR_URL_PREFIX = "chrome-error://chromewebdata/";
 
-function isChromeErrorNavigationFailure(error: unknown, currentUrl: string): boolean {
+function isChromeErrorNavigationFailure(
+  error: unknown,
+  currentUrl: string,
+): boolean {
   const message = toError(error).message;
   return (
     currentUrl.startsWith(CHROME_ERROR_URL_PREFIX) ||
@@ -49,7 +52,10 @@ function isChromeErrorNavigationFailure(error: unknown, currentUrl: string): boo
   );
 }
 
-function isTransientNavigationFailure(error: unknown, currentUrl: string): boolean {
+function isTransientNavigationFailure(
+  error: unknown,
+  currentUrl: string,
+): boolean {
   const message = toError(error).message;
   return (
     isChromeErrorNavigationFailure(error, currentUrl) ||
@@ -71,7 +77,11 @@ async function gotoAppTarget(
   const maxNavigationAttempts = 3;
   let lastError: Error | null = null;
 
-  for (let navigationAttempt = 1; navigationAttempt <= maxNavigationAttempts; navigationAttempt += 1) {
+  for (
+    let navigationAttempt = 1;
+    navigationAttempt <= maxNavigationAttempts;
+    navigationAttempt += 1
+  ) {
     try {
       await page.goto(targetUrl);
       const currentUrl = currentPageUrl(page);
@@ -120,7 +130,11 @@ async function gotoLoginTarget(
   const maxNavigationAttempts = 2;
   let lastError: Error | null = null;
 
-  for (let navigationAttempt = 1; navigationAttempt <= maxNavigationAttempts; navigationAttempt += 1) {
+  for (
+    let navigationAttempt = 1;
+    navigationAttempt <= maxNavigationAttempts;
+    navigationAttempt += 1
+  ) {
     try {
       await page.goto(loginTarget, { waitUntil: "domcontentloaded" });
       const currentUrl = currentPageUrl(page);
@@ -483,7 +497,10 @@ async function waitForRequiredAuthCookies(
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const cookies = await page.context().cookies().catch(() => []);
+    const cookies = await page
+      .context()
+      .cookies()
+      .catch(() => []);
     if (hasRequiredAuthCookies(cookies)) {
       return true;
     }

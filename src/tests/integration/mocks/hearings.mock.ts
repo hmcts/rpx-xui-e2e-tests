@@ -1,24 +1,29 @@
-import { createRequire } from 'node:module';
+import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const { EXUISectionStatusEnum, HMCStatus } = require('./hearings-deps/models/hearings.enum');
-const { hearingStatusMappings } = require('./hearings-deps/models/hearingStatusMappings');
-const hearingsListTemplate = require('./hearings-deps/viewEditHearings/caseHearings.json');
-const listedHearingTemplate = require('./hearings-deps/viewEditHearings/mock_HMC_setup.json');
-const serviceHearingValuesTemplate = require('./hearings-deps/viewEditHearings/mock_SHV_setup.json');
-const appConfigTemplate = require('./hearings-deps/config/config.json');
-const headerConfigTemplate = require('./hearings-deps/config/baseConfig.js');
+const {
+  EXUISectionStatusEnum,
+  HMCStatus,
+} = require("./hearings-deps/models/hearings.enum");
+const {
+  hearingStatusMappings,
+} = require("./hearings-deps/models/hearingStatusMappings");
+const hearingsListTemplate = require("./hearings-deps/viewEditHearings/caseHearings.json");
+const listedHearingTemplate = require("./hearings-deps/viewEditHearings/mock_HMC_setup.json");
+const serviceHearingValuesTemplate = require("./hearings-deps/viewEditHearings/mock_SHV_setup.json");
+const appConfigTemplate = require("./hearings-deps/config/config.json");
+const headerConfigTemplate = require("./hearings-deps/config/baseConfig.js");
 
-export const HEARINGS_CASE_REFERENCE = '1234567812345678';
-export const HEARINGS_CASE_JURISDICTION = 'CIVIL';
-export const HEARINGS_CASE_TYPE = 'CIVIL';
-export const HEARINGS_LISTED_HEARING_ID = '1705614528106';
-export const HEARINGS_AWAITING_LISTING_HEARING_ID = '1705614528107';
-export const HEARINGS_UPDATE_REQUESTED_HEARING_ID = '1705614528108';
-export const HEARINGS_SERVICE_ID = 'ABA5';
-export const HEARINGS_LOCATION_ID = '827534';
-export const HEARINGS_LOCATION_NAME = 'Aberystwyth Justice Centre';
-export const HEARINGS_USER_ID = 'hearing-cr84-user';
+export const HEARINGS_CASE_REFERENCE = "1234567812345678";
+export const HEARINGS_CASE_JURISDICTION = "CIVIL";
+export const HEARINGS_CASE_TYPE = "CIVIL";
+export const HEARINGS_LISTED_HEARING_ID = "1705614528106";
+export const HEARINGS_AWAITING_LISTING_HEARING_ID = "1705614528107";
+export const HEARINGS_UPDATE_REQUESTED_HEARING_ID = "1705614528108";
+export const HEARINGS_SERVICE_ID = "ABA5";
+export const HEARINGS_LOCATION_ID = "827534";
+export const HEARINGS_LOCATION_NAME = "Aberystwyth Justice Centre";
+export const HEARINGS_USER_ID = "hearing-cr84-user";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -67,14 +72,18 @@ function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-function withDefaults(caseConfig?: HearingsCaseConfig): Required<HearingsCaseConfig> {
+function withDefaults(
+  caseConfig?: HearingsCaseConfig,
+): Required<HearingsCaseConfig> {
   return {
     ...DEFAULT_CASE_CONFIG,
     ...caseConfig,
   };
 }
 
-function asFeatureVariations(variations: HearingsCaseVariation[]): Array<{ jurisdiction: string; includeCaseTypes: string[] }> {
+function asFeatureVariations(
+  variations: HearingsCaseVariation[],
+): Array<{ jurisdiction: string; includeCaseTypes: string[] }> {
   return variations.map((variation) => ({
     jurisdiction: variation.jurisdiction,
     includeCaseTypes: [variation.caseType],
@@ -82,25 +91,35 @@ function asFeatureVariations(variations: HearingsCaseVariation[]): Array<{ juris
 }
 
 function resolveStatusMapping(hmcStatus: string) {
-  return hearingStatusMappings.find((statusMapping) => statusMapping.hmcStatus === hmcStatus);
+  return hearingStatusMappings.find(
+    (statusMapping) => statusMapping.hmcStatus === hmcStatus,
+  );
 }
 
 function resolveDisplayStatus(scenario: HearingScenario): string {
-  return scenario.displayStatus ?? resolveStatusMapping(scenario.hmcStatus)?.exuiDisplayStatus ?? scenario.hmcStatus;
+  return (
+    scenario.displayStatus ??
+    resolveStatusMapping(scenario.hmcStatus)?.exuiDisplayStatus ??
+    scenario.hmcStatus
+  );
 }
 
-function buildHearingDaySchedule(caseConfig: Required<HearingsCaseConfig>, scenario: HearingScenario) {
+function buildHearingDaySchedule(
+  caseConfig: Required<HearingsCaseConfig>,
+  scenario: HearingScenario,
+) {
   return [
     {
-      hearingStartDateTime: scenario.earliestHearingStartDateTime ?? '2024-02-13T10:00:00',
-      hearingEndDateTime: scenario.hearingEndDateTime ?? '2024-02-13T12:00:00',
+      hearingStartDateTime:
+        scenario.earliestHearingStartDateTime ?? "2024-02-13T10:00:00",
+      hearingEndDateTime: scenario.hearingEndDateTime ?? "2024-02-13T12:00:00",
       hearingVenueId: caseConfig.locationId,
-      hearingRoomId: 'Aberystwyth Courtroom 01',
-      hearingJudgeId: '',
+      hearingRoomId: "Aberystwyth Courtroom 01",
+      hearingJudgeId: "",
       panelMemberIds: [],
       attendees: [
-        { hearingSubChannel: 'INTER', partyID: '1234-uytr-7654-asdf-0001' },
-        { hearingSubChannel: 'INTER', partyID: '1234-uytr-7654-asdf-0002' },
+        { hearingSubChannel: "INTER", partyID: "1234-uytr-7654-asdf-0001" },
+        { hearingSubChannel: "INTER", partyID: "1234-uytr-7654-asdf-0002" },
       ],
       listAssistSessionID: null,
     },
@@ -110,19 +129,19 @@ function buildHearingDaySchedule(caseConfig: Required<HearingsCaseConfig>, scena
 export const LISTED_HEARING_SCENARIO: HearingScenario = {
   hearingId: HEARINGS_LISTED_HEARING_ID,
   hmcStatus: HMCStatus.LISTED,
-  hearingType: 'ABA5-LISTED',
+  hearingType: "ABA5-LISTED",
 };
 
 export const AWAITING_LISTING_HEARING_SCENARIO: HearingScenario = {
   hearingId: HEARINGS_AWAITING_LISTING_HEARING_ID,
   hmcStatus: HMCStatus.AWAITING_LISTING,
-  hearingType: 'ABA5-AWAITING',
+  hearingType: "ABA5-AWAITING",
 };
 
 export const UPDATE_REQUESTED_HEARING_SCENARIO: HearingScenario = {
   hearingId: HEARINGS_UPDATE_REQUESTED_HEARING_ID,
   hmcStatus: HMCStatus.UPDATE_REQUESTED,
-  hearingType: 'ABA5-UPDATE',
+  hearingType: "ABA5-UPDATE",
 };
 
 export function buildHearingsUserDetailsMock(roles: string[]) {
@@ -135,11 +154,11 @@ export function buildHearingsUserDetailsMock(roles: string[]) {
     userInfo: {
       id: HEARINGS_USER_ID,
       uid: HEARINGS_USER_ID,
-      forename: 'Playwright',
-      surname: 'Hearings',
-      email: 'playwright.hearings@justice.gov.uk',
+      forename: "Playwright",
+      surname: "Hearings",
+      email: "playwright.hearings@justice.gov.uk",
       active: true,
-      roleCategory: 'LEGAL_OPERATIONS',
+      roleCategory: "LEGAL_OPERATIONS",
       roles,
     },
     roleAssignmentInfo: [],
@@ -154,29 +173,31 @@ export function buildHearingsEnvironmentConfigMock(options?: {
   enabledCaseVariations?: HearingsCaseVariation[];
   amendmentCaseVariations?: HearingsCaseVariation[];
 }) {
-  const enabledCaseVariations = options?.enabledCaseVariations ?? DEFAULT_ENABLED_VARIATIONS;
-  const amendmentCaseVariations = options?.amendmentCaseVariations ?? DEFAULT_ENABLED_VARIATIONS;
+  const enabledCaseVariations =
+    options?.enabledCaseVariations ?? DEFAULT_ENABLED_VARIATIONS;
+  const amendmentCaseVariations =
+    options?.amendmentCaseVariations ?? DEFAULT_ENABLED_VARIATIONS;
 
   return {
     accessManagementEnabled: true,
-    ccdGatewayUrl: 'http://localhost:3001',
-    clientId: 'xui-webapp',
-    idamWeb: 'https://idam-web-public.aat.platform.hmcts.net',
-    judicialBookingApi: '/api/am',
-    launchDarklyClientId: '5de6610b23ce5408280f2268',
-    oAuthCallback: '/oauth2/callback',
+    ccdGatewayUrl: "http://localhost:3001",
+    clientId: "xui-webapp",
+    idamWeb: "https://idam-web-public.aat.platform.hmcts.net",
+    judicialBookingApi: "/api/am",
+    launchDarklyClientId: "5de6610b23ce5408280f2268",
+    oAuthCallback: "/oauth2/callback",
     oidcEnabled: true,
-    paymentReturnUrl: '',
-    protocol: 'http',
+    paymentReturnUrl: "",
+    protocol: "http",
     substantiveEnabled: false,
-    waWorkflowApi: '/workallocation',
+    waWorkflowApi: "/workallocation",
     headerConfig: deepClone(headerConfigTemplate),
     hearingJurisdictionConfig: {
       hearingJurisdictions: {
-        '.*': asFeatureVariations(enabledCaseVariations),
+        ".*": asFeatureVariations(enabledCaseVariations),
       },
       hearingAmendment: {
-        '.*': asFeatureVariations(amendmentCaseVariations),
+        ".*": asFeatureVariations(amendmentCaseVariations),
       },
     },
   };
@@ -205,18 +226,18 @@ export function buildHearingsCaseDetailsMock(caseConfig?: HearingsCaseConfig) {
     },
     tabs: [
       {
-        id: 'caseSummary',
-        label: 'Case summary',
+        id: "caseSummary",
+        label: "Case summary",
         order: 1,
         fields: [
           {
-            id: 'caseSummaryTabHeading',
-            label: 'Case information',
-            value: 'Case information',
+            id: "caseSummaryTabHeading",
+            label: "Case information",
+            value: "Case information",
             metadata: false,
             field_type: {
-              id: 'Label',
-              type: 'Label',
+              id: "Label",
+              type: "Label",
               fixed_list_items: [],
               complex_fields: [],
               collection_field_type: null,
@@ -230,13 +251,13 @@ export function buildHearingsCaseDetailsMock(caseConfig?: HearingsCaseConfig) {
     ],
     metadataFields: [
       {
-        id: '[CASE_REFERENCE]',
-        label: 'Case Reference',
+        id: "[CASE_REFERENCE]",
+        label: "Case Reference",
         value: Number(resolvedCase.caseReference),
         metadata: true,
         field_type: {
-          id: 'Text',
-          type: 'Text',
+          id: "Text",
+          type: "Text",
           fixed_list_items: [],
           complex_fields: [],
           collection_field_type: null,
@@ -246,13 +267,13 @@ export function buildHearingsCaseDetailsMock(caseConfig?: HearingsCaseConfig) {
         },
       },
       {
-        id: '[JURISDICTION]',
-        label: 'Jurisdiction',
+        id: "[JURISDICTION]",
+        label: "Jurisdiction",
         value: resolvedCase.jurisdictionId,
         metadata: true,
         field_type: {
-          id: 'Text',
-          type: 'Text',
+          id: "Text",
+          type: "Text",
           fixed_list_items: [],
           complex_fields: [],
           collection_field_type: null,
@@ -262,13 +283,13 @@ export function buildHearingsCaseDetailsMock(caseConfig?: HearingsCaseConfig) {
         },
       },
       {
-        id: '[CASE_TYPE]',
-        label: 'Case Type',
+        id: "[CASE_TYPE]",
+        label: "Case Type",
         value: resolvedCase.caseTypeId,
         metadata: true,
         field_type: {
-          id: 'Text',
-          type: 'Text',
+          id: "Text",
+          type: "Text",
           fixed_list_items: [],
           complex_fields: [],
           collection_field_type: null,
@@ -279,23 +300,26 @@ export function buildHearingsCaseDetailsMock(caseConfig?: HearingsCaseConfig) {
       },
     ],
     state: {
-      id: 'Open',
-      name: 'Open',
-      description: 'Open case',
-      title_display: '# ${[CASE_REFERENCE]}',
+      id: "Open",
+      name: "Open",
+      description: "Open case",
+      title_display: "# ${[CASE_REFERENCE]}",
     },
     triggers: [
       {
-        id: 'updateCase',
-        name: 'Update case',
-        description: 'Update case details',
+        id: "updateCase",
+        name: "Update case",
+        description: "Update case details",
         order: 1,
       },
     ],
   };
 }
 
-export function buildHearingsListMock(hearings: HearingScenario[] = [LISTED_HEARING_SCENARIO], caseConfig?: HearingsCaseConfig) {
+export function buildHearingsListMock(
+  hearings: HearingScenario[] = [LISTED_HEARING_SCENARIO],
+  caseConfig?: HearingsCaseConfig,
+) {
   const resolvedCase = withDefaults(caseConfig);
   const payload = deepClone(hearingsListTemplate) as UnknownRecord;
   const caseHearings = payload.caseHearings as UnknownRecord[];
@@ -310,10 +334,15 @@ export function buildHearingsListMock(hearings: HearingScenario[] = [LISTED_HEAR
     hearing.hmcStatus = scenario.hmcStatus;
     hearing.listAssistCaseStatus = scenario.hmcStatus;
     hearing.exuiDisplayStatus = resolveDisplayStatus(scenario);
-    hearing.exuiSectionStatus = statusMapping?.exuiSectionStatus ?? EXUISectionStatusEnum.UPCOMING;
-    hearing.hearingType = scenario.hearingType ?? 'ABA5-ABC';
-    hearing.earliestHearingStartDateTime = scenario.earliestHearingStartDateTime ?? '2024-02-13T10:00:00';
-    hearing.hearingDaySchedule = buildHearingDaySchedule(resolvedCase, scenario);
+    hearing.exuiSectionStatus =
+      statusMapping?.exuiSectionStatus ?? EXUISectionStatusEnum.UPCOMING;
+    hearing.hearingType = scenario.hearingType ?? "ABA5-ABC";
+    hearing.earliestHearingStartDateTime =
+      scenario.earliestHearingStartDateTime ?? "2024-02-13T10:00:00";
+    hearing.hearingDaySchedule = buildHearingDaySchedule(
+      resolvedCase,
+      scenario,
+    );
     hearing.hearingIsLinkedFlag = scenario.hearingIsLinkedFlag ?? false;
     hearing.hearingGroupRequestId = scenario.hearingGroupRequestId ?? null;
 
@@ -325,7 +354,10 @@ export function buildHearingsListMock(hearings: HearingScenario[] = [LISTED_HEAR
   return payload;
 }
 
-export function buildHearingRequestMock(scenario: HearingScenario = LISTED_HEARING_SCENARIO, caseConfig?: HearingsCaseConfig) {
+export function buildHearingRequestMock(
+  scenario: HearingScenario = LISTED_HEARING_SCENARIO,
+  caseConfig?: HearingsCaseConfig,
+) {
   const resolvedCase = withDefaults(caseConfig);
   const payload = deepClone(listedHearingTemplate) as UnknownRecord;
   const requestDetails = payload.requestDetails as UnknownRecord;
@@ -337,39 +369,43 @@ export function buildHearingRequestMock(scenario: HearingScenario = LISTED_HEARI
   requestDetails.status = scenario.hmcStatus;
   caseDetails.caseRef = resolvedCase.caseReference;
   caseDetails.hmctsInternalCaseName = resolvedCase.caseReference;
-  caseDetails.publicCaseName = 'Mock case public name';
+  caseDetails.publicCaseName = "Mock case public name";
   caseDetails.hmctsServiceCode = resolvedCase.serviceId;
   caseDetails.caseManagementLocationCode = resolvedCase.locationId;
-  hearingDetails.hearingType = scenario.hearingType ?? 'ABA5-ABC';
+  hearingDetails.hearingType = scenario.hearingType ?? "ABA5-ABC";
   hearingDetails.hearingLocations = [
     {
-      locationType: 'court',
+      locationType: "court",
       locationId: resolvedCase.locationId,
     },
   ];
   hearingResponse.laCaseStatus = scenario.hmcStatus;
-  hearingResponse.listingStatus = scenario.hmcStatus === HMCStatus.LISTED ? 'FIXED' : 'DRAFT';
-  hearingResponse.hearingDaySchedule = buildHearingDaySchedule(resolvedCase, scenario);
+  hearingResponse.listingStatus =
+    scenario.hmcStatus === HMCStatus.LISTED ? "FIXED" : "DRAFT";
+  hearingResponse.hearingDaySchedule = buildHearingDaySchedule(
+    resolvedCase,
+    scenario,
+  );
 
   return payload;
 }
 
 export function buildServiceHearingValuesMock(
   caseConfig?: HearingsCaseConfig,
-  scenario: HearingScenario = LISTED_HEARING_SCENARIO
+  scenario: HearingScenario = LISTED_HEARING_SCENARIO,
 ) {
   const resolvedCase = withDefaults(caseConfig);
   const payload = deepClone(serviceHearingValuesTemplate) as UnknownRecord;
 
   payload.hmctsServiceID = resolvedCase.serviceId;
   payload.hmctsInternalCaseName = resolvedCase.caseReference;
-  payload.publicCaseName = 'Mock case public name';
+  payload.publicCaseName = "Mock case public name";
   payload.caseDeepLink = `https://xui.example/cases/case-details/${resolvedCase.caseReference}`;
   payload.caseManagementLocationCode = resolvedCase.locationId;
-  payload.hearingType = scenario.hearingType ?? 'ABA5-ABC';
+  payload.hearingType = scenario.hearingType ?? "ABA5-ABC";
   payload.hearingLocations = [
     {
-      locationType: 'court',
+      locationType: "court",
       locationId: resolvedCase.locationId,
     },
   ];
@@ -382,34 +418,36 @@ export function buildLovRefDataMock(
   options?: {
     hearingTypes?: string[];
     caseTypeId?: string;
-  }
+  },
 ) {
-  const hearingTypes = options?.hearingTypes ?? [LISTED_HEARING_SCENARIO.hearingType ?? 'ABA5-ABC'];
+  const hearingTypes = options?.hearingTypes ?? [
+    LISTED_HEARING_SCENARIO.hearingType ?? "ABA5-ABC",
+  ];
   const caseTypeId = options?.caseTypeId ?? HEARINGS_CASE_TYPE;
   const itemsByCategory: Record<string, Array<Record<string, unknown>>> = {
     HearingType: hearingTypes.map((hearingType, index) => ({
       key: hearingType,
       value_en: hearingType,
       value_cy: hearingType,
-      hint_text_en: '',
-      hint_text_cy: '',
+      hint_text_en: "",
+      hint_text_cy: "",
       lov_order: index + 1,
       parent_key: null,
-      category_key: 'HearingType',
+      category_key: "HearingType",
       parent_category: null,
       active_flag: true,
       child_nodes: [],
     })),
     HearingPriority: [
       {
-        key: 'Standard',
-        value_en: 'Standard',
-        value_cy: 'Standard',
-        hint_text_en: '',
-        hint_text_cy: '',
+        key: "Standard",
+        value_en: "Standard",
+        value_cy: "Standard",
+        hint_text_en: "",
+        hint_text_cy: "",
         lov_order: 1,
         parent_key: null,
-        category_key: 'HearingPriority',
+        category_key: "HearingPriority",
         parent_category: null,
         active_flag: true,
         child_nodes: [],
@@ -420,11 +458,11 @@ export function buildLovRefDataMock(
         key: caseTypeId,
         value_en: caseTypeId,
         value_cy: caseTypeId,
-        hint_text_en: '',
-        hint_text_cy: '',
+        hint_text_en: "",
+        hint_text_cy: "",
         lov_order: 1,
         parent_key: null,
-        category_key: 'caseType',
+        category_key: "caseType",
         parent_category: null,
         active_flag: true,
         child_nodes: [],
@@ -433,27 +471,27 @@ export function buildLovRefDataMock(
     Facilities: [],
     HearingChannel: [
       {
-        key: 'INTER',
-        value_en: 'In person',
-        value_cy: 'In person',
-        hint_text_en: '',
-        hint_text_cy: '',
+        key: "INTER",
+        value_en: "In person",
+        value_cy: "In person",
+        hint_text_en: "",
+        hint_text_cy: "",
         lov_order: 1,
         parent_key: null,
-        category_key: 'HearingChannel',
+        category_key: "HearingChannel",
         parent_category: null,
         active_flag: true,
         child_nodes: [],
       },
       {
-        key: 'VID',
-        value_en: 'Video',
-        value_cy: 'Video',
-        hint_text_en: '',
-        hint_text_cy: '',
+        key: "VID",
+        value_en: "Video",
+        value_cy: "Video",
+        hint_text_en: "",
+        hint_text_cy: "",
         lov_order: 2,
         parent_key: null,
-        category_key: 'HearingChannel',
+        category_key: "HearingChannel",
         parent_category: null,
         active_flag: true,
         child_nodes: [],
@@ -461,14 +499,14 @@ export function buildLovRefDataMock(
     ],
     HearingSubChannel: [
       {
-        key: 'INTER',
-        value_en: 'In person',
-        value_cy: 'In person',
-        hint_text_en: '',
-        hint_text_cy: '',
+        key: "INTER",
+        value_en: "In person",
+        value_cy: "In person",
+        hint_text_en: "",
+        hint_text_cy: "",
         lov_order: 1,
         parent_key: null,
-        category_key: 'HearingSubChannel',
+        category_key: "HearingSubChannel",
         parent_category: null,
         active_flag: true,
         child_nodes: [],
@@ -499,8 +537,8 @@ export function buildCourtLocationMock(caseConfig?: HearingsCaseConfig) {
       epimms_id: resolvedCase.locationId,
       court_name: resolvedCase.locationName,
       welsh_court_name: resolvedCase.locationName,
-      region_id: '7',
-      region: 'Wales',
+      region_id: "7",
+      region: "Wales",
     },
   ];
 }

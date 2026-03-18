@@ -42,8 +42,12 @@ if (!fs.existsSync(metadataPath)) {
     }
   }
 
-  const anyOdhin = (payload?.evidence?.odhin_reports || []).some((x) => x.exists);
-  const anyJUnit = (payload?.evidence?.junit_reports || []).some((x) => x.exists);
+  const anyOdhin = (payload?.evidence?.odhin_reports || []).some(
+    (x) => x.exists,
+  );
+  const anyJUnit = (payload?.evidence?.junit_reports || []).some(
+    (x) => x.exists,
+  );
 
   if (!anyOdhin) {
     warnings.push("no Odhin report path detected");

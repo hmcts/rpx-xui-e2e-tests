@@ -50,10 +50,10 @@ Follow `.agent/SECURE.md` by limiting changes to DOM parsing logic, avoiding any
 
 Update `../playwright-common/src/utils/table.utils.ts` to:
 
-1) Ensure `evaluateTable` selects only direct table rows with `:scope >` selectors for locator and string-based inputs.
-2) Add `aria-hidden` filtering to `parseKeyValueTable` and `parseDataTable` row visibility checks.
-3) In `parseDataTable`, detect header rows only when `<th>` elements are present if no `<thead>`, and keep the first row as data otherwise. Use existing `column_N` fallbacks for headerless tables.
-4) In `parseWorkAllocationTable`, use direct-row selection from `<thead>/<tbody>` and only treat the first body row as headers when `<th>` cells are present. When headers are absent, generate `column_N` keys based on the widest data row and include the first row as data.
+1. Ensure `evaluateTable` selects only direct table rows with `:scope >` selectors for locator and string-based inputs.
+2. Add `aria-hidden` filtering to `parseKeyValueTable` and `parseDataTable` row visibility checks.
+3. In `parseDataTable`, detect header rows only when `<th>` elements are present if no `<thead>`, and keep the first row as data otherwise. Use existing `column_N` fallbacks for headerless tables.
+4. In `parseWorkAllocationTable`, use direct-row selection from `<thead>/<tbody>` and only treat the first body row as headers when `<th>` cells are present. When headers are absent, generate `column_N` keys based on the widest data row and include the first row as data.
 
 Update `../playwright-common/tests/utils/table.utils.test-helpers.ts` to support header-row `<th>` detection and optional aria-hidden rows for new tests.
 
@@ -61,10 +61,10 @@ Update `../playwright-common/tests/utils/table.utils.new-methods.spec.ts` to add
 
 ## Concrete Steps
 
-1) Edit `../playwright-common/src/utils/table.utils.ts` to implement row selection, `aria-hidden` filtering, and headerless handling.
-2) Edit `../playwright-common/tests/utils/table.utils.test-helpers.ts` to add `headerRowUsesTh` and optional `ariaHiddenRows` support for relevant helpers.
-3) Edit `../playwright-common/tests/utils/table.utils.new-methods.spec.ts` to add tests for headerless tables and `aria-hidden` rows, and adjust any existing tests if needed.
-4) Run tests in `/Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/playwright-common`:
+1. Edit `../playwright-common/src/utils/table.utils.ts` to implement row selection, `aria-hidden` filtering, and headerless handling.
+2. Edit `../playwright-common/tests/utils/table.utils.test-helpers.ts` to add `headerRowUsesTh` and optional `ariaHiddenRows` support for relevant helpers.
+3. Edit `../playwright-common/tests/utils/table.utils.new-methods.spec.ts` to add tests for headerless tables and `aria-hidden` rows, and adjust any existing tests if needed.
+4. Run tests in `/Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/playwright-common`:
 
    yarn test
 
@@ -84,16 +84,16 @@ Edits are deterministic and can be re-applied safely. If tests fail, revert the 
 
 `yarn test` output (2026-01-23 14:59Z):
 
-  Test Files  22 passed (22)
-       Tests  125 passed (125)
+Test Files 22 passed (22)
+Tests 125 passed (125)
 
 ## Interfaces and Dependencies
 
 Update `../playwright-common/src/utils/table.utils.ts` in `TableUtils`:
 
-  public async parseKeyValueTable(selector: string | Locator, page?: Page): Promise<Record<string, string>>
-  public async parseDataTable(selector: string | Locator, page?: Page): Promise<Array<Record<string, string>>>
-  public async parseWorkAllocationTable(tableLocator: Locator): Promise<Array<Record<string, string>>>
-  private async evaluateTable<T>(selector: string | Locator, page: Page | undefined, fn: (rows: Element[]) => T): Promise<T>
+public async parseKeyValueTable(selector: string | Locator, page?: Page): Promise<Record<string, string>>
+public async parseDataTable(selector: string | Locator, page?: Page): Promise<Array<Record<string, string>>>
+public async parseWorkAllocationTable(tableLocator: Locator): Promise<Array<Record<string, string>>>
+private async evaluateTable<T>(selector: string | Locator, page: Page | undefined, fn: (rows: Element[]) => T): Promise<T>
 
 Plan update note: Updated progress, discoveries, decisions, outcomes, and test artifacts after implementing the TableUtils changes and running the playwright-common test suite.

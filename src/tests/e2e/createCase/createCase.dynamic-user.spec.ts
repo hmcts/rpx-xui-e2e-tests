@@ -128,7 +128,6 @@ test.describe("Dynamic user create-case flow", () => {
     } catch (error) {
       // eslint-disable-next-line playwright/no-conditional-in-test -- dependency failure detection in catch block; re-throws on non-infrastructure errors
       if (isDependencyEnvironmentFailure(error)) {
-         
         testInfo.skip(
           true,
           `Dynamic create-case flow skipped due to dependency environment instability: ${asMessage(error)}`,

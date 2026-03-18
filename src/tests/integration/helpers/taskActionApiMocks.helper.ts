@@ -1,8 +1,13 @@
-import { faker } from '@faker-js/faker';
-import { expect, type Page, type Route } from '@playwright/test';
+import { faker } from "@faker-js/faker";
+import { expect, type Page, type Route } from "@playwright/test";
 
-export type UiTaskAction = 'cancel' | 'complete' | 'go' | 'reassign' | 'unassign';
-export type UnassignMode = 'unclaim' | 'assign-null';
+export type UiTaskAction =
+  | "cancel"
+  | "complete"
+  | "go"
+  | "reassign"
+  | "unassign";
+export type UnassignMode = "unclaim" | "assign-null";
 
 export interface TaskActionMockOptions {
   taskId: string;
@@ -17,7 +22,7 @@ export interface TaskActionMockOptions {
 
 export interface ExpectedApiCall {
   purpose: string;
-  method: 'GET' | 'POST';
+  method: "GET" | "POST";
   urlPattern: string;
   expectedRequestJson?: unknown;
   responseStatus: number;
@@ -33,14 +38,16 @@ export interface TaskActionExpectation {
 }
 
 export interface CapturedTaskSubmission {
-  mode: 'unclaim' | 'assign-null';
+  mode: "unclaim" | "assign-null";
   requestJson?: unknown;
   status: number;
   url: string;
 }
 
-export const expectValidUnassignSubmission = (submission: CapturedTaskSubmission) => {
-  if (submission.mode === 'assign-null') {
+export const expectValidUnassignSubmission = (
+  submission: CapturedTaskSubmission,
+) => {
+  if (submission.mode === "assign-null") {
     expect(submission.requestJson).toEqual({ userId: null });
     return;
   }
@@ -48,45 +55,46 @@ export const expectValidUnassignSubmission = (submission: CapturedTaskSubmission
   expect(submission.requestJson).toEqual({ hasNoAssigneeOnComplete: false });
 };
 
-const DEFAULT_TASK_ID = 'f782bde3-8d51-11eb-a9a4-06d032acc76d';
+const DEFAULT_TASK_ID = "f782bde3-8d51-11eb-a9a4-06d032acc76d";
 
 const buildTaskDetailsResponse = (options: TaskActionMockOptions) => {
   const taskId = options.taskId ?? DEFAULT_TASK_ID;
   const caseId = options.caseId;
-  const jurisdiction = options.jurisdiction ?? 'IA';
-  const caseTypeId = options.caseTypeId ?? 'Asylum';
-  const assigneeId = options.assigneeId ?? '10bac6bf-80a7-4c81-b2db-516aba826be6';
+  const jurisdiction = options.jurisdiction ?? "IA";
+  const caseTypeId = options.caseTypeId ?? "Asylum";
+  const assigneeId =
+    options.assigneeId ?? "10bac6bf-80a7-4c81-b2db-516aba826be6";
 
   return {
     task: {
       id: taskId,
-      name: 'Review the appeal',
-      type: 'reviewTheAppeal',
-      task_state: 'assigned',
-      task_system: 'SELF',
-      security_classification: 'PUBLIC',
-      task_title: 'Review the appeal',
-      created_date: '2021-06-30T16:53:10+0100',
-      due_date: '2021-06-30T16:53:10+0100',
-      dueDate: '2021-06-30T16:53:10+0100',
+      name: "Review the appeal",
+      type: "reviewTheAppeal",
+      task_state: "assigned",
+      task_system: "SELF",
+      security_classification: "PUBLIC",
+      task_title: "Review the appeal",
+      created_date: "2021-06-30T16:53:10+0100",
+      due_date: "2021-06-30T16:53:10+0100",
+      dueDate: "2021-06-30T16:53:10+0100",
       assignee: assigneeId,
       auto_assigned: false,
-      execution_type: 'Case Management Task',
+      execution_type: "Case Management Task",
       jurisdiction,
-      region: '1',
-      location: '765324',
-      location_name: 'Taylor House',
+      region: "1",
+      location: "765324",
+      location_name: "Taylor House",
       case_type_id: caseTypeId,
       case_id: caseId,
-      case_category: 'Protection',
-      case_name: 'Bob Smith',
+      case_category: "Protection",
+      case_name: "Bob Smith",
       warnings: false,
       actions: [
-        { id: 'cancel', title: 'Cancel task' },
-        { id: 'complete', title: 'Mark as done' },
-        { id: 'go', title: 'Go to task' },
-        { id: 'reassign', title: 'Reassign task' },
-        { id: 'unclaim', title: 'Unassign task' },
+        { id: "cancel", title: "Cancel task" },
+        { id: "complete", title: "Mark as done" },
+        { id: "go", title: "Go to task" },
+        { id: "reassign", title: "Reassign task" },
+        { id: "unclaim", title: "Unassign task" },
       ],
     },
   };
@@ -94,31 +102,31 @@ const buildTaskDetailsResponse = (options: TaskActionMockOptions) => {
 
 const buildTaskRolesResponse = () => [
   {
-    role_category: 'LEGAL_OPERATIONS',
-    role_name: 'tribunal-caseworker',
-    permissions: ['Own', 'Execute', 'Read', 'Manage', 'Cancel'],
-    authorisations: ['IAC', 'SSCS'],
+    role_category: "LEGAL_OPERATIONS",
+    role_name: "tribunal-caseworker",
+    permissions: ["Own", "Execute", "Read", "Manage", "Cancel"],
+    authorisations: ["IAC", "SSCS"],
   },
   {
-    role_category: 'JUDICIAL',
-    role_name: 'judge',
-    permissions: ['Execute', 'Read'],
-    authorisations: ['IAC'],
+    role_category: "JUDICIAL",
+    role_name: "judge",
+    permissions: ["Execute", "Read"],
+    authorisations: ["IAC"],
   },
 ];
 
 const buildCaseworkerResponse = (assigneeId: string) => [
   {
-    email: 'test@example.com',
-    firstName: 'Test',
+    email: "test@example.com",
+    firstName: "Test",
     idamId: assigneeId,
-    lastName: 'User',
+    lastName: "User",
     location: {
       id: 227101,
-      locationName: 'Newport (South Wales) Immigration and Asylum Tribunal',
+      locationName: "Newport (South Wales) Immigration and Asylum Tribunal",
     },
-    roleCategory: 'LEGAL_OPERATIONS',
-    service: 'IA',
+    roleCategory: "LEGAL_OPERATIONS",
+    service: "IA",
   },
 ];
 
@@ -127,52 +135,58 @@ const buildCaseTasksResponse = (options: TaskActionMockOptions) => {
   return [details.task];
 };
 
-const buildActionExpectation = (action: UiTaskAction, options: TaskActionMockOptions): TaskActionExpectation => {
+const buildActionExpectation = (
+  action: UiTaskAction,
+  options: TaskActionMockOptions,
+): TaskActionExpectation => {
   const taskId = options.taskId;
   const caseId = options.caseId;
-  const assigneeId = options.assigneeId ?? '10bac6bf-80a7-4c81-b2db-516aba826be6';
-  const newAssigneeId = options.newAssigneeId ?? '004b7164-0943-41b5-95fc-39794af4a9fe';
-  const unassignMode = options.unassignMode ?? 'unclaim';
+  const assigneeId =
+    options.assigneeId ?? "10bac6bf-80a7-4c81-b2db-516aba826be6";
+  const newAssigneeId =
+    options.newAssigneeId ?? "004b7164-0943-41b5-95fc-39794af4a9fe";
+  const unassignMode = options.unassignMode ?? "unclaim";
   const includeSubmitActionMock = options.includeSubmitActionMock ?? true;
 
   const sharedResolvers: ExpectedApiCall[] = [
     {
-      purpose: 'Task action route resolver: load selected task details',
-      method: 'GET',
+      purpose: "Task action route resolver: load selected task details",
+      method: "GET",
       urlPattern: `**/workallocation/task/${taskId}`,
       responseStatus: 200,
       responseJson: buildTaskDetailsResponse(options),
     },
     {
-      purpose: 'Task action route resolver: load task roles',
-      method: 'GET',
+      purpose: "Task action route resolver: load task roles",
+      method: "GET",
       urlPattern: `**/workallocation/task/${taskId}/roles`,
       responseStatus: 200,
       responseJson: buildTaskRolesResponse(),
     },
     {
-      purpose: 'Task action route resolver: load caseworkers for task jurisdiction',
-      method: 'POST',
-      urlPattern: '**/workallocation/caseworker/getUsersByServiceName*',
-      expectedRequestJson: { services: ['IA'] },
+      purpose:
+        "Task action route resolver: load caseworkers for task jurisdiction",
+      method: "POST",
+      urlPattern: "**/workallocation/caseworker/getUsersByServiceName*",
+      expectedRequestJson: { services: ["IA"] },
       responseStatus: 200,
       responseJson: buildCaseworkerResponse(assigneeId),
     },
   ];
 
   switch (action) {
-    case 'cancel':
+    case "cancel":
       return {
         action,
-        actionId: 'action_cancel',
-        actionLabel: 'Cancel task',
+        actionId: "action_cancel",
+        actionLabel: "Cancel task",
         apiCalls: [
           ...sharedResolvers,
           ...(includeSubmitActionMock
             ? [
                 {
-                  purpose: 'Submit cancel action',
-                  method: 'POST' as const,
+                  purpose: "Submit cancel action",
+                  method: "POST" as const,
                   urlPattern: `**/workallocation/task/${taskId}/cancel*`,
                   expectedRequestJson: {},
                   responseStatus: 204,
@@ -183,18 +197,18 @@ const buildActionExpectation = (action: UiTaskAction, options: TaskActionMockOpt
         ],
       };
 
-    case 'complete':
+    case "complete":
       return {
         action,
-        actionId: 'action_complete',
-        actionLabel: 'Mark as done',
+        actionId: "action_complete",
+        actionLabel: "Mark as done",
         apiCalls: [
           ...sharedResolvers,
           ...(includeSubmitActionMock
             ? [
                 {
-                  purpose: 'Submit complete action',
-                  method: 'POST' as const,
+                  purpose: "Submit complete action",
+                  method: "POST" as const,
                   urlPattern: `**/workallocation/task/${taskId}/complete*`,
                   expectedRequestJson: { hasNoAssigneeOnComplete: false },
                   responseStatus: 204,
@@ -205,18 +219,18 @@ const buildActionExpectation = (action: UiTaskAction, options: TaskActionMockOpt
         ],
       };
 
-    case 'reassign':
+    case "reassign":
       return {
         action,
-        actionId: 'action_reassign',
-        actionLabel: 'Reassign task',
+        actionId: "action_reassign",
+        actionLabel: "Reassign task",
         apiCalls: [
           ...sharedResolvers,
           ...(includeSubmitActionMock
             ? [
                 {
-                  purpose: 'Submit reassign action (confirm screen)',
-                  method: 'POST' as const,
+                  purpose: "Submit reassign action (confirm screen)",
+                  method: "POST" as const,
                   urlPattern: `**/workallocation/task/${taskId}/assign*`,
                   expectedRequestJson: { userId: newAssigneeId },
                   responseStatus: 204,
@@ -227,27 +241,27 @@ const buildActionExpectation = (action: UiTaskAction, options: TaskActionMockOpt
         ],
       };
 
-    case 'unassign':
+    case "unassign":
       return {
         action,
-        actionId: 'action_unclaim',
-        actionLabel: 'Unassign task',
+        actionId: "action_unclaim",
+        actionLabel: "Unassign task",
         apiCalls: [
           ...sharedResolvers,
           ...(includeSubmitActionMock
             ? [
-                unassignMode === 'assign-null'
+                unassignMode === "assign-null"
                   ? {
-                      purpose: 'Manager unassign path (assign null user)',
-                      method: 'POST' as const,
+                      purpose: "Manager unassign path (assign null user)",
+                      method: "POST" as const,
                       urlPattern: `**/workallocation/task/${taskId}/assign*`,
                       expectedRequestJson: { userId: null },
                       responseStatus: 204,
                       responseJson: {},
                     }
                   : {
-                      purpose: 'Self-unassign path',
-                      method: 'POST' as const,
+                      purpose: "Self-unassign path",
+                      method: "POST" as const,
                       urlPattern: `**/workallocation/task/${taskId}/unclaim*`,
                       expectedRequestJson: { hasNoAssigneeOnComplete: false },
                       responseStatus: 204,
@@ -257,20 +271,25 @@ const buildActionExpectation = (action: UiTaskAction, options: TaskActionMockOpt
             : []),
         ],
         notes:
-          unassignMode === 'assign-null'
-            ? ['`assign-null` mode represents manager unassign flow where UI posts to `/assign` with `{ userId: null }`.']
-            : ['`unclaim` mode represents current assignee releasing their own task.'],
+          unassignMode === "assign-null"
+            ? [
+                "`assign-null` mode represents manager unassign flow where UI posts to `/assign` with `{ userId: null }`.",
+              ]
+            : [
+                "`unclaim` mode represents current assignee releasing their own task.",
+              ],
       };
 
-    case 'go':
+    case "go":
       return {
         action,
-        actionId: 'action_go',
-        actionLabel: 'Go to task',
+        actionId: "action_go",
+        actionLabel: "Go to task",
         apiCalls: [
           {
-            purpose: 'No task-action POST is fired; UI navigates directly to case details tasks tab',
-            method: 'POST',
+            purpose:
+              "No task-action POST is fired; UI navigates directly to case details tasks tab",
+            method: "POST",
             urlPattern: `**/workallocation/case/task/${caseId}*`,
             expectedRequestJson: { refined: true },
             responseStatus: 200,
@@ -278,28 +297,31 @@ const buildActionExpectation = (action: UiTaskAction, options: TaskActionMockOpt
           },
         ],
         notes: [
-          'GO action is navigation-only in UI (`/cases/case-details/.../tasks`) and does not call `/workallocation/task/:taskId/:action`.',
+          "GO action is navigation-only in UI (`/cases/case-details/.../tasks`) and does not call `/workallocation/task/:taskId/:action`.",
         ],
       };
 
     default:
       return {
         action,
-        actionId: 'action_unknown',
-        actionLabel: 'Unknown action',
+        actionId: "action_unknown",
+        actionLabel: "Unknown action",
         apiCalls: [],
       };
   }
 };
 
-export const getTaskActionExpectation = (action: UiTaskAction, options: TaskActionMockOptions): TaskActionExpectation => {
+export const getTaskActionExpectation = (
+  action: UiTaskAction,
+  options: TaskActionMockOptions,
+): TaskActionExpectation => {
   return buildActionExpectation(action, options);
 };
 
 export const setupTaskActionEndpointMocks = async (
   page: Page,
   action: UiTaskAction,
-  options: TaskActionMockOptions
+  options: TaskActionMockOptions,
 ): Promise<TaskActionExpectation> => {
   const expectation = getTaskActionExpectation(action, options);
 
@@ -313,7 +335,7 @@ export const setupTaskActionEndpointMocks = async (
 
       await route.fulfill({
         status: apiCall.responseStatus,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify(apiCall.responseJson),
       });
     });
@@ -328,7 +350,7 @@ export const setupUnassignSubmissionCapture = async (
     taskId: string;
     status: number;
     responseJson?: unknown;
-  }
+  },
 ): Promise<{ submissionPromise: Promise<CapturedTaskSubmission> }> => {
   const unclaimPattern = `**/workallocation/task/${options.taskId}/unclaim*`;
   const assignPattern = `**/workallocation/task/${options.taskId}/assign*`;
@@ -339,9 +361,12 @@ export const setupUnassignSubmissionCapture = async (
     resolveSubmission = resolve;
   });
 
-  const captureSubmission = async (route: Route, mode: 'unclaim' | 'assign-null') => {
+  const captureSubmission = async (
+    route: Route,
+    mode: "unclaim" | "assign-null",
+  ) => {
     const request = route.request();
-    if (request.method() !== 'POST') {
+    if (request.method() !== "POST") {
       await route.continue();
       return;
     }
@@ -365,13 +390,17 @@ export const setupUnassignSubmissionCapture = async (
 
     await route.fulfill({
       status: options.status,
-      contentType: 'application/json',
+      contentType: "application/json",
       body: JSON.stringify(options.responseJson ?? {}),
     });
   };
 
-  await page.route(unclaimPattern, async (route) => captureSubmission(route, 'unclaim'));
-  await page.route(assignPattern, async (route) => captureSubmission(route, 'assign-null'));
+  await page.route(unclaimPattern, async (route) =>
+    captureSubmission(route, "unclaim"),
+  );
+  await page.route(assignPattern, async (route) =>
+    captureSubmission(route, "assign-null"),
+  );
 
   return { submissionPromise };
 };
@@ -389,36 +418,36 @@ export const setupUnassignSubmissionCapture = async (
 export const testTaskActionMockContract = async (
   page: Page,
   action: UiTaskAction,
-  options: TaskActionMockOptions
+  options: TaskActionMockOptions,
 ): Promise<TaskActionExpectation> => {
   return setupTaskActionEndpointMocks(page, action, options);
 };
 
 export const singleUsersGetByRoleMockResponse = [
   {
-    email: 'auto_test1@example.com',
-    firstName: 'test',
+    email: "auto_test1@example.com",
+    firstName: "test",
     idamId: faker.string.uuid(),
-    lastName: 'Legal Operations',
+    lastName: "Legal Operations",
     location: {
       id: 231596,
-      locationName: 'Birmingham',
-      services: ['CIVIL', 'PUBLICLAW', 'PRIVATELAW', 'IA'],
+      locationName: "Birmingham",
+      services: ["CIVIL", "PUBLICLAW", "PRIVATELAW", "IA"],
     },
-    roleCategory: 'LEGAL_OPERATIONS',
-    service: 'IA',
+    roleCategory: "LEGAL_OPERATIONS",
+    service: "IA",
   },
   {
-    email: 'auto_test2@example.com',
-    firstName: 'test',
+    email: "auto_test2@example.com",
+    firstName: "test",
     idamId: faker.string.uuid(),
-    lastName: 'Judiciary',
+    lastName: "Judiciary",
     location: {
       id: 231596,
-      locationName: 'Birmingham',
-      services: ['CIVIL', 'PUBLICLAW', 'PRIVATELAW', 'IA'],
+      locationName: "Birmingham",
+      services: ["CIVIL", "PUBLICLAW", "PRIVATELAW", "IA"],
     },
-    roleCategory: 'JUDICIARY',
-    service: 'IA',
+    roleCategory: "JUDICIARY",
+    service: "IA",
   },
 ];

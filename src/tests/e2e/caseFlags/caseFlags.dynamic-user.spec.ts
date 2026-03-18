@@ -107,8 +107,7 @@ test.describe("Dynamic user case flags flow", () => {
         caseType: CASE_TYPE,
         apiEventId: "createCase",
         mode: setupMode,
-        allowUiFallback:
-          reuseExistingSolicitor && !forceApiOnlyCaseSetup,
+        allowUiFallback: reuseExistingSolicitor && !forceApiOnlyCaseSetup,
         apiPayload: {
           fieldValues: {
             LegalRepParty1Flags: {

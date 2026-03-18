@@ -1,4 +1,4 @@
-import { asylumCase } from './asylumCaseBase.mock';
+import { asylumCase } from "./asylumCaseBase.mock";
 
 type CaseTabField = {
   id: string;
@@ -25,22 +25,27 @@ export type CaseMockOverrides = {
   stateName?: string;
   stateDescription?: string;
   appealReferenceNumber?: string;
-  journeyType?: 'rep' | 'aip';
-  submissionOutOfTime?: 'Yes' | 'No';
+  journeyType?: "rep" | "aip";
+  submissionOutOfTime?: "Yes" | "No";
   caseManagementLocation?: { region: string; baseLocation: string };
   tabIds?: string[];
   tabs?: CaseTab[];
   tabOverrides?: Record<string, Partial<CaseTab>>;
   fieldOverrides?: Record<string, Partial<CaseTabField> & { tabId?: string }>;
   addFields?: Array<CaseTabField & { tabId?: string }>;
-  triggers?: Array<{ id: string; name: string; description?: string | null; order?: number }>;
+  triggers?: Array<{
+    id: string;
+    name: string;
+    description?: string | null;
+    order?: number;
+  }>;
 };
 
 const applyTabAndFieldOverrides = (
   tabs: CaseTab[],
   tabOverrides?: Record<string, Partial<CaseTab>>,
   fieldOverrides?: Record<string, Partial<CaseTabField> & { tabId?: string }>,
-  addFields?: Array<CaseTabField & { tabId?: string }>
+  addFields?: Array<CaseTabField & { tabId?: string }>,
 ): CaseTab[] => {
   const fieldAdds = addFields ?? [];
   return tabs.map((tab) => {
@@ -58,7 +63,7 @@ const applyTabAndFieldOverrides = (
     });
 
     const extraFields = fieldAdds
-      .filter((item) => (item.tabId ?? 'overview') === tab.id)
+      .filter((item) => (item.tabId ?? "overview") === tab.id)
       .map(({ tabId: _tabId, ...field }) => field);
 
     return {
@@ -72,18 +77,23 @@ const applyTabAndFieldOverrides = (
 export function buildAsylumCaseMock(overrides: CaseMockOverrides = {}) {
   const base = asylumCase();
   const caseId = overrides.caseId ?? base.case_id;
-  const caseTypeId = overrides.caseTypeId ?? base.case_type?.id ?? 'Asylum';
-  const jurisdictionId = overrides.jurisdictionId ?? base.case_type?.jurisdiction?.id ?? 'IA';
+  const caseTypeId = overrides.caseTypeId ?? base.case_type?.id ?? "Asylum";
+  const jurisdictionId =
+    overrides.jurisdictionId ?? base.case_type?.jurisdiction?.id ?? "IA";
   const stateId = overrides.stateId ?? base.state?.id;
   const stateName = overrides.stateName ?? base.state?.name;
-  const stateDescription = overrides.stateDescription ?? base.state?.description;
+  const stateDescription =
+    overrides.stateDescription ?? base.state?.description;
 
   let tabs = overrides.tabs ?? base.tabs ?? [];
   if (overrides.tabIds && overrides.tabIds.length) {
     tabs = tabs.filter((tab) => overrides.tabIds?.includes(tab.id));
   }
 
-  const derivedFieldOverrides: Record<string, Partial<CaseTabField> & { tabId?: string }> = {
+  const derivedFieldOverrides: Record<
+    string,
+    Partial<CaseTabField> & { tabId?: string }
+  > = {
     ...(overrides.fieldOverrides ?? {}),
   };
 
@@ -119,11 +129,21 @@ export function buildAsylumCaseMock(overrides: CaseMockOverrides = {}) {
     };
   }
 
-  const tabsWithOverrides = applyTabAndFieldOverrides(tabs, overrides.tabOverrides, derivedFieldOverrides, overrides.addFields);
+  const tabsWithOverrides = applyTabAndFieldOverrides(
+    tabs,
+    overrides.tabOverrides,
+    derivedFieldOverrides,
+    overrides.addFields,
+  );
 
   return {
     ...base,
-    _links: { ...base._links, self: { href: `http://gateway-ccd.aat.platform.hmcts.net/internal/cases/${caseId}` } },
+    _links: {
+      ...base._links,
+      self: {
+        href: `http://gateway-ccd.aat.platform.hmcts.net/internal/cases/${caseId}`,
+      },
+    },
     case_id: caseId,
     case_type: {
       ...base.case_type,

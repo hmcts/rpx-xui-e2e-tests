@@ -1,14 +1,14 @@
-import { expect, Locator, Page } from '@playwright/test';
+import { expect, Locator, Page } from "@playwright/test";
 
 export class HearingViewSummaryPage {
   constructor(private readonly page: Page) {}
 
-  readonly container = this.page.locator('exui-hearing-viewsummary');
-  readonly heading = this.page.locator('exui-hearing-viewsummary h1').first();
-  readonly editHearingButton = this.page.locator('#edit-hearing button');
+  readonly container = this.page.locator("exui-hearing-viewsummary");
+  readonly heading = this.page.locator("exui-hearing-viewsummary h1").first();
+  readonly editHearingButton = this.page.locator("#edit-hearing button");
 
   summaryRows(label: string): Locator {
-    return this.page.locator('.govuk-summary-list__row').filter({
+    return this.page.locator(".govuk-summary-list__row").filter({
       has: this.page.getByText(label, { exact: true }),
     });
   }

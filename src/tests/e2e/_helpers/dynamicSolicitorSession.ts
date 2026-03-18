@@ -242,9 +242,7 @@ function resolveSyntheticAssignmentRolesForAlias(params: {
     return [...params.roleNames];
   }
   const filtered = new Set<string>(EMPLOYMENT_FILTERED_ASSIGNMENT_ROLES);
-  return params.roleNames.filter(
-    (role) => !filtered.has(role),
-  );
+  return params.roleNames.filter((role) => !filtered.has(role));
 }
 
 function hasScenarioRoleContext(roleContext?: SolicitorRoleContext): boolean {
@@ -536,60 +534,62 @@ export async function provisionDynamicSolicitorForAlias({
     );
   }
 
-  const user = await professionalUserUtils.createSolicitorUserForOrganisation({
-    organisationId: organisationId!,
-    roleContext,
-    roleNames: resolvedRoleNames,
-    mode,
-    resendInvite: false,
-    outputCreatedUserData: true,
-  }).catch((error: unknown) => {
-    if (!isMissingAssignmentBearerTokenError(error)) {
-      throw error;
-    }
+  const user = await professionalUserUtils
+    .createSolicitorUserForOrganisation({
+      organisationId: organisationId!,
+      roleContext,
+      roleNames: resolvedRoleNames,
+      mode,
+      resendInvite: false,
+      outputCreatedUserData: true,
+    })
+    .catch((error: unknown) => {
+      if (!isMissingAssignmentBearerTokenError(error)) {
+        throw error;
+      }
 
-    const reusable = resolveReusableCredentials(envKeys, alias);
-    if (!reusable) {
-      throw error;
-    }
+      const reusable = resolveReusableCredentials(envKeys, alias);
+      if (!reusable) {
+        throw error;
+      }
 
-    logger.warn(
-      "Falling back to reusable existing solicitor credentials because dynamic organisation assignment token is unavailable.",
-      {
-        alias,
-        username: reusable.username,
-        userEnvKey: envKeys.username,
-      },
-    );
-
-    const syntheticRoles = resolvedRoleNames
-      ? [...resolvedRoleNames]
-      : getAliasBaselineRoles({ alias, roleContext });
-    const syntheticAssignmentRoles = resolveSyntheticAssignmentRolesForAlias({
-      alias,
-      roleNames: syntheticRoles,
-    });
-    const syntheticUser: ProvisionedProfessionalUser = {
-      email: reusable.username,
-      password: reusable.password,
-      forename: "Reusable",
-      surname: "Solicitor",
-      roleNames: syntheticRoles,
-      organisationAssignment: {
-        organisationId: organisationId!,
-        mode: resolveAliasMode(mode),
-        requestedMode: mode,
-        attemptedModes: [resolveAliasMode(mode)],
-        roles: syntheticAssignmentRoles,
-        status: 200,
-        responseBody: {
-          reusedExisting: true,
-          source: "missing-assignment-token-fallback",
+      logger.warn(
+        "Falling back to reusable existing solicitor credentials because dynamic organisation assignment token is unavailable.",
+        {
+          alias,
+          username: reusable.username,
+          userEnvKey: envKeys.username,
         },
-      },
-    };
-    return syntheticUser;
-  });
+      );
+
+      const syntheticRoles = resolvedRoleNames
+        ? [...resolvedRoleNames]
+        : getAliasBaselineRoles({ alias, roleContext });
+      const syntheticAssignmentRoles = resolveSyntheticAssignmentRolesForAlias({
+        alias,
+        roleNames: syntheticRoles,
+      });
+      const syntheticUser: ProvisionedProfessionalUser = {
+        email: reusable.username,
+        password: reusable.password,
+        forename: "Reusable",
+        surname: "Solicitor",
+        roleNames: syntheticRoles,
+        organisationAssignment: {
+          organisationId: organisationId!,
+          mode: resolveAliasMode(mode),
+          requestedMode: mode,
+          attemptedModes: [resolveAliasMode(mode)],
+          roles: syntheticAssignmentRoles,
+          status: 200,
+          responseBody: {
+            reusedExisting: true,
+            source: "missing-assignment-token-fallback",
+          },
+        },
+      };
+      return syntheticUser;
+    });
 
   assertDynamicUserRoleContract({
     alias,

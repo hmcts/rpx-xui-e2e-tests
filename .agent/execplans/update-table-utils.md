@@ -83,27 +83,27 @@ Update `rpx-xui-webapp/package.json` to link `@hmcts/playwright-common` via `por
 1. Edit `playwright-common/src/utils/table.utils.ts` to add the new parsing methods and helper. Then rebuild:
 
    /Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/playwright-common
-     yarn build
+   yarn build
 
 2. Update `rpx-xui-webapp` call sites and remove local table util duplicates:
 
    /Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/rpx-xui-webapp
-     edit playwright_tests_new/E2E/page-objects/pages/exui/caseDetails.po.ts
-     edit playwright_tests_new/integration/test/manageTasks/taskList.positive.spec.ts
-     edit playwright_tests_new/integration/utils/tableUtils.ts
-     delete playwright_tests_new/E2E/utils/table.utils.ts
-     edit package.json
+   edit playwright_tests_new/E2E/page-objects/pages/exui/caseDetails.po.ts
+   edit playwright_tests_new/integration/test/manageTasks/taskList.positive.spec.ts
+   edit playwright_tests_new/integration/utils/tableUtils.ts
+   delete playwright_tests_new/E2E/utils/table.utils.ts
+   edit package.json
 
 3. If needed to refresh the dependency link:
 
    /Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/rpx-xui-webapp
-     yarn install
+   yarn install
 
 ## Validation and Acceptance
 
 Run a targeted Playwright test and observe it passes using the shared table utils. For example, in `rpx-xui-webapp`:
 
-   npx playwright test --config=playwright.integration.config.ts
+npx playwright test --config=playwright.integration.config.ts
 
 Acceptance is met when the manage tasks integration tests and EXUI case details tests compile and run without using the removed local table utilities, and table data assertions still pass.
 
@@ -119,8 +119,8 @@ Capture short diffs or logs that show the new TableUtils methods and the updated
 
 Extend `playwright-common/src/utils/table.utils.ts` with:
 
-  public async parseKeyValueTable(selector: string | Locator, page?: Page): Promise<Record<string, string>>
-  public async parseDataTable(selector: string | Locator, page?: Page): Promise<Array<Record<string, string>>>
-  public async parseWorkAllocationTable(tableLocator: Locator): Promise<Array<Record<string, string>>>
+public async parseKeyValueTable(selector: string | Locator, page?: Page): Promise<Record<string, string>>
+public async parseDataTable(selector: string | Locator, page?: Page): Promise<Array<Record<string, string>>>
+public async parseWorkAllocationTable(tableLocator: Locator): Promise<Array<Record<string, string>>>
 
 Add a private helper in the same class to evaluate table rows in the browser context for selector-or-locator parsing.

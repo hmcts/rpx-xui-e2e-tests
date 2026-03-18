@@ -1,16 +1,21 @@
-import { expect, Locator, Page } from '@playwright/test';
+import { expect, Locator, Page } from "@playwright/test";
 
-type HearingAction = 'view-details' | 'view-or-edit' | 'cancel' | 'add-or-edit';
+type HearingAction = "view-details" | "view-or-edit" | "cancel" | "add-or-edit";
 
 export class HearingsTabPage {
   constructor(private readonly page: Page) {}
 
-  readonly container = this.page.locator('exui-case-hearings-ce');
-  readonly emptyState = this.page.getByText('No current and upcoming hearings found', { exact: false });
-  readonly reloadButton = this.page.locator('#reload-hearing-tab');
+  readonly container = this.page.locator("exui-case-hearings-ce");
+  readonly emptyState = this.page.getByText(
+    "No current and upcoming hearings found",
+    { exact: false },
+  );
+  readonly reloadButton = this.page.locator("#reload-hearing-tab");
 
   currentAndUpcomingHeading(name: string): Locator {
-    return this.page.locator('exui-case-hearings-list th.govuk-body-lead').filter({ hasText: name });
+    return this.page
+      .locator("exui-case-hearings-list th.govuk-body-lead")
+      .filter({ hasText: name });
   }
 
   viewOrEditButton(hearingId: string): Locator {
@@ -31,21 +36,26 @@ export class HearingsTabPage {
 
   actionButton(hearingId: string, action: HearingAction): Locator {
     switch (action) {
-      case 'view-or-edit':
+      case "view-or-edit":
         return this.viewOrEditButton(hearingId);
-      case 'cancel':
+      case "cancel":
         return this.cancelButton(hearingId);
-      case 'add-or-edit':
+      case "add-or-edit":
         return this.addOrEditButton(hearingId);
-      case 'view-details':
+      case "view-details":
       default:
         return this.viewDetailsButton(hearingId);
     }
   }
 
-  async waitForReady(hearingId?: string, action: HearingAction = 'view-details'): Promise<void> {
+  async waitForReady(
+    hearingId?: string,
+    action: HearingAction = "view-details",
+  ): Promise<void> {
     await expect(this.container).toBeVisible();
-    await expect(this.currentAndUpcomingHeading('Current and upcoming')).toBeVisible();
+    await expect(
+      this.currentAndUpcomingHeading("Current and upcoming"),
+    ).toBeVisible();
 
     if (!hearingId) {
       return;
@@ -56,11 +66,15 @@ export class HearingsTabPage {
       await expect(actionButton).toBeVisible({ timeout: 20_000 });
     } catch (error) {
       if (await this.emptyState.isVisible()) {
-        throw new Error('Hearings tab rendered empty state instead of the expected LISTED hearing row.');
+        throw new Error(
+          "Hearings tab rendered empty state instead of the expected LISTED hearing row.",
+        );
       }
 
       if (await this.reloadButton.isVisible()) {
-        throw new Error('Hearings tab rendered the reload state instead of the expected LISTED hearing row.');
+        throw new Error(
+          "Hearings tab rendered the reload state instead of the expected LISTED hearing row.",
+        );
       }
 
       throw error;
@@ -81,7 +95,9 @@ export class HearingsTabPage {
     if (!navigatedOnFirstClick) {
       await expect(viewDetails).toBeVisible({ timeout: 10_000 });
       await viewDetails.click();
-      await this.page.waitForURL(/\/hearings\/(view|request)\//, { timeout: 10_000 });
+      await this.page.waitForURL(/\/hearings\/(view|request)\//, {
+        timeout: 10_000,
+      });
     }
   }
 

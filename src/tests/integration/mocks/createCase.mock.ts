@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker';
+import { faker } from "@faker-js/faker";
 
 type CreateCaseFixedListItem = {
   code: string;
@@ -6,7 +6,13 @@ type CreateCaseFixedListItem = {
   order: null;
 };
 
-type CreateCaseFieldTypeName = 'Text' | 'MultiSelectList' | 'FixedRadioList' | 'FixedList' | 'Complex' | 'Collection';
+type CreateCaseFieldTypeName =
+  | "Text"
+  | "MultiSelectList"
+  | "FixedRadioList"
+  | "FixedList"
+  | "Complex"
+  | "Collection";
 
 type CreateCaseFieldType = {
   id: string;
@@ -19,7 +25,7 @@ type CreateCaseFieldType = {
   collection_field_type: CreateCaseFieldType | null;
 };
 
-const CREATE_CASE_BASE_FIELD_TYPE: Omit<CreateCaseFieldType, 'id' | 'type'> = {
+const CREATE_CASE_BASE_FIELD_TYPE: Omit<CreateCaseFieldType, "id" | "type"> = {
   min: null,
   max: null,
   regular_expression: null,
@@ -29,8 +35,8 @@ const CREATE_CASE_BASE_FIELD_TYPE: Omit<CreateCaseFieldType, 'id' | 'type'> = {
 };
 
 const CREATE_CASE_TEXT_FIELD_TYPE: CreateCaseFieldType = {
-  id: 'Text',
-  type: 'Text',
+  id: "Text",
+  type: "Text",
   ...CREATE_CASE_BASE_FIELD_TYPE,
 };
 
@@ -53,7 +59,7 @@ function buildFieldType(params: {
 
 function buildFixedListFieldType(params: {
   id: string;
-  type: 'FixedList' | 'FixedRadioList' | 'MultiSelectList';
+  type: "FixedList" | "FixedRadioList" | "MultiSelectList";
   fixedListItems: CreateCaseFixedListItem[];
 }): CreateCaseFieldType {
   return buildFieldType({
@@ -63,18 +69,24 @@ function buildFixedListFieldType(params: {
   });
 }
 
-function buildComplexFieldType(params: { id: string; complexFields: Record<string, unknown>[] }): CreateCaseFieldType {
+function buildComplexFieldType(params: {
+  id: string;
+  complexFields: Record<string, unknown>[];
+}): CreateCaseFieldType {
   return buildFieldType({
     id: params.id,
-    type: 'Complex',
+    type: "Complex",
     complexFields: params.complexFields,
   });
 }
 
-function buildCollectionFieldType(params: { id: string; collectionFieldType: CreateCaseFieldType }): CreateCaseFieldType {
+function buildCollectionFieldType(params: {
+  id: string;
+  collectionFieldType: CreateCaseFieldType;
+}): CreateCaseFieldType {
   return buildFieldType({
     id: params.id,
-    type: 'Collection',
+    type: "Collection",
     collectionFieldType: params.collectionFieldType,
   });
 }
@@ -95,7 +107,7 @@ function buildPersonComplexField(params: {
     case_type_id: null,
     hint_text: null,
     field_type: params.fieldType ?? CREATE_CASE_TEXT_FIELD_TYPE,
-    security_classification: 'PUBLIC',
+    security_classification: "PUBLIC",
     live_from: null,
     live_until: null,
     show_condition: params.showCondition ?? null,
@@ -111,22 +123,22 @@ function buildPersonComplexField(params: {
 
 function buildPersonFieldType(): CreateCaseFieldType {
   const personGenderFieldType = buildFixedListFieldType({
-    id: 'FixedList-gender',
-    type: 'FixedList',
+    id: "FixedList-gender",
+    type: "FixedList",
     fixedListItems: [
-      { code: 'male', label: 'Male', order: null },
-      { code: 'female', label: 'Female', order: null },
-      { code: 'notGiven', label: 'Not given', order: null },
+      { code: "male", label: "Male", order: null },
+      { code: "female", label: "Female", order: null },
+      { code: "notGiven", label: "Not given", order: null },
     ],
   });
 
   const personJobFieldType = buildComplexFieldType({
-    id: 'Job',
+    id: "Job",
     complexFields: [
-      buildPersonComplexField({ id: 'Title', label: 'Title' }),
+      buildPersonComplexField({ id: "Title", label: "Title" }),
       buildPersonComplexField({
-        id: 'Description',
-        label: 'Description',
+        id: "Description",
+        label: "Description",
         showCondition: 'Title!=""',
         retainHiddenValue: true,
       }),
@@ -134,21 +146,25 @@ function buildPersonFieldType(): CreateCaseFieldType {
   });
 
   return buildComplexFieldType({
-    id: 'Person',
+    id: "Person",
     complexFields: [
-      buildPersonComplexField({ id: 'Title', label: 'Title' }),
-      buildPersonComplexField({ id: 'FirstName', label: 'First Name' }),
-      buildPersonComplexField({ id: 'LastName', label: 'Last Name' }),
+      buildPersonComplexField({ id: "Title", label: "Title" }),
+      buildPersonComplexField({ id: "FirstName", label: "First Name" }),
+      buildPersonComplexField({ id: "LastName", label: "Last Name" }),
       buildPersonComplexField({
-        id: 'MaidenName',
-        label: 'Maiden Name',
+        id: "MaidenName",
+        label: "Maiden Name",
         showCondition: 'PersonGender="female"',
         retainHiddenValue: true,
       }),
-      buildPersonComplexField({ id: 'PersonGender', label: 'Gender', fieldType: personGenderFieldType }),
       buildPersonComplexField({
-        id: 'PersonJob',
-        label: 'Job',
+        id: "PersonGender",
+        label: "Gender",
+        fieldType: personGenderFieldType,
+      }),
+      buildPersonComplexField({
+        id: "PersonJob",
+        label: "Job",
         fieldType: personJobFieldType,
         showCondition: 'LastName!=""',
         retainHiddenValue: true,
@@ -162,7 +178,7 @@ const CREATE_CASE_DEFAULT_FIELD = {
   value: null,
   metadata: false,
   validation_expr: null,
-  security_label: 'PUBLIC',
+  security_label: "PUBLIC",
   order: null,
   formatted_value: null,
   display_context_parameter: null,
@@ -190,16 +206,18 @@ export type CreateCaseAclCrudOverrides = {
 
 export type CreateCaseAclGroupInput = string[] | CreateCaseAclCrudOverrides[];
 
-const CREATE_CASE_DEFAULT_CRUD: Omit<CreateCaseAcl, 'role'> = {
+const CREATE_CASE_DEFAULT_CRUD: Omit<CreateCaseAcl, "role"> = {
   create: true,
   read: true,
   update: true,
   delete: true,
 };
 
-export function buildCreateCaseAclGroup(input: CreateCaseAclGroupInput): CreateCaseAcl[] {
+export function buildCreateCaseAclGroup(
+  input: CreateCaseAclGroupInput,
+): CreateCaseAcl[] {
   return input.map((entry) => {
-    if (typeof entry === 'string') {
+    if (typeof entry === "string") {
       return {
         role: entry,
         ...CREATE_CASE_DEFAULT_CRUD,
@@ -217,112 +235,118 @@ export function buildCreateCaseAclGroup(input: CreateCaseAclGroupInput): CreateC
 }
 
 const CREATE_CASE_SHARED_ACLS = buildCreateCaseAclGroup([
-  'caseworker-divorce-solicitor',
-  'caseworker-divorce-courtadmin',
-  'caseworker-divorce-superuser',
-  'caseworker-caa',
-  'pui-caa',
+  "caseworker-divorce-solicitor",
+  "caseworker-divorce-courtadmin",
+  "caseworker-divorce-superuser",
+  "caseworker-caa",
+  "pui-caa",
 ]);
 
-const CREATE_CASE_ACLS_WITH_READONLY_COURTADMIN = CREATE_CASE_SHARED_ACLS.map((acl) =>
-  acl.role === 'caseworker-divorce-courtadmin' ? { ...acl, update: false, delete: false } : acl
+const CREATE_CASE_ACLS_WITH_READONLY_COURTADMIN = CREATE_CASE_SHARED_ACLS.map(
+  (acl) =>
+    acl.role === "caseworker-divorce-courtadmin"
+      ? { ...acl, update: false, delete: false }
+      : acl,
 );
 
 export function divorcePocCaseData() {
   return {
-    id: 'createCase',
-    name: 'Create a case',
-    description: 'Create a case',
+    id: "createCase",
+    name: "Create a case",
+    description: "Create a case",
     case_id: null,
     case_fields: [
       {
-        id: 'TextField0',
-        label: 'Text Field 0',
+        id: "TextField0",
+        label: "Text Field 0",
         ...CREATE_CASE_DEFAULT_FIELD,
         hint_text:
           'Type "Hide TextField1" or "Hide TextField2" to hide these optional fields respectively, or "Hide all" to hide all',
         field_type: CREATE_CASE_TEXT_FIELD_TYPE,
-        display_context: 'MANDATORY',
+        display_context: "MANDATORY",
         show_condition: null,
         retain_hidden_value: null,
         acls: CREATE_CASE_ACLS_WITH_READONLY_COURTADMIN,
       },
       {
-        id: 'TextField1',
-        label: 'Text Field 1',
+        id: "TextField1",
+        label: "Text Field 1",
         ...CREATE_CASE_DEFAULT_FIELD,
-        hint_text: 'If hidden, this value will not be retained',
+        hint_text: "If hidden, this value will not be retained",
         field_type: CREATE_CASE_TEXT_FIELD_TYPE,
-        display_context: 'OPTIONAL',
-        show_condition: 'TextField0!="Hide TextField1" AND TextField0!="Hide all"',
+        display_context: "OPTIONAL",
+        show_condition:
+          'TextField0!="Hide TextField1" AND TextField0!="Hide all"',
         retain_hidden_value: null,
         acls: CREATE_CASE_SHARED_ACLS,
       },
       {
-        id: 'TextField2',
-        label: 'Text Field 2',
+        id: "TextField2",
+        label: "Text Field 2",
         ...CREATE_CASE_DEFAULT_FIELD,
-        hint_text: 'If hidden, this value will be retained',
+        hint_text: "If hidden, this value will be retained",
         field_type: CREATE_CASE_TEXT_FIELD_TYPE,
-        display_context: 'OPTIONAL',
-        show_condition: 'TextField0!="Hide TextField2" AND TextField0!="Hide all"',
+        display_context: "OPTIONAL",
+        show_condition:
+          'TextField0!="Hide TextField2" AND TextField0!="Hide all"',
         retain_hidden_value: true,
         acls: CREATE_CASE_SHARED_ACLS,
       },
       {
-        id: 'TextField3',
-        label: 'Text Field 3',
+        id: "TextField3",
+        label: "Text Field 3",
         ...CREATE_CASE_DEFAULT_FIELD,
         hint_text: null,
         field_type: CREATE_CASE_TEXT_FIELD_TYPE,
-        display_context: 'OPTIONAL',
+        display_context: "OPTIONAL",
         show_condition: null,
         retain_hidden_value: null,
         acls: CREATE_CASE_SHARED_ACLS,
       },
       {
-        id: 'DivorceReason',
-        label: 'Choose divorce reasons',
+        id: "DivorceReason",
+        label: "Choose divorce reasons",
         hidden: null,
         value: null,
         metadata: false,
-        hint_text: 'Hidden if "Hide all" is entered in Text Field 0; value will not be retained',
+        hint_text:
+          'Hidden if "Hide all" is entered in Text Field 0; value will not be retained',
         field_type: buildFixedListFieldType({
-          id: 'MultiSelectList-reasonForDivorceEnum',
-          type: 'MultiSelectList',
+          id: "MultiSelectList-reasonForDivorceEnum",
+          type: "MultiSelectList",
           fixedListItems: [
             {
-              code: 'unreasonable-behaviour',
-              label: 'Behaviour',
+              code: "unreasonable-behaviour",
+              label: "Behaviour",
               order: null,
             },
             {
-              code: 'adultery',
-              label: 'Adultery',
+              code: "adultery",
+              label: "Adultery",
               order: null,
             },
             {
-              code: 'desertion',
-              label: 'Desertion',
+              code: "desertion",
+              label: "Desertion",
               order: null,
             },
             {
-              code: 'separation-2-years',
-              label: '2-year separation (with consent)',
+              code: "separation-2-years",
+              label: "2-year separation (with consent)",
               order: null,
             },
             {
-              code: 'separation-5-years',
-              label: '5-year separation',
+              code: "separation-5-years",
+              label: "5-year separation",
               order: null,
             },
           ],
         }),
         validation_expr: null,
-        security_label: 'PUBLIC',
+        security_label: "PUBLIC",
         order: null,
         formatted_value: null,
-        display_context: 'OPTIONAL',
+        display_context: "OPTIONAL",
         display_context_parameter: null,
         show_condition: 'TextField0!="Hide all"',
         show_summary_change_option: true,
@@ -333,38 +357,38 @@ export function divorcePocCaseData() {
         acls: CREATE_CASE_SHARED_ACLS,
       },
       {
-        id: 'Gender',
-        label: 'Select your gender',
+        id: "Gender",
+        label: "Select your gender",
         hidden: null,
         value: null,
         metadata: false,
         hint_text: 'Hidden if "Hide all" is entered in Text Field 0',
         field_type: buildFixedListFieldType({
-          id: 'FixedRadioList-gender',
-          type: 'FixedRadioList',
+          id: "FixedRadioList-gender",
+          type: "FixedRadioList",
           fixedListItems: [
             {
-              code: 'male',
-              label: 'Male',
+              code: "male",
+              label: "Male",
               order: null,
             },
             {
-              code: 'female',
-              label: 'Female',
+              code: "female",
+              label: "Female",
               order: null,
             },
             {
-              code: 'notGiven',
-              label: 'Not given',
+              code: "notGiven",
+              label: "Not given",
               order: null,
             },
           ],
         }),
         validation_expr: null,
-        security_label: 'PUBLIC',
+        security_label: "PUBLIC",
         order: null,
         formatted_value: null,
-        display_context: 'OPTIONAL',
+        display_context: "OPTIONAL",
         display_context_parameter: null,
         show_condition: 'TextField0!="Hide all"',
         show_summary_change_option: true,
@@ -375,18 +399,19 @@ export function divorcePocCaseData() {
         acls: CREATE_CASE_SHARED_ACLS,
       },
       {
-        id: 'Person1',
-        label: 'Person 1 - retained',
+        id: "Person1",
+        label: "Person 1 - retained",
         hidden: null,
         value: null,
         metadata: false,
-        hint_text: 'Hidden if "Hide all" is entered in Text Field 0; value will be retained',
+        hint_text:
+          'Hidden if "Hide all" is entered in Text Field 0; value will be retained',
         field_type: buildPersonFieldType(),
         validation_expr: null,
-        security_label: 'PUBLIC',
+        security_label: "PUBLIC",
         order: null,
         formatted_value: null,
-        display_context: 'OPTIONAL',
+        display_context: "OPTIONAL",
         display_context_parameter: null,
         show_condition: 'TextField0!="Hide all 2"',
         show_summary_change_option: true,
@@ -397,18 +422,19 @@ export function divorcePocCaseData() {
         acls: CREATE_CASE_SHARED_ACLS,
       },
       {
-        id: 'Person2',
-        label: 'Person 2 - not retained',
+        id: "Person2",
+        label: "Person 2 - not retained",
         hidden: null,
         value: null,
         metadata: false,
-        hint_text: 'Hidden if "Hide all" is entered in Text Field 0; value will not be retained',
+        hint_text:
+          'Hidden if "Hide all" is entered in Text Field 0; value will not be retained',
         field_type: buildPersonFieldType(),
         validation_expr: null,
-        security_label: 'PUBLIC',
+        security_label: "PUBLIC",
         order: null,
         formatted_value: null,
-        display_context: 'OPTIONAL',
+        display_context: "OPTIONAL",
         display_context_parameter: null,
         show_condition: 'TextField0!="Hide all 3"',
         show_summary_change_option: true,
@@ -419,22 +445,24 @@ export function divorcePocCaseData() {
         acls: CREATE_CASE_SHARED_ACLS,
       },
       {
-        id: 'People',
-        label: 'Group of People',
+        id: "People",
+        label: "Group of People",
         hidden: null,
         value: null,
         metadata: false,
-        hint_text: 'Hidden if "Hide all" is entered in Text Field 0; value will not be retained',
+        hint_text:
+          'Hidden if "Hide all" is entered in Text Field 0; value will not be retained',
         field_type: buildCollectionFieldType({
-          id: 'People-25f76628-edb7-422e-a721-a13ef378548f',
+          id: "People-25f76628-edb7-422e-a721-a13ef378548f",
           collectionFieldType: buildPersonFieldType(),
         }),
         validation_expr: null,
-        security_label: 'PUBLIC',
+        security_label: "PUBLIC",
         order: null,
         formatted_value: null,
-        display_context: 'OPTIONAL',
-        display_context_parameter: '#COLLECTION(allowDelete,allowInsert,allowUpdate)',
+        display_context: "OPTIONAL",
+        display_context_parameter:
+          "#COLLECTION(allowDelete,allowInsert,allowUpdate)",
         show_condition: 'TextField0!="Hide all 4"',
         show_summary_change_option: true,
         show_summary_content_option: null,
@@ -447,36 +475,36 @@ export function divorcePocCaseData() {
     event_token: faker.string.uuid(),
     wizard_pages: [
       {
-        id: 'createCasePage_1',
-        label: 'The data on this page will appear in various tabs',
+        id: "createCasePage_1",
+        label: "The data on this page will appear in various tabs",
         order: 2,
         wizard_page_fields: [
           {
-            case_field_id: 'DivorceReason',
+            case_field_id: "DivorceReason",
             order: 8,
             page_column_no: null,
             complex_field_overrides: [],
           },
           {
-            case_field_id: 'TextField1',
+            case_field_id: "TextField1",
             order: 2,
             page_column_no: null,
             complex_field_overrides: [],
           },
           {
-            case_field_id: 'TextField3',
+            case_field_id: "TextField3",
             order: 1,
             page_column_no: null,
             complex_field_overrides: [],
           },
           {
-            case_field_id: 'TextField0',
+            case_field_id: "TextField0",
             order: 1,
             page_column_no: null,
             complex_field_overrides: [],
           },
           {
-            case_field_id: 'TextField2',
+            case_field_id: "TextField2",
             order: 3,
             page_column_no: null,
             complex_field_overrides: [],
@@ -487,30 +515,30 @@ export function divorcePocCaseData() {
         retries_timeout_mid_event: [],
       },
       {
-        id: 'createCasePage_2',
-        label: 'The data on this page will appear in various tabs',
+        id: "createCasePage_2",
+        label: "The data on this page will appear in various tabs",
         order: 1,
         wizard_page_fields: [
           {
-            case_field_id: 'People',
+            case_field_id: "People",
             order: 7,
             page_column_no: null,
             complex_field_overrides: [],
           },
           {
-            case_field_id: 'Person1',
+            case_field_id: "Person1",
             order: 5,
             page_column_no: null,
             complex_field_overrides: [],
           },
           {
-            case_field_id: 'Person2',
+            case_field_id: "Person2",
             order: 6,
             page_column_no: null,
             complex_field_overrides: [],
           },
           {
-            case_field_id: 'Gender',
+            case_field_id: "Gender",
             order: 4,
             page_column_no: null,
             complex_field_overrides: [],
@@ -523,10 +551,10 @@ export function divorcePocCaseData() {
     ],
     show_summary: true,
     show_event_notes: false,
-    end_button_label: 'Test submit',
+    end_button_label: "Test submit",
     can_save_draft: null,
-    access_granted: 'STANDARD',
-    access_process: 'NONE',
+    access_granted: "STANDARD",
+    access_process: "NONE",
     title_display: null,
     supplementary_data: null,
     _links: {

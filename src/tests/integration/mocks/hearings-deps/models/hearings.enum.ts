@@ -6,162 +6,162 @@ export enum Actions {
 }
 
 export enum HMCStatus {
-  HEARING_REQUESTED = 'HEARING_REQUESTED',
-  AWAITING_LISTING = 'AWAITING_LISTING',
-  LISTED = 'LISTED',
-  UPDATE_REQUESTED = 'UPDATE_REQUESTED',
-  UPDATE_SUBMITTED = 'UPDATE_SUBMITTED',
-  EXCEPTION = 'EXCEPTION',
-  CANCELLATION_REQUESTED = 'CANCELLATION_REQUESTED',
-  CANCELLATION_SUBMITTED = 'CANCELLATION_SUBMITTED',
-  CANCELLED = 'CANCELLED',
-  VACATED = 'VACATED',
-  AWAITING_ACTUALS = 'AWAITING_ACTUALS',
-  COMPLETED = 'COMPLETED',
-  ADJOURNED = 'ADJOURNED',
+  HEARING_REQUESTED = "HEARING_REQUESTED",
+  AWAITING_LISTING = "AWAITING_LISTING",
+  LISTED = "LISTED",
+  UPDATE_REQUESTED = "UPDATE_REQUESTED",
+  UPDATE_SUBMITTED = "UPDATE_SUBMITTED",
+  EXCEPTION = "EXCEPTION",
+  CANCELLATION_REQUESTED = "CANCELLATION_REQUESTED",
+  CANCELLATION_SUBMITTED = "CANCELLATION_SUBMITTED",
+  CANCELLED = "CANCELLED",
+  VACATED = "VACATED",
+  AWAITING_ACTUALS = "AWAITING_ACTUALS",
+  COMPLETED = "COMPLETED",
+  ADJOURNED = "ADJOURNED",
 }
 
 export enum HearingListingStatusEnum {
-  AWAITING_LISTING = 'AWAITING LISTING',
-  UPDATE_REQUESTED = 'UPDATE REQUESTED',
-  UPDATE_SUBMITTED = 'UPDATE SUBMITTED',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  LISTED = 'LISTED',
-  EXCEPTION = 'EXCEPTION',
-  CANCELLATION_REQUESTED = 'CANCELLATION REQUESTED',
-  VACATED = 'VACATED',
-  AWAITING_ACTUALS = 'AWAITING ACTUALS',
-  ADJOURNED = 'ADJOURNED',
+  AWAITING_LISTING = "AWAITING LISTING",
+  UPDATE_REQUESTED = "UPDATE REQUESTED",
+  UPDATE_SUBMITTED = "UPDATE SUBMITTED",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  LISTED = "LISTED",
+  EXCEPTION = "EXCEPTION",
+  CANCELLATION_REQUESTED = "CANCELLATION REQUESTED",
+  VACATED = "VACATED",
+  AWAITING_ACTUALS = "AWAITING ACTUALS",
+  ADJOURNED = "ADJOURNED",
 }
 
 export enum LaCaseStatus {
-  LISTED = 'LISTED',
-  PENDING_RELISTING = 'PENDING_RELISTING',
-  CLOSED = 'CLOSED',
-  EXCEPTION = 'EXCEPTION',
+  LISTED = "LISTED",
+  PENDING_RELISTING = "PENDING_RELISTING",
+  CLOSED = "CLOSED",
+  EXCEPTION = "EXCEPTION",
 }
 
 export enum EXUISectionStatusEnum {
-  UPCOMING = 'Current and upcoming',
-  PAST_OR_CANCELLED = 'Past or cancelled',
+  UPCOMING = "Current and upcoming",
+  PAST_OR_CANCELLED = "Past or cancelled",
 }
 
 export enum EXUIDisplayStatusEnum {
-  AWAITING_LISTING = 'WAITING TO BE LISTED',
-  UPDATE_REQUESTED = 'UPDATE REQUESTED',
-  UPDATE_SUBMITTED = 'UPDATE SUBMITTED',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  LISTED = 'LISTED',
-  FAILURE = 'REQUEST FAILURE',
-  CANCELLATION_REQUESTED = 'CANCELLATION REQUESTED',
-  CANCELLATION_SUBMITTED = 'CANCELLATION SUBMITTED',
-  VACATED = 'VACATED',
-  AWAITING_ACTUALS = 'AWAITING HEARING DETAILS',
-  ADJOURNED = 'ADJOURNED',
+  AWAITING_LISTING = "WAITING TO BE LISTED",
+  UPDATE_REQUESTED = "UPDATE REQUESTED",
+  UPDATE_SUBMITTED = "UPDATE SUBMITTED",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  LISTED = "LISTED",
+  FAILURE = "REQUEST FAILURE",
+  CANCELLATION_REQUESTED = "CANCELLATION REQUESTED",
+  CANCELLATION_SUBMITTED = "CANCELLATION SUBMITTED",
+  VACATED = "VACATED",
+  AWAITING_ACTUALS = "AWAITING HEARING DETAILS",
+  ADJOURNED = "ADJOURNED",
 }
 
 export enum HMCLocationType {
-  COURT = 'court',
-  CLUSTER = 'cluster',
-  REGION = 'regionId',
+  COURT = "court",
+  CLUSTER = "cluster",
+  REGION = "regionId",
 }
 
 export enum UnavailabilityType {
-  AM = 'AM',
-  PM = 'PM',
-  ALL_DAY = 'All Day',
+  AM = "AM",
+  PM = "PM",
+  ALL_DAY = "All Day",
 }
 
 export enum RequirementType {
-  MUSTINC = 'MUSTINC',
-  OPTINC = 'OPTINC',
-  EXCLUDE = 'EXCLUDE',
+  MUSTINC = "MUSTINC",
+  OPTINC = "OPTINC",
+  EXCLUDE = "EXCLUDE",
 }
 
 export enum CategoryType {
-  CaseType = 'caseType',
-  CaseSubType = 'caseSubType',
+  CaseType = "caseType",
+  CaseSubType = "caseSubType",
 }
 
 export enum MemberType {
-  JUDGE = 'JUDGE',
-  PANEL_MEMBER = 'PANEL_MEMBER',
+  JUDGE = "JUDGE",
+  PANEL_MEMBER = "PANEL_MEMBER",
 }
 
 export enum PartyType {
-  IND = 'IND',
-  ORG = 'ORG',
+  IND = "IND",
+  ORG = "ORG",
 }
 
 export enum RadioOptions {
-  YES = 'Yes',
-  NO = 'No',
-  CHOOSE_DATE_RANGE = 'Choose a date range',
+  YES = "Yes",
+  NO = "No",
+  CHOOSE_DATE_RANGE = "Choose a date range",
 }
 
 export enum RadioOptionType {
-  YES = 'yes',
-  NO = 'no',
+  YES = "yes",
+  NO = "no",
 }
 
 export enum DOW {
-  Monday = 'Monday',
-  Tuesday = 'Tuesday',
-  Wednesday = 'Wednesday',
-  Thursday = 'Thursday',
-  Friday = 'Friday',
-  Saturday = 'Saturday',
-  Sunday = 'Sunday',
+  Monday = "Monday",
+  Tuesday = "Tuesday",
+  Wednesday = "Wednesday",
+  Thursday = "Thursday",
+  Friday = "Friday",
+  Saturday = "Saturday",
+  Sunday = "Sunday",
 }
 
 export enum DOWUnavailabilityType {
-  AM = 'AM',
-  PM = 'PM',
-  ALL_DAY = 'All Day',
+  AM = "AM",
+  PM = "PM",
+  ALL_DAY = "All Day",
 }
 
 export enum HearingCategory {
-  HearingPriority = 'HearingPriority',
-  HearingChannel = 'HearingChannel',
-  HearingSubChannel = 'HearingSubChannel',
-  HearingType = 'HearingType',
-  CaseType = 'caseType',
-  Facilities = 'Facilities',
-  PanelMemberType = 'PanelMemberType',
-  PanelMemberSpecialism = 'PanelMemberSpecialism',
-  NonStdDurationReasonCodes = 'NonStdDurationReasonCodes',
-  JudgeType = 'JudgeType',
-  CancelHearingReason = 'CaseManagementCancellationReasons',
-  EntityRoleCode = 'EntityRoleCode',
-  ActualPartHeardReasonCodes = 'ActualPartHeardReasonCodes',
-  ActualCancellationReasonCodes = 'ActualCancellationReasonCodes',
-  HearingChangeReasons = 'ChangeReasons',
-  LinkedHearings = 'LinkedHearings',
+  HearingPriority = "HearingPriority",
+  HearingChannel = "HearingChannel",
+  HearingSubChannel = "HearingSubChannel",
+  HearingType = "HearingType",
+  CaseType = "caseType",
+  Facilities = "Facilities",
+  PanelMemberType = "PanelMemberType",
+  PanelMemberSpecialism = "PanelMemberSpecialism",
+  NonStdDurationReasonCodes = "NonStdDurationReasonCodes",
+  JudgeType = "JudgeType",
+  CancelHearingReason = "CaseManagementCancellationReasons",
+  EntityRoleCode = "EntityRoleCode",
+  ActualPartHeardReasonCodes = "ActualPartHeardReasonCodes",
+  ActualCancellationReasonCodes = "ActualCancellationReasonCodes",
+  HearingChangeReasons = "ChangeReasons",
+  LinkedHearings = "LinkedHearings",
 }
 
 export enum HearingChannelEnum {
-  ONPPR = 'ONPPRS',
-  NotAttending = 'NA',
+  ONPPR = "ONPPRS",
+  NotAttending = "NA",
 }
 
 export enum HearingDateEnum {
-  DisplayTime = 'HH:mm',
-  DisplayMonth = 'DD MMMM YYYY',
-  DefaultFormat = 'DD-MM-YYYY',
-  RequestFailedDateAndTime = 'DD MMMM YYYY HH:mm:ss',
-  DateAndTimeInZoneZ = 'YYYY-MM-DDTHH:mm:ssZ',
-  InvalidDate = 'Invalid date',
+  DisplayTime = "HH:mm",
+  DisplayMonth = "DD MMMM YYYY",
+  DefaultFormat = "DD-MM-YYYY",
+  RequestFailedDateAndTime = "DD MMMM YYYY HH:mm:ss",
+  DateAndTimeInZoneZ = "YYYY-MM-DDTHH:mm:ssZ",
+  InvalidDate = "Invalid date",
 }
 
 export enum HearingStageEnum {
-  SelectHearingStageError = 'Select a hearing stage',
+  SelectHearingStageError = "Select a hearing stage",
 }
 
 export enum HearingPanelSelectionEnum {
-  SelectionError = 'Enter panel members or roles',
-  PanelRowChildError = 'Select a specialism for the panel member(s).',
+  SelectionError = "Enter panel members or roles",
+  PanelRowChildError = "Select a specialism for the panel member(s).",
 }
 
 export enum HearingInstructionsEnum {
@@ -169,49 +169,49 @@ export enum HearingInstructionsEnum {
 }
 
 export enum HearingFacilitiesEnum {
-  additionSecurityError = 'Select an option for additional security.',
+  additionSecurityError = "Select an option for additional security.",
 }
 
 export enum HearingJudgeSelectionEnum {
-  ValidNameError = 'Enter a valid name',
-  SelectOneJudgeError = 'Select at least one judge type',
-  SelectionError = 'Select the option that applies',
-  ExcludeJudge = 'Exclude judge before continue',
-  ExcludeFullNameJudge = 'Enter a full name for a specific judge, or delete the name to stop the judge being included',
-  SameJudgeInIncludeExcludeList = 'You cannot select same judge name in include and exclude list',
+  ValidNameError = "Enter a valid name",
+  SelectOneJudgeError = "Select at least one judge type",
+  SelectionError = "Select the option that applies",
+  ExcludeJudge = "Exclude judge before continue",
+  ExcludeFullNameJudge = "Enter a full name for a specific judge, or delete the name to stop the judge being included",
+  SameJudgeInIncludeExcludeList = "You cannot select same judge name in include and exclude list",
 }
 
 export enum HearingLinkedSelectionEnum {
-  ValidSelectionError = 'You need to select at least one hearing',
-  HearingSelection = 'Which hearings should be linked?',
-  NoHearingSelection = 'There are no hearings available to link to',
-  NoLinkedCases = 'No linked Cases',
-  NoHearingsAvailable = 'To make a hearing available for linking, you need to edit the hearing listing.',
+  ValidSelectionError = "You need to select at least one hearing",
+  HearingSelection = "Which hearings should be linked?",
+  NoHearingSelection = "There are no hearings available to link to",
+  NoLinkedCases = "No linked Cases",
+  NoHearingsAvailable = "To make a hearing available for linking, you need to edit the hearing listing.",
 }
 
 export enum HearingDatePriorityEnum {
-  LengthError = 'Enter a valid hearing length',
-  LengthHoursError = 'The hours entered must be between 0 of 6',
-  LengthMinutesError = 'The minutes entered must be a multiple of 5',
-  TotalLengthError = 'Enter a valid length of hearing, it must be between 5 minutes and 6 hours each day',
-  PriorityError = 'Select the priority level of the hearing',
-  PriorityDateError = 'Select if the hearing needs to take place on a specific date',
-  EitherDateRangeError = 'Enter valid earliest and latest hearing dates',
-  InvalidHearingDateError = 'Enter a valid hearing date',
-  DatePastError = 'The hearing dates cannot be in the past',
-  LatestEndDatePastError = 'Must list before cannot be in the past',
+  LengthError = "Enter a valid hearing length",
+  LengthHoursError = "The hours entered must be between 0 of 6",
+  LengthMinutesError = "The minutes entered must be a multiple of 5",
+  TotalLengthError = "Enter a valid length of hearing, it must be between 5 minutes and 6 hours each day",
+  PriorityError = "Select the priority level of the hearing",
+  PriorityDateError = "Select if the hearing needs to take place on a specific date",
+  EitherDateRangeError = "Enter valid earliest and latest hearing dates",
+  InvalidHearingDateError = "Enter a valid hearing date",
+  DatePastError = "The hearing dates cannot be in the past",
+  LatestEndDatePastError = "Must list before cannot be in the past",
   EarliestHearingDateError = "'Must list after' date must be earlier than the 'Must list before' date",
 }
 
 export enum HearingStageResultEnum {
-  HearingResultError = 'Select a hearing result',
-  HearingResultReasonError = 'Select a reason for the hearing result',
+  HearingResultError = "Select a hearing result",
+  HearingResultReasonError = "Select a reason for the hearing result",
 }
 
 export enum HearingErrorMessage {
-  ENTER_A_VALID_LOCATION = 'Enter a valid location',
-  ENTER_A_LOCATION = 'Enter a location',
-  ADD_A_LOCATION = 'Add a location',
+  ENTER_A_VALID_LOCATION = "Enter a valid location",
+  ENTER_A_LOCATION = "Enter a location",
+  ADD_A_LOCATION = "Add a location",
 }
 
 export const HearingDatePriorityConstEnum = {
@@ -225,43 +225,43 @@ export const HearingDatePriorityConstEnum = {
 };
 
 export enum HearingSummaryEnum {
-  BackendError = 'There was a system error and your request could not be processed. Please try again.',
-  RequestFailedError = 'Something went wrong and your request could not be processed. A support ticket has been automatically raised. For updates on issue resolution, contact your service desk quoting all the error details on this screen.',
+  BackendError = "There was a system error and your request could not be processed. Please try again.",
+  RequestFailedError = "Something went wrong and your request could not be processed. A support ticket has been automatically raised. For updates on issue resolution, contact your service desk quoting all the error details on this screen.",
 }
 
 export enum ACTION {
-  BACK = 'BACK',
-  CONTINUE = 'CONTINUE',
-  SUBMIT = 'SUBMIT',
-  CANCEL = 'CANCEL',
-  VIEW_EDIT_REASON = 'VIEW EDIT REASON',
-  VIEW_EDIT_SUBMIT = 'VIEW EDIT SUBMIT',
+  BACK = "BACK",
+  CONTINUE = "CONTINUE",
+  SUBMIT = "SUBMIT",
+  CANCEL = "CANCEL",
+  VIEW_EDIT_REASON = "VIEW EDIT REASON",
+  VIEW_EDIT_SUBMIT = "VIEW EDIT SUBMIT",
 }
 
 export enum ConditionOperator {
-  INCLUDE = 'INCLUDE',
-  NOT_INCLUDE = 'NOT INCLUDE',
+  INCLUDE = "INCLUDE",
+  NOT_INCLUDE = "NOT INCLUDE",
 }
 
 export enum CaseFlagType {
-  PARTY_FLAGS = 'Party',
-  CASE_FLAG = 'Case',
-  REASONABLE_ADJUSTMENT = 'Reasonable adjustment',
-  NON_REASONABLE_ADJUSTMENT = 'Non reasonable adjustment',
+  PARTY_FLAGS = "Party",
+  CASE_FLAG = "Case",
+  REASONABLE_ADJUSTMENT = "Reasonable adjustment",
+  NON_REASONABLE_ADJUSTMENT = "Non reasonable adjustment",
 }
 
 export enum CancelHearingMessages {
-  NOT_SELECTED_A_REASON = 'You have not selected a reason for cancelling the hearing',
-  SELECT_AT_LEAST_ONE_REASON = 'Select at least one valid reason',
+  NOT_SELECTED_A_REASON = "You have not selected a reason for cancelling the hearing",
+  SELECT_AT_LEAST_ONE_REASON = "Select at least one valid reason",
 }
 
 export enum HearingChangeReasonMessages {
-  NOT_SELECTED_A_REASON = 'You have not selected a reason for changing the hearing',
-  SELECT_AT_LEAST_ONE_REASON = 'Select at least one valid reason',
+  NOT_SELECTED_A_REASON = "You have not selected a reason for changing the hearing",
+  SELECT_AT_LEAST_ONE_REASON = "Select at least one valid reason",
 }
 
 export enum HearingLinkMessages {
-  SELECT_HEARING_LINK_OPTION = 'Please make a selection',
+  SELECT_HEARING_LINK_OPTION = "Please make a selection",
 }
 
 export enum AnswerSource {
@@ -342,21 +342,21 @@ export enum IsHiddenSource {
 }
 
 export enum Mode {
-  CREATE = 'create',
-  CREATE_EDIT = 'create-edit',
-  VIEW = 'view',
-  VIEW_EDIT = 'view-edit',
-  LINK_HEARINGS = 'link-hearings',
-  MANAGE_HEARINGS = 'manage-hearings',
+  CREATE = "create",
+  CREATE_EDIT = "create-edit",
+  VIEW = "view",
+  VIEW_EDIT = "view-edit",
+  LINK_HEARINGS = "link-hearings",
+  MANAGE_HEARINGS = "manage-hearings",
 }
 
 export enum HearingRequestPageRouteNames {
-  HEARING_CREATE_EDIT_SUMMARY = 'hearing-create-edit-summary',
-  HEARING_VIEW_EDIT_SUMMARY = 'hearing-view-edit-summary',
-  HEARING_VIEW_SUMMARY = 'hearing-view-summary',
-  HEARING_EDIT_SUMMARY = 'hearing-edit-summary',
-  HEARING_CHANGE_REASON = 'hearing-change-reason',
-  HEARING_CONFIRMATION = 'hearing-confirmation',
+  HEARING_CREATE_EDIT_SUMMARY = "hearing-create-edit-summary",
+  HEARING_VIEW_EDIT_SUMMARY = "hearing-view-edit-summary",
+  HEARING_VIEW_SUMMARY = "hearing-view-summary",
+  HEARING_EDIT_SUMMARY = "hearing-edit-summary",
+  HEARING_CHANGE_REASON = "hearing-change-reason",
+  HEARING_CONFIRMATION = "hearing-confirmation",
 }
 
 export enum ControlTypeEnum {
@@ -368,46 +368,46 @@ export enum ControlTypeEnum {
 }
 
 export enum HearingResult {
-  COMPLETED = 'COMPLETED',
-  ADJOURNED = 'ADJOURNED',
-  CANCELLED = 'CANCELLED',
+  COMPLETED = "COMPLETED",
+  ADJOURNED = "ADJOURNED",
+  CANCELLED = "CANCELLED",
 }
 
 export enum HearingActualAddEditSummaryEnum {
-  HearingResultError = 'Enter a hearing result',
-  ConfirmUpdateError = 'Confirm or update before continue',
-  AllDaysCoveredError = 'Hearing details cannot be submitted until all required hearing days have taken place',
+  HearingResultError = "Enter a hearing result",
+  ConfirmUpdateError = "Confirm or update before continue",
+  AllDaysCoveredError = "Hearing details cannot be submitted until all required hearing days have taken place",
 }
 
 export enum HearingTemplate {
-  LISTING_INFORMATION = 'Listing information summary',
-  PARTIES_TEMPLATE = 'Parties Template',
+  LISTING_INFORMATION = "Listing information summary",
+  PARTIES_TEMPLATE = "Parties Template",
 }
 
 export enum GroupLinkType {
-  ORDERED = 'Ordered',
-  SAME_SLOT = 'Same Slot',
+  ORDERED = "Ordered",
+  SAME_SLOT = "Same Slot",
 }
 
 export enum HearingActualsTimingErrorMessages {
-  VALID_TIME = 'Enter a valid time.',
-  START_TIME_BEFORE_FINISH_TIME = 'Start time must be before finish time',
-  PAUSE_TIME_BEFORE_RESUME_TIME = 'Pause time must be before resume time',
-  PAUSE_TIME_BETWEEN_START_TIME_AND_FINISH_TIMES = 'Pause time must be between the hearing start and finish times',
-  RESUME_TIME_BETWEEN_START_TIME_AND_FINISH_TIMES = 'Resume time must be between the hearing start and finish times',
+  VALID_TIME = "Enter a valid time.",
+  START_TIME_BEFORE_FINISH_TIME = "Start time must be before finish time",
+  PAUSE_TIME_BEFORE_RESUME_TIME = "Pause time must be before resume time",
+  PAUSE_TIME_BETWEEN_START_TIME_AND_FINISH_TIMES = "Pause time must be between the hearing start and finish times",
+  RESUME_TIME_BETWEEN_START_TIME_AND_FINISH_TIMES = "Resume time must be between the hearing start and finish times",
 }
 
 export enum HearingScreensEnum {
-  HEARING_REQUIREMENTS = 'hearing-requirements',
-  HEARING_FACILITIES = 'hearing-facilities',
-  HEARING_STAGE = 'hearing-stage',
-  HEARING_ATTENDANCE = 'hearing-attendance',
-  REGION_ID = 'regionId',
-  HEARING_VENUE = 'hearing-venue',
-  HEARING_WELSH = 'hearing-welsh',
-  HEARING_JUDGE = 'hearing-judge',
-  HEARING_TIMING = 'hearing-timing',
-  HEARING_LINK = 'hearing-link',
-  HEARING_PANEL = 'hearing-panel',
-  HEARING_ADDITIONAL_INSTRUCTIONS = 'hearing-additional-instructions',
+  HEARING_REQUIREMENTS = "hearing-requirements",
+  HEARING_FACILITIES = "hearing-facilities",
+  HEARING_STAGE = "hearing-stage",
+  HEARING_ATTENDANCE = "hearing-attendance",
+  REGION_ID = "regionId",
+  HEARING_VENUE = "hearing-venue",
+  HEARING_WELSH = "hearing-welsh",
+  HEARING_JUDGE = "hearing-judge",
+  HEARING_TIMING = "hearing-timing",
+  HEARING_LINK = "hearing-link",
+  HEARING_PANEL = "hearing-panel",
+  HEARING_ADDITIONAL_INSTRUCTIONS = "hearing-additional-instructions",
 }

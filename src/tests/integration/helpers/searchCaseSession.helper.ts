@@ -27,7 +27,9 @@ export function resolveSearchCaseSessionUsers(
   env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const configured = parseUserList(env.PW_SEARCH_CASE_SESSION_USERS);
-  return configured.length > 0 ? configured : [...defaultSearchCaseSessionUsers];
+  return configured.length > 0
+    ? configured
+    : [...defaultSearchCaseSessionUsers];
 }
 
 export function resolveIntegrationSessionWarmupUsers(
@@ -38,7 +40,10 @@ export function resolveIntegrationSessionWarmupUsers(
     return configured;
   }
   return Array.from(
-    new Set([...defaultIntegrationWarmupUsers, ...resolveSearchCaseSessionUsers(env)]),
+    new Set([
+      ...defaultIntegrationWarmupUsers,
+      ...resolveSearchCaseSessionUsers(env),
+    ]),
   );
 }
 
@@ -66,6 +71,9 @@ export async function applySearchCaseSessionCookies(
     await applySessionCookies(page, userIdentifier);
   }
 
-  testInfo.annotations.push({ type: "session-user", description: userIdentifier });
+  testInfo.annotations.push({
+    type: "session-user",
+    description: userIdentifier,
+  });
   return userIdentifier;
 }

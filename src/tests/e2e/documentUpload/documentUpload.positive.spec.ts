@@ -86,55 +86,53 @@ test.describe("Document upload V2", () => {
     faker.seed(12345);
   });
 
-  test.beforeEach(
-    async ({ page, createCasePage, caseDetailsPage }) => {
-      // Generate fresh value per test for retry safety
-      testValue = `${faker.person.firstName()}-${Date.now()}-w${process.env.TEST_WORKER_INDEX || "0"}`;
-      logger.info("Generated test value", {
-        testValue,
-        worker: process.env.TEST_WORKER_INDEX,
-      });
+  test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
+    // Generate fresh value per test for retry safety
+    testValue = `${faker.person.firstName()}-${Date.now()}-w${process.env.TEST_WORKER_INDEX || "0"}`;
+    logger.info("Generated test value", {
+      testValue,
+      worker: process.env.TEST_WORKER_INDEX,
+    });
 
-      try {
-        await retryOnTransientFailure(
-          async () => {
-            await withTimeout(
-              (async () => {
-                await ensureAuthenticatedPage(page, "PROD_LIKE", {
-                  waitForSelector: "exui-header",
-                });
-                await createCasePage.createDivorceCase(
-                  TEST_DATA.V2.JURISDICTION,
-                  TEST_DATA.V2.CASE_TYPE,
-                  testValue,
-                );
-                caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
-                logger.info("Created divorce case", { caseNumber, testValue });
-              })(),
-              180_000,
-              "Document upload V2 setup exceeded 180000ms while creating a case",
-            );
-          },
-          {
-            maxAttempts: 2,
-            onRetry: async () => {
-              if (page.isClosed()) {
-                return;
-              }
-              await page.goto("/").catch(() => undefined);
-            },
-          },
-        );
-      } catch (error) {
-        if (isDependencyEnvironmentFailure(error)) {
-          throw new Error(
-            `Document-upload V2 setup failed due to dependency environment instability: ${asMessage(error)}`,
+    try {
+      await retryOnTransientFailure(
+        async () => {
+          await withTimeout(
+            (async () => {
+              await ensureAuthenticatedPage(page, "PROD_LIKE", {
+                waitForSelector: "exui-header",
+              });
+              await createCasePage.createDivorceCase(
+                TEST_DATA.V2.JURISDICTION,
+                TEST_DATA.V2.CASE_TYPE,
+                testValue,
+              );
+              caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+              logger.info("Created divorce case", { caseNumber, testValue });
+            })(),
+            180_000,
+            "Document upload V2 setup exceeded 180000ms while creating a case",
           );
-        }
-        throw error;
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            await page.goto("/").catch(() => undefined);
+          },
+        },
+      );
+    } catch (error) {
+      if (isDependencyEnvironmentFailure(error)) {
+        throw new Error(
+          `Document-upload V2 setup failed due to dependency environment instability: ${asMessage(error)}`,
+        );
       }
-    },
-  );
+      throw error;
+    }
+  });
 
   test("Check the documentV2 upload works as expected", async ({
     createCasePage,
@@ -328,60 +326,58 @@ test.describe("Document upload V1", () => {
     faker.seed(67890);
   });
 
-  test.beforeEach(
-    async ({ page, createCasePage, caseDetailsPage }) => {
-      // Generate fresh values per test for retry safety
-      testValue = `${faker.person.firstName()}-${Date.now()}-w${process.env.TEST_WORKER_INDEX || "0"}`;
-      testFileName = `${faker.string.alphanumeric(8)}-${Date.now()}.pdf`;
-      logger.info("Generated test values", {
-        testValue,
-        testFileName,
-        worker: process.env.TEST_WORKER_INDEX,
-      });
+  test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
+    // Generate fresh values per test for retry safety
+    testValue = `${faker.person.firstName()}-${Date.now()}-w${process.env.TEST_WORKER_INDEX || "0"}`;
+    testFileName = `${faker.string.alphanumeric(8)}-${Date.now()}.pdf`;
+    logger.info("Generated test values", {
+      testValue,
+      testFileName,
+      worker: process.env.TEST_WORKER_INDEX,
+    });
 
-      try {
-        await retryOnTransientFailure(
-          async () => {
-            await ensureAuthenticatedPage(page, "SEARCH_EMPLOYMENT_CASE", {
-              waitForSelector: "exui-header",
-              timeoutMs: 45_000,
-            });
-            await createCasePage.createCaseEmployment(
-              TEST_DATA.V1.JURISDICTION,
-              TEST_DATA.V1.CASE_TYPE,
-            );
-            caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+    try {
+      await retryOnTransientFailure(
+        async () => {
+          await ensureAuthenticatedPage(page, "SEARCH_EMPLOYMENT_CASE", {
+            waitForSelector: "exui-header",
+            timeoutMs: 45_000,
+          });
+          await createCasePage.createCaseEmployment(
+            TEST_DATA.V1.JURISDICTION,
+            TEST_DATA.V1.CASE_TYPE,
+          );
+          caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            await page.goto("/").catch(() => undefined);
           },
-          {
-            maxAttempts: 2,
-            onRetry: async () => {
-              if (page.isClosed()) {
-                return;
-              }
-              await page.goto("/").catch(() => undefined);
-            },
-          },
+        },
+      );
+    } catch (error) {
+      if (isMissingEmploymentCreateCaseOption(error)) {
+        throw new Error(
+          "Document-upload V1 setup failed: EMPLOYMENT/ET_EnglandWales is not available in this environment.",
         );
-      } catch (error) {
-        if (isMissingEmploymentCreateCaseOption(error)) {
-          throw new Error(
-            "Document-upload V1 setup failed: EMPLOYMENT/ET_EnglandWales is not available in this environment.",
-          );
-        }
-        if (isDependencyEnvironmentFailure(error)) {
-          throw new Error(
-            `Document-upload V1 setup failed due to dependency environment instability: ${asMessage(error)}`,
-          );
-        }
-        throw error;
       }
-      expect(
-        await createCasePage.checkForErrorMessage(),
-        "Error message seen after creating employment case",
-      ).toBe(false);
-      logger.info("Created employment case", { caseNumber, testValue });
-    },
-  );
+      if (isDependencyEnvironmentFailure(error)) {
+        throw new Error(
+          `Document-upload V1 setup failed due to dependency environment instability: ${asMessage(error)}`,
+        );
+      }
+      throw error;
+    }
+    expect(
+      await createCasePage.checkForErrorMessage(),
+      "Error message seen after creating employment case",
+    ).toBe(false);
+    logger.info("Created employment case", { caseNumber, testValue });
+  });
 
   test("Check the documentV1 upload works as expected", async ({
     createCasePage,
@@ -390,7 +386,9 @@ test.describe("Document upload V1", () => {
   }) => {
     await test.step("Start document upload process", async () => {
       await caseDetailsPage.selectCaseAction(TEST_DATA.V1.ACTION, {
-        expectedLocator: createCasePage.page.locator("#documentCollection button"),
+        expectedLocator: createCasePage.page.locator(
+          "#documentCollection button",
+        ),
       });
     });
 

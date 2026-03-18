@@ -38,46 +38,44 @@ function isDependencyEnvironmentFailure(error: unknown): boolean {
 test.describe("Verify creating and updating a case works as expected", () => {
   test.describe.configure({ timeout: 240_000 });
 
-  test.beforeEach(
-    async ({ page, createCasePage, caseDetailsPage }) => {
-      try {
-        await retryOnTransientFailure(
-          async () => {
-            await ensureAuthenticatedPage(page, "PROD_LIKE", {
-              waitForSelector: "exui-header",
-              timeoutMs: 30_000,
-            });
-            await createCasePage.createDivorceCase(
-              "DIVORCE",
-              "XUI Case PoC",
-              testField,
-              {
-                maxAttempts: UPDATE_CASE_SETUP_CREATE_MAX_ATTEMPTS,
-                createCaseMaxAttempts: UPDATE_CASE_SETUP_CREATE_MAX_ATTEMPTS,
-              },
-            );
-            caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
-          },
-          {
-            maxAttempts: UPDATE_CASE_SETUP_CREATE_MAX_ATTEMPTS,
-            onRetry: async () => {
-              if (page.isClosed()) {
-                return;
-              }
-              await page.goto("/").catch(() => undefined);
+  test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
+    try {
+      await retryOnTransientFailure(
+        async () => {
+          await ensureAuthenticatedPage(page, "PROD_LIKE", {
+            waitForSelector: "exui-header",
+            timeoutMs: 30_000,
+          });
+          await createCasePage.createDivorceCase(
+            "DIVORCE",
+            "XUI Case PoC",
+            testField,
+            {
+              maxAttempts: UPDATE_CASE_SETUP_CREATE_MAX_ATTEMPTS,
+              createCaseMaxAttempts: UPDATE_CASE_SETUP_CREATE_MAX_ATTEMPTS,
             },
-          },
-        );
-      } catch (error) {
-        if (isDependencyEnvironmentFailure(error)) {
-          throw new Error(
-            `Update-case setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-        }
-        throw error;
+          caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+        },
+        {
+          maxAttempts: UPDATE_CASE_SETUP_CREATE_MAX_ATTEMPTS,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            await page.goto("/").catch(() => undefined);
+          },
+        },
+      );
+    } catch (error) {
+      if (isDependencyEnvironmentFailure(error)) {
+        throw new Error(
+          `Update-case setup failed due to dependency environment instability: ${asMessage(error)}`,
+        );
       }
-    },
-  );
+      throw error;
+    }
+  });
 
   test("Create, update and verify case history", async ({
     page,

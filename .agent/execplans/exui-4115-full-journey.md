@@ -63,27 +63,27 @@ We will keep the cancellation actions purely manual (no `actionByEvent`), consis
 
 ## Concrete Steps
 
-1) Gather event IDs and UI text for C100 creation, payment, and send‑to‑gatekeeper.
+1. Gather event IDs and UI text for C100 creation, payment, and send‑to‑gatekeeper.
    - Inspect PRL E2E repo for `submitAndPay`, `testingSupportPaymentSuccessCallback`, `sendToGateKeeper`.
    - Confirm visible labels in UI for “Send to gatekeeper”.
 
-2) Implement helper to create a C100 case in AAT.
+2. Implement helper to create a C100 case in AAT.
    - Use `ensureSessionCookies('PRL_AAT_SOLICITOR')`.
    - Navigate to Create Case UI and progress through minimal required screens to submit.
    - Use payment stub page to complete payment (paid).
    - Capture and return case reference.
 
-3) Implement helper to open case as CTSC user and validate Tasks tab.
+3. Implement helper to open case as CTSC user and validate Tasks tab.
    - Use `ensureSessionCookies('PRL_CTSC_LEADER')`.
    - Open `/cases/case-details/{jurisdiction}/{caseType}/{caseId}` and select Tasks tab.
    - Verify “Send to gatekeeper” appears.
 
-4) Implement cancellation flow from both UI surfaces.
+4. Implement cancellation flow from both UI surfaces.
    - My Work task list: open Manage for the task and click Cancel.
    - Case details Tasks tab: click “Cancel task” for the same task.
    - Assert each cancel action results in backend request to `/workallocation/task/{taskId}/cancel`.
 
-5) Add tags/notes for CI stability.
+5. Add tags/notes for CI stability.
    - Use explicit waits for network idle and task list rendering.
    - Add retries if needed (via Playwright config, not within the test).
 
@@ -91,8 +91,8 @@ We will keep the cancellation actions purely manual (no `actionByEvent`), consis
 
 Run locally:
 
-  cd /Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/rpx-xui-webapp
-  npx playwright test --config=playwright.e2e.config.ts playwright_tests_new/E2E/test/manageTasks/taskCancellationProcess.fullJourney.spec.ts
+cd /Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/rpx-xui-webapp
+npx playwright test --config=playwright.e2e.config.ts playwright_tests_new/E2E/test/manageTasks/taskCancellationProcess.fullJourney.spec.ts
 
 Expected outcome:
 

@@ -1,4 +1,4 @@
-import { EXUIDisplayStatusEnum, EXUISectionStatusEnum } from './hearings.enum';
+import { EXUIDisplayStatusEnum, EXUISectionStatusEnum } from "./hearings.enum";
 
 export class HearingStatusMapping {
   public hmcStatus!: string;

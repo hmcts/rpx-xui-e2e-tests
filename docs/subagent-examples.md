@@ -3,10 +3,13 @@
 Practical, copy-paste examples for using subagents in this repository.
 
 ## 1) Governance Preflight
+
 Use when:
+
 - The request affects policy, risk, security/privacy, or cross-cutting workflow.
 
 Copy-paste prompt:
+
 ```text
 Role: Governance Preflight
 
@@ -26,10 +29,13 @@ Consumed / Produced / Risks / Next
 ```
 
 ## 2) Test-Impact Mapper
+
 Use when:
+
 - Many files changed and test scope is unclear.
 
 Copy-paste prompt:
+
 ```text
 Role: Test-Impact Mapper
 
@@ -49,10 +55,13 @@ Consumed / Produced / Risks / Next
 ```
 
 ## 3) Evidence Auditor
+
 Use when:
+
 - Tests are done and we need review-ready evidence.
 
 Copy-paste prompt:
+
 ```text
 Role: Evidence Auditor
 
@@ -76,10 +85,13 @@ Consumed / Produced / Risks / Next
 ```
 
 ## 4) PR Compliance Writer
+
 Use when:
+
 - Preparing PR text aligned to template/governance requirements.
 
 Copy-paste prompt:
+
 ```text
 Role: PR Compliance Writer
 
@@ -100,10 +112,13 @@ Consumed / Produced / Risks / Next
 ```
 
 ## 5) Flake Triage
+
 Use when:
+
 - Failures appear intermittent and hard to classify.
 
 Copy-paste prompt:
+
 ```text
 Role: Flake Triage
 
@@ -125,10 +140,13 @@ Consumed / Produced / Risks / Next
 ```
 
 ## 6) Security/Privacy Reviewer
+
 Use when:
+
 - Auth/token/env/logging/external endpoint behavior changed.
 
 Copy-paste prompt:
+
 ```text
 Role: Security/Privacy Reviewer
 
@@ -148,22 +166,27 @@ Consumed / Produced / Risks / Next
 ```
 
 ## 7) Parallel Delegation Example
+
 Use when:
+
 - You can run two independent analysis tasks concurrently.
 
 Example:
+
 1. Spawn `Test-Impact Mapper` for command planning.
 2. Spawn `PR Compliance Writer` for draft PR body.
 3. Implement and run tests locally.
 4. Merge both outputs into final PR/update.
 
 ## 8) Do-Not-Spawn Cases
+
 - One-file small fix with obvious validation.
 - Immediate blocking implementation step.
 - Destructive operations.
 - Final go/no-go approval (must remain human).
 
 ## 9) Recommended Sequence for Typical AI-Assisted Change
+
 1. `Governance Preflight`
 2. `Test-Impact Mapper`
 3. Implement + test locally

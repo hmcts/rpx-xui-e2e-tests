@@ -16,7 +16,9 @@ const outputPath = path.resolve(
 );
 
 if (!fs.existsSync(inputPath)) {
-  console.log(`[ai-governance] metadata not found, skipping export: ${path.relative(root, inputPath)}`);
+  console.log(
+    `[ai-governance] metadata not found, skipping export: ${path.relative(root, inputPath)}`,
+  );
   process.exit(0);
 }
 
@@ -41,11 +43,15 @@ const event = {
     odhin_reports: (payload?.evidence?.odhin_reports || []).map((x) => x.path),
     html_reports: (payload?.evidence?.html_reports || []).map((x) => x.path),
     junit_reports: (payload?.evidence?.junit_reports || []).map((x) => x.path),
-    traceability_docs: (payload?.evidence?.traceability_docs || []).map((x) => x.path),
+    traceability_docs: (payload?.evidence?.traceability_docs || []).map(
+      (x) => x.path,
+    ),
   },
 };
 
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(event)}\n`);
 
-console.log(`[ai-governance] exported JSONL event: ${path.relative(root, outputPath)}`);
+console.log(
+  `[ai-governance] exported JSONL event: ${path.relative(root, outputPath)}`,
+);

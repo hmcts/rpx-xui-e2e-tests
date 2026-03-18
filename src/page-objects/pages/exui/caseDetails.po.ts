@@ -401,7 +401,10 @@ export class CaseDetailsPage extends Base {
       for (const row of dataRows) {
         const cells = Array.from(row.querySelectorAll("th, td")).filter(
           (cell) =>
-            !(cell.tagName === "TD" && cell.classList.contains("case-field-change")),
+            !(
+              cell.tagName === "TD" &&
+              cell.classList.contains("case-field-change")
+            ),
         );
         if (cells.length < 2) {
           continue;
@@ -464,7 +467,10 @@ export class CaseDetailsPage extends Base {
       const headers = Array.from(headerRow.querySelectorAll("th, td"))
         .filter(
           (cell) =>
-            !(cell.tagName === "TD" && cell.classList.contains("case-field-change")),
+            !(
+              cell.tagName === "TD" &&
+              cell.classList.contains("case-field-change")
+            ),
         )
         .map((h) => {
           const clone = h.cloneNode(true) as Element;
@@ -495,7 +501,10 @@ export class CaseDetailsPage extends Base {
       for (const row of dataRows) {
         const cells = Array.from(row.querySelectorAll("th, td")).filter(
           (cell) =>
-            !(cell.tagName === "TD" && cell.classList.contains("case-field-change")),
+            !(
+              cell.tagName === "TD" &&
+              cell.classList.contains("case-field-change")
+            ),
         );
         if (cells.length === 0) {
           continue;

@@ -1,45 +1,51 @@
-import { expect, test } from '../../../../fixtures/ui';
-import { buildMyTaskListMock } from '../../mocks/taskList.mock';
-import { extractUserIdFromCookies } from '../../utils/extractUserIdFromCookies';
-import { logTaskCancellationAssertion } from '../../utils/taskCancellationAssertionLogger';
+import { expect, test } from "../../../../fixtures/ui";
+import { buildMyTaskListMock } from "../../mocks/taskList.mock";
+import { extractUserIdFromCookies } from "../../utils/extractUserIdFromCookies";
+import { logTaskCancellationAssertion } from "../../utils/taskCancellationAssertionLogger";
 import {
   routeCaseDetailsTaskCancellationFlow,
   routeMyTaskCancellationFlow,
   type CancellationScenario,
   type CaseDetailsTemplate,
-} from '../../utils/taskCancellationRoutes';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { applyPrewarmedSessionCookies } from '../../helpers';
+} from "../../utils/taskCancellationRoutes";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { applyPrewarmedSessionCookies } from "../../helpers";
 
-const userIdentifier = 'STAFF_ADMIN';
-const taskId = '22222222-2222-2222-2222-222222222222';
+const userIdentifier = "STAFF_ADMIN";
+const taskId = "22222222-2222-2222-2222-222222222222";
 
 const cancellationMatrix: readonly CancellationScenario[] = [
   {
-    scenario: 'PRIVATELAW / PRLAPPS',
-    jurisdiction: 'PRIVATELAW',
-    caseTypeId: 'PRLAPPS',
-    caseId: '1770285290104655',
-    caseName: 'PRL Manual Cancellation Test Case',
+    scenario: "PRIVATELAW / PRLAPPS",
+    jurisdiction: "PRIVATELAW",
+    caseTypeId: "PRLAPPS",
+    caseId: "1770285290104655",
+    caseName: "PRL Manual Cancellation Test Case",
   },
   {
-    scenario: 'PUBLICLAW / CARE_SUPERVISION_EPO',
-    jurisdiction: 'PUBLICLAW',
-    caseTypeId: 'CARE_SUPERVISION_EPO',
-    caseId: '1770133055796879',
-    caseName: 'Public Law Manual Cancellation Test Case',
+    scenario: "PUBLICLAW / CARE_SUPERVISION_EPO",
+    jurisdiction: "PUBLICLAW",
+    caseTypeId: "CARE_SUPERVISION_EPO",
+    caseId: "1770133055796879",
+    caseName: "Public Law Manual Cancellation Test Case",
   },
 ] as const;
 
 test.describe(
   `Task cancellation integration as ${userIdentifier}`,
-  { tag: ['@integration', '@integration-manage-tasks'] },
+  { tag: ["@integration", "@integration-manage-tasks"] },
   () => {
     for (const matrixItem of cancellationMatrix) {
-      test(`Cancel task sends expected request for ${matrixItem.scenario}`, async ({ taskListPage, page }, testInfo) => {
-        const { cookies } = await applyPrewarmedSessionCookies(page, userIdentifier);
-        const userId = extractUserIdFromCookies(cookies) || 'test-user-id';
+      test(`Cancel task sends expected request for ${matrixItem.scenario}`, async ({
+        taskListPage,
+        page,
+      }, testInfo) => {
+        const { cookies } = await applyPrewarmedSessionCookies(
+          page,
+          userIdentifier,
+        );
+        const userId = extractUserIdFromCookies(cookies) || "test-user-id";
 
         const taskListMockResponse = buildMyTaskListMock(userId, 1);
         const task = {
@@ -49,32 +55,41 @@ test.describe(
           case_name: matrixItem.caseName,
           case_type_id: matrixItem.caseTypeId,
           jurisdiction: matrixItem.jurisdiction,
-          task_title: 'Send to gatekeeper',
+          task_title: "Send to gatekeeper",
           assignee: userId,
         };
 
-        const { getCancelRequestUrl, getCancelRequestBody } = await routeMyTaskCancellationFlow(page, taskId, task);
+        const { getCancelRequestUrl, getCancelRequestBody } =
+          await routeMyTaskCancellationFlow(page, taskId, task);
 
-        await test.step('Navigate to My Work and open cancel action', async () => {
+        await test.step("Navigate to My Work and open cancel action", async () => {
           await taskListPage.goto();
           await expect(taskListPage.taskListTable).toBeVisible();
           await taskListPage.exuiSpinnerComponent.wait();
-          await taskListPage.waitForManageButton(`cancel request payload validation for ${matrixItem.scenario}`);
-          await expect(taskListPage.taskListTable).toContainText(matrixItem.caseName);
+          await taskListPage.waitForManageButton(
+            `cancel request payload validation for ${matrixItem.scenario}`,
+          );
+          await expect(taskListPage.taskListTable).toContainText(
+            matrixItem.caseName,
+          );
 
-          await taskListPage.openFirstManageActions(`cancel request payload validation for ${matrixItem.scenario}`);
+          await taskListPage.openFirstManageActions(
+            `cancel request payload validation for ${matrixItem.scenario}`,
+          );
           await expect(taskListPage.taskActionCancel.first()).toBeVisible();
           await taskListPage.clickTaskAction(
             taskListPage.taskActionCancel.first(),
-            `cancel request payload validation for ${matrixItem.scenario}`
+            `cancel request payload validation for ${matrixItem.scenario}`,
           );
         });
 
-        await test.step('Confirm cancellation and verify request payload', async () => {
-          await page.getByRole('button', { name: 'Cancel task' }).click();
+        await test.step("Confirm cancellation and verify request payload", async () => {
+          await page.getByRole("button", { name: "Cancel task" }).click();
 
           await expect
-            .poll(() => getCancelRequestUrl(), { message: 'Cancel request was not captured' })
+            .poll(() => getCancelRequestUrl(), {
+              message: "Cancel request was not captured",
+            })
             .toContain(`/workallocation/task/${taskId}/cancel`);
 
           await expect.poll(() => getCancelRequestBody()).not.toBeNull();
@@ -87,54 +102,69 @@ test.describe(
             scenario: matrixItem.scenario,
             expectedPath: expectedBrowserRequestPath,
             actualPath: actualBrowserRequestPath,
-            hasCancellationProcessQuery: parsedUrl.searchParams.has('cancellation_process'),
-            hasCompletionProcessQuery: parsedUrl.searchParams.has('completion_process'),
+            hasCancellationProcessQuery: parsedUrl.searchParams.has(
+              "cancellation_process",
+            ),
+            hasCompletionProcessQuery:
+              parsedUrl.searchParams.has("completion_process"),
             expectedPayload,
             actualPayload: getCancelRequestBody(),
           });
 
-          await testInfo.attach('browser-request-expected-vs-actual.json', {
+          await testInfo.attach("browser-request-expected-vs-actual.json", {
             body: JSON.stringify(
               {
-                note: 'Browser -> ExUI API request validation for manual cancellation path',
+                note: "Browser -> ExUI API request validation for manual cancellation path",
                 expectation: {
                   path: expectedBrowserRequestPath,
                   queryMustInclude: [],
-                  queryMustExclude: ['cancellation_process', 'completion_process'],
+                  queryMustExclude: [
+                    "cancellation_process",
+                    "completion_process",
+                  ],
                   payload: expectedPayload,
                 },
                 actual: {
                   path: actualBrowserRequestPath,
-                  hasCancellationProcessQuery: parsedUrl.searchParams.has('cancellation_process'),
-                  hasCompletionProcessQuery: parsedUrl.searchParams.has('completion_process'),
+                  hasCancellationProcessQuery: parsedUrl.searchParams.has(
+                    "cancellation_process",
+                  ),
+                  hasCompletionProcessQuery:
+                    parsedUrl.searchParams.has("completion_process"),
                   payload: getCancelRequestBody(),
                 },
                 assertions: assertionSummary,
               },
               null,
-              2
+              2,
             ),
-            contentType: 'application/json',
+            contentType: "application/json",
           });
 
           expect(
-            parsedUrl.searchParams.has('cancellation_process'),
-            `Expected browser cancel request ${expectedBrowserRequestPath} to omit "cancellation_process"; actual path=${actualBrowserRequestPath}`
+            parsedUrl.searchParams.has("cancellation_process"),
+            `Expected browser cancel request ${expectedBrowserRequestPath} to omit "cancellation_process"; actual path=${actualBrowserRequestPath}`,
           ).toBeFalsy();
           expect(
-            parsedUrl.searchParams.has('completion_process'),
-            `Expected browser cancel request ${expectedBrowserRequestPath} to omit "completion_process"; actual path=${actualBrowserRequestPath}`
+            parsedUrl.searchParams.has("completion_process"),
+            `Expected browser cancel request ${expectedBrowserRequestPath} to omit "completion_process"; actual path=${actualBrowserRequestPath}`,
           ).toBeFalsy();
           expect(
             getCancelRequestBody(),
-            `Expected browser cancel payload ${JSON.stringify(expectedPayload)}; actual=${JSON.stringify(getCancelRequestBody())}`
+            `Expected browser cancel payload ${JSON.stringify(expectedPayload)}; actual=${JSON.stringify(getCancelRequestBody())}`,
           ).toEqual(expectedPayload);
         });
       });
 
-      test(`My Tasks manual cancellation for ${matrixItem.scenario}`, async ({ taskListPage, page }) => {
-        const { cookies } = await applyPrewarmedSessionCookies(page, userIdentifier);
-        const userId = extractUserIdFromCookies(cookies) || 'test-user-id';
+      test(`My Tasks manual cancellation for ${matrixItem.scenario}`, async ({
+        taskListPage,
+        page,
+      }) => {
+        const { cookies } = await applyPrewarmedSessionCookies(
+          page,
+          userIdentifier,
+        );
+        const userId = extractUserIdFromCookies(cookies) || "test-user-id";
 
         const taskListMockResponse = buildMyTaskListMock(userId, 1);
         const task = {
@@ -144,41 +174,55 @@ test.describe(
           case_name: matrixItem.caseName,
           case_type_id: matrixItem.caseTypeId,
           jurisdiction: matrixItem.jurisdiction,
-          task_title: 'Send to gatekeeper',
+          task_title: "Send to gatekeeper",
           assignee: userId,
         };
 
         await routeMyTaskCancellationFlow(page, taskId, task);
 
-        await test.step('Open cancellation from My Work', async () => {
+        await test.step("Open cancellation from My Work", async () => {
           await taskListPage.goto();
           await expect(taskListPage.taskListTable).toBeVisible();
           await taskListPage.exuiSpinnerComponent.wait();
-          await taskListPage.waitForManageButton(`my tasks manual cancellation for ${matrixItem.scenario}`);
-          await expect(taskListPage.taskListTable).toContainText(matrixItem.caseName);
+          await taskListPage.waitForManageButton(
+            `my tasks manual cancellation for ${matrixItem.scenario}`,
+          );
+          await expect(taskListPage.taskListTable).toContainText(
+            matrixItem.caseName,
+          );
 
-          await taskListPage.openFirstManageActions(`my tasks manual cancellation for ${matrixItem.scenario}`);
+          await taskListPage.openFirstManageActions(
+            `my tasks manual cancellation for ${matrixItem.scenario}`,
+          );
           await expect(taskListPage.taskActionCancel.first()).toBeVisible();
           await taskListPage.clickTaskAction(
             taskListPage.taskActionCancel.first(),
-            `my tasks manual cancellation for ${matrixItem.scenario}`
+            `my tasks manual cancellation for ${matrixItem.scenario}`,
           );
         });
 
-        await test.step('Confirm cancellation and verify user-visible outcome', async () => {
+        await test.step("Confirm cancellation and verify user-visible outcome", async () => {
           await taskListPage.confirmTaskCancellation();
           await expect(taskListPage.cancelledTaskMessage).toBeVisible();
-          await expect(taskListPage.taskListTable).not.toContainText(matrixItem.caseName);
+          await expect(taskListPage.taskListTable).not.toContainText(
+            matrixItem.caseName,
+          );
         });
       });
     }
 
-    test('Case details Tasks tab manual cancellation path', async ({ page, taskListPage }) => {
+    test("Case details Tasks tab manual cancellation path", async ({
+      page,
+      taskListPage,
+    }) => {
       const scenario = cancellationMatrix[0];
-      const { cookies } = await applyPrewarmedSessionCookies(page, userIdentifier);
-      const userId = extractUserIdFromCookies(cookies) || 'test-user-id';
+      const { cookies } = await applyPrewarmedSessionCookies(
+        page,
+        userIdentifier,
+      );
+      const userId = extractUserIdFromCookies(cookies) || "test-user-id";
       const caseDetailsTemplate = JSON.parse(
-        readFileSync(resolve(process.cwd(), 'src/assets/getCase.json'), 'utf8')
+        readFileSync(resolve(process.cwd(), "src/assets/getCase.json"), "utf8"),
       ) as CaseDetailsTemplate;
 
       const task = {
@@ -188,37 +232,56 @@ test.describe(
         case_name: scenario.caseName,
         case_type_id: scenario.caseTypeId,
         jurisdiction: scenario.jurisdiction,
-        task_title: 'Send to gatekeeper',
+        task_title: "Send to gatekeeper",
         assignee: userId,
       };
 
-      await routeCaseDetailsTaskCancellationFlow(page, taskId, scenario, task, caseDetailsTemplate);
+      await routeCaseDetailsTaskCancellationFlow(
+        page,
+        taskId,
+        scenario,
+        task,
+        caseDetailsTemplate,
+      );
 
-      await test.step('Open case-details task cancellation action', async () => {
-        await page.goto(`/cases/case-details/${scenario.jurisdiction}/${scenario.caseTypeId}/${scenario.caseId}/tasks`);
-        await expect(page.getByRole('heading', { name: 'Active tasks' })).toBeVisible();
-        const caseDetailsCancelAction = taskListPage.caseDetailsTaskActionCancel.first();
+      await test.step("Open case-details task cancellation action", async () => {
+        await page.goto(
+          `/cases/case-details/${scenario.jurisdiction}/${scenario.caseTypeId}/${scenario.caseId}/tasks`,
+        );
+        await expect(
+          page.getByRole("heading", { name: "Active tasks" }),
+        ).toBeVisible();
+        const caseDetailsCancelAction =
+          taskListPage.caseDetailsTaskActionCancel.first();
         await expect(caseDetailsCancelAction).toBeVisible();
         await caseDetailsCancelAction.click();
         await expect(taskListPage.confirmCancelTaskButton).toBeVisible();
       });
 
-      await test.step('Confirm cancellation removes task action from tab', async () => {
+      await test.step("Confirm cancellation removes task action from tab", async () => {
         await taskListPage.confirmTaskCancellation();
 
         // Case-details tasks flow may keep the same route instance and skip banner re-render.
         // The key behaviour here is successful cancel + task removed from the tasks tab.
         await expect(page).toHaveURL(
-          new RegExp(`/cases/case-details/${scenario.jurisdiction}/${scenario.caseTypeId}/${scenario.caseId}(?:/tasks|#Tasks)`)
+          new RegExp(
+            `/cases/case-details/${scenario.jurisdiction}/${scenario.caseTypeId}/${scenario.caseId}(?:/tasks|#Tasks)`,
+          ),
         );
         await expect(taskListPage.caseDetailsTaskActionCancel).toHaveCount(0);
       });
     });
 
-    test('Cancel action is not shown for a non-cancellable task', async ({ taskListPage, page }) => {
+    test("Cancel action is not shown for a non-cancellable task", async ({
+      taskListPage,
+      page,
+    }) => {
       const scenario = cancellationMatrix[0];
-      const { cookies } = await applyPrewarmedSessionCookies(page, userIdentifier);
-      const userId = extractUserIdFromCookies(cookies) || 'test-user-id';
+      const { cookies } = await applyPrewarmedSessionCookies(
+        page,
+        userIdentifier,
+      );
+      const userId = extractUserIdFromCookies(cookies) || "test-user-id";
 
       const task = {
         ...buildMyTaskListMock(userId, 1).tasks[0],
@@ -230,23 +293,35 @@ test.describe(
         assignee: userId,
       };
 
-      await routeMyTaskCancellationFlow(page, taskId, task, { includeCancelAction: false });
+      await routeMyTaskCancellationFlow(page, taskId, task, {
+        includeCancelAction: false,
+      });
 
-      await test.step('Open task actions and verify cancel is not available', async () => {
+      await test.step("Open task actions and verify cancel is not available", async () => {
         await taskListPage.goto();
         await expect(taskListPage.taskListTable).toBeVisible();
         await taskListPage.exuiSpinnerComponent.wait();
-        await taskListPage.waitForManageButton('non-cancellable task action menu');
-        await taskListPage.openFirstManageActions('non-cancellable task action menu');
+        await taskListPage.waitForManageButton(
+          "non-cancellable task action menu",
+        );
+        await taskListPage.openFirstManageActions(
+          "non-cancellable task action menu",
+        );
         await expect(taskListPage.taskActionsRow).toBeVisible();
         await expect(taskListPage.taskActionCancel).toHaveCount(0);
       });
     });
 
-    test('Stale task cancellation shows task no longer available warning', async ({ taskListPage, page }) => {
+    test("Stale task cancellation shows task no longer available warning", async ({
+      taskListPage,
+      page,
+    }) => {
       const scenario = cancellationMatrix[0];
-      const { cookies } = await applyPrewarmedSessionCookies(page, userIdentifier);
-      const userId = extractUserIdFromCookies(cookies) || 'test-user-id';
+      const { cookies } = await applyPrewarmedSessionCookies(
+        page,
+        userIdentifier,
+      );
+      const userId = extractUserIdFromCookies(cookies) || "test-user-id";
 
       const task = {
         ...buildMyTaskListMock(userId, 1).tasks[0],
@@ -258,27 +333,38 @@ test.describe(
         assignee: userId,
       };
 
-      await routeMyTaskCancellationFlow(page, taskId, task, { cancelResponseStatus: 409 });
-
-      await test.step('Open cancellation for stale task', async () => {
-        await taskListPage.goto();
-        await expect(taskListPage.taskListTable).toBeVisible();
-        await taskListPage.waitForManageButton('stale task cancellation');
-        await taskListPage.openFirstManageActions('stale task cancellation');
-        await taskListPage.clickTaskAction(taskListPage.taskActionCancel.first(), 'stale task cancellation');
+      await routeMyTaskCancellationFlow(page, taskId, task, {
+        cancelResponseStatus: 409,
       });
 
-      await test.step('Confirm stale cancellation shows warning', async () => {
+      await test.step("Open cancellation for stale task", async () => {
+        await taskListPage.goto();
+        await expect(taskListPage.taskListTable).toBeVisible();
+        await taskListPage.waitForManageButton("stale task cancellation");
+        await taskListPage.openFirstManageActions("stale task cancellation");
+        await taskListPage.clickTaskAction(
+          taskListPage.taskActionCancel.first(),
+          "stale task cancellation",
+        );
+      });
+
+      await test.step("Confirm stale cancellation shows warning", async () => {
         await taskListPage.confirmTaskCancellation();
         await expect(taskListPage.taskNoLongerAvailableMessage).toBeVisible();
         await expect(page).toHaveURL(/\/work\/my-work\/list/);
       });
     });
 
-    test('Cancellation API failure shows task no longer available warning', async ({ taskListPage, page }) => {
+    test("Cancellation API failure shows task no longer available warning", async ({
+      taskListPage,
+      page,
+    }) => {
       const scenario = cancellationMatrix[0];
-      const { cookies } = await applyPrewarmedSessionCookies(page, userIdentifier);
-      const userId = extractUserIdFromCookies(cookies) || 'test-user-id';
+      const { cookies } = await applyPrewarmedSessionCookies(
+        page,
+        userIdentifier,
+      );
+      const userId = extractUserIdFromCookies(cookies) || "test-user-id";
 
       const task = {
         ...buildMyTaskListMock(userId, 1).tasks[0],
@@ -290,21 +376,30 @@ test.describe(
         assignee: userId,
       };
 
-      await routeMyTaskCancellationFlow(page, taskId, task, { cancelResponseStatus: 400 });
-
-      await test.step('Open cancellation for API failure scenario', async () => {
-        await taskListPage.goto();
-        await expect(taskListPage.taskListTable).toBeVisible();
-        await taskListPage.waitForManageButton('cancellation api failure warning');
-        await taskListPage.openFirstManageActions('cancellation api failure warning');
-        await taskListPage.clickTaskAction(taskListPage.taskActionCancel.first(), 'cancellation api failure warning');
+      await routeMyTaskCancellationFlow(page, taskId, task, {
+        cancelResponseStatus: 400,
       });
 
-      await test.step('Confirm API failure shows warning', async () => {
+      await test.step("Open cancellation for API failure scenario", async () => {
+        await taskListPage.goto();
+        await expect(taskListPage.taskListTable).toBeVisible();
+        await taskListPage.waitForManageButton(
+          "cancellation api failure warning",
+        );
+        await taskListPage.openFirstManageActions(
+          "cancellation api failure warning",
+        );
+        await taskListPage.clickTaskAction(
+          taskListPage.taskActionCancel.first(),
+          "cancellation api failure warning",
+        );
+      });
+
+      await test.step("Confirm API failure shows warning", async () => {
         await taskListPage.confirmTaskCancellation();
         await expect(taskListPage.taskNoLongerAvailableMessage).toBeVisible();
         await expect(page).toHaveURL(/\/work\/my-work\/list/);
       });
     });
-  }
+  },
 );

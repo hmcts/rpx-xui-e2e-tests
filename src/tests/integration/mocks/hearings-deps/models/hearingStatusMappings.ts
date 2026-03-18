@@ -1,5 +1,9 @@
-import { EXUIDisplayStatusEnum, EXUISectionStatusEnum, HMCStatus } from './hearings.enum';
-import { HearingStatusMapping } from './hearingStatusMapping';
+import {
+  EXUIDisplayStatusEnum,
+  EXUISectionStatusEnum,
+  HMCStatus,
+} from "./hearings.enum";
+import { HearingStatusMapping } from "./hearingStatusMapping";
 
 export const hearingStatusMappings: HearingStatusMapping[] = [
   {

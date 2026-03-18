@@ -1,4 +1,4 @@
-import { faker } from '@faker-js/faker';
+import { faker } from "@faker-js/faker";
 
 type TaskWarningList = {
   values: Array<{ warningCode: string; warningText: string }>;
@@ -123,48 +123,53 @@ export type CaseDetailsTasksMinimalOptions = {
 const toIso = (date: Date) => date.toISOString();
 
 const stripUndefined = <T extends Record<string, any>>(obj: T): Partial<T> =>
-  Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined)) as Partial<T>;
+  Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined),
+  ) as Partial<T>;
 
 const createBaseTask = (caseId: string): CaseDetailsTaskMock => {
   const created = faker.date.recent({ days: 5 });
   const due = faker.date.soon({ days: 7 });
   return {
     id: faker.string.uuid(),
-    name: 'Follow-up overdue respondent evidence',
-    type: 'followUpOverdueRespondentEvidence',
-    task_state: 'assigned',
-    task_system: 'SELF',
-    security_classification: 'PUBLIC',
+    name: "Follow-up overdue respondent evidence",
+    type: "followUpOverdueRespondentEvidence",
+    task_state: "assigned",
+    task_system: "SELF",
+    security_classification: "PUBLIC",
     task_title: faker.word.words({ count: { min: 2, max: 4 } }),
     created_date: toIso(created),
     due_date: toIso(due),
-    location_name: 'Taylor House',
-    location: '765324',
-    execution_type: 'Case Management Task',
-    jurisdiction: 'IA',
-    region: '1',
-    case_type_id: 'Asylum',
+    location_name: "Taylor House",
+    location: "765324",
+    execution_type: "Case Management Task",
+    jurisdiction: "IA",
+    region: "1",
+    case_type_id: "Asylum",
     case_id: caseId,
-    case_category: 'Protection',
+    case_category: "Protection",
     case_name: faker.person.fullName(),
     auto_assigned: false,
     warnings: false,
-    warning_list: { values: [{ warningCode: '1200', warningText: 'this is a warning' }] },
-    case_management_category: 'Protection',
-    work_type_id: 'decision_making_work',
-    work_type_label: 'Decision-making work',
-    permissions: { values: ['Own', 'Execute', 'Manage'] },
-    description: 'Click link to proceed to task [Task link next step](/case/case-details/${[id]})',
-    role_category: 'LEGAL_OPERATIONS',
+    warning_list: {
+      values: [{ warningCode: "1200", warningText: "this is a warning" }],
+    },
+    case_management_category: "Protection",
+    work_type_id: "decision_making_work",
+    work_type_label: "Decision-making work",
+    permissions: { values: ["Own", "Execute", "Manage"] },
+    description:
+      "Click link to proceed to task [Task link next step](/case/case-details/${[id]})",
+    role_category: "LEGAL_OPERATIONS",
     minor_priority: 500,
     major_priority: 5000,
     priority_date: toIso(due),
     dueDate: toIso(due),
-    assignee: 'dfd4c2d1-67b1-40f9-8680-c9551632f5d9',
+    assignee: "dfd4c2d1-67b1-40f9-8680-c9551632f5d9",
     actions: [
-      { id: 'assign', title: 'Assign task' },
-      { id: 'cancel', title: 'Cancel task' },
-      { id: 'claim', title: 'Assign to me' },
+      { id: "assign", title: "Assign task" },
+      { id: "cancel", title: "Cancel task" },
+      { id: "claim", title: "Assign to me" },
     ],
   };
 };
@@ -172,7 +177,7 @@ const createBaseTask = (caseId: string): CaseDetailsTaskMock => {
 export const buildTaskDetailsMock = (
   caseId: string,
   overrides: TaskDetailsOverrides = {},
-  baseTask?: Partial<CaseDetailsTaskMock>
+  baseTask?: Partial<CaseDetailsTaskMock>,
 ): CaseDetailsTaskMock => {
   const base = { ...createBaseTask(caseId), ...(baseTask ?? {}) };
   const mergedCaseId = overrides.case_id ?? caseId;
@@ -185,12 +190,19 @@ export const buildTaskDetailsMock = (
   };
 };
 
-export const buildCaseDetailsTasksMock = (options: CaseDetailsTasksBuilderOptions): CaseDetailsTaskMock[] => {
+export const buildCaseDetailsTasksMock = (
+  options: CaseDetailsTasksBuilderOptions,
+): CaseDetailsTaskMock[] => {
   const { caseId, tasks = [{}], baseTask } = options;
-  return tasks.map((taskOverrides) => buildTaskDetailsMock(caseId, taskOverrides, baseTask));
+  return tasks.map((taskOverrides) =>
+    buildTaskDetailsMock(caseId, taskOverrides, baseTask),
+  );
 };
 
-const mapParamsToOverrides = (caseId: string, params: TaskDetailsParams): TaskDetailsOverrides => {
+const mapParamsToOverrides = (
+  caseId: string,
+  params: TaskDetailsParams,
+): TaskDetailsOverrides => {
   const createdDate = params.createdDate;
   const dueDate = params.dueDate;
   const priorityDate = params.priorityDate ?? dueDate;
@@ -219,7 +231,9 @@ const mapParamsToOverrides = (caseId: string, params: TaskDetailsParams): TaskDe
     case_management_category: params.caseManagementCategory,
     work_type_id: params.workTypeId,
     work_type_label: params.workTypeLabel,
-    permissions: params.permissions ? { values: params.permissions } : undefined,
+    permissions: params.permissions
+      ? { values: params.permissions }
+      : undefined,
     description: params.description,
     role_category: params.roleCategory,
     minor_priority: params.minorPriority,
@@ -231,15 +245,25 @@ const mapParamsToOverrides = (caseId: string, params: TaskDetailsParams): TaskDe
   };
 };
 
-export const buildCaseDetailsTasksFromParams = (options: CaseDetailsTasksParamsOptions): CaseDetailsTaskMock[] => {
+export const buildCaseDetailsTasksFromParams = (
+  options: CaseDetailsTasksParamsOptions,
+): CaseDetailsTaskMock[] => {
   const { caseId, tasks, baseTask } = options;
-  return tasks.map((params) => buildTaskDetailsMock(caseId, mapParamsToOverrides(caseId, params), baseTask));
+  return tasks.map((params) =>
+    buildTaskDetailsMock(
+      caseId,
+      mapParamsToOverrides(caseId, params),
+      baseTask,
+    ),
+  );
 };
 
-export const buildCaseDetailsTasksMinimal = (options: CaseDetailsTasksMinimalOptions): CaseDetailsTaskMock[] => {
+export const buildCaseDetailsTasksMinimal = (
+  options: CaseDetailsTasksMinimalOptions,
+): CaseDetailsTaskMock[] => {
   const {
     caseId,
-    titles = ['Task 1'],
+    titles = ["Task 1"],
     states = [],
     types = [],
     taskSystems = [],
@@ -253,7 +277,8 @@ export const buildCaseDetailsTasksMinimal = (options: CaseDetailsTasksMinimalOpt
     warnings = [],
   } = options;
   // support both camelCase `warningList` and legacy `warning_list` from tests
-  const warningList: TaskWarningList[] | undefined = (options as any).warningList ?? (options as any).warning_list;
+  const warningList: TaskWarningList[] | undefined =
+    (options as any).warningList ?? (options as any).warning_list;
   return titles.map((title, index) => {
     const state = states[index] ?? states[0];
     const type = types[index] ?? types[0];
@@ -267,7 +292,9 @@ export const buildCaseDetailsTasksMinimal = (options: CaseDetailsTasksMinimalOpt
     const dueDate = dueDates[index] ?? dueDates[0] ?? priorityDate;
     const warningsValue = warnings[index] ?? warnings[0] ?? false;
     const hasWarningList =
-      Array.isArray(warningList) && warningList.length > 0 && (warningList[index] !== undefined || warningList[0] !== undefined);
+      Array.isArray(warningList) &&
+      warningList.length > 0 &&
+      (warningList[index] !== undefined || warningList[0] !== undefined);
     const overrides: TaskDetailsOverrides = {
       id: idValue,
       task_title: title,
@@ -286,7 +313,8 @@ export const buildCaseDetailsTasksMinimal = (options: CaseDetailsTasksMinimalOpt
     };
 
     if (hasWarningList) {
-      overrides.warning_list = warningList![index] ?? warningList![0] ?? { values: [] };
+      overrides.warning_list = warningList![index] ??
+        warningList![0] ?? { values: [] };
     }
 
     return buildTaskDetailsMock(caseId, overrides);

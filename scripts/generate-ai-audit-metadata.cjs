@@ -13,7 +13,10 @@ const outputPath = path.resolve(
 
 const runGit = (cmd) => {
   try {
-    return execSync(cmd, { stdio: ["ignore", "pipe", "ignore"], encoding: "utf8" }).trim();
+    return execSync(cmd, {
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim();
   } catch {
     return "";
   }
@@ -44,10 +47,17 @@ const metadata = {
       "unknown",
   },
   build: {
-    ci: Boolean(process.env.CI || process.env.JENKINS_URL || process.env.BUILD_ID),
+    ci: Boolean(
+      process.env.CI || process.env.JENKINS_URL || process.env.BUILD_ID,
+    ),
     build_id: process.env.BUILD_ID || process.env.GITHUB_RUN_ID || "local",
-    build_url: process.env.BUILD_URL || process.env.GITHUB_SERVER_URL || "local",
-    actor: process.env.BUILD_USER_ID || process.env.GITHUB_ACTOR || process.env.USER || "unknown",
+    build_url:
+      process.env.BUILD_URL || process.env.GITHUB_SERVER_URL || "local",
+    actor:
+      process.env.BUILD_USER_ID ||
+      process.env.GITHUB_ACTOR ||
+      process.env.USER ||
+      "unknown",
   },
   ai_asset_metadata: {
     agent_name: process.env.AI_AGENT_NAME || "",
@@ -58,8 +68,12 @@ const metadata = {
     audit_reference: process.env.AI_AUDIT_REFERENCE || "HMCTS-AI-2025-04",
   },
   report_configuration: {
-    reporters: process.env.PLAYWRIGHT_REPORTERS || process.env.PLAYWRIGHT_DEFAULT_REPORTER || "default",
-    odhin_output: process.env.PLAYWRIGHT_REPORT_FOLDER || process.env.PW_ODHIN_OUTPUT || "",
+    reporters:
+      process.env.PLAYWRIGHT_REPORTERS ||
+      process.env.PLAYWRIGHT_DEFAULT_REPORTER ||
+      "default",
+    odhin_output:
+      process.env.PLAYWRIGHT_REPORT_FOLDER || process.env.PW_ODHIN_OUTPUT || "",
     junit_output: process.env.PLAYWRIGHT_JUNIT_OUTPUT || "playwright-junit.xml",
   },
   evidence: {
@@ -84,4 +98,6 @@ const metadata = {
 fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, JSON.stringify(metadata, null, 2));
 
-console.log(`[ai-governance] wrote metadata: ${path.relative(root, outputPath)}`);
+console.log(
+  `[ai-governance] wrote metadata: ${path.relative(root, outputPath)}`,
+);

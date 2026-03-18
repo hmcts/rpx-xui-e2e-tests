@@ -32,54 +32,52 @@ test.describe("Verify creating cases works as expected", () => {
   test.describe.configure({ timeout: 600000 });
   let caseData;
 
-  test.beforeEach(
-    async ({ page, caseDetailsPage, createCasePage }) => {
-      try {
-        await retryOnTransientFailure(
-          async () => {
-            await ensureAuthenticatedPage(page, "PROD_LIKE", {
-              waitForSelector: "exui-header",
-            });
-            caseData = await createCasePage.generateDivorcePoCData();
-            await createCasePage.createDivorceCasePoC(
-              jurisdiction,
-              caseType,
-              caseData,
-              {
-                maxAttempts: CREATE_CASE_FLOW_MAX_ATTEMPTS,
-                createCaseMaxAttempts: CREATE_CASE_FLOW_MAX_ATTEMPTS,
-              },
-            );
-            caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
-          },
-          {
-            maxAttempts: CREATE_CASE_SETUP_MAX_ATTEMPTS,
-            onRetry: async () => {
-              if (page.isClosed()) {
-                return;
-              }
-              try {
-                await page.goto("/");
-              } catch (error) {
-                logger.warn(
-                  "Retry reset navigation failed before create-case beforeEach retry",
-                  { error },
-                );
-                throw error;
-              }
+  test.beforeEach(async ({ page, caseDetailsPage, createCasePage }) => {
+    try {
+      await retryOnTransientFailure(
+        async () => {
+          await ensureAuthenticatedPage(page, "PROD_LIKE", {
+            waitForSelector: "exui-header",
+          });
+          caseData = await createCasePage.generateDivorcePoCData();
+          await createCasePage.createDivorceCasePoC(
+            jurisdiction,
+            caseType,
+            caseData,
+            {
+              maxAttempts: CREATE_CASE_FLOW_MAX_ATTEMPTS,
+              createCaseMaxAttempts: CREATE_CASE_FLOW_MAX_ATTEMPTS,
             },
-          },
-        );
-      } catch (error) {
-        if (isDependencyEnvironmentFailure(error)) {
-          throw new Error(
-            `Create-case setup failed due to dependency environment instability: ${asMessage(error)}`,
           );
-        }
-        throw error;
+          caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
+        },
+        {
+          maxAttempts: CREATE_CASE_SETUP_MAX_ATTEMPTS,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            try {
+              await page.goto("/");
+            } catch (error) {
+              logger.warn(
+                "Retry reset navigation failed before create-case beforeEach retry",
+                { error },
+              );
+              throw error;
+            }
+          },
+        },
+      );
+    } catch (error) {
+      if (isDependencyEnvironmentFailure(error)) {
+        throw new Error(
+          `Create-case setup failed due to dependency environment instability: ${asMessage(error)}`,
+        );
       }
-    },
-  );
+      throw error;
+    }
+  });
 
   test("Verify creating a case in the divorce jurisdiction works as expected", async ({
     page,
