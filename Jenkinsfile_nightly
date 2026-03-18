@@ -167,6 +167,7 @@ withNightlyPipeline(type, product, component, 400) {
             'ORG_USER_ASSIGNMENT_MODE_ORDER=external,internal',
             'PW_ODHIN_CONSOLE_TEST_OUTPUT=false',
             'PW_ODHIN_TEST_OUTPUT=only-on-failure',
+            'PW_ODHIN_CAPTURE_STDIO=false',
             'PLAYWRIGHT_REPORTERS=list,odhin,junit',
             'PLAYWRIGHT_JUNIT_OUTPUT=functional-output/tests/api_functional/playwright-junit.xml',
             'PW_API_WORKERS='
@@ -200,6 +201,10 @@ withNightlyPipeline(type, product, component, 400) {
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PLAYWRIGHT_REPORTERS=list,odhin',
+            'PW_ODHIN_CONSOLE_TEST_OUTPUT=false',
+            'PW_ODHIN_TEST_OUTPUT=only-on-failure',
+            'PW_ODHIN_CAPTURE_STDIO=false',
+            'PW_UI_VIDEO=off',
             'ORG_USER_ASSIGNMENT_MODE=external',
             'ORG_USER_ASSIGNMENT_MODE_ORDER=external,internal',
             "PW_UI_WORKERS=${configuredWorkers ?: ''}",

@@ -266,6 +266,9 @@ const resolveOdhinCaptureStdio = (env: EnvMap = process.env): boolean => {
 const resolveUiVideoMode = (
   env: EnvMap = process.env,
 ): "off" | "retain-on-failure" => {
+  if (isCiExecution(env)) {
+    return "off";
+  }
   const configured = env.PW_UI_VIDEO?.trim().toLowerCase();
   if (configured === "off") {
     return "off";
@@ -273,7 +276,7 @@ const resolveUiVideoMode = (
   if (configured === "retain-on-failure" || configured === "on-failure") {
     return "retain-on-failure";
   }
-  return isCiExecution(env) ? "off" : "retain-on-failure";
+  return "retain-on-failure";
 };
 
 const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
