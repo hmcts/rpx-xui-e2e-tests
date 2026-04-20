@@ -35,8 +35,8 @@ Reason: the MVP needs one auditable, low-noise proof file for exact service-fami
 11. Reuse the existing `manageTasks`, `searchCase`, and `hearings` helper seams.
 Reason: the repo already has credible mock-route seams for the exact configuration surfaces the POC needs, so new `_helpers` folders or duplicate route setup would be avoidable debt.
 
-12. Keep targeted API proof independent from the repo's default UI global warmup by using `PW_SKIP_UI_GLOBAL_SETUP` and a prewarmed session-based `request.newContext()`.
-Reason: the API lane should not fail just because the UI login warmup or remote shell is unstable.
+12. Keep targeted API proof independent from the repo's default UI global warmup by using `PW_UI_STORAGE=0` and a cookie-backed `request.newContext()`.
+Reason: the API lane should not fail just because the UI storage warmup or remote shell is unstable.
 
 13. Place the UI-shell availability probe in `src/utils/ui/uiHostAvailability.ts`.
 Reason: both the integration lane and the internal API coverage need the same utility, so it should live in a neutral shared layer rather than under integration helpers.
@@ -49,3 +49,12 @@ Reason: a validated local worktree is useful, but it is not the same as a review
 
 16. Force-add the ignored traceability files under `docs/srt-poc/`.
 Reason: the repo `.gitignore` excludes `PLAN.md`, `TODO.md`, `DECISIONS.md`, and `RESULT.md` by basename, but the orchestrated HMCTS SDET workflow requires those artefacts to live in the actual branch diff for auditability.
+
+17. Rebuild `test/srt-poc` from `origin/master` and replay only the MVP commits.
+Reason: the original branch name was attached to a large stacked diff. A clean reviewable branch was required before any PR-style quality verdict could be trusted.
+
+18. Rebase the API proof onto the current `master` fixture model and keep exact assertions on `200` responses.
+Reason: the stacked-branch version depended on utilities that do not exist on `master`, and the contract proof was too permissive if a `200` returned the wrong shape.
+
+19. Reduce the UI proof to one current-master-compatible manage-tasks journey and remove the dead search/hearings specs.
+Reason: the previous three mocked UI specs depended on harness files and page objects that are not present on `master`. Keeping them would have left non-runnable code in the clean branch.

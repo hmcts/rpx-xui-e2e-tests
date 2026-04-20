@@ -16,8 +16,8 @@
 - [x] Keep targeted API proof runnable without full UI global session warmup.
 - [x] Run focused validation:
   - [x] `yarn lint`
-  - [x] `PW_SKIP_UI_GLOBAL_SETUP=1 yarn playwright test --project=api src/tests/api/exui-central-assurance.api.ts`
-  - [x] `PW_SKIP_UI_GLOBAL_SETUP=1 yarn playwright test --project=ui src/tests/integration/manageTasks/availableTasks/serviceFamilies.positive.spec.ts src/tests/integration/searchCase/serviceFamilies.positive.spec.ts src/tests/integration/hearings/serviceFamilies.positive.spec.ts`
+- [x] `PW_UI_STORAGE=0 ./node_modules/.bin/playwright test --project=api src/tests/api/exui-central-assurance.api.ts`
+- [x] `PW_UI_STORAGE=0 ./node_modules/.bin/playwright test --project=ui src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
   - [x] live shell probe for `/work/my-work/list`
   - [x] `git diff --check`
 - [x] Update `docs/srt-poc/*` with the implemented MVP and validation outcome.
