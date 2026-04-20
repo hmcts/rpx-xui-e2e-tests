@@ -1,0 +1,23 @@
+# TODO
+
+- [x] Confirm the repo, branch, and MVP scope for `Lane 1: Superservice Configuration`.
+- [x] Add a shared EXUI service-family scenario catalogue under `src/data/`.
+- [x] Add focused API proof for:
+  - [x] global search service families
+  - [x] WA-supported service families
+  - [x] staff-supported service families
+  - [x] internal catalogue and guard-helper coverage
+- [x] Add thin mocked integration proofs for:
+  - [x] manage tasks available-task families
+  - [x] global search service-family dropdown
+  - [x] hearings supported and unsupported family behaviour
+- [x] Reuse existing helper seams and avoid introducing any new `_helpers` folders.
+- [x] Add a shared UI-shell availability probe so the new UI proofs skip when the host is returning gateway failures.
+- [x] Keep targeted API proof runnable without full UI global session warmup.
+- [x] Run focused validation:
+  - [x] `yarn lint`
+  - [x] `PW_SKIP_UI_GLOBAL_SETUP=1 yarn playwright test --project=api src/tests/api/exui-central-assurance.api.ts`
+  - [x] `PW_SKIP_UI_GLOBAL_SETUP=1 yarn playwright test --project=ui src/tests/integration/manageTasks/availableTasks/serviceFamilies.positive.spec.ts src/tests/integration/searchCase/serviceFamilies.positive.spec.ts src/tests/integration/hearings/serviceFamilies.positive.spec.ts`
+  - [x] live shell probe for `/work/my-work/list`
+  - [x] `git diff --check`
+- [x] Update `docs/srt-poc/*` with the implemented MVP and validation outcome.
