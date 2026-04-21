@@ -7,17 +7,21 @@
   - [x] WA-supported service families
   - [x] staff-supported service families
   - [x] internal catalogue and guard-helper coverage
-- [x] Add thin mocked integration proofs for:
+- [x] Add direct coverage for extracted shared support:
+  - [x] authenticated exact-contract context
+  - [x] UI-host availability probe behaviour
+  - [x] manage-tasks route registration
+- [x] Add one thin mocked integration proof for:
   - [x] manage tasks available-task families
-  - [x] global search service-family dropdown
-  - [x] hearings supported and unsupported family behaviour
 - [x] Reuse existing helper seams and avoid introducing any new `_helpers` folders.
 - [x] Add a shared UI-shell availability probe so the new UI proofs skip when the host is returning gateway failures.
-- [x] Keep targeted API proof runnable without full UI global session warmup.
+- [x] Keep targeted API proof on the repo API-auth path instead of falling back to missing UI cookie files.
+- [x] Keep the manage-tasks UI proof on a cached user identity that actually exists in this checkout.
+- [x] Mock the EXUI user-details entitlement seam for the manage-tasks proof so the filter reflects the central WA family set deterministically.
 - [x] Run focused validation:
-  - [x] `yarn lint`
+  - [x] `./node_modules/.bin/eslint src/tests/api/exui-central-assurance.api.ts src/data/exui-central-assurance.ts src/utils/ui/uiHostAvailability.ts src/tests/e2e/integration/utils/taskListRoutes.ts src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
 - [x] `PW_UI_STORAGE=0 ./node_modules/.bin/playwright test --project=api src/tests/api/exui-central-assurance.api.ts`
-- [x] `PW_UI_STORAGE=0 ./node_modules/.bin/playwright test --project=ui src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
+- [x] `PW_UI_STORAGE=0 PW_CHROMIUM_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' npx playwright test --project=ui src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts --timeout=60000 --global-timeout=90000`
   - [x] live shell probe for `/work/my-work/list`
   - [x] `git diff --check`
 - [x] Update `docs/srt-poc/*` with the implemented MVP and validation outcome.

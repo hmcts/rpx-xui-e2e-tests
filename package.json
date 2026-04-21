@@ -11,7 +11,7 @@
     "pwinstall": "yarn playwright install --with-deps",
     "setup": "yarn install --immutable && yarn get-secrets rpx-aat && yarn pwinstall && yarn playwright install webkit && yarn playwright install firefox",
     "get-secrets": "node ./node_modules/@hmcts/playwright-common/dist/scripts/get-secrets.js",
-    "lint": "yarn tsc -p tsconfig.json && yarn eslint .",
+    "lint": "yarn tsc -p tsconfig.json && ./node_modules/.bin/eslint .",
     "ui:session": "node ./scripts/record-ui-session.mjs",
     "test:api": "PLAYWRIGHT_REPORTERS=list,odhin yarn playwright test --project=api",
     "test:api:ci": "PLAYWRIGHT_REPORTERS=list,odhin,junit yarn playwright test --project=api",

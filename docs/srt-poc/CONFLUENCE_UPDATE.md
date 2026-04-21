@@ -243,10 +243,9 @@ It is therefore useful both as supporting evidence for the overall model and as 
 The consumer repo is stronger than a blank Playwright shell. It already has partial coverage or support seams for all three Configuration Lane seam classes:
 
 - `service-list endpoints`
-  - `src/tests/integration/helpers/taskListMockRoutes.helper.ts`
-  - `src/tests/integration/helpers/caseSearchMockRoutes.helper.ts`
+  - existing manage-tasks and case-list integration seams under `src/tests/e2e/integration/**`
 - `UI bootstrap and role/environment config`
-  - `src/tests/integration/helpers/hearingsMockRoutes.helper.ts`
+  - current E2E and integration route/setup utilities under `src/tests/e2e/integration/**`
 - `consumer-side API contracts`
   - `src/tests/api/contract-tests.api.ts`
 
@@ -543,10 +542,9 @@ If this POC is accepted, the next implementation step should be:
    - WA supported services
    - staff supported services
    - UI bootstrap config where the repo already controls or mocks it
-4. Prove rendered behaviour through one thin integration slice across:
+4. Prove rendered behaviour through one current-master-compatible thin integration slice first:
    - `manageTasks`
-   - `searchCase`
-   - `hearings`
+   - keep `searchCase` and `hearings` as explicit follow-on rows until matching harness support exists on current `master`
 5. Anchor the first scenario rows to:
    - `IA` with explicit `Asylum` and `Bail`
    - `CIVIL`
@@ -554,10 +552,9 @@ If this POC is accepted, the next implementation step should be:
    - one exact role-sensitive hearings row
    - one contradictory or weak-evidence row such as `CMC` or `HRS`
 6. Reuse and extend current repo helpers rather than starting a new test stack:
-   - `taskListMockRoutes.helper.ts`
-   - `caseSearchMockRoutes.helper.ts`
-   - `hearingsMockRoutes.helper.ts`
+   - current manage-tasks route setup support
    - current API contract test support
+   - existing `src/tests/e2e/integration/**` page-object and session seams
 7. Record explicit proof obligations for Lane 2 and Lane 3 rather than bundling them into the same implementation promise.
 8. Keep grouped families and unresolved business labels as follow-on extensions, not blockers for the thin slice.
 

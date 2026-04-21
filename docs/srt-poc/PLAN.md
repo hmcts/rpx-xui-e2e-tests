@@ -19,11 +19,10 @@ Reason:
 ## Scope
 - `src/data/exui-central-assurance.ts`
 - `src/tests/api/exui-central-assurance.api.ts`
-- `src/tests/integration/manageTasks/availableTasks/serviceFamilies.positive.spec.ts`
-- `src/tests/integration/searchCase/serviceFamilies.positive.spec.ts`
-- `src/tests/integration/hearings/serviceFamilies.positive.spec.ts`
+- `src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
+- `src/tests/e2e/integration/utils/taskListRoutes.ts`
 - `src/utils/ui/uiHostAvailability.ts`
-- `src/global/ui.global.setup.ts`
+- `package.json`
 - `docs/srt-poc/PLAN.md`
 - `docs/srt-poc/TODO.md`
 - `docs/srt-poc/DECISIONS.md`
@@ -39,29 +38,32 @@ Reason:
 ## Acceptance Criteria
 1. A shared service-family scenario catalogue exists for the initial POC slice.
 2. API proof asserts the exact EXUI-owned family lists for:
-   - global search
-   - work allocation
-   - staff-supported services
-3. Thin mocked UI proofs exist for:
-   - manage tasks
-   - search case
-   - hearings
-4. The new UI proofs skip cleanly when the shared EXUI shell is unavailable with `502`, `503`, `504`, or equivalent route-level connectivity failure.
-5. Traceability artefacts record:
+   - work allocation via `api/wa-supported-jurisdiction/get`
+   - staff-supported services via `api/staff-supported-jurisdiction/get`
+   - global search object shape plus presence of the central must-run family set
+3. The branch includes direct helper coverage for the extracted shared support used by this MVP:
+   - UI-host availability probing
+   - manage-tasks route registration
+4. One thin mocked UI proof exists for `manageTasks` and uses a real cached UI session plus mocked EXUI user-details role assignments so the filter is driven by the central supported-family set rather than live user entitlement drift.
+5. The new UI proofs skip cleanly when the shared EXUI shell is unavailable with `502`, `503`, `504`, or equivalent route-level connectivity failure.
+6. Traceability artefacts record:
    - what was implemented
    - what passed
    - what skipped and why
    - what remains for the next loop
 
 ## Loop Plan
-1. Planner: lock the MVP shape around one catalogue, one exact API layer, and three thin mocked UI journeys.
-2. Builder: implement the catalogue, API proofs, UI proofs, and minimal shared support needed to keep the lane review-clean.
-3. Critical-Reviewer: remove avoidable coupling and warning noise, especially around test-layer boundaries and environment handling.
+1. Planner: lock the MVP shape around one catalogue, one exact API layer, and one current-master-compatible mocked UI journey.
+2. Builder: implement the catalogue, API proofs, helper coverage, and minimal shared support needed to keep the lane review-clean.
+3. Critical-Reviewer: remove avoidable coupling, stale claims, and warning noise, especially around auth/session handling and evidence quality.
 4. Tester: run lint, the focused API proof, the focused UI proof, live shell probes, and diff hygiene checks.
 
 ## Target Outcome
 Land a credible local-worktree MVP for the Configuration Lane that:
 - proves the exact family lists EXUI exposes today
-- proves the intended mocked UI journeys are wired and runnable
+- proves the exact node-backed `/get` family lists for WA and staff-supported services
+- proves the global-search endpoint contains the central must-run families without depending on live ref-data labels remaining static
+- proves the manage-tasks mocked UI journey is wired and runnable
+- proves the extracted helper modules have direct deterministic coverage
 - avoids false-red failures when the shared shell is down
-- leaves a clear follow-up to rerun the UI journeys against a healthy environment
+- leaves a clear follow-up to extend the UI slice to search and hearings on current-master-compatible harness
