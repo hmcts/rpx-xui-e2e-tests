@@ -2,9 +2,8 @@ import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
 import {
   createFindCaseSearchResultsRouteHandler,
-  ensureUiSessionOrSkip,
-  setupFindCaseMockRoutes,
-  startFindCaseJourney
+  ensureUiSessionAccess,
+  setupFindCaseMockRoutes
 } from "../helpers/index.js";
 import {
   buildFindCaseCaseDetailsMock,
@@ -28,7 +27,7 @@ test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async ({ browser }, testInfo) => {
   void browser;
-  await ensureUiSessionOrSkip(userIdentifier, testInfo);
+  await ensureUiSessionAccess(userIdentifier, testInfo);
 });
 
 test.beforeEach(async ({ page }) => {
@@ -54,12 +53,16 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(`Find Case as ${userIdentifier}`, () => {
-  test("User can find an existing case from Find case filters", async ({ caseSearchPage, page }) => {
-    await startFindCaseJourney(
+  test("User can find an existing case from Find case filters", async ({
+    caseListPage,
+    caseSearchPage,
+    page
+  }) => {
+    await caseListPage.navigateTo();
+    await caseSearchPage.startFindCaseJourney(
       existingCaseReference,
       FIND_CASE_CASE_TYPE_LABEL,
-      FIND_CASE_JURISDICTION_LABEL,
-      caseSearchPage
+      FIND_CASE_JURISDICTION_LABEL
     );
 
     const searchResultsSummary = page.locator("#search-result .pagination-top");
@@ -73,14 +76,15 @@ test.describe(`Find Case as ${userIdentifier}`, () => {
   });
 
   test("User sees no cases found message for non-existent 16-digit case reference", async ({
+    caseListPage,
     caseSearchPage,
     page
   }) => {
-    await startFindCaseJourney(
+    await caseListPage.navigateTo();
+    await caseSearchPage.startFindCaseJourney(
       nonExistentCaseReference,
       FIND_CASE_CASE_TYPE_LABEL,
-      FIND_CASE_JURISDICTION_LABEL,
-      caseSearchPage
+      FIND_CASE_JURISDICTION_LABEL
     );
 
     const searchResult = page.locator("#search-result");

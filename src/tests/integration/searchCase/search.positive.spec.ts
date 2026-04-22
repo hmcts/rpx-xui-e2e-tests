@@ -2,9 +2,8 @@ import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
 import {
   createGlobalSearchResultsRouteHandler,
-  ensureUiSessionOrSkip,
-  setupGlobalSearchMockRoutes,
-  submitHeaderQuickSearch
+  ensureUiSessionAccess,
+  setupGlobalSearchMockRoutes
 } from "../helpers/index.js";
 import {
   buildCaseDetailsMock,
@@ -30,7 +29,7 @@ test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async ({ browser }, testInfo) => {
   void browser;
-  await ensureUiSessionOrSkip(userIdentifier, testInfo);
+  await ensureUiSessionAccess(userIdentifier, testInfo);
 });
 
 test.beforeEach(async ({ page }) => {
@@ -66,7 +65,9 @@ test.describe(`Search quick find as ${userIdentifier}`, () => {
     caseDetailsPage,
     page
   }) => {
-    await submitHeaderQuickSearch(VALID_SEARCH_CASE_REFERENCE, caseListPage, caseSearchPage);
+    await caseListPage.navigateTo();
+    await expect(caseSearchPage.caseIdTextBox).toBeVisible();
+    await caseSearchPage.searchWith16DigitCaseId(VALID_SEARCH_CASE_REFERENCE);
 
     await expect(page).toHaveURL(/\/cases\/case-details\//);
     await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
@@ -80,16 +81,12 @@ test.describe(`Search quick find as ${userIdentifier}`, () => {
     caseSearchPage,
     page
   }) => {
-    await submitHeaderQuickSearch(INVALID_SEARCH_CASE_REFERENCE, caseListPage, caseSearchPage);
+    await caseListPage.navigateTo();
+    await expect(caseSearchPage.caseIdTextBox).toBeVisible();
+    await caseSearchPage.searchWith16DigitCaseId(INVALID_SEARCH_CASE_REFERENCE);
 
     await expect(page).not.toHaveURL(/\/cases\/case-details\//);
-    await expect
-      .poll(() => page.url(), { timeout: 20_000 })
-      .toMatch(/\/(cases(?:[/?#]|$)|search\/noresults(?:[/?#]|$))/);
-
-    const noResultsContent = page
-      .getByRole("heading", { level: 1, name: "No results found" })
-      .or(page.getByText("No cases found. Try using different filters."));
-    await expect.soft(noResultsContent.first()).toBeVisible();
+    await expect(page).toHaveURL(/\/cases(?:[/?#]|$)/);
+    await expect(page.getByText("No cases found. Try using different filters.")).toBeVisible();
   });
 });

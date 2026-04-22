@@ -1,10 +1,9 @@
 import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
 import {
-  ensureUiSessionOrSkip,
+  ensureUiSessionAccess,
   overrideFindCaseSearchResultsRoute,
-  setupFindCaseMockRoutes,
-  startFindCaseJourney
+  setupFindCaseMockRoutes
 } from "../helpers/index.js";
 import {
   buildFindCaseEmptySearchResultsMock,
@@ -29,7 +28,7 @@ test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async ({ browser }, testInfo) => {
   void browser;
-  await ensureUiSessionOrSkip(userIdentifier, testInfo);
+  await ensureUiSessionAccess(userIdentifier, testInfo);
 });
 
 test.beforeEach(async ({ page }) => {
@@ -49,6 +48,7 @@ test.beforeEach(async ({ page }) => {
 test.describe(`Find Case negative flows as ${userIdentifier}`, () => {
   for (const status of SEARCH_CASE_ERROR_STATUS_CODES) {
     test(`does not navigate to case details when searchCases returns HTTP ${status}`, async ({
+      caseListPage,
       caseSearchPage,
       page
     }) => {
@@ -62,11 +62,11 @@ test.describe(`Find Case negative flows as ${userIdentifier}`, () => {
         });
       });
 
-      await startFindCaseJourney(
+      await caseListPage.navigateTo();
+      await caseSearchPage.startFindCaseJourney(
         existingCaseReference,
         FIND_CASE_CASE_TYPE_LABEL,
-        FIND_CASE_JURISDICTION_LABEL,
-        caseSearchPage
+        FIND_CASE_JURISDICTION_LABEL
       );
 
       expect(searchRequestSeen).toBeTruthy();
@@ -76,6 +76,7 @@ test.describe(`Find Case negative flows as ${userIdentifier}`, () => {
   }
 
   test("does not navigate to case details when searchCases response is malformed JSON", async ({
+    caseListPage,
     caseSearchPage,
     page
   }) => {
@@ -89,11 +90,11 @@ test.describe(`Find Case negative flows as ${userIdentifier}`, () => {
       });
     });
 
-    await startFindCaseJourney(
+    await caseListPage.navigateTo();
+    await caseSearchPage.startFindCaseJourney(
       existingCaseReference,
       FIND_CASE_CASE_TYPE_LABEL,
-      FIND_CASE_JURISDICTION_LABEL,
-      caseSearchPage
+      FIND_CASE_JURISDICTION_LABEL
     );
 
     expect(searchRequestSeen).toBeTruthy();
@@ -102,6 +103,7 @@ test.describe(`Find Case negative flows as ${userIdentifier}`, () => {
   });
 
   test("does not navigate to case details when searchCases request times out", async ({
+    caseListPage,
     caseSearchPage,
     page
   }) => {
@@ -111,11 +113,11 @@ test.describe(`Find Case negative flows as ${userIdentifier}`, () => {
       await route.abort("timedout");
     });
 
-    await startFindCaseJourney(
+    await caseListPage.navigateTo();
+    await caseSearchPage.startFindCaseJourney(
       existingCaseReference,
       FIND_CASE_CASE_TYPE_LABEL,
-      FIND_CASE_JURISDICTION_LABEL,
-      caseSearchPage
+      FIND_CASE_JURISDICTION_LABEL
     );
 
     expect(searchRequestSeen).toBeTruthy();

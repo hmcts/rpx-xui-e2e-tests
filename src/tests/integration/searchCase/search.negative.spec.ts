@@ -2,9 +2,8 @@ import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
 import {
   createGlobalSearchResultsRouteHandler,
-  ensureUiSessionOrSkip,
-  setupGlobalSearchMockRoutes,
-  submitHeaderQuickSearch
+  ensureUiSessionAccess,
+  setupGlobalSearchMockRoutes
 } from "../helpers/index.js";
 import {
   buildGlobalSearchNoResultsMock,
@@ -32,7 +31,7 @@ test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async ({ browser }, testInfo) => {
   void browser;
-  await ensureUiSessionOrSkip(userIdentifier, testInfo);
+  await ensureUiSessionAccess(userIdentifier, testInfo);
 });
 
 test.beforeEach(async ({ page }) => {
@@ -89,16 +88,15 @@ test.describe(`Header quick search negative flows as ${userIdentifier}`, () => {
         });
       });
 
-      await submitHeaderQuickSearch(VALID_SEARCH_CASE_REFERENCE, caseListPage, caseSearchPage, {
-        navigationMode: "shell",
-        waitForSpinner: false
-      });
+      await caseListPage.navigateTo();
+      await expect(caseSearchPage.caseIdTextBox).toBeVisible();
+      await caseSearchPage.searchWith16DigitCaseId(VALID_SEARCH_CASE_REFERENCE);
 
       await expect.poll(() => caseDetailsRequestSeen, { timeout: 20_000 }).toBe(true);
       await expect(page).not.toHaveURL(/\/cases\/case-details\//);
       await expect
         .poll(() => page.url(), { timeout: 20_000 })
-        .toMatch(/\/(cases(?:[/?#]|$)|work\/my-work\/list(?:[/?#]|$)|search\/noresults(?:[/?#]|$))/);
+        .toMatch(/\/(cases(?:[/?#]|$)|work\/my-work\/list(?:[/?#]|$))/);
     });
   }
 
@@ -117,10 +115,9 @@ test.describe(`Header quick search negative flows as ${userIdentifier}`, () => {
       });
     });
 
-    await submitHeaderQuickSearch(VALID_SEARCH_CASE_REFERENCE, caseListPage, caseSearchPage, {
-      navigationMode: "shell",
-      waitForSpinner: false
-    });
+    await caseListPage.navigateTo();
+    await expect(caseSearchPage.caseIdTextBox).toBeVisible();
+    await caseSearchPage.searchWith16DigitCaseId(VALID_SEARCH_CASE_REFERENCE);
 
     await expect.poll(() => caseDetailsRequestSeen, { timeout: 20_000 }).toBe(true);
     await expect(page).toHaveURL(new RegExp(`/cases/restricted-case-access/${VALID_SEARCH_CASE_REFERENCE}`));
@@ -144,16 +141,15 @@ test.describe(`Header quick search negative flows as ${userIdentifier}`, () => {
       });
     });
 
-    await submitHeaderQuickSearch(VALID_SEARCH_CASE_REFERENCE, caseListPage, caseSearchPage, {
-      navigationMode: "shell",
-      waitForSpinner: false
-    });
+    await caseListPage.navigateTo();
+    await expect(caseSearchPage.caseIdTextBox).toBeVisible();
+    await caseSearchPage.searchWith16DigitCaseId(VALID_SEARCH_CASE_REFERENCE);
 
     await expect.poll(() => caseDetailsRequestSeen, { timeout: 20_000 }).toBe(true);
     await expect(page).not.toHaveURL(/\/cases\/case-details\//);
     await expect
       .poll(() => page.url(), { timeout: 20_000 })
-      .toMatch(/\/(cases(?:[/?#]|$)|work\/my-work\/list(?:[/?#]|$)|search\/noresults(?:[/?#]|$))/);
+      .toMatch(/\/(cases(?:[/?#]|$)|work\/my-work\/list(?:[/?#]|$))/);
   });
 
   test("handles timed-out case-details request from header quick search", async ({
@@ -167,15 +163,14 @@ test.describe(`Header quick search negative flows as ${userIdentifier}`, () => {
       await route.abort("timedout");
     });
 
-    await submitHeaderQuickSearch(VALID_SEARCH_CASE_REFERENCE, caseListPage, caseSearchPage, {
-      navigationMode: "shell",
-      waitForSpinner: false
-    });
+    await caseListPage.navigateTo();
+    await expect(caseSearchPage.caseIdTextBox).toBeVisible();
+    await caseSearchPage.searchWith16DigitCaseId(VALID_SEARCH_CASE_REFERENCE);
 
     await expect.poll(() => caseDetailsRequestSeen, { timeout: 20_000 }).toBe(true);
     await expect(page).not.toHaveURL(/\/cases\/case-details\//);
     await expect
       .poll(() => page.url(), { timeout: 20_000 })
-      .toMatch(/\/(cases(?:[/?#]|$)|work\/my-work\/list(?:[/?#]|$)|search\/noresults(?:[/?#]|$))/);
+      .toMatch(/\/(cases(?:[/?#]|$)|work\/my-work\/list(?:[/?#]|$))/);
   });
 });

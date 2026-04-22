@@ -23,7 +23,12 @@ const discoverUsersFromEnv = (): string[] => {
   const configured = Object.keys(USER_ENV_MAP);
   return configured.filter((key) => {
     const mapping = USER_ENV_MAP[key];
-    return Boolean(process.env[mapping.username] && process.env[mapping.password]);
+    const usernames = Array.isArray(mapping.username) ? mapping.username : [mapping.username];
+    const passwords = Array.isArray(mapping.password) ? mapping.password : [mapping.password];
+    return Boolean(
+      usernames.some((candidate) => Boolean(process.env[candidate])) &&
+      passwords.some((candidate) => Boolean(process.env[candidate]))
+    );
   });
 };
 

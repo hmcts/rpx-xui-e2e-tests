@@ -1,6 +1,6 @@
 import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { ensureUiSessionOrSkip } from "../helpers/index.js";
+import { ensureUiSessionAccess } from "../helpers/index.js";
 import { welshTranslationsSmall } from "../mocks/welshLanguage.mock.js";
 import { TEST_USERS } from "../testData/index.js";
 
@@ -10,7 +10,7 @@ test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async ({ browser }, testInfo) => {
   void browser;
-  await ensureUiSessionOrSkip(userIdentifier, testInfo);
+  await ensureUiSessionAccess(userIdentifier, testInfo);
 });
 
 test.describe("Verify users can switch the language when the translation endpoint fails", () => {

@@ -21,8 +21,9 @@
 ## D4: Keep new helpers focused and local to integration
 - Status: Accepted
 - Reason:
-  - Search and Welsh parity need route orchestration helpers, but this slice does not justify another shared support refactor.
+  - Search and Welsh parity need route orchestration helpers, but this slice does not justify a wider shared-fixture rewrite.
   - No `_helpers` folder is introduced.
+  - Extracted route-selection logic is covered directly under `src/tests/api` so the split is reviewable.
 
 ## D5: Keep existing nested `src/tests/e2e/integration` tests unchanged
 - Status: Accepted
@@ -30,15 +31,21 @@
   - Moving legacy master tests into the new folder would add churn without increasing parity coverage.
   - This branch adds the new `src/tests/integration` tree incrementally.
 
-## D6: Use existing credential identifiers for this slice
+## D6: Preserve the source suite's dedicated search-session identifier while keeping repo compatibility
 - Status: Accepted
 - Reason:
-  - clean master already provisions `SOLICITOR` and `CASEWORKER_R1` in repo config and Jenkins
-  - the closed branch's `FPL_GLOBAL_SEARCH` identifier is not present on clean master
-  - this keeps the first parity slice runnable without bundling extra secret-contract churn
+  - the source parity suite uses `FPL_GLOBAL_SEARCH` as the search-session contract, so the destination repo should keep that identifier.
+  - this branch maps `FPL_GLOBAL_SEARCH_*` first and falls back to `CASEWORKER_R1_*` so current repo/Jenkins environments still work without inventing a different logical user.
 
-## D7: Skip integration specs when local credentials are absent
+## D7: Missing credentials fail by default; local skip is explicit opt-in only
 - Status: Accepted
 - Reason:
-  - local validation in this worktree is currently blocked by missing UI secrets and an Azure Key Vault issuer mismatch
-  - explicit skip gating keeps the suite honest locally while still allowing CI or a credentialed rerun to execute the full pack
+  - default skipping can let CI go green while executing none of the new parity coverage.
+  - `PW_ALLOW_MISSING_UI_CREDS_SKIP=1` is allowed only for local convenience and is disabled when `CI` is set.
+
+## D8: Search entrypoints must stay strict
+- Status: Accepted
+- Reason:
+  - quick-search parity only has value if it proves the real header search affordance exists and works.
+  - global-search parity only has value if it proves the primary-nav search link exists and works.
+  - direct `/search` fallbacks were removed from the new page-object/spec path.

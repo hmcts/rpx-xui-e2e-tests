@@ -1,6 +1,6 @@
 import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { ensureUiSessionOrSkip } from "../helpers/index.js";
+import { ensureUiSessionAccess } from "../helpers/index.js";
 import { TEST_USERS } from "../testData/index.js";
 
 const userIdentifier = TEST_USERS.SOLICITOR;
@@ -9,7 +9,7 @@ test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async ({ browser }, testInfo) => {
   void browser;
-  await ensureUiSessionOrSkip(userIdentifier, testInfo);
+  await ensureUiSessionAccess(userIdentifier, testInfo);
 });
 
 test.describe("@nightly Welsh language backend smoke", () => {

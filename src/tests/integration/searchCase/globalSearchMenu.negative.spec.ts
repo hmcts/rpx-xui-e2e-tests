@@ -1,10 +1,9 @@
 import { expect, test } from "../../../fixtures/ui";
 import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
 import {
-  ensureUiSessionOrSkip,
+  ensureUiSessionAccess,
   overrideGlobalSearchResultsRoute,
-  setupGlobalSearchMockRoutes,
-  submitGlobalSearchFromMenu
+  setupGlobalSearchMockRoutes
 } from "../helpers/index.js";
 import {
   buildGlobalSearchJurisdictionsMock,
@@ -27,7 +26,7 @@ test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
 
 test.beforeAll(async ({ browser }, testInfo) => {
   void browser;
-  await ensureUiSessionOrSkip(userIdentifier, testInfo);
+  await ensureUiSessionAccess(userIdentifier, testInfo);
 });
 
 test.beforeEach(async ({ page }) => {
@@ -48,6 +47,7 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, () => {
   for (const status of SEARCH_CASE_ERROR_STATUS_CODES) {
     test(`shows error no-results page when global search returns HTTP ${status}`, async ({
       caseListPage,
+      globalSearchPage,
       page
     }) => {
       let searchRequestSeen = false;
@@ -60,7 +60,8 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, () => {
         });
       });
 
-      await submitGlobalSearchFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, caseListPage, page);
+      await caseListPage.navigateTo();
+      await globalSearchPage.submitFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, "PUBLICLAW");
 
       expect(searchRequestSeen).toBeTruthy();
       await expect(page).toHaveURL(/\/search\/noresults/);
@@ -71,6 +72,7 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, () => {
 
   test("shows error no-results page when global search response is malformed JSON", async ({
     caseListPage,
+    globalSearchPage,
     page
   }) => {
     let searchRequestSeen = false;
@@ -83,7 +85,8 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, () => {
       });
     });
 
-    await submitGlobalSearchFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, caseListPage, page);
+    await caseListPage.navigateTo();
+    await globalSearchPage.submitFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, "PUBLICLAW");
 
     expect(searchRequestSeen).toBeTruthy();
     await expect(page).toHaveURL(/\/search\/noresults/);
@@ -93,6 +96,7 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, () => {
 
   test("shows error no-results page when global search request times out", async ({
     caseListPage,
+    globalSearchPage,
     page
   }) => {
     let searchRequestSeen = false;
@@ -101,7 +105,8 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, () => {
       await route.abort("timedout");
     });
 
-    await submitGlobalSearchFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, caseListPage, page);
+    await caseListPage.navigateTo();
+    await globalSearchPage.submitFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, "PUBLICLAW");
 
     expect(searchRequestSeen).toBeTruthy();
     await expect(page).toHaveURL(/\/search\/noresults/);
