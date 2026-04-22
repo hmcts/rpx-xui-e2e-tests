@@ -25,6 +25,28 @@ test.describe("Session and user utilities coverage", () => {
     );
   });
 
+  test("UserUtils resolves restricted case file view users from parity env aliases", async () => {
+    await withEnv(
+      {
+        RESTRICTED_CASE_FILE_VIEW_V1_1_ON_USERNAME: "xui_casefileview_v11_on@mailinator.com",
+        RESTRICTED_CASE_FILE_VIEW_V1_1_ON_PASSWORD: "Welcome01",
+        RESTRICTED_CASE_FILE_VIEW_OFF_USERNAME: "xui_casefileview_off@mailinator.com",
+        RESTRICTED_CASE_FILE_VIEW_OFF_PASSWORD: "Welcome02"
+      },
+      () => {
+        const userUtils = new UserUtils();
+        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_ON")).toEqual({
+          email: "xui_casefileview_v11_on@mailinator.com",
+          password: "Welcome01"
+        });
+        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_OFF")).toEqual({
+          email: "xui_casefileview_off@mailinator.com",
+          password: "Welcome02"
+        });
+      }
+    );
+  });
+
   test("loadSessionCookies reads stored cookies and handles invalid data", async () => {
     await withEnv(
       { SOLICITOR_USERNAME: "user@example.com", SOLICITOR_PASSWORD: "pass" },
