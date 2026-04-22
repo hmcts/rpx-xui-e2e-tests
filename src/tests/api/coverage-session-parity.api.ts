@@ -6,6 +6,7 @@ import {
   resolveSearchCaseUserIdentifier
 } from "../integration/helpers/searchCaseSession.helper";
 import {
+  resolveConfiguredWelshLanguageSessionIdentities,
   resolveWelshLanguageSessionUser,
   resolveWelshLanguageSessionUsers
 } from "../integration/helpers/welshLanguageSession.helper";
@@ -39,6 +40,30 @@ test.describe("Parity session helper coverage", () => {
         expect(resolveWelshLanguageSessionUser({ workerIndex: 0 })).toBe("PRL_SOLICITOR");
         expect(resolveWelshLanguageSessionUser({ workerIndex: 1 })).toBe("SOLICITOR");
         expect(resolveWelshLanguageSessionUser({ workerIndex: 2 })).toBe("PRL_SOLICITOR");
+      }
+    );
+  });
+
+  test("Welsh-language session helpers collapse duplicate-email aliases into one pooled identity", async () => {
+    await withEnv(
+      {
+        PW_WELSH_LANGUAGE_SESSION_USERS: "PRL_SOLICITOR,SOLICITOR",
+        SOLICITOR_USERNAME: "shared.solicitor@example.com",
+        SOLICITOR_PASSWORD: "solicitor-pass",
+        PRL_SOLICITOR_USERNAME: "shared.solicitor@example.com",
+        PRL_SOLICITOR_PASSWORD: "prl-pass"
+      },
+      () => {
+        expect(resolveConfiguredWelshLanguageSessionIdentities()).toEqual([
+          {
+            email: "shared.solicitor@example.com",
+            leaseKey: "shared.solicitor_example.com",
+            userIdentifier: "PRL_SOLICITOR"
+          }
+        ]);
+        expect(resolveWelshLanguageSessionUsers()).toEqual(["PRL_SOLICITOR"]);
+        expect(resolveWelshLanguageSessionUser({ workerIndex: 0 })).toBe("PRL_SOLICITOR");
+        expect(resolveWelshLanguageSessionUser({ workerIndex: 1 })).toBe("PRL_SOLICITOR");
       }
     );
   });

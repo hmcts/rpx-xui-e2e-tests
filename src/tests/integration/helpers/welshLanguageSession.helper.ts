@@ -5,7 +5,7 @@ import type { Page, TestInfo } from "@playwright/test";
 
 import config from "../../../utils/ui/config.utils.js";
 import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
-import { UserUtils } from "../../../utils/ui/user.utils.js";
+import { USER_ENV_MAP } from "../../../utils/ui/user.utils.js";
 import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js";
 
 const defaultWelshLanguageSessionUsers = [
@@ -18,6 +18,12 @@ const welshLanguageLeaseRoot = path.join(process.cwd(), ".sessions", "welsh-lang
 const welshLanguageLeaseStaleMs = 5 * 60 * 1000;
 const welshLanguageLeaseRetryMs = 1_000;
 const welshLanguageLeaseMaxWaitMs = 2 * 60 * 1000;
+
+export type WelshLanguageSessionIdentity = {
+  email: string;
+  leaseKey: string;
+  userIdentifier: string;
+};
 
 export type WelshLanguageSessionLease = {
   release: () => Promise<void>;
@@ -41,13 +47,54 @@ function ensureDirectory(dirPath: string) {
   }
 }
 
-function toLeaseKey(userIdentifier: string): string {
-  return userIdentifier.toLowerCase().replace(/[^a-z0-9._-]+/g, "_");
+function toLeaseKey(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "_");
 }
 
-async function acquireWelshLanguageLease(userIdentifier: string): Promise<() => Promise<void>> {
+function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function resolveEnvValue(value: string | string[], env: NodeJS.ProcessEnv): string | undefined {
+  const candidates = Array.isArray(value) ? value : [value];
+  for (const candidate of candidates) {
+    const resolved = env[candidate];
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return undefined;
+}
+
+function buildConfiguredIdentity(
+  userIdentifier: string,
+  env: NodeJS.ProcessEnv
+): WelshLanguageSessionIdentity | undefined {
+  const mapping = USER_ENV_MAP[userIdentifier];
+  if (!mapping) {
+    return undefined;
+  }
+
+  const email = resolveEnvValue(mapping.username, env)?.trim();
+  const password = resolveEnvValue(mapping.password, env);
+  if (!email || !password) {
+    return undefined;
+  }
+
+  return {
+    userIdentifier,
+    email,
+    leaseKey: toLeaseKey(email)
+  };
+}
+
+function resolveLeaseKey(user: string | WelshLanguageSessionIdentity): string {
+  return typeof user === "string" ? toLeaseKey(user) : user.leaseKey;
+}
+
+async function acquireWelshLanguageLease(user: string | WelshLanguageSessionIdentity): Promise<() => Promise<void>> {
   ensureDirectory(welshLanguageLeaseRoot);
-  const leasePath = path.join(welshLanguageLeaseRoot, toLeaseKey(userIdentifier));
+  const leasePath = path.join(welshLanguageLeaseRoot, resolveLeaseKey(user));
   const startedAt = Date.now();
 
   while (true) {
@@ -56,7 +103,7 @@ async function acquireWelshLanguageLease(userIdentifier: string): Promise<() => 
       fs.writeFileSync(
         path.join(leasePath, "lease.json"),
         JSON.stringify({
-          userIdentifier,
+          userIdentifier: typeof user === "string" ? user : user.userIdentifier,
           acquiredAt: new Date().toISOString(),
           pid: process.pid
         }),
@@ -88,21 +135,54 @@ async function acquireWelshLanguageLease(userIdentifier: string): Promise<() => 
   }
 }
 
-export function resolveWelshLanguageSessionUsers(env: NodeJS.ProcessEnv = process.env): string[] {
-  const userUtils = new UserUtils();
+export function resolveConfiguredWelshLanguageSessionIdentities(
+  env: NodeJS.ProcessEnv = process.env
+): WelshLanguageSessionIdentity[] {
   const configuredUserFilter = parseUserList(env.PW_WELSH_LANGUAGE_SESSION_USERS);
   const filteredDefaults =
     configuredUserFilter.length > 0 ? configuredUserFilter : [...defaultWelshLanguageSessionUsers];
-  const resolved = filteredDefaults.filter((userIdentifier) => userUtils.hasUserCredentials(userIdentifier));
+  const seenEmails = new Set<string>();
+
+  return filteredDefaults
+    .map((userIdentifier) => buildConfiguredIdentity(userIdentifier, env))
+    .filter((identity): identity is WelshLanguageSessionIdentity => Boolean(identity))
+    .filter((identity) => {
+      const normalizedEmail = normalizeEmail(identity.email);
+      if (seenEmails.has(normalizedEmail)) {
+        return false;
+      }
+      seenEmails.add(normalizedEmail);
+      return true;
+    });
+}
+
+function resolveWelshLanguageSessionPool(
+  env: NodeJS.ProcessEnv = process.env
+): Array<string | WelshLanguageSessionIdentity> {
+  const resolved = resolveConfiguredWelshLanguageSessionIdentities(env);
   return resolved.length > 0 ? resolved : ["SOLICITOR"];
+}
+
+function resolveWelshLanguageSessionCandidate(
+  testInfo: Pick<TestInfo, "workerIndex">,
+  env: NodeJS.ProcessEnv = process.env
+): string | WelshLanguageSessionIdentity {
+  const users = resolveWelshLanguageSessionPool(env);
+  return users[testInfo.workerIndex % users.length];
+}
+
+export function resolveWelshLanguageSessionUsers(env: NodeJS.ProcessEnv = process.env): string[] {
+  return resolveWelshLanguageSessionPool(env).map((user) =>
+    typeof user === "string" ? user : user.userIdentifier
+  );
 }
 
 export function resolveWelshLanguageSessionUser(
   testInfo: Pick<TestInfo, "workerIndex">,
   env: NodeJS.ProcessEnv = process.env
 ): string {
-  const users = resolveWelshLanguageSessionUsers(env);
-  return users[testInfo.workerIndex % users.length];
+  const resolved = resolveWelshLanguageSessionCandidate(testInfo, env);
+  return typeof resolved === "string" ? resolved : resolved.userIdentifier;
 }
 
 export async function ensureWelshLanguageSessionAccess(
@@ -119,8 +199,9 @@ export async function setupWelshLanguageSession(
   testInfo: Pick<TestInfo, "workerIndex" | "annotations">,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<WelshLanguageSessionLease> {
-  const userIdentifier = resolveWelshLanguageSessionUser(testInfo, env);
-  const release = await acquireWelshLanguageLease(userIdentifier);
+  const sessionUser = resolveWelshLanguageSessionCandidate(testInfo, env);
+  const userIdentifier = typeof sessionUser === "string" ? sessionUser : sessionUser.userIdentifier;
+  const release = await acquireWelshLanguageLease(sessionUser);
 
   try {
     await ensureUiStorageStateForUser(userIdentifier, { strict: true });
