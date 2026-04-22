@@ -20,6 +20,8 @@ export class CreateCasePage extends Base {
   readonly eventTypeSelect = this.page.locator("#cc-event");
   readonly startButton = this.page.getByRole("button", { name: "Start" });
   readonly submitButton = this.page.getByRole("button", { name: "Submit" });
+  readonly fileUploadInput = this.page.locator('input[type="file"]').first();
+  readonly fileUploadStatusLabel = this.page.locator(".upload-status, .hmcts-progress-bar").first();
 
   // Locators for the Divorce
   readonly person1Title = this.page.locator("#Person1_Title");
@@ -237,6 +239,58 @@ export class CreateCasePage extends Base {
     await this.waitForUiIdleState();
     await this.testSubmitButton.click();
     await this.waitForUiIdleState();
+  }
+
+  async uploadFile(
+    fileName: string,
+    mimeType: string,
+    fileContent: string,
+    fileInput?: Locator,
+    fileContentEncoding: BufferEncoding = "utf8"
+  ): Promise<void> {
+    const resolvedFileInput = fileInput ?? this.fileUploadInput;
+    const responsePromise = this.page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/document(sv2)?(?:[/?#]|$)/.test(new URL(response.url()).pathname),
+      { timeout: 60_000 }
+    );
+
+    await resolvedFileInput.setInputFiles({
+      name: fileName,
+      mimeType,
+      buffer: Buffer.from(fileContent, fileContentEncoding)
+    });
+
+    const response = await responsePromise;
+    expect(response.ok(), `Upload failed with HTTP ${response.status()}`).toBe(true);
+    await this.fileUploadStatusLabel.waitFor({ state: "hidden", timeout: 30_000 }).catch(() => undefined);
+  }
+
+  async clickContinueMultipleTimes(count: number): Promise<void> {
+    for (let index = 0; index < count; index += 1) {
+      const visible = await this.continueButton.isVisible().catch(() => false);
+      if (!visible) {
+        return;
+      }
+      await this.continueButton.click();
+      await this.waitForUiIdleStateLenient();
+    }
+  }
+
+  async clickSubmitAndWait(context: string): Promise<void> {
+    await this.submitButton.waitFor({ state: "visible", timeout: 30_000 });
+    await this.submitButton.click();
+    await this.waitForUiIdleStateLenient();
+    await Promise.any([
+      this.page.locator(".hmcts-banner--success .alert-message, .exui-alert .alert-message").first().waitFor({
+        state: "visible",
+        timeout: 30_000
+      }),
+      this.page.locator("exui-case-details-home").waitFor({ state: "visible", timeout: 30_000 })
+    ]).catch(() => {
+      throw new Error(`Expected case-details or success-banner confirmation ${context}`);
+    });
   }
 
   private async selectOptionWhenReady(

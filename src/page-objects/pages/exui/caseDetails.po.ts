@@ -4,6 +4,7 @@ import { ValidatorUtils } from "../../../utils/ui/validator.utils.js";
 import { Base } from "../../base";
 
 const validatorUtils = new ValidatorUtils();
+const MEDIA_VIEWER_ROUTE_PATTERN = /\/media-viewer(?:\?|$)/;
 
 export class CaseDetailsPage extends Base {
   readonly container = this.page.locator("exui-case-details-home");
@@ -18,6 +19,9 @@ export class CaseDetailsPage extends Base {
   readonly caseAlertSuccessMessage = this.page.locator(".hmcts-banner--success .alert-message");
   readonly caseNotificationBannerTitle = this.page.locator("#govuk-notification-banner-title");
   readonly caseNotificationBannerBody = this.page.locator(".govuk-notification-banner__heading");
+  readonly caseViewerTable = this.page.getByRole("table", { name: "case viewer table" });
+  readonly documentOneRow = this.caseViewerTable.getByRole("row", { name: /^Document 1\b/i }).first();
+  readonly documentOneAction = this.documentOneRow.locator("a,button").first();
 
   constructor(page: Page) {
     super(page);
@@ -98,6 +102,41 @@ export class CaseDetailsPage extends Base {
 
   async selectCaseDetailsTab(tabName: string) {
     await this.caseDetailsTabs.filter({ hasText: tabName }).click();
+  }
+
+  async getCurrentPageUrl(): Promise<string> {
+    return this.page.url();
+  }
+
+  async reopenCaseDetails(caseDetailsUrl: string): Promise<void> {
+    await this.page.goto(caseDetailsUrl);
+    await this.caseActionsDropdown.waitFor({ state: "visible", timeout: 60_000 });
+    await this.caseActionGoButton.waitFor({ state: "visible", timeout: 60_000 });
+  }
+
+  async openDocumentOne(): Promise<void> {
+    await this.documentOneAction.waitFor({ state: "visible", timeout: 30_000 });
+    await this.documentOneAction.click();
+  }
+
+  async openDocumentOneInMediaViewer(): Promise<Page> {
+    await this.openDocumentOne();
+
+    await this.page
+      .waitForFunction(
+        (routePatternSource) => {
+          const routePattern = new RegExp(routePatternSource);
+          return window.location.href.match(routePattern) !== null;
+        },
+        MEDIA_VIEWER_ROUTE_PATTERN.source,
+        { timeout: 30_000 }
+      )
+      .catch(() => undefined);
+
+    return this.page
+      .context()
+      .pages()
+      .find((candidate) => MEDIA_VIEWER_ROUTE_PATTERN.test(candidate.url())) ?? this.page;
   }
 
   async openHistoryTab(): Promise<void> {
