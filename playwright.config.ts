@@ -231,6 +231,48 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
         }
       },
       {
+        name: "integration",
+        testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
+        grepInvert: /@nightly/i,
+        retries: env.CI ? 1 : 0,
+        outputDir: "test-results/integration",
+        use: {
+          ...ProjectsConfig.chromium.use,
+          channel: env.PW_UI_CHANNEL,
+          viewport: CommonConfig.DEFAULT_VIEWPORT,
+          headless: true,
+          trace: "retain-on-failure",
+          screenshot: "only-on-failure",
+          video: "retain-on-failure",
+          launchOptions: chromiumExecutablePath
+            ? {
+                executablePath: chromiumExecutablePath
+              }
+            : undefined
+        }
+      },
+      {
+        name: "integration-nightly",
+        testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
+        grep: /@nightly/i,
+        retries: env.CI ? 1 : 0,
+        outputDir: "test-results/integration-nightly",
+        use: {
+          ...ProjectsConfig.chromium.use,
+          channel: env.PW_UI_CHANNEL,
+          viewport: CommonConfig.DEFAULT_VIEWPORT,
+          headless: true,
+          trace: "retain-on-failure",
+          screenshot: "only-on-failure",
+          video: "retain-on-failure",
+          launchOptions: chromiumExecutablePath
+            ? {
+                executablePath: chromiumExecutablePath
+              }
+            : undefined
+        }
+      },
+      {
         name: "api",
         testMatch: /src\/tests\/api\/.*\.api\.ts/,
         retries: env.CI ? 1 : 0,
