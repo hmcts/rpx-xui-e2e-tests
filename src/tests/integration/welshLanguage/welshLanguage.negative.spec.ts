@@ -1,20 +1,22 @@
 import { expect, test } from "../../../fixtures/ui";
-import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { ensureUiSessionAccess } from "../helpers/index.js";
+import {
+  ensureWelshLanguageSessionAccess,
+  setupWelshLanguageSession,
+  type WelshLanguageSessionLease
+} from "../helpers/index.js";
 import { welshTranslationsSmall } from "../mocks/welshLanguage.mock.js";
 import { TEST_USERS } from "../testData/index.js";
 
 const userIdentifier = TEST_USERS.SOLICITOR;
+let activeLease: WelshLanguageSessionLease | undefined;
 
-test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
-
-test.beforeAll(async ({ browser }, testInfo) => {
-  void browser;
-  await ensureUiSessionAccess(userIdentifier, testInfo);
+test.beforeAll(async ({}, testInfo) => {
+  await ensureWelshLanguageSessionAccess(testInfo);
 });
 
-test.describe("Verify users can switch the language when the translation endpoint fails", () => {
-  test.beforeEach(async ({ caseListPage, page }) => {
+test.describe(`Verify users can switch the language as ${userIdentifier} when the translation endpoint fails`, () => {
+  test.beforeEach(async ({ caseListPage, page }, testInfo) => {
+    activeLease = await setupWelshLanguageSession(page, testInfo);
     await page.route("**/api/translation/cy*", async (route) => {
       await route.fulfill({
         status: 500,
@@ -28,6 +30,11 @@ test.describe("Verify users can switch the language when the translation endpoin
       timeout: 30_000
     });
     await caseListPage.waitForReady(45_000);
+  });
+
+  test.afterEach(async () => {
+    await activeLease?.release();
+    activeLease = undefined;
   });
 
   test("Verify translations are not shown when the translation endpoint returns an error", async ({

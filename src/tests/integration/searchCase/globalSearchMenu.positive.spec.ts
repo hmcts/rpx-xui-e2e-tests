@@ -1,8 +1,8 @@
 import { expect, test } from "../../../fixtures/ui";
-import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
 import {
+  applySearchCaseSessionCookies,
   createGlobalSearchResultsRouteHandler,
-  ensureUiSessionAccess,
+  ensureSearchCaseSessionAccess,
   setupGlobalSearchMockRoutes
 } from "../helpers/index.js";
 import {
@@ -29,14 +29,12 @@ const globalSearchResultsHandler = createGlobalSearchResultsRouteHandler({
   noResultsResponse: globalSearchNoResultsMockResponse
 });
 
-test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
-
-test.beforeAll(async ({ browser }, testInfo) => {
-  void browser;
-  await ensureUiSessionAccess(userIdentifier, testInfo);
+test.beforeAll(async ({}, testInfo) => {
+  await ensureSearchCaseSessionAccess(testInfo);
 });
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  await applySearchCaseSessionCookies(page, testInfo);
   await setupGlobalSearchMockRoutes(page, {
     jurisdictions: jurisdictionsMockResponse,
     services: servicesMockResponse,

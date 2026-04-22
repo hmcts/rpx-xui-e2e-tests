@@ -1,24 +1,31 @@
 import { expect, test } from "../../../fixtures/ui";
-import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
-import { ensureUiSessionAccess } from "../helpers/index.js";
+import {
+  ensureWelshLanguageSessionAccess,
+  setupWelshLanguageSession,
+  type WelshLanguageSessionLease
+} from "../helpers/index.js";
 import { TEST_USERS } from "../testData/index.js";
 
 const userIdentifier = TEST_USERS.SOLICITOR;
+let activeLease: WelshLanguageSessionLease | undefined;
 
-test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
-
-test.beforeAll(async ({ browser }, testInfo) => {
-  void browser;
-  await ensureUiSessionAccess(userIdentifier, testInfo);
+test.beforeAll(async ({}, testInfo) => {
+  await ensureWelshLanguageSessionAccess(testInfo);
 });
 
-test.describe("@nightly Welsh language backend smoke", () => {
-  test.beforeEach(async ({ caseListPage, page }) => {
+test.describe(`@nightly Welsh language backend smoke as ${userIdentifier}`, () => {
+  test.beforeEach(async ({ caseListPage, page }, testInfo) => {
+    activeLease = await setupWelshLanguageSession(page, testInfo);
     await page.goto("/cases", {
       waitUntil: "domcontentloaded",
       timeout: 30_000
     });
     await caseListPage.waitForReady(45_000);
+  });
+
+  test.afterEach(async () => {
+    await activeLease?.release();
+    activeLease = undefined;
   });
 
   test("translation endpoint responds and language toggle switches to Welsh", async ({

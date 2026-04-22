@@ -1,7 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
-import { resolveUiStoragePathForUser } from "../../../utils/ui/storage-state.utils.js";
 import {
-  ensureUiSessionAccess,
+  applySearchCaseSessionCookies,
+  ensureSearchCaseSessionAccess,
   overrideFindCaseSearchResultsRoute,
   setupFindCaseMockRoutes
 } from "../helpers/index.js";
@@ -24,14 +24,12 @@ const existingCaseReference = TEST_CASE_REFERENCES.FIND_CASE_EXISTING;
 const jurisdictionMock = buildFindCaseJurisdictionsMock();
 const workBasketInputsMock = buildFindCaseWorkBasketInputsMock();
 
-test.use({ storageState: resolveUiStoragePathForUser(userIdentifier) });
-
-test.beforeAll(async ({ browser }, testInfo) => {
-  void browser;
-  await ensureUiSessionAccess(userIdentifier, testInfo);
+test.beforeAll(async ({}, testInfo) => {
+  await ensureSearchCaseSessionAccess(testInfo);
 });
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
+  await applySearchCaseSessionCookies(page, testInfo);
   await setupFindCaseMockRoutes(page, {
     jurisdictions: jurisdictionMock,
     workBasketInputs: workBasketInputsMock,

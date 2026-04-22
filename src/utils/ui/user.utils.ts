@@ -31,6 +31,14 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
     username: "PRL_SOLICITOR_USERNAME",
     password: "PRL_SOLICITOR_PASSWORD"
   },
+  WA_SOLICITOR: {
+    username: "WA_SOLICITOR_USERNAME",
+    password: "WA_SOLICITOR_PASSWORD"
+  },
+  NOC_SOLICITOR: {
+    username: "NOC_SOLICITOR_USERNAME",
+    password: "NOC_SOLICITOR_PASSWORD"
+  },
   FPL_GLOBAL_SEARCH: {
     username: ["FPL_GLOBAL_SEARCH_USERNAME", "CASEWORKER_R1_USERNAME"],
     password: ["FPL_GLOBAL_SEARCH_PASSWORD", "CASEWORKER_R1_PASSWORD"]
