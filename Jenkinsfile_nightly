@@ -277,7 +277,7 @@ withNightlyPipeline(type, product, component, 400) {
               'playwright-odhin-api.html',
               'Odhín nightly report-api'
             )
-            publishJunitIfPresent('playwright-junit.xml')
+            publishJunitIfPresent('playwright-junit-api.xml')
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
           }
         },

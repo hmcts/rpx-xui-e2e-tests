@@ -11,10 +11,6 @@ const TRANSIENT_FAILURE_PATTERNS: RegExp[] = [
   /status\s+5\d\d/i,
   /NETWORK_TIMEOUT/,
   /SLOW_API_RESPONSE/,
-  /The event could not be created/i,
-  /Validation error after/i,
-  /Something went wrong page was displayed/i,
-  /callback data failed validation/i,
   /timeout of \d+ms exceeded/i,
   /Timeout \d+ms exceeded/i,
   /ECONNRESET/i,
@@ -28,6 +24,11 @@ const TRANSIENT_FAILURE_PATTERNS: RegExp[] = [
   /jurisdiction bootstrap 5xx circuit breaker/i,
   /Test ended/i,
 ];
+
+// Product-level validation or workflow failures must fail fast by default.
+// If a specific journey has a proven flaky server-side path, it should supply
+// an explicit shouldRetry predicate at the call site instead of relying on the
+// shared transient classifier.
 
 const FATAL_PAGE_CLOSED_PATTERNS: RegExp[] = [
   /Target page, context or browser has been closed/i,

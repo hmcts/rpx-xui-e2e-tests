@@ -324,6 +324,20 @@ test.describe("Helper utilities and retry logic", () => {
         new Error("Target page, context or browser has been closed"),
       ),
     ).toBeFalsy();
+    expect(
+      isTransientWorkflowFailure(new Error("The event could not be created")),
+    ).toBeFalsy();
+    expect(
+      isTransientWorkflowFailure(new Error("Validation error after submit")),
+    ).toBeFalsy();
+    expect(
+      isTransientWorkflowFailure(new Error("callback data failed validation")),
+    ).toBeFalsy();
+    expect(
+      isTransientWorkflowFailure(
+        new Error("Something went wrong page was displayed"),
+      ),
+    ).toBeFalsy();
 
     let attempts = 0;
     const recovered = await retryOnTransientFailure(async () => {

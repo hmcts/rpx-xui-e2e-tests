@@ -9,10 +9,7 @@ import {
   ensureSessionCookies,
 } from "../../../utils/integration/session.utils.js";
 import { expectCaseBanner } from "../../../utils/ui/banner.utils.js";
-import {
-  isTransientWorkflowFailure,
-  retryOnTransientFailure,
-} from "../../../utils/ui/transient-failure.utils.js";
+import { isTransientWorkflowFailure } from "../../../utils/ui/transient-failure.utils.js";
 
 import { TEST_DATA } from "./constants.js";
 
@@ -55,27 +52,14 @@ test.describe("Document upload V2", () => {
       worker: process.env.TEST_WORKER_INDEX,
     });
 
-    await retryOnTransientFailure(
-      async () => {
-        await applyCookiesToPage(page, solicitorCookies);
-        await page.goto("/");
-        await createCasePage.createDivorceCase(
-          TEST_DATA.V2.JURISDICTION,
-          TEST_DATA.V2.CASE_TYPE,
-          testValue,
-        );
-        caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
-      },
-      {
-        maxAttempts: 2,
-        onRetry: async () => {
-          if (page.isClosed()) {
-            return;
-          }
-          await page.goto("/").catch(() => undefined);
-        },
-      },
+    await applyCookiesToPage(page, solicitorCookies);
+    await page.goto("/");
+    await createCasePage.createDivorceCase(
+      TEST_DATA.V2.JURISDICTION,
+      TEST_DATA.V2.CASE_TYPE,
+      testValue,
     );
+    caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
     logger.info("Created divorce case", { caseNumber, testValue });
   });
 
@@ -140,73 +124,46 @@ test.describe("Document upload V2", () => {
     });
 
     await test.step("Verify the document upload was successful", async () => {
-      await retryOnTransientFailure(
-        async () => {
-          await expect
-            .poll(
-              async () => {
-                const bannerVisible =
-                  await caseDetailsPage.caseAlertSuccessMessage
-                    .isVisible()
-                    .catch(() => false);
-                if (bannerVisible) {
-                  const bannerText =
-                    await caseDetailsPage.caseAlertSuccessMessage.innerText();
-                  try {
-                    expectCaseBanner(
-                      bannerText,
-                      caseNumber,
-                      `has been updated with event: ${TEST_DATA.V2.ACTION}`,
-                    );
-                    return true;
-                  } catch {
-                    // Fall through to deterministic table-data verification path.
-                  }
-                }
-
-                const tabSelected = await caseDetailsPage
-                  .selectCaseDetailsTab(TEST_DATA.V2.TAB_NAME)
-                  .then(() => true)
-                  .catch(() => false);
-                if (!tabSelected) {
-                  return false;
-                }
-                const caseViewerTable = caseDetailsPage.page.getByRole(
-                  "table",
-                  {
-                    name: "case viewer table",
-                  },
+      await expect
+        .poll(
+          async () => {
+            const bannerVisible = await caseDetailsPage.caseAlertSuccessMessage
+              .isVisible()
+              .catch(() => false);
+            if (bannerVisible) {
+              const bannerText =
+                await caseDetailsPage.caseAlertSuccessMessage.innerText();
+              try {
+                expectCaseBanner(
+                  bannerText,
+                  caseNumber,
+                  `has been updated with event: ${TEST_DATA.V2.ACTION}`,
                 );
-                const tableText = await caseViewerTable
-                  .innerText()
-                  .catch(() => "");
-                return tableText.includes(testValue);
-              },
-              {
-                timeout: VERIFY_TIMEOUT_MS,
-                intervals: [2_000, 4_000, 6_000],
-              },
-            )
-            .toBe(true);
-        },
-        {
-          maxAttempts: JOURNEY_MAX_ATTEMPTS,
-          onRetry: async () => {
-            if (caseDetailsPage.page.isClosed()) {
-              return;
+                return true;
+              } catch {
+                // Fall through to deterministic table-data verification path.
+              }
             }
-            await caseDetailsPage.page.goto(
-              `/cases/case-details/${caseNumber}`,
-              {
-                waitUntil: "domcontentloaded",
-              },
-            );
-            await caseDetailsPage
-              .waitForReady(READY_TIMEOUT_MS)
-              .catch(() => undefined);
+
+            const tabSelected = await caseDetailsPage
+              .selectCaseDetailsTab(TEST_DATA.V2.TAB_NAME)
+              .then(() => true)
+              .catch(() => false);
+            if (!tabSelected) {
+              return false;
+            }
+            const caseViewerTable = caseDetailsPage.page.getByRole("table", {
+              name: "case viewer table",
+            });
+            const tableText = await caseViewerTable.innerText().catch(() => "");
+            return tableText.includes(testValue);
           },
-        },
-      );
+          {
+            timeout: VERIFY_TIMEOUT_MS,
+            intervals: [2_000, 4_000, 6_000],
+          },
+        )
+        .toBe(true);
     });
   });
 });
@@ -239,30 +196,17 @@ test.describe("Document upload V1", () => {
       worker: process.env.TEST_WORKER_INDEX,
     });
 
-    await retryOnTransientFailure(
-      async () => {
-        await applyCookiesToPage(page, employmentCookies);
-        await page.goto("/");
-        await createCasePage.createCaseEmployment(
-          TEST_DATA.V1.JURISDICTION,
-          TEST_DATA.V1.CASE_TYPE,
-        );
-        expect(
-          await createCasePage.checkForErrorMessage(),
-          "Error message seen after creating employment case",
-        ).toBe(false);
-        caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
-      },
-      {
-        maxAttempts: 2,
-        onRetry: async () => {
-          if (page.isClosed()) {
-            return;
-          }
-          await page.goto("/").catch(() => undefined);
-        },
-      },
+    await applyCookiesToPage(page, employmentCookies);
+    await page.goto("/");
+    await createCasePage.createCaseEmployment(
+      TEST_DATA.V1.JURISDICTION,
+      TEST_DATA.V1.CASE_TYPE,
     );
+    expect(
+      await createCasePage.checkForErrorMessage(),
+      "Error message seen after creating employment case",
+    ).toBe(false);
+    caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
     logger.info("Created employment case", { caseNumber, testValue });
   });
 
@@ -274,89 +218,41 @@ test.describe("Document upload V1", () => {
     test.setTimeout(480_000);
 
     await test.step("Upload a document to the case", async () => {
-      const caseDetailsUrl = caseDetailsPage.page.url();
-      const maxAttempts = JOURNEY_MAX_ATTEMPTS;
-
-      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        try {
-          await caseDetailsPage.selectCaseDetailsEvent(TEST_DATA.V1.ACTION);
-          await createCasePage.uploadEmploymentFile(
-            testFileName,
-            TEST_DATA.V1.FILE_TYPE,
-            TEST_DATA.V1.FILE_CONTENT,
-          );
-          break;
-        } catch (error) {
-          // eslint-disable-next-line playwright/no-conditional-in-test -- bounded retry for known transient CCD workflow failures.
-          if (!isTransientWorkflowFailure(error) || attempt === maxAttempts) {
-            throw error;
-          }
-          const message = toErrorMessage(error);
-          logger.warn(
-            "Document V1 upload hit transient workflow failure; retrying event",
-            {
-              attempt,
-              maxAttempts,
-              message: message.slice(0, 250),
-            },
-          );
-          await caseDetailsPage.page.goto(caseDetailsUrl, {
-            waitUntil: "domcontentloaded",
-          });
-          await caseDetailsPage.waitForReady(READY_TIMEOUT_MS);
-        }
-      }
+      await caseDetailsPage.selectCaseDetailsEvent(TEST_DATA.V1.ACTION);
+      await createCasePage.uploadEmploymentFile(
+        testFileName,
+        TEST_DATA.V1.FILE_TYPE,
+        TEST_DATA.V1.FILE_CONTENT,
+      );
     });
 
     await test.step("Verify document was uploaded successfully", async () => {
-      await retryOnTransientFailure(
-        async () => {
-          await caseDetailsPage.selectCaseDetailsTab(TEST_DATA.V1.TAB_NAME);
-          await caseDetailsPage.caseActionGoButton.waitFor({
-            state: "visible",
-            timeout: 30_000,
-          });
+      await caseDetailsPage.selectCaseDetailsTab(TEST_DATA.V1.TAB_NAME);
+      await caseDetailsPage.caseActionGoButton.waitFor({
+        state: "visible",
+        timeout: 30_000,
+      });
 
-          await expect
-            .poll(
-              async () => {
-                const table = await caseDetailsPage.getDocumentsList();
-                if (table.length === 0) {
-                  return false;
-                }
-                const documentsTable =
-                  caseDetailsPage.caseDocumentsTable.first();
-                const parsedRows = await tableUtils.parseDataTable(
-                  documentsTable,
-                  caseDetailsPage.page,
-                );
-                return parsedRows.some((row) => row.Document === testFileName);
-              },
-              {
-                timeout: 120_000,
-                intervals: [2_000, 4_000, 6_000],
-              },
-            )
-            .toBe(true);
-        },
-        {
-          maxAttempts: JOURNEY_MAX_ATTEMPTS,
-          onRetry: async () => {
-            if (caseDetailsPage.page.isClosed()) {
-              return;
+      await expect
+        .poll(
+          async () => {
+            const table = await caseDetailsPage.getDocumentsList();
+            if (table.length === 0) {
+              return false;
             }
-            await caseDetailsPage.page.goto(
-              `/cases/case-details/${caseNumber}`,
-              {
-                waitUntil: "domcontentloaded",
-              },
+            const documentsTable = caseDetailsPage.caseDocumentsTable.first();
+            const parsedRows = await tableUtils.parseDataTable(
+              documentsTable,
+              caseDetailsPage.page,
             );
-            await caseDetailsPage
-              .waitForReady(READY_TIMEOUT_MS)
-              .catch(() => undefined);
+            return parsedRows.some((row) => row.Document === testFileName);
           },
-        },
-      );
+          {
+            timeout: 120_000,
+            intervals: [2_000, 4_000, 6_000],
+          },
+        )
+        .toBe(true);
     });
   });
 });

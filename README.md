@@ -48,6 +48,7 @@ Key env vars to tag:
 ## Reporting outputs (API vs UI)
 
 Odhin reports are split for Jenkins publishing. You can override paths using `PLAYWRIGHT_REPORT_FOLDER` (output folder) and `PW_ODHIN_TARGET` (copy target).
+`PW_ODHIN_TARGET` is publish-only: `scripts/copy-odhin-report.cjs` now fails if the source report folder is missing instead of silently reusing an old target directory. When `PW_ODHIN_LINK_COVERAGE=true`, the script also requires a valid copied coverage HTML index plus `coverage-summary.json`.
 
 - API Odhin output (raw): `functional-output/tests/playwright-api/odhin-report`
 - API Odhin publish target: `functional-output/tests/api_functional/odhin-report`

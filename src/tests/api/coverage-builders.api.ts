@@ -48,8 +48,6 @@ test.describe("Builder and task helper coverage", () => {
   ];
 
   taskStateCases.forEach(({ title, build, assert }) => {
-    // Generated table-driven cases intentionally use dynamic titles.
-    // eslint-disable-next-line playwright/valid-title
     test(title, () => {
       assert(build());
     });

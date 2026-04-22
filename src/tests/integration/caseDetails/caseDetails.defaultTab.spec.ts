@@ -49,22 +49,25 @@ const installTabSelectionTracker = async (page: Page) => {
 
     const startObserver = () => {
       if (w.__tabObserverInstalled) return;
+      const root = document.documentElement;
+      if (!root) return;
       w.__tabObserverInstalled = true;
       const observer = new MutationObserver(recordSelection);
-      observer.observe(document.documentElement, {
+      observer.observe(root, {
         subtree: true,
+        childList: true,
         attributes: true,
         attributeFilter: ["aria-selected"],
       });
       recordSelection();
     };
 
-    if (document.readyState === "loading") {
+    startObserver();
+    if (!w.__tabObserverInstalled) {
+      document.addEventListener("readystatechange", startObserver);
       document.addEventListener("DOMContentLoaded", startObserver, {
         once: true,
       });
-    } else {
-      startObserver();
     }
   });
 };
@@ -141,22 +144,22 @@ const assertSummaryTabIsDefault = async (page: Page, label: string) => {
     selections.length,
     `${label}: no tab selections recorded`,
   ).toBeGreaterThan(0);
+  const selectionTrace = selections.join(" -> ");
   const normalized = selections.map((value) => value.toLowerCase());
   const summaryIndex = normalized.findIndex((value) =>
     value.includes("summary"),
   );
   expect(
     summaryIndex,
-    `${label}: summary tab was never selected`,
-  ).toBeGreaterThanOrEqual(0);
+    `${label}: Summary should be the first selected tab on arrival. selections=[${selectionTrace}]`,
+  ).toBe(0);
 
-  const afterSummary = normalized.slice(summaryIndex);
-  const onlySummaryAfter = afterSummary.every((value) =>
+  const onlySummarySelected = normalized.every((value) =>
     value.includes("summary"),
   );
   expect(
-    onlySummaryAfter,
-    `${label}: summary tab should remain selected once chosen`,
+    onlySummarySelected,
+    `${label}: selected tab changed away from Summary. selections=[${selectionTrace}]`,
   ).toBe(true);
 
   const currentSelected =

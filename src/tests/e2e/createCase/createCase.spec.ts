@@ -57,30 +57,47 @@ test.describe("Verify creating cases works as expected", () => {
       );
     });
 
-    await test.step("Find the created case in the case list", async () => {
-      await retryOnTransientFailure(
-        async () => {
-          await caseListPage.goto();
-          await caseListPage.searchByJurisdiction("Family Divorce");
-          await caseListPage.searchByCaseType("XUI Case PoC");
-          await caseListPage.searchByTextField0(testField);
-          await caseListPage.exuiCaseListComponent.searchByCaseState(
-            "Case created",
-          );
-          await caseListPage.applyFilters();
-        },
-        {
-          maxAttempts: 3,
-          onRetry: async () => {
-            if (page.isClosed()) {
-              return;
-            }
-            await page
-              .reload({ waitUntil: "domcontentloaded" })
-              .catch(() => undefined);
-          },
-        },
+    await test.step("Validate the created case summary and history", async () => {
+      const caseViewerTable = page
+        .getByRole("table", { name: "case viewer table" })
+        .first();
+      await expect(caseViewerTable).toBeVisible();
+      await expect(caseViewerTable).toContainText("Text Field 0");
+      await expect(caseViewerTable).toContainText(testField);
+
+      await caseDetailsPage.selectCaseDetailsTab("History");
+      const historyRows = await caseDetailsPage.mapHistoryTable();
+      const createCaseRow = historyRows.find(
+        (row) => row.Event === "Create a case",
       );
+
+      expect
+        .soft(createCaseRow, "Create a case row should be present")
+        .toBeTruthy();
+      expect
+        .soft(createCaseRow?.Author, "Create a case author should be present")
+        .not.toBe("");
+
+      const historyDetails = await caseDetailsPage.trRowsToObjectInPage(
+        caseDetailsPage.historyDetailsTable,
+      );
+      expect(historyDetails).toMatchObject({
+        Date: createCaseRow?.Date ?? "",
+        Author: createCaseRow?.Author ?? "",
+        "End state": "Case created",
+        Event: "Create a case",
+      });
+    });
+
+    await test.step("Find the created case in the case list", async () => {
+      await caseListPage.goto();
+      await caseListPage.searchByJurisdiction("Family Divorce");
+      await caseListPage.searchByCaseType("XUI Case PoC");
+      await caseListPage.searchByTextField0(testField);
+      await caseListPage.exuiCaseListComponent.searchByCaseState(
+        "Case created",
+      );
+      await caseListPage.applyFilters();
     });
 
     await test.step("Confirm the created case is in the search results", async () => {

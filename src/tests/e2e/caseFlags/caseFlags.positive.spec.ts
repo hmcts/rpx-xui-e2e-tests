@@ -4,18 +4,14 @@ import type { Cookie } from "@playwright/test";
 import { expect, test } from "../../../fixtures/ui";
 import {
   applyCookiesToPage,
+  assertSessionCapabilities,
   ensureSessionCookies,
-  selectSessionByCapabilities,
 } from "../../../utils/integration/session.utils.js";
 import { caseBannerMatches } from "../../../utils/ui/banner.utils.js";
 import {
   isPageClosingError,
   rowMatchesExpected,
 } from "../../../utils/ui/case-flags.utils.js";
-import {
-  installCreateJurisdictionFallbackRoute,
-  JURISDICTION_BOOTSTRAP_ROUTE,
-} from "../../../utils/ui/jurisdiction-bootstrap.utils.js";
 import { filterEmptyRows } from "../../../utils/ui/table.utils.js";
 import { retryOnTransientFailure } from "../../../utils/ui/transient-failure.utils.js";
 
@@ -183,77 +179,22 @@ test.describe("Party level case flags", () => {
   let selectedPartyLabel = "";
   let caseDetailsUrl = "";
   let flagsCookies: Cookie[] = [];
-  let resolvedCaseType = "xuiCaseFlagsV1";
 
   const jurisdiction = "DIVORCE";
-  const organisationApiRoute = "**/api/organisation**";
+  const caseType = "xuiCaseFlagsV1";
 
   test.beforeAll(async ({ request }) => {
-    const session = await selectSessionByCapabilities(
-      request,
-      [
-        "DIVORCE_FLAGS_ADMIN",
-        "USER_WITH_FLAGS",
-        "STAFF_ADMIN",
-        "SEARCH_EMPLOYMENT_CASE",
-        "COURT_ADMIN",
-      ],
-      {
-        requiredCreateCaseTypesAny: ["xuiCaseFlagsV1", "xuiCaseFlags2.1"],
-        strict: false,
-      },
-    );
-    resolvedCaseType = session.resolvedCaseType ?? "xuiCaseFlagsV1";
-    if (!session.cookies.length) {
-      throw new Error(
-        `No cookies available for resolved case flags candidate "${session.userIdentifier}".`,
-      );
-    }
-    const refreshedSession = await ensureSessionCookies(
-      session.userIdentifier,
-      {
-        strict: false,
-      },
-    );
-    flagsCookies = refreshedSession.cookies.length
-      ? refreshedSession.cookies
-      : session.cookies;
+    const session = await ensureSessionCookies("USER_WITH_FLAGS", {
+      strict: true,
+    });
+    await assertSessionCapabilities(request, session, {
+      requireOrganisationAccess: true,
+      requiredCreateCaseTypes: [caseType],
+    });
+    flagsCookies = session.cookies;
   });
 
   test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
-    await installCreateJurisdictionFallbackRoute(page, [
-      {
-        jurisdiction: "DIVORCE",
-        caseTypes: ["xuiCaseFlagsV1", "xuiCaseFlags2.1"],
-      },
-    ]);
-
-    await page.context().route(organisationApiRoute, async (route) => {
-      const fallbackPayload = {
-        organisationIdentifier: "TEST_ORG",
-        name: "Test Organisation",
-        status: "ACTIVE",
-        organisations: [
-          {
-            organisationIdentifier: "TEST_ORG",
-            name: "Test Organisation",
-            status: "ACTIVE",
-          },
-        ],
-      };
-
-      const liveResponse = await route.fetch().catch(() => null);
-      if (!liveResponse || liveResponse.status() === 403) {
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(fallbackPayload),
-        });
-        return;
-      }
-      await route.fulfill({ response: liveResponse });
-    });
-
     await retryOnTransientFailure(
       async () => {
         await applyCookiesToPage(page, flagsCookies);
@@ -261,10 +202,10 @@ test.describe("Party level case flags", () => {
         await createCasePage.createDivorceCaseFlag(
           testValue,
           jurisdiction,
-          resolvedCaseType,
+          caseType,
         );
         caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
-        caseDetailsUrl = `/cases/case-details/${jurisdiction}/${resolvedCaseType}/${caseNumber}`;
+        caseDetailsUrl = `/cases/case-details/${jurisdiction}/${caseType}/${caseNumber}`;
       },
       {
         maxAttempts: 3,
@@ -278,49 +219,22 @@ test.describe("Party level case flags", () => {
     );
   });
 
-  test.afterEach(async ({ page }) => {
-    await page.unroute(JURISDICTION_BOOTSTRAP_ROUTE).catch(() => {});
-    await page
-      .context()
-      .unroute(organisationApiRoute)
-      .catch(() => {});
-  });
-
   test("Create a new party level flag and verify the flag is displayed on the case", async ({
     caseDetailsPage,
   }) => {
     test.setTimeout(540_000);
 
     await test.step("Create a new party level flag", async () => {
-      await retryOnTransientFailure(
-        async () => {
-          await caseDetailsPage.exuiSpinnerComponent.wait();
-          await caseDetailsPage.selectCaseAction("Create a case flag", {
-            expectedLocator: caseDetailsPage.page.getByRole("heading", {
-              name: /where should this flag be added\?/i,
-            }),
-            timeoutMs: 90_000,
-          });
-          selectedPartyLabel = await caseDetailsPage.selectPartyFlagTarget(
-            testValue,
-            "Welsh",
-          );
-        },
-        {
-          maxAttempts: 3,
-          onRetry: async (_attempt, error) => {
-            if (caseDetailsPage.page.isClosed()) {
-              throw new Error(
-                "Page closed before retrying party-level flag flow.",
-                { cause: error },
-              );
-            }
-            await caseDetailsPage.page.goto(caseDetailsUrl, {
-              waitUntil: "domcontentloaded",
-            });
-            await caseDetailsPage.waitForReady(90_000).catch(() => undefined);
-          },
-        },
+      await caseDetailsPage.exuiSpinnerComponent.wait();
+      await caseDetailsPage.selectCaseAction("Create a case flag", {
+        expectedLocator: caseDetailsPage.page.getByRole("heading", {
+          name: /where should this flag be added\?/i,
+        }),
+        timeoutMs: 90_000,
+      });
+      selectedPartyLabel = await caseDetailsPage.selectPartyFlagTarget(
+        testValue,
+        "Welsh",
       );
     });
 
@@ -403,12 +317,6 @@ test.describe("Party level case flags", () => {
     });
 
     await test.step("Verify the party level case flag is shown in the flags tab", async () => {
-      /* eslint-disable playwright/no-conditional-in-test -- xuiCaseFlagsV1 and xuiCaseFlags2.1 expose different tab labels; pick at runtime for resilient verification. */
-      let flagsTabName = "Flags";
-      if (resolvedCaseType.toLowerCase() === "xuicaseflags2.1") {
-        flagsTabName = "Case flags";
-      }
-      /* eslint-enable playwright/no-conditional-in-test */
       const selectedPartyText = selectedPartyLabel.split("(")[0]?.trim() ?? "";
       const expectedPartyText = selectedPartyText.toLowerCase();
       await expect(async () => {
@@ -419,7 +327,7 @@ test.describe("Party level case flags", () => {
         await expect(caseDetailsPage.caseActionsDropdown).toBeVisible({
           timeout: 60_000,
         });
-        await caseDetailsPage.selectCaseDetailsTab(flagsTabName);
+        await caseDetailsPage.selectCaseDetailsTab("Flags");
       }).toPass({ timeout: 120_000, intervals: [1_000, 2_000, 4_000] });
 
       await expect
