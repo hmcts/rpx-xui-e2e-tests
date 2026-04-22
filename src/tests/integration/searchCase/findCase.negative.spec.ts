@@ -1,0 +1,125 @@
+import { expect, test } from "../../../fixtures/ui";
+import {
+  applySearchCaseSessionCookies,
+  ensureSearchCaseSessionAccess,
+  overrideFindCaseSearchResultsRoute,
+  setupFindCaseMockRoutes
+} from "../helpers/index.js";
+import {
+  buildFindCaseEmptySearchResultsMock,
+  buildFindCaseJurisdictionsMock,
+  buildFindCaseWorkBasketInputsMock,
+  FIND_CASE_CASE_TYPE_LABEL,
+  FIND_CASE_JURISDICTION_LABEL
+} from "../mocks/findCase.mock.js";
+import {
+  SEARCH_CASE_ERROR_STATUS_CODES,
+  SEARCH_CASE_MALFORMED_JSON_BODY,
+  TEST_CASE_REFERENCES,
+  TEST_USERS
+} from "../testData/index.js";
+
+const userIdentifier = TEST_USERS.SEARCH_CASE;
+const existingCaseReference = TEST_CASE_REFERENCES.FIND_CASE_EXISTING;
+const jurisdictionMock = buildFindCaseJurisdictionsMock();
+const workBasketInputsMock = buildFindCaseWorkBasketInputsMock();
+
+test.beforeAll(async ({}, testInfo) => {
+  await ensureSearchCaseSessionAccess(testInfo);
+});
+
+test.beforeEach(async ({ page }, testInfo) => {
+  await applySearchCaseSessionCookies(page, testInfo);
+  await setupFindCaseMockRoutes(page, {
+    jurisdictions: jurisdictionMock,
+    workBasketInputs: workBasketInputsMock,
+    searchResultsHandler: async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(buildFindCaseEmptySearchResultsMock())
+      });
+    }
+  });
+});
+
+test.describe(`Find Case negative flows as ${userIdentifier}`, () => {
+  for (const status of SEARCH_CASE_ERROR_STATUS_CODES) {
+    test(`does not navigate to case details when searchCases returns HTTP ${status}`, async ({
+      caseListPage,
+      caseSearchPage,
+      page
+    }) => {
+      let searchRequestSeen = false;
+      await overrideFindCaseSearchResultsRoute(page, async (route) => {
+        searchRequestSeen = true;
+        await route.fulfill({
+          status,
+          contentType: "application/json",
+          body: JSON.stringify({ message: `Forced failure ${status}` })
+        });
+      });
+
+      await caseListPage.navigateTo();
+      await caseSearchPage.startFindCaseJourney(
+        existingCaseReference,
+        FIND_CASE_CASE_TYPE_LABEL,
+        FIND_CASE_JURISDICTION_LABEL
+      );
+
+      expect(searchRequestSeen).toBeTruthy();
+      await expect(page).not.toHaveURL(/\/cases\/case-details\//);
+      await expect(page.locator('#search-result a.govuk-link[href*="/cases/case-details/"]')).toHaveCount(0);
+    });
+  }
+
+  test("does not navigate to case details when searchCases response is malformed JSON", async ({
+    caseListPage,
+    caseSearchPage,
+    page
+  }) => {
+    let searchRequestSeen = false;
+    await overrideFindCaseSearchResultsRoute(page, async (route) => {
+      searchRequestSeen = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: SEARCH_CASE_MALFORMED_JSON_BODY
+      });
+    });
+
+    await caseListPage.navigateTo();
+    await caseSearchPage.startFindCaseJourney(
+      existingCaseReference,
+      FIND_CASE_CASE_TYPE_LABEL,
+      FIND_CASE_JURISDICTION_LABEL
+    );
+
+    expect(searchRequestSeen).toBeTruthy();
+    await expect(page).not.toHaveURL(/\/cases\/case-details\//);
+    await expect(page.locator('#search-result a.govuk-link[href*="/cases/case-details/"]')).toHaveCount(0);
+  });
+
+  test("does not navigate to case details when searchCases request times out", async ({
+    caseListPage,
+    caseSearchPage,
+    page
+  }) => {
+    let searchRequestSeen = false;
+    await overrideFindCaseSearchResultsRoute(page, async (route) => {
+      searchRequestSeen = true;
+      await route.abort("timedout");
+    });
+
+    await caseListPage.navigateTo();
+    await caseSearchPage.startFindCaseJourney(
+      existingCaseReference,
+      FIND_CASE_CASE_TYPE_LABEL,
+      FIND_CASE_JURISDICTION_LABEL
+    );
+
+    expect(searchRequestSeen).toBeTruthy();
+    await expect(page).not.toHaveURL(/\/cases\/case-details\//);
+    await expect(page.locator('#search-result a.govuk-link[href*="/cases/case-details/"]')).toHaveCount(0);
+  });
+});

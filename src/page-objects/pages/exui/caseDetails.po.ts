@@ -11,6 +11,7 @@ export class CaseDetailsPage extends Base {
   readonly caseDetailsTabs = this.page.locator('div[role="tab"]');
   readonly caseActionsDropdown = this.page.locator("#next-step");
   readonly caseActionGoButton = this.page.locator(".event-trigger button");
+  readonly caseSummaryHeading = this.page.locator("h2").filter({ hasText: "Case information" }).first();
   readonly submitCaseFlagButton = this.page.locator(".button[type=\"submit\"]");
   readonly caseFlagCommentBox = this.page.locator("#flagComments");
   readonly commonRadioButtons = this.page.locator(".govuk-radios__item");
@@ -38,6 +39,15 @@ export class CaseDetailsPage extends Base {
       throw new Error(`Failed to extract case number from alert: "${alertText}"`);
     }
     return caseNumberMatch[0];
+  }
+
+  async getCaseNumberFromUrl(): Promise<string> {
+    const pathname = new URL(this.page.url()).pathname;
+    const caseNumber = pathname.slice(pathname.lastIndexOf("/") + 1);
+    if (!/^\d{16}$/.test(caseNumber)) {
+      throw new Error(`Failed to extract valid case number from URL: "${pathname}"`);
+    }
+    return caseNumber;
   }
 
   async selectCaseAction(action: string) {

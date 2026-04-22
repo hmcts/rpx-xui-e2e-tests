@@ -3,10 +3,45 @@ export interface UserCredentials {
   password: string;
 }
 
-export const USER_ENV_MAP: Record<string, { username: string; password: string }> = {
+type EnvCandidate = string | string[];
+
+type UserEnvMapping = {
+  username: EnvCandidate;
+  password: EnvCandidate;
+};
+
+const toCandidates = (value: EnvCandidate): string[] =>
+  Array.isArray(value) ? value : [value];
+
+const resolveEnvValue = (value: EnvCandidate): string | undefined => {
+  for (const candidate of toCandidates(value)) {
+    const resolved = process.env[candidate];
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return undefined;
+};
+
+const describeCandidates = (value: EnvCandidate): string =>
+  toCandidates(value).join(" or ");
+
+export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
   PRL_SOLICITOR: {
     username: "PRL_SOLICITOR_USERNAME",
     password: "PRL_SOLICITOR_PASSWORD"
+  },
+  WA_SOLICITOR: {
+    username: "WA_SOLICITOR_USERNAME",
+    password: "WA_SOLICITOR_PASSWORD"
+  },
+  NOC_SOLICITOR: {
+    username: "NOC_SOLICITOR_USERNAME",
+    password: "NOC_SOLICITOR_PASSWORD"
+  },
+  FPL_GLOBAL_SEARCH: {
+    username: ["FPL_GLOBAL_SEARCH_USERNAME", "CASEWORKER_R1_USERNAME"],
+    password: ["FPL_GLOBAL_SEARCH_PASSWORD", "CASEWORKER_R1_PASSWORD"]
   },
   SOLICITOR: {
     username: "SOLICITOR_USERNAME",
@@ -46,10 +81,10 @@ export const USER_ENV_MAP: Record<string, { username: string; password: string }
   }
 };
 
-const getEnvOrThrow = (name: string): string => {
-  const value = process.env[name];
+const getEnvOrThrow = (name: EnvCandidate): string => {
+  const value = resolveEnvValue(name);
   if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
+    throw new Error(`Missing required environment variable: ${describeCandidates(name)}`);
   }
   return value;
 };
@@ -61,7 +96,7 @@ export class UserUtils {
     if (!mapping) {
       return false;
     }
-    return Boolean(process.env[mapping.username] && process.env[mapping.password]);
+    return Boolean(resolveEnvValue(mapping.username) && resolveEnvValue(mapping.password));
   }
 
   public getUserCredentials(userIdentifier: string): UserCredentials {

@@ -2,7 +2,30 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 import { Base } from "../../base";
 
+import {
+  CCD_CASE_REFERENCE_LENGTH,
+  CCD_CASE_REFERENCE_PATTERN,
+  EXUI_TIMEOUTS
+} from "./exui-timeouts";
+
 export class CaseSearchPage extends Base {
+  private static readonly QUICK_SEARCH_OUTCOME_PROBE_MS = 10_000;
+
+  readonly pageHeading = this.page.locator("main h1");
+  readonly quickSearchContainer = this.page.locator(".hmcts-primary-navigation__global-search");
+  readonly quickSearchContainerFallback = this.page.locator("li:has(#exuiCaseReferenceSearch)").first();
+  readonly caseIdTextBox = this.page.locator("#exuiCaseReferenceSearch");
+  readonly searchCaseFindButton = this.quickSearchContainer.getByRole("button", {
+    name: "Find",
+    exact: true
+  });
+  readonly searchCaseFindButtonFallback = this.quickSearchContainerFallback.getByRole("button", {
+    name: "Find",
+    exact: true
+  });
+  readonly noResultsHeading = this.page.locator("exui-no-results .govuk-heading-xl");
+  readonly noResultsContainer = this.page.locator("exui-no-results");
+  readonly backLink = this.page.locator("exui-no-results .govuk-back-link");
   readonly container = this.page.locator("#content .search-block");
   readonly filterContainer = this.page.locator(
     "#content .search-block .hmcts-filter-layout__filter"
@@ -18,6 +41,49 @@ export class CaseSearchPage extends Base {
 
   constructor(page: Page) {
     super(page);
+  }
+
+  async searchWith16DigitCaseId(caseId: string): Promise<void> {
+    if (!CCD_CASE_REFERENCE_PATTERN.test(caseId)) {
+      throw new Error(
+        `Expected ${CCD_CASE_REFERENCE_LENGTH}-digit case reference, received "${caseId}"`
+      );
+    }
+
+    await this.caseIdTextBox.waitFor({
+      state: "visible",
+      timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
+    });
+    await this.caseIdTextBox.click();
+    await this.caseIdTextBox.fill(caseId);
+    const primaryFindButtonVisible = await this.searchCaseFindButton.isVisible().catch(() => false);
+    const findButton = primaryFindButtonVisible
+      ? this.searchCaseFindButton
+      : this.searchCaseFindButtonFallback;
+    await findButton.waitFor({
+      state: "visible",
+      timeout: EXUI_TIMEOUTS.SEARCH_BUTTON_VISIBLE
+    });
+    await findButton.scrollIntoViewIfNeeded();
+
+    try {
+      await findButton.click({ timeout: EXUI_TIMEOUTS.SEARCH_BUTTON_CLICK });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+      if (!errorMessage.includes("intercepts pointer events")) {
+        throw error;
+      }
+      await this.caseIdTextBox.press("Enter");
+    }
+
+    await this.waitForPostSearchSpinnerCycle();
+    const immediateOutcomeReached = await this.waitForImmediateSearchOutcome(
+      CaseSearchPage.QUICK_SEARCH_OUTCOME_PROBE_MS
+    );
+    if (!immediateOutcomeReached && (await this.shouldRetrySearchSubmit(caseId))) {
+      await this.caseIdTextBox.press("Enter");
+      await this.waitForPostSearchSpinnerCycle();
+    }
   }
 
   async goto(): Promise<void> {
@@ -76,10 +142,69 @@ export class CaseSearchPage extends Base {
     await this.waitForUiIdleStateLenient(45_000);
   }
 
+  async startFindCaseJourney(
+    caseReference: string,
+    caseTypeLabel: string,
+    jurisdictionLabel: string
+  ): Promise<void> {
+    await this.goto();
+    await this.waitForReady();
+    await this.ensureFiltersVisible();
+    await this.selectJurisdiction(jurisdictionLabel);
+    await this.selectCaseType(caseTypeLabel);
+    await this.waitForDynamicFilters();
+    await this.fillCcdNumber(caseReference);
+    await this.applyFilters();
+  }
+
   async openFirstResult(): Promise<void> {
     await this.resultsTable.waitFor({ state: "visible", timeout: 20_000 });
     await this.resultLinks.first().waitFor({ state: "visible", timeout: 20_000 });
     await this.resultLinks.first().click();
+  }
+
+  private async waitForPostSearchSpinnerCycle(): Promise<void> {
+    const spinner = this.page.locator("xuilib-loading-spinner").first();
+
+    try {
+      await spinner.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.SPINNER_APPEAR_BRIEF });
+      await spinner.waitFor({
+        state: "hidden",
+        timeout: EXUI_TIMEOUTS.SEARCH_SPINNER_RESULT_HIDDEN
+      });
+    } catch {
+      return;
+    }
+  }
+
+  private async waitForImmediateSearchOutcome(timeoutMs: number): Promise<boolean> {
+    const urlBeforeSubmit = this.page.url();
+
+    return Promise.any([
+      this.page
+        .waitForURL((url) => url.toString() !== urlBeforeSubmit, { timeout: timeoutMs })
+        .then(() => true),
+      this.noResultsContainer.waitFor({ state: "visible", timeout: timeoutMs }).then(() => true)
+    ]).catch(() => false);
+  }
+
+  private async shouldRetrySearchSubmit(caseId: string): Promise<boolean> {
+    const currentUrl = this.page.url();
+    if (!/\/cases(?:[/?#]|$)/.test(currentUrl)) {
+      return false;
+    }
+
+    if (await this.noResultsContainer.isVisible().catch(() => false)) {
+      return false;
+    }
+
+    const inputVisible = await this.caseIdTextBox.isVisible().catch(() => false);
+    if (!inputVisible) {
+      return false;
+    }
+
+    const currentValue = await this.caseIdTextBox.inputValue().catch(() => "");
+    return currentValue === caseId;
   }
 
   private async selectOptionByLabel(select: Locator, label: string): Promise<void> {

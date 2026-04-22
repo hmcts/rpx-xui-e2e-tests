@@ -1,0 +1,54 @@
+import type { Page, TestInfo } from "@playwright/test";
+
+import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
+import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js";
+
+const defaultSearchCaseSessionUsers = ["FPL_GLOBAL_SEARCH"] as const;
+function parseUserList(rawValue?: string): string[] {
+  return Array.from(
+    new Set(
+      (rawValue ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+export function resolveSearchCaseSessionUsers(env: NodeJS.ProcessEnv = process.env): string[] {
+  const configured = parseUserList(env.PW_SEARCH_CASE_SESSION_USERS);
+  return configured.length > 0 ? configured : [...defaultSearchCaseSessionUsers];
+}
+
+export function resolveSearchCaseUserIdentifier(
+  testInfo: Pick<TestInfo, "workerIndex">,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  const users = resolveSearchCaseSessionUsers(env);
+  return users[testInfo.workerIndex % users.length];
+}
+
+export async function ensureSearchCaseSessionAccess(
+  testInfo: Pick<TestInfo, "workerIndex">,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<string> {
+  const userIdentifier = resolveSearchCaseUserIdentifier(testInfo, env);
+  await ensureUiStorageStateForUser(userIdentifier, { strict: true });
+  return userIdentifier;
+}
+
+export async function applySearchCaseSessionCookies(
+  page: Page,
+  testInfo: Pick<TestInfo, "workerIndex" | "annotations">,
+  env: NodeJS.ProcessEnv = process.env
+): Promise<string> {
+  const userIdentifier = resolveSearchCaseUserIdentifier(testInfo, env);
+  const session = loadSessionCookies(userIdentifier);
+
+  if (session.cookies.length > 0) {
+    await page.context().addCookies(session.cookies);
+  }
+
+  testInfo.annotations.push({ type: "session-user", description: userIdentifier });
+  return userIdentifier;
+}
