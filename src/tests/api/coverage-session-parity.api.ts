@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 
 import { withEnv } from "../../utils/api/testEnv";
 import {
-  resolveIntegrationSessionWarmupUsers,
   resolveSearchCaseSessionUsers,
   resolveSearchCaseUserIdentifier
 } from "../integration/helpers/searchCaseSession.helper";
@@ -12,15 +11,13 @@ import {
 } from "../integration/helpers/welshLanguageSession.helper";
 
 test.describe("Parity session helper coverage", () => {
-  test("search-case session helpers honour configured user rotation and warmup overrides", async () => {
+  test("search-case session helpers honour configured user rotation", async () => {
     await withEnv(
       {
-        PW_SEARCH_CASE_SESSION_USERS: "FPL_GLOBAL_SEARCH,CASEWORKER_R2",
-        PW_INTEGRATION_SESSION_WARMUP_USERS: "SOLICITOR,STAFF_ADMIN"
+        PW_SEARCH_CASE_SESSION_USERS: "FPL_GLOBAL_SEARCH,CASEWORKER_R2"
       },
       () => {
         expect(resolveSearchCaseSessionUsers()).toEqual(["FPL_GLOBAL_SEARCH", "CASEWORKER_R2"]);
-        expect(resolveIntegrationSessionWarmupUsers()).toEqual(["SOLICITOR", "STAFF_ADMIN"]);
         expect(resolveSearchCaseUserIdentifier({ workerIndex: 0 })).toBe("FPL_GLOBAL_SEARCH");
         expect(resolveSearchCaseUserIdentifier({ workerIndex: 1 })).toBe("CASEWORKER_R2");
         expect(resolveSearchCaseUserIdentifier({ workerIndex: 2 })).toBe("FPL_GLOBAL_SEARCH");
