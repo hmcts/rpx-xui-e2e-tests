@@ -33,3 +33,12 @@ execplan-ui-idle-waits.md
 execplan-ui-tests-porting.md
 securebydesign-ui-tests-porting.md
 securebydesign-ui-idle-waits.md
+
+# Traceability artifacts
+/PLAN.md
+/RESULT.md
+/TODO.md
+/docs/DECISIONS.md
+/docs/PLAN.md
+/docs/RESULT.md
+/docs/TODO.md
