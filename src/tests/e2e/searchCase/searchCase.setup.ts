@@ -1,0 +1,27 @@
+import type { Page } from "@playwright/test";
+
+import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
+import { loadSessionCookies } from "../integration/utils/session.utils.js";
+import type { ResolveCaseReferenceOptions } from "../utils/case-reference.utils.js";
+
+export const PUBLIC_LAW_CASE_REFERENCE_OPTIONS: ResolveCaseReferenceOptions = {
+  jurisdictionIds: ["PUBLICLAW"],
+  preferredStates: ["Case management", "Submitted", "Gatekeeping", "Closed"]
+};
+
+export async function ensureSearchCaseSession(userIdentifier: string): Promise<void> {
+  await ensureUiStorageStateForUser(userIdentifier, { strict: true });
+}
+
+export async function openHomeWithCapturedSession(
+  page: Page,
+  userIdentifier: string
+): Promise<void> {
+  const session = loadSessionCookies(userIdentifier);
+  if (session.cookies.length > 0) {
+    await page.context().addCookies(session.cookies);
+  }
+
+  await page.goto("/cases", { waitUntil: "domcontentloaded" });
+  await page.locator("exui-header").waitFor({ state: "visible", timeout: 30_000 });
+}

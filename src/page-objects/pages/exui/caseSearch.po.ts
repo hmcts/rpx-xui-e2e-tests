@@ -12,6 +12,12 @@ export class CaseSearchPage extends Base {
   private static readonly QUICK_SEARCH_OUTCOME_PROBE_MS = 10_000;
 
   readonly pageHeading = this.page.locator("main h1");
+  readonly findCaseLinkOnMenu = this.page
+    .locator('.hmcts-primary-navigation__nav .hmcts-primary-navigation__link[href*="case-search"]')
+    .first();
+  readonly findCaseLinkOnTopRight = this.page
+    .locator('.hmcts-primary-navigation__search .hmcts-primary-navigation__link[href*="case-search"]')
+    .first();
   readonly quickSearchContainer = this.page.locator(".hmcts-primary-navigation__global-search");
   readonly quickSearchContainerFallback = this.page.locator("li:has(#exuiCaseReferenceSearch)").first();
   readonly caseIdTextBox = this.page.locator("#exuiCaseReferenceSearch");
@@ -38,6 +44,7 @@ export class CaseSearchPage extends Base {
   readonly applyButton = this.page.locator('button[title="Apply filter"], button[aria-label="Apply filter"]');
   readonly resultsTable = this.page.locator("ccd-search-result");
   readonly resultLinks = this.page.locator("ccd-search-result .govuk-link");
+  readonly searchResultsSummary = this.page.locator("#search-result .pagination-top");
 
   constructor(page: Page) {
     super(page);
@@ -87,15 +94,15 @@ export class CaseSearchPage extends Base {
   }
 
   async goto(): Promise<void> {
-    const navFindCase = this.page
-      .locator(".hmcts-primary-navigation__search")
-      .getByRole("link", { name: /find case/i })
-      .first();
-    if (await navFindCase.isVisible().catch(() => false)) {
-      await Promise.all([this.page.waitForLoadState("domcontentloaded"), navFindCase.click()]);
-    } else {
-      await this.exuiHeader.selectHeaderMenuItem("Find case");
-    }
+    await this.openFromMainMenu();
+  }
+
+  async openFromMainMenu(): Promise<void> {
+    await this.openFindCaseVia(this.findCaseLinkOnMenu);
+  }
+
+  async openFromTopRight(): Promise<void> {
+    await this.openFindCaseVia(this.findCaseLinkOnTopRight);
   }
 
   async waitForReady(timeoutMs = 30_000): Promise<void> {
@@ -161,6 +168,21 @@ export class CaseSearchPage extends Base {
     await this.resultsTable.waitFor({ state: "visible", timeout: 20_000 });
     await this.resultLinks.first().waitFor({ state: "visible", timeout: 20_000 });
     await this.resultLinks.first().click();
+  }
+
+  async openCaseDetailsFor(caseReference: string): Promise<void> {
+    const normalizedCaseReference = caseReference.replace(/\D/g, "");
+    if (!CCD_CASE_REFERENCE_PATTERN.test(normalizedCaseReference)) {
+      throw new Error(
+        `Expected ${CCD_CASE_REFERENCE_LENGTH}-digit case reference, received "${caseReference}"`
+      );
+    }
+
+    const caseLink = this.page
+      .locator(`ccd-search-result a.govuk-link[href*="/cases/case-details/"][href*="${normalizedCaseReference}"]`)
+      .first();
+    await caseLink.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.CASE_DETAILS_NAVIGATION });
+    await caseLink.click();
   }
 
   private async waitForPostSearchSpinnerCycle(): Promise<void> {
@@ -230,5 +252,14 @@ export class CaseSearchPage extends Base {
     return select.locator("option").evaluateAll((items) =>
       items.map((item) => (item.textContent ?? "").trim()).filter(Boolean)
     );
+  }
+
+  private async openFindCaseVia(link: Locator): Promise<void> {
+    await link.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE });
+    await Promise.all([
+      this.page.waitForURL(/\/cases\/case-search/, { timeout: EXUI_TIMEOUTS.GLOBAL_SEARCH_NAVIGATION }),
+      link.click()
+    ]);
+    await this.waitForReady(EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE);
   }
 }
