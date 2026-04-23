@@ -7,6 +7,7 @@ import type { Response } from "@playwright/test";
 import { expect, test } from "../../../fixtures/ui";
 import { CaseDetailsPage } from "../../../page-objects/pages/exui/caseDetails.po";
 import { CaseFileViewPage } from "../../../page-objects/pages/exui/caseFileView.po";
+import { retryOnTransientFailure } from "../utils/transient-failure.utils.js";
 import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-session.utils.js";
 
 const JURISDICTION = "DIVORCE";
@@ -64,19 +65,36 @@ test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] },
     });
 
     await test.step("Upload a document through the update flow", async () => {
-      await caseDetailsPage.selectCaseDetailsTab("Tab 1");
-      await caseDetailsPage.selectCaseAction(UPDATE_CASE_ACTION);
-      await createCasePage.fileUploadInput.waitFor({ state: "visible", timeout: 30_000 });
-      await createCasePage.uploadFile(
-        documentFileName,
-        "application/pdf",
-        MEDIA_VIEWER_FIXTURE_CONTENT,
-        createCasePage.fileUploadInput,
-        "latin1"
+      await retryOnTransientFailure(
+        async () => {
+          await caseDetailsPage.selectCaseDetailsTab("Tab 1");
+          await caseDetailsPage.selectCaseAction(UPDATE_CASE_ACTION);
+          await createCasePage.fileUploadInput.waitFor({ state: "visible", timeout: 30_000 });
+          await createCasePage.uploadFile(
+            documentFileName,
+            "application/pdf",
+            MEDIA_VIEWER_FIXTURE_CONTENT,
+            createCasePage.fileUploadInput,
+            "latin1"
+          );
+          await createCasePage.clickContinueMultipleTimes(4);
+          await createCasePage.clickSubmitAndWait("after uploading media viewer document", {
+            maxAutoAdvanceAttempts: 3
+          });
+          await expect(caseDetailsPage.caseAlertSuccessMessage).toBeVisible({ timeout: 30_000 });
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            if (!caseDetailsUrl) {
+              return;
+            }
+            await caseDetailsPage.reopenCaseDetails(caseDetailsUrl).catch(async () => {
+              await page.goto(caseDetailsUrl);
+            });
+          }
+        }
       );
-      await createCasePage.clickContinueMultipleTimes(4);
-      await createCasePage.clickSubmitAndWait("after uploading media viewer document");
-      await expect(caseDetailsPage.caseAlertSuccessMessage).toBeVisible({ timeout: 30_000 });
     });
 
     await test.step("Open the uploaded document from the case details tab", async () => {

@@ -5,7 +5,7 @@ import { ensureUiSessionAccess } from "../helpers/uiSessionAccess.helper.js";
 import { buildEmptyCaseFileViewCategoriesMock } from "../mocks/caseFileView.mock.js";
 
 const caseId = "1690807693531270";
-const userIdentifier = "SOLICITOR";
+const userIdentifier = "RESTRICTED_CASE_FILE_VIEW_ON";
 
 test.beforeAll(async ({}, testInfo) => {
   await ensureUiSessionAccess(userIdentifier, testInfo);

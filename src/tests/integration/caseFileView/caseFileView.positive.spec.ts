@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "../../../fixtures/ui";
 import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js";
 import { setupCaseFileViewMockRoutes } from "../helpers/index.js";
@@ -8,18 +10,24 @@ import {
 } from "../mocks/caseFileView.mock.js";
 
 const caseId = "1690807693531270";
-const userIdentifier = "SOLICITOR";
+const fileViewOnUser = "RESTRICTED_CASE_FILE_VIEW_ON";
+const fileViewOffUser = "RESTRICTED_CASE_FILE_VIEW_OFF";
 
 test.beforeAll(async ({}, testInfo) => {
-  await ensureUiSessionAccess(userIdentifier, testInfo);
+  await ensureUiSessionAccess(fileViewOnUser, testInfo);
+  await ensureUiSessionAccess(fileViewOffUser, testInfo);
 });
 
-test.describe(`Case file view as ${userIdentifier}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
+async function applySessionCookiesFor(page: Page, userIdentifier: string) {
+  const { cookies } = loadSessionCookies(userIdentifier);
+  if (cookies.length) {
+    await page.context().addCookies(cookies);
+  }
+}
+
+test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
   test.beforeEach(async ({ page }) => {
-    const { cookies } = loadSessionCookies(userIdentifier);
-    if (cookies.length) {
-      await page.context().addCookies(cookies);
-    }
+    await applySessionCookiesFor(page, fileViewOnUser);
   });
 
   test("shows tree view, media viewer, document count, folder hierarchy and upload stamps", async ({
@@ -151,6 +159,34 @@ test.describe(`Case file view as ${userIdentifier}`, { tag: ["@integration", "@i
       await expect
         .poll(() => caseFileViewPage.getVisibleFileNamesUnderFolder("Orders"))
         .toEqual(["Approved order.pdf", "Root order.pdf"]);
+    });
+  });
+});
+
+test.describe(`Case file view as ${fileViewOffUser}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
+  test.beforeEach(async ({ page }) => {
+    await applySessionCookiesFor(page, fileViewOffUser);
+  });
+
+  test("V1 mode user still sees core case file view content", async ({
+    caseDetailsPage,
+    caseFileViewPage,
+    page
+  }) => {
+    await test.step("Set up V1 case file view mocks", async () => {
+      await setupCaseFileViewMockRoutes(page, caseId);
+    });
+
+    await test.step("Open the Case File View tab in V1 mode", async () => {
+      await page.goto(`/cases/case-details/PRIVATELAW/PRLAPPS/${caseId}`);
+      await caseDetailsPage.selectCaseDetailsTab("Case File View");
+      await caseFileViewPage.waitForReady();
+    });
+
+    await test.step("Show the core case file view content", async () => {
+      await expect(caseFileViewPage.documentHeader).toContainText("Documents (6)");
+      const evidenceNode = await caseFileViewPage.getFolderNode("Evidence");
+      await expect.soft(caseFileViewPage.getFileUploadStamp(evidenceNode, "Alpha evidence.pdf")).toContainText("20 Oct 2023");
     });
   });
 });

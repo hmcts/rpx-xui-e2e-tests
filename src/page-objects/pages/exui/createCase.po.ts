@@ -3,6 +3,8 @@ import { expect, type Locator, Page } from "@playwright/test";
 
 import { Base } from "../../base";
 
+import { EXUI_TIMEOUTS } from "./exui-timeouts";
+
 export type SelectOption = { label: string; value: string };
 
 export interface CreateCaseSelection {
@@ -278,19 +280,58 @@ export class CreateCasePage extends Base {
     }
   }
 
-  async clickSubmitAndWait(context: string): Promise<void> {
-    await this.submitButton.waitFor({ state: "visible", timeout: 30_000 });
-    await this.submitButton.click();
-    await this.waitForUiIdleStateLenient();
-    await Promise.any([
-      this.page.locator(".hmcts-banner--success .alert-message, .exui-alert .alert-message").first().waitFor({
-        state: "visible",
-        timeout: 30_000
-      }),
-      this.page.locator("exui-case-details-home").waitFor({ state: "visible", timeout: 30_000 })
-    ]).catch(() => {
-      throw new Error(`Expected case-details or success-banner confirmation ${context}`);
-    });
+  async clickSubmitAndWait(
+    context: string,
+    options: { maxAutoAdvanceAttempts?: number; timeoutMs?: number } = {}
+  ): Promise<void> {
+    const timeoutMs = options.timeoutMs ?? 30_000;
+    const maxAutoAdvanceAttempts =
+      options.maxAutoAdvanceAttempts ??
+      Math.max(
+        2,
+        Math.min(8, Math.floor(timeoutMs / EXUI_TIMEOUTS.SUBMIT_AUTO_ADVANCE_MIN))
+      );
+    let autoAdvanceAttempts = 0;
+
+    while (true) {
+      const visibleSubmitButton = await this.submitButton.isVisible().catch(() => false);
+      if (visibleSubmitButton) {
+        await this.submitButton.waitFor({ state: "visible", timeout: timeoutMs });
+        await this.submitButton.click();
+        await this.waitForUiIdleStateLenient(timeoutMs);
+      }
+
+      const confirmationVisible = await Promise.any([
+        this.page
+          .locator(".hmcts-banner--success .alert-message, .exui-alert .alert-message")
+          .first()
+          .waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL })
+          .then(() => true),
+        this.page
+          .locator("exui-case-details-home")
+          .waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL })
+          .then(() => true)
+      ]).catch(() => false);
+
+      if (confirmationVisible) {
+        return;
+      }
+
+      const visibleContinueButton = await this.continueButton.isVisible().catch(() => false);
+      if (!visibleContinueButton) {
+        throw new Error(`Expected case-details or success-banner confirmation ${context}`);
+      }
+
+      autoAdvanceAttempts += 1;
+      if (autoAdvanceAttempts > maxAutoAdvanceAttempts) {
+        throw new Error(
+          `Exceeded ${maxAutoAdvanceAttempts} auto-advance attempts before submit ${context}`
+        );
+      }
+
+      await this.continueButton.click();
+      await this.waitForUiIdleStateLenient(timeoutMs);
+    }
   }
 
   private async selectOptionWhenReady(
