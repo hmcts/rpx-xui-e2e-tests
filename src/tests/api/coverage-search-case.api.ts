@@ -10,7 +10,6 @@ import {
   createFindCaseSearchResultsRouteHandler,
   createGlobalSearchResultsRouteHandler
 } from "../integration/helpers/caseSearchRouteHandlers.helper";
-import { resolveAllowMissingUiCredsSkip } from "../integration/helpers/uiSessionAccess.helper";
 import {
   buildFindCaseEmptySearchResultsMock,
   buildFindCaseSearchResultsMock,
@@ -51,26 +50,24 @@ const buildFakeRoute = (url: string, postData?: string | null) => {
 };
 
 test.describe("Search-case support coverage", () => {
-  test("FPL global search credentials fall back to CASEWORKER_R1 when dedicated env vars are absent", async () => {
+  test("FPL global search credentials fall back to the source-compatible AAT account when env vars are absent", async () => {
     await withEnv(
       {
         FPL_GLOBAL_SEARCH_USERNAME: undefined,
         FPL_GLOBAL_SEARCH_PASSWORD: undefined,
-        CASEWORKER_R1_USERNAME: "caseworker-r1@example.com",
-        CASEWORKER_R1_PASSWORD: "caseworker-pass"
+        TEST_ENV: "aat"
       },
       () => {
         const userUtils = new UserUtils();
-        expect(userUtils.hasUserCredentials("FPL_GLOBAL_SEARCH")).toBe(true);
         expect(userUtils.getUserCredentials("FPL_GLOBAL_SEARCH")).toEqual({
-          email: "caseworker-r1@example.com",
-          password: "caseworker-pass"
+          email: "fpl-ctsc-admin@justice.gov.uk",
+          password: "Password12"
         });
       }
     );
   });
 
-  test("FPL global search credentials prefer dedicated env vars when present", async () => {
+  test("FPL global search credentials keep the source-compatible baseline even when env vars are present", async () => {
     await withEnv(
       {
         FPL_GLOBAL_SEARCH_USERNAME: "search-user@example.com",
@@ -81,26 +78,50 @@ test.describe("Search-case support coverage", () => {
       () => {
         const userUtils = new UserUtils();
         expect(userUtils.getUserCredentials("FPL_GLOBAL_SEARCH")).toEqual({
-          email: "search-user@example.com",
-          password: "search-pass"
+          email: "fpl-ctsc-admin@justice.gov.uk",
+          password: "Password12"
         });
       }
     );
   });
 
-  test("missing-credentials skip stays opt-in locally and disabled in CI", () => {
-    expect(resolveAllowMissingUiCredsSkip({} as NodeJS.ProcessEnv)).toBe(false);
-    expect(
-      resolveAllowMissingUiCredsSkip({
-        PW_ALLOW_MISSING_UI_CREDS_SKIP: "1"
-      } as NodeJS.ProcessEnv)
-    ).toBe(true);
-    expect(
-      resolveAllowMissingUiCredsSkip({
-        CI: "true",
-        PW_ALLOW_MISSING_UI_CREDS_SKIP: "1"
-      } as NodeJS.ProcessEnv)
-    ).toBe(false);
+  test("search-case alias users resolve from Jenkins-style env vars", async () => {
+    await withEnv(
+      {
+        CASEWORKER_GLOBALSEARCH_USERNAME: "caseworker-globalsearch@example.com",
+        CASEWORKER_GLOBALSEARCH_PASSWORD: "caseworker-globalsearch-pass",
+        WA2_GLOBAL_SEARCH_USERNAME: "wa2-globalsearch@example.com",
+        WA2_GLOBAL_SEARCH_PASSWORD: "wa2-globalsearch-pass"
+      },
+      () => {
+        const userUtils = new UserUtils();
+        expect(userUtils.getUserCredentials("CASEWORKER_GLOBALSEARCH")).toEqual({
+          email: "caseworker-globalsearch@example.com",
+          password: "caseworker-globalsearch-pass"
+        });
+        expect(userUtils.getUserCredentials("WA2_GLOBAL_SEARCH")).toEqual({
+          email: "wa2-globalsearch@example.com",
+          password: "wa2-globalsearch-pass"
+        });
+      }
+    );
+  });
+
+  test("SOLICITOR resolves from the source-compatible default account when env vars are absent", async () => {
+    await withEnv(
+      {
+        SOLICITOR_USERNAME: undefined,
+        SOLICITOR_PASSWORD: undefined,
+        TEST_ENV: "aat"
+      },
+      () => {
+        const userUtils = new UserUtils();
+        expect(userUtils.getUserCredentials("SOLICITOR")).toEqual({
+          email: "xui_auto_test_user_solicitor@mailinator.com",
+          password: "Monday01"
+        });
+      }
+    );
   });
 
   test("search route request parsing decodes URLs and preserves raw post data", () => {

@@ -14,14 +14,16 @@ Recommended local flow (after `az login`):
 
 ```bash
 cd /Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/rpx-xui-e2e-tests
-yarn env:populate:aat
+yarn env:populate:playwright:aat
 # or
-yarn env:populate:demo
+yarn env:populate:playwright:demo
 ```
 
 Manual equivalent:
 
 ```bash
+yarn env:populate:playwright aat .env
+# or
 node ./node_modules/@hmcts/playwright-common/dist/scripts/get-secrets.js "rpx-aat" .env.example .env
 ```
 
@@ -35,10 +37,12 @@ If a value stays blank in `.env`, add the `e2e=<ENV_VAR_NAME>` tag to the corres
 Key env vars to tag:
 - `TEST_URL`, `TEST_ENV`
 - `IDAM_SECRET`, `IDAM_WEB_URL`, `IDAM_TESTING_SUPPORT_URL`, `IDAM_TESTING_SUPPORT_USERS_URL`, `S2S_URL`, `S2S_MICROSERVICE_NAME`
-- Search and session users: `SOLICITOR_*`, `PRL_SOLICITOR_*`, `FPL_GLOBAL_SEARCH_*`, `CASEWORKER_R1_*`, `CASEWORKER_R2_*`, `STAFF_ADMIN_*`, `COURT_ADMIN_*`, `JUDGE_*`
+- Dynamic-user bootstrap: `IDAM_SOLICITOR_USER_PASSWORD`, `IDAM_CASEWORKER_DIVORCE_PASSWORD`, `ORG_USER_ASSIGNMENT_*`, `TEST_SOLICITOR_ORGANISATION_ID`, `MANAGE_ORG_API_PATH`, `RD_PROFESSIONAL_API_PATH`
+- Search and session users: `SOLICITOR_*`, `PRL_SOLICITOR_*`, `FPL_GLOBAL_SEARCH_*`, `CASEWORKER_GLOBALSEARCH_*`, `WA2_GLOBAL_SEARCH_*`, `CASEWORKER_R1_*`, `CASEWORKER_R2_*`, `STAFF_ADMIN_*`, `COURT_ADMIN_*`, `JUDGE_*`
 - Feature/parity users: `SEARCH_EMPLOYMENT_CASE_*`, `USER_WITH_FLAGS_*`, `RESTRICTED_CASE_FILE_VIEW_V1_1_ON_*`, `RESTRICTED_CASE_FILE_VIEW_V1_1_OFF_*`, `ORG_USER_ASSIGNMENT_*`
 - Optional sample IDs: `WA_SAMPLE_TASK_ID`, `WA_SAMPLE_ASSIGNED_TASK_ID`, `ROLE_ACCESS_CASE_ID`, `EM_DOC_ID`, `WA_LOCATION_ID`
 - The template also accepts source-style aliases such as `RESTRICTED_CASE_FILE_VIEW_V1_1_ON_USERNAME`; runtime user mapping will resolve these for `RESTRICTED_CASE_FILE_VIEW_ON` / `RESTRICTED_CASE_FILE_VIEW_OFF`
+- Script wrapper: `scripts/populate-playwright-env-from-keyvault.sh`
 
 ## Playwright suite updates
 

@@ -6,7 +6,7 @@ import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js
 
 const defaultSearchCaseSessionUsers = ["FPL_GLOBAL_SEARCH"] as const;
 const searchCaseFallbackUsers: Record<string, string[]> = {
-  FPL_GLOBAL_SEARCH: ["CASEWORKER_R1"]
+  FPL_GLOBAL_SEARCH: ["CASEWORKER_GLOBALSEARCH", "WA2_GLOBAL_SEARCH", "CASEWORKER_R1"]
 };
 
 function parseUserList(rawValue?: string): string[] {
@@ -44,12 +44,17 @@ export function resolveSearchCaseSessionCandidateUsers(
 ): string[] {
   const normalizedPreferredUserIdentifier = normalizeUserIdentifier(preferredUserIdentifier);
   const configuredUsers = resolveSearchCaseSessionUsers(env).map(normalizeUserIdentifier);
-  const preferredPool = configuredUsers.includes(normalizedPreferredUserIdentifier)
-    ? rotateUsersToPreferred(configuredUsers, normalizedPreferredUserIdentifier)
-    : [normalizedPreferredUserIdentifier];
+  const configuredPool =
+    configuredUsers.length > 0
+      ? configuredUsers.includes(normalizedPreferredUserIdentifier)
+        ? rotateUsersToPreferred(configuredUsers, normalizedPreferredUserIdentifier)
+        : configuredUsers
+      : [];
   const fallbackUsers = searchCaseFallbackUsers[normalizedPreferredUserIdentifier] ?? [];
 
-  return Array.from(new Set([...preferredPool, ...fallbackUsers]));
+  return Array.from(
+    new Set([normalizedPreferredUserIdentifier, ...configuredPool, ...fallbackUsers])
+  );
 }
 
 export function resolveSearchCaseUserIdentifier(

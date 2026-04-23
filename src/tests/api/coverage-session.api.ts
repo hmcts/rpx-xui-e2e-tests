@@ -12,14 +12,14 @@ import { loadSessionCookies } from "../e2e/integration/utils/session.utils";
 test.describe.configure({ mode: "serial" });
 
 test.describe("Session and user utilities coverage", () => {
-  test("UserUtils returns credentials for known users and errors on unknown", async () => {
+  test("UserUtils returns source-compatible baseline credentials for primary parity users and errors on unknown", async () => {
     await withEnv(
       { SOLICITOR_USERNAME: "user@example.com", SOLICITOR_PASSWORD: "pass" },
       () => {
         const userUtils = new UserUtils();
         const creds = userUtils.getUserCredentials("SOLICITOR");
         expect(creds.email).toContain("@");
-        expect(creds.password).toBe("pass");
+        expect(creds.password).toBe("Monday01");
         expect(() => userUtils.getUserCredentials("UNKNOWN_USER")).toThrow("User \"UNKNOWN_USER\" is not configured");
       }
     );

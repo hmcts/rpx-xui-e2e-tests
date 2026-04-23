@@ -1,5 +1,3 @@
-import type { TestInfo } from "@playwright/test";
-
 import type { CreateCaseSelection } from "../../../page-objects/pages/exui/createCase.po.js";
 
 const formatOptions = (options: Array<{ label: string; value: string }>): string =>
@@ -12,14 +10,12 @@ const formatOptions = (options: Array<{ label: string; value: string }>): string
 export const requireCreateCaseSelection = (
   selection: CreateCaseSelection,
   desiredJurisdiction: string,
-  desiredCaseType: string,
-  testInfo: Pick<TestInfo, "skip">
+  desiredCaseType: string
 ) => {
   if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
     const availableJurisdictions = formatOptions(selection.availableJurisdictions);
     const availableCaseTypes = formatOptions(selection.availableCaseTypes);
-    testInfo.skip(
-      true,
+    throw new Error(
       `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
         `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
     );

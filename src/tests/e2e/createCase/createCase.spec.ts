@@ -31,7 +31,7 @@ test.describe("Verify creating cases works as expected", () => {
     createCasePage,
     caseListPage,
     tableUtils
-  }, testInfo) => {
+  }) => {
     let caseNumber = "";
     const textField0 = faker.lorem.word();
     const desiredJurisdiction = "DIVORCE";
@@ -45,7 +45,7 @@ test.describe("Verify creating cases works as expected", () => {
       jurisdictionLabel,
       caseTypeValue,
       caseTypeLabel
-    } = requireCreateCaseSelection(selection, desiredJurisdiction, desiredCaseType, testInfo);
+    } = requireCreateCaseSelection(selection, desiredJurisdiction, desiredCaseType);
 
     await test.step("Create a case and validate the case number", async () => {
       await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, textField0);

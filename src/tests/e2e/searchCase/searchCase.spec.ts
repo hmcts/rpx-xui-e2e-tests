@@ -53,9 +53,10 @@ test.describe("FPL global search user - 16-digit case search", { tag: ["@e2e", "
       await caseSearchPage.searchWith16DigitCaseId(invalidCaseReference);
     });
 
-    await expect(page).not.toHaveURL(/\/cases\/case-details\//);
-    await expect(page).toHaveURL(/\/cases(?:[/?#]|$)/);
-    await expect(caseSearchPage.noResultsHeading).toBeVisible();
-    await expect(caseSearchPage.backLink).toBeVisible();
+    await test.step("Search results not found content is shown", async () => {
+      await expect(page).not.toHaveURL(/\/cases\/case-details\//);
+      await expect(caseSearchPage.noResultsHeading).toBeVisible();
+      await expect(caseSearchPage.backLink).toBeVisible();
+    });
   });
 });

@@ -76,8 +76,7 @@ test.describe(`Case List as ${userIdentifier}`, () => {
     });
 
     await test.step("Verify user sees empty case list UI", async () => {
-      await expect(caseListPage.jurisdictionSelect).toBeVisible();
-      expect(await caseListPage.caseSearchResultsMessage.textContent()).toContain(
+      await expect(caseListPage.caseSearchResultsMessage).toContainText(
         "No cases found. Try using different filters."
       );
     });

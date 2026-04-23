@@ -12,7 +12,7 @@ import { retryOnTransientFailure } from "../utils/transient-failure.utils.js";
 import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-session.utils.js";
 
 const DESIRED_JURISDICTION = "DIVORCE";
-const DESIRED_CASE_TYPE = "XUI Case PoC";
+const DESIRED_CASE_TYPE = "xuiTestCaseType";
 const MEDIA_VIEWER_ROUTE_PATTERN = /\/media-viewer(?:\?|$)/;
 const DOCUMENT_BINARY_ROUTE_PATTERN = /\/documents(?:v2)?\/[^/]+\/binary$/;
 const UPDATE_CASE_ACTION = "Update case";
@@ -68,8 +68,7 @@ test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] },
       const { jurisdictionValue, caseTypeValue } = requireCreateCaseSelection(
         selection,
         DESIRED_JURISDICTION,
-        DESIRED_CASE_TYPE,
-        testInfo
+        DESIRED_CASE_TYPE
       );
 
       await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, caseMarker);
