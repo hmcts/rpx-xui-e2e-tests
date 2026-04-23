@@ -36,18 +36,12 @@ test.beforeAll(async ({ apiClient }) => {
 test.describe("Work allocation (read-only)", () => {
   test("returns task names catalogue", async ({ apiClient }) => {
     const response = await apiClient.get<unknown>("workallocation/taskNames", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    if (response.status === 200) {
-      assertTaskNames(response);
-    }
+    assertGuardedTaskNames(response);
   });
 
   test("returns types of work catalogue", async ({ apiClient }) => {
     const response = await apiClient.get<unknown>("workallocation/task/types-of-work", { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    if (response.status === 200) {
-      assertTypesOfWork(response);
-    }
+    assertGuardedTypesOfWork(response);
   });
 
   test("rejects unauthenticated access", async ({ anonymousClient }) => {
@@ -261,6 +255,16 @@ function assertTypesOfWork(response: { status: number; data: unknown }): void {
       })
     );
   }
+}
+
+function assertGuardedTaskNames(response: { status: number; data: unknown }): void {
+  expectStatus(response.status, StatusSets.guardedBasic);
+  assertTaskNames(response);
+}
+
+function assertGuardedTypesOfWork(response: { status: number; data: unknown }): void {
+  expectStatus(response.status, StatusSets.guardedBasic);
+  assertTypesOfWork(response);
 }
 
 async function assertMyTasks(apiClient: ApiClient): Promise<void> {

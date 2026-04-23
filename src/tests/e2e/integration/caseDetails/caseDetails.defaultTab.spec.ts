@@ -156,6 +156,7 @@ const extractCaseMeta = async (
 
 test.describe("@EXUI-3895 Case details default tab selection", () => {
   let caseMeta: { jurisdiction?: string; caseType?: string } = {};
+
   test.beforeAll(async ({ browser }, testInfo) => {
     void browser;
     if (!hasCourtAdminCreds) {

@@ -1,4 +1,5 @@
 import { faker } from "@faker-js/faker";
+import type { TestInfo } from "@playwright/test";
 
 import { expect, test } from "../../../fixtures/ui";
 
@@ -8,6 +9,38 @@ const formatOptions = (options: Array<{ label: string; value: string }>): string
         .map((option) => `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`)
         .join(", ")
     : "none";
+
+type CreateCaseOption = { label: string; value: string };
+type CreateCaseSelection = {
+  availableJurisdictions: CreateCaseOption[];
+  availableCaseTypes: CreateCaseOption[];
+  selectedJurisdiction?: CreateCaseOption;
+  selectedCaseType?: CreateCaseOption;
+};
+
+const requireCreateCaseSelection = (
+  selection: CreateCaseSelection,
+  desiredJurisdiction: string,
+  desiredCaseType: string,
+  testInfo: TestInfo
+) => {
+  if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
+    const availableJurisdictions = formatOptions(selection.availableJurisdictions);
+    const availableCaseTypes = formatOptions(selection.availableCaseTypes);
+    testInfo.skip(
+      true,
+      `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
+        `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
+    );
+  }
+
+  return {
+    jurisdictionValue: selection.selectedJurisdiction!.value || selection.selectedJurisdiction!.label,
+    jurisdictionLabel: selection.selectedJurisdiction!.label || selection.selectedJurisdiction!.value,
+    caseTypeValue: selection.selectedCaseType!.value || selection.selectedCaseType!.label,
+    caseTypeLabel: selection.selectedCaseType!.label || selection.selectedCaseType!.value
+  };
+};
 
 test.describe("Verify creating and updating a case works as expected", () => {
   test.beforeEach(async ({ caseListPage, config }) => {
@@ -31,22 +64,12 @@ test.describe("Verify creating and updating a case works as expected", () => {
       desiredJurisdiction,
       desiredCaseType
     );
-    if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
-      const availableJurisdictions = formatOptions(selection.availableJurisdictions);
-      const availableCaseTypes = formatOptions(selection.availableCaseTypes);
-      testInfo.skip(
-        true,
-        `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
-          `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
-      );
-      return;
-    }
-    const jurisdictionValue =
-      selection.selectedJurisdiction.value || selection.selectedJurisdiction.label;
-    const jurisdictionLabel =
-      selection.selectedJurisdiction.label || selection.selectedJurisdiction.value;
-    const caseTypeValue = selection.selectedCaseType.value || selection.selectedCaseType.label;
-    const caseTypeLabel = selection.selectedCaseType.label || selection.selectedCaseType.value;
+    const {
+      jurisdictionValue,
+      jurisdictionLabel,
+      caseTypeValue,
+      caseTypeLabel
+    } = requireCreateCaseSelection(selection, desiredJurisdiction, desiredCaseType, testInfo);
 
     await test.step("Create a case and validate the case number", async () => {
       await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, textField0);

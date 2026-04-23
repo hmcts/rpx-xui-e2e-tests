@@ -1,5 +1,5 @@
 import { faker } from "@faker-js/faker";
-import type { Cookie } from "@playwright/test";
+import type { Cookie, TestInfo } from "@playwright/test";
 
 import { expect, test } from "../../../fixtures/ui";
 import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
@@ -12,11 +12,44 @@ const formatOptions = (options: Array<{ label: string; value: string }>): string
         .join(", ")
     : "none";
 
+type CreateCaseOption = { label: string; value: string };
+type CreateCaseSelection = {
+  availableJurisdictions: CreateCaseOption[];
+  availableCaseTypes: CreateCaseOption[];
+  selectedJurisdiction?: CreateCaseOption;
+  selectedCaseType?: CreateCaseOption;
+};
+
+const requireCreateCaseSelection = (
+  selection: CreateCaseSelection,
+  desiredJurisdiction: string,
+  desiredCaseType: string,
+  testInfo: TestInfo
+) => {
+  if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
+    const availableJurisdictions = formatOptions(selection.availableJurisdictions);
+    const availableCaseTypes = formatOptions(selection.availableCaseTypes);
+    testInfo.skip(
+      true,
+      `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
+        `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
+    );
+  }
+
+  return {
+    jurisdictionValue: selection.selectedJurisdiction!.value || selection.selectedJurisdiction!.label,
+    jurisdictionLabel: selection.selectedJurisdiction!.label || selection.selectedJurisdiction!.value,
+    caseTypeValue: selection.selectedCaseType!.value || selection.selectedCaseType!.label,
+    caseTypeLabel: selection.selectedCaseType!.label || selection.selectedCaseType!.value
+  };
+};
+
 test.describe("Verify creating cases works as expected", () => {
   const userIdentifier = "SOLICITOR";
   let sessionCookies: Cookie[] = [];
   test.use({ storageState: { cookies: [], origins: [] } });
   test.setTimeout(360_000);
+
   test.beforeAll(async () => {
     await ensureUiStorageStateForUser(userIdentifier, { strict: true });
     const { cookies } = loadSessionCookies(userIdentifier);
@@ -45,22 +78,12 @@ test.describe("Verify creating cases works as expected", () => {
       desiredJurisdiction,
       desiredCaseType
     );
-    if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
-      const availableJurisdictions = formatOptions(selection.availableJurisdictions);
-      const availableCaseTypes = formatOptions(selection.availableCaseTypes);
-      testInfo.skip(
-        true,
-        `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
-          `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
-      );
-      return;
-    }
-    const jurisdictionValue =
-      selection.selectedJurisdiction.value || selection.selectedJurisdiction.label;
-    const jurisdictionLabel =
-      selection.selectedJurisdiction.label || selection.selectedJurisdiction.value;
-    const caseTypeValue = selection.selectedCaseType.value || selection.selectedCaseType.label;
-    const caseTypeLabel = selection.selectedCaseType.label || selection.selectedCaseType.value;
+    const {
+      jurisdictionValue,
+      jurisdictionLabel,
+      caseTypeValue,
+      caseTypeLabel
+    } = requireCreateCaseSelection(selection, desiredJurisdiction, desiredCaseType, testInfo);
 
     await test.step("Create a case and validate the case number", async () => {
       await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, textField0);
