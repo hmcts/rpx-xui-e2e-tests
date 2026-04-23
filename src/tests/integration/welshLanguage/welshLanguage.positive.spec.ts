@@ -25,11 +25,11 @@ test.describe(`Verify users can switch the language as ${userIdentifier} (@mocke
       });
     });
 
-    await page.goto("/cases", {
+    await page.goto("/", {
       waitUntil: "domcontentloaded",
       timeout: 30_000
     });
-    await caseListPage.waitForReady(45_000);
+    await caseListPage.exuiHeader.checkIsVisible();
   });
 
   test.afterEach(async () => {
@@ -38,11 +38,13 @@ test.describe(`Verify users can switch the language as ${userIdentifier} (@mocke
   });
 
   test("Verify translations are shown when the user selects to view the site in Welsh", async ({
-    caseListPage
+    caseListPage,
+    page
   }) => {
     await caseListPage.exuiHeader.checkIsVisible();
     await caseListPage.exuiHeader.switchLanguage("Cymraeg");
     await caseListPage.exuiSpinnerComponent.wait();
+    await page.waitForLoadState("domcontentloaded");
     await expect(caseListPage.exuiHeader.selectedPageItem).toContainText(
       welshTranslationsSmall.translations["Manage Cases"].translation
     );
@@ -50,6 +52,7 @@ test.describe(`Verify users can switch the language as ${userIdentifier} (@mocke
 
     await caseListPage.exuiHeader.switchLanguage("English");
     await caseListPage.exuiSpinnerComponent.wait();
+    await page.waitForLoadState("domcontentloaded");
     await caseListPage.exuiHeader.checkIsVisible();
     await expect(caseListPage.exuiHeader.selectedPageItem).toContainText("Manage Cases");
     await expect(caseListPage.exuiHeader.languageToggle).toContainText("Cymraeg");

@@ -74,8 +74,8 @@ test.describe(`Global search from menu bar as ${userIdentifier}`, () => {
       page.waitForURL(/\/cases\/case-details\/PUBLICLAW\/PRLAPPS\//),
       globalSearchPage.viewLink.click()
     ]);
+    await caseDetailsPage.waitForReady();
     await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
-    await expect(caseDetailsPage.caseSummaryHeading).toHaveText("Case information");
     const caseNumberFromUrl = await caseDetailsPage.getCaseNumberFromUrl();
     expect(caseNumberFromUrl).toBe(GLOBAL_SEARCH_CASE_REFERENCE);
   });

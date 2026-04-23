@@ -62,6 +62,8 @@ def secrets = [
     secret('prl-solicitor-password', 'PRL_SOLICITOR_PASSWORD'),
     secret('solicitor-username', 'SOLICITOR_USERNAME'),
     secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('e2e-fpl-global-search-username', 'FPL_GLOBAL_SEARCH_USERNAME'),
+    secret('e2e-fpl-global-search-password', 'FPL_GLOBAL_SEARCH_PASSWORD'),
     secret('judge-username', 'JUDGE_USERNAME'),
     secret('judge-password', 'JUDGE_PASSWORD'),
     // secret('case-manager-username', 'CASEMANAGER_USERNAME'),
@@ -74,6 +76,8 @@ def secrets = [
     secret('court-admin-password', 'COURT_ADMIN_PASSWORD'),
     secret('staff-admin-username', 'STAFF_ADMIN_USERNAME'),
     secret('staff-admin-password', 'STAFF_ADMIN_PASSWORD'),
+    secret('e2e-search-employment-case-username', 'SEARCH_EMPLOYMENT_CASE_USERNAME'),
+    secret('e2e-search-employment-case-password', 'SEARCH_EMPLOYMENT_CASE_PASSWORD'),
     // secret('noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
     // secret('noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
     // secret('wa-solicitor-username', 'WA_SOLICITOR_USERNAME'),
@@ -176,6 +180,41 @@ withNightlyPipeline(type, product, component, 400) {
               reportName           : 'UI nightly report (Odhín)'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
+          }
+        },
+        'Integration nightly': {
+          def integrationOdhinEnv = [
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration-nightly/odhin-report',
+            'PW_ODHIN_TARGET=functional-output/tests/playwright-integration-nightly/odhin-report',
+            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PW_UI_STORAGE=1',
+            'PW_UI_STORAGE_TTL_MIN=15',
+            'PW_UI_LOGIN_TIMEOUT_MS=120000',
+            'PW_UI_IDLE_TIMEOUT_MS=60000',
+            'PW_UI_IDLE_QUIET_MS=400',
+            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+            'PW_UI_FAIL_ON_HTTP_4XX=0'
+          ]
+          try {
+            def tagArg = params.tag ? "--grep ${params.tag}" : ""
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn("playwright test --project=integration-nightly ${tagArg}")
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            }
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "functional-output/tests/playwright-integration-nightly/odhin-report",
+              reportFiles          : 'playwright-odhin-integration-nightly.html',
+              reportName           : 'Integration nightly report (Odhín)'
+            ])
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration-nightly/odhin-report/**'
           }
         }
       )
