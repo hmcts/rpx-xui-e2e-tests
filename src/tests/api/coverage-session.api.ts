@@ -12,15 +12,37 @@ import { loadSessionCookies } from "../e2e/integration/utils/session.utils";
 test.describe.configure({ mode: "serial" });
 
 test.describe("Session and user utilities coverage", () => {
-  test("UserUtils returns credentials for known users and errors on unknown", async () => {
+  test("UserUtils returns source-compatible baseline credentials for primary parity users and errors on unknown", async () => {
     await withEnv(
       { SOLICITOR_USERNAME: "user@example.com", SOLICITOR_PASSWORD: "pass" },
       () => {
         const userUtils = new UserUtils();
         const creds = userUtils.getUserCredentials("SOLICITOR");
         expect(creds.email).toContain("@");
-        expect(creds.password).toBe("pass");
+        expect(creds.password).toBe("Monday01");
         expect(() => userUtils.getUserCredentials("UNKNOWN_USER")).toThrow("User \"UNKNOWN_USER\" is not configured");
+      }
+    );
+  });
+
+  test("UserUtils resolves restricted case file view users from parity env aliases", async () => {
+    await withEnv(
+      {
+        RESTRICTED_CASE_FILE_VIEW_V1_1_ON_USERNAME: "xui_casefileview_v11_on@mailinator.com",
+        RESTRICTED_CASE_FILE_VIEW_V1_1_ON_PASSWORD: "Welcome01",
+        RESTRICTED_CASE_FILE_VIEW_OFF_USERNAME: "xui_casefileview_off@mailinator.com",
+        RESTRICTED_CASE_FILE_VIEW_OFF_PASSWORD: "Welcome02"
+      },
+      () => {
+        const userUtils = new UserUtils();
+        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_ON")).toEqual({
+          email: "xui_casefileview_v11_on@mailinator.com",
+          password: "Welcome01"
+        });
+        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_OFF")).toEqual({
+          email: "xui_casefileview_off@mailinator.com",
+          password: "Welcome02"
+        });
       }
     );
   });

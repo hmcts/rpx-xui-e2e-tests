@@ -43,6 +43,7 @@ export class CaseSearchPage extends Base {
   readonly ccdNumberInput = this.page.locator("#\\[CASE_REFERENCE\\]");
   readonly applyButton = this.page.locator('button[title="Apply filter"], button[aria-label="Apply filter"]');
   readonly resultsTable = this.page.locator("ccd-search-result");
+  readonly searchResultsDataTable = this.resultsTable.locator("table").first();
   readonly resultLinks = this.page.locator("ccd-search-result .govuk-link");
   readonly searchResultsSummary = this.page.locator("#search-result .pagination-top");
 

@@ -154,17 +154,33 @@ const extractCaseMeta = async (
   }
 };
 
+const ensureVisibleCaseListResult = async (
+  page: Page,
+  waitForVisible: () => Promise<void>
+): Promise<void> => {
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      await waitForVisible();
+      return;
+    } catch (error) {
+      if (attempt === 2) {
+        throw error;
+      }
+      await page.reload({ waitUntil: "domcontentloaded" });
+    }
+  }
+};
+
 test.describe("@EXUI-3895 Case details default tab selection", () => {
   let caseMeta: { jurisdiction?: string; caseType?: string } = {};
-  test.beforeAll(async ({ browser }, testInfo) => {
+
+  test.beforeAll(async ({ browser }) => {
     void browser;
     if (!hasCourtAdminCreds) {
-      testInfo.skip(true, "COURT_ADMIN credentials not set");
-      return;
+      throw new Error("COURT_ADMIN credentials not set");
     }
     if (Boolean(explicitUsersEnv) && !includesCourtAdmin) {
-      testInfo.skip(true, "PW_UI_USERS excludes COURT_ADMIN");
-      return;
+      throw new Error("PW_UI_USERS excludes COURT_ADMIN");
     }
     await ensureUiStorageStateForUser(userIdentifier, { strict: true });
     const { cookies } = loadSessionCookies(userIdentifier);
@@ -187,19 +203,24 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
     await installTabSelectionTracker(page);
 
     await test.step("Open case details from case list", async () => {
+      await caseListPage.page.goto(config.urls.manageCaseBaseUrl, {
+        waitUntil: "domcontentloaded"
+      });
+      await caseListPage.acceptAnalyticsCookies();
+      await caseListPage.waitForReady();
+      await ensureVisibleCaseListResult(page, async () => {
+        await caseListPage.exuiCaseListComponent.resultLinks.first().waitFor({
+          state: "visible",
+          timeout: 30_000
+        });
+      });
+      await resetTabSelectionTracker(page);
       const caseDetailsResponse = page.waitForResponse((response) => {
         return (
           response.request().method() === "GET" &&
           response.url().includes("/internal/cases/")
         );
       });
-      await caseListPage.page.goto(config.urls.manageCaseBaseUrl, {
-        waitUntil: "domcontentloaded"
-      });
-      await caseListPage.acceptAnalyticsCookies();
-      await caseListPage.waitForReady();
-      await caseListPage.exuiCaseListComponent.resultLinks.first().waitFor({ state: "visible" });
-      await resetTabSelectionTracker(page);
       await caseListPage.exuiCaseListComponent.selectCaseByIndex(0);
       await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
       await caseDetailsPage.waitForReady();

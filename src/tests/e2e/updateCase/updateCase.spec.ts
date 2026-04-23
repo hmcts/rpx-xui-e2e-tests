@@ -1,105 +1,181 @@
 import { faker } from "@faker-js/faker";
 
 import { expect, test } from "../../../fixtures/ui";
+import { requireCreateCaseSelection } from "../utils/create-case-selection.utils.js";
+import { retryOnTransientFailure } from "../utils/transient-failure.utils.js";
+import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-session.utils.js";
 
-const formatOptions = (options: Array<{ label: string; value: string }>): string =>
-  options.length
-    ? options
-        .map((option) => `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`)
-        .join(", ")
-    : "none";
+const updatedFirstName = faker.person.firstName();
+const updatedLastName = faker.person.lastName();
+const testField = `${faker.lorem.word()}${Date.now()}`;
+const UPDATE_CASE_ACTION_TIMEOUT_MS = 60_000;
 
-test.describe("Verify creating and updating a case works as expected", () => {
-  test.beforeEach(async ({ caseListPage, config }) => {
-    await caseListPage.page.goto(config.urls.manageCaseBaseUrl);
-    await caseListPage.acceptAnalyticsCookies();
-    await caseListPage.waitForReady();
-  });
+function caseBannerMatches(bannerText: string, caseNumber: string, expectedMessage: string): boolean {
+  const normalizedBanner = bannerText.replace(/\D/g, "");
+  const normalizedCaseNumber = caseNumber.replace(/\D/g, "");
+  return normalizedBanner.includes(normalizedCaseNumber) && bannerText.includes(expectedMessage);
+}
 
-  test("Create, update and verify case history", async ({
-    validatorUtils,
-    createCasePage,
-    caseListPage,
-    caseDetailsPage,
-    page
-  }, testInfo) => {
-    let caseNumber = "";
-    const textField0 = faker.lorem.word();
-    const desiredJurisdiction = "DIVORCE";
-    const desiredCaseType = "XUI Case PoC";
-    const selection = await createCasePage.resolveCreateCaseSelection(
-      desiredJurisdiction,
-      desiredCaseType
-    );
-    if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
-      const availableJurisdictions = formatOptions(selection.availableJurisdictions);
-      const availableCaseTypes = formatOptions(selection.availableCaseTypes);
-      testInfo.skip(
-        true,
-        `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
-          `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
+function getTodayFormats(): { expectedDate: string; numericFormat: string } {
+  const now = new Date();
+  return {
+    expectedDate: now.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    }),
+    numericFormat: now.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    })
+  };
+}
+
+function matchesToday(value: string, expectedDate: string, numericFormat: string): boolean {
+  return value.includes(expectedDate) || value.includes(numericFormat);
+}
+
+test.describe(
+  "Verify creating and updating a case works as expected",
+  { tag: ["@e2e", "@e2e-update-case"] },
+  () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
+    test.describe.configure({ timeout: 240_000 });
+
+    test.beforeAll(async () => {
+      await ensureUiSession("SOLICITOR");
+    });
+
+    test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
+      await retryOnTransientFailure(
+        async () => {
+          await openHomeWithCapturedSession(page, "SOLICITOR");
+          await createCasePage.acceptAnalyticsCookies();
+          await createCasePage.waitForUiIdleState();
+
+          const selection = await createCasePage.resolveCreateCaseSelection(
+            "DIVORCE",
+            "XUI Case PoC"
+          );
+          const { jurisdictionValue, caseTypeValue } = requireCreateCaseSelection(
+            selection,
+            "DIVORCE",
+            "XUI Case PoC"
+          );
+          await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, testField);
+          await caseDetailsPage.waitForReady();
+        },
+        {
+          maxAttempts: 1,
+          onRetry: async () => {
+            if (page.isClosed()) {
+              return;
+            }
+            await page.goto("/").catch(() => undefined);
+          }
+        }
       );
-      return;
-    }
-    const jurisdictionValue =
-      selection.selectedJurisdiction.value || selection.selectedJurisdiction.label;
-    const jurisdictionLabel =
-      selection.selectedJurisdiction.label || selection.selectedJurisdiction.value;
-    const caseTypeValue = selection.selectedCaseType.value || selection.selectedCaseType.label;
-    const caseTypeLabel = selection.selectedCaseType.label || selection.selectedCaseType.value;
-
-    await test.step("Create a case and validate the case number", async () => {
-      await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, textField0);
-      await expect(createCasePage.exuiCaseDetailsComponent.caseHeader).toBeVisible();
-      caseNumber = await createCasePage.exuiCaseDetailsComponent.caseHeader.innerText();
-      validatorUtils.validateDivorceCaseNumber(caseNumber);
     });
 
-    await test.step("Find the created case in the case list", async () => {
-      await caseListPage.goto();
-      await caseListPage.searchByJurisdiction(jurisdictionLabel);
-      await caseListPage.searchByCaseType(caseTypeLabel);
-      await caseListPage.searchByTextField0(textField0);
-      await caseListPage.exuiCaseListComponent.searchByCaseState("Case created");
-      await caseListPage.applyFilters();
-      const cleanedCaseNumber = caseNumber.replace(/^#/, "");
-      await expect
-        .poll(async () => caseListPage.hasCaseReference(cleanedCaseNumber), { timeout: 120_000 })
-        .toBe(true);
-    });
+    test("Create, update and verify case history", async ({
+      page,
+      createCasePage,
+      caseDetailsPage
+    }) => {
+      let caseNumber = "";
+      let caseDetailsUrl = "";
 
-    await test.step("Open the created case", async () => {
-      const cleanedCaseNumber = caseNumber.replace(/^#/, "");
-      await caseListPage.openCaseByReference(cleanedCaseNumber);
-      await caseDetailsPage.waitForReady();
-    });
-
-    await test.step("Start Update Case event", async () => {
-      await expect(page.locator("#next-step")).toBeVisible();
-      await page.getByLabel("Next step").selectOption("3: Object");
-      await page.getByRole("button", { name: "Go" }).click();
-      await caseDetailsPage.waitForEventFormReady("#Person2_FirstName");
-    });
-
-    await test.step("Update case fields", async () => {
-      await page.locator("#Person2_FirstName").fill("test");
-      await page.locator("#Person2_LastName").fill("test street");
-      await page.getByRole("button", { name: "Continue" }).click();
-      await page.getByRole("button", { name: "Submit" }).click();
-    });
-
-    await test.step("Verify update success banner", async () => {
-      const banner = page.locator(".alert-message");
-      await expect(banner).toBeVisible();
-      await expect(banner).toContainText(/Case #[\d-]+ has/i);
-    });
-
-    await test.step("Verify update event appears in history", async () => {
-      await caseDetailsPage.openHistoryTab();
-      const eventEntries = page.locator("ccd-event-log-details span.text-16", {
-        hasText: "Update case"
+      await test.step("Collect the case number", async () => {
+        caseDetailsUrl = await caseDetailsPage.getCurrentPageUrl();
+        caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
       });
-      await expect(eventEntries.first()).toBeVisible();
+
+      await test.step("Start Update Case event", async () => {
+        await caseDetailsPage.selectCaseAction("Update case", {
+          expectedLocator: createCasePage.person2FirstNameInput,
+          timeoutMs: UPDATE_CASE_ACTION_TIMEOUT_MS
+        });
+      });
+
+      await test.step("Update case fields", async () => {
+        await retryOnTransientFailure(
+          async () => {
+            await createCasePage.person2FirstNameInput.fill(updatedFirstName);
+            await createCasePage.person2LastNameInput.fill(updatedLastName);
+            await createCasePage.clickSubmitAndWait("after updating case fields", {
+              timeoutMs: 60_000,
+              maxAutoAdvanceAttempts: 3
+            });
+          },
+          {
+            maxAttempts: 2,
+            onRetry: async () => {
+              if (page.isClosed()) {
+                return;
+              }
+              await caseDetailsPage.reopenCaseDetails(caseDetailsUrl).catch(async () => {
+                await page.goto(caseDetailsUrl).catch(() => undefined);
+              });
+              await caseDetailsPage.selectCaseAction("Update case", {
+                expectedLocator: createCasePage.person2FirstNameInput,
+                timeoutMs: UPDATE_CASE_ACTION_TIMEOUT_MS,
+                retry: false
+              });
+            }
+          }
+        );
+
+        await caseDetailsPage.exuiSpinnerComponent.wait();
+        await expect.soft(caseDetailsPage.caseAlertSuccessMessage).toBeVisible();
+      });
+
+      await test.step("Verify update success banner", async () => {
+        const expectedMessage = "has been updated with event: Update case";
+        await expect
+          .poll(
+            async () => {
+              const bannerText = await caseDetailsPage.caseAlertSuccessMessage.innerText();
+              return caseBannerMatches(bannerText, caseNumber, expectedMessage);
+            },
+            { timeout: 45_000, intervals: [1_000, 2_000, 3_000] }
+          )
+          .toBe(true);
+      });
+
+      await test.step("Verify the 'Some more data' tab has updated names correctly", async () => {
+        await caseDetailsPage.selectCaseDetailsTab("Some more data");
+
+        const table = await caseDetailsPage.trRowsToObjectInPage(caseDetailsPage.someMoreDataTable);
+        expect.soft(table).toMatchObject({
+          "First Name": updatedFirstName,
+          "Last Name": updatedLastName
+        });
+      });
+
+      await test.step("Verify that event details are shown on the History tab", async () => {
+        await caseDetailsPage.openHistoryTab();
+        const { updateRow, updateDate, updateAuthor, expectedDate } =
+          await caseDetailsPage.getCaseHistoryByEvent("Update case");
+        expect.soft(updateRow, "Update case row should be present").toBeTruthy();
+
+        const { numericFormat } = getTodayFormats();
+        expect.soft(
+          matchesToday(updateDate, expectedDate, numericFormat),
+          "Update case date should match today (ignore time)"
+        ).toBe(true);
+        expect.soft(updateAuthor, "Update case author should be present").not.toBe("");
+
+        const table = await caseDetailsPage.trRowsToObjectInPage(caseDetailsPage.historyDetailsTable);
+        expect(table).toMatchObject({
+          Date: updateDate,
+          Author: updateAuthor,
+          "End state": "Case created",
+          Event: "Update case",
+          Summary: "-",
+          Comment: "-"
+        });
+      });
     });
-  });
-});
+  }
+);

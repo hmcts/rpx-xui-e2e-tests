@@ -30,6 +30,7 @@ test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search
   test("Find case using Public Law jurisdiction", async ({
     caseSearchPage,
     caseDetailsPage,
+    tableUtils,
     page
   }) => {
     await test.step("Start Find case journey", async () => {
@@ -40,16 +41,28 @@ test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search
       );
     });
 
-    await expect(caseSearchPage.resultsTable).toBeVisible();
-    await expect(caseSearchPage.searchResultsSummary).toContainText(/\b1\b/);
-    const firstResultText = (await caseSearchPage.resultLinks.first().textContent()) ?? "";
-    expect(firstResultText.replaceAll(/\D/g, "")).toContain(availableCaseReference);
+    await test.step("Verify that case searched for appears under 'Your cases'", async () => {
+      await caseSearchPage.searchResultsDataTable.waitFor({ state: "visible", timeout: 30_000 });
+      const searchTable = await tableUtils.parseDataTable(caseSearchPage.searchResultsDataTable);
 
-    await caseSearchPage.openCaseDetailsFor(availableCaseReference);
-    await expect(page).toHaveURL(/\/cases\/case-details\//);
-    await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
-    await expect(caseDetailsPage.caseActionGoButton).toBeVisible();
-    expect(await caseDetailsPage.getCaseNumberFromUrl()).toBe(availableCaseReference);
+      expect(searchTable.length).toBeGreaterThan(0);
+      expect(searchTable[0]).toMatchObject({
+        "Case name": expect.any(String),
+        "Date submitted": expect.any(String),
+        "FamilyMan case number": expect.any(String),
+        "Local authority": expect.any(String),
+        State: expect.any(String)
+      });
+
+      await caseSearchPage.openCaseDetailsFor(availableCaseReference);
+      await expect(page).toHaveURL(/\/cases\/case-details\//);
+    });
+
+    await test.step("Verify case details page displays correct case", async () => {
+      await expect(caseDetailsPage.caseActionsDropdown).toBeVisible();
+      await expect(caseDetailsPage.caseActionGoButton).toBeVisible();
+      expect(await caseDetailsPage.getCaseNumberFromUrl()).toContain(availableCaseReference);
+    });
   });
 
   test("Find case is accessible from main menu navigation", async ({

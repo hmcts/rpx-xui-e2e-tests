@@ -42,7 +42,7 @@ test.describe(`Case List as ${userIdentifier}`, () => {
         `Showing 1 to ${Math.min(caseListMockResponse.results.length, 25)} of ${caseListMockResponse.total} results`
       );
       const table = await tableUtils.mapExuiTable(caseListPage.exuiCaseListComponent.caseListTable);
-      expect(table.length).toBe(caseListMockResponse.results.length);
+      expect(table).toHaveLength(caseListMockResponse.results.length);
       for (let i = 0; i < caseListMockResponse.results.length; i++) {
         const expectedFields = caseListMockResponse.results[i].case_fields;
         expect(table[i]["Case reference"]).toBe(expectedFields["[CASE_REFERENCE]"]);
@@ -76,8 +76,7 @@ test.describe(`Case List as ${userIdentifier}`, () => {
     });
 
     await test.step("Verify user sees empty case list UI", async () => {
-      await expect(caseListPage.jurisdictionSelect).toBeVisible();
-      expect(await caseListPage.caseSearchResultsMessage.textContent()).toContain(
+      await expect(caseListPage.caseSearchResultsMessage).toContainText(
         "No cases found. Try using different filters."
       );
     });

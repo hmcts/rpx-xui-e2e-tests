@@ -4,19 +4,14 @@ import type { Cookie } from "@playwright/test";
 import { expect, test } from "../../../fixtures/ui";
 import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
 import { loadSessionCookies } from "../integration/utils/session.utils.js";
-
-const formatOptions = (options: Array<{ label: string; value: string }>): string =>
-  options.length
-    ? options
-        .map((option) => `${option.label || "(blank)"}${option.value ? ` [${option.value}]` : ""}`)
-        .join(", ")
-    : "none";
+import { requireCreateCaseSelection } from "../utils/create-case-selection.utils.js";
 
 test.describe("Verify creating cases works as expected", () => {
   const userIdentifier = "SOLICITOR";
   let sessionCookies: Cookie[] = [];
   test.use({ storageState: { cookies: [], origins: [] } });
   test.setTimeout(360_000);
+
   test.beforeAll(async () => {
     await ensureUiStorageStateForUser(userIdentifier, { strict: true });
     const { cookies } = loadSessionCookies(userIdentifier);
@@ -36,7 +31,7 @@ test.describe("Verify creating cases works as expected", () => {
     createCasePage,
     caseListPage,
     tableUtils
-  }, testInfo) => {
+  }) => {
     let caseNumber = "";
     const textField0 = faker.lorem.word();
     const desiredJurisdiction = "DIVORCE";
@@ -45,22 +40,12 @@ test.describe("Verify creating cases works as expected", () => {
       desiredJurisdiction,
       desiredCaseType
     );
-    if (!selection.selectedJurisdiction || !selection.selectedCaseType) {
-      const availableJurisdictions = formatOptions(selection.availableJurisdictions);
-      const availableCaseTypes = formatOptions(selection.availableCaseTypes);
-      testInfo.skip(
-        true,
-        `Create case requires jurisdiction "${desiredJurisdiction}" and case type "${desiredCaseType}". ` +
-          `Available jurisdictions: ${availableJurisdictions}. Available case types: ${availableCaseTypes}.`
-      );
-      return;
-    }
-    const jurisdictionValue =
-      selection.selectedJurisdiction.value || selection.selectedJurisdiction.label;
-    const jurisdictionLabel =
-      selection.selectedJurisdiction.label || selection.selectedJurisdiction.value;
-    const caseTypeValue = selection.selectedCaseType.value || selection.selectedCaseType.label;
-    const caseTypeLabel = selection.selectedCaseType.label || selection.selectedCaseType.value;
+    const {
+      jurisdictionValue,
+      jurisdictionLabel,
+      caseTypeValue,
+      caseTypeLabel
+    } = requireCreateCaseSelection(selection, desiredJurisdiction, desiredCaseType);
 
     await test.step("Create a case and validate the case number", async () => {
       await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, textField0);

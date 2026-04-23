@@ -9,6 +9,7 @@ const ignored = {
     ...LintingConfig.ignored.ignores,
     "node_modules",
     "playwright-report",
+    "transform-v4-to-v3-audit.cjs",
     "scripts/**",
     "test-results",
     "coverage",

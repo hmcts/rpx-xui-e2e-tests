@@ -1,3 +1,8 @@
+import {
+  resolveDefaultUserCredentials,
+  shouldPreferDefaultUserCredentials
+} from "./default-user-credentials.js";
+
 export interface UserCredentials {
   email: string;
   password: string;
@@ -39,9 +44,29 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
     username: "NOC_SOLICITOR_USERNAME",
     password: "NOC_SOLICITOR_PASSWORD"
   },
+  RESTRICTED_CASE_FILE_VIEW_ON: {
+    username: ["RESTRICTED_CASE_FILE_VIEW_ON_USERNAME", "RESTRICTED_CASE_FILE_VIEW_V1_1_ON_USERNAME"],
+    password: ["RESTRICTED_CASE_FILE_VIEW_ON_PASSWORD", "RESTRICTED_CASE_FILE_VIEW_V1_1_ON_PASSWORD"]
+  },
+  RESTRICTED_CASE_FILE_VIEW_OFF: {
+    username: ["RESTRICTED_CASE_FILE_VIEW_OFF_USERNAME", "RESTRICTED_CASE_FILE_VIEW_V1_1_OFF_USERNAME"],
+    password: ["RESTRICTED_CASE_FILE_VIEW_OFF_PASSWORD", "RESTRICTED_CASE_FILE_VIEW_V1_1_OFF_PASSWORD"]
+  },
+  ORG_USER_ASSIGNMENT: {
+    username: "ORG_USER_ASSIGNMENT_USERNAME",
+    password: "ORG_USER_ASSIGNMENT_PASSWORD"
+  },
   FPL_GLOBAL_SEARCH: {
-    username: ["FPL_GLOBAL_SEARCH_USERNAME", "CASEWORKER_R1_USERNAME"],
-    password: ["FPL_GLOBAL_SEARCH_PASSWORD", "CASEWORKER_R1_PASSWORD"]
+    username: "FPL_GLOBAL_SEARCH_USERNAME",
+    password: "FPL_GLOBAL_SEARCH_PASSWORD"
+  },
+  CASEWORKER_GLOBALSEARCH: {
+    username: "CASEWORKER_GLOBALSEARCH_USERNAME",
+    password: "CASEWORKER_GLOBALSEARCH_PASSWORD"
+  },
+  WA2_GLOBAL_SEARCH: {
+    username: "WA2_GLOBAL_SEARCH_USERNAME",
+    password: "WA2_GLOBAL_SEARCH_PASSWORD"
   },
   SOLICITOR: {
     username: "SOLICITOR_USERNAME",
@@ -94,16 +119,41 @@ export class UserUtils {
     const key = userIdentifier.trim().toUpperCase();
     const mapping = USER_ENV_MAP[key];
     if (!mapping) {
-      return false;
+      return Boolean(resolveDefaultUserCredentials(key));
     }
-    return Boolean(resolveEnvValue(mapping.username) && resolveEnvValue(mapping.password));
+    return Boolean(
+      (resolveEnvValue(mapping.username) && resolveEnvValue(mapping.password)) ||
+        resolveDefaultUserCredentials(key)
+    );
   }
 
   public getUserCredentials(userIdentifier: string): UserCredentials {
     const key = userIdentifier.trim().toUpperCase();
     const mapping = USER_ENV_MAP[key];
     if (!mapping) {
+      const defaultCredentials = resolveDefaultUserCredentials(key);
+      if (defaultCredentials) {
+        return defaultCredentials;
+      }
       throw new Error(`User "${userIdentifier}" is not configured for UI tests.`);
+    }
+
+    const defaultCredentials = resolveDefaultUserCredentials(key);
+    if (defaultCredentials && shouldPreferDefaultUserCredentials(key)) {
+      return defaultCredentials;
+    }
+
+    const resolvedEmail = resolveEnvValue(mapping.username);
+    const resolvedPassword = resolveEnvValue(mapping.password);
+    if (resolvedEmail && resolvedPassword) {
+      return {
+        email: resolvedEmail,
+        password: resolvedPassword
+      };
+    }
+
+    if (defaultCredentials) {
+      return defaultCredentials;
     }
 
     return {

@@ -85,6 +85,7 @@ test.describe("Ref data and supported jurisdictions", () => {
 test.describe("Role access / AM", () => {
   let roleAccessCaseId = ROLE_ACCESS_CASE_ID ?? "1234567890123456";
   const hasCaseOfficer = !!(config.users?.[config.testEnv as keyof typeof config.users]?.caseOfficer_r1);
+
   test.beforeAll(async ({ apiClient }) => {
     if (roleAccessCaseId) {
       return;
@@ -94,6 +95,7 @@ test.describe("Role access / AM", () => {
       roleAccessCaseId = seeded;
     }
   });
+
   test("rejects unauthenticated role access calls", async ({ anonymousClient }) => {
     const res = await anonymousClient.post("api/role-access/allocate-role/confirm", {
       data: {},
