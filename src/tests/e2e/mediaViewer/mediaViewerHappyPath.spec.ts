@@ -65,13 +65,13 @@ test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] },
         DESIRED_JURISDICTION,
         DESIRED_CASE_TYPE
       );
-      const { jurisdictionValue, caseTypeValue } = requireCreateCaseSelection(
-        selection,
-        DESIRED_JURISDICTION,
-        DESIRED_CASE_TYPE
-      );
+      requireCreateCaseSelection(selection, DESIRED_JURISDICTION, DESIRED_CASE_TYPE);
 
-      await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, caseMarker);
+      await createCasePage.createDivorceCase(
+        DESIRED_JURISDICTION,
+        DESIRED_CASE_TYPE,
+        caseMarker
+      );
       caseDetailsUrl = await caseDetailsPage.getCurrentPageUrl();
     });
 
@@ -79,7 +79,9 @@ test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] },
       await retryOnTransientFailure(
         async () => {
           await caseDetailsPage.selectCaseDetailsTab("Tab 1");
-          await caseDetailsPage.selectCaseAction(UPDATE_CASE_ACTION);
+          await caseDetailsPage.selectCaseAction(UPDATE_CASE_ACTION, {
+            expectedLocator: createCasePage.fileUploadInput
+          });
           await createCasePage.fileUploadInput.waitFor({ state: "visible", timeout: 30_000 });
           await createCasePage.uploadFile(
             documentFileName,

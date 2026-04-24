@@ -6,8 +6,18 @@ import { chromium, request, type BrowserContext, type Page } from "@playwright/t
 
 import config from "./config.utils.js";
 import { decodeJwtPayload } from "./jwt.utils.js";
-import { resolveUiStoragePathForUser } from "./storage-state.utils.js";
+import {
+  readUiStorageMetadata,
+  resolveLegacyUiStoragePathForUser,
+  resolveUiStoragePathForUser,
+  writeUiStorageMetadata
+} from "./storage-state.utils.js";
 import { UserUtils } from "./user.utils.js";
+
+type EnsureStorageOptions = {
+  strict?: boolean;
+  baseUrl?: string;
+};
 
 const resolveStorageTtlMs = (): number => {
   const raw = process.env.PW_UI_STORAGE_TTL_MIN;
@@ -22,6 +32,13 @@ const resolveLoginTimeoutMs = (): number => {
   if (!raw) return 60_000;
   const parsed = Number.parseInt(raw, 10);
   return Number.isNaN(parsed) ? 60_000 : Math.max(5_000, parsed);
+};
+
+const resolveUiBootstrapRetryAttempts = (): number => {
+  const raw = process.env.PW_UI_BOOTSTRAP_NAV_MAX_ATTEMPTS;
+  if (!raw) return 2;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) ? 2 : Math.max(1, parsed);
 };
 
 const resolveManualUserIdentifiers = (): Set<string> => {
@@ -57,10 +74,66 @@ const readStorageStateSubject = (storagePath: string): string | undefined => {
   }
 };
 
+const normalizeUserIdentifier = (value: string): string => value.trim();
+
 const normalizeUserValue = (value: string | undefined): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim().toLowerCase();
   return trimmed ? trimmed : undefined;
+};
+
+const TRANSIENT_UI_BOOTSTRAP_PATTERNS: RegExp[] = [
+  /page\.goto: Timeout \d+ms exceeded/i,
+  /navigation timeout of \d+ms exceeded/i,
+  /timeout \d+ms exceeded/i,
+  /net::ERR_(TIMED_OUT|CONNECTION_ABORTED|CONNECTION_CLOSED|CONNECTION_RESET|CONNECTION_REFUSED|INTERNET_DISCONNECTED|NAME_NOT_RESOLVED|NETWORK_CHANGED)/i
+];
+
+const asErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const delay = async (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+const resolveIdamLoginUrl = (env: NodeJS.ProcessEnv = process.env): string | undefined => {
+  const idamUrl = env.IDAM_WEB_URL ?? config.urls.idamWebUrl;
+  try {
+    return new URL("/login", idamUrl).toString();
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveUiLoginTargets = (baseUrl: string, env: NodeJS.ProcessEnv = process.env): string[] =>
+  Array.from(new Set([baseUrl, resolveIdamLoginUrl(env)].filter((value): value is string => Boolean(value?.trim()))));
+
+export const isTransientUiBootstrapFailure = (error: unknown): boolean => {
+  const message = asErrorMessage(error);
+  return TRANSIENT_UI_BOOTSTRAP_PATTERNS.some((pattern) => pattern.test(message));
+};
+
+export const navigateToBaseUrlWithRetry = async (
+  page: Pick<Page, "goto">,
+  baseUrl: string,
+  options?: { maxAttempts?: number }
+): Promise<void> => {
+  const maxAttempts = options?.maxAttempts ?? resolveUiBootstrapRetryAttempts();
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt === maxAttempts || !isTransientUiBootstrapFailure(error)) {
+        throw error;
+      }
+      await delay(1_000 * attempt);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Initial UI navigation failed.");
 };
 
 const isEmailLike = (value: string | undefined): boolean =>
@@ -77,8 +150,37 @@ const storageStateMatchesUser = (storagePath: string, expectedEmail: string): bo
   return actual === expected;
 };
 
+const migrateLegacyUiStorageStateIfPresent = (
+  userIdentifier: string,
+  expectedEmail: string,
+  targetStoragePath: string
+): boolean => {
+  if (fs.existsSync(targetStoragePath)) {
+    return false;
+  }
+
+  const legacyStoragePath = resolveLegacyUiStoragePathForUser(userIdentifier);
+  if (!fs.existsSync(legacyStoragePath) || !storageStateMatchesUser(legacyStoragePath, expectedEmail)) {
+    return false;
+  }
+
+  fs.copyFileSync(legacyStoragePath, targetStoragePath);
+  writeUiStorageMetadata(targetStoragePath, {
+    userIdentifier,
+    email: expectedEmail
+  });
+  return true;
+};
+
 const waitForIdamLogin = async (page: Page) => {
   const idamHost = resolveIdamHost();
+  const appHost = (() => {
+    try {
+      return new URL(config.urls.manageCaseBaseUrl).hostname;
+    } catch {
+      return undefined;
+    }
+  })();
   if (idamHost) {
     await page
       .waitForURL((url) => url.hostname === idamHost, { timeout: resolveLoginTimeoutMs() })
@@ -105,6 +207,16 @@ const waitForIdamLogin = async (page: Page) => {
   }
 
   if (outcome !== "login") {
+    const currentHost = (() => {
+      try {
+        return new URL(page.url()).hostname;
+      } catch {
+        return undefined;
+      }
+    })();
+    if (currentHost && currentHost !== idamHost && currentHost === appHost) {
+      return null;
+    }
     const failure = await describeLoginFailure(page);
     const details = failure ? ` ${failure}` : "";
     throw new Error(`Login page did not render.${details} URL=${page.url()}`);
@@ -150,7 +262,11 @@ const hasExpiredAuthCookies = (cookies: { name: string; expires: number }[]) => 
 const shouldRefreshStorageState = async (
   storagePath: string,
   baseUrl: string,
-  options?: { ignoreTtl?: boolean }
+  options?: {
+    ignoreTtl?: boolean;
+    validateAuthenticatedState?: (storagePath: string, baseUrl: string) => Promise<boolean>;
+    expectedIdentity?: { userIdentifier: string; email: string };
+  }
 ): Promise<boolean> => {
   if (!fs.existsSync(storagePath)) return true;
   try {
@@ -162,13 +278,39 @@ const shouldRefreshStorageState = async (
     return true;
   }
 
-  if (options?.ignoreTtl) return false;
+  const expectedIdentity = options?.expectedIdentity;
+  if (expectedIdentity) {
+    const metadata = readUiStorageMetadata(storagePath);
+    const expectedUserIdentifier = normalizeUserIdentifier(expectedIdentity.userIdentifier);
+    const expectedEmail = normalizeUserValue(expectedIdentity.email);
+    if (metadata) {
+      if (
+        normalizeUserIdentifier(metadata.userIdentifier) !== expectedUserIdentifier ||
+        normalizeUserValue(metadata.email) !== expectedEmail
+      ) {
+        return true;
+      }
+    } else if (expectedEmail && !storageStateMatchesUser(storagePath, expectedIdentity.email)) {
+      return true;
+    }
+  }
+
+  if (options?.ignoreTtl) {
+    const stillAuthenticated = await (options.validateAuthenticatedState ?? isStorageStateAuthenticated)(
+      storagePath,
+      baseUrl
+    );
+    return !stillAuthenticated;
+  }
   const ttlMs = resolveStorageTtlMs();
   if (ttlMs <= 0) return true;
   const ageMs = Date.now() - fs.statSync(storagePath).mtimeMs;
   if (ageMs <= ttlMs) return false;
 
-  const stillAuthenticated = await isStorageStateAuthenticated(storagePath, baseUrl);
+  const stillAuthenticated = await (options?.validateAuthenticatedState ?? isStorageStateAuthenticated)(
+    storagePath,
+    baseUrl
+  );
   return !stillAuthenticated;
 };
 
@@ -195,13 +337,20 @@ const waitForAuthCookies = async (
   return { ok: false, reason: "Timed out waiting for auth cookies." };
 };
 
+const TRANSIENT_UI_SERVICE_UNAVAILABLE_PATTERNS: RegExp[] = [
+  /\b504\b/i,
+  /service unavailable/i,
+  /gateway time-?out/i,
+  /our services aren'?t available right now/i,
+  /the service is unavailable/i
+];
+
 const addAnalyticsCookie = async (context: BrowserContext, baseUrl: string) => {
   const cookies = await context.cookies();
   const userId = cookies.find((cookie) => cookie.name === "__userid__")?.value;
   if (!userId) return;
 
   const domain = new URL(baseUrl).hostname;
-  const secure = baseUrl.startsWith("https://");
   await context.addCookies([
     {
       name: `hmcts-exui-cookies-${userId}-mc-accepted`,
@@ -210,10 +359,74 @@ const addAnalyticsCookie = async (context: BrowserContext, baseUrl: string) => {
       path: "/",
       expires: -1,
       httpOnly: false,
-      secure,
+      secure: false,
       sameSite: "Lax"
     }
   ]);
+};
+
+const isUiServiceUnavailablePage = async (page: Pick<Page, "title" | "locator">): Promise<boolean> => {
+  const title = (await page.title().catch(() => "")).trim();
+  if (TRANSIENT_UI_SERVICE_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(title))) {
+    return true;
+  }
+
+  const bodyText = await page
+    .locator("body")
+    .innerText()
+    .catch(() => "");
+  return TRANSIENT_UI_SERVICE_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(bodyText));
+};
+
+const captureUiStorageState = async (
+  context: BrowserContext,
+  page: Page,
+  userIdentifier: string,
+  email: string,
+  password: string,
+  baseUrl: string
+): Promise<void> => {
+  const idamPage = new IdamPage(page);
+  const attemptErrors: string[] = [];
+
+  for (const loginTarget of resolveUiLoginTargets(baseUrl)) {
+    await context.clearCookies().catch(() => undefined);
+
+    try {
+      await navigateToBaseUrlWithRetry(page, loginTarget);
+      if (await isUiServiceUnavailablePage(page)) {
+        throw new Error(`UI bootstrap target returned a service-unavailable page (${loginTarget}).`);
+      }
+
+      const loginFields = await waitForIdamLogin(page);
+
+      if (loginFields) {
+        if (await idamPage.usernameInput.isVisible().catch(() => false)) {
+          await idamPage.login({ username: email, password });
+        } else {
+          await loginFields.usernameInput.fill(email);
+          await loginFields.passwordInput.fill(password);
+          await loginFields.submitButton.click();
+        }
+      }
+
+      const loginOutcome = await waitForAuthCookies(context, page);
+      if (!loginOutcome.ok) {
+        throw new Error(
+          `Login did not establish session cookies for ${userIdentifier}. ${loginOutcome.reason ?? "Login failure."} URL=${page.url()}`
+        );
+      }
+
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      attemptErrors.push(`${loginTarget}: ${message}`);
+    }
+  }
+
+  throw new Error(
+    `Unable to capture UI session for ${userIdentifier}. Attempts: ${attemptErrors.join(" | ")}`
+  );
 };
 
 const resolveAuthBaseUrl = (baseUrl: string): string => {
@@ -221,6 +434,49 @@ const resolveAuthBaseUrl = (baseUrl: string): string => {
     return new URL(baseUrl).origin;
   } catch {
     return baseUrl.replace(/\/cases.*$/, "");
+  }
+};
+
+const resolveStorageStateLockPath = (storagePath: string): string => `${storagePath}.lock`;
+
+const acquireStorageStateLock = async (
+  storagePath: string,
+  timeoutMs = resolveLoginTimeoutMs()
+): Promise<() => void> => {
+  const lockPath = resolveStorageStateLockPath(storagePath);
+  const deadline = Date.now() + timeoutMs;
+
+  for (;;) {
+    try {
+      fs.mkdirSync(lockPath, { recursive: false });
+      return () => {
+        try {
+          fs.rmSync(lockPath, { recursive: true, force: true });
+        } catch {
+          // Ignore lock cleanup failures.
+        }
+      };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code !== "EEXIST") {
+        throw error;
+      }
+
+      try {
+        const ageMs = Date.now() - fs.statSync(lockPath).mtimeMs;
+        if (ageMs > timeoutMs) {
+          fs.rmSync(lockPath, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        // Another worker may have released the lock between checks.
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for UI session lock ${path.basename(lockPath)}.`);
+      }
+      await delay(250);
+    }
   }
 };
 
@@ -248,39 +504,47 @@ const isStorageStateAuthenticated = async (
 
 export const ensureUiStorageStateForUser = async (
   userIdentifier: string,
-  options?: { strict?: boolean }
+  options?: EnsureStorageOptions
 ): Promise<void> => {
-  const baseUrl = config.urls.manageCaseBaseUrl;
+  const baseUrl = options?.baseUrl ?? config.urls.manageCaseBaseUrl;
   const strict = options?.strict ?? false;
-  const storagePath = resolveUiStoragePathForUser(userIdentifier);
   const manualUsers = resolveManualUserIdentifiers();
   const normalisedUser = userIdentifier.trim().toUpperCase();
-
   const ignoreTtl = manualUsers.has(normalisedUser);
+  const userUtils = new UserUtils();
+
   let expectedEmail: string | undefined;
   let expectedPassword: string | undefined;
-  const userUtils = new UserUtils();
   try {
     ({ email: expectedEmail, password: expectedPassword } = userUtils.getUserCredentials(userIdentifier));
   } catch {
     // If creds are missing, we'll surface this later when we need to login.
   }
 
-  let needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
-    ignoreTtl
-  });
-  if (expectedEmail && !storageStateMatchesUser(storagePath, expectedEmail)) {
-    needsRefresh = true;
-  }
-
-  if (!needsRefresh) {
+  const email = expectedEmail;
+  const password = expectedPassword;
+  if (!email || !password) {
+    const message = manualUsers.has(normalisedUser)
+      ? `Manual session required for ${userIdentifier}. Run: PW_UI_USER=${userIdentifier} yarn ui:session`
+      : `Missing credentials for ${userIdentifier}.`;
+    if (strict) {
+      throw new Error(message);
+    }
+    console.warn(`[ui.session] ${message}`);
     return;
   }
 
-  if (expectedEmail && !storageStateMatchesUser(storagePath, expectedEmail)) {
-    if (fs.existsSync(storagePath)) {
-      fs.unlinkSync(storagePath);
-    }
+  const storagePath = resolveUiStoragePathForUser(userIdentifier, { email });
+  const expectedIdentity = { userIdentifier, email };
+  fs.mkdirSync(path.dirname(storagePath), { recursive: true });
+  migrateLegacyUiStorageStateIfPresent(userIdentifier, email, storagePath);
+  let needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
+    ignoreTtl: strict || ignoreTtl,
+    validateAuthenticatedState: isStorageStateAuthenticated,
+    expectedIdentity
+  });
+  if (!needsRefresh) {
+    return;
   }
 
   if (manualUsers.has(normalisedUser)) {
@@ -291,79 +555,52 @@ export const ensureUiStorageStateForUser = async (
     console.warn(`[ui.session] ${message}`);
     return;
   }
-
-  let email = expectedEmail;
-  let password = expectedPassword;
-  if (!email || !password) {
-    try {
-      ({ email, password } = userUtils.getUserCredentials(userIdentifier));
-    } catch (error) {
-      if (strict) {
-        throw error;
-      }
-      const message = error instanceof Error ? error.message : "missing credentials";
-      console.warn(`[ui.session] Skipping ${userIdentifier}: ${message}`);
-      return;
-    }
-  }
-  if (!email || !password) {
-    if (strict) {
-      throw new Error(`Missing credentials for ${userIdentifier}.`);
-    }
-    console.warn(`[ui.session] Skipping ${userIdentifier}: missing credentials.`);
-    return;
-  }
-
-  fs.mkdirSync(path.dirname(storagePath), { recursive: true });
-  const browser = await chromium.launch();
+  const releaseLock = await acquireStorageStateLock(storagePath);
 
   try {
-    const context = await browser.newContext();
-    const page = await context.newPage();
-    const idamPage = new IdamPage(page);
-
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-    const loginFields = await waitForIdamLogin(page);
-
-    if (loginFields) {
-      if (await idamPage.usernameInput.isVisible().catch(() => false)) {
-        await idamPage.login({ username: email, password });
-      } else {
-        await loginFields.usernameInput.fill(email);
-        await loginFields.passwordInput.fill(password);
-        await loginFields.submitButton.click();
-      }
-    }
-
-    const loginOutcome = await waitForAuthCookies(context, page);
-    if (!loginOutcome.ok) {
-      if (fs.existsSync(storagePath)) {
-        fs.unlinkSync(storagePath);
-      }
-      const message = `Login did not establish session cookies for ${userIdentifier}. ${loginOutcome.reason ?? "Login failure."} URL=${page.url()}`;
-      if (strict) {
-        throw new Error(message);
-      }
-      console.warn(`[ui.session] ${message}`);
-      await context.close();
+    needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
+      ignoreTtl: strict || ignoreTtl,
+      validateAuthenticatedState: isStorageStateAuthenticated,
+      expectedIdentity
+    });
+    if (!needsRefresh) {
       return;
     }
 
-    await page
-      .locator("exui-header")
-      .first()
-      .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
-      .catch(() => {
-        // Proceed even if header is slow to render; cookies are already present.
-      });
+    const browser = await chromium.launch();
 
-    await addAnalyticsCookie(context, baseUrl);
-    await context.storageState({ path: storagePath });
-    await context.close();
+    try {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      await captureUiStorageState(context, page, userIdentifier, email, password, baseUrl);
+
+      await page
+        .locator("exui-header")
+        .first()
+        .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
+        .catch(() => {
+          // Proceed even if header is slow to render; cookies are already present.
+        });
+
+      await addAnalyticsCookie(context, baseUrl);
+      await context.storageState({ path: storagePath });
+      writeUiStorageMetadata(storagePath, { userIdentifier, email });
+      await context.close();
+    } finally {
+      await browser.close();
+    }
   } finally {
-    await browser.close();
+    releaseLock();
   }
 };
 
 export const resolveUiStorageTtlMinutes = (): number =>
   Math.round(resolveStorageTtlMs() / 60_000);
+
+export const __test__ = {
+  migrateLegacyUiStorageStateIfPresent,
+  isUiServiceUnavailablePage,
+  resolveLegacyUiStoragePathForUser,
+  resolveUiLoginTargets,
+  shouldRefreshStorageState
+};

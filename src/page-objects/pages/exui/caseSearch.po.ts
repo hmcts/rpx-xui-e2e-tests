@@ -5,7 +5,8 @@ import { Base } from "../../base";
 import {
   CCD_CASE_REFERENCE_LENGTH,
   CCD_CASE_REFERENCE_PATTERN,
-  EXUI_TIMEOUTS
+  EXUI_TIMEOUTS,
+  MAX_NAVIGATION_RETRY_ATTEMPTS
 } from "./exui-timeouts";
 
 export class CaseSearchPage extends Base {
@@ -183,7 +184,7 @@ export class CaseSearchPage extends Base {
       .locator(`ccd-search-result a.govuk-link[href*="/cases/case-details/"][href*="${normalizedCaseReference}"]`)
       .first();
     await caseLink.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.CASE_DETAILS_NAVIGATION });
-    await caseLink.click();
+    await this.openCaseDetailsFromSearchResult(caseLink, normalizedCaseReference, caseReference);
   }
 
   private async waitForPostSearchSpinnerCycle(): Promise<void> {
@@ -253,6 +254,39 @@ export class CaseSearchPage extends Base {
     return select.locator("option").evaluateAll((items) =>
       items.map((item) => (item.textContent ?? "").trim()).filter(Boolean)
     );
+  }
+
+  private async openCaseDetailsFromSearchResult(
+    searchResultCaseLink: Locator,
+    caseNumberFromUrl: string,
+    originalCaseNumber: string
+  ): Promise<void> {
+    for (let attemptIndex = 0; attemptIndex < MAX_NAVIGATION_RETRY_ATTEMPTS; attemptIndex += 1) {
+      await searchResultCaseLink.scrollIntoViewIfNeeded();
+      await searchResultCaseLink.click();
+      await this.exuiSpinnerComponent.wait();
+      if (await this.waitForCaseDetailsUrl(caseNumberFromUrl, EXUI_TIMEOUTS.CASE_DETAILS_NAVIGATION)) {
+        return;
+      }
+    }
+
+    throw new Error(
+      `Navigation to case details did not complete for ${originalCaseNumber}. Current URL: ${this.page.url()}`
+    );
+  }
+
+  private async waitForCaseDetailsUrl(caseNumber: string, timeoutMs: number): Promise<boolean> {
+    try {
+      await this.page.waitForURL(
+        (url) =>
+          url.pathname.includes("/cases/case-details/") &&
+          url.pathname.includes(caseNumber),
+        { timeout: timeoutMs }
+      );
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async openFindCaseVia(link: Locator): Promise<void> {

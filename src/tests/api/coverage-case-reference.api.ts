@@ -119,6 +119,12 @@ test.describe("Case reference support coverage", () => {
               { caseReference: "1234567890123456", stateId: "Case management" }
             ]
           }
+        },
+        {
+          status: 200,
+          json: {
+            results: [{ caseReference: "1234567890123456", stateId: "Case management" }]
+          }
         }
       ]
     });
@@ -132,7 +138,7 @@ test.describe("Case reference support coverage", () => {
       ).resolves.toBe("1234567890123456");
     });
 
-    expect(fake.requests.filter((request) => request.method === "POST")).toHaveLength(2);
+    expect(fake.requests.filter((request) => request.method === "POST")).toHaveLength(3);
   });
 
   test("resolveCaseReferenceFromGlobalSearch falls back to HTML pages when API remains unavailable", async () => {
@@ -151,6 +157,41 @@ test.describe("Case reference support coverage", () => {
         "1234567890123456"
       );
     });
+  });
+
+  test("resolveCaseReferenceFromGlobalSearch skips stale candidates that fail exact lookup validation", async () => {
+    const fake = buildFakePage({
+      postResponses: [
+        {
+          status: 200,
+          json: {
+            results: [
+              { caseReference: "1234567890123456", stateId: "Case management" },
+              { caseReference: "2234567890123456", stateId: "Submitted" }
+            ]
+          }
+        },
+        {
+          status: 200,
+          json: {
+            results: []
+          }
+        },
+        {
+          status: 200,
+          json: {
+            results: [{ caseReference: "2234567890123456", stateId: "Submitted" }]
+          }
+        }
+      ]
+    });
+
+    await expect(
+      resolveCaseReferenceFromGlobalSearch(fake.page as never, {
+        jurisdictionIds: ["PUBLICLAW"],
+        preferredStates: ["Case management", "Submitted"]
+      })
+    ).resolves.toBe("2234567890123456");
   });
 
   test("resolveNonExistentCaseReference returns a verified absent candidate", async () => {

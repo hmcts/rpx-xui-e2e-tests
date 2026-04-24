@@ -16,12 +16,17 @@ import type {
   WorkerInfo,
 } from "@playwright/test";
 
+import { AccessRequestPage } from "./exui/accessRequest.po";
+import { BookingUiPage } from "./exui/bookingUi.po";
 import { CaseDetailsPage } from "./exui/caseDetails.po";
 import { CaseFileViewPage } from "./exui/caseFileView.po";
 import { CaseListPage } from "./exui/caseList.po";
 import { CaseSearchPage } from "./exui/caseSearch.po";
 import { CreateCasePage } from "./exui/createCase.po";
 import { GlobalSearchPage } from "./exui/globalSearch.po";
+import { HearingsTabPage } from "./exui/hearingsTab.po";
+import { HearingViewEditSummaryPage } from "./exui/hearingViewEditSummary.po";
+import { HearingViewSummaryPage } from "./exui/hearingViewSummary.po";
 import { TaskListPage } from "./exui/taskList.po";
 
 export interface PageFixtures {
@@ -33,6 +38,11 @@ export interface PageFixtures {
   globalSearchPage: GlobalSearchPage;
   taskListPage: TaskListPage;
   createCasePage: CreateCasePage;
+  hearingsTabPage: HearingsTabPage;
+  hearingViewEditSummaryPage: HearingViewEditSummaryPage;
+  hearingViewSummaryPage: HearingViewSummaryPage;
+  bookingUiPage: BookingUiPage;
+  accessRequestPage: AccessRequestPage;
   mediaViewerPage: ExuiMediaViewerPage;
   idamPage: IdamPage;
   apiClient: ApiClient;
@@ -95,6 +105,36 @@ export const pageFixtures = {
     use: (page: CreateCasePage) => Promise<void>
   ) => {
     await use(new CreateCasePage(determinePage));
+  },
+  hearingsTabPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: HearingsTabPage) => Promise<void>
+  ) => {
+    await use(new HearingsTabPage(determinePage));
+  },
+  hearingViewEditSummaryPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: HearingViewEditSummaryPage) => Promise<void>
+  ) => {
+    await use(new HearingViewEditSummaryPage(determinePage));
+  },
+  hearingViewSummaryPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: HearingViewSummaryPage) => Promise<void>
+  ) => {
+    await use(new HearingViewSummaryPage(determinePage));
+  },
+  bookingUiPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: BookingUiPage) => Promise<void>
+  ) => {
+    await use(new BookingUiPage(determinePage));
+  },
+  accessRequestPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: AccessRequestPage) => Promise<void>
+  ) => {
+    await use(new AccessRequestPage(determinePage));
   },
   mediaViewerPage: async (
     { determinePage }: FixtureArgs,

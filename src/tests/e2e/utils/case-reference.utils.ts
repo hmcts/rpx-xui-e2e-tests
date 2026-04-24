@@ -126,6 +126,23 @@ export function selectCaseReferenceFromResults(
   return results.map((result) => normalizeCaseReference(result.caseReference)).find(Boolean);
 }
 
+function collectCandidateCaseReferences(
+  results: GlobalSearchResult[],
+  preferredStates: string[] = []
+): string[] {
+  const matchingResults =
+    preferredStates.length > 0
+      ? results.filter(
+          (result) => result.stateId && stateMatchesPreference(result.stateId, preferredStates)
+        )
+      : [];
+  const orderedCandidates = [...matchingResults, ...results]
+    .map((result) => normalizeCaseReference(result.caseReference))
+    .filter((candidate): candidate is string => Boolean(candidate));
+
+  return Array.from(new Set(orderedCandidates));
+}
+
 async function executeGlobalSearchRequest(
   page: SearchRequestContext,
   caseReferencePattern: string,
@@ -155,6 +172,36 @@ async function resolveCaseReferenceFromHtmlPages(page: SearchRequestContext): Pr
   return null;
 }
 
+async function verifySearchableCaseReference(
+  page: SearchRequestContext,
+  caseReference: string,
+  jurisdictionIds: string[] | null
+): Promise<boolean> {
+  const maxAttempts = Number.parseInt(process.env.CASE_REFERENCE_RESOLVE_API_ATTEMPTS || "3", 10);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await executeGlobalSearchRequest(page, caseReference, jurisdictionIds, 10);
+    const status = response.status();
+
+    if (status === 200) {
+      const payload = (await response.json()) as GlobalSearchResponse;
+      const results = Array.isArray(payload.results) ? payload.results : [];
+      return results.some(
+        (result) => normalizeCaseReference(result.caseReference) === caseReference
+      );
+    }
+
+    if (TRANSIENT_GLOBAL_SEARCH_STATUSES.has(status) && attempt < maxAttempts) {
+      await waitForBackoff(attempt * 1_000);
+      continue;
+    }
+
+    return false;
+  }
+
+  return false;
+}
+
 export async function resolveCaseReferenceFromGlobalSearch(
   page: SearchRequestContext,
   options: ResolveCaseReferenceOptions = {}
@@ -165,7 +212,7 @@ export async function resolveCaseReferenceFromGlobalSearch(
     caseReferencePattern = "*",
     maxReturnRecordCount = 50
   } = options;
-  const maxAttempts = Number.parseInt(process.env.CASE_REFERENCE_RESOLVE_API_ATTEMPTS ?? "3", 10);
+  const maxAttempts = Number.parseInt(process.env.CASE_REFERENCE_RESOLVE_API_ATTEMPTS || "3", 10);
 
   let results: GlobalSearchResult[] = [];
   let lastStatus = 0;
@@ -205,17 +252,28 @@ export async function resolveCaseReferenceFromGlobalSearch(
     );
   }
 
-  const matchingCaseReference = selectCaseReferenceFromResults(results, preferredStates);
-  if (matchingCaseReference) {
-    return matchingCaseReference;
+  const candidateCaseReferences = collectCandidateCaseReferences(results, preferredStates);
+  for (const candidateCaseReference of candidateCaseReferences) {
+    if (
+      await verifySearchableCaseReference(
+        page,
+        candidateCaseReference,
+        jurisdictionIds ?? null
+      )
+    ) {
+      return candidateCaseReference;
+    }
   }
 
   const htmlFallbackCaseReference = await resolveCaseReferenceFromHtmlPages(page);
-  if (htmlFallbackCaseReference) {
+  if (
+    htmlFallbackCaseReference &&
+    (await verifySearchableCaseReference(page, htmlFallbackCaseReference, jurisdictionIds ?? null))
+  ) {
     return htmlFallbackCaseReference;
   }
 
-  throw new Error("No 16-digit case references returned by global search API");
+  throw new Error("No searchable 16-digit case references returned by global search API");
 }
 
 export async function resolveCaseReferenceWithFallback(
@@ -244,7 +302,7 @@ export async function resolveNonExistentCaseReference(
   maxAttempts = 12
 ): Promise<string> {
   const { jurisdictionIds = ["PUBLICLAW"] } = options;
-  const maxStatusAttempts = Number.parseInt(process.env.CASE_REFERENCE_RESOLVE_API_ATTEMPTS ?? "3", 10);
+  const maxStatusAttempts = Number.parseInt(process.env.CASE_REFERENCE_RESOLVE_API_ATTEMPTS || "3", 10);
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const candidateReference = `9${randomDigitString(15)}`;

@@ -1,9 +1,8 @@
-import type { Page } from "@playwright/test";
-
 import { expect, test } from "../../../fixtures/ui";
-import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js";
-import { setupCaseFileViewMockRoutes } from "../helpers/index.js";
-import { ensureUiSessionAccess } from "../helpers/uiSessionAccess.helper.js";
+import {
+  applySessionCookies,
+  setupCaseFileViewMockRoutes
+} from "../helpers/index.js";
 import {
   CASE_FILE_VIEW_DOC_IDS,
   CASE_FILE_VIEW_DOCUMENT_DELIVERY_PDF
@@ -13,29 +12,14 @@ const caseId = "1690807693531270";
 const fileViewOnUser = "RESTRICTED_CASE_FILE_VIEW_ON";
 const fileViewOffUser = "RESTRICTED_CASE_FILE_VIEW_OFF";
 
-test.beforeAll(async ({}, testInfo) => {
-  await ensureUiSessionAccess(fileViewOnUser, testInfo);
-  await ensureUiSessionAccess(fileViewOffUser, testInfo);
-});
-
-async function applySessionCookiesFor(page: Page, userIdentifier: string) {
-  const { cookies } = loadSessionCookies(userIdentifier);
-  if (cookies.length) {
-    await page.context().addCookies(cookies);
-  }
-}
-
 test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
-  test.beforeEach(async ({ page }) => {
-    await applySessionCookiesFor(page, fileViewOnUser);
-  });
-
   test("shows tree view, media viewer, document count, folder hierarchy and upload stamps", async ({
     caseDetailsPage,
     caseFileViewPage,
     page
   }) => {
     await test.step("Set up case file view mocks", async () => {
+      await applySessionCookies(page, fileViewOnUser);
       await setupCaseFileViewMockRoutes(page, caseId);
     });
 
@@ -81,6 +65,7 @@ test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@i
     const binaryRequests: string[] = [];
 
     await test.step("Set up case file and binary document mocks", async () => {
+      await applySessionCookies(page, fileViewOnUser);
       await setupCaseFileViewMockRoutes(page, caseId);
 
       await page.route("**/documentsv2/*/binary", async (route) => {
@@ -164,16 +149,13 @@ test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@i
 });
 
 test.describe(`Case file view as ${fileViewOffUser}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
-  test.beforeEach(async ({ page }) => {
-    await applySessionCookiesFor(page, fileViewOffUser);
-  });
-
   test("V1 mode user still sees core case file view content", async ({
     caseDetailsPage,
     caseFileViewPage,
     page
   }) => {
     await test.step("Set up V1 case file view mocks", async () => {
+      await applySessionCookies(page, fileViewOffUser);
       await setupCaseFileViewMockRoutes(page, caseId);
     });
 

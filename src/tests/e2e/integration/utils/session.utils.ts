@@ -3,7 +3,10 @@ import fs from "node:fs";
 import { SessionUtils } from "@hmcts/playwright-common";
 import type { Cookie } from "@playwright/test";
 
-import { resolveUiStoragePathForUser } from "../../../../utils/ui/storage-state.utils.js";
+import {
+  resolveLegacyUiStoragePathForUser,
+  resolveUiStoragePathForUser
+} from "../../../../utils/ui/storage-state.utils.js";
 import { UserUtils } from "../../../../utils/ui/user.utils.js";
 
 export interface LoadedSession {
@@ -15,7 +18,9 @@ export interface LoadedSession {
 export function loadSessionCookies(userIdentifier: string): LoadedSession {
   const userUtils = new UserUtils();
   const creds = userUtils.getUserCredentials(userIdentifier);
-  const storageFile = resolveUiStoragePathForUser(userIdentifier);
+  const preferredStorageFile = resolveUiStoragePathForUser(userIdentifier);
+  const legacyStorageFile = resolveLegacyUiStoragePathForUser(userIdentifier);
+  const storageFile = fs.existsSync(preferredStorageFile) ? preferredStorageFile : legacyStorageFile;
   let cookies: Cookie[] = [];
 
   if (fs.existsSync(storageFile)) {
