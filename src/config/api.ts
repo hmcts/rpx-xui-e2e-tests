@@ -13,40 +13,7 @@ export const resolveTestEnv = (value?: string): "aat" | "demo" => {
 const baseUrl = resolveBaseUrl(process.env.TEST_URL);
 const testEnv = resolveTestEnv(process.env.TEST_ENV);
 
-type EnvUser = { e?: string; sec?: string };
-
 const pick = (...vars: Array<string | undefined>) => vars.find((v) => v && v.trim().length > 0);
-
-const envUsers: Record<"aat" | "demo", Record<string, EnvUser>> = {
-  aat: {
-    solicitor: {
-      e: pick(process.env.SOLICITOR_USERNAME, process.env.PRL_SOLICITOR_USERNAME),
-      sec: pick(process.env.SOLICITOR_PASSWORD, process.env.PRL_SOLICITOR_PASSWORD)
-    },
-    caseOfficer_r1: {
-      e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME),
-      sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD)
-    },
-    caseOfficer_r2: {
-      e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME),
-      sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD)
-    }
-  },
-  demo: {
-    solicitor: {
-      e: pick(process.env.SOLICITOR_USERNAME, process.env.PRL_SOLICITOR_USERNAME),
-      sec: pick(process.env.SOLICITOR_PASSWORD, process.env.PRL_SOLICITOR_PASSWORD)
-    },
-    caseOfficer_r1: {
-      e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME),
-      sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD)
-    },
-    caseOfficer_r2: {
-      e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME),
-      sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD)
-    }
-  }
-};
 
 export const config = {
   baseUrl,
@@ -71,7 +38,30 @@ export const config = {
     aat: { docId: process.env.EM_DOC_ID ?? "249cfa9e-622c-4877-a588-e9daa3fe10d8" },
     demo: { docId: process.env.EM_DOC_ID ?? "005ed16f-be03-4620-a8ee-9bc90635f6f2" }
   },
-  users: envUsers,
+  users: {
+    aat: {
+      solicitor: { e: "xui_auto_test_user_solicitor@mailinator.com", sec: "Monday01" },
+      caseOfficer_r1: {
+        e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME) ?? "xui_auto_co_r1@justice.gov.uk",
+        sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD) ?? "Welcome01"
+      },
+      caseOfficer_r2: {
+        e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME) ?? "xui_auto_co_r2@justice.gov.uk",
+        sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD) ?? "Welcome01"
+      }
+    },
+    demo: {
+      solicitor: { e: "peterxuisuperuser@mailnesia.com", sec: "Monday01" },
+      caseOfficer_r1: {
+        e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME) ?? "xui_caseofficer@justice.gov.uk",
+        sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD) ?? "Welcome01"
+      },
+      caseOfficer_r2: {
+        e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME) ?? "CRD_func_test_demo_user@justice.gov.uk",
+        sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD) ?? "AldgateT0wer"
+      }
+    }
+  },
   configurationUi: {
     aat: [
       "clientId",

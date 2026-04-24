@@ -1,22 +1,16 @@
 import { expect, test } from "../../../fixtures/ui";
-import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js";
-import { setupCaseFileViewMockRoutes } from "../helpers/index.js";
-import { ensureUiSessionAccess } from "../helpers/uiSessionAccess.helper.js";
+import {
+  applySessionCookies,
+  setupCaseFileViewMockRoutes
+} from "../helpers/index.js";
 import { buildEmptyCaseFileViewCategoriesMock } from "../mocks/caseFileView.mock.js";
 
 const caseId = "1690807693531270";
 const userIdentifier = "RESTRICTED_CASE_FILE_VIEW_ON";
 
-test.beforeAll(async ({}, testInfo) => {
-  await ensureUiSessionAccess(userIdentifier, testInfo);
-});
-
 test.describe(`Case file view negative with ${userIdentifier}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
   test.beforeEach(async ({ page }) => {
-    const { cookies } = loadSessionCookies(userIdentifier);
-    if (cookies.length) {
-      await page.context().addCookies(cookies);
-    }
+    await applySessionCookies(page, userIdentifier);
   });
 
   test("Empty categories response shows an empty case file view state", async ({

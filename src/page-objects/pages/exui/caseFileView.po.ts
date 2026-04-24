@@ -90,11 +90,7 @@ export class CaseFileViewPage extends Base {
   }
 
   public getFileUploadStamp(folderNode: Locator, fileName: string): Locator {
-    return folderNode
-      .locator(".document-tree-container__node--document")
-      .filter({ has: this.getFile(folderNode, fileName) })
-      .locator(".node__document-upload-timestamp")
-      .first();
+    return this.getFile(folderNode, fileName).locator("..").locator("..").locator(".node__document-upload-timestamp").first();
   }
 
   public async getVisibleFileNamesUnderFolder(folderPath: string): Promise<string[]> {

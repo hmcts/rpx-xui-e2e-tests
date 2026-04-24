@@ -58,12 +58,8 @@ test.describe(
             "DIVORCE",
             "XUI Case PoC"
           );
-          const { jurisdictionValue, caseTypeValue } = requireCreateCaseSelection(
-            selection,
-            "DIVORCE",
-            "XUI Case PoC"
-          );
-          await createCasePage.createDivorceCase(jurisdictionValue, caseTypeValue, testField);
+          requireCreateCaseSelection(selection, "DIVORCE", "XUI Case PoC");
+          await createCasePage.createDivorceCase("DIVORCE", "XUI Case PoC", testField);
           await caseDetailsPage.waitForReady();
         },
         {

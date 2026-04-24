@@ -15,7 +15,7 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '8',
+      defaultValue: '4',
       description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
     ),
     string(
@@ -129,6 +129,8 @@ withNightlyPipeline(type, product, component, 400) {
       parallel(
         'API nightly': {
           def apiOdhinEnv = [
+            'FUNCTIONAL_TESTS_WORKERS=4',
+            'PLAYWRIGHT_WORKERS=4',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
           ]
@@ -155,8 +157,40 @@ withNightlyPipeline(type, product, component, 400) {
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
           }
         },
+        'Integration nightly': {
+          def integrationOdhinEnv = [
+            'FUNCTIONAL_TESTS_WORKERS=4',
+            'PLAYWRIGHT_WORKERS=4',
+            'PW_UI_STORAGE=1',
+            'PW_ODHIN_INDEX=playwright-odhin-integration-nightly.html',
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration-nightly/odhin-report'
+          ]
+          try {
+            def tagArg = params.tag ? "--grep ${params.tag}" : ""
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn("playwright test --project=integration-nightly ${tagArg}")
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            withEnv(integrationOdhinEnv) {
+              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+            }
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "functional-output/tests/playwright-integration-nightly/odhin-report",
+              reportFiles          : 'playwright-odhin-integration-nightly.html',
+              reportName           : 'Integration nightly report (Odhín)'
+            ])
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration-nightly/odhin-report/**'
+          }
+        },
         'UI nightly': {
           def uiOdhinEnv = [
+            'FUNCTIONAL_TESTS_WORKERS=2',
+            'PLAYWRIGHT_WORKERS=2',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',

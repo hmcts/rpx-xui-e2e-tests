@@ -3,11 +3,17 @@ import { expect, type Locator, Page } from "@playwright/test";
 import { Base } from "../../base";
 
 export class CaseListPage extends Base {
+  readonly errorPageHeading = this.page.getByRole("heading", { name: /something went wrong/i });
+  readonly serviceDownError = this.exuiBodyComponent.serviceDownError;
   readonly container = this.page.locator("exui-case-home");
+  readonly caseListHeading = this.page.locator("main h1");
+  readonly filtersContainer = this.page.locator(".search-block .hmcts-filter-layout__filter");
   readonly jurisdictionSelect = this.page.locator("#wb-jurisdiction");
   readonly caseTypeSelect = this.page.locator("#wb-case-type");
   readonly textField0Input = this.page.locator("#TextField0");
   readonly filterToggle = this.page.getByRole("button", { name: /show filter|hide filter/i });
+  readonly quickSearchContainer = this.page.locator(".hmcts-primary-navigation__global-search");
+  readonly quickSearchCaseReferenceInput = this.page.locator("#exuiCaseReferenceSearch");
   readonly caseListResultsAmount = this.page.locator("#search-result .pagination-top");
   readonly caseSearchResultsMessage = this.page.locator("#search-result");
   readonly pagination = this.page.locator(".ngx-pagination");
@@ -57,13 +63,9 @@ export class CaseListPage extends Base {
   }
 
   async waitForReady(timeoutMs = 30_000): Promise<void> {
-    await this.page.waitForURL(/\/cases/i, { timeout: timeoutMs });
-    await this.container.waitFor({ state: "visible", timeout: timeoutMs });
-    try {
-      await this.waitForUiIdleState({ timeoutMs });
-    } catch {
-      await this.waitForUiIdleStateLenient(timeoutMs);
-    }
+    await this.page.waitForURL(/\/cases/i, { timeout: timeoutMs }).catch(() => undefined);
+    await this.acceptAnalyticsCookies().catch(() => undefined);
+    await this.waitForCasesShellReady(timeoutMs);
   }
 
   async getPaginationFinalItem(): Promise<string | undefined> {
@@ -86,6 +88,72 @@ export class CaseListPage extends Base {
       await this.filterToggle.waitFor({ state: "visible", timeout: timeoutMs }).catch(() => {
         // If the toggle disappears, continue and wait for inputs.
       });
+    }
+  }
+
+  private async assertCasesPageHealthy(context: string): Promise<void> {
+    if (await this.errorPageHeading.isVisible().catch(() => false)) {
+      throw new Error(`Cases page showed "Something went wrong" while ${context}.`);
+    }
+    if (await this.serviceDownError.isVisible().catch(() => false)) {
+      throw new Error(`Cases page showed service down while ${context}.`);
+    }
+  }
+
+  private async waitForCasesSpinnerToSettle(timeoutMs: number): Promise<void> {
+    await this.page
+      .waitForFunction(() => document.querySelectorAll("xuilib-loading-spinner").length === 0, undefined, {
+        timeout: timeoutMs
+      })
+      .catch(() => undefined);
+  }
+
+  private async waitForCasesShellReady(timeoutMs: number): Promise<void> {
+    const bootstrapTimeoutMs = Math.min(Math.max(timeoutMs, 45_000), 60_000);
+    await this.acceptAnalyticsCookies().catch(() => undefined);
+    await this.page.waitForLoadState("domcontentloaded").catch(() => undefined);
+    await this.waitForCasesSpinnerToSettle(10_000);
+    const bootstrapSignal = await Promise.any([
+      this.caseListHeading.waitFor({ state: "visible", timeout: bootstrapTimeoutMs }).then(() => "heading"),
+      this.quickSearchCaseReferenceInput
+        .waitFor({ state: "visible", timeout: bootstrapTimeoutMs })
+        .then(() => "quick-search"),
+      this.quickSearchContainer
+        .waitFor({ state: "visible", timeout: bootstrapTimeoutMs })
+        .then(() => "quick-search-container"),
+      this.filtersContainer.waitFor({ state: "visible", timeout: bootstrapTimeoutMs }).then(() => "filters"),
+      this.container.waitFor({ state: "visible", timeout: bootstrapTimeoutMs }).then(() => "container"),
+      this.errorPageHeading.waitFor({ state: "visible", timeout: bootstrapTimeoutMs }).then(() => "error-page"),
+      this.serviceDownError.waitFor({ state: "visible", timeout: bootstrapTimeoutMs }).then(() => "service-down")
+    ]).catch(async () => {
+      await this.assertCasesPageHealthy("waiting for cases shell bootstrap");
+      throw new Error(`Cases page shell did not become ready within ${bootstrapTimeoutMs}ms.`);
+    });
+
+    if (bootstrapSignal === "error-page" || bootstrapSignal === "service-down") {
+      await this.assertCasesPageHealthy("waiting for cases shell bootstrap");
+    }
+
+    await this.waitForCasesSpinnerToSettle(10_000);
+    await this.assertCasesPageHealthy("waiting for cases shell bootstrap");
+
+    try {
+      await Promise.any([
+        this.quickSearchCaseReferenceInput.waitFor({ state: "visible", timeout: 10_000 }),
+        this.quickSearchContainer.waitFor({ state: "visible", timeout: 10_000 }),
+        this.filtersContainer.waitFor({ state: "visible", timeout: 10_000 }),
+        this.container.waitFor({ state: "visible", timeout: 10_000 })
+      ]);
+    } catch {
+      await this.waitForCasesSpinnerToSettle(5_000);
+      await this.assertCasesPageHealthy("waiting for cases page stabilization");
+      await this.container.waitFor({ state: "visible", timeout: 10_000 });
+    }
+
+    try {
+      await this.waitForUiIdleState({ timeoutMs });
+    } catch {
+      await this.waitForUiIdleStateLenient(timeoutMs);
     }
   }
 

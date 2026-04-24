@@ -1,4 +1,10 @@
-import type { Page, Route } from "@playwright/test";
+import { expect, type Page, type Route } from "@playwright/test";
+
+import type { CaseSearchPage } from "../../../page-objects/pages/exui/caseSearch.po.js";
+import { EXUI_TIMEOUTS } from "../../../page-objects/pages/exui/exui-timeouts.js";
+import type { GlobalSearchPage } from "../../../page-objects/pages/exui/globalSearch.po.js";
+
+import { buildNgIntegrationAppConfigMock } from "./ngIntegrationMockRoutes.helper.js";
 
 export interface FindCaseMockRoutesConfig {
   jurisdictions: unknown;
@@ -198,4 +204,62 @@ export function parseGlobalSearchRequestPayload(
   } catch {
     return undefined;
   }
+}
+
+export async function setupFastCaseRetrievalConfigRoute(page: Page): Promise<void> {
+  const appConfig = buildNgIntegrationAppConfigMock() as {
+    caseEditorConfig?: Record<string, unknown>;
+  };
+
+  await page.route("**/assets/config/config.json*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...appConfig,
+        caseEditorConfig: {
+          ...appConfig.caseEditorConfig,
+          activity_retry: 1,
+          timeouts_case_retrieval: [1, 1],
+          timeouts_case_retrieval_artificial_delay: 0
+        }
+      })
+    });
+  });
+}
+
+export async function submitHeaderQuickSearch(
+  caseReference: string,
+  caseSearchPage: CaseSearchPage
+): Promise<void> {
+  await caseSearchPage.page.goto("/cases", { waitUntil: "domcontentloaded" });
+  await caseSearchPage.exuiHeader.appHeaderLink.waitFor({
+    state: "attached",
+    timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
+  });
+  await expect(caseSearchPage.caseIdTextBox).toBeVisible({
+    timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
+  });
+  await caseSearchPage.searchWith16DigitCaseId(caseReference);
+}
+
+export async function submitGlobalSearchFromMenu(
+  caseReference: string,
+  globalSearchPage: GlobalSearchPage,
+  page: Page
+): Promise<void> {
+  await page.goto("/cases", { waitUntil: "domcontentloaded" });
+  await page.waitForURL(/\/cases(?:[/?#]|$)/, {
+    timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
+  });
+  await expect(globalSearchPage.searchLinkOnMenuBar).toBeVisible({
+    timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
+  });
+  await globalSearchPage.searchLinkOnMenuBar.click();
+  await page.waitForURL(/\/search/);
+  await globalSearchPage.caseIdTextBox.waitFor({ state: "visible" });
+  await globalSearchPage.caseIdTextBox.fill(caseReference);
+  await globalSearchPage.servicesOption.selectOption("PUBLICLAW");
+  await globalSearchPage.searchButton.click();
+  await globalSearchPage.exuiSpinnerComponent.wait();
 }

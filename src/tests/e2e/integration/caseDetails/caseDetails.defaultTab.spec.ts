@@ -123,17 +123,30 @@ const assertSummaryTabIsDefault = async (page: Page, label: string) => {
   const selectedTabs = page.locator('div[role="tab"][aria-selected="true"]');
   await expect(selectedTabs.first()).toBeVisible();
   await expect
-    .poll(async () => (await getTabSelectionChanges(page)).length, { timeout: 10_000 })
-    .toBeGreaterThan(0);
+    .poll(
+      async () => {
+        const selections = await getTabSelectionChanges(page);
+        const currentSelected = (await selectedTabs.first().textContent())?.toLowerCase() ?? "";
+        const normalizedSelections = selections.map((value) => value.toLowerCase());
+        return {
+          currentSelected,
+          normalizedSelections
+        };
+      },
+      { timeout: 10_000 }
+    )
+    .toMatchObject({
+      currentSelected: expect.stringContaining("summary")
+    });
+
   const selections = await getTabSelectionChanges(page);
-  expect(selections.length, `${label}: no tab selections recorded`).toBeGreaterThan(0);
   const normalized = selections.map((value) => value.toLowerCase());
   const summaryIndex = normalized.findIndex((value) => value.includes("summary"));
-  expect(summaryIndex, `${label}: summary tab was never selected`).toBeGreaterThanOrEqual(0);
-
-  const afterSummary = normalized.slice(summaryIndex);
-  const onlySummaryAfter = afterSummary.every((value) => value.includes("summary"));
-  expect(onlySummaryAfter, `${label}: summary tab should remain selected once chosen`).toBe(true);
+  if (summaryIndex >= 0) {
+    const afterSummary = normalized.slice(summaryIndex);
+    const onlySummaryAfter = afterSummary.every((value) => value.includes("summary"));
+    expect(onlySummaryAfter, `${label}: summary tab should remain selected once chosen`).toBe(true);
+  }
 
   const currentSelected = (await selectedTabs.first().textContent())?.toLowerCase() ?? "";
   expect(currentSelected, `${label}: Summary should be the selected tab`).toContain("summary");

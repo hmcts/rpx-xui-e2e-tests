@@ -8,6 +8,8 @@ const TRANSIENT_FAILURE_PATTERNS: RegExp[] = [
   /The event could not be created/i,
   /Validation error after/i,
   /Something went wrong page was displayed/i,
+  /Task list showed service down/i,
+  /Gateway Timeout page was displayed/i,
   /callback data failed validation/i,
   /timeout of \d+ms exceeded/i,
   /timeout \d+ms exceeded/i,
@@ -29,6 +31,16 @@ const FATAL_PAGE_CLOSED_PATTERNS: RegExp[] = [
 
 function asErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+export async function waitForRetryInterval(intervalMs: number): Promise<void> {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    setTimeout(resolve, intervalMs);
+  });
 }
 
 export function isTransientWorkflowFailure(error: unknown): boolean {

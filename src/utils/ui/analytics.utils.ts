@@ -1,38 +1,107 @@
 import type { Page } from "@playwright/test";
 
-const analyticsSelector =
-  "body > exui-root > xuilib-cookie-banner > div > div > div.govuk-button-group > button:nth-child(1)";
+const ANALYTICS_BUTTON_PATTERN = /accept (additional|analytics) cookies/i;
+const ANALYTICS_BUTTON_PATTERN_SOURCE = ANALYTICS_BUTTON_PATTERN.source;
 
-export const installAnalyticsAutoAccept = async (page: Page): Promise<void> => {
-  await page.addInitScript((selector) => {
-    const attemptClick = () => {
-      const direct = document.querySelector(selector);
-      if (direct instanceof HTMLElement) {
-        direct.click();
-        return true;
-      }
+const clickAnalyticsButtonInOpenShadowDom = async (page: Page): Promise<boolean> =>
+  page
+    .evaluate((patternSource) => {
+      const pattern = new RegExp(patternSource, "i");
+      const queue: Array<Document | ShadowRoot> = [document];
+      const visited = new Set<Document | ShadowRoot>();
 
-      const buttons = Array.from(document.querySelectorAll("button"));
-      const fallback = buttons.find((button) =>
-        /accept analytics cookies/i.test(button.textContent ?? "")
-      );
-      if (fallback instanceof HTMLElement) {
-        fallback.click();
-        return true;
+      while (queue.length > 0) {
+        const currentRoot = queue.shift();
+        if (!currentRoot || visited.has(currentRoot)) {
+          continue;
+        }
+        visited.add(currentRoot);
+
+        const buttons = Array.from(currentRoot.querySelectorAll("button"));
+        const matchingButton = buttons.find((button) => {
+          const buttonLabel = `${button.textContent ?? ""} ${button.getAttribute("aria-label") ?? ""}`.trim();
+          return pattern.test(buttonLabel);
+        });
+        if (matchingButton instanceof HTMLElement) {
+          matchingButton.click();
+          return true;
+        }
+
+        const hosts = Array.from(currentRoot.querySelectorAll("*"));
+        for (const host of hosts) {
+          if (host.shadowRoot) {
+            queue.push(host.shadowRoot);
+          }
+        }
       }
 
       return false;
+    }, ANALYTICS_BUTTON_PATTERN_SOURCE)
+    .catch(() => false);
+
+export const installAnalyticsAutoAccept = async (page: Page): Promise<void> => {
+  await page.addInitScript((patternSource) => {
+    const pattern = new RegExp(patternSource, "i");
+    const scanRoots = (): Array<Document | ShadowRoot> => {
+      const queue: Array<Document | ShadowRoot> = [document];
+      const roots: Array<Document | ShadowRoot> = [];
+      const visited = new Set<Document | ShadowRoot>();
+
+      while (queue.length > 0) {
+        const currentRoot = queue.shift();
+        if (!currentRoot || visited.has(currentRoot)) {
+          continue;
+        }
+        visited.add(currentRoot);
+        roots.push(currentRoot);
+
+        const hosts = Array.from(currentRoot.querySelectorAll("*"));
+        for (const host of hosts) {
+          if (host.shadowRoot) {
+            queue.push(host.shadowRoot);
+          }
+        }
+      }
+
+      return roots;
     };
 
-    attemptClick();
-    const observer = new MutationObserver(() => {
+    const attemptClick = () => {
+      for (const root of scanRoots()) {
+        const buttons = Array.from(root.querySelectorAll("button"));
+        const matchingButton = buttons.find((button) => {
+          const label = `${button.textContent ?? ""} ${button.getAttribute("aria-label") ?? ""}`.trim();
+          return pattern.test(label);
+        });
+        if (matchingButton instanceof HTMLElement) {
+          matchingButton.click();
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const startObserver = () => {
       attemptClick();
-    });
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true
-    });
-  }, analyticsSelector);
+      if (!document.documentElement) {
+        return;
+      }
+      const observer = new MutationObserver(() => {
+        attemptClick();
+      });
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    };
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", startObserver, { once: true });
+      return;
+    }
+
+    startObserver();
+  }, ANALYTICS_BUTTON_PATTERN_SOURCE);
 };
 
 const resolveCookieDomain = (page: Page, baseUrl?: string): string | undefined => {
@@ -52,7 +121,6 @@ const setAnalyticsAcceptanceCookie = async (page: Page, baseUrl?: string): Promi
   const domain = resolveCookieDomain(page, baseUrl);
   if (!domain) return false;
 
-  const secure = (baseUrl ?? page.url()).startsWith("https://");
   await page.context().addCookies([
     {
       name: `hmcts-exui-cookies-${userId}-mc-accepted`,
@@ -61,7 +129,7 @@ const setAnalyticsAcceptanceCookie = async (page: Page, baseUrl?: string): Promi
       path: "/",
       expires: -1,
       httpOnly: false,
-      secure,
+      secure: false,
       sameSite: "Lax"
     }
   ]);
@@ -69,19 +137,19 @@ const setAnalyticsAcceptanceCookie = async (page: Page, baseUrl?: string): Promi
 };
 
 export const acceptAnalyticsCookiesOnPage = async (page: Page): Promise<boolean> => {
-  const analyticsButton = page.locator(analyticsSelector);
-  if (await analyticsButton.isVisible().catch(() => false)) {
-    await analyticsButton.click();
+  const analyticsRoleButton = page.getByRole("button", {
+    name: ANALYTICS_BUTTON_PATTERN
+  }).first();
+  const roleButtonVisible = await analyticsRoleButton
+    .waitFor({ state: "visible", timeout: 1_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (roleButtonVisible) {
+    await analyticsRoleButton.click({ timeout: 2_000 }).catch(() => undefined);
     return true;
   }
 
-  const analyticsRoleButton = page.getByRole("button", { name: /accept analytics cookies/i });
-  if (await analyticsRoleButton.isVisible().catch(() => false)) {
-    await analyticsRoleButton.click();
-    return true;
-  }
-
-  return false;
+  return clickAnalyticsButtonInOpenShadowDom(page);
 };
 
 export const ensureAnalyticsAccepted = async (
@@ -95,7 +163,6 @@ export const ensureAnalyticsAccepted = async (
   const cookieSet = await setAnalyticsAcceptanceCookie(page, baseUrl);
   if (!cookieSet) return false;
 
-  await page.reload({ waitUntil: "domcontentloaded" });
-  await acceptAnalyticsCookiesOnPage(page);
+  await acceptAnalyticsCookiesOnPage(page).catch(() => false);
   return true;
 };

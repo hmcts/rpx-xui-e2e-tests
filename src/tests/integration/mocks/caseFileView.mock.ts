@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { buildAsylumCaseMock } from "./cases/asylumCase.mock";
+
 export const CASE_FILE_VIEW_DOC_IDS = {
   evidenceAlphaV1: "11111111-1111-1111-1111-111111111111",
   evidenceMiddleV2: "22222222-2222-2222-2222-222222222222",
@@ -62,40 +64,15 @@ const caseFileViewTabConfig = {
 };
 
 export function buildCaseFileViewCaseMock(caseId: string) {
+  const base = buildAsylumCaseMock({
+    caseId,
+    caseTypeId: "PRLAPPS",
+    jurisdictionId: "PRIVATELAW"
+  });
+
   return {
-    _links: {
-      self: {
-        href: `http://localhost:3000/data/internal/cases/${caseId}`
-      }
-    },
-    case_id: caseId,
-    case_type: {
-      id: "PRLAPPS",
-      name: "Private law applications",
-      description: "Private law applications integration case",
-      jurisdiction: {
-        id: "PRIVATELAW",
-        name: "Private Law",
-        description: "Private law jurisdiction"
-      },
-      printEnabled: false
-    },
-    tabs: [caseFileViewTabConfig],
-    metadataFields: [
-      { id: "[CASE_REFERENCE]", value: Number(caseId) },
-      { id: "[JURISDICTION]", value: "PRIVATELAW" },
-      { id: "[CASE_TYPE]", value: "PRLAPPS" }
-    ],
-    state: {
-      id: "CaseCreated",
-      name: "Case created"
-    },
-    triggers: [
-      {
-        id: "updateCase",
-        name: "Update case"
-      }
-    ]
+    ...base,
+    tabs: [...(base.tabs ?? []), caseFileViewTabConfig]
   };
 }
 

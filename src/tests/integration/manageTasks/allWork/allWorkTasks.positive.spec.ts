@@ -1,0 +1,291 @@
+import { expect, test } from "../../../../fixtures/ui";
+import { applySessionCookies, setupManageTasksBaseRoutes, taskListRoutePattern } from '../../helpers';
+import { buildCaseDetailsTasksFromParams } from '../../mocks/caseDetailsTasks.builder';
+import { buildAsylumCaseMock } from '../../mocks/cases/asylumCase.mock';
+import { buildMyCases } from '../../mocks/myCases.mock';
+import { buildTaskListMock, myActionsList } from '../../mocks/taskList.mock';
+
+const userIdentifier = 'STAFF_ADMIN';
+const allWorkCasesRoutePattern = /\/workallocation\/all-work\/cases(?:\?.*)?$/;
+
+const supportedJurisdictions = ['IA', 'CIVIL'];
+const supportedJurisdictionDetails = [
+  { serviceId: 'IA', serviceName: 'Immigration and Asylum' },
+  { serviceId: 'CIVIL', serviceName: 'Civil' },
+];
+
+test.describe(`All Work Tasks as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+  test.beforeEach(async ({ page }) => {
+    await applySessionCookies(page, userIdentifier);
+  });
+
+  test('User can view all-work task table, links, and pagination', async ({ taskListPage, page, tableUtils }) => {
+    const taskListMockResponse = buildTaskListMock(2000, '', myActionsList);
+    const firstTask = taskListMockResponse.tasks[0];
+
+    firstTask.case_name = 'All work migrated case';
+    firstTask.case_name_field = firstTask.case_name;
+    firstTask.task_title = 'All work migrated task';
+    firstTask.task_field = firstTask.task_title;
+
+    const caseMockResponse = buildAsylumCaseMock({
+      caseId: firstTask.case_id,
+      caseTypeId: firstTask.case_type_id,
+      jurisdictionId: firstTask.jurisdiction,
+    });
+    const caseTasksResponse = buildCaseDetailsTasksFromParams({
+      caseId: firstTask.case_id,
+      tasks: [
+        {
+          id: firstTask.id,
+          title: firstTask.task_title,
+          state: 'assigned',
+          assignee: 'all-work-assignee-1',
+          createdDate: firstTask.created_date,
+          dueDate: firstTask.due_date,
+          priorityDate: firstTask.priority_date,
+          jurisdiction: firstTask.jurisdiction,
+          caseTypeId: firstTask.case_type_id,
+          caseId: firstTask.case_id,
+          caseName: firstTask.case_name,
+          caseCategory: firstTask.case_category,
+          locationName: firstTask.location_name,
+          location: firstTask.location,
+          description: 'Task opened from the all-work task link.',
+          actions: [{ id: 'go', title: 'Go to task' }],
+        },
+      ],
+    });
+    const caseworkerLookupResponse = [
+      {
+        email: 'all.work.caseworker@example.com',
+        firstName: 'All',
+        idamId: 'all-work-assignee-1',
+        lastName: 'Work',
+        location: {
+          id: 227101,
+          locationName: 'Taylor House',
+        },
+        roleCategory: 'LEGAL_OPERATIONS',
+        service: 'IA',
+      },
+    ];
+
+    await test.step('Setup route mocks for all-work tasks', async () => {
+      await setupManageTasksBaseRoutes(page, {
+        taskListResponse: taskListMockResponse,
+        supportedJurisdictions,
+        supportedJurisdictionDetails,
+      });
+
+      await page.route(`**/data/internal/cases/${firstTask.case_id}*`, async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(caseMockResponse),
+        });
+      });
+
+      await page.route(`**/workallocation/case/task/${firstTask.case_id}*`, async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(caseTasksResponse),
+        });
+      });
+
+      await page.route('**/workallocation/caseworker/getUsersByServiceName*', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(caseworkerLookupResponse),
+        });
+      });
+    });
+
+    await test.step('Navigate to all-work tasks page', async () => {
+      await taskListPage.gotoAllWorkTasks();
+      await expect(taskListPage.taskListTable).toBeVisible();
+      await taskListPage.exuiSpinnerComponent.wait();
+    });
+
+    await test.step('Verify expected all-work columns, data, and case/task link rendering', async () => {
+      expect
+        .soft(await taskListPage.getResultsText())
+        .toBe(`Showing 1 to ${Math.min(taskListMockResponse.tasks.length, 25)} of ${taskListMockResponse.total_records} results`);
+
+      const table = await tableUtils.parseWorkAllocationTable(taskListPage.taskListTable);
+      expect(Object.keys(table[0] ?? {})).toEqual(
+        expect.arrayContaining(['Case name', 'Case category', 'Location', 'Task', 'Person'])
+      );
+
+      expect.soft(table[0]['Case name']).toBe(taskListMockResponse.tasks[0].case_name);
+      expect.soft(table[0]['Case category']).toBe(taskListMockResponse.tasks[0].case_category);
+      expect.soft(table[0]['Location']).toBe(taskListMockResponse.tasks[0].location_name);
+      expect.soft(table[0]['Task']).toBe(taskListMockResponse.tasks[0].task_title);
+
+      const firstCaseLink = taskListPage.taskListTable.getByRole('link', { name: firstTask.case_name }).first();
+      await expect(firstCaseLink).toBeVisible();
+      await expect(firstCaseLink).toHaveAttribute(
+        'href',
+        `/cases/case-details/${firstTask.jurisdiction}/${firstTask.case_type_id}/${firstTask.case_id}`
+      );
+
+      const firstTaskLink = taskListPage.taskListTable.getByRole('link', { name: firstTask.task_title }).first();
+      await expect(firstTaskLink).toBeVisible();
+      await expect(firstTaskLink).toHaveAttribute(
+        'href',
+        new RegExp(
+          `/cases/case-details/${firstTask.jurisdiction}/${firstTask.case_type_id}/${firstTask.case_id}(?:/tasks|#Tasks)$`
+        )
+      );
+    });
+
+    await test.step('Click the all-work Task link and land on the case details Tasks tab', async () => {
+      const caseDetailsResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().includes(`/data/internal/cases/${firstTask.case_id}`) &&
+          response.status() === 200
+      );
+      const caseTasksResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          response.url().includes(`/workallocation/case/task/${firstTask.case_id}`) &&
+          response.status() === 200
+      );
+
+      await taskListPage.taskListTable.getByRole('link', { name: firstTask.task_title }).first().click();
+
+      await caseDetailsResponsePromise;
+      await caseTasksResponsePromise;
+
+      await expect(page).toHaveURL(
+        new RegExp(
+          `/cases/case-details/${firstTask.jurisdiction}/${firstTask.case_type_id}/${firstTask.case_id}(?:/tasks|#Tasks)(?:\\?.*)?$`
+        )
+      );
+      await expect(page.getByRole('heading', { name: 'Active tasks' })).toBeVisible();
+    });
+
+    await test.step('Verify pagination controls are shown for multi-page all-work results', async () => {
+      await taskListPage.gotoAllWorkTasks();
+      await expect(taskListPage.taskListTable).toBeVisible();
+      await taskListPage.exuiSpinnerComponent.wait();
+
+      await expect(taskListPage.exuiBodyComponent.paginationNextButton).toBeVisible();
+      await expect(taskListPage.exuiBodyComponent.paginationPreviousButton).toBeHidden();
+
+      await taskListPage.exuiBodyComponent.paginationNextButton.click();
+      await taskListPage.exuiSpinnerComponent.wait();
+      await expect(taskListPage.exuiBodyComponent.paginationPreviousButton).toBeVisible();
+      expect
+        .soft(await taskListPage.getResultsText())
+        .toContain(`Showing 26 to 50 of ${taskListMockResponse.total_records} results`);
+    });
+  });
+
+  test('All-work Case name sort persists after navigating away and back', async ({ taskListPage, page }) => {
+    const taskListMockResponse = buildTaskListMock(40, '', myActionsList);
+    const allWorkCasesMockResponse = buildMyCases(3);
+    const caseNameSortHeaderCell = taskListPage.sortByCaseNameTableHeader.locator('xpath=ancestor::th[1]');
+
+    await test.step('Setup route mocks for all-work tasks sorting', async () => {
+      await setupManageTasksBaseRoutes(page, {
+        taskListResponse: taskListMockResponse,
+        supportedJurisdictions,
+        supportedJurisdictionDetails,
+      });
+      await page.route(allWorkCasesRoutePattern, async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(allWorkCasesMockResponse),
+        });
+      });
+    });
+
+    await test.step('Open all-work tasks and sort by Case name ascending', async () => {
+      await taskListPage.gotoAllWorkTasks();
+      await expect(taskListPage.taskListTable).toBeVisible();
+      await taskListPage.exuiSpinnerComponent.wait();
+
+      await taskListPage.sortByCaseNameTableHeader.click();
+      await taskListPage.exuiSpinnerComponent.wait();
+      await expect(caseNameSortHeaderCell).toHaveAttribute('aria-sort', 'ascending');
+    });
+
+    await test.step('Navigate to All work cases then back to All work tasks', async () => {
+      await taskListPage.taskTableTabs.filter({ hasText: 'Cases' }).first().click();
+      await page.waitForURL(/\/work\/all-work\/cases$/, { timeout: 15_000 });
+
+      const allWorkTasksRequestPromise = page.waitForRequest((request) => {
+        if (!taskListRoutePattern.exec(request.url()) || request.method() !== 'POST') {
+          return false;
+        }
+
+        try {
+          const requestBody = request.postDataJSON() as {
+            searchRequest?: {
+              request_context?: string;
+              sorting_parameters?: Array<{ sort_by?: string; sort_order?: string }>;
+            };
+            view?: string;
+          };
+
+          return (
+            requestBody.view === 'AllWork' &&
+            requestBody.searchRequest?.request_context === 'ALL_WORK' &&
+            requestBody.searchRequest?.sorting_parameters?.some(
+              (sortParameter) => sortParameter.sort_by === 'caseName' && sortParameter.sort_order === 'asc'
+            ) === true
+          );
+        } catch {
+          return false;
+        }
+      });
+
+      await taskListPage.taskTableTabs.filter({ hasText: 'Tasks' }).first().click();
+      await expect(taskListPage.taskListTable).toBeVisible();
+      await taskListPage.exuiSpinnerComponent.wait();
+
+      await allWorkTasksRequestPromise;
+    });
+
+    await test.step('Verify Case name sort remains selected on all-work tasks', async () => {
+      await expect(caseNameSortHeaderCell).toHaveAttribute('aria-sort', 'ascending');
+    });
+  });
+
+  test('All-work filter controls are visible and interactive', async ({ taskListPage, page }) => {
+    const taskListMockResponse = buildTaskListMock(10, '', myActionsList);
+
+    await test.step('Setup route mocks for all-work filters', async () => {
+      await setupManageTasksBaseRoutes(page, {
+        taskListResponse: taskListMockResponse,
+        supportedJurisdictions,
+        supportedJurisdictionDetails,
+      });
+    });
+
+    await test.step('Open all-work tasks and expand filters', async () => {
+      await taskListPage.gotoAllWorkTasks();
+      await expect(taskListPage.taskListTable).toBeVisible();
+      await taskListPage.exuiSpinnerComponent.wait();
+      await taskListPage.waitForAllWorkFilterControlsReady();
+    });
+
+    await test.step('Verify all-work service/location/task/person filter controls are present', async () => {
+      await expect(taskListPage.allWorkServiceFilter).toBeVisible();
+      await expect(taskListPage.allWorkLocationAllRadio).toBeVisible();
+      await expect(taskListPage.allWorkLocationSearchRadio).toBeVisible();
+
+      await expect(taskListPage.allWorkTaskCategoryAllRadio).toBeVisible();
+      await expect(taskListPage.allWorkTaskCategoryUnassignedRadio).toBeVisible();
+      await expect(taskListPage.allWorkTaskCategoryAssignedToPersonRadio).toBeVisible();
+
+      await expect(taskListPage.allWorkTasksByRoleTypeFilter).toBeVisible();
+      await expect(taskListPage.allWorkPersonSearchInput).toBeVisible();
+    });
+  });
+});

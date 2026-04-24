@@ -10,6 +10,7 @@ import {
   createFindCaseSearchResultsRouteHandler,
   createGlobalSearchResultsRouteHandler
 } from "../integration/helpers/caseSearchRouteHandlers.helper";
+import { resolveIntegrationSessionWarmupUsers } from "../integration/helpers/searchCaseSession.helper";
 import {
   buildFindCaseEmptySearchResultsMock,
   buildFindCaseSearchResultsMock,
@@ -85,7 +86,7 @@ test.describe("Search-case support coverage", () => {
     );
   });
 
-  test("search-case alias users resolve from Jenkins-style env vars", async () => {
+  test("search-case alias users keep the source-compatible baseline even when env vars are present", async () => {
     await withEnv(
       {
         CASEWORKER_GLOBALSEARCH_USERNAME: "caseworker-globalsearch@example.com",
@@ -96,12 +97,12 @@ test.describe("Search-case support coverage", () => {
       () => {
         const userUtils = new UserUtils();
         expect(userUtils.getUserCredentials("CASEWORKER_GLOBALSEARCH")).toEqual({
-          email: "caseworker-globalsearch@example.com",
-          password: "caseworker-globalsearch-pass"
+          email: "exuigsuser@mailinator.com",
+          password: "Welcome01"
         });
         expect(userUtils.getUserCredentials("WA2_GLOBAL_SEARCH")).toEqual({
-          email: "wa2-globalsearch@example.com",
-          password: "wa2-globalsearch-pass"
+          email: "exuigsuser@mailinator.com",
+          password: "Welcome01"
         });
       }
     );
@@ -120,6 +121,23 @@ test.describe("Search-case support coverage", () => {
           email: "xui_auto_test_user_solicitor@mailinator.com",
           password: "Monday01"
         });
+      }
+    );
+  });
+
+  test("integration session warmup users match the source baseline and include configured search users", async () => {
+    await withEnv(
+      {
+        PW_INTEGRATION_SESSION_WARMUP_USERS: undefined,
+        PW_SEARCH_CASE_SESSION_USERS: "FPL_GLOBAL_SEARCH,CASEWORKER_R1"
+      },
+      () => {
+        expect(resolveIntegrationSessionWarmupUsers()).toEqual([
+          "FPL_GLOBAL_SEARCH",
+          "SOLICITOR",
+          "STAFF_ADMIN",
+          "CASEWORKER_R1"
+        ]);
       }
     );
   });

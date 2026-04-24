@@ -30,6 +30,10 @@ const SOURCE_COMPAT_DEFAULT_USERS: Record<SupportedEnv, Record<string, UserCrede
       email: "employment_service@mailinator.com",
       password: "Nagoya0102"
     },
+    USER_WITH_FLAGS: {
+      email: "henry_fr_harper@yahoo.com",
+      password: "Nagoya0102"
+    },
     RESTRICTED_CASE_FILE_VIEW_ON: {
       email: "xui_casefileview_v11_on@mailinator.com",
       password: "Welcome01"
@@ -37,6 +41,26 @@ const SOURCE_COMPAT_DEFAULT_USERS: Record<SupportedEnv, Record<string, UserCrede
     RESTRICTED_CASE_FILE_VIEW_OFF: {
       email: "xui_casefileview_v11_off@mailinator.com",
       password: "Welcome01"
+    },
+    RESTRICTED_CASE_ACCESS_ON: {
+      email: "xui_restricted_case_access_on@mailinator.com",
+      password: "Welcome01"
+    },
+    RESTRICTED_CASE_ACCESS_OFF: {
+      email: "xui_restricted_case_access_off@mailinator.com",
+      password: "Welcome01"
+    },
+    "BOOKING_UI-FT-ON": {
+      email: "49932114EMP-@ejudiciary.net",
+      password: "Hmcts1234"
+    },
+    HEARING_MANAGER_CR84_ON: {
+      email: "xui_hearing_manager_cr84_on@justice.gov.uk",
+      password: "Monday01"
+    },
+    HEARING_MANAGER_CR84_OFF: {
+      email: "xui_hearing_manager_cr84_off@justice.gov.uk",
+      password: "Monday01"
     }
   },
   demo: {
@@ -59,7 +83,22 @@ const SOURCE_COMPAT_DEFAULT_USERS: Record<SupportedEnv, Record<string, UserCrede
   }
 };
 
-const SOURCE_COMPAT_PRIMARY_USERS = new Set(["SOLICITOR", "FPL_GLOBAL_SEARCH"]);
+const SOURCE_COMPAT_DEFAULT_FIRST_USERS = new Set([
+  "SOLICITOR",
+  "CASEWORKER_GLOBALSEARCH",
+  "WA2_GLOBAL_SEARCH",
+  "FPL_GLOBAL_SEARCH",
+  "STAFF_ADMIN",
+  "SEARCH_EMPLOYMENT_CASE",
+  "USER_WITH_FLAGS",
+  "RESTRICTED_CASE_FILE_VIEW_ON",
+  "RESTRICTED_CASE_FILE_VIEW_OFF",
+  "RESTRICTED_CASE_ACCESS_ON",
+  "RESTRICTED_CASE_ACCESS_OFF",
+  "BOOKING_UI-FT-ON",
+  "HEARING_MANAGER_CR84_ON",
+  "HEARING_MANAGER_CR84_OFF"
+]);
 
 export function resolveDefaultUserCredentials(
   userIdentifier: string,
@@ -71,5 +110,5 @@ export function resolveDefaultUserCredentials(
 }
 
 export function shouldPreferDefaultUserCredentials(userIdentifier: string): boolean {
-  return SOURCE_COMPAT_PRIMARY_USERS.has(userIdentifier.trim().toUpperCase());
+  return SOURCE_COMPAT_DEFAULT_FIRST_USERS.has(userIdentifier.trim().toUpperCase());
 }
