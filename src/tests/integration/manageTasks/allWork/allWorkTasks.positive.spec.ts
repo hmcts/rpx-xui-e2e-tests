@@ -1,5 +1,12 @@
 import { expect, test } from "../../../../fixtures/ui";
-import { applySessionCookies, setupManageTasksBaseRoutes, taskListRoutePattern } from '../../helpers';
+import type { TaskListPage } from '../../../../page-objects/pages/exui/taskList.po.js';
+import {
+  applySessionCookies,
+  markManageTasksCustomUserDetailsConfigured,
+  setupManageTasksBaseRoutes,
+  setupNgIntegrationBaseRoutes,
+  taskListRoutePattern,
+} from '../../helpers';
 import { buildCaseDetailsTasksFromParams } from '../../mocks/caseDetailsTasks.builder';
 import { buildAsylumCaseMock } from '../../mocks/cases/asylumCase.mock';
 import { buildMyCases } from '../../mocks/myCases.mock';
@@ -13,6 +20,29 @@ const supportedJurisdictionDetails = [
   { serviceId: 'IA', serviceName: 'Immigration and Asylum' },
   { serviceId: 'CIVIL', serviceName: 'Civil' },
 ];
+const allWorkActionIds = ['assign', 'claim', 'claim-and-go', 'reassign', 'unclaim', 'go', 'cancel', 'complete'];
+
+async function assertManageActionsForRow(
+  taskListPage: TaskListPage,
+  rowIndex: number,
+  expectedActionIds: string[]
+): Promise<void> {
+  await taskListPage.gotoAllWorkTasks();
+  await expect(taskListPage.taskListTable).toBeVisible();
+  await taskListPage.exuiSpinnerComponent.wait();
+  await taskListPage.openManageActionsForRow(rowIndex, `all-work manage action matrix row ${rowIndex + 1}`);
+
+  const taskActionsRow = taskListPage.getTaskActionsRow(rowIndex);
+  const unexpectedActionIds = allWorkActionIds.filter((actionId) => !expectedActionIds.includes(actionId));
+
+  for (const actionId of expectedActionIds) {
+    await taskListPage.waitForTaskActionForRow(rowIndex, actionId, `all-work manage action matrix row ${rowIndex + 1}`);
+  }
+
+  for (const actionId of unexpectedActionIds) {
+    await expect(taskActionsRow.locator(`#action_${actionId}`)).toHaveCount(0);
+  }
+}
 
 test.describe(`All Work Tasks as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test.beforeEach(async ({ page }) => {
@@ -288,4 +318,107 @@ test.describe(`All Work Tasks as ${userIdentifier}`, { tag: ['@integration', '@i
       await expect(taskListPage.allWorkPersonSearchInput).toBeVisible();
     });
   });
+
+  test('All-work manage action matrix is rendered for each expected row', async ({ taskListPage, page }) => {
+    const taskListMockResponse = buildTaskListMock(25, '', myActionsList);
+
+    taskListMockResponse.tasks[0].actions = [
+      { id: 'assign', title: 'Assign task' },
+      { id: 'go', title: 'Go to task' },
+    ];
+    taskListMockResponse.tasks[1].actions = [
+      { id: 'assign', title: 'Assign task' },
+      { id: 'go', title: 'Go to task' },
+    ];
+    taskListMockResponse.tasks[3].actions = [
+      { id: 'reassign', title: 'Reassign task' },
+      { id: 'unclaim', title: 'Unassign task' },
+      { id: 'go', title: 'Go to task' },
+    ];
+
+    await test.step('Setup route mocks for all-work manage action matrix', async () => {
+      await setupManageTasksBaseRoutes(page, {
+        taskListResponse: taskListMockResponse,
+        supportedJurisdictions,
+        supportedJurisdictionDetails,
+      });
+    });
+
+    await test.step('Validate row 1 and row 2 show Assign task and Go to task', async () => {
+      await assertManageActionsForRow(taskListPage, 0, ['assign', 'go']);
+      await assertManageActionsForRow(taskListPage, 1, ['assign', 'go']);
+    });
+
+    await test.step('Validate row 4 shows Reassign task, Unassign task, and Go to task', async () => {
+      await assertManageActionsForRow(taskListPage, 3, ['reassign', 'unclaim', 'go']);
+    });
+  });
+});
+
+test.describe('All Work role-based task columns', { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+  const scenarios = [
+    {
+      expectedDateHeader: 'Due date',
+      notExpectedDateHeader: 'Task created',
+      roleCategory: 'LEGAL_OPERATIONS',
+      sourceUserIdentifier: 'IAC_CaseOfficer_R2',
+    },
+    {
+      expectedDateHeader: 'Task created',
+      notExpectedDateHeader: 'Due date',
+      roleCategory: 'JUDICIAL',
+      sourceUserIdentifier: 'IAC_Judge_WA_R1',
+    },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    test.describe(`All-work columns render correctly for ${scenario.sourceUserIdentifier}`, () => {
+      const taskListMockResponse = buildTaskListMock(40, '', myActionsList);
+
+      test.beforeEach(async ({ page }) => {
+        await applySessionCookies(page, userIdentifier);
+        await setupNgIntegrationBaseRoutes(page, {
+          userDetails: {
+            roleCategory: scenario.roleCategory,
+            roleAssignmentInfo: [
+              { jurisdiction: 'IA', substantive: 'Y', roleType: 'ORGANISATION', baseLocation: '765324' },
+            ],
+            roles:
+              scenario.roleCategory === 'JUDICIAL'
+                ? ['caseworker-ia', 'caseworker-ia-judge', 'caseworker']
+                : ['caseworker-ia', 'caseworker-ia-caseofficer', 'staff-admin', 'task-supervisor'],
+            userId: `${scenario.roleCategory.toLowerCase()}-all-work-user`,
+          },
+        });
+        markManageTasksCustomUserDetailsConfigured(page);
+      });
+
+      test('renders expected date column and not the non-expected date column', async ({ taskListPage, page, tableUtils }) => {
+        await test.step('Setup route mocks for all-work role-based columns', async () => {
+          await setupManageTasksBaseRoutes(page, {
+            taskListResponse: taskListMockResponse,
+            supportedJurisdictions,
+            supportedJurisdictionDetails,
+          });
+        });
+
+        await test.step('Navigate to all-work tasks and parse rendered columns', async () => {
+          await taskListPage.gotoAllWorkTasks();
+          await expect(taskListPage.taskListTable).toBeVisible();
+          await taskListPage.exuiSpinnerComponent.wait();
+
+          const table = await tableUtils.parseWorkAllocationTable(taskListPage.taskListTable);
+          const headers = Object.keys(table[0] ?? {});
+
+          expect(headers).toEqual(
+            expect.arrayContaining(['Case name', 'Case category', 'Location', 'Task', 'Person', 'Priority'])
+          );
+          expect(headers).toContain(scenario.expectedDateHeader);
+          expect(headers).not.toContain(scenario.notExpectedDateHeader);
+
+          expect(table[0][scenario.expectedDateHeader]).toBeTruthy();
+        });
+      });
+    });
+  }
 });
