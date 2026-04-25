@@ -13,6 +13,7 @@ import { ensureStorageState, getStoredCookie, type ApiUserRole } from "../../fix
 export const StatusSets = {
   guardedBasic: [200, 401, 403, 502, 504] as const,
   guardedExtended: [200, 401, 403, 404, 500, 502, 504] as const,
+  waReadOnly: [200, 401, 403, 500, 502, 504] as const,
   actionWithConflicts: [200, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
   allocateRole: [200, 201, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
   roleAccessRead: [200, 400, 401, 403, 404, 500, 502, 504] as const,

@@ -68,8 +68,10 @@ export interface SeededTaskResult {
  */
 export async function seedTaskId(
   apiClient: { post: (path: string, opts: Record<string, unknown>) => Promise<{ data?: { tasks?: Array<{ id?: string }> }; status: number }> },
-  locationId?: string
+  locationId?: string,
+  options: { timeoutMs?: number } = {}
 ): Promise<SeededTaskResult | undefined> {
+  void options;
   const candidateStates: Array<{ type: SeededTaskResult["type"]; states: string[]; view: "MyTasks" | "AvailableTasks" }> = [
     { type: "assigned", states: ["assigned"], view: "MyTasks" },
     { type: "unassigned", states: ["unassigned"], view: "AvailableTasks" }

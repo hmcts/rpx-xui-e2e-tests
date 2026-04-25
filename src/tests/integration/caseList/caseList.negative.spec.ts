@@ -21,7 +21,7 @@ test.describe(
   { tag: ["@integration", "@integration-case-list"] },
   () => {
     for (const errorCode of CASE_LIST_ERROR_STATUS_CODES) {
-      test(`User ${userIdentifier} encounters a HTTP response ${errorCode} error on the case list page`, async ({
+      test(`User ${userIdentifier} encounters a HTTP Response  ${errorCode} error on the case list page`, async ({
         caseListPage,
         page
       }) => {
@@ -44,7 +44,7 @@ test.describe(
 );
 
 test.describe(
-  `Slow response handling on /searchCases for ${userIdentifier}`,
+  `Mimic Slow Response Times on  /searchCases call for ${userIdentifier}`,
   { tag: ["@integration", "@integration-case-list"] },
   () => {
     test(`User ${userIdentifier} encounters a slow response time on load of the case list page`, async ({
@@ -75,10 +75,10 @@ test.describe(
 );
 
 test.describe(
-  `Malformed and timeout searchCases handling for ${userIdentifier}`,
+  `Check UI Behviour when a Malformed Response is returned for ${userIdentifier}`,
   { tag: ["@integration", "@integration-case-list"] },
   () => {
-    test(`User ${userIdentifier} encounters a malformed response on /searchCases`, async ({
+    test(`User ${userIdentifier} encounters a Malformed Response on calling of /searchCases`, async ({
       caseListPage,
       page
     }) => {
@@ -97,7 +97,7 @@ test.describe(
       await expect(caseListPage.caseSearchResultsMessage).not.toContainText("No cases found");
     });
 
-    test(`User ${userIdentifier} encounters a timeout on /searchCases`, async ({ caseListPage, page }) => {
+    test(`User ${userIdentifier} encounters a Timeout on calling of /searchCases`, async ({ caseListPage, page }) => {
       await setupCaseListSearchRoute(page, async (route) => {
         await route.abort("timedout");
       });

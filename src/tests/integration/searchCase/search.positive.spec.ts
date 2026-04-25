@@ -74,7 +74,7 @@ test.describe(`Search quick find as ${userIdentifier}`, () => {
     expect(caseNumberFromUrl).toBe(VALID_SEARCH_CASE_REFERENCE);
   });
 
-  test("User remains on shell no-results content for a non-existent 16-digit header search", async ({
+  test("User remains on case list with no cases message for non-existent 16-digit header search", async ({
     caseListPage,
     caseSearchPage,
     page

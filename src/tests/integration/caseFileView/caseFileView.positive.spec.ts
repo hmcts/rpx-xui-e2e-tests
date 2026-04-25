@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
 import {
   applySessionCookies,
+  setupCaseFileViewDocumentBinaryMockRoutes,
   setupCaseFileViewMockRoutes
 } from "../helpers/index.js";
 import {
@@ -13,7 +14,7 @@ const fileViewOnUser = "RESTRICTED_CASE_FILE_VIEW_ON";
 const fileViewOffUser = "RESTRICTED_CASE_FILE_VIEW_OFF";
 
 test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
-  test("shows tree view, media viewer, document count, folder hierarchy and upload stamps", async ({
+  test("V1.1 shows tree view, media viewer, document count, folder hierarchy and upload stamps", async ({
     caseDetailsPage,
     caseFileViewPage,
     page
@@ -57,7 +58,7 @@ test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@i
     });
   });
 
-  test("shows V2 and V1 documents in the media viewer and supports sort options", async ({
+  test("Case view can show V2 and V1 documents", async ({
     caseDetailsPage,
     caseFileViewPage,
     page
@@ -118,6 +119,26 @@ test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@i
       await expect(caseFileViewPage.mediaViewPanel).toContainText("Case File View - Document Delivery Fixture");
     });
 
+  });
+
+  test("sort options reorder documents as expected", async ({
+    caseDetailsPage,
+    caseFileViewPage,
+    page
+  }) => {
+    await test.step("Set up case file and binary document mocks", async () => {
+      await applySessionCookies(page, fileViewOnUser);
+      await setupCaseFileViewMockRoutes(page, caseId);
+      await setupCaseFileViewDocumentBinaryMockRoutes(page);
+    });
+
+    await test.step("Open the Case File View tab", async () => {
+      await page.goto(`/cases/case-details/PRIVATELAW/PRLAPPS/${caseId}`);
+      await caseDetailsPage.selectCaseDetailsTab("Case File View");
+      await caseFileViewPage.waitForReady();
+      await expect(caseFileViewPage.documentHeader).toContainText("Documents (6)");
+    });
+
     await test.step("Sort evidence documents and root orders", async () => {
       await expect(caseFileViewPage.sortButton).toBeVisible();
 
@@ -149,7 +170,7 @@ test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@i
 });
 
 test.describe(`Case file view as ${fileViewOffUser}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
-  test("V1 mode user still sees core case file view content", async ({
+  test("V1 mode User still sees core case file view content", async ({
     caseDetailsPage,
     caseFileViewPage,
     page

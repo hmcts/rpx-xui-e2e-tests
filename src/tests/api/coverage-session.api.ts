@@ -1,383 +1,653 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+/* eslint-disable @typescript-eslint/no-explicit-any -- local Playwright/IDAM fakes intentionally implement partial surfaces */
 
-import { test, expect } from "@playwright/test";
+import * as fs from 'node:fs';
+import { promises as fsp } from 'node:fs';
+import * as path from 'node:path';
 
-import { withEnv } from "../../utils/api/testEnv";
-import {
-  __test__ as sessionStorageTestUtils,
-  isTransientUiBootstrapFailure,
-  navigateToBaseUrlWithRetry,
-  resolveUiStorageTtlMinutes
-} from "../../utils/ui/session-storage.utils";
-import {
-  readUiStorageMetadata,
-  resolveUiStorageMetadataPath,
-  resolveUiStoragePathForUser,
-  writeUiStorageMetadata
-} from "../../utils/ui/storage-state.utils";
-import { UserUtils } from "../../utils/ui/user.utils";
-import { loadSessionCookies } from "../e2e/integration/utils/session.utils";
+import type { IdamPage } from '@hmcts/playwright-common';
+import { test, expect } from '@playwright/test';
+import type { Cookie } from 'playwright-core';
 
-test.describe.configure({ mode: "serial" });
+import { isSessionFresh, loadSessionCookies, __test__ as sessionCaptureTest } from '../common/sessionCapture.js';
+import { resolveSessionStorageKey } from '../common/sessionIdentity.js';
+import { CookieUtils } from '../e2e/utils/cookie.utils.js';
+import { UserUtils } from '../e2e/utils/user.utils.js';
 
-const encodeJwtSection = (value: Record<string, unknown>) =>
-  Buffer.from(JSON.stringify(value)).toString("base64url");
+test.describe.configure({ mode: 'serial' });
 
-const createTestJwt = (payload: Record<string, unknown>) =>
-  `${encodeJwtSection({ alg: "none", typ: "JWT" })}.${encodeJwtSection(payload)}.signature`;
+const mockPassword = process.env.PW_MOCK_PASSWORD ?? String(Date.now());
+const baseCookie = (name: string, value: string): Cookie => ({
+  name,
+  value,
+  domain: 'example.test',
+  path: '/',
+  expires: -1,
+  httpOnly: false,
+  secure: false,
+  sameSite: 'Lax',
+});
 
-test.describe("Session and user utilities coverage", () => {
-  test("UserUtils honours env overrides for source-dynamic users and errors on unknown", async () => {
-    await withEnv(
-      { CASEWORKER_R1_USERNAME: "user@example.com", CASEWORKER_R1_PASSWORD: "pass" },
-      () => {
-        const userUtils = new UserUtils();
-        const creds = userUtils.getUserCredentials("CASEWORKER_R1");
-        expect(creds).toEqual({
-          email: "user@example.com",
-          password: "pass"
-        });
-        expect(() => userUtils.getUserCredentials("UNKNOWN_USER")).toThrow("User \"UNKNOWN_USER\" is not configured");
-      }
-    );
-  });
-
-  test("UserUtils keeps restricted case file view parity users on source defaults even when env aliases are present", async () => {
-    await withEnv(
-      {
-        RESTRICTED_CASE_FILE_VIEW_V1_1_ON_USERNAME: "override-on@example.test",
-        RESTRICTED_CASE_FILE_VIEW_V1_1_ON_PASSWORD: "Override01",
-        RESTRICTED_CASE_FILE_VIEW_OFF_USERNAME: "override-off@example.test",
-        RESTRICTED_CASE_FILE_VIEW_OFF_PASSWORD: "Override02"
+test.describe('Session and cookie utilities coverage', { tag: '@svc-internal' }, () => {
+  test('isSessionFresh returns false when stat fails', () => {
+    const fsStub = {
+      existsSync: () => true,
+      statSync: () => {
+        throw new Error('boom');
       },
-      () => {
-        const userUtils = new UserUtils();
-        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_ON")).toEqual({
-          email: "xui_casefileview_v11_on@mailinator.com",
-          password: "Welcome01"
-        });
-        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_OFF")).toEqual({
-          email: "xui_casefileview_v11_off@mailinator.com",
-          password: "Welcome01"
-        });
-      }
+    } as any;
+    expect(isSessionFresh('session.json', 1000, { fs: fsStub, now: () => 1000 })).toBe(false);
+  });
+
+  test('UserUtils returns credentials for known users and errors on unknown', () => {
+    const userUtils = new UserUtils();
+    const creds = userUtils.getUserCredentials('IAC_CaseOfficer_R1');
+    expect(creds.email).toContain('@');
+    expect(creds.password).toBeTruthy();
+    expect(() => userUtils.getUserCredentials('UNKNOWN_USER')).toThrow(
+      'User "UNKNOWN_USER" is not configured for UI tests.'
     );
   });
 
-  test("UserUtils keeps source-static parity users on source defaults even when env values are present", async () => {
-    await withEnv(
-      {
-        BOOKING_UI_FT_ON_USERNAME: "xui_bookingui_on@hmcts.net",
-        BOOKING_UI_FT_ON_PASSWORD: "Locked01",
-        FPL_GLOBAL_SEARCH_USERNAME: "fpl-alt@example.test",
-        FPL_GLOBAL_SEARCH_PASSWORD: "AltPassword01",
-        STAFF_ADMIN_USERNAME: "staff-admin@example.test",
-        STAFF_ADMIN_PASSWORD: "AltWelcome01",
-        HEARING_MANAGER_CR84_ON_USERNAME: "hearing-on@example.test",
-        HEARING_MANAGER_CR84_ON_PASSWORD: "AltMonday01",
-        HEARING_MANAGER_CR84_OFF_USERNAME: "hearing-off@example.test",
-        HEARING_MANAGER_CR84_OFF_PASSWORD: "AltMonday02",
-        RESTRICTED_CASE_ACCESS_ON_USERNAME: "restricted-on@example.test",
-        RESTRICTED_CASE_ACCESS_ON_PASSWORD: "AltWelcome02",
-        RESTRICTED_CASE_ACCESS_OFF_USERNAME: "restricted-off@example.test",
-        RESTRICTED_CASE_ACCESS_OFF_PASSWORD: "AltWelcome03"
+  test('CookieUtils writes and updates session files', async () => {
+    const cookieUtils = new CookieUtils();
+    const tmpDir = await fsp.mkdtemp(path.join(process.cwd(), 'test-results', 'cookie-utils-'));
+    const sessionPath = path.join(tmpDir, 'session.json');
+
+    const initial = { cookies: [baseCookie('__userid__', 'user-1')] };
+    await fsp.writeFile(sessionPath, JSON.stringify(initial), 'utf8');
+    await cookieUtils.addManageCasesAnalyticsCookie(sessionPath);
+    const updated = JSON.parse(await fsp.readFile(sessionPath, 'utf8'));
+    const added = updated.cookies.find((cookie: any) => cookie.name === 'hmcts-exui-cookies-user-1-mc-accepted');
+    expect(added).toBeDefined();
+    expect(added.value).toBe('true');
+
+    const noUserPath = path.join(tmpDir, 'no-user.json');
+    cookieUtils.writeManageCasesSession(noUserPath, [baseCookie('other', '1')]);
+    const noUserState = JSON.parse(await fsp.readFile(noUserPath, 'utf8'));
+    expect(noUserState.cookies).toHaveLength(1);
+
+    const withUserPath = path.join(tmpDir, 'with-user.json');
+    cookieUtils.writeManageCasesSession(withUserPath, [baseCookie('__userid__', 'user-2')]);
+    const withUserState = JSON.parse(await fsp.readFile(withUserPath, 'utf8'));
+    const withUserCookie = withUserState.cookies.find((cookie: any) => cookie.name === 'hmcts-exui-cookies-user-2-mc-accepted');
+    expect(withUserCookie).toBeDefined();
+    expect(withUserCookie.value).toBe('true');
+
+    const nestedPath = path.join(tmpDir, 'nested', 'session.json');
+    cookieUtils.writeManageCasesSession(nestedPath, [baseCookie('__userid__', 'user-3')]);
+    const nestedState = JSON.parse(await fsp.readFile(nestedPath, 'utf8'));
+    expect(nestedState.cookies.find((cookie: any) => cookie.name === 'hmcts-exui-cookies-user-3-mc-accepted')).toBeDefined();
+
+    const noUserAnalyticsPath = path.join(tmpDir, 'no-user-analytics.json');
+    await fsp.writeFile(noUserAnalyticsPath, JSON.stringify({ cookies: [baseCookie('other', '1')] }), 'utf8');
+    await cookieUtils.addManageCasesAnalyticsCookie(noUserAnalyticsPath);
+    const noUserAnalytics = JSON.parse(await fsp.readFile(noUserAnalyticsPath, 'utf8'));
+    expect(noUserAnalytics.cookies).toHaveLength(2);
+  });
+
+  test('CookieUtils surfaces errors when session data is invalid', async () => {
+    const cookieUtils = new CookieUtils();
+    const tmpDir = await fsp.mkdtemp(path.join(process.cwd(), 'test-results', 'cookie-utils-error-'));
+    const badPath = path.join(tmpDir, 'bad.json');
+    await fsp.writeFile(badPath, '{bad-json', 'utf8');
+    await expect(cookieUtils.addManageCasesAnalyticsCookie(badPath)).rejects.toThrow('Failed to read or write session data');
+
+    const failingFs = {
+      readFileSync: fs.readFileSync,
+      writeFileSync: () => {
+        throw new Error('write failed');
       },
-      () => {
-        const userUtils = new UserUtils();
-        expect(userUtils.getUserCredentials("SOLICITOR")).toEqual({
-          email: "xui_auto_test_user_solicitor@mailinator.com",
-          password: "Monday01"
-        });
-        expect(userUtils.getUserCredentials("BOOKING_UI-FT-ON")).toEqual({
-          email: "49932114EMP-@ejudiciary.net",
-          password: "Hmcts1234"
-        });
-        expect(userUtils.getUserCredentials("FPL_GLOBAL_SEARCH")).toEqual({
-          email: "fpl-ctsc-admin@justice.gov.uk",
-          password: "Password12"
-        });
-        expect(userUtils.getUserCredentials("STAFF_ADMIN")).toEqual({
-          email: "xui_caseofficer@justice.gov.uk",
-          password: "Welcome01"
-        });
-        expect(userUtils.getUserCredentials("SEARCH_EMPLOYMENT_CASE")).toEqual({
-          email: "employment_service@mailinator.com",
-          password: "Nagoya0102"
-        });
-        expect(userUtils.getUserCredentials("USER_WITH_FLAGS")).toEqual({
-          email: "henry_fr_harper@yahoo.com",
-          password: "Nagoya0102"
-        });
-        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_ON")).toEqual({
-          email: "xui_casefileview_v11_on@mailinator.com",
-          password: "Welcome01"
-        });
-        expect(userUtils.getUserCredentials("RESTRICTED_CASE_FILE_VIEW_OFF")).toEqual({
-          email: "xui_casefileview_v11_off@mailinator.com",
-          password: "Welcome01"
-        });
-        expect(userUtils.getUserCredentials("HEARING_MANAGER_CR84_ON")).toEqual({
-          email: "xui_hearing_manager_cr84_on@justice.gov.uk",
-          password: "Monday01"
-        });
-        expect(userUtils.getUserCredentials("HEARING_MANAGER_CR84_OFF")).toEqual({
-          email: "xui_hearing_manager_cr84_off@justice.gov.uk",
-          password: "Monday01"
-        });
-        expect(userUtils.getUserCredentials("RESTRICTED_CASE_ACCESS_ON")).toEqual({
-          email: "xui_restricted_case_access_on@mailinator.com",
-          password: "Welcome01"
-        });
-        expect(userUtils.getUserCredentials("RESTRICTED_CASE_ACCESS_OFF")).toEqual({
-          email: "xui_restricted_case_access_off@mailinator.com",
-          password: "Welcome01"
-        });
-      }
+      existsSync: fs.existsSync,
+      mkdirSync: fs.mkdirSync,
+    };
+    const cookieUtilsFailing = new CookieUtils(failingFs);
+    expect(() => cookieUtilsFailing.writeManageCasesSession(path.join(tmpDir, 'fail.json'), [])).toThrow(
+      'Failed to write session file'
     );
   });
 
-  test("loadSessionCookies reads stored cookies and handles invalid data", async () => {
-    await withEnv(
-      { SOLICITOR_USERNAME: "user@example.com", SOLICITOR_PASSWORD: "pass" },
-      async () => {
-        const storagePath = resolveUiStoragePathForUser("SOLICITOR");
-        const legacyStoragePath = sessionStorageTestUtils.resolveLegacyUiStoragePathForUser("SOLICITOR");
-        await fs.mkdir(path.dirname(storagePath), { recursive: true });
-        await fs.rm(legacyStoragePath, { force: true });
+  test('sessionCapture helpers handle fresh, stale, and missing sessions', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(process.cwd(), 'test-results', 'session-utils-'));
+    const originalCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const sessionsDir = path.join(tmpDir, '.sessions');
+      await fsp.mkdir(sessionsDir, { recursive: true });
 
-        await fs.writeFile(
-          storagePath,
-          JSON.stringify({ cookies: [{ name: "__userid__", value: "user-1" }] }),
-          "utf8"
-        );
-        const loaded = loadSessionCookies("SOLICITOR");
-        expect(loaded.cookies).toHaveLength(1);
+      const userUtils = new UserUtils();
+      const storageKey = resolveSessionStorageKey('IAC_CaseOfficer_R1', { userUtils });
+      const storagePath = path.join(sessionsDir, `${storageKey}.storage.json`);
 
-        await fs.writeFile(storagePath, "{bad-json", "utf8");
-        const invalid = loadSessionCookies("SOLICITOR");
-        expect(invalid.cookies).toHaveLength(0);
+      expect(isSessionFresh(storagePath)).toBe(false);
 
-        await fs.rm(storagePath, { force: true });
+      await fsp.writeFile(storagePath, JSON.stringify({ cookies: [baseCookie('a', 'b')] }), 'utf8');
+      expect(isSessionFresh(storagePath, 60 * 1000)).toBe(true);
 
-        await fs.writeFile(
-          legacyStoragePath,
-          JSON.stringify({ cookies: [{ name: "__userid__", value: "legacy-user" }] }),
-          "utf8"
-        );
-        const legacy = loadSessionCookies("SOLICITOR");
-        expect(legacy.storageFile).toBe(legacyStoragePath);
-        expect(legacy.cookies).toHaveLength(1);
+      const oldTime = Date.now() - 10 * 60 * 1000;
+      await fsp.utimes(storagePath, oldTime / 1000, oldTime / 1000);
+      expect(isSessionFresh(storagePath, 60 * 1000)).toBe(false);
 
-        await fs.rm(legacyStoragePath, { force: true });
-      }
-    );
+      const loaded = loadSessionCookies('IAC_CaseOfficer_R1');
+      expect(loaded.cookies).toHaveLength(1);
+
+      await fsp.writeFile(storagePath, JSON.stringify({ cookies: {} }), 'utf8');
+      const invalidCookies = loadSessionCookies('IAC_CaseOfficer_R1');
+      expect(invalidCookies.cookies).toHaveLength(0);
+
+      await fsp.writeFile(storagePath, '{bad-json', 'utf8');
+      expect(() => loadSessionCookies('IAC_CaseOfficer_R1')).toThrow('Storage file corrupted');
+
+      await fsp.rm(storagePath, { force: true });
+      expect(() => loadSessionCookies('IAC_CaseOfficer_R1')).toThrow('Failed parsing storage file');
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 
-  test("resolveUiStorageTtlMinutes respects env values", async () => {
-    await withEnv({ PW_UI_STORAGE_TTL_MIN: undefined }, () => {
-      const defaultValue = resolveUiStorageTtlMinutes();
-      expect(defaultValue).toBeGreaterThan(0);
-    });
+  test('isSessionFresh rejects sessions whose auth cookies target a different host', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(process.cwd(), 'test-results', 'session-target-'));
+    const sessionPath = path.join(tmpDir, 'session.storage.json');
 
-    await withEnv({ PW_UI_STORAGE_TTL_MIN: "1" }, () => {
-      expect(resolveUiStorageTtlMinutes()).toBe(1);
-    });
-  });
-
-  test("resolveUiStoragePathForUser scopes storage state by user and email", () => {
-    const storagePath = resolveUiStoragePathForUser("CASEWORKER_R1", {
-      email: "Worker.One@example.com"
-    });
-    expect(path.basename(storagePath)).toBe("caseworker_r1-worker-one-example-com.json");
-  });
-
-  test("migrates legacy alias-scoped UI storage into the parity email-scoped path when identities match", async () => {
-    await withEnv(
-      {
-        SOLICITOR_USERNAME: "xui_auto_test_user_solicitor@mailinator.com",
-        SOLICITOR_PASSWORD: "Monday01"
-      },
-      async () => {
-        const legacyPath = sessionStorageTestUtils.resolveLegacyUiStoragePathForUser("SOLICITOR");
-        const storagePath = resolveUiStoragePathForUser("SOLICITOR");
-        await fs.mkdir(path.dirname(legacyPath), { recursive: true });
-        await fs.rm(storagePath, { force: true });
-        await fs.rm(resolveUiStorageMetadataPath(storagePath), { force: true });
-
-        await fs.writeFile(
-          legacyPath,
-          JSON.stringify({
-            cookies: [
-              { name: "Idam.Session", value: "session-cookie" },
-              { name: "__auth__", value: createTestJwt({ sub: "xui_auto_test_user_solicitor@mailinator.com" }) }
-            ]
-          }),
-          "utf8"
-        );
-
-        const migrated = sessionStorageTestUtils.migrateLegacyUiStorageStateIfPresent(
-          "SOLICITOR",
-          "xui_auto_test_user_solicitor@mailinator.com",
-          storagePath
-        );
-
-        expect(migrated).toBe(true);
-        expect(await fs.readFile(storagePath, "utf8")).toContain("session-cookie");
-        expect(readUiStorageMetadata(storagePath)).toEqual(
-          expect.objectContaining({
-            userIdentifier: "SOLICITOR",
-            email: "xui_auto_test_user_solicitor@mailinator.com"
-          })
-        );
-
-        await fs.rm(legacyPath, { force: true });
-        await fs.rm(storagePath, { force: true });
-        await fs.rm(resolveUiStorageMetadataPath(storagePath), { force: true });
-      }
-    );
-  });
-
-  test("strict session validation reuses authenticated storage even when ttl is zero", async () => {
-    await withEnv({ PW_UI_STORAGE_TTL_MIN: "0" }, async () => {
-      const storagePath = resolveUiStoragePathForUser("CASEWORKER_R1", {
-        email: "caseworker.one@example.com"
-      });
-      await fs.mkdir(path.dirname(storagePath), { recursive: true });
-      await fs.writeFile(
-        storagePath,
-        JSON.stringify({
-          cookies: [
-            { name: "Idam.Session", value: "idam-session" },
-            { name: "__auth__", value: "jwt-token" }
-          ]
-        }),
-        "utf8"
-      );
-      writeUiStorageMetadata(storagePath, {
-        userIdentifier: "CASEWORKER_R1",
-        email: "caseworker.one@example.com"
-      });
-
-      const shouldRefresh = await sessionStorageTestUtils.shouldRefreshStorageState(
-        storagePath,
-        "https://example.test",
-        {
-          ignoreTtl: true,
-          validateAuthenticatedState: async () => true,
-          expectedIdentity: {
-            userIdentifier: "CASEWORKER_R1",
-            email: "caseworker.one@example.com"
-          }
-        }
-      );
-
-      expect(shouldRefresh).toBe(false);
-      await fs.rm(storagePath, { force: true });
-      await fs.rm(resolveUiStorageMetadataPath(storagePath), { force: true });
-    });
-  });
-
-  test("strict session validation still refreshes unauthenticated storage even when ttl is zero", async () => {
-    await withEnv({ PW_UI_STORAGE_TTL_MIN: "0" }, async () => {
-      const storagePath = resolveUiStoragePathForUser("CASEWORKER_R1", {
-        email: "caseworker.one@example.com"
-      });
-      await fs.mkdir(path.dirname(storagePath), { recursive: true });
-      await fs.writeFile(
-        storagePath,
-        JSON.stringify({
-          cookies: [
-            { name: "Idam.Session", value: "idam-session" },
-            { name: "__auth__", value: "jwt-token" }
-          ]
-        }),
-        "utf8"
-      );
-      writeUiStorageMetadata(storagePath, {
-        userIdentifier: "CASEWORKER_R1",
-        email: "caseworker.one@example.com"
-      });
-
-      const shouldRefresh = await sessionStorageTestUtils.shouldRefreshStorageState(
-        storagePath,
-        "https://example.test",
-        {
-          ignoreTtl: true,
-          validateAuthenticatedState: async () => false,
-          expectedIdentity: {
-            userIdentifier: "CASEWORKER_R1",
-            email: "caseworker.one@example.com"
-          }
-        }
-      );
-
-      expect(shouldRefresh).toBe(true);
-      await fs.rm(storagePath, { force: true });
-      await fs.rm(resolveUiStorageMetadataPath(storagePath), { force: true });
-    });
-  });
-
-  test("classifies initial page.goto timeout as transient UI bootstrap failure", () => {
-    expect(isTransientUiBootstrapFailure(new Error("page.goto: Timeout 30000ms exceeded."))).toBe(true);
-    expect(isTransientUiBootstrapFailure(new Error("Login page did not render."))).toBe(false);
-  });
-
-  test("navigateToBaseUrlWithRetry retries transient page.goto failures", async () => {
-    let attempts = 0;
-    const outcomes = [
-      async () => {
-        throw new Error("page.goto: Timeout 30000ms exceeded.");
-      },
-      async () => null
+    const aatCookies = [
+      { ...baseCookie('Idam.Session', 'aat-session'), domain: 'idam-web-public.aat.platform.hmcts.net' },
+      { ...baseCookie('__auth__', 'aat-auth'), domain: 'manage-case.aat.platform.hmcts.net' },
     ];
 
-    const page = {
-      goto: async () => {
-        attempts += 1;
-        return outcomes.shift()!();
-      }
-    };
+    await fsp.writeFile(sessionPath, JSON.stringify({ cookies: aatCookies }), 'utf8');
 
-    await navigateToBaseUrlWithRetry(page, "https://example.test", { maxAttempts: 2 });
-    expect(attempts).toBe(2);
+    expect(isSessionFresh(sessionPath, 60 * 1000, { targetUrl: 'http://localhost:3000' })).toBe(false);
+    expect(isSessionFresh(sessionPath, 60 * 1000, { targetUrl: 'https://manage-case.aat.platform.hmcts.net' })).toBe(true);
+
+    const localCookies = [
+      { ...baseCookie('Idam.Session', 'local-session'), domain: 'localhost' },
+      { ...baseCookie('__auth__', 'local-auth'), domain: 'localhost' },
+    ];
+
+    await fsp.writeFile(sessionPath, JSON.stringify({ cookies: localCookies }), 'utf8');
+    expect(isSessionFresh(sessionPath, 60 * 1000, { targetUrl: 'http://localhost:3000' })).toBe(true);
   });
 
-  test("navigateToBaseUrlWithRetry does not retry non-transient failures", async () => {
-    let attempts = 0;
+  test('loadSessionCookies uses explicit sessionKey for dynamic identities', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(process.cwd(), 'test-results', 'session-identity-'));
+    const originalCwd = process.cwd();
+    process.chdir(tmpDir);
+    try {
+      const sessionsDir = path.join(tmpDir, '.sessions');
+      await fsp.mkdir(sessionsDir, { recursive: true });
+      const storagePath = path.join(sessionsDir, 'dynamic-employment-user-123.storage.json');
+      await fsp.writeFile(storagePath, JSON.stringify({ cookies: [baseCookie('session', 'value')] }), 'utf8');
 
-    const page = {
-      goto: async () => {
-        attempts += 1;
-        throw new Error("Unexpected base URL mismatch");
-      }
+      const loaded = loadSessionCookies({
+        userIdentifier: 'EMPLOYMENT_DYNAMIC_CASEWORKER',
+        email: 'dynamic@example.test',
+        password: 'secret',
+        sessionKey: 'dynamic-employment-user-123',
+      });
+
+      expect(loaded.storageFile).toBe(storagePath);
+      expect(loaded.cookies).toHaveLength(1);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test('session freshness max age defaults to one hour and honors env override', () => {
+    expect(sessionCaptureTest.resolveSessionMaxAgeMs({} as NodeJS.ProcessEnv)).toBe(60 * 60 * 1000);
+    expect(sessionCaptureTest.resolveSessionMaxAgeMs({ PW_SESSION_MAX_AGE_MS: '120000' } as NodeJS.ProcessEnv)).toBe(120000);
+    expect(sessionCaptureTest.resolveSessionMaxAgeMs({ PW_SESSION_MAX_AGE_MS: '0' } as NodeJS.ProcessEnv)).toBe(60 * 60 * 1000);
+    expect(sessionCaptureTest.resolveSessionMaxAgeMs({ PW_SESSION_MAX_AGE_MS: 'bad' } as NodeJS.ProcessEnv)).toBe(60 * 60 * 1000);
+  });
+
+  test('persistSession writes cookies and surfaces errors', async () => {
+    const tmpDir = await fsp.mkdtemp(path.join(process.cwd(), 'test-results', 'session-persist-'));
+    const sessionPath = path.join(tmpDir, 'session.json');
+    const ctx = {
+      addCookies: async () => {},
+      storageState: async () => ({}),
     };
+    const cookieUtils = {
+      writeManageCasesSession: (pathValue: string, cookies: any[]) => {
+        fs.writeFileSync(pathValue, JSON.stringify({ cookies }), 'utf8');
+      },
+    } as any;
+
+    await sessionCaptureTest.persistSession(sessionPath, [baseCookie('a', 'b')], ctx as any, 'user', {
+      cookieUtils,
+      fs,
+    });
 
     await expect(
-      navigateToBaseUrlWithRetry(page, "https://example.test", { maxAttempts: 2 })
-    ).rejects.toThrow("Unexpected base URL mismatch");
-    expect(attempts).toBe(1);
-  });
-
-  test("resolveUiLoginTargets preserves the app target and adds direct IDAM login fallback", async () => {
-    await withEnv({ IDAM_WEB_URL: "https://idam-web-public.aat.platform.hmcts.net" }, () => {
-      expect(
-        sessionStorageTestUtils.resolveUiLoginTargets("https://manage-case.aat.platform.hmcts.net/cases")
-      ).toEqual([
-        "https://manage-case.aat.platform.hmcts.net/cases",
-        "https://idam-web-public.aat.platform.hmcts.net/login"
-      ]);
-    });
-  });
-
-  test("isUiServiceUnavailablePage recognises front-door 504 pages", async () => {
-    const page = {
-      title: async () => "504 Gateway Time-out",
-      locator: () => ({
-        innerText: async () => "Our services aren't available right now"
+      sessionCaptureTest.persistSession(sessionPath, [], ctx as any, 'user', {
+        cookieUtils: {
+          writeManageCasesSession: () => {
+            throw new Error('boom');
+          },
+        } as any,
+        fs,
       })
-    } as unknown as Parameters<typeof sessionStorageTestUtils.isUiServiceUnavailablePage>[0];
+    ).rejects.toThrow('boom');
+  });
 
-    await expect(sessionStorageTestUtils.isUiServiceUnavailablePage(page)).resolves.toBe(true);
+  test('sessionCaptureWith skips fresh sessions and handles header wait failures', async () => {
+    let mkdirCalls = 0;
+    const fsStub = {
+      existsSync: () => false,
+      mkdirSync: () => {
+        mkdirCalls += 1;
+      },
+      writeFileSync: () => {},
+    } as any;
+
+    const lockfileStub = {
+      lock: async () => async () => {},
+    } as any;
+
+    const userUtils = {
+      getUserCredentials: () => ({ email: 'user@example.com', password: mockPassword }),
+    } as any;
+
+    await sessionCaptureTest.sessionCaptureWith(['USER'], {
+      fs: fsStub,
+      userUtils,
+      isSessionFresh: () => true,
+      lockfile: lockfileStub,
+    });
+    expect(mkdirCalls).toBe(2); // Called once per sessionCaptureWith invocation
+
+    let persistCalls = 0;
+    const pageState = {
+      currentUrl: 'https://example.test/login',
+      loggedIn: false,
+    };
+    const performLogin = () => {
+      pageState.loggedIn = true;
+      pageState.currentUrl = 'https://example.test/cases';
+    };
+    const createLocator = (
+      key: string,
+      handlers: {
+        isVisible?: () => Promise<boolean>;
+        waitFor?: () => Promise<void>;
+        fill?: () => Promise<void>;
+        press?: () => Promise<void>;
+        click?: () => Promise<void>;
+      }
+    ) => {
+      const locator = {
+        first: () => locator,
+        isVisible: async () => (handlers.isVisible ? handlers.isVisible() : false),
+        waitFor: async () => {
+          if (!handlers.waitFor) {
+            throw new Error(`Unexpected waitFor on locator ${key}`);
+          }
+          return handlers.waitFor();
+        },
+        fill: async () => {
+          if (!handlers.fill) {
+            throw new Error(`Unexpected fill on locator ${key}`);
+          }
+          return handlers.fill();
+        },
+        press: async () => {
+          if (!handlers.press) {
+            throw new Error(`Unexpected press on locator ${key}`);
+          }
+          return handlers.press();
+        },
+        click: async () => {
+          if (!handlers.click) {
+            throw new Error(`Unexpected click on locator ${key}`);
+          }
+          return handlers.click();
+        },
+      };
+      return locator;
+    };
+    const usernameLocator = createLocator('idam-username', {
+      isVisible: async () => !pageState.loggedIn,
+      waitFor: async () => undefined,
+      fill: async () => undefined,
+    });
+    const passwordLocator = createLocator('idam-password', {
+      isVisible: async () => !pageState.loggedIn,
+      fill: async () => undefined,
+      press: async () => performLogin(),
+    });
+    const submitLocator = createLocator('idam-submit', {
+      isVisible: async () => !pageState.loggedIn,
+      click: async () => performLogin(),
+    });
+    const shellLocator = createLocator('exui-shell', {
+      waitFor: async () => new Promise<void>(() => undefined),
+    });
+    const headerLocator = createLocator('exui-header', {
+      isVisible: async () => false,
+      waitFor: async () => {
+        throw new Error('missing header');
+      },
+    });
+    const createCaseLinkLocator = createLocator('create-case-link', {
+      isVisible: async () => false,
+    });
+    const caseListLinkLocator = createLocator('case-list-link', {
+      isVisible: async () => false,
+    });
+    const nextStepLocator = createLocator('case-action-dropdown', {
+      isVisible: async () => false,
+    });
+    const jurisdictionLocator = createLocator('jurisdiction-select', {
+      isVisible: async () => false,
+    });
+    const acceptCookiesLocator = createLocator('accept-cookies', {
+      isVisible: async () => false,
+    });
+    const resolveSelectorLocator = (selector: string) => {
+      switch (selector) {
+        case 'input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]':
+          return usernameLocator;
+        case 'button:has-text("Sign in"), button:has-text("Continue")':
+          return submitLocator;
+        case 'exui-header, exui-case-home':
+          return shellLocator;
+        case 'exui-header':
+          return headerLocator;
+        case '#next-step':
+          return nextStepLocator;
+        case '#cc-jurisdiction':
+          return jurisdictionLocator;
+        default:
+          throw new Error(`Unexpected selector ${selector}`);
+      }
+    };
+    const resolveRoleLocator = (role: string, name: string) => {
+      if (role === 'button' && name === '/accept (additional|analytics) cookies/i') {
+        return acceptCookiesLocator;
+      }
+      if (role === 'link' && name === 'Create case') {
+        return createCaseLinkLocator;
+      }
+      if (role === 'link' && name === 'Case list') {
+        return caseListLinkLocator;
+      }
+      throw new Error(`Unexpected role locator ${role}:${name}`);
+    };
+    const page = {
+      goto: async () => {
+        pageState.currentUrl = 'https://example.test/login';
+      },
+      url: () => pageState.currentUrl,
+      locator: (selector: string) => resolveSelectorLocator(selector),
+      getByRole: (role: string, options?: { name?: string | RegExp }) =>
+        resolveRoleLocator(role, options?.name instanceof RegExp ? options.name.toString() : String(options?.name ?? '')),
+      waitForSelector: async (selector: string) => {
+        if (selector === 'exui-header') {
+          throw new Error('missing header');
+        }
+        throw new Error(`Unexpected waitForSelector ${selector}`);
+      },
+      waitForLoadState: async () => {},
+      waitForTimeout: async () => {},
+    } as any;
+    const context = {
+      newPage: async () => page,
+      cookies: async () =>
+        pageState.loggedIn ? [baseCookie('Idam.Session', 'session-1'), baseCookie('__auth__', 'auth-1')] : [],
+      addCookies: async () => {},
+      storageState: async () => ({}),
+    } as any;
+    page.context = () => context;
+    const browser = {
+      newContext: async () => context,
+      close: async () => {},
+    } as any;
+    const chromiumOk = {
+      launch: async () => browser,
+    } as any;
+    const idamPageFactory = (() => ({
+      usernameInput: usernameLocator,
+      passwordInput: passwordLocator,
+      submitBtn: submitLocator,
+      login: async () => {
+        performLogin();
+      },
+    })) as unknown as (page: any) => IdamPage;
+    await sessionCaptureTest.sessionCaptureWith(['USER'], {
+      fs: fsStub,
+      userUtils,
+      isSessionFresh: () => false,
+      chromiumLauncher: chromiumOk,
+      idamPageFactory,
+      persistSession: async () => {
+        persistCalls += 1;
+      },
+      env: { TEST_URL: 'https://example.test' } as NodeJS.ProcessEnv,
+      config: { urls: { exuiDefaultUrl: 'https://example.test' } } as any,
+      lockfile: lockfileStub,
+    });
+    expect(persistCalls).toBe(1);
+  });
+
+  test('sessionCaptureWith surfaces launch failures', async () => {
+    const fsStub = {
+      existsSync: () => true,
+      mkdirSync: () => {},
+      writeFileSync: () => {},
+    } as any;
+    const lockfileStub = {
+      lock: async () => async () => {},
+    } as any;
+    const userUtils = {
+      getUserCredentials: () => ({ email: 'user@example.com', password: mockPassword }),
+    } as any;
+    const chromiumLauncher = {
+      launch: async () => {
+        throw new Error('launch failed');
+      },
+    } as any;
+    await expect(
+      sessionCaptureTest.sessionCaptureWith(['USER'], {
+        fs: fsStub,
+        userUtils,
+        isSessionFresh: () => false,
+        chromiumLauncher,
+        lockfile: lockfileStub,
+      })
+    ).rejects.toThrow('launch failed');
+  });
+
+  test('sessionCaptureWith surfaces login failures', async () => {
+    const fsStub = {
+      existsSync: () => true,
+      mkdirSync: () => {},
+      writeFileSync: () => {},
+    } as any;
+    const lockfileStub = {
+      lock: async () => async () => {},
+    } as any;
+    const userUtils = {
+      getUserCredentials: () => ({ email: 'user@example.com', password: mockPassword }),
+    } as any;
+    const acceptCookiesLocator = {
+      first: () => acceptCookiesLocator,
+      isVisible: async () => false,
+    };
+    const shellLocator = {
+      first: () => shellLocator,
+      waitFor: async () => {
+        throw new Error('missing shell');
+      },
+    };
+    const hiddenFallbackLocator = {
+      first: () => hiddenFallbackLocator,
+      isVisible: async () => false,
+    };
+    const page = {
+      goto: async () => {},
+      url: () => 'https://example.test/login',
+      locator: (selector: string) => {
+        if (selector === 'exui-header, exui-case-home') {
+          return shellLocator;
+        }
+        if (selector === 'exui-header') {
+          return shellLocator;
+        }
+        if (selector === 'input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]') {
+          return hiddenFallbackLocator;
+        }
+        if (selector === 'button:has-text("Sign in"), button:has-text("Continue")') {
+          return hiddenFallbackLocator;
+        }
+        throw new Error(`Unexpected selector ${selector}`);
+      },
+      getByRole: (role: string, options?: { name?: string | RegExp }) => {
+        if (role === 'button' && options?.name instanceof RegExp) {
+          return acceptCookiesLocator;
+        }
+        throw new Error(`Unexpected role ${role}`);
+      },
+      waitForLoadState: async () => {},
+      waitForTimeout: async () => {},
+      waitForSelector: async () => {},
+    } as any;
+    const context = {
+      newPage: async () => page,
+      cookies: async () => [],
+      addCookies: async () => {},
+      storageState: async () => ({}),
+    } as any;
+    const browser = {
+      newContext: async () => context,
+      close: async () => {},
+    } as any;
+    const chromiumOk = {
+      launch: async () => browser,
+    } as any;
+    const usernameInput = {
+      first: () => usernameInput,
+      isVisible: async () => true,
+      waitFor: async () => {},
+      fill: async () => {},
+    };
+    const passwordInput = {
+      first: () => passwordInput,
+      fill: async () => {},
+      press: async () => {
+        throw new Error('login failed');
+      },
+    };
+    const submitBtn = {
+      first: () => submitBtn,
+      isVisible: async () => true,
+      click: async () => {
+        throw new Error('login failed');
+      },
+    };
+    const idamPageFactory = (() => ({
+      usernameInput,
+      passwordInput,
+      submitBtn,
+      login: async () => {
+        throw new Error('login failed');
+      },
+    })) as unknown as (page: any) => IdamPage;
+    await expect(
+      sessionCaptureTest.sessionCaptureWith(['USER'], {
+        fs: fsStub,
+        userUtils,
+        isSessionFresh: () => false,
+        chromiumLauncher: chromiumOk,
+        idamPageFactory,
+        persistSession: async () => {},
+        env: { TEST_URL: 'https://example.test' } as NodeJS.ProcessEnv,
+        config: { urls: { exuiDefaultUrl: 'https://example.test' } } as any,
+        lockfile: lockfileStub,
+      })
+    ).rejects.toThrow(/login failed/i);
+  });
+
+  test('sessionCaptureWith reuses a freshly written session instead of waiting on a held lock', async () => {
+    let lockAttempts = 0;
+    let launchAttempts = 0;
+    let freshnessChecks = 0;
+
+    const fsStub = {
+      existsSync: () => true,
+      mkdirSync: () => {},
+      writeFileSync: () => {},
+    } as any;
+
+    const lockfileStub = {
+      lock: async () => {
+        lockAttempts += 1;
+        if (lockAttempts === 1) {
+          const error = new Error('Lock file is already being held');
+          (error as Error & { code?: string }).code = 'ELOCKED';
+          throw error;
+        }
+        return async () => {};
+      },
+    } as any;
+
+    const userUtils = {
+      getUserCredentials: () => ({ email: 'shared@example.com', password: mockPassword }),
+    } as any;
+
+    await sessionCaptureTest.sessionCaptureWith(['USER'], {
+      fs: fsStub,
+      userUtils,
+      isSessionFresh: () => {
+        freshnessChecks += 1;
+        return freshnessChecks >= 2;
+      },
+      chromiumLauncher: {
+        launch: async () => {
+          launchAttempts += 1;
+          throw new Error('browser launch should not be needed');
+        },
+      } as any,
+      lockfile: lockfileStub,
+    });
+
+    expect(lockAttempts).toBe(1);
+    expect(launchAttempts).toBe(0);
+  });
+
+  test('acquireSessionLock clears abandoned lock artifacts before timing out', async () => {
+    let lockAttempts = 0;
+    let removedArtifacts = 0;
+    const staleTime = Date.now() - 70_000;
+
+    const fsStub = {
+      existsSync: (target: string) => target.endsWith('.lock'),
+      statSync: () => ({ mtimeMs: staleTime }),
+      rmSync: () => {
+        removedArtifacts += 1;
+      },
+    } as any;
+
+    const lockfileStub = {
+      lock: async () => {
+        lockAttempts += 1;
+        if (lockAttempts === 1) {
+          const error = new Error('Lock file is already being held');
+          (error as Error & { code?: string }).code = 'ELOCKED';
+          throw error;
+        }
+        return async () => {};
+      },
+    } as any;
+
+    const release = await sessionCaptureTest.acquireSessionLock({
+      fsApi: fsStub,
+      lockfileApi: lockfileStub,
+      lockFilePath: '/tmp/shared-session.lock',
+      userIdentifier: 'USER',
+      isSessionReusable: () => false,
+      force: false,
+    });
+
+    expect(typeof release).toBe('function');
+    expect(lockAttempts).toBe(2);
+    expect(removedArtifacts).toBe(1);
   });
 });

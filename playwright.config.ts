@@ -7,6 +7,7 @@ import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
 import { defineConfig, type PlaywrightTestConfig, type ReporterDescription } from "@playwright/test";
 import { config as loadEnv } from "dotenv";
 
+import { resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
 import { resolveUiStoragePath, shouldUseUiStorage } from "./src/utils/ui/storage-state.utils.js";
 
 export type EnvMap = Record<string, string | undefined>;
@@ -41,20 +42,32 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean) => {
   return defaultValue;
 };
 
+const parsePositiveInteger = (value: string | undefined): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
+};
+
 const resolveWorkerCount = (env: EnvMap = process.env) => {
-  const configured = env.PLAYWRIGHT_WORKERS;
-  if (configured) {
-    const parsed = Number.parseInt(configured, 10);
-    if (!Number.isNaN(parsed) && parsed > 0) {
-      return parsed;
-    }
-  }
+  const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
+  if (configured) return configured;
   const logical = cpus()?.length ?? 1;
   if (env.CI) return 1;
   if (logical <= 2) return 1;
   const approxPhysical = Math.max(1, Math.round(logical / 2));
   return Math.min(8, Math.max(2, approxPhysical));
 };
+
+const resolveApiProjectWorkerCount = (env: EnvMap = process.env) => resolveWorkerCount(env);
+
+const resolveApiTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
+  resolveTagFilters({
+    env,
+    includeTagsEnvVar: "API_PW_INCLUDE_TAGS",
+    excludedTagsEnvVar: "API_PW_EXCLUDED_TAGS_OVERRIDE",
+    configPathEnvVar: "API_PW_TAG_FILTER_CONFIG",
+    defaultConfigPath: "src/tests/api/service-tag-filter.json"
+  });
 
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
   env.PLAYWRIGHT_REPORT_FOLDER ?? env.PW_ODHIN_OUTPUT ?? "test-results/odhin-report";
@@ -130,24 +143,35 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
       case "odhin":
       case "odhin-reports-playwright":
         reporters.push([
-          "odhin-reports-playwright",
+          "./src/tests/common/reporters/odhin-progress.reporter.cjs",
+          {
+            enabled: true,
+            hardTimeoutMs: parsePositiveInteger(env.PW_ODHIN_HARD_TIMEOUT_MS) ?? (env.CI ? 0 : 30000),
+            timeoutExitCode: 1
+          }
+        ]);
+        reporters.push([
+          "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
           {
             outputFolder: resolveOdhinOutputFolder(env),
             indexFilename: env.PW_ODHIN_INDEX ?? "playwright-odhin.html",
             title: env.PW_ODHIN_TITLE ?? "rpx-xui-e2e Playwright",
             testEnvironment:
               env.PW_ODHIN_ENV ??
-              `${env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "local")} | workers=${resolveWorkerCount(env)}`,
+              `${env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat")} | ${env.CI ? "ci" : "local-run"} | workers=${resolveWorkerCount(env)}`,
             project: resolveOdhinProject(env),
             release: resolveOdhinRelease(env),
             testFolder: env.PW_ODHIN_TEST_FOLDER ?? "src/tests",
             startServer: safeBoolean(env.PW_ODHIN_START_SERVER, false),
+            lightweight: safeBoolean(env.PW_ODHIN_LIGHTWEIGHT, !env.CI),
             consoleLog: safeBoolean(env.PW_ODHIN_CONSOLE_LOG, true),
             simpleConsoleLog: safeBoolean(env.PW_ODHIN_SIMPLE_CONSOLE_LOG, false),
             consoleError: safeBoolean(env.PW_ODHIN_CONSOLE_ERROR, true),
             consoleTestOutput: safeBoolean(env.PW_ODHIN_CONSOLE_TEST_OUTPUT, true),
             testOutput: resolveOdhinTestOutput(env),
-            apiLogs: env.PW_ODHIN_API_LOGS ?? "summary"
+            apiLogs: env.PW_ODHIN_API_LOGS ?? "summary",
+            profile: safeBoolean(env.PW_ODHIN_PROFILE, true),
+            runtimeHookTimeoutMs: parsePositiveInteger(env.PW_ODHIN_RUNTIME_HOOK_TIMEOUT_MS) ?? (env.CI ? 0 : 15000)
           }
         ]);
         break;
@@ -155,6 +179,10 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
         reporters.push([name]);
         break;
     }
+  }
+
+  if (!safeBoolean(env.PW_FLAKE_GATE_DISABLED, false)) {
+    reporters.push(["./src/tests/common/reporters/flake-gate.reporter.cjs"]);
   }
 
   return reporters;
@@ -195,6 +223,7 @@ const resolveChromiumExecutablePath = (env: EnvMap = process.env): string | unde
 
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const chromiumExecutablePath = resolveChromiumExecutablePath(env);
+  const apiTagFilters = resolveApiTagFilters(env);
   return {
     testDir: "./src/tests",
     globalSetup: "./src/global/ui.global.setup.ts",
@@ -218,7 +247,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           ...ProjectsConfig.chromium.use,
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
-          headless: true,
+          headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
           video: "retain-on-failure",
@@ -240,7 +269,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           ...ProjectsConfig.chromium.use,
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
-          headless: true,
+          headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
           video: "retain-on-failure",
@@ -261,7 +290,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           ...ProjectsConfig.chromium.use,
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
-          headless: true,
+          headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
           video: "retain-on-failure",
@@ -275,8 +304,11 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "api",
         testMatch: /src\/tests\/api\/.*\.api\.ts/,
+        grep: apiTagFilters.grep,
+        grepInvert: apiTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
         outputDir: "test-results/api",
+        workers: resolveApiProjectWorkerCount(env),
         use: {
           headless: true,
           screenshot: "off",
@@ -290,6 +322,8 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
 
 export const __test__ = {
   buildConfig,
+  resolveApiProjectWorkerCount,
+  resolveApiTagFilters,
   resolveWorkerCount
 };
 
