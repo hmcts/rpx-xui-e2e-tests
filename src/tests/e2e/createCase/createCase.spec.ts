@@ -3,7 +3,7 @@ import { requireCreateCaseSelection } from "../utils/create-case-selection.utils
 import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-session.utils.js";
 
 test.describe("Verify creating cases works as expected", () => {
-  const userIdentifier = "SOLICITOR";
+  const userIdentifier = "DIVORCE_SOLICITOR";
   test.use({ storageState: { cookies: [], origins: [] } });
   test.setTimeout(360_000);
 

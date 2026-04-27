@@ -9,6 +9,7 @@ const updatedFirstName = faker.person.firstName();
 const updatedLastName = faker.person.lastName();
 const testField = `${faker.lorem.word()}${Date.now()}`;
 const UPDATE_CASE_ACTION_TIMEOUT_MS = 60_000;
+const DIVORCE_SOLICITOR = "DIVORCE_SOLICITOR";
 
 function caseBannerMatches(bannerText: string, caseNumber: string, expectedMessage: string): boolean {
   const normalizedBanner = bannerText.replace(/\D/g, "");
@@ -44,13 +45,13 @@ test.describe(
     test.describe.configure({ timeout: 240_000 });
 
     test.beforeAll(async () => {
-      await ensureUiSession("SOLICITOR");
+      await ensureUiSession(DIVORCE_SOLICITOR);
     });
 
     test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
       await retryOnTransientFailure(
         async () => {
-          await openHomeWithCapturedSession(page, "SOLICITOR");
+          await openHomeWithCapturedSession(page, DIVORCE_SOLICITOR);
           await createCasePage.acceptAnalyticsCookies();
           await createCasePage.waitForUiIdleState();
 

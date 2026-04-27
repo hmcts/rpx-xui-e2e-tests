@@ -16,6 +16,7 @@ import { TEST_DATA } from "./constants.js";
 
 const DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS = 60_000;
 const DOCUMENT_UPLOAD_V1_TIMEOUT_MS = 300_000;
+const DIVORCE_SOLICITOR = "DIVORCE_SOLICITOR";
 
 type UpdateEventCounter = { count: number };
 
@@ -62,12 +63,12 @@ test.describe("Document upload V2", { tag: ["@e2e", "@e2e-document-upload"] }, (
 
   test.beforeAll(async () => {
     faker.seed(12_345);
-    await ensureUiSession("SOLICITOR");
+    await ensureUiSession(DIVORCE_SOLICITOR);
   });
 
   test.beforeEach(async ({ page, createCasePage, caseDetailsPage }, testInfo) => {
     await test.step("Open the app with the captured solicitor session", async () => {
-      await openHomeWithCapturedSession(page, "SOLICITOR");
+      await openHomeWithCapturedSession(page, DIVORCE_SOLICITOR);
       await createCasePage.acceptAnalyticsCookies();
       await createCasePage.waitForUiIdleState();
       await expect(page.locator("exui-header")).toBeVisible();

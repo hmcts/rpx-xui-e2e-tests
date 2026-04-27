@@ -109,6 +109,10 @@ test.describe('Dynamic user support unit tests: pure modules', { tag: '@svc-inte
       username: 'EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME',
       password: 'EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD',
     });
+    expect(getRuntimeUserCredentialEnvMapping('divorce_solicitor')).toEqual({
+      username: 'DIVORCE_SOLICITOR_USERNAME',
+      password: 'DIVORCE_SOLICITOR_PASSWORD',
+    });
 
     const publishedState = publishRuntimeUserCredentialsToEnv('EMPLOYMENT_DYNAMIC_CASEWORKER', {
       email: 'dynamic@example.test',

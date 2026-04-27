@@ -13,6 +13,7 @@ import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-sessio
 
 const DESIRED_JURISDICTION = "DIVORCE";
 const DESIRED_CASE_TYPE = "xuiTestCaseType";
+const DIVORCE_SOLICITOR = "DIVORCE_SOLICITOR";
 const MEDIA_VIEWER_ROUTE_PATTERN = /\/media-viewer(?:\?|$)/;
 const DOCUMENT_BINARY_ROUTE_PATTERN = /\/documents(?:v2)?\/[^/]+\/binary$/;
 const UPDATE_CASE_ACTION = "Update case";
@@ -41,7 +42,7 @@ function captureBinaryResponse(binaryResponses: string[], response: Response): v
 
 test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] }, () => {
   test.beforeAll(async () => {
-    await ensureUiSession("SOLICITOR");
+    await ensureUiSession(DIVORCE_SOLICITOR);
   });
 
   test("Opens uploaded document in the Media Viewer end-to-end", async ({
@@ -56,7 +57,7 @@ test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] },
     const caseMarker = `media-viewer-${faker.string.alphanumeric(8)}-${uniqueSuffix}`;
 
     await test.step("Apply solicitor session and open the app shell", async () => {
-      await openHomeWithCapturedSession(page, "SOLICITOR");
+      await openHomeWithCapturedSession(page, DIVORCE_SOLICITOR);
       await expect(page.locator("exui-header")).toBeVisible();
     });
 

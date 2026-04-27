@@ -10,6 +10,10 @@ const SOURCE_COMPAT_DEFAULT_USERS: Record<SupportedEnv, Record<string, UserCrede
       email: "xui_auto_test_user_solicitor@mailinator.com",
       password: "Monday01"
     },
+    DIVORCE_SOLICITOR: {
+      email: "xui_auto_test_user_solicitor@mailinator.com",
+      password: "Monday01"
+    },
     CASEWORKER_GLOBALSEARCH: {
       email: "exuigsuser@mailinator.com",
       password: "Welcome01"
@@ -65,6 +69,10 @@ const SOURCE_COMPAT_DEFAULT_USERS: Record<SupportedEnv, Record<string, UserCrede
   },
   demo: {
     SOLICITOR: {
+      email: "lukesuperuserxui_new@mailnesia.com",
+      password: "Monday01"
+    },
+    DIVORCE_SOLICITOR: {
       email: "lukesuperuserxui_new@mailnesia.com",
       password: "Monday01"
     },

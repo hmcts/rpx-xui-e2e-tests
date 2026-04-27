@@ -62,6 +62,8 @@ def secrets = [
     secret('prl-solicitor-password', 'PRL_SOLICITOR_PASSWORD'),
     secret('solicitor-username', 'SOLICITOR_USERNAME'),
     secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('e2e-divorce-solicitor-username', 'DIVORCE_SOLICITOR_USERNAME'),
+    secret('e2e-divorce-solicitor-password', 'DIVORCE_SOLICITOR_PASSWORD'),
     secret('idam-solicitor-user-password', 'IDAM_SOLICITOR_USER_PASSWORD'),
     secret('idam-caseworker-divorce-password', 'IDAM_CASEWORKER_DIVORCE_PASSWORD'),
     secret('xui-dynamic-org-user-assignment-username', 'ORG_USER_ASSIGNMENT_USERNAME'),
