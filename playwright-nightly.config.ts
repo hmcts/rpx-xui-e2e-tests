@@ -10,14 +10,27 @@ const support = require("./playwright.integration.config.support.cjs") as {
 };
 
 const truthy = new Set(["1", "true", "yes", "on"]);
+const MAX_E2E_WORKERS = 2;
 
 const isTruthy = (value: string | undefined): boolean => truthy.has(value?.trim().toLowerCase() ?? "");
+
+const parsePositiveInteger = (value: string | undefined): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
+};
+
+const resolveE2EWorkerCount = (env: EnvMap = process.env) => {
+  const configured = parsePositiveInteger(env.PW_E2E_WORKERS ?? env.PLAYWRIGHT_E2E_WORKERS);
+  if (configured) return configured;
+  return Math.min(MAX_E2E_WORKERS, support.resolveWorkerCount(env));
+};
 
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => ({
   testDir: "./src/tests/e2e",
   timeout: 120000,
   fullyParallel: true,
-  workers: support.resolveWorkerCount(env),
+  workers: resolveE2EWorkerCount(env),
   reporter: [
     [env.CI ? "dot" : "list"],
     [
@@ -69,6 +82,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => ({
 
 export const __test__ = {
   buildConfig,
+  resolveE2EWorkerCount,
   resolveWorkerCount: support.resolveWorkerCount
 };
 

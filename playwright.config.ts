@@ -22,6 +22,8 @@ const { version: appVersion } = require("./package.json") as { version: string }
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
+const MAX_WORKERS = 4;
+const MAX_UI_WORKERS = 2;
 
 const resolveDefaultReporterNames = (env: EnvMap) => {
   const override = env.PLAYWRIGHT_DEFAULT_REPORTER;
@@ -50,15 +52,21 @@ const parsePositiveInteger = (value: string | undefined): number | undefined => 
 
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
-  if (configured) return configured;
+  if (configured) return Math.min(MAX_WORKERS, configured);
   const logical = cpus()?.length ?? 1;
   if (env.CI) return 1;
   if (logical <= 2) return 1;
   const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(8, Math.max(2, approxPhysical));
+  return Math.min(MAX_WORKERS, Math.max(2, approxPhysical));
 };
 
 const resolveApiProjectWorkerCount = (env: EnvMap = process.env) => resolveWorkerCount(env);
+
+const resolveUiProjectWorkerCount = (env: EnvMap = process.env) => {
+  const configured = parsePositiveInteger(env.PW_UI_WORKERS ?? env.PLAYWRIGHT_UI_WORKERS);
+  if (configured) return configured;
+  return Math.min(MAX_UI_WORKERS, resolveWorkerCount(env));
+};
 
 const resolveApiTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
   resolveTagFilters({
@@ -243,6 +251,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
         testMatch: /src\/tests\/e2e\/.*\.spec\.ts/,
         retries: env.CI ? 1 : 0,
         outputDir: "test-results/ui",
+        workers: resolveUiProjectWorkerCount(env),
         use: {
           ...ProjectsConfig.chromium.use,
           channel: env.PW_UI_CHANNEL,
@@ -324,6 +333,7 @@ export const __test__ = {
   buildConfig,
   resolveApiProjectWorkerCount,
   resolveApiTagFilters,
+  resolveUiProjectWorkerCount,
   resolveWorkerCount
 };
 

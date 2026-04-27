@@ -5,6 +5,7 @@ const { cpus } = require("node:os");
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
+const MAX_WORKERS = 4;
 
 const safeBoolean = (value, defaultValue) => {
   if (value === undefined) return defaultValue;
@@ -22,12 +23,12 @@ const parsePositiveInteger = (value) => {
 
 const resolveWorkerCount = (env = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
-  if (configured) return configured;
+  if (configured) return Math.min(MAX_WORKERS, configured);
   if (env.CI) return 1;
   const logical = cpus()?.length ?? 1;
   if (logical <= 2) return 1;
   const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(8, Math.max(2, approxPhysical));
+  return Math.min(MAX_WORKERS, Math.max(2, approxPhysical));
 };
 
 const resolveOdhinLightweight = (env = process.env) => safeBoolean(env.PW_ODHIN_LIGHTWEIGHT, !env.CI);

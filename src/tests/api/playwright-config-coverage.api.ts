@@ -33,6 +33,10 @@ const resolveApiProjectWorkerCount = (env: EnvMap) =>
   (
     configModule.__test__ as TestableConfigModule['__test__'] & { resolveApiProjectWorkerCount: (env: EnvMap) => number }
   ).resolveApiProjectWorkerCount(env);
+const resolveUiProjectWorkerCount = (env: EnvMap) =>
+  (
+    configModule.__test__ as TestableConfigModule['__test__'] & { resolveUiProjectWorkerCount: (env: EnvMap) => number }
+  ).resolveUiProjectWorkerCount(env);
 const resolveApiTagFilters = (env: EnvMap) =>
   (
     configModule.__test__ as TestableConfigModule['__test__'] & { resolveApiTagFilters: (env: EnvMap) => unknown }
@@ -65,6 +69,7 @@ const resolveIntegrationWorkerCount = (env: EnvMap) =>
 const buildNightlyConfig = (env: EnvMap) =>
   nightlyConfigModule.__test__.buildConfig(env) as {
     reporter: [string, Record<string, unknown> | undefined][];
+    workers?: number;
     use: { baseURL: string };
     projects: Array<{ name: string; use?: { headless?: boolean } }>;
   };
@@ -94,6 +99,9 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     const configured = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '4', CI: undefined });
     expect(configured).toBe(4);
 
+    const cappedConfigured = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', CI: undefined });
+    expect(cappedConfigured).toBe(4);
+
     const configuredInCi = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '2', CI: 'true' });
     expect(configuredInCi).toBe(2);
 
@@ -102,7 +110,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
 
     const defaultCount = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: undefined });
     expect(defaultCount).toBeGreaterThanOrEqual(2);
-    expect(defaultCount).toBeLessThanOrEqual(8);
+    expect(defaultCount).toBeLessThanOrEqual(4);
   });
 
   test('resolveConfigModule prefers __test__ and default exports', () => {
@@ -164,14 +172,19 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
   test('config honors FUNCTIONAL_TESTS_WORKERS override in CI for all Playwright suites', async () => {
     const config = buildConfig({
       CI: 'true',
-      FUNCTIONAL_TESTS_WORKERS: '2',
+      FUNCTIONAL_TESTS_WORKERS: '4',
       PLAYWRIGHT_REPORTERS: 'dot,odhin',
       TEST_URL: 'https://example.test',
     });
-    expect(config.workers).toBe(2);
+    expect(config.workers).toBe(4);
     const apiProject = config.projects.find((p) => p.name === 'api');
     expect(apiProject).toBeDefined();
-    expect(apiProject?.workers).toBe(2);
+    expect(apiProject?.workers).toBe(4);
+
+    const uiProject = config.projects.find((p) => p.name === 'ui');
+    expect(uiProject).toBeDefined();
+    expect(uiProject?.workers).toBe(2);
+    expect(resolveUiProjectWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '4', CI: 'true' })).toBe(2);
   });
 
   test('config defaults to local reporter values', async () => {
@@ -366,6 +379,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
 
   test('integration config exposes the documented resolveWorkerCount test helper', async () => {
     expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '3', CI: undefined })).toBe(3);
+    expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', CI: undefined })).toBe(4);
     expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: 'true' })).toBe(1);
   });
 
@@ -392,10 +406,12 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
   test('nightly config keeps a root baseURL so cross-browser relative navigation stays valid', async () => {
     const config = buildNightlyConfig({
       CI: 'true',
+      FUNCTIONAL_TESTS_WORKERS: '4',
       TEST_URL: 'https://example.test',
       HEAD: 'true',
     });
 
+    expect(config.workers).toBe(2);
     expect(config.use.baseURL).toBe('https://example.test');
     expect(config.reporter[0][0]).toBe('dot');
     const [, odhinOptions] = getReporterTuple(
