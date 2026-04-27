@@ -42,6 +42,31 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     ).rejects.toThrow(/did not establish authenticated session/i);
   });
 
+  test('non-strict UI storage warm-up failure warns without aborting global setup', () => {
+    const warnings: string[] = [];
+
+    expect(() =>
+      sessionStorageTest.handleUiStorageWarmupFailure(
+        new Error('Timed out waiting for auth cookies'),
+        'FPL_GLOBAL_SEARCH',
+        false,
+        (message) => warnings.push(message)
+      )
+    ).not.toThrow();
+
+    expect(warnings).toEqual([
+      expect.stringContaining('Unable to warm UI session for FPL_GLOBAL_SEARCH. Timed out waiting for auth cookies'),
+    ]);
+  });
+
+  test('strict UI storage warm-up failure still aborts required session setup', () => {
+    const failure = new Error('Login did not establish session cookies');
+
+    expect(() =>
+      sessionStorageTest.handleUiStorageWarmupFailure(failure, 'FPL_GLOBAL_SEARCH', true, () => undefined)
+    ).toThrow(failure);
+  });
+
   test('strict storage reuse refreshes when the cached state is no longer authenticated server-side', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
     const storagePath = path.join(tempDir, 'storage.json');
