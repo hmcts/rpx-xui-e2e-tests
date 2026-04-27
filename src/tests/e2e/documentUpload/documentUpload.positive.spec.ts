@@ -3,11 +3,9 @@ import type { Response } from "@playwright/test";
 
 import { expect, test } from "../../../fixtures/ui";
 import { caseBannerMatches } from "../utils/banner.utils.js";
+import { RuntimeUserAlias } from "../utils/runtimeUserCredentials.js";
 import { setupCaseForJourney } from "../utils/test-setup/caseSetup.js";
-import {
-  createEmploymentCase,
-  uploadEmploymentDraftDocument
-} from "../utils/test-setup/journeys/employmentJourneys.js";
+import { uploadEmploymentDraftDocument } from "../utils/test-setup/journeys/employmentJourneys.js";
 import { buildCasePayloadFromTemplate } from "../utils/test-setup/payloads/registry.js";
 import { retryOnTransientFailure } from "../utils/transient-failure.utils.js";
 import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-session.utils.js";
@@ -16,7 +14,6 @@ import { TEST_DATA } from "./constants.js";
 
 const DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS = 60_000;
 const DOCUMENT_UPLOAD_V1_TIMEOUT_MS = 300_000;
-const DIVORCE_SOLICITOR = "DIVORCE_SOLICITOR";
 
 type UpdateEventCounter = { count: number };
 
@@ -63,12 +60,12 @@ test.describe("Document upload V2", { tag: ["@e2e", "@e2e-document-upload"] }, (
 
   test.beforeAll(async () => {
     faker.seed(12_345);
-    await ensureUiSession(DIVORCE_SOLICITOR);
+    await ensureUiSession(RuntimeUserAlias.DIVORCE_SOLICITOR);
   });
 
   test.beforeEach(async ({ page, createCasePage, caseDetailsPage }, testInfo) => {
     await test.step("Open the app with the captured solicitor session", async () => {
-      await openHomeWithCapturedSession(page, DIVORCE_SOLICITOR);
+      await openHomeWithCapturedSession(page, RuntimeUserAlias.DIVORCE_SOLICITOR);
       await createCasePage.acceptAnalyticsCookies();
       await createCasePage.waitForUiIdleState();
       await expect(page.locator("exui-header")).toBeVisible();
@@ -88,13 +85,6 @@ test.describe("Document upload V2", { tag: ["@e2e", "@e2e-document-upload"] }, (
               TextField: testValue
             }
           }),
-          uiCreate: async () => {
-            await createCasePage.createDivorceCase(
-              TEST_DATA.V2.JURISDICTION,
-              TEST_DATA.V2.CASE_TYPE,
-              testValue
-            );
-          },
           page,
           createCasePage,
           caseDetailsPage,
@@ -220,12 +210,12 @@ test.describe("Document upload V1", { tag: ["@e2e", "@e2e-document-upload"] }, (
 
   test.beforeAll(async () => {
     faker.seed(67_890);
-    await ensureUiSession("SEARCH_EMPLOYMENT_CASE");
+    await ensureUiSession(RuntimeUserAlias.SEARCH_EMPLOYMENT_CASE);
   });
 
   test.beforeEach(async ({ page, createCasePage, caseDetailsPage }, testInfo) => {
     await test.step("Open the app with the captured employment search session", async () => {
-      await openHomeWithCapturedSession(page, "SEARCH_EMPLOYMENT_CASE");
+      await openHomeWithCapturedSession(page, RuntimeUserAlias.SEARCH_EMPLOYMENT_CASE);
       await createCasePage.acceptAnalyticsCookies();
       await createCasePage.waitForUiIdleState();
       await expect(page.locator("exui-header")).toBeVisible();
@@ -241,20 +231,6 @@ test.describe("Document upload V1", { tag: ["@e2e", "@e2e-document-upload"] }, (
           apiEventId: "initiateCase",
           mode: "api-required",
           apiPayload: buildCasePayloadFromTemplate("employment.et-england-wales.initiate-case"),
-          uiCreate: async () => {
-            await createEmploymentCase(
-              createCasePage,
-              TEST_DATA.V1.JURISDICTION,
-              TEST_DATA.V1.CASE_TYPE,
-              {
-                allowDraftClaimFallback: true
-              }
-            );
-            expect(
-              await createCasePage.checkForErrorMessage(),
-              "Error message seen after creating employment case"
-            ).toBe(false);
-          },
           page,
           createCasePage,
           caseDetailsPage,

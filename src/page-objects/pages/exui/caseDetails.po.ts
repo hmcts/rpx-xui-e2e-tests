@@ -805,6 +805,22 @@ export class CaseDetailsPage extends Base {
     await this.documentOneAction.click();
   }
 
+  async waitForDocumentOneRowToContain(expectedText: string, timeoutMs = 45_000): Promise<void> {
+    await expect
+      .poll(
+        async () => {
+          await this.selectCaseDetailsTab('Tab 1').catch(() => undefined);
+          const rowVisible = await this.documentOneRow.isVisible().catch(() => false);
+          if (!rowVisible) {
+            return '';
+          }
+          return await this.documentOneRow.innerText().catch(() => '');
+        },
+        { timeout: timeoutMs, intervals: [1_000, 2_000, 3_000] }
+      )
+      .toContain(expectedText);
+  }
+
   async openDocumentOneInMediaViewer(): Promise<Page> {
     const navigationTimeoutMs = this.getRecommendedTimeoutMs();
     const popupPromise = this.page.context().waitForEvent("page", { timeout: navigationTimeoutMs }).catch(() => null);

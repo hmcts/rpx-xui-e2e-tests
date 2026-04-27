@@ -11,6 +11,8 @@ import {
   getRuntimeUserCredentialEnvMapping,
   publishRuntimeUserCredentialsToEnv,
   restoreRuntimeUserCredentialsInEnv,
+  RuntimeUserAlias,
+  resolveRuntimeUserCredentialsFromEnv,
   setRuntimeUserCredentials,
 } from '../../e2e/utils/runtimeUserCredentials.js';
 import { __test__ as caseSetupTest } from '../../e2e/utils/test-setup/caseSetup.js';
@@ -28,6 +30,8 @@ const ENV_KEYS = [
   'PW_E2E_CASE_SETUP_ALLOW_UI_FALLBACK',
   'DYNAMIC_DIVORCE_SOLICITOR_ROLE_SET',
   'DYNAMIC_SOLICITOR_TEMPLATE_ROLES',
+  'DIVORCE_SOLICITOR_USERNAME',
+  'DIVORCE_SOLICITOR_PASSWORD',
   'EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME',
   'EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD',
 ] as const;
@@ -113,6 +117,7 @@ test.describe('Dynamic user support unit tests: pure modules', { tag: '@svc-inte
       username: 'DIVORCE_SOLICITOR_USERNAME',
       password: 'DIVORCE_SOLICITOR_PASSWORD',
     });
+    expect(RuntimeUserAlias.DIVORCE_SOLICITOR).toBe('DIVORCE_SOLICITOR');
 
     const publishedState = publishRuntimeUserCredentialsToEnv('EMPLOYMENT_DYNAMIC_CASEWORKER', {
       email: 'dynamic@example.test',
@@ -126,6 +131,25 @@ test.describe('Dynamic user support unit tests: pure modules', { tag: '@svc-inte
 
     expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME).toBe('previous@example.test');
     expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD).toBe('previous-secret');
+  });
+
+  test('runtime user env resolution trims usernames and requires both values', () => {
+    const mapping = getRuntimeUserCredentialEnvMapping(RuntimeUserAlias.DIVORCE_SOLICITOR);
+    expect(mapping).toEqual({
+      username: 'DIVORCE_SOLICITOR_USERNAME',
+      password: 'DIVORCE_SOLICITOR_PASSWORD',
+    });
+
+    process.env.DIVORCE_SOLICITOR_USERNAME = ' divorce@example.test ';
+    process.env.DIVORCE_SOLICITOR_PASSWORD = 'secret';
+
+    expect(resolveRuntimeUserCredentialsFromEnv(mapping!)).toEqual({
+      email: 'divorce@example.test',
+      password: 'secret',
+    });
+
+    delete process.env.DIVORCE_SOLICITOR_PASSWORD;
+    expect(resolveRuntimeUserCredentialsFromEnv(mapping!)).toBeUndefined();
   });
 
   test('payload registry builds seeded payloads and setup helpers resolve defaults', () => {
@@ -159,6 +183,20 @@ test.describe('Dynamic user support unit tests: pure modules', { tag: '@svc-inte
     expect(caseSetupTest.resolveSetupMode(undefined)).toBe('ui-only');
     expect(caseSetupTest.resolveUiFallbackFlag(undefined)).toBe(true);
     expect(caseSetupTest.resolveUiFallbackFlag(false)).toBe(false);
+    expect(() =>
+      caseSetupTest.validateSetupCaseRequest(
+        {
+          scenario: 'api-only',
+          jurisdiction: 'DIVORCE',
+          caseType: 'xuiTestCaseType',
+          mode: 'api-required',
+          uiCreate: async () => undefined,
+        } as never,
+        'api-required'
+      )
+    ).toThrow(
+      "setupCaseForJourney: 'uiCreate' must be omitted when mode='api-required'"
+    );
     expect(caseSetupTest.resolveCaseNumberFromCreateResponse({ case_reference: 1773065942199262 })).toBe('1773065942199262');
     expect(() => buildCasePayloadFromTemplate('unsupported.template' as never)).toThrow(
       "Unsupported payload template 'unsupported.template'."
