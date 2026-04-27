@@ -9,6 +9,7 @@ const TRANSIENT_FAILURE_PATTERNS: RegExp[] = [
   /Validation error after/i,
   /Something went wrong page was displayed/i,
   /Task list showed service down/i,
+  /Task list failed while waiting for task row/i,
   /Gateway Timeout page was displayed/i,
   /callback data failed validation/i,
   /timeout of \d+ms exceeded/i,
@@ -19,6 +20,8 @@ const TRANSIENT_FAILURE_PATTERNS: RegExp[] = [
   /Submit button did not become available/i,
   /Submit button not visible/i,
   /Continue button not visible while waiting to submit/i,
+  /Case details actions did not become visible/i,
+  /Case details tabs did not become visible/i,
   /Critical wizard endpoint failure/i,
   /Transient dependency instability after submit/i,
   /Test ended/i

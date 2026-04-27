@@ -50,7 +50,7 @@ test.describe(`Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@i
     });
 
     await test.step("Upload timestamps for evidence documents are correct", async () => {
-      const evidenceNode = await caseFileViewPage.getFolderNode("Evidence");
+      const evidenceNode = await caseFileViewPage.getExpandedFolderNode("Evidence");
 
       await expect.soft(caseFileViewPage.getFileUploadStamp(evidenceNode, "Alpha evidence.pdf")).toContainText("20 Oct 2023");
       await expect.soft(caseFileViewPage.getFileUploadStamp(evidenceNode, "Middle evidence.pdf")).toContainText("21 Oct 2023");
@@ -188,7 +188,7 @@ test.describe(`Case file view as ${fileViewOffUser}`, { tag: ["@integration", "@
 
     await test.step("Show the core case file view content", async () => {
       await expect(caseFileViewPage.documentHeader).toContainText("Documents (6)");
-      const evidenceNode = await caseFileViewPage.getFolderNode("Evidence");
+      const evidenceNode = await caseFileViewPage.getExpandedFolderNode("Evidence");
       await expect.soft(caseFileViewPage.getFileUploadStamp(evidenceNode, "Alpha evidence.pdf")).toContainText("20 Oct 2023");
     });
   });

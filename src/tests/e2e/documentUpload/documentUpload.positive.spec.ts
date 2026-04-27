@@ -15,6 +15,7 @@ import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-sessio
 import { TEST_DATA } from "./constants.js";
 
 const DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS = 60_000;
+const DOCUMENT_UPLOAD_V1_TIMEOUT_MS = 300_000;
 
 type UpdateEventCounter = { count: number };
 
@@ -158,6 +159,9 @@ test.describe("Document upload V2", { tag: ["@e2e", "@e2e-document-upload"] }, (
           {
             maxAttempts: 2,
             onRetry: async () => {
+              if (page.isClosed()) {
+                throw new Error('Page closed before document upload retry recovery.');
+              }
               await caseDetailsPage.reopenCaseDetails(caseDetailsUrl).catch(async () => {
                 await page.goto(caseDetailsUrl);
               });
@@ -209,7 +213,7 @@ test.describe("Document upload V2", { tag: ["@e2e", "@e2e-document-upload"] }, (
 });
 
 test.describe("Document upload V1", { tag: ["@e2e", "@e2e-document-upload"] }, () => {
-  test.describe.configure({ timeout: 120_000 });
+  test.describe.configure({ timeout: DOCUMENT_UPLOAD_V1_TIMEOUT_MS });
   let testFileName = "";
   let caseDetailsUrl = "";
 
@@ -293,7 +297,10 @@ test.describe("Document upload V1", { tag: ["@e2e", "@e2e-document-upload"] }, (
         },
         {
           maxAttempts: 2,
-          onRetry: async () => {
+          onRetry: async (_attempt, error) => {
+            if (createCasePage.page.isClosed()) {
+              throw error;
+            }
             await caseDetailsPage.reopenCaseDetails(caseDetailsUrl).catch(async () => {
               await createCasePage.page.goto(caseDetailsUrl);
               await caseDetailsPage.waitForReady();

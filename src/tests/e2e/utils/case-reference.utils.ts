@@ -1,6 +1,7 @@
 import type { APIResponse, Page } from "@playwright/test";
 
 export type ResolveCaseReferenceOptions = {
+  caseTypeIds?: string[];
   jurisdictionIds?: string[];
   preferredStates?: string[];
   caseReferencePattern?: string;
@@ -18,7 +19,7 @@ type GlobalSearchResponse = {
 
 type GlobalSearchRequestBody = {
   searchCriteria: {
-    CCDCaseTypeIds: null;
+    CCDCaseTypeIds: string[] | null;
     CCDJurisdictionIds: string[] | null;
     caseManagementBaseLocationIds: null;
     caseManagementRegionIds: null;
@@ -53,12 +54,13 @@ const waitForBackoff = async (delayMs: number): Promise<void> => {
 
 export function buildGlobalSearchRequestBody(
   caseReferencePattern: string,
+  caseTypeIds: string[] | null,
   jurisdictionIds: string[] | null,
   maxReturnRecordCount: number
 ): GlobalSearchRequestBody {
   return {
     searchCriteria: {
-      CCDCaseTypeIds: null,
+      CCDCaseTypeIds: caseTypeIds,
       CCDJurisdictionIds: jurisdictionIds,
       caseManagementBaseLocationIds: null,
       caseManagementRegionIds: null,
@@ -146,11 +148,12 @@ function collectCandidateCaseReferences(
 async function executeGlobalSearchRequest(
   page: SearchRequestContext,
   caseReferencePattern: string,
+  caseTypeIds: string[] | null,
   jurisdictionIds: string[] | null,
   maxReturnRecordCount: number
 ): Promise<APIResponse> {
   return page.request.post("/api/globalsearch/results", {
-    data: buildGlobalSearchRequestBody(caseReferencePattern, jurisdictionIds, maxReturnRecordCount),
+    data: buildGlobalSearchRequestBody(caseReferencePattern, caseTypeIds, jurisdictionIds, maxReturnRecordCount),
     failOnStatusCode: false
   });
 }
@@ -175,12 +178,13 @@ async function resolveCaseReferenceFromHtmlPages(page: SearchRequestContext): Pr
 async function verifySearchableCaseReference(
   page: SearchRequestContext,
   caseReference: string,
+  caseTypeIds: string[] | null,
   jurisdictionIds: string[] | null
 ): Promise<boolean> {
   const maxAttempts = Number.parseInt(process.env.CASE_REFERENCE_RESOLVE_API_ATTEMPTS || "3", 10);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const response = await executeGlobalSearchRequest(page, caseReference, jurisdictionIds, 10);
+    const response = await executeGlobalSearchRequest(page, caseReference, caseTypeIds, jurisdictionIds, 10);
     const status = response.status();
 
     if (status === 200) {
@@ -207,6 +211,7 @@ export async function resolveCaseReferenceFromGlobalSearch(
   options: ResolveCaseReferenceOptions = {}
 ): Promise<string> {
   const {
+    caseTypeIds,
     jurisdictionIds,
     preferredStates = [],
     caseReferencePattern = "*",
@@ -223,6 +228,7 @@ export async function resolveCaseReferenceFromGlobalSearch(
     const response = await executeGlobalSearchRequest(
       page,
       caseReferencePattern,
+      caseTypeIds ?? null,
       jurisdictionIds ?? null,
       maxReturnRecordCount
     );
@@ -258,6 +264,7 @@ export async function resolveCaseReferenceFromGlobalSearch(
       await verifySearchableCaseReference(
         page,
         candidateCaseReference,
+        caseTypeIds ?? null,
         jurisdictionIds ?? null
       )
     ) {
@@ -268,7 +275,12 @@ export async function resolveCaseReferenceFromGlobalSearch(
   const htmlFallbackCaseReference = await resolveCaseReferenceFromHtmlPages(page);
   if (
     htmlFallbackCaseReference &&
-    (await verifySearchableCaseReference(page, htmlFallbackCaseReference, jurisdictionIds ?? null))
+    (await verifySearchableCaseReference(
+      page,
+      htmlFallbackCaseReference,
+      caseTypeIds ?? null,
+      jurisdictionIds ?? null
+    ))
   ) {
     return htmlFallbackCaseReference;
   }
@@ -311,7 +323,7 @@ export async function resolveNonExistentCaseReference(
     let infraResponseBodySnippet = "";
 
     for (let statusAttempt = 1; statusAttempt <= maxStatusAttempts; statusAttempt += 1) {
-      const response = await executeGlobalSearchRequest(page, candidateReference, jurisdictionIds, 10);
+      const response = await executeGlobalSearchRequest(page, candidateReference, null, jurisdictionIds, 10);
       lastStatus = response.status();
 
       if (lastStatus === 200) {

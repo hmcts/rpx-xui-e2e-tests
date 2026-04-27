@@ -585,15 +585,17 @@ export class CreateCasePage extends Base {
         throw new Error("Page closed before upload retry attempt");
       }
 
-      const responsePromise = this.page.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          /\/documents?(?:v2)?(?:[/?#]|$)/.test(new URL(response.url()).pathname),
-        { timeout: EXUI_TIMEOUTS.UPLOAD_RESPONSE }
-      );
+      const responsePromise = this.page
+        .waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            /\/documents?(?:v2)?(?:[/?#]|$)/.test(new URL(response.url()).pathname),
+          { timeout: EXUI_TIMEOUTS.UPLOAD_RESPONSE }
+        )
+        .catch(() => null);
       await resolvedFileInput.setInputFiles(filePayload);
 
-      const response = await responsePromise.catch(() => null);
+      const response = await responsePromise;
       if (!response) {
         if (attempt < maxRetries) {
           await safeBackoff(attempt);
@@ -1187,9 +1189,18 @@ export class CreateCasePage extends Base {
     }
 
     for (const reason of reasons) {
-      const divorceReasonCheckbox = divorceReasonField.getByLabel(reason, { exact: true }).first();
-      await divorceReasonCheckbox.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.POC_FIELD_VISIBLE });
-      await divorceReasonCheckbox.check();
+      const divorceReasonOption = divorceReasonField
+        .locator(".multiple-choice, .govuk-checkboxes__item")
+        .filter({ hasText: reason })
+        .first();
+      if (!(await divorceReasonOption.isVisible().catch(() => false))) {
+        return;
+      }
+
+      await divorceReasonOption.scrollIntoViewIfNeeded({ timeout: EXUI_TIMEOUTS.POC_FIELD_VISIBLE });
+      const divorceReasonCheckbox = divorceReasonOption.locator('input[type="checkbox"]').first();
+      await divorceReasonOption.locator("label").first().click({ timeout: EXUI_TIMEOUTS.POC_FIELD_VISIBLE });
+      await expect(divorceReasonCheckbox).toBeChecked({ timeout: EXUI_TIMEOUTS.POC_FIELD_VISIBLE });
     }
   }
 
@@ -1259,36 +1270,36 @@ export class CreateCasePage extends Base {
       if (data.maidenName !== undefined && data.gender?.toLowerCase() === "female") {
         const maidenNameInput =
           person === "person1"
-            ? await this.resolveVisibleField([this.person1MaidenNameInput], "Person 1 maiden name")
-            : await this.resolveVisibleField([this.person2MaidenNameInput], "Person 2 maiden name");
-        await maidenNameInput.fill(data.maidenName);
+            ? await this.resolveOptionalVisibleField([this.person1MaidenNameInput], "Person 1 maiden name")
+            : await this.resolveOptionalVisibleField([this.person2MaidenNameInput], "Person 2 maiden name");
+        await maidenNameInput?.fill(data.maidenName);
       }
 
       if (data.jobTitle || data.jobDescription) {
         const jobTitleInput =
           person === "person1"
-            ? await this.resolveVisibleField(
+            ? await this.resolveOptionalVisibleField(
                 [this.person1JobTitleInput, this.jobTitleInput],
                 "Person 1 job title"
               )
-            : await this.resolveVisibleField([this.person2JobTitleInput], "Person 2 job title");
+            : await this.resolveOptionalVisibleField([this.person2JobTitleInput], "Person 2 job title");
 
-        if (data.jobTitle) {
+        if (data.jobTitle && jobTitleInput) {
           await jobTitleInput.fill(data.jobTitle);
         }
 
         if (data.jobDescription) {
           const jobDescriptionInput =
             person === "person1"
-              ? await this.resolveVisibleField(
+              ? await this.resolveOptionalVisibleField(
                   [this.person1JobDescriptionInput, this.jobDescriptionInput],
                   "Person 1 job description"
                 )
-              : await this.resolveVisibleField(
+              : await this.resolveOptionalVisibleField(
                   [this.person2JobDescriptionInput],
                   "Person 2 job description"
                 );
-          await jobDescriptionInput.fill(data.jobDescription);
+          await jobDescriptionInput?.fill(data.jobDescription);
         }
       }
     };

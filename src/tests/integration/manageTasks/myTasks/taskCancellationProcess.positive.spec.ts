@@ -30,6 +30,8 @@ const cancellationMatrix: readonly CancellationScenario[] = [
 ] as const;
 
 test.describe(`Task cancellation integration as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+  test.describe.configure({ mode: 'serial' });
+
   for (const matrixItem of cancellationMatrix) {
     test(`Cancel task sends expected request for ${matrixItem.scenario}`, async ({ taskListPage, page }, testInfo) => {
       const userId = await applySessionCookiesAndExtractUserId(page, userIdentifier, { fallbackUserId: 'test-user-id' });

@@ -37,7 +37,8 @@ export async function uploadEmploymentDraftDocument(
   fileContent: string | Buffer
 ): Promise<void> {
   await prepareEmploymentDraftUploadPage(createCasePage);
-  await createCasePage.page.locator("#documentCollection button").click();
+  await createCasePage.waitForUiIdleStateLenient(15_000);
+  await createCasePage.page.locator("#documentCollection button").click({ timeout: 15_000 });
   const uploadedDocumentInput = createCasePage.page.locator("#documentCollection_0_uploadedDocument");
   await uploadedDocumentInput.waitFor({ state: "attached", timeout: 30_000 });
   await createCasePage.uploadFile(fileName, mimeType, fileContent, uploadedDocumentInput);

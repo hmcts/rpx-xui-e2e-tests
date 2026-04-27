@@ -439,9 +439,18 @@ const resolveAuthBaseUrl = (baseUrl: string): string => {
 
 const resolveStorageStateLockPath = (storagePath: string): string => `${storagePath}.lock`;
 
+const resolveStorageLockTimeoutMs = (): number => {
+  const configured = Number(process.env.PW_UI_STORAGE_LOCK_TIMEOUT_MS);
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+
+  return Math.max(resolveLoginTimeoutMs() * 2, 120_000);
+};
+
 const acquireStorageStateLock = async (
   storagePath: string,
-  timeoutMs = resolveLoginTimeoutMs()
+  timeoutMs = resolveStorageLockTimeoutMs()
 ): Promise<() => void> => {
   const lockPath = resolveStorageStateLockPath(storagePath);
   const deadline = Date.now() + timeoutMs;

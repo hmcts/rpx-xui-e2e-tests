@@ -37,7 +37,7 @@ test.describe(
       await page.goto(CHALLENGED_ACCESS_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForChallengedAccessPage();
 
-      await accessRequestPage.linkedCaseReasonRadio.check();
+      await accessRequestPage.chooseLinkedCaseChallengedAccessReason();
       await accessRequestPage.submitButton.click();
 
       await expect(accessRequestPage.errorMessage("Enter a case reference")).toBeVisible();
@@ -51,7 +51,7 @@ test.describe(
       await page.goto(CHALLENGED_ACCESS_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForChallengedAccessPage();
 
-      await accessRequestPage.otherReasonRadio.check();
+      await accessRequestPage.chooseOtherChallengedAccessReason();
       await accessRequestPage.submitButton.click();
 
       await expect(accessRequestPage.errorMessage("Enter a reason")).toBeVisible();
@@ -68,7 +68,7 @@ test.describe(
       await page.goto(CHALLENGED_ACCESS_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForChallengedAccessPage();
 
-      await accessRequestPage.otherReasonRadio.check();
+      await accessRequestPage.chooseOtherChallengedAccessReason();
       await accessRequestPage.challengedOtherReasonInput.fill(
         "Need access for urgent case progression review."
       );

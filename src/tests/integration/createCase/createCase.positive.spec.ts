@@ -174,7 +174,6 @@ test.describe(`Create a ${jurisdiction} case as ${userIdentifier}`, { tag: ["@in
           textField2: caseData.textField2,
           textField3: caseData.textField3
         },
-        divorceReasons: caseData.divorceReasons,
         gender: caseData.gender
       });
     });

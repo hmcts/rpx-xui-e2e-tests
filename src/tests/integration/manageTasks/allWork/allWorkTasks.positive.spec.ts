@@ -385,7 +385,7 @@ test.describe('All Work role-based task columns', { tag: ['@integration', '@inte
             ],
             roles:
               scenario.roleCategory === 'JUDICIAL'
-                ? ['caseworker-ia', 'caseworker-ia-judge', 'caseworker']
+                ? ['caseworker-ia', 'caseworker-ia-judge', 'caseworker', 'task-supervisor']
                 : ['caseworker-ia', 'caseworker-ia-caseofficer', 'staff-admin', 'task-supervisor'],
             userId: `${scenario.roleCategory.toLowerCase()}-all-work-user`,
           },

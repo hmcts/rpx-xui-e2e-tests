@@ -6,6 +6,7 @@ import { resolveUiUserIdentifiers, shouldUseUiStorage } from "../utils/ui/storag
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
+const defaultE2eWarmupUsers = ["SEARCH_EMPLOYMENT_CASE", "FPL_GLOBAL_SEARCH"] as const;
 
 const resolveStrictOverride = (value: string | undefined, fallback: boolean): boolean => {
   if (value === undefined) return fallback;
@@ -51,6 +52,21 @@ const shouldBootstrapUiStorageForCurrentRun = (config: FullConfig): boolean => {
   );
 };
 
+const parseUserList = (rawValue?: string): string[] =>
+  Array.from(
+    new Set(
+      (rawValue ?? "")
+        .split(",")
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+
+const resolveE2eSessionWarmupUsers = (): string[] => {
+  const configured = parseUserList(process.env.PW_UI_E2E_SESSION_WARMUP_USERS);
+  return configured.length > 0 ? configured : [...defaultE2eWarmupUsers];
+};
+
 async function globalSetup(config: FullConfig) {
   if (!shouldUseUiStorage() || !shouldBootstrapUiStorageForCurrentRun(config)) {
     return;
@@ -70,6 +86,9 @@ async function globalSetup(config: FullConfig) {
   const uiUsers = hasExplicitUsers ? userIdentifiers : userIdentifiers.slice(0, 1);
   if (shouldWarmUiUsers) {
     for (const userIdentifier of uiUsers) {
+      targetUsers.add(userIdentifier);
+    }
+    for (const userIdentifier of resolveE2eSessionWarmupUsers()) {
       targetUsers.add(userIdentifier);
     }
   }

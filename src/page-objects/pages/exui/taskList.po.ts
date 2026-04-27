@@ -217,17 +217,30 @@ export class TaskListPage extends Base {
     options: {
       rowIndex?: number;
       timeoutMs?: number;
+      maxAttempts?: number;
     } = {}
   ) {
     const rowIndex = options.rowIndex ?? 0;
     const timeoutMs = options.timeoutMs ?? TASK_LIST_READY_TIMEOUT_MS;
+    const maxAttempts = options.maxAttempts ?? 3;
 
-    await this.page.goto('/work/my-work/list', { waitUntil: 'domcontentloaded' });
-    await this.page.waitForURL(/\/work\/my-work\/list(?:\?.*)?$/, { timeout: timeoutMs }).catch(() => undefined);
-    await this.waitForExuiAppShell(context, timeoutMs);
-    await this.waitForTaskListSpinnerToSettle(10_000);
-    await this.waitForTaskListShellReady(`${context} shell bootstrap`);
-    await this.waitForTaskRowReady(`${context} row bootstrap`, { rowIndex, timeoutMs });
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.page.goto('/work/my-work/list', { waitUntil: 'domcontentloaded' });
+        await this.page.waitForURL(/\/work\/my-work\/list(?:\?.*)?$/, { timeout: timeoutMs }).catch(() => undefined);
+        await this.waitForExuiAppShell(context, timeoutMs);
+        await this.waitForTaskListSpinnerToSettle(10_000);
+        await this.waitForTaskListShellReady(`${context} shell bootstrap`);
+        await this.waitForTaskRowReady(`${context} row bootstrap`, { rowIndex, timeoutMs });
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts || !this.isTransientTaskListNavigationFailure(error)) {
+          throw error;
+        }
+
+        await this.page.goto('about:blank').catch(() => undefined);
+      }
+    }
   }
 
   async gotoMyCases() {
@@ -320,6 +333,13 @@ export class TaskListPage extends Base {
     await this.page
       .waitForFunction(() => document.querySelectorAll('xuilib-loading-spinner').length === 0, undefined, { timeout: timeoutMs })
       .catch(() => undefined);
+  }
+
+  private isTransientTaskListNavigationFailure(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /Task list showed service down|Something went wrong page was displayed|service-down|Gateway Timeout|Azure Front Door|OriginTimeout/i.test(
+      message
+    );
   }
 
   private async navigateToTaskListView(
@@ -494,7 +514,7 @@ export class TaskListPage extends Base {
 
   private async readFilterCheckboxState(checkbox: Locator, description: string, deadlineMs?: number): Promise<boolean> {
     this.assertFilterInteractionAlive(`checkbox "${description}" state read`, deadlineMs);
-    return checkbox.isChecked().catch((error: Error) => {
+    return checkbox.isChecked({ timeout: this.resolveInteractionTimeout(deadlineMs, FILTER_CONTROL_READY_TIMEOUT_MS) }).catch((error: Error) => {
       if (this.page.isClosed() || /Target page, context or browser has been closed/i.test(error.message)) {
         throw new Error(
           `Task list filter checkbox "${description}" state could not be read because the page or browser closed before the operation completed.`

@@ -65,17 +65,7 @@ test.describe(
       await page.goto(SPECIFIC_ACCESS_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForSpecificAccessPage();
 
-      await accessRequestPage.specificAccessReasonInput.fill(specificAccessReason);
-
-      const requestPromise = page.waitForRequest(
-        (request) =>
-          request.method() === "POST" &&
-          request.url().match(/\/api\/specific-access-request(?:\?|$)/) !== null
-      );
-
-      await accessRequestPage.submitButton.click();
-
-      const payload = (await requestPromise).postDataJSON() as Record<string, unknown>;
+      const payload = await accessRequestPage.submitSpecificAccessRequest(specificAccessReason);
       const { requestedRole, requestedNotes } = getSpecificAccessRequestPayloadDetails(payload);
 
       await expect(accessRequestPage.specificAccessSuccessContainer).toBeVisible();

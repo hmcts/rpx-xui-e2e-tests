@@ -58,9 +58,9 @@ function buildFakePage(config: {
 
 test.describe("Case reference support coverage", () => {
   test("buildGlobalSearchRequestBody preserves case reference and jurisdiction filters", () => {
-    expect(buildGlobalSearchRequestBody("*", ["PUBLICLAW"], 50)).toEqual({
+    expect(buildGlobalSearchRequestBody("*", ["CARE_SUPERVISION_EPO"], ["PUBLICLAW"], 50)).toEqual({
       searchCriteria: {
-        CCDCaseTypeIds: null,
+        CCDCaseTypeIds: ["CARE_SUPERVISION_EPO"],
         CCDJurisdictionIds: ["PUBLICLAW"],
         caseManagementBaseLocationIds: null,
         caseManagementRegionIds: null,

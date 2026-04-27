@@ -30,6 +30,8 @@ test.describe(
   `Booking UI as ${userIdentifier}`,
   { tag: ["@integration", "@integration-booking-ui"] },
   () => {
+    test.describe.configure({ mode: "serial" });
+
     test.beforeEach(async ({ page }) => {
       getBookingsCalled = false;
       createBookingCalled = false;
@@ -129,7 +131,11 @@ test.describe(
           key: "Duration",
           value: `${today} to ${today}`
         });
-        await bookingUiPage.bookingButton.click();
+        await expect(bookingUiPage.bookingButton).toBeEnabled();
+        await Promise.all([
+          page.waitForURL(tasksPageUrlPattern, { timeout: 30_000 }),
+          bookingUiPage.bookingButton.click()
+        ]);
       });
 
       await test.step("Intercept create booking API request and verify payload", async () => {

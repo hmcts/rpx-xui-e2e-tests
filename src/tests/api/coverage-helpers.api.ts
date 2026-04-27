@@ -50,6 +50,15 @@ test.describe('Helper utilities and retry logic', { tag: '@svc-internal' }, () =
     ).rejects.toThrow('gateway');
     expect(retryableErrors).toBe(2);
 
+    const timeoutAttemptResults = [
+      () => Promise.reject(new Error('apiRequestContext.fetch: Timeout 30000ms exceeded.')),
+      () => Promise.resolve({ status: 200 }),
+    ];
+    let timeoutAttempts = 0;
+    const timeoutRes = await withRetry(() => timeoutAttemptResults[timeoutAttempts++](), { retries: 1 });
+    expect(timeoutRes.status).toBe(200);
+    expect(timeoutAttempts).toBe(2);
+
     const defaultRes = await withRetry(async () => ({ status: 200 }));
     expect(defaultRes.status).toBe(200);
 
