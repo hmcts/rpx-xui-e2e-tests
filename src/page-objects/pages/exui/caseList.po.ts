@@ -57,9 +57,23 @@ export class CaseListPage extends Base {
     await this.waitForReady();
   }
 
-  async navigateTo() {
-    await this.page.goto("/cases", { waitUntil: "domcontentloaded" });
-    await this.waitForReady();
+  async navigateTo(options: { timeoutMs?: number; maxAttempts?: number } = {}) {
+    const timeoutMs = options.timeoutMs ?? 30_000;
+    const maxAttempts = options.maxAttempts ?? 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.page.goto("/cases", { waitUntil: "domcontentloaded" });
+        await this.waitForReady(timeoutMs);
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts || !this.isTransientCasesNavigationFailure(error)) {
+          throw error;
+        }
+
+        await this.page.goto("about:blank").catch(() => undefined);
+      }
+    }
   }
 
   async waitForReady(timeoutMs = 30_000): Promise<void> {
@@ -106,6 +120,13 @@ export class CaseListPage extends Base {
         timeout: timeoutMs
       })
       .catch(() => undefined);
+  }
+
+  private isTransientCasesNavigationFailure(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return /Cases page shell did not become ready|Cases page showed service down|service-down|Gateway Timeout|Azure Front Door|OriginTimeout/i.test(
+      message
+    );
   }
 
   private async waitForCasesShellReady(timeoutMs: number): Promise<void> {

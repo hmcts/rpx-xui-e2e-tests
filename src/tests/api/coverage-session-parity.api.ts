@@ -92,10 +92,33 @@ test.describe("Parity session helper coverage", () => {
         PRL_SOLICITOR_PASSWORD: "prl-pass"
       },
       () => {
-        expect(resolveWelshLanguageSessionUsers()).toEqual(["PRL_SOLICITOR", "SOLICITOR"]);
-        expect(resolveWelshLanguageSessionUser({ workerIndex: 0 })).toBe("PRL_SOLICITOR");
-        expect(resolveWelshLanguageSessionUser({ workerIndex: 1 })).toBe("SOLICITOR");
-        expect(resolveWelshLanguageSessionUser({ workerIndex: 2 })).toBe("PRL_SOLICITOR");
+        expect(resolveWelshLanguageSessionUsers()).toEqual([
+          {
+            userIdentifier: "PRL_SOLICITOR",
+            email: "prl-solicitor@example.com",
+            password: "prl-pass"
+          },
+          {
+            userIdentifier: "SOLICITOR",
+            email: "solicitor@example.com",
+            password: "solicitor-pass"
+          }
+        ]);
+        expect(resolveWelshLanguageSessionUser({ workerIndex: 0 })).toEqual({
+          userIdentifier: "PRL_SOLICITOR",
+          email: "prl-solicitor@example.com",
+          password: "prl-pass"
+        });
+        expect(resolveWelshLanguageSessionUser({ workerIndex: 1 })).toEqual({
+          userIdentifier: "SOLICITOR",
+          email: "solicitor@example.com",
+          password: "solicitor-pass"
+        });
+        expect(resolveWelshLanguageSessionUser({ workerIndex: 2 })).toEqual({
+          userIdentifier: "PRL_SOLICITOR",
+          email: "prl-solicitor@example.com",
+          password: "prl-pass"
+        });
       }
     );
   });
@@ -113,13 +136,27 @@ test.describe("Parity session helper coverage", () => {
         expect(resolveConfiguredWelshLanguageSessionIdentities()).toEqual([
           {
             email: "shared.solicitor@example.com",
-            leaseKey: "shared.solicitor_example.com",
+            password: "prl-pass",
             userIdentifier: "PRL_SOLICITOR"
           }
         ]);
-        expect(resolveWelshLanguageSessionUsers()).toEqual(["PRL_SOLICITOR"]);
-        expect(resolveWelshLanguageSessionUser({ workerIndex: 0 })).toBe("PRL_SOLICITOR");
-        expect(resolveWelshLanguageSessionUser({ workerIndex: 1 })).toBe("PRL_SOLICITOR");
+        expect(resolveWelshLanguageSessionUsers()).toEqual([
+          {
+            email: "shared.solicitor@example.com",
+            password: "prl-pass",
+            userIdentifier: "PRL_SOLICITOR"
+          }
+        ]);
+        expect(resolveWelshLanguageSessionUser({ workerIndex: 0 })).toEqual({
+          email: "shared.solicitor@example.com",
+          password: "prl-pass",
+          userIdentifier: "PRL_SOLICITOR"
+        });
+        expect(resolveWelshLanguageSessionUser({ workerIndex: 1 })).toEqual({
+          email: "shared.solicitor@example.com",
+          password: "prl-pass",
+          userIdentifier: "PRL_SOLICITOR"
+        });
       }
     );
   });

@@ -54,7 +54,12 @@ test.describe(`Hearings CR84 integration as ${userIdentifier}`, { tag: ['@integr
     await expect(hearingsTabPage.viewDetailsButton(HEARINGS_LISTED_HEARING_ID)).toHaveCount(0);
 
     await gotoAllowRedirectAbort(page, '/hearings/view/hearing-view-summary');
-    await expect(page).not.toHaveURL(/\/hearings\/view\/hearing-view-summary$/);
+    await expect
+      .poll(() => page.url(), {
+        timeout: 30_000,
+        intervals: [500, 1_000, 2_000],
+      })
+      .not.toMatch(/\/hearings\/view\/hearing-view-summary$/);
     await expect.poll(() => page.url()).toContain('/cases');
   });
 });

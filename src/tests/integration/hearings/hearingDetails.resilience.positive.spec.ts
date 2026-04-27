@@ -8,15 +8,19 @@ const hearingManagerRoles = ['caseworker-privatelaw', 'caseworker-privatelaw-cou
 const hearingViewerRoles = ['caseworker-privatelaw', 'caseworker-privatelaw-courtadmin', 'case-allocator', 'hearing-viewer'];
 
 test.describe(`Hearings resilience integration as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
-  test('Hearings - manager can start the request hearing journey from the Hearings tab', async ({ page, caseDetailsPage }) => {
+  test('Hearings - manager can start the request hearing journey from the Hearings tab', async ({
+    page,
+    caseDetailsPage,
+    hearingsTabPage,
+  }) => {
     const response = await openHearingsTabForScenario(page, caseDetailsPage, {
       userRoles: hearingManagerRoles,
       hearings: [LISTED_HEARING_SCENARIO],
     });
 
     expect(response?.status()).toBe(200);
-    await expect(page.getByRole('button', { name: /request a hearing/i })).toBeVisible();
-    await page.getByRole('button', { name: /request a hearing/i }).click();
+    await expect(hearingsTabPage.requestHearingButton).toBeVisible();
+    await hearingsTabPage.openRequestHearing();
     await expect(page).toHaveURL(/\/hearings\/request\/hearing-requirements$/);
   });
 

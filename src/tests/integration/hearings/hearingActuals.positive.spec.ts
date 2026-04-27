@@ -36,6 +36,8 @@ test.describe(
   `Hearings actuals journey as ${HEARING_MANAGER_CR84_OFF_USER}`,
   { tag: ['@integration', '@integration-hearings'] },
   () => {
+    test.describe.configure({ mode: 'serial' });
+
     test('loads adjourned hearing details without showing the generic error state', async ({
       page,
       caseDetailsPage,
@@ -83,7 +85,7 @@ test.describe(
       });
 
       await hearingsTabPage.waitForReady(awaitingActualsScenario.hearingId, 'add-or-edit');
-      await hearingsTabPage.addOrEditButton(awaitingActualsScenario.hearingId).click();
+      await hearingsTabPage.openAddOrEdit(awaitingActualsScenario.hearingId);
 
       await expect(page).toHaveURL(
         new RegExp(`/hearings/actuals/${awaitingActualsScenario.hearingId}/hearing-actual-add-edit-summary$`)
@@ -163,7 +165,7 @@ test.describe(
       });
 
       await hearingsTabPage.waitForReady(awaitingActualsScenario.hearingId, 'add-or-edit');
-      await hearingsTabPage.addOrEditButton(awaitingActualsScenario.hearingId).click();
+      await hearingsTabPage.openAddOrEdit(awaitingActualsScenario.hearingId);
 
       await expect(page).toHaveURL(
         new RegExp(`/hearings/actuals/${awaitingActualsScenario.hearingId}/hearing-actual-add-edit-summary$`)

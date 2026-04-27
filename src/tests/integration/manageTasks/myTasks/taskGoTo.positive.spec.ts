@@ -77,9 +77,7 @@ test.describe(`Task Go To as ${userIdentifier}`, { tag: ['@integration', '@integ
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(userRequestMockResponse) });
     });
 
-    await taskListPage.goto();
-    await expect(taskListPage.taskListTable).toBeVisible();
-    await taskListPage.exuiSpinnerComponent.wait();
+    await taskListPage.gotoAndWaitForTaskRow('my tasks go to case details');
 
     await taskListPage.openFirstManageActions('my tasks go to case details');
     await expect(taskListPage.taskActionGoTo).toBeVisible();

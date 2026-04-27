@@ -12,19 +12,17 @@ const FIND_CASE_CASE_TYPE = "Public Law Applications";
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search-case"] }, () => {
-  let availableCaseReference = "";
+async function openHomeAndResolvePublicLawCaseReference(page: Parameters<typeof openHomeWithCapturedSession>[0]): Promise<string> {
+  await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
+  return resolveCaseReferenceFromGlobalSearch(
+    page,
+    PUBLIC_LAW_CASE_REFERENCE_OPTIONS
+  );
+}
 
+test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search-case"] }, () => {
   test.beforeAll(async () => {
     await ensureSearchCaseSession("FPL_GLOBAL_SEARCH");
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
-    availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
-      page,
-      PUBLIC_LAW_CASE_REFERENCE_OPTIONS
-    );
   });
 
   test("Find case using Public Law jurisdiction", async ({
@@ -33,6 +31,8 @@ test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search
     tableUtils,
     page
   }) => {
+    const availableCaseReference = await openHomeAndResolvePublicLawCaseReference(page);
+
     await test.step("Start Find case journey", async () => {
       await caseSearchPage.startFindCaseJourney(
         availableCaseReference,
@@ -69,6 +69,7 @@ test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search
     caseSearchPage,
     page
   }) => {
+    await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
     await caseSearchPage.openFromMainMenu();
     await expect(page).toHaveURL(/\/cases\/case-search/);
     await expect(caseSearchPage.pageHeading).toHaveText("Search");

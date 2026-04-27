@@ -1,5 +1,5 @@
 import { expect, test } from "../../../../fixtures/ui";
-import { applySessionCookiesAndExtractUserId, setupManageTasksBaseRoutes, setupTaskListMockRoutes } from '../../helpers';
+import { applySessionCookiesAndExtractUserId, setupManageTasksBaseRoutes } from '../../helpers';
 import { buildTaskListMock, buildDeterministicMyTasksListMock, myActionsList } from '../../mocks/taskList.mock';
 import { formatUiDate } from '../../utils/tableUtils';
 
@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe(`Task List as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test(`User ${userIdentifier} can view assigned tasks on the task list page`, async ({ taskListPage, page, tableUtils }) => {
-    await setupTaskListMockRoutes(page, taskListMockResponse);
+    await setupManageTasksBaseRoutes(page, { taskListResponse: taskListMockResponse });
 
     await test.step('Navigate to the my tasks list page', async () => {
       await taskListPage.goto();
@@ -46,7 +46,7 @@ test.describe(`Task List as ${userIdentifier}`, { tag: ['@integration', '@integr
     const emptyMockResponse = { tasks: [], total_records: 0 };
 
     await test.step('Setup route mock for empty task list', async () => {
-      await setupTaskListMockRoutes(page, emptyMockResponse);
+      await setupManageTasksBaseRoutes(page, { taskListResponse: emptyMockResponse });
     });
 
     await test.step('Navigate to the my tasks list page', async () => {
@@ -64,7 +64,7 @@ test.describe(`Task List as ${userIdentifier}`, { tag: ['@integration', '@integr
     const deterministicMockResponse = buildDeterministicMyTasksListMock('deterministic-assignee');
 
     await test.step('Setup route mock for deterministic task list', async () => {
-      await setupTaskListMockRoutes(page, deterministicMockResponse);
+      await setupManageTasksBaseRoutes(page, { taskListResponse: deterministicMockResponse });
     });
 
     await test.step('Navigate to the my tasks list page', async () => {
@@ -95,7 +95,7 @@ test.describe(`Task List as ${userIdentifier}`, { tag: ['@integration', '@integr
     const taskListMockResponse = buildTaskListMock(1000, userId?.toString() || '', myActionsList);
 
     await test.step('Setup route mock for deterministic task list', async () => {
-      await setupTaskListMockRoutes(page, taskListMockResponse);
+      await setupManageTasksBaseRoutes(page, { taskListResponse: taskListMockResponse });
     });
 
     await test.step('Navigate to the my tasks list page', async () => {

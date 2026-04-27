@@ -23,8 +23,7 @@ test.describe(
       await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForReviewSpecificPage();
 
-      await accessRequestPage.continueButton.click();
-
+      await accessRequestPage.continueWithoutSelectionExpectingValidation("Please select an option");
       await expect(accessRequestPage.errorMessage("Please select an option")).toBeVisible();
       await accessRequestPage.waitForReviewSpecificPage();
     });
@@ -53,8 +52,7 @@ test.describe(
       await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForReviewSpecificPage();
 
-      await accessRequestPage.approveRequestRadio.check();
-      await accessRequestPage.continueButton.click();
+      await accessRequestPage.chooseApproveRequestAndContinueToDuration();
       await accessRequestPage.sevenDaysRadio.check();
       await accessRequestPage.submitButton.click();
 
@@ -72,8 +70,7 @@ test.describe(
       await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForReviewSpecificPage();
 
-      await accessRequestPage.requestMoreInformationRadio.check();
-      await accessRequestPage.continueButton.click();
+      await accessRequestPage.chooseRequestMoreInformationAndContinue();
       await accessRequestPage.reviewMoreDetailInput.fill(
         "Need more evidence for the request."
       );

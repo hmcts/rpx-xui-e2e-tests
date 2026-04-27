@@ -689,6 +689,24 @@ export class CaseDetailsPage extends Base {
     await this.waitForSpinnerToComplete('after final case flag submit');
   }
 
+  async throwIfEventCreationError(context: string): Promise<void> {
+    const eventErrorVisible = await this.eventCreationErrorHeading.isVisible({ timeout: 1_000 }).catch(() => false);
+    if (eventErrorVisible) {
+      throw new Error(`Case event failed ${context}: The event could not be created.`);
+    }
+  }
+
+  async returnToCurrentCaseDetailsFromEventPage(): Promise<void> {
+    const currentUrl = new URL(this.page.url());
+    const caseDetailsPath = currentUrl.pathname.replace(/\/trigger\/.*$/, '');
+    if (!caseDetailsPath.includes('/cases/case-details/')) {
+      throw new Error(`Unable to recover case details URL from ${currentUrl.pathname}`);
+    }
+
+    await this.page.goto(caseDetailsPath, { waitUntil: 'domcontentloaded' });
+    await this.waitForSpinnerToComplete('after returning to case details');
+  }
+
   async hasCallbackValidationErrorAlert(timeoutMs = 1000): Promise<boolean> {
     const callbackValidationAlert = this.page
       .getByRole('alert')

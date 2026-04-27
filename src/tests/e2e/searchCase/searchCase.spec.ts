@@ -12,19 +12,17 @@ import {
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.describe("FPL global search user - 16-digit case search", { tag: ["@e2e", "@e2e-search-case"] }, () => {
-  let availableCaseReference = "";
+async function openHomeAndResolvePublicLawCaseReference(page: Parameters<typeof openHomeWithCapturedSession>[0]): Promise<string> {
+  await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
+  return resolveCaseReferenceFromGlobalSearch(
+    page,
+    PUBLIC_LAW_CASE_REFERENCE_OPTIONS
+  );
+}
 
+test.describe("FPL global search user - 16-digit case search", { tag: ["@e2e", "@e2e-search-case"] }, () => {
   test.beforeAll(async () => {
     await ensureSearchCaseSession("FPL_GLOBAL_SEARCH");
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
-    availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
-      page,
-      PUBLIC_LAW_CASE_REFERENCE_OPTIONS
-    );
   });
 
   test("Search by 16-digit case reference", async ({
@@ -32,6 +30,8 @@ test.describe("FPL global search user - 16-digit case search", { tag: ["@e2e", "
     caseSearchPage,
     page
   }) => {
+    const availableCaseReference = await openHomeAndResolvePublicLawCaseReference(page);
+
     await test.step("Search using 16-digit case reference", async () => {
       await caseSearchPage.searchWith16DigitCaseId(availableCaseReference);
     });
@@ -45,6 +45,7 @@ test.describe("FPL global search user - 16-digit case search", { tag: ["@e2e", "
     caseSearchPage,
     page
   }) => {
+    await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
     const invalidCaseReference = await resolveNonExistentCaseReference(page, {
       jurisdictionIds: ["PUBLICLAW"]
     });

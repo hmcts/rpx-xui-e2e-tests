@@ -10,19 +10,17 @@ import {
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
-test.describe("IDAM login using credentials for Global Search", { tag: ["@e2e", "@e2e-search-case"] }, () => {
-  let availableCaseReference = "";
+async function openHomeAndResolvePublicLawCaseReference(page: Parameters<typeof openHomeWithCapturedSession>[0]): Promise<string> {
+  await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
+  return resolveCaseReferenceFromGlobalSearch(
+    page,
+    PUBLIC_LAW_CASE_REFERENCE_OPTIONS
+  );
+}
 
+test.describe("IDAM login using credentials for Global Search", { tag: ["@e2e", "@e2e-search-case"] }, () => {
   test.beforeAll(async () => {
     await ensureSearchCaseSession("FPL_GLOBAL_SEARCH");
-  });
-
-  test.beforeEach(async ({ page }) => {
-    await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
-    availableCaseReference = await resolveCaseReferenceFromGlobalSearch(
-      page,
-      PUBLIC_LAW_CASE_REFERENCE_OPTIONS
-    );
   });
 
   test("Global Search - using case id and FPL jurisdiction", async ({
@@ -31,6 +29,8 @@ test.describe("IDAM login using credentials for Global Search", { tag: ["@e2e", 
     tableUtils,
     page
   }) => {
+    const availableCaseReference = await openHomeAndResolvePublicLawCaseReference(page);
+
     await globalSearchPage.performGlobalSearchWithCase(availableCaseReference, "PUBLICLAW");
     const searchResultsTable = await tableUtils.parseDataTable(globalSearchPage.searchResultsTable);
 
@@ -56,8 +56,10 @@ test.describe("IDAM login using credentials for Global Search", { tag: ["@e2e", 
 
   test("Global Search (Partial) - using '*' wildcard on case number", async ({
     globalSearchPage,
+    page,
     tableUtils
   }) => {
+    const availableCaseReference = await openHomeAndResolvePublicLawCaseReference(page);
     const wildcardCaseReference = `${availableCaseReference.slice(0, 5)}*`;
     const wildcardPrefix = wildcardCaseReference.replace("*", "");
 

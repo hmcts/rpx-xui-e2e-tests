@@ -19,6 +19,7 @@ async function openTaskListWithRetry(
   await retryOnTransientFailure(
     async () => {
       await page.context().clearCookies();
+      taskListPage.clearApiCalls();
       if (cookies.length) {
         await page.context().addCookies(cookies);
       }
@@ -50,9 +51,13 @@ async function openTaskListWithRetry(
       if (bootstrapSignal === "service-down") {
         throw new Error("Task list showed service down while opening the my tasks page.");
       }
+
+      await taskListPage.waitForManageButton("my tasks bootstrap", {
+        timeoutMs: TASK_LIST_BOOTSTRAP_TIMEOUT_MS
+      });
     },
     {
-      maxAttempts: 2,
+      maxAttempts: 3,
       onRetry: async () => {
         if (!page.isClosed()) {
           await page.goto("about:blank").catch(() => undefined);
@@ -89,7 +94,7 @@ test.describe("Verify the my tasks page tabs appear as expected", {
     });
 
     await test.step("Verify tasks actions are shown as expected", async () => {
-      await taskListPage.manageCaseButtons.nth(0).click();
+      await taskListPage.openFirstManageActions("my tasks actions", { timeoutMs: 15_000 });
       await expect(taskListPage.taskActionsRow).toBeVisible();
       await expect(taskListPage.taskActionCancel).toBeVisible();
       await expect(taskListPage.taskActionGoTo).toBeVisible();
@@ -112,7 +117,7 @@ test.describe("Verify the my tasks page tabs appear as expected", {
     });
 
     await test.step("Verify available-task actions are shown as expected", async () => {
-      await taskListPage.manageCaseButtons.nth(0).click();
+      await taskListPage.openFirstManageActions("available tasks actions", { timeoutMs: 15_000 });
       await expect(taskListPage.taskActionsRow).toBeVisible();
       await expect(taskListPage.taskActionClaim).toBeVisible();
       await expect(taskListPage.taskActionClaimAndGo).toBeVisible();

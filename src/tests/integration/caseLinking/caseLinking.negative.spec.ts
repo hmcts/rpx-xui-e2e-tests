@@ -71,7 +71,7 @@ test.describe(
       );
     });
 
-    test("shows an error and stays on check your answers when the case-link submit fails", async ({
+    test("shows an error and stays on check-your-answers when the case-link submit fails", async ({
       caseDetailsPage,
       page
     }) => {

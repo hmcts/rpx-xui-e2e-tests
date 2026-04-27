@@ -1,9 +1,7 @@
 import {
   DEFAULT_RETRY_BASE_MS,
-  DEFAULT_RETRY_MAX_ELAPSED_MS,
   DEFAULT_RETRY_MAX_MS,
-  isRetryableError,
-  withRetry as commonWithRetry
+  isRetryableError
 } from "@hmcts/playwright-common";
 import { expect } from "@playwright/test";
 
@@ -13,6 +11,7 @@ import { ensureStorageState, getStoredCookie, type ApiUserRole } from "../../fix
 export const StatusSets = {
   guardedBasic: [200, 401, 403, 502, 504] as const,
   guardedExtended: [200, 401, 403, 404, 500, 502, 504] as const,
+  waReadOnly: [200, 401, 403, 500, 502, 504] as const,
   actionWithConflicts: [200, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
   allocateRole: [200, 201, 204, 400, 401, 403, 404, 409, 500, 502, 504] as const,
   roleAccessRead: [200, 400, 401, 403, 404, 500, 502, 504] as const,
@@ -91,8 +90,15 @@ export async function withRetry<T extends { status: number }>(
     return undefined;
   };
 
+  const isTransientApiRequestError = (error: unknown): boolean => {
+    const message = error instanceof Error ? error.message : String(error);
+    return /apiRequestContext\.fetch: Timeout \d+ms exceeded|Timeout \d+ms exceeded|ETIMEDOUT|ECONNRESET|socket hang up/i.test(
+      message
+    );
+  };
+
   const shouldRetry = (error: unknown): boolean => {
-    if (isRetryableError(error)) return true;
+    if (isRetryableError(error) || isTransientApiRequestError(error)) return true;
     if (error && typeof error === "object" && "status" in error) {
       const status = Number((error as { status?: unknown }).status);
       return Number.isFinite(status) && retryStatuses.includes(status);
@@ -100,40 +106,41 @@ export async function withRetry<T extends { status: number }>(
     return false;
   };
 
-  try {
-    return await commonWithRetry(
-      async () => {
-        const response = await fn();
-        lastResponse = response;
-        if (retryStatuses.includes(response.status)) {
-          const retryAfterMs = parseRetryAfterMs(
-            (response as { headers?: Record<string, string> }).headers
-          );
-          const error = new Error(`Retryable status: ${response.status}`);
-          (error as { status?: number; retryAfterMs?: number }).status = response.status;
-          if (retryAfterMs) {
-            (error as { retryAfterMs?: number }).retryAfterMs = retryAfterMs;
-          }
-          throw error;
-        }
-        return response;
-      },
-      attempts,
-      DEFAULT_RETRY_BASE_MS,
-      DEFAULT_RETRY_MAX_MS,
-      DEFAULT_RETRY_MAX_ELAPSED_MS,
-      shouldRetry
-    );
-  } catch (error) {
-    const status =
-      error && typeof error === "object" && "status" in error
-        ? Number((error as { status?: unknown }).status)
-        : undefined;
-    if (lastResponse && typeof status === "number" && retryStatuses.includes(status)) {
-      return lastResponse;
+  const resolveRetryDelayMs = (attempt: number, candidate?: unknown): number => {
+    if (candidate && typeof candidate === "object" && "retryAfterMs" in candidate) {
+      const retryAfterMs = Number((candidate as { retryAfterMs?: unknown }).retryAfterMs);
+      if (Number.isFinite(retryAfterMs) && retryAfterMs >= 0) {
+        return Math.min(retryAfterMs, 60_000);
+      }
     }
-    throw error;
+    return Math.min(DEFAULT_RETRY_BASE_MS * 2 ** Math.max(0, attempt - 1), DEFAULT_RETRY_MAX_MS);
+  };
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fn();
+      lastResponse = response;
+      if (!retryStatuses.includes(response.status) || attempt === attempts) {
+        return response;
+      }
+
+      const retryAfterMs = parseRetryAfterMs(
+        (response as { headers?: Record<string, string> }).headers
+      );
+      await new Promise<void>((resolve) => setTimeout(resolve, resolveRetryDelayMs(attempt, { retryAfterMs })));
+    } catch (error) {
+      if (!shouldRetry(error) || attempt === attempts) {
+        throw error;
+      }
+
+      await new Promise<void>((resolve) => setTimeout(resolve, resolveRetryDelayMs(attempt, error)));
+    }
   }
+
+  if (lastResponse) {
+    return lastResponse;
+  }
+  throw new Error("withRetry failed unexpectedly");
 }
 
 export const __test__ = {
