@@ -77,6 +77,16 @@ const resolveApiTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
     defaultConfigPath: "src/tests/api/service-tag-filter.json"
   });
 
+const resolveE2eTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
+  resolveTagFilters({
+    env,
+    includeTagsEnvVar: "E2E_PW_INCLUDE_TAGS",
+    excludedTagsEnvVar: "E2E_PW_EXCLUDED_TAGS_OVERRIDE",
+    configPathEnvVar: "E2E_PW_TAG_FILTER_CONFIG",
+    defaultConfigPath: "src/tests/e2e/tag-filter.json",
+    suiteTag: "@e2e"
+  });
+
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
   env.PLAYWRIGHT_REPORT_FOLDER ?? env.PW_ODHIN_OUTPUT ?? "test-results/odhin-report";
 
@@ -232,6 +242,7 @@ const resolveChromiumExecutablePath = (env: EnvMap = process.env): string | unde
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const chromiumExecutablePath = resolveChromiumExecutablePath(env);
   const apiTagFilters = resolveApiTagFilters(env);
+  const e2eTagFilters = resolveE2eTagFilters(env);
   return {
     testDir: "./src/tests",
     globalSetup: "./src/global/ui.global.setup.ts",
@@ -249,6 +260,8 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "ui",
         testMatch: /src\/tests\/e2e\/.*\.spec\.ts/,
+        grep: e2eTagFilters.grep,
+        grepInvert: e2eTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
         outputDir: "test-results/ui",
         workers: resolveUiProjectWorkerCount(env),
@@ -333,6 +346,7 @@ export const __test__ = {
   buildConfig,
   resolveApiProjectWorkerCount,
   resolveApiTagFilters,
+  resolveE2eTagFilters,
   resolveUiProjectWorkerCount,
   resolveWorkerCount
 };

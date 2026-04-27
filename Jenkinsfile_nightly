@@ -22,6 +22,16 @@ properties([
       name: 'tag',
       defaultValue: '@smoke',
       description: 'Optional grep tag for focused runs'
+    ),
+    string(
+      name: 'E2E_PW_INCLUDE_TAGS',
+      defaultValue: '',
+      description: 'Optional comma/space separated Playwright E2E tags to include, for example @e2e-search-case or @e2e-search-case @e2e-update-case'
+    ),
+    string(
+      name: 'E2E_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '',
+      description: 'Optional comma/space separated Playwright E2E tags to exclude; overrides src/tests/e2e/tag-filter.json. Examples: @e2e-manage-tasks, @e2e-document-upload @e2e-case-flags, @none to clear repo defaults'
     )
   ])
 ])
@@ -206,7 +216,9 @@ withNightlyPipeline(type, product, component, 400) {
             'PW_UI_IDLE_TIMEOUT_MS=60000',
             'PW_UI_IDLE_QUIET_MS=400',
             'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-            'PW_UI_FAIL_ON_HTTP_4XX=0'
+            'PW_UI_FAIL_ON_HTTP_4XX=0',
+            "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS ?: ''}",
+            "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE ?: ''}"
           ]
           try {
             def tagArg = params.tag ? "--grep ${params.tag}" : ""
