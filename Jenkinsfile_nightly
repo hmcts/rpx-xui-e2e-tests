@@ -64,6 +64,8 @@ def secrets = [
     secret('solicitor-password', 'SOLICITOR_PASSWORD'),
     secret('e2e-divorce-solicitor-username', 'DIVORCE_SOLICITOR_USERNAME'),
     secret('e2e-divorce-solicitor-password', 'DIVORCE_SOLICITOR_PASSWORD'),
+    secret('e2e-search-employment-case-username', 'SEARCH_EMPLOYMENT_CASE_USERNAME'),
+    secret('e2e-search-employment-case-password', 'SEARCH_EMPLOYMENT_CASE_PASSWORD'),
     secret('idam-solicitor-user-password', 'IDAM_SOLICITOR_USER_PASSWORD'),
     secret('idam-caseworker-divorce-password', 'IDAM_CASEWORKER_DIVORCE_PASSWORD'),
     secret('xui-dynamic-org-user-assignment-username', 'ORG_USER_ASSIGNMENT_USERNAME'),
@@ -161,8 +163,8 @@ withNightlyPipeline(type, product, component, 400) {
         },
         'Integration nightly': {
           def integrationOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=4',
-            'PLAYWRIGHT_WORKERS=4',
+            'FUNCTIONAL_TESTS_WORKERS=2',
+            'PLAYWRIGHT_WORKERS=2',
             'PW_UI_STORAGE=1',
             'PW_ODHIN_INDEX=playwright-odhin-integration-nightly.html',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration-nightly/odhin-report'
