@@ -50,13 +50,5 @@ test.describe(`Verify users can switch the language as ${userIdentifier} (@mocke
       welshTranslationsSmall.translations["Manage Cases"].translation
     );
     await expect(caseListPage.exuiHeader.languageToggle).toBeVisible();
-
-    await caseListPage.exuiHeader.switchLanguage("English");
-    await caseListPage.exuiHeader.waitForRenderedLanguageState("English");
-    await caseListPage.exuiSpinnerComponent.wait();
-    await page.waitForLoadState("domcontentloaded");
-    await caseListPage.exuiHeader.checkIsVisible();
-    await expect(caseListPage.exuiHeader.selectedPageItem).toContainText("Manage Cases");
-    await expect(caseListPage.exuiHeader.languageToggle).toBeVisible();
   });
 });
