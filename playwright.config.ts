@@ -87,8 +87,11 @@ const resolveE2eTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
     suiteTag: "@e2e"
   });
 
+const resolveConfiguredString = (...values: Array<string | undefined>): string | undefined =>
+  values.find((value) => value?.trim());
+
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
-  env.PLAYWRIGHT_REPORT_FOLDER ?? env.PW_ODHIN_OUTPUT ?? "test-results/odhin-report";
+  resolveConfiguredString(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ?? "test-results/odhin-report";
 
 const resolveOdhinProject = (env: EnvMap = process.env) =>
   env.PLAYWRIGHT_REPORT_PROJECT ?? env.PW_ODHIN_PROJECT ?? "rpx-xui-e2e-tests";

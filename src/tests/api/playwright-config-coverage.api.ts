@@ -212,6 +212,24 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(config.use.baseURL).toContain('manage-case');
   });
 
+  test('config ignores blank Odhin report folder overrides', async () => {
+    const config = buildConfig({
+      CI: undefined,
+      PLAYWRIGHT_REPORT_FOLDER: '   ',
+      PW_ODHIN_OUTPUT: '',
+      PLAYWRIGHT_REPORTERS: 'list,odhin',
+      TEST_URL: undefined,
+      TEST_TYPE: undefined,
+      HEAD: undefined,
+    });
+
+    const [, odhinOptions] = getReporterTuple(
+      config.reporter,
+      './src/tests/common/reporters/odhin-adaptive.reporter.cjs'
+    );
+    expect(odhinOptions?.outputFolder).toBe('test-results/odhin-report');
+  });
+
   test('config uses branch from environment when provided', async () => {
     const config = buildConfig({
       CI: undefined,
@@ -357,6 +375,23 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(config.projects[0]?.workers).toBeUndefined();
   });
 
+  test('integration config ignores blank Odhin report folder overrides', async () => {
+    const config = buildIntegrationConfig({
+      CI: undefined,
+      PLAYWRIGHT_REPORT_FOLDER: '   ',
+      PW_ODHIN_OUTPUT: '',
+      TEST_URL: undefined,
+      TEST_TYPE: undefined,
+      HEAD: undefined,
+    });
+
+    const [, odhinOptions] = getReporterTuple(
+      config.reporter,
+      './src/tests/common/reporters/odhin-adaptive.reporter.cjs'
+    );
+    expect(odhinOptions?.outputFolder).toBe('functional-output/tests/playwright-integration/odhin-report');
+  });
+
   test('integration config applies shared tag filters to the integration project', async () => {
     const config = buildIntegrationConfig({
       INTEGRATION_PW_INCLUDE_TAGS: '@integration-search-case',
@@ -421,6 +456,21 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(odhinOptions?.outputFolder).toContain('playwright-e2e/odhin-report');
     expect(config.projects.find((project) => project.name === 'firefox')?.use?.headless).toBe(false);
     expect(config.projects.find((project) => project.name === 'webkit')?.use?.headless).toBe(false);
+  });
+
+  test('nightly config ignores blank Odhin report folder overrides', async () => {
+    const config = buildNightlyConfig({
+      CI: 'true',
+      PLAYWRIGHT_REPORT_FOLDER: '   ',
+      PW_ODHIN_OUTPUT: '',
+      TEST_URL: 'https://example.test',
+    });
+
+    const [, odhinOptions] = getReporterTuple(
+      config.reporter,
+      './src/tests/common/reporters/odhin-adaptive.reporter.cjs'
+    );
+    expect(odhinOptions?.outputFolder).toBe('functional-output/tests/playwright-e2e/odhin-report');
   });
 
   test('integration config avoids forced Odhin timeout in CI', async () => {
