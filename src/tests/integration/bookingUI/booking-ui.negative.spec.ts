@@ -170,13 +170,18 @@ test.describe(
             body: JSON.stringify(noBookingAccessUser)
           });
         });
+        await page.goto("/", { waitUntil: "domcontentloaded" });
+        await page.evaluate((seededUserInfo) => {
+          window.sessionStorage.setItem("userDetails", JSON.stringify(seededUserInfo));
+        }, noBookingAccessUser.userInfo);
       });
 
       await test.step("Navigate to booking and verify redirect to cases", async () => {
         await navigateWithTransientGatewayRetry(page, "/booking", {
           contextLabel: "booking access redirect",
+          maxAttempts: 3,
           afterNavigation: async () => {
-            await expect(page).toHaveURL(casesPageUrlPattern, { timeout: 10_000 });
+            await expect(page).toHaveURL(casesPageUrlPattern, { timeout: 30_000 });
           }
         });
       });

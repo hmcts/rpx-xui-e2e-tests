@@ -20,6 +20,7 @@ export * from "./sessionUser.helper.js";
 export * from "./taskActionApiMocks.helper.js";
 export * from "./taskListMockRoutes.helper.js";
 export * from "./uiSessionAccess.helper.js";
+export * from "./welshLanguageAssertions.helper.js";
 export * from "./welshLanguageSession.helper.js";
 export * from "./workAllocationAccessScenarios.helper.js";
 export * from "./workAllocationMockValidation.helper.js";

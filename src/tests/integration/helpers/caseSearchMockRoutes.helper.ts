@@ -1,7 +1,10 @@
 import { expect, type Page, type Route } from "@playwright/test";
 
 import type { CaseSearchPage } from "../../../page-objects/pages/exui/caseSearch.po.js";
-import { EXUI_TIMEOUTS } from "../../../page-objects/pages/exui/exui-timeouts.js";
+import {
+  EXUI_TIMEOUTS,
+  MAX_NAVIGATION_RETRY_ATTEMPTS
+} from "../../../page-objects/pages/exui/exui-timeouts.js";
 import type { GlobalSearchPage } from "../../../page-objects/pages/exui/globalSearch.po.js";
 
 import { buildNgIntegrationAppConfigMock } from "./ngIntegrationMockRoutes.helper.js";
@@ -232,15 +235,28 @@ export async function submitHeaderQuickSearch(
   caseReference: string,
   caseSearchPage: CaseSearchPage
 ): Promise<void> {
-  await caseSearchPage.page.goto("/cases", { waitUntil: "domcontentloaded" });
-  await caseSearchPage.exuiHeader.appHeaderLink.waitFor({
-    state: "attached",
-    timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
-  });
-  await expect(caseSearchPage.caseIdTextBox).toBeVisible({
-    timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
-  });
+  await gotoCasesReadyForHeaderQuickSearch(caseSearchPage);
   await caseSearchPage.searchWith16DigitCaseId(caseReference);
+}
+
+async function gotoCasesReadyForHeaderQuickSearch(caseSearchPage: CaseSearchPage): Promise<void> {
+  for (let attempt = 1; attempt <= MAX_NAVIGATION_RETRY_ATTEMPTS; attempt += 1) {
+    await caseSearchPage.page.goto("/cases", { waitUntil: "domcontentloaded" });
+    try {
+      await caseSearchPage.exuiHeader.appHeaderLink.waitFor({
+        state: "attached",
+        timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
+      });
+      await expect(caseSearchPage.caseIdTextBox).toBeVisible({
+        timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
+      });
+      return;
+    } catch (error) {
+      if (attempt === MAX_NAVIGATION_RETRY_ATTEMPTS) {
+        throw error;
+      }
+    }
+  }
 }
 
 export async function submitGlobalSearchFromMenu(

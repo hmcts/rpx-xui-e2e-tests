@@ -429,6 +429,19 @@ const captureUiStorageState = async (
   );
 };
 
+const handleUiStorageWarmupFailure = (
+  error: unknown,
+  userIdentifier: string,
+  strict: boolean,
+  warn: (message: string) => void = console.warn
+): void => {
+  if (strict) {
+    throw error;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  warn(`[ui.session] Unable to warm UI session for ${userIdentifier}. ${message}`);
+};
+
 const resolveAuthBaseUrl = (baseUrl: string): string => {
   try {
     return new URL(baseUrl).origin;
@@ -439,9 +452,18 @@ const resolveAuthBaseUrl = (baseUrl: string): string => {
 
 const resolveStorageStateLockPath = (storagePath: string): string => `${storagePath}.lock`;
 
+const resolveStorageLockTimeoutMs = (): number => {
+  const configured = Number(process.env.PW_UI_STORAGE_LOCK_TIMEOUT_MS);
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+
+  return Math.max(resolveLoginTimeoutMs() * 2, 120_000);
+};
+
 const acquireStorageStateLock = async (
   storagePath: string,
-  timeoutMs = resolveLoginTimeoutMs()
+  timeoutMs = resolveStorageLockTimeoutMs()
 ): Promise<() => void> => {
   const lockPath = resolveStorageStateLockPath(storagePath);
   const deadline = Date.now() + timeoutMs;
@@ -567,27 +589,34 @@ export const ensureUiStorageStateForUser = async (
       return;
     }
 
-    const browser = await chromium.launch();
-
     try {
-      const context = await browser.newContext();
-      const page = await context.newPage();
-      await captureUiStorageState(context, page, userIdentifier, email, password, baseUrl);
+      const browser = await chromium.launch();
 
-      await page
-        .locator("exui-header")
-        .first()
-        .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
-        .catch(() => {
-          // Proceed even if header is slow to render; cookies are already present.
-        });
+      try {
+        const context = await browser.newContext();
+        try {
+          const page = await context.newPage();
+          await captureUiStorageState(context, page, userIdentifier, email, password, baseUrl);
 
-      await addAnalyticsCookie(context, baseUrl);
-      await context.storageState({ path: storagePath });
-      writeUiStorageMetadata(storagePath, { userIdentifier, email });
-      await context.close();
-    } finally {
-      await browser.close();
+          await page
+            .locator("exui-header")
+            .first()
+            .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
+            .catch(() => {
+              // Proceed even if header is slow to render; cookies are already present.
+            });
+
+          await addAnalyticsCookie(context, baseUrl);
+          await context.storageState({ path: storagePath });
+          writeUiStorageMetadata(storagePath, { userIdentifier, email });
+        } finally {
+          await context.close().catch(() => undefined);
+        }
+      } finally {
+        await browser.close();
+      }
+    } catch (error) {
+      handleUiStorageWarmupFailure(error, userIdentifier, strict);
     }
   } finally {
     releaseLock();
@@ -602,5 +631,6 @@ export const __test__ = {
   isUiServiceUnavailablePage,
   resolveLegacyUiStoragePathForUser,
   resolveUiLoginTargets,
+  handleUiStorageWarmupFailure,
   shouldRefreshStorageState
 };

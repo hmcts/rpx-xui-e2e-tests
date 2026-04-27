@@ -17,7 +17,7 @@ test.describe("Verify creating cases works as expected", () => {
     await createCasePage.waitForUiIdleState();
   });
 
-  test("Verify creating a case works as expected", async ({
+  test("Verify creating a case in the divorce jurisdiction works as expected", async ({
     validatorUtils,
     createCasePage,
     caseDetailsPage,

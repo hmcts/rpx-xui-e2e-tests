@@ -1,8 +1,13 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { test, expect } from "@playwright/test";
+/**
+ * @file auth-coverage-bootstrap.api.ts
+ * @description Coverage tests for auth token bootstrap flows (IDAM/S2S integration)
+ * @security-note All auth flows use MOCKED credentials only. No real secrets.
+ */
 
-import { __test__ as authTest } from "../../fixtures/api-auth";
-import { withEnv } from "../../utils/api/testEnv";
+import { test, expect } from '@playwright/test';
+
+import { __test__ as authTest } from '../../utils/api/auth';
+import { withEnv } from '../../utils/api/testEnv';
 
 type FakeResponse = {
   status: () => number;
@@ -29,57 +34,48 @@ function createFormLoginContext(
 ): FakeRequestContext {
   const loginPage: FakeResponse = {
     status: statusFn(loginStatus),
-    url: () => "https://example.test/login",
-    text: async () => html
+    url: () => 'https://example.test/login',
+    text: async () => html,
   };
 
   return {
     get: async (url: string) => {
-      if (url === "auth/login") {
+      if (url === 'auth/login') {
         return loginPage;
       }
-      if (url === "auth/isAuthenticated") {
+      if (url === 'auth/isAuthenticated') {
         return { status: statusFn(authStatus), json: async () => isAuthenticated };
       }
       return { status: statusFn(200) };
     },
     post: async () => ({ status: statusFn(postStatus) }),
     storageState: async () => {},
-    dispose: async () => {}
+    dispose: async () => {},
   };
 }
 
-function buildAuthContext(): FakeRequestContext {
-  return {
-    get: async (url: string) =>
-      url.includes("isAuthenticated")
-        ? { status: () => 200, json: async () => true }
-        : { status: () => 200 },
-    post: async () => ({ status: () => 200 }),
-    storageState: async () => {},
-    dispose: async () => {}
-  };
-}
-
-type AuthEnvironmentKey =
-  | "API_AUTH_MODE"
-  | "IDAM_SECRET"
-  | "IDAM_WEB_URL"
-  | "IDAM_TESTING_SUPPORT_URL"
-  | "S2S_URL";
+type AuthEnvironmentKey = 'API_AUTH_MODE' | 'IDAM_SECRET' | 'IDAM_WEB_URL' | 'IDAM_TESTING_SUPPORT_URL' | 'S2S_URL';
 
 type AuthEnvironmentConfig = Partial<Record<AuthEnvironmentKey, string>>;
+type FormLoginDeps = NonNullable<Parameters<typeof authTest.createStorageStateViaForm>[3]>;
+type TokenBootstrapDeps = NonNullable<Parameters<typeof authTest.tryTokenBootstrap>[3]>;
+type FormRequestContext = Awaited<ReturnType<NonNullable<FormLoginDeps['requestFactory']>>>;
+type TokenRequestContext = Awaited<ReturnType<NonNullable<TokenBootstrapDeps['requestFactory']>>>;
 
-test.describe.configure({ mode: "serial" });
+test.describe.configure({ mode: 'serial' });
 
-test.describe("Auth helper coverage - token bootstrap", () => {
-  test("isTokenBootstrapEnabled respects env overrides", async () => {
+const mockPassword = process.env.PW_MOCK_PASSWORD ?? String(Date.now());
+const mockCredentials = { username: 'test-user', password: mockPassword };
+
+test.describe('Auth helper coverage - token bootstrap', { tag: '@svc-auth' }, () => {
+  test('isTokenBootstrapEnabled respects env overrides', async () => {
+    // SECURITY: Use non-sensitive mock values only - no real secrets in tests
     const mockAuthEnv: AuthEnvironmentConfig = {
-      API_AUTH_MODE: "form",
-      IDAM_SECRET: "MOCK_SECRET_FOR_TESTING",
-      IDAM_WEB_URL: "https://mock-idam.test",
-      IDAM_TESTING_SUPPORT_URL: "https://mock-support.test",
-      S2S_URL: "https://mock-s2s.test"
+      API_AUTH_MODE: 'form',
+      IDAM_SECRET: 'MOCK_SECRET_FOR_TESTING',
+      IDAM_WEB_URL: 'https://mock-idam.test',
+      IDAM_TESTING_SUPPORT_URL: 'https://mock-support.test',
+      S2S_URL: 'https://mock-s2s.test',
     };
 
     await withEnv(mockAuthEnv, () => {
@@ -88,19 +84,19 @@ test.describe("Auth helper coverage - token bootstrap", () => {
 
     await withEnv(
       {
-        API_AUTH_MODE: "token",
+        API_AUTH_MODE: 'token',
         ...Object.fromEntries(
           Object.keys(mockAuthEnv)
-            .filter((key) => key !== "API_AUTH_MODE")
-            .map((key) => [key, undefined])
-        )
+            .filter((k) => k !== 'API_AUTH_MODE')
+            .map((k) => [k, undefined])
+        ),
       },
       () => {
         expect(authTest.isTokenBootstrapEnabled()).toBe(true);
       }
     );
 
-    await withEnv(Object.fromEntries(Object.keys(mockAuthEnv).map((key) => [key, undefined])), () => {
+    await withEnv(Object.fromEntries(Object.keys(mockAuthEnv).map((k) => [k, undefined])), () => {
       expect(authTest.isTokenBootstrapEnabled()).toBe(false);
     });
 
@@ -109,124 +105,106 @@ test.describe("Auth helper coverage - token bootstrap", () => {
     });
   });
 
-  test("createStorageStateViaForm handles csrf and login errors", async () => {
+  test('createStorageStateViaForm handles csrf and login errors', async () => {
     await expect(
-      authTest.createStorageStateViaForm(
-        { username: "test-user", password: "mock-pass" },
-        "state.json",
-        "solicitor",
-        { requestFactory: async () => createFormLoginContext(400, 200, "") as any }
-      )
-    ).rejects.toThrow("GET /auth/login");
+      authTest.createStorageStateViaForm(mockCredentials, 'state.json', 'solicitor', {
+        requestFactory: async () => createFormLoginContext(400, 200, '') as unknown as FormRequestContext,
+      })
+    ).rejects.toThrow('GET /auth/login');
 
     await expect(
-      authTest.createStorageStateViaForm(
-        { username: "test-user", password: "mock-pass" },
-        "state.json",
-        "solicitor",
-        { requestFactory: async () => createFormLoginContext(200, 401, "") as any }
-      )
-    ).rejects.toThrow("POST https://example.test/login");
+      authTest.createStorageStateViaForm(mockCredentials, 'state.json', 'solicitor', {
+        requestFactory: async () => createFormLoginContext(200, 401, '') as unknown as FormRequestContext,
+      })
+    ).rejects.toThrow('POST https://example.test/login');
 
-    await authTest.createStorageStateViaForm(
-      { username: "test-user", password: "mock-pass" },
-      "state.json",
-      "solicitor",
-      { requestFactory: async () => createFormLoginContext(200, 200, '<input name="_csrf" value="token">') as any }
-    );
+    await authTest.createStorageStateViaForm(mockCredentials, 'state.json', 'solicitor', {
+      requestFactory: async () =>
+        createFormLoginContext(200, 200, '<input name="_csrf" value="token">') as unknown as FormRequestContext,
+    });
 
-    await authTest.createStorageStateViaForm(
-      { username: "test-user", password: "mock-pass" },
-      "state.json",
-      "solicitor",
-      { requestFactory: async () => createFormLoginContext(200, 200, "<html></html>") as any }
-    );
+    await authTest.createStorageStateViaForm(mockCredentials, 'state.json', 'solicitor', {
+      requestFactory: async () => createFormLoginContext(200, 200, '<html></html>') as unknown as FormRequestContext,
+    });
   });
 
-  test("tryTokenBootstrap covers env and response branches", async () => {
+  test('tryTokenBootstrap covers env and response branches', async () => {
     const warnCalls: string[] = [];
-    const logger = { warn: (message: string) => warnCalls.push(message) } as any;
+    const logger = { warn: (message: string) => warnCalls.push(message) } as unknown as TokenBootstrapDeps['logger'];
 
-    const missingEnv = await authTest.tryTokenBootstrap(
-      "solicitor",
-      { username: "test-user", password: "mock-pass" },
-      "state.json",
-      { env: {} as NodeJS.ProcessEnv }
-    );
+    const missingEnv = await authTest.tryTokenBootstrap('solicitor', mockCredentials, 'state.json', {
+      env: {} as NodeJS.ProcessEnv,
+    });
     expect(missingEnv).toBe(false);
 
-    const context = buildAuthContext();
+    const context = {
+      get: async (url: string) => {
+        if (url.includes('isAuthenticated')) {
+          return { status: () => 200, json: async () => true };
+        }
+        return { status: () => 200 };
+      },
+      storageState: async () => {},
+      dispose: async () => {},
+    };
 
+    // SECURITY: Mock credentials only - never use real secrets in test code
     const mockEnv = {
-      IDAM_SECRET: "MOCK_TEST_SECRET",
-      IDAM_WEB_URL: "https://mock-idam.test",
-      IDAM_TESTING_SUPPORT_URL: "https://mock-support.test",
-      S2S_URL: "https://mock-s2s.test"
+      IDAM_SECRET: 'MOCK_TEST_SECRET',
+      IDAM_WEB_URL: 'https://mock-idam.test',
+      IDAM_TESTING_SUPPORT_URL: 'https://mock-support.test',
+      S2S_URL: 'https://mock-s2s.test',
     } as NodeJS.ProcessEnv;
 
-    const success = await authTest.tryTokenBootstrap(
-      "solicitor",
-      { username: "test-user", password: "mock-pass" },
-      "state.json",
-      {
-        env: mockEnv,
-        idamUtils: { generateIdamToken: async () => "mock-token" },
-        serviceAuthUtils: { retrieveToken: async () => "mock-service-token" },
-        requestFactory: async () => context as any,
-        logger,
-        readState: async () => ({ cookies: [{ name: "a" }] })
-      }
-    );
+    const success = await authTest.tryTokenBootstrap('solicitor', mockCredentials, 'state.json', {
+      env: mockEnv,
+      idamUtils: { generateIdamToken: async () => 'mock-token' },
+      serviceAuthUtils: { retrieveToken: async () => 'mock-service-token' },
+      requestFactory: async () => context as unknown as TokenRequestContext,
+      logger,
+      readState: async () => ({ cookies: [{ name: 'a' }] }),
+    });
     expect(success).toBe(true);
 
     const authFailContext = {
       get: async () => ({ status: () => 401, json: async () => true }),
       storageState: async () => {},
-      dispose: async () => {}
+      dispose: async () => {},
     };
-    const failure = await authTest.tryTokenBootstrap(
-      "solicitor",
-      { username: "test-user", password: "mock-pass" },
-      "state.json",
-      {
-        env: mockEnv,
-        idamUtils: { generateIdamToken: async () => "mock-token" },
-        serviceAuthUtils: { retrieveToken: async () => "mock-service-token" },
-        requestFactory: async () => authFailContext as any,
-        logger,
-        readState: async () => ({ cookies: [{ name: "a" }] })
-      }
-    );
+    const failure = await authTest.tryTokenBootstrap('solicitor', mockCredentials, 'state.json', {
+      env: mockEnv,
+      idamUtils: { generateIdamToken: async () => 'mock-token' },
+      serviceAuthUtils: { retrieveToken: async () => 'mock-service-token' },
+      requestFactory: async () => authFailContext as unknown as TokenRequestContext,
+      logger,
+      readState: async () => ({ cookies: [{ name: 'a' }] }),
+    });
     expect(failure).toBe(false);
     expect(warnCalls.length).toBeGreaterThan(0);
   });
 
-  test("tryTokenBootstrap logs and returns false on request failures", async () => {
+  test('tryTokenBootstrap logs and returns false on request failures', async () => {
     const warnCalls: string[] = [];
-    const logger = { warn: (message: string) => warnCalls.push(message) } as any;
+    const logger = { warn: (message: string) => warnCalls.push(message) } as unknown as TokenBootstrapDeps['logger'];
 
+    // SECURITY: Mock environment - no real secrets
     const mockEnv = {
-      IDAM_SECRET: "MOCK_TEST_SECRET",
-      IDAM_WEB_URL: "https://mock-idam.test",
-      IDAM_TESTING_SUPPORT_URL: "https://mock-support.test",
-      S2S_URL: "https://mock-s2s.test"
+      IDAM_SECRET: 'MOCK_TEST_SECRET',
+      IDAM_WEB_URL: 'https://mock-idam.test',
+      IDAM_TESTING_SUPPORT_URL: 'https://mock-support.test',
+      S2S_URL: 'https://mock-s2s.test',
     } as NodeJS.ProcessEnv;
 
-    const result = await authTest.tryTokenBootstrap(
-      "solicitor",
-      { username: "test-user", password: "mock-pass" },
-      "state.json",
-      {
-        env: mockEnv,
-        idamUtils: { generateIdamToken: async () => "mock-token" },
-        serviceAuthUtils: { retrieveToken: async () => "mock-service-token" },
-        requestFactory: async () => {
-          throw new Error("boom");
-        },
-        logger
-      }
-    );
+    const result = await authTest.tryTokenBootstrap('solicitor', mockCredentials, 'state.json', {
+      env: mockEnv,
+      idamUtils: { generateIdamToken: async () => 'mock-token' },
+      serviceAuthUtils: { retrieveToken: async () => 'mock-service-token' },
+      requestFactory: async () => {
+        throw new Error('boom');
+      },
+      logger,
+    });
     expect(result).toBe(false);
-    expect(warnCalls.some((message) => message.includes("Token bootstrap failed"))).toBe(true);
+    expect(warnCalls.some((message) => message.includes('Token bootstrap failed'))).toBe(true);
   });
 });

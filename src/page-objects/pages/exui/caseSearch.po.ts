@@ -132,6 +132,7 @@ export class CaseSearchPage extends Base {
     if (!value) return;
     await this.caseTypeSelect.waitFor({ state: "visible", timeout: 30_000 });
     await this.selectOptionByLabel(this.caseTypeSelect, value);
+    await this.waitForUiIdleStateLenient(30_000);
   }
 
   async waitForDynamicFilters(): Promise<void> {
@@ -233,12 +234,26 @@ export class CaseSearchPage extends Base {
 
   private async selectOptionByLabel(select: Locator, label: string): Promise<void> {
     const target = label.trim().toLowerCase();
-    const options = await this.waitForOptions(select);
-    const match = options.find((option) => option.toLowerCase().includes(target));
+    let options: string[] = [];
+    const match = await expect
+      .poll(async () => {
+        options = await select.locator("option").evaluateAll((items) =>
+          items.map((item) => (item.textContent ?? "").trim()).filter(Boolean)
+        );
+        return options.find((option) => option.toLowerCase().includes(target)) ?? "";
+      }, { timeout: 30_000 })
+      .toMatch(/.+/)
+      .then(() => options.find((option) => option.toLowerCase().includes(target)));
     if (!match) {
       throw new Error(`Search filter option "${label}" not found. Available: ${options.join(", ")}`);
     }
     await select.selectOption({ label: match });
+    await expect
+      .poll(
+        async () => (await select.locator("option:checked").textContent().catch(() => ""))?.trim() ?? "",
+        { timeout: 10_000 }
+      )
+      .toBe(match);
   }
 
   private async waitForOptions(select: Locator, timeoutMs = 30_000): Promise<string[]> {

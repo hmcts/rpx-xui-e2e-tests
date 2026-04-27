@@ -6,6 +6,7 @@ import type { Page, TestInfo } from "@playwright/test";
 import config from "../../../utils/ui/config.utils.js";
 import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
 import { USER_ENV_MAP } from "../../../utils/ui/user.utils.js";
+import type { SessionIdentity, SessionIdentityInput } from "../../common/sessionIdentity.js";
 import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js";
 
 const defaultWelshLanguageSessionUsers = [
@@ -19,15 +20,11 @@ const welshLanguageLeaseStaleMs = 5 * 60 * 1000;
 const welshLanguageLeaseRetryMs = 1_000;
 const welshLanguageLeaseMaxWaitMs = 2 * 60 * 1000;
 
-export type WelshLanguageSessionIdentity = {
-  email: string;
-  leaseKey: string;
-  userIdentifier: string;
-};
+export type WelshLanguageSessionIdentity = SessionIdentity;
 
 export type WelshLanguageSessionLease = {
   release: () => Promise<void>;
-  userIdentifier: string;
+  userIdentifier: SessionIdentityInput;
 };
 
 function parseUserList(rawValue?: string): string[] {
@@ -84,15 +81,15 @@ function buildConfiguredIdentity(
   return {
     userIdentifier,
     email,
-    leaseKey: toLeaseKey(email)
+    password
   };
 }
 
-function resolveLeaseKey(user: string | WelshLanguageSessionIdentity): string {
-  return typeof user === "string" ? toLeaseKey(user) : user.leaseKey;
+function resolveLeaseKey(user: SessionIdentityInput): string {
+  return typeof user === "string" ? toLeaseKey(user) : toLeaseKey(user.email);
 }
 
-async function acquireWelshLanguageLease(user: string | WelshLanguageSessionIdentity): Promise<() => Promise<void>> {
+async function acquireWelshLanguageLease(user: SessionIdentityInput): Promise<() => Promise<void>> {
   ensureDirectory(welshLanguageLeaseRoot);
   const leasePath = path.join(welshLanguageLeaseRoot, resolveLeaseKey(user));
   const startedAt = Date.now();
@@ -158,7 +155,7 @@ export function resolveConfiguredWelshLanguageSessionIdentities(
 
 function resolveWelshLanguageSessionPool(
   env: NodeJS.ProcessEnv = process.env
-): Array<string | WelshLanguageSessionIdentity> {
+): SessionIdentityInput[] {
   const resolved = resolveConfiguredWelshLanguageSessionIdentities(env);
   return resolved.length > 0 ? resolved : ["SOLICITOR"];
 }
@@ -166,30 +163,28 @@ function resolveWelshLanguageSessionPool(
 function resolveWelshLanguageSessionCandidate(
   testInfo: Pick<TestInfo, "workerIndex">,
   env: NodeJS.ProcessEnv = process.env
-): string | WelshLanguageSessionIdentity {
+): SessionIdentityInput {
   const users = resolveWelshLanguageSessionPool(env);
   return users[testInfo.workerIndex % users.length];
 }
 
-export function resolveWelshLanguageSessionUsers(env: NodeJS.ProcessEnv = process.env): string[] {
-  return resolveWelshLanguageSessionPool(env).map((user) =>
-    typeof user === "string" ? user : user.userIdentifier
-  );
+export function resolveWelshLanguageSessionUsers(env: NodeJS.ProcessEnv = process.env): SessionIdentityInput[] {
+  return resolveWelshLanguageSessionPool(env);
 }
 
 export function resolveWelshLanguageSessionUser(
   testInfo: Pick<TestInfo, "workerIndex">,
   env: NodeJS.ProcessEnv = process.env
-): string {
-  const resolved = resolveWelshLanguageSessionCandidate(testInfo, env);
-  return typeof resolved === "string" ? resolved : resolved.userIdentifier;
+): SessionIdentityInput {
+  return resolveWelshLanguageSessionCandidate(testInfo, env);
 }
 
 export async function ensureWelshLanguageSessionAccess(
   testInfo: Pick<TestInfo, "workerIndex">,
   env: NodeJS.ProcessEnv = process.env
 ): Promise<string> {
-  const userIdentifier = resolveWelshLanguageSessionUser(testInfo, env);
+  const sessionUser = resolveWelshLanguageSessionUser(testInfo, env);
+  const userIdentifier = typeof sessionUser === "string" ? sessionUser : sessionUser.userIdentifier;
   await ensureUiStorageStateForUser(userIdentifier, { strict: true });
   return userIdentifier;
 }
@@ -218,8 +213,9 @@ export async function setupWelshLanguageSession(
       }
     ]);
 
-    testInfo.annotations.push({ type: "session-user", description: userIdentifier });
-    return { release, userIdentifier };
+    const annotationValue = typeof sessionUser === "string" ? sessionUser : sessionUser.userIdentifier;
+    testInfo.annotations.push({ type: "session-user", description: annotationValue });
+    return { release, userIdentifier: sessionUser };
   } catch (error) {
     await release().catch(() => undefined);
     throw error;

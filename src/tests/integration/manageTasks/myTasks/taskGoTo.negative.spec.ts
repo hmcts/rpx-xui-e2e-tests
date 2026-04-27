@@ -75,9 +75,7 @@ test.describe(`Task Go To negative scenarios as ${userIdentifier}`, { tag: ['@in
         await route.fulfill({ status: 200, contentType: 'application/json', body });
       });
 
-      await taskListPage.goto();
-      await expect(taskListPage.taskListTable).toBeVisible();
-      await taskListPage.exuiSpinnerComponent.wait();
+      await taskListPage.gotoAndWaitForTaskRow(`my tasks go to ${statusCode} response`);
 
       await taskListPage.openFirstManageActions(`my tasks go to ${statusCode} response`);
       await expect(taskListPage.taskActionGoTo).toBeVisible();

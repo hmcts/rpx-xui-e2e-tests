@@ -8,6 +8,7 @@ import { loadSessionCookies } from "../integration/utils/session.utils.js";
 import type { ResolveCaseReferenceOptions } from "../utils/case-reference.utils.js";
 
 export const PUBLIC_LAW_CASE_REFERENCE_OPTIONS: ResolveCaseReferenceOptions = {
+  caseTypeIds: ["CARE_SUPERVISION_EPO"],
   jurisdictionIds: ["PUBLICLAW"],
   preferredStates: ["Case management", "Submitted", "Gatekeeping", "Closed"]
 };

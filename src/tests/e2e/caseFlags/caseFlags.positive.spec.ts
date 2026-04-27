@@ -65,9 +65,20 @@ test.describe("Case level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, () 
     });
 
     await test.step("Create a new case level flag", async () => {
-      await caseDetailsPage.exuiSpinnerComponent.wait();
-      await caseDetailsPage.selectCaseAction("Create a case flag");
-      await caseDetailsPage.selectCaseFlagTarget("Welsh");
+      await retryOnTransientFailure(
+        async () => {
+          await caseDetailsPage.exuiSpinnerComponent.wait();
+          await caseDetailsPage.selectCaseAction("Create a case flag");
+          await caseDetailsPage.selectCaseFlagTarget("Welsh");
+          await caseDetailsPage.throwIfEventCreationError("while creating case-level case flag");
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            await caseDetailsPage.returnToCurrentCaseDetailsFromEventPage();
+          }
+        }
+      );
     });
 
     await test.step("Check the case flag creation messages are seen", async () => {

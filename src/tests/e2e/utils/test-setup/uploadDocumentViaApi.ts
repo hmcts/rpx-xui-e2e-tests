@@ -2,7 +2,6 @@ import type { Page } from "@playwright/test";
 
 import { acceptAnalyticsCookiesOnPage } from "../../../../utils/ui/analytics.utils.js";
 import config from "../../../../utils/ui/config.utils.js";
-import { waitForRetryInterval } from "../transient-failure.utils.js";
 
 type UploadDocumentViaApiOptions = {
   page: Page;
@@ -177,7 +176,9 @@ async function waitForXsrfToken(page: Page, baseUrl: string): Promise<string> {
       await navigateShellToMintXsrf(page, baseUrl);
       continue;
     }
-    await waitForRetryInterval(XSRF_COOKIE_WAIT_INTERVAL_MS);
+    // XSRF minting is browser-session state; use Playwright page time so unit fakes and traces stay deterministic.
+    // eslint-disable-next-line playwright/no-wait-for-timeout
+    await page.waitForTimeout(XSRF_COOKIE_WAIT_INTERVAL_MS);
   }
 
   const cookieNames = await page

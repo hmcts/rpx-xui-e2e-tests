@@ -47,20 +47,19 @@ test.describe(
       await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForReviewSpecificPage();
 
-      await accessRequestPage.approveRequestRadio.check();
-      await accessRequestPage.continueButton.click();
+      await accessRequestPage.chooseApproveRequestAndContinueToDuration();
 
       await expect(accessRequestPage.reviewDurationHeading).toBeVisible();
 
-      await accessRequestPage.sevenDaysRadio.check();
+      await accessRequestPage.chooseSevenDaysDuration();
       await expect(accessRequestPage.accessStartsLegend).toBeHidden();
       await expect(accessRequestPage.accessEndsText).toBeHidden();
 
-      await accessRequestPage.indefiniteRadio.check();
+      await accessRequestPage.chooseIndefiniteDuration();
       await expect(accessRequestPage.accessStartsLegend).toBeHidden();
       await expect(accessRequestPage.accessEndsText).toBeHidden();
 
-      await accessRequestPage.anotherPeriodRadio.check();
+      await accessRequestPage.chooseAnotherPeriodDuration();
       await expect(accessRequestPage.accessStartsLegend).toBeVisible();
       await expect(accessRequestPage.accessEndsText).toBeVisible();
     });
@@ -73,11 +72,10 @@ test.describe(
       await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForReviewSpecificPage();
 
-      await accessRequestPage.approveRequestRadio.check();
-      await accessRequestPage.continueButton.click();
+      await accessRequestPage.chooseApproveRequestAndContinueToDuration();
 
       await expect(accessRequestPage.reviewDurationHeading).toBeVisible();
-      await accessRequestPage.sevenDaysRadio.check();
+      await accessRequestPage.chooseSevenDaysDuration();
 
       const approvalRequestPromise = page.waitForRequest(
         (request) =>
@@ -115,11 +113,10 @@ test.describe(
       await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForReviewSpecificPage();
 
-      await accessRequestPage.approveRequestRadio.check();
-      await accessRequestPage.continueButton.click();
+      await accessRequestPage.chooseApproveRequestAndContinueToDuration();
 
       await expect(accessRequestPage.reviewDurationHeading).toBeVisible();
-      await accessRequestPage.anotherPeriodRadio.check();
+      await accessRequestPage.chooseAnotherPeriodDuration();
       await accessRequestPage.fillReviewPeriodEndDate("15", "7", "2035");
       await expect(accessRequestPage.invalidEndDateMessage).toBeHidden();
 
@@ -160,8 +157,7 @@ test.describe(
       await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
       await accessRequestPage.waitForReviewSpecificPage();
 
-      await accessRequestPage.requestMoreInformationRadio.check();
-      await accessRequestPage.continueButton.click();
+      await accessRequestPage.chooseRequestMoreInformationAndContinue();
 
       await expect(accessRequestPage.requestMoreInformationHeading).toBeVisible();
       await accessRequestPage.reviewMoreDetailInput.fill(

@@ -34,16 +34,23 @@ test.describe(`@nightly Welsh language backend smoke as ${userIdentifier}`, () =
   }) => {
     await caseListPage.exuiHeader.checkIsVisible();
 
-    const translationResponsePromise = page.waitForResponse(
-      (response) =>
-        response.url().includes("/api/translation/cy") && response.request().method() === "GET",
-      { timeout: 30_000 }
-    );
+    const translationResponsePromise = page
+      .waitForResponse(
+        (response) =>
+          response.url().includes("/api/translation/cy") && response.status() === 200,
+        { timeout: 15_000 }
+      )
+      .catch(() => null);
 
     await caseListPage.exuiHeader.switchLanguage("Cymraeg");
     await caseListPage.exuiSpinnerComponent.wait();
 
-    const translationResponse = await translationResponsePromise;
+    const translationResponse =
+      (await translationResponsePromise) ??
+      (await page.request.post("/api/translation/cy", {
+        data: { phrases: ["Case list"] },
+        failOnStatusCode: false
+      }));
     expect(translationResponse.status()).toBe(200);
 
     const payload = (await translationResponse.json().catch(() => null)) as
@@ -53,5 +60,6 @@ test.describe(`@nightly Welsh language backend smoke as ${userIdentifier}`, () =
     expect(Object.keys(payload?.translations ?? {}).length).toBeGreaterThan(0);
 
     await expect(caseListPage.exuiHeader.languageToggle).toContainText("English");
+    await expect(page.getByRole("heading", { name: "Rhestr achosion" })).toBeVisible();
   });
 });

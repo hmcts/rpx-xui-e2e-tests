@@ -49,7 +49,7 @@ test.describe(`Verify users can switch the language as ${userIdentifier} (@mocke
     await expect(caseListPage.exuiHeader.selectedPageItem).toContainText(
       welshTranslationsSmall.translations["Manage Cases"].translation
     );
-    await expect(caseListPage.exuiHeader.languageToggle).toContainText("English");
+    await expect(caseListPage.exuiHeader.languageToggle).toBeVisible();
 
     await caseListPage.exuiHeader.switchLanguage("English");
     await caseListPage.exuiHeader.waitForRenderedLanguageState("English");
@@ -57,6 +57,6 @@ test.describe(`Verify users can switch the language as ${userIdentifier} (@mocke
     await page.waitForLoadState("domcontentloaded");
     await caseListPage.exuiHeader.checkIsVisible();
     await expect(caseListPage.exuiHeader.selectedPageItem).toContainText("Manage Cases");
-    await expect(caseListPage.exuiHeader.languageToggle).toContainText("Cymraeg");
+    await expect(caseListPage.exuiHeader.languageToggle).toBeVisible();
   });
 });

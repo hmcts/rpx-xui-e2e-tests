@@ -99,7 +99,9 @@ export class HearingsTabPage {
   }
 
   async openViewDetails(hearingId: string): Promise<void> {
-    await this.openActionAndWaitForUrlChange(this.viewDetailsButton(hearingId));
+    await this.openActionAndWaitForUrlChange(this.viewDetailsButton(hearingId), {
+      context: 'view hearing details',
+    });
   }
 
   async openLinkHearing(hearingId: string): Promise<void> {
@@ -114,22 +116,113 @@ export class HearingsTabPage {
     await this.openActionAndWaitForUrlChange(this.viewOrEditButton(hearingId));
   }
 
-  private async openActionAndWaitForUrlChange(actionButton: Locator): Promise<void> {
+  async openAddOrEdit(hearingId: string): Promise<void> {
+    await this.openActionAndWaitForUrlChange(this.addOrEditButton(hearingId), {
+      context: 'add or edit hearing actuals',
+      expectedPath: new RegExp(`/hearings/actuals/${hearingId}/hearing-actual-add-edit-summary$`),
+    });
+  }
+
+  private async openActionAndWaitForUrlChange(
+    actionButton: Locator,
+    options: { context?: string; expectedPath?: RegExp } = {}
+  ): Promise<void> {
     const startUrl = this.page.url();
+    const href = await actionButton.getAttribute('href').catch(() => null);
+    const expectedPath = options.expectedPath ?? this.expectedPathFromHref(href);
 
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       await actionButton.waitFor({ state: 'visible', timeout: 20_000 });
       await actionButton.scrollIntoViewIfNeeded().catch(() => undefined);
-      await actionButton.click();
+      await actionButton.click({ noWaitAfter: true });
 
-      try {
-        await this.page.waitForURL((url) => url.toString() !== startUrl, { timeout: 10_000 });
+      if (await this.waitForExpectedNavigation(startUrl, expectedPath)) {
         return;
-      } catch (error) {
-        if (this.page.url() !== startUrl || attempt === 2) {
-          throw error;
+      }
+
+      if (href && attempt === 2) {
+        await this.page.goto(href, { waitUntil: 'domcontentloaded' });
+        if (await this.waitForExpectedNavigation(startUrl, expectedPath)) {
+          return;
         }
       }
     }
+
+    throw new Error(`Hearing action did not navigate to ${options.context ?? 'the expected route'} from ${startUrl}.`);
+  }
+
+  private expectedPathFromHref(href: string | null): RegExp | undefined {
+    if (!href) {
+      return undefined;
+    }
+
+    try {
+      const path = new URL(href, this.page.url()).pathname;
+      return new RegExp(`${this.escapeRegExp(path)}$`);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  private async waitForExpectedNavigation(startUrl: string, expectedPath?: RegExp): Promise<boolean> {
+    if (expectedPath) {
+      return this.waitForExpectedUrl(expectedPath);
+    }
+
+    return this.waitForDifferentNonBlankUrl(startUrl);
+  }
+
+  private async waitForExpectedUrl(expectedPath: RegExp): Promise<boolean> {
+    const deadline = Date.now() + 20_000;
+    const intervals = [250, 500, 1_000];
+    let intervalIndex = 0;
+
+    while (Date.now() < deadline) {
+      if (this.page.isClosed()) {
+        throw new Error('Page closed while waiting for hearing action navigation.');
+      }
+
+      const currentUrl = this.page.url();
+      if (currentUrl && currentUrl !== 'about:blank') {
+        try {
+          if (expectedPath.test(new URL(currentUrl).pathname)) {
+            return true;
+          }
+        } catch {
+          // Keep polling if Playwright briefly exposes an intermediate URL.
+        }
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, intervals[Math.min(intervalIndex, intervals.length - 1)])
+      );
+      intervalIndex += 1;
+    }
+
+    return false;
+  }
+
+  private async waitForDifferentNonBlankUrl(startUrl: string): Promise<boolean> {
+    const deadline = Date.now() + 20_000;
+    const intervals = [250, 500, 1_000];
+    let intervalIndex = 0;
+
+    while (Date.now() < deadline) {
+      const currentUrl = this.page.url();
+      if (currentUrl && currentUrl !== 'about:blank' && currentUrl !== startUrl) {
+        return true;
+      }
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, intervals[Math.min(intervalIndex, intervals.length - 1)])
+      );
+      intervalIndex += 1;
+    }
+
+    return false;
   }
 }

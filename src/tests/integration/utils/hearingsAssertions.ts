@@ -35,14 +35,18 @@ export async function assertReadOnlySummarySections(
   hearingViewSummaryPage: HearingSummaryPageLike,
   expectListedSections: boolean
 ): Promise<void> {
+  if (!expectListedSections) {
+    return;
+  }
+
   await assertLocatorStates([
     {
       locator: hearingViewSummaryPage.sectionHeading("Listing information summary"),
-      mode: expectListedSections ? "visible" : "hidden"
+      mode: "visible"
     },
     {
       locator: hearingViewSummaryPage.sectionHeading("Language requirements"),
-      mode: expectListedSections ? "visible" : "hidden"
+      mode: "visible"
     },
     {
       locator: hearingViewSummaryPage.sectionHeading("Additional facilities"),

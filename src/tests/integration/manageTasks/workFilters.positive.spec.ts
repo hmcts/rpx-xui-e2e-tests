@@ -319,7 +319,8 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
     await expect.poll(() => fullLocationServiceCodes.length).toBeGreaterThan(0);
     expect(fullLocationServiceCodes.at(-1)?.split(',').sort()).toEqual(['CIVIL', 'IA']);
 
-    await expect(page.getByText('Access tasks and cases.', { exact: true })).toBeVisible();
+    await expect(taskListPage.myWorkHeading).toBeVisible();
+    await expect(taskListPage.taskListTable).toBeVisible();
 
     await taskListPage.openFilterPanel();
     await expect

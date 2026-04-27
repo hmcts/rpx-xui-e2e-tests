@@ -5,6 +5,10 @@ import { Base } from "../../base";
 const CASE_FILE_VIEW_FOLDER_TIMEOUT_MS = 10_000;
 const CASE_FILE_VIEW_FOLDER_POLL_INTERVAL_MS = 200;
 
+type FolderLookupOptions = {
+  expandTarget?: boolean;
+};
+
 export class CaseFileViewPage extends Base {
   readonly container = this.page.locator("#case-file-view");
   readonly treeContainer = this.container.locator(".document-tree-container").first();
@@ -39,7 +43,7 @@ export class CaseFileViewPage extends Base {
     await this.mediaViewerContainer.waitFor({ state: "visible" });
   }
 
-  public async getFolderNode(folderPath: string): Promise<Locator> {
+  public async getFolderNode(folderPath: string, options: FolderLookupOptions = {}): Promise<Locator> {
     const segments = folderPath.split(".");
     let currentScope = this.treeRoot;
     let folderNode: Locator | undefined;
@@ -48,18 +52,13 @@ export class CaseFileViewPage extends Base {
       folderNode = await this.findDirectChildFolderNode(currentScope, segment);
 
       const folderButton = folderNode.locator(':scope > button.node[role="treeitem"]').first();
-      const icon = folderButton.locator(".node__iconImg").first();
-      const isExpanded = await folderButton.getAttribute("aria-expanded");
 
       await folderButton.waitFor({ state: "visible" });
-      if (isExpanded !== "true") {
-        await icon.click();
+      const needsExpanded = index < segments.length - 1 || options.expandTarget === true;
+      if (needsExpanded) {
+        await this.expandFolder(folderButton);
       }
-
-      currentScope = folderNode.locator(':scope > div[role="group"]').first();
-      if (index < segments.length - 1) {
-        await currentScope.waitFor({ state: "visible" });
-      }
+      currentScope = folderNode;
     }
 
     if (!folderNode) {
@@ -69,12 +68,16 @@ export class CaseFileViewPage extends Base {
     return folderNode;
   }
 
+  public async getExpandedFolderNode(folderPath: string): Promise<Locator> {
+    return this.getFolderNode(folderPath, { expandTarget: true });
+  }
+
   public getFolderName(folderNode: Locator): Locator {
-    return folderNode.locator(".node__name--folder:not(.document-tree-invisible)").first();
+    return folderNode.locator(':scope > button .node__name--folder:not(.document-tree-invisible)').first();
   }
 
   public getFolderCount(folderNode: Locator): Locator {
-    return folderNode.locator(".node__count").first();
+    return folderNode.locator(":scope > button .node__count").first();
   }
 
   public getFile(folderNode: Locator, fileName: string): Locator {
@@ -85,7 +88,7 @@ export class CaseFileViewPage extends Base {
   }
 
   public async clickFile(folderPath: string, fileName: string): Promise<void> {
-    const folderNode = await this.getFolderNode(folderPath);
+    const folderNode = await this.getExpandedFolderNode(folderPath);
     await this.getFile(folderNode, fileName).click();
   }
 
@@ -94,7 +97,7 @@ export class CaseFileViewPage extends Base {
   }
 
   public async getVisibleFileNamesUnderFolder(folderPath: string): Promise<string[]> {
-    const folderNode = await this.getFolderNode(folderPath);
+    const folderNode = await this.getExpandedFolderNode(folderPath);
     return folderNode.locator(".document-tree-container__node--document > button .node-name-document").evaluateAll((nodes) =>
       nodes
         .map((node) => {
@@ -134,7 +137,9 @@ export class CaseFileViewPage extends Base {
   }
 
   private async findDirectChildFolderNode(scope: Locator, folderName: string): Promise<Locator> {
-    const folderNodes = scope.locator(":scope > cdk-nested-tree-node.document-tree-container__folder");
+    const folderNodes = scope.locator(
+      ':scope > cdk-nested-tree-node.document-tree-container__folder, :scope > div[role="group"] > cdk-nested-tree-node.document-tree-container__folder'
+    );
     const folderLabels = folderNodes.locator(":scope > button .node__name--folder:not(.document-tree-invisible)");
     await expect
       .poll(() => this.collectVisibleFolderNames(folderLabels), {
@@ -164,6 +169,20 @@ export class CaseFileViewPage extends Base {
         visibleFolderNames.join(", ") || "none"
       }`
     );
+  }
+
+  private async expandFolder(folderButton: Locator): Promise<void> {
+    if ((await folderButton.getAttribute("aria-expanded")) === "true") {
+      return;
+    }
+
+    await folderButton.click();
+    await expect
+      .poll(() => folderButton.getAttribute("aria-expanded"), {
+        timeout: CASE_FILE_VIEW_FOLDER_TIMEOUT_MS,
+        intervals: [CASE_FILE_VIEW_FOLDER_POLL_INTERVAL_MS]
+      })
+      .toBe("true");
   }
 
   private async waitForVisibleDirectChildFolders(scope: Locator): Promise<void> {
