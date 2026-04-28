@@ -172,9 +172,10 @@ retry(conditions: [agent()], count: 2) {
             }
 
             stage('Integration tests') {
+              def integrationWorkers = params.FUNCTIONAL_TESTS_WORKERS ?: '4'
               def integrationOdhinEnv = [
-                'FUNCTIONAL_TESTS_WORKERS=2',
-                'PLAYWRIGHT_WORKERS=2',
+                "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
+                "PLAYWRIGHT_WORKERS=${integrationWorkers}",
                 'PW_UI_STORAGE=1',
                 'PW_ODHIN_INDEX=playwright-odhin-integration.html',
                 'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
