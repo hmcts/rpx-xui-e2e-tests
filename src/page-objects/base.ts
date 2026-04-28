@@ -29,6 +29,7 @@ type ApiCall = {
 };
 
 const logger = createLogger({ serviceName: "api-monitor", format: "pretty" });
+const shouldLogApiMonitorEvents = process.env.PW_API_MONITOR_LOG !== "0";
 
 // A base page inherited by pages & components
 // can contain any additional config needed + instantiated page object
@@ -100,26 +101,32 @@ export abstract class Base {
 
       if (status >= 500) {
         call.error = `HTTP ${status} - Server Error`;
-        logger.error("DOWNSTREAM_API_FAILURE", {
-          url: call.url,
-          status,
-          duration: duration === -1 ? "unknown" : `${duration}ms`,
-          method: request.method(),
-        });
+        if (shouldLogApiMonitorEvents) {
+          logger.error("DOWNSTREAM_API_FAILURE", {
+            url: call.url,
+            status,
+            duration: duration === -1 ? "unknown" : `${duration}ms`,
+            method: request.method(),
+          });
+        }
       } else if (duration !== -1 && duration > 5000) {
-        logger.warn("SLOW_API_RESPONSE", {
-          url: call.url,
-          duration: `${duration}ms`,
-          status,
-          method: request.method(),
-        });
+        if (shouldLogApiMonitorEvents) {
+          logger.warn("SLOW_API_RESPONSE", {
+            url: call.url,
+            duration: `${duration}ms`,
+            status,
+            method: request.method(),
+          });
+        }
       } else if (status >= 400) {
         call.error = `HTTP ${status} - Client Error`;
-        logger.warn("CLIENT_ERROR", {
-          url: call.url,
-          status,
-          method: request.method(),
-        });
+        if (shouldLogApiMonitorEvents) {
+          logger.warn("CLIENT_ERROR", {
+            url: call.url,
+            status,
+            method: request.method(),
+          });
+        }
       }
     });
 

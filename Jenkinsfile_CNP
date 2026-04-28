@@ -176,6 +176,7 @@ retry(conditions: [agent()], count: 2) {
               def integrationOdhinEnv = [
                 "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
                 "PLAYWRIGHT_WORKERS=${integrationWorkers}",
+                'PW_API_MONITOR_LOG=0',
                 'PW_UI_STORAGE=1',
                 'PW_ODHIN_INDEX=playwright-odhin-integration.html',
                 'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
