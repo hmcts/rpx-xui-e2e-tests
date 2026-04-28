@@ -146,8 +146,8 @@ withNightlyPipeline(type, product, component, 300) {
 
     stage('Tests') {
       def integrationOdhinEnv = [
-        'FUNCTIONAL_TESTS_WORKERS=4',
-        'PLAYWRIGHT_WORKERS=4',
+        'FUNCTIONAL_TESTS_WORKERS=2',
+        'PLAYWRIGHT_WORKERS=2',
         'PW_UI_STORAGE=1',
         'PW_ODHIN_INDEX=playwright-odhin-integration.html',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
