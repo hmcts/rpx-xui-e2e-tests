@@ -29,7 +29,10 @@ type ApiCall = {
 };
 
 const logger = createLogger({ serviceName: "api-monitor", format: "pretty" });
-const shouldLogApiMonitorEvents = process.env.PW_API_MONITOR_LOG !== "0";
+const shouldLogApiMonitorEvents =
+  process.env.PW_API_MONITOR_LOG === undefined
+    ? !process.env.CI
+    : process.env.PW_API_MONITOR_LOG !== "0";
 
 // A base page inherited by pages & components
 // can contain any additional config needed + instantiated page object

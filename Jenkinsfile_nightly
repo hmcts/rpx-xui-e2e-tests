@@ -175,6 +175,7 @@ withNightlyPipeline(type, product, component, 400) {
           def integrationOdhinEnv = [
             'FUNCTIONAL_TESTS_WORKERS=4',
             'PLAYWRIGHT_WORKERS=4',
+            'PW_API_MONITOR_LOG=0',
             'PW_UI_STORAGE=1',
             'PW_ODHIN_INDEX=playwright-odhin-integration-nightly.html',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration-nightly/odhin-report'
