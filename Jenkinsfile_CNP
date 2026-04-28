@@ -148,8 +148,8 @@ withNightlyPipeline(type, product, component, 300) {
       parallel(
         'API tests': {
           def apiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=4',
-            'PLAYWRIGHT_WORKERS=4',
+            'FUNCTIONAL_TESTS_WORKERS=2',
+            'PLAYWRIGHT_WORKERS=2',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
           ]
@@ -174,8 +174,8 @@ withNightlyPipeline(type, product, component, 300) {
         },
         'Integration tests': {
           def integrationOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
+            'FUNCTIONAL_TESTS_WORKERS=1',
+            'PLAYWRIGHT_WORKERS=1',
             'PW_UI_STORAGE=1',
             'PW_ODHIN_INDEX=playwright-odhin-integration.html',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
@@ -203,8 +203,8 @@ withNightlyPipeline(type, product, component, 300) {
         },
         'UI tests': {
           def uiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
+            'FUNCTIONAL_TESTS_WORKERS=1',
+            'PLAYWRIGHT_WORKERS=1',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
