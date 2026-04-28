@@ -39,6 +39,10 @@ properties([
 
 @Library("Infrastructure")
 
+import uk.gov.hmcts.contino.AppPipelineConfig
+import uk.gov.hmcts.contino.Subscription
+import uk.gov.hmcts.pipeline.TeamConfig
+
 def type = "nodejs"
 def product = "rpx"
 def component = "xui-e2e-tests"
@@ -125,52 +129,79 @@ def secrets = [
 ]
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+def pipelineConfig = new AppPipelineConfig()
+pipelineConfig.vaultSecrets = secrets
+def subscription = new Subscription(env)
 
-withNightlyPipeline(type, product, component, 300) {
-  loadVaultSecrets(secrets)
-  env.TEST_URL = params.TEST_URL
-  env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
-  enableSlackNotifications(channel)
+new TeamConfig(this).setTeamConfigEnv(product)
 
-  afterAlways('DependencyCheckNightly') {
-    stage('Lint') {
-      yarnBuilder.yarn('lint')
-    }
-
-    stage('Install Playwright Browsers') {
-      yarnBuilder.yarn('pwinstall')
-    }
-
-    stage('Tests') {
-      def integrationOdhinEnv = [
-        'FUNCTIONAL_TESTS_WORKERS=2',
-        'PLAYWRIGHT_WORKERS=2',
-        'PW_UI_STORAGE=1',
-        'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
-      ]
+retry(conditions: [agent()], count: 2) {
+  node(env.BUILD_AGENT_TYPE ?: '') {
+    timeoutWithMsg(time: 180, unit: 'MINUTES', action: 'pipeline') {
       try {
-        withEnv(integrationOdhinEnv) {
-          yarnBuilder.yarn('playwright test --project=integration')
+        dockerAgentSetup()
+        env.PATH = "$env.PATH:/usr/local/bin"
+
+        withSubscriptionLogin(subscription.nonProdName) {
+          withTeamSecrets(pipelineConfig, params.TEST_ENV) {
+            env.TEST_URL = params.TEST_URL
+            env.TEST_ENV = params.TEST_ENV
+            env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+            env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+            env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
+            env.BUILD_NOTICES_SLACK_CHANNEL = channel
+
+            stage('Checkout') {
+              checkoutScm()
+            }
+
+            stage('Lint') {
+              yarnBuilder.yarn('lint')
+            }
+
+            stage('Dependency check') {
+              warnError('Failure in DependencyCheckNightly') {
+                timeoutWithMsg(time: 15, unit: 'MINUTES', action: 'Dependency check') {
+                  yarnBuilder.securityCheck()
+                }
+              }
+            }
+
+            stage('Install Playwright Browsers') {
+              yarnBuilder.yarn('pwinstall')
+            }
+
+            stage('Integration tests') {
+              def integrationOdhinEnv = [
+                'FUNCTIONAL_TESTS_WORKERS=2',
+                'PLAYWRIGHT_WORKERS=2',
+                'PW_UI_STORAGE=1',
+                'PW_ODHIN_INDEX=playwright-odhin-integration.html',
+                'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
+              ]
+              try {
+                withEnv(integrationOdhinEnv) {
+                  yarnBuilder.yarn('playwright test --project=integration')
+                }
+              } finally {
+                withEnv(integrationOdhinEnv) {
+                  yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+                }
+                publishHTML([
+                  allowMissing         : true,
+                  alwaysLinkToLastBuild: true,
+                  keepAll              : true,
+                  reportDir            : "functional-output/tests/playwright-integration/odhin-report",
+                  reportFiles          : 'playwright-odhin-integration.html',
+                  reportName           : 'Integration Odhín report'
+                ])
+                archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
+              }
+            }
+          }
         }
-      } catch (Error) {
-        unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
       } finally {
-        withEnv(integrationOdhinEnv) {
-          yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
-        }
-        publishHTML([
-          allowMissing         : true,
-          alwaysLinkToLastBuild: true,
-          keepAll              : true,
-          reportDir            : "functional-output/tests/playwright-integration/odhin-report",
-          reportFiles          : 'playwright-odhin-integration.html',
-          reportName           : 'Integration Odhín report'
-        ])
-        archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
+        deleteDir()
       }
     }
   }
