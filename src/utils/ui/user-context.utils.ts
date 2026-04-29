@@ -81,7 +81,10 @@ export const getUiUserContext = async (page: Page): Promise<UserContextDetails> 
     pickFirstString(payload?.email);
   const fallbackRoles = normalizeRoles(payload?.roles ?? payload?.authorities);
   try {
-    const response = await page.request.get("api/user/details", { failOnStatusCode: false });
+    const response = await page.request.get("api/user/details", {
+      failOnStatusCode: false,
+      timeout: 5_000
+    });
     const details = await parseUserDetails(response, fallbackUsername);
     if (details.source !== "error") {
       return {

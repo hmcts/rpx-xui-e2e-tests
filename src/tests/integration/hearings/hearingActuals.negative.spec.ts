@@ -33,14 +33,12 @@ test.describe(
 
       await hearingsTabPage.waitForReady(awaitingActualsScenario.hearingId, 'add-or-edit');
       await hearingsTabPage.openAddOrEdit(awaitingActualsScenario.hearingId);
-
-      await expect(page).toHaveURL(
-        new RegExp(`/hearings/actuals/${awaitingActualsScenario.hearingId}/hearing-actual-add-edit-summary$`)
-      );
+      await expect(page.getByRole('heading', { name: /hearing details/i })).toBeVisible();
       await page.getByRole('button', { name: /^continue$/i }).click();
       await expect(page).toHaveURL(
         new RegExp(`/hearings/actuals/${awaitingActualsScenario.hearingId}/hearing-actual-edit-summary$`)
       );
+      await expect(page.getByRole('heading', { name: /check your answers/i })).toBeVisible();
 
       const failedCompletionResponse = page.waitForResponse(
         (response) =>

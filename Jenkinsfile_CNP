@@ -187,6 +187,7 @@ retry(conditions: [agent()], count: 2) {
                     "PLAYWRIGHT_WORKERS=${integrationWorkers}",
                     'PW_API_MONITOR_LOG=0',
                     'PW_UI_STORAGE=1',
+                    'PLAYWRIGHT_REPORTERS=list,odhin',
                     "PW_ODHIN_INDEX=playwright-odhin-integration-shard-${shard}.html",
                     "PLAYWRIGHT_REPORT_FOLDER=${integrationReportRoot}/shard-${shard}/odhin-report"
                   ]
