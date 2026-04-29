@@ -49,7 +49,7 @@ import uk.gov.hmcts.contino.Subscription
 import uk.gov.hmcts.pipeline.TeamConfig
 
 def type = "nodejs"
-def product = "rpx"
+def product = "xui"
 def component = "xui-e2e-tests"
 def channel = "#xui-pipeline"
 

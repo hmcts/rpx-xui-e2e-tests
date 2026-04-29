@@ -39,7 +39,7 @@ properties([
 @Library("Infrastructure")
 
 def type = "nodejs"
-def product = "rpx"
+def product = "xui"
 def component = "xui-e2e-tests"
 def channel = "#xui-pipeline"
 
