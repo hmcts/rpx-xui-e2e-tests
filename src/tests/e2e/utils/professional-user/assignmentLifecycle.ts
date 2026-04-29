@@ -335,7 +335,7 @@ export async function cleanupIdamAccountFlow(
           endpoint: endpointById,
         };
       }
-      throw new Error(`IDAM v2 cleanup failed with status ${response.status}.`);
+      throw new Error(`IDAM v2 cleanup failed with status ${response.status}.`, { cause: testingSupportError });
     }
   } catch (error) {
     if (!deps.isPlaywrightArtifactIoError(error)) {

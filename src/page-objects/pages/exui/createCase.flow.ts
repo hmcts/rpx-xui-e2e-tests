@@ -275,7 +275,9 @@ export async function startCreateCaseFlow({
 
       if (attempt === maxAttempts) {
         if (bootstrapFailure) {
-          throw new Error(buildCreateCaseBootstrapFailureMessage(`(attempt ${attempt}/${maxAttempts})`, bootstrapFailure));
+          throw new Error(buildCreateCaseBootstrapFailureMessage(`(attempt ${attempt}/${maxAttempts})`, bootstrapFailure), {
+            cause: error
+          });
         }
         throw error;
       }

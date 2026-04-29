@@ -899,7 +899,7 @@ export class CreateCasePage extends Base {
     } catch (error) {
       const stillVisible = await spinner.isVisible().catch(() => false);
       if (stillVisible) {
-        throw new Error(`Spinner still visible ${context}`);
+        throw new Error(`Spinner still visible ${context}`, { cause: error });
       }
       this.logger.warn("Spinner hidden wait failed, proceeding because spinner not visible", {
         context,

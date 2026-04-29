@@ -87,11 +87,11 @@ export class HearingsTabPage {
       await expect(actionButton).toBeVisible({ timeout: 20_000 });
     } catch (error) {
       if (await this.emptyState.isVisible()) {
-        throw new Error('Hearings tab rendered empty state instead of the expected LISTED hearing row.');
+        throw new Error('Hearings tab rendered empty state instead of the expected LISTED hearing row.', { cause: error });
       }
 
       if (await this.reloadButton.isVisible()) {
-        throw new Error('Hearings tab rendered the reload state instead of the expected LISTED hearing row.');
+        throw new Error('Hearings tab rendered the reload state instead of the expected LISTED hearing row.', { cause: error });
       }
 
       throw error;

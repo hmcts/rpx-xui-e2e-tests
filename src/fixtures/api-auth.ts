@@ -264,7 +264,7 @@ async function createStorageStateViaForm(
     await context.get("/");
     await context.storageState({ path: storagePath });
   } catch (error) {
-    throw new Error(`Failed to login as ${role}: ${formatUnknownError(error)}`);
+    throw new Error(`Failed to login as ${role}: ${formatUnknownError(error)}`, { cause: error });
   } finally {
     await context.dispose();
   }

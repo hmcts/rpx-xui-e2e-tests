@@ -562,7 +562,7 @@ export class CaseDetailsPage extends Base {
     } catch (error) {
       const eventErrorVisible = await this.eventCreationErrorHeading.isVisible().catch(() => false);
       if (eventErrorVisible) {
-        throw new Error(`Case event failed after selecting "${action}": The event could not be created.`);
+        throw new Error(`Case event failed after selecting "${action}": The event could not be created.`, { cause: error });
       }
       if (options.retry === false) {
         throw error;
@@ -593,7 +593,7 @@ export class CaseDetailsPage extends Base {
     } catch (error) {
       const stillVisible = await spinner.isVisible().catch(() => false);
       if (stillVisible) {
-        throw new Error(`Spinner still visible ${context}`);
+        throw new Error(`Spinner still visible ${context}`, { cause: error });
       }
       this.logger.warn('Spinner hidden wait failed, proceeding because spinner not visible', { context, error });
     }
