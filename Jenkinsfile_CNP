@@ -25,6 +25,11 @@ properties([
       description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
     ),
     string(
+      name: 'INTEGRATION_TEST_SHARDS',
+      defaultValue: '4',
+      description: 'Number of shards for the PR integration suite. Keeps the full suite enabled while reducing each Jenkins shell step duration.'
+    ),
+    string(
       name: 'E2E_PW_INCLUDE_TAGS',
       defaultValue: '',
       description: 'Optional comma/space separated Playwright E2E tags to include, for example @e2e-search-case or @e2e-search-case @e2e-update-case'
@@ -173,31 +178,40 @@ retry(conditions: [agent()], count: 2) {
 
             stage('Integration tests') {
               def integrationWorkers = params.FUNCTIONAL_TESTS_WORKERS ?: '4'
-              def integrationOdhinEnv = [
-                "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
-                "PLAYWRIGHT_WORKERS=${integrationWorkers}",
-                'PW_API_MONITOR_LOG=0',
-                'PW_UI_STORAGE=1',
-                'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-                'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
-              ]
+              def integrationShards = (params.INTEGRATION_TEST_SHARDS ?: '4').toInteger()
+              def integrationReportRoot = 'functional-output/tests/playwright-integration'
               try {
-                withEnv(integrationOdhinEnv) {
-                  yarnBuilder.yarn('playwright test --project=integration')
+                for (int shard = 1; shard <= integrationShards; shard++) {
+                  def integrationOdhinEnv = [
+                    "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
+                    "PLAYWRIGHT_WORKERS=${integrationWorkers}",
+                    'PW_API_MONITOR_LOG=0',
+                    'PW_UI_STORAGE=1',
+                    "PW_ODHIN_INDEX=playwright-odhin-integration-shard-${shard}.html",
+                    "PLAYWRIGHT_REPORT_FOLDER=${integrationReportRoot}/shard-${shard}/odhin-report"
+                  ]
+                  try {
+                    withEnv(integrationOdhinEnv) {
+                      yarnBuilder.yarn("playwright test --project=integration --shard=${shard}/${integrationShards}")
+                    }
+                  } finally {
+                    withEnv(integrationOdhinEnv) {
+                      yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+                    }
+                  }
                 }
               } finally {
-                withEnv(integrationOdhinEnv) {
-                  yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+                for (int shard = 1; shard <= integrationShards; shard++) {
+                  publishHTML([
+                    allowMissing         : true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll              : true,
+                    reportDir            : "${integrationReportRoot}/shard-${shard}/odhin-report",
+                    reportFiles          : "playwright-odhin-integration-shard-${shard}.html",
+                    reportName           : "Integration Odhín report (shard ${shard})"
+                  ])
                 }
-                publishHTML([
-                  allowMissing         : true,
-                  alwaysLinkToLastBuild: true,
-                  keepAll              : true,
-                  reportDir            : "functional-output/tests/playwright-integration/odhin-report",
-                  reportFiles          : 'playwright-odhin-integration.html',
-                  reportName           : 'Integration Odhín report'
-                ])
-                archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
+                archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportRoot}/**/odhin-report/**"
               }
             }
           }
