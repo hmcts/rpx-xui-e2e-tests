@@ -495,7 +495,7 @@ const acquireStorageStateLock = async (
       }
 
       if (Date.now() >= deadline) {
-        throw new Error(`Timed out waiting for UI session lock ${path.basename(lockPath)}.`);
+        throw new Error(`Timed out waiting for UI session lock ${path.basename(lockPath)}.`, { cause: error });
       }
       await delay(250);
     }

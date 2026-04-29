@@ -155,9 +155,9 @@ export function loadSessionCookies(
     };
   } catch (error) {
     if (error instanceof SyntaxError) {
-      throw new Error(`Storage file corrupted: ${storageFile}`);
+      throw new Error(`Storage file corrupted: ${storageFile}`, { cause: error });
     }
-    throw new Error(`Failed parsing storage file: ${storageFile}`);
+    throw new Error(`Failed parsing storage file: ${storageFile}`, { cause: error });
   }
 }
 
@@ -208,7 +208,9 @@ export async function acquireSessionLock({
     try {
       return await lockApi.lock(lockFilePath, { retries: 0 });
     } catch (retryError) {
-      throw new Error(`Could not acquire session lock for ${userIdentifier}: ${(retryError as Error).message}`);
+      throw new Error(`Could not acquire session lock for ${userIdentifier}: ${(retryError as Error).message}`, {
+        cause: retryError
+      });
     }
   }
 }

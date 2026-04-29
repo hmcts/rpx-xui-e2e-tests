@@ -118,7 +118,9 @@ async function acquireWelshLanguageLease(user: SessionIdentityInput): Promise<()
 
       const elapsedMs = Date.now() - startedAt;
       if (elapsedMs >= welshLanguageLeaseMaxWaitMs) {
-        throw new Error(`Timed out waiting for Welsh language session lease after ${elapsedMs}ms (${leasePath})`);
+        throw new Error(`Timed out waiting for Welsh language session lease after ${elapsedMs}ms (${leasePath})`, {
+          cause: error
+        });
       }
 
       const stat = fs.statSync(leasePath, { throwIfNoEntry: false });
