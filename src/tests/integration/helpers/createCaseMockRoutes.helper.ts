@@ -196,7 +196,7 @@ export async function openCreateCaseJourney(
   const caseType = options.caseType ?? "xuiTestJurisdiction";
 
   await navigateWithTransientGatewayRetry(page, `/cases/case-create/${jurisdiction}/${caseType}/createCase/`, {
-    maxAttempts: options.maxAttempts,
+    maxAttempts: options.maxAttempts ?? 3,
     contextLabel: "create case",
     afterNavigation: async () => {
       await createCasePage.waitForDivorcePocPersonalDetailsReady();

@@ -5,10 +5,10 @@ import { isTransientWorkflowFailure } from "../../../tests/e2e/utils/transient-f
 import { Base } from "../../base";
 
 import { extractCaseNumberFromUrl } from "./caseDetails.po.js";
+import { startCreateCaseFlow } from "./createCase.flow.js";
 import {
   matchCreateCaseOption,
-  normalizeCreateCaseOptionToken,
-  resolveCreateCaseStartEvent
+  normalizeCreateCaseOptionToken
 } from "./createCase.options";
 import { EXUI_TIMEOUTS } from "./exui-timeouts";
 
@@ -21,6 +21,10 @@ export interface CreateCaseSelection {
   selectedCaseType?: SelectOption;
 }
 
+type CreateCaseOptions = {
+  maxAttempts?: number;
+};
+
 export type PersonData = {
   title?: string;
   firstName?: string;
@@ -30,6 +34,12 @@ export type PersonData = {
   jobTitle?: string;
   jobDescription?: string;
 };
+
+const CRITICAL_WIZARD_API_PATTERNS: RegExp[] = [
+  /\/cases\/\d+\/event-triggers\//,
+  /\/cases\/\d+\/events/,
+  /\/event-triggers\/[^/]+\/validate/
+];
 
 export type DivorcePoCData = PersonData & {
   textField0?: string;
@@ -195,6 +205,68 @@ export class CreateCasePage extends Base {
     await this.page.waitForTimeout(intervalMs);
   }
 
+  private async waitForSelectReady(selector: string, timeoutMs?: number): Promise<void> {
+    const effectiveTimeoutMs = timeoutMs ?? EXUI_TIMEOUTS.WAIT_FOR_SELECT_READY_DEFAULT;
+    const deadline = Date.now() + effectiveTimeoutMs;
+
+    while (Date.now() < deadline) {
+      const ready = await this.page.evaluate((selectSelector) => {
+        const element = document.querySelector(selectSelector);
+        return element instanceof HTMLSelectElement && element.options.length > 1 && !element.disabled;
+      }, selector);
+
+      if (ready) {
+        return;
+      }
+
+      await this.waitForCreateCasePoll(EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL);
+    }
+
+    throw new Error(`Create case select "${selector}" did not become ready within ${effectiveTimeoutMs}ms`);
+  }
+
+  private async selectOptionSmart(selectLocator: Locator, option: string): Promise<void> {
+    await this.selectOptionWhenReady(selectLocator, option);
+  }
+
+  private failFastOnCriticalWizardEndpointFailure(context: string, baselineIndex = 0): void {
+    const recentCalls = this.getApiCalls().slice(Math.max(0, baselineIndex));
+    const criticalFailure = recentCalls.find(
+      (call) => call.status >= 500 && CRITICAL_WIZARD_API_PATTERNS.some((pattern) => pattern.test(call.url))
+    );
+
+    if (criticalFailure) {
+      throw new Error(
+        `Critical wizard endpoint failure ${context}: ${criticalFailure.method} ${criticalFailure.url} returned HTTP ${criticalFailure.status}`
+      );
+    }
+  }
+
+  private async waitForCreateCaseStartReadiness(caseType: string): Promise<void> {
+    const normalizedCaseType = normalizeCreateCaseOptionToken(caseType);
+    if (normalizedCaseType === normalizeCreateCaseOptionToken("XUI Case PoC")) {
+      await this.waitForDivorcePocPersonalDetailsReady(EXUI_TIMEOUTS.POC_FIELD_VISIBLE);
+      return;
+    }
+
+    if (
+      normalizedCaseType === normalizeCreateCaseOptionToken("XUI Test Case type") ||
+      normalizedCaseType === normalizeCreateCaseOptionToken("xuiTestCaseType")
+    ) {
+      await this.textFieldInput.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.POC_FIELD_VISIBLE });
+      return;
+    }
+
+    if (normalizedCaseType === normalizeCreateCaseOptionToken("xuiCaseFlagsV1")) {
+      await this.party1RoleOnCase.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.POC_FIELD_VISIBLE });
+      return;
+    }
+
+    if (normalizedCaseType === normalizeCreateCaseOptionToken("ET_EnglandWales")) {
+      await this.receiptDayInput.waitFor({ state: "visible", timeout: EXUI_TIMEOUTS.POC_FIELD_VISIBLE });
+    }
+  }
+
   private async resolveVisibleField(
     candidates: Locator[],
     description: string,
@@ -316,16 +388,59 @@ export class CreateCasePage extends Base {
     };
   }
 
-  async createCase(jurisdiction: string, caseType: string, eventType?: string) {
+  async createCase(
+    jurisdiction: string,
+    caseType: string,
+    eventType?: string,
+    options: CreateCaseOptions = {}
+  ) {
     const requestedEventType = eventType?.trim();
-    await this.ensureCreateCasePage();
-    await this.selectOptionWhenReady(this.jurisdictionSelect, jurisdiction);
-    await this.selectOptionWhenReady(this.caseTypeSelect, caseType);
-    if (requestedEventType) {
-      await this.selectOptionWhenReady(this.eventTypeSelect, requestedEventType);
+    const maxAttempts = options.maxAttempts ?? 2;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const apiCallsBaseline = this.getApiCalls().length;
+      try {
+        await this.ensureCreateCasePage();
+        await startCreateCaseFlow({
+          page: this.page,
+          jurisdiction,
+          caseType,
+          eventType: requestedEventType,
+          maxAttempts: 1,
+          createCaseButton: this.createCaseButton,
+          jurisdictionSelect: this.jurisdictionSelect,
+          caseTypeSelect: this.caseTypeSelect,
+          eventTypeSelect: this.eventTypeSelect,
+          startButton: this.startButton,
+          somethingWentWrongHeading: this.somethingWentWrongHeading,
+          getApiCalls: () => this.getApiCalls(),
+          waitForSelectReady: (selector, timeoutMs) => this.waitForSelectReady(selector, timeoutMs),
+          selectOptionSmart: (selectLocator, option) => this.selectOptionSmart(selectLocator, option),
+          normalizeUnknownError: (error) => this.normalizeUnknownError(error),
+          warn: (message, meta) => this.logger.warn(message, meta),
+          debug: (message, meta) => this.logger.debug(message, meta)
+        });
+        await this.waitForSpinnerToComplete("after starting create case", EXUI_TIMEOUTS.POC_FIELD_VISIBLE);
+        this.failFastOnCriticalWizardEndpointFailure("after starting create case", apiCallsBaseline);
+        await this.assertNoEventCreationError("after starting create case");
+        await this.waitForCreateCaseStartReadiness(caseType);
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts || this.page.isClosed()) {
+          throw error;
+        }
+
+        this.logger.warn("Create case start did not reach expected wizard page; retrying", {
+          attempt,
+          maxAttempts,
+          jurisdiction,
+          caseType,
+          eventType: requestedEventType,
+          error: this.normalizeUnknownError(error).slice(0, 220)
+        });
+        await this.page.goto("/cases/case-filter");
+      }
     }
-    await this.ensureStartButtonReady(requestedEventType);
-    await this.startButton.click();
   }
 
   async createDivorceCase(jurisdiction: string, caseType: string, textField0: string) {
@@ -1041,45 +1156,6 @@ export class CreateCasePage extends Base {
       });
       await waitForAdvance();
     }
-  }
-
-  private async ensureStartButtonReady(
-    requestedEventType?: string,
-    timeoutMs = EXUI_TIMEOUTS.WAIT_FOR_SELECT_READY_EXTENDED
-  ): Promise<void> {
-    const startEnabled = await this.startButton.isEnabled().catch(() => false);
-    if (startEnabled) {
-      return;
-    }
-
-    const eventSelectVisible = await this.eventTypeSelect.isVisible().catch(() => false);
-    if (eventSelectVisible) {
-      const eventOptions = await this.readSelectableOptionsWithGrace(this.eventTypeSelect, timeoutMs);
-      const desiredEvent = resolveCreateCaseStartEvent(eventOptions, requestedEventType);
-      if (desiredEvent) {
-        const selectedValue = await this.eventTypeSelect.inputValue().catch(() => "");
-        const currentEvent =
-          matchCreateCaseOption(eventOptions, selectedValue) ??
-          eventOptions.find((option) => option.value === selectedValue);
-        const selectedToken = normalizeCreateCaseOptionToken(
-          currentEvent?.value || currentEvent?.label || selectedValue
-        );
-        const desiredToken = normalizeCreateCaseOptionToken(
-          desiredEvent.value || desiredEvent.label
-        );
-        if (selectedToken !== desiredToken) {
-          await this.selectOptionWhenReady(
-            this.eventTypeSelect,
-            this.resolveOptionValue(desiredEvent),
-            timeoutMs
-          );
-        }
-      }
-    }
-
-    await expect
-      .poll(() => this.startButton.isEnabled().catch(() => false), { timeout: timeoutMs })
-      .toBe(true);
   }
 
   private async fillGenericDivorceCase(textField0: string): Promise<void> {

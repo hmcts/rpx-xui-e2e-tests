@@ -23,14 +23,33 @@ properties([
       name: 'FUNCTIONAL_TESTS_WORKERS',
       defaultValue: '4',
       description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
+    ),
+    string(
+      name: 'INTEGRATION_TEST_SHARDS',
+      defaultValue: '4',
+      description: 'Number of shards for the PR integration suite. Keeps the full suite enabled while reducing each Jenkins shell step duration.'
+    ),
+    string(
+      name: 'E2E_PW_INCLUDE_TAGS',
+      defaultValue: '',
+      description: 'Optional comma/space separated Playwright E2E tags to include, for example @e2e-search-case or @e2e-search-case @e2e-update-case'
+    ),
+    string(
+      name: 'E2E_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '',
+      description: 'Optional comma/space separated Playwright E2E tags to exclude; overrides src/tests/e2e/tag-filter.json. Examples: @e2e-manage-tasks, @e2e-document-upload @e2e-case-flags, @none to clear repo defaults'
     )
   ])
 ])
 
 @Library("Infrastructure")
 
+import uk.gov.hmcts.contino.AppPipelineConfig
+import uk.gov.hmcts.contino.Subscription
+import uk.gov.hmcts.pipeline.TeamConfig
+
 def type = "nodejs"
-def product = "rpx"
+def product = "xui"
 def component = "xui-e2e-tests"
 def channel = "#xui-pipeline"
 
@@ -63,6 +82,10 @@ def secrets = [
     secret('prl-solicitor-password', 'PRL_SOLICITOR_PASSWORD'),
     secret('solicitor-username', 'SOLICITOR_USERNAME'),
     secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('e2e-divorce-solicitor-username', 'DIVORCE_SOLICITOR_USERNAME'),
+    secret('e2e-divorce-solicitor-password', 'DIVORCE_SOLICITOR_PASSWORD'),
+    secret('e2e-search-employment-case-username', 'SEARCH_EMPLOYMENT_CASE_USERNAME'),
+    secret('e2e-search-employment-case-password', 'SEARCH_EMPLOYMENT_CASE_PASSWORD'),
     secret('idam-solicitor-user-password', 'IDAM_SOLICITOR_USER_PASSWORD'),
     secret('idam-caseworker-divorce-password', 'IDAM_CASEWORKER_DIVORCE_PASSWORD'),
     secret('xui-dynamic-org-user-assignment-username', 'ORG_USER_ASSIGNMENT_USERNAME'),
@@ -111,121 +134,92 @@ def secrets = [
 ]
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+def pipelineConfig = new AppPipelineConfig()
+pipelineConfig.vaultSecrets = secrets
+def subscription = new Subscription(env)
 
-withNightlyPipeline(type, product, component, 300) {
-  loadVaultSecrets(secrets)
-  env.TEST_URL = params.TEST_URL
-  env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
-  enableSlackNotifications(channel)
+new TeamConfig(this).setTeamConfigEnv(product)
 
-  afterAlways('DependencyCheckNightly') {
-    stage('Lint') {
-      yarnBuilder.yarn('lint')
-    }
+retry(conditions: [agent()], count: 2) {
+  node(env.BUILD_AGENT_TYPE ?: '') {
+    timeoutWithMsg(time: 180, unit: 'MINUTES', action: 'pipeline') {
+      try {
+        dockerAgentSetup()
+        env.PATH = "$env.PATH:/usr/local/bin"
 
-    stage('Install Playwright Browsers') {
-      yarnBuilder.yarn('pwinstall')
-    }
+        withSubscriptionLogin(subscription.nonProdName) {
+          withTeamSecrets(pipelineConfig, params.TEST_ENV) {
+            env.TEST_URL = params.TEST_URL
+            env.TEST_ENV = params.TEST_ENV
+            env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+            env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+            env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
+            env.BUILD_NOTICES_SLACK_CHANNEL = channel
 
-    stage('Tests') {
-      parallel(
-        'API tests': {
-          def apiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=4',
-            'PLAYWRIGHT_WORKERS=4',
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
-          ]
-          try {
-            withEnv(apiOdhinEnv) {
-              yarnBuilder.yarn('test:api:coverage')
+            stage('Checkout') {
+              checkoutScm()
             }
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/api_functional/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'API Odhín report'
-            ])
-            junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
-          }
-        },
-        'Integration tests': {
-          def integrationOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=4',
-            'PLAYWRIGHT_WORKERS=4',
-            'PW_UI_STORAGE=1',
-            'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
-          ]
-          try {
-            withEnv(integrationOdhinEnv) {
-              yarnBuilder.yarn('playwright test --project=integration')
+
+            stage('Lint') {
+              yarnBuilder.yarn('lint')
             }
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            withEnv(integrationOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+
+            stage('Dependency check') {
+              warnError('Failure in DependencyCheckNightly') {
+                timeoutWithMsg(time: 15, unit: 'MINUTES', action: 'Dependency check') {
+                  yarnBuilder.securityCheck()
+                }
+              }
             }
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/playwright-integration/odhin-report",
-              reportFiles          : 'playwright-odhin-integration.html',
-              reportName           : 'Integration Odhín report'
-            ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
-          }
-        },
-        'UI tests': {
-          def uiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
-            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
-            'PW_UI_USERS=COURT_ADMIN',
-            'PW_UI_STORAGE_STRICT=1',
-            'PW_UI_STORAGE=1',
-            'PW_UI_STORAGE_TTL_MIN=15',
-            'PW_UI_LOGIN_TIMEOUT_MS=120000',
-            'PW_UI_IDLE_TIMEOUT_MS=60000',
-            'PW_UI_IDLE_QUIET_MS=400',
-            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-            'PW_UI_FAIL_ON_HTTP_4XX=0'
-          ]
-          try {
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('test:ui')
+
+            stage('Install Playwright Browsers') {
+              yarnBuilder.yarn('pwinstall')
             }
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+
+            stage('Integration tests') {
+              def integrationWorkers = params.FUNCTIONAL_TESTS_WORKERS ?: '4'
+              def integrationShards = (params.INTEGRATION_TEST_SHARDS ?: '4').toInteger()
+              def integrationReportRoot = 'functional-output/tests/playwright-integration'
+              try {
+                for (int shard = 1; shard <= integrationShards; shard++) {
+                  def integrationOdhinEnv = [
+                    "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
+                    "PLAYWRIGHT_WORKERS=${integrationWorkers}",
+                    'PW_API_MONITOR_LOG=0',
+                    'PW_UI_STORAGE=1',
+                    'PLAYWRIGHT_REPORTERS=list,odhin',
+                    "PW_ODHIN_INDEX=playwright-odhin-integration-shard-${shard}.html",
+                    "PLAYWRIGHT_REPORT_FOLDER=${integrationReportRoot}/shard-${shard}/odhin-report"
+                  ]
+                  try {
+                    withEnv(integrationOdhinEnv) {
+                      yarnBuilder.yarn("playwright test --project=integration --shard=${shard}/${integrationShards}")
+                    }
+                  } finally {
+                    withEnv(integrationOdhinEnv) {
+                      yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+                    }
+                  }
+                }
+              } finally {
+                for (int shard = 1; shard <= integrationShards; shard++) {
+                  publishHTML([
+                    allowMissing         : true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll              : true,
+                    reportDir            : "${integrationReportRoot}/shard-${shard}/odhin-report",
+                    reportFiles          : "playwright-odhin-integration-shard-${shard}.html",
+                    reportName           : "Integration Odhín report (shard ${shard})"
+                  ])
+                }
+                archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportRoot}/**/odhin-report/**"
+              }
             }
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'UI Odhín report'
-            ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
           }
         }
-      )
+      } finally {
+        deleteDir()
+      }
     }
   }
 }

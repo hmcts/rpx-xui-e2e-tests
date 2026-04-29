@@ -22,6 +22,16 @@ properties([
       name: 'tag',
       defaultValue: '@smoke',
       description: 'Optional grep tag for focused runs'
+    ),
+    string(
+      name: 'E2E_PW_INCLUDE_TAGS',
+      defaultValue: '',
+      description: 'Optional comma/space separated Playwright E2E tags to include, for example @e2e-search-case or @e2e-search-case @e2e-update-case'
+    ),
+    string(
+      name: 'E2E_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '',
+      description: 'Optional comma/space separated Playwright E2E tags to exclude; overrides src/tests/e2e/tag-filter.json. Examples: @e2e-manage-tasks, @e2e-document-upload @e2e-case-flags, @none to clear repo defaults'
     )
   ])
 ])
@@ -29,7 +39,7 @@ properties([
 @Library("Infrastructure")
 
 def type = "nodejs"
-def product = "rpx"
+def product = "xui"
 def component = "xui-e2e-tests"
 def channel = "#xui-pipeline"
 
@@ -62,6 +72,10 @@ def secrets = [
     secret('prl-solicitor-password', 'PRL_SOLICITOR_PASSWORD'),
     secret('solicitor-username', 'SOLICITOR_USERNAME'),
     secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('e2e-divorce-solicitor-username', 'DIVORCE_SOLICITOR_USERNAME'),
+    secret('e2e-divorce-solicitor-password', 'DIVORCE_SOLICITOR_PASSWORD'),
+    secret('e2e-search-employment-case-username', 'SEARCH_EMPLOYMENT_CASE_USERNAME'),
+    secret('e2e-search-employment-case-password', 'SEARCH_EMPLOYMENT_CASE_PASSWORD'),
     secret('idam-solicitor-user-password', 'IDAM_SOLICITOR_USER_PASSWORD'),
     secret('idam-caseworker-divorce-password', 'IDAM_CASEWORKER_DIVORCE_PASSWORD'),
     secret('xui-dynamic-org-user-assignment-username', 'ORG_USER_ASSIGNMENT_USERNAME'),
@@ -129,8 +143,8 @@ withNightlyPipeline(type, product, component, 400) {
       parallel(
         'API nightly': {
           def apiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=4',
-            'PLAYWRIGHT_WORKERS=4',
+            'FUNCTIONAL_TESTS_WORKERS=2',
+            'PLAYWRIGHT_WORKERS=2',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
           ]
@@ -161,6 +175,7 @@ withNightlyPipeline(type, product, component, 400) {
           def integrationOdhinEnv = [
             'FUNCTIONAL_TESTS_WORKERS=4',
             'PLAYWRIGHT_WORKERS=4',
+            'PW_API_MONITOR_LOG=0',
             'PW_UI_STORAGE=1',
             'PW_ODHIN_INDEX=playwright-odhin-integration-nightly.html',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration-nightly/odhin-report'
@@ -189,8 +204,8 @@ withNightlyPipeline(type, product, component, 400) {
         },
         'UI nightly': {
           def uiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
+            'FUNCTIONAL_TESTS_WORKERS=1',
+            'PLAYWRIGHT_WORKERS=1',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
@@ -202,7 +217,9 @@ withNightlyPipeline(type, product, component, 400) {
             'PW_UI_IDLE_TIMEOUT_MS=60000',
             'PW_UI_IDLE_QUIET_MS=400',
             'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-            'PW_UI_FAIL_ON_HTTP_4XX=0'
+            'PW_UI_FAIL_ON_HTTP_4XX=0',
+            "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS ?: ''}",
+            "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE ?: ''}"
           ]
           try {
             def tagArg = params.tag ? "--grep ${params.tag}" : ""

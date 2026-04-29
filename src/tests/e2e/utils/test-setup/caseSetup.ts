@@ -7,20 +7,31 @@ import { waitForRetryInterval } from "../transient-failure.utils.js";
 
 type SetupMode = "api-required" | "api-first" | "ui-only";
 
-type SetupCaseRequest = {
+type SetupCaseBaseRequest = {
   scenario: string;
   jurisdiction: string;
   caseType: string;
   apiEventId?: string;
-  mode?: SetupMode;
-  allowUiFallback?: boolean;
   apiPayload?: Record<string, unknown>;
-  uiCreate: () => Promise<void>;
   page: Page;
   createCasePage: CreateCasePage;
   caseDetailsPage: CaseDetailsPage;
   testInfo?: TestInfo;
 };
+
+type ApiRequiredSetupCaseRequest = SetupCaseBaseRequest & {
+  mode: "api-required";
+  uiCreate?: never;
+  allowUiFallback?: boolean;
+};
+
+type UiCapableSetupCaseRequest = SetupCaseBaseRequest & {
+  mode?: Exclude<SetupMode, "api-required">;
+  uiCreate: () => Promise<void>;
+  allowUiFallback?: boolean;
+};
+
+type SetupCaseRequest = ApiRequiredSetupCaseRequest | UiCapableSetupCaseRequest;
 
 type SetupCaseResult = {
   caseNumber: string;
@@ -110,6 +121,20 @@ function resolveUiFallbackFlag(value: boolean | undefined): boolean {
     return value;
   }
   return isTruthy(process.env.PW_E2E_CASE_SETUP_ALLOW_UI_FALLBACK);
+}
+
+function validateSetupCaseRequest(request: SetupCaseRequest, mode: SetupMode): void {
+  if (mode === "api-required" && "uiCreate" in request && request.uiCreate) {
+    throw new Error(
+      `setupCaseForJourney: 'uiCreate' must be omitted when mode='api-required' (scenario='${request.scenario}').`
+    );
+  }
+
+  if (mode !== "api-required" && !("uiCreate" in request && request.uiCreate)) {
+    throw new Error(
+      `setupCaseForJourney: 'uiCreate' is required when mode='${mode}' (scenario='${request.scenario}').`
+    );
+  }
 }
 
 function resolveCreateRetryAttempts(): number {
@@ -457,6 +482,8 @@ export async function setupCaseForJourney(request: SetupCaseRequest): Promise<Se
   const mode = resolveSetupMode(request.mode);
   const allowUiFallback = resolveUiFallbackFlag(request.allowUiFallback);
 
+  validateSetupCaseRequest(request, mode);
+
   if (mode !== "ui-only") {
     try {
       const apiCaseNumber = await createCaseViaApi(request);
@@ -486,7 +513,7 @@ export async function setupCaseForJourney(request: SetupCaseRequest): Promise<Se
     }
   }
 
-  await request.uiCreate();
+  await request.uiCreate!();
   const uiCaseNumber = await request.caseDetailsPage.getCaseNumberFromUrl();
   logger.info("Case setup created via UI fallback", {
     scenario: request.scenario,
@@ -503,5 +530,6 @@ export async function setupCaseForJourney(request: SetupCaseRequest): Promise<Se
 export const __test__ = {
   resolveCaseNumberFromCreateResponse,
   resolveSetupMode,
-  resolveUiFallbackFlag
+  resolveUiFallbackFlag,
+  validateSetupCaseRequest
 };

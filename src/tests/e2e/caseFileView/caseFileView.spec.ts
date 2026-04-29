@@ -52,9 +52,6 @@ test.describe("Case file view", { tag: ["@e2e", "@e2e-case-file-view"] }, () => 
         apiEventId: "initiateCase",
         mode: "api-required",
         apiPayload: buildCasePayloadFromTemplate("employment.et-england-wales.initiate-case"),
-        uiCreate: async () => {
-          await createCasePage.createCaseEmployment(DESIRED_JURISDICTION, DESIRED_CASE_TYPE, "");
-        },
         page,
         createCasePage,
         caseDetailsPage,

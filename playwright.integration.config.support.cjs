@@ -21,6 +21,8 @@ const parsePositiveInteger = (value) => {
   return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
 };
 
+const resolveConfiguredString = (...values) => values.find((value) => value?.trim());
+
 const resolveWorkerCount = (env = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
   if (configured) return Math.min(MAX_WORKERS, configured);
@@ -81,8 +83,7 @@ const buildConfig = (env = process.env) => {
         "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
         {
           outputFolder:
-            env.PLAYWRIGHT_REPORT_FOLDER ??
-            env.PW_ODHIN_OUTPUT ??
+            resolveConfiguredString(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
             "functional-output/tests/playwright-integration/odhin-report",
           indexFilename: env.PW_ODHIN_INDEX ?? "playwright-odhin-integration.html",
           title: env.PW_ODHIN_TITLE ?? "rpx-xui-e2e integration",

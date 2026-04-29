@@ -32,9 +32,6 @@ test.describe("Case level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, () 
           apiEventId: "initiateCase",
           mode: "api-required",
           apiPayload: buildCasePayloadFromTemplate("employment.et-england-wales.initiate-case"),
-          uiCreate: async () => {
-            await createCasePage.createCaseEmployment(jurisdiction, caseType, "");
-          },
           page,
           createCasePage,
           caseDetailsPage,
@@ -164,9 +161,6 @@ test.describe("Party level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, ()
               }
             }
           }),
-          uiCreate: async () => {
-            await createCasePage.createCaseFlagDivorceCase(testValue, jurisdiction, caseType);
-          },
           page,
           createCasePage,
           caseDetailsPage,

@@ -125,6 +125,23 @@ test.describe("Search-case support coverage", () => {
     );
   });
 
+  test("DIVORCE_SOLICITOR resolves from env vars before the source-compatible default account", async () => {
+    await withEnv(
+      {
+        DIVORCE_SOLICITOR_USERNAME: "divorce-solicitor@example.com",
+        DIVORCE_SOLICITOR_PASSWORD: "divorce-pass",
+        TEST_ENV: "aat"
+      },
+      () => {
+        const userUtils = new UserUtils();
+        expect(userUtils.getUserCredentials("DIVORCE_SOLICITOR")).toEqual({
+          email: "divorce-solicitor@example.com",
+          password: "divorce-pass"
+        });
+      }
+    );
+  });
+
   test("integration session warmup users match the source baseline and include configured search users", async () => {
     await withEnv(
       {

@@ -19,6 +19,7 @@ export interface AppTestConfig {
 
 const releaseByUserIdentifier: Record<string, string> = {
   SOLICITOR: "general",
+  DIVORCE_SOLICITOR: "general",
   PROD_LIKE: "general",
   IAC_CASEOFFICER_R1: "wa_release_1",
   IAC_CASEOFFICER_R2: "wa_release_2",

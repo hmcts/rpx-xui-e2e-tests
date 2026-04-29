@@ -188,8 +188,10 @@ test.describe(
       });
 
       await test.step("Continue and redirect to my work list", async () => {
-        await bookingUiPage.continueButton.click();
-        await expect(page).toHaveURL(tasksPageUrlPattern);
+        await Promise.all([
+          page.waitForURL(tasksPageUrlPattern, { timeout: 30_000 }),
+          bookingUiPage.continueButton.click()
+        ]);
       });
     });
   }

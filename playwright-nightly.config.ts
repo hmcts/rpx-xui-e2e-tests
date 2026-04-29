@@ -20,6 +20,9 @@ const parsePositiveInteger = (value: string | undefined): number | undefined => 
   return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
 };
 
+const resolveConfiguredString = (...values: Array<string | undefined>): string | undefined =>
+  values.find((value) => value?.trim());
+
 const resolveE2EWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PW_E2E_WORKERS ?? env.PLAYWRIGHT_E2E_WORKERS);
   if (configured) return configured;
@@ -37,8 +40,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => ({
       "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
       {
         outputFolder:
-          env.PLAYWRIGHT_REPORT_FOLDER ??
-          env.PW_ODHIN_OUTPUT ??
+          resolveConfiguredString(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
           "functional-output/tests/playwright-e2e/odhin-report",
         indexFilename: env.PW_ODHIN_INDEX ?? "playwright-odhin-nightly.html",
         title: env.PW_ODHIN_TITLE ?? "rpx-xui-e2e nightly",

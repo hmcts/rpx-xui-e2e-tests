@@ -337,7 +337,7 @@ export class TaskListPage extends Base {
 
   private isTransientTaskListNavigationFailure(error: unknown): boolean {
     const message = error instanceof Error ? error.message : String(error);
-    return /Task list showed service down|Something went wrong page was displayed|service-down|Gateway Timeout|Azure Front Door|OriginTimeout/i.test(
+    return /Task list showed service down|Task list shell did not become ready|Something went wrong page was displayed|service-down|Gateway Timeout|Azure Front Door|OriginTimeout/i.test(
       message
     );
   }
@@ -348,11 +348,24 @@ export class TaskListPage extends Base {
     context: string,
     timeoutMs = TASK_LIST_READY_TIMEOUT_MS
   ) {
-    await this.page.goto(path, { waitUntil: 'domcontentloaded' });
-    await this.page.waitForURL(urlPattern, { timeout: timeoutMs }).catch(() => undefined);
-    await this.waitForExuiAppShell(context, timeoutMs);
-    await this.waitForTaskListSpinnerToSettle(10_000);
-    await this.waitForTaskListShellReady(context);
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.page.goto(path, { waitUntil: 'domcontentloaded' });
+        await this.page.waitForURL(urlPattern, { timeout: timeoutMs }).catch(() => undefined);
+        await this.waitForExuiAppShell(context, timeoutMs);
+        await this.waitForTaskListSpinnerToSettle(10_000);
+        await this.waitForTaskListShellReady(context);
+        return;
+      } catch (error) {
+        if (attempt === maxAttempts || !this.isTransientTaskListNavigationFailure(error)) {
+          throw error;
+        }
+
+        await this.page.goto('about:blank').catch(() => undefined);
+      }
+    }
   }
 
   private async waitForExuiAppShell(context: string, timeoutMs: number): Promise<void> {

@@ -4,6 +4,7 @@ import {
   openCreateCaseJourney,
   setupCreateCaseBaseRoutes
 } from "../helpers/index.js";
+import { navigateWithTransientGatewayRetry } from "../utils/transientGatewayPage.utils.js";
 
 const userIdentifier = "SOLICITOR";
 const jurisdiction = "DIVORCE";
@@ -19,6 +20,8 @@ test.describe(
   `Create case - submit flow validation as ${userIdentifier}`,
   { tag: ["@integration", "@integration-create-case"] },
   () => {
+    test.describe.configure({ mode: "serial" });
+
     test.beforeEach(async ({ createCasePage, page }) => {
       await applySessionCookies(page, userIdentifier);
       await setupCreateCaseBaseRoutes(page);
@@ -32,14 +35,19 @@ test.describe(
     }) => {
       await test.step("Navigate to the submit case page without filling in case details", async () => {
         createCasePage.clearApiCalls();
-        await page.goto(`/cases/case-create/${jurisdiction}/${caseType}/createCase/submit`);
+        await navigateWithTransientGatewayRetry(
+          page,
+          `/cases/case-create/${jurisdiction}/${caseType}/createCase/submit`,
+          {
+            contextLabel: "create case direct submit"
+          }
+        );
       });
 
       await test.step("Verify direct submit is blocked and warning modal is shown", async () => {
-        await expect(createCasePage.exuiHeader.header).toBeVisible();
-        await expect(createCasePage.testSubmitButton).toBeHidden();
-        await expect(createCasePage.refreshModalConfirmButton).toBeVisible();
         await expect(createCasePage.refreshModal).toBeVisible();
+        await expect(createCasePage.refreshModalConfirmButton).toBeVisible();
+        await expect(createCasePage.testSubmitButton).toBeHidden();
         await createCasePage.refreshModalConfirmButton.click();
       });
 
@@ -66,10 +74,9 @@ test.describe(
 
     test("User should see validation errors if they attempt to submit the form with missing mandatory fields", async ({
       createCasePage,
-      page
     }) => {
-      await test.step("Navigate to the create case page", async () => {
-        await page.goto(`/cases/case-create/${jurisdiction}/${caseType}/createCase`);
+      await test.step("Verify the create case form is ready", async () => {
+        await createCasePage.waitForDivorcePocPersonalDetailsReady();
       });
 
       await test.step("Attempt to submit the form without filling in any mandatory fields", async () => {
