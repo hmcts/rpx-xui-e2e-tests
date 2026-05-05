@@ -127,6 +127,37 @@ withNightlyPipeline(type, product, component, 400) {
 
     stage('Nightly tests') {
       parallel(
+        'EXUI central assurance': {
+          def supertestOdhinEnv = [
+            'FUNCTIONAL_TESTS_WORKERS=1',
+            'PLAYWRIGHT_WORKERS=1',
+            'PLAYWRIGHT_REPORTERS=list,odhin,junit',
+            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/supertester/odhin-report',
+            'PLAYWRIGHT_JUNIT_OUTPUT=playwright-supertester-junit.xml',
+            'PW_ODHIN_INDEX=supertester-central-assurance.html',
+            'PW_ODHIN_TITLE=EXUI Central Assurance Supertester',
+            'PW_ODHIN_PROJECT=EXUI Supertester',
+            "PW_ODHIN_ENV=${params.TEST_ENV} | nightly | api-gate"
+          ]
+          try {
+            withEnv(supertestOdhinEnv) {
+              yarnBuilder.yarn('supertest:ci')
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : "functional-output/tests/supertester/odhin-report",
+              reportFiles          : 'supertester-central-assurance.html',
+              reportName           : 'EXUI central assurance Supertester'
+            ])
+            junit(testResults: "playwright-supertester-junit.xml", allowEmptyResults: true)
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/supertester/**'
+          }
+        },
         'API nightly': {
           def apiOdhinEnv = [
             'FUNCTIONAL_TESTS_WORKERS=4',

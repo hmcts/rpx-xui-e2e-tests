@@ -9,12 +9,13 @@ test.describe.configure({ mode: 'serial' });
 
 test.describe('Configuration resolution coverage', { tag: '@svc-internal' }, () => {
   test('apiTestConfig helpers resolve env values', () => {
-    expect(apiTestConfigTest.resolveBaseUrl(undefined)).toBe('https://manage-case.aat.platform.hmcts.net/');
+    expect(apiTestConfigTest.resolveBaseUrl(undefined)).toBe(`${config.urls.exuiDefaultUrl}/`);
     expect(apiTestConfigTest.resolveBaseUrl('https://example.test')).toBe('https://example.test');
 
     expect(apiTestConfigTest.resolveTestEnv(undefined)).toBe('aat');
     expect(apiTestConfigTest.resolveTestEnv('demo')).toBe('demo');
     expect(apiTestConfigTest.resolveTestEnv('aat')).toBe('aat');
+    expect(apiTestConfigTest.resolveTestEnv('local')).toBe('local');
     expect(apiTestConfigTest.resolveTestEnv('prod')).toBe('aat');
   });
 
@@ -38,6 +39,7 @@ test.describe('Configuration resolution coverage', { tag: '@svc-internal' }, () 
     expect(appTestConfigTest.resolveTestEnv(undefined)).toBe('aat');
     expect(appTestConfigTest.resolveTestEnv('demo')).toBe('demo');
     expect(appTestConfigTest.resolveTestEnv('aat')).toBe('aat');
+    expect(appTestConfigTest.resolveTestEnv('local')).toBe('local');
     expect(appTestConfigTest.resolveTestEnv('prod')).toBe('aat');
     expect(appTestConfig.getTestEnvFromEnviornment()).toBeTruthy();
   });
@@ -53,7 +55,8 @@ test.describe('Configuration resolution coverage', { tag: '@svc-internal' }, () 
       expect(() => configUtilsTest.getEnvVar('CONFIG_TEST_VAR')).toThrow('CONFIG_TEST_VAR');
     });
 
-    expect(config.urls.exuiDefaultUrl).toContain('manage-case');
+    expect(config.urls.exuiDefaultUrl).toBeTruthy();
+    expect(['aat', 'demo', 'local']).toContain(config.testEnv);
   });
 
   test('withEnv restores pre-existing variables', async () => {

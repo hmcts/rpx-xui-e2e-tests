@@ -54,7 +54,26 @@ function createFormLoginContext(
   };
 }
 
-type AuthEnvironmentKey = 'API_AUTH_MODE' | 'IDAM_SECRET' | 'IDAM_WEB_URL' | 'IDAM_TESTING_SUPPORT_URL' | 'S2S_URL';
+function createSuccessfulTokenContext(): Pick<FakeRequestContext, 'get' | 'storageState' | 'dispose'> {
+  return {
+    get: async (url: string) => {
+      if (url.includes('isAuthenticated')) {
+        return { status: statusFn(200), json: async () => true };
+      }
+      return { status: statusFn(200) };
+    },
+    storageState: async () => {},
+    dispose: async () => {},
+  };
+}
+
+type AuthEnvironmentKey =
+  | 'API_AUTH_MODE'
+  | 'IDAM_SECRET'
+  | 'IDAM_WEB_URL'
+  | 'IDAM_TESTING_SUPPORT_URL'
+  | 'S2S_URL'
+  | 'TEST_ENV';
 
 type AuthEnvironmentConfig = Partial<Record<AuthEnvironmentKey, string>>;
 type FormLoginDeps = NonNullable<Parameters<typeof authTest.createStorageStateViaForm>[3]>;
@@ -100,8 +119,30 @@ test.describe('Auth helper coverage - token bootstrap', { tag: '@svc-auth' }, ()
       expect(authTest.isTokenBootstrapEnabled()).toBe(false);
     });
 
-    await withEnv({ ...mockAuthEnv, API_AUTH_MODE: undefined }, () => {
+    await withEnv({ ...mockAuthEnv, API_AUTH_MODE: undefined, TEST_ENV: 'aat' }, () => {
       expect(authTest.isTokenBootstrapEnabled()).toBe(true);
+    });
+
+    await withEnv({ ...mockAuthEnv, API_AUTH_MODE: undefined, TEST_ENV: 'local' }, () => {
+      expect(authTest.isTokenBootstrapEnabled()).toBe(false);
+    });
+
+    await withEnv({ ...mockAuthEnv, API_AUTH_MODE: 'token', TEST_ENV: 'local' }, () => {
+      expect(authTest.isTokenBootstrapEnabled()).toBe(true);
+    });
+  });
+
+  test('isUiSessionBootstrapEnabled respects explicit browser auth modes', async () => {
+    await withEnv({ API_AUTH_MODE: 'ui' }, () => {
+      expect(authTest.isUiSessionBootstrapEnabled()).toBe(true);
+    });
+
+    await withEnv({ API_AUTH_MODE: 'browser' }, () => {
+      expect(authTest.isUiSessionBootstrapEnabled()).toBe(true);
+    });
+
+    await withEnv({ API_AUTH_MODE: 'token' }, () => {
+      expect(authTest.isUiSessionBootstrapEnabled()).toBe(false);
     });
   });
 
@@ -137,17 +178,6 @@ test.describe('Auth helper coverage - token bootstrap', { tag: '@svc-auth' }, ()
     });
     expect(missingEnv).toBe(false);
 
-    const context = {
-      get: async (url: string) => {
-        if (url.includes('isAuthenticated')) {
-          return { status: () => 200, json: async () => true };
-        }
-        return { status: () => 200 };
-      },
-      storageState: async () => {},
-      dispose: async () => {},
-    };
-
     // SECURITY: Mock credentials only - never use real secrets in test code
     const mockEnv = {
       IDAM_SECRET: 'MOCK_TEST_SECRET',
@@ -160,7 +190,7 @@ test.describe('Auth helper coverage - token bootstrap', { tag: '@svc-auth' }, ()
       env: mockEnv,
       idamUtils: { generateIdamToken: async () => 'mock-token' },
       serviceAuthUtils: { retrieveToken: async () => 'mock-service-token' },
-      requestFactory: async () => context as unknown as TokenRequestContext,
+      requestFactory: async () => createSuccessfulTokenContext() as unknown as TokenRequestContext,
       logger,
       readState: async () => ({ cookies: [{ name: 'a' }] }),
     });

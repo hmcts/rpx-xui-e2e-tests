@@ -12,10 +12,88 @@ import { resolveUiStoragePath, shouldUseUiStorage } from "./src/utils/ui/storage
 
 export type EnvMap = Record<string, string | undefined>;
 
+const runtimeOverrideKeys = [
+  "TEST_URL",
+  "TEST_ENV",
+  "TEST_ENVIRONMENT",
+  "PW_UI_STORAGE",
+  "PW_UI_STORAGE_STRICT",
+  "PW_UI_STORAGE_PATH",
+  "PW_UI_USERS",
+  "PW_UI_USER",
+  "IDAM_WEB_URL",
+  "IDAM_TESTING_SUPPORT_URL",
+  "IDAM_TESTING_SUPPORT_USERS_URL",
+  "IDAM_CLIENT_ID",
+  "IDAM_SECRET",
+  "IDAM_OAUTH2_SCOPE",
+  "IDAM_RETURN_URL",
+  "S2S_URL",
+  "S2S_MICROSERVICE_NAME",
+  "MICROSERVICE",
+  "S2S_SECRET",
+  "SOLICITOR_USERNAME",
+  "SOLICITOR_PASSWORD",
+  "CASEOFFICER_R1_USERNAME",
+  "CASEOFFICER_R1_PASSWORD",
+  "CASEOFFICER_R2_USERNAME",
+  "CASEOFFICER_R2_PASSWORD",
+  "CASEWORKER_R1_USERNAME",
+  "CASEWORKER_R1_PASSWORD",
+  "CASEWORKER_R2_USERNAME",
+  "CASEWORKER_R2_PASSWORD",
+  "JUDGE_USERNAME",
+  "JUDGE_PASSWORD",
+  "JUDGE_IDAM_ID",
+  "JUDGE_DISPLAY_NAME",
+  "WA_LOCATION_ID",
+  "PLAYWRIGHT_REPORTERS",
+  "PLAYWRIGHT_REPORT_FOLDER",
+  "PLAYWRIGHT_REPORT_PROJECT",
+  "PLAYWRIGHT_REPORT_RELEASE",
+  "PW_ODHIN_OUTPUT",
+  "PW_ODHIN_INDEX",
+  "PW_ODHIN_TITLE",
+  "PW_ODHIN_ENV",
+  "PW_ODHIN_PROJECT",
+  "PW_ODHIN_RELEASE",
+  "PW_ODHIN_TEST_FOLDER",
+  "PW_ODHIN_API_LOGS",
+  "PW_ODHIN_LIGHTWEIGHT",
+  "PW_ODHIN_CONSOLE_TEST_OUTPUT"
+] as const;
+
+const captureRuntimeOverrides = <TKey extends string>(
+  env: EnvMap,
+  keys: readonly TKey[]
+): Partial<Record<TKey, string>> =>
+  Object.fromEntries(
+    keys.flatMap((key) => {
+      const value = env[key];
+      return value === undefined ? [] : [[key, value]];
+    })
+  ) as Partial<Record<TKey, string>>;
+
+const restoreRuntimeOverrides = <TKey extends string>(
+  env: EnvMap,
+  overrides: Partial<Record<TKey, string>>
+) => {
+  for (const key of Object.keys(overrides) as TKey[]) {
+    const value = overrides[key];
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+};
+
+const runtimeOverrides = captureRuntimeOverrides(process.env, runtimeOverrideKeys);
+
 loadEnv({
   path: path.resolve(process.cwd(), ".env"),
   override: !process.env.CI
 });
+
+restoreRuntimeOverrides(process.env, runtimeOverrides);
 
 const require = createRequire(import.meta.url);
 const { version: appVersion } = require("./package.json") as { version: string };

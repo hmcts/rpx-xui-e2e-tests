@@ -2,7 +2,7 @@ import type { Page, Route } from '@playwright/test';
 
 import { extractUserIdFromCookies } from '../../e2e/integration/utils/extractUserIdFromCookies.js';
 
-import { setupNgIntegrationBaseRoutes } from './ngIntegrationMockRoutes.helper';
+import { setupNgIntegrationBaseRoutes, type NgIntegrationUserDetailsOptions } from './ngIntegrationMockRoutes.helper';
 import { setupTaskListBootstrapRoutes, taskListRoutePattern } from './taskListMockRoutes.helper';
 import { assertValidWorkAllocationTaskListMock } from './workAllocationMockValidation.helper';
 
@@ -30,16 +30,18 @@ async function resolveManageTasksUserId(page: Page): Promise<string | undefined>
 type BaseManageTaskRouteOptions = {
   taskListResponse?: unknown;
   taskListHandler?: (route: Route) => Promise<void>;
-  supportedJurisdictions?: string[];
+  supportedJurisdictions?: readonly string[];
   supportedJurisdictionDetails?: Array<{ serviceId: string; serviceName: string }>;
+  userDetails?: NgIntegrationUserDetailsOptions;
 };
 
 export async function setupManageTasksBaseRoutes(page: Page, options: BaseManageTaskRouteOptions = {}): Promise<void> {
   const customUserDetailsConfigured = Boolean((page as Page & Record<string, unknown>)[customUserDetailsConfiguredKey]);
   const resolvedUserId = customUserDetailsConfigured ? undefined : await resolveManageTasksUserId(page);
+  const userDetails = options.userDetails ?? (customUserDetailsConfigured ? undefined : buildDefaultManageTasksUserDetails(resolvedUserId));
   await setupNgIntegrationBaseRoutes(page, {
-    userDetails: customUserDetailsConfigured ? undefined : buildDefaultManageTasksUserDetails(resolvedUserId),
-    skipUserDetailsMock: customUserDetailsConfigured,
+    userDetails,
+    skipUserDetailsMock: customUserDetailsConfigured && !options.userDetails,
   });
   await setupTaskListBootstrapRoutes(page, options.supportedJurisdictions, options.supportedJurisdictionDetails);
 
@@ -78,6 +80,32 @@ export async function setupManageTasksBaseRoutes(page: Page, options: BaseManage
 
 export function markManageTasksCustomUserDetailsConfigured(page: Page): void {
   (page as Page & Record<string, unknown>)[customUserDetailsConfiguredKey] = true;
+}
+
+export function buildManageTasksUserDetailsOptionsForJurisdictions(
+  supportedJurisdictions: readonly string[],
+  userId = 'exui-central-assurance-user'
+): NgIntegrationUserDetailsOptions {
+  return {
+    userId,
+    roleCategory: 'LEGAL_OPERATIONS',
+    roles: [
+      'caseworker-ia-caseofficer',
+      'caseworker-civil-staff',
+      'caseworker-privatelaw',
+      'caseworker-publiclaw',
+      'caseworker-employment',
+      'caseworker-st_cic',
+      'staff-admin',
+      'task-supervisor',
+    ],
+    roleAssignmentInfo: supportedJurisdictions.map((jurisdiction) => ({
+      jurisdiction,
+      substantive: 'Y',
+      roleType: 'ORGANISATION',
+      baseLocation: '765324',
+    })),
+  };
 }
 
 type MyCasesRouteOptions = BaseManageTaskRouteOptions & {
