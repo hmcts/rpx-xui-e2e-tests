@@ -5,7 +5,7 @@ export function resolveBaseUrl(value?: string): string {
 }
 
 export function resolveTestEnv(value?: string): string {
-  return value !== undefined && (value.includes("aat") || value.includes("demo")) ? value : "aat";
+  return value !== undefined && (value.includes("aat") || value.includes("demo") || value.includes("local")) ? value : "aat";
 }
 
 export const config = {
@@ -20,15 +20,22 @@ export const config = {
       { id: "DIVORCE", caseTypeIds: ["DIVORCE", "FinancialRemedyMVP2", "FinancialRemedyMVP2"] },
       { id: "IA", caseTypeIds: ["Asylum"] },
       { id: "PROBATE", caseTypeIds: ["GrantOfRepresentation"] }
+    ],
+    local: [
+      { id: "DIVORCE", caseTypeIds: ["xuiTestCaseType"] },
+      { id: "IA", caseTypeIds: [] },
+      { id: "PROBATE", caseTypeIds: [] }
     ]
   },
   jurisdictionNames: {
     aat: ["Family Divorce", "Public Law", "Immigration & Asylum", "Manage probate application"],
-    demo: ["Family Divorce - v104-26.1", "Public Law", "Immigration & Asylum"]
+    demo: ["Family Divorce - v104-26.1", "Public Law", "Immigration & Asylum"],
+    local: ["Family Divorce", "Public Law", "Immigration & Asylum", "Manage probate application"]
   },
   em: {
     aat: { docId: process.env.EM_DOC_ID ?? "" },
-    demo: { docId: process.env.EM_DOC_ID ?? "" }
+    demo: { docId: process.env.EM_DOC_ID ?? "" },
+    local: { docId: process.env.EM_DOC_ID ?? "" }
   },
   testEnv: resolveTestEnv(process.env.TEST_ENV),
   users: {
@@ -41,6 +48,20 @@ export const config = {
       solicitor: { e: process.env.SOLICITOR_USERNAME ?? "", sec: process.env.SOLICITOR_PASSWORD ?? "" },
       caseOfficer_r1: { e: process.env.CASEOFFICER_R1_USERNAME ?? "", sec: process.env.CASEOFFICER_R1_PASSWORD ?? "" },
       caseOfficer_r2: { e: process.env.CASEOFFICER_R2_USERNAME ?? "", sec: process.env.CASEOFFICER_R2_PASSWORD ?? "" }
+    },
+    local: {
+      solicitor: {
+        e: process.env.SOLICITOR_USERNAME ?? "ccd.docker.default@hmcts.net",
+        sec: process.env.SOLICITOR_PASSWORD ?? "Pa55word11"
+      },
+      caseOfficer_r1: {
+        e: process.env.CASEOFFICER_R1_USERNAME ?? process.env.CASEWORKER_R1_USERNAME ?? "ccd.docker.default@hmcts.net",
+        sec: process.env.CASEOFFICER_R1_PASSWORD ?? process.env.CASEWORKER_R1_PASSWORD ?? "Pa55word11"
+      },
+      caseOfficer_r2: {
+        e: process.env.CASEOFFICER_R2_USERNAME ?? process.env.CASEWORKER_R2_USERNAME ?? "ccd.docker.default@hmcts.net",
+        sec: process.env.CASEOFFICER_R2_PASSWORD ?? process.env.CASEWORKER_R2_PASSWORD ?? "Pa55word11"
+      }
     }
   },
   configurationUi: {
@@ -61,6 +82,22 @@ export const config = {
       "waWorkflowApi"
     ],
     demo: [
+      "clientId",
+      "headerConfig",
+      "hearingJurisdictionConfig",
+      "idamWeb",
+      "launchDarklyClientId",
+      "oAuthCallback",
+      "oidcEnabled",
+      "paymentReturnUrl",
+      "protocol",
+      "ccdGatewayUrl",
+      "substantiveEnabled",
+      "accessManagementEnabled",
+      "judicialBookingApi",
+      "waWorkflowApi"
+    ],
+    local: [
       "clientId",
       "headerConfig",
       "hearingJurisdictionConfig",
@@ -98,6 +135,20 @@ export const config = {
         email: process.env.JUDGE_USERNAME ?? "",
         id: process.env.JUDGE_IDAM_ID ?? "",
         name: process.env.JUDGE_DISPLAY_NAME ?? ""
+      },
+      iaCaseIds: process.env.WA_IA_CASE_IDS?.split(",").filter(Boolean) ?? []
+    },
+    local: {
+      locationId: process.env.WA_LOCATION_ID ?? "698118",
+      judgeUser: {
+        email: process.env.JUDGE_USERNAME ?? "ccd.docker.default@hmcts.net",
+        id: process.env.JUDGE_IDAM_ID ?? "",
+        name: process.env.JUDGE_DISPLAY_NAME ?? "Local CCD User"
+      },
+      legalOpsUser: {
+        email: process.env.CASEWORKER_R1_USERNAME ?? "ccd.docker.default@hmcts.net",
+        id: process.env.CASEWORKER_R1_IDAM_ID ?? "",
+        name: process.env.CASEWORKER_R1_DISPLAY_NAME ?? "Local CCD User"
       },
       iaCaseIds: process.env.WA_IA_CASE_IDS?.split(",").filter(Boolean) ?? []
     }

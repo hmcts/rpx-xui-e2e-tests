@@ -6,6 +6,15 @@ import {
 } from './workAllocationMockValidation.helper';
 
 export const taskListRoutePattern = /\/workallocation\/task(?:\?.*)?$/;
+export const waSupportedJurisdictionsGetRoutePattern = '**/api/wa-supported-jurisdiction/get*';
+export const waSupportedJurisdictionsDetailRoutePattern = '**/api/wa-supported-jurisdiction/detail*';
+export const aggregatedCaseworkerJurisdictionsRoutePattern = '**/aggregated/caseworkers/**/jurisdictions*';
+export const workAllocationTypesOfWorkRoutePattern = '**/workallocation/task/types-of-work*';
+export const healthCheckRoutePattern = '**/api/healthCheck*';
+export const workAllocationRegionLocationRoutePattern = '**/workallocation/region-location*';
+export const workAllocationFullLocationRoutePattern = '**/workallocation/full-location*';
+export const workAllocationCaseworkerByServiceNameRoutePattern = '**/workallocation/caseworker/getUsersByServiceName*';
+
 const defaultSupportedJurisdictionsMock = ['IA', 'SSCS'];
 type SupportedJurisdictionDetail = { serviceId: string; serviceName: string };
 type TaskMockRouteOptions = {
@@ -16,18 +25,33 @@ type TaskMockRouteOptions = {
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const serviceLabelByJurisdiction: Record<string, string> = {
+  CIVIL: 'Civil',
+  DIVORCE: 'Divorce',
+  EMPLOYMENT: 'Employment',
+  FR: 'Financial Remedy',
   IA: 'Immigration & Asylum',
+  PRIVATELAW: 'Private Law',
+  PROBATE: 'Probate',
+  PUBLICLAW: 'Public Law',
   SSCS: 'Social security and child support',
+  ST_CIC: 'Special Tribunals',
   Other: 'Other',
 };
 
-const defaultSupportedJurisdictionDetailsMock: SupportedJurisdictionDetail[] = defaultSupportedJurisdictionsMock.map(
-  (serviceId) => ({ serviceId, serviceName: serviceLabelByJurisdiction[serviceId] ?? serviceId })
+export function buildSupportedJurisdictionDetails(
+  supportedJurisdictions: readonly string[],
+  labels: Record<string, string> = serviceLabelByJurisdiction
+): SupportedJurisdictionDetail[] {
+  return supportedJurisdictions.map((serviceId) => ({ serviceId, serviceName: labels[serviceId] ?? serviceId }));
+}
+
+const defaultSupportedJurisdictionDetailsMock: SupportedJurisdictionDetail[] = buildSupportedJurisdictionDetails(
+  defaultSupportedJurisdictionsMock
 );
 
 export async function setupTaskListBootstrapRoutes(
   page: Page,
-  supportedJurisdictions: string[] = defaultSupportedJurisdictionsMock,
+  supportedJurisdictions: readonly string[] = defaultSupportedJurisdictionsMock,
   supportedJurisdictionDetails: SupportedJurisdictionDetail[] = defaultSupportedJurisdictionDetailsMock
 ): Promise<void> {
   const aggregatedJurisdictions = supportedJurisdictions.map((serviceId) => {
@@ -38,7 +62,7 @@ export async function setupTaskListBootstrapRoutes(
     };
   });
 
-  await page.route('**/api/wa-supported-jurisdiction/get*', async (route) => {
+  await page.route(waSupportedJurisdictionsGetRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -46,7 +70,7 @@ export async function setupTaskListBootstrapRoutes(
     });
   });
 
-  await page.route('**/api/wa-supported-jurisdiction/detail*', async (route) => {
+  await page.route(waSupportedJurisdictionsDetailRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -54,7 +78,7 @@ export async function setupTaskListBootstrapRoutes(
     });
   });
 
-  await page.route('**/aggregated/caseworkers/**/jurisdictions*', async (route) => {
+  await page.route(aggregatedCaseworkerJurisdictionsRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -62,7 +86,7 @@ export async function setupTaskListBootstrapRoutes(
     });
   });
 
-  await page.route('**/workallocation/task/types-of-work*', async (route) => {
+  await page.route(workAllocationTypesOfWorkRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -74,7 +98,7 @@ export async function setupTaskListBootstrapRoutes(
     });
   });
 
-  await page.route('**/api/healthCheck*', async (route) => {
+  await page.route(healthCheckRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -82,7 +106,7 @@ export async function setupTaskListBootstrapRoutes(
     });
   });
 
-  await page.route('**/workallocation/region-location*', async (route) => {
+  await page.route(workAllocationRegionLocationRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -90,7 +114,15 @@ export async function setupTaskListBootstrapRoutes(
     });
   });
 
-  await page.route('**/workallocation/full-location*', async (route) => {
+  await page.route(workAllocationFullLocationRoutePattern, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
+  await page.route(workAllocationCaseworkerByServiceNameRoutePattern, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

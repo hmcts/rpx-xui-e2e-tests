@@ -14,6 +14,7 @@ export interface AppTestConfig {
   users: {
     aat: User[];
     demo: User[];
+    local: User[];
   };
 }
 
@@ -74,7 +75,7 @@ const previewConfig = resolvePreviewConfig(prToTestInDemo, process.env.TEST_URL)
 applyPreviewConfig(previewConfig);
 
 export function resolveTestEnv(value?: string): string {
-  return value !== undefined && (value.includes("aat") || value.includes("demo")) ? value : "aat";
+  return value !== undefined && (value.includes("aat") || value.includes("demo") || value.includes("local")) ? value : "aat";
 }
 
 function resolveConfiguredUsers(): User[] {
@@ -104,7 +105,8 @@ const data: AppTestConfig = {
   testEnv: resolveTestEnv(process.env.TEST_ENV),
   users: {
     aat: configuredUsers,
-    demo: configuredUsers
+    demo: configuredUsers,
+    local: configuredUsers
   }
 };
 

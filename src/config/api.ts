@@ -3,9 +3,9 @@ export const resolveBaseUrl = (value?: string): string => {
   return raw.endsWith("/") ? raw : `${raw}/`;
 };
 
-export const resolveTestEnv = (value?: string): "aat" | "demo" => {
-  if (value && ["aat", "demo"].includes(value)) {
-    return value as "aat" | "demo";
+export const resolveTestEnv = (value?: string): "aat" | "demo" | "local" => {
+  if (value && ["aat", "demo", "local"].includes(value)) {
+    return value as "aat" | "demo" | "local";
   }
   return "aat";
 };
@@ -28,15 +28,22 @@ export const config = {
       { id: "DIVORCE", caseTypeIds: ["DIVORCE", "FinancialRemedyMVP2", "FinancialRemedyMVP2"] },
       { id: "IA", caseTypeIds: ["Asylum"] },
       { id: "PROBATE", caseTypeIds: ["GrantOfRepresentation"] }
+    ],
+    local: [
+      { id: "DIVORCE", caseTypeIds: ["xuiTestCaseType"] },
+      { id: "IA", caseTypeIds: [] },
+      { id: "PROBATE", caseTypeIds: [] }
     ]
   },
   jurisdictionNames: {
     aat: ["Family Divorce", "Public Law", "Immigration & Asylum", "Manage probate application"],
-    demo: ["Family Divorce - v104-26.1", "Public Law", "Immigration & Asylum"]
+    demo: ["Family Divorce - v104-26.1", "Public Law", "Immigration & Asylum"],
+    local: ["Family Divorce", "Public Law", "Immigration & Asylum", "Manage probate application"]
   },
   em: {
     aat: { docId: process.env.EM_DOC_ID ?? "249cfa9e-622c-4877-a588-e9daa3fe10d8" },
-    demo: { docId: process.env.EM_DOC_ID ?? "005ed16f-be03-4620-a8ee-9bc90635f6f2" }
+    demo: { docId: process.env.EM_DOC_ID ?? "005ed16f-be03-4620-a8ee-9bc90635f6f2" },
+    local: { docId: process.env.EM_DOC_ID ?? "" }
   },
   users: {
     aat: {
@@ -60,6 +67,20 @@ export const config = {
         e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME) ?? "CRD_func_test_demo_user@justice.gov.uk",
         sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD) ?? "AldgateT0wer"
       }
+    },
+    local: {
+      solicitor: {
+        e: process.env.SOLICITOR_USERNAME ?? "exui.local.srt@hmcts.net",
+        sec: process.env.SOLICITOR_PASSWORD ?? "Pa55word11"
+      },
+      caseOfficer_r1: {
+        e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME) ?? "exui.local.srt@hmcts.net",
+        sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD) ?? "Pa55word11"
+      },
+      caseOfficer_r2: {
+        e: pick(process.env.CASEOFFICER_R2_USERNAME, process.env.CASEWORKER_R2_USERNAME) ?? "exui.local.srt@hmcts.net",
+        sec: pick(process.env.CASEOFFICER_R2_PASSWORD, process.env.CASEWORKER_R2_PASSWORD) ?? "Pa55word11"
+      }
     }
   },
   configurationUi: {
@@ -80,6 +101,22 @@ export const config = {
       "waWorkflowApi"
     ],
     demo: [
+      "clientId",
+      "headerConfig",
+      "hearingJurisdictionConfig",
+      "idamWeb",
+      "launchDarklyClientId",
+      "oAuthCallback",
+      "oidcEnabled",
+      "paymentReturnUrl",
+      "protocol",
+      "ccdGatewayUrl",
+      "substantiveEnabled",
+      "accessManagementEnabled",
+      "judicialBookingApi",
+      "waWorkflowApi"
+    ],
+    local: [
       "clientId",
       "headerConfig",
       "hearingJurisdictionConfig",
@@ -119,6 +156,20 @@ export const config = {
         name: "Tom Cruz"
       },
       iaCaseIds: ["1547458486131483"]
+    },
+    local: {
+      locationId: process.env.WA_LOCATION_ID ?? "698118",
+      judgeUser: {
+        email: process.env.JUDGE_USERNAME ?? "exui.local.srt@hmcts.net",
+        id: process.env.JUDGE_IDAM_ID ?? "",
+        name: process.env.JUDGE_DISPLAY_NAME ?? "Local CCD User"
+      },
+      legalOpsUser: {
+        email: process.env.CASEWORKER_R1_USERNAME ?? "exui.local.srt@hmcts.net",
+        id: process.env.CASEWORKER_R1_IDAM_ID ?? "",
+        name: process.env.CASEWORKER_R1_DISPLAY_NAME ?? "Local CCD User"
+      },
+      iaCaseIds: process.env.WA_IA_CASE_IDS?.split(",").filter(Boolean) ?? []
     }
   }
 };
