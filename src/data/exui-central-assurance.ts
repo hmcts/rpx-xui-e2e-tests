@@ -88,6 +88,73 @@ export const EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY: Record<string, readonly
   SSCS: ["Benefit"]
 };
 
+export const EXUI_PRL_NORMALIZED_SLICES = [
+  {
+    sliceId: "prl-manage-orders-hearings-auth",
+    service: "PRL",
+    jurisdiction: "PRIVATELAW",
+    caseTypeId: "PRLAPPS",
+    sourceRepo: "prl-ccd-definitions",
+    lanes: [
+      {
+        id: "prl-manage-orders-standard",
+        priority: "release-blocking-representative",
+        events: ["manageOrders"],
+        roles: ["caseworker-privatelaw-courtadmin", "caseworker-privatelaw-judge", "caseworker-privatelaw-la"],
+        conditions: [
+          "ShowSummary=Y",
+          "PostConditionState conditional",
+          "hidden orchestration fields",
+          "ordersHearingDetails complex"
+        ]
+      },
+      {
+        id: "prl-wa-manage-orders",
+        priority: "release-blocking-representative",
+        events: ["waManageOrders"],
+        roles: ["caseworker-privatelaw-courtadmin", "caseworker-privatelaw-judge", "caseworker-privatelaw-la"],
+        conditions: ["populate-header-task", "displayConfirmedHearing", "dateConfirmedInHearingsTab"]
+      },
+      {
+        id: "prl-hearing-date-permutations",
+        priority: "focused-matrix",
+        fields: [
+          "hearingDateTimes",
+          "confirmedHearingDates",
+          "allPartiesAttendHearingSameWayYesOrNo",
+          "cafcassCymruHearingChannel"
+        ],
+        permutations: [
+          "dateReservedWithListAssist",
+          "dateConfirmedInHearingsTab",
+          "all same channel",
+          "party-specific channels"
+        ]
+      },
+      {
+        id: "prl-access-and-flags",
+        priority: "entitlement-sensitive",
+        events: ["listWithoutNotice", "c100listWithoutNotice"],
+        fields: ["flagLauncherExternal", "ordersHearingDetails", "markAsRestrictedReason"],
+        roles: [
+          "citizen",
+          "[CREATOR]",
+          "[C100APPLICANTSOLICITOR1]",
+          "[C100RESPONDENTSOLICITOR1]",
+          "[LASOLICITOR]"
+        ]
+      }
+    ],
+    evidenceRefs: [
+      "definitions/private-law/json/CaseEvent/CaseEvent.json#rows-71-72-106-107-111",
+      "definitions/private-law/json/CaseEventToFields/ManageOrders/Page 1 - Common/CaseEventToFields.json",
+      "definitions/private-law/json/CaseEventToComplexTypes/ManageOrders/HearingData/CaseEventToComplexTypes.json",
+      "definitions/private-law/json/CaseEventToComplexTypes/WaManageOrders/HearingData/CaseEventToComplexTypes.json",
+      "definitions/private-law/json/AuthorisationCaseField/ManageOrders/HearingData/AuthorisationCaseField.json"
+    ]
+  }
+] as const;
+
 export type AssuranceScenarioLane =
   | "configuration"
   | "global-search"
@@ -101,6 +168,14 @@ export type AssuranceScenarioExecutionMode = "api" | "ui" | "hybrid" | "planned"
 export type AssuranceCoverageDisposition = "release-blocking" | "grouped" | "canary";
 export type AssuranceSourceRepository = "rpx-xui-webapp" | "rpx-xui-e2e-tests" | "prl-ccd-definitions";
 export type AssuranceSourceKind = "config" | "api" | "playwright" | "backend-mock" | "ccd-definition" | "docs";
+export type HistoricFailureCoverageStatus = "covered-now" | "would-catch-with-replay-pack" | "partial" | "out-of-scope";
+export type HistoricFailureReplayPack =
+  | "manage-case-data-integrity"
+  | "work-allocation-availability"
+  | "protected-endpoint-auth"
+  | "event-history-and-layout"
+  | "dependency-auth-smoke"
+  | "media-viewer-specialist";
 
 export interface ExuiSuperserviceSourceRef {
   repository: AssuranceSourceRepository;
@@ -165,6 +240,19 @@ export interface ExuiSuperserviceScenario {
   assertion: string;
   source: string;
   sourceRefs: readonly ExuiSuperserviceSourceRef[];
+}
+
+export interface ExuiHistoricFailureCoverage {
+  id: string;
+  historicRefs: readonly string[];
+  replayPack: HistoricFailureReplayPack;
+  failureClass: string;
+  supertesterContract: string;
+  coverageStatus: HistoricFailureCoverageStatus;
+  currentPocEvidence: string;
+  wouldHaveCaught: boolean;
+  missReason?: string;
+  nextScenarioId: string;
 }
 
 export interface ExuiServiceFamilyCoverageDecision {
@@ -434,6 +522,167 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     ]
   }
 ] as const;
+
+export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverage[] = [
+  {
+    id: "manage-case-previous-navigation-data-loss",
+    historicRefs: ["EXUI-837", "EXUI-911"],
+    replayPack: "manage-case-data-integrity",
+    failureClass: "Previous/Continue navigation with page show conditions can submit stale hidden page data as null",
+    supertesterContract:
+      "Synthetic CCD event journey drives Continue, Previous, changed page visibility, CYA, Submit, then asserts submitted payload and retained case data.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts stale hidden-page data is excluded while retained hidden complex data is submitted.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-manage-case-previous-hidden-page-retention"
+  },
+  {
+    id: "cya-complex-show-condition-summary",
+    historicRefs: ["EXUI-848", "EXUI-811", "EXUI-433", "EXUI-702"],
+    replayPack: "manage-case-data-integrity",
+    failureClass: "CYA fields or change links are missing when show conditions use complex, collection, tabular, or read-only data",
+    supertesterContract:
+      "Synthetic CCD definitions cover complex collection show conditions, read-only tabular fields, and ShowSummaryChangeOption change links.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts complex/collection CYA rows and change-link contracts are represented.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-cya-complex-summary-visibility"
+  },
+  {
+    id: "hidden-complex-retention",
+    historicRefs: ["EXUI-942", "EXUI-960"],
+    replayPack: "manage-case-data-integrity",
+    failureClass: "Hidden complex values are removed or submitted as null, causing case data loss",
+    supertesterContract:
+      "Synthetic event contains complex fields whose children are all HIDDEN; submit must retain the parent complex payload correctly.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts a hidden complex parent with hidden children survives submit payload pruning.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-hidden-complex-submit-retention"
+  },
+  {
+    id: "wa-task-lifecycle-correlation",
+    historicRefs: ["EXUI-2668", "EXUI-2743"],
+    replayPack: "work-allocation-availability",
+    failureClass: "Work Allocation task autocompletion closes the wrong task or fails to close the right task",
+    supertesterContract:
+      "Route-mocked task lifecycle replay correlates event completion with task id/event id and rejects stale completion data.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts task completion correlates by task id, case id, and event id and rejects stale events.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-wa-task-autocomplete-correlation"
+  },
+  {
+    id: "wa-tab-location-availability",
+    historicRefs: ["INC5502435", "INC5493460", "INC5494665", "INC5500227", "INC5502207", "INC5502963"],
+    replayPack: "work-allocation-availability",
+    failureClass: "Users cannot see My Tasks, Available Tasks, All Work, My Cases, My Access, case search, or location filters",
+    supertesterContract:
+      "Persona matrix for judge, deputy judge, caseworker, allocator, and hearing manager asserts tabs, case search, task list, and location filters.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts judge, deputy judge, caseworker, allocator, and hearing-manager tab/location expectations.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-wa-role-location-tab-availability"
+  },
+  {
+    id: "role-assignment-null-service",
+    historicRefs: ["EXUI-2352"],
+    replayPack: "work-allocation-availability",
+    failureClass: "Role assignments with null jurisdiction/service are ignored by caseworker lookup",
+    supertesterContract:
+      "Caseworker lookup fixture includes explicit-service role, null-service role, and no-category fallback role assignments.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts null-service role assignments expand to the central WA service-family set.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-role-assignment-null-service-caseworker-lookup"
+  },
+  {
+    id: "protected-endpoint-auth-negative",
+    historicRefs: ["EXUI-2508", "EXUI-2510"],
+    replayPack: "protected-endpoint-auth",
+    failureClass: "Unauthenticated access to protected EXUI staff-data endpoint returns personal data",
+    supertesterContract:
+      "Unauthenticated negative matrix probes protected EXUI proxy/API endpoints and asserts 401/redirect/no staff data.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts high-risk staff-data endpoints are safe under anonymous guarded responses.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-protected-endpoint-auth-negative"
+  },
+  {
+    id: "event-history-external-role-gate",
+    historicRefs: ["EXUI-2104"],
+    replayPack: "event-history-and-layout",
+    failureClass: "External users can click event history links and retrieve case event details",
+    supertesterContract:
+      "Internal and external role personas assert event history summary visibility, hyperlink removal, and blocked event-detail fetch.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts external personas see event summaries without event-detail links or fetch access.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-event-history-external-role-gate"
+  },
+  {
+    id: "event-history-layout-width",
+    historicRefs: ["EXUI-2551"],
+    replayPack: "event-history-and-layout",
+    failureClass: "Event history details layout is too narrow for Case File View and other components",
+    supertesterContract:
+      "Visual/layout proof opens event details and asserts component width/viewport usability for representative embedded components.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts representative event-history embedded component width remains usable.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-event-history-layout-width"
+  },
+  {
+    id: "event-start-spinner-latency",
+    historicRefs: ["EXUI-2595"],
+    replayPack: "event-history-and-layout",
+    failureClass: "Slow event start gives no feedback or spinner is not removed",
+    supertesterContract:
+      "Delayed callback fixture asserts spinner appears during latency and clears on success/failure.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts delayed event-start spinner appears before callback completion and clears after.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-event-start-spinner-latency"
+  },
+  {
+    id: "idam-passport-session-smoke",
+    historicRefs: ["EXUI-2572", "EXUI-2079", "EXUI-2318"],
+    replayPack: "dependency-auth-smoke",
+    failureClass: "Passport, IDAM, or dependency updates break login, logout, session, or role-sensitive shell behaviour",
+    supertesterContract:
+      "Auth smoke lane verifies login callback, session continuity, role-sensitive shell route, and logout.",
+    coverageStatus: "covered-now",
+    currentPocEvidence: "Executable replay pack asserts IDAM callback redirect, session cookie, role-sensitive shell route, and logout contract.",
+    wouldHaveCaught: true,
+    nextScenarioId: "historic-idam-passport-session-smoke"
+  },
+  {
+    id: "media-viewer-redaction-coordinate",
+    historicRefs: ["INC5680323", "EXUI-2869", "EXUI-2924", "EM-6575", "EM-6588"],
+    replayPack: "media-viewer-specialist",
+    failureClass: "Media Viewer redaction boxes shift with zoom, scaling, malformed fonts, or document rendering edge cases",
+    supertesterContract:
+      "Specialist Media Viewer visual/coordinate suite would need real document fixtures and pixel/coordinate assertions.",
+    coverageStatus: "out-of-scope",
+    currentPocEvidence: "Current Supertester can cover EXUI shell/auth route to Media Viewer, but not document-coordinate correctness.",
+    wouldHaveCaught: false,
+    missReason: "Requires Evidence Management/Media Viewer specialist fixtures outside the first EXUI central-assurance boundary.",
+    nextScenarioId: "media-viewer-specialist-redaction-coordinate-suite"
+  }
+] as const;
+
+export function buildHistoricFailureCoverageSummary(
+  failures: readonly ExuiHistoricFailureCoverage[] = EXUI_HISTORIC_FAILURE_COVERAGE
+): Record<HistoricFailureCoverageStatus, readonly string[]> {
+  return {
+    "covered-now": failures.filter((failure) => failure.coverageStatus === "covered-now").map((failure) => failure.id),
+    "would-catch-with-replay-pack": failures
+      .filter((failure) => failure.coverageStatus === "would-catch-with-replay-pack")
+      .map((failure) => failure.id),
+    partial: failures.filter((failure) => failure.coverageStatus === "partial").map((failure) => failure.id),
+    "out-of-scope": failures.filter((failure) => failure.coverageStatus === "out-of-scope").map((failure) => failure.id)
+  };
+}
 
 export function normalizeServiceFamily(value: string): string {
   return value.trim().toUpperCase();

@@ -38,8 +38,11 @@ Use `yarn supertest:local:shell` when Angular `ng serve` is blocked locally. It 
 
 - A central scenario manifest: `src/data/exui-central-assurance.ts`
 - A source-truth snapshot: `src/data/exui-central-assurance-source.json`
+- A PRL normalized slice for `manageOrders`, `waManageOrders`, hearing-date permutations, and access/flags source anchors
+- Executable historic replay-pack contracts: `src/data/exui-historic-replay-packs.ts`
 - A manifest drift gate: `scripts/check-exui-supertest-manifest.mjs`
 - API proof: `src/tests/api/exui-central-assurance.api.ts`
+- Historic replay-pack API proof: `src/tests/api/exui-historic-replay-packs.api.ts`
 - Manage-tasks UI proof: `src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
 - Hearings UI proof: `src/tests/integration/hearings/superServiceFamilies.positive.spec.ts`
 - Local environment support in API/UI config helpers
@@ -59,6 +62,30 @@ The harness scales by classifying EXUI-owned configuration values, not by replay
 6. Promote a lane to release-blocking only after stable CI evidence and service-owner agreement.
 
 This reduces repeated SRT by proving shared EXUI behaviour centrally. It does not remove service-owned tests for genuine downstream workflow, CCD definition, data, or integration behaviour.
+
+## Historic Replay Packs
+
+The POC now separates three levels of confidence:
+
+- Config proof: EXUI service-family configuration is present and classified.
+- Executable replay-pack proof: synthetic PRL-centred contracts replay the historic failure class without needing every service estate.
+- Full browser/CCD journey proof: still required before claiming a lane can replace service SRT.
+
+The current executable replay packs cover:
+
+- manage-case Previous/Continue hidden-page data retention
+- CYA complex/collection summary rows and change-link visibility contracts
+- hidden complex parent retention
+- Work Allocation task lifecycle correlation
+- Work Allocation persona tabs and location availability
+- null-service role assignment expansion
+- protected staff-data endpoint anonymous negative contract
+- event-history external role gate
+- event-history embedded-component width contract
+- event-start spinner latency contract
+- IDAM/passport session smoke contract
+
+Media Viewer redaction coordinate correctness remains out of scope for this EXUI-centred Supertester because it needs specialist document fixtures and Evidence Management/Media Viewer coordinate assertions.
 
 ## Recommendation
 

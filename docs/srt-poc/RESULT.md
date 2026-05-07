@@ -12,6 +12,18 @@ Implemented on `test/srt-poc-local-ccd`.
   - `src/data/exui-central-assurance-source.json`
   - `yarn supertest:manifest`
 - Added API proof for configuration, global search, WA-supported families, staff-supported families, canary handling, coverage classification, and hearings config.
+- Added PRL normalized slice source anchors for `manageOrders`, `waManageOrders`, hearing-date permutations, and access/flags.
+- Added executable historic replay-pack contracts for:
+  - manage-case Previous/Continue hidden-page data retention
+  - CYA complex/collection summary rows and change-link visibility
+  - hidden complex parent retention
+  - WA task lifecycle correlation
+  - WA persona tab/location availability
+  - null-service role assignment expansion
+  - protected staff-data endpoint anonymous negative checks
+  - event-history external role gate and layout width
+  - event-start spinner latency
+  - IDAM/passport session smoke
 - Added manage-tasks UI proof for available-task service-family filters.
 - Added hearings UI proof for:
   - supported Private Law `PRLAPPS` hearing-manager surface
@@ -47,6 +59,13 @@ COREPACK_HOME=/private/tmp/corepack-cache yarn lint
 COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/exui-central-assurance.api.ts --grep "scenario manifest|source-truth snapshot|coverage decisions|hearings seam|service-family sets|shared UI route helpers|UI availability probe" --workers=1
 # 8 passed
 
+COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/exui-central-assurance.api.ts src/tests/api/exui-historic-replay-packs.api.ts --workers=1
+# 21 passed
+
+COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:ci
+# 21 passed
+# report: functional-output/tests/supertester/odhin-report/supertester-central-assurance.html
+
 API_AUTH_MODE=form COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/auth-coverage-storage.api.ts src/tests/api/auth-coverage-bootstrap.api.ts --workers=1
 # 10 passed
 
@@ -71,6 +90,8 @@ curl -fsSI http://localhost:3455/work/my-work/available
 ```
 
 ## Residual Risk
+
+The historic failure replay packs are executable contract proofs. They prove the Supertester can encode the failure class and expected EXUI behaviour, but the manage-case data-integrity replay is not yet a full browser journey against CCD event pages.
 
 Angular `ng serve` is still blocked on this Mac by a native Node startup crash. The local demo uses the repo-owned static/proxy shell as the repeatable workaround.
 

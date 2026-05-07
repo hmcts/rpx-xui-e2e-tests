@@ -149,6 +149,112 @@
       "caseworker-privatelaw-courtadmin",
       "case-allocator",
       "hearing-manager"
+    ],
+    "normalizedSlices": [
+      {
+        "sliceId": "prl-manage-orders-hearings-auth",
+        "service": "PRL",
+        "jurisdiction": "PRIVATELAW",
+        "caseTypeId": "PRLAPPS",
+        "sourceRepo": "prl-ccd-definitions",
+        "lanes": [
+          {
+            "id": "prl-manage-orders-standard",
+            "priority": "release-blocking-representative",
+            "events": [
+              "manageOrders"
+            ],
+            "roles": [
+              "caseworker-privatelaw-courtadmin",
+              "caseworker-privatelaw-judge",
+              "caseworker-privatelaw-la"
+            ],
+            "conditions": [
+              "ShowSummary=Y",
+              "PostConditionState conditional",
+              "hidden orchestration fields",
+              "ordersHearingDetails complex"
+            ]
+          },
+          {
+            "id": "prl-wa-manage-orders",
+            "priority": "release-blocking-representative",
+            "events": [
+              "waManageOrders"
+            ],
+            "roles": [
+              "caseworker-privatelaw-courtadmin",
+              "caseworker-privatelaw-judge",
+              "caseworker-privatelaw-la"
+            ],
+            "conditions": [
+              "populate-header-task",
+              "displayConfirmedHearing",
+              "dateConfirmedInHearingsTab"
+            ]
+          },
+          {
+            "id": "prl-hearing-date-permutations",
+            "priority": "focused-matrix",
+            "fields": [
+              "hearingDateTimes",
+              "confirmedHearingDates",
+              "allPartiesAttendHearingSameWayYesOrNo",
+              "cafcassCymruHearingChannel"
+            ],
+            "permutations": [
+              "dateReservedWithListAssist",
+              "dateConfirmedInHearingsTab",
+              "all same channel",
+              "party-specific channels"
+            ]
+          },
+          {
+            "id": "prl-access-and-flags",
+            "priority": "entitlement-sensitive",
+            "events": [
+              "listWithoutNotice",
+              "c100listWithoutNotice"
+            ],
+            "fields": [
+              "flagLauncherExternal",
+              "ordersHearingDetails",
+              "markAsRestrictedReason"
+            ],
+            "roles": [
+              "citizen",
+              "[CREATOR]",
+              "[C100APPLICANTSOLICITOR1]",
+              "[C100RESPONDENTSOLICITOR1]",
+              "[LASOLICITOR]"
+            ]
+          }
+        ],
+        "evidenceRefs": [
+          "definitions/private-law/json/CaseEvent/CaseEvent.json#rows-71-72-106-107-111",
+          "definitions/private-law/json/CaseEventToFields/ManageOrders/Page 1 - Common/CaseEventToFields.json",
+          "definitions/private-law/json/CaseEventToComplexTypes/ManageOrders/HearingData/CaseEventToComplexTypes.json",
+          "definitions/private-law/json/CaseEventToComplexTypes/WaManageOrders/HearingData/CaseEventToComplexTypes.json",
+          "definitions/private-law/json/AuthorisationCaseField/ManageOrders/HearingData/AuthorisationCaseField.json"
+        ]
+      }
+    ]
+  },
+  "historicSrtFailureReplay": {
+    "source": "User-supplied EXUI SRT and incident Confluence extracts for JAC-91 Supertester coverage modelling",
+    "failureClassIds": [
+      "manage-case-previous-navigation-data-loss",
+      "cya-complex-show-condition-summary",
+      "hidden-complex-retention",
+      "wa-task-lifecycle-correlation",
+      "wa-tab-location-availability",
+      "role-assignment-null-service",
+      "protected-endpoint-auth-negative",
+      "event-history-external-role-gate",
+      "event-history-layout-width",
+      "event-start-spinner-latency",
+      "idam-passport-session-smoke",
+      "media-viewer-redaction-coordinate"
     ]
   }
 }

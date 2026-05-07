@@ -129,9 +129,10 @@ try {
   if (runOdhin) {
     const projectArgs = runCi && !includeCiUi ? ["--project=api"] : ["--project=api", "--project=ui", "--project=integration"];
     const specArgs = runCi && !includeCiUi
-      ? ["src/tests/api/exui-central-assurance.api.ts"]
+      ? ["src/tests/api/exui-central-assurance.api.ts", "src/tests/api/exui-historic-replay-packs.api.ts"]
       : [
           "src/tests/api/exui-central-assurance.api.ts",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
           "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
           "src/tests/integration/hearings/superServiceFamilies.positive.spec.ts"
         ];
@@ -150,6 +151,7 @@ try {
       "test",
       "--project=api",
       "src/tests/api/exui-central-assurance.api.ts",
+      "src/tests/api/exui-historic-replay-packs.api.ts",
       "--workers=1"
     ]);
 

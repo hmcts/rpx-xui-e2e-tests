@@ -12,6 +12,12 @@
 | Hearings | unsupported Divorce hearing surface hidden | Grouped | UI | Implemented |
 | Canary | `CMC` and `HRS` remain outside release-blocking family sets | Canary | API | Implemented |
 | Drift gate | `rpx-xui-webapp` config snapshot still matches executable manifest | Must-run | Manifest | Implemented |
+| Historic replay | manage-case data integrity: Previous/Continue, CYA complex rows, hidden complex retention | Must-run | API contract | Implemented |
+| Historic replay | Work Allocation: task correlation, persona tabs/locations, null-service role assignment | Must-run | API contract | Implemented |
+| Historic replay | Protected endpoints: anonymous staff-data negative matrix | Must-run | API contract | Implemented |
+| Historic replay | Event history/layout: external role gate and embedded-component width | Must-run | API contract | Implemented |
+| Historic replay | Event-start spinner and IDAM/passport session smoke | Must-run | API contract | Implemented |
+| Specialist | Media Viewer redaction coordinate correctness | Specialist | Out of EXUI-centred scope | Not implemented |
 
 ## Grouping Rule
 
@@ -32,3 +38,14 @@ The manifest deliberately fails when a newly configured family is not classified
 The executable manifest records source references for every scenario. Use `src/data/exui-central-assurance.ts` as the machine-readable version of this matrix, `src/data/exui-central-assurance-source.json` as the checked source snapshot, and `docs/srt-poc/KNOWLEDGE_MAP.md` as the human-readable refresh guide.
 
 `yarn supertest:manifest` checks the snapshot against current `rpx-xui-webapp` config and representative `prl-ccd-definitions` anchors before the Playwright proof runs.
+
+## PRL Normalized Slice
+
+The current PRL slice is intentionally narrow but source-backed:
+
+- `manageOrders`: CYA enabled, hidden orchestration fields, `ordersHearingDetails` complex field, and role-sensitive authorisation.
+- `waManageOrders`: Work Allocation equivalent with task header callback and hearing confirmation conditions.
+- hearing-date permutations: reserved date, confirmed date, shared channel, and party-specific channel variants.
+- access and flags: `listWithoutNotice`, `c100listWithoutNotice`, external flag launcher, and solicitor/citizen/LA role families.
+
+The source snapshot records the evidence refs under `prlCcdDefinitions.normalizedSlices`, and the manifest gate checks those PRL files and event ids exist in `prl-ccd-definitions`.

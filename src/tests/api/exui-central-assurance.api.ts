@@ -9,8 +9,10 @@ import {
   EXUI_ALL_CONFIGURED_SERVICE_FAMILIES,
   EXUI_CANARY_SERVICE_FAMILIES,
   EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES,
+  EXUI_HISTORIC_FAILURE_COVERAGE,
   EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY,
   EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES,
+  EXUI_PRL_NORMALIZED_SLICES,
   EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS,
   EXUI_SERVICE_LABELS,
   EXUI_SERVICE_REF_DATA_MAPPING,
@@ -18,6 +20,7 @@ import {
   EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES,
   EXUI_SUPERSERVICE_SCENARIOS,
   EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
+  buildHistoricFailureCoverageSummary,
   findUnclassifiedServiceFamilies,
   normalizeServiceFamily,
   sortServiceFamilies,
@@ -54,6 +57,9 @@ type SourceTruth = {
       };
       serviceRefDataMapping: Array<{ service: string; serviceCodes: string[] }>;
     };
+  };
+  prlCcdDefinitions: {
+    normalizedSlices: unknown[];
   };
 };
 type RoutePattern = string | RegExp;
@@ -191,6 +197,7 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
     expect([...EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES]).toEqual(expectedDefaults.hearings.hearingsJurisdictions);
     expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY).toEqual(expectedDefaults.hearings.caseTypesByJurisdiction);
     expect(EXUI_SERVICE_REF_DATA_MAPPING).toEqual(expectedServiceRefDataMapping);
+    expect(EXUI_PRL_NORMALIZED_SLICES).toEqual(sourceTruth.prlCcdDefinitions.normalizedSlices);
     expect(sortedUniqueServiceFamilies(EXUI_ALL_CONFIGURED_SERVICE_FAMILIES)).toEqual(
       sortedUniqueServiceFamilies([
         ...expectedDefaults.jurisdictions,
@@ -225,6 +232,55 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
         canary: ['CMC', 'HRS'],
       })
     );
+  });
+
+  test('historic SRT failure classes are classified as caught, planned, or explicitly missed', () => {
+    const historicIds = EXUI_HISTORIC_FAILURE_COVERAGE.map((failure) => failure.id);
+    const summary = buildHistoricFailureCoverageSummary();
+
+    expect(new Set(historicIds).size).toBe(historicIds.length);
+    expect(EXUI_HISTORIC_FAILURE_COVERAGE.length).toBeGreaterThanOrEqual(12);
+    expect(summary['covered-now']).toEqual(
+      expect.arrayContaining([
+        'manage-case-previous-navigation-data-loss',
+        'cya-complex-show-condition-summary',
+        'hidden-complex-retention',
+        'wa-task-lifecycle-correlation',
+        'wa-tab-location-availability',
+        'role-assignment-null-service',
+        'protected-endpoint-auth-negative',
+        'event-history-external-role-gate',
+        'event-history-layout-width',
+        'event-start-spinner-latency',
+        'idam-passport-session-smoke',
+      ])
+    );
+    expect(summary.partial).toEqual([]);
+    expect(summary['would-catch-with-replay-pack']).toEqual([]);
+    expect(summary['out-of-scope']).toEqual(['media-viewer-redaction-coordinate']);
+
+    for (const failure of EXUI_HISTORIC_FAILURE_COVERAGE) {
+      expect(failure.historicRefs.length, `${failure.id} should trace to supplied historic evidence`).toBeGreaterThan(0);
+      expect(failure.failureClass.trim().length, `${failure.id} should describe the failure class`).toBeGreaterThan(0);
+      expect(failure.supertesterContract.trim().length, `${failure.id} should define the Supertester contract`).toBeGreaterThan(
+        0
+      );
+      expect(failure.currentPocEvidence.trim().length, `${failure.id} should state current POC evidence`).toBeGreaterThan(0);
+      expect(failure.nextScenarioId.trim().length, `${failure.id} should name the next scenario`).toBeGreaterThan(0);
+    }
+
+    const outOfScopeFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'out-of-scope');
+    const catchableFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus !== 'out-of-scope');
+
+    expect(catchableFailures.every((failure) => failure.wouldHaveCaught)).toBe(true);
+    expect(outOfScopeFailures).toEqual([
+      expect.objectContaining({
+        id: 'media-viewer-redaction-coordinate',
+        missReason: expect.any(String),
+        wouldHaveCaught: false,
+      }),
+    ]);
+    expect(outOfScopeFailures.every((failure) => (failure.missReason ?? '').trim().length > 0)).toBe(true);
   });
 
   test('hearings seam has executable supported and unsupported family contracts', () => {

@@ -170,6 +170,24 @@ function checkPrlDefinitions() {
       failures.push(`PRL preview HMC subscription does not expose service code ${expectedPrl.hmctsServiceCode}.`);
     }
   }
+
+  for (const slice of source.prlCcdDefinitions.normalizedSlices ?? []) {
+    for (const eventId of slice.lanes?.flatMap((lane) => lane.events ?? []) ?? []) {
+      const hasEvent = readJson(path.join(prlDefinitionsRoot, "definitions/private-law/json/CaseEvent/CaseEvent.json")).some(
+        (event) => event.ID === eventId
+      );
+      if (!hasEvent) {
+        failures.push(`PRL normalized slice ${slice.sliceId} references missing event ${eventId}.`);
+      }
+    }
+
+    for (const evidenceRef of slice.evidenceRefs ?? []) {
+      const evidencePath = evidenceRef.split("#")[0];
+      if (!fs.existsSync(path.join(prlDefinitionsRoot, evidencePath))) {
+        failures.push(`PRL normalized slice ${slice.sliceId} references missing evidence file ${evidencePath}.`);
+      }
+    }
+  }
 }
 
 const { defaultConfig, envConfig } = readXuiConfig();
@@ -185,7 +203,9 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(`[supertest-manifest] rpx-xui-webapp config matches ${path.relative(repoRoot, sourcePath)}.`);
-  console.log("[supertest-manifest] PRL representative case type, hearing role, and ABA5 source anchors are present.");
+  console.log(
+    `[supertest-manifest] PRL representative case type, hearing role, ABA5 source anchors, and ${source.prlCcdDefinitions.normalizedSlices.length} normalized slice(s) are present.`
+  );
   console.log(
     `[supertest-manifest] coverage input sets: global=${expectedDefault.globalSearchServices.length}, wa=${expectedDefault.waSupportedJurisdictions.length}, staff=${expectedDefault.staffSupportedJurisdictions.length}, hearings=${expectedDefault.hearings.hearingsJurisdictions.length}`
   );
