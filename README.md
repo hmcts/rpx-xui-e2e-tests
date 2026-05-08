@@ -53,21 +53,53 @@ Key env vars to tag:
 
 ## Reporting outputs (API vs UI)
 
-Odhin reports are split for Jenkins publishing. You can override paths using `PLAYWRIGHT_REPORT_FOLDER` (output folder) and `PW_ODHIN_TARGET` (copy target).
+The wrapped Playwright commands mirror the XUI webapp execution pattern: each suite has a raw command, a wrapped command that records a load profile, and stable Odhin output paths for local and Jenkins evidence.
+
+Core commands:
+
+```bash
+yarn test:api
+yarn test:playwright:integration
+yarn test:playwrightE2E
+yarn test:integration:nightly
+yarn test:crossbrowser
+```
+
+Use the `:raw` variants only when you deliberately want to bypass load-profile wrapping, for example `yarn test:api:raw`.
+
+Odhin reports are split for Jenkins publishing. You can override paths using `PLAYWRIGHT_REPORT_FOLDER` (output folder), `PW_ODHIN_TARGET` (copy target), and `PW_ODHIN_INDEX` / `PLAYWRIGHT_REPORT_INDEX_FILENAME` (index filename).
 
 - API Odhin output (raw): `functional-output/tests/playwright-api/odhin-report`
 - API Odhin publish target: `functional-output/tests/api_functional/odhin-report`
-- UI Odhin output/publish: `functional-output/tests/playwright-e2e/odhin-report`
+- Integration Odhin output/publish: `functional-output/tests/playwright-integration/odhin-report`
+- Integration nightly Odhin output/publish: `functional-output/tests/playwright-integration-nightly/odhin-report`
+- E2E Odhin output/publish: `functional-output/tests/playwright-e2e/odhin-report`
 
 HTML and JUnit report defaults remain:
 
 - HTML: `playwright-report/` (override with `PLAYWRIGHT_HTML_OUTPUT`)
 - JUnit: `playwright-junit.xml` (override with `PLAYWRIGHT_JUNIT_OUTPUT`)
 
-Coverage and endpoint artifacts:
+Coverage, endpoint, and load-profile artifacts:
 
 - Coverage: `coverage/` (includes `coverage-summary.txt` and `coverage-summary-rows.json`)
-- Endpoint scan output: `coverage/api-endpoints.json`
+- Static endpoint inventory: `coverage/api-endpoints.json`
+- API runtime endpoint log: per-test `node-api-calls.json`, copied into the API Odhin endpoint tab when available
+- API load profile: `functional-output/tests/api_functional/odhin-report/load-profile/load-profile.html`
+- Integration load profile: `functional-output/tests/playwright-integration/odhin-report/load-profile/load-profile.html`
+- E2E load profile: `functional-output/tests/playwright-e2e/odhin-report/load-profile/load-profile.html`
+
+## Tag filters and global exclusions
+
+The suite filters follow the webapp-style contract:
+
+- `API_PW_INCLUDE_TAGS` / `API_PW_EXCLUDED_TAGS_OVERRIDE`
+- `E2E_PW_INCLUDE_TAGS` / `E2E_PW_EXCLUDED_TAGS_OVERRIDE`
+- `INTEGRATION_PW_INCLUDE_TAGS` / `INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE`
+- `PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS`
+- `PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES`
+
+Use `@none` when a suite needs an explicit empty exclude set. Nightly wrappers default to `@nightly` include tags and `@none` excludes.
 
 ## Notes on API attachments
 

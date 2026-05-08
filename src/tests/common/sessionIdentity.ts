@@ -1,5 +1,7 @@
 import { UserUtils } from "../e2e/utils/user.utils.js";
 
+import { resolvePooledUserIdentifier } from "./userPoolIdentifiers.js";
+
 export type SessionIdentity = {
   userIdentifier: string;
   email: string;
@@ -31,9 +33,10 @@ export function resolveSessionIdentity(
   }
 
   const userUtils = deps.userUtils ?? new UserUtils();
-  const credentials = userUtils.getUserCredentials(input);
+  const userIdentifier = resolvePooledUserIdentifier(input);
+  const credentials = userUtils.getUserCredentials(userIdentifier);
   return {
-    userIdentifier: input,
+    userIdentifier,
     email: credentials.email,
     password: credentials.password
   };
@@ -46,4 +49,3 @@ export function resolveSessionStorageKey(
   const identity = resolveSessionIdentity(input, deps);
   return normaliseSessionStorageKey(identity.sessionKey?.trim() || identity.email);
 }
-

@@ -36,6 +36,16 @@ const envTaskId = WA_SAMPLE_TASK_ID;
 const envAssignedTaskId = WA_SAMPLE_ASSIGNED_TASK_ID;
 const BEFORE_ALL_REQUEST_TIMEOUT_MS = 10_000;
 
+function describeWaSetupError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .split('\n')[0]
+    .replace(/cookie: .*/i, 'cookie: [REDACTED]')
+    .replace(/(__auth__=)[^;\s]+/gi, '$1[REDACTED]')
+    .replace(/(XSRF-TOKEN=)[^;\s]+/gi, '$1[REDACTED]')
+    .slice(0, 300);
+}
+
 test.describe('Work allocation (read-only)', { tag: '@svc-work-allocation' }, () => {
   let cachedLocationId: string | undefined;
   let userId: string | undefined;
@@ -54,7 +64,7 @@ test.describe('Work allocation (read-only)', { tag: '@svc-work-allocation' }, ()
         userId = resolveUserId(userRes.data);
       }
     } catch (error) {
-      console.warn(`[WA_SETUP_DEGRADED] user/details failed: ${(error as Error).message}`);
+      console.warn(`[WA_SETUP_DEGRADED] user/details failed: ${describeWaSetupError(error)}`);
     }
 
     try {
@@ -67,7 +77,7 @@ test.describe('Work allocation (read-only)', { tag: '@svc-work-allocation' }, ()
       );
       cachedLocationId = resolveLocationId(listResponse.status, listResponse.data);
     } catch (error) {
-      console.warn(`[WA_SETUP_DEGRADED] location bootstrap failed: ${(error as Error).message}`);
+      console.warn(`[WA_SETUP_DEGRADED] location bootstrap failed: ${describeWaSetupError(error)}`);
     }
 
     try {
@@ -79,7 +89,7 @@ test.describe('Work allocation (read-only)', { tag: '@svc-work-allocation' }, ()
       sampleTaskId = resolvedSeed.sampleTaskId;
       sampleMyTaskId = resolvedSeed.sampleMyTaskId;
     } catch (error) {
-      console.warn(`[WA_SETUP_DEGRADED] seedTaskId failed: ${(error as Error).message}`);
+      console.warn(`[WA_SETUP_DEGRADED] seedTaskId failed: ${describeWaSetupError(error)}`);
       sampleTaskId = undefined;
       sampleMyTaskId = undefined;
     }
@@ -643,6 +653,42 @@ test.describe('Work allocation helper coverage', { tag: '@svc-work-allocation' }
     };
     const task = await fetchFirstTask(apiClient);
     expect(task).toBeUndefined();
+  });
+
+  test('fetchFirstTask degrades on request timeout unless strict mode is requested', async () => {
+    const timeoutClient = {
+      post: async () => {
+        throw new Error('Timeout 30000ms exceeded');
+      },
+    };
+
+    await expect(fetchFirstTask(timeoutClient)).resolves.toBeUndefined();
+    await expect(fetchFirstTask(timeoutClient, undefined, ['assigned'], 'AllWork', { failOnRequestError: true })).rejects.toThrow(
+      'Timeout 30000ms exceeded'
+    );
+
+    const observedOptions: Array<{ timeoutMs?: number }> = [];
+    const successfulClient = {
+      post: async (_endpoint: string, options?: Record<string, unknown>) => {
+        observedOptions.push({ timeoutMs: options?.timeoutMs as number | undefined });
+        return { status: 200, data: { tasks: [{ id: 'task-1' }] } };
+      },
+    };
+
+    await expect(fetchFirstTask(successfulClient, undefined, ['assigned'], 'AllWork', { timeoutMs: 7_500 })).resolves.toEqual({
+      id: 'task-1',
+    });
+    expect(observedOptions[0]?.timeoutMs).toBe(7_500);
+
+    let retryCalls = 0;
+    const retryClient = {
+      post: async () => {
+        retryCalls += 1;
+        return { status: 502, data: { tasks: [] } };
+      },
+    };
+    await expect(fetchFirstTask(retryClient, undefined, ['assigned'], 'AllWork', { retries: 0 })).resolves.toBeUndefined();
+    expect(retryCalls).toBe(1);
   });
 
   test('assertLocationsListResponse covers guarded and populated data', () => {

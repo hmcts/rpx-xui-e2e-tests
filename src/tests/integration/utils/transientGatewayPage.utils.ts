@@ -23,6 +23,7 @@ export async function navigateWithTransientGatewayRetry(
   url: string,
   options: {
     maxAttempts?: number;
+    timeoutMs?: number;
     waitUntil?: NonNullable<Parameters<Page["goto"]>[1]>["waitUntil"];
     contextLabel?: string;
     afterNavigation?: () => Promise<void>;
@@ -31,7 +32,8 @@ export async function navigateWithTransientGatewayRetry(
   await retryOnTransientFailure(
     async () => {
       await page.goto(url, {
-        waitUntil: options.waitUntil ?? "domcontentloaded"
+        waitUntil: options.waitUntil ?? "domcontentloaded",
+        timeout: options.timeoutMs ?? 30_000
       });
 
       if (await hasTransientGatewayPage(page)) {

@@ -12,7 +12,7 @@ import {
 } from "../mocks/bookingUI.mock.js";
 import { buildHearingsUserDetailsMock } from "../mocks/hearings.mock.js";
 import { buildMyTaskListMock } from "../mocks/taskList.mock.js";
-import { formatUiDate } from "../utils/tableUtils.js";
+import { formatUiDate, normalizeUiDateValue } from "../utils/tableUtils.js";
 import { navigateWithTransientGatewayRetry } from "../utils/transientGatewayPage.utils.js";
 
 const userIdentifier = "BOOKING_UI-FT-ON";
@@ -111,10 +111,8 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
             key: "Location",
             value: existingBookingsMock[0].locationName
           });
-          expect(table[1]).toEqual({
-            key: "Duration",
-            value: `${today} to ${today}`
-          });
+          expect(table[1].key).toBe("Duration");
+          expect(normalizeUiDateValue(table[1].value)).toBe(`${today} to ${today}`);
           await bookingUiPage.bookingButton.click();
         });
 

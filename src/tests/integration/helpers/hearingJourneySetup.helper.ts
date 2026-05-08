@@ -9,16 +9,19 @@ import {
   LISTED_HEARING_SCENARIO,
   type HearingScenario,
 } from '../mocks/hearings.mock';
-import { navigateWithTransientGatewayRetry } from '../utils/transientGatewayPage.utils.js';
 
+import {
+  HEARING_MANAGER_CR84_ON_USER,
+  resolveHearingManagerUserIdentifier,
+  type HearingManagerUserIdentifier,
+} from './hearingManagerUserPool.helper';
 import { setupHearingsMockRoutes, type HearingsMockRoutesConfig } from './hearingsMockRoutes.helper';
 import { applySessionCookies } from './sessionUser.helper.js';
 
-export const HEARING_MANAGER_CR84_ON_USER = 'HEARING_MANAGER_CR84_ON';
-export const HEARING_MANAGER_CR84_OFF_USER = 'HEARING_MANAGER_CR84_OFF';
 export const HEARINGS_TERMINAL_STATE_TIMEOUT_MS = 15_000;
 export const HEARINGS_ROWS_HIDDEN_TIMEOUT_MS = 10_000;
 export const HEARINGS_SLOW_RESPONSE_DELAY_MS = 4_000;
+const HEARINGS_NAVIGATION_ATTEMPTS = 3;
 
 export const hearingManagerRoles = [
   'caseworker-privatelaw',
@@ -33,6 +36,40 @@ export const caseDetailsUrl = (
   caseTypeId = HEARINGS_CASE_TYPE,
   caseReference = HEARINGS_CASE_REFERENCE
 ) => `/cases/case-details/${jurisdictionId}/${caseTypeId}/${caseReference}`;
+
+function isTransientNavigationError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /ERR_SOCKET_NOT_CONNECTED|ERR_ABORTED|net::ERR|Navigation failed|interrupted.*navigation|chrome-error:\/\/chromewebdata|did not reach|Timeout .* exceeded/i.test(
+      error.message
+    )
+  );
+}
+
+export async function gotoCaseDetailsWithRetry(page: Page, targetUrl: string): Promise<void> {
+  const targetPath = targetUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const targetPattern = new RegExp(`${targetPath}(?:[/?#]|$)`);
+
+  for (let attempt = 1; attempt <= HEARINGS_NAVIGATION_ATTEMPTS; attempt += 1) {
+    try {
+      await page.goto(targetUrl, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30_000,
+      });
+      await page.waitForURL(targetPattern, { timeout: 30_000 }).catch(() => undefined);
+      if (!targetPattern.test(page.url())) {
+        throw new Error(`Hearings case-details navigation did not reach ${targetUrl}; current URL is ${page.url()}`);
+      }
+      return;
+    } catch (error) {
+      if (attempt >= HEARINGS_NAVIGATION_ATTEMPTS || !isTransientNavigationError(error)) {
+        throw error;
+      }
+
+      await page.goto('about:blank').catch(() => undefined);
+    }
+  }
+}
 
 export function resolveHearingsCaseRoute(options: {
   routeConfig: HearingsMockRoutesConfig;
@@ -53,26 +90,18 @@ export async function openHearingsTab(
   page: Page,
   caseDetailsPage: CaseDetailsPage,
   options: {
-    userIdentifier?: string;
+    userIdentifier?: HearingManagerUserIdentifier;
     routeConfig: HearingsMockRoutesConfig;
     jurisdictionId?: string;
     caseTypeId?: string;
     caseReference?: string;
   }
 ): Promise<void> {
-  await applySessionCookies(page, options.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER);
+  await applySessionCookies(page, resolveHearingManagerUserIdentifier(options.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER));
   await setupHearingsMockRoutes(page, options.routeConfig);
   const route = resolveHearingsCaseRoute(options);
-  await navigateWithTransientGatewayRetry(
-    page,
-    caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference),
-    {
-      contextLabel: 'hearings case details',
-      afterNavigation: async () => {
-        await caseDetailsPage.selectCaseDetailsTab('Hearings');
-      },
-    }
-  );
+  await gotoCaseDetailsWithRetry(page, caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference));
+  await caseDetailsPage.selectCaseDetailsTab('Hearings');
 }
 
 export async function openHearingsTabForScenario(
@@ -80,34 +109,34 @@ export async function openHearingsTabForScenario(
   caseDetailsPage: CaseDetailsPage,
   config: HearingsMockRoutesConfig,
   options?: {
-    userIdentifier?: string;
+    userIdentifier?: HearingManagerUserIdentifier;
     waitForGetHearingsResponse?: boolean;
   }
 ): Promise<Response | null> {
-  await applySessionCookies(page, options?.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER);
+  await applySessionCookies(page, resolveHearingManagerUserIdentifier(options?.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER));
   await setupHearingsMockRoutes(page, config);
   const route = resolveHearingsCaseRoute({ routeConfig: config });
-  let getHearingsResponse: Response | null = null;
-  await navigateWithTransientGatewayRetry(
-    page,
-    caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference),
-    {
-      contextLabel: 'hearings case details',
-      afterNavigation: async () => {
-        if (options?.waitForGetHearingsResponse === false) {
-          await caseDetailsPage.selectCaseDetailsTab('Hearings');
-          return;
-        }
+  const targetUrl = caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference);
+  await gotoCaseDetailsWithRetry(page, targetUrl);
+  await expect(caseDetailsPage.container)
+    .toBeVisible({ timeout: 30_000 })
+    .catch(async (error: Error) => {
+      await gotoCaseDetailsWithRetry(page, targetUrl);
+      await expect(caseDetailsPage.container)
+        .toBeVisible({ timeout: 30_000 })
+        .catch(() => {
+          throw error;
+        });
+    });
 
-        const pendingGetHearingsResponse = page.waitForResponse((response) =>
-          response.url().includes('/api/hearings/getHearings')
-        );
-        await caseDetailsPage.selectCaseDetailsTab('Hearings');
-        getHearingsResponse = await pendingGetHearingsResponse;
-      },
-    }
-  );
-  return getHearingsResponse;
+  if (options?.waitForGetHearingsResponse === false) {
+    await caseDetailsPage.selectCaseDetailsTab('Hearings');
+    return null;
+  }
+
+  const pendingGetHearingsResponse = page.waitForResponse((response) => response.url().includes('/api/hearings/getHearings'));
+  await caseDetailsPage.selectCaseDetailsTab('Hearings');
+  return pendingGetHearingsResponse;
 }
 
 export function buildLargeListedHearings(total: number): HearingScenario[] {

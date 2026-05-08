@@ -19,9 +19,39 @@ properties([
       description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
     ),
     string(
-      name: 'tag',
-      defaultValue: '@smoke',
-      description: 'Optional grep tag for focused runs'
+      name: 'API_PW_INCLUDE_TAGS',
+      defaultValue: '',
+      description: 'Optional API service tags to include, e.g. @svc-ccd'
+    ),
+    string(
+      name: 'API_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '',
+      description: 'Optional API service tags to exclude; use @none to clear defaults'
+    ),
+    string(
+      name: 'E2E_PW_INCLUDE_TAGS',
+      defaultValue: '@nightly',
+      description: 'Nightly E2E tag selection'
+    ),
+    string(
+      name: 'E2E_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '@none',
+      description: 'Nightly E2E exclusions; @none clears defaults'
+    ),
+    string(
+      name: 'INTEGRATION_PW_INCLUDE_TAGS',
+      defaultValue: '@nightly',
+      description: 'Nightly integration tag selection'
+    ),
+    string(
+      name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '@none',
+      description: 'Nightly integration exclusions; @none clears defaults'
+    ),
+    string(
+      name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
+      defaultValue: 'false',
+      description: 'Set true to ignore globally excluded Playwright tags for this run'
     )
   ])
 ])
@@ -88,6 +118,7 @@ def secrets = [
     secret('court-admin-password', 'COURT_ADMIN_PASSWORD'),
     secret('staff-admin-username', 'STAFF_ADMIN_USERNAME'),
     secret('staff-admin-password', 'STAFF_ADMIN_PASSWORD'),
+    secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS'),
     // secret('noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
     // secret('noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
     // secret('wa-solicitor-username', 'WA_SOLICITOR_USERNAME'),
@@ -117,6 +148,13 @@ withNightlyPipeline(type, product, component, 400) {
   env.TEST_ENV = params.TEST_ENV
   env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
   env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
+  env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
+  env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
+  env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
+  env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
+  env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
+  env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
   env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
   enableSlackNotifications(channel)
 
@@ -131,13 +169,15 @@ withNightlyPipeline(type, product, component, 400) {
           def apiOdhinEnv = [
             'FUNCTIONAL_TESTS_WORKERS=4',
             'PLAYWRIGHT_WORKERS=4',
+            "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
+            "API_PW_EXCLUDED_TAGS_OVERRIDE=${params.API_PW_EXCLUDED_TAGS_OVERRIDE}",
+            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
           ]
           try {
-            def tagArg = params.tag ? "--grep ${params.tag}" : ""
             withEnv(apiOdhinEnv) {
-              yarnBuilder.yarn("playwright test --project=api ${tagArg}")
+              yarnBuilder.yarn('test:api')
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -161,14 +201,16 @@ withNightlyPipeline(type, product, component, 400) {
           def integrationOdhinEnv = [
             'FUNCTIONAL_TESTS_WORKERS=4',
             'PLAYWRIGHT_WORKERS=4',
+            "INTEGRATION_PW_INCLUDE_TAGS=${params.INTEGRATION_PW_INCLUDE_TAGS}",
+            "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE}",
+            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PW_UI_STORAGE=1',
             'PW_ODHIN_INDEX=playwright-odhin-integration-nightly.html',
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration-nightly/odhin-report'
           ]
           try {
-            def tagArg = params.tag ? "--grep ${params.tag}" : ""
             withEnv(integrationOdhinEnv) {
-              yarnBuilder.yarn("playwright test --project=integration-nightly ${tagArg}")
+              yarnBuilder.yarn('test:integration:nightly')
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -191,6 +233,9 @@ withNightlyPipeline(type, product, component, 400) {
           def uiOdhinEnv = [
             'FUNCTIONAL_TESTS_WORKERS=2',
             'PLAYWRIGHT_WORKERS=2',
+            "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
+            "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
+            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
@@ -205,9 +250,8 @@ withNightlyPipeline(type, product, component, 400) {
             'PW_UI_FAIL_ON_HTTP_4XX=0'
           ]
           try {
-            def tagArg = params.tag ? "--grep ${params.tag}" : ""
             withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn("playwright test --project=ui ${tagArg}")
+              yarnBuilder.yarn('test:crossbrowser')
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
