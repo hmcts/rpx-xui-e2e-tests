@@ -43,6 +43,9 @@ Implemented on `test/srt-poc-local-ccd`.
   - `/Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/.agents/skills/exui-central-assurance-supertester/SKILL.md`
 - Added `docs/srt-poc/LOCAL_SUPERTEST_DEMO.md` and `docs/srt-poc/PRESENTATION_BRIEF.md`.
 - Added repeatable Odhin reporter env support for local runs so `.env` blanks do not override report output settings.
+- Added a self-contained mutation proof demo:
+  - `yarn supertest:mutation:wa`
+  - `docs/srt-poc/MUTATION_PROOF_DEMO.md`
 
 ## Validation
 
@@ -55,6 +58,11 @@ yarn supertest:manifest
 
 COREPACK_HOME=/private/tmp/corepack-cache yarn lint
 # pass: 0 errors, existing baseline Playwright conditional-test warnings only
+
+COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:mutation:wa
+# pass: control run green, injected drop-prl-wa-family regression caught
+# expected failure text: api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW
+# report: functional-output/tests/supertester/mutation-proof/odhin-report/supertester-mutation-proof.html
 
 COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/exui-central-assurance.api.ts --grep "scenario manifest|source-truth snapshot|coverage decisions|hearings seam|service-family sets|shared UI route helpers|UI availability probe" --workers=1
 # 8 passed

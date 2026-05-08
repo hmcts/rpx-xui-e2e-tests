@@ -43,6 +43,7 @@ Use `yarn supertest:local:shell` when Angular `ng serve` is blocked locally. It 
 - A manifest drift gate: `scripts/check-exui-supertest-manifest.mjs`
 - API proof: `src/tests/api/exui-central-assurance.api.ts`
 - Historic replay-pack API proof: `src/tests/api/exui-historic-replay-packs.api.ts`
+- Mutation proof runner: `yarn supertest:mutation:wa`
 - Manage-tasks UI proof: `src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
 - Hearings UI proof: `src/tests/integration/hearings/superServiceFamilies.positive.spec.ts`
 - Local environment support in API/UI config helpers
@@ -69,6 +70,7 @@ The POC now separates three levels of confidence:
 
 - Config proof: EXUI service-family configuration is present and classified.
 - Executable replay-pack proof: synthetic PRL-centred contracts replay the historic failure class without needing every service estate.
+- Mutation proof: `EXUI_ASSURANCE_MUTATION=drop-prl-wa-family` deliberately removes `PRIVATELAW` from the WA-supported family contract inside the test process, and the central assurance check fails with the missing family. This proves the gate can catch the shared EXUI regression class rather than only producing a green report, and it can be demoed without the full local CCD estate.
 - Full browser/CCD journey proof: still required before claiming a lane can replace service SRT.
 
 The current executable replay packs cover:

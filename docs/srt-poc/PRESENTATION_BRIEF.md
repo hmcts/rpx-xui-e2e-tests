@@ -18,12 +18,15 @@ Instead of asking each service to retest the same EXUI behaviour after every EXU
 - Local proof runner: `yarn supertest:local:prove`
 - Odhin report runner: `yarn supertest:local:odhin`
 - Full local validation: `yarn supertest:local:validate`
+- Mutation proof runner: `yarn supertest:mutation:wa`
 - Demo runbook: `docs/srt-poc/LOCAL_SUPERTEST_DEMO.md`
+- Mutation proof runbook: `docs/srt-poc/MUTATION_PROOF_DEMO.md`
 
 ## Latest Evidence
 
 - `yarn supertest:manifest`: source snapshot matches current `rpx-xui-webapp` config; PRL representative case type, hearing role, and ABA5 HMC subscription anchors present.
 - `COREPACK_HOME=/private/tmp/corepack-cache yarn lint`: passed with 0 errors and existing baseline warnings only.
+- `COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:mutation:wa`: passed as a demo proof; control run green, injected `drop-prl-wa-family` regression caught with `api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW`.
 - Focused central-assurance API internal proof: 8 passed.
 - `API_AUTH_MODE=form COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/auth-coverage-storage.api.ts src/tests/api/auth-coverage-bootstrap.api.ts --workers=1`: 10 passed.
 - `COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:local:odhin`: local runtime preflight passed, combined API/UI/integration Odhin proof 16 passed, 0 failed, 0 skipped, 0 flaky.
@@ -50,6 +53,7 @@ Instead of asking each service to retest the same EXUI behaviour after every EXU
 4. Show the Odhin dashboard: 16 tests, 0 failed/skipped/flaky.
 5. Explain that the UI proofs own entitlement/downstream seams by mocking `api/user/details`, WA downstream routes, and hearings downstream contracts.
 6. Show `yarn supertest:manifest` as the control that stops new service-family config from silently escaping classification.
+7. Run `yarn supertest:mutation:wa` to show the gate going red when a shared WA service-family regression is injected, then show the expected failure text naming `PRIVATELAW`.
 
 ## Developer Questions To Expect
 

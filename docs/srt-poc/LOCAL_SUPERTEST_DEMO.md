@@ -44,6 +44,12 @@ For a presentation-ready Odhin report:
 yarn supertest:local:odhin
 ```
 
+To prove the gate actually goes red for a representative shared regression, without starting the full local estate:
+
+```bash
+yarn supertest:mutation:wa
+```
+
 For a full validation run including lint:
 
 ```bash
@@ -82,6 +88,12 @@ The manage-tasks proof checks that the available-tasks service filter exposes ex
 The hearings proof checks one supported family (`PRIVATELAW` / `PRLAPPS`) and one unsupported hidden surface (`DIVORCE`), using deterministic route mocks until local HMC is justified.
 
 The latest local Odhin run produced 16 passing tests with 0 failed, 0 skipped, and 0 flaky.
+
+The mutation proof produced a green control run, then caught the injected `drop-prl-wa-family` fault with:
+
+```text
+api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW
+```
 
 ## Talking Point
 

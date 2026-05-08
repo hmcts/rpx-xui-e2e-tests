@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext, TestInfo } from '@playwright/test';
 
 import {
   buildCoverageSummary,
@@ -77,6 +77,22 @@ const CONFIGURATION_UI_KEYS = [
   'waWorkflowApi',
 ] as const;
 
+const ASSURANCE_MUTATIONS = {
+  'drop-prl-wa-family': {
+    endpoint: 'api/wa-supported-jurisdiction/get',
+    description:
+      'Demo fault: simulate EXUI no longer exposing Private Law as a Work Allocation-supported service family.',
+    removedFamily: 'PRIVATELAW',
+  },
+} as const;
+type AssuranceMutation = keyof typeof ASSURANCE_MUTATIONS;
+
+const ASSURANCE_MUTATION = process.env.EXUI_ASSURANCE_MUTATION?.trim();
+
+function isAssuranceMutation(value: string): value is AssuranceMutation {
+  return value in ASSURANCE_MUTATIONS;
+}
+
 function expectExactFamilySet(actual: readonly string[], expected: readonly string[]): void {
   expect(sortedUniqueServiceFamilies(actual)).toEqual(sortServiceFamilies(expected));
 }
@@ -94,10 +110,59 @@ function expectCentralMustRunFamiliesPresent(
   endpoint: string
 ): void {
   const actualFamilies = sortedUniqueServiceFamilies(actual);
-  expect(actualFamilies, `${endpoint} should include every central must-run family`).toEqual(
-    expect.arrayContaining([...sortServiceFamilies(expected)])
-  );
+  const expectedFamilies = sortServiceFamilies(expected);
+  const missingFamilies = expectedFamilies.filter((family) => !actualFamilies.includes(family));
+
+  expect(
+    missingFamilies,
+    `${endpoint} is missing central must-run service families: ${missingFamilies.join(', ') || 'none'}`
+  ).toEqual([]);
   expectCanaryFamiliesExcluded(actualFamilies);
+}
+
+function mutateStringArrayForDemo(actual: readonly string[], endpoint: string): string[] {
+  if (!ASSURANCE_MUTATION) {
+    return [...actual];
+  }
+
+  if (!isAssuranceMutation(ASSURANCE_MUTATION)) {
+    throw new Error(
+      `Unsupported EXUI_ASSURANCE_MUTATION=${ASSURANCE_MUTATION}. Supported values: ${Object.keys(ASSURANCE_MUTATIONS).join(', ')}`
+    );
+  }
+
+  const mutation = ASSURANCE_MUTATIONS[ASSURANCE_MUTATION];
+  if (mutation.endpoint !== endpoint) {
+    return [...actual];
+  }
+
+  return actual.filter((family) => normalizeServiceFamily(family) !== mutation.removedFamily);
+}
+
+function mutationLabel(): string | undefined {
+  if (!ASSURANCE_MUTATION) {
+    return undefined;
+  }
+
+  if (!isAssuranceMutation(ASSURANCE_MUTATION)) {
+    return `unknown mutation ${ASSURANCE_MUTATION}`;
+  }
+
+  const mutation = ASSURANCE_MUTATIONS[ASSURANCE_MUTATION];
+  return `${ASSURANCE_MUTATION}: ${mutation.description}`;
+}
+
+async function attachMutationEvidence(testInfo: TestInfo): Promise<void> {
+  const mutation = mutationLabel();
+  if (!mutation) {
+    return;
+  }
+
+  testInfo.annotations.push({ type: 'EXUI assurance mutation', description: mutation });
+  await testInfo.attach('exui-assurance-mutation.txt', {
+    body: mutation,
+    contentType: 'text/plain',
+  });
 }
 
 function expectStringArrayOnSuccess(response: { status: number; data: unknown }, endpoint: string): string[] {
@@ -467,6 +532,16 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
     }
   });
 
+  test('api/wa-supported-jurisdiction/get mutation proof catches a shared WA family regression', async ({}, testInfo) => {
+    await attachMutationEvidence(testInfo);
+
+    expectCentralMustRunFamiliesPresent(
+      mutateStringArrayForDemo(EXUI_WA_SUPPORTED_SERVICE_FAMILIES, 'api/wa-supported-jurisdiction/get'),
+      EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
+      'api/wa-supported-jurisdiction/get'
+    );
+  });
+
   test('api/wa-supported-jurisdiction/get contains the central WA must-run family set', async ({ apiClient }, testInfo) => {
     const response = await apiClient.get<string[]>('api/wa-supported-jurisdiction/get', { throwOnError: false });
     skipUnlessExactContractStatus(testInfo, response.status, 'api/wa-supported-jurisdiction/get');
@@ -477,7 +552,13 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
       },
       'api/wa-supported-jurisdiction/get'
     );
-    expectCentralMustRunFamiliesPresent(actual, EXUI_WA_SUPPORTED_SERVICE_FAMILIES, 'api/wa-supported-jurisdiction/get');
+    await attachMutationEvidence(testInfo);
+
+    expectCentralMustRunFamiliesPresent(
+      mutateStringArrayForDemo(actual, 'api/wa-supported-jurisdiction/get'),
+      EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
+      'api/wa-supported-jurisdiction/get'
+    );
   });
 
   test('api/staff-supported-jurisdiction/get matches the central staff-supported family list', async ({
