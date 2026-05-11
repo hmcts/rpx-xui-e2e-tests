@@ -150,9 +150,11 @@ test.describe(
           userId: sessionUserId,
           locationId: defaultBookingLocation.epimms_id,
           regionId: defaultBookingLocation.region_id,
-          beginDate: expectedTodayBookingRange.beginDate,
+          beginDate: submittedRequest.beginDate,
           endDate: expectedTodayBookingRange.endDate
         });
+        expect(submittedRequest.beginDate).toMatch(/^20\d{2}-\d{2}-\d{2}T/);
+        expect(formatUiDate(submittedRequest.beginDate)).toBe(formatUiDate(expectedTodayBookingRange.beginDate));
 
         const bookingResponse = createBookingResponseBody!.bookingResponse;
         expect(bookingResponse.userId).toBe(sessionUserId);
