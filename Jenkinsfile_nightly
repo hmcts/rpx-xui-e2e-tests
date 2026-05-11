@@ -16,7 +16,7 @@ properties([
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
       defaultValue: '4',
-      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
+      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS, capped at 4 in Jenkins)'
     ),
     string(
       name: 'API_PW_INCLUDE_TAGS',
@@ -51,7 +51,7 @@ properties([
     string(
       name: 'INTEGRATION_PW_WORKERS',
       defaultValue: '',
-      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS.'
+      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS and is capped at 4 in Jenkins.'
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
@@ -286,10 +286,18 @@ def publishCiLoadProfile = { String reportName ->
   publishPlaywrightLoadProfile(ciLoadProfileDir, reportName)
 }
 
+def capJenkinsPlaywrightWorkers = { String configured ->
+  def parsed = (configured ?: '4').trim()
+  if (!parsed.isInteger()) {
+    return '4'
+  }
+  return Math.min(4, Math.max(1, parsed.toInteger())).toString()
+}
+
 def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride ->
   def requestedWorkers = workersOverride?.trim()
   if (requestedWorkers) {
-    return ["workers=${requestedWorkers}"]
+    return ["workers=${capJenkinsPlaywrightWorkers(requestedWorkers)}"]
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
@@ -302,10 +310,10 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
 }
 
 def integrationProfileRunConfig = { String spec ->
-  def workers = params.FUNCTIONAL_TESTS_WORKERS ?: '4'
+  def workers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   spec.split(/\s+/).each { token ->
     if (token.startsWith('workers=')) {
-      workers = token.replaceFirst('workers=', '')
+      workers = capJenkinsPlaywrightWorkers(token.replaceFirst('workers=', ''))
     }
   }
   def safeName = "workers-${workers}".replaceAll(/[^A-Za-z0-9._-]/, '-')
@@ -318,10 +326,11 @@ def integrationProfileRunConfig = { String spec ->
 
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
+  def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   env.TEST_URL = params.TEST_URL
   env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
+  env.FUNCTIONAL_TESTS_WORKERS = functionalWorkers
+  env.PLAYWRIGHT_WORKERS = functionalWorkers
   env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
   env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
   env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
@@ -354,7 +363,7 @@ withNightlyPipeline(type, product, component, 400) {
       try {
         parallel(
         'API nightly': {
-          def apiWorkers = params.FUNCTIONAL_TESTS_WORKERS ?: '4'
+          def apiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
           def apiOdhinEnv = [
             "FUNCTIONAL_TESTS_WORKERS=${apiWorkers}",
             "PLAYWRIGHT_WORKERS=${apiWorkers}",
