@@ -66,8 +66,9 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: '''workers=4''',
-      description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>.'
+      defaultValue: '''workers=2 shard=1/2
+workers=2 shard=2/2''',
+      description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>. Entries run in parallel.'
     ),
     string(
       name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
@@ -314,7 +315,8 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
-    configured = 'workers=4'
+    configured = '''workers=2 shard=1/2
+workers=2 shard=2/2'''
   }
   return configured
     .split(/[\r\n;]+/)
@@ -429,55 +431,60 @@ withNightlyPipeline(type, product, component, 300) {
         },
         'Integration tests': {
           def integrationIncludeTags = removeTag(params.INTEGRATION_PW_INCLUDE_TAGS, '@nightly')
+          def integrationProfileBranches = [:]
           resolveIntegrationProfileRuns(
             params.INTEGRATION_PW_PROFILE_RUNS ?: '',
             params.INTEGRATION_PW_WORKERS ?: '',
             params.INTEGRATION_PW_SHARD ?: ''
           ).each { spec ->
             def runConfig = integrationProfileRunConfig(spec)
-            def integrationOdhinEnv = [
-              "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
-              "PLAYWRIGHT_WORKERS=${runConfig.workers}",
-              "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
-              "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?: '@nightly'}",
-              "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-              'PW_UI_STORAGE=1',
-              'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-              "PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html",
-              "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
-              "PW_LOAD_PROFILE_OUTPUT=${runConfig.reportDir}/load-profile",
-              "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}",
-              "PW_LOAD_PROFILE_LABEL=Integration ${runConfig.displayName}"
-            ]
-            try {
-              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
-              runInPlaywrightContainer {
-                withEnv(integrationOdhinEnv) {
-                  yarnBuilder.yarn("test:integration${runConfig.shardArg ? " -- ${runConfig.shardArg}" : ""}")
+            def branchName = "Integration ${runConfig.displayName}"
+            integrationProfileBranches[branchName] = {
+              def integrationOdhinEnv = [
+                "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
+                "PLAYWRIGHT_WORKERS=${runConfig.workers}",
+                "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
+                "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?: '@nightly'}",
+                "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+                'PW_UI_STORAGE=1',
+                'PW_ODHIN_INDEX=playwright-odhin-integration.html',
+                "PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html",
+                "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
+                "PW_LOAD_PROFILE_OUTPUT=${runConfig.reportDir}/load-profile",
+                "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}",
+                "PW_LOAD_PROFILE_LABEL=Integration ${runConfig.displayName}"
+              ]
+              try {
+                recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
+                runInPlaywrightContainer {
+                  withEnv(integrationOdhinEnv) {
+                    yarnBuilder.yarn("test:integration -- --workers=${runConfig.workers}${runConfig.shardArg ? " ${runConfig.shardArg}" : ""}")
+                  }
                 }
+              } catch (Error) {
+                unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + Error.toString())
+              } finally {
+                withEnv(integrationOdhinEnv) {
+                  yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+                }
+                publishHTML([
+                  allowMissing         : true,
+                  alwaysLinkToLastBuild: true,
+                  keepAll              : true,
+                  reportDir            : "${runConfig.reportDir}",
+                  reportFiles          : 'playwright-odhin-integration.html',
+                  reportName           : "Integration Odhín report (${runConfig.displayName})"
+                ])
+                archiveArtifacts allowEmptyArchive: true, artifacts: "${runConfig.reportDir}/**"
+                publishPlaywrightLoadProfile(
+                  "${runConfig.reportDir}/load-profile",
+                  "Integration System Load (${runConfig.displayName})"
+                )
+                recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'finish')
               }
-            } catch (Error) {
-              unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + Error.toString())
-            } finally {
-              withEnv(integrationOdhinEnv) {
-                yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
-              }
-              publishHTML([
-                allowMissing         : true,
-                alwaysLinkToLastBuild: true,
-                keepAll              : true,
-                reportDir            : "${runConfig.reportDir}",
-                reportFiles          : 'playwright-odhin-integration.html',
-                reportName           : "Integration Odhín report (${runConfig.displayName})"
-              ])
-              archiveArtifacts allowEmptyArchive: true, artifacts: "${runConfig.reportDir}/**"
-              publishPlaywrightLoadProfile(
-                "${runConfig.reportDir}/load-profile",
-                "Integration System Load (${runConfig.displayName})"
-              )
-              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'finish')
             }
           }
+          parallel integrationProfileBranches
         },
         'UI tests': {
           def uiOdhinEnv = [
