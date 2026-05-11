@@ -361,7 +361,7 @@ withNightlyPipeline(type, product, component, 400) {
     stage('Nightly tests') {
       recordPlaywrightLoadEvent('Nightly functional tests', 'start')
       try {
-        parallel(
+        def testStages = [
         'API nightly': {
           def apiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
           def apiOdhinEnv = [
@@ -378,7 +378,7 @@ withNightlyPipeline(type, product, component, 400) {
             recordPlaywrightLoadEvent('API', 'start')
             runInPlaywrightContainer {
               withEnv(apiOdhinEnv) {
-                yarnBuilder.yarn('test:api')
+                yarnBuilder.yarn('test:api:ci:raw')
               }
             }
           } catch (Error) {
@@ -473,13 +473,14 @@ withNightlyPipeline(type, product, component, 400) {
             'PW_UI_IDLE_QUIET_MS=400',
             'PW_UI_FAIL_ON_HTTP_ERRORS=0',
             'PW_UI_FAIL_ON_HTTP_4XX=0',
+            'PLAYWRIGHT_SKIP_INSTALL=true',
             "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
           ]
           try {
             recordPlaywrightLoadEvent('UI', 'start')
             runInPlaywrightContainer {
               withEnv(uiOdhinEnv) {
-                yarnBuilder.yarn('test:crossbrowser')
+                yarnBuilder.yarn('test:crossbrowser:raw')
               }
             }
           } catch (Error) {
@@ -504,7 +505,12 @@ withNightlyPipeline(type, product, component, 400) {
             recordPlaywrightLoadEvent('UI', 'finish')
           }
         }
-        )
+        ]
+        testStages.each { testName, testBody ->
+          stage(testName) {
+            testBody()
+          }
+        }
       } finally {
         recordPlaywrightLoadEvent('Nightly functional tests', 'finish')
         publishCiLoadProfile('RPX E2E Nightly CI System Load')
