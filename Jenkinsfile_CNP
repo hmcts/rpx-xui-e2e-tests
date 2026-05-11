@@ -171,10 +171,41 @@ def secrets = [
 ]
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+def playwrightImage = "mcr.microsoft.com/playwright:v1.59.1-noble"
+def playwrightDockerOptions = "--ipc=host"
 def playwrightLoadProfileReportFile = 'load-profile.html'
 def ciLoadProfileDir = 'functional-output/tests/playwright-integration/load-profile/ci'
 def ciLoadProfileEventsFile = 'functional-output/tests/playwright-integration/load-profile/ci-stage-events.jsonl'
 def ciLoadProfilePublished = false
+
+def runInPlaywrightContainer = { Closure body ->
+  withDocker(playwrightImage, playwrightDockerOptions) {
+    body()
+  }
+}
+
+def recordPlaywrightContainerDiagnostics = {
+  runInPlaywrightContainer {
+    steps.sh '''
+      set +e
+      echo "=== playwright-container:diagnostic:start ==="
+      echo "HOSTNAME=$(hostname)"
+      echo "WHOAMI=$(whoami)"
+      echo "PWD=$(pwd)"
+      echo "PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-<unset>}"
+      echo "--- /etc/os-release ---"
+      cat /etc/os-release || true
+      echo "--- /ms-playwright ---"
+      ls -la /ms-playwright || true
+      echo "--- node + playwright package version ---"
+      node -v
+      node -e 'try { console.log(require("@playwright/test/package.json").version) } catch (e) { console.log("NO_PLAYWRIGHT_PACKAGE", e.message) }'
+      echo "--- playwright CLI version ---"
+      npx playwright --version || true
+      echo "=== playwright-container:diagnostic:end ==="
+    '''
+  }
+}
 
 def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
   def safeReportName = reportName.replaceAll(/[^A-Za-z0-9._-]/, '-')
@@ -325,10 +356,16 @@ withNightlyPipeline(type, product, component, 300) {
       }
     }
 
+    stage('Diag: Playwright container evidence') {
+      recordPlaywrightContainerDiagnostics()
+    }
+
     stage('Install Playwright Browsers') {
       recordPlaywrightLoadEvent('Playwright browser install', 'start')
       try {
-        yarnBuilder.yarn('pwinstall')
+        runInPlaywrightContainer {
+          yarnBuilder.yarn('pwinstall')
+        }
       } finally {
         recordPlaywrightLoadEvent('Playwright browser install', 'finish')
       }
@@ -352,8 +389,10 @@ withNightlyPipeline(type, product, component, 300) {
           ]
           try {
             recordPlaywrightLoadEvent('API', 'start')
-            withEnv(apiOdhinEnv) {
-              yarnBuilder.yarn('test:api:coverage')
+            runInPlaywrightContainer {
+              withEnv(apiOdhinEnv) {
+                yarnBuilder.yarn('test:api:coverage')
+              }
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
@@ -399,8 +438,10 @@ withNightlyPipeline(type, product, component, 300) {
             ]
             try {
               recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
-              withEnv(integrationOdhinEnv) {
-                yarnBuilder.yarn("test:integration${runConfig.shardArg ? " -- ${runConfig.shardArg}" : ""}")
+              runInPlaywrightContainer {
+                withEnv(integrationOdhinEnv) {
+                  yarnBuilder.yarn("test:integration${runConfig.shardArg ? " -- ${runConfig.shardArg}" : ""}")
+                }
               }
             } catch (Error) {
               unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + Error.toString())
@@ -448,8 +489,10 @@ withNightlyPipeline(type, product, component, 300) {
           ]
           try {
             recordPlaywrightLoadEvent('UI', 'start')
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('test:ui')
+            runInPlaywrightContainer {
+              withEnv(uiOdhinEnv) {
+                yarnBuilder.yarn('test:ui')
+              }
             }
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
