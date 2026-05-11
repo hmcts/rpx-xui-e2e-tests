@@ -453,6 +453,26 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(filters.grepInvert?.test('@integration-manage-tasks')).toBe(true);
   });
 
+  test('root config isolates regular integration and nightly tag filters', async () => {
+    const config = buildConfig({
+      INTEGRATION_PW_INCLUDE_TAGS: '@nightly',
+      INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: '@nightly',
+      CI: undefined,
+    });
+
+    const integrationProject = config.projects.find((project) => project.name === 'integration') as
+      | { grep?: RegExp; grepInvert?: RegExp }
+      | undefined;
+    const integrationNightlyProject = config.projects.find((project) => project.name === 'integration-nightly') as
+      | { grep?: RegExp; grepInvert?: RegExp }
+      | undefined;
+
+    expect(integrationProject?.grep).toBeUndefined();
+    expect(integrationProject?.grepInvert?.test('@nightly')).toBe(true);
+    expect(integrationNightlyProject?.grep?.test('@nightly')).toBe(true);
+    expect(integrationNightlyProject?.grepInvert).toBeUndefined();
+  });
+
   test('integration filters apply only integration-scoped global exclusions', async () => {
     const filters = resolveIntegrationTagFilters({
       PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: '@integration-manage-tasks @e2e-search-case @svc-auth',
