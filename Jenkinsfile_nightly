@@ -67,6 +67,11 @@ properties([
       name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
       defaultValue: 'false',
       description: 'Set true to ignore globally excluded Playwright tags for this run'
+    ),
+    booleanParam(
+      name: 'PLAYWRIGHT_USE_DOCKER',
+      defaultValue: false,
+      description: 'Run Playwright commands inside the official Playwright Docker image for Jenkins environment diagnostics'
     )
   ])
 ])
@@ -164,12 +169,20 @@ def ciLoadProfileEventsFile = 'functional-output/tests/playwright-integration/lo
 def ciLoadProfilePublished = false
 
 def runInPlaywrightContainer = { Closure body ->
+  if (!params.PLAYWRIGHT_USE_DOCKER) {
+    body()
+    return
+  }
   withDocker(playwrightImage, playwrightDockerOptions) {
     body()
   }
 }
 
 def recordPlaywrightContainerDiagnostics = {
+  if (!params.PLAYWRIGHT_USE_DOCKER) {
+    echo '[playwright-container] Docker execution disabled; set PLAYWRIGHT_USE_DOCKER=true to run container diagnostics.'
+    return
+  }
   runInPlaywrightContainer {
     steps.sh '''
       set +e
@@ -332,7 +345,7 @@ withNightlyPipeline(type, product, component, 400) {
 
   afterAlways('DependencyCheckNightly') {
     startCiLoadProfile()
-    stage('Diag: Playwright container evidence') {
+    stage('Diag: Playwright execution environment') {
       recordPlaywrightContainerDiagnostics()
     }
 
