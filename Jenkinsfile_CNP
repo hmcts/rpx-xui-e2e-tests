@@ -453,7 +453,7 @@ withNightlyPipeline(type, product, component, 300) {
               recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
               runInPlaywrightContainer {
                 withEnv(integrationOdhinEnv) {
-                  yarnBuilder.yarn("test:integration${runConfig.shardArg ? " -- ${runConfig.shardArg}" : ""}")
+                  yarnBuilder.yarn("test:integration:raw -- --workers=${runConfig.workers}${runConfig.shardArg ? " ${runConfig.shardArg}" : ""}")
                 }
               }
             } catch (Error) {

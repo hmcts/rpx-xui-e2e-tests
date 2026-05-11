@@ -250,6 +250,26 @@ test.describe('Helper utilities and retry logic', { tag: '@svc-internal' }, () =
     expect(recoveredAfterUnlink).toBe(fakeContext);
     expect(unlinkCalls).toBe(1);
 
+    let missingStateCalls = 0;
+    const missingStateFactory = async () => {
+      missingStateCalls += 1;
+      if (missingStateCalls === 1) {
+        throw new Error("ENOENT: no such file or directory, open 'test-results/storage-states/api/aat/solicitor.json'");
+      }
+      return fakeContext;
+    };
+    const recoveredAfterMissingState = await fixturesTest.buildRequestContext(
+      'solicitor',
+      'state-1',
+      {},
+      {
+        requestFactory: missingStateFactory,
+        ensureStorageState: async () => 'state-2',
+        unlink: async () => {},
+      }
+    );
+    expect(recoveredAfterMissingState).toBe(fakeContext);
+
     const failingFactory = async () => {
       throw new Error('boom');
     };

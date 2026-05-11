@@ -96,12 +96,14 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
 
   test('createStorageStateWith honors token bootstrap and falls back to form login', async () => {
     const storageRoot = path.join(process.cwd(), 'test-results', 'auth-storage');
-    const expectedStorageStateSuffix = path.join(config.testEnv, 'solicitor.json');
+    const workerEnv = { TEST_WORKER_INDEX: '3' } as NodeJS.ProcessEnv;
+    const expectedStorageStateSuffix = path.join(config.testEnv, 'worker-3', 'solicitor.json');
     let formCalls = 0;
     const onForm = async () => {
       formCalls += 1;
     };
     const tokenSuccess = await authTest.createStorageStateWith('solicitor', {
+      env: workerEnv,
       storageRoot,
       mkdir: async () => undefined,
       getCredentials: () => mockCredentials,
@@ -113,6 +115,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
     expect(formCalls).toBe(0);
 
     const tokenFallback = await authTest.createStorageStateWith('solicitor', {
+      env: workerEnv,
       storageRoot,
       mkdir: async () => undefined,
       getCredentials: () => mockCredentials,
