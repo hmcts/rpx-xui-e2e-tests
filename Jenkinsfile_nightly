@@ -53,15 +53,10 @@ properties([
       defaultValue: '',
       description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS.'
     ),
-    string(
-      name: 'INTEGRATION_PW_SHARD',
-      defaultValue: '',
-      description: 'Optional Playwright integration shard override, for example 1/2. Used with INTEGRATION_PW_WORKERS.'
-    ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
       defaultValue: '''workers=4''',
-      description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>.'
+      description: 'Integration load-profile matrix. One run per line or semicolon. Supported key: workers=<n>.'
     ),
     string(
       name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
@@ -291,11 +286,10 @@ def publishCiLoadProfile = { String reportName ->
   publishPlaywrightLoadProfile(ciLoadProfileDir, reportName)
 }
 
-def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride, String shardOverride ->
+def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride ->
   def requestedWorkers = workersOverride?.trim()
   if (requestedWorkers) {
-    def requestedShard = shardOverride?.trim()
-    return ["workers=${requestedWorkers}${requestedShard ? " shard=${requestedShard}" : ''}"]
+    return ["workers=${requestedWorkers}"]
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
@@ -309,21 +303,16 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
 
 def integrationProfileRunConfig = { String spec ->
   def workers = params.FUNCTIONAL_TESTS_WORKERS ?: '4'
-  def shard = ''
   spec.split(/\s+/).each { token ->
     if (token.startsWith('workers=')) {
       workers = token.replaceFirst('workers=', '')
     }
-    if (token.startsWith('shard=')) {
-      shard = token.replaceFirst('shard=', '')
-    }
   }
-  def safeName = "workers-${workers}${shard ? "-shard-${shard}" : ''}".replaceAll(/[^A-Za-z0-9._-]/, '-')
+  def safeName = "workers-${workers}".replaceAll(/[^A-Za-z0-9._-]/, '-')
   return [
     workers: workers,
-    shardArg: shard ? "--shard=${shard}" : '',
     reportDir: "functional-output/tests/playwright-integration-nightly/odhin-report/nightly-${safeName}",
-    displayName: "${workers} workers${shard ? ", shard ${shard}" : ''}"
+    displayName: "${workers} workers"
   ]
 }
 
@@ -409,8 +398,7 @@ withNightlyPipeline(type, product, component, 400) {
         'Integration nightly': {
           resolveIntegrationProfileRuns(
             params.INTEGRATION_PW_PROFILE_RUNS ?: '',
-            params.INTEGRATION_PW_WORKERS ?: '',
-            params.INTEGRATION_PW_SHARD ?: ''
+            params.INTEGRATION_PW_WORKERS ?: ''
           ).each { spec ->
             def runConfig = integrationProfileRunConfig(spec)
             def integrationOdhinEnv = [
@@ -431,7 +419,7 @@ withNightlyPipeline(type, product, component, 400) {
               recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
               runInPlaywrightContainer {
                 withEnv(integrationOdhinEnv) {
-                  yarnBuilder.yarn("test:integration:nightly:raw -- --workers=${runConfig.workers}${runConfig.shardArg ? " ${runConfig.shardArg}" : ""}")
+                  yarnBuilder.yarn("test:integration:nightly:raw -- --workers=${runConfig.workers}")
                 }
               }
             } catch (Error) {
