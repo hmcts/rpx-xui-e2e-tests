@@ -649,6 +649,7 @@ export class CaseDetailsPage extends Base {
     if (await this.hasCallbackValidationErrorAlert()) {
       throw new Error('Callback data failed validation before selecting party flag target.');
     }
+    await this.throwIfEventCreationError('before selecting party flag target');
     const exactLabel = this.page.getByLabel(`${target} (${target})`);
     // Escape regex special characters to prevent unintended matches
     const escapedTarget = target.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -712,7 +713,15 @@ export class CaseDetailsPage extends Base {
       .getByRole('alert')
       .filter({ hasText: /callback data failed validation/i })
       .first();
-    return callbackValidationAlert.isVisible({ timeout: timeoutMs }).catch(() => false);
+    if (await callbackValidationAlert.isVisible({ timeout: timeoutMs }).catch(() => false)) {
+      return true;
+    }
+
+    return this.page
+      .getByText(/callback data failed validation/i)
+      .first()
+      .isVisible({ timeout: timeoutMs })
+      .catch(() => false);
   }
 
   async selectCaseDetailsTab(tabName: string) {

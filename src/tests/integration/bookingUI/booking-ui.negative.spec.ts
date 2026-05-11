@@ -178,6 +178,7 @@ test.describe(
 
       await test.step("Navigate to booking and verify redirect to cases", async () => {
         await navigateWithTransientGatewayRetry(page, "/booking", {
+          allowAbortedNavigation: true,
           contextLabel: "booking access redirect",
           maxAttempts: 3,
           afterNavigation: async () => {

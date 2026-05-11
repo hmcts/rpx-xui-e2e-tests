@@ -5,7 +5,7 @@ import {
   navigateWithTransientGatewayRetry
 } from "../integration/utils/transientGatewayPage.utils.js";
 
-function buildFakePage(bodyTexts: string[]) {
+function buildFakePage(bodyTexts: string[], gotoErrors: Array<string | undefined> = []) {
   let index = 0;
   const gotoCalls: string[] = [];
 
@@ -14,6 +14,10 @@ function buildFakePage(bodyTexts: string[]) {
     page: {
       async goto(url: string) {
         gotoCalls.push(url);
+        const gotoError = gotoErrors[gotoCalls.length - 1];
+        if (gotoError) {
+          throw new Error(gotoError);
+        }
       },
       locator() {
         return {
@@ -72,5 +76,23 @@ test.describe("transient gateway page coverage", () => {
 
     expect(readinessAttempt).toBe(2);
     expect(fake.gotoCalls).toEqual(["/cases/example", "about:blank", "/cases/example"]);
+  });
+
+  test("navigateWithTransientGatewayRetry can verify guarded redirects after aborted navigation", async () => {
+    const fake = buildFakePage([""], ["page.goto: net::ERR_ABORTED at https://manage-case.example/booking"]);
+    let redirectVerified = false;
+
+    await expect(
+      navigateWithTransientGatewayRetry(fake.page as never, "/booking", {
+        allowAbortedNavigation: true,
+        contextLabel: "booking access redirect",
+        afterNavigation: async () => {
+          redirectVerified = true;
+        }
+      })
+    ).resolves.toBeUndefined();
+
+    expect(redirectVerified).toBe(true);
+    expect(fake.gotoCalls).toEqual(["/booking"]);
   });
 });
