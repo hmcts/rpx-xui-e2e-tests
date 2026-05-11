@@ -21,8 +21,8 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '4',
-      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS, capped at 4 in Jenkins)'
+      defaultValue: '3',
+      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS, capped at 3 in Jenkins)'
     ),
     string(
       name: 'API_PW_INCLUDE_TAGS',
@@ -57,11 +57,11 @@ properties([
     string(
       name: 'INTEGRATION_PW_WORKERS',
       defaultValue: '',
-      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS and is capped at 4 in Jenkins.'
+      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS and is capped at 3 in Jenkins.'
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: '''workers=4''',
+      defaultValue: '''workers=3''',
       description: 'Integration load-profile matrix. One run per line or semicolon. Supported key: workers=<n>.'
     ),
     string(
@@ -302,11 +302,11 @@ def publishCiLoadProfile = { String reportName ->
 }
 
 def capJenkinsPlaywrightWorkers = { String configured ->
-  def parsed = (configured ?: '4').trim()
+  def parsed = (configured ?: '3').trim()
   if (!parsed.isInteger()) {
-    return '4'
+    return '3'
   }
-  return Math.min(4, Math.max(1, parsed.toInteger())).toString()
+  return Math.min(3, Math.max(1, parsed.toInteger())).toString()
 }
 
 def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride ->
@@ -316,7 +316,7 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
-    configured = 'workers=4'
+    configured = 'workers=3'
   }
   return configured
     .split(/[\r\n;]+/)
