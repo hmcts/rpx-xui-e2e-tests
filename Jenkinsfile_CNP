@@ -66,7 +66,7 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: '''workers=8''',
+      defaultValue: '''workers=4''',
       description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>.'
     ),
     string(
@@ -172,6 +172,9 @@ def secrets = [
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
 def playwrightLoadProfileReportFile = 'load-profile.html'
+def ciLoadProfileDir = 'functional-output/tests/playwright-integration/load-profile/ci'
+def ciLoadProfileEventsFile = 'functional-output/tests/playwright-integration/load-profile/ci-stage-events.jsonl'
+def ciLoadProfilePublished = false
 
 def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
   def safeReportName = reportName.replaceAll(/[^A-Za-z0-9._-]/, '-')
@@ -199,6 +202,64 @@ def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
     reportFiles          : playwrightLoadProfileReportFile,
     reportName           : reportName
   ])
+}
+
+def startPlaywrightLoadProfile = { String reportDir, String label, String eventsFile ->
+  steps.sh """
+    set +e
+    mkdir -p '${reportDir}'
+    rm -f '${reportDir}/stop' '${reportDir}/monitor.pid'
+    JENKINS_NODE_COOKIE=dontKillMe nohup node scripts/playwright-load-monitor.cjs \\
+      --output-folder '${reportDir}' \\
+      --label '${label}' \\
+      --events-file '${eventsFile}' \\
+      --stop-file '${reportDir}/stop' \\
+      > '${reportDir}/monitor.log' 2>&1 &
+    echo \$! > '${reportDir}/monitor.pid'
+  """
+}
+
+def stopPlaywrightLoadProfile = { String reportDir ->
+  steps.sh """
+    set +e
+    if [ -f '${reportDir}/monitor.pid' ]; then
+      pid=\$(cat '${reportDir}/monitor.pid')
+      touch '${reportDir}/stop'
+      for i in \$(seq 1 30); do
+        kill -0 "\${pid}" 2>/dev/null || break
+        sleep 1
+      done
+      if kill -0 "\${pid}" 2>/dev/null; then
+        kill -TERM "\${pid}" 2>/dev/null || true
+        sleep 2
+      fi
+    fi
+    if [ -f '${reportDir}/monitor.log' ]; then
+      cat '${reportDir}/monitor.log'
+    fi
+  """
+}
+
+def recordPlaywrightLoadEvent = { String label, String eventType ->
+  try {
+    steps.sh "node scripts/playwright-load-event.cjs '${ciLoadProfileEventsFile}' '${label}' '${eventType}'"
+  } catch (Exception e) {
+    echo "[load-profile] failed to record ${label} ${eventType}: ${e.getMessage()}"
+  }
+}
+
+def startCiLoadProfile = {
+  startPlaywrightLoadProfile(ciLoadProfileDir, 'Jenkins CI run', ciLoadProfileEventsFile)
+  recordPlaywrightLoadEvent('Checkout', 'finish')
+}
+
+def publishCiLoadProfile = { String reportName ->
+  if (ciLoadProfilePublished) {
+    return
+  }
+  ciLoadProfilePublished = true
+  stopPlaywrightLoadProfile(ciLoadProfileDir)
+  publishPlaywrightLoadProfile(ciLoadProfileDir, reportName)
 }
 
 def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride, String shardOverride ->
@@ -254,17 +315,30 @@ withNightlyPipeline(type, product, component, 300) {
   enableSlackNotifications(channel)
 
   afterAlways('DependencyCheckNightly') {
+    startCiLoadProfile()
     stage('Lint') {
-      yarnBuilder.yarn('lint')
+      recordPlaywrightLoadEvent('Lint', 'start')
+      try {
+        yarnBuilder.yarn('lint')
+      } finally {
+        recordPlaywrightLoadEvent('Lint', 'finish')
+      }
     }
 
     stage('Install Playwright Browsers') {
-      yarnBuilder.yarn('pwinstall')
+      recordPlaywrightLoadEvent('Playwright browser install', 'start')
+      try {
+        yarnBuilder.yarn('pwinstall')
+      } finally {
+        recordPlaywrightLoadEvent('Playwright browser install', 'finish')
+      }
     }
 
     stage('Tests') {
-      parallel(
-        'API tests': {
+      recordPlaywrightLoadEvent('Functional tests', 'start')
+      try {
+        parallel(
+          'API tests': {
           def apiWorkers = params.FUNCTIONAL_TESTS_WORKERS ?: '4'
           def apiOdhinEnv = [
             "FUNCTIONAL_TESTS_WORKERS=${apiWorkers}",
@@ -273,9 +347,11 @@ withNightlyPipeline(type, product, component, 300) {
             "API_PW_EXCLUDED_TAGS_OVERRIDE=${params.API_PW_EXCLUDED_TAGS_OVERRIDE}",
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
+            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+            "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
           ]
           try {
+            recordPlaywrightLoadEvent('API', 'start')
             withEnv(apiOdhinEnv) {
               yarnBuilder.yarn('test:api:coverage')
             }
@@ -296,6 +372,7 @@ withNightlyPipeline(type, product, component, 300) {
               'functional-output/tests/api_functional/odhin-report/load-profile',
               "API System Load (${apiWorkers} workers)"
             )
+            recordPlaywrightLoadEvent('API', 'finish')
           }
         },
         'Integration tests': {
@@ -317,9 +394,11 @@ withNightlyPipeline(type, product, component, 300) {
               "PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html",
               "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
               "PW_LOAD_PROFILE_OUTPUT=${runConfig.reportDir}/load-profile",
+              "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}",
               "PW_LOAD_PROFILE_LABEL=Integration ${runConfig.displayName}"
             ]
             try {
+              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
               withEnv(integrationOdhinEnv) {
                 yarnBuilder.yarn("test:integration${runConfig.shardArg ? " -- ${runConfig.shardArg}" : ""}")
               }
@@ -342,6 +421,7 @@ withNightlyPipeline(type, product, component, 300) {
                 "${runConfig.reportDir}/load-profile",
                 "Integration System Load (${runConfig.displayName})"
               )
+              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'finish')
             }
           }
         },
@@ -363,9 +443,11 @@ withNightlyPipeline(type, product, component, 300) {
             'PW_UI_IDLE_TIMEOUT_MS=60000',
             'PW_UI_IDLE_QUIET_MS=400',
             'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-            'PW_UI_FAIL_ON_HTTP_4XX=0'
+            'PW_UI_FAIL_ON_HTTP_4XX=0',
+            "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
           ]
           try {
+            recordPlaywrightLoadEvent('UI', 'start')
             withEnv(uiOdhinEnv) {
               yarnBuilder.yarn('test:ui')
             }
@@ -388,9 +470,14 @@ withNightlyPipeline(type, product, component, 300) {
               'functional-output/tests/playwright-e2e/odhin-report/load-profile',
               'UI System Load (2 workers)'
             )
+            recordPlaywrightLoadEvent('UI', 'finish')
           }
         }
-      )
+        )
+      } finally {
+        recordPlaywrightLoadEvent('Functional tests', 'finish')
+        publishCiLoadProfile('RPX E2E CI System Load')
+      }
     }
   }
 }
