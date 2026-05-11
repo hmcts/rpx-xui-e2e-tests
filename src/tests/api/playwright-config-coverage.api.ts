@@ -117,14 +117,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     const configured = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '4', CI: undefined });
     expect(configured).toBe(4);
 
-    const configuredBelowDefaultMax = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', CI: undefined });
-    expect(configuredBelowDefaultMax).toBe(6);
-
-    const cappedConfigured = resolveWorkerCount({
-      FUNCTIONAL_TESTS_WORKERS: '6',
-      PLAYWRIGHT_MAX_WORKERS: '4',
-      CI: undefined,
-    });
+    const cappedConfigured = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', CI: undefined });
     expect(cappedConfigured).toBe(4);
 
     const configuredInCi = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '2', CI: 'true' });
@@ -135,7 +128,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
 
     const defaultCount = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: undefined });
     expect(defaultCount).toBeGreaterThanOrEqual(2);
-    expect(defaultCount).toBeLessThanOrEqual(8);
+    expect(defaultCount).toBeLessThanOrEqual(4);
   });
 
   test('resolveConfigModule prefers __test__ and default exports', () => {

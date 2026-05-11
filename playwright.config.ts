@@ -22,7 +22,7 @@ const { version: appVersion } = require("./package.json") as { version: string }
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
-const DEFAULT_MAX_WORKERS = 8;
+const DEFAULT_MAX_WORKERS = 4;
 const MAX_UI_WORKERS = 2;
 const API_GLOBAL_EXCLUDED_TAGS_PATTERN = /^(@svc-.+|@wa-action)$/;
 const E2E_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@e2e(?:-.+)?$/;
