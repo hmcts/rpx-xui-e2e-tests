@@ -78,6 +78,15 @@ static Map<String, Object> secret(String secretName, String envVariable) {
   ]
 }
 
+static String removeTag(String rawTags, String tagToRemove) {
+  if (!rawTags?.trim()) {
+    return ''
+  }
+  rawTags.split(/[,\s]+/)
+    .findAll { tag -> tag && tag != tagToRemove }
+    .join(',')
+}
+
 // Populate with real Key Vault secret names once known; empty list keeps the pattern intact.
 def secrets = [
   "rpx-${params.TEST_ENV}": [
@@ -205,10 +214,11 @@ withNightlyPipeline(type, product, component, 300) {
           }
         },
         'Integration tests': {
+          def integrationIncludeTags = removeTag(params.INTEGRATION_PW_INCLUDE_TAGS, '@nightly')
           def integrationOdhinEnv = [
             'FUNCTIONAL_TESTS_WORKERS=4',
             'PLAYWRIGHT_WORKERS=4',
-            "INTEGRATION_PW_INCLUDE_TAGS=${params.INTEGRATION_PW_INCLUDE_TAGS}",
+            "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
             "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?: '@nightly'}",
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PW_UI_STORAGE=1',
