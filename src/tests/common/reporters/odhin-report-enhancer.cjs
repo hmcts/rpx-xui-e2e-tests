@@ -14,18 +14,22 @@ function deriveFeatureName(filePath) {
     return 'unknown';
   }
 
-  const rootedPatterns = [
-    /\/playwright_tests_new\/integration\/test\/([^/]+)\//i,
-    /\/playwright_tests_new\/E2E\/tests?\/([^/]+)\//i,
-    /\/playwright_tests_new\/e2e\/tests?\/([^/]+)\//i,
-    /\/playwright_tests_new\/api\/([^/]+)\//i,
-    /\/tests?\/([^/]+)\//i,
-  ];
+  const segments = normalized.split('/').filter(Boolean);
+  const suiteMarkers = ['integration', 'e2e', 'api'];
+  const nonFeatureSegments = new Set(['test', 'tests']);
 
-  for (const pattern of rootedPatterns) {
-    const match = normalized.match(pattern);
-    if (match?.[1]) {
-      return match[1];
+  for (const suiteMarker of suiteMarkers) {
+    const suiteIndex = segments.findIndex((segment) => segment.toLowerCase() === suiteMarker);
+    if (suiteIndex === -1) {
+      continue;
+    }
+
+    const featureSegment = segments
+      .slice(suiteIndex + 1)
+      .find((segment) => !nonFeatureSegments.has(segment.toLowerCase()));
+
+    if (featureSegment) {
+      return featureSegment.replace(/\.[^.]+$/, '');
     }
   }
 

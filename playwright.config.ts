@@ -56,6 +56,12 @@ const parsePositiveInteger = (value: string | undefined): number | undefined => 
   return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
 };
 
+const parseNonNegativeInteger = (value: string | undefined): number | undefined => {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed;
+};
+
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
   if (configured) return Math.min(MAX_WORKERS, configured);
@@ -201,8 +207,14 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           "./src/tests/common/reporters/odhin-progress.reporter.cjs",
           {
             enabled: true,
-            hardTimeoutMs: parsePositiveInteger(env.PW_ODHIN_HARD_TIMEOUT_MS) ?? (env.CI ? 0 : 30000),
-            timeoutExitCode: 1
+            graceMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_GRACE_MS) ?? 1500,
+            intervalMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_INTERVAL_MS) ?? 5000,
+            hardTimeoutMs:
+              parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_HARD_TIMEOUT_MS ?? env.PW_ODHIN_HARD_TIMEOUT_MS) ??
+              (env.CI ? 0 : 30000),
+            timeoutExitCode: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_TIMEOUT_EXIT_CODE) ?? 1,
+            completionExitDelayMs: parseNonNegativeInteger(env.PW_ODHIN_COMPLETION_EXIT_DELAY_MS) ?? (env.CI ? 1000 : 0),
+            forceExitOnCompletion: safeBoolean(env.PW_ODHIN_FORCE_EXIT_ON_COMPLETION, Boolean(env.CI))
           }
         ]);
         reporters.push([
