@@ -9,6 +9,9 @@ const createRoleLocator = (options: { visible: boolean; onClick?: () => void }) 
   first() {
     return this;
   },
+  async isVisible() {
+    return options.visible;
+  },
   async waitFor() {
     if (!options.visible) {
       throw new Error("Role button not visible");
