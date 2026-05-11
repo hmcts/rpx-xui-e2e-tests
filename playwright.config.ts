@@ -22,7 +22,7 @@ const { version: appVersion } = require("./package.json") as { version: string }
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
-const MAX_WORKERS = 4;
+const DEFAULT_MAX_WORKERS = 8;
 const MAX_UI_WORKERS = 2;
 const API_GLOBAL_EXCLUDED_TAGS_PATTERN = /^(@svc-.+|@wa-action)$/;
 const E2E_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@e2e(?:-.+)?$/;
@@ -64,12 +64,13 @@ const parseNonNegativeInteger = (value: string | undefined): number | undefined 
 
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
-  if (configured) return Math.min(MAX_WORKERS, configured);
+  const maxWorkers = parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS;
+  if (configured) return Math.min(maxWorkers, configured);
   const logical = cpus()?.length ?? 1;
   if (env.CI) return 1;
   if (logical <= 2) return 1;
   const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(MAX_WORKERS, Math.max(2, approxPhysical));
+  return Math.min(maxWorkers, Math.max(2, approxPhysical));
 };
 
 const resolveApiProjectWorkerCount = (env: EnvMap = process.env) => resolveWorkerCount(env);
@@ -314,6 +315,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
     reporter: resolveReporters(env),
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
+      ignoreHTTPSErrors: true,
       trace: "retain-on-failure",
       screenshot: "only-on-failure",
       video: "off"

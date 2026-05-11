@@ -22,6 +22,7 @@ export const HEARINGS_TERMINAL_STATE_TIMEOUT_MS = 15_000;
 export const HEARINGS_ROWS_HIDDEN_TIMEOUT_MS = 10_000;
 export const HEARINGS_SLOW_RESPONSE_DELAY_MS = 4_000;
 const HEARINGS_NAVIGATION_ATTEMPTS = 3;
+const HEARINGS_CASE_DETAILS_SHELL_TIMEOUT_MS = 30_000;
 
 export const hearingManagerRoles = [
   'caseworker-privatelaw',
@@ -71,6 +72,23 @@ export async function gotoCaseDetailsWithRetry(page: Page, targetUrl: string): P
   }
 }
 
+export async function waitForCaseDetailsShellWithRetry(
+  page: Page,
+  caseDetailsPage: CaseDetailsPage,
+  targetUrl: string
+): Promise<void> {
+  await caseDetailsPage.container
+    .waitFor({ state: 'visible', timeout: HEARINGS_CASE_DETAILS_SHELL_TIMEOUT_MS })
+    .catch(async (error: Error) => {
+      await gotoCaseDetailsWithRetry(page, targetUrl);
+      await caseDetailsPage.container
+        .waitFor({ state: 'visible', timeout: HEARINGS_CASE_DETAILS_SHELL_TIMEOUT_MS })
+        .catch(() => {
+          throw error;
+        });
+    });
+}
+
 export function resolveHearingsCaseRoute(options: {
   routeConfig: HearingsMockRoutesConfig;
   jurisdictionId?: string;
@@ -100,7 +118,9 @@ export async function openHearingsTab(
   await applySessionCookies(page, resolveHearingManagerUserIdentifier(options.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER));
   await setupHearingsMockRoutes(page, options.routeConfig);
   const route = resolveHearingsCaseRoute(options);
-  await gotoCaseDetailsWithRetry(page, caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference));
+  const targetUrl = caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference);
+  await gotoCaseDetailsWithRetry(page, targetUrl);
+  await waitForCaseDetailsShellWithRetry(page, caseDetailsPage, targetUrl);
   await caseDetailsPage.selectCaseDetailsTab('Hearings');
 }
 
@@ -118,16 +138,7 @@ export async function openHearingsTabForScenario(
   const route = resolveHearingsCaseRoute({ routeConfig: config });
   const targetUrl = caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference);
   await gotoCaseDetailsWithRetry(page, targetUrl);
-  await expect(caseDetailsPage.container)
-    .toBeVisible({ timeout: 30_000 })
-    .catch(async (error: Error) => {
-      await gotoCaseDetailsWithRetry(page, targetUrl);
-      await expect(caseDetailsPage.container)
-        .toBeVisible({ timeout: 30_000 })
-        .catch(() => {
-          throw error;
-        });
-    });
+  await waitForCaseDetailsShellWithRetry(page, caseDetailsPage, targetUrl);
 
   if (options?.waitForGetHearingsResponse === false) {
     await caseDetailsPage.selectCaseDetailsTab('Hearings');
