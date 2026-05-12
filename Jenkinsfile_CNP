@@ -281,11 +281,15 @@ def publishUiReports = {
 def runCnpPlaywrightStages = {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   def integrationIncludeTags = removeTag(params.INTEGRATION_PW_INCLUDE_TAGS, '@nightly')
+  def noColorEnv = [
+    'FORCE_COLOR=0',
+    'NO_COLOR=1'
+  ]
 
   runDiagnostics()
 
   stage('API tests') {
-    def apiEnv = [
+    def apiEnv = noColorEnv + [
       "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
       "PLAYWRIGHT_WORKERS=${functionalWorkers}",
       "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
@@ -315,7 +319,7 @@ def runCnpPlaywrightStages = {
       params.INTEGRATION_PW_SHARD ?: ''
     ).each { spec ->
       def runConfig = integrationProfileRunConfig(spec)
-      def integrationEnv = [
+      def integrationEnv = noColorEnv + [
         "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
         "PLAYWRIGHT_WORKERS=${runConfig.workers}",
         "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
@@ -347,7 +351,7 @@ def runCnpPlaywrightStages = {
   }
 
   stage('UI tests') {
-    def uiEnv = [
+    def uiEnv = noColorEnv + [
       'FUNCTIONAL_TESTS_WORKERS=2',
       'PLAYWRIGHT_WORKERS=2',
       "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
@@ -409,6 +413,8 @@ withNightlyPipeline(type, product, component, 600) {
   env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
   env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
   env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
+  env.FORCE_COLOR = '0'
+  env.NO_COLOR = '1'
   enableSlackNotifications(channel)
 
   onPR() {
