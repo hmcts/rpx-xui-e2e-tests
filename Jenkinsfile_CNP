@@ -61,7 +61,7 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: '''workers=4''',
+      defaultValue: '''workers=3''',
       description: 'Integration load-profile matrix. One run per line or semicolon. Supported key: workers=<n>.'
     ),
     string(
@@ -328,7 +328,7 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
-    configured = 'workers=4'
+    configured = 'workers=3'
   }
   return configured
     .split(/[\r\n;]+/)
@@ -351,23 +351,22 @@ def integrationProfileRunConfig = { String spec ->
   ]
 }
 
-retry(conditions: [agent()], count: 2) {
-  withNightlyPipeline(type, product, component, 300) {
-    loadVaultSecrets(secrets)
-    def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-    env.TEST_URL = params.TEST_URL
-    env.TEST_ENV = params.TEST_ENV
-    env.FUNCTIONAL_TESTS_WORKERS = functionalWorkers
-    env.PLAYWRIGHT_WORKERS = functionalWorkers
-    env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
-    env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
-    env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
-    env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
-    env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
-    env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
-    env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
-    env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
-    enableSlackNotifications(channel)
+withNightlyPipeline(type, product, component, 300) {
+  loadVaultSecrets(secrets)
+  def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  env.TEST_URL = params.TEST_URL
+  env.TEST_ENV = params.TEST_ENV
+  env.FUNCTIONAL_TESTS_WORKERS = functionalWorkers
+  env.PLAYWRIGHT_WORKERS = functionalWorkers
+  env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
+  env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
+  env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
+  env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
+  env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
+  env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
+  env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
+  env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
+  enableSlackNotifications(channel)
 
   afterAlways('DependencyCheckNightly') {
     startCiLoadProfile()
@@ -553,6 +552,5 @@ retry(conditions: [agent()], count: 2) {
         publishCiLoadProfile('RPX E2E CI System Load')
       }
     }
-  }
   }
 }
