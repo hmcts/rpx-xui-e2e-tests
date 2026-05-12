@@ -66,10 +66,7 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: '''workers=8 shard=1/4
-workers=8 shard=2/4
-workers=8 shard=3/4
-workers=8 shard=4/4''',
+      defaultValue: 'workers=8',
       description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>.'
     ),
     string(
@@ -329,6 +326,10 @@ def capJenkinsPlaywrightWorkers = { String configured ->
   return Math.min(8, Math.max(1, parsed.toInteger())).toString()
 }
 
+def hasCourtAdminUiCredentials = {
+  env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
+}
+
 def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride, String shardOverride ->
   def requestedWorkers = workersOverride?.trim()
   if (requestedWorkers) {
@@ -337,10 +338,7 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
-    configured = '''workers=8 shard=1/4
-workers=8 shard=2/4
-workers=8 shard=3/4
-workers=8 shard=4/4'''
+    configured = 'workers=8'
   }
   return configured
     .split(/[\r\n;]+/)
@@ -535,9 +533,16 @@ def runCnpFunctionalStages = {
           ]
           try {
             recordPlaywrightLoadEvent('UI', 'start')
-            runInPlaywrightContainer {
+            if (!hasCourtAdminUiCredentials()) {
+              echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
               withEnv(uiOdhinEnv) {
-                runPlaywrightCommand('test:ui:raw')
+                yarnBuilder.yarn('node ./scripts/ensure-odhin-report.cjs')
+              }
+            } else {
+              runInPlaywrightContainer {
+                withEnv(uiOdhinEnv) {
+                  runPlaywrightCommand('test:ui:raw')
+                }
               }
             }
           } catch (Error) {
@@ -564,11 +569,17 @@ def runCnpFunctionalStages = {
           }
         }
       ]
+      def parallelTestStages = [:]
       testStages.each { testName, testBody ->
-        stage(testName) {
-          testBody()
+        def branchName = testName
+        def branchBody = testBody
+        parallelTestStages[branchName] = {
+          stage(branchName) {
+            branchBody()
+          }
         }
       }
+      parallel parallelTestStages
       if (playwrightStageFailed) {
         error('At least one Playwright stage failed, check the logs to see why')
       }
