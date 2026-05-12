@@ -351,8 +351,7 @@ def integrationProfileRunConfig = { String spec ->
   ]
 }
 
-withPipeline(type, product, component) {
-  loadVaultSecrets(secrets)
+def runCnpFunctionalStages = {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   env.TEST_URL = params.TEST_URL
   env.TEST_ENV = params.TEST_ENV
@@ -366,37 +365,42 @@ withPipeline(type, product, component) {
   env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
   env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
   env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
-  enableSlackNotifications(channel)
-  disableLegacyDeployment()
-  nonServiceApp()
 
-  afterSuccess('checkout') {
-    startCiLoadProfile()
+  stage('Build') {
+    yarnBuilder.yarn('lint')
   }
 
-  afterAlways('test') {
-    stage('Diag: Playwright execution environment') {
-      recordPlaywrightContainerDiagnostics()
-    }
-
-    stage('Install Playwright Browsers') {
-      recordPlaywrightLoadEvent('Playwright browser install', 'start')
-      try {
-        if (params.PLAYWRIGHT_USE_DOCKER) {
-          echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
-        } else {
-          yarnBuilder.yarn('pwinstall')
-        }
-      } finally {
-        recordPlaywrightLoadEvent('Playwright browser install', 'finish')
+  stage('Dependency check') {
+    warnError('Failure in Dependency check') {
+      timeoutWithMsg(time: 15, unit: 'MINUTES', action: 'Dependency check') {
+        yarnBuilder.securityCheck()
       }
     }
+  }
 
-    stage('Tests') {
-      recordPlaywrightLoadEvent('Functional tests', 'start')
-      try {
-        def testStages = [
-          'API tests': {
+  stage('Diag: Playwright execution environment') {
+    recordPlaywrightContainerDiagnostics()
+  }
+
+  stage('Install Playwright Browsers') {
+    recordPlaywrightLoadEvent('Playwright browser install', 'start')
+    try {
+      if (params.PLAYWRIGHT_USE_DOCKER) {
+        echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
+      } else {
+        yarnBuilder.yarn('pwinstall')
+      }
+    } finally {
+      recordPlaywrightLoadEvent('Playwright browser install', 'finish')
+    }
+  }
+
+  stage('Tests') {
+    recordPlaywrightLoadEvent('Functional tests', 'start')
+    try {
+      def playwrightStageFailed = false
+      def testStages = [
+        'API tests': {
           def apiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
           def apiOdhinEnv = [
             "FUNCTIONAL_TESTS_WORKERS=${apiWorkers}",
@@ -416,6 +420,7 @@ withPipeline(type, product, component) {
               }
             }
           } catch (Error) {
+            playwrightStageFailed = true
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
             publishHTML([
@@ -464,6 +469,7 @@ withPipeline(type, product, component) {
                 }
               }
             } catch (Error) {
+              playwrightStageFailed = true
               unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + Error.toString())
             } finally {
               withEnv(integrationOdhinEnv) {
@@ -516,6 +522,7 @@ withPipeline(type, product, component) {
               }
             }
           } catch (Error) {
+            playwrightStageFailed = true
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
             withEnv(uiOdhinEnv) {
@@ -537,15 +544,54 @@ withPipeline(type, product, component) {
             recordPlaywrightLoadEvent('UI', 'finish')
           }
         }
-        ]
-        testStages.each { testName, testBody ->
-          stage(testName) {
-            testBody()
+      ]
+      testStages.each { testName, testBody ->
+        stage(testName) {
+          testBody()
+        }
+      }
+      if (playwrightStageFailed) {
+        error('At least one Playwright stage failed, check the logs to see why')
+      }
+    } finally {
+      recordPlaywrightLoadEvent('Functional tests', 'finish')
+      publishCiLoadProfile('RPX E2E CI System Load')
+    }
+  }
+}
+
+retry(conditions: [agent()], count: 2) {
+  node(env.BUILD_AGENT_TYPE ?: '') {
+    timeoutWithMsg(time: 180, unit: 'MINUTES', action: 'pipeline') {
+      try {
+        dockerAgentSetup()
+        env.PATH = "$env.PATH:/usr/local/bin"
+
+        stage('Checkout') {
+          checkout scm
+          startCiLoadProfile()
+        }
+
+        def vaultName = "rpx-${params.TEST_ENV}"
+        withSubscriptionLogin('nonprod') {
+          withAzureKeyvault(
+            azureKeyVaultSecrets: secrets[vaultName] ?: [],
+            keyVaultURLOverride: "https://${vaultName}.vault.azure.net/",
+            applicationIDOverride: env.AZURE_CLIENT_ID,
+            applicationSecretOverride: env.AZURE_CLIENT_SECRET
+          ) {
+            runCnpFunctionalStages()
           }
         }
+      } catch (err) {
+        currentBuild.result = 'FAILURE'
+        notifyBuildFailure channel: channel
+        throw err
       } finally {
-        recordPlaywrightLoadEvent('Functional tests', 'finish')
-        publishCiLoadProfile('RPX E2E CI System Load')
+        if (fileExists('scripts/ensure-load-profile-report.cjs')) {
+          publishCiLoadProfile('RPX E2E CI System Load')
+        }
+        deleteDir()
       }
     }
   }
