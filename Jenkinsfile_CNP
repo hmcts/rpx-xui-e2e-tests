@@ -71,8 +71,8 @@ properties([
     ),
     booleanParam(
       name: 'PLAYWRIGHT_USE_DOCKER',
-      defaultValue: true,
-      description: 'Run Playwright commands inside the official Playwright Docker image.'
+      defaultValue: false,
+      description: 'Run Playwright commands inside the official Playwright Docker image. Disabled by default to match rpx-xui-webapp host execution.'
     )
   ])
 ])
@@ -388,7 +388,7 @@ def runCnpFunctionalStages = {
       if (params.PLAYWRIGHT_USE_DOCKER) {
         echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
       } else {
-        yarnBuilder.yarn('pwinstall')
+        yarnBuilder.yarn('test:setup:playwright-install-chromium')
       }
     } finally {
       recordPlaywrightLoadEvent('Playwright browser install', 'finish')
