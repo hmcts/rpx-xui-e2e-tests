@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs';
 import type { APIRequestContext, TestInfo } from '@playwright/test';
 
 import {
+  buildDefinitionRepoCoverageTotals,
   buildCoverageSummary,
   buildGlobalSearchServicesCatalog,
+  buildServiceDefinitionProfileSummary,
   buildSuperserviceKnowledgeIndex,
   EXUI_ALL_CONFIGURED_SERVICE_FAMILIES,
   EXUI_CANARY_SERVICE_FAMILIES,
@@ -13,6 +15,7 @@ import {
   EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY,
   EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES,
   EXUI_PRL_NORMALIZED_SLICES,
+  EXUI_SERVICE_DEFINITION_PROFILES,
   EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS,
   EXUI_SERVICE_LABELS,
   EXUI_SERVICE_REF_DATA_MAPPING,
@@ -21,7 +24,9 @@ import {
   EXUI_SUPERSERVICE_SCENARIOS,
   EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
   buildHistoricFailureCoverageSummary,
+  findReleaseBlockingFamiliesWithoutCcdBackedProfile,
   findUnclassifiedServiceFamilies,
+  findUnprofiledServiceFamilies,
   normalizeServiceFamily,
   sortServiceFamilies,
   sortedUniqueServiceFamilies,
@@ -60,6 +65,10 @@ type SourceTruth = {
   };
   prlCcdDefinitions: {
     normalizedSlices: unknown[];
+  };
+  serviceDefinitionProfiles: {
+    source: string;
+    profiles: unknown[];
   };
 };
 type RoutePattern = string | RegExp;
@@ -263,6 +272,7 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
     expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY).toEqual(expectedDefaults.hearings.caseTypesByJurisdiction);
     expect(EXUI_SERVICE_REF_DATA_MAPPING).toEqual(expectedServiceRefDataMapping);
     expect(EXUI_PRL_NORMALIZED_SLICES).toEqual(sourceTruth.prlCcdDefinitions.normalizedSlices);
+    expect(EXUI_SERVICE_DEFINITION_PROFILES).toEqual(sourceTruth.serviceDefinitionProfiles.profiles);
     expect(sortedUniqueServiceFamilies(EXUI_ALL_CONFIGURED_SERVICE_FAMILIES)).toEqual(
       sortedUniqueServiceFamilies([
         ...expectedDefaults.jurisdictions,
@@ -272,6 +282,51 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
         ...expectedDefaults.hearings.hearingsJurisdictions,
       ])
     );
+  });
+
+  test('service-definition profiles widen the proof beyond PRL and keep known source gaps explicit', () => {
+    const profileFamilies = EXUI_SERVICE_DEFINITION_PROFILES.map((profile) => profile.serviceFamily);
+    const profileSummary = buildServiceDefinitionProfileSummary();
+    const repoTotals = buildDefinitionRepoCoverageTotals();
+
+    expect(findUnprofiledServiceFamilies()).toEqual([]);
+    expect(findUnprofiledServiceFamilies([...EXUI_ALL_CONFIGURED_SERVICE_FAMILIES, 'NEW_SERVICE'])).toEqual([
+      'NEW_SERVICE',
+    ]);
+    expect(sortedUniqueServiceFamilies(profileFamilies)).toEqual(sortedUniqueServiceFamilies(EXUI_ALL_CONFIGURED_SERVICE_FAMILIES));
+    expect(profileSummary['ccd-backed']).toEqual(
+      expect.arrayContaining([
+        'CIVIL',
+        'CMC',
+        'DIVORCE',
+        'EMPLOYMENT',
+        'FR',
+        'IA',
+        'PRIVATELAW',
+        'PUBLICLAW',
+        'SSCS',
+      ])
+    );
+    expect(profileSummary['source-unidentified']).toEqual(['ST_CIC']);
+    expect(profileSummary['source-unavailable']).toEqual(['PROBATE']);
+    expect(profileSummary['config-backed']).toEqual(['HRS']);
+    expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual(['ST_CIC']);
+    expect(repoTotals.jsonFiles).toBeGreaterThan(4000);
+    expect(repoTotals.caseEventToFields).toBeGreaterThan(600);
+    expect(repoTotals.caseEventToComplexTypes).toBeGreaterThan(400);
+
+    for (const profile of EXUI_SERVICE_DEFINITION_PROFILES) {
+      expect(profile.rationale.trim().length, `${profile.serviceFamily} should explain why this profile exists`).toBeGreaterThan(0);
+      expect(profile.nextAction.trim().length, `${profile.serviceFamily} should state the next scaling action`).toBeGreaterThan(0);
+      expect(profile.priority).toBe(
+        EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find((decision) => decision.serviceFamily === profile.serviceFamily)?.disposition
+      );
+    }
+    expect(
+      EXUI_SERVICE_DEFINITION_PROFILES.filter(
+        (profile) => profile.proofLevel === 'ccd-backed' && (profile.repos as readonly unknown[]).length === 0
+      ).map((profile) => profile.serviceFamily)
+    ).toEqual([]);
   });
 
   test('coverage decisions classify every configured family and fail for synthetic unknown service families', () => {

@@ -12,6 +12,7 @@ const prlDefinitionsRoot = path.resolve(
 const source = readJson(sourcePath);
 const expectedDefault = source.rpxXuiWebapp["config/default.json"];
 const expectedEnv = source.rpxXuiWebapp["config/custom-environment-variables.json"];
+const expectedDefinitionProfiles = source.serviceDefinitionProfiles?.profiles ?? [];
 
 const failures = [];
 
@@ -190,10 +191,53 @@ function checkPrlDefinitions() {
   }
 }
 
+function checkServiceDefinitionProfiles() {
+  const configuredFamilies = new Set(
+    [
+      ...expectedDefault.jurisdictions,
+      ...expectedDefault.globalSearchServices,
+      ...expectedDefault.waSupportedJurisdictions,
+      ...expectedDefault.staffSupportedJurisdictions,
+      ...expectedDefault.hearings.hearingsJurisdictions
+    ].map(normalize)
+  );
+  const profileFamilies = new Set(expectedDefinitionProfiles.map((profile) => normalize(profile.serviceFamily)));
+
+  checkSet("serviceDefinitionProfiles configured family coverage", [...profileFamilies], [...configuredFamilies]);
+
+  const missingProfiles = [...configuredFamilies].filter((family) => !profileFamilies.has(family));
+  if (missingProfiles.length > 0) {
+    failures.push(`serviceDefinitionProfiles missing configured families: ${sorted(missingProfiles).join(", ")}`);
+  }
+
+  const releaseBlockingWithoutCcd = expectedDefinitionProfiles
+    .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel !== "ccd-backed")
+    .map((profile) => normalize(profile.serviceFamily));
+  checkSet("release-blocking families without CCD-backed source are explicit known gaps", releaseBlockingWithoutCcd, ["ST_CIC"]);
+
+  const knownSourceGaps = expectedDefinitionProfiles
+    .filter((profile) => profile.proofLevel === "source-unidentified" || profile.proofLevel === "source-unavailable")
+    .map((profile) => normalize(profile.serviceFamily));
+  checkSet("serviceDefinitionProfiles known CCD-source gaps", knownSourceGaps, ["PROBATE", "ST_CIC"]);
+
+  for (const profile of expectedDefinitionProfiles) {
+    if (!String(profile.rationale ?? "").trim()) {
+      failures.push(`serviceDefinitionProfiles.${profile.serviceFamily} is missing a rationale.`);
+    }
+    if (!String(profile.nextAction ?? "").trim()) {
+      failures.push(`serviceDefinitionProfiles.${profile.serviceFamily} is missing a nextAction.`);
+    }
+    if (profile.proofLevel === "ccd-backed" && (profile.repos?.length ?? 0) === 0) {
+      failures.push(`serviceDefinitionProfiles.${profile.serviceFamily} is CCD-backed but has no repository evidence.`);
+    }
+  }
+}
+
 const { defaultConfig, envConfig } = readXuiConfig();
 checkXuiDefaultConfig(defaultConfig);
 checkXuiEnvConfig(envConfig);
 checkPrlDefinitions();
+checkServiceDefinitionProfiles();
 
 if (failures.length > 0) {
   console.error("[harness-manifest] Source-truth drift detected.");
@@ -208,5 +252,8 @@ if (failures.length > 0) {
   );
   console.log(
     `[harness-manifest] coverage input sets: global=${expectedDefault.globalSearchServices.length}, wa=${expectedDefault.waSupportedJurisdictions.length}, staff=${expectedDefault.staffSupportedJurisdictions.length}, hearings=${expectedDefault.hearings.hearingsJurisdictions.length}`
+  );
+  console.log(
+    `[supertest-manifest] service definition profiles cover ${expectedDefinitionProfiles.length} configured EXUI families; known CCD-source gaps are ST_CIC and PROBATE.`
   );
 }
