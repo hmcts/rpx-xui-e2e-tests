@@ -61,7 +61,7 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: '''workers=3''',
+      defaultValue: '''workers=4''',
       description: 'Integration load-profile matrix. One run per line or semicolon. Supported key: workers=<n>.'
     ),
     string(
@@ -72,7 +72,7 @@ properties([
     booleanParam(
       name: 'PLAYWRIGHT_USE_DOCKER',
       defaultValue: true,
-      description: 'Run Playwright commands inside the official Playwright Docker image. Keep enabled for Jenkins daily agents.'
+      description: 'Run Playwright commands inside the official Playwright Docker image.'
     )
   ])
 ])
@@ -328,7 +328,7 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
-    configured = 'workers=3'
+    configured = 'workers=4'
   }
   return configured
     .split(/[\r\n;]+/)
@@ -351,7 +351,7 @@ def integrationProfileRunConfig = { String spec ->
   ]
 }
 
-withNightlyPipeline(type, product, component, 300) {
+withPipeline(type, product, component) {
   loadVaultSecrets(secrets)
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   env.TEST_URL = params.TEST_URL
@@ -367,18 +367,14 @@ withNightlyPipeline(type, product, component, 300) {
   env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
   env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
   enableSlackNotifications(channel)
+  disableLegacyDeployment()
+  nonServiceApp()
 
-  afterAlways('DependencyCheckNightly') {
+  afterSuccess('checkout') {
     startCiLoadProfile()
-    stage('Lint') {
-      recordPlaywrightLoadEvent('Lint', 'start')
-      try {
-        yarnBuilder.yarn('lint')
-      } finally {
-        recordPlaywrightLoadEvent('Lint', 'finish')
-      }
-    }
+  }
 
+  afterAlways('test') {
     stage('Diag: Playwright execution environment') {
       recordPlaywrightContainerDiagnostics()
     }
