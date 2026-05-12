@@ -71,8 +71,8 @@ properties([
     ),
     booleanParam(
       name: 'PLAYWRIGHT_USE_DOCKER',
-      defaultValue: false,
-      description: 'Run Playwright commands inside the official Playwright Docker image for Jenkins environment diagnostics'
+      defaultValue: true,
+      description: 'Run Playwright commands inside the official Playwright Docker image. Keep enabled for Jenkins daily agents.'
     )
   ])
 ])
@@ -190,7 +190,7 @@ def runInPlaywrightContainer = { Closure body ->
 
 def recordPlaywrightContainerDiagnostics = {
   if (!params.PLAYWRIGHT_USE_DOCKER) {
-    echo '[playwright-container] Docker execution disabled; set PLAYWRIGHT_USE_DOCKER=true to run container diagnostics.'
+    echo '[playwright-container] Docker execution disabled; Jenkins daily-agent diagnostics are limited in host mode.'
     return
   }
   runInPlaywrightContainer {
@@ -339,22 +339,23 @@ def integrationProfileRunConfig = { String spec ->
   ]
 }
 
-withNightlyPipeline(type, product, component, 300) {
-  loadVaultSecrets(secrets)
-  def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  env.TEST_URL = params.TEST_URL
-  env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = functionalWorkers
-  env.PLAYWRIGHT_WORKERS = functionalWorkers
-  env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
-  env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
-  env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
-  env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
-  env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
-  env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
-  env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
-  env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
-  enableSlackNotifications(channel)
+retry(conditions: [agent()], count: 2) {
+  withNightlyPipeline(type, product, component, 300) {
+    loadVaultSecrets(secrets)
+    def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+    env.TEST_URL = params.TEST_URL
+    env.TEST_ENV = params.TEST_ENV
+    env.FUNCTIONAL_TESTS_WORKERS = functionalWorkers
+    env.PLAYWRIGHT_WORKERS = functionalWorkers
+    env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
+    env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
+    env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
+    env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
+    env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
+    env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
+    env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
+    env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
+    enableSlackNotifications(channel)
 
   afterAlways('DependencyCheckNightly') {
     startCiLoadProfile()
@@ -538,5 +539,6 @@ withNightlyPipeline(type, product, component, 300) {
         publishCiLoadProfile('RPX E2E CI System Load')
       }
     }
+  }
   }
 }
