@@ -9,7 +9,7 @@ properties([
       defaultValue: 'https://manage-case.aat.platform.hmcts.net/',
       description: 'Base URL under test'
     ),
-      string(
+    string(
       name: 'S2S_URL',
       defaultValue: 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease',
       description: 'S2S URL under test'
@@ -22,7 +22,7 @@ properties([
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
       defaultValue: '8',
-      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS, capped at 8 in Jenkins)'
+      description: 'Number of Playwright workers, capped at 8 in Jenkins'
     ),
     string(
       name: 'API_PW_INCLUDE_TAGS',
@@ -67,17 +67,12 @@ properties([
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
       defaultValue: 'workers=8',
-      description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>.'
+      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>.'
     ),
     string(
       name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
       defaultValue: 'false',
       description: 'Set true to ignore globally excluded Playwright tags for this run'
-    ),
-    booleanParam(
-      name: 'PLAYWRIGHT_USE_DOCKER',
-      defaultValue: false,
-      description: 'Run Playwright commands inside the official Playwright Docker image. Disabled by default to match rpx-xui-webapp host execution.'
     )
   ])
 ])
@@ -107,7 +102,6 @@ static String removeTag(String rawTags, String tagToRemove) {
     .join(',')
 }
 
-// Populate with real Key Vault secret names once known; empty list keeps the pattern intact.
 def secrets = [
   "rpx-${params.TEST_ENV}": [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
@@ -120,9 +114,6 @@ def secrets = [
     secret('idam-return-url', 'IDAM_RETURN_URL'),
     secret('s2s-url', 'S2S_URL'),
     secret('s2s-microservice-name', 'S2S_MICROSERVICE_NAME'),
-    // secret('idam-citizen-user-password', 'IDAM_CITIZEN_USER_PASSWORD'),
-    // secret('citizen-username', 'CITIZEN_USERNAME'),
-    // secret('citizen-password', 'CITIZEN_PASSWORD'),
     secret('prl-solicitor-username', 'PRL_SOLICITOR_USERNAME'),
     secret('prl-solicitor-password', 'PRL_SOLICITOR_PASSWORD'),
     secret('solicitor-username', 'SOLICITOR_USERNAME'),
@@ -143,8 +134,6 @@ def secrets = [
     secret('xui-dynamic-rd-professional-api-path', 'RD_PROFESSIONAL_API_PATH'),
     secret('judge-username', 'JUDGE_USERNAME'),
     secret('judge-password', 'JUDGE_PASSWORD'),
-    // secret('case-manager-username', 'CASEMANAGER_USERNAME'),
-    // secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
     secret('caseworker-r1-username', 'CASEWORKER_R1_USERNAME'),
     secret('caseworker-r1-password', 'CASEWORKER_R1_PASSWORD'),
     secret('caseworker-r2-username', 'CASEWORKER_R2_USERNAME'),
@@ -153,169 +142,17 @@ def secrets = [
     secret('court-admin-password', 'COURT_ADMIN_PASSWORD'),
     secret('staff-admin-username', 'STAFF_ADMIN_USERNAME'),
     secret('staff-admin-password', 'STAFF_ADMIN_PASSWORD'),
-    secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS'),
-    // secret('noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
-    // secret('noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
-    // secret('wa-solicitor-username', 'WA_SOLICITOR_USERNAME'),
-    // secret('wa-solicitor-password', 'WA_SOLICITOR_PASSWORD'),
-    // secret('courtnav-secret', 'COURTNAV_SECRET'),
-    // secret('courtnav-username', 'COURTNAV_USERNAME'),
-    // secret('courtnav-password', 'COURTNAV_PASSWORD'),
-    // secret('courtnav-subscription-key-create-case', 'COURTNAV_SUBSCRIPTION_KEY_CREATE_CASE'),
-    // secret('courtnav-case-url', 'COURTNAV_CASE_URL'),
-    // secret('courtnav-doc-url', 'COURTNAV_DOC_URL'),
-    // secret('courtnav-subscription-key-add-doc', 'COURTNAV_SUBSCRIPTION_KEY_ADD_DOC'),
-    // secret('ccd-data-store-client-username', 'CCD_DATA_STORE_CLIENT_USERNAME'),
-    // secret('ccd-data-store-client-password', 'CCD_DATA_STORE_CLIENT_PASSWORD'),
-    // secret('ccd-data-store-client-id', 'CCD_DATA_STORE_CLIENT_ID'),
-    // secret('ccd-data-store-secret', 'CCD_DATA_STORE_SECRET'),
-    // secret('ccd-data-store-url', 'CCD_DATA_STORE_URL'),
-    // secret('manage-case-redirect-uri', 'MANAGE_CASE_REDIRECT_URI'),
-    // secret('prl-cos-api-url', 'PRL_COS_API_URL')
+    secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS')
   ]
 ]
 
-def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
 def playwrightImage = "mcr.microsoft.com/playwright:v1.59.1-noble"
 def playwrightDockerOptions = "--ipc=host"
-def playwrightLoadProfileReportFile = 'load-profile.html'
-def ciLoadProfileDir = 'functional-output/tests/playwright-integration/load-profile/ci'
-def ciLoadProfileEventsFile = 'functional-output/tests/playwright-integration/load-profile/ci-stage-events.jsonl'
-def ciLoadProfilePublished = false
 
 def runInPlaywrightContainer = { Closure body ->
-  if (!params.PLAYWRIGHT_USE_DOCKER) {
-    body()
-    return
-  }
   withDocker(playwrightImage, playwrightDockerOptions) {
     body()
   }
-}
-
-def runPlaywrightCommand = { String command ->
-  if (!params.PLAYWRIGHT_USE_DOCKER) {
-    yarnBuilder.yarn(command)
-    return
-  }
-  def shellCommand = command.startsWith('node ') ? command : "corepack yarn ${command}"
-  steps.sh """
-    set +ex
-    ${shellCommand}
-  """
-}
-
-def recordPlaywrightContainerDiagnostics = {
-  if (!params.PLAYWRIGHT_USE_DOCKER) {
-    echo '[playwright-container] Docker execution disabled; Jenkins daily-agent diagnostics are limited in host mode.'
-    return
-  }
-  runInPlaywrightContainer {
-    steps.sh '''
-      set +e
-      echo "=== playwright-container:diagnostic:start ==="
-      echo "HOSTNAME=$(hostname)"
-      echo "WHOAMI=$(whoami)"
-      echo "PWD=$(pwd)"
-      echo "PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-<unset>}"
-      echo "--- /etc/os-release ---"
-      cat /etc/os-release || true
-      echo "--- /ms-playwright ---"
-      ls -la /ms-playwright || true
-      echo "--- node + playwright package version ---"
-      node -v
-      node -e 'try { console.log(require("@playwright/test/package.json").version) } catch (e) { console.log("NO_PLAYWRIGHT_PACKAGE", e.message) }'
-      echo "--- playwright CLI version ---"
-      npx playwright --version || true
-      echo "=== playwright-container:diagnostic:end ==="
-    '''
-  }
-}
-
-def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
-  def safeReportName = reportName.replaceAll(/[^A-Za-z0-9._-]/, '-')
-  def slimReportDir = "functional-output/tests/playwright-published-reports/load-profile/${safeReportName}"
-  steps.sh """
-    set +e
-    node scripts/ensure-load-profile-report.cjs \\
-      --report-dir '${reportDir}' \\
-      --report-file '${playwrightLoadProfileReportFile}' \\
-      --report-name '${reportName}'
-  """
-  steps.sh """
-    set +e
-    mkdir -p '${slimReportDir}'
-    if [ -f '${reportDir}/${playwrightLoadProfileReportFile}' ]; then
-      cp '${reportDir}/${playwrightLoadProfileReportFile}' '${slimReportDir}/${playwrightLoadProfileReportFile}'
-    fi
-  """
-  archiveArtifacts allowEmptyArchive: true, artifacts: "${slimReportDir}/${playwrightLoadProfileReportFile}"
-  publishHTML([
-    allowMissing         : true,
-    alwaysLinkToLastBuild: true,
-    keepAll              : true,
-    reportDir            : "${slimReportDir}/",
-    reportFiles          : playwrightLoadProfileReportFile,
-    reportName           : reportName
-  ])
-}
-
-def startPlaywrightLoadProfile = { String reportDir, String label, String eventsFile ->
-  steps.sh """
-    set +e
-    mkdir -p '${reportDir}'
-    rm -f '${reportDir}/stop' '${reportDir}/monitor.pid'
-    JENKINS_NODE_COOKIE=dontKillMe nohup node scripts/playwright-load-monitor.cjs \\
-      --output-folder '${reportDir}' \\
-      --label '${label}' \\
-      --events-file '${eventsFile}' \\
-      --stop-file '${reportDir}/stop' \\
-      > '${reportDir}/monitor.log' 2>&1 &
-    echo \$! > '${reportDir}/monitor.pid'
-  """
-}
-
-def stopPlaywrightLoadProfile = { String reportDir ->
-  steps.sh """
-    set +e
-    if [ -f '${reportDir}/monitor.pid' ]; then
-      pid=\$(cat '${reportDir}/monitor.pid')
-      touch '${reportDir}/stop'
-      for i in \$(seq 1 30); do
-        kill -0 "\${pid}" 2>/dev/null || break
-        sleep 1
-      done
-      if kill -0 "\${pid}" 2>/dev/null; then
-        kill -TERM "\${pid}" 2>/dev/null || true
-        sleep 2
-      fi
-    fi
-    if [ -f '${reportDir}/monitor.log' ]; then
-      cat '${reportDir}/monitor.log'
-    fi
-  """
-}
-
-def recordPlaywrightLoadEvent = { String label, String eventType ->
-  try {
-    steps.sh "node scripts/playwright-load-event.cjs '${ciLoadProfileEventsFile}' '${label}' '${eventType}'"
-  } catch (Exception e) {
-    echo "[load-profile] failed to record ${label} ${eventType}: ${e.getMessage()}"
-  }
-}
-
-def startCiLoadProfile = {
-  startPlaywrightLoadProfile(ciLoadProfileDir, 'Jenkins CI run', ciLoadProfileEventsFile)
-  recordPlaywrightLoadEvent('Checkout', 'finish')
-}
-
-def publishCiLoadProfile = { String reportName ->
-  if (ciLoadProfilePublished) {
-    return
-  }
-  ciLoadProfilePublished = true
-  stopPlaywrightLoadProfile(ciLoadProfileDir)
-  publishPlaywrightLoadProfile(ciLoadProfileDir, reportName)
 }
 
 def capJenkinsPlaywrightWorkers = { String configured ->
@@ -359,20 +196,212 @@ def integrationProfileRunConfig = { String spec ->
   }
   def safeName = "workers-${workers}${shard ? "-shard-${shard}" : ''}".replaceAll(/[^A-Za-z0-9._-]/, '-')
   return [
-    workers: workers,
-    shard: shard,
-    shardArg: shard ? " --shard=${shard}" : '',
-    reportDir: "functional-output/tests/playwright-integration/odhin-report/ci-${safeName}",
+    workers    : workers,
+    shardArg   : shard ? " --shard=${shard}" : '',
+    reportDir  : "functional-output/tests/playwright-integration/odhin-report/ci-${safeName}",
     displayName: "${workers} workers${shard ? ", shard ${shard}" : ''}"
   ]
 }
 
-def runCnpFunctionalStages = {
+def runPlaywrightShell = { String command ->
+  sh(
+    script: """#!/usr/bin/env bash
+      set -euxo pipefail
+      export PATH="\$HOME/.local/bin:\$PATH"
+      corepack yarn --version
+      ${command}
+    """.stripIndent()
+  )
+}
+
+def runDiagnostics = {
+  stage('Diag: Playwright container evidence') {
+    runInPlaywrightContainer {
+      sh(
+        script: '''#!/usr/bin/env bash
+          set -euxo pipefail
+          echo "=== diagnostic:start ==="
+          echo "HOSTNAME=$(hostname)"
+          echo "WHOAMI=$(whoami)"
+          echo "PWD=$(pwd)"
+          echo "PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-<unset>}"
+          echo "--- /etc/os-release ---"
+          cat /etc/os-release || true
+          echo "--- playwright image marker (/ms-playwright) ---"
+          ls -la /ms-playwright || true
+          echo "--- node + playwright package version ---"
+          node -v
+          node -e 'try { console.log(require("@playwright/test/package.json").version) } catch (e) { console.log("NO_PLAYWRIGHT_PACKAGE", e.message) }'
+          echo "--- playwright CLI version ---"
+          npx playwright --version || true
+          echo "=== diagnostic:end ==="
+        '''.stripIndent()
+      )
+    }
+  }
+}
+
+def publishApiReports = {
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : 'functional-output/tests/api_functional/odhin-report',
+    reportFiles          : 'playwright-odhin.html',
+    reportName           : 'API Odhín report'
+  ])
+  junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
+}
+
+def publishIntegrationReports = { Map runConfig ->
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : "${runConfig.reportDir}",
+    reportFiles          : 'playwright-odhin-integration.html',
+    reportName           : "Integration Odhín report (${runConfig.displayName})"
+  ])
+  archiveArtifacts allowEmptyArchive: true, artifacts: "${runConfig.reportDir}/**"
+}
+
+def publishUiReports = {
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : 'functional-output/tests/playwright-e2e/odhin-report',
+    reportFiles          : 'playwright-odhin.html',
+    reportName           : 'UI Odhín report'
+  ])
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
+}
+
+def runCnpPlaywrightStages = {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  def integrationIncludeTags = removeTag(params.INTEGRATION_PW_INCLUDE_TAGS, '@nightly')
+
+  runDiagnostics()
+
+  stage('API tests') {
+    def apiEnv = [
+      "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
+      "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+      "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
+      "API_PW_EXCLUDED_TAGS_OVERRIDE=${params.API_PW_EXCLUDED_TAGS_OVERRIDE}",
+      "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+      'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
+      'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+      'PLAYWRIGHT_SKIP_INSTALL=true'
+    ]
+    try {
+      runInPlaywrightContainer {
+        withEnv(apiEnv) {
+          runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${functionalWorkers}")
+        }
+      }
+    } catch (Exception e) {
+      unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+    } finally {
+      publishApiReports()
+    }
+  }
+
+  stage('Integration tests') {
+    resolveIntegrationProfileRuns(
+      params.INTEGRATION_PW_PROFILE_RUNS ?: '',
+      params.INTEGRATION_PW_WORKERS ?: '',
+      params.INTEGRATION_PW_SHARD ?: ''
+    ).each { spec ->
+      def runConfig = integrationProfileRunConfig(spec)
+      def integrationEnv = [
+        "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
+        "PLAYWRIGHT_WORKERS=${runConfig.workers}",
+        "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
+        "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?: '@nightly'}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PW_UI_STORAGE=1',
+        'PW_ODHIN_INDEX=playwright-odhin-integration.html',
+        'PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html',
+        "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        runInPlaywrightContainer {
+          withEnv(integrationEnv) {
+            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${runConfig.workers}${runConfig.shardArg}")
+          }
+        }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + e.toString())
+      } finally {
+        runInPlaywrightContainer {
+          withEnv(integrationEnv) {
+            runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
+          }
+        }
+        publishIntegrationReports(runConfig)
+      }
+    }
+  }
+
+  stage('UI tests') {
+    def uiEnv = [
+      'FUNCTIONAL_TESTS_WORKERS=2',
+      'PLAYWRIGHT_WORKERS=2',
+      "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
+      "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
+      "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+      'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
+      'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+      'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+      'PW_UI_USERS=COURT_ADMIN',
+      'PW_UI_STORAGE_STRICT=1',
+      'PW_UI_STORAGE=1',
+      'PW_UI_STORAGE_TTL_MIN=15',
+      'PW_UI_LOGIN_TIMEOUT_MS=120000',
+      'PW_UI_IDLE_TIMEOUT_MS=60000',
+      'PW_UI_IDLE_QUIET_MS=400',
+      'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+      'PW_UI_FAIL_ON_HTTP_4XX=0',
+      'PLAYWRIGHT_SKIP_INSTALL=true'
+    ]
+    try {
+      if (!hasCourtAdminUiCredentials()) {
+        echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
+        runInPlaywrightContainer {
+          withEnv(uiEnv) {
+            runPlaywrightShell('node ./scripts/ensure-odhin-report.cjs')
+          }
+        }
+      } else {
+        runInPlaywrightContainer {
+          withEnv(uiEnv) {
+            runPlaywrightShell('corepack yarn test:ui:raw -- --workers=2')
+          }
+        }
+      }
+    } catch (Exception e) {
+      unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+    } finally {
+      runInPlaywrightContainer {
+        withEnv(uiEnv) {
+          runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
+        }
+      }
+      publishUiReports()
+    }
+  }
+}
+
+withNightlyPipeline(type, product, component, 600) {
+  loadVaultSecrets(secrets)
   env.TEST_URL = params.TEST_URL
+  env.S2S_URL = params.S2S_URL
   env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = functionalWorkers
-  env.PLAYWRIGHT_WORKERS = functionalWorkers
+  env.FUNCTIONAL_TESTS_WORKERS = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  env.PLAYWRIGHT_WORKERS = env.FUNCTIONAL_TESTS_WORKERS
   env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
   env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
   env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
@@ -380,247 +409,17 @@ def runCnpFunctionalStages = {
   env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
   env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
   env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
-  env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
+  enableSlackNotifications(channel)
 
-  stage('Build') {
-    yarnBuilder.yarn('lint')
-  }
-
-  stage('Dependency check') {
-    warnError('Failure in Dependency check') {
-      timeoutWithMsg(time: 15, unit: 'MINUTES', action: 'Dependency check') {
-        yarnBuilder.securityCheck()
-      }
+  onPR() {
+    afterAlways('DependencyCheckNightly') {
+      runCnpPlaywrightStages()
     }
   }
 
-  stage('Diag: Playwright execution environment') {
-    recordPlaywrightContainerDiagnostics()
-  }
-
-  stage('Install Playwright Browsers') {
-    recordPlaywrightLoadEvent('Playwright browser install', 'start')
-    try {
-      if (params.PLAYWRIGHT_USE_DOCKER) {
-        echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
-      } else {
-        yarnBuilder.yarn('test:setup:playwright-install-chromium')
-      }
-    } finally {
-      recordPlaywrightLoadEvent('Playwright browser install', 'finish')
-    }
-  }
-
-  stage('Tests') {
-    recordPlaywrightLoadEvent('Functional tests', 'start')
-    try {
-      def playwrightStageFailed = false
-      def testStages = [
-        'API tests': {
-          def apiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-          def apiOdhinEnv = [
-            "FUNCTIONAL_TESTS_WORKERS=${apiWorkers}",
-            "PLAYWRIGHT_WORKERS=${apiWorkers}",
-            "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
-            "API_PW_EXCLUDED_TAGS_OVERRIDE=${params.API_PW_EXCLUDED_TAGS_OVERRIDE}",
-            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
-            "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
-          ]
-          try {
-            recordPlaywrightLoadEvent('API', 'start')
-            runInPlaywrightContainer {
-              withEnv(apiOdhinEnv) {
-                runPlaywrightCommand('test:api:ci:raw')
-              }
-            }
-          } catch (Error) {
-            playwrightStageFailed = true
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/api_functional/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'API Odhín report'
-            ])
-            junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
-            publishPlaywrightLoadProfile(
-              'functional-output/tests/api_functional/odhin-report/load-profile',
-              "API System Load (${apiWorkers} workers)"
-            )
-            recordPlaywrightLoadEvent('API', 'finish')
-          }
-        },
-        'Integration tests': {
-          def integrationIncludeTags = removeTag(params.INTEGRATION_PW_INCLUDE_TAGS, '@nightly')
-          resolveIntegrationProfileRuns(
-            params.INTEGRATION_PW_PROFILE_RUNS ?: '',
-            params.INTEGRATION_PW_WORKERS ?: '',
-            params.INTEGRATION_PW_SHARD ?: ''
-          ).each { spec ->
-            def runConfig = integrationProfileRunConfig(spec)
-            def integrationOdhinEnv = [
-              "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
-              "PLAYWRIGHT_WORKERS=${runConfig.workers}",
-              "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
-              "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?: '@nightly'}",
-              "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-              'PW_UI_STORAGE=1',
-              'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-              "PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html",
-              "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
-              "PW_LOAD_PROFILE_OUTPUT=${runConfig.reportDir}/load-profile",
-              "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}",
-              "PW_LOAD_PROFILE_LABEL=Integration ${runConfig.displayName}"
-            ]
-            try {
-              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
-              runInPlaywrightContainer {
-                withEnv(integrationOdhinEnv) {
-                  runPlaywrightCommand("test:integration:raw -- --workers=${runConfig.workers}${runConfig.shardArg}")
-                }
-              }
-            } catch (Error) {
-              playwrightStageFailed = true
-              unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + Error.toString())
-            } finally {
-              withEnv(integrationOdhinEnv) {
-                yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
-              }
-              publishHTML([
-                allowMissing         : true,
-                alwaysLinkToLastBuild: true,
-                keepAll              : true,
-                reportDir            : "${runConfig.reportDir}",
-                reportFiles          : 'playwright-odhin-integration.html',
-                reportName           : "Integration Odhín report (${runConfig.displayName})"
-              ])
-              archiveArtifacts allowEmptyArchive: true, artifacts: "${runConfig.reportDir}/**"
-              publishPlaywrightLoadProfile(
-                "${runConfig.reportDir}/load-profile",
-                "Integration System Load (${runConfig.displayName})"
-              )
-              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'finish')
-            }
-          }
-        },
-        'UI tests': {
-          def uiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
-            "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
-            "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
-            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
-            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
-            'PW_UI_USERS=COURT_ADMIN',
-            'PW_UI_STORAGE_STRICT=1',
-            'PW_UI_STORAGE=1',
-            'PW_UI_STORAGE_TTL_MIN=15',
-            'PW_UI_LOGIN_TIMEOUT_MS=120000',
-            'PW_UI_IDLE_TIMEOUT_MS=60000',
-            'PW_UI_IDLE_QUIET_MS=400',
-            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-            'PW_UI_FAIL_ON_HTTP_4XX=0',
-            'PLAYWRIGHT_SKIP_INSTALL=true',
-            "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
-          ]
-          try {
-            recordPlaywrightLoadEvent('UI', 'start')
-            if (!hasCourtAdminUiCredentials()) {
-              echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
-              withEnv(uiOdhinEnv) {
-                yarnBuilder.yarn('node ./scripts/ensure-odhin-report.cjs')
-              }
-            } else {
-              runInPlaywrightContainer {
-                withEnv(uiOdhinEnv) {
-                  runPlaywrightCommand('test:ui:raw')
-                }
-              }
-            }
-          } catch (Error) {
-            playwrightStageFailed = true
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
-            }
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'UI Odhín report'
-            ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-            publishPlaywrightLoadProfile(
-              'functional-output/tests/playwright-e2e/odhin-report/load-profile',
-              'UI System Load (2 workers)'
-            )
-            recordPlaywrightLoadEvent('UI', 'finish')
-          }
-        }
-      ]
-      def parallelTestStages = [:]
-      testStages.each { testName, testBody ->
-        def branchName = testName
-        def branchBody = testBody
-        parallelTestStages[branchName] = {
-          stage(branchName) {
-            branchBody()
-          }
-        }
-      }
-      parallel parallelTestStages
-      if (playwrightStageFailed) {
-        error('At least one Playwright stage failed, check the logs to see why')
-      }
-    } finally {
-      recordPlaywrightLoadEvent('Functional tests', 'finish')
-      publishCiLoadProfile('RPX E2E CI System Load')
-    }
-  }
-}
-
-node(env.BUILD_AGENT_TYPE ?: '') {
-  timeoutWithMsg(time: 180, unit: 'MINUTES', action: 'pipeline') {
-    try {
-      dockerAgentSetup()
-      env.PATH = "$env.PATH:/usr/local/bin"
-
-      stage('Checkout') {
-        checkout scm
-        startCiLoadProfile()
-      }
-
-      def vaultName = "rpx-${params.TEST_ENV}"
-      withSubscriptionLogin('nonprod') {
-        withAzureKeyvault(
-          azureKeyVaultSecrets: secrets[vaultName] ?: [],
-          keyVaultURLOverride: "https://${vaultName}.vault.azure.net/",
-          applicationIDOverride: env.AZURE_CLIENT_ID,
-          applicationSecretOverride: env.AZURE_CLIENT_SECRET
-        ) {
-          runCnpFunctionalStages()
-        }
-      }
-    } catch (err) {
-      currentBuild.result = 'FAILURE'
-      notifyBuildFailure channel: channel
-      throw err
-    } finally {
-      if (fileExists('scripts/ensure-load-profile-report.cjs')) {
-        publishCiLoadProfile('RPX E2E CI System Load')
-      }
-      deleteDir()
+  onMaster() {
+    afterAlways('DependencyCheckNightly') {
+      runCnpPlaywrightStages()
     }
   }
 }
