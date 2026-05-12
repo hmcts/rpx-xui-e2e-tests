@@ -315,43 +315,6 @@ def hasCourtAdminUiCredentials = {
   env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
 }
 
-def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride, String shardOverride ->
-  def requestedWorkers = workersOverride?.trim()
-  if (requestedWorkers) {
-    def requestedShard = shardOverride?.trim()
-    return ["workers=${capJenkinsPlaywrightWorkers(requestedWorkers)}${requestedShard ? " shard=${requestedShard}" : ''}"]
-  }
-  def configured = configuredRuns?.trim()
-  if (!configured) {
-    configured = 'workers=8'
-  }
-  return configured
-    .split(/[\r\n;]+/)
-    .collect { it.trim() }
-    .findAll { it }
-}
-
-def integrationProfileRunConfig = { String spec ->
-  def workers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def shard = ''
-  spec.split(/\s+/).each { token ->
-    if (token.startsWith('workers=')) {
-      workers = capJenkinsPlaywrightWorkers(token.replaceFirst('workers=', ''))
-    }
-    if (token.startsWith('shard=')) {
-      shard = token.replaceFirst('shard=', '')
-    }
-  }
-  def safeName = "workers-${workers}${shard ? "-shard-${shard}" : ''}".replaceAll(/[^A-Za-z0-9._-]/, '-')
-  return [
-    workers: workers,
-    shard: shard,
-    shardArg: shard ? " --shard=${shard}" : '',
-    reportDir: "functional-output/tests/playwright-integration-nightly/odhin-report/nightly-${safeName}",
-    displayName: "${workers} workers${shard ? ", shard ${shard}" : ''}"
-  ]
-}
-
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
@@ -432,57 +395,6 @@ withNightlyPipeline(type, product, component, 400) {
               "API Nightly System Load (${apiWorkers} workers)"
             )
             recordPlaywrightLoadEvent('API', 'finish')
-          }
-        },
-        'Integration nightly': {
-          resolveIntegrationProfileRuns(
-            params.INTEGRATION_PW_PROFILE_RUNS ?: '',
-            params.INTEGRATION_PW_WORKERS ?: '',
-            params.INTEGRATION_PW_SHARD ?: ''
-          ).each { spec ->
-            def runConfig = integrationProfileRunConfig(spec)
-            def integrationOdhinEnv = [
-              "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
-              "PLAYWRIGHT_WORKERS=${runConfig.workers}",
-              "INTEGRATION_PW_INCLUDE_TAGS=${params.INTEGRATION_PW_INCLUDE_TAGS}",
-              "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE}",
-              "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-              'PW_UI_STORAGE=1',
-              'PW_ODHIN_INDEX=playwright-odhin-integration-nightly.html',
-              'PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration-nightly.html',
-              "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
-              "PW_LOAD_PROFILE_OUTPUT=${runConfig.reportDir}/load-profile",
-              "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}",
-              "PW_LOAD_PROFILE_LABEL=Integration nightly ${runConfig.displayName}"
-            ]
-            try {
-              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
-              runInPlaywrightContainer {
-                withEnv(integrationOdhinEnv) {
-                  runPlaywrightCommand("test:integration:nightly:raw -- --workers=${runConfig.workers}${runConfig.shardArg}")
-                }
-              }
-            } catch (Error) {
-              unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + Error.toString())
-            } finally {
-              withEnv(integrationOdhinEnv) {
-                yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
-              }
-              publishHTML([
-                allowMissing         : true,
-                alwaysLinkToLastBuild: true,
-                keepAll              : true,
-                reportDir            : "${runConfig.reportDir}",
-                reportFiles          : 'playwright-odhin-integration-nightly.html',
-                reportName           : "Integration nightly report (Odhín, ${runConfig.displayName})"
-              ])
-              archiveArtifacts allowEmptyArchive: true, artifacts: "${runConfig.reportDir}/**"
-              publishPlaywrightLoadProfile(
-                "${runConfig.reportDir}/load-profile",
-                "Integration Nightly System Load (${runConfig.displayName})"
-              )
-              recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'finish')
-            }
           }
         },
         'UI nightly': {

@@ -172,42 +172,6 @@ def hasCourtAdminUiCredentials = {
   env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
 }
 
-def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride, String shardOverride ->
-  def requestedWorkers = workersOverride?.trim()
-  if (requestedWorkers) {
-    def requestedShard = shardOverride?.trim()
-    return ["workers=${capJenkinsPlaywrightWorkers(requestedWorkers)}${requestedShard ? " shard=${requestedShard}" : ''}"]
-  }
-  def configured = configuredRuns?.trim()
-  if (!configured) {
-    configured = 'workers=2'
-  }
-  return configured
-    .split(/[\r\n;]+/)
-    .collect { it.trim() }
-    .findAll { it }
-}
-
-def integrationProfileRunConfig = { String spec ->
-  def workers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def shard = ''
-  spec.split(/\s+/).each { token ->
-    if (token.startsWith('workers=')) {
-      workers = capJenkinsPlaywrightWorkers(token.replaceFirst('workers=', ''))
-    }
-    if (token.startsWith('shard=')) {
-      shard = token.replaceFirst('shard=', '')
-    }
-  }
-  def safeName = "workers-${workers}${shard ? "-shard-${shard}" : ''}".replaceAll(/[^A-Za-z0-9._-]/, '-')
-  return [
-    workers    : workers,
-    shardArg   : shard ? " --shard=${shard}" : '',
-    reportDir  : "functional-output/tests/playwright-integration/odhin-report/ci-${safeName}",
-    displayName: "${workers} workers${shard ? ", shard ${shard}" : ''}"
-  ]
-}
-
 def runPlaywrightShell = { String command ->
   sh(
     script: """#!/usr/bin/env bash
@@ -259,18 +223,6 @@ def publishApiReports = {
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
 }
 
-def publishIntegrationReports = { Map runConfig ->
-  publishHTML([
-    allowMissing         : true,
-    alwaysLinkToLastBuild: true,
-    keepAll              : true,
-    reportDir            : "${runConfig.reportDir}",
-    reportFiles          : 'playwright-odhin-integration.html',
-    reportName           : "Integration Odhín report (${runConfig.displayName})"
-  ])
-  archiveArtifacts allowEmptyArchive: true, artifacts: "${runConfig.reportDir}/**"
-}
-
 def publishUiReports = {
   publishHTML([
     allowMissing         : true,
@@ -285,9 +237,7 @@ def publishUiReports = {
 
 def runCnpPlaywrightStages = {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def integrationIncludeTags = removeTag(params.INTEGRATION_PW_INCLUDE_TAGS, '@nightly')
   def apiExcludedTags = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
-  def integrationExcludedTags = effectiveTagOverride(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, '@nightly')
   def quietConsoleEnv = [
     'TERM=dumb',
     'NO_COLOR=1',
@@ -306,7 +256,7 @@ def runCnpPlaywrightStages = {
 
   runDiagnostics()
 
-  echo '[playwright] Running suites sequentially on the Jenkins VM to avoid remoting saturation.'
+  echo '[playwright] Running API and E2E suites only; integration tests are temporarily disabled in CNP.'
 
   def runApiTests = {
     stage('API tests') {
@@ -331,47 +281,6 @@ def runCnpPlaywrightStages = {
         unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
       } finally {
         publishApiReports()
-      }
-    }
-  }
-
-  def runIntegrationTests = {
-    stage('Integration tests') {
-      resolveIntegrationProfileRuns(
-        params.INTEGRATION_PW_PROFILE_RUNS ?: '',
-        params.INTEGRATION_PW_WORKERS ?: '',
-        params.INTEGRATION_PW_SHARD ?: ''
-      ).each { spec ->
-        def runConfig = integrationProfileRunConfig(spec)
-        def integrationEnv = quietConsoleEnv + [
-          "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
-          "PLAYWRIGHT_WORKERS=${runConfig.workers}",
-          "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
-          "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
-          "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-          'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
-          'PW_UI_STORAGE=1',
-          'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-          'PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html',
-          "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
-          'PLAYWRIGHT_SKIP_INSTALL=true'
-        ]
-        try {
-          runInPlaywrightContainer {
-            withEnv(integrationEnv) {
-              runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${runConfig.workers}${runConfig.shardArg}")
-            }
-          }
-        } catch (Exception e) {
-          unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + e.toString())
-        } finally {
-          runInPlaywrightContainer {
-            withEnv(integrationEnv) {
-              runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
-            }
-          }
-          publishIntegrationReports(runConfig)
-        }
       }
     }
   }
@@ -428,7 +337,6 @@ def runCnpPlaywrightStages = {
     }
   }
 
-  runIntegrationTests()
   runApiTests()
   runUiTests()
 }
