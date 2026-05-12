@@ -185,6 +185,9 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
       case "line":
         reporters.push(["line"]);
         break;
+      case "ci-brief":
+        reporters.push(["./src/tests/common/reporters/ci-brief.reporter.cjs"]);
+        break;
       case "html":
         reporters.push([
           "html",
