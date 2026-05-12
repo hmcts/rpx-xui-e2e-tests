@@ -165,7 +165,7 @@ def capJenkinsPlaywrightWorkers = { String configured ->
   if (!parsed.isInteger()) {
     return '4'
   }
-  return Math.min(4, Math.max(1, parsed.toInteger())).toString()
+  return Math.min(4, Math.max(4, parsed.toInteger())).toString()
 }
 
 def hasCourtAdminUiCredentials = {
