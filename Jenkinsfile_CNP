@@ -306,130 +306,134 @@ def runCnpPlaywrightStages = {
 
   runDiagnostics()
 
-  parallel(
-    'API tests': {
-      stage('API tests') {
-        def apiEnv = quietConsoleEnv + [
-          "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
-          "PLAYWRIGHT_WORKERS=${functionalWorkers}",
-          "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
-          "API_PW_EXCLUDED_TAGS_OVERRIDE=${apiExcludedTags}",
-          "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-          'PLAYWRIGHT_REPORTERS=ci-brief,odhin,junit',
-          'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-          'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
-          'PLAYWRIGHT_SKIP_INSTALL=true'
-        ]
-        try {
-          runInPlaywrightContainer {
-            withEnv(apiEnv) {
-              runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${functionalWorkers}")
-            }
-          }
-        } catch (Exception e) {
-          unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
-        } finally {
-          publishApiReports()
-        }
-      }
-    },
-    'Integration tests': {
-      stage('Integration tests') {
-        resolveIntegrationProfileRuns(
-          params.INTEGRATION_PW_PROFILE_RUNS ?: '',
-          params.INTEGRATION_PW_WORKERS ?: '',
-          params.INTEGRATION_PW_SHARD ?: ''
-        ).each { spec ->
-          def runConfig = integrationProfileRunConfig(spec)
-          def integrationEnv = quietConsoleEnv + [
-            "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
-            "PLAYWRIGHT_WORKERS=${runConfig.workers}",
-            "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
-            "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
-            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-            'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
-            'PW_UI_STORAGE=1',
-            'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-            'PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html',
-            "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
-            'PLAYWRIGHT_SKIP_INSTALL=true'
-          ]
-          try {
-            runInPlaywrightContainer {
-              withEnv(integrationEnv) {
-                runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${runConfig.workers}${runConfig.shardArg}")
-              }
-            }
-          } catch (Exception e) {
-            unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + e.toString())
-          } finally {
-            runInPlaywrightContainer {
-              withEnv(integrationEnv) {
-                runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
-              }
-            }
-            publishIntegrationReports(runConfig)
+  echo '[playwright] Running suites sequentially on the Jenkins VM to avoid remoting saturation.'
+
+  def runApiTests = {
+    stage('API tests') {
+      def apiEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
+        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+        "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
+        "API_PW_EXCLUDED_TAGS_OVERRIDE=${apiExcludedTags}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin,junit',
+        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
+        'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        runInPlaywrightContainer {
+          withEnv(apiEnv) {
+            runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${functionalWorkers}")
           }
         }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        publishApiReports()
       }
-    },
-    'UI tests': {
-      stage('UI tests') {
-        def uiEnv = quietConsoleEnv + [
-          "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
-          "PLAYWRIGHT_WORKERS=${functionalWorkers}",
-          "PW_UI_WORKERS=${functionalWorkers}",
-          "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
-          "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
+    }
+  }
+
+  def runIntegrationTests = {
+    stage('Integration tests') {
+      resolveIntegrationProfileRuns(
+        params.INTEGRATION_PW_PROFILE_RUNS ?: '',
+        params.INTEGRATION_PW_WORKERS ?: '',
+        params.INTEGRATION_PW_SHARD ?: ''
+      ).each { spec ->
+        def runConfig = integrationProfileRunConfig(spec)
+        def integrationEnv = quietConsoleEnv + [
+          "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
+          "PLAYWRIGHT_WORKERS=${runConfig.workers}",
+          "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
+          "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
           "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
           'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
-          'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
-          'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
-          'PW_ODHIN_SKIP_API_ENDPOINTS=true',
-          'PW_UI_USERS=COURT_ADMIN',
-          'PW_UI_STORAGE_STRICT=1',
           'PW_UI_STORAGE=1',
-          'PW_UI_STORAGE_TTL_MIN=15',
-          'PW_UI_LOGIN_TIMEOUT_MS=120000',
-          'PW_UI_IDLE_TIMEOUT_MS=60000',
-          'PW_UI_IDLE_QUIET_MS=400',
-          'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-          'PW_UI_FAIL_ON_HTTP_4XX=0',
+          'PW_ODHIN_INDEX=playwright-odhin-integration.html',
+          'PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html',
+          "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
           'PLAYWRIGHT_SKIP_INSTALL=true'
         ]
         try {
-          if (!hasCourtAdminUiCredentials()) {
-            echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
-            runInPlaywrightContainer {
-              withEnv(uiEnv) {
-                runPlaywrightShell('node ./scripts/ensure-odhin-report.cjs')
-              }
-            }
-          } else {
-            runInPlaywrightContainer {
-              withEnv(uiEnv) {
-                runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${functionalWorkers}")
-              }
+          runInPlaywrightContainer {
+            withEnv(integrationEnv) {
+              runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${runConfig.workers}${runConfig.shardArg}")
             }
           }
         } catch (Exception e) {
-          unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+          unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + e.toString())
         } finally {
           runInPlaywrightContainer {
-            withEnv(uiEnv) {
+            withEnv(integrationEnv) {
               runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
             }
           }
-          publishUiReports()
+          publishIntegrationReports(runConfig)
         }
       }
-    },
-    failFast: false
-  )
+    }
+  }
+
+  def runUiTests = {
+    stage('UI tests') {
+      def uiEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
+        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+        "PW_UI_WORKERS=${functionalWorkers}",
+        "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
+        "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
+        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
+        'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+        'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+        'PW_UI_USERS=COURT_ADMIN',
+        'PW_UI_STORAGE_STRICT=1',
+        'PW_UI_STORAGE=1',
+        'PW_UI_STORAGE_TTL_MIN=15',
+        'PW_UI_LOGIN_TIMEOUT_MS=120000',
+        'PW_UI_IDLE_TIMEOUT_MS=60000',
+        'PW_UI_IDLE_QUIET_MS=400',
+        'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+        'PW_UI_FAIL_ON_HTTP_4XX=0',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        if (!hasCourtAdminUiCredentials()) {
+          echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
+          runInPlaywrightContainer {
+            withEnv(uiEnv) {
+              runPlaywrightShell('node ./scripts/ensure-odhin-report.cjs')
+            }
+          }
+        } else {
+          runInPlaywrightContainer {
+            withEnv(uiEnv) {
+              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${functionalWorkers}")
+            }
+          }
+        }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        runInPlaywrightContainer {
+          withEnv(uiEnv) {
+            runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
+          }
+        }
+        publishUiReports()
+      }
+    }
+  }
+
+  runIntegrationTests()
+  runApiTests()
+  runUiTests()
 }
 
 withNightlyPipeline(type, product, component, 600) {
-  env.BUILD_AGENT_TYPE = 'civil'
   loadVaultSecrets(secrets)
   env.TEST_URL = params.TEST_URL
   env.S2S_URL = params.S2S_URL
