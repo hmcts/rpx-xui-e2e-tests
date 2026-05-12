@@ -37,7 +37,7 @@ test.describe(
 
       await goBackInHearingsFlow(page);
       await expect(page).toHaveURL(/\/cases\/case-details\/.*#Hearings$/);
-      await expect(page.getByText('Current and upcoming')).toBeVisible();
+      await hearingsTabPage.waitForReady(LISTED_HEARING_SCENARIO.hearingId);
     });
   }
 );

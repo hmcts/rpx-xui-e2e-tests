@@ -47,6 +47,18 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
         '/opt/jenkins/workspace/PR/playwright_tests_new/integration/test/hearings/hearingDetails.cr84.positive.spec.ts'
       )
     ).toBe('hearings');
+    expect(
+      deriveFeatureName(
+        '/opt/jenkins/workspace/S_j_to_z_rpx-xui-e2e-tests_PR-47/src/tests/integration/bookingUI/booking-ui.positive.spec.ts'
+      )
+    ).toBe('bookingUI');
+    expect(deriveFeatureName('src/tests/integration/hearings/hearingActuals.positive.spec.ts')).toBe('hearings');
+    expect(deriveFeatureName('integration/accessRequests/challengedAccessRequest.positive.spec.ts')).toBe(
+      'accessRequests'
+    );
+    expect(deriveFeatureName('/work/rpx-xui-e2e-tests/src/tests/e2e/caseFileView/caseFileView.spec.ts')).toBe(
+      'caseFileView'
+    );
   });
 
   test('normalizes and sorts grouped feature stats', () => {

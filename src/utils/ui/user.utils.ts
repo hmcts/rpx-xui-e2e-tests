@@ -68,6 +68,22 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
     username: "BOOKING_UI_FT_ON_USERNAME",
     password: "BOOKING_UI_FT_ON_PASSWORD"
   },
+  "BOOKING_UI-FT-ON-1": {
+    username: "BOOKING_UI_FT_ON_1_USERNAME",
+    password: "BOOKING_UI_FT_ON_1_PASSWORD"
+  },
+  "BOOKING_UI-FT-ON-2": {
+    username: "BOOKING_UI_FT_ON_2_USERNAME",
+    password: "BOOKING_UI_FT_ON_2_PASSWORD"
+  },
+  "BOOKING_UI-FT-ON-3": {
+    username: "BOOKING_UI_FT_ON_3_USERNAME",
+    password: "BOOKING_UI_FT_ON_3_PASSWORD"
+  },
+  "BOOKING_UI-FT-ON-4": {
+    username: "BOOKING_UI_FT_ON_4_USERNAME",
+    password: "BOOKING_UI_FT_ON_4_PASSWORD"
+  },
   FPL_GLOBAL_SEARCH: {
     username: "FPL_GLOBAL_SEARCH_USERNAME",
     password: "FPL_GLOBAL_SEARCH_PASSWORD"
@@ -83,6 +99,10 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
   SOLICITOR: {
     username: "SOLICITOR_USERNAME",
     password: "SOLICITOR_PASSWORD"
+  },
+  DIVORCE_SOLICITOR: {
+    username: "DIVORCE_SOLICITOR_USERNAME",
+    password: "DIVORCE_SOLICITOR_PASSWORD"
   },
   CASEWORKER_R1: {
     username: "CASEWORKER_R1_USERNAME",
@@ -132,6 +152,22 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
     username: "STAFF_ADMIN_USERNAME",
     password: "STAFF_ADMIN_PASSWORD"
   },
+  "STAFF_ADMIN-1": {
+    username: "STAFF_ADMIN_1_USERNAME",
+    password: "STAFF_ADMIN_1_PASSWORD"
+  },
+  "STAFF_ADMIN-2": {
+    username: "STAFF_ADMIN_2_USERNAME",
+    password: "STAFF_ADMIN_2_PASSWORD"
+  },
+  "STAFF_ADMIN-3": {
+    username: "STAFF_ADMIN_3_USERNAME",
+    password: "STAFF_ADMIN_3_PASSWORD"
+  },
+  "STAFF_ADMIN-4": {
+    username: "STAFF_ADMIN_4_USERNAME",
+    password: "STAFF_ADMIN_4_PASSWORD"
+  },
   SEARCH_EMPLOYMENT_CASE: {
     username: "SEARCH_EMPLOYMENT_CASE_USERNAME",
     password: "SEARCH_EMPLOYMENT_CASE_PASSWORD"
@@ -156,9 +192,41 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
     username: "HEARING_MANAGER_CR84_ON_USERNAME",
     password: "HEARING_MANAGER_CR84_ON_PASSWORD"
   },
+  "HEARING_MANAGER_CR84_ON-1": {
+    username: "HEARING_MANAGER_CR84_ON_1_USERNAME",
+    password: "HEARING_MANAGER_CR84_ON_1_PASSWORD"
+  },
+  "HEARING_MANAGER_CR84_ON-2": {
+    username: "HEARING_MANAGER_CR84_ON_2_USERNAME",
+    password: "HEARING_MANAGER_CR84_ON_2_PASSWORD"
+  },
+  "HEARING_MANAGER_CR84_ON-3": {
+    username: "HEARING_MANAGER_CR84_ON_3_USERNAME",
+    password: "HEARING_MANAGER_CR84_ON_3_PASSWORD"
+  },
+  "HEARING_MANAGER_CR84_ON-4": {
+    username: "HEARING_MANAGER_CR84_ON_4_USERNAME",
+    password: "HEARING_MANAGER_CR84_ON_4_PASSWORD"
+  },
   HEARING_MANAGER_CR84_OFF: {
     username: "HEARING_MANAGER_CR84_OFF_USERNAME",
     password: "HEARING_MANAGER_CR84_OFF_PASSWORD"
+  },
+  "HEARING_MANAGER_CR84_OFF-1": {
+    username: "HEARING_MANAGER_CR84_OFF_1_USERNAME",
+    password: "HEARING_MANAGER_CR84_OFF_1_PASSWORD"
+  },
+  "HEARING_MANAGER_CR84_OFF-2": {
+    username: "HEARING_MANAGER_CR84_OFF_2_USERNAME",
+    password: "HEARING_MANAGER_CR84_OFF_2_PASSWORD"
+  },
+  "HEARING_MANAGER_CR84_OFF-3": {
+    username: "HEARING_MANAGER_CR84_OFF_3_USERNAME",
+    password: "HEARING_MANAGER_CR84_OFF_3_PASSWORD"
+  },
+  "HEARING_MANAGER_CR84_OFF-4": {
+    username: "HEARING_MANAGER_CR84_OFF_4_USERNAME",
+    password: "HEARING_MANAGER_CR84_OFF_4_PASSWORD"
   }
 };
 

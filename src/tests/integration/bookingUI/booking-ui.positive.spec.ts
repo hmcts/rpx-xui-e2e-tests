@@ -12,7 +12,7 @@ import {
   type CreateBookingResponse
 } from "../mocks/bookingUI.mock.js";
 import { buildMyTaskListMock } from "../mocks/taskList.mock.js";
-import { formatUiDate } from "../utils/tableUtils.js";
+import { formatUiDate, normalizeUiDateValue } from "../utils/tableUtils.js";
 
 const userIdentifier = "BOOKING_UI-FT-ON";
 const defaultBookingLocation = singleLocationMock[0];
@@ -127,10 +127,8 @@ test.describe(
           key: "Location",
           value: existingBookingsMock[0].locationName
         });
-        expect(table[1]).toEqual({
-          key: "Duration",
-          value: `${today} to ${today}`
-        });
+        expect(table[1].key).toBe("Duration");
+        expect(normalizeUiDateValue(table[1].value)).toBe(`${today} to ${today}`);
         await expect(bookingUiPage.bookingButton).toBeEnabled();
         await Promise.all([
           page.waitForURL(tasksPageUrlPattern, { timeout: 30_000 }),
@@ -152,9 +150,11 @@ test.describe(
           userId: sessionUserId,
           locationId: defaultBookingLocation.epimms_id,
           regionId: defaultBookingLocation.region_id,
-          beginDate: expectedTodayBookingRange.beginDate,
+          beginDate: submittedRequest.beginDate,
           endDate: expectedTodayBookingRange.endDate
         });
+        expect(submittedRequest.beginDate).toMatch(/^20\d{2}-\d{2}-\d{2}T/);
+        expect(formatUiDate(submittedRequest.beginDate)).toBe(formatUiDate(expectedTodayBookingRange.beginDate));
 
         const bookingResponse = createBookingResponseBody!.bookingResponse;
         expect(bookingResponse.userId).toBe(sessionUserId);

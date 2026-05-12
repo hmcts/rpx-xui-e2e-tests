@@ -55,7 +55,7 @@ test.describe("coverage-booking-ui", () => {
       new Date("2026-04-23T08:30:00.000Z")
     );
 
-    expect(range.beginDate).toMatch(/^2026-04-23T/);
+    expect(range.beginDate).toBe("2026-04-23T00:00:00.000Z");
     expect(range.endDate).toBe("2026-04-23T23:59:59.999Z");
   });
 });

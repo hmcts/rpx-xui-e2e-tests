@@ -20,7 +20,7 @@ async function openHomeAndResolvePublicLawCaseReference(page: Parameters<typeof 
   );
 }
 
-test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search-case"] }, () => {
+test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search-case", "@nightly"] }, () => {
   test.beforeAll(async () => {
     await ensureSearchCaseSession("FPL_GLOBAL_SEARCH");
   });
@@ -76,7 +76,7 @@ test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search
   });
 });
 
-test.describe("Solicitor navigation to Find case (top-right)", { tag: ["@e2e", "@e2e-search-case"] }, () => {
+test.describe("Solicitor navigation to Find case (top-right)", { tag: ["@e2e", "@e2e-search-case", "@nightly"] }, () => {
   test.beforeAll(async () => {
     await ensureSearchCaseSession("SOLICITOR");
   });

@@ -7,14 +7,14 @@ import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
 import { defineConfig, type PlaywrightTestConfig, type ReporterDescription } from "@playwright/test";
 import { config as loadEnv } from "dotenv";
 
-import { resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
+import { logResolvedTagFilters, resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
 import { resolveUiStoragePath, shouldUseUiStorage } from "./src/utils/ui/storage-state.utils.js";
 
 export type EnvMap = Record<string, string | undefined>;
 
 loadEnv({
   path: path.resolve(process.cwd(), ".env"),
-  override: !process.env.CI
+  override: false
 });
 
 const require = createRequire(import.meta.url);
@@ -22,8 +22,11 @@ const { version: appVersion } = require("./package.json") as { version: string }
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
-const MAX_WORKERS = 4;
+const DEFAULT_MAX_WORKERS = 4;
 const MAX_UI_WORKERS = 2;
+const API_GLOBAL_EXCLUDED_TAGS_PATTERN = /^(@svc-.+|@wa-action)$/;
+const E2E_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@e2e(?:-.+)?$/;
+const INTEGRATION_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@integration(?:-.+)?$/;
 
 const resolveDefaultReporterNames = (env: EnvMap) => {
   const override = env.PLAYWRIGHT_DEFAULT_REPORTER;
@@ -44,20 +47,30 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean) => {
   return defaultValue;
 };
 
+const firstNonBlank = (...values: Array<string | undefined>): string | undefined =>
+  values.map((value) => value?.trim()).find((value): value is string => Boolean(value));
+
 const parsePositiveInteger = (value: string | undefined): number | undefined => {
   if (!value) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
 };
 
+const parseNonNegativeInteger = (value: string | undefined): number | undefined => {
+  if (value === undefined) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed;
+};
+
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
-  if (configured) return Math.min(MAX_WORKERS, configured);
+  const maxWorkers = parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS;
+  if (configured) return Math.min(maxWorkers, configured);
   const logical = cpus()?.length ?? 1;
   if (env.CI) return 1;
   if (logical <= 2) return 1;
   const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(MAX_WORKERS, Math.max(2, approxPhysical));
+  return Math.min(maxWorkers, Math.max(2, approxPhysical));
 };
 
 const resolveApiProjectWorkerCount = (env: EnvMap = process.env) => resolveWorkerCount(env);
@@ -74,18 +87,59 @@ const resolveApiTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
     includeTagsEnvVar: "API_PW_INCLUDE_TAGS",
     excludedTagsEnvVar: "API_PW_EXCLUDED_TAGS_OVERRIDE",
     configPathEnvVar: "API_PW_TAG_FILTER_CONFIG",
-    defaultConfigPath: "src/tests/api/service-tag-filter.json"
+    defaultConfigPath: "src/tests/api/service-tag-filter.json",
+    globalExcludedTagsEnvVar: "PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS",
+    ignoreGlobalExcludesEnvVar: "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES",
+    globalExcludedTagsPattern: API_GLOBAL_EXCLUDED_TAGS_PATTERN
   });
 
+const resolveE2eTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
+  resolveTagFilters({
+    env,
+    includeTagsEnvVar: "E2E_PW_INCLUDE_TAGS",
+    excludedTagsEnvVar: "E2E_PW_EXCLUDED_TAGS_OVERRIDE",
+    configPathEnvVar: "E2E_PW_TAG_FILTER_CONFIG",
+    defaultConfigPath: "src/tests/e2e/tag-filter.json",
+    suiteTag: "@e2e",
+    globalExcludedTagsEnvVar: "PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS",
+    ignoreGlobalExcludesEnvVar: "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES",
+    globalExcludedTagsPattern: E2E_GLOBAL_EXCLUDED_TAGS_PATTERN
+  });
+
+const resolveIntegrationTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
+  resolveTagFilters({
+    env,
+    includeTagsEnvVar: "INTEGRATION_PW_INCLUDE_TAGS",
+    excludedTagsEnvVar: "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE",
+    configPathEnvVar: "INTEGRATION_PW_TAG_FILTER_CONFIG",
+    defaultConfigPath: "src/tests/integration/tag-filter.json",
+    suiteTag: "@integration",
+    globalExcludedTagsEnvVar: "PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS",
+    ignoreGlobalExcludesEnvVar: "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES",
+    globalExcludedTagsPattern: INTEGRATION_GLOBAL_EXCLUDED_TAGS_PATTERN
+  });
+
+const removeTagInput = (rawTags: string | undefined, tagToRemove: string): string | undefined => {
+  if (!rawTags?.trim()) {
+    return rawTags;
+  }
+  return rawTags
+    .split(/[\s,]+/)
+    .filter((tag) => tag && tag !== tagToRemove)
+    .join(",");
+};
+
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
-  env.PLAYWRIGHT_REPORT_FOLDER ?? env.PW_ODHIN_OUTPUT ?? "test-results/odhin-report";
+  firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ?? "test-results/odhin-report";
+
+const resolveOdhinIndexFilename = (env: EnvMap = process.env) =>
+  firstNonBlank(env.PW_ODHIN_INDEX, env.PLAYWRIGHT_REPORT_INDEX_FILENAME) ?? "playwright-odhin.html";
 
 const resolveOdhinProject = (env: EnvMap = process.env) =>
-  env.PLAYWRIGHT_REPORT_PROJECT ?? env.PW_ODHIN_PROJECT ?? "rpx-xui-e2e-tests";
+  firstNonBlank(env.PLAYWRIGHT_REPORT_PROJECT, env.PW_ODHIN_PROJECT) ?? "rpx-xui-e2e-tests";
 
 const resolveOdhinRelease = (env: EnvMap = process.env) =>
-  env.PLAYWRIGHT_REPORT_RELEASE ??
-  env.PW_ODHIN_RELEASE ??
+  firstNonBlank(env.PLAYWRIGHT_REPORT_RELEASE, env.PW_ODHIN_RELEASE) ??
   `${appVersion} | branch=${env.GIT_BRANCH ?? "local"}`;
 
 const resolveOdhinTestOutput = (env: EnvMap = process.env): boolean | "only-on-failure" => {
@@ -154,22 +208,28 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           "./src/tests/common/reporters/odhin-progress.reporter.cjs",
           {
             enabled: true,
-            hardTimeoutMs: parsePositiveInteger(env.PW_ODHIN_HARD_TIMEOUT_MS) ?? (env.CI ? 0 : 30000),
-            timeoutExitCode: 1
+            graceMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_GRACE_MS) ?? 1500,
+            intervalMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_INTERVAL_MS) ?? 5000,
+            hardTimeoutMs:
+              parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_HARD_TIMEOUT_MS ?? env.PW_ODHIN_HARD_TIMEOUT_MS) ??
+              (env.CI ? 0 : 30000),
+            timeoutExitCode: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_TIMEOUT_EXIT_CODE) ?? 1,
+            completionExitDelayMs: parseNonNegativeInteger(env.PW_ODHIN_COMPLETION_EXIT_DELAY_MS) ?? (env.CI ? 1000 : 0),
+            forceExitOnCompletion: safeBoolean(env.PW_ODHIN_FORCE_EXIT_ON_COMPLETION, Boolean(env.CI))
           }
         ]);
         reporters.push([
           "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
           {
             outputFolder: resolveOdhinOutputFolder(env),
-            indexFilename: env.PW_ODHIN_INDEX ?? "playwright-odhin.html",
-            title: env.PW_ODHIN_TITLE ?? "rpx-xui-e2e Playwright",
+            indexFilename: resolveOdhinIndexFilename(env),
+            title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e Playwright",
             testEnvironment:
-              env.PW_ODHIN_ENV ??
+              firstNonBlank(env.PW_ODHIN_ENV) ??
               `${env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat")} | ${env.CI ? "ci" : "local-run"} | workers=${resolveWorkerCount(env)}`,
             project: resolveOdhinProject(env),
             release: resolveOdhinRelease(env),
-            testFolder: env.PW_ODHIN_TEST_FOLDER ?? "src/tests",
+            testFolder: firstNonBlank(env.PW_ODHIN_TEST_FOLDER) ?? "src/tests",
             startServer: safeBoolean(env.PW_ODHIN_START_SERVER, false),
             lightweight: safeBoolean(env.PW_ODHIN_LIGHTWEIGHT, !env.CI),
             consoleLog: safeBoolean(env.PW_ODHIN_CONSOLE_LOG, true),
@@ -232,6 +292,20 @@ const resolveChromiumExecutablePath = (env: EnvMap = process.env): string | unde
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const chromiumExecutablePath = resolveChromiumExecutablePath(env);
   const apiTagFilters = resolveApiTagFilters(env);
+  const e2eTagFilters = resolveE2eTagFilters(env);
+  const integrationTagFilters = resolveIntegrationTagFilters({
+    ...env,
+    INTEGRATION_PW_INCLUDE_TAGS: removeTagInput(env.INTEGRATION_PW_INCLUDE_TAGS, "@nightly"),
+    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?? "@nightly"
+  });
+  const integrationNightlyTagFilters = resolveIntegrationTagFilters({
+    ...env,
+    INTEGRATION_PW_INCLUDE_TAGS: env.INTEGRATION_PW_INCLUDE_TAGS ?? "@nightly",
+    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: removeTagInput(env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, "@nightly") || "@none"
+  });
+  logResolvedTagFilters("API", apiTagFilters, env);
+  logResolvedTagFilters("E2E", e2eTagFilters, env);
+  logResolvedTagFilters("Integration", integrationTagFilters, env);
   return {
     testDir: "./src/tests",
     globalSetup: "./src/global/ui.global.setup.ts",
@@ -241,6 +315,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
     reporter: resolveReporters(env),
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
+      ignoreHTTPSErrors: true,
       trace: "retain-on-failure",
       screenshot: "only-on-failure",
       video: "off"
@@ -249,6 +324,8 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "ui",
         testMatch: /src\/tests\/e2e\/.*\.spec\.ts/,
+        grep: e2eTagFilters.grep,
+        grepInvert: e2eTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
         outputDir: "test-results/ui",
         workers: resolveUiProjectWorkerCount(env),
@@ -271,7 +348,8 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "integration",
         testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
-        grepInvert: /@nightly/i,
+        grep: integrationTagFilters.grep,
+        grepInvert: integrationTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
         outputDir: "test-results/integration",
         use: {
@@ -292,7 +370,8 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       {
         name: "integration-nightly",
         testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
-        grep: /@nightly/i,
+        grep: integrationNightlyTagFilters.grep,
+        grepInvert: integrationNightlyTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
         outputDir: "test-results/integration-nightly",
         use: {
@@ -333,6 +412,8 @@ export const __test__ = {
   buildConfig,
   resolveApiProjectWorkerCount,
   resolveApiTagFilters,
+  resolveE2eTagFilters,
+  resolveIntegrationTagFilters,
   resolveUiProjectWorkerCount,
   resolveWorkerCount
 };

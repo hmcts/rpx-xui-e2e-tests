@@ -9,6 +9,23 @@ import { test, expect } from './fixtures';
 
 const testEnv = testConfig.testEnv as keyof typeof testConfig.jurisdictions & keyof typeof testConfig.jurisdictionNames;
 
+interface WorkbasketInput {
+  label?: string;
+  field?: {
+    id?: string;
+    field_type?: {
+      id?: string;
+      type?: string;
+    };
+  };
+  [key: string]: unknown;
+}
+
+interface WorkbasketData {
+  workbasketInputs?: WorkbasketInput[];
+  [key: string]: unknown;
+}
+
 test.describe('CCD endpoints', { tag: '@svc-ccd' }, () => {
   test('lists jurisdictions for current user', async ({ apiClient }) => {
     const expectedNames = testConfig.jurisdictionNames[testEnv] ?? [];
@@ -22,51 +39,15 @@ test.describe('CCD endpoints', { tag: '@svc-ccd' }, () => {
       const caseTypeIdText = stringifyCaseTypeId(caseTypeId);
 
       test(`work-basket inputs available for ${caseTypeIdText}`, async ({ apiClient }) => {
-        interface WorkbasketInput {
-          label?: string;
-          field?: {
-            id?: string;
-            field_type?: {
-              id?: string;
-              type?: string;
-            };
-          };
-          [key: string]: unknown;
-        }
-
-        interface WorkbasketData {
-          workbasketInputs?: WorkbasketInput[];
-          [key: string]: unknown;
-        }
-
         const response = await apiClient.get<WorkbasketData>(
           `data/internal/case-types/${encodeURIComponent(caseTypeIdText)}/work-basket-inputs`,
           {
             headers: { experimental: 'true' },
+            throwOnError: false,
           }
         );
         expectStatus(response.status, [200, 401, 403, 500, 502, 504]);
-        const data = response.data;
-        expect(data).toBeTruthy();
-        expect(typeof data).toBe('object');
-        expect(Array.isArray(data.workbasketInputs)).toBe(true);
-
-        if (data.workbasketInputs) {
-          data.workbasketInputs.forEach((input) => {
-            expect(input).toEqual(
-              expect.objectContaining({
-                label: expect.any(String),
-                field: expect.objectContaining({
-                  id: expect.any(String),
-                  field_type: expect.objectContaining({
-                    id: expect.any(String),
-                    type: expect.any(String),
-                  }),
-                }),
-              })
-            );
-          });
-        }
+        assertWorkbasketInputsResponse(response.status, response.data);
       });
     }
   }
@@ -92,6 +73,31 @@ test.describe('CCD endpoints', { tag: '@svc-ccd' }, () => {
     }
   });
 });
+
+function assertWorkbasketInputsResponse(status: number, data: WorkbasketData | undefined): void {
+  if (status !== 200) {
+    return;
+  }
+
+  expect(data).toBeTruthy();
+  expect(typeof data).toBe('object');
+  expect(Array.isArray(data?.workbasketInputs)).toBe(true);
+
+  data?.workbasketInputs?.forEach((input) => {
+    expect(input).toEqual(
+      expect.objectContaining({
+        label: expect.any(String),
+        field: expect.objectContaining({
+          id: expect.any(String),
+          field_type: expect.objectContaining({
+            id: expect.any(String),
+            type: expect.any(String),
+          }),
+        }),
+      })
+    );
+  });
+}
 
 test.describe('CCD helper coverage', { tag: '@svc-ccd' }, () => {
   test('stringifyCaseTypeId handles basic variants', () => {

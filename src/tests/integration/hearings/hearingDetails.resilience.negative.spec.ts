@@ -7,6 +7,7 @@ import {
   HEARINGS_SLOW_RESPONSE_DELAY_MS,
   openHearingsTabForScenario,
   setupHearingsMockRoutes,
+  waitForCaseDetailsShellWithRetry,
   waitForHearingsTerminalState,
 } from '../helpers/index.js';
 import { HEARINGS_CASE_REFERENCE, HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
@@ -103,6 +104,7 @@ test.describe(`Hearings resilience integration as ${userIdentifier}`, { tag: ['@
 
   test('Hearings - slow response does not render tab rows before the hearings response resolves', async ({
     page,
+    caseDetailsPage,
     hearingsTabPage,
   }) => {
     await applySessionCookies(page, userIdentifier);
@@ -116,8 +118,11 @@ test.describe(`Hearings resilience integration as ${userIdentifier}`, { tag: ['@
       },
     });
 
-    await page.goto(caseDetailsUrl(), { waitUntil: 'domcontentloaded' });
+    const targetUrl = caseDetailsUrl();
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
+    await waitForCaseDetailsShellWithRetry(page, caseDetailsPage, targetUrl);
     const hearingsTab = page.getByRole('tab', { name: /hearings/i }).first();
+    await expect(hearingsTab).toBeVisible();
     const getHearingsResponse = page.waitForResponse((response) => response.url().includes('/api/hearings/getHearings'));
     await hearingsTab.click();
 

@@ -140,10 +140,7 @@ export const acceptAnalyticsCookiesOnPage = async (page: Page): Promise<boolean>
   const analyticsRoleButton = page.getByRole("button", {
     name: ANALYTICS_BUTTON_PATTERN
   }).first();
-  const roleButtonVisible = await analyticsRoleButton
-    .waitFor({ state: "visible", timeout: 1_000 })
-    .then(() => true)
-    .catch(() => false);
+  const roleButtonVisible = await analyticsRoleButton.isVisible().catch(() => false);
   if (roleButtonVisible) {
     await analyticsRoleButton.click({ timeout: 2_000 }).catch(() => undefined);
     return true;

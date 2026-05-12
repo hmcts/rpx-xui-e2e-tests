@@ -169,6 +169,11 @@ export async function routeCaseDetailsTaskActionFlow(
   const actionResponseStatus = options.actionResponseStatus ?? 200;
   let actionInvoked = false;
 
+  await setupManageTasksBaseRoutes(page, {
+    supportedJurisdictions: [scenario.jurisdiction],
+    supportedJurisdictionDetails: [{ serviceId: scenario.jurisdiction, serviceName: scenario.jurisdiction }],
+  });
+
   await page.route('**/data/internal/cases/**', async (route: Route) => {
     await route.fulfill({
       status: 200,

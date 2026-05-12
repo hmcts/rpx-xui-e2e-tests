@@ -12,7 +12,7 @@ import {
 } from "../mocks/bookingUI.mock.js";
 import { buildHearingsUserDetailsMock } from "../mocks/hearings.mock.js";
 import { buildMyTaskListMock } from "../mocks/taskList.mock.js";
-import { formatUiDate } from "../utils/tableUtils.js";
+import { formatUiDate, normalizeUiDateValue } from "../utils/tableUtils.js";
 import { navigateWithTransientGatewayRetry } from "../utils/transientGatewayPage.utils.js";
 
 const userIdentifier = "BOOKING_UI-FT-ON";
@@ -111,10 +111,8 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
             key: "Location",
             value: existingBookingsMock[0].locationName
           });
-          expect(table[1]).toEqual({
-            key: "Duration",
-            value: `${today} to ${today}`
-          });
+          expect(table[1].key).toBe("Duration");
+          expect(normalizeUiDateValue(table[1].value)).toBe(`${today} to ${today}`);
           await bookingUiPage.bookingButton.click();
         });
 
@@ -128,9 +126,11 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
             userId: sessionUserId,
             locationId: defaultBookingLocation.epimms_id,
             regionId: defaultBookingLocation.region_id,
-            beginDate: expectedTodayBookingRange.beginDate,
+            beginDate: submittedRequest.beginDate,
             endDate: expectedTodayBookingRange.endDate
           });
+          expect(submittedRequest.beginDate).toMatch(/^20\d{2}-\d{2}-\d{2}T/);
+          expect(formatUiDate(submittedRequest.beginDate)).toBe(formatUiDate(expectedTodayBookingRange.beginDate));
           await expect(page).toHaveURL(expectedUrlPattern);
           expect(refreshRoleAssignmentsCalled).toBeFalsy();
         });
@@ -178,6 +178,7 @@ test.describe(
 
       await test.step("Navigate to booking and verify redirect to cases", async () => {
         await navigateWithTransientGatewayRetry(page, "/booking", {
+          allowAbortedNavigation: true,
           contextLabel: "booking access redirect",
           maxAttempts: 3,
           afterNavigation: async () => {

@@ -22,7 +22,9 @@ test.describe('Auth helper coverage - basic utilities', { tag: '@svc-auth' }, ()
   });
 
   test('getCacheKey includes test environment', () => {
-    expect(authTest.getCacheKey('solicitor')).toBe(`${config.testEnv}-solicitor`);
+    expect(authTest.getCacheKey('solicitor', { TEST_WORKER_INDEX: '2' } as NodeJS.ProcessEnv)).toBe(
+      `${config.testEnv}-worker-2-solicitor`
+    );
   });
 
   test('getCredentials returns configured users and errors on unknown roles', () => {

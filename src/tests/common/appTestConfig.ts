@@ -19,6 +19,7 @@ export interface AppTestConfig {
 
 const releaseByUserIdentifier: Record<string, string> = {
   SOLICITOR: "general",
+  DIVORCE_SOLICITOR: "general",
   PROD_LIKE: "general",
   IAC_CASEOFFICER_R1: "wa_release_1",
   IAC_CASEOFFICER_R2: "wa_release_2",
@@ -30,7 +31,15 @@ const releaseByUserIdentifier: Record<string, string> = {
   CASEWORKER_GLOBALSEARCH: "general",
   WA2_GLOBAL_SEARCH: "general",
   "BOOKING_UI-FT-ON": "bookingui-WA3",
+  "BOOKING_UI-FT-ON-1": "bookingui-WA3",
+  "BOOKING_UI-FT-ON-2": "bookingui-WA3",
+  "BOOKING_UI-FT-ON-3": "bookingui-WA3",
+  "BOOKING_UI-FT-ON-4": "bookingui-WA3",
   STAFF_ADMIN: "general",
+  "STAFF_ADMIN-1": "general",
+  "STAFF_ADMIN-2": "general",
+  "STAFF_ADMIN-3": "general",
+  "STAFF_ADMIN-4": "general",
   RESTRICTED_CASE_ACCESS_ON: "restricted-case-access-on",
   RESTRICTED_CASE_ACCESS_OFF: "restricted-case-access-off",
   RESTRICTED_CASE_FILE_VIEW_ON: "restricted-case-file-view-v1.1-on",
@@ -38,6 +47,14 @@ const releaseByUserIdentifier: Record<string, string> = {
   SEARCH_EMPLOYMENT_CASE: "restricted-case-file-view-v1.1-on",
   HEARING_MANAGER_CR84_ON: "hearing_CR84",
   HEARING_MANAGER_CR84_OFF: "hearing_CR84",
+  "HEARING_MANAGER_CR84_ON-1": "hearing_CR84",
+  "HEARING_MANAGER_CR84_ON-2": "hearing_CR84",
+  "HEARING_MANAGER_CR84_ON-3": "hearing_CR84",
+  "HEARING_MANAGER_CR84_ON-4": "hearing_CR84",
+  "HEARING_MANAGER_CR84_OFF-1": "hearing_CR84",
+  "HEARING_MANAGER_CR84_OFF-2": "hearing_CR84",
+  "HEARING_MANAGER_CR84_OFF-3": "hearing_CR84",
+  "HEARING_MANAGER_CR84_OFF-4": "hearing_CR84",
   USER_WITH_FLAGS: "flagsTest",
   FPL_GLOBAL_SEARCH: "fpl_global_search"
 };
