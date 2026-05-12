@@ -81,6 +81,7 @@ const validateKnownTags = (tags: string[], allowed: Set<string>, source: string,
 };
 
 const truthy = new Set(["1", "true", "yes", "on"]);
+const falsy = new Set(["0", "false", "no", "off"]);
 
 const resolveBooleanEnvFlag = (value: string | undefined): boolean =>
   truthy.has(value?.trim().toLowerCase() ?? "");
@@ -228,7 +229,11 @@ export function resolveTagFilters({
 const formatTagLogValue = (tags: string[]): string => tags.length ? tags.join(",") : "<none>";
 
 export function logResolvedTagFilters(suiteName: string, filters: ResolvedTagFilters, env: EnvMap = process.env): void {
-  if (!env.CI && !resolveBooleanEnvFlag(env.PLAYWRIGHT_LOG_TAG_FILTERS)) {
+  const configured = env.PLAYWRIGHT_LOG_TAG_FILTERS?.trim().toLowerCase();
+  if (configured && falsy.has(configured)) {
+    return;
+  }
+  if (!env.CI && !resolveBooleanEnvFlag(configured)) {
     return;
   }
 

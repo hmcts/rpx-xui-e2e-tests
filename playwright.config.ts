@@ -14,6 +14,7 @@ export type EnvMap = Record<string, string | undefined>;
 
 loadEnv({
   path: path.resolve(process.cwd(), ".env"),
+  quiet: true,
   override: false
 });
 

@@ -29,6 +29,19 @@ type ApiCall = {
 };
 
 const logger = createLogger({ serviceName: "api-monitor", format: "pretty" });
+const truthy = new Set(["1", "true", "yes", "on"]);
+const falsy = new Set(["0", "false", "no", "off"]);
+
+const shouldLogApiMonitorToConsole = (): boolean => {
+  const configured = process.env.PW_API_MONITOR_CONSOLE?.trim().toLowerCase();
+  if (configured && truthy.has(configured)) {
+    return true;
+  }
+  if (configured && falsy.has(configured)) {
+    return false;
+  }
+  return !process.env.CI;
+};
 
 // A base page inherited by pages & components
 // can contain any additional config needed + instantiated page object
@@ -43,6 +56,7 @@ export abstract class Base {
   private static readonly monitoredPages = new WeakSet<Page>();
   private apiCalls: ApiCall[] = [];
   private readonly monitoringEnabled = true;
+  private readonly consoleLoggingEnabled = shouldLogApiMonitorToConsole();
   private readonly maxApiCallsTracked = 500;
 
   constructor(public readonly page: Page) {
@@ -100,26 +114,32 @@ export abstract class Base {
 
       if (status >= 500) {
         call.error = `HTTP ${status} - Server Error`;
-        logger.error("DOWNSTREAM_API_FAILURE", {
-          url: call.url,
-          status,
-          duration: duration === -1 ? "unknown" : `${duration}ms`,
-          method: request.method(),
-        });
+        if (this.consoleLoggingEnabled) {
+          logger.error("DOWNSTREAM_API_FAILURE", {
+            url: call.url,
+            status,
+            duration: duration === -1 ? "unknown" : `${duration}ms`,
+            method: request.method(),
+          });
+        }
       } else if (duration !== -1 && duration > 5000) {
-        logger.warn("SLOW_API_RESPONSE", {
-          url: call.url,
-          duration: `${duration}ms`,
-          status,
-          method: request.method(),
-        });
+        if (this.consoleLoggingEnabled) {
+          logger.warn("SLOW_API_RESPONSE", {
+            url: call.url,
+            duration: `${duration}ms`,
+            status,
+            method: request.method(),
+          });
+        }
       } else if (status >= 400) {
         call.error = `HTTP ${status} - Client Error`;
-        logger.warn("CLIENT_ERROR", {
-          url: call.url,
-          status,
-          method: request.method(),
-        });
+        if (this.consoleLoggingEnabled) {
+          logger.warn("CLIENT_ERROR", {
+            url: call.url,
+            status,
+            method: request.method(),
+          });
+        }
       }
     });
 
