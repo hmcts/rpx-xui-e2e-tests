@@ -173,6 +173,18 @@ def runInPlaywrightContainer = { Closure body ->
   }
 }
 
+def runPlaywrightCommand = { String command ->
+  if (!params.PLAYWRIGHT_USE_DOCKER) {
+    yarnBuilder.yarn(command)
+    return
+  }
+  def shellCommand = command.startsWith('node ') ? command : "corepack yarn ${command}"
+  steps.sh """
+    set +ex
+    ${shellCommand}
+  """
+}
+
 def recordPlaywrightContainerDiagnostics = {
   if (!params.PLAYWRIGHT_USE_DOCKER) {
     echo '[playwright-container] Docker execution disabled; Jenkins daily-agent diagnostics are limited in host mode.'
@@ -351,7 +363,9 @@ retry(conditions: [agent()], count: 2) {
     stage('Install Playwright Browsers') {
       recordPlaywrightLoadEvent('Playwright browser install', 'start')
       try {
-        runInPlaywrightContainer {
+        if (params.PLAYWRIGHT_USE_DOCKER) {
+          echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
+        } else {
           yarnBuilder.yarn('pwinstall')
         }
       } finally {
@@ -379,7 +393,7 @@ retry(conditions: [agent()], count: 2) {
             recordPlaywrightLoadEvent('API', 'start')
             runInPlaywrightContainer {
               withEnv(apiOdhinEnv) {
-                yarnBuilder.yarn('test:api:ci:raw')
+                runPlaywrightCommand('test:api:ci:raw')
               }
             }
           } catch (Error) {
@@ -429,7 +443,7 @@ retry(conditions: [agent()], count: 2) {
               recordPlaywrightLoadEvent("Integration ${runConfig.displayName}", 'start')
               runInPlaywrightContainer {
                 withEnv(integrationOdhinEnv) {
-                  yarnBuilder.yarn("test:integration:nightly:raw -- --workers=${runConfig.workers}")
+                  runPlaywrightCommand("test:integration:nightly:raw -- --workers=${runConfig.workers}")
                 }
               }
             } catch (Error) {
@@ -481,7 +495,7 @@ retry(conditions: [agent()], count: 2) {
             recordPlaywrightLoadEvent('UI', 'start')
             runInPlaywrightContainer {
               withEnv(uiOdhinEnv) {
-                yarnBuilder.yarn('test:crossbrowser:raw')
+                runPlaywrightCommand('test:crossbrowser:raw')
               }
             }
           } catch (Error) {
