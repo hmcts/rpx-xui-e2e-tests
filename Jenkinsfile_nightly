@@ -15,8 +15,8 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '4',
-      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS, capped at 4 in Jenkins)'
+      defaultValue: '8',
+      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS, capped at 8 in Jenkins)'
     ),
     string(
       name: 'API_PW_INCLUDE_TAGS',
@@ -51,7 +51,7 @@ properties([
     string(
       name: 'INTEGRATION_PW_WORKERS',
       defaultValue: '',
-      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS and is capped at 4 in Jenkins.'
+      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS and is capped at 8 in Jenkins.'
     ),
     string(
       name: 'INTEGRATION_PW_SHARD',
@@ -60,10 +60,10 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: '''workers=2 shard=1/4
-workers=2 shard=2/4
-workers=2 shard=3/4
-workers=2 shard=4/4''',
+      defaultValue: '''workers=8 shard=1/4
+workers=8 shard=2/4
+workers=8 shard=3/4
+workers=8 shard=4/4''',
       description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>.'
     ),
     string(
@@ -309,9 +309,9 @@ def publishCiLoadProfile = { String reportName ->
 def capJenkinsPlaywrightWorkers = { String configured ->
   def parsed = (configured ?: '4').trim()
   if (!parsed.isInteger()) {
-    return '4'
+    return '8'
   }
-  return Math.min(4, Math.max(1, parsed.toInteger())).toString()
+  return Math.min(8, Math.max(1, parsed.toInteger())).toString()
 }
 
 def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride, String shardOverride ->
@@ -322,10 +322,10 @@ def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverr
   }
   def configured = configuredRuns?.trim()
   if (!configured) {
-    configured = '''workers=2 shard=1/4
-workers=2 shard=2/4
-workers=2 shard=3/4
-workers=2 shard=4/4'''
+    configured = '''workers=8 shard=1/4
+workers=8 shard=2/4
+workers=8 shard=3/4
+workers=8 shard=4/4'''
   }
   return configured
     .split(/[\r\n;]+/)
