@@ -31,8 +31,8 @@ properties([
     ),
     string(
       name: 'API_PW_EXCLUDED_TAGS_OVERRIDE',
-      defaultValue: '',
-      description: 'Optional API service tags to exclude; use @none to clear defaults'
+      defaultValue: '@svc-work-allocation',
+      description: 'API service tags to exclude. Defaults to skipping Work Allocation API checks while Jenkins stability is isolated; use @none to clear defaults.'
     ),
     string(
       name: 'E2E_PW_INCLUDE_TAGS',

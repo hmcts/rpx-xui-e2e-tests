@@ -59,6 +59,28 @@ test.describe('Helper utilities and retry logic', { tag: '@svc-internal' }, () =
     expect(timeoutRes.status).toBe(200);
     expect(timeoutAttempts).toBe(2);
 
+    let finalTimeoutError: Error | undefined;
+    try {
+      await withRetry(
+        async () => {
+          throw new Error(
+            [
+              'apiRequestContext.fetch: Timeout 30000ms exceeded.',
+              'Call log:',
+              '  - \u001b[2m→ POST https://manage-case.aat.platform.hmcts.net/workallocation/task\u001b[22m',
+              '  - cookie: should-not-reach-console'
+            ].join('\n')
+          );
+        },
+        { retries: 0 }
+      );
+    } catch (error) {
+      finalTimeoutError = error as Error;
+    }
+    expect(finalTimeoutError?.message).toContain('Transient API request failed after 1 attempt(s)');
+    expect(finalTimeoutError?.message).toContain('POST https://manage-case.aat.platform.hmcts.net/workallocation/task');
+    expect(finalTimeoutError?.message).not.toContain('cookie');
+
     const defaultRes = await withRetry(async () => ({ status: 200 }));
     expect(defaultRes.status).toBe(200);
 

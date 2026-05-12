@@ -18,17 +18,6 @@ const formatDuration = (durationMs) => {
   return `${(durationMs / 1000).toFixed(1)}s`;
 };
 
-const trimMessage = (value) =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 300);
-
-const testTitle = (test) => {
-  const titlePath = typeof test.titlePath === "function" ? test.titlePath() : [test.title];
-  return titlePath.filter(Boolean).join(" > ");
-};
-
 const testLocation = (test) => {
   const cwdPrefix = `${process.cwd()}/`;
   const file = test.location?.file
@@ -38,8 +27,16 @@ const testLocation = (test) => {
   return `${file}${line}`;
 };
 
+const resolveProgressEvery = () => {
+  const configured = Number.parseInt(process.env.PW_CI_BRIEF_PROGRESS_EVERY ?? "25", 10);
+  return Number.isFinite(configured) && configured > 0 ? configured : 25;
+};
+
 class CiBriefReporter {
   constructor() {
+    this.total = 0;
+    this.completed = 0;
+    this.progressEvery = resolveProgressEvery();
     this.counts = {
       passed: 0,
       failed: 0,
@@ -50,31 +47,32 @@ class CiBriefReporter {
   }
 
   onBegin(config, suite) {
-    process.stdout.write(`[playwright] START suite total=${suite.allTests().length} workers=${config.workers}\n`);
+    this.total = suite.allTests().length;
+    process.stdout.write(`[playwright] START total=${this.total} workers=${config.workers}\n`);
   }
 
-  onTestBegin(test) {
-    process.stdout.write(`[playwright] START [${test.parent.project()?.name ?? "default"}] ${testLocation(test)} ${testTitle(test)}\n`);
+  progressLine(prefix) {
+    return `[playwright] ${prefix} ${this.completed}/${this.total} passed=${this.counts.passed} failed=${this.counts.failed} timedOut=${this.counts.timedOut} interrupted=${this.counts.interrupted} skipped=${this.counts.skipped}`;
   }
 
   onTestEnd(test, result) {
+    this.completed += 1;
     this.counts[result.status] = (this.counts[result.status] ?? 0) + 1;
     const label = statusLabel[result.status] ?? result.status.toUpperCase();
-    process.stdout.write(
-      `[playwright] ${label} [${test.parent.project()?.name ?? "default"}] ${testLocation(test)} ${testTitle(test)} (${formatDuration(result.duration)})\n`
-    );
 
-    if (result.status !== "passed" && result.status !== "skipped") {
-      const message = trimMessage(result.error?.message ?? result.errors?.[0]?.message);
-      if (message) {
-        process.stdout.write(`[playwright] ${label} reason: ${message}\n`);
-      }
+    if (result.status === "failed" || result.status === "timedOut" || result.status === "interrupted") {
+      process.stdout.write(`${this.progressLine(label)} location=${testLocation(test)} duration=${formatDuration(result.duration)}\n`);
+      return;
+    }
+
+    if (this.completed === this.total || this.completed % this.progressEvery === 0) {
+      process.stdout.write(`${this.progressLine("PROGRESS")}\n`);
     }
   }
 
   onEnd(result) {
     process.stdout.write(
-      `[playwright] END status=${result.status} passed=${this.counts.passed} failed=${this.counts.failed} timedOut=${this.counts.timedOut} interrupted=${this.counts.interrupted} skipped=${this.counts.skipped}\n`
+      `${this.progressLine(`END status=${result.status}`)}\n`
     );
   }
 }
