@@ -560,39 +560,37 @@ def runCnpFunctionalStages = {
   }
 }
 
-retry(conditions: [agent()], count: 2) {
-  node(env.BUILD_AGENT_TYPE ?: '') {
-    timeoutWithMsg(time: 180, unit: 'MINUTES', action: 'pipeline') {
-      try {
-        dockerAgentSetup()
-        env.PATH = "$env.PATH:/usr/local/bin"
+node(env.BUILD_AGENT_TYPE ?: '') {
+  timeoutWithMsg(time: 180, unit: 'MINUTES', action: 'pipeline') {
+    try {
+      dockerAgentSetup()
+      env.PATH = "$env.PATH:/usr/local/bin"
 
-        stage('Checkout') {
-          checkout scm
-          startCiLoadProfile()
-        }
-
-        def vaultName = "rpx-${params.TEST_ENV}"
-        withSubscriptionLogin('nonprod') {
-          withAzureKeyvault(
-            azureKeyVaultSecrets: secrets[vaultName] ?: [],
-            keyVaultURLOverride: "https://${vaultName}.vault.azure.net/",
-            applicationIDOverride: env.AZURE_CLIENT_ID,
-            applicationSecretOverride: env.AZURE_CLIENT_SECRET
-          ) {
-            runCnpFunctionalStages()
-          }
-        }
-      } catch (err) {
-        currentBuild.result = 'FAILURE'
-        notifyBuildFailure channel: channel
-        throw err
-      } finally {
-        if (fileExists('scripts/ensure-load-profile-report.cjs')) {
-          publishCiLoadProfile('RPX E2E CI System Load')
-        }
-        deleteDir()
+      stage('Checkout') {
+        checkout scm
+        startCiLoadProfile()
       }
+
+      def vaultName = "rpx-${params.TEST_ENV}"
+      withSubscriptionLogin('nonprod') {
+        withAzureKeyvault(
+          azureKeyVaultSecrets: secrets[vaultName] ?: [],
+          keyVaultURLOverride: "https://${vaultName}.vault.azure.net/",
+          applicationIDOverride: env.AZURE_CLIENT_ID,
+          applicationSecretOverride: env.AZURE_CLIENT_SECRET
+        ) {
+          runCnpFunctionalStages()
+        }
+      }
+    } catch (err) {
+      currentBuild.result = 'FAILURE'
+      notifyBuildFailure channel: channel
+      throw err
+    } finally {
+      if (fileExists('scripts/ensure-load-profile-report.cjs')) {
+        publishCiLoadProfile('RPX E2E CI System Load')
+      }
+      deleteDir()
     }
   }
 }
