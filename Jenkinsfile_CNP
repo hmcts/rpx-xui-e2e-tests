@@ -146,7 +146,7 @@ def secrets = [
   ]
 ]
 
-def playwrightImage = "mcr.microsoft.com/playwright:v1.59.1-noble"
+def playwrightImage = "mcr.microsoft.com/playwright:v1.60.0-noble"
 def playwrightDockerOptions = "--ipc=host"
 
 def runInPlaywrightContainer = { Closure body ->
