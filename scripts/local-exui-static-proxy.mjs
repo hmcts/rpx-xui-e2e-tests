@@ -1,4 +1,4 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
@@ -11,6 +11,23 @@ const workspaceRoot = path.resolve(repoRoot, "..");
 const port = Number(process.env.PORT || 3455);
 const upstream = new URL(process.env.EXUI_API_URL || "http://localhost:3001");
 const root = process.env.EXUI_DIST || path.join(workspaceRoot, "rpx-xui-webapp", "dist", "rpx-exui", "browser");
+const sourceTruthPath = path.join(repoRoot, "src", "data", "exui-central-assurance-source.json");
+const localAssuranceConfigRoutesEnabled = process.env.EXUI_LOCAL_ASSURANCE_CONFIG_ROUTES !== "0";
+
+const serviceLabels = {
+  CIVIL: "Civil",
+  CMC: "Civil Money Claims",
+  DIVORCE: "Divorce",
+  EMPLOYMENT: "Employment",
+  FR: "Financial Remedy",
+  HRS: "Hearing Recording Storage",
+  IA: "Immigration and Asylum",
+  PRIVATELAW: "Private Law",
+  PROBATE: "Probate",
+  PUBLICLAW: "Public Law",
+  SSCS: "Social Security and Child Support",
+  ST_CIC: "Special Tribunals"
+};
 
 const proxyPrefixes = [
   "/activity/",
@@ -54,6 +71,32 @@ function shouldProxy(urlPath) {
   return proxyPrefixes.some((prefix) => urlPath === prefix.slice(0, -1) || urlPath.startsWith(prefix));
 }
 
+function readSourceTruthDefaults() {
+  const sourceTruth = JSON.parse(readFileSync(sourceTruthPath, "utf8"));
+  return sourceTruth.rpxXuiWebapp["config/default.json"];
+}
+
+function buildLocalAssuranceResponse(urlPath) {
+  if (!localAssuranceConfigRoutesEnabled) {
+    return undefined;
+  }
+
+  const defaults = readSourceTruthDefaults();
+  if (urlPath === "/api/globalSearch/services") {
+    return defaults.globalSearchServices.map((serviceId) => ({
+      serviceId,
+      serviceName: serviceLabels[serviceId] ?? serviceId
+    }));
+  }
+  if (urlPath === "/api/wa-supported-jurisdiction/get") {
+    return defaults.waSupportedJurisdictions;
+  }
+  if (urlPath === "/api/staff-supported-jurisdiction/get") {
+    return defaults.staffSupportedJurisdictions;
+  }
+  return undefined;
+}
+
 function normaliseStaticPath(urlPath) {
   const decoded = decodeURIComponent(urlPath.split("?")[0]);
   const cleanPath = path.normalize(decoded).replace(/^(\.\.[/\\])+/, "");
@@ -67,6 +110,14 @@ function sendFile(res, filePath) {
     "content-type": contentTypes.get(ext) || "application/octet-stream"
   });
   createReadStream(filePath).pipe(res);
+}
+
+function sendJson(res, body) {
+  res.writeHead(200, {
+    "cache-control": "no-store",
+    "content-type": "application/json; charset=utf-8"
+  });
+  res.end(JSON.stringify(body));
 }
 
 function proxy(req, res) {
@@ -107,6 +158,14 @@ function proxy(req, res) {
 
 const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || "/", `http://localhost:${port}`);
+
+  if (req.method === "GET") {
+    const localAssuranceResponse = buildLocalAssuranceResponse(requestUrl.pathname);
+    if (localAssuranceResponse) {
+      sendJson(res, localAssuranceResponse);
+      return;
+    }
+  }
 
   if (shouldProxy(requestUrl.pathname)) {
     proxy(req, res);

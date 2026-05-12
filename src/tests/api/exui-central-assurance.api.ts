@@ -211,6 +211,11 @@ function skipUnlessExactContractStatus(
   status: number,
   endpoint: string
 ): void {
+  if ((process.env.TEST_ENV ?? '').toLowerCase() === 'local') {
+    expect(status, `${endpoint} should be reachable in the local superservice proof`).toBe(200);
+    return;
+  }
+
   testInfo.skip(status !== 200, `${endpoint} returned ${status}; exact superservice proof requires an authenticated 200.`);
   expect(status).toBe(200);
 }
