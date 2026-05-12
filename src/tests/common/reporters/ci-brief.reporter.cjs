@@ -27,6 +27,19 @@ const testLocation = (test) => {
   return `${file}${line}`;
 };
 
+const compactLine = (value) =>
+  String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const testTitle = (test) => {
+  const titlePath = typeof test.titlePath === "function"
+    ? test.titlePath()
+    : [test.title];
+  const title = compactLine(titlePath.filter(Boolean).join(" > "));
+  return title.length > 500 ? `${title.slice(0, 497)}...` : title;
+};
+
 const resolveProgressEvery = () => {
   const configured = Number.parseInt(process.env.PW_CI_BRIEF_PROGRESS_EVERY ?? "25", 10);
   return Number.isFinite(configured) && configured > 0 ? configured : 25;
@@ -61,7 +74,7 @@ class CiBriefReporter {
     const label = statusLabel[result.status] ?? result.status.toUpperCase();
 
     if (result.status === "failed" || result.status === "timedOut" || result.status === "interrupted") {
-      process.stdout.write(`${this.progressLine(label)} location=${testLocation(test)} duration=${formatDuration(result.duration)}\n`);
+      process.stdout.write(`${this.progressLine(label)} location=${testLocation(test)} duration=${formatDuration(result.duration)} test=${testTitle(test)}\n`);
       return;
     }
 
