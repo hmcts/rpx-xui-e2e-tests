@@ -18,8 +18,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(
-  `@integration-bucket-2 Challenged Access Request as ${userIdentifier}`,
-  { tag: ["@integration", "@integration-access-requests"] },
+  `Challenged Access Request as ${userIdentifier}`,
+  { tag: ['@integration-bucket-2', "@integration", "@integration-access-requests"] },
   () => {
     test("User can open Challenged Access Request from case details", async ({
       accessRequestPage,

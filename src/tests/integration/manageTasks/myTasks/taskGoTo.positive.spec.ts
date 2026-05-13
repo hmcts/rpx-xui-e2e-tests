@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   taskListMockResponse = buildTaskListMock(160, userId, myActionsList);
 });
 
-test.describe(`@integration-bucket-3 Task Go To as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`Task Go To as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test(`User can use Go to task action from task list to view the task in case details`, async ({
     taskListPage,
     caseDetailsPage,

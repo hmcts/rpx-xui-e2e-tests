@@ -3,8 +3,8 @@ import { HEARING_MANAGER_CR84_ON_USER, hearingManagerRoles, openHearingsTab } fr
 import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 test.describe(
-  `@integration-bucket-4 Hearings summary validations as ${HEARING_MANAGER_CR84_ON_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  `Hearings summary validations as ${HEARING_MANAGER_CR84_ON_USER}`,
+  { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] },
   () => {
     test('shows no-change validation when submitting updated request without edits', async ({
       page,

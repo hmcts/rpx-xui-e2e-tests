@@ -48,7 +48,7 @@ test.beforeEach(async ({ createCasePage, page }) => {
   await openCreateCaseJourney(page, createCasePage, { jurisdiction, caseType });
 });
 
-test.describe(`@integration-bucket-2 Create a ${jurisdiction} case as ${userIdentifier}`, { tag: ["@integration", "@integration-create-case"] }, () => {
+test.describe(`Create a ${jurisdiction} case as ${userIdentifier}`, { tag: ['@integration-bucket-2', "@integration", "@integration-create-case"] }, () => {
   test("All expected fields are filled, seen, and sent in the create case API call", async ({
     caseDetailsPage,
     createCasePage,

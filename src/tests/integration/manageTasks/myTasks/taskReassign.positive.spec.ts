@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   taskListMockResponse = buildTaskListMock(160, userId, myActionsList);
 });
 
-test.describe(`@integration-bucket-3 Task Reassign as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`Task Reassign as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test(`User can reassign a task from the task list`, async ({ taskListPage, page }) => {
     const firstTask = taskListMockResponse.tasks[0];
 

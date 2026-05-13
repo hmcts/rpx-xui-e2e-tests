@@ -51,7 +51,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
-test.describe(`@integration-bucket-1 Global search from menu bar as ${userIdentifier}`, () => {
+test.describe(`Global search from menu bar as ${userIdentifier}`, { tag: ['@integration-bucket-1'] }, () => {
   test("searches by 16-digit case reference and navigates to case details", async ({
     caseListPage,
     globalSearchPage,

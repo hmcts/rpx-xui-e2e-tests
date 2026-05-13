@@ -16,7 +16,7 @@ const userIdentifier = HEARING_MANAGER_CR84_ON_USER;
 const hearingViewerRoles = ['caseworker-privatelaw', 'caseworker-privatelaw-courtadmin', 'case-allocator', 'hearing-viewer'];
 const errorStatusCodes = [400, 401, 403, 404, 500, 503];
 
-test.describe(`@integration-bucket-4 Hearings resilience integration as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
+test.describe(`Hearings resilience integration as ${userIdentifier}`, { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] }, () => {
   for (const statusCode of errorStatusCodes) {
     test(`Hearings - ${statusCode} getHearings response shows controlled error state with reload option`, async ({
       page,

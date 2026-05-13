@@ -43,7 +43,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
-test.describe(`@integration-bucket-1 Find Case negative flows as ${userIdentifier}`, () => {
+test.describe(`Find Case negative flows as ${userIdentifier}`, { tag: ['@integration-bucket-1'] }, () => {
   for (const status of SEARCH_CASE_ERROR_STATUS_CODES) {
     test(`does not navigate to case details when searchCases returns HTTP ${status}`, async ({
       caseListPage,

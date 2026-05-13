@@ -44,7 +44,7 @@ async function assertManageActionsForRow(
   }
 }
 
-test.describe(`@integration-bucket-6 All Work Tasks as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`All Work Tasks as ${userIdentifier}`, { tag: ['@integration-bucket-6', '@integration', '@integration-manage-tasks'] }, () => {
   test.beforeEach(async ({ page }) => {
     await applySessionCookies(page, userIdentifier);
   });

@@ -21,8 +21,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(
-  `@integration-bucket-2 Review Specific Access Request as ${userIdentifier}`,
-  { tag: ["@integration", "@integration-access-requests"] },
+  `Review Specific Access Request as ${userIdentifier}`,
+  { tag: ['@integration-bucket-2', "@integration", "@integration-access-requests"] },
   () => {
     test("User can open Review Specific Access Request from a task and see request details", async ({
       accessRequestPage,

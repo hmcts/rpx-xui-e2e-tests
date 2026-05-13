@@ -60,8 +60,8 @@ test.beforeEach(async ({ page }, testInfo) => {
 });
 
 test.describe(
-  "@integration-bucket-2 Restricted case access with prewarmed search session",
-  { tag: ["@integration", "@integration-restricted-case"] },
+  "Restricted case access with prewarmed search session",
+  { tag: ['@integration-bucket-2', "@integration", "@integration-restricted-case"] },
   () => {
     test("shows both legal-ops and judicial users and resolves judicial users from ref-data", async ({
       caseDetailsPage,

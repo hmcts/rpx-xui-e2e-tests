@@ -13,8 +13,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(
-  `@integration-bucket-3 Task Reassign negative scenarios as ${userIdentifier}`,
-  { tag: ['@integration', '@integration-manage-tasks'] },
+  `Task Reassign negative scenarios as ${userIdentifier}`,
+  { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] },
   () => {
     [
       {

@@ -12,8 +12,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(
-  `@integration-bucket-2 Specific Access Request negative paths as ${userIdentifier}`,
-  { tag: ["@integration", "@integration-access-requests"] },
+  `Specific Access Request negative paths as ${userIdentifier}`,
+  { tag: ['@integration-bucket-2', "@integration", "@integration-access-requests"] },
   () => {
     test("User cannot submit a specific access request without a reason", async ({
       accessRequestPage,

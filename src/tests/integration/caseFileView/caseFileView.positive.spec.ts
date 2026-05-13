@@ -13,7 +13,7 @@ const caseId = "1690807693531270";
 const fileViewOnUser = "RESTRICTED_CASE_FILE_VIEW_ON";
 const fileViewOffUser = "RESTRICTED_CASE_FILE_VIEW_OFF";
 
-test.describe(`@integration-bucket-2 Case file view as ${fileViewOnUser}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
+test.describe(`Case file view as ${fileViewOnUser}`, { tag: ['@integration-bucket-2', "@integration", "@integration-case-file-view"] }, () => {
   test("V1.1 shows tree view, media viewer, document count, folder hierarchy and upload stamps", async ({
     caseDetailsPage,
     caseFileViewPage,

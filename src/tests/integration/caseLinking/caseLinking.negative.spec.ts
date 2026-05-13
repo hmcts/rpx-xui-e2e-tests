@@ -7,8 +7,8 @@ import {
 } from "../mocks/caseLinking.mock.js";
 
 test.describe(
-  "@integration-bucket-1 Case linking integration",
-  { tag: ["@integration", "@integration-case-linking"] },
+  "Case linking integration",
+  { tag: ['@integration-bucket-1', "@integration", "@integration-case-linking"] },
   () => {
     test("shows validation errors when the user continues without entering mandatory link details", async ({
       caseDetailsPage,

@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`@integration-bucket-3 My Access as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`My Access as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   serviceDownStatuses.forEach((errorStatus) => {
     test(`User sees the service down page on My access when the api returns ${errorStatus}`, async ({ taskListPage, page }) => {
       await test.step('Setup route mocks for My access failure', async () => {

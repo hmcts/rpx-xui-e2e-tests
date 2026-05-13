@@ -9,8 +9,8 @@ import {
 import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 test.describe(
-  `@integration-bucket-5 Hearings linked journey integration as ${HEARING_MANAGER_CR84_OFF_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  `Hearings linked journey integration as ${HEARING_MANAGER_CR84_OFF_USER}`,
+  { tag: ['@integration-bucket-5', '@integration', '@integration-hearings'] },
   () => {
     test('shows server error and stays on check-your-answers when link hearings submit fails', async ({
       page,

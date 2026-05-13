@@ -17,8 +17,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(
-  `@integration-bucket-1 Error codes returned on /searchCases call for ${userIdentifier}`,
-  { tag: ["@integration", "@integration-case-list"] },
+  `Error codes returned on /searchCases call for ${userIdentifier}`,
+  { tag: ['@integration-bucket-1', "@integration", "@integration-case-list"] },
   () => {
     for (const errorCode of CASE_LIST_ERROR_STATUS_CODES) {
       test(`User ${userIdentifier} encounters a HTTP Response  ${errorCode} error on the case list page`, async ({

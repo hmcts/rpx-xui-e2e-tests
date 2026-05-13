@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
   taskListMockResponse = buildTaskListMock(160, userId, myActionsList);
 });
 
-test.describe(`@integration-bucket-3 Task Cancellation negative scenarios as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`Task Cancellation negative scenarios as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test(`User sees service down when cancel endpoint returns 500`, async ({ taskListPage, page }) => {
     const firstTask = taskListMockResponse.tasks[0];
 

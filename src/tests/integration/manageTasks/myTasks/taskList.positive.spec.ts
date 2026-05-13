@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   taskListMockResponse = buildTaskListMock(6, userId, myActionsList);
 });
 
-test.describe(`@integration-bucket-3 Task List as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`Task List as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test(`User ${userIdentifier} can view assigned tasks on the task list page`, async ({ taskListPage, page, tableUtils }) => {
     await setupManageTasksBaseRoutes(page, { taskListResponse: taskListMockResponse });
 
