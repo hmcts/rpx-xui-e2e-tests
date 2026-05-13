@@ -107,6 +107,12 @@ static String effectiveTagOverride(String rawTags, String fallbackTags) {
   return trimmed ? trimmed : fallbackTags
 }
 
+static String effectiveIntegrationBuckets(String rawTags) {
+  def defaultBuckets = '@integration-bucket-1,@integration-bucket-2'
+  def trimmed = rawTags?.trim()
+  return (!trimmed || trimmed == '@integration-bucket-1') ? defaultBuckets : trimmed
+}
+
 def secrets = [
   "rpx-${params.TEST_ENV}": [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
@@ -250,7 +256,7 @@ def publishIntegrationReports = { String reportDir, String reportName ->
 def runCnpPlaywrightStages = {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   def integrationWorkers = capJenkinsPlaywrightWorkers(params.INTEGRATION_PW_WORKERS ?: '2')
-  def integrationIncludeTags = effectiveTagOverride(params.INTEGRATION_PW_INCLUDE_TAGS, '@integration-bucket-1,@integration-bucket-2')
+  def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
   def integrationExcludedTags = effectiveTagOverride(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, '@nightly')
   def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
   def integrationReportDir = "functional-output/tests/playwright-integration/odhin-report/${integrationTagSlug}"
@@ -407,7 +413,7 @@ withNightlyPipeline(type, product, component, 600) {
   env.API_PW_EXCLUDED_TAGS_OVERRIDE = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
   env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
   env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
-  env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
+  env.INTEGRATION_PW_INCLUDE_TAGS = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
   env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
   env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
   env.TERM = 'dumb'
