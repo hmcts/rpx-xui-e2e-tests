@@ -9,7 +9,7 @@ const awaitingActualsScenario: HearingScenario = {
 };
 
 test.describe(
-  `Hearings actuals journey as ${HEARING_MANAGER_CR84_OFF_USER}`,
+  `@integration-bucket-4 Hearings actuals journey as ${HEARING_MANAGER_CR84_OFF_USER}`,
   { tag: ['@integration', '@integration-hearings'] },
   () => {
     test('shows server error and does not navigate to confirmation when hearing details submit fails', async ({

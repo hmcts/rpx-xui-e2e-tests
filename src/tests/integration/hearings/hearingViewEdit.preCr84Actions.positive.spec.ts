@@ -3,7 +3,7 @@ import { HEARING_MANAGER_CR84_OFF_USER, hearingManagerRoles, openHearingsTab } f
 import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 test.describe(
-  `Hearings pre-CR84 actions as ${HEARING_MANAGER_CR84_OFF_USER}`,
+  `@integration-bucket-4 Hearings pre-CR84 actions as ${HEARING_MANAGER_CR84_OFF_USER}`,
   { tag: ['@integration', '@integration-hearings'] },
   () => {
     test('shows View or edit action and routes to pre-CR84 edit summary', async ({

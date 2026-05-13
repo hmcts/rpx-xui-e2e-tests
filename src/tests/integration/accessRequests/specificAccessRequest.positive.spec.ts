@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(
-  `Specific Access Request as ${userIdentifier}`,
+  `@integration-bucket-2 Specific Access Request as ${userIdentifier}`,
   { tag: ["@integration", "@integration-access-requests"] },
   () => {
     test("User can open Specific Access Request from case details", async ({

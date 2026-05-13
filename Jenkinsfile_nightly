@@ -40,18 +40,18 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_INCLUDE_TAGS',
-      defaultValue: '@nightly',
-      description: 'Nightly integration tag selection'
+      defaultValue: '@integration-bucket-1',
+      description: 'Nightly integration bucket to run while isolating Jenkins agent failures. Re-run with @integration-bucket-2, @integration-bucket-3, then @integration-bucket-4.'
     ),
     string(
       name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
       defaultValue: '@none',
-      description: 'Nightly integration exclusions; @none clears defaults'
+      description: 'Nightly integration exclusions; @none clears defaults so bucket tags can include nightly-marked tests.'
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
-      defaultValue: '',
-      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS and is capped at 8 in Jenkins.'
+      defaultValue: '2',
+      description: 'Integration worker-count override for bucket isolation, capped at 8 in Jenkins.'
     ),
     string(
       name: 'INTEGRATION_PW_SHARD',
@@ -161,7 +161,7 @@ def secrets = [
 ]
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
-def playwrightImage = "mcr.microsoft.com/playwright:v1.59.1-noble"
+def playwrightImage = "mcr.microsoft.com/playwright:v1.60.0-noble"
 def playwrightDockerOptions = "--ipc=host"
 def playwrightLoadProfileReportFile = 'load-profile.html'
 def ciLoadProfileDir = 'functional-output/tests/playwright-integration/load-profile/ci'
@@ -318,6 +318,11 @@ def hasCourtAdminUiCredentials = {
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  def integrationWorkers = capJenkinsPlaywrightWorkers(params.INTEGRATION_PW_WORKERS ?: '2')
+  def integrationIncludeTags = params.INTEGRATION_PW_INCLUDE_TAGS?.trim() ?: '@integration-bucket-1'
+  def integrationExcludedTags = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE?.trim() ?: '@none'
+  def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
+  def integrationReportDir = "functional-output/tests/playwright-integration-nightly/odhin-report/${integrationTagSlug}"
   env.TEST_URL = params.TEST_URL
   env.TEST_ENV = params.TEST_ENV
   env.FUNCTIONAL_TESTS_WORKERS = functionalWorkers
@@ -326,8 +331,8 @@ withNightlyPipeline(type, product, component, 400) {
   env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
   env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
   env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
-  env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
-  env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
+  env.INTEGRATION_PW_INCLUDE_TAGS = integrationIncludeTags
+  env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = integrationExcludedTags
   env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
   env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
   enableSlackNotifications(channel)
@@ -467,6 +472,56 @@ withNightlyPipeline(type, product, component, 400) {
           }
         }
         parallel parallelTestStages
+
+        stage("Integration nightly ${integrationIncludeTags}") {
+          def integrationOdhinEnv = [
+            "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
+            "PLAYWRIGHT_WORKERS=${integrationWorkers}",
+            'PW_UI_WORKERS=2',
+            "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
+            "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
+            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+            "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
+            "PW_ODHIN_TARGET=${integrationReportDir}",
+            'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
+            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+            'PW_UI_STORAGE=1',
+            'PW_UI_STORAGE_STRICT=1',
+            'PW_UI_STORAGE_TTL_MIN=15',
+            'PW_UI_LOGIN_TIMEOUT_MS=120000',
+            'PW_UI_IDLE_TIMEOUT_MS=60000',
+            'PW_UI_IDLE_QUIET_MS=400',
+            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+            'PW_UI_FAIL_ON_HTTP_4XX=0',
+            'PLAYWRIGHT_SKIP_INSTALL=true',
+            "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
+          ]
+          try {
+            recordPlaywrightLoadEvent("Integration ${integrationIncludeTags}", 'start')
+            runInPlaywrightContainer {
+              withEnv(integrationOdhinEnv) {
+                runPlaywrightCommand("test:integration:nightly:raw -- --workers=${integrationWorkers}")
+              }
+            }
+          } catch (Error) {
+            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
+          } finally {
+            publishHTML([
+              allowMissing         : true,
+              alwaysLinkToLastBuild: true,
+              keepAll              : true,
+              reportDir            : integrationReportDir,
+              reportFiles          : 'playwright-odhin-integration-nightly.html',
+              reportName           : "Integration nightly report (${integrationIncludeTags})"
+            ])
+            archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportDir}/**"
+            publishPlaywrightLoadProfile(
+              "${integrationReportDir}/load-profile",
+              "Integration Nightly System Load (${integrationIncludeTags}, ${integrationWorkers} workers)"
+            )
+            recordPlaywrightLoadEvent("Integration ${integrationIncludeTags}", 'finish')
+          }
+        }
       } finally {
         recordPlaywrightLoadEvent('Nightly functional tests', 'finish')
         publishCiLoadProfile('RPX E2E Nightly CI System Load')

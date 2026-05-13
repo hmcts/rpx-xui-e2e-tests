@@ -9,7 +9,7 @@ import {
 import { LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 test.describe(
-  `Hearings create navigation controls as ${HEARING_MANAGER_CR84_OFF_USER}`,
+  `@integration-bucket-4 Hearings create navigation controls as ${HEARING_MANAGER_CR84_OFF_USER}`,
   { tag: ['@integration', '@integration-hearings'] },
   () => {
     test('supports back-link navigation between hearing workflow and hearings tab', async ({

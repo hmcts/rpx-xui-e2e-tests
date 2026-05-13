@@ -27,7 +27,7 @@ let sessionUserId = "";
 let existingBookingsMock: ReturnType<typeof buildExistingBookingsMock>;
 
 test.describe(
-  `Booking UI as ${userIdentifier}`,
+  `@integration-bucket-2 Booking UI as ${userIdentifier}`,
   { tag: ["@integration", "@integration-booking-ui"] },
   () => {
     test.describe.configure({ mode: "serial" });

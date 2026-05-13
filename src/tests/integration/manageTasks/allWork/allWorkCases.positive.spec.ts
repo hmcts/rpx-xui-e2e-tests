@@ -73,7 +73,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`All Work cases as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-4 All Work cases as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test('shows the pre-filter prompt and empty-state message when no cases match the selected person', async ({
     taskListPage,
     page,

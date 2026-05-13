@@ -50,7 +50,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
-test.describe(`Find Case as ${userIdentifier}`, () => {
+test.describe(`@integration-bucket-1 Find Case as ${userIdentifier}`, () => {
   test("User can find an existing case from Find case filters", async ({
     caseListPage,
     caseSearchPage,

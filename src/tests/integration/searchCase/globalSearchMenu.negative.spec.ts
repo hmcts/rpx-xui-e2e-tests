@@ -41,7 +41,7 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
-test.describe(`Global Search negative flows as ${userIdentifier}`, () => {
+test.describe(`@integration-bucket-1 Global Search negative flows as ${userIdentifier}`, () => {
   for (const status of SEARCH_CASE_ERROR_STATUS_CODES) {
     test(`shows error no-results page when global search returns HTTP ${status}`, async ({
       caseListPage,

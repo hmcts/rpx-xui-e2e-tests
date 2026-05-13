@@ -13,7 +13,7 @@ test.beforeAll(async ({}, testInfo) => {
   await ensureWelshLanguageSessionAccess(testInfo);
 });
 
-test.describe(`@nightly Welsh language backend smoke as ${userIdentifier}`, () => {
+test.describe(`@integration-bucket-1 @nightly Welsh language backend smoke as ${userIdentifier}`, () => {
   test.beforeEach(async ({ caseListPage, page }, testInfo) => {
     activeLease = await setupWelshLanguageSession(page, testInfo);
     await page.goto("/cases", {

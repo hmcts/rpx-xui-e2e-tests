@@ -16,7 +16,7 @@ const createCaseSubmissionEndpointPatterns: RegExp[] = [
 const apiErrorStatusCodes = [500, 503, 401];
 
 test.describe(
-  `Create case - submit flow validation as ${userIdentifier}`,
+  `@integration-bucket-2 Create case - submit flow validation as ${userIdentifier}`,
   { tag: ["@integration", "@integration-create-case"] },
   () => {
     test.beforeEach(async ({ createCasePage, page }) => {

@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`Roles and access as ${userIdentifier}`, { tag: ["@integration", "@integration-case-details"] }, () => {
+test.describe(`@integration-bucket-1 Roles and access as ${userIdentifier}`, { tag: ["@integration", "@integration-case-details"] }, () => {
   test("Case allocator sees empty-state messages and allocate links when no roles or exclusions exist", async ({
     page,
     caseDetailsPage

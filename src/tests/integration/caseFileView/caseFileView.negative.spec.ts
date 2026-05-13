@@ -8,7 +8,7 @@ import { buildEmptyCaseFileViewCategoriesMock } from "../mocks/caseFileView.mock
 const caseId = "1690807693531270";
 const userIdentifier = "RESTRICTED_CASE_FILE_VIEW_ON";
 
-test.describe(`Case file view negative with ${userIdentifier}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
+test.describe(`@integration-bucket-2 Case file view negative with ${userIdentifier}`, { tag: ["@integration", "@integration-case-file-view"] }, () => {
   test.beforeEach(async ({ page }) => {
     await applySessionCookies(page, userIdentifier);
   });

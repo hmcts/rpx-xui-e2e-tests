@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`My Cases as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-3 My Cases as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test(`Cases and actions menus render correctly`, async ({ taskListPage, page, tableUtils }) => {
     const myCasesMockResponse = buildMyCasesMock();
 

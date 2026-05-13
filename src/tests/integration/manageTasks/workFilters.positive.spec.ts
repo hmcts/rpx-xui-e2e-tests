@@ -38,7 +38,7 @@ type SearchRequestPayload = {
   view?: string;
 };
 
-test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-3 Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test('show and hide work filters across My tasks, Available tasks, and My cases', async ({ taskListPage, page }) => {
     const taskListResponse = buildTaskListMock(6, workFiltersUserId, myActionsList);
     const myCasesResponse = buildMyCasesMock();

@@ -20,7 +20,7 @@ const listedHearingViewerRoles = [
   'listed-hearing-viewer',
 ];
 
-test.describe(`Hearings CR84 integration as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
+test.describe(`@integration-bucket-4 Hearings CR84 integration as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
   test.describe('read-only CR84 summary routes', () => {
     const readOnlySummaryScenarios = [
       {

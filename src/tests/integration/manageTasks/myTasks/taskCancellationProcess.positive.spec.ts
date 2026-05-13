@@ -29,7 +29,7 @@ const cancellationMatrix: readonly CancellationScenario[] = [
   },
 ] as const;
 
-test.describe(`Task cancellation integration as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-3 Task cancellation integration as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test.describe.configure({ mode: 'serial' });
 
   for (const matrixItem of cancellationMatrix) {

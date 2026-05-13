@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`Available Task List as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-3 Available Task List as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test(`User ${userIdentifier} sees filter errors if no services are selected`, async ({ taskListPage, page }) => {
     const taskListMockResponse = buildTaskListMock(10, '', availableActionsList);
 

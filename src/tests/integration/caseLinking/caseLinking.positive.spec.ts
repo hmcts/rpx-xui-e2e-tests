@@ -14,7 +14,7 @@ import {
 } from "../mocks/caseLinking.mock.js";
 
 test.describe(
-  "Case linking integration",
+  "@integration-bucket-1 Case linking integration",
   { tag: ["@integration", "@integration-case-linking"] },
   () => {
     test("links a case from case details and submits the selected reason", async ({

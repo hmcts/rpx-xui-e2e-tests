@@ -46,18 +46,18 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_INCLUDE_TAGS',
-      defaultValue: '',
-      description: 'Optional integration tags to include, e.g. @integration-case-list'
+      defaultValue: '@integration-bucket-1',
+      description: 'Integration bucket to run while isolating Jenkins agent failures. Re-run with @integration-bucket-2, @integration-bucket-3, then @integration-bucket-4.'
     ),
     string(
       name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
-      defaultValue: '',
-      description: 'Optional integration tags to exclude; use @none to clear defaults'
+      defaultValue: '@nightly',
+      description: 'Integration tags to exclude; defaults to skipping nightly-only integration tests in CNP. Use @none to clear defaults.'
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
-      defaultValue: '',
-      description: 'Optional integration worker-count override. Defaults to the integration profile and is capped at 4 in Jenkins.'
+      defaultValue: '2',
+      description: 'Integration worker-count override for bucket isolation, capped at 4 in Jenkins.'
     ),
     string(
       name: 'INTEGRATION_PW_SHARD',
@@ -235,8 +235,25 @@ def publishUiReports = {
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
 }
 
+def publishIntegrationReports = { String reportDir, String reportName ->
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : reportDir,
+    reportFiles          : 'playwright-odhin-integration.html',
+    reportName           : reportName
+  ])
+  archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**"
+}
+
 def runCnpPlaywrightStages = {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  def integrationWorkers = capJenkinsPlaywrightWorkers(params.INTEGRATION_PW_WORKERS ?: '2')
+  def integrationIncludeTags = effectiveTagOverride(params.INTEGRATION_PW_INCLUDE_TAGS, '@integration-bucket-1')
+  def integrationExcludedTags = effectiveTagOverride(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, '@nightly')
+  def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
+  def integrationReportDir = "functional-output/tests/playwright-integration/odhin-report/${integrationTagSlug}"
   def apiExcludedTags = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
   def quietConsoleEnv = [
     'TERM=dumb',
@@ -256,7 +273,7 @@ def runCnpPlaywrightStages = {
 
   runDiagnostics()
 
-  echo '[playwright] Running API and E2E suites only; integration tests are temporarily disabled in CNP.'
+  echo "[playwright] Running integration bucket ${integrationIncludeTags} after API/E2E to isolate Jenkins agent failures."
 
   def runApiTests = {
     stage('API tests') {
@@ -337,8 +354,46 @@ def runCnpPlaywrightStages = {
     }
   }
 
+  def runIntegrationTests = {
+    stage("Integration tests ${integrationIncludeTags}") {
+      def integrationEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
+        "PLAYWRIGHT_WORKERS=${integrationWorkers}",
+        'PW_UI_WORKERS=2',
+        "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
+        "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
+        "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
+        "PW_ODHIN_TARGET=${integrationReportDir}",
+        'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+        'PW_UI_STORAGE=1',
+        'PW_UI_STORAGE_STRICT=1',
+        'PW_UI_STORAGE_TTL_MIN=15',
+        'PW_UI_LOGIN_TIMEOUT_MS=120000',
+        'PW_UI_IDLE_TIMEOUT_MS=60000',
+        'PW_UI_IDLE_QUIET_MS=400',
+        'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+        'PW_UI_FAIL_ON_HTTP_4XX=0',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        runInPlaywrightContainer {
+          withEnv(integrationEnv) {
+            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
+          }
+        }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        publishIntegrationReports(integrationReportDir, "Integration Odhín report (${integrationIncludeTags})")
+      }
+    }
+  }
+
   runApiTests()
   runUiTests()
+  runIntegrationTests()
 }
 
 withNightlyPipeline(type, product, component, 600) {

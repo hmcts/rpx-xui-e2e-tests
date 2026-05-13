@@ -14,7 +14,7 @@ const expectedOrderedLinkedHearings = [
 ];
 
 test.describe(
-  `Hearings linked journey integration as ${HEARING_MANAGER_CR84_OFF_USER}`,
+  `@integration-bucket-4 Hearings linked journey integration as ${HEARING_MANAGER_CR84_OFF_USER}`,
   { tag: ['@integration', '@integration-hearings'] },
   () => {
     test('links hearings and submits linked-group payload', async ({ page, caseDetailsPage, hearingsTabPage }) => {

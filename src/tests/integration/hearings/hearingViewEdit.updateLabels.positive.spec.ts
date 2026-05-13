@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const SHV_SCR_1 = require('../mocks/fixtures/hearings/mock_SHV_SCR_1.json');
 
 test.describe(
-  `Hearings semi/automatic update labels as ${HEARING_MANAGER_CR84_ON_USER}`,
+  `@integration-bucket-4 Hearings semi/automatic update labels as ${HEARING_MANAGER_CR84_ON_USER}`,
   { tag: ['@integration', '@integration-hearings'] },
   () => {
     test('shows action-needed labels on impacted sections before manual acceptance', async ({

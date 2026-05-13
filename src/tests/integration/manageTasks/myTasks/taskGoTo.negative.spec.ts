@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
   taskListMockResponse = buildTaskListMock(160, userId, myActionsList);
 });
 
-test.describe(`Task Go To negative scenarios as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-3 Task Go To negative scenarios as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   [500, 400].forEach((statusCode) => {
     test(`User still reaches case details when go endpoint returns ${statusCode}`, async ({ taskListPage, page }) => {
       const firstTask = taskListMockResponse.tasks[0];

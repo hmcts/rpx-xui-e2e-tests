@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe(
-  `Task Unassign negative scenarios as ${userIdentifier}`,
+  `@integration-bucket-3 Task Unassign negative scenarios as ${userIdentifier}`,
   { tag: ['@integration', '@integration-manage-tasks'] },
   () => {
     test(`User sees service down when unassign endpoint returns 500`, async ({ taskListPage, page }) => {

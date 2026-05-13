@@ -3,6 +3,10 @@
   "availableTags": [
     "@integration",
     "@integration-access-requests",
+    "@integration-bucket-1",
+    "@integration-bucket-2",
+    "@integration-bucket-3",
+    "@integration-bucket-4",
     "@integration-booking-ui",
     "@integration-case-details",
     "@integration-case-file-view",

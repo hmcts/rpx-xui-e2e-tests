@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`My Access as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-3 My Access as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test(`User can view cases on the My access page from My work`, async ({ taskListPage, page, tableUtils }) => {
     const myAccessMockResponse = buildMyAccessMock();
     const isNewCount = (myAccessMockResponse.cases ?? []).filter((c) => c.isNew === true).length;

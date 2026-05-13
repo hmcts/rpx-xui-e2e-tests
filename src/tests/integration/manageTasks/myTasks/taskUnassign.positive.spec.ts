@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
   taskListMockResponse = buildTaskListMock(160, userId, myActionsList);
 });
 
-test.describe(`Task Unassign as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`@integration-bucket-3 Task Unassign as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
   test(`User can unassign one of their assigned tasks`, async ({ taskListPage, page }) => {
     const firstTask = taskListMockResponse.tasks[0];
 
