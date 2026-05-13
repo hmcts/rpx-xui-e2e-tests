@@ -1,5 +1,7 @@
 {
-  "excludedTags": [],
+  "excludedTags": [
+    "@integration-bucket-6"
+  ],
   "availableTags": [
     "@integration",
     "@integration-access-requests",

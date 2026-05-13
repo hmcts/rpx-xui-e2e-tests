@@ -469,8 +469,10 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
 
     expect(integrationProject?.grep).toBeUndefined();
     expect(integrationProject?.grepInvert?.test('@nightly')).toBe(true);
+    expect(integrationProject?.grepInvert?.test('@integration-bucket-6')).toBe(true);
     expect(integrationNightlyProject?.grep?.test('@nightly')).toBe(true);
-    expect(integrationNightlyProject?.grepInvert).toBeUndefined();
+    expect(integrationNightlyProject?.grepInvert?.test('@integration-bucket-6')).toBe(true);
+    expect(integrationNightlyProject?.grepInvert?.test('@nightly')).toBe(false);
   });
 
   test('integration filters apply only integration-scoped global exclusions', async () => {

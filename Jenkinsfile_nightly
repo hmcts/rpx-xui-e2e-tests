@@ -45,8 +45,8 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
-      defaultValue: '@none',
-      description: 'Nightly integration exclusions; @none clears defaults so bucket tags can include nightly-marked tests.'
+      defaultValue: '@integration-bucket-6',
+      description: 'Nightly integration exclusions; bucket 6 is held out while isolating Jenkins agent failures.'
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
@@ -322,6 +322,17 @@ def effectiveIntegrationWorkers = { String rawWorkers ->
   return (!trimmed || trimmed == '2') ? '4' : trimmed
 }
 
+def effectiveIntegrationExcludedTags = { String rawTags ->
+  def configuredTags = rawTags?.trim()
+  def tags = (configuredTags && configuredTags != '@none' ? configuredTags : '@integration-bucket-6')
+    .split(/[,\s]+/)
+    .findAll { tag -> tag && tag != '@none' }
+  if (!tags.contains('@integration-bucket-6')) {
+    tags.add('@integration-bucket-6')
+  }
+  return tags.join(',')
+}
+
 def hasCourtAdminUiCredentials = {
   env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
 }
@@ -331,7 +342,7 @@ withNightlyPipeline(type, product, component, 400) {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS))
   def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
-  def integrationExcludedTags = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE?.trim() ?: '@none'
+  def integrationExcludedTags = effectiveIntegrationExcludedTags(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE)
   def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
   def integrationReportDir = "functional-output/tests/playwright-integration-nightly/odhin-report/${integrationTagSlug}"
   env.TEST_URL = params.TEST_URL
@@ -484,7 +495,7 @@ withNightlyPipeline(type, product, component, 400) {
         }
         parallel parallelTestStages
 
-        stage("Integration nightly ${integrationIncludeTags}") {
+        stage('Integration tests') {
           def integrationOdhinEnv = [
             "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
             "PLAYWRIGHT_WORKERS=${integrationWorkers}",
@@ -509,7 +520,7 @@ withNightlyPipeline(type, product, component, 400) {
             "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
           ]
           try {
-            recordPlaywrightLoadEvent("Integration ${integrationIncludeTags}", 'start')
+            recordPlaywrightLoadEvent('Integration tests', 'start')
             runInPlaywrightContainer {
               withEnv(integrationOdhinEnv) {
                 runPlaywrightCommand("test:integration:nightly:raw -- --workers=${integrationWorkers}")
@@ -524,14 +535,14 @@ withNightlyPipeline(type, product, component, 400) {
               keepAll              : true,
               reportDir            : integrationReportDir,
               reportFiles          : 'playwright-odhin-integration-nightly.html',
-              reportName           : "Integration nightly report (${integrationIncludeTags})"
+              reportName           : 'Integration tests'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportDir}/**"
             publishPlaywrightLoadProfile(
               "${integrationReportDir}/load-profile",
-              "Integration Nightly System Load (${integrationIncludeTags}, ${integrationWorkers} workers)"
+              "Integration Tests System Load (${integrationWorkers} workers)"
             )
-            recordPlaywrightLoadEvent("Integration ${integrationIncludeTags}", 'finish')
+            recordPlaywrightLoadEvent('Integration tests', 'finish')
           }
         }
       } finally {
