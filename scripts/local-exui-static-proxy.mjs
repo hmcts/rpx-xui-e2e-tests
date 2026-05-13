@@ -12,6 +12,7 @@ const port = Number(process.env.PORT || 3455);
 const upstream = new URL(process.env.EXUI_API_URL || "http://localhost:3001");
 const root = process.env.EXUI_DIST || path.join(workspaceRoot, "rpx-xui-webapp", "dist", "rpx-exui", "browser");
 const sourceTruthPath = path.join(repoRoot, "src", "data", "exui-central-assurance-source.json");
+const localXuiConfigPath = path.join(workspaceRoot, "rpx-xui-webapp", "config", "local-ccd-srt.json");
 const localAssuranceConfigRoutesEnabled = process.env.EXUI_LOCAL_ASSURANCE_CONFIG_ROUTES !== "0";
 
 const serviceLabels = {
@@ -76,12 +77,94 @@ function readSourceTruthDefaults() {
   return sourceTruth.rpxXuiWebapp["config/default.json"];
 }
 
-function buildLocalAssuranceResponse(urlPath) {
+function readLocalXuiConfig() {
+  try {
+    return JSON.parse(readFileSync(localXuiConfigPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function buildLocalUiConfig() {
+  const config = readLocalXuiConfig();
+  const services = config.services ?? {};
+  const features = config.feature ?? {};
+  return {
+    accessManagementEnabled: features.accessManagementEnabled ?? true,
+    ccdGatewayUrl: services.ccd?.componentApi ?? "http://localhost:3453",
+    clientId: services.idam?.idamClientID ?? "xuiwebapp",
+    headerConfig: config.headerConfig ?? "preview",
+    hearingJurisdictionConfig: services.hearings ?? {},
+    idamWeb: services.idam?.idamLoginUrl ?? "http://localhost:8091",
+    judicialBookingApi: services.judicialBookingApi ?? "http://localhost:8091",
+    launchDarklyClientId: config.secrets?.rpx?.["launch-darkly-client-id"] ?? "local-ccd-srt",
+    oAuthCallback: services.idam?.oauthCallbackUrl ?? "/oauth2/callback",
+    oidcEnabled: features.oidcEnabled ?? true,
+    paymentReturnUrl: services.payment_return_url ?? "http://localhost:8091",
+    protocol: config.protocol ?? "http",
+    substantiveEnabled: features.substantiveRoleEnabled ?? true,
+    waWorkflowApi: services.waWorkflowApi ?? "http://localhost:8091"
+  };
+}
+
+function buildLocalUserDetails(req) {
+  const cookieHeader = req.headers.cookie ?? "";
+  const emailMatch = /(?:^|;\s*)__auth__=([^;]+)/.exec(cookieHeader);
+  const fallbackEmail = "exui.local.srt@hmcts.net";
+  let email = fallbackEmail;
+  if (emailMatch?.[1]) {
+    try {
+      const [, payload] = decodeURIComponent(emailMatch[1]).split(".");
+      const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+      email = parsed.email || parsed.sub || fallbackEmail;
+    } catch {
+      email = fallbackEmail;
+    }
+  }
+
+  return {
+    canShareCases: true,
+    userInfo: {
+      email,
+      family_name: "Assurance",
+      given_name: "Central",
+      roles: ["caseworker", "caseworker-privatelaw", "caseworker-publiclaw", "caseworker-civil"],
+      uid: "exui-central-assurance-user"
+    }
+  };
+}
+
+function buildLocalAssuranceResponse(req, requestUrl) {
   if (!localAssuranceConfigRoutesEnabled) {
     return undefined;
   }
 
+  const urlPath = requestUrl.pathname;
   const defaults = readSourceTruthDefaults();
+  if (urlPath === "/external/config/ui" || urlPath === "/external/configuration") {
+    return buildLocalUiConfig();
+  }
+  if (urlPath === "/api/configuration") {
+    const config = readLocalXuiConfig();
+    const key = requestUrl.searchParams.get("configurationKey");
+    if (key) {
+      return config.feature?.[key] ?? config[key] ?? false;
+    }
+    return {
+      feature: config.feature ?? {},
+      services: config.services ?? {}
+    };
+  }
+  if (urlPath === "/api/user/details") {
+    return buildLocalUserDetails(req);
+  }
+  if (urlPath === "/auth/isAuthenticated") {
+    const cookieHeader = req.headers.cookie ?? "";
+    return cookieHeader.includes("Idam.Session") || cookieHeader.includes("__auth__");
+  }
+  if (urlPath === "/api/monitoring-tools") {
+    return [];
+  }
   if (urlPath === "/api/globalSearch/services") {
     return defaults.globalSearchServices.map((serviceId) => ({
       serviceId,
@@ -160,8 +243,8 @@ const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || "/", `http://localhost:${port}`);
 
   if (req.method === "GET") {
-    const localAssuranceResponse = buildLocalAssuranceResponse(requestUrl.pathname);
-    if (localAssuranceResponse) {
+    const localAssuranceResponse = buildLocalAssuranceResponse(req, requestUrl);
+    if (localAssuranceResponse !== undefined) {
       sendJson(res, localAssuranceResponse);
       return;
     }
