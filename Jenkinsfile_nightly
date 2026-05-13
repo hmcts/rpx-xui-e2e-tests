@@ -50,7 +50,7 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
-      defaultValue: '2',
+      defaultValue: '4',
       description: 'Integration worker-count override for bucket isolation, capped at 8 in Jenkins.'
     ),
     string(
@@ -324,7 +324,7 @@ def hasCourtAdminUiCredentials = {
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def integrationWorkers = capJenkinsPlaywrightWorkers(params.INTEGRATION_PW_WORKERS ?: '2')
+  def integrationWorkers = capJenkinsPlaywrightWorkers(params.INTEGRATION_PW_WORKERS ?: '4')
   def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
   def integrationExcludedTags = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE?.trim() ?: '@none'
   def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
