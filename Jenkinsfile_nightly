@@ -40,8 +40,8 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_INCLUDE_TAGS',
-      defaultValue: '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4',
-      description: 'Nightly integration buckets to run while isolating Jenkins agent failures. Add @integration-bucket-5 after bucket 4 passes.'
+      defaultValue: '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5',
+      description: 'Nightly integration buckets to run while isolating Jenkins agent failures. Add @integration-bucket-6 after bucket 5 passes.'
     ),
     string(
       name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
@@ -312,9 +312,14 @@ def capJenkinsPlaywrightWorkers = { String configured ->
 }
 
 def effectiveIntegrationBuckets = { String rawTags ->
-  def defaultBuckets = '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4'
+  def defaultBuckets = '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5'
   def trimmed = rawTags?.trim()
-  return (!trimmed || trimmed == '@integration-bucket-1' || trimmed == '@integration-bucket-1,@integration-bucket-2' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3') ? defaultBuckets : trimmed
+  return (!trimmed || trimmed == '@integration-bucket-1' || trimmed == '@integration-bucket-1,@integration-bucket-2' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4') ? defaultBuckets : trimmed
+}
+
+def effectiveIntegrationWorkers = { String rawWorkers ->
+  def trimmed = rawWorkers?.trim()
+  return (!trimmed || trimmed == '2') ? '4' : trimmed
 }
 
 def hasCourtAdminUiCredentials = {
@@ -324,7 +329,7 @@ def hasCourtAdminUiCredentials = {
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def integrationWorkers = capJenkinsPlaywrightWorkers(params.INTEGRATION_PW_WORKERS ?: '4')
+  def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS))
   def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
   def integrationExcludedTags = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE?.trim() ?: '@none'
   def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
@@ -489,6 +494,7 @@ withNightlyPipeline(type, product, component, 400) {
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
             "PW_ODHIN_TARGET=${integrationReportDir}",
+            "PW_ODHIN_ENV=${params.TEST_ENV} | ci | workers=${integrationWorkers}",
             'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
             'PW_UI_STORAGE=1',
