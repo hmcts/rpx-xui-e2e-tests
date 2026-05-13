@@ -40,8 +40,8 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_INCLUDE_TAGS',
-      defaultValue: '@integration-bucket-1',
-      description: 'Nightly integration bucket to run while isolating Jenkins agent failures. Re-run with @integration-bucket-2, @integration-bucket-3, then @integration-bucket-4.'
+      defaultValue: '@integration-bucket-1,@integration-bucket-2',
+      description: 'Nightly integration buckets to run while isolating Jenkins agent failures. Add @integration-bucket-3, then @integration-bucket-4 as earlier buckets pass.'
     ),
     string(
       name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
@@ -319,7 +319,7 @@ withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   def integrationWorkers = capJenkinsPlaywrightWorkers(params.INTEGRATION_PW_WORKERS ?: '2')
-  def integrationIncludeTags = params.INTEGRATION_PW_INCLUDE_TAGS?.trim() ?: '@integration-bucket-1'
+  def integrationIncludeTags = params.INTEGRATION_PW_INCLUDE_TAGS?.trim() ?: '@integration-bucket-1,@integration-bucket-2'
   def integrationExcludedTags = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE?.trim() ?: '@none'
   def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
   def integrationReportDir = "functional-output/tests/playwright-integration-nightly/odhin-report/${integrationTagSlug}"
