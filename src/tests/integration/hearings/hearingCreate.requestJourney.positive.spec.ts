@@ -3,7 +3,7 @@ import { continueHearingsFlow, HEARING_MANAGER_CR84_OFF_USER, hearingManagerRole
 import { LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 test.describe(
-  `@integration-bucket-4 Hearings create request journey as ${HEARING_MANAGER_CR84_OFF_USER}`,
+  `@integration-bucket-5 Hearings create request journey as ${HEARING_MANAGER_CR84_OFF_USER}`,
   { tag: ['@integration', '@integration-hearings'] },
   () => {
     test('covers the initial create-hearing workflow subset', async ({ page, caseDetailsPage, hearingsTabPage }) => {

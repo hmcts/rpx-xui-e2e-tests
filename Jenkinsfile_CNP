@@ -46,8 +46,8 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_INCLUDE_TAGS',
-      defaultValue: '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3',
-      description: 'Integration buckets to run while isolating Jenkins agent failures. Add @integration-bucket-4 after earlier buckets pass.'
+      defaultValue: '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4',
+      description: 'Integration buckets to run while isolating Jenkins agent failures. Add @integration-bucket-5 after bucket 4 passes.'
     ),
     string(
       name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
@@ -108,9 +108,9 @@ static String effectiveTagOverride(String rawTags, String fallbackTags) {
 }
 
 static String effectiveIntegrationBuckets(String rawTags) {
-  def defaultBuckets = '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3'
+  def defaultBuckets = '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4'
   def trimmed = rawTags?.trim()
-  return (!trimmed || trimmed == '@integration-bucket-1' || trimmed == '@integration-bucket-1,@integration-bucket-2') ? defaultBuckets : trimmed
+  return (!trimmed || trimmed == '@integration-bucket-1' || trimmed == '@integration-bucket-1,@integration-bucket-2' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3') ? defaultBuckets : trimmed
 }
 
 def secrets = [
