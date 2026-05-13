@@ -61,7 +61,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test.describe(
   "Restricted case access with prewarmed search session",
-  { tag: ["@integration", "@integration-restricted-case"] },
+  { tag: ['@integration-bucket-2', "@integration", "@integration-restricted-case"] },
   () => {
     test("shows both legal-ops and judicial users and resolves judicial users from ref-data", async ({
       caseDetailsPage,

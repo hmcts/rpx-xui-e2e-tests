@@ -36,6 +36,10 @@ const envTaskId = WA_SAMPLE_TASK_ID;
 const envAssignedTaskId = WA_SAMPLE_ASSIGNED_TASK_ID;
 const BEFORE_ALL_REQUEST_TIMEOUT_MS = 10_000;
 
+function shouldLogWaSetupWarnings(): boolean {
+  return process.env.PW_WA_SETUP_CONSOLE?.trim().toLowerCase() !== 'false';
+}
+
 function describeWaSetupError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   return message
@@ -64,7 +68,9 @@ test.describe('Work allocation (read-only)', { tag: '@svc-work-allocation' }, ()
         userId = resolveUserId(userRes.data);
       }
     } catch (error) {
-      console.warn(`[WA_SETUP_DEGRADED] user/details failed: ${describeWaSetupError(error)}`);
+      if (shouldLogWaSetupWarnings()) {
+        console.warn(`[WA_SETUP_DEGRADED] user/details failed: ${describeWaSetupError(error)}`);
+      }
     }
 
     try {
@@ -77,7 +83,9 @@ test.describe('Work allocation (read-only)', { tag: '@svc-work-allocation' }, ()
       );
       cachedLocationId = resolveLocationId(listResponse.status, listResponse.data);
     } catch (error) {
-      console.warn(`[WA_SETUP_DEGRADED] location bootstrap failed: ${describeWaSetupError(error)}`);
+      if (shouldLogWaSetupWarnings()) {
+        console.warn(`[WA_SETUP_DEGRADED] location bootstrap failed: ${describeWaSetupError(error)}`);
+      }
     }
 
     try {
@@ -89,7 +97,9 @@ test.describe('Work allocation (read-only)', { tag: '@svc-work-allocation' }, ()
       sampleTaskId = resolvedSeed.sampleTaskId;
       sampleMyTaskId = resolvedSeed.sampleMyTaskId;
     } catch (error) {
-      console.warn(`[WA_SETUP_DEGRADED] seedTaskId failed: ${describeWaSetupError(error)}`);
+      if (shouldLogWaSetupWarnings()) {
+        console.warn(`[WA_SETUP_DEGRADED] seedTaskId failed: ${describeWaSetupError(error)}`);
+      }
       sampleTaskId = undefined;
       sampleMyTaskId = undefined;
     }

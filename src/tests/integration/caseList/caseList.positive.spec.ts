@@ -28,7 +28,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`Case List as ${userIdentifier}`, { tag: ["@integration", "@integration-case-list"] }, () => {
+test.describe(`Case List as ${userIdentifier}`, { tag: ['@integration-bucket-1', "@integration", "@integration-case-list"] }, () => {
   test(`User ${userIdentifier} can view cases on the case list page`, async ({ caseListPage, tableUtils, page }) => {
     const mock = buildCaseListMock(124);
     await setupCaseListMocks(page, { searchResponse: mock });

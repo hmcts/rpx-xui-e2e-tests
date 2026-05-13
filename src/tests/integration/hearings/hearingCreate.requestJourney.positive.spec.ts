@@ -4,7 +4,7 @@ import { LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 test.describe(
   `Hearings create request journey as ${HEARING_MANAGER_CR84_OFF_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  { tag: ['@integration-bucket-5', '@integration', '@integration-hearings'] },
   () => {
     test('covers the initial create-hearing workflow subset', async ({ page, caseDetailsPage, hearingsTabPage }) => {
       await openHearingsTab(page, caseDetailsPage, {

@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe(
   `Work filters validation as ${workFiltersUserIdentifier}`,
-  { tag: ['@integration', '@integration-manage-tasks'] },
+  { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] },
   () => {
     test('My tasks requires at least one service before filters can be applied', async ({ taskListPage, page }) => {
       await setupManageTasksBaseRoutes(page, {

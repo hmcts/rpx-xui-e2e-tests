@@ -19,7 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe(
   `Task Completion negative scenarios as ${userIdentifier}`,
-  { tag: ['@integration', '@integration-manage-tasks'] },
+  { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] },
   () => {
     test(`User sees service down when complete endpoint returns 500`, async ({ taskListPage, page }) => {
       const firstTask = taskListMockResponse.tasks[0];

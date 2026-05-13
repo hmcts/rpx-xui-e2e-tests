@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`My Cases pagination as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`My Cases pagination as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test('keeps large My cases result sets unpaginated and renders non-sortable columns as plain headers', async ({
     taskListPage,
     page,

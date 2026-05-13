@@ -4,7 +4,7 @@ import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/he
 
 test.describe(
   `Hearings pre-CR84 actions as ${HEARING_MANAGER_CR84_OFF_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] },
   () => {
     test('shows View or edit action and routes to pre-CR84 edit summary', async ({
       page,

@@ -65,6 +65,13 @@ class FlakeGateReporter {
     const denominator = uniqueFinalTests > 0 ? uniqueFinalTests : 1;
     const flakyRate = flakyCount / denominator;
 
+    if (process.env.PW_FLAKE_GATE_SUMMARY?.trim().toLowerCase() === "compact") {
+      process.stdout.write(
+        `[flake-gate] finished=${uniqueFinalTests} attempts=${this.totalAttempts} flaky=${flakyCount} passed-on-retry=${retriedPassCount} failed=${failedCount} flaky-rate=${(flakyRate * 100).toFixed(2)}% thresholds=${this.maxFlakyTests}/${(this.maxFlakyRate * 100).toFixed(2)}% mode=report-only\n`
+      );
+      return;
+    }
+
     const summary = [
       `[flake-gate] finished=${uniqueFinalTests}`,
       `[flake-gate] attempts=${this.totalAttempts}`,

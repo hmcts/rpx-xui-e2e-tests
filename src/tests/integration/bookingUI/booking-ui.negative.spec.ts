@@ -28,7 +28,7 @@ const createBookingErrorCases = [
 createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
   test.describe(
     `Booking UI create booking error ${status} as ${userIdentifier}`,
-    { tag: ["@integration", "@integration-booking-ui"] },
+    { tag: ['@integration-bucket-2', "@integration", "@integration-booking-ui"] },
     () => {
       let getBookingsCalled = false;
       let createBookingCalled = false;

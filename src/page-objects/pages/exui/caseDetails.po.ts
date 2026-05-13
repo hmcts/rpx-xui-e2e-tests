@@ -127,6 +127,11 @@ export class CaseDetailsPage extends Base {
     await this.page.waitForTimeout(intervalMs);
   }
 
+  private isNavigationContextReset(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('Execution context was destroyed') || message.includes('most likely because of a navigation');
+  }
+
   async waitForCaseDetailsPage(): Promise<void> {
     // Case details cold-loads the same large lazy chunk used by several access journeys.
     await this.container.waitFor({
@@ -896,13 +901,20 @@ export class CaseDetailsPage extends Base {
         continue;
       }
 
-      const visibleTabCount = await this.tablist2.evaluateAll(
-        (tabs) =>
-          tabs.filter((tab) => {
-            const element = tab as HTMLElement;
-            return !element.hidden && element.offsetParent !== null;
-          }).length
-      );
+      const visibleTabCount = await this.tablist2
+        .evaluateAll(
+          (tabs) =>
+            tabs.filter((tab) => {
+              const element = tab as HTMLElement;
+              return !element.hidden && element.offsetParent !== null;
+            }).length
+        )
+        .catch((error: unknown) => {
+          if (this.isNavigationContextReset(error)) {
+            return 0;
+          }
+          throw error;
+        });
 
       if (visibleTabCount > 0) {
         return;

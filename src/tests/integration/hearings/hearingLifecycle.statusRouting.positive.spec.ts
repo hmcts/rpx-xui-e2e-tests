@@ -74,7 +74,7 @@ function buildActualsSummary(result: 'COMPLETED' | 'ADJOURNED') {
 
 test.describe(
   `Hearings lifecycle status routing as ${HEARING_MANAGER_CR84_OFF_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  { tag: ['@integration-bucket-6', '@integration', '@integration-hearings'] },
   () => {
     test('renders upcoming and past-or-cancelled sections with the expected lifecycle statuses and actions', async ({
       page,

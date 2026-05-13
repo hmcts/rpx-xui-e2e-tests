@@ -7,7 +7,7 @@ const userIdentifier = HEARING_MANAGER_CR84_ON_USER;
 const hearingManagerRoles = ['caseworker-privatelaw', 'caseworker-privatelaw-courtadmin', 'case-allocator', 'hearing-manager'];
 const hearingViewerRoles = ['caseworker-privatelaw', 'caseworker-privatelaw-courtadmin', 'case-allocator', 'hearing-viewer'];
 
-test.describe(`Hearings resilience integration as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
+test.describe(`Hearings resilience integration as ${userIdentifier}`, { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] }, () => {
   test('Hearings - manager can start the request hearing journey from the Hearings tab', async ({
     page,
     caseDetailsPage,

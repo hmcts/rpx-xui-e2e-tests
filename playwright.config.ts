@@ -14,6 +14,7 @@ export type EnvMap = Record<string, string | undefined>;
 
 loadEnv({
   path: path.resolve(process.cwd(), ".env"),
+  quiet: true,
   override: false
 });
 
@@ -27,6 +28,7 @@ const MAX_UI_WORKERS = 2;
 const API_GLOBAL_EXCLUDED_TAGS_PATTERN = /^(@svc-.+|@wa-action)$/;
 const E2E_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@e2e(?:-.+)?$/;
 const INTEGRATION_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@integration(?:-.+)?$/;
+const INTEGRATION_BUCKET_6_TAG = "@integration-bucket-6";
 
 const resolveDefaultReporterNames = (env: EnvMap) => {
   const override = env.PLAYWRIGHT_DEFAULT_REPORTER;
@@ -129,6 +131,16 @@ const removeTagInput = (rawTags: string | undefined, tagToRemove: string): strin
     .join(",");
 };
 
+const withIntegrationBucket6Excluded = (rawTags: string | undefined, fallbackTags: string): string => {
+  const tags = (rawTags?.trim() || fallbackTags)
+    .split(/[\s,]+/)
+    .filter((tag) => tag && tag !== "@none");
+  if (!tags.includes(INTEGRATION_BUCKET_6_TAG)) {
+    tags.push(INTEGRATION_BUCKET_6_TAG);
+  }
+  return tags.join(",");
+};
+
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
   firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ?? "test-results/odhin-report";
 
@@ -183,6 +195,9 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
         break;
       case "line":
         reporters.push(["line"]);
+        break;
+      case "ci-brief":
+        reporters.push(["./src/tests/common/reporters/ci-brief.reporter.cjs"]);
         break;
       case "html":
         reporters.push([
@@ -296,12 +311,14 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const integrationTagFilters = resolveIntegrationTagFilters({
     ...env,
     INTEGRATION_PW_INCLUDE_TAGS: removeTagInput(env.INTEGRATION_PW_INCLUDE_TAGS, "@nightly"),
-    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?? "@nightly"
+    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: withIntegrationBucket6Excluded(env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, "@nightly")
   });
   const integrationNightlyTagFilters = resolveIntegrationTagFilters({
     ...env,
     INTEGRATION_PW_INCLUDE_TAGS: env.INTEGRATION_PW_INCLUDE_TAGS ?? "@nightly",
-    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: removeTagInput(env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, "@nightly") || "@none"
+    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE:
+      removeTagInput(withIntegrationBucket6Excluded(env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, INTEGRATION_BUCKET_6_TAG), "@nightly") ||
+      INTEGRATION_BUCKET_6_TAG
   });
   logResolvedTagFilters("API", apiTagFilters, env);
   logResolvedTagFilters("E2E", e2eTagFilters, env);

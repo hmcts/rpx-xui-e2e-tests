@@ -4,7 +4,7 @@ import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/he
 
 test.describe(
   `Hearings manual update labels as ${HEARING_MANAGER_CR84_ON_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] },
   () => {
     test('marks additional instructions section as amended after a manual update', async ({
       page,

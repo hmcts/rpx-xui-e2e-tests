@@ -21,8 +21,8 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '2',
-      description: 'Number of Playwright workers, capped at 2 in Jenkins'
+      defaultValue: '4',
+      description: 'Number of Playwright workers, capped at 4 in Jenkins'
     ),
     string(
       name: 'API_PW_INCLUDE_TAGS',
@@ -31,8 +31,8 @@ properties([
     ),
     string(
       name: 'API_PW_EXCLUDED_TAGS_OVERRIDE',
-      defaultValue: '',
-      description: 'Optional API service tags to exclude; use @none to clear defaults'
+      defaultValue: '@svc-work-allocation',
+      description: 'API service tags to exclude. Defaults to skipping Work Allocation API checks while Jenkins stability is isolated; use @none to clear defaults.'
     ),
     string(
       name: 'E2E_PW_INCLUDE_TAGS',
@@ -46,18 +46,18 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_INCLUDE_TAGS',
-      defaultValue: '',
-      description: 'Optional integration tags to include, e.g. @integration-case-list'
+      defaultValue: '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5',
+      description: 'Integration buckets to run while isolating Jenkins agent failures. Add @integration-bucket-6 after bucket 5 passes.'
     ),
     string(
       name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
-      defaultValue: '',
-      description: 'Optional integration tags to exclude; use @none to clear defaults'
+      defaultValue: '@nightly,@integration-bucket-6',
+      description: 'Integration tags to exclude; bucket 6 is held out while isolating Jenkins agent failures.'
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
-      defaultValue: '',
-      description: 'Optional integration worker-count override. Defaults to FUNCTIONAL_TESTS_WORKERS and is capped at 2 in Jenkins.'
+      defaultValue: '4',
+      description: 'Integration worker-count override for bucket isolation, capped at 4 in Jenkins.'
     ),
     string(
       name: 'INTEGRATION_PW_SHARD',
@@ -66,8 +66,8 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: 'workers=2',
-      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 2.'
+      defaultValue: 'workers=4',
+      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 4.'
     ),
     string(
       name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
@@ -100,6 +100,32 @@ static String removeTag(String rawTags, String tagToRemove) {
   rawTags.split(/[,\s]+/)
     .findAll { tag -> tag && tag != tagToRemove }
     .join(',')
+}
+
+static String effectiveTagOverride(String rawTags, String fallbackTags) {
+  def trimmed = rawTags?.trim()
+  return trimmed ? trimmed : fallbackTags
+}
+
+static String effectiveIntegrationExcludedTags(String rawTags) {
+  def tags = effectiveTagOverride(rawTags, '@nightly,@integration-bucket-6')
+    .split(/[,\s]+/)
+    .findAll { tag -> tag && tag != '@none' }
+  if (!tags.contains('@integration-bucket-6')) {
+    tags.add('@integration-bucket-6')
+  }
+  return tags.join(',')
+}
+
+static String effectiveIntegrationBuckets(String rawTags) {
+  def defaultBuckets = '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5'
+  def trimmed = rawTags?.trim()
+  return (!trimmed || trimmed == '@integration-bucket-1' || trimmed == '@integration-bucket-1,@integration-bucket-2' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4') ? defaultBuckets : trimmed
+}
+
+static String effectiveIntegrationWorkers(String rawWorkers) {
+  def trimmed = rawWorkers?.trim()
+  return (!trimmed || trimmed == '2') ? '4' : trimmed
 }
 
 def secrets = [
@@ -146,7 +172,7 @@ def secrets = [
   ]
 ]
 
-def playwrightImage = "mcr.microsoft.com/playwright:v1.59.1-noble"
+def playwrightImage = "mcr.microsoft.com/playwright:v1.60.0-noble"
 def playwrightDockerOptions = "--ipc=host"
 
 def runInPlaywrightContainer = { Closure body ->
@@ -156,51 +182,15 @@ def runInPlaywrightContainer = { Closure body ->
 }
 
 def capJenkinsPlaywrightWorkers = { String configured ->
-  def parsed = (configured ?: '2').trim()
+  def parsed = (configured ?: '4').trim()
   if (!parsed.isInteger()) {
-    return '2'
+    return '4'
   }
-  return Math.min(2, Math.max(1, parsed.toInteger())).toString()
+  return Math.min(4, Math.max(1, parsed.toInteger())).toString()
 }
 
 def hasCourtAdminUiCredentials = {
   env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
-}
-
-def resolveIntegrationProfileRuns = { String configuredRuns, String workersOverride, String shardOverride ->
-  def requestedWorkers = workersOverride?.trim()
-  if (requestedWorkers) {
-    def requestedShard = shardOverride?.trim()
-    return ["workers=${capJenkinsPlaywrightWorkers(requestedWorkers)}${requestedShard ? " shard=${requestedShard}" : ''}"]
-  }
-  def configured = configuredRuns?.trim()
-  if (!configured) {
-    configured = 'workers=2'
-  }
-  return configured
-    .split(/[\r\n;]+/)
-    .collect { it.trim() }
-    .findAll { it }
-}
-
-def integrationProfileRunConfig = { String spec ->
-  def workers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def shard = ''
-  spec.split(/\s+/).each { token ->
-    if (token.startsWith('workers=')) {
-      workers = capJenkinsPlaywrightWorkers(token.replaceFirst('workers=', ''))
-    }
-    if (token.startsWith('shard=')) {
-      shard = token.replaceFirst('shard=', '')
-    }
-  }
-  def safeName = "workers-${workers}${shard ? "-shard-${shard}" : ''}".replaceAll(/[^A-Za-z0-9._-]/, '-')
-  return [
-    workers    : workers,
-    shardArg   : shard ? " --shard=${shard}" : '',
-    reportDir  : "functional-output/tests/playwright-integration/odhin-report/ci-${safeName}",
-    displayName: "${workers} workers${shard ? ", shard ${shard}" : ''}"
-  ]
 }
 
 def runPlaywrightShell = { String command ->
@@ -254,18 +244,6 @@ def publishApiReports = {
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
 }
 
-def publishIntegrationReports = { Map runConfig ->
-  publishHTML([
-    allowMissing         : true,
-    alwaysLinkToLastBuild: true,
-    keepAll              : true,
-    reportDir            : "${runConfig.reportDir}",
-    reportFiles          : 'playwright-odhin-integration.html',
-    reportName           : "Integration Odhín report (${runConfig.displayName})"
-  ])
-  archiveArtifacts allowEmptyArchive: true, artifacts: "${runConfig.reportDir}/**"
-}
-
 def publishUiReports = {
   publishHTML([
     allowMissing         : true,
@@ -278,125 +256,166 @@ def publishUiReports = {
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
 }
 
+def publishIntegrationReports = { String reportDir, String reportName ->
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : reportDir,
+    reportFiles          : 'playwright-odhin-integration.html',
+    reportName           : reportName
+  ])
+  archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**"
+}
+
 def runCnpPlaywrightStages = {
   def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def integrationIncludeTags = removeTag(params.INTEGRATION_PW_INCLUDE_TAGS, '@nightly')
-  def noColorEnv = [
+  def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS))
+  def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
+  def integrationExcludedTags = effectiveIntegrationExcludedTags(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE)
+  def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
+  def integrationReportDir = "functional-output/tests/playwright-integration/odhin-report/${integrationTagSlug}"
+  def apiExcludedTags = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
+  def quietConsoleEnv = [
+    'TERM=dumb',
+    'NO_COLOR=1',
     'FORCE_COLOR=0',
-    'NO_COLOR=1'
+    'DOTENV_CONFIG_QUIET=true',
+    'LOG_LEVEL=silent',
+    'PW_API_MONITOR_CONSOLE=false',
+    'PW_WA_SETUP_CONSOLE=false',
+    'PW_ODHIN_CONSOLE_LOG=false',
+    'PW_ODHIN_CONSOLE_ERROR=false',
+    'PW_ODHIN_CONSOLE_TEST_OUTPUT=false',
+    'PW_ODHIN_PROFILE=false',
+    'PW_FLAKE_GATE_SUMMARY=compact',
+    'PLAYWRIGHT_LOG_TAG_FILTERS=false'
   ]
 
   runDiagnostics()
 
-  stage('API tests') {
-    def apiEnv = noColorEnv + [
-      "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
-      "PLAYWRIGHT_WORKERS=${functionalWorkers}",
-      "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
-      "API_PW_EXCLUDED_TAGS_OVERRIDE=${params.API_PW_EXCLUDED_TAGS_OVERRIDE}",
-      "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-      'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-      'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
-      'PLAYWRIGHT_SKIP_INSTALL=true'
-    ]
-    try {
-      runInPlaywrightContainer {
-        withEnv(apiEnv) {
-          runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${functionalWorkers}")
+  echo "[playwright] Running selected integration tests after API/E2E to isolate Jenkins agent failures."
+
+  def runApiTests = {
+    stage('API tests') {
+      def apiEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
+        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+        "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
+        "API_PW_EXCLUDED_TAGS_OVERRIDE=${apiExcludedTags}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin,junit',
+        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
+        'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        runInPlaywrightContainer {
+          withEnv(apiEnv) {
+            runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${functionalWorkers}")
+          }
         }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        publishApiReports()
       }
-    } catch (Exception e) {
-      unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
-    } finally {
-      publishApiReports()
     }
   }
 
-  stage('Integration tests') {
-    resolveIntegrationProfileRuns(
-      params.INTEGRATION_PW_PROFILE_RUNS ?: '',
-      params.INTEGRATION_PW_WORKERS ?: '',
-      params.INTEGRATION_PW_SHARD ?: ''
-    ).each { spec ->
-      def runConfig = integrationProfileRunConfig(spec)
-      def integrationEnv = noColorEnv + [
-        "FUNCTIONAL_TESTS_WORKERS=${runConfig.workers}",
-        "PLAYWRIGHT_WORKERS=${runConfig.workers}",
-        "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
-        "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE ?: '@nightly'}",
+  def runUiTests = {
+    stage('UI tests') {
+      def uiEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
+        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+        "PW_UI_WORKERS=${functionalWorkers}",
+        "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
+        "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
         "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
+        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
+        'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+        'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+        'PW_UI_USERS=COURT_ADMIN',
+        'PW_UI_STORAGE_STRICT=1',
         'PW_UI_STORAGE=1',
-        'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-        'PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-integration.html',
-        "PLAYWRIGHT_REPORT_FOLDER=${runConfig.reportDir}",
+        'PW_UI_STORAGE_TTL_MIN=15',
+        'PW_UI_LOGIN_TIMEOUT_MS=120000',
+        'PW_UI_IDLE_TIMEOUT_MS=60000',
+        'PW_UI_IDLE_QUIET_MS=400',
+        'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+        'PW_UI_FAIL_ON_HTTP_4XX=0',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        if (!hasCourtAdminUiCredentials()) {
+          echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
+          runInPlaywrightContainer {
+            withEnv(uiEnv) {
+              runPlaywrightShell('node ./scripts/ensure-odhin-report.cjs')
+            }
+          }
+        } else {
+          runInPlaywrightContainer {
+            withEnv(uiEnv) {
+              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${functionalWorkers}")
+            }
+          }
+        }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        runInPlaywrightContainer {
+          withEnv(uiEnv) {
+            runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
+          }
+        }
+        publishUiReports()
+      }
+    }
+  }
+
+  def runIntegrationTests = {
+    stage('Integration tests') {
+      def integrationEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
+        "PLAYWRIGHT_WORKERS=${integrationWorkers}",
+        'PW_UI_WORKERS=2',
+        "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
+        "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
+        "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
+        "PW_ODHIN_TARGET=${integrationReportDir}",
+        "PW_ODHIN_ENV=${params.TEST_ENV} | ci | workers=${integrationWorkers}",
+        'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+        'PW_UI_STORAGE=1',
+        'PW_UI_STORAGE_STRICT=1',
+        'PW_UI_STORAGE_TTL_MIN=15',
+        'PW_UI_LOGIN_TIMEOUT_MS=120000',
+        'PW_UI_IDLE_TIMEOUT_MS=60000',
+        'PW_UI_IDLE_QUIET_MS=400',
+        'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+        'PW_UI_FAIL_ON_HTTP_4XX=0',
         'PLAYWRIGHT_SKIP_INSTALL=true'
       ]
       try {
         runInPlaywrightContainer {
           withEnv(integrationEnv) {
-            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${runConfig.workers}${runConfig.shardArg}")
+            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
           }
         }
       } catch (Exception e) {
-        unstable(message: "${STAGE_NAME} ${runConfig.displayName} is unstable: " + e.toString())
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
       } finally {
-        runInPlaywrightContainer {
-          withEnv(integrationEnv) {
-            runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
-          }
-        }
-        publishIntegrationReports(runConfig)
+        publishIntegrationReports(integrationReportDir, 'Integration tests')
       }
     }
   }
 
-  stage('UI tests') {
-    def uiEnv = noColorEnv + [
-      'FUNCTIONAL_TESTS_WORKERS=2',
-      'PLAYWRIGHT_WORKERS=2',
-      "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
-      "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
-      "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
-      'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
-      'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
-      'PW_ODHIN_SKIP_API_ENDPOINTS=true',
-      'PW_UI_USERS=COURT_ADMIN',
-      'PW_UI_STORAGE_STRICT=1',
-      'PW_UI_STORAGE=1',
-      'PW_UI_STORAGE_TTL_MIN=15',
-      'PW_UI_LOGIN_TIMEOUT_MS=120000',
-      'PW_UI_IDLE_TIMEOUT_MS=60000',
-      'PW_UI_IDLE_QUIET_MS=400',
-      'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-      'PW_UI_FAIL_ON_HTTP_4XX=0',
-      'PLAYWRIGHT_SKIP_INSTALL=true'
-    ]
-    try {
-      if (!hasCourtAdminUiCredentials()) {
-        echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
-        runInPlaywrightContainer {
-          withEnv(uiEnv) {
-            runPlaywrightShell('node ./scripts/ensure-odhin-report.cjs')
-          }
-        }
-      } else {
-        runInPlaywrightContainer {
-          withEnv(uiEnv) {
-            runPlaywrightShell('corepack yarn test:ui:raw -- --workers=2')
-          }
-        }
-      }
-    } catch (Exception e) {
-      unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
-    } finally {
-      runInPlaywrightContainer {
-        withEnv(uiEnv) {
-          runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
-        }
-      }
-      publishUiReports()
-    }
-  }
+  runApiTests()
+  runUiTests()
+  runIntegrationTests()
 }
 
 withNightlyPipeline(type, product, component, 600) {
@@ -407,14 +426,25 @@ withNightlyPipeline(type, product, component, 600) {
   env.FUNCTIONAL_TESTS_WORKERS = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
   env.PLAYWRIGHT_WORKERS = env.FUNCTIONAL_TESTS_WORKERS
   env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
-  env.API_PW_EXCLUDED_TAGS_OVERRIDE = params.API_PW_EXCLUDED_TAGS_OVERRIDE
+  env.API_PW_EXCLUDED_TAGS_OVERRIDE = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
   env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
   env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
-  env.INTEGRATION_PW_INCLUDE_TAGS = params.INTEGRATION_PW_INCLUDE_TAGS
+  env.INTEGRATION_PW_INCLUDE_TAGS = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
   env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
   env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
-  env.FORCE_COLOR = '0'
+  env.TERM = 'dumb'
   env.NO_COLOR = '1'
+  env.FORCE_COLOR = '0'
+  env.DOTENV_CONFIG_QUIET = 'true'
+  env.LOG_LEVEL = 'silent'
+  env.PW_API_MONITOR_CONSOLE = 'false'
+  env.PW_WA_SETUP_CONSOLE = 'false'
+  env.PW_ODHIN_CONSOLE_LOG = 'false'
+  env.PW_ODHIN_CONSOLE_ERROR = 'false'
+  env.PW_ODHIN_CONSOLE_TEST_OUTPUT = 'false'
+  env.PW_ODHIN_PROFILE = 'false'
+  env.PW_FLAKE_GATE_SUMMARY = 'compact'
+  env.PLAYWRIGHT_LOG_TAG_FILTERS = 'false'
   enableSlackNotifications(channel)
 
   onPR() {
