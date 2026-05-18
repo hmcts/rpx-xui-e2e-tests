@@ -255,7 +255,7 @@ export const EXUI_SOURCE_OF_TRUTH_REFS = {
     repository: "rpx-xui-e2e-tests",
     path: "docs/srt-poc/**",
     kind: "docs",
-    reason: "Local superservice POC assumptions, execution matrix, and skipped-seam record"
+    reason: "Local assurance harness POC assumptions, execution matrix, and skipped-seam record"
   }
 } as const satisfies Record<string, ExuiSuperserviceSourceRef>;
 

@@ -139,13 +139,22 @@ export async function setupHearingsMockRoutes(page: Page, config: HearingsMockRo
     )
   );
   const hearingsApiOverrides = config.hearingsApiOverrides ?? {};
-
-  await page.addInitScript((seededUserInfo) => {
-    window.sessionStorage.setItem('userDetails', JSON.stringify(seededUserInfo));
-  }, userDetails.userInfo);
-
-  const jurisdictionId = String(caseDetails.case_type?.jurisdiction?.id ?? 'IA');
+  const jurisdictionId = String(caseDetails.case_type?.jurisdiction?.id ?? config.caseConfig?.jurisdictionId ?? 'IA');
   const jurisdictionName = String(caseDetails.case_type?.jurisdiction?.name ?? jurisdictionId);
+  const caseTypeId = String(caseDetails.case_type?.id ?? config.caseConfig?.caseTypeId ?? 'IA');
+  const caseReference = String(caseDetails.case_id ?? config.caseConfig?.caseReference);
+  const caseInfo = {
+    caseId: caseReference,
+    caseReference,
+    jurisdiction: jurisdictionId,
+    jurisdictionId,
+    caseType: caseTypeId,
+  };
+
+  await page.addInitScript(({ seededUserInfo, seededCaseInfo }) => {
+    window.sessionStorage.setItem('userDetails', JSON.stringify(seededUserInfo));
+    window.sessionStorage.setItem('caseInfo', JSON.stringify(seededCaseInfo));
+  }, { seededUserInfo: userDetails.userInfo, seededCaseInfo: caseInfo });
   await setupCaseworkerJurisdictionsRoute(page, [jurisdictionId], [{ serviceId: jurisdictionId, serviceName: jurisdictionName }]);
 
   await page.route('**/api/user/details*', async (route) => {
@@ -201,6 +210,18 @@ export async function setupHearingsMockRoutes(page: Page, config: HearingsMockRo
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([]),
+    });
+  });
+
+  await page.route('**/api/organisation*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        name: 'Harness Organisation',
+        organisationIdentifier: 'HARNESS-ORG',
+        status: 'ACTIVE',
+      }),
     });
   });
 

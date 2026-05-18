@@ -131,6 +131,7 @@ export async function openHearingsTabForScenario(
   options?: {
     userIdentifier?: HearingManagerUserIdentifier;
     waitForGetHearingsResponse?: boolean;
+    waitForLoadServiceHearingValuesResponse?: boolean;
   }
 ): Promise<Response | null> {
   await applySessionCookies(page, resolveHearingManagerUserIdentifier(options?.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER));
@@ -146,8 +147,13 @@ export async function openHearingsTabForScenario(
   }
 
   const pendingGetHearingsResponse = page.waitForResponse((response) => response.url().includes('/api/hearings/getHearings'));
+  const pendingServiceHearingValuesResponse = options?.waitForLoadServiceHearingValuesResponse === false
+    ? null
+    : page.waitForResponse((response) => response.url().includes('/api/hearings/loadServiceHearingValues'));
   await caseDetailsPage.selectCaseDetailsTab('Hearings');
-  return pendingGetHearingsResponse;
+  const getHearingsResponse = await pendingGetHearingsResponse;
+  await pendingServiceHearingValuesResponse;
+  return getHearingsResponse;
 }
 
 export function buildLargeListedHearings(total: number): HearingScenario[] {

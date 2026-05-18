@@ -16,6 +16,7 @@ const keepRunning = startOnly || args.has("--keep-running");
 const runProof = !startOnly && !args.has("--no-proof");
 const corepackHome = process.env.COREPACK_HOME || "/private/tmp/corepack-cache";
 const testUrl = process.env.TEST_URL || "http://localhost:3455";
+const harnessWorkers = process.env.HARNESS_WORKERS || process.env.PLAYWRIGHT_WORKERS || "6";
 const children = [];
 const servers = [];
 const useProcessGroups = process.platform !== "win32";
@@ -23,7 +24,7 @@ let cleanedUp = false;
 let shuttingDown = false;
 
 function log(message) {
-  console.log(`[supertest-demo] ${message}`);
+  console.log(`[harness-demo] ${message}`);
 }
 
 function ensureDemoPrerequisites() {
@@ -39,6 +40,7 @@ function makeEnv(extra = {}) {
   return {
     ...process.env,
     COREPACK_HOME: corepackHome,
+    HARNESS_WORKERS: harnessWorkers,
     TEST_ENV: process.env.TEST_ENV || "local",
     TEST_URL: testUrl,
     ...extra
@@ -46,7 +48,7 @@ function makeEnv(extra = {}) {
 }
 
 function prefixStream(label, stream) {
-  if (process.env.SUPERTEST_DEMO_VERBOSE !== "1") {
+  if (process.env.HARNESS_DEMO_VERBOSE !== "1") {
     return;
   }
 
@@ -83,6 +85,26 @@ function startChild(label, command, commandArgs, options) {
   return child;
 }
 
+async function isUrlReady(target, options = {}) {
+  const acceptStatus = options.acceptStatus ?? ((status) => status < 500);
+
+  try {
+    const response = await fetch(target, { method: "GET" });
+    return acceptStatus(response.status);
+  } catch {
+    return false;
+  }
+}
+
+async function startChildUnlessReady(label, healthUrl, command, commandArgs, options) {
+  if (await isUrlReady(healthUrl, options)) {
+    log(`reusing ${label} at ${healthUrl}`);
+    return undefined;
+  }
+
+  return startChild(label, command, commandArgs, options);
+}
+
 function signalChildTree(child, signal) {
   if (!child.pid) {
     return;
@@ -104,12 +126,26 @@ function signalChildTree(child, signal) {
   }
 }
 
-function startSyntheticSeam(label, port) {
+async function startSyntheticSeam(label, port) {
+  const healthUrl = `http://localhost:${port}/health`;
+  if (await isUrlReady(healthUrl)) {
+    log(`reusing ${label} at ${healthUrl}`);
+    return;
+  }
+
   const server = http.createServer((req, res) => {
     res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ message: `${label} synthetic seam` }));
   });
-  server.listen(port);
+
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(port, resolve);
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${label} could not bind to port ${port}. Stop the conflicting process or expose ${healthUrl}. ${message}`);
+  });
+
   servers.push(server);
   log(`starting ${label} on http://localhost:${port}`);
 }
@@ -221,8 +257,13 @@ async function keepAlive() {
   log(`EXUI shell: ${testUrl}`);
   log("Press Ctrl+C to stop the local demo stack.");
   await new Promise((resolve) => {
-    process.once("SIGINT", resolve);
-    process.once("SIGTERM", resolve);
+    const heartbeat = setInterval(() => undefined, 60_000);
+    const stop = () => {
+      clearInterval(heartbeat);
+      resolve();
+    };
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
   });
 }
 
@@ -231,14 +272,15 @@ async function main() {
   log(`repo=${repoRoot}`);
   log(`webapp=${webappRoot}`);
   log(`TEST_URL=${testUrl}`);
+  log(`HARNESS_WORKERS=${harnessWorkers}`);
 
-  startSyntheticSeam("role-assignment shim", 4096);
-  startSyntheticSeam("synthetic SRT shim", 8091);
-  startChild("EXUI backend mock", "yarn", ["test:backendMock"], {
+  await startSyntheticSeam("role-assignment shim", 4096);
+  await startSyntheticSeam("synthetic SRT shim", 8091);
+  await startChildUnlessReady("EXUI backend mock", "http://localhost:8080/health", "yarn", ["test:backendMock"], {
     cwd: webappRoot,
     env: makeEnv()
   });
-  startChild("EXUI Node API", "yarn", ["start:node"], {
+  await startChildUnlessReady("EXUI Node API", "http://localhost:3001/health", "yarn", ["start:node"], {
     cwd: webappRoot,
     env: makeEnv({
       ALLOW_CONFIG_MUTATIONS: "1",
@@ -250,10 +292,16 @@ async function main() {
       SERVICES_IDAM_OAUTH_CALLBACK_URL: "/oauth2/callback"
     })
   });
-  startChild("EXUI static shell", "yarn", ["supertest:local:shell"], {
-    cwd: repoRoot,
-    env: makeEnv()
-  });
+  await startChildUnlessReady(
+    "EXUI static shell",
+    `${testUrl.replace(/\/+$/, "")}/work/my-work/available`,
+    "yarn",
+    ["harness:local:shell"],
+    {
+      cwd: repoRoot,
+      env: makeEnv()
+    }
+  );
 
   await waitForUrl("EXUI backend mock", "http://localhost:8080/health");
   await waitForUrl("EXUI API", "http://localhost:3001/health", {
@@ -266,9 +314,9 @@ async function main() {
   await waitForUrl("Role assignment shim", "http://localhost:4096/health");
 
   if (runProof) {
-    await runCommand("running local Supertester Odhín proof", "yarn", ["supertest:local:odhin"], makeEnv());
-    log("Odhín report: test-results/supertester-poc-odhin-report/supertester-poc-odhin.html");
-    log("Mutation proof command: COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:mutation:wa");
+    await runCommand("running local Assurance Harness Odhín proof", "yarn", ["harness:local:odhin"], makeEnv());
+    log("Odhín report: test-results/harness-poc-odhin-report/harness-poc-odhin.html");
+    log("Mutation proof command: COREPACK_HOME=/private/tmp/corepack-cache yarn harness:mutation:wa");
   }
 
   if (keepRunning) {
@@ -287,7 +335,7 @@ try {
   await main();
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`[supertest-demo] ${message}`);
+  console.error(`[harness-demo] ${message}`);
   process.exitCode = 1;
 } finally {
   if (!keepRunning || process.exitCode) {

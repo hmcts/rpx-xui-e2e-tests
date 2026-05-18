@@ -55,7 +55,9 @@ function isNavigationDuringFilterRead(error: unknown): boolean {
 async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): Promise<string[]> {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await page.waitForURL(/\/work\/my-work\/available(?:\?.*)?$/, { timeout: 5_000 }).catch(() => undefined);
-    await taskListPage.openFilterPanel();
+    if (!(await taskListPage.selectAllServicesFilter.isVisible().catch(() => false))) {
+      await taskListPage.openFilterPanel();
+    }
     await expect(taskListPage.selectAllServicesFilter).toBeVisible();
 
     try {

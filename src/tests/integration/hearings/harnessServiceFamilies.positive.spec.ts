@@ -24,7 +24,7 @@ const privateLawVariation = {
   caseType: privateLawCaseConfig.caseTypeId,
 };
 
-test.describe(`EXUI superservice hearings families as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
+test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
   test('supported Private Law PRLAPPS case renders hearing-manager actions', async ({
     page,
     caseDetailsPage,

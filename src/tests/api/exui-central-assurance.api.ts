@@ -212,15 +212,15 @@ function skipUnlessExactContractStatus(
   endpoint: string
 ): void {
   if ((process.env.TEST_ENV ?? '').toLowerCase() === 'local') {
-    expect(status, `${endpoint} should be reachable in the local superservice proof`).toBe(200);
+    expect(status, `${endpoint} should be reachable in the local assurance harness proof`).toBe(200);
     return;
   }
 
-  testInfo.skip(status !== 200, `${endpoint} returned ${status}; exact superservice proof requires an authenticated 200.`);
+  testInfo.skip(status !== 200, `${endpoint} returned ${status}; exact assurance harness proof requires an authenticated 200.`);
   expect(status).toBe(200);
 }
 
-test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app', '@svc-ref-data'] }, () => {
+test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node-app', '@svc-ref-data'] }, () => {
   test('scenario manifest keeps must-run lanes, planned lanes, and canaries explicit', () => {
     expect(EXUI_SUPERSERVICE_SCENARIOS).toEqual(
       expect.arrayContaining([
@@ -263,7 +263,7 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
     );
   });
 
-  test('source-truth snapshot matches the executable superservice manifest constants', () => {
+  test('source-truth snapshot matches the executable assurance harness manifest constants', () => {
     const sourceTruth = loadSourceTruth();
     const expectedDefaults = sourceTruth.rpxXuiWebapp['config/default.json'];
     const expectedServiceRefDataMapping = Object.fromEntries(

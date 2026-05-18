@@ -9,6 +9,7 @@ const runManifest = args.has("--manifest");
 const runCi = args.has("--ci");
 const runOdhin = args.has("--odhin") || runCi;
 const includeCiUi = ["1", "true", "yes", "on"].includes((process.env.HARNESS_CI_INCLUDE_UI ?? "").toLowerCase());
+const harnessWorkers = process.env.HARNESS_WORKERS || process.env.PLAYWRIGHT_WORKERS || (runCi ? "1" : "6");
 const testUrl = process.env.TEST_URL || (runCi ? "https://manage-case.aat.platform.hmcts.net" : "http://localhost:3455");
 const storagePath = process.env.PW_UI_STORAGE_PATH;
 const storageDescription = storagePath || "per-user storage under test-results/storage-states/ui";
@@ -110,6 +111,7 @@ try {
   console.log(`[harness-local] TEST_URL=${testUrl}`);
   console.log(`[harness-local] UI storage=${storageDescription}`);
   console.log(`[harness-local] mode=${runCi ? "ci" : "local"} API_AUTH_MODE=${commonEnv.API_AUTH_MODE ?? "auto"}`);
+  console.log(`[harness-local] workers=${harnessWorkers}`);
 
   if (!runCi) {
     await checkUrl("EXUI shell", `${testUrl.replace(/\/+$/, "")}/work/my-work/available`);
@@ -134,13 +136,13 @@ try {
           "src/tests/api/exui-central-assurance.api.ts",
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
-          "src/tests/integration/hearings/superServiceFamilies.positive.spec.ts"
+          "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
         ];
     await runCommand("Central assurance Odhín report", "./node_modules/.bin/playwright", [
       "test",
       ...projectArgs,
       ...specArgs,
-      "--workers=1",
+      `--workers=${harnessWorkers}`,
       "--timeout=90000",
       "--global-timeout=120000"
     ], odhinEnv);
@@ -152,7 +154,7 @@ try {
       "--project=api",
       "src/tests/api/exui-central-assurance.api.ts",
       "src/tests/api/exui-historic-replay-packs.api.ts",
-      "--workers=1"
+      `--workers=${harnessWorkers}`
     ]);
 
     await runCommand("Manage-tasks UI proof", "./node_modules/.bin/playwright", [
@@ -161,16 +163,16 @@ try {
       "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
       "--timeout=90000",
       "--global-timeout=120000",
-      "--workers=1"
+      `--workers=${harnessWorkers}`
     ]);
 
     await runCommand("Hearings UI proof", "./node_modules/.bin/playwright", [
       "test",
       "--project=integration",
-      "src/tests/integration/hearings/superServiceFamilies.positive.spec.ts",
+      "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
       "--timeout=90000",
       "--global-timeout=120000",
-      "--workers=1"
+      `--workers=${harnessWorkers}`
     ]);
   }
 
