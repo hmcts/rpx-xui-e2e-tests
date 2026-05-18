@@ -189,6 +189,30 @@ def capJenkinsPlaywrightWorkers = { String configured ->
   return Math.min(4, Math.max(1, parsed.toInteger())).toString()
 }
 
+def buildOdhinEnvironmentLabel = { String workers ->
+  def agentProfile = sh(
+    returnStdout: true,
+    script: '''#!/usr/bin/env bash
+      set +e
+      cpu_cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || true)"
+      ram_gib="$(awk '/MemTotal/ { printf "%.1f", $2 / 1024 / 1024 }' /proc/meminfo 2>/dev/null || true)"
+      profile=""
+      if [ -n "$cpu_cores" ]; then
+        profile="agent_cpu_cores=$cpu_cores"
+      fi
+      if [ -n "$ram_gib" ]; then
+        if [ -n "$profile" ]; then
+          profile="$profile | "
+        fi
+        profile="${profile}agent_ram_gib=$ram_gib"
+      fi
+      printf "%s" "$profile"
+    '''.stripIndent()
+  ).trim()
+  def baseLabel = "${params.TEST_ENV} | ci | workers=${workers}"
+  return agentProfile ? "${baseLabel} | ${agentProfile}" : baseLabel
+}
+
 def hasCourtAdminUiCredentials = {
   env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
 }
@@ -366,6 +390,7 @@ def runCnpPlaywrightStages = {
 
   def runUiTests = {
     stage('UI tests') {
+      def uiOdhinEnvironment = buildOdhinEnvironmentLabel(functionalWorkers)
       def uiEnv = quietConsoleEnv + [
         "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
         "PLAYWRIGHT_WORKERS=${functionalWorkers}",
@@ -376,6 +401,7 @@ def runCnpPlaywrightStages = {
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
         'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+        "PW_ODHIN_ENV=${uiOdhinEnvironment}",
         'PW_ODHIN_SKIP_API_ENDPOINTS=true',
         'PW_UI_USERS=COURT_ADMIN',
         'PW_UI_STORAGE_STRICT=1',

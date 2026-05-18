@@ -313,6 +313,30 @@ def capJenkinsPlaywrightWorkers = { String configured ->
   return Math.min(8, Math.max(1, parsed.toInteger())).toString()
 }
 
+def buildOdhinEnvironmentLabel = { String workers ->
+  def agentProfile = steps.sh(
+    returnStdout: true,
+    script: '''#!/usr/bin/env bash
+      set +e
+      cpu_cores="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || true)"
+      ram_gib="$(awk '/MemTotal/ { printf "%.1f", $2 / 1024 / 1024 }' /proc/meminfo 2>/dev/null || true)"
+      profile=""
+      if [ -n "$cpu_cores" ]; then
+        profile="agent_cpu_cores=$cpu_cores"
+      fi
+      if [ -n "$ram_gib" ]; then
+        if [ -n "$profile" ]; then
+          profile="$profile | "
+        fi
+        profile="${profile}agent_ram_gib=$ram_gib"
+      fi
+      printf "%s" "$profile"
+    '''.stripIndent()
+  ).trim()
+  def baseLabel = "${params.TEST_ENV} | ci | workers=${workers}"
+  return agentProfile ? "${baseLabel} | ${agentProfile}" : baseLabel
+}
+
 def effectiveIntegrationBuckets = { String rawTags ->
   def defaultBuckets = '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5'
   def trimmed = rawTags?.trim()
@@ -464,14 +488,17 @@ withNightlyPipeline(type, product, component, 400) {
           }
         },
         'UI nightly': {
+          def uiWorkers = '2'
+          def uiOdhinEnvironment = buildOdhinEnvironmentLabel(uiWorkers)
           def uiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
+            "FUNCTIONAL_TESTS_WORKERS=${uiWorkers}",
+            "PLAYWRIGHT_WORKERS=${uiWorkers}",
             "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
             "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+            "PW_ODHIN_ENV=${uiOdhinEnvironment}",
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
             'PW_UI_USERS=COURT_ADMIN',
             'PW_UI_STORAGE_STRICT=1',
