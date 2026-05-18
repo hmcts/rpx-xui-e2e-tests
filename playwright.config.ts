@@ -1,6 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { cpus, homedir } from "node:os";
+import { cpus, homedir, totalmem } from "node:os";
 import path from "node:path";
 
 import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
@@ -142,6 +142,60 @@ const parseNonNegativeInteger = (value: string | undefined): number | undefined 
   return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed;
 };
 
+const formatGib = (bytes: number): string => (bytes / 1024 / 1024 / 1024).toFixed(1);
+
+const readTrimmedFile = (filePath: string): string | undefined => {
+  try {
+    return readFileSync(filePath, "utf8").trim();
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveCgroupCpuCores = (): number | undefined => {
+  const cpuMax = readTrimmedFile("/sys/fs/cgroup/cpu.max");
+  if (cpuMax) {
+    const [quotaRaw, periodRaw] = cpuMax.split(/\s+/);
+    const quota = Number(quotaRaw);
+    const period = Number(periodRaw);
+    if (quotaRaw !== "max" && Number.isFinite(quota) && Number.isFinite(period) && quota > 0 && period > 0) {
+      return Math.max(1, Math.round(quota / period));
+    }
+  }
+
+  const quota = Number(readTrimmedFile("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"));
+  const period = Number(readTrimmedFile("/sys/fs/cgroup/cpu/cpu.cfs_period_us"));
+  if (Number.isFinite(quota) && Number.isFinite(period) && quota > 0 && period > 0) {
+    return Math.max(1, Math.round(quota / period));
+  }
+
+  return undefined;
+};
+
+const resolveCgroupMemoryLimitBytes = (): number | undefined => {
+  const totalMemoryBytes = totalmem();
+  for (const filePath of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
+    const rawLimit = readTrimmedFile(filePath);
+    if (!rawLimit || rawLimit === "max") {
+      continue;
+    }
+    const limitBytes = Number(rawLimit);
+    if (Number.isFinite(limitBytes) && limitBytes > 0 && limitBytes <= totalMemoryBytes * 2) {
+      return limitBytes;
+    }
+  }
+  return undefined;
+};
+
+const resolveAgentCpuCores = (): number => resolveCgroupCpuCores() ?? cpus()?.length ?? 1;
+const resolveAgentRamGib = (): string => formatGib(resolveCgroupMemoryLimitBytes() ?? totalmem());
+
+const appendEnvironmentSegment = (segments: string[], key: string, value: string) => {
+  if (!segments.some((segment) => segment === value || segment.startsWith(`${key}=`))) {
+    segments.push(value);
+  }
+};
+
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
   const maxWorkers = parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS;
@@ -159,6 +213,27 @@ const resolveUiProjectWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PW_UI_WORKERS ?? env.PLAYWRIGHT_UI_WORKERS);
   if (configured) return configured;
   return Math.min(MAX_UI_WORKERS, resolveWorkerCount(env));
+};
+
+const resolveOdhinTestEnvironment = (env: EnvMap = process.env, workers = resolveWorkerCount(env)) => {
+  const baseEnvironment = firstNonBlank(env.PW_ODHIN_ENV) ?? env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat");
+  const segments = baseEnvironment
+    .split("|")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const executionMode = env.CI ? "ci" : "local-run";
+  if (!segments.includes("ci") && !segments.includes("local-run")) {
+    segments.push(executionMode);
+  }
+  appendEnvironmentSegment(segments, "workers", `workers=${workers}`);
+
+  if (env.CI) {
+    appendEnvironmentSegment(segments, "agent_cpu_cores", `agent_cpu_cores=${resolveAgentCpuCores()}`);
+    appendEnvironmentSegment(segments, "agent_ram_gib", `agent_ram_gib=${resolveAgentRamGib()}`);
+  }
+
+  return segments.join(" | ");
 };
 
 const resolveApiTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
@@ -317,9 +392,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
             outputFolder: resolveOdhinOutputFolder(env),
             indexFilename: resolveOdhinIndexFilename(env),
             title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e Playwright",
-            testEnvironment:
-              firstNonBlank(env.PW_ODHIN_ENV) ??
-              `${env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat")} | ${env.CI ? "ci" : "local-run"} | workers=${resolveWorkerCount(env)}`,
+            testEnvironment: resolveOdhinTestEnvironment(env, resolveWorkerCount(env)),
             project: resolveOdhinProject(env),
             release: resolveOdhinRelease(env),
             testFolder: firstNonBlank(env.PW_ODHIN_TEST_FOLDER) ?? "src/tests",
@@ -509,6 +582,7 @@ export const __test__ = {
   resolveApiTagFilters,
   resolveE2eTagFilters,
   resolveIntegrationTagFilters,
+  resolveOdhinTestEnvironment,
   resolveUiProjectWorkerCount,
   resolveWorkerCount
 };
