@@ -174,7 +174,9 @@ def runInPlaywrightContainer = { Closure body ->
     return
   }
   withDocker(playwrightImage, playwrightDockerOptions) {
-    body()
+    withEnv(['PLAYWRIGHT_BROWSERS_PATH=/ms-playwright']) {
+      body()
+    }
   }
 }
 
@@ -371,7 +373,7 @@ withNightlyPipeline(type, product, component, 400) {
         if (params.PLAYWRIGHT_USE_DOCKER) {
           echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
         } else {
-          yarnBuilder.yarn('test:setup:playwright-install-chromium')
+          yarnBuilder.yarn('pwinstall')
         }
       } finally {
         recordPlaywrightLoadEvent('Playwright browser install', 'finish')
