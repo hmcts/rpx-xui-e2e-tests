@@ -129,12 +129,14 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
 
   test('createStorageStateWith can use UI session bootstrap for local EXUI auth', async () => {
     const storageRoot = path.join(process.cwd(), 'test-results', 'auth-storage-ui');
-    const expectedStorageStateSuffix = path.join(config.testEnv, 'solicitor.json');
+    const workerEnv = { TEST_WORKER_INDEX: '2' } as NodeJS.ProcessEnv;
+    const expectedStorageStateSuffix = path.join(config.testEnv, 'worker-2', 'solicitor.json');
     let uiCalls = 0;
     let formCalls = 0;
     let tokenCalls = 0;
 
     const storagePath = await authTest.createStorageStateWith('solicitor', {
+      env: workerEnv,
       storageRoot,
       mkdir: async () => undefined,
       getCredentials: () => mockCredentials,
