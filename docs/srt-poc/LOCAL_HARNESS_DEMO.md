@@ -7,6 +7,7 @@ This is the repeatable local demo path for the EXUI harness POC. It proves the c
 - EXUI configuration can be tested centrally as a set of service-family permutations.
 - We do not need to run every downstream service journey to catch EXUI-owned config regressions.
 - The first useful proof is API-first, with thin UI proofs for entitlement-sensitive manage tasks and the hearings supported/unsupported family seam.
+- Developers can now ask for a specific CCD configuration shape to be covered. EXUI-4493 is the worked example: PRL `serviceOfDocuments`, nested complex `emailInformation`, child `FieldShowCondition`, and CYA retention.
 
 ## Runtime Shape
 
@@ -56,6 +57,20 @@ For a full validation run including lint:
 yarn harness:local:validate
 ```
 
+To focus only on the new EXUI-4493-style proof:
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/exui-historic-replay-packs.api.ts
+```
+
+In the test output or code walkthrough, point at the assertion that flattens the CYA rows and checks:
+
+- `sodAdditionalRecipientsList`
+- `emailInformation`
+- `emailInformation.emailName`
+- `emailInformation.emailAddress`
+- `sodAdditionalRecipientsList.serveByPostOrEmail="email"`
+
 The runner pins local defaults:
 
 - `TEST_URL=http://localhost:3455`
@@ -83,11 +98,13 @@ The proof should show:
 
 The API proof checks configuration, global search, WA-supported families, staff-supported families, hearings config, canary exclusions, coverage classification, and manifest/source-reference hygiene.
 
+The historic replay proof now also checks the developer-requested nested-complex CYA shape from EXUI-4493. That is the concrete answer to "can a service team bring us a specific definition pattern to verify?"
+
 The manage-tasks proof checks that the available-tasks service filter exposes exactly the central WA-supported family list and excludes canary families.
 
 The hearings proof checks one supported family (`PRIVATELAW` / `PRLAPPS`) and one unsupported hidden surface (`DIVORCE`), using deterministic route mocks until local HMC is justified.
 
-The latest local Odhin run produced 16 passing tests with 0 failed, 0 skipped, and 0 flaky.
+The latest local Odhin run produced 26 passing tests with 0 failed, 0 skipped, and 0 flaky.
 
 The mutation proof produced a green control run, then caught the injected `drop-prl-wa-family` fault with:
 
@@ -98,3 +115,7 @@ api/wa-supported-jurisdiction/get is missing central must-run service families: 
 ## Talking Point
 
 This is not a replacement for every service's journey tests. It is a release-candidate confidence gate for EXUI-owned behaviour. Services still own true service-specific flows, but EXUI should centrally cover the shared configuration permutations it exposes to all services.
+
+For the EXUI-4493 addition, use this phrasing:
+
+> A developer can now bring a concrete CCD definition shape, not a whole service regression request. We trace it to source files, decide whether it creates a new EXUI interpretation shape, and add a focused central proof. That is how the harness scales without recreating SRT.
