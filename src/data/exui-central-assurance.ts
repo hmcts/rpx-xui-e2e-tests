@@ -152,6 +152,33 @@ export const EXUI_PRL_NORMALIZED_SLICES = [
       "definitions/private-law/json/CaseEventToComplexTypes/WaManageOrders/HearingData/CaseEventToComplexTypes.json",
       "definitions/private-law/json/AuthorisationCaseField/ManageOrders/HearingData/AuthorisationCaseField.json"
     ]
+  },
+  {
+    sliceId: "prl-service-of-documents-nested-cya",
+    service: "PRL",
+    jurisdiction: "PRIVATELAW",
+    caseTypeId: "PRLAPPS",
+    sourceRepo: "prl-ccd-definitions",
+    lanes: [
+      {
+        id: "prl-service-of-documents-additional-recipients-cya",
+        priority: "release-blocking-representative",
+        events: ["serviceOfDocuments"],
+        roles: ["caseworker-privatelaw-courtadmin"],
+        conditions: [
+          "Page 2 sodAdditionalRecipientsList complex",
+          "nested emailInformation complex",
+          "FieldShowCondition on emailInformation child rows",
+          "ShowSummaryChangeOption=Y"
+        ]
+      }
+    ],
+    evidenceRefs: [
+      "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+      "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+      "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+      "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json"
+    ]
   }
 ] as const;
 
@@ -161,6 +188,7 @@ export type AssuranceScenarioLane =
   | "work-allocation"
   | "staff-ref-data"
   | "hearings"
+  | "manage-case"
   | "canary";
 
 export type AssuranceScenarioPriority = "must-run" | "grouped" | "canary";
@@ -305,7 +333,7 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
     serviceFamily: "PRIVATELAW",
     priority: "release-blocking",
     proofLevel: "ccd-backed",
-    lanes: ["global-search", "work-allocation", "staff-ref-data", "hearings"],
+    lanes: ["global-search", "work-allocation", "staff-ref-data", "hearings", "manage-case"],
     representativeCaseTypes: ["PRLAPPS"],
     serviceCodes: ["ABA5"],
     repos: [
@@ -324,8 +352,10 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
         complexTypes: 419
       }
     ],
-    rationale: "Private Law is already the executable normalized slice in the POC and covers EXUI config, WA, hearings, role, and service-code seams.",
-    nextAction: "Keep PRL as the first executable service-slice source and grow it only with reviewed permutation gaps."
+    rationale:
+      "Private Law is already the executable normalized slice in the POC and covers EXUI config, WA, hearings, role, service-code, and nested CYA/complex-field seams.",
+    nextAction:
+      "Keep PRL as the first executable service-slice source and promote additional event-page permutations only when they introduce a distinct EXUI interpretation shape."
   },
   {
     serviceFamily: "IA",
@@ -646,14 +676,16 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
   {
     serviceFamily: "PRIVATELAW",
     disposition: "release-blocking",
-    lanes: [...commonCentralLanes, "hearings"],
+    lanes: [...commonCentralLanes, "hearings", "manage-case"],
     representativeScenarioIds: [
       "global-search-supported-service-families",
       "wa-supported-service-families",
       "staff-supported-service-families",
-      "hearings-privatelaw-prlapps-manager"
+      "hearings-privatelaw-prlapps-manager",
+      "prl-service-of-documents-nested-complex-cya"
     ],
-    rationale: "Representative PRL family covers service-code, role, and hearing-manager permutations sourced from PRL CCD definitions."
+    rationale:
+      "Representative PRL family covers service-code, role, hearing-manager, and nested CYA/complex-field permutations sourced from PRL CCD definitions."
   },
   {
     serviceFamily: "PUBLICLAW",
@@ -845,6 +877,24 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     ]
   },
   {
+    id: "prl-service-of-documents-nested-complex-cya",
+    lane: "manage-case",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "PRIVATELAW",
+    caseType: "PRLAPPS",
+    roleCluster: "caseworker-privatelaw-courtadmin",
+    assertion:
+      "CYA projection retains nested complex child values when CaseEventToComplexTypes child rows have FieldShowCondition",
+    source: "prl-ccd-definitions Service of Documents additional recipients definition",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.playwrightConfigUtilities,
+      EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
     id: "hearings-disabled-divorce",
     lane: "hearings",
     priority: "grouped",
@@ -900,6 +950,20 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     currentPocEvidence: "Executable replay pack asserts complex/collection CYA rows and change-link contracts are represented.",
     wouldHaveCaught: true,
     nextScenarioId: "historic-cya-complex-summary-visibility"
+  },
+  {
+    id: "nested-complex-fieldshowcondition-cya",
+    historicRefs: ["EXUI-4493", "EXUI-4552", "EXUI-3481", "FPVTL-2543"],
+    replayPack: "manage-case-data-integrity",
+    failureClass:
+      "Nested complex child values do not render on CYA when CaseEventToComplexTypes child rows have FieldShowCondition",
+    harnessContract:
+      "PRL Service of Documents additional-recipient replay models sodAdditionalRecipientsList, nested emailInformation, and child FieldShowCondition rows, then asserts CYA includes parent and child values.",
+    coverageStatus: "covered-now",
+    currentPocEvidence:
+      "Executable replay pack asserts Service of Documents nested complex child CYA rows survive show-condition filtering.",
+    wouldHaveCaught: true,
+    nextScenarioId: "prl-service-of-documents-nested-complex-cya"
   },
   {
     id: "hidden-complex-retention",

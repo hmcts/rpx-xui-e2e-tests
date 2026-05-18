@@ -242,6 +242,12 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           lane: 'hearings',
         }),
         expect.objectContaining({
+          executionMode: 'api',
+          id: 'prl-service-of-documents-nested-complex-cya',
+          lane: 'manage-case',
+          priority: 'must-run',
+        }),
+        expect.objectContaining({
           id: 'canary-cmc-hrs',
           priority: 'canary',
         }),
@@ -369,6 +375,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       expect.arrayContaining([
         'manage-case-previous-navigation-data-loss',
         'cya-complex-show-condition-summary',
+        'nested-complex-fieldshowcondition-cya',
         'hidden-complex-retention',
         'wa-task-lifecycle-correlation',
         'wa-tab-location-availability',

@@ -20,6 +20,16 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
+function findJsonFiles(dirPath) {
+  return fs.readdirSync(dirPath, { withFileTypes: true }).flatMap((entry) => {
+    const entryPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      return findJsonFiles(entryPath);
+    }
+    return entry.isFile() && entry.name.endsWith(".json") ? [entryPath] : [];
+  });
+}
+
 function normalize(value) {
   return String(value).trim().toUpperCase();
 }
@@ -172,12 +182,16 @@ function checkPrlDefinitions() {
     }
   }
 
+  const caseEventIds = new Set(
+    findJsonFiles(path.join(prlDefinitionsRoot, "definitions/private-law/json/CaseEvent"))
+      .flatMap((caseEventPath) => readJson(caseEventPath))
+      .map((event) => event.ID)
+      .filter(Boolean)
+  );
+
   for (const slice of source.prlCcdDefinitions.normalizedSlices ?? []) {
     for (const eventId of slice.lanes?.flatMap((lane) => lane.events ?? []) ?? []) {
-      const hasEvent = readJson(path.join(prlDefinitionsRoot, "definitions/private-law/json/CaseEvent/CaseEvent.json")).some(
-        (event) => event.ID === eventId
-      );
-      if (!hasEvent) {
+      if (!caseEventIds.has(eventId)) {
         failures.push(`PRL normalized slice ${slice.sliceId} references missing event ${eventId}.`);
       }
     }

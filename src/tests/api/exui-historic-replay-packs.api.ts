@@ -12,6 +12,7 @@ import {
   EVENT_HISTORY_REPLAY,
   EVENT_START_SPINNER_REPLAY,
   findTaskToComplete,
+  flattenCyaRows,
   IDAM_PASSPORT_SESSION_REPLAY,
   isAnonymousProtectedEndpointResponseSafe,
   isAuthSmokeSessionValid,
@@ -48,6 +49,16 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
       route: "safeguarding",
       safeguardingReason: "Risk identified from application",
       childCollection: [{ firstName: "Alex", riskFlag: "Yes" }],
+      sodAdditionalRecipients: "additionalRecipients",
+      sodAdditionalRecipientsList: [
+        {
+          serveByPostOrEmail: "email",
+          emailInformation: {
+            emailName: "Example organisation",
+            emailAddress: "example.organisation@example.invalid"
+          }
+        }
+      ],
       confidentialDirections: {
         directionId: "dir-001",
         sealedReason: "Judicial direction"
@@ -65,6 +76,30 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
         expect.objectContaining({
           fieldId: "childCollection",
           changeLinkVisible: true
+        }),
+        expect.objectContaining({
+          fieldId: "sodAdditionalRecipientsList",
+          changeLinkVisible: true
+        })
+      ])
+    );
+
+    const flattenedCyaRows = flattenCyaRows(cyaRows);
+    expect(flattenedCyaRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fieldId: "emailInformation",
+          showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+        }),
+        expect.objectContaining({
+          fieldId: "emailInformation.emailName",
+          showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+          value: "Example organisation"
+        }),
+        expect.objectContaining({
+          fieldId: "emailInformation.emailAddress",
+          showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+          value: "example.organisation@example.invalid"
         })
       ])
     );
@@ -159,6 +194,7 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
       expect.arrayContaining([
         "manage-case-previous-navigation-data-loss",
         "cya-complex-show-condition-summary",
+        "nested-complex-fieldshowcondition-cya",
         "hidden-complex-retention",
         "wa-task-lifecycle-correlation",
         "wa-tab-location-availability",

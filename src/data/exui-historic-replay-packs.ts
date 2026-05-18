@@ -45,6 +45,8 @@ export interface CyaReplayRow {
   label: string;
   value: unknown;
   changeLinkVisible: boolean;
+  showCondition?: string;
+  childRows?: readonly CyaReplayRow[];
 }
 
 export interface RoleAssignmentFixture {
@@ -106,8 +108,14 @@ const privateLawBase = {
 
 export const MANAGE_CASE_DATA_INTEGRITY_REPLAY: ManageCaseDataIntegrityReplay = {
   ...privateLawBase,
-  visitedPageIds: ["route-selection", "referral-details", "review-details"],
-  finalVisiblePageIds: ["route-selection", "safeguarding-details", "hidden-complex-retention", "review-details"],
+  visitedPageIds: ["route-selection", "referral-details", "service-of-documents-additional-recipients", "review-details"],
+  finalVisiblePageIds: [
+    "route-selection",
+    "safeguarding-details",
+    "service-of-documents-additional-recipients",
+    "hidden-complex-retention",
+    "review-details"
+  ],
   pages: [
     {
       id: "route-selection",
@@ -153,6 +161,69 @@ export const MANAGE_CASE_DATA_INTEGRITY_REPLAY: ManageCaseDataIntegrityReplay = 
           value: [{ firstName: "Alex", riskFlag: "Yes" }],
           showCondition: "childCollection[0].riskFlag=\"Yes\"",
           showSummaryChangeOption: true
+        }
+      ]
+    },
+    {
+      id: "service-of-documents-additional-recipients",
+      showCondition: "sodAdditionalRecipients=\"additionalRecipients\"",
+      fields: [
+        {
+          id: "sodAdditionalRecipients",
+          label: "Add additional recipients",
+          pageId: "service-of-documents-additional-recipients",
+          value: "additionalRecipients",
+          showSummaryChangeOption: true
+        },
+        {
+          id: "sodAdditionalRecipientsList",
+          label: "Additional recipients",
+          pageId: "service-of-documents-additional-recipients",
+          value: [
+            {
+              serveByPostOrEmail: "email",
+              emailInformation: {
+                emailName: "Example organisation",
+                emailAddress: "example.organisation@example.invalid"
+              }
+            }
+          ],
+          showCondition: "sodAdditionalRecipients=\"additionalRecipients\"",
+          showSummaryChangeOption: true,
+          complexChildren: [
+            {
+              id: "serveByPostOrEmail",
+              label: "Served by",
+              pageId: "service-of-documents-additional-recipients",
+              value: "email"
+            },
+            {
+              id: "emailInformation",
+              label: "Email information",
+              pageId: "service-of-documents-additional-recipients",
+              value: {
+                emailName: "Example organisation",
+                emailAddress: "example.organisation@example.invalid"
+              },
+              showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+              complexChildren: [
+                {
+                  id: "emailInformation.emailName",
+                  label: "Name",
+                  pageId: "service-of-documents-additional-recipients",
+                  value: "Example organisation",
+                  showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+                },
+                {
+                  id: "emailInformation.emailAddress",
+                  label: "Email address",
+                  pageId: "service-of-documents-additional-recipients",
+                  value: "example.organisation@example.invalid",
+                  showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -362,12 +433,25 @@ export function buildCyaRows(replay: ManageCaseDataIntegrityReplay): readonly Cy
     .flatMap((page) => page.fields)
     .filter((field) => finalVisiblePageIds.has(field.pageId))
     .filter((field) => field.displayContext !== "HIDDEN")
-    .map((field) => ({
-      fieldId: field.id,
-      label: field.label,
-      value: field.value,
-      changeLinkVisible: field.showSummaryChangeOption === true
-    }));
+    .map((field) => buildCyaRow(field, finalVisiblePageIds));
+}
+
+function buildCyaRow(field: SyntheticCaseField, finalVisiblePageIds: ReadonlySet<string>): CyaReplayRow {
+  return {
+    fieldId: field.id,
+    label: field.label,
+    value: field.value,
+    changeLinkVisible: field.showSummaryChangeOption === true,
+    showCondition: field.showCondition,
+    childRows: field.complexChildren
+      ?.filter((childField) => finalVisiblePageIds.has(childField.pageId))
+      .filter((childField) => childField.displayContext !== "HIDDEN")
+      .map((childField) => buildCyaRow(childField, finalVisiblePageIds))
+  };
+}
+
+export function flattenCyaRows(rows: readonly CyaReplayRow[]): readonly CyaReplayRow[] {
+  return rows.flatMap((row) => [row, ...flattenCyaRows(row.childRows ?? [])]);
 }
 
 export function resolveCaseworkerJurisdictions(

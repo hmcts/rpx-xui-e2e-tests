@@ -237,6 +237,37 @@
           "definitions/private-law/json/CaseEventToComplexTypes/WaManageOrders/HearingData/CaseEventToComplexTypes.json",
           "definitions/private-law/json/AuthorisationCaseField/ManageOrders/HearingData/AuthorisationCaseField.json"
         ]
+      },
+      {
+        "sliceId": "prl-service-of-documents-nested-cya",
+        "service": "PRL",
+        "jurisdiction": "PRIVATELAW",
+        "caseTypeId": "PRLAPPS",
+        "sourceRepo": "prl-ccd-definitions",
+        "lanes": [
+          {
+            "id": "prl-service-of-documents-additional-recipients-cya",
+            "priority": "release-blocking-representative",
+            "events": [
+              "serviceOfDocuments"
+            ],
+            "roles": [
+              "caseworker-privatelaw-courtadmin"
+            ],
+            "conditions": [
+              "Page 2 sodAdditionalRecipientsList complex",
+              "nested emailInformation complex",
+              "FieldShowCondition on emailInformation child rows",
+              "ShowSummaryChangeOption=Y"
+            ]
+          }
+        ],
+        "evidenceRefs": [
+          "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+          "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+          "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+          "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json"
+        ]
       }
     ]
   },
@@ -302,7 +333,8 @@
           "global-search",
           "work-allocation",
           "staff-ref-data",
-          "hearings"
+          "hearings",
+          "manage-case"
         ],
         "representativeCaseTypes": [
           "PRLAPPS"
@@ -326,8 +358,8 @@
             "complexTypes": 419
           }
         ],
-        "rationale": "Private Law is already the executable normalized slice in the POC and covers EXUI config, WA, hearings, role, and service-code seams.",
-        "nextAction": "Keep PRL as the first executable service-slice source and grow it only with reviewed permutation gaps."
+        "rationale": "Private Law is already the executable normalized slice in the POC and covers EXUI config, WA, hearings, role, service-code, and nested CYA/complex-field seams.",
+        "nextAction": "Keep PRL as the first executable service-slice source and promote additional event-page permutations only when they introduce a distinct EXUI interpretation shape."
       },
       {
         "serviceFamily": "IA",
