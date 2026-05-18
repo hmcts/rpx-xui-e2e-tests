@@ -29,6 +29,7 @@ type StorageDeps = {
   createStorageState: (role: ApiUserRole) => Promise<string>;
   tryReadState: (storagePath: string) => Promise<StorageState | undefined>;
   unlink: (pathValue: string) => Promise<void>;
+  reuseExistingStorage?: boolean;
 };
 
 type CreateStorageDeps = {
@@ -62,7 +63,8 @@ const defaultStorageDeps: StorageDeps = {
   storagePromises,
   createStorageState,
   tryReadState,
-  unlink: fs.unlink
+  unlink: fs.unlink,
+  reuseExistingStorage: true
 };
 
 export async function ensureStorageState(role: ApiUserRole): Promise<string> {
@@ -72,7 +74,7 @@ export async function ensureStorageState(role: ApiUserRole): Promise<string> {
 async function ensureStorageStateWith(role: ApiUserRole, deps: StorageDeps = defaultStorageDeps): Promise<string> {
   const cacheKey = getCacheKey(role, deps.env);
   const existingStoragePath = getStorageStatePath(storageRoot, role, deps.env);
-  if (!deps.storagePromises.has(cacheKey) && (await deps.tryReadState(existingStoragePath))) {
+  if (deps.reuseExistingStorage && !deps.storagePromises.has(cacheKey) && (await deps.tryReadState(existingStoragePath))) {
     return existingStoragePath;
   }
 

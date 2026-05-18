@@ -52,15 +52,18 @@ function isNavigationDuringFilterRead(error: unknown): boolean {
   return /execution context was destroyed|because of a navigation/i.test(asErrorMessage(error));
 }
 
+function isTransientFilterReadError(error: unknown): boolean {
+  return isNavigationDuringFilterRead(error) || /element\(s\) not found|toBeVisible/i.test(asErrorMessage(error));
+}
+
 async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): Promise<string[]> {
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await page.waitForURL(/\/work\/my-work\/available(?:\?.*)?$/, { timeout: 5_000 }).catch(() => undefined);
-    if (!(await taskListPage.selectAllServicesFilter.isVisible().catch(() => false))) {
-      await taskListPage.openFilterPanel();
-    }
-    await expect(taskListPage.selectAllServicesFilter).toBeVisible();
-
     try {
+      if (!(await taskListPage.selectAllServicesFilter.isVisible().catch(() => false))) {
+        await taskListPage.openFilterPanel();
+      }
+      await expect(taskListPage.selectAllServicesFilter).toBeVisible();
       return await taskListPage.serviceFilterCheckboxes.evaluateAll((elements) =>
         elements
           .map((element) => {
@@ -70,7 +73,7 @@ async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): 
           .filter((value): value is string => Boolean(value))
       );
     } catch (error) {
-      if (attempt === 3 || !isNavigationDuringFilterRead(error)) {
+      if (attempt === 3 || !isTransientFilterReadError(error)) {
         throw error;
       }
       await page.waitForLoadState('domcontentloaded').catch(() => undefined);
