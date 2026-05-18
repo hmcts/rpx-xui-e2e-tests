@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This proof treats "supertest" as a superservice configuration-assurance harness, not the npm `supertest` library.
+This proof is a superservice configuration-assurance harness, not a new HTTP API-testing dependency.
 
 The harness lives in `rpx-xui-e2e-tests` and validates EXUI behaviour exposed by a local `rpx-xui-webapp` instance. The source of truth for service-family values remains `rpx-xui-webapp`, especially:
 
@@ -32,7 +32,7 @@ The currently proven local MacBook split is:
 - CCD role assignment: `http://localhost:4096`
 - CCD Docker services on their standard local ports
 
-Use `yarn supertest:local:shell` when Angular `ng serve` is blocked locally. It serves the built EXUI shell and proxies API calls to the local Node API.
+Use `yarn harness:local:shell` when Angular `ng serve` is blocked locally. It serves the built EXUI shell and proxies API calls to the local Node API.
 
 ## Implemented Slice
 
@@ -40,15 +40,15 @@ Use `yarn supertest:local:shell` when Angular `ng serve` is blocked locally. It 
 - A source-truth snapshot: `src/data/exui-central-assurance-source.json`
 - A PRL normalized slice for `manageOrders`, `waManageOrders`, hearing-date permutations, and access/flags source anchors
 - Executable historic replay-pack contracts: `src/data/exui-historic-replay-packs.ts`
-- A manifest drift gate: `scripts/check-exui-supertest-manifest.mjs`
+- A manifest drift gate: `scripts/check-exui-harness-manifest.mjs`
 - API proof: `src/tests/api/exui-central-assurance.api.ts`
 - Historic replay-pack API proof: `src/tests/api/exui-historic-replay-packs.api.ts`
-- Mutation proof runner: `yarn supertest:mutation:wa`
+- Mutation proof runner: `yarn harness:mutation:wa`
 - Manage-tasks UI proof: `src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
 - Hearings UI proof: `src/tests/integration/hearings/superServiceFamilies.positive.spec.ts`
 - Local environment support in API/UI config helpers
 - Manage-tasks route helper extensions for deterministic WA family bootstrap
-- Jenkins CNP/nightly non-blocking POC lane using `yarn supertest:ci`
+- Jenkins CNP/nightly non-blocking POC lane using `yarn harness:ci`
 - Wiki-style source references in the scenario manifest and `docs/srt-poc/KNOWLEDGE_MAP.md`
 
 ## Scaling Model
@@ -87,7 +87,7 @@ The current executable replay packs cover:
 - event-start spinner latency contract
 - IDAM/passport session smoke contract
 
-Media Viewer redaction coordinate correctness remains out of scope for this EXUI-centred Supertester because it needs specialist document fixtures and Evidence Management/Media Viewer coordinate assertions.
+Media Viewer redaction coordinate correctness remains out of scope for this EXUI-centred Harness because it needs specialist document fixtures and Evidence Management/Media Viewer coordinate assertions.
 
 ## Recommendation
 

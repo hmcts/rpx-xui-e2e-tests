@@ -2,6 +2,7 @@ import { faker } from "@faker-js/faker";
 
 import { expect, test } from "../../../fixtures/ui";
 import { requireCreateCaseSelection } from "../utils/create-case-selection.utils.js";
+import { getTodayFormats, matchesToday } from "../utils/date.utils.js";
 import { retryOnTransientFailure } from "../utils/transient-failure.utils.js";
 import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-session.utils.js";
 
@@ -14,26 +15,6 @@ function caseBannerMatches(bannerText: string, caseNumber: string, expectedMessa
   const normalizedBanner = bannerText.replace(/\D/g, "");
   const normalizedCaseNumber = caseNumber.replace(/\D/g, "");
   return normalizedBanner.includes(normalizedCaseNumber) && bannerText.includes(expectedMessage);
-}
-
-function getTodayFormats(): { expectedDate: string; numericFormat: string } {
-  const now = new Date();
-  return {
-    expectedDate: now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric"
-    }),
-    numericFormat: now.toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    })
-  };
-}
-
-function matchesToday(value: string, expectedDate: string, numericFormat: string): boolean {
-  return value.includes(expectedDate) || value.includes(numericFormat);
 }
 
 test.describe(

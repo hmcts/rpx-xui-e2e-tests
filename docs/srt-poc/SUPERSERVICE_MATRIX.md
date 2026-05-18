@@ -37,7 +37,7 @@ The manifest deliberately fails when a newly configured family is not classified
 
 The executable manifest records source references for every scenario. Use `src/data/exui-central-assurance.ts` as the machine-readable version of this matrix, `src/data/exui-central-assurance-source.json` as the checked source snapshot, and `docs/srt-poc/KNOWLEDGE_MAP.md` as the human-readable refresh guide.
 
-`yarn supertest:manifest` checks the snapshot against current `rpx-xui-webapp` config and representative `prl-ccd-definitions` anchors before the Playwright proof runs.
+`yarn harness:manifest` checks the snapshot against current `rpx-xui-webapp` config and representative `prl-ccd-definitions` anchors before the Playwright proof runs.
 
 ## PRL Normalized Slice
 

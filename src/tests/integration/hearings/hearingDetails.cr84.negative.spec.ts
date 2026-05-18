@@ -18,7 +18,7 @@ async function gotoAllowRedirectAbort(page: Page, url: string): Promise<void> {
   });
 }
 
-test.describe(`Hearings CR84 integration as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
+test.describe(`Hearings CR84 integration as ${userIdentifier}`, { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] }, () => {
   test('Hearings - hearings-disabled case does not render the Hearings tab', async ({ page }) => {
     await applySessionCookies(page, userIdentifier);
     await setupHearingsMockRoutes(page, {

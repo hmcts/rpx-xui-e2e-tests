@@ -21,6 +21,8 @@ const parsePositiveInteger = (value) => {
   return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
 };
 
+const firstNonBlank = (...values) => values.map((value) => String(value ?? "").trim()).find(Boolean);
+
 const resolveWorkerCount = (env = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
   if (configured) return Math.min(MAX_WORKERS, configured);
@@ -45,8 +47,7 @@ const resolveOdhinHardTimeoutMs = (env = process.env) =>
   parsePositiveInteger(env.PW_ODHIN_HARD_TIMEOUT_MS) ?? (env.CI ? 0 : 30000);
 
 const resolveReportRelease = (env = process.env) =>
-  env.PLAYWRIGHT_REPORT_RELEASE ??
-  env.PW_ODHIN_RELEASE ??
+  firstNonBlank(env.PLAYWRIGHT_REPORT_RELEASE, env.PW_ODHIN_RELEASE) ??
   `branch=${env.PLAYWRIGHT_REPORT_BRANCH ?? env.GIT_BRANCH ?? "local"}`;
 
 const resolveBrowserChannel = (env = process.env) => {
@@ -81,17 +82,16 @@ const buildConfig = (env = process.env) => {
         "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
         {
           outputFolder:
-            env.PLAYWRIGHT_REPORT_FOLDER ??
-            env.PW_ODHIN_OUTPUT ??
+            firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
             "functional-output/tests/playwright-integration/odhin-report",
-          indexFilename: env.PW_ODHIN_INDEX ?? "playwright-odhin-integration.html",
-          title: env.PW_ODHIN_TITLE ?? "rpx-xui-e2e integration",
+          indexFilename: firstNonBlank(env.PW_ODHIN_INDEX, env.PLAYWRIGHT_REPORT_INDEX_FILENAME) ?? "playwright-odhin-integration.html",
+          title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e integration",
           testEnvironment:
-            env.PW_ODHIN_ENV ??
+            firstNonBlank(env.PW_ODHIN_ENV) ??
             `${env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat")} | ${env.CI ? "ci" : "local-run"}`,
-          project: env.PLAYWRIGHT_REPORT_PROJECT ?? env.PW_ODHIN_PROJECT ?? "rpx-xui-e2e-tests",
+          project: firstNonBlank(env.PLAYWRIGHT_REPORT_PROJECT, env.PW_ODHIN_PROJECT) ?? "rpx-xui-e2e-tests",
           release: resolveReportRelease(env),
-          testFolder: env.PW_ODHIN_TEST_FOLDER ?? "src/tests/integration",
+          testFolder: firstNonBlank(env.PW_ODHIN_TEST_FOLDER) ?? "src/tests/integration",
           lightweight: resolveOdhinLightweight(env),
           consoleLog: consoleCapture.consoleLog,
           consoleError: consoleCapture.consoleError,

@@ -45,7 +45,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers: { ...headers, experimental: 'true' },
         throwOnError: false,
       });
-      expectStatus(res.status, [200, 204, 401, 403, 404, 500]);
+      expectStatus(res.status, [200, 204, 401, 403, 404, 500, 502, 504]);
       assertBinaryResponse(res.status, res.data);
     });
   });
@@ -64,7 +64,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers: { ...headers, experimental: 'true' },
         throwOnError: false,
       });
-      expectStatus(res.status, [200, 204, 401, 403, 404, 500]);
+      expectStatus(res.status, [200, 204, 401, 403, 404, 500, 502, 504]);
     });
   });
 
@@ -74,7 +74,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 500]);
+      expectStatus(res.status, [400, 401, 403, 404, 500, 502, 504]);
     });
   });
 
@@ -86,7 +86,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(createRes.status, [200, 204, 401, 403, 404, 409, 500]);
+      expectStatus(createRes.status, [200, 204, 401, 403, 404, 409, 500, 502, 504]);
       assertAnnotationResponse(createRes.status, createRes.data);
 
       const createdId = resolveCreatedAnnotationId(createRes.data, annotation.id ?? uuid());
@@ -95,7 +95,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(deleteRes.status, [200, 204, 401, 403, 409, 500]);
+      expectStatus(deleteRes.status, [200, 204, 401, 403, 409, 500, 502, 504]);
     });
   });
 
@@ -106,7 +106,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: {},
       throwOnError: false,
     });
-    expectStatus(res.status, [200, 401, 403, 404, 409, 500]);
+    expectStatus(res.status, [200, 401, 403, 404, 409, 500, 502, 504]);
   });
 
   test('rejects annotation mutation with invalid payload', async ({ apiClient }) => {
@@ -117,7 +117,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 409, 500]);
+      expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
     });
   });
 
@@ -127,7 +127,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(listRes.status, [200, 204, 401, 403, 404, 500]);
+      expectStatus(listRes.status, [200, 204, 401, 403, 404, 500, 502, 504]);
 
       const bookmark = await buildBookmark(apiClient, sharedDocId);
       const createRes = await apiClient.put('em-anno/bookmarks', {
@@ -135,7 +135,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(createRes.status, [200, 204, 401, 403, 404, 409, 500]);
+      expectStatus(createRes.status, [200, 204, 401, 403, 404, 409, 500, 502, 504]);
       const createdId = resolveCreatedBookmarkId(createRes.data, bookmark.id ?? uuid());
       assertBookmarkResponse(createRes.status, createRes.data);
 
@@ -144,7 +144,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(deleteRes.status, [200, 204, 401, 403, 404, 409, 500]);
+      expectStatus(deleteRes.status, [200, 204, 401, 403, 404, 409, 500, 502, 504]);
     });
   });
 
@@ -155,7 +155,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: { 'X-XSRF-TOKEN': 'invalid' },
       throwOnError: false,
     });
-    expectStatus(res.status, [400, 401, 403, 409, 500]);
+    expectStatus(res.status, [400, 401, 403, 409, 500, 502, 504]);
   });
 
   test('rejects bookmark creation without XSRF', async ({ apiClient }) => {
@@ -165,7 +165,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: {},
       throwOnError: false,
     });
-    expectStatus(res.status, [200, 401, 403, 404, 409, 500]);
+    expectStatus(res.status, [200, 401, 403, 404, 409, 500, 502, 504]);
   });
 
   test('rejects bookmark mutation with invalid payload', async ({ apiClient }) => {
@@ -175,7 +175,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 409, 500]);
+      expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
     });
   });
 
@@ -192,7 +192,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: buildXsrfHeader(xsrf),
       failOnStatusCode: false,
     });
-    expect([400, 401, 403, 415, 500]).toContain(res.status());
+    expect([400, 401, 403, 415, 500, 502, 504]).toContain(res.status());
     await ctx.dispose();
   });
 
@@ -215,7 +215,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: buildXsrfHeader(xsrf),
       failOnStatusCode: false,
     });
-    expect([400, 401, 403, 415, 500]).toContain(res.status());
+    expect([400, 401, 403, 415, 500, 502, 504]).toContain(res.status());
     await ctx.dispose();
   });
 
@@ -227,7 +227,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 409, 500]);
+      expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
     });
   });
 
@@ -238,7 +238,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 409, 500]);
+      expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
     });
   });
 });

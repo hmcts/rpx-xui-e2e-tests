@@ -27,7 +27,7 @@ import {
 
 import { test, expect } from "./fixtures";
 
-test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-supertester"] }, () => {
+test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-harness"] }, () => {
   test("Private Law replay pack is anchored to current central-assurance config", () => {
     expect(() => assertPrivateLawConfigAnchors()).not.toThrow();
     expect(MANAGE_CASE_DATA_INTEGRITY_REPLAY).toEqual(

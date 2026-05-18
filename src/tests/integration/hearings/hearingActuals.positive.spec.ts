@@ -34,10 +34,8 @@ function buildAdjournedActualsSummary() {
 
 test.describe(
   `Hearings actuals journey as ${HEARING_MANAGER_CR84_OFF_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  { tag: ['@integration-bucket-6', '@integration', '@integration-hearings'] },
   () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('loads adjourned hearing details without showing the generic error state', async ({
       page,
       caseDetailsPage,

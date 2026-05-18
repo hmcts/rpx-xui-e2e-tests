@@ -127,6 +127,11 @@ export class CaseDetailsPage extends Base {
     await this.page.waitForTimeout(intervalMs);
   }
 
+  private isNavigationContextReset(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('Execution context was destroyed') || message.includes('most likely because of a navigation');
+  }
+
   async waitForCaseDetailsPage(): Promise<void> {
     // Case details cold-loads the same large lazy chunk used by several access journeys.
     await this.container.waitFor({
@@ -649,6 +654,7 @@ export class CaseDetailsPage extends Base {
     if (await this.hasCallbackValidationErrorAlert()) {
       throw new Error('Callback data failed validation before selecting party flag target.');
     }
+    await this.throwIfEventCreationError('before selecting party flag target');
     const exactLabel = this.page.getByLabel(`${target} (${target})`);
     // Escape regex special characters to prevent unintended matches
     const escapedTarget = target.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
@@ -712,7 +718,15 @@ export class CaseDetailsPage extends Base {
       .getByRole('alert')
       .filter({ hasText: /callback data failed validation/i })
       .first();
-    return callbackValidationAlert.isVisible({ timeout: timeoutMs }).catch(() => false);
+    if (await callbackValidationAlert.isVisible({ timeout: timeoutMs }).catch(() => false)) {
+      return true;
+    }
+
+    return this.page
+      .getByText(/callback data failed validation/i)
+      .first()
+      .isVisible({ timeout: timeoutMs })
+      .catch(() => false);
   }
 
   async selectCaseDetailsTab(tabName: string) {
@@ -887,13 +901,20 @@ export class CaseDetailsPage extends Base {
         continue;
       }
 
-      const visibleTabCount = await this.tablist2.evaluateAll(
-        (tabs) =>
-          tabs.filter((tab) => {
-            const element = tab as HTMLElement;
-            return !element.hidden && element.offsetParent !== null;
-          }).length
-      );
+      const visibleTabCount = await this.tablist2
+        .evaluateAll(
+          (tabs) =>
+            tabs.filter((tab) => {
+              const element = tab as HTMLElement;
+              return !element.hidden && element.offsetParent !== null;
+            }).length
+        )
+        .catch((error: unknown) => {
+          if (this.isNavigationContextReset(error)) {
+            return 0;
+          }
+          throw error;
+        });
 
       if (visibleTabCount > 0) {
         return;

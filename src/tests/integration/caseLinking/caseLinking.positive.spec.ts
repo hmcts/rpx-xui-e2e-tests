@@ -15,7 +15,7 @@ import {
 
 test.describe(
   "Case linking integration",
-  { tag: ["@integration", "@integration-case-linking"] },
+  { tag: ['@integration-bucket-1', "@integration", "@integration-case-linking"] },
   () => {
     test("links a case from case details and submits the selected reason", async ({
       caseDetailsPage,

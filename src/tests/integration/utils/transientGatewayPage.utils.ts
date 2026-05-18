@@ -18,11 +18,18 @@ export async function hasTransientGatewayPage(page: Page): Promise<boolean> {
   return TRANSIENT_GATEWAY_PAGE_PATTERNS.some((pattern) => pattern.test(bodyText));
 }
 
+function isAbortedNavigation(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /net::ERR_ABORTED|Navigation interrupted|interrupted by another navigation/i.test(message);
+}
+
 export async function navigateWithTransientGatewayRetry(
   page: Page,
   url: string,
   options: {
+    allowAbortedNavigation?: boolean;
     maxAttempts?: number;
+    timeoutMs?: number;
     waitUntil?: NonNullable<Parameters<Page["goto"]>[1]>["waitUntil"];
     contextLabel?: string;
     afterNavigation?: () => Promise<void>;
@@ -30,9 +37,16 @@ export async function navigateWithTransientGatewayRetry(
 ): Promise<void> {
   await retryOnTransientFailure(
     async () => {
-      await page.goto(url, {
-        waitUntil: options.waitUntil ?? "domcontentloaded"
-      });
+      try {
+        await page.goto(url, {
+          waitUntil: options.waitUntil ?? "domcontentloaded",
+          timeout: options.timeoutMs ?? 30_000
+        });
+      } catch (error) {
+        if (!options.allowAbortedNavigation || !isAbortedNavigation(error)) {
+          throw error;
+        }
+      }
 
       if (await hasTransientGatewayPage(page)) {
         throw new Error(

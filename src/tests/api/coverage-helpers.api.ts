@@ -59,6 +59,28 @@ test.describe('Helper utilities and retry logic', { tag: '@svc-internal' }, () =
     expect(timeoutRes.status).toBe(200);
     expect(timeoutAttempts).toBe(2);
 
+    let finalTimeoutError: Error | undefined;
+    try {
+      await withRetry(
+        async () => {
+          throw new Error(
+            [
+              'apiRequestContext.fetch: Timeout 30000ms exceeded.',
+              'Call log:',
+              '  - \u001b[2m→ POST https://manage-case.aat.platform.hmcts.net/workallocation/task\u001b[22m',
+              '  - cookie: should-not-reach-console'
+            ].join('\n')
+          );
+        },
+        { retries: 0 }
+      );
+    } catch (error) {
+      finalTimeoutError = error as Error;
+    }
+    expect(finalTimeoutError?.message).toContain('Transient API request failed after 1 attempt(s)');
+    expect(finalTimeoutError?.message).toContain('POST https://manage-case.aat.platform.hmcts.net/workallocation/task');
+    expect(finalTimeoutError?.message).not.toContain('cookie');
+
     const defaultRes = await withRetry(async () => ({ status: 200 }));
     expect(defaultRes.status).toBe(200);
 
@@ -249,6 +271,26 @@ test.describe('Helper utilities and retry logic', { tag: '@svc-internal' }, () =
     );
     expect(recoveredAfterUnlink).toBe(fakeContext);
     expect(unlinkCalls).toBe(1);
+
+    let missingStateCalls = 0;
+    const missingStateFactory = async () => {
+      missingStateCalls += 1;
+      if (missingStateCalls === 1) {
+        throw new Error("ENOENT: no such file or directory, open 'test-results/storage-states/api/aat/solicitor.json'");
+      }
+      return fakeContext;
+    };
+    const recoveredAfterMissingState = await fixturesTest.buildRequestContext(
+      'solicitor',
+      'state-1',
+      {},
+      {
+        requestFactory: missingStateFactory,
+        ensureStorageState: async () => 'state-2',
+        unlink: async () => {},
+      }
+    );
+    expect(recoveredAfterMissingState).toBe(fakeContext);
 
     const failingFactory = async () => {
       throw new Error('boom');

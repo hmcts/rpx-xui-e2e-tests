@@ -22,12 +22,12 @@ api/wa-supported-jurisdiction/get
 
 That is the same class of central EXUI failure that would affect Work Allocation service-family filtering across all onboarded services that rely on this configuration path.
 
-The live local EXUI proof still exists in `yarn supertest:local:odhin`. This mutation proof is deliberately smaller: it proves the assertion itself goes red for a representative shared regression without needing a full local estate during a stakeholder demo.
+The live local EXUI proof still exists in `yarn harness:local:odhin`. This mutation proof is deliberately smaller: it proves the assertion itself goes red for a representative shared regression without needing a full local estate during a stakeholder demo.
 
 ## One Command
 
 ```bash
-COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:mutation:wa
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:mutation:wa
 ```
 
 The runner performs two steps:
@@ -42,8 +42,8 @@ The command exits successfully only when the baseline is green and the injected 
 The successful proof ends with:
 
 ```text
-[supertest-mutation] Mutation proof passed.
-[supertest-mutation] The control run was green, the injected EXUI-style WA regression was caught, and no source config was changed.
+[harness-mutation] Mutation proof passed.
+[harness-mutation] The control run was green, the injected EXUI-style WA regression was caught, and no source config was changed.
 ```
 
 The expected failing assertion inside the mutated run is:
@@ -55,7 +55,7 @@ api/wa-supported-jurisdiction/get is missing central must-run service families: 
 The Odhín evidence is written to:
 
 ```text
-functional-output/tests/supertester/mutation-proof/odhin-report/supertester-mutation-proof.html
+functional-output/tests/harness/mutation-proof/odhin-report/harness-mutation-proof.html
 ```
 
 ## Demo Script

@@ -4,7 +4,7 @@ import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/he
 
 test.describe(
   `Hearings summary validations as ${HEARING_MANAGER_CR84_ON_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] },
   () => {
     test('shows no-change validation when submitting updated request without edits', async ({
       page,

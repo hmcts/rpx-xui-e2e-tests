@@ -48,6 +48,13 @@ export const config = {
   users: {
     aat: {
       solicitor: { e: "xui_auto_test_user_solicitor@mailinator.com", sec: "Monday01" },
+      waSolicitor: {
+        e: pick(
+          process.env.WA_SOLICITOR_USERNAME,
+          process.env.SOLICITOR_USERNAME
+        ) ?? "xui_auto_test_user_solicitor@mailinator.com",
+        sec: pick(process.env.WA_SOLICITOR_PASSWORD, process.env.SOLICITOR_PASSWORD) ?? "Monday01"
+      },
       caseOfficer_r1: {
         e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME) ?? "xui_auto_co_r1@justice.gov.uk",
         sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD) ?? "Welcome01"
@@ -59,6 +66,13 @@ export const config = {
     },
     demo: {
       solicitor: { e: "peterxuisuperuser@mailnesia.com", sec: "Monday01" },
+      waSolicitor: {
+        e: pick(
+          process.env.WA_SOLICITOR_USERNAME,
+          process.env.SOLICITOR_USERNAME
+        ) ?? "peterxuisuperuser@mailnesia.com",
+        sec: pick(process.env.WA_SOLICITOR_PASSWORD, process.env.SOLICITOR_PASSWORD) ?? "Monday01"
+      },
       caseOfficer_r1: {
         e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME) ?? "xui_caseofficer@justice.gov.uk",
         sec: pick(process.env.CASEOFFICER_R1_PASSWORD, process.env.CASEWORKER_R1_PASSWORD) ?? "Welcome01"
@@ -72,6 +86,13 @@ export const config = {
       solicitor: {
         e: process.env.SOLICITOR_USERNAME ?? "exui.local.srt@hmcts.net",
         sec: process.env.SOLICITOR_PASSWORD ?? "Pa55word11"
+      },
+      waSolicitor: {
+        e: pick(
+          process.env.WA_SOLICITOR_USERNAME,
+          process.env.SOLICITOR_USERNAME
+        ) ?? "exui.local.srt@hmcts.net",
+        sec: pick(process.env.WA_SOLICITOR_PASSWORD, process.env.SOLICITOR_PASSWORD) ?? "Pa55word11"
       },
       caseOfficer_r1: {
         e: pick(process.env.CASEOFFICER_R1_USERNAME, process.env.CASEWORKER_R1_USERNAME) ?? "exui.local.srt@hmcts.net",

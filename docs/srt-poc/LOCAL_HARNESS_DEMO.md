@@ -1,6 +1,6 @@
 # Local Superservice Demo
 
-This is the repeatable local demo path for the EXUI "supertest" POC. It proves the central-assurance idea with local CCD, local EXUI, and deterministic UI integration slices.
+This is the repeatable local demo path for the EXUI harness POC. It proves the central-assurance idea with local CCD, local EXUI, and deterministic UI integration slices.
 
 ## What This Demonstrates
 
@@ -23,7 +23,7 @@ This is the repeatable local demo path for the EXUI "supertest" POC. It proves t
 Run this from `rpx-xui-e2e-tests` after CCD, the EXUI API, and the synthetic SRT shim are already running:
 
 ```bash
-yarn supertest:local:shell
+yarn harness:local:shell
 ```
 
 This serves `../rpx-xui-webapp/dist/rpx-exui/browser` and proxies EXUI API calls to `http://localhost:3001`.
@@ -35,25 +35,25 @@ Use this shell while Angular `ng serve` is blocked by the current local native N
 In a second terminal:
 
 ```bash
-yarn supertest:local:prove
+yarn harness:local:prove
 ```
 
 For a presentation-ready Odhin report:
 
 ```bash
-yarn supertest:local:odhin
+yarn harness:local:odhin
 ```
 
 To prove the gate actually goes red for a representative shared regression, without starting the full local estate:
 
 ```bash
-yarn supertest:mutation:wa
+yarn harness:mutation:wa
 ```
 
 For a full validation run including lint:
 
 ```bash
-yarn supertest:local:validate
+yarn harness:local:validate
 ```
 
 The runner pins local defaults:
@@ -78,8 +78,8 @@ The proof should show:
 - API proof: `src/tests/api/exui-central-assurance.api.ts`
 - Manage-tasks UI proof: `src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
 - Hearings UI proof: `src/tests/integration/hearings/superServiceFamilies.positive.spec.ts`
-- Lint, when running `supertest:local:validate`
-- Odhin HTML, when running `supertest:local:odhin`: `test-results/supertester-poc-odhin-report/supertester-poc-odhin.html`
+- Lint, when running `harness:local:validate`
+- Odhin HTML, when running `harness:local:odhin`: `test-results/harness-poc-odhin-report/harness-poc-odhin.html`
 
 The API proof checks configuration, global search, WA-supported families, staff-supported families, hearings config, canary exclusions, coverage classification, and manifest/source-reference hygiene.
 

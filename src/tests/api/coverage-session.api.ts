@@ -16,6 +16,13 @@ import { UserUtils } from '../e2e/utils/user.utils.js';
 test.describe.configure({ mode: 'serial' });
 
 const mockPassword = process.env.PW_MOCK_PASSWORD ?? String(Date.now());
+const restoreEnv = (name: string, value: string | undefined) => {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+  process.env[name] = value;
+};
 const baseCookie = (name: string, value: string): Cookie => ({
   name,
   value,
@@ -28,6 +35,21 @@ const baseCookie = (name: string, value: string): Cookie => ({
 });
 
 test.describe('Session and cookie utilities coverage', { tag: '@svc-internal' }, () => {
+  let originalCaseworkerR1Username: string | undefined;
+  let originalCaseworkerR1Password: string | undefined;
+
+  test.beforeAll(() => {
+    originalCaseworkerR1Username = process.env.CASEWORKER_R1_USERNAME;
+    originalCaseworkerR1Password = process.env.CASEWORKER_R1_PASSWORD;
+    process.env.CASEWORKER_R1_USERNAME = 'caseworker-r1@example.test';
+    process.env.CASEWORKER_R1_PASSWORD = 'caseworker-r1-password';
+  });
+
+  test.afterAll(() => {
+    restoreEnv('CASEWORKER_R1_USERNAME', originalCaseworkerR1Username);
+    restoreEnv('CASEWORKER_R1_PASSWORD', originalCaseworkerR1Password);
+  });
+
   test('isSessionFresh returns false when stat fails', () => {
     const fsStub = {
       existsSync: () => true,
@@ -41,8 +63,8 @@ test.describe('Session and cookie utilities coverage', { tag: '@svc-internal' },
   test('UserUtils returns credentials for known users and errors on unknown', () => {
     const userUtils = new UserUtils();
     const creds = userUtils.getUserCredentials('IAC_CaseOfficer_R1');
-    expect(creds.email).toContain('@');
-    expect(creds.password).toBeTruthy();
+    expect(creds.email).toBe('caseworker-r1@example.test');
+    expect(creds.password).toBe('caseworker-r1-password');
     expect(() => userUtils.getUserCredentials('UNKNOWN_USER')).toThrow(
       'User "UNKNOWN_USER" is not configured for UI tests.'
     );

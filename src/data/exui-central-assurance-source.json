@@ -241,7 +241,7 @@
     ]
   },
   "historicSrtFailureReplay": {
-    "source": "User-supplied EXUI SRT and incident Confluence extracts for JAC-91 Supertester coverage modelling",
+    "source": "User-supplied EXUI SRT and incident Confluence extracts for JAC-91 Harness coverage modelling",
     "failureClassIds": [
       "manage-case-previous-navigation-data-loss",
       "cya-complex-show-condition-summary",

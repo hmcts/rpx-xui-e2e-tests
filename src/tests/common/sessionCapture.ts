@@ -43,6 +43,7 @@ type SessionCaptureWithDeps = {
   config?: { urls?: { exuiDefaultUrl?: string } };
   cookieUtils?: Pick<CookieUtils, "writeManageCasesSession">;
   env?: NodeJS.ProcessEnv;
+  force?: boolean;
   fs?: Partial<SessionCaptureFs>;
   idamPageFactory?: (page: Page) => unknown;
   isSessionFresh?: typeof isSessionFresh;
@@ -247,10 +248,11 @@ export async function confirmAuthenticatedLogin(
 }
 
 export async function ensureSessionCookies(
-  input: SessionIdentityInput
+  input: SessionIdentityInput,
+  options?: { force?: boolean }
 ): Promise<{ email: string; cookies: Array<{ name: string }>; storageFile: string }> {
   const identity = resolveSessionIdentity(input);
-  await ensureUiStorageStateForUser(identity.userIdentifier, { strict: true });
+  await ensureUiStorageStateForUser(identity.userIdentifier, { strict: true, force: options?.force });
   const storageFile = resolveUiStoragePathForUser(identity.userIdentifier, { email: identity.email });
   const storageState = JSON.parse(fs.readFileSync(storageFile, "utf8")) as {
     cookies?: Array<{ name: string }>;
@@ -266,9 +268,8 @@ export async function sessionCapture(
   users: SessionIdentityInput[],
   options?: { force?: boolean }
 ): Promise<void> {
-  void options;
   for (const user of users) {
-    await ensureSessionCookies(user);
+    await ensureSessionCookies(user, { force: options?.force });
   }
 }
 
@@ -279,6 +280,7 @@ export async function sessionCaptureWith(
   const fsApi = getFs(deps.fs);
   const userUtils = deps.userUtils ?? new UserUtils();
   const targetUrl = deps.env?.TEST_URL ?? deps.config?.urls?.exuiDefaultUrl ?? config.urls.exuiDefaultUrl;
+  const force = deps.force ?? false;
 
   fsApi.mkdirSync(path.join(process.cwd(), ".sessions"), { recursive: true });
   fsApi.mkdirSync(path.join(process.cwd(), "test-results"), { recursive: true });
@@ -289,7 +291,7 @@ export async function sessionCaptureWith(
     const sessionFresh = deps.isSessionFresh ?? isSessionFresh;
     const maxAgeMs = resolveSessionMaxAgeMs(deps.env);
     const isReusable = () => sessionFresh(storageFile, maxAgeMs, { fs: fsApi, targetUrl });
-    if (isReusable()) {
+    if (!force && isReusable()) {
       continue;
     }
 
@@ -299,10 +301,10 @@ export async function sessionCaptureWith(
       lockFilePath: `${storageFile}.lock`,
       userIdentifier: identity.userIdentifier,
       isSessionReusable: isReusable,
-      force: false
+      force
     });
 
-    if (isReusable()) {
+    if (!force && isReusable()) {
       await release();
       continue;
     }

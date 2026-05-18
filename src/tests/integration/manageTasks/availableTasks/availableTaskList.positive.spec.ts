@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`Available Task List as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`Available Task List as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test(`User ${userIdentifier} can view a large number of available tasks on the task list page`, async ({
     taskListPage,
     page,

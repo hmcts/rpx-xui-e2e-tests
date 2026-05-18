@@ -24,6 +24,7 @@ type LoggerInstance = ReturnType<typeof createLogger>;
 type StorageState = { cookies?: Array<{ name?: string; value?: string }> };
 
 type StorageDeps = {
+  env?: NodeJS.ProcessEnv;
   storagePromises: Map<string, Promise<string>>;
   createStorageState: (role: ApiUserRole) => Promise<string>;
   tryReadState: (storagePath: string) => Promise<StorageState | undefined>;
@@ -31,6 +32,7 @@ type StorageDeps = {
 };
 
 type CreateStorageDeps = {
+  env?: NodeJS.ProcessEnv;
   storageRoot?: string;
   mkdir?: typeof fs.mkdir;
   getCredentials?: typeof getCredentials;
@@ -56,6 +58,7 @@ type FormLoginDeps = {
 };
 
 const defaultStorageDeps: StorageDeps = {
+  env: process.env,
   storagePromises,
   createStorageState,
   tryReadState,
@@ -67,7 +70,7 @@ export async function ensureStorageState(role: ApiUserRole): Promise<string> {
 }
 
 async function ensureStorageStateWith(role: ApiUserRole, deps: StorageDeps = defaultStorageDeps): Promise<string> {
-  const cacheKey = getCacheKey(role);
+  const cacheKey = getCacheKey(role, deps.env);
   if (!deps.storagePromises.has(cacheKey)) {
     deps.storagePromises.set(cacheKey, deps.createStorageState(role));
   }
@@ -106,7 +109,7 @@ async function getStoredCookieWith(
   let state = await deps.tryReadState(storagePath);
 
   if (!state) {
-    deps.storagePromises.delete(getCacheKey(role));
+    deps.storagePromises.delete(getCacheKey(role, deps.env));
     storagePath = await ensureStorageStateWith(role, deps);
     state = await deps.tryReadState(storagePath);
   }
@@ -126,6 +129,7 @@ async function createStorageState(role: ApiUserRole): Promise<string> {
 }
 
 async function createStorageStateWith(role: ApiUserRole, deps: CreateStorageDeps = {}): Promise<string> {
+  const env = deps.env ?? process.env;
   const root = deps.storageRoot ?? storageRoot;
   const mkdir = deps.mkdir ?? fs.mkdir;
   const getCreds = deps.getCredentials ?? getCredentials;
@@ -135,7 +139,7 @@ async function createStorageStateWith(role: ApiUserRole, deps: CreateStorageDeps
   const tryBootstrap = deps.tryTokenBootstrap ?? tryTokenBootstrap;
   const loginViaForm = deps.createStorageStateViaForm ?? createStorageStateViaForm;
 
-  const storagePath = path.join(root, config.testEnv, `${role}.json`);
+  const storagePath = getStorageStatePath(root, role, env);
   await mkdir(path.dirname(storagePath), { recursive: true });
 
   const credentials = getCreds(role);
@@ -327,8 +331,21 @@ function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
-function getCacheKey(role: ApiUserRole): string {
-  return `${config.testEnv}-${role}`;
+function getStorageStatePath(root: string, role: ApiUserRole, env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(root, config.testEnv, getWorkerStorageId(env), `${role}.json`);
+}
+
+function getWorkerStorageId(env: NodeJS.ProcessEnv = process.env): string {
+  const rawWorkerId = env.API_AUTH_STORAGE_SCOPE ?? env.TEST_WORKER_INDEX ?? env.TEST_PARALLEL_INDEX ?? env.PW_TEST_WORKER_INDEX;
+  const workerId = rawWorkerId?.trim();
+  if (workerId) {
+    return `worker-${workerId.replace(/[^A-Za-z0-9._-]/g, "-")}`;
+  }
+  return `pid-${process.pid}`;
+}
+
+function getCacheKey(role: ApiUserRole, env: NodeJS.ProcessEnv = process.env): string {
+  return `${config.testEnv}-${getWorkerStorageId(env)}-${role}`;
 }
 
 function hasCookie(state: StorageState | undefined, cookieName: string): boolean {
@@ -386,6 +403,8 @@ function formatUnknownError(error: unknown): string {
 export const __test__ = {
   extractCsrf,
   stripTrailingSlash,
+  getWorkerStorageId,
+  getStorageStatePath,
   getCacheKey,
   isUiSessionBootstrapEnabled,
   isTokenBootstrapEnabled,

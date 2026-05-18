@@ -24,7 +24,7 @@ const eventTriggerResponse = buildCaseEventTriggerMock({
 });
 const tasksTabPath = `/cases/case-details/IA/Asylum/${caseId}/tasks`;
 
-test.describe(`Task event completion as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`Task event completion as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test('shows the no task available validation when the selected event has no completable tasks', async ({
     caseDetailsPage,
     page,

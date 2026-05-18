@@ -9,28 +9,28 @@ Instead of asking each service to retest the same EXUI behaviour after every EXU
 ## What Is Tangible Now
 
 - Machine-readable scenario manifest: `src/data/exui-central-assurance.ts`
-- Source snapshot and drift gate: `src/data/exui-central-assurance-source.json`, `yarn supertest:manifest`
+- Source snapshot and drift gate: `src/data/exui-central-assurance-source.json`, `yarn harness:manifest`
 - API proof: `src/tests/api/exui-central-assurance.api.ts`
 - Manage-tasks UI proof: `src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts`
 - Hearings UI proof: `src/tests/integration/hearings/superServiceFamilies.positive.spec.ts`
-- Jenkins CNP/nightly non-blocking central-assurance lane: `yarn supertest:ci`
-- Local demo runner: `yarn supertest:local:shell`
-- Local proof runner: `yarn supertest:local:prove`
-- Odhin report runner: `yarn supertest:local:odhin`
-- Full local validation: `yarn supertest:local:validate`
-- Mutation proof runner: `yarn supertest:mutation:wa`
-- Demo runbook: `docs/srt-poc/LOCAL_SUPERTEST_DEMO.md`
+- Jenkins CNP/nightly non-blocking central-assurance lane: `yarn harness:ci`
+- Local demo runner: `yarn harness:local:shell`
+- Local proof runner: `yarn harness:local:prove`
+- Odhin report runner: `yarn harness:local:odhin`
+- Full local validation: `yarn harness:local:validate`
+- Mutation proof runner: `yarn harness:mutation:wa`
+- Demo runbook: `docs/srt-poc/LOCAL_HARNESS_DEMO.md`
 - Mutation proof runbook: `docs/srt-poc/MUTATION_PROOF_DEMO.md`
 
 ## Latest Evidence
 
-- `yarn supertest:manifest`: source snapshot matches current `rpx-xui-webapp` config; PRL representative case type, hearing role, and ABA5 HMC subscription anchors present.
+- `yarn harness:manifest`: source snapshot matches current `rpx-xui-webapp` config; PRL representative case type, hearing role, and ABA5 HMC subscription anchors present.
 - `COREPACK_HOME=/private/tmp/corepack-cache yarn lint`: passed with 0 errors and existing baseline warnings only.
-- `COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:mutation:wa`: passed as a demo proof; control run green, injected `drop-prl-wa-family` regression caught with `api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW`.
+- `COREPACK_HOME=/private/tmp/corepack-cache yarn harness:mutation:wa`: passed as a demo proof; control run green, injected `drop-prl-wa-family` regression caught with `api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW`.
 - Focused central-assurance API internal proof: 8 passed.
 - `API_AUTH_MODE=form COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/auth-coverage-storage.api.ts src/tests/api/auth-coverage-bootstrap.api.ts --workers=1`: 10 passed.
-- `COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:local:odhin`: local runtime preflight passed, combined API/UI/integration Odhin proof 16 passed, 0 failed, 0 skipped, 0 flaky.
-- Odhin report: `test-results/supertester-poc-odhin-report/supertester-poc-odhin.html`.
+- `COREPACK_HOME=/private/tmp/corepack-cache yarn harness:local:odhin`: local runtime preflight passed, combined API/UI/integration Odhin proof 16 passed, 0 failed, 0 skipped, 0 flaky.
+- Odhin report: `test-results/harness-poc-odhin-report/harness-poc-odhin.html`.
 
 ## The Current Matrix
 
@@ -48,12 +48,12 @@ Instead of asking each service to retest the same EXUI behaviour after every EXU
 ## Demo Flow
 
 1. Show the manifest and explain that it is the contract for the central assurance matrix.
-2. Start the shell with `yarn supertest:local:shell`.
-3. Run `yarn supertest:local:odhin`.
+2. Start the shell with `yarn harness:local:shell`.
+3. Run `yarn harness:local:odhin`.
 4. Show the Odhin dashboard: 16 tests, 0 failed/skipped/flaky.
 5. Explain that the UI proofs own entitlement/downstream seams by mocking `api/user/details`, WA downstream routes, and hearings downstream contracts.
-6. Show `yarn supertest:manifest` as the control that stops new service-family config from silently escaping classification.
-7. Run `yarn supertest:mutation:wa` to show the gate going red when a shared WA service-family regression is injected, then show the expected failure text naming `PRIVATELAW`.
+6. Show `yarn harness:manifest` as the control that stops new service-family config from silently escaping classification.
+7. Run `yarn harness:mutation:wa` to show the gate going red when a shared WA service-family regression is injected, then show the expected failure text naming `PRIVATELAW`.
 
 ## Developer Questions To Expect
 

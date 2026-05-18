@@ -14,7 +14,7 @@ test.beforeAll(async ({}, testInfo) => {
   await ensureWelshLanguageSessionAccess(testInfo);
 });
 
-test.describe(`Verify users can switch the language as ${userIdentifier} when the translation endpoint fails`, () => {
+test.describe(`Verify users can switch the language as ${userIdentifier} when the translation endpoint fails`, { tag: ['@integration-bucket-1'] }, () => {
   test.beforeEach(async ({ caseListPage, page }, testInfo) => {
     activeLease = await setupWelshLanguageSession(page, testInfo);
     await page.route("**/api/translation/cy*", async (route) => {

@@ -97,6 +97,22 @@ export async function withRetry<T extends { status: number }>(
     );
   };
 
+  const stripAnsi = (value: string): string =>
+    value.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), "");
+
+  const sanitizeTransientApiRequestError = (error: unknown): Error => {
+    const rawMessage = stripAnsi(error instanceof Error ? error.message : String(error));
+    const firstLine = rawMessage.split(/\r?\n/).find((line) => line.trim())?.trim()
+      ?? "request failed";
+    const requestLine = rawMessage.match(/(?:→|-)\s+([A-Z]+)\s+(https?:\/\/\S+)/);
+    const requestSummary = requestLine
+      ? ` ${requestLine[1]} ${requestLine[2]}`
+      : "";
+    const sanitized = new Error(`Transient API request failed after ${attempts} attempt(s): ${firstLine}${requestSummary}`);
+    sanitized.name = error instanceof Error ? error.name : "Error";
+    return sanitized;
+  };
+
   const shouldRetry = (error: unknown): boolean => {
     if (isRetryableError(error) || isTransientApiRequestError(error)) return true;
     if (error && typeof error === "object" && "status" in error) {
@@ -130,6 +146,9 @@ export async function withRetry<T extends { status: number }>(
       await new Promise<void>((resolve) => setTimeout(resolve, resolveRetryDelayMs(attempt, { retryAfterMs })));
     } catch (error) {
       if (!shouldRetry(error) || attempt === attempts) {
+        if (isTransientApiRequestError(error)) {
+          throw sanitizeTransientApiRequestError(error);
+        }
         throw error;
       }
 

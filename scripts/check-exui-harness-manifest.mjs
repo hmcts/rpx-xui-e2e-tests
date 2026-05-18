@@ -134,7 +134,7 @@ function checkXuiEnvConfig(envConfig) {
 
 function checkPrlDefinitions() {
   if (!fs.existsSync(prlDefinitionsRoot)) {
-    console.log(`[supertest-manifest] PRL CCD definitions not present at ${prlDefinitionsRoot}; skipping optional PRL source check.`);
+    console.log(`[harness-manifest] PRL CCD definitions not present at ${prlDefinitionsRoot}; skipping optional PRL source check.`);
     return;
   }
 
@@ -196,17 +196,17 @@ checkXuiEnvConfig(envConfig);
 checkPrlDefinitions();
 
 if (failures.length > 0) {
-  console.error("[supertest-manifest] Source-truth drift detected.");
+  console.error("[harness-manifest] Source-truth drift detected.");
   for (const failure of failures) {
     console.error(`\n- ${failure}`);
   }
   process.exitCode = 1;
 } else {
-  console.log(`[supertest-manifest] rpx-xui-webapp config matches ${path.relative(repoRoot, sourcePath)}.`);
+  console.log(`[harness-manifest] rpx-xui-webapp config matches ${path.relative(repoRoot, sourcePath)}.`);
   console.log(
-    `[supertest-manifest] PRL representative case type, hearing role, ABA5 source anchors, and ${source.prlCcdDefinitions.normalizedSlices.length} normalized slice(s) are present.`
+    `[harness-manifest] PRL representative case type, hearing role, ABA5 source anchors, and ${source.prlCcdDefinitions.normalizedSlices.length} normalized slice(s) are present.`
   );
   console.log(
-    `[supertest-manifest] coverage input sets: global=${expectedDefault.globalSearchServices.length}, wa=${expectedDefault.waSupportedJurisdictions.length}, staff=${expectedDefault.staffSupportedJurisdictions.length}, hearings=${expectedDefault.hearings.hearingsJurisdictions.length}`
+    `[harness-manifest] coverage input sets: global=${expectedDefault.globalSearchServices.length}, wa=${expectedDefault.waSupportedJurisdictions.length}, staff=${expectedDefault.staffSupportedJurisdictions.length}, hearings=${expectedDefault.hearings.hearingsJurisdictions.length}`
   );
 }

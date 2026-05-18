@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 
 test.describe(
   `Review Specific Access Request negative paths as ${userIdentifier}`,
-  { tag: ["@integration", "@integration-access-requests"] },
+  { tag: ['@integration-bucket-2', "@integration", "@integration-access-requests"] },
   () => {
     test("User cannot continue review flow without selecting an action", async ({
       accessRequestPage,

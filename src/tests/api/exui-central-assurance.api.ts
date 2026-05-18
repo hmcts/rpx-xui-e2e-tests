@@ -327,7 +327,7 @@ test.describe('EXUI superservice central assurance POC', { tag: ['@svc-node-app'
     for (const failure of EXUI_HISTORIC_FAILURE_COVERAGE) {
       expect(failure.historicRefs.length, `${failure.id} should trace to supplied historic evidence`).toBeGreaterThan(0);
       expect(failure.failureClass.trim().length, `${failure.id} should describe the failure class`).toBeGreaterThan(0);
-      expect(failure.supertesterContract.trim().length, `${failure.id} should define the Supertester contract`).toBeGreaterThan(
+      expect(failure.harnessContract.trim().length, `${failure.id} should define the Harness contract`).toBeGreaterThan(
         0
       );
       expect(failure.currentPocEvidence.trim().length, `${failure.id} should state current POC evidence`).toBeGreaterThan(0);

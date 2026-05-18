@@ -10,7 +10,7 @@ import { LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 test.describe(
   `Hearings create navigation controls as ${HEARING_MANAGER_CR84_OFF_USER}`,
-  { tag: ['@integration', '@integration-hearings'] },
+  { tag: ['@integration-bucket-4', '@integration', '@integration-hearings'] },
   () => {
     test('supports back-link navigation between hearing workflow and hearings tab', async ({
       page,
@@ -37,7 +37,7 @@ test.describe(
 
       await goBackInHearingsFlow(page);
       await expect(page).toHaveURL(/\/cases\/case-details\/.*#Hearings$/);
-      await expect(page.getByText('Current and upcoming')).toBeVisible();
+      await hearingsTabPage.waitForReady(LISTED_HEARING_SCENARIO.hearingId);
     });
   }
 );

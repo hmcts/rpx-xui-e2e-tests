@@ -8,7 +8,7 @@ const runLint = args.has("--lint");
 const runManifest = args.has("--manifest");
 const runCi = args.has("--ci");
 const runOdhin = args.has("--odhin") || runCi;
-const includeCiUi = ["1", "true", "yes", "on"].includes((process.env.SUPERTEST_CI_INCLUDE_UI ?? "").toLowerCase());
+const includeCiUi = ["1", "true", "yes", "on"].includes((process.env.HARNESS_CI_INCLUDE_UI ?? "").toLowerCase());
 const testUrl = process.env.TEST_URL || (runCi ? "https://manage-case.aat.platform.hmcts.net" : "http://localhost:3455");
 const storagePath = process.env.PW_UI_STORAGE_PATH;
 const storageDescription = storagePath || "per-user storage under test-results/storage-states/ui";
@@ -16,8 +16,8 @@ const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 const odhinOutput =
   process.env.PW_ODHIN_OUTPUT ||
   process.env.PLAYWRIGHT_REPORT_FOLDER ||
-  (runCi ? "functional-output/tests/supertester/odhin-report" : "test-results/supertester-poc-odhin-report");
-const odhinIndex = process.env.PW_ODHIN_INDEX || (runCi ? "supertester-central-assurance.html" : "supertester-poc-odhin.html");
+  (runCi ? "functional-output/tests/harness/odhin-report" : "test-results/harness-poc-odhin-report");
+const odhinIndex = process.env.PW_ODHIN_INDEX || (runCi ? "harness-central-assurance.html" : "harness-poc-odhin.html");
 
 const commonEnv = {
   ...process.env,
@@ -58,17 +58,17 @@ const odhinEnv = {
   ...commonEnv,
   PLAYWRIGHT_REPORTERS: process.env.PLAYWRIGHT_REPORTERS || "dot,odhin",
   PLAYWRIGHT_REPORT_FOLDER: odhinOutput,
-  PLAYWRIGHT_REPORT_PROJECT: process.env.PLAYWRIGHT_REPORT_PROJECT || "EXUI Supertester",
+  PLAYWRIGHT_REPORT_PROJECT: process.env.PLAYWRIGHT_REPORT_PROJECT || "EXUI Harness",
   PW_ODHIN_API_LOGS: process.env.PW_ODHIN_API_LOGS || "summary",
   PW_ODHIN_CONSOLE_TEST_OUTPUT: process.env.PW_ODHIN_CONSOLE_TEST_OUTPUT || "only-on-failure",
   PW_ODHIN_ENV: process.env.PW_ODHIN_ENV || "local-ccd",
   PW_ODHIN_INDEX: odhinIndex,
   PW_ODHIN_LIGHTWEIGHT: process.env.PW_ODHIN_LIGHTWEIGHT || "false",
   PW_ODHIN_OUTPUT: odhinOutput,
-  PW_ODHIN_PROJECT: process.env.PW_ODHIN_PROJECT || "EXUI Supertester",
+  PW_ODHIN_PROJECT: process.env.PW_ODHIN_PROJECT || "EXUI Harness",
   PW_ODHIN_RELEASE: process.env.PW_ODHIN_RELEASE || "test/srt-poc-local-ccd",
   PW_ODHIN_TEST_FOLDER: process.env.PW_ODHIN_TEST_FOLDER || "src/tests",
-  PW_ODHIN_TITLE: process.env.PW_ODHIN_TITLE || "EXUI Supertester POC"
+  PW_ODHIN_TITLE: process.env.PW_ODHIN_TITLE || "EXUI Harness POC"
 };
 
 async function checkUrl(label, target) {
@@ -77,7 +77,7 @@ async function checkUrl(label, target) {
     if (response.status >= 500) {
       throw new Error(`HTTP ${response.status}`);
     }
-    console.log(`[supertest-local] ${label}: ${response.status}`);
+    console.log(`[harness-local] ${label}: ${response.status}`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(`${label} is not reachable at ${target}: ${detail}`);
@@ -85,8 +85,8 @@ async function checkUrl(label, target) {
 }
 
 function runCommand(label, command, commandArgs, env = commonEnv) {
-  console.log(`\n[supertest-local] ${label}`);
-  console.log(`[supertest-local] ${command} ${commandArgs.join(" ")}`);
+  console.log(`\n[harness-local] ${label}`);
+  console.log(`[harness-local] ${command} ${commandArgs.join(" ")}`);
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, commandArgs, {
@@ -107,9 +107,9 @@ function runCommand(label, command, commandArgs, env = commonEnv) {
 }
 
 try {
-  console.log(`[supertest-local] TEST_URL=${testUrl}`);
-  console.log(`[supertest-local] UI storage=${storageDescription}`);
-  console.log(`[supertest-local] mode=${runCi ? "ci" : "local"} API_AUTH_MODE=${commonEnv.API_AUTH_MODE ?? "auto"}`);
+  console.log(`[harness-local] TEST_URL=${testUrl}`);
+  console.log(`[harness-local] UI storage=${storageDescription}`);
+  console.log(`[harness-local] mode=${runCi ? "ci" : "local"} API_AUTH_MODE=${commonEnv.API_AUTH_MODE ?? "auto"}`);
 
   if (!runCi) {
     await checkUrl("EXUI shell", `${testUrl.replace(/\/+$/, "")}/work/my-work/available`);
@@ -119,7 +119,7 @@ try {
   }
 
   if (runManifest) {
-    await runCommand("Source-truth manifest drift check", "yarn", ["supertest:manifest"]);
+    await runCommand("Source-truth manifest drift check", "yarn", ["harness:manifest"]);
   }
 
   if (runLint) {
@@ -145,7 +145,7 @@ try {
       "--global-timeout=120000"
     ], odhinEnv);
 
-    console.log(`\n[supertest-local] Odhín report: ${path.join(odhinOutput, odhinIndex)}`);
+    console.log(`\n[harness-local] Odhín report: ${path.join(odhinOutput, odhinIndex)}`);
   } else {
     await runCommand("Central assurance API proof", "./node_modules/.bin/playwright", [
       "test",
@@ -174,12 +174,12 @@ try {
     ]);
   }
 
-  console.log("\n[supertest-local] POC proof completed.");
+  console.log("\n[harness-local] POC proof completed.");
 } catch (error) {
-  console.error("\n[supertest-local] POC proof failed.");
+  console.error("\n[harness-local] POC proof failed.");
   console.error(error instanceof Error ? error.message : error);
   if (!runCi) {
-    console.error("\nStart the local shell with: yarn supertest:local:shell");
+    console.error("\nStart the local shell with: yarn harness:local:shell");
   }
   process.exitCode = 1;
 }

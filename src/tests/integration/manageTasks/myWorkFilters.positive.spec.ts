@@ -4,7 +4,7 @@ import { assertSharedMyWorkFilterSections } from '../utils/workFiltersAssertions
 
 const authenticatedUserIdentifier = 'STAFF_ADMIN';
 
-test.describe('My work filter parity', { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe('My work filter parity', { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test.beforeEach(async ({ page }) => {
     await applySessionCookies(page, authenticatedUserIdentifier);
   });

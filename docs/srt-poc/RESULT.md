@@ -10,7 +10,7 @@ Implemented on `test/srt-poc-local-ccd`.
 - Added EXUI superservice scenario manifest.
 - Added executable source-truth snapshot and drift gate:
   - `src/data/exui-central-assurance-source.json`
-  - `yarn supertest:manifest`
+  - `yarn harness:manifest`
 - Added API proof for configuration, global search, WA-supported families, staff-supported families, canary handling, coverage classification, and hearings config.
 - Added PRL normalized slice source anchors for `manageOrders`, `waManageOrders`, hearing-date permutations, and access/flags.
 - Added executable historic replay-pack contracts for:
@@ -32,19 +32,19 @@ Implemented on `test/srt-poc-local-ccd`.
 - Added wiki-style source references to the scenario manifest so the POC can be refreshed from repo evidence.
 - Added `docs/srt-poc/KNOWLEDGE_MAP.md` as the local knowledge map for future Codex/reviewer runs.
 - Added a repeatable local demo shell and proof runner:
-  - `yarn supertest:local:shell`
-  - `yarn supertest:local:prove`
-  - `yarn supertest:local:odhin`
-  - `yarn supertest:local:validate`
+  - `yarn harness:local:shell`
+  - `yarn harness:local:prove`
+  - `yarn harness:local:odhin`
+  - `yarn harness:local:validate`
 - Added a CI-oriented runner:
-  - `yarn supertest:ci`
+  - `yarn harness:ci`
   - CNP and nightly Jenkins stages publish Odhin and JUnit evidence as a non-blocking POC lane.
 - Added a reusable workspace skill:
-  - `/Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/.agents/skills/exui-central-assurance-supertester/SKILL.md`
-- Added `docs/srt-poc/LOCAL_SUPERTEST_DEMO.md` and `docs/srt-poc/PRESENTATION_BRIEF.md`.
+  - `/Users/andrew.grizhenkov/HMCTS/dev/PROJECTS/.agents/skills/exui-central-assurance-harness/SKILL.md`
+- Added `docs/srt-poc/LOCAL_HARNESS_DEMO.md` and `docs/srt-poc/PRESENTATION_BRIEF.md`.
 - Added repeatable Odhin reporter env support for local runs so `.env` blanks do not override report output settings.
 - Added a self-contained mutation proof demo:
-  - `yarn supertest:mutation:wa`
+  - `yarn harness:mutation:wa`
   - `docs/srt-poc/MUTATION_PROOF_DEMO.md`
 
 ## Validation
@@ -52,17 +52,17 @@ Implemented on `test/srt-poc-local-ccd`.
 Current change validation:
 
 ```bash
-yarn supertest:manifest
+yarn harness:manifest
 # pass: rpx-xui-webapp config matches src/data/exui-central-assurance-source.json
 # pass: PRL representative case type, hearing role, and ABA5 HMC subscription anchors present
 
 COREPACK_HOME=/private/tmp/corepack-cache yarn lint
 # pass: 0 errors, existing baseline Playwright conditional-test warnings only
 
-COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:mutation:wa
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:mutation:wa
 # pass: control run green, injected drop-prl-wa-family regression caught
 # expected failure text: api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW
-# report: functional-output/tests/supertester/mutation-proof/odhin-report/supertester-mutation-proof.html
+# report: functional-output/tests/harness/mutation-proof/odhin-report/harness-mutation-proof.html
 
 COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/exui-central-assurance.api.ts --grep "scenario manifest|source-truth snapshot|coverage decisions|hearings seam|service-family sets|shared UI route helpers|UI availability probe" --workers=1
 # 8 passed
@@ -70,9 +70,9 @@ COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --
 COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/exui-central-assurance.api.ts src/tests/api/exui-historic-replay-packs.api.ts --workers=1
 # 21 passed
 
-COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:ci
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:ci
 # 21 passed
-# report: functional-output/tests/supertester/odhin-report/supertester-central-assurance.html
+# report: functional-output/tests/harness/odhin-report/harness-central-assurance.html
 
 API_AUTH_MODE=form COREPACK_HOME=/private/tmp/corepack-cache ./node_modules/.bin/playwright test --project=api src/tests/api/auth-coverage-storage.api.ts src/tests/api/auth-coverage-bootstrap.api.ts --workers=1
 # 10 passed
@@ -84,11 +84,11 @@ git diff --check
 Current full local runtime evidence:
 
 ```bash
-COREPACK_HOME=/private/tmp/corepack-cache yarn supertest:local:odhin
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:local:odhin
 # EXUI shell, EXUI API, synthetic SRT shim, and role-assignment preflight all returned 200
 # combined API/UI/integration Odhin proof: 16 passed
 # flake-gate failed=0, flaky=0, skipped=0
-# report: test-results/supertester-poc-odhin-report/supertester-poc-odhin.html
+# report: test-results/harness-poc-odhin-report/harness-poc-odhin.html
 
 curl -fsS http://localhost:3001/health
 curl -fsS http://localhost:8091/health
@@ -99,7 +99,7 @@ curl -fsSI http://localhost:3455/work/my-work/available
 
 ## Residual Risk
 
-The historic failure replay packs are executable contract proofs. They prove the Supertester can encode the failure class and expected EXUI behaviour, but the manage-case data-integrity replay is not yet a full browser journey against CCD event pages.
+The historic failure replay packs are executable contract proofs. They prove the Harness can encode the failure class and expected EXUI behaviour, but the manage-case data-integrity replay is not yet a full browser journey against CCD event pages.
 
 Angular `ng serve` is still blocked on this Mac by a native Node startup crash. The local demo uses the repo-owned static/proxy shell as the repeatable workaround.
 

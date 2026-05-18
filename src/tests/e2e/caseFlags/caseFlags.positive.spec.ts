@@ -197,9 +197,20 @@ test.describe("Party level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, ()
     });
 
     await test.step("Create a new party level flag", async () => {
-      await caseDetailsPage.exuiSpinnerComponent.wait();
-      await caseDetailsPage.selectCaseAction("Create case flag");
-      await caseDetailsPage.selectPartyFlagTarget(testValue, "Welsh");
+      await retryOnTransientFailure(
+        async () => {
+          await caseDetailsPage.exuiSpinnerComponent.wait();
+          await caseDetailsPage.selectCaseAction("Create case flag");
+          await caseDetailsPage.throwIfEventCreationError("while opening party-level case flag event");
+          await caseDetailsPage.selectPartyFlagTarget(testValue, "Welsh");
+        },
+        {
+          maxAttempts: 2,
+          onRetry: async () => {
+            await caseDetailsPage.returnToCurrentCaseDetailsFromEventPage();
+          }
+        }
+      );
     });
 
     await test.step("Check the case flag creation messages are seen", async () => {

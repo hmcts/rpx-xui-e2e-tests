@@ -10,13 +10,26 @@ export class CaseListPage extends Base {
   readonly filtersContainer = this.page.locator(".search-block .hmcts-filter-layout__filter");
   readonly jurisdictionSelect = this.page.locator("#wb-jurisdiction");
   readonly caseTypeSelect = this.page.locator("#wb-case-type");
+  readonly stateSelect = this.page.locator("#wb-case-state");
   readonly textField0Input = this.page.locator("#TextField0");
   readonly filterToggle = this.page.getByRole("button", { name: /show filter|hide filter/i });
   readonly quickSearchContainer = this.page.locator(".hmcts-primary-navigation__global-search");
   readonly quickSearchCaseReferenceInput = this.page.locator("#exuiCaseReferenceSearch");
-  readonly caseListResultsAmount = this.page.locator("#search-result .pagination-top");
+  readonly caseResultsTable = this.page.locator("#search-result table");
+  readonly caseListResultsAmount = this.page
+    .locator("#search-result-summary__text, [data-test='search-result-summary__text'], #search-result .pagination-top")
+    .last();
+  readonly caseListResultsLimitWarning = this.page.locator("#search-result .govuk-warning-text__text");
   readonly caseSearchResultsMessage = this.page.locator("#search-result");
-  readonly pagination = this.page.locator(".ngx-pagination");
+  readonly unselectableCasesInfoMessage = this.page.locator("#info-msg-unselected-case");
+  readonly unselectableCasesInfoDetails = this.page.locator("#info-msg-unselected-case details");
+  readonly unselectableCasesInfoSummaryButton = this.page.locator("#info-msg-unselected-case summary");
+  readonly unselectableCasesInfoSummary = this.page.locator("#sp-msg-unselected-case-header");
+  readonly unselectableCasesInfoContent = this.page.locator("#sp-msg-unselected-case-content");
+  readonly pagination = this.exuiBodyComponent.paginationControls;
+  readonly paginationNext = this.exuiBodyComponent.paginationNextButton;
+  readonly paginationPrevious = this.exuiBodyComponent.paginationPreviousButton;
+  readonly paginationCurrentPage = this.exuiBodyComponent.paginationCurrentPage;
 
   constructor(page: Page) {
     super(page);
@@ -36,6 +49,11 @@ export class CaseListPage extends Base {
   public async searchByCaseType(caseType: string): Promise<void> {
     const select = await this.resolveCaseTypeSelect();
     await this.selectOptionWhenReady(select, caseType, "case type");
+  }
+
+  public async searchByState(state: string): Promise<void> {
+    const select = await this.resolveStateSelect();
+    await this.selectOptionWhenReady(select, state, "state");
   }
 
   public async searchByTextField0(textField0: string): Promise<void> {
@@ -90,6 +108,11 @@ export class CaseListPage extends Base {
   async hasCaseReference(caseReference: string): Promise<boolean> {
     const link = this.page.locator(`a:has-text("${caseReference}")`);
     return (await link.count()) > 0;
+  }
+
+  async clickPaginationPage(pageNumber: number): Promise<void> {
+    const paginationControl = await this.getVisiblePaginationPageControl(pageNumber);
+    await paginationControl.click();
   }
 
   private async ensureFiltersVisible(timeoutMs = 30_000): Promise<void> {
@@ -218,6 +241,39 @@ export class CaseListPage extends Base {
         { locator: this.page.locator("select[formcontrolname='caseType']"), label: "select[formcontrolname='caseType']" }
       ],
       timeoutMs
+    );
+  }
+
+  private async resolveStateSelect(timeoutMs = 60_000) {
+    await this.ensureFiltersVisible(timeoutMs);
+    return this.waitForFirstVisible(
+      [
+        { locator: this.page.locator("#wb-case-state"), label: "#wb-case-state" },
+        { locator: this.page.getByLabel(/^state$/i), label: "label:state" },
+        { locator: this.page.locator("select[name='state']"), label: "select[name='state']" },
+        { locator: this.page.locator("select[formcontrolname='state']"), label: "select[formcontrolname='state']" }
+      ],
+      timeoutMs
+    );
+  }
+
+  private async getVisiblePaginationPageControl(pageNumber: number): Promise<Locator> {
+    const pageText = pageNumber.toString();
+    const candidateControls = this.pagination.locator("a, button").filter({
+      hasText: new RegExp(String.raw`^\s*${pageText}\s*$`)
+    });
+    const candidateCount = await candidateControls.count();
+
+    for (let index = 0; index < candidateCount; index += 1) {
+      const candidate = candidateControls.nth(index);
+      if (await candidate.isVisible().catch(() => false)) {
+        return candidate;
+      }
+    }
+
+    const paginationItems = (await this.pagination.locator("li").allTextContents()).map((item) => item.trim());
+    throw new Error(
+      `Pagination page control "${pageText}" was not visible. Available items: ${paginationItems.join(", ")}`
     );
   }
 

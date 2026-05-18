@@ -17,6 +17,7 @@ import { UserUtils } from "./user.utils.js";
 type EnsureStorageOptions = {
   strict?: boolean;
   baseUrl?: string;
+  force?: boolean;
 };
 
 const resolveStorageTtlMs = (): number => {
@@ -580,11 +581,13 @@ export const ensureUiStorageStateForUser = async (
   const expectedIdentity = { userIdentifier, email };
   fs.mkdirSync(path.dirname(storagePath), { recursive: true });
   migrateLegacyUiStorageStateIfPresent(userIdentifier, email, storagePath);
-  let needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
-    ignoreTtl: strict || ignoreTtl,
-    validateAuthenticatedState: isStorageStateAuthenticated,
-    expectedIdentity
-  });
+  let needsRefresh =
+    options?.force === true ||
+    (await shouldRefreshStorageState(storagePath, baseUrl, {
+      ignoreTtl: strict || ignoreTtl,
+      validateAuthenticatedState: isStorageStateAuthenticated,
+      expectedIdentity
+    }));
   if (!needsRefresh) {
     return;
   }
@@ -600,11 +603,13 @@ export const ensureUiStorageStateForUser = async (
   const releaseLock = await acquireStorageStateLock(storagePath);
 
   try {
-    needsRefresh = await shouldRefreshStorageState(storagePath, baseUrl, {
-      ignoreTtl: strict || ignoreTtl,
-      validateAuthenticatedState: isStorageStateAuthenticated,
-      expectedIdentity
-    });
+    needsRefresh =
+      options?.force === true ||
+      (await shouldRefreshStorageState(storagePath, baseUrl, {
+        ignoreTtl: strict || ignoreTtl,
+        validateAuthenticatedState: isStorageStateAuthenticated,
+        expectedIdentity
+      }));
     if (!needsRefresh) {
       return;
     }

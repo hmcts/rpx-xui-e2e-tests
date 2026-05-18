@@ -8,7 +8,7 @@ import {
 
 test.describe(
   "Case linking integration",
-  { tag: ["@integration", "@integration-case-linking"] },
+  { tag: ['@integration-bucket-1', "@integration", "@integration-case-linking"] },
   () => {
     test("shows validation errors when the user continues without entering mandatory link details", async ({
       caseDetailsPage,

@@ -2,10 +2,11 @@ import { createRequire } from "node:module";
 
 import { defineConfig, type PlaywrightTestConfig } from "@playwright/test";
 
-import { resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
+import { logResolvedTagFilters, resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
 import type { EnvMap } from "./playwright.config.js";
 
 const require = createRequire(import.meta.url);
+const INTEGRATION_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@integration(?:-.+)?$/;
 const support = require("./playwright.integration.config.support.cjs") as {
   buildConfig: (env: EnvMap) => PlaywrightTestConfig;
   resolveOdhinConsoleCapture: (env: EnvMap) => { consoleLog: boolean; consoleError: boolean };
@@ -22,11 +23,15 @@ const resolveIntegrationTagFilters = (env: EnvMap = process.env): ResolvedTagFil
     excludedTagsEnvVar: "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE",
     configPathEnvVar: "INTEGRATION_PW_TAG_FILTER_CONFIG",
     defaultConfigPath: "src/tests/integration/tag-filter.json",
-    suiteTag: "@integration"
+    suiteTag: "@integration",
+    globalExcludedTagsEnvVar: "PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS",
+    ignoreGlobalExcludesEnvVar: "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES",
+    globalExcludedTagsPattern: INTEGRATION_GLOBAL_EXCLUDED_TAGS_PATTERN
   });
 
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const tagFilters = resolveIntegrationTagFilters(env);
+  logResolvedTagFilters("Integration", tagFilters, env);
   const config = support.buildConfig(env);
 
   return {

@@ -7,22 +7,19 @@
 const fs = require("fs");
 const path = require("path");
 
-let scanApiEndpoints;
 let readCoverageSummary;
 let buildCoverageRows;
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const isTruthy = (value) => truthy.has(String(value ?? "").trim().toLowerCase());
+const firstNonBlank = (...values) => values.map((value) => String(value ?? "").trim()).find(Boolean);
 
 const configuredOutput =
-  process.env.PLAYWRIGHT_REPORT_FOLDER ??
-  process.env.PW_ODHIN_OUTPUT ??
+  firstNonBlank(process.env.PLAYWRIGHT_REPORT_FOLDER, process.env.PW_ODHIN_OUTPUT) ??
   path.join("test-results", "odhin-report");
-const htmlOutput = process.env.PLAYWRIGHT_HTML_OUTPUT ?? "playwright-report";
+const htmlOutput = firstNonBlank(process.env.PLAYWRIGHT_HTML_OUTPUT) ?? "playwright-report";
 const configuredTarget =
-  process.env.PW_ODHIN_TARGET ??
-  process.env.PLAYWRIGHT_REPORT_TARGET ??
-  process.env.PLAYWRIGHT_REPORT_FOLDER ??
+  firstNonBlank(process.env.PW_ODHIN_TARGET, process.env.PLAYWRIGHT_REPORT_TARGET, process.env.PLAYWRIGHT_REPORT_FOLDER) ??
   path.join("test-results", "odhin-report");
 const candidateSources = Array.from(new Set([configuredOutput, htmlOutput, configuredTarget]));
 const existingSource = candidateSources.map((p) => path.resolve(p)).find((p) => fs.existsSync(p));
@@ -36,7 +33,7 @@ const apiEndpointsOutput = process.env.PW_API_ENDPOINTS_OUTPUT ?? path.join("cov
 
 async function main() {
   const common = await import("@hmcts/playwright-common");
-  ({ scanApiEndpoints, readCoverageSummary, buildCoverageRows } = common);
+  ({ readCoverageSummary, buildCoverageRows } = common);
 
   try {
     if (!existingSource) {
@@ -58,12 +55,9 @@ async function main() {
     }
 
     if (!skipApiEndpoints) {
-      const apiRoot = path.resolve("src", "tests", "api");
-      const { endpoints, totalHits } = collectApiEndpoints(apiRoot);
-      if (endpoints.length) {
-        writeApiEndpoints(apiEndpointsOutput, { endpoints, totalHits });
-        injectNodeApiTab(resolvedTarget, endpoints, totalHits);
-      }
+      const { endpoints, totalHits, logFiles } = collectApiEndpointsFromLogs(resolveNodeApiLogRoots());
+      writeApiEndpoints(apiEndpointsOutput, { endpoints, totalHits, logFiles });
+      injectNodeApiTab(resolvedTarget, endpoints, totalHits, logFiles);
     }
 
     if (coverageLinkFlag && fs.existsSync(coverageRoot)) {
@@ -224,18 +218,6 @@ function injectCoverageTab(reportFolder, relativeCoveragePath) {
   });
 }
 
-function collectApiEndpoints(rootDir) {
-  if (!scanApiEndpoints || !fs.existsSync(rootDir)) {
-    return { endpoints: [], totalHits: 0 };
-  }
-  try {
-    return scanApiEndpoints(rootDir, { useAst: true });
-  } catch (error) {
-    console.warn(`copy-odhin-report: endpoint scan failed: ${error instanceof Error ? error.message : String(error)}`);
-    return { endpoints: [], totalHits: 0 };
-  }
-}
-
 function writeApiEndpoints(outputPath, result) {
   try {
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -245,7 +227,96 @@ function writeApiEndpoints(outputPath, result) {
   }
 }
 
-function injectNodeApiTab(reportFolder, endpoints, totalHits) {
+function resolveNodeApiLogRoots() {
+  const roots = new Set();
+  const envRoots = [process.env.PW_NODE_API_LOG_ROOT, process.env.PLAYWRIGHT_OUTPUT_DIR, process.env.PLAYWRIGHT_TEST_OUTPUT_DIR];
+  envRoots.filter(Boolean).forEach((root) => roots.add(path.resolve(root)));
+  roots.add(path.resolve("test-results"));
+  return Array.from(roots).filter((root) => fs.existsSync(root));
+}
+
+function collectApiEndpointsFromLogs(roots) {
+  const counts = new Map();
+  let logFiles = 0;
+
+  roots.forEach((rootDir) => {
+    if (!fs.existsSync(rootDir)) {
+      return;
+    }
+    const files = walkFiles(rootDir).filter((file) => file.endsWith("node-api-calls.json"));
+    files.forEach((file) => {
+      logFiles += 1;
+      try {
+        const entries = JSON.parse(fs.readFileSync(file, "utf8"));
+        if (!Array.isArray(entries)) {
+          return;
+        }
+        entries.forEach((entry) => {
+          const endpoint = extractEndpointFromLog(entry);
+          if (!endpoint) {
+            return;
+          }
+          counts.set(endpoint, (counts.get(endpoint) ?? 0) + 1);
+        });
+      } catch {
+        // ignore malformed runtime log files
+      }
+    });
+  });
+
+  const totalHits = Array.from(counts.values()).reduce((sum, count) => sum + count, 0);
+  const endpoints = Array.from(counts.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([endpoint, hits]) => ({ endpoint, hits }));
+  return { endpoints, totalHits, logFiles };
+}
+
+function extractEndpointFromLog(entry) {
+  const rawUrl = entry?.url;
+  if (typeof rawUrl !== "string" || !rawUrl) {
+    return undefined;
+  }
+
+  let endpoint = rawUrl;
+  if (/^https?:\/\//i.test(rawUrl)) {
+    try {
+      const parsed = new URL(rawUrl);
+      endpoint = `${parsed.pathname}${parsed.search}`;
+    } catch {
+      endpoint = rawUrl;
+    }
+  }
+
+  return normalizeEndpoint(endpoint.replace(/^\/+/, ""));
+}
+
+function normalizeEndpoint(endpoint) {
+  const uuidRe = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+  const hexRe = /\b[0-9a-f]{32,}\b/gi;
+  const caseIdRe = /\b\d{16}\b/g;
+  const longNumberRe = /\b\d{6,}\b/g;
+  return endpoint
+    .replace(uuidRe, "${uuid}")
+    .replace(hexRe, "${id}")
+    .replace(caseIdRe, "${caseId}")
+    .replace(longNumberRe, "${id}");
+}
+
+function walkFiles(dir) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  let files = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files = files.concat(walkFiles(full));
+    } else if (entry.isFile()) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+function injectNodeApiTab(reportFolder, endpoints, totalHits, logFiles) {
   const files = fs.readdirSync(reportFolder).filter((f) => f.toLowerCase().endsWith(".html"));
   const rows = endpoints.length
     ? endpoints
@@ -258,7 +329,9 @@ function injectNodeApiTab(reportFolder, endpoints, totalHits) {
       </tr>`;
         })
         .join("\n")
-    : '<tr><td colspan="3" class="text-secondary-emphasis">No API endpoints found</td></tr>';
+    : `<tr><td colspan="3" class="text-secondary-emphasis">${
+        logFiles ? "No API endpoints found in runtime logs" : "No node-api-calls.json runtime logs found"
+      }</td></tr>`;
 
   const tabButton = `
 \t\t\t\t\t\t<button
@@ -275,7 +348,10 @@ function injectNodeApiTab(reportFolder, endpoints, totalHits) {
         <div class="mt-3 mb-3 odhin-thin-border dashboard-block">
           <div class="info-box-header">Tested NodeJs API endpoints</div>
           <p class="text-secondary-emphasis small mb-3 ps-4">
-            Counts come from apiClient/anonymousClient/client calls in Playwright node-api specs; percent is share of total calls.
+            Counts come from node-api-calls.json runtime logs captured during Playwright runs; percent is share of total calls.
+          </p>
+          <p class="text-secondary-emphasis small mb-3 ps-4">
+            This is an endpoint inventory, not server-side coverage. Use the coverage tab for c8 instrumentation results.
           </p>
           <div class="odhin-table-no-scroll">
             <div class="table-responsive">

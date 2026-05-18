@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { promises as fs } from "node:fs";
+import path from "node:path";
 
 import {
   ApiClient as PlaywrightApiClient,
@@ -42,13 +43,6 @@ export const test = base.extend<ApiFixtures>({
       return;
     }
 
-    const shouldAttach =
-      process.env.PLAYWRIGHT_DEBUG_API === "1" ||
-      testInfo.status !== testInfo.expectedStatus;
-    if (!shouldAttach) {
-      return;
-    }
-
     const includeRaw = process.env.PLAYWRIGHT_DEBUG_API === "1";
     const safeEntries = entries.map((entry) => {
       const attachment = buildApiAttachment(entry, { includeRaw });
@@ -57,13 +51,27 @@ export const test = base.extend<ApiFixtures>({
         : attachment.body;
     });
     const pretty = safeEntries.map((entry) => JSON.stringify(entry, null, 2)).join("\n\n---\n\n");
+    const jsonBody = JSON.stringify(safeEntries, null, 2);
+
+    const jsonPath = testInfo.outputPath("node-api-calls.json");
+    const prettyPath = testInfo.outputPath("node-api-calls.pretty.txt");
+    await fs.mkdir(path.dirname(jsonPath), { recursive: true });
+    await fs.writeFile(jsonPath, jsonBody, "utf8");
+    await fs.writeFile(prettyPath, pretty, "utf8");
+
+    const shouldAttach =
+      process.env.PLAYWRIGHT_DEBUG_API === "1" ||
+      testInfo.status !== testInfo.expectedStatus;
+    if (!shouldAttach) {
+      return;
+    }
 
     await testInfo.attach("node-api-calls.json", {
-      body: JSON.stringify(safeEntries, null, 2),
+      path: jsonPath,
       contentType: "application/json"
     });
     await testInfo.attach("node-api-calls.pretty.txt", {
-      body: pretty,
+      path: prettyPath,
       contentType: "text/plain"
     });
   },
@@ -191,7 +199,7 @@ async function buildRequestContext(
   } catch (error) {
     const message = (error as Error)?.message ?? "";
     const statePath = role === "anonymous" ? undefined : storageState;
-    if (role !== "anonymous" && statePath && /Unexpected end of JSON input/i.test(message)) {
+    if (role !== "anonymous" && statePath && /Unexpected end of JSON input|ENOENT|no such file or directory/i.test(message)) {
       try {
         await unlinkFile(statePath);
       } catch {

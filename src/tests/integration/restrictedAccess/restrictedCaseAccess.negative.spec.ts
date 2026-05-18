@@ -56,7 +56,7 @@ test.beforeEach(async ({ page }, testInfo) => {
 
 test.describe(
   "Restricted case access negative flows with prewarmed search session",
-  { tag: ["@integration", "@integration-restricted-case"] },
+  { tag: ['@integration-bucket-2', "@integration", "@integration-restricted-case"] },
   () => {
     test("renders empty table when no users have access", async ({
       caseDetailsPage,

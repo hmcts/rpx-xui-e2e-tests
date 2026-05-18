@@ -151,4 +151,58 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });
+
+  test('session capture force bypasses reusable cached state for dynamic user recapture', async () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-capture-force-unit-'));
+    const originalCwd = process.cwd();
+    const launchCalls: string[] = [];
+    const lockCalls: string[] = [];
+
+    const deps = {
+      chromiumLauncher: {
+        launch: async () => {
+          launchCalls.push('launch');
+          return {
+            newContext: async () => ({
+              newPage: async () => ({
+                goto: async () => undefined,
+              }),
+              cookies: async () => [{ name: 'Idam.Session', value: 'session-cookie', domain: 'example.test', path: '/' }],
+            }),
+            close: async () => undefined,
+          };
+        },
+      },
+      config: { urls: { exuiDefaultUrl: 'https://example.test' } },
+      idamPageFactory: () => ({
+        login: async () => undefined,
+      }),
+      isSessionFresh: () => true,
+      lockfile: {
+        lock: async () => {
+          lockCalls.push('lock');
+          return async () => undefined;
+        },
+      },
+      persistSession: async () => undefined,
+      userUtils: {
+        getUserCredentials: () => ({ email: 'staff-admin@example.test', password: 'secret' }),
+      },
+    };
+
+    try {
+      process.chdir(tempDir);
+
+      await sessionCaptureTest.sessionCaptureWith(['STAFF_ADMIN'], deps as never);
+      expect(launchCalls).toEqual([]);
+      expect(lockCalls).toEqual([]);
+
+      await sessionCaptureTest.sessionCaptureWith(['STAFF_ADMIN'], { ...deps, force: true } as never);
+      expect(launchCalls).toEqual(['launch']);
+      expect(lockCalls).toEqual(['lock']);
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
 });

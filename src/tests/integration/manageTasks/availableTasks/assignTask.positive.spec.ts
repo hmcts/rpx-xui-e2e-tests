@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await applySessionCookies(page, userIdentifier);
 });
 
-test.describe(`Assign Task as ${userIdentifier}`, { tag: ['@integration', '@integration-manage-tasks'] }, () => {
+test.describe(`Assign Task as ${userIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test(`User can assign a task to themselves and see the expected notifications`, async ({ taskListPage, page }) => {
     const taskListMockResponse = buildTaskListMock(3, '', availableActionsList);
 

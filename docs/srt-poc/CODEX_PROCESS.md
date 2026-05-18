@@ -6,7 +6,7 @@ Use this prompt when extending the harness:
 
 ```text
 Inspect rpx-xui-webapp as the source of truth for EXUI service-family config.
-Update rpx-xui-e2e-tests central assurance scenarios without adding npm supertest.
+Update rpx-xui-e2e-tests central assurance scenarios without adding an HTTP API-testing dependency.
 Keep the proof Playwright API-first, add only one thin UI slice for user-visible config behaviour, and mock entitlement/downstream seams deterministically.
 Run lint plus focused API/UI proofs and document skipped seams honestly.
 ```
@@ -17,7 +17,7 @@ Run lint plus focused API/UI proofs and document skipped seams honestly.
 2. Refresh `src/data/exui-central-assurance-source.json`.
 3. Update `src/data/exui-central-assurance.ts`.
 4. Keep `EXUI_SOURCE_OF_TRUTH_REFS` aligned with the repo paths used to justify each scenario.
-5. Run `yarn supertest:manifest` so unclassified or drifted service families fail before UI work starts.
+5. Run `yarn harness:manifest` so unclassified or drifted service families fail before UI work starts.
 6. Add or extend focused API assertions before adding UI coverage.
 7. Add a UI proof only when the config affects a visible EXUI surface.
 8. Control entitlement-sensitive seams with `api/user/details` and session storage mocks.
@@ -32,7 +32,7 @@ Run lint plus focused API/UI proofs and document skipped seams honestly.
 
 ## Guardrails
 
-- Do not add the npm `supertest` dependency for this POC.
+- Do not add a new HTTP API-testing dependency for this POC.
 - Do not run every downstream journey for every family.
 - Do not rely on live user role drift to prove central EXUI config.
 - Do not port the historical `test/srt-poc` branch wholesale.

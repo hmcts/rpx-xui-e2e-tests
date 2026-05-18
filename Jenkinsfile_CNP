@@ -9,7 +9,7 @@ properties([
       defaultValue: 'https://manage-case.aat.platform.hmcts.net/',
       description: 'Base URL under test'
     ),
-      string(
+    string(
       name: 'S2S_URL',
       defaultValue: 'http://rpe-service-auth-provider-aat.service.core-compute-aat.internal/testing-support/lease',
       description: 'S2S URL under test'
@@ -22,7 +22,57 @@ properties([
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
       defaultValue: '4',
-      description: 'Number of Playwright workers (maps to PLAYWRIGHT_WORKERS)'
+      description: 'Number of Playwright workers, capped at 4 in Jenkins'
+    ),
+    string(
+      name: 'API_PW_INCLUDE_TAGS',
+      defaultValue: '',
+      description: 'Optional API service tags to include, e.g. @svc-ccd'
+    ),
+    string(
+      name: 'API_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '@svc-work-allocation',
+      description: 'API service tags to exclude. Defaults to skipping Work Allocation API checks while Jenkins stability is isolated; use @none to clear defaults.'
+    ),
+    string(
+      name: 'E2E_PW_INCLUDE_TAGS',
+      defaultValue: '',
+      description: 'Optional E2E tags to include, e.g. @e2e-smoke'
+    ),
+    string(
+      name: 'E2E_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '',
+      description: 'Optional E2E tags to exclude; use @none to clear defaults'
+    ),
+    string(
+      name: 'INTEGRATION_PW_INCLUDE_TAGS',
+      defaultValue: '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5',
+      description: 'Integration buckets to run while isolating Jenkins agent failures. Add @integration-bucket-6 after bucket 5 passes.'
+    ),
+    string(
+      name: 'INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE',
+      defaultValue: '@nightly,@integration-bucket-6',
+      description: 'Integration tags to exclude; bucket 6 is held out while isolating Jenkins agent failures.'
+    ),
+    string(
+      name: 'INTEGRATION_PW_WORKERS',
+      defaultValue: '4',
+      description: 'Integration worker-count override for bucket isolation, capped at 4 in Jenkins.'
+    ),
+    string(
+      name: 'INTEGRATION_PW_SHARD',
+      defaultValue: '',
+      description: 'Optional Playwright integration shard override, for example 1/4. Used with INTEGRATION_PW_WORKERS.'
+    ),
+    text(
+      name: 'INTEGRATION_PW_PROFILE_RUNS',
+      defaultValue: 'workers=4',
+      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 4.'
+    ),
+    string(
+      name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
+      defaultValue: 'false',
+      description: 'Set true to ignore globally excluded Playwright tags for this run'
     )
   ])
 ])
@@ -43,7 +93,41 @@ static Map<String, Object> secret(String secretName, String envVariable) {
   ]
 }
 
-// Populate with real Key Vault secret names once known; empty list keeps the pattern intact.
+static String removeTag(String rawTags, String tagToRemove) {
+  if (!rawTags?.trim()) {
+    return ''
+  }
+  rawTags.split(/[,\s]+/)
+    .findAll { tag -> tag && tag != tagToRemove }
+    .join(',')
+}
+
+static String effectiveTagOverride(String rawTags, String fallbackTags) {
+  def trimmed = rawTags?.trim()
+  return trimmed ? trimmed : fallbackTags
+}
+
+static String effectiveIntegrationExcludedTags(String rawTags) {
+  def tags = effectiveTagOverride(rawTags, '@nightly,@integration-bucket-6')
+    .split(/[,\s]+/)
+    .findAll { tag -> tag && tag != '@none' }
+  if (!tags.contains('@integration-bucket-6')) {
+    tags.add('@integration-bucket-6')
+  }
+  return tags.join(',')
+}
+
+static String effectiveIntegrationBuckets(String rawTags) {
+  def defaultBuckets = '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5'
+  def trimmed = rawTags?.trim()
+  return (!trimmed || trimmed == '@integration-bucket-1' || trimmed == '@integration-bucket-1,@integration-bucket-2' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3' || trimmed == '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4') ? defaultBuckets : trimmed
+}
+
+static String effectiveIntegrationWorkers(String rawWorkers) {
+  def trimmed = rawWorkers?.trim()
+  return (!trimmed || trimmed == '2') ? '4' : trimmed
+}
+
 def secrets = [
   "rpx-${params.TEST_ENV}": [
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
@@ -56,9 +140,6 @@ def secrets = [
     secret('idam-return-url', 'IDAM_RETURN_URL'),
     secret('s2s-url', 'S2S_URL'),
     secret('s2s-microservice-name', 'S2S_MICROSERVICE_NAME'),
-    // secret('idam-citizen-user-password', 'IDAM_CITIZEN_USER_PASSWORD'),
-    // secret('citizen-username', 'CITIZEN_USERNAME'),
-    // secret('citizen-password', 'CITIZEN_PASSWORD'),
     secret('prl-solicitor-username', 'PRL_SOLICITOR_USERNAME'),
     secret('prl-solicitor-password', 'PRL_SOLICITOR_PASSWORD'),
     secret('solicitor-username', 'SOLICITOR_USERNAME'),
@@ -79,8 +160,6 @@ def secrets = [
     secret('xui-dynamic-rd-professional-api-path', 'RD_PROFESSIONAL_API_PATH'),
     secret('judge-username', 'JUDGE_USERNAME'),
     secret('judge-password', 'JUDGE_PASSWORD'),
-    // secret('case-manager-username', 'CASEMANAGER_USERNAME'),
-    // secret('case-manager-password', 'CASEMANAGER_PASSWORD'),
     secret('caseworker-r1-username', 'CASEWORKER_R1_USERNAME'),
     secret('caseworker-r1-password', 'CASEWORKER_R1_PASSWORD'),
     secret('caseworker-r2-username', 'CASEWORKER_R2_USERNAME'),
@@ -89,174 +168,336 @@ def secrets = [
     secret('court-admin-password', 'COURT_ADMIN_PASSWORD'),
     secret('staff-admin-username', 'STAFF_ADMIN_USERNAME'),
     secret('staff-admin-password', 'STAFF_ADMIN_PASSWORD'),
-    // secret('noc-solicitor-username', 'NOC_SOLICITOR_USERNAME'),
-    // secret('noc-solicitor-password', 'NOC_SOLICITOR_PASSWORD'),
-    // secret('wa-solicitor-username', 'WA_SOLICITOR_USERNAME'),
-    // secret('wa-solicitor-password', 'WA_SOLICITOR_PASSWORD'),
-    // secret('courtnav-secret', 'COURTNAV_SECRET'),
-    // secret('courtnav-username', 'COURTNAV_USERNAME'),
-    // secret('courtnav-password', 'COURTNAV_PASSWORD'),
-    // secret('courtnav-subscription-key-create-case', 'COURTNAV_SUBSCRIPTION_KEY_CREATE_CASE'),
-    // secret('courtnav-case-url', 'COURTNAV_CASE_URL'),
-    // secret('courtnav-doc-url', 'COURTNAV_DOC_URL'),
-    // secret('courtnav-subscription-key-add-doc', 'COURTNAV_SUBSCRIPTION_KEY_ADD_DOC'),
-    // secret('ccd-data-store-client-username', 'CCD_DATA_STORE_CLIENT_USERNAME'),
-    // secret('ccd-data-store-client-password', 'CCD_DATA_STORE_CLIENT_PASSWORD'),
-    // secret('ccd-data-store-client-id', 'CCD_DATA_STORE_CLIENT_ID'),
-    // secret('ccd-data-store-secret', 'CCD_DATA_STORE_SECRET'),
-    // secret('ccd-data-store-url', 'CCD_DATA_STORE_URL'),
-    // secret('manage-case-redirect-uri', 'MANAGE_CASE_REDIRECT_URI'),
-    // secret('prl-cos-api-url', 'PRL_COS_API_URL')
+    secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS')
   ]
 ]
 
-def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
+def playwrightImage = "mcr.microsoft.com/playwright:v1.60.0-noble"
+def playwrightDockerOptions = "--ipc=host"
 
-withNightlyPipeline(type, product, component, 300) {
-  loadVaultSecrets(secrets)
-  env.TEST_URL = params.TEST_URL
-  env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.PLAYWRIGHT_WORKERS = params.FUNCTIONAL_TESTS_WORKERS
-  env.GIT_BRANCH = env.BRANCH_NAME ?: (env.GIT_BRANCH ?: "local")
-  enableSlackNotifications(channel)
+def runInPlaywrightContainer = { Closure body ->
+  withDocker(playwrightImage, playwrightDockerOptions) {
+    body()
+  }
+}
 
-  afterAlways('DependencyCheckNightly') {
-    stage('Lint') {
-      yarnBuilder.yarn('lint')
+def capJenkinsPlaywrightWorkers = { String configured ->
+  def parsed = (configured ?: '4').trim()
+  if (!parsed.isInteger()) {
+    return '4'
+  }
+  return Math.min(4, Math.max(1, parsed.toInteger())).toString()
+}
+
+def hasCourtAdminUiCredentials = {
+  env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
+}
+
+def runPlaywrightShell = { String command ->
+  sh(
+    script: """#!/usr/bin/env bash
+      set -euxo pipefail
+      export PATH="\$HOME/.local/bin:\$PATH"
+      corepack yarn --version
+      ${command}
+    """.stripIndent()
+  )
+}
+
+def runDiagnostics = {
+  stage('Diag: Playwright container evidence') {
+    runInPlaywrightContainer {
+      sh(
+        script: '''#!/usr/bin/env bash
+          set -euxo pipefail
+          echo "=== diagnostic:start ==="
+          echo "HOSTNAME=$(hostname)"
+          echo "WHOAMI=$(whoami)"
+          echo "PWD=$(pwd)"
+          echo "PLAYWRIGHT_BROWSERS_PATH=${PLAYWRIGHT_BROWSERS_PATH:-<unset>}"
+          echo "--- /etc/os-release ---"
+          cat /etc/os-release || true
+          echo "--- playwright image marker (/ms-playwright) ---"
+          ls -la /ms-playwright || true
+          echo "--- node + playwright package version ---"
+          node -v
+          node -e 'try { console.log(require("@playwright/test/package.json").version) } catch (e) { console.log("NO_PLAYWRIGHT_PACKAGE", e.message) }'
+          echo "--- playwright CLI version ---"
+          npx playwright --version || true
+          echo "=== diagnostic:end ==="
+        '''.stripIndent()
+      )
     }
+  }
+}
 
-    stage('Install Playwright Browsers') {
-      yarnBuilder.yarn('pwinstall')
-    }
+def publishApiReports = {
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : 'functional-output/tests/api_functional/odhin-report',
+    reportFiles          : 'playwright-odhin.html',
+    reportName           : 'API Odhín report'
+  ])
+  junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
+}
 
-    stage('Tests') {
-      parallel(
-        'EXUI central assurance': {
-          def supertestOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=1',
-            'PLAYWRIGHT_WORKERS=1',
-            'PLAYWRIGHT_REPORTERS=list,odhin,junit',
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/supertester/odhin-report',
-            'PLAYWRIGHT_JUNIT_OUTPUT=playwright-supertester-junit.xml',
-            'PW_ODHIN_INDEX=supertester-central-assurance.html',
-            'PW_ODHIN_TITLE=EXUI Central Assurance Supertester',
-            'PW_ODHIN_PROJECT=EXUI Supertester',
-            "PW_ODHIN_ENV=${params.TEST_ENV} | ci | api-gate"
-          ]
-          try {
-            withEnv(supertestOdhinEnv) {
-              yarnBuilder.yarn('supertest:ci')
-            }
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/supertester/odhin-report",
-              reportFiles          : 'supertester-central-assurance.html',
-              reportName           : 'EXUI central assurance Supertester'
-            ])
-            junit(testResults: "playwright-supertester-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/supertester/**'
-          }
-        },
-        'API tests': {
-          def apiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=4',
-            'PLAYWRIGHT_WORKERS=4',
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report'
-          ]
-          try {
-            withEnv(apiOdhinEnv) {
-              yarnBuilder.yarn('test:api:coverage')
-            }
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/api_functional/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'API Odhín report'
-            ])
-            junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
-          }
-        },
-        'Integration tests': {
-          def integrationOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=4',
-            'PLAYWRIGHT_WORKERS=4',
-            'PW_UI_STORAGE=1',
-            'PW_ODHIN_INDEX=playwright-odhin-integration.html',
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-integration/odhin-report'
-          ]
-          try {
-            withEnv(integrationOdhinEnv) {
-              yarnBuilder.yarn('playwright test --project=integration')
-            }
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            withEnv(integrationOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
-            }
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/playwright-integration/odhin-report",
-              reportFiles          : 'playwright-odhin-integration.html',
-              reportName           : 'Integration Odhín report'
-            ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/odhin-report/**'
-          }
-        },
-        'UI tests': {
-          def uiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
-            'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
-            'PW_ODHIN_SKIP_API_ENDPOINTS=true',
-            'PW_UI_USERS=COURT_ADMIN',
-            'PW_UI_STORAGE_STRICT=1',
-            'PW_UI_STORAGE=1',
-            'PW_UI_STORAGE_TTL_MIN=15',
-            'PW_UI_LOGIN_TIMEOUT_MS=120000',
-            'PW_UI_IDLE_TIMEOUT_MS=60000',
-            'PW_UI_IDLE_QUIET_MS=400',
-            'PW_UI_FAIL_ON_HTTP_ERRORS=0',
-            'PW_UI_FAIL_ON_HTTP_4XX=0'
-          ]
-          try {
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('test:ui')
-            }
-          } catch (Error) {
-            unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
-          } finally {
-            withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
-            }
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
-              reportName           : 'UI Odhín report'
-            ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
+def publishUiReports = {
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : 'functional-output/tests/playwright-e2e/odhin-report',
+    reportFiles          : 'playwright-odhin.html',
+    reportName           : 'UI Odhín report'
+  ])
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
+}
+
+def publishIntegrationReports = { String reportDir, String reportName ->
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : reportDir,
+    reportFiles          : 'playwright-odhin-integration.html',
+    reportName           : reportName
+  ])
+  archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**"
+}
+
+def publishHarnessReports = {
+  publishHTML([
+    allowMissing         : true,
+    alwaysLinkToLastBuild: true,
+    keepAll              : true,
+    reportDir            : 'functional-output/tests/harness/odhin-report',
+    reportFiles          : 'harness-central-assurance.html',
+    reportName           : 'EXUI central assurance harness'
+  ])
+  junit(testResults: 'playwright-harness-junit.xml', allowEmptyResults: true)
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/harness/**'
+}
+
+def runCnpPlaywrightStages = {
+  def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS))
+  def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
+  def integrationExcludedTags = effectiveIntegrationExcludedTags(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE)
+  def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
+  def integrationReportDir = "functional-output/tests/playwright-integration/odhin-report/${integrationTagSlug}"
+  def apiExcludedTags = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
+  def quietConsoleEnv = [
+    'TERM=dumb',
+    'NO_COLOR=1',
+    'FORCE_COLOR=0',
+    'DOTENV_CONFIG_QUIET=true',
+    'LOG_LEVEL=silent',
+    'PW_API_MONITOR_CONSOLE=false',
+    'PW_WA_SETUP_CONSOLE=false',
+    'PW_ODHIN_CONSOLE_LOG=false',
+    'PW_ODHIN_CONSOLE_ERROR=false',
+    'PW_ODHIN_CONSOLE_TEST_OUTPUT=false',
+    'PW_ODHIN_PROFILE=false',
+    'PW_FLAKE_GATE_SUMMARY=compact',
+    'PLAYWRIGHT_LOG_TAG_FILTERS=false'
+  ]
+
+  runDiagnostics()
+
+  echo "[playwright] Running selected integration tests after API/E2E to isolate Jenkins agent failures."
+
+  def runHarness = {
+    stage('EXUI central assurance harness') {
+      def harnessEnv = quietConsoleEnv + [
+        'FUNCTIONAL_TESTS_WORKERS=1',
+        'PLAYWRIGHT_WORKERS=1',
+        'PLAYWRIGHT_REPORTERS=list,odhin,junit',
+        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/harness/odhin-report',
+        'PLAYWRIGHT_JUNIT_OUTPUT=playwright-harness-junit.xml',
+        'PW_ODHIN_INDEX=harness-central-assurance.html',
+        'PW_ODHIN_TITLE=EXUI Central Assurance Harness',
+        'PW_ODHIN_PROJECT=EXUI Harness',
+        "PW_ODHIN_ENV=${params.TEST_ENV} | ci | api-gate",
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        runInPlaywrightContainer {
+          withEnv(harnessEnv) {
+            runPlaywrightShell('corepack yarn harness:ci')
           }
         }
-      )
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        publishHarnessReports()
+      }
+    }
+  }
+
+  def runApiTests = {
+    stage('API tests') {
+      def apiEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
+        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+        "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
+        "API_PW_EXCLUDED_TAGS_OVERRIDE=${apiExcludedTags}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin,junit',
+        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
+        'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        runInPlaywrightContainer {
+          withEnv(apiEnv) {
+            runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${functionalWorkers}")
+          }
+        }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        publishApiReports()
+      }
+    }
+  }
+
+  def runUiTests = {
+    stage('UI tests') {
+      def uiEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
+        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+        "PW_UI_WORKERS=${functionalWorkers}",
+        "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
+        "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
+        'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
+        'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+        'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+        'PW_UI_USERS=COURT_ADMIN',
+        'PW_UI_STORAGE_STRICT=1',
+        'PW_UI_STORAGE=1',
+        'PW_UI_STORAGE_TTL_MIN=15',
+        'PW_UI_LOGIN_TIMEOUT_MS=120000',
+        'PW_UI_IDLE_TIMEOUT_MS=60000',
+        'PW_UI_IDLE_QUIET_MS=400',
+        'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+        'PW_UI_FAIL_ON_HTTP_4XX=0',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        if (!hasCourtAdminUiCredentials()) {
+          echo '[playwright-ui] Skipping UI tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
+          runInPlaywrightContainer {
+            withEnv(uiEnv) {
+              runPlaywrightShell('node ./scripts/ensure-odhin-report.cjs')
+            }
+          }
+        } else {
+          runInPlaywrightContainer {
+            withEnv(uiEnv) {
+              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${functionalWorkers}")
+            }
+          }
+        }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        runInPlaywrightContainer {
+          withEnv(uiEnv) {
+            runPlaywrightShell('node ./scripts/copy-odhin-report.cjs')
+          }
+        }
+        publishUiReports()
+      }
+    }
+  }
+
+  def runIntegrationTests = {
+    stage('Integration tests') {
+      def integrationEnv = quietConsoleEnv + [
+        "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
+        "PLAYWRIGHT_WORKERS=${integrationWorkers}",
+        'PW_UI_WORKERS=2',
+        "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
+        "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
+        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
+        "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
+        "PW_ODHIN_TARGET=${integrationReportDir}",
+        "PW_ODHIN_ENV=${params.TEST_ENV} | ci | workers=${integrationWorkers}",
+        'PW_ODHIN_SKIP_API_ENDPOINTS=true',
+        'PW_UI_STORAGE=1',
+        'PW_UI_STORAGE_STRICT=1',
+        'PW_UI_STORAGE_TTL_MIN=15',
+        'PW_UI_LOGIN_TIMEOUT_MS=120000',
+        'PW_UI_IDLE_TIMEOUT_MS=60000',
+        'PW_UI_IDLE_QUIET_MS=400',
+        'PW_UI_FAIL_ON_HTTP_ERRORS=0',
+        'PW_UI_FAIL_ON_HTTP_4XX=0',
+        'PLAYWRIGHT_SKIP_INSTALL=true'
+      ]
+      try {
+        runInPlaywrightContainer {
+          withEnv(integrationEnv) {
+            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
+          }
+        }
+      } catch (Exception e) {
+        unstable(message: "${STAGE_NAME} is unstable: " + e.toString())
+      } finally {
+        publishIntegrationReports(integrationReportDir, 'Integration tests')
+      }
+    }
+  }
+
+  runHarness()
+  runApiTests()
+  runUiTests()
+  runIntegrationTests()
+}
+
+withNightlyPipeline(type, product, component, 600) {
+  loadVaultSecrets(secrets)
+  env.TEST_URL = params.TEST_URL
+  env.S2S_URL = params.S2S_URL
+  env.TEST_ENV = params.TEST_ENV
+  env.FUNCTIONAL_TESTS_WORKERS = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  env.PLAYWRIGHT_WORKERS = env.FUNCTIONAL_TESTS_WORKERS
+  env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
+  env.API_PW_EXCLUDED_TAGS_OVERRIDE = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
+  env.E2E_PW_INCLUDE_TAGS = params.E2E_PW_INCLUDE_TAGS
+  env.E2E_PW_EXCLUDED_TAGS_OVERRIDE = params.E2E_PW_EXCLUDED_TAGS_OVERRIDE
+  env.INTEGRATION_PW_INCLUDE_TAGS = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
+  env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE = params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE
+  env.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES = params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES
+  env.TERM = 'dumb'
+  env.NO_COLOR = '1'
+  env.FORCE_COLOR = '0'
+  env.DOTENV_CONFIG_QUIET = 'true'
+  env.LOG_LEVEL = 'silent'
+  env.PW_API_MONITOR_CONSOLE = 'false'
+  env.PW_WA_SETUP_CONSOLE = 'false'
+  env.PW_ODHIN_CONSOLE_LOG = 'false'
+  env.PW_ODHIN_CONSOLE_ERROR = 'false'
+  env.PW_ODHIN_CONSOLE_TEST_OUTPUT = 'false'
+  env.PW_ODHIN_PROFILE = 'false'
+  env.PW_FLAKE_GATE_SUMMARY = 'compact'
+  env.PLAYWRIGHT_LOG_TAG_FILTERS = 'false'
+  enableSlackNotifications(channel)
+
+  onPR() {
+    afterAlways('DependencyCheckNightly') {
+      runCnpPlaywrightStages()
+    }
+  }
+
+  onMaster() {
+    afterAlways('DependencyCheckNightly') {
+      runCnpPlaywrightStages()
     }
   }
 }

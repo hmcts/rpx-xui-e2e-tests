@@ -247,7 +247,7 @@ export interface ExuiHistoricFailureCoverage {
   historicRefs: readonly string[];
   replayPack: HistoricFailureReplayPack;
   failureClass: string;
-  supertesterContract: string;
+  harnessContract: string;
   coverageStatus: HistoricFailureCoverageStatus;
   currentPocEvidence: string;
   wouldHaveCaught: boolean;
@@ -529,7 +529,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-837", "EXUI-911"],
     replayPack: "manage-case-data-integrity",
     failureClass: "Previous/Continue navigation with page show conditions can submit stale hidden page data as null",
-    supertesterContract:
+    harnessContract:
       "Synthetic CCD event journey drives Continue, Previous, changed page visibility, CYA, Submit, then asserts submitted payload and retained case data.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts stale hidden-page data is excluded while retained hidden complex data is submitted.",
@@ -541,7 +541,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-848", "EXUI-811", "EXUI-433", "EXUI-702"],
     replayPack: "manage-case-data-integrity",
     failureClass: "CYA fields or change links are missing when show conditions use complex, collection, tabular, or read-only data",
-    supertesterContract:
+    harnessContract:
       "Synthetic CCD definitions cover complex collection show conditions, read-only tabular fields, and ShowSummaryChangeOption change links.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts complex/collection CYA rows and change-link contracts are represented.",
@@ -553,7 +553,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-942", "EXUI-960"],
     replayPack: "manage-case-data-integrity",
     failureClass: "Hidden complex values are removed or submitted as null, causing case data loss",
-    supertesterContract:
+    harnessContract:
       "Synthetic event contains complex fields whose children are all HIDDEN; submit must retain the parent complex payload correctly.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts a hidden complex parent with hidden children survives submit payload pruning.",
@@ -565,7 +565,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-2668", "EXUI-2743"],
     replayPack: "work-allocation-availability",
     failureClass: "Work Allocation task autocompletion closes the wrong task or fails to close the right task",
-    supertesterContract:
+    harnessContract:
       "Route-mocked task lifecycle replay correlates event completion with task id/event id and rejects stale completion data.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts task completion correlates by task id, case id, and event id and rejects stale events.",
@@ -577,7 +577,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["INC5502435", "INC5493460", "INC5494665", "INC5500227", "INC5502207", "INC5502963"],
     replayPack: "work-allocation-availability",
     failureClass: "Users cannot see My Tasks, Available Tasks, All Work, My Cases, My Access, case search, or location filters",
-    supertesterContract:
+    harnessContract:
       "Persona matrix for judge, deputy judge, caseworker, allocator, and hearing manager asserts tabs, case search, task list, and location filters.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts judge, deputy judge, caseworker, allocator, and hearing-manager tab/location expectations.",
@@ -589,7 +589,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-2352"],
     replayPack: "work-allocation-availability",
     failureClass: "Role assignments with null jurisdiction/service are ignored by caseworker lookup",
-    supertesterContract:
+    harnessContract:
       "Caseworker lookup fixture includes explicit-service role, null-service role, and no-category fallback role assignments.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts null-service role assignments expand to the central WA service-family set.",
@@ -601,7 +601,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-2508", "EXUI-2510"],
     replayPack: "protected-endpoint-auth",
     failureClass: "Unauthenticated access to protected EXUI staff-data endpoint returns personal data",
-    supertesterContract:
+    harnessContract:
       "Unauthenticated negative matrix probes protected EXUI proxy/API endpoints and asserts 401/redirect/no staff data.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts high-risk staff-data endpoints are safe under anonymous guarded responses.",
@@ -613,7 +613,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-2104"],
     replayPack: "event-history-and-layout",
     failureClass: "External users can click event history links and retrieve case event details",
-    supertesterContract:
+    harnessContract:
       "Internal and external role personas assert event history summary visibility, hyperlink removal, and blocked event-detail fetch.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts external personas see event summaries without event-detail links or fetch access.",
@@ -625,7 +625,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-2551"],
     replayPack: "event-history-and-layout",
     failureClass: "Event history details layout is too narrow for Case File View and other components",
-    supertesterContract:
+    harnessContract:
       "Visual/layout proof opens event details and asserts component width/viewport usability for representative embedded components.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts representative event-history embedded component width remains usable.",
@@ -637,7 +637,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-2595"],
     replayPack: "event-history-and-layout",
     failureClass: "Slow event start gives no feedback or spinner is not removed",
-    supertesterContract:
+    harnessContract:
       "Delayed callback fixture asserts spinner appears during latency and clears on success/failure.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts delayed event-start spinner appears before callback completion and clears after.",
@@ -649,7 +649,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["EXUI-2572", "EXUI-2079", "EXUI-2318"],
     replayPack: "dependency-auth-smoke",
     failureClass: "Passport, IDAM, or dependency updates break login, logout, session, or role-sensitive shell behaviour",
-    supertesterContract:
+    harnessContract:
       "Auth smoke lane verifies login callback, session continuity, role-sensitive shell route, and logout.",
     coverageStatus: "covered-now",
     currentPocEvidence: "Executable replay pack asserts IDAM callback redirect, session cookie, role-sensitive shell route, and logout contract.",
@@ -661,10 +661,10 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     historicRefs: ["INC5680323", "EXUI-2869", "EXUI-2924", "EM-6575", "EM-6588"],
     replayPack: "media-viewer-specialist",
     failureClass: "Media Viewer redaction boxes shift with zoom, scaling, malformed fonts, or document rendering edge cases",
-    supertesterContract:
+    harnessContract:
       "Specialist Media Viewer visual/coordinate suite would need real document fixtures and pixel/coordinate assertions.",
     coverageStatus: "out-of-scope",
-    currentPocEvidence: "Current Supertester can cover EXUI shell/auth route to Media Viewer, but not document-coordinate correctness.",
+    currentPocEvidence: "Current Harness can cover EXUI shell/auth route to Media Viewer, but not document-coordinate correctness.",
     wouldHaveCaught: false,
     missReason: "Requires Evidence Management/Media Viewer specialist fixtures outside the first EXUI central-assurance boundary.",
     nextScenarioId: "media-viewer-specialist-redaction-coordinate-suite"

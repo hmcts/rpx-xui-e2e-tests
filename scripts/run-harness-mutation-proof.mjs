@@ -8,8 +8,8 @@ const focusedSpec = "src/tests/api/exui-central-assurance.api.ts";
 const focusedGrep = "api/wa-supported-jurisdiction/get mutation proof catches a shared WA family regression";
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const reportOutput =
-  process.env.PW_ODHIN_OUTPUT || "functional-output/tests/supertester/mutation-proof/odhin-report";
-const reportIndex = process.env.PW_ODHIN_INDEX || "supertester-mutation-proof.html";
+  process.env.PW_ODHIN_OUTPUT || "functional-output/tests/harness/mutation-proof/odhin-report";
+const reportIndex = process.env.PW_ODHIN_INDEX || "harness-mutation-proof.html";
 
 const commonEnv = {
   ...process.env,
@@ -36,8 +36,8 @@ function runPlaywright(label, env) {
     "--global-timeout=120000",
   ];
 
-  console.log(`\n[supertest-mutation] ${label}`);
-  console.log(`[supertest-mutation] ./node_modules/.bin/playwright ${args.join(" ")}`);
+  console.log(`\n[harness-mutation] ${label}`);
+  console.log(`[harness-mutation] ./node_modules/.bin/playwright ${args.join(" ")}`);
 
   return new Promise((resolve) => {
     const child = spawn("./node_modules/.bin/playwright", args, {
@@ -74,7 +74,7 @@ const baseline = await runPlaywright("Step 1/2: control run without injected fau
 });
 
 if (baseline.code !== 0) {
-  console.error("\n[supertest-mutation] Control run failed. Fix the baseline before demonstrating mutation detection.");
+  console.error("\n[harness-mutation] Control run failed. Fix the baseline before demonstrating mutation detection.");
   process.exitCode = baseline.code;
   process.exit();
 }
@@ -98,8 +98,8 @@ const mutated = await runPlaywright(`Step 2/2: inject ${mutation} and expect the
 });
 
 if (mutated.code === 0) {
-  console.error("\n[supertest-mutation] Mutation was not caught.");
-  console.error("[supertest-mutation] The target endpoint may have been skipped, or the contract is not asserting the dropped family.");
+  console.error("\n[harness-mutation] Mutation was not caught.");
+  console.error("[harness-mutation] The target endpoint may have been skipped, or the contract is not asserting the dropped family.");
   process.exitCode = 1;
   process.exit();
 }
@@ -111,12 +111,12 @@ const expectedEvidence = [
 const missingEvidence = expectedEvidence.filter((needle) => !mutated.output.includes(needle));
 
 if (missingEvidence.length) {
-  console.error("\n[supertest-mutation] The mutation failed the suite, but not with the expected evidence.");
-  console.error(`[supertest-mutation] Missing output: ${missingEvidence.join(", ")}`);
+  console.error("\n[harness-mutation] The mutation failed the suite, but not with the expected evidence.");
+  console.error(`[harness-mutation] Missing output: ${missingEvidence.join(", ")}`);
   process.exitCode = 1;
   process.exit();
 }
 
-console.log("\n[supertest-mutation] Mutation proof passed.");
-console.log("[supertest-mutation] The control run was green, the injected EXUI-style WA regression was caught, and no source config was changed.");
-console.log(`[supertest-mutation] Odhín failure report: ${path.join(reportOutput, reportIndex)}`);
+console.log("\n[harness-mutation] Mutation proof passed.");
+console.log("[harness-mutation] The control run was green, the injected EXUI-style WA regression was caught, and no source config was changed.");
+console.log(`[harness-mutation] Odhín failure report: ${path.join(reportOutput, reportIndex)}`);
