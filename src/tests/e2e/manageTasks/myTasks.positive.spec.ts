@@ -70,7 +70,7 @@ async function openTaskListWithRetry(
 test.describe("Verify the my tasks page tabs appear as expected", {
   tag: ["@e2e", "@e2e-manage-tasks"]
 }, () => {
-  const userIdentifier = "STAFF_ADMIN";
+  const userIdentifier = "COURT_ADMIN";
 
   test.use({ storageState: { cookies: [], origins: [] } });
 
