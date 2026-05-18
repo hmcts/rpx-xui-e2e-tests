@@ -71,6 +71,11 @@ export async function ensureStorageState(role: ApiUserRole): Promise<string> {
 
 async function ensureStorageStateWith(role: ApiUserRole, deps: StorageDeps = defaultStorageDeps): Promise<string> {
   const cacheKey = getCacheKey(role, deps.env);
+  const existingStoragePath = getStorageStatePath(storageRoot, role, deps.env);
+  if (!deps.storagePromises.has(cacheKey) && (await deps.tryReadState(existingStoragePath))) {
+    return existingStoragePath;
+  }
+
   if (!deps.storagePromises.has(cacheKey)) {
     deps.storagePromises.set(cacheKey, deps.createStorageState(role));
   }
@@ -300,7 +305,12 @@ async function createStorageStateViaUi(role: ApiUserRole, storagePath: string): 
 
   const uiStoragePath = resolveUiStoragePathForUser(userIdentifier);
   const sourceState = await tryReadState(uiStoragePath);
-  if (!hasCookie(sourceState, "__auth__") || !hasCookie(sourceState, "xui-webapp")) {
+  const hasExuiAuthCookies = hasCookie(sourceState, "__auth__") && hasCookie(sourceState, "xui-webapp");
+  const hasLocalAuthCookies =
+    (process.env.TEST_ENV ?? config.testEnv).toLowerCase() === "local" &&
+    hasCookie(sourceState, "Idam.Session") &&
+    hasCookie(sourceState, "xui-webapp");
+  if (!hasExuiAuthCookies && !hasLocalAuthCookies) {
     throw new Error(`UI session bootstrap for ${role} did not create EXUI auth cookies.`);
   }
 

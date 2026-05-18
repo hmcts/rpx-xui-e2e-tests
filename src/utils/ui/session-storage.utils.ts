@@ -268,6 +268,9 @@ const describeLoginFailure = async (page: Page): Promise<string | undefined> => 
 
 const hasRequiredAuthCookies = (cookies: { name: string }[]) => {
   const names = new Set(cookies.map((cookie) => cookie.name));
+  if ((process.env.TEST_ENV ?? config.testEnv).toLowerCase() === "local") {
+    return names.has("Idam.Session") && names.has("xui-webapp");
+  }
   return names.has("Idam.Session") && names.has("__auth__");
 };
 

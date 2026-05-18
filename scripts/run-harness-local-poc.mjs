@@ -19,6 +19,7 @@ const odhinOutput =
   process.env.PLAYWRIGHT_REPORT_FOLDER ||
   (runCi ? "functional-output/tests/harness/odhin-report" : "test-results/harness-poc-odhin-report");
 const odhinIndex = process.env.PW_ODHIN_INDEX || (runCi ? "harness-central-assurance.html" : "harness-poc-odhin.html");
+const uiStorageRoot = path.join(process.cwd(), "test-results", "storage-states", "ui");
 
 const commonEnv = {
   ...process.env,
@@ -38,6 +39,10 @@ const commonEnv = {
   TEST_ENV: process.env.TEST_ENV || (runCi ? "aat" : "local"),
   TEST_URL: testUrl
 };
+
+if (!runCi && !commonEnv.API_AUTH_STORAGE_SCOPE) {
+  commonEnv.API_AUTH_STORAGE_SCOPE = "harness-local";
+}
 
 if (runCi && !process.env.API_AUTH_MODE) {
   delete commonEnv.API_AUTH_MODE;
@@ -107,6 +112,22 @@ function runCommand(label, command, commandArgs, env = commonEnv) {
   });
 }
 
+function removeLocalUiStorageLocks() {
+  if (runCi || !fs.existsSync(uiStorageRoot)) {
+    return;
+  }
+
+  for (const entry of fs.readdirSync(uiStorageRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.endsWith(".lock")) {
+      continue;
+    }
+
+    const lockPath = path.join(uiStorageRoot, entry.name);
+    fs.rmSync(lockPath, { recursive: true, force: true });
+    console.log(`[harness-local] removed stale UI storage lock ${entry.name}`);
+  }
+}
+
 try {
   console.log(`[harness-local] TEST_URL=${testUrl}`);
   console.log(`[harness-local] UI storage=${storageDescription}`);
@@ -114,10 +135,14 @@ try {
   console.log(`[harness-local] workers=${harnessWorkers}`);
 
   if (!runCi) {
+    removeLocalUiStorageLocks();
+
     await checkUrl("EXUI shell", `${testUrl.replace(/\/+$/, "")}/work/my-work/available`);
     await checkUrl("EXUI API", "http://localhost:3001/health");
     await checkUrl("Synthetic SRT shim", "http://localhost:8091/health");
     await checkUrl("Role assignment", "http://localhost:4096/health");
+
+    await runCommand("Bootstrap local harness sessions", "node", ["scripts/bootstrap-harness-local-sessions.mjs"]);
   }
 
   if (runManifest) {

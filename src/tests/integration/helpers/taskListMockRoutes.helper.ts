@@ -13,6 +13,7 @@ export const workAllocationTypesOfWorkRoutePattern = '**/workallocation/task/typ
 export const healthCheckRoutePattern = '**/api/healthCheck*';
 export const workAllocationRegionLocationRoutePattern = '**/workallocation/region-location*';
 export const workAllocationFullLocationRoutePattern = '**/workallocation/full-location*';
+export const locationByIdRoutePattern = '**/api/locations/getLocationsById*';
 export const workAllocationCaseworkerByServiceNameRoutePattern = '**/workallocation/caseworker/getUsersByServiceName*';
 
 const defaultSupportedJurisdictionsMock = ['IA', 'SSCS'];
@@ -48,6 +49,27 @@ export function buildSupportedJurisdictionDetails(
 const defaultSupportedJurisdictionDetailsMock: SupportedJurisdictionDetail[] = buildSupportedJurisdictionDetails(
   defaultSupportedJurisdictionsMock
 );
+
+type RequestedLocation = {
+  id?: string;
+  locationId?: string;
+  services?: string[];
+};
+
+const buildResolvedBaseLocations = (
+  supportedJurisdictions: readonly string[],
+  requestedLocations: RequestedLocation[] = []
+) =>
+  supportedJurisdictions.map((serviceId, index) => {
+    const requestedLocation =
+      requestedLocations.find((location) => location.services?.includes(serviceId)) ?? requestedLocations[index];
+    return {
+      id: requestedLocation?.id ?? requestedLocation?.locationId ?? `${index + 1}765324`,
+      locationName: `${serviceLabelByJurisdiction[serviceId] ?? serviceId} Hearing Centre`,
+      regionId: '1',
+      services: [serviceId],
+    };
+  });
 
 export async function setupTaskListBootstrapRoutes(
   page: Page,
@@ -119,6 +141,15 @@ export async function setupTaskListBootstrapRoutes(
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([]),
+    });
+  });
+
+  await page.route(locationByIdRoutePattern, async (route) => {
+    const requestBody = route.request().postDataJSON() as { locations?: RequestedLocation[] } | undefined;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildResolvedBaseLocations(supportedJurisdictions, requestBody?.locations)),
     });
   });
 
