@@ -486,7 +486,7 @@ def runCnpPlaywrightStages = {
   runIntegrationTests()
 }
 
-withPipeline(type, product, component) {
+withNightlyPipeline(type, product, component, 600) {
   loadVaultSecrets(secrets)
   env.TEST_URL = params.TEST_URL
   env.S2S_URL = params.S2S_URL
