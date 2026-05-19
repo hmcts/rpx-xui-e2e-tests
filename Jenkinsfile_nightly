@@ -79,8 +79,8 @@ properties([
 @Library("Infrastructure")
 
 def type = "nodejs"
-def product = "rpx"
-def component = "xui-e2e-tests"
+def product = "xui"
+def component = "e2e-tests"
 def channel = "#xui-pipeline"
 
 static Map<String, Object> secret(String secretName, String envVariable) {
