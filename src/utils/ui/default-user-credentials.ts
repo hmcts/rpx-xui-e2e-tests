@@ -2,7 +2,7 @@ import { resolveTestEnv } from "../../config/api.js";
 
 import type { UserCredentials } from "./user.utils.js";
 
-type SupportedEnv = "aat" | "demo";
+type SupportedEnv = "aat" | "demo" | "local";
 
 const SOURCE_COMPAT_DEFAULT_USERS: Record<SupportedEnv, Record<string, UserCredentials>> = {
   aat: {
@@ -80,6 +80,40 @@ const SOURCE_COMPAT_DEFAULT_USERS: Record<SupportedEnv, Record<string, UserCrede
       email: "xui_caseofficer@justice.gov.uk",
       password: "Welcome01"
     }
+  },
+  local: {
+    SOLICITOR: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    },
+    CASEWORKER_GLOBALSEARCH: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    },
+    WA2_GLOBAL_SEARCH: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    },
+    FPL_GLOBAL_SEARCH: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    },
+    STAFF_ADMIN: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    },
+    COURT_ADMIN: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    },
+    HEARING_MANAGER_CR84_ON: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    },
+    HEARING_MANAGER_CR84_OFF: {
+      email: "exui.local.srt@hmcts.net",
+      password: "Pa55word11"
+    }
   }
 };
 
@@ -97,7 +131,8 @@ const SOURCE_COMPAT_DEFAULT_FIRST_USERS = new Set([
   "RESTRICTED_CASE_ACCESS_OFF",
   "BOOKING_UI-FT-ON",
   "HEARING_MANAGER_CR84_ON",
-  "HEARING_MANAGER_CR84_OFF"
+  "HEARING_MANAGER_CR84_OFF",
+  "COURT_ADMIN"
 ]);
 
 export function resolveDefaultUserCredentials(

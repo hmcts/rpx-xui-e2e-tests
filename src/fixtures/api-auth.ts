@@ -5,6 +5,8 @@ import { IdamUtils, ServiceAuthUtils, createLogger } from "@hmcts/playwright-com
 import { request } from "@playwright/test";
 
 import { config } from "../config/api";
+import { ensureUiStorageStateForUser } from "../utils/ui/session-storage.utils.js";
+import { resolveUiStoragePathForUser } from "../utils/ui/storage-state.utils.js";
 
 type UsersConfig = typeof config.users[keyof typeof config.users];
 export type ApiUserRole = (keyof UsersConfig) & string;
@@ -27,6 +29,7 @@ type StorageDeps = {
   createStorageState: (role: ApiUserRole) => Promise<string>;
   tryReadState: (storagePath: string) => Promise<StorageState | undefined>;
   unlink: (pathValue: string) => Promise<void>;
+  reuseExistingStorage?: boolean;
 };
 
 type CreateStorageDeps = {
@@ -34,6 +37,8 @@ type CreateStorageDeps = {
   storageRoot?: string;
   mkdir?: typeof fs.mkdir;
   getCredentials?: typeof getCredentials;
+  isUiSessionBootstrapEnabled?: typeof isUiSessionBootstrapEnabled;
+  createStorageStateViaUi?: typeof createStorageStateViaUi;
   isTokenBootstrapEnabled?: typeof isTokenBootstrapEnabled;
   tryTokenBootstrap?: typeof tryTokenBootstrap;
   createStorageStateViaForm?: typeof createStorageStateViaForm;
@@ -58,7 +63,8 @@ const defaultStorageDeps: StorageDeps = {
   storagePromises,
   createStorageState,
   tryReadState,
-  unlink: fs.unlink
+  unlink: fs.unlink,
+  reuseExistingStorage: true
 };
 
 export async function ensureStorageState(role: ApiUserRole): Promise<string> {
@@ -67,6 +73,11 @@ export async function ensureStorageState(role: ApiUserRole): Promise<string> {
 
 async function ensureStorageStateWith(role: ApiUserRole, deps: StorageDeps = defaultStorageDeps): Promise<string> {
   const cacheKey = getCacheKey(role, deps.env);
+  const existingStoragePath = getStorageStatePath(storageRoot, role, deps.env);
+  if (deps.reuseExistingStorage && !deps.storagePromises.has(cacheKey) && (await deps.tryReadState(existingStoragePath))) {
+    return existingStoragePath;
+  }
+
   if (!deps.storagePromises.has(cacheKey)) {
     deps.storagePromises.set(cacheKey, deps.createStorageState(role));
   }
@@ -129,6 +140,8 @@ async function createStorageStateWith(role: ApiUserRole, deps: CreateStorageDeps
   const root = deps.storageRoot ?? storageRoot;
   const mkdir = deps.mkdir ?? fs.mkdir;
   const getCreds = deps.getCredentials ?? getCredentials;
+  const shouldUiBootstrap = (deps.isUiSessionBootstrapEnabled ?? isUiSessionBootstrapEnabled)();
+  const loginViaUi = deps.createStorageStateViaUi ?? createStorageStateViaUi;
   const shouldTokenBootstrap = (deps.isTokenBootstrapEnabled ?? isTokenBootstrapEnabled)();
   const tryBootstrap = deps.tryTokenBootstrap ?? tryTokenBootstrap;
   const loginViaForm = deps.createStorageStateViaForm ?? createStorageStateViaForm;
@@ -147,6 +160,11 @@ async function createStorageStateWith(role: ApiUserRole, deps: CreateStorageDeps
       process.env.IDAM_TESTING_SUPPORT_URL
     )} S2S_URL=${present(process.env.S2S_URL)} IDAM_SECRET=${present(process.env.IDAM_SECRET)} (mode=auto)`
   );
+
+  if (shouldUiBootstrap) {
+    await loginViaUi(role, storagePath);
+    return storagePath;
+  }
 
   const tokenLoginSucceeded = shouldTokenBootstrap
     ? await tryBootstrap(role, credentials, storagePath)
@@ -274,6 +292,35 @@ async function createStorageStateViaForm(
   }
 }
 
+const apiRoleToUiUserIdentifier = (role: ApiUserRole): string => {
+  const map: Partial<Record<ApiUserRole, string>> = {
+    caseOfficer_r1: "CASEWORKER_R1",
+    caseOfficer_r2: "CASEWORKER_R2",
+    solicitor: "SOLICITOR"
+  };
+  return map[role] ?? role.toUpperCase();
+};
+
+async function createStorageStateViaUi(role: ApiUserRole, storagePath: string): Promise<void> {
+  const userIdentifier = apiRoleToUiUserIdentifier(role);
+  await ensureUiStorageStateForUser(userIdentifier, { strict: true, baseUrl });
+
+  const uiStoragePath = resolveUiStoragePathForUser(userIdentifier);
+  const sourceState = await tryReadState(uiStoragePath);
+  const hasExuiAuthCookies = hasCookie(sourceState, "__auth__") && hasCookie(sourceState, "xui-webapp");
+  const hasLocalAuthCookies =
+    (process.env.TEST_ENV ?? config.testEnv).toLowerCase() === "local" &&
+    hasCookie(sourceState, "Idam.Session") &&
+    hasCookie(sourceState, "xui-webapp");
+  if (!hasExuiAuthCookies && !hasLocalAuthCookies) {
+    throw new Error(`UI session bootstrap for ${role} did not create EXUI auth cookies.`);
+  }
+
+  if (path.resolve(uiStoragePath) !== path.resolve(storagePath)) {
+    await fs.copyFile(uiStoragePath, storagePath);
+  }
+}
+
 function getCredentials(role: ApiUserRole): { username: string; password: string } {
   const envUsers = config.users[config.testEnv as keyof typeof config.users];
   const userConfig = envUsers?.[role];
@@ -313,6 +360,10 @@ function getCacheKey(role: ApiUserRole, env: NodeJS.ProcessEnv = process.env): s
   return `${config.testEnv}-${getWorkerStorageId(env)}-${role}`;
 }
 
+function hasCookie(state: StorageState | undefined, cookieName: string): boolean {
+  return Array.isArray(state?.cookies) && state.cookies.some((cookie) => cookie.name === cookieName && Boolean(cookie.value));
+}
+
 async function tryReadState(storagePath: string): Promise<StorageState | undefined> {
   try {
     const raw = await fs.readFile(storagePath, "utf8");
@@ -326,6 +377,11 @@ async function tryReadState(storagePath: string): Promise<StorageState | undefin
   return undefined;
 }
 
+function isUiSessionBootstrapEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const mode = env.API_AUTH_MODE ?? env.API_USE_TOKEN_LOGIN;
+  return Boolean(mode && ["browser", "ui"].includes(mode.toLowerCase()));
+}
+
 function isTokenBootstrapEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
   const mode = env.API_AUTH_MODE ?? env.API_USE_TOKEN_LOGIN;
   if (mode && ["form", "off", "false", "0", "no"].includes(mode.toLowerCase())) {
@@ -333,6 +389,9 @@ function isTokenBootstrapEnabled(env: NodeJS.ProcessEnv = process.env): boolean 
   }
   if (mode && ["token", "true", "1", "yes"].includes(mode.toLowerCase())) {
     return true;
+  }
+  if ((env.TEST_ENV ?? config.testEnv).toLowerCase() === "local") {
+    return false;
   }
   const hasIdamEnv = !!env.IDAM_SECRET && !!env.IDAM_WEB_URL && !!env.IDAM_TESTING_SUPPORT_URL;
   const hasS2S = !!env.S2S_URL;
@@ -359,6 +418,7 @@ export const __test__ = {
   getWorkerStorageId,
   getStorageStatePath,
   getCacheKey,
+  isUiSessionBootstrapEnabled,
   isTokenBootstrapEnabled,
   tryReadState,
   ensureStorageStateWith,
@@ -366,5 +426,6 @@ export const __test__ = {
   createStorageStateWith,
   tryTokenBootstrap,
   createStorageStateViaForm,
+  createStorageStateViaUi,
   getCredentials
 };

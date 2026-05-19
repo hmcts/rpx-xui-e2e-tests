@@ -102,6 +102,22 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     expect(secondPath).toContain('solicitor-second-example-test');
   });
 
+  test('local UI login targets do not fall back to AAT IDAM by default', () => {
+    expect(
+      sessionStorageTest.resolveUiLoginTargets('http://localhost:3000/cases', {
+        TEST_ENV: 'local',
+        IDAM_WEB_URL: 'https://idam-web-public.aat.platform.hmcts.net',
+      } as NodeJS.ProcessEnv)
+    ).toEqual(['http://localhost:3000/cases']);
+
+    expect(
+      sessionStorageTest.resolveUiLoginTargets('http://localhost:3000/cases', {
+        TEST_ENV: 'local',
+        IDAM_WEB_URL: 'http://localhost:5000',
+      } as NodeJS.ProcessEnv)
+    ).toEqual(['http://localhost:3000/cases', 'http://localhost:5000/login']);
+  });
+
   test('storage reuse refreshes when cached metadata belongs to a different resolved email for the same alias', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
     const storagePath = path.join(tempDir, 'storage.json');

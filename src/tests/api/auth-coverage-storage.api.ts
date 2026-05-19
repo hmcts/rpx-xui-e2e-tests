@@ -126,4 +126,39 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
     expect(tokenFallback).toContain(expectedStorageStateSuffix);
     expect(formCalls).toBe(1);
   });
+
+  test('createStorageStateWith can use UI session bootstrap for local EXUI auth', async () => {
+    const storageRoot = path.join(process.cwd(), 'test-results', 'auth-storage-ui');
+    const workerEnv = { TEST_WORKER_INDEX: '2' } as NodeJS.ProcessEnv;
+    const expectedStorageStateSuffix = path.join(config.testEnv, 'worker-2', 'solicitor.json');
+    let uiCalls = 0;
+    let formCalls = 0;
+    let tokenCalls = 0;
+
+    const storagePath = await authTest.createStorageStateWith('solicitor', {
+      env: workerEnv,
+      storageRoot,
+      mkdir: async () => undefined,
+      getCredentials: () => mockCredentials,
+      isUiSessionBootstrapEnabled: () => true,
+      createStorageStateViaUi: async (role, targetStoragePath) => {
+        uiCalls += 1;
+        expect(role).toBe('solicitor');
+        expect(targetStoragePath).toContain(expectedStorageStateSuffix);
+      },
+      isTokenBootstrapEnabled: () => true,
+      tryTokenBootstrap: async () => {
+        tokenCalls += 1;
+        return true;
+      },
+      createStorageStateViaForm: async () => {
+        formCalls += 1;
+      },
+    });
+
+    expect(storagePath).toContain(expectedStorageStateSuffix);
+    expect(uiCalls).toBe(1);
+    expect(tokenCalls).toBe(0);
+    expect(formCalls).toBe(0);
+  });
 });

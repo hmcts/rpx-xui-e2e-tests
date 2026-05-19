@@ -1,0 +1,691 @@
+{
+  "rpxXuiWebapp": {
+    "config/default.json": {
+      "globalSearchServices": [
+        "IA",
+        "CIVIL",
+        "PRIVATELAW",
+        "PUBLICLAW",
+        "EMPLOYMENT",
+        "ST_CIC"
+      ],
+      "waSupportedJurisdictions": [
+        "IA",
+        "CIVIL",
+        "PRIVATELAW",
+        "PUBLICLAW",
+        "EMPLOYMENT",
+        "ST_CIC"
+      ],
+      "staffSupportedJurisdictions": [
+        "ST_CIC",
+        "CIVIL",
+        "EMPLOYMENT",
+        "PRIVATELAW",
+        "PUBLICLAW",
+        "IA",
+        "SSCS",
+        "DIVORCE",
+        "FR",
+        "PROBATE"
+      ],
+      "jurisdictions": [
+        "DIVORCE",
+        "PROBATE",
+        "FR",
+        "PUBLICLAW",
+        "IA",
+        "SSCS",
+        "EMPLOYMENT",
+        "HRS",
+        "CIVIL",
+        "CMC",
+        "PRIVATELAW"
+      ],
+      "hearings": {
+        "hearingsJurisdictions": [
+          "SSCS",
+          "PRIVATELAW",
+          "CIVIL",
+          "IA"
+        ],
+        "caseTypesByJurisdiction": {
+          "SSCS": [
+            "Benefit"
+          ],
+          "PRIVATELAW": [
+            "PRLAPPS"
+          ],
+          "CIVIL": [
+            "CIVIL"
+          ],
+          "IA": [
+            "Asylum",
+            "Bail"
+          ]
+        }
+      },
+      "serviceRefDataMapping": [
+        {
+          "service": "IA",
+          "serviceCodes": [
+            "BFA1"
+          ]
+        },
+        {
+          "service": "CIVIL",
+          "serviceCodes": [
+            "AAA6",
+            "AAA7"
+          ]
+        },
+        {
+          "service": "PRIVATELAW",
+          "serviceCodes": [
+            "ABA5"
+          ]
+        },
+        {
+          "service": "PUBLICLAW",
+          "serviceCodes": [
+            "ABA3"
+          ]
+        },
+        {
+          "service": "SSCS",
+          "serviceCodes": [
+            "BBA3"
+          ]
+        },
+        {
+          "service": "ST_CIC",
+          "serviceCodes": [
+            "BBA2"
+          ]
+        },
+        {
+          "service": "EMPLOYMENT",
+          "serviceCodes": [
+            "BHA1"
+          ]
+        },
+        {
+          "service": "DIVORCE",
+          "serviceCodes": [
+            "ABA1"
+          ]
+        },
+        {
+          "service": "FR",
+          "serviceCodes": [
+            "ABA2"
+          ]
+        },
+        {
+          "service": "PROBATE",
+          "serviceCodes": [
+            "ABA6"
+          ]
+        }
+      ]
+    },
+    "config/custom-environment-variables.json": {
+      "globalSearchServices": "GLOBAL_SEARCH_SERVICES",
+      "waSupportedJurisdictions": "WA_SUPPORTED_JURISDICTIONS",
+      "staffSupportedJurisdictions": "STAFF_SUPPORTED_JURISDICTIONS",
+      "jurisdictions": "JURISDICTIONS",
+      "serviceRefDataMapping": "SERVICE_REF_DATA_MAPPING",
+      "hearingsJurisdictions": "HEARINGS_JURISDICTIONS"
+    }
+  },
+  "prlCcdDefinitions": {
+    "representativeCaseType": {
+      "jurisdiction": "PRIVATELAW",
+      "caseType": "PRLAPPS",
+      "hmctsServiceCode": "ABA5"
+    },
+    "representativeRoleCluster": [
+      "caseworker-privatelaw",
+      "caseworker-privatelaw-courtadmin",
+      "case-allocator",
+      "hearing-manager"
+    ],
+    "normalizedSlices": [
+      {
+        "sliceId": "prl-manage-orders-hearings-auth",
+        "service": "PRL",
+        "jurisdiction": "PRIVATELAW",
+        "caseTypeId": "PRLAPPS",
+        "sourceRepo": "prl-ccd-definitions",
+        "lanes": [
+          {
+            "id": "prl-manage-orders-standard",
+            "priority": "release-blocking-representative",
+            "events": [
+              "manageOrders"
+            ],
+            "roles": [
+              "caseworker-privatelaw-courtadmin",
+              "caseworker-privatelaw-judge",
+              "caseworker-privatelaw-la"
+            ],
+            "conditions": [
+              "ShowSummary=Y",
+              "PostConditionState conditional",
+              "hidden orchestration fields",
+              "ordersHearingDetails complex"
+            ]
+          },
+          {
+            "id": "prl-wa-manage-orders",
+            "priority": "release-blocking-representative",
+            "events": [
+              "waManageOrders"
+            ],
+            "roles": [
+              "caseworker-privatelaw-courtadmin",
+              "caseworker-privatelaw-judge",
+              "caseworker-privatelaw-la"
+            ],
+            "conditions": [
+              "populate-header-task",
+              "displayConfirmedHearing",
+              "dateConfirmedInHearingsTab"
+            ]
+          },
+          {
+            "id": "prl-hearing-date-permutations",
+            "priority": "focused-matrix",
+            "fields": [
+              "hearingDateTimes",
+              "confirmedHearingDates",
+              "allPartiesAttendHearingSameWayYesOrNo",
+              "cafcassCymruHearingChannel"
+            ],
+            "permutations": [
+              "dateReservedWithListAssist",
+              "dateConfirmedInHearingsTab",
+              "all same channel",
+              "party-specific channels"
+            ]
+          },
+          {
+            "id": "prl-access-and-flags",
+            "priority": "entitlement-sensitive",
+            "events": [
+              "listWithoutNotice",
+              "c100listWithoutNotice"
+            ],
+            "fields": [
+              "flagLauncherExternal",
+              "ordersHearingDetails",
+              "markAsRestrictedReason"
+            ],
+            "roles": [
+              "citizen",
+              "[CREATOR]",
+              "[C100APPLICANTSOLICITOR1]",
+              "[C100RESPONDENTSOLICITOR1]",
+              "[LASOLICITOR]"
+            ]
+          }
+        ],
+        "evidenceRefs": [
+          "definitions/private-law/json/CaseEvent/CaseEvent.json#rows-71-72-106-107-111",
+          "definitions/private-law/json/CaseEventToFields/ManageOrders/Page 1 - Common/CaseEventToFields.json",
+          "definitions/private-law/json/CaseEventToComplexTypes/ManageOrders/HearingData/CaseEventToComplexTypes.json",
+          "definitions/private-law/json/CaseEventToComplexTypes/WaManageOrders/HearingData/CaseEventToComplexTypes.json",
+          "definitions/private-law/json/AuthorisationCaseField/ManageOrders/HearingData/AuthorisationCaseField.json"
+        ]
+      },
+      {
+        "sliceId": "prl-service-of-documents-nested-cya",
+        "service": "PRL",
+        "jurisdiction": "PRIVATELAW",
+        "caseTypeId": "PRLAPPS",
+        "sourceRepo": "prl-ccd-definitions",
+        "lanes": [
+          {
+            "id": "prl-service-of-documents-additional-recipients-cya",
+            "priority": "release-blocking-representative",
+            "events": [
+              "serviceOfDocuments"
+            ],
+            "roles": [
+              "caseworker-privatelaw-courtadmin"
+            ],
+            "conditions": [
+              "Page 2 sodAdditionalRecipientsList complex",
+              "nested emailInformation complex",
+              "FieldShowCondition on emailInformation child rows",
+              "ShowSummaryChangeOption=Y"
+            ]
+          }
+        ],
+        "evidenceRefs": [
+          "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+          "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+          "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+          "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json"
+        ]
+      }
+    ]
+  },
+  "serviceDefinitionProfiles": {
+    "source": "HMCTS GitHub repository discovery with gh on 2026-05-12, combined with local PRL CCD definition evidence and rpx-xui-webapp config/default.json service-family sets.",
+    "profiles": [
+      {
+        "serviceFamily": "CIVIL",
+        "priority": "release-blocking",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "global-search",
+          "work-allocation",
+          "staff-ref-data",
+          "hearings"
+        ],
+        "representativeCaseTypes": [
+          "CIVIL",
+          "GENERALAPPLICATION"
+        ],
+        "serviceCodes": [
+          "AAA6",
+          "AAA7"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/civil-ccd-definition",
+            "url": "https://github.com/hmcts/civil-ccd-definition",
+            "visibility": "public",
+            "updatedAt": "2026-05-12T13:40:51Z",
+            "defaultBranch": "master",
+            "definitionRoot": "ccd-definition",
+            "jsonFiles": 1533,
+            "caseEventToFields": 170,
+            "caseEventToComplexTypes": 150,
+            "authorisationCaseField": 110,
+            "caseField": 179,
+            "complexTypes": 594
+          },
+          {
+            "fullName": "hmcts/civil-general-apps-ccd-definition",
+            "url": "https://github.com/hmcts/civil-general-apps-ccd-definition",
+            "visibility": "public",
+            "updatedAt": "2026-03-16T17:35:07Z",
+            "defaultBranch": "master",
+            "definitionRoot": "ga-ccd-definition",
+            "jsonFiles": 280,
+            "caseEventToFields": 43,
+            "caseEventToComplexTypes": 25,
+            "authorisationCaseField": 11,
+            "caseField": 18,
+            "complexTypes": 100
+          }
+        ],
+        "rationale": "Civil is in every central EXUI family set and has the largest discovered CCD definition surface, so it is a release-blocking representative for broad case-event and complex-type permutations.",
+        "nextAction": "Add Civil normalized slices for event data integrity and Work Allocation filters after owner review of representative case events."
+      },
+      {
+        "serviceFamily": "PRIVATELAW",
+        "priority": "release-blocking",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "global-search",
+          "work-allocation",
+          "staff-ref-data",
+          "hearings",
+          "manage-case"
+        ],
+        "representativeCaseTypes": [
+          "PRLAPPS"
+        ],
+        "serviceCodes": [
+          "ABA5"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/prl-ccd-definitions",
+            "url": "https://github.com/hmcts/prl-ccd-definitions",
+            "visibility": "public",
+            "updatedAt": "2026-05-11T08:32:41Z",
+            "defaultBranch": "master",
+            "definitionRoot": "definitions/private-law/json",
+            "jsonFiles": 1492,
+            "caseEventToFields": 377,
+            "caseEventToComplexTypes": 232,
+            "authorisationCaseField": 185,
+            "caseField": 359,
+            "complexTypes": 419
+          }
+        ],
+        "rationale": "Private Law is already the executable normalized slice in the POC and covers EXUI config, WA, hearings, role, service-code, and nested CYA/complex-field seams.",
+        "nextAction": "Keep PRL as the first executable service-slice source and promote additional event-page permutations only when they introduce a distinct EXUI interpretation shape."
+      },
+      {
+        "serviceFamily": "IA",
+        "priority": "release-blocking",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "global-search",
+          "work-allocation",
+          "staff-ref-data",
+          "hearings"
+        ],
+        "representativeCaseTypes": [
+          "Asylum",
+          "Bail"
+        ],
+        "serviceCodes": [
+          "BFA1"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/ia-ccd-definitions",
+            "url": "https://github.com/hmcts/ia-ccd-definitions",
+            "visibility": "public",
+            "updatedAt": "2026-05-12T08:58:16Z",
+            "defaultBranch": "master",
+            "definitionRoot": "definitions",
+            "jsonFiles": 69,
+            "caseEventToFields": 2,
+            "caseEventToComplexTypes": 2,
+            "authorisationCaseField": 2,
+            "caseField": 4,
+            "complexTypes": 4
+          }
+        ],
+        "rationale": "IA is in every central EXUI family set and is hearings-enabled with two configured case types.",
+        "nextAction": "Add IA hearing case-type permutation slices for Asylum and Bail once the owning team confirms the representative event paths."
+      },
+      {
+        "serviceFamily": "PUBLICLAW",
+        "priority": "release-blocking",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "global-search",
+          "work-allocation",
+          "staff-ref-data"
+        ],
+        "representativeCaseTypes": [
+          "CARE_SUPERVISION_EPO"
+        ],
+        "serviceCodes": [
+          "ABA3"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/fpla-ccd-definitions",
+            "url": "https://github.com/hmcts/fpla-ccd-definitions",
+            "visibility": "public",
+            "updatedAt": "2023-01-28T15:28:47Z",
+            "defaultBranch": "master",
+            "definitionRoot": "ccd-definition",
+            "jsonFiles": 15,
+            "caseEventToFields": 0,
+            "caseEventToComplexTypes": 0,
+            "authorisationCaseField": 1,
+            "caseField": 2,
+            "complexTypes": 0,
+            "notes": "Public FPLA source is much smaller than PRL/Civil and should be checked with the owning team before selecting a representative event slice."
+          }
+        ],
+        "rationale": "Public Law is in the central global search, WA, and staff-supported sets; the public CCD source has been identified but needs owner confirmation before executable slice generation.",
+        "nextAction": "Confirm whether fpla-ccd-definitions is still the authoritative Public Law source and identify a representative event-definition slice."
+      },
+      {
+        "serviceFamily": "EMPLOYMENT",
+        "priority": "release-blocking",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "global-search",
+          "work-allocation",
+          "staff-ref-data"
+        ],
+        "representativeCaseTypes": [
+          "ET_EnglandWales",
+          "ET_Scotland"
+        ],
+        "serviceCodes": [
+          "BHA1"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/et-ccd-definitions-englandwales",
+            "url": "https://github.com/hmcts/et-ccd-definitions-englandwales",
+            "visibility": "public",
+            "updatedAt": "2026-03-11T11:06:28Z",
+            "defaultBranch": "master",
+            "definitionRoot": "definitions",
+            "jsonFiles": 177,
+            "caseEventToFields": 15,
+            "caseEventToComplexTypes": 0,
+            "authorisationCaseField": 18,
+            "caseField": 33,
+            "complexTypes": 23
+          },
+          {
+            "fullName": "hmcts/et-ccd-definitions-scotland",
+            "url": "https://github.com/hmcts/et-ccd-definitions-scotland",
+            "visibility": "public",
+            "updatedAt": "2026-03-11T11:06:43Z",
+            "defaultBranch": "master",
+            "definitionRoot": "definitions",
+            "jsonFiles": 178,
+            "caseEventToFields": 15,
+            "caseEventToComplexTypes": 0,
+            "authorisationCaseField": 18,
+            "caseField": 33,
+            "complexTypes": 23
+          }
+        ],
+        "rationale": "Employment is in the central global search, WA, and staff-supported sets and has separate England/Wales and Scotland CCD definition surfaces.",
+        "nextAction": "Model one England/Wales and one Scotland representative slice if owner review shows EXUI-visible behaviour differs."
+      },
+      {
+        "serviceFamily": "SSCS",
+        "priority": "grouped",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "staff-ref-data",
+          "hearings"
+        ],
+        "representativeCaseTypes": [
+          "Benefit"
+        ],
+        "serviceCodes": [
+          "BBA3"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/sscs-ccd-definitions",
+            "url": "https://github.com/hmcts/sscs-ccd-definitions",
+            "visibility": "public",
+            "updatedAt": "2024-10-08T20:44:23Z",
+            "defaultBranch": "master",
+            "definitionRoot": "src",
+            "jsonFiles": 144,
+            "caseEventToFields": 6,
+            "caseEventToComplexTypes": 1,
+            "authorisationCaseField": 4,
+            "caseField": 9,
+            "complexTypes": 6
+          }
+        ],
+        "rationale": "SSCS is staff-supported and hearings-enabled, so it is grouped with the hearings config proof until a distinct EXUI-owned risk is selected.",
+        "nextAction": "Add one SSCS hearings slice if the next scope includes HMC/list-assist validation beyond config."
+      },
+      {
+        "serviceFamily": "DIVORCE",
+        "priority": "grouped",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "staff-ref-data",
+          "hearings"
+        ],
+        "representativeCaseTypes": [
+          "DIVORCE",
+          "NFD"
+        ],
+        "serviceCodes": [
+          "ABA1"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/div-ccd-definitions",
+            "url": "https://github.com/hmcts/div-ccd-definitions",
+            "visibility": "public",
+            "updatedAt": "2026-03-23T15:32:04Z",
+            "defaultBranch": "master",
+            "definitionRoot": "definitions",
+            "jsonFiles": 52,
+            "caseEventToFields": 4,
+            "caseEventToComplexTypes": 2,
+            "authorisationCaseField": 4,
+            "caseField": 7,
+            "complexTypes": 4
+          },
+          {
+            "fullName": "hmcts/nfdiv-ccd-definitions",
+            "url": "https://github.com/hmcts/nfdiv-ccd-definitions",
+            "visibility": "public",
+            "updatedAt": "2023-01-28T10:13:47Z",
+            "defaultBranch": "master",
+            "definitionRoot": "definitions",
+            "jsonFiles": 128,
+            "caseEventToFields": 15,
+            "caseEventToComplexTypes": 5,
+            "authorisationCaseField": 13,
+            "caseField": 25,
+            "complexTypes": 10
+          }
+        ],
+        "rationale": "Divorce is staff-supported and is the explicit unsupported-hearings/hidden-surface family in the current UI proof.",
+        "nextAction": "Keep Divorce as the negative hearings family and add event-definition slices only if divorce-specific EXUI behaviour is selected."
+      },
+      {
+        "serviceFamily": "FR",
+        "priority": "grouped",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "staff-ref-data"
+        ],
+        "representativeCaseTypes": [
+          "FinancialRemedyMVP2"
+        ],
+        "serviceCodes": [
+          "ABA2"
+        ],
+        "repos": [
+          {
+            "fullName": "hmcts/finrem-ccd-definitions",
+            "url": "https://github.com/hmcts/finrem-ccd-definitions",
+            "visibility": "public",
+            "updatedAt": "2026-05-12T07:08:56Z",
+            "defaultBranch": "master",
+            "definitionRoot": "definitions",
+            "jsonFiles": 136,
+            "caseEventToFields": 8,
+            "caseEventToComplexTypes": 6,
+            "authorisationCaseField": 7,
+            "caseField": 14,
+            "complexTypes": 12
+          }
+        ],
+        "rationale": "Financial Remedy is staff-supported and has an identified CCD source, but no separate EXUI-visible central lane has been promoted yet.",
+        "nextAction": "Group through staff-supported assertions until a Financial Remedy-specific EXUI permutation is identified."
+      },
+      {
+        "serviceFamily": "PROBATE",
+        "priority": "grouped",
+        "proofLevel": "source-unavailable",
+        "lanes": [
+          "staff-ref-data"
+        ],
+        "representativeCaseTypes": [],
+        "serviceCodes": [
+          "ABA6"
+        ],
+        "repos": [],
+        "rationale": "Probate is staff-supported in EXUI config, but the discovered hmcts/probate-ccd-definitions repository was not usable for this snapshot because GitHub reported it as empty.",
+        "nextAction": "Confirm the current Probate CCD source with the owning team before building a normalized slice."
+      },
+      {
+        "serviceFamily": "ST_CIC",
+        "priority": "release-blocking",
+        "proofLevel": "source-unidentified",
+        "lanes": [
+          "global-search",
+          "work-allocation",
+          "staff-ref-data"
+        ],
+        "representativeCaseTypes": [],
+        "serviceCodes": [
+          "BBA2"
+        ],
+        "repos": [],
+        "rationale": "ST_CIC is release-blocking in EXUI config but GitHub searches for obvious Special Tribunals/CIC CCD definition sources did not identify a clear owner repo.",
+        "nextAction": "Resolve the ST_CIC CCD source owner before claiming definition-backed release-blocking coverage."
+      },
+      {
+        "serviceFamily": "CMC",
+        "priority": "canary",
+        "proofLevel": "ccd-backed",
+        "lanes": [
+          "canary"
+        ],
+        "representativeCaseTypes": [
+          "MoneyClaimCase"
+        ],
+        "serviceCodes": [],
+        "repos": [
+          {
+            "fullName": "hmcts/cmc-ccd-domain",
+            "url": "https://github.com/hmcts/cmc-ccd-domain",
+            "visibility": "public",
+            "updatedAt": "2026-02-26T18:01:05Z",
+            "defaultBranch": "master",
+            "definitionRoot": "src",
+            "jsonFiles": 25,
+            "caseEventToFields": 1,
+            "caseEventToComplexTypes": 1,
+            "authorisationCaseField": 1,
+            "caseField": 2,
+            "complexTypes": 2
+          }
+        ],
+        "rationale": "CMC has an identified CCD source but remains an explicit canary because it is outside the central release-blocking global search, WA, and staff-supported family sets.",
+        "nextAction": "Keep CMC canary-only unless the owner promotes it into a release-blocking central lane."
+      },
+      {
+        "serviceFamily": "HRS",
+        "priority": "canary",
+        "proofLevel": "config-backed",
+        "lanes": [
+          "canary"
+        ],
+        "representativeCaseTypes": [],
+        "serviceCodes": [],
+        "repos": [],
+        "rationale": "HRS is configured as a jurisdiction but not in the central global search, WA, staff, or hearings sets used for release-blocking assertions.",
+        "nextAction": "Keep HRS canary-only unless an EXUI owner identifies a release-blocking behaviour."
+      }
+    ]
+  },
+  "historicSrtFailureReplay": {
+    "source": "User-supplied EXUI SRT and incident Confluence extracts for JAC-91 Harness coverage modelling",
+    "failureClassIds": [
+      "manage-case-previous-navigation-data-loss",
+      "cya-complex-show-condition-summary",
+      "hidden-complex-retention",
+      "wa-task-lifecycle-correlation",
+      "wa-tab-location-availability",
+      "role-assignment-null-service",
+      "protected-endpoint-auth-negative",
+      "event-history-external-role-gate",
+      "event-history-layout-width",
+      "event-start-spinner-latency",
+      "idam-passport-session-smoke",
+      "media-viewer-redaction-coordinate"
+    ]
+  }
+}

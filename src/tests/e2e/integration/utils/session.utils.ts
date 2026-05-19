@@ -20,7 +20,9 @@ export function loadSessionCookies(userIdentifier: string): LoadedSession {
   const creds = userUtils.getUserCredentials(userIdentifier);
   const preferredStorageFile = resolveUiStoragePathForUser(userIdentifier);
   const legacyStorageFile = resolveLegacyUiStoragePathForUser(userIdentifier);
-  const storageFile = fs.existsSync(preferredStorageFile) ? preferredStorageFile : legacyStorageFile;
+  const storageFile = process.env.PW_UI_STORAGE_PATH?.trim()
+    ? preferredStorageFile
+    : fs.existsSync(preferredStorageFile) ? preferredStorageFile : legacyStorageFile;
   let cookies: Cookie[] = [];
 
   if (fs.existsSync(storageFile)) {

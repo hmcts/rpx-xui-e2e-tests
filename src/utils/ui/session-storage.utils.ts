@@ -105,8 +105,28 @@ const resolveIdamLoginUrl = (env: NodeJS.ProcessEnv = process.env): string | und
   }
 };
 
-const resolveUiLoginTargets = (baseUrl: string, env: NodeJS.ProcessEnv = process.env): string[] =>
-  Array.from(new Set([baseUrl, resolveIdamLoginUrl(env)].filter((value): value is string => Boolean(value?.trim()))));
+const isLocalUrl = (value: string | undefined): boolean => {
+  if (!value?.trim()) {
+    return false;
+  }
+  try {
+    return ["localhost", "127.0.0.1", "::1"].includes(new URL(value).hostname);
+  } catch {
+    return false;
+  }
+};
+
+const resolveUiLoginTargets = (baseUrl: string, env: NodeJS.ProcessEnv = process.env): string[] => {
+  const idamLoginUrl = resolveIdamLoginUrl(env);
+  const testEnv = (env.TEST_ENV ?? config.testEnv).toLowerCase();
+  const shouldUseIdamFallback = testEnv !== "local" || isLocalUrl(idamLoginUrl);
+  return Array.from(
+    new Set(
+      [baseUrl, shouldUseIdamFallback ? idamLoginUrl : undefined]
+        .filter((value): value is string => Boolean(value?.trim()))
+    )
+  );
+};
 
 export const isTransientUiBootstrapFailure = (error: unknown): boolean => {
   const message = asErrorMessage(error);
@@ -248,6 +268,9 @@ const describeLoginFailure = async (page: Page): Promise<string | undefined> => 
 
 const hasRequiredAuthCookies = (cookies: { name: string }[]) => {
   const names = new Set(cookies.map((cookie) => cookie.name));
+  if ((process.env.TEST_ENV ?? config.testEnv).toLowerCase() === "local") {
+    return names.has("Idam.Session") && names.has("xui-webapp");
+  }
   return names.has("Idam.Session") && names.has("__auth__");
 };
 

@@ -1,6 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { cpus, homedir } from "node:os";
+import { cpus, homedir, totalmem } from "node:os";
 import path from "node:path";
 
 import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
@@ -12,11 +12,89 @@ import { resolveUiStoragePath, shouldUseUiStorage } from "./src/utils/ui/storage
 
 export type EnvMap = Record<string, string | undefined>;
 
+const runtimeOverrideKeys = [
+  "TEST_URL",
+  "TEST_ENV",
+  "TEST_ENVIRONMENT",
+  "PW_UI_STORAGE",
+  "PW_UI_STORAGE_STRICT",
+  "PW_UI_STORAGE_PATH",
+  "PW_UI_USERS",
+  "PW_UI_USER",
+  "IDAM_WEB_URL",
+  "IDAM_TESTING_SUPPORT_URL",
+  "IDAM_TESTING_SUPPORT_USERS_URL",
+  "IDAM_CLIENT_ID",
+  "IDAM_SECRET",
+  "IDAM_OAUTH2_SCOPE",
+  "IDAM_RETURN_URL",
+  "S2S_URL",
+  "S2S_MICROSERVICE_NAME",
+  "MICROSERVICE",
+  "S2S_SECRET",
+  "SOLICITOR_USERNAME",
+  "SOLICITOR_PASSWORD",
+  "CASEOFFICER_R1_USERNAME",
+  "CASEOFFICER_R1_PASSWORD",
+  "CASEOFFICER_R2_USERNAME",
+  "CASEOFFICER_R2_PASSWORD",
+  "CASEWORKER_R1_USERNAME",
+  "CASEWORKER_R1_PASSWORD",
+  "CASEWORKER_R2_USERNAME",
+  "CASEWORKER_R2_PASSWORD",
+  "JUDGE_USERNAME",
+  "JUDGE_PASSWORD",
+  "JUDGE_IDAM_ID",
+  "JUDGE_DISPLAY_NAME",
+  "WA_LOCATION_ID",
+  "PLAYWRIGHT_REPORTERS",
+  "PLAYWRIGHT_REPORT_FOLDER",
+  "PLAYWRIGHT_REPORT_PROJECT",
+  "PLAYWRIGHT_REPORT_RELEASE",
+  "PW_ODHIN_OUTPUT",
+  "PW_ODHIN_INDEX",
+  "PW_ODHIN_TITLE",
+  "PW_ODHIN_ENV",
+  "PW_ODHIN_PROJECT",
+  "PW_ODHIN_RELEASE",
+  "PW_ODHIN_TEST_FOLDER",
+  "PW_ODHIN_API_LOGS",
+  "PW_ODHIN_LIGHTWEIGHT",
+  "PW_ODHIN_CONSOLE_TEST_OUTPUT"
+] as const;
+
+const captureRuntimeOverrides = <TKey extends string>(
+  env: EnvMap,
+  keys: readonly TKey[]
+): Partial<Record<TKey, string>> =>
+  Object.fromEntries(
+    keys.flatMap((key) => {
+      const value = env[key];
+      return value === undefined ? [] : [[key, value]];
+    })
+  ) as Partial<Record<TKey, string>>;
+
+const restoreRuntimeOverrides = <TKey extends string>(
+  env: EnvMap,
+  overrides: Partial<Record<TKey, string>>
+) => {
+  for (const key of Object.keys(overrides) as TKey[]) {
+    const value = overrides[key];
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+};
+
+const runtimeOverrides = captureRuntimeOverrides(process.env, runtimeOverrideKeys);
+
 loadEnv({
   path: path.resolve(process.cwd(), ".env"),
   quiet: true,
   override: false
 });
+
+restoreRuntimeOverrides(process.env, runtimeOverrides);
 
 const require = createRequire(import.meta.url);
 const { version: appVersion } = require("./package.json") as { version: string };
@@ -64,6 +142,60 @@ const parseNonNegativeInteger = (value: string | undefined): number | undefined 
   return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed;
 };
 
+const formatGib = (bytes: number): string => (bytes / 1024 / 1024 / 1024).toFixed(1);
+
+const readTrimmedFile = (filePath: string): string | undefined => {
+  try {
+    return readFileSync(filePath, "utf8").trim();
+  } catch {
+    return undefined;
+  }
+};
+
+const resolveCgroupCpuCores = (): number | undefined => {
+  const cpuMax = readTrimmedFile("/sys/fs/cgroup/cpu.max");
+  if (cpuMax) {
+    const [quotaRaw, periodRaw] = cpuMax.split(/\s+/);
+    const quota = Number(quotaRaw);
+    const period = Number(periodRaw);
+    if (quotaRaw !== "max" && Number.isFinite(quota) && Number.isFinite(period) && quota > 0 && period > 0) {
+      return Math.max(1, Math.round(quota / period));
+    }
+  }
+
+  const quota = Number(readTrimmedFile("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"));
+  const period = Number(readTrimmedFile("/sys/fs/cgroup/cpu/cpu.cfs_period_us"));
+  if (Number.isFinite(quota) && Number.isFinite(period) && quota > 0 && period > 0) {
+    return Math.max(1, Math.round(quota / period));
+  }
+
+  return undefined;
+};
+
+const resolveCgroupMemoryLimitBytes = (): number | undefined => {
+  const totalMemoryBytes = totalmem();
+  for (const filePath of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
+    const rawLimit = readTrimmedFile(filePath);
+    if (!rawLimit || rawLimit === "max") {
+      continue;
+    }
+    const limitBytes = Number(rawLimit);
+    if (Number.isFinite(limitBytes) && limitBytes > 0 && limitBytes <= totalMemoryBytes * 2) {
+      return limitBytes;
+    }
+  }
+  return undefined;
+};
+
+const resolveAgentCpuCores = (): number => resolveCgroupCpuCores() ?? cpus()?.length ?? 1;
+const resolveAgentRamGib = (): string => formatGib(resolveCgroupMemoryLimitBytes() ?? totalmem());
+
+const appendEnvironmentSegment = (segments: string[], key: string, value: string) => {
+  if (!segments.some((segment) => segment === value || segment.startsWith(`${key}=`))) {
+    segments.push(value);
+  }
+};
+
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
   const maxWorkers = parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS;
@@ -81,6 +213,27 @@ const resolveUiProjectWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PW_UI_WORKERS ?? env.PLAYWRIGHT_UI_WORKERS);
   if (configured) return configured;
   return Math.min(MAX_UI_WORKERS, resolveWorkerCount(env));
+};
+
+const resolveOdhinTestEnvironment = (env: EnvMap = process.env, workers = resolveWorkerCount(env)) => {
+  const baseEnvironment = firstNonBlank(env.PW_ODHIN_ENV) ?? env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat");
+  const segments = baseEnvironment
+    .split("|")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const executionMode = env.CI ? "ci" : "local-run";
+  if (!segments.includes("ci") && !segments.includes("local-run")) {
+    segments.push(executionMode);
+  }
+  appendEnvironmentSegment(segments, "workers", `workers=${workers}`);
+
+  if (env.CI) {
+    appendEnvironmentSegment(segments, "agent_cpu_cores", `agent_cpu_cores=${resolveAgentCpuCores()}`);
+    appendEnvironmentSegment(segments, "agent_ram_gib", `agent_ram_gib=${resolveAgentRamGib()}`);
+  }
+
+  return segments.join(" | ");
 };
 
 const resolveApiTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
@@ -239,9 +392,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
             outputFolder: resolveOdhinOutputFolder(env),
             indexFilename: resolveOdhinIndexFilename(env),
             title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e Playwright",
-            testEnvironment:
-              firstNonBlank(env.PW_ODHIN_ENV) ??
-              `${env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat")} | ${env.CI ? "ci" : "local-run"} | workers=${resolveWorkerCount(env)}`,
+            testEnvironment: resolveOdhinTestEnvironment(env, resolveWorkerCount(env)),
             project: resolveOdhinProject(env),
             release: resolveOdhinRelease(env),
             testFolder: firstNonBlank(env.PW_ODHIN_TEST_FOLDER) ?? "src/tests",
@@ -431,6 +582,7 @@ export const __test__ = {
   resolveApiTagFilters,
   resolveE2eTagFilters,
   resolveIntegrationTagFilters,
+  resolveOdhinTestEnvironment,
   resolveUiProjectWorkerCount,
   resolveWorkerCount
 };

@@ -37,6 +37,12 @@ const resolveUiProjectWorkerCount = (env: EnvMap) =>
   (
     configModule.__test__ as TestableConfigModule['__test__'] & { resolveUiProjectWorkerCount: (env: EnvMap) => number }
   ).resolveUiProjectWorkerCount(env);
+const resolveOdhinTestEnvironment = (env: EnvMap, workers?: number) =>
+  (
+    configModule.__test__ as TestableConfigModule['__test__'] & {
+      resolveOdhinTestEnvironment: (env: EnvMap, workers?: number) => string;
+    }
+  ).resolveOdhinTestEnvironment(env, workers);
 const resolveApiTagFilters = (env: EnvMap) =>
   (
     configModule.__test__ as TestableConfigModule['__test__'] & { resolveApiTagFilters: (env: EnvMap) => unknown }
@@ -91,6 +97,12 @@ const buildNightlyConfig = (env: EnvMap) =>
     use: { baseURL: string };
     projects: Array<{ name: string; grep?: RegExp; grepInvert?: RegExp; use?: { headless?: boolean } }>;
   };
+const resolveNightlyOdhinTestEnvironment = (env: EnvMap, workers?: number) =>
+  (
+    nightlyConfigModule.__test__ as TestableConfigModule['__test__'] & {
+      resolveOdhinTestEnvironment: (env: EnvMap, workers?: number) => string;
+    }
+  ).resolveOdhinTestEnvironment(env, workers);
 
 const getReporterTuple = (reporter: unknown, name: string): [string, Record<string, unknown> | undefined] => {
   if (!Array.isArray(reporter)) {
@@ -180,11 +192,31 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(odhinOptions?.project).toBe('Custom Project');
     expect(odhinOptions?.release).toBe('Custom Release');
     expect(odhinOptions?.testEnvironment).toContain('ci');
+    expect(odhinOptions?.testEnvironment).toContain(`workers=${expectedWorkers}`);
+    expect(odhinOptions?.testEnvironment).toMatch(/agent_cpu_cores=\d+/);
+    expect(odhinOptions?.testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
     expect(config.projects[0]?.use?.headless).toBe(false);
 
     const apiProject = config.projects.find((p) => p.name === 'api');
     expect(apiProject).toBeDefined();
     expect(apiProject?.workers).toBe(resolveApiProjectWorkerCount({ CI: 'true' }));
+  });
+
+  test('odhin test environment appends Jenkins agent composition to an existing label', async () => {
+    const testEnvironment = resolveOdhinTestEnvironment(
+      {
+        CI: 'true',
+        FUNCTIONAL_TESTS_WORKERS: '2',
+        PW_ODHIN_ENV: 'xui-webapp-pr-5153.preview.platform.hmcts.net',
+      },
+      2
+    );
+
+    expect(testEnvironment).toContain('xui-webapp-pr-5153.preview.platform.hmcts.net');
+    expect(testEnvironment).toContain('ci');
+    expect(testEnvironment).toContain('workers=2');
+    expect(testEnvironment).toMatch(/agent_cpu_cores=\d+/);
+    expect(testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
   });
 
   test('config honors FUNCTIONAL_TESTS_WORKERS override in CI for all Playwright suites', async () => {
@@ -536,11 +568,32 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(progressOptions?.completionExitDelayMs).toBe(1000);
     expect(progressOptions?.forceExitOnCompletion).toBe(true);
     expect(odhinOptions?.outputFolder).toContain('playwright-e2e/odhin-report');
+    expect(odhinOptions?.testEnvironment).toContain('ci');
+    expect(odhinOptions?.testEnvironment).toContain('workers=2');
+    expect(odhinOptions?.testEnvironment).toMatch(/agent_cpu_cores=\d+/);
+    expect(odhinOptions?.testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
     expect(odhinOptions?.startServer).toBe(false);
     expect(odhinOptions?.profile).toBe(true);
     expect(odhinOptions?.runtimeHookTimeoutMs).toBe(0);
     expect(config.projects.find((project) => project.name === 'firefox')?.use?.headless).toBe(false);
     expect(config.projects.find((project) => project.name === 'webkit')?.use?.headless).toBe(false);
+  });
+
+  test('nightly odhin test environment appends Jenkins agent composition to an existing label', async () => {
+    const testEnvironment = resolveNightlyOdhinTestEnvironment(
+      {
+        CI: 'true',
+        FUNCTIONAL_TESTS_WORKERS: '8',
+        PW_ODHIN_ENV: 'xui-webapp-pr-5153.preview.platform.hmcts.net',
+      },
+      2
+    );
+
+    expect(testEnvironment).toContain('xui-webapp-pr-5153.preview.platform.hmcts.net');
+    expect(testEnvironment).toContain('ci');
+    expect(testEnvironment).toContain('workers=2');
+    expect(testEnvironment).toMatch(/agent_cpu_cores=\d+/);
+    expect(testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
   });
 
   test('nightly config honours explicit E2E worker override for serialized CI sessions', async () => {
