@@ -15,9 +15,18 @@ const support = require("./playwright.integration.config.support.cjs") as {
 };
 
 const truthy = new Set(["1", "true", "yes", "on"]);
+const falsy = new Set(["0", "false", "no", "off"]);
 const MAX_E2E_WORKERS = 2;
 
 const isTruthy = (value: string | undefined): boolean => truthy.has(value?.trim().toLowerCase() ?? "");
+
+const safeBoolean = (value: string | undefined, defaultValue: boolean): boolean => {
+  if (value === undefined) return defaultValue;
+  const normalised = value.trim().toLowerCase();
+  if (truthy.has(normalised)) return true;
+  if (falsy.has(normalised)) return false;
+  return defaultValue;
+};
 
 const firstNonBlank = (...values: Array<string | undefined>): string | undefined =>
   values.map((value) => value?.trim()).find((value): value is string => Boolean(value));
@@ -82,6 +91,12 @@ const appendEnvironmentSegment = (segments: string[], key: string, value: string
   }
 };
 
+const parseNonNegativeInteger = (value: string | undefined): number | undefined => {
+  if (!value) return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed;
+};
+
 const resolveE2EWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PW_E2E_WORKERS ?? env.PLAYWRIGHT_E2E_WORKERS);
   if (configured) return configured;
@@ -135,6 +150,19 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
     reporter: [
       [env.CI ? "dot" : "list"],
       [
+        "./src/tests/common/reporters/odhin-progress.reporter.cjs",
+        {
+          enabled: true,
+          graceMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_GRACE_MS) ?? 1500,
+          intervalMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_INTERVAL_MS) ?? 5000,
+          hardTimeoutMs:
+            parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_HARD_TIMEOUT_MS ?? env.PW_ODHIN_HARD_TIMEOUT_MS) ?? 0,
+          timeoutExitCode: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_TIMEOUT_EXIT_CODE) ?? 1,
+          completionExitDelayMs: parseNonNegativeInteger(env.PW_ODHIN_COMPLETION_EXIT_DELAY_MS) ?? (env.CI ? 1000 : 0),
+          forceExitOnCompletion: safeBoolean(env.PW_ODHIN_FORCE_EXIT_ON_COMPLETION, Boolean(env.CI))
+        }
+      ],
+      [
         "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
         {
           outputFolder:
@@ -148,8 +176,13 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
             firstNonBlank(env.PLAYWRIGHT_REPORT_RELEASE, env.PW_ODHIN_RELEASE) ??
             `branch=${env.PLAYWRIGHT_REPORT_BRANCH ?? env.GIT_BRANCH ?? "local"}`,
           testFolder: firstNonBlank(env.PW_ODHIN_TEST_FOLDER) ?? "src/tests/e2e",
+          startServer: safeBoolean(env.PW_ODHIN_START_SERVER, false),
           lightweight: env.CI ? false : true,
-          testOutput: env.PW_ODHIN_TEST_OUTPUT ?? "only-on-failure"
+          testOutput: env.PW_ODHIN_TEST_OUTPUT ?? "only-on-failure",
+          profile: safeBoolean(env.PW_ODHIN_PROFILE, true),
+          runtimeHookTimeoutMs:
+            parseNonNegativeInteger(env.PW_ODHIN_RUNTIME_HOOK_TIMEOUT_MS ?? env.PW_ODHIN_HARD_TIMEOUT_MS) ??
+            (env.CI ? 0 : 15000)
         }
       ]
     ],

@@ -10,6 +10,7 @@
   "scripts": {
     "pwinstall": "yarn playwright install --with-deps",
     "test:setup:playwright-install-chromium": "yarn playwright install chromium",
+    "test:setup:playwright-install-crossbrowser": "yarn playwright install chromium firefox webkit",
     "setup": "yarn install --immutable && yarn env:populate:playwright:aat && yarn pwinstall && yarn playwright install webkit && yarn playwright install firefox",
     "get-secrets": "node ./node_modules/@hmcts/playwright-common/dist/scripts/get-secrets.js",
     "env:populate": "bash ./scripts/populate-env-from-keyvault.sh",
