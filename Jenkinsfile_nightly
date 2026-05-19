@@ -174,7 +174,9 @@ def runInPlaywrightContainer = { Closure body ->
     return
   }
   withDocker(playwrightImage, playwrightDockerOptions) {
-    body()
+    withEnv(['PLAYWRIGHT_BROWSERS_PATH=/ms-playwright']) {
+      body()
+    }
   }
 }
 
@@ -187,6 +189,22 @@ def runPlaywrightCommand = { String command ->
   steps.sh """
     set +ex
     ${shellCommand}
+  """
+}
+
+def runOptionalPlaywrightNodeScript = { String scriptPath, String context ->
+  if (!fileExists(scriptPath)) {
+    echo "[playwright-report] Skipping ${context}: ${scriptPath} is unavailable in the current workspace."
+    return
+  }
+  steps.sh """
+    set +e
+    node '${scriptPath}'
+    status=\$?
+    if [ "\$status" -ne 0 ]; then
+      echo "[playwright-report] ${context} failed with status \$status"
+    fi
+    exit 0
   """
 }
 
@@ -218,6 +236,10 @@ def recordPlaywrightContainerDiagnostics = {
 }
 
 def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
+  if (!fileExists('scripts/ensure-load-profile-report.cjs')) {
+    echo "[playwright-report] Skipping ${reportName}: scripts/ensure-load-profile-report.cjs is unavailable in the current workspace."
+    return
+  }
   def safeReportName = reportName.replaceAll(/[^A-Za-z0-9._-]/, '-')
   def slimReportDir = "functional-output/tests/playwright-published-reports/load-profile/${safeReportName}"
   steps.sh """
@@ -371,7 +393,7 @@ withNightlyPipeline(type, product, component, 400) {
         if (params.PLAYWRIGHT_USE_DOCKER) {
           echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
         } else {
-          yarnBuilder.yarn('test:setup:playwright-install-chromium')
+          yarnBuilder.yarn('test:setup:playwright-install-crossbrowser')
         }
       } finally {
         recordPlaywrightLoadEvent('Playwright browser install', 'finish')
@@ -405,7 +427,7 @@ withNightlyPipeline(type, product, component, 400) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
             withEnv(apiOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+              runOptionalPlaywrightNodeScript('scripts/copy-odhin-report.cjs', 'API Odhín report copy')
             }
             publishHTML([
               allowMissing         : true,
@@ -425,9 +447,11 @@ withNightlyPipeline(type, product, component, 400) {
           }
         },
         'UI nightly': {
+          def uiWorkers = '1'
           def uiOdhinEnv = [
-            'FUNCTIONAL_TESTS_WORKERS=2',
-            'PLAYWRIGHT_WORKERS=2',
+            "FUNCTIONAL_TESTS_WORKERS=${uiWorkers}",
+            "PLAYWRIGHT_WORKERS=${uiWorkers}",
+            "PW_E2E_WORKERS=${uiWorkers}",
             "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
             "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
@@ -451,7 +475,7 @@ withNightlyPipeline(type, product, component, 400) {
             if (!hasCourtAdminUiCredentials()) {
               echo '[playwright-ui] Skipping UI nightly tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
               withEnv(uiOdhinEnv) {
-                yarnBuilder.yarn('node ./scripts/ensure-odhin-report.cjs')
+                runOptionalPlaywrightNodeScript('scripts/ensure-odhin-report.cjs', 'UI empty Odhín report generation')
               }
             } else {
               runInPlaywrightContainer {
@@ -464,7 +488,7 @@ withNightlyPipeline(type, product, component, 400) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
             withEnv(uiOdhinEnv) {
-              yarnBuilder.yarn('node ./scripts/copy-odhin-report.cjs')
+              runOptionalPlaywrightNodeScript('scripts/copy-odhin-report.cjs', 'UI Odhín report copy')
             }
             publishHTML([
               allowMissing         : true,
@@ -477,7 +501,7 @@ withNightlyPipeline(type, product, component, 400) {
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
             publishPlaywrightLoadProfile(
               'functional-output/tests/playwright-e2e/odhin-report/load-profile',
-              'UI Nightly System Load (2 workers)'
+              "UI Nightly System Load (${uiWorkers} worker)"
             )
             recordPlaywrightLoadEvent('UI', 'finish')
           }
