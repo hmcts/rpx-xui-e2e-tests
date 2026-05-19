@@ -524,13 +524,34 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(config.workers).toBe(2);
     expect(config.use.baseURL).toBe('https://example.test');
     expect(config.reporter[0][0]).toBe('dot');
+    const [, progressOptions] = getReporterTuple(
+      config.reporter,
+      './src/tests/common/reporters/odhin-progress.reporter.cjs'
+    );
     const [, odhinOptions] = getReporterTuple(
       config.reporter,
       './src/tests/common/reporters/odhin-adaptive.reporter.cjs'
     );
+    expect(progressOptions?.hardTimeoutMs).toBe(0);
+    expect(progressOptions?.completionExitDelayMs).toBe(1000);
+    expect(progressOptions?.forceExitOnCompletion).toBe(true);
     expect(odhinOptions?.outputFolder).toContain('playwright-e2e/odhin-report');
+    expect(odhinOptions?.startServer).toBe(false);
+    expect(odhinOptions?.profile).toBe(true);
+    expect(odhinOptions?.runtimeHookTimeoutMs).toBe(0);
     expect(config.projects.find((project) => project.name === 'firefox')?.use?.headless).toBe(false);
     expect(config.projects.find((project) => project.name === 'webkit')?.use?.headless).toBe(false);
+  });
+
+  test('nightly config honours explicit E2E worker override for serialized CI sessions', async () => {
+    const config = buildNightlyConfig({
+      CI: 'true',
+      FUNCTIONAL_TESTS_WORKERS: '4',
+      PW_E2E_WORKERS: '1',
+      TEST_URL: 'https://example.test',
+    });
+
+    expect(config.workers).toBe(1);
   });
 
   test('nightly cross-browser config applies E2E tag filters to both browsers', async () => {
