@@ -2,6 +2,23 @@
 
 Expert UI E2E test suite
 
+## XUI Assurance Harness POC
+
+The repo also contains the XUI Assurance Harness POC for central EXUI configuration assurance.
+
+Start here if you want to check out the required repos, install dependencies, start the local POC stack, and run the green/red demo:
+
+- [Local demo runbook](docs/srt-poc/LOCAL_HARNESS_DEMO.md)
+- [Mutation proof demo](docs/srt-poc/MUTATION_PROOF_DEMO.md)
+
+Core local commands:
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:demo:keep
+COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:local:odhin
+COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:mutation:wa
+```
+
 ## Secrets and .env generation (Key Vault + get-secrets)
 
 This repo uses the `get-secrets` helper shipped with `@hmcts/playwright-common` to populate `.env` from Azure Key Vault. The root `.env.example` is the source of truth for the env contract that gets written into `.env`.
