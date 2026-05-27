@@ -1,7 +1,4 @@
-/* global process, require, module */
-/* eslint-disable @typescript-eslint/no-require-imports */
-
-const { cpus } = require("node:os");
+/* global process, module */
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
@@ -26,11 +23,7 @@ const firstNonBlank = (...values) => values.map((value) => String(value ?? "").t
 const resolveWorkerCount = (env = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
   if (configured) return Math.min(MAX_WORKERS, configured);
-  if (env.CI) return 1;
-  const logical = cpus()?.length ?? 1;
-  if (logical <= 2) return 1;
-  const approxPhysical = Math.max(1, Math.round(logical / 2));
-  return Math.min(MAX_WORKERS, Math.max(2, approxPhysical));
+  return MAX_WORKERS;
 };
 
 const resolveOdhinLightweight = (env = process.env) => safeBoolean(env.PW_ODHIN_LIGHTWEIGHT, !env.CI);
@@ -56,8 +49,7 @@ const resolveBrowserChannel = (env = process.env) => {
 };
 
 const resolveConfiguredProjectWorkers = (env = process.env) => {
-  const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
-  return configured ? resolveWorkerCount(env) : undefined;
+  return resolveWorkerCount(env);
 };
 
 const buildConfig = (env = process.env) => {

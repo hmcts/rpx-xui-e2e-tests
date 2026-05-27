@@ -16,7 +16,7 @@ const support = require("./playwright.integration.config.support.cjs") as {
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
-const MAX_E2E_WORKERS = 2;
+const MAX_E2E_WORKERS = 4;
 
 const isTruthy = (value: string | undefined): boolean => truthy.has(value?.trim().toLowerCase() ?? "");
 
@@ -99,7 +99,7 @@ const parseNonNegativeInteger = (value: string | undefined): number | undefined 
 
 const resolveE2EWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PW_E2E_WORKERS ?? env.PLAYWRIGHT_E2E_WORKERS);
-  if (configured) return configured;
+  if (configured) return Math.min(MAX_E2E_WORKERS, configured);
   return Math.min(MAX_E2E_WORKERS, support.resolveWorkerCount(env));
 };
 

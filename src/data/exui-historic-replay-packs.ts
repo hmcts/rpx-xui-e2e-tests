@@ -6,6 +6,7 @@ import {
 
 export type ReplayPackId =
   | "manage-case-data-integrity"
+  | "ccd-search-workbasket-metadata"
   | "work-allocation-availability"
   | "protected-endpoint-auth"
   | "event-history-and-layout"
@@ -78,6 +79,23 @@ export interface ProtectedEndpointFixture {
   method: "GET" | "POST";
   path: string;
   sensitiveFields: readonly string[];
+}
+
+export interface CcdMetadataField {
+  caseTypeId: string;
+  fieldId: string;
+  label: string;
+  source: "SearchInputFields" | "WorkBasketInputFields";
+}
+
+export interface CcdSearchWorkbasketMetadataReplay {
+  serviceFamily: "PRIVATELAW";
+  jurisdiction: "PRIVATELAW";
+  caseType: "PRLAPPS";
+  serviceCode: "ABA5";
+  requiredSearchInputFields: readonly string[];
+  searchInputFields: readonly CcdMetadataField[];
+  workbasketInputFields: readonly CcdMetadataField[];
 }
 
 export interface EventHistoryPersona {
@@ -355,6 +373,27 @@ export const WORK_ALLOCATION_REPLAY = {
   ] satisfies readonly WorkAllocationTaskFixture[]
 } as const;
 
+export const CCD_SEARCH_WORKBASKET_METADATA_REPLAY: CcdSearchWorkbasketMetadataReplay = {
+  ...privateLawBase,
+  requiredSearchInputFields: ["[CASE_REFERENCE]"],
+  searchInputFields: [
+    {
+      caseTypeId: "PRLAPPS",
+      fieldId: "[CASE_REFERENCE]",
+      label: "Case reference",
+      source: "SearchInputFields"
+    }
+  ],
+  workbasketInputFields: [
+    {
+      caseTypeId: "PRLAPPS",
+      fieldId: "caseNameHmctsInternal",
+      label: "Case name",
+      source: "WorkBasketInputFields"
+    }
+  ]
+};
+
 export const PROTECTED_ENDPOINT_REPLAY: readonly ProtectedEndpointFixture[] = [
   {
     method: "GET",
@@ -487,6 +526,29 @@ export function findTaskToComplete(
     (task) =>
       task.id === eventCompletion.taskId && task.caseId === eventCompletion.caseId && task.eventId === eventCompletion.eventId
   );
+}
+
+export function mutateCcdSearchMetadataForDemo(
+  replay: CcdSearchWorkbasketMetadataReplay,
+  mutation = process.env.EXUI_ASSURANCE_MUTATION?.trim()
+): CcdSearchWorkbasketMetadataReplay {
+  if (mutation !== "drop-ccd-case-reference-search-input") {
+    return replay;
+  }
+
+  return {
+    ...replay,
+    searchInputFields: replay.searchInputFields.filter((field) => field.fieldId !== "[CASE_REFERENCE]")
+  };
+}
+
+export function assertRequiredCcdSearchMetadataFieldsPresent(replay: CcdSearchWorkbasketMetadataReplay): void {
+  const actualSearchInputFields = new Set(replay.searchInputFields.map((field) => field.fieldId));
+  const missing = replay.requiredSearchInputFields.filter((fieldId) => !actualSearchInputFields.has(fieldId));
+
+  if (missing.length > 0) {
+    throw new Error(`CCD search metadata is missing required EXUI search input fields: ${missing.join(", ")}`);
+  }
 }
 
 export function isAnonymousProtectedEndpointResponseSafe(

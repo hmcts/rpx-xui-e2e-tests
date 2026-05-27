@@ -132,15 +132,17 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     const cappedConfigured = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', CI: undefined });
     expect(cappedConfigured).toBe(4);
 
+    const cappedMaxOverride = resolveWorkerCount({ PLAYWRIGHT_MAX_WORKERS: '8', CI: undefined });
+    expect(cappedMaxOverride).toBe(4);
+
     const configuredInCi = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '2', CI: 'true' });
     expect(configuredInCi).toBe(2);
 
     const ciCount = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: 'true' });
-    expect(ciCount).toBe(1);
+    expect(ciCount).toBe(4);
 
     const defaultCount = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: undefined });
-    expect(defaultCount).toBeGreaterThanOrEqual(2);
-    expect(defaultCount).toBeLessThanOrEqual(4);
+    expect(defaultCount).toBe(4);
   });
 
   test('resolveConfigModule prefers __test__ and default exports', () => {
@@ -206,15 +208,15 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     const testEnvironment = resolveOdhinTestEnvironment(
       {
         CI: 'true',
-        FUNCTIONAL_TESTS_WORKERS: '2',
+        FUNCTIONAL_TESTS_WORKERS: '4',
         PW_ODHIN_ENV: 'xui-webapp-pr-5153.preview.platform.hmcts.net',
       },
-      2
+      4
     );
 
     expect(testEnvironment).toContain('xui-webapp-pr-5153.preview.platform.hmcts.net');
     expect(testEnvironment).toContain('ci');
-    expect(testEnvironment).toContain('workers=2');
+    expect(testEnvironment).toContain('workers=4');
     expect(testEnvironment).toMatch(/agent_cpu_cores=\d+/);
     expect(testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
   });
@@ -233,8 +235,8 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
 
     const uiProject = config.projects.find((p) => p.name === 'ui');
     expect(uiProject).toBeDefined();
-    expect(uiProject?.workers).toBe(2);
-    expect(resolveUiProjectWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '4', CI: 'true' })).toBe(2);
+    expect(uiProject?.workers).toBe(4);
+    expect(resolveUiProjectWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '4', CI: 'true' })).toBe(4);
   });
 
   test('config defaults to local reporter values', async () => {
@@ -462,7 +464,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(config.use.timezoneId).toBe('Europe/London');
     expect(config.projects).toHaveLength(1);
     expect(config.projects[0]?.name).toBe('chromium');
-    expect(config.projects[0]?.workers).toBeUndefined();
+    expect(config.projects[0]?.workers).toBe(4);
   });
 
   test('integration config applies shared tag filters to the integration project', async () => {
@@ -522,7 +524,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
   test('integration config exposes the documented resolveWorkerCount test helper', async () => {
     expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '3', CI: undefined })).toBe(3);
     expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', CI: undefined })).toBe(4);
-    expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: 'true' })).toBe(1);
+    expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: 'true' })).toBe(4);
   });
 
   test('integration config allows local browser channel override for reproducible reruns', async () => {
@@ -553,7 +555,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
       HEAD: 'true',
     });
 
-    expect(config.workers).toBe(2);
+    expect(config.workers).toBe(4);
     expect(config.use.baseURL).toBe('https://example.test');
     expect(config.reporter[0][0]).toBe('dot');
     const [, progressOptions] = getReporterTuple(
@@ -569,7 +571,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(progressOptions?.forceExitOnCompletion).toBe(true);
     expect(odhinOptions?.outputFolder).toContain('playwright-e2e/odhin-report');
     expect(odhinOptions?.testEnvironment).toContain('ci');
-    expect(odhinOptions?.testEnvironment).toContain('workers=2');
+    expect(odhinOptions?.testEnvironment).toContain('workers=4');
     expect(odhinOptions?.testEnvironment).toMatch(/agent_cpu_cores=\d+/);
     expect(odhinOptions?.testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
     expect(odhinOptions?.startServer).toBe(false);
@@ -583,28 +585,28 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     const testEnvironment = resolveNightlyOdhinTestEnvironment(
       {
         CI: 'true',
-        FUNCTIONAL_TESTS_WORKERS: '8',
+        FUNCTIONAL_TESTS_WORKERS: '4',
         PW_ODHIN_ENV: 'xui-webapp-pr-5153.preview.platform.hmcts.net',
       },
-      2
+      4
     );
 
     expect(testEnvironment).toContain('xui-webapp-pr-5153.preview.platform.hmcts.net');
     expect(testEnvironment).toContain('ci');
-    expect(testEnvironment).toContain('workers=2');
+    expect(testEnvironment).toContain('workers=4');
     expect(testEnvironment).toMatch(/agent_cpu_cores=\d+/);
     expect(testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
   });
 
-  test('nightly config honours explicit E2E worker override for serialized CI sessions', async () => {
+  test('nightly config caps explicit E2E worker override at the repo worker limit', async () => {
     const config = buildNightlyConfig({
       CI: 'true',
       FUNCTIONAL_TESTS_WORKERS: '4',
-      PW_E2E_WORKERS: '1',
+      PW_E2E_WORKERS: '8',
       TEST_URL: 'https://example.test',
     });
 
-    expect(config.workers).toBe(1);
+    expect(config.workers).toBe(4);
   });
 
   test('nightly cross-browser config applies E2E tag filters to both browsers', async () => {

@@ -16,7 +16,7 @@ const keepRunning = startOnly || args.has("--keep-running");
 const runProof = !startOnly && !args.has("--no-proof");
 const corepackHome = process.env.COREPACK_HOME || "/private/tmp/corepack-cache";
 const testUrl = process.env.TEST_URL || "http://localhost:3455";
-const harnessWorkers = process.env.HARNESS_WORKERS || process.env.PLAYWRIGHT_WORKERS || "6";
+const harnessWorkers = process.env.HARNESS_WORKERS || process.env.PLAYWRIGHT_WORKERS || "4";
 const children = [];
 const servers = [];
 const useProcessGroups = process.platform !== "win32";

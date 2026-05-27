@@ -182,6 +182,19 @@ function checkPrlDefinitions() {
     }
   }
 
+  const searchInputPath = path.join(prlDefinitionsRoot, "definitions/private-law/json/SearchInputFields.json");
+  if (fs.existsSync(searchInputPath)) {
+    const searchInputRows = readJson(searchInputPath);
+    const hasCaseReferenceSearchInput = searchInputRows.some(
+      (row) => row.CaseTypeID === expectedPrl.caseType && row.CaseFieldID === "[CASE_REFERENCE]"
+    );
+    if (!hasCaseReferenceSearchInput) {
+      failures.push("PRL SearchInputFields is missing CCD field [CASE_REFERENCE].");
+    }
+  } else {
+    failures.push("PRL SearchInputFields.json evidence file is missing.");
+  }
+
   const caseEventIds = new Set(
     findJsonFiles(path.join(prlDefinitionsRoot, "definitions/private-law/json/CaseEvent"))
       .flatMap((caseEventPath) => readJson(caseEventPath))
