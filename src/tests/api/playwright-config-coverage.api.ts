@@ -133,7 +133,14 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(cappedConfigured).toBe(4);
 
     const cappedMaxOverride = resolveWorkerCount({ PLAYWRIGHT_MAX_WORKERS: '8', CI: undefined });
-    expect(cappedMaxOverride).toBe(4);
+    expect(cappedMaxOverride).toBe(6);
+
+    const jenkinsSixWorkerProfile = resolveWorkerCount({
+      FUNCTIONAL_TESTS_WORKERS: '6',
+      PLAYWRIGHT_MAX_WORKERS: '6',
+      CI: 'true',
+    });
+    expect(jenkinsSixWorkerProfile).toBe(6);
 
     const configuredInCi = resolveWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '2', CI: 'true' });
     expect(configuredInCi).toBe(2);
@@ -237,6 +244,27 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(uiProject).toBeDefined();
     expect(uiProject?.workers).toBe(4);
     expect(resolveUiProjectWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '4', CI: 'true' })).toBe(4);
+  });
+
+  test('config allows Jenkins API worker profile to use 6 while UI stays capped at 4', async () => {
+    const config = buildConfig({
+      CI: 'true',
+      FUNCTIONAL_TESTS_WORKERS: '6',
+      PLAYWRIGHT_MAX_WORKERS: '6',
+      PLAYWRIGHT_REPORTERS: 'dot,odhin',
+      TEST_URL: 'https://example.test',
+    });
+    expect(config.workers).toBe(6);
+    const apiProject = config.projects.find((p) => p.name === 'api');
+    expect(apiProject).toBeDefined();
+    expect(apiProject?.workers).toBe(6);
+
+    const uiProject = config.projects.find((p) => p.name === 'ui');
+    expect(uiProject).toBeDefined();
+    expect(uiProject?.workers).toBe(4);
+    expect(
+      resolveUiProjectWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', PLAYWRIGHT_MAX_WORKERS: '6', CI: 'true' })
+    ).toBe(4);
   });
 
   test('config defaults to local reporter values', async () => {
@@ -524,6 +552,9 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
   test('integration config exposes the documented resolveWorkerCount test helper', async () => {
     expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '3', CI: undefined })).toBe(3);
     expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', CI: undefined })).toBe(4);
+    expect(
+      resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: '6', PLAYWRIGHT_MAX_WORKERS: '6', CI: 'true' })
+    ).toBe(6);
     expect(resolveIntegrationWorkerCount({ FUNCTIONAL_TESTS_WORKERS: undefined, CI: 'true' })).toBe(4);
   });
 

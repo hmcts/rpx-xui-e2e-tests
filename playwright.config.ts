@@ -102,6 +102,7 @@ const { version: appVersion } = require("./package.json") as { version: string }
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
 const DEFAULT_MAX_WORKERS = 4;
+const ABSOLUTE_MAX_WORKERS = 6;
 const MAX_UI_WORKERS = 4;
 const API_GLOBAL_EXCLUDED_TAGS_PATTERN = /^(@svc-.+|@wa-action)$/;
 const E2E_GLOBAL_EXCLUDED_TAGS_PATTERN = /^@e2e(?:-.+)?$/;
@@ -198,7 +199,7 @@ const appendEnvironmentSegment = (segments: string[], key: string, value: string
 
 const resolveWorkerCount = (env: EnvMap = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
-  const maxWorkers = Math.min(parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS, DEFAULT_MAX_WORKERS);
+  const maxWorkers = Math.min(parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS, ABSOLUTE_MAX_WORKERS);
   if (configured) return Math.min(maxWorkers, configured);
   return maxWorkers;
 };

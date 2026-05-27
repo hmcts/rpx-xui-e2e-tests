@@ -2,7 +2,8 @@
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
-const MAX_WORKERS = 4;
+const DEFAULT_MAX_WORKERS = 4;
+const ABSOLUTE_MAX_WORKERS = 6;
 
 const safeBoolean = (value, defaultValue) => {
   if (value === undefined) return defaultValue;
@@ -22,8 +23,9 @@ const firstNonBlank = (...values) => values.map((value) => String(value ?? "").t
 
 const resolveWorkerCount = (env = process.env) => {
   const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
-  if (configured) return Math.min(MAX_WORKERS, configured);
-  return MAX_WORKERS;
+  const maxWorkers = Math.min(parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS, ABSOLUTE_MAX_WORKERS);
+  if (configured) return Math.min(maxWorkers, configured);
+  return maxWorkers;
 };
 
 const resolveOdhinLightweight = (env = process.env) => safeBoolean(env.PW_ODHIN_LIGHTWEIGHT, !env.CI);
