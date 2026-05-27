@@ -6,18 +6,106 @@ Expert UI E2E test suite
 
 The repo also contains the XUI Assurance Harness POC for central EXUI configuration assurance.
 
-Start here if you want to check out the required repos, install dependencies, start the local POC stack, and run the green/red demo:
+The purpose is to prove shared EXUI behaviour centrally instead of asking every onboarded service to rerun the same broad regression pack for every EXUI change. The harness does not replace all service-owned testing. It targets the reusable EXUI contract: configured service families, Work Allocation visibility, Hearings visibility, CCD metadata shapes, accessibility baselines, and controlled red proofs.
 
-- [Local demo runbook](docs/srt-poc/LOCAL_HARNESS_DEMO.md)
-- [Mutation proof demo](docs/srt-poc/MUTATION_PROOF_DEMO.md)
+Start with the self-contained visual explainer:
 
-Core local commands:
+- [XUI Assurance Harness visual explainer](docs/xui-assurance-harness-visual-explainer.html)
+- GitHub view after merge: [xui-assurance-harness-visual-explainer.html](https://github.com/hmcts/rpx-xui-e2e-tests/blob/master/docs/xui-assurance-harness-visual-explainer.html)
+
+The explainer is a single HTML file. It embeds its own diagram, so it can be opened directly from the checkout, saved, or shared without a separate SVG asset.
+
+### What the harness currently proves
+
+- `api` lane: central EXUI configuration, supported service-family lists, historic replay packs, CCD search/workbasket metadata contracts, and mutation checks.
+- `ui` lane: visible EXUI behaviour where the central contract needs screen evidence.
+- `integration` lane: Manage Tasks and Hearings representative slices against the local harness runtime.
+- `accessibility` lane: axe-based accessibility baseline checks on representative EXUI screens. Existing known violations are recorded explicitly; future runs fail if a change introduces unexpected violations or increases the accepted baseline.
+
+### Local repository layout
+
+For the local demo, keep the related HMCTS repos checked out next to each other:
+
+```text
+<workspace>/
+  rpx-xui-e2e-tests/
+  rpx-xui-webapp/
+  ccd-docker/
+  prl-ccd-definitions/        # recommended for CCD-definition evidence review
+```
+
+`rpx-xui-e2e-tests` owns the harness tests and reports. `rpx-xui-webapp` remains the EXUI source of truth. `ccd-docker` provides the local CCD stack where the local proof needs it. Service CCD definition repos, starting with PRL, provide evidence for the representative slices.
+
+### Install
+
+```bash
+cd rpx-xui-e2e-tests
+COREPACK_HOME=/private/tmp/corepack-cache yarn install
+```
+
+### Run the local demo stack
+
+Start or reuse the local harness runtime:
 
 ```bash
 COREPACK_HOME=/private/tmp/corepack-cache yarn harness:demo:keep
-COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:local:odhin
-COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:mutation:wa
 ```
+
+Keep that terminal open. The runtime serves the local EXUI shell, the Node API path used by the harness, and the controlled downstream seams needed for the POC.
+
+Open the local shell if you want to show the UI target:
+
+```bash
+open http://localhost:3455/work/my-work/available
+```
+
+### Run the green proof
+
+In a second terminal:
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:local:odhin
+open test-results/harness-poc-odhin-report/harness-poc-odhin.html
+```
+
+This is the main happy-path proof. The Odhín report includes lane filtering for `API`, `UI`, `Integration`, and `Accessibility`, so reviewers can jump straight to the type of evidence they care about.
+
+### Run the controlled red proofs
+
+Work Allocation service-family mutation:
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:mutation:wa
+open functional-output/tests/harness/mutation-proof/odhin-report/harness-mutation-proof.html
+```
+
+CCD metadata mutation:
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:mutation:ccd
+open functional-output/tests/harness/ccd-mutation-proof/odhin-report/harness-ccd-mutation-proof.html
+```
+
+These commands deliberately inject a controlled fault into the observed contract. The point is to show the harness going red for the right reason, with a failure message that names the missing shared configuration or CCD metadata.
+
+### Useful focused checks
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:manifest
+COREPACK_HOME=/private/tmp/corepack-cache yarn lint
+COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/odhin-report-enhancer.unit.api.ts
+```
+
+### Accessibility baseline approach
+
+The harness uses `@axe-core/playwright` to attach HTML accessibility reports to the relevant Playwright test evidence. The first accessibility run found real existing issues on representative screens. Those are not hidden by disabling axe. They are modelled as a baseline:
+
+- known existing violations are listed with a maximum accepted node count
+- the test still attaches the axe report as evidence
+- the test fails if a future EXUI change introduces a new violation
+- the test fails if an existing violation expands beyond the accepted baseline
+
+That gives test leads a practical way to centralise accessibility confidence for shared EXUI screens without pretending the current product has zero issues.
 
 ## Secrets and .env generation (Key Vault + get-secrets)
 
