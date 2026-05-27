@@ -150,6 +150,10 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).toContain('Status by test file');
     expect(nextHtml).not.toContain('Status by feature');
     expect(nextHtml).toContain('odhin-dashboard-stack');
+    expect(nextHtml).toContain('odhin-harness-lane-script');
+    expect(nextHtml).toContain('Harness lane');
+    expect(nextHtml).toContain('data-dashboard-harness-lane');
+    expect(nextHtml).toContain('Accessibility');
     expect(nextHtml.indexOf('Run info')).toBeLessThan(nextHtml.indexOf('Feature Overview'));
     expect(nextHtml.indexOf('Global Summary')).toBeLessThan(nextHtml.indexOf('Projects Summary'));
     expect(nextHtml).toContain("document.getElementById('chart-project').getContext('2d');");
@@ -186,6 +190,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).toContain('Features</div>');
     expect(nextHtml).toContain('Feature Overview');
     expect(nextHtml).toContain('odhin-feature-overview-layout-compact');
+    expect(nextHtml).toContain('odhin-harness-lane-script');
     expect(nextHtml).not.toContain('id="chart-file"');
   });
 

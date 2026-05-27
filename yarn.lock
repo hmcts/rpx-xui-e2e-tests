@@ -6078,6 +6078,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "rpx-xui-e2e-tests@workspace:."
   dependencies:
+    "@axe-core/playwright": "npm:^4.11.0"
     "@eslint/js": "npm:^10.0.0"
     "@faker-js/faker": "npm:^10.0.0"
     "@hmcts/playwright-common": "npm:^1.1.0"
@@ -6086,6 +6087,8 @@ __metadata:
     "@types/uuid": "npm:^11.0.0"
     "@typescript-eslint/eslint-plugin": "npm:^8.8.0"
     "@typescript-eslint/parser": "npm:^8.8.0"
+    axe-core: "npm:^4.11.1"
+    axe-html-reporter: "npm:^2.2.11"
     c8: "npm:^11.0.0"
     dotenv: "npm:^17.0.0"
     eslint: "npm:^10.0.0"

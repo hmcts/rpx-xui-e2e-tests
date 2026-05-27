@@ -9,6 +9,7 @@ import {
 import { expect, test } from '../../../../fixtures/ui';
 import type { TaskListPage } from '../../../../page-objects/pages/exui/taskList.po.js';
 import { ensureUiStorageStateForUser } from '../../../../utils/ui/session-storage.utils.js';
+import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from '../../../../utils/ui/test-evidence.utils.js';
 import { probeUiRouteAvailability } from '../../../../utils/ui/uiHostAvailability.js';
 import {
   buildManageTasksUserDetailsOptionsForJurisdictions,
@@ -83,6 +84,23 @@ async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): 
   return [];
 }
 
+async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskListPage, testInfo: { skip: (condition: boolean, description: string) => void }) {
+  try {
+    await page.goto('/work/my-work/available', {
+      waitUntil: 'domcontentloaded',
+      timeout: 20_000,
+    });
+  } catch (error) {
+    testInfo.skip(true, `Task list navigation did not complete within 20s: ${asErrorMessage(error)}`);
+  }
+
+  const accessIssue = await findTaskListAccessIssue(page, '/work/my-work/available');
+  testInfo.skip(Boolean(accessIssue), accessIssue ?? '');
+  await taskListPage.waitForTaskListShellReady('central assurance service family proof');
+  await taskListPage.openFilterPanel();
+  await expect(taskListPage.selectAllServicesFilter).toBeVisible();
+}
+
 test.beforeAll(async () => {
   const cachedSession = loadSessionCookies(userIdentifier);
   sessionCookies = cachedSession.cookies;
@@ -121,20 +139,7 @@ test.describe(`Available task service families as ${userIdentifier}`, () => {
 
   test('available tasks filter exposes only the centrally supported WA families', async ({ page, taskListPage }, testInfo) => {
     await test.step('Open the available tasks tab and filter panel', async () => {
-      try {
-        await page.goto('/work/my-work/available', {
-          waitUntil: 'domcontentloaded',
-          timeout: 20_000,
-        });
-      } catch (error) {
-        testInfo.skip(true, `Task list navigation did not complete within 20s: ${asErrorMessage(error)}`);
-      }
-
-      const accessIssue = await findTaskListAccessIssue(page, '/work/my-work/available');
-      testInfo.skip(Boolean(accessIssue), accessIssue ?? '');
-      await taskListPage.waitForTaskListShellReady('central assurance service family proof');
-      await taskListPage.openFilterPanel();
-      await expect(taskListPage.selectAllServicesFilter).toBeVisible();
+      await openAvailableTasksServiceFilter(page, taskListPage, testInfo);
     });
 
     await test.step('Verify the service filter values match the supported service-family list', async () => {
@@ -145,6 +150,29 @@ test.describe(`Available task service families as ${userIdentifier}`, () => {
       for (const canaryFamily of EXUI_CANARY_SERVICE_FAMILIES) {
         expect(serviceFilterValues).not.toContain(canaryFamily);
       }
+
+      await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-manage-tasks-service-family-filter.png');
     });
+  });
+
+  test('accessibility baseline: available tasks service filter has no new axe violations', async ({
+    page,
+    taskListPage,
+  }, testInfo) => {
+    await openAvailableTasksServiceFilter(page, taskListPage, testInfo);
+
+    await attachAccessibilityEvidence(testInfo, page, 'Manage Tasks service-family filter accessibility report', {
+      knownViolations: [
+        {
+          id: 'empty-table-header',
+          maxNodes: 2,
+        },
+        {
+          id: 'label',
+          maxNodes: 4,
+        },
+      ],
+    });
+    await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-manage-tasks-service-family-filter-a11y.png');
   });
 });
