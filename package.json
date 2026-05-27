@@ -60,6 +60,7 @@
     "test:crossbrowser:raw": "sh -c 'if [ \"${1:-}\" = \"--\" ]; then shift; fi; if [ \"${PLAYWRIGHT_SKIP_INSTALL}\" != \"true\" ]; then yarn playwright install --with-deps && yarn playwright install webkit && yarn playwright install firefox; fi; export E2E_PW_INCLUDE_TAGS=${E2E_PW_INCLUDE_TAGS:-@nightly} E2E_PW_EXCLUDED_TAGS_OVERRIDE=${E2E_PW_EXCLUDED_TAGS_OVERRIDE:-@none} PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-nightly.html PW_ODHIN_INDEX=playwright-odhin-nightly.html PW_ODHIN_FALLBACK_SUITE_NAME=\"Playwright E2E Cross-Browser\"; yarn playwright test -c playwright-nightly.config.ts \"$@\"; status=$?; node ./scripts/ensure-odhin-report.cjs || true; exit \"$status\"' --"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
     "@eslint/js": "^10.0.0",
     "@faker-js/faker": "^10.0.0",
     "@hmcts/playwright-common": "^1.1.0",
@@ -68,6 +69,8 @@
     "@types/uuid": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^8.8.0",
     "@typescript-eslint/parser": "^8.8.0",
+    "axe-core": "^4.11.1",
+    "axe-html-reporter": "^2.2.11",
     "c8": "^11.0.0",
     "dotenv": "^17.0.0",
     "eslint": "^10.0.0",

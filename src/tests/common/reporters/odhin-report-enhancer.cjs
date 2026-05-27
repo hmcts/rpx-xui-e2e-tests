@@ -270,7 +270,450 @@ function injectEnhancerStyles(root) {
       justify-content: flex-start;
     }
   }
+
+  .odhin-harness-test-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 12px;
+    padding: 12px;
+    border: 1px solid #d8e3ef;
+    border-radius: 6px;
+    background: #f8fbfe;
+  }
+
+  .odhin-harness-filter-label {
+    margin-right: 4px;
+    color: #16324f;
+    font-weight: 700;
+  }
+
+  .odhin-harness-filter-button {
+    border: 1px solid #163647;
+    border-radius: 4px;
+    background: #ffffff;
+    color: #163647;
+    padding: 6px 10px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .odhin-harness-filter-button:hover,
+  .odhin-harness-filter-button.active {
+    background: #163647;
+    color: #ffffff;
+  }
+
+  .odhin-harness-filter-summary {
+    flex-basis: 100%;
+    color: #53657d;
+    font-size: 13px;
+  }
+
+  .odhin-harness-lane-badge {
+    display: inline-block;
+    min-width: 86px;
+    margin-right: 8px;
+    padding: 3px 7px;
+    border-radius: 999px;
+    background: #eef5fb;
+    color: #163647;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .odhin-harness-lane-link {
+    border: 0;
+    background: transparent;
+    color: #163647;
+    padding: 0;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .odhin-harness-lane-link:hover,
+  .odhin-harness-lane-link:focus {
+    color: #005ea5;
+  }
 </style>`)
+  );
+}
+
+function injectHarnessLaneScript(root) {
+  if (root.querySelector('#odhin-harness-lane-script')) {
+    return;
+  }
+
+  const body = root.querySelector('body');
+  if (!body) {
+    return;
+  }
+
+  body.appendChild(
+    parse(`
+<script id="odhin-harness-lane-script">
+(function () {
+  var activeLane = 'all';
+  var testRowsCache = null;
+  var laneLabels = {
+    all: 'All',
+    api: 'API',
+    ui: 'UI',
+    integration: 'Integration',
+    accessibility: 'Accessibility'
+  };
+
+  function normalise(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function parseDuration(durationText) {
+    var match = String(durationText || '').match(/(\\d+)h\\s+(\\d+)m\\s+(\\d+)s\\s+(\\d+)ms/);
+    if (!match) {
+      return 0;
+    }
+    return Number(match[1]) * 3600000 + Number(match[2]) * 60000 + Number(match[3]) * 1000 + Number(match[4]);
+  }
+
+  function formatDuration(durationMs) {
+    var safeDuration = Math.max(0, Math.round(Number(durationMs) || 0));
+    var hours = Math.floor(safeDuration / 3600000);
+    var minutes = Math.floor((safeDuration % 3600000) / 60000);
+    var seconds = Math.floor((safeDuration % 60000) / 1000);
+    var milliseconds = safeDuration % 1000;
+    return hours + 'h ' + minutes + 'm ' + seconds + 's ' + milliseconds + 'ms';
+  }
+
+  function getModalForRow(row) {
+    var modalSelector = row && row.getAttribute('data-bs-target');
+    if (!modalSelector) {
+      return null;
+    }
+    if (modalSelector.charAt(0) === '#') {
+      return document.getElementById(modalSelector.slice(1));
+    }
+    return document.querySelector(modalSelector);
+  }
+
+  function getProjectForRow(row) {
+    var modal = getModalForRow(row);
+    if (!modal) {
+      return '';
+    }
+
+    var infoRows = modal.querySelectorAll('.testcase-run-info-table tr');
+    for (var index = 0; index < infoRows.length; index += 1) {
+      var header = normalise(infoRows[index].querySelector('th') && infoRows[index].querySelector('th').textContent);
+      if (header === 'project') {
+        return normalise(infoRows[index].querySelector('td') && infoRows[index].querySelector('td').textContent);
+      }
+    }
+
+    return '';
+  }
+
+  function getTitleForRow(row) {
+    var titleCell = row && row.querySelector('td');
+    return normalise(titleCell && titleCell.textContent);
+  }
+
+  function isAccessibilityRow(row) {
+    return getTitleForRow(row).indexOf('accessibility baseline:') !== -1;
+  }
+
+  function getProjectLaneForRow(row) {
+    var project = getProjectForRow(row);
+    if (project === 'api' || project === 'ui' || project === 'integration') {
+      return project;
+    }
+
+    return 'other';
+  }
+
+  function rowMatchesLane(row, lane) {
+    if (lane === 'all') {
+      return true;
+    }
+    if (lane === 'accessibility') {
+      return isAccessibilityRow(row);
+    }
+    return getProjectLaneForRow(row) === lane;
+  }
+
+  function statusKeyForRow(row) {
+    var status = normalise(row && row.children && row.children[1] && row.children[1].textContent);
+    if (status === 'timed out') {
+      return 'timedOut';
+    }
+    return status || 'other';
+  }
+
+  function allTestRows() {
+    return testRowsCache || Array.prototype.slice.call(document.querySelectorAll('#test-list-table tbody tr.test-row-result'));
+  }
+
+  function resolveDataTable() {
+    if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.dataTable) {
+      return null;
+    }
+    return window.jQuery('#test-list-table').DataTable();
+  }
+
+  function cacheAllRows(dataTable) {
+    if (!dataTable || testRowsCache) {
+      return;
+    }
+    testRowsCache = Array.prototype.slice.call(dataTable.rows().nodes()).filter(function (row) {
+      return row && row.classList && row.classList.contains('test-row-result');
+    });
+  }
+
+  function laneStats() {
+    var stats = {};
+    ['api', 'ui', 'integration', 'accessibility'].forEach(function (lane) {
+      stats[lane] = {
+        tests: 0,
+        durationMs: 0,
+        passed: 0,
+        failed: 0,
+        timedOut: 0,
+        skipped: 0,
+        interrupted: 0,
+        flaky: 0
+      };
+    });
+
+    allTestRows().forEach(function (row) {
+      var lane = getProjectLaneForRow(row);
+      var status = statusKeyForRow(row);
+      var durationMs = parseDuration(row.children && row.children[2] && row.children[2].textContent);
+
+      if (stats[lane]) {
+        stats[lane].tests += 1;
+        stats[lane].durationMs += durationMs;
+        if (Object.prototype.hasOwnProperty.call(stats[lane], status)) {
+          stats[lane][status] += 1;
+        }
+      }
+
+      if (isAccessibilityRow(row)) {
+        stats.accessibility.tests += 1;
+        stats.accessibility.durationMs += durationMs;
+        if (Object.prototype.hasOwnProperty.call(stats.accessibility, status)) {
+          stats.accessibility[status] += 1;
+        }
+      }
+    });
+
+    return stats;
+  }
+
+  function addLaneBadges() {
+    allTestRows().forEach(function (row) {
+      var titleCell = row.querySelector('td');
+      if (!titleCell || titleCell.querySelector('.odhin-harness-lane-badge')) {
+        return;
+      }
+      var lane = isAccessibilityRow(row) ? 'accessibility' : getProjectLaneForRow(row);
+      var badge = document.createElement('span');
+      badge.className = 'odhin-harness-lane-badge';
+      badge.textContent = laneLabels[lane] || 'Other';
+      titleCell.insertBefore(badge, titleCell.firstChild);
+    });
+  }
+
+  function addTestLaneFilters() {
+    var tableElement = document.querySelector('#test-list-table');
+    var statusFilterRow = document.querySelector('#status-filter-row');
+    if (!tableElement || !statusFilterRow || document.querySelector('#odhin-harness-test-filters')) {
+      return;
+    }
+
+    var toolbar = document.createElement('div');
+    toolbar.id = 'odhin-harness-test-filters';
+    toolbar.className = 'odhin-harness-test-filters';
+    toolbar.innerHTML =
+      '<span class="odhin-harness-filter-label">Harness lane</span>' +
+      '<button type="button" class="odhin-harness-filter-button active" data-harness-lane="all">All</button>' +
+      '<button type="button" class="odhin-harness-filter-button" data-harness-lane="api">API</button>' +
+      '<button type="button" class="odhin-harness-filter-button" data-harness-lane="ui">UI</button>' +
+      '<button type="button" class="odhin-harness-filter-button" data-harness-lane="integration">Integration</button>' +
+      '<button type="button" class="odhin-harness-filter-button" data-harness-lane="accessibility">Accessibility</button>' +
+      '<div class="odhin-harness-filter-summary" id="odhin-harness-filter-summary"></div>';
+    statusFilterRow.parentNode.insertBefore(toolbar, statusFilterRow);
+
+    var dataTable = resolveDataTable();
+    cacheAllRows(dataTable);
+
+    if (dataTable && !window.__odhinHarnessLaneFilterRegistered) {
+      window.jQuery.fn.dataTable.ext.search.push(function (settings, _data, dataIndex) {
+        if (!settings || !settings.nTable || settings.nTable.id !== 'test-list-table') {
+          return true;
+        }
+        var row = dataTable.row(dataIndex).node();
+        return rowMatchesLane(row, activeLane);
+      });
+      window.__odhinHarnessLaneFilterRegistered = true;
+    }
+
+    toolbar.querySelectorAll('[data-harness-lane]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        activateLane(button.getAttribute('data-harness-lane') || 'all');
+      });
+    });
+
+    updateFilterSummary();
+  }
+
+  function activateLane(lane) {
+    activeLane = laneLabels[lane] ? lane : 'all';
+    var toolbar = document.querySelector('#odhin-harness-test-filters');
+    var dataTable = resolveDataTable();
+    cacheAllRows(dataTable);
+
+    if (toolbar) {
+      toolbar.querySelectorAll('[data-harness-lane]').forEach(function (candidate) {
+        candidate.classList.toggle('active', candidate.getAttribute('data-harness-lane') === activeLane);
+      });
+    }
+    if (dataTable) {
+      dataTable.draw();
+    }
+    updateFilterSummary();
+  }
+
+  function openTestsTab() {
+    var testsTab = Array.prototype.slice.call(document.querySelectorAll('.main-tablinks')).find(function (tab) {
+      return normalise(tab.textContent) === 'tests';
+    });
+
+    if (typeof window.openMainTab === 'function' && testsTab) {
+      window.openMainTab({ currentTarget: testsTab }, 'TabTests');
+      return;
+    }
+
+    Array.prototype.slice.call(document.querySelectorAll('.main-tabcontent')).forEach(function (tabContent) {
+      tabContent.style.display = 'none';
+    });
+    Array.prototype.slice.call(document.querySelectorAll('.main-tablinks')).forEach(function (tab) {
+      tab.classList.remove('active');
+    });
+    var testsPanel = document.querySelector('#TabTests');
+    if (testsPanel) {
+      testsPanel.style.display = 'block';
+    }
+    if (testsTab) {
+      testsTab.classList.add('active');
+    }
+  }
+
+  function openLaneFromDashboard(lane) {
+    openTestsTab();
+    activateLane(lane);
+    var toolbar = document.querySelector('#odhin-harness-test-filters');
+    if (toolbar && typeof toolbar.scrollIntoView === 'function') {
+      toolbar.scrollIntoView({ block: 'start' });
+    }
+  }
+
+  function updateFilterSummary() {
+    var summary = document.querySelector('#odhin-harness-filter-summary');
+    if (!summary) {
+      return;
+    }
+    var rows = allTestRows();
+    var visibleRows = rows.filter(function (row) {
+      return rowMatchesLane(row, activeLane);
+    });
+    summary.textContent = 'Showing ' + visibleRows.length + ' of ' + rows.length + ' tests in ' + laneLabels[activeLane] + '. Accessibility is tracked as its own cross-cutting lane.';
+  }
+
+  function addDashboardLaneSummary() {
+    var dashboard = document.querySelector('#TabDashboard .row');
+    if (!dashboard || document.querySelector('#odhin-harness-lane-summary')) {
+      return;
+    }
+
+    var stats = laneStats();
+    var rows = ['api', 'ui', 'integration', 'accessibility'].map(function (lane) {
+      var stat = stats[lane];
+      return '<tr>' +
+        '<td class="text-start fs-6 text-secondary-emphasis summary-row-left-column">' +
+          '<button type="button" class="odhin-harness-lane-link" data-dashboard-harness-lane="' + lane + '" aria-label="Show ' + laneLabels[lane] + ' harness lane tests">' +
+            laneLabels[lane] +
+          '</button>' +
+        '</td>' +
+        '<td class="text-secondary-emphasis">' + stat.tests + '</td>' +
+        '<td class="text-secondary-emphasis">' + formatDuration(stat.durationMs) + '</td>' +
+        '<td class="result-status-passed">' + stat.passed + '</td>' +
+        '<td class="result-status-failed">' + stat.failed + '</td>' +
+        '<td class="result-status-timedOut">' + stat.timedOut + '</td>' +
+        '<td class="result-status-skipped">' + stat.skipped + '</td>' +
+        '<td class="result-status-interrupted">' + stat.interrupted + '</td>' +
+        '<td class="result-status-flaky">' + stat.flaky + '</td>' +
+      '</tr>';
+    }).join('');
+
+    var column = document.createElement('div');
+    column.className = 'col-12';
+    column.id = 'odhin-harness-lane-summary';
+    column.innerHTML =
+      '<div class="mt-3 mb-3 odhin-thin-border dashboard-block">' +
+        '<div class="info-box-header">Harness lanes</div>' +
+        '<div class="odhin-table">' +
+          '<div class="table-responsive tableFixHead">' +
+            '<table class="table table-sm mb-0">' +
+              '<thead><tr>' +
+                '<th class="odhin-text-2 px-2">Lane</th>' +
+                '<th class="odhin-text-2 px-2">Tests</th>' +
+                '<th class="odhin-text-2 px-2">Execution Time</th>' +
+                '<th class="odhin-text-2 px-2">Passed</th>' +
+                '<th class="odhin-text-2 px-2">Failed</th>' +
+                '<th class="odhin-text-2 px-2">Timed Out</th>' +
+                '<th class="odhin-text-2 px-2">Skipped</th>' +
+                '<th class="odhin-text-2 px-2">Interrupted</th>' +
+                '<th class="odhin-text-2 px-2">Flaky</th>' +
+              '</tr></thead>' +
+              '<tbody>' + rows + '</tbody>' +
+            '</table>' +
+          '</div>' +
+          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Accessibility is shown separately because it is a cross-cutting assurance lane, even when the underlying Playwright project is UI or Integration.</div>' +
+        '</div>' +
+      '</div>';
+
+    var statusByProject = Array.prototype.slice.call(dashboard.children).find(function (child) {
+      return child.textContent && child.textContent.indexOf('Status by project') !== -1;
+    });
+    if (statusByProject && statusByProject.nextSibling) {
+      dashboard.insertBefore(column, statusByProject.nextSibling);
+    } else {
+      dashboard.appendChild(column);
+    }
+
+    column.querySelectorAll('[data-dashboard-harness-lane]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        openLaneFromDashboard(button.getAttribute('data-dashboard-harness-lane') || 'all');
+      });
+    });
+  }
+
+  function initialiseHarnessLaneEnhancements() {
+    addTestLaneFilters();
+    addLaneBadges();
+    addDashboardLaneSummary();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialiseHarnessLaneEnhancements);
+  } else {
+    initialiseHarnessLaneEnhancements();
+  }
+})();
+</script>`)
   );
 }
 
@@ -457,6 +900,7 @@ function enhanceDashboardHtml(html, featureStats) {
   rebalanceTopDashboardColumns(root);
 
   stripLegacyFileChartArtifacts(root);
+  injectHarnessLaneScript(root);
 
   return root.toString();
 }

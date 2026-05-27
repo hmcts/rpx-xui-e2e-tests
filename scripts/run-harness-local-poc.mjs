@@ -206,7 +206,7 @@ try {
   console.error("\n[harness-local] POC proof failed.");
   console.error(error instanceof Error ? error.message : error);
   if (!runCi) {
-    console.error("\nStart the local shell with: yarn harness:local:shell");
+    console.error("\nStart the full local harness runtime with: yarn harness:demo:start");
   }
   process.exitCode = 1;
 }

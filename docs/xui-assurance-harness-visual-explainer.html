@@ -1,0 +1,2271 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>XUI Assurance Harness POC Visual Explainer</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #94a3b8;
+      --blue-bg: #e0f2fe;
+      --blue: #0284c7;
+      --green-bg: #ecfdf5;
+      --green: #059669;
+      --orange-bg: #fff7ed;
+      --orange: #ea580c;
+      --purple-bg: #f5f3ff;
+      --purple: #7c3aed;
+      --red-bg: #fef2f2;
+      --red: #dc2626;
+      --paper: #ffffff;
+      --page: #f8fafc;
+      --panel: #ffffff;
+      --panel-strong: #f1f5f9;
+      --shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
+      --shadow-soft: 0 10px 28px rgba(15, 23, 42, 0.06);
+      --radius: 18px;
+      --radius-sm: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, Helvetica, sans-serif;
+      line-height: 1.45;
+    }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 40px 44px 72px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 40px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 26px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 12px;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 14px;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    code {
+      background: #e2e8f0;
+      border-radius: 4px;
+      padding: 2px 5px;
+      color: #111827;
+      font-size: 0.95em;
+    }
+
+    .lead {
+      max-width: 1120px;
+      font-size: 19px;
+    }
+
+    .hero {
+      padding: 36px;
+      border: 1px solid #cbd5e1;
+      border-radius: var(--radius);
+      background: #ffffff;
+      box-shadow: var(--shadow);
+    }
+
+    .hero-kicker {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      margin-bottom: 14px;
+      border-radius: 999px;
+      padding: 5px 12px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-size: 13px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .quick-nav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+      padding: 12px 0;
+      background: rgba(248, 250, 252, 0.94);
+      backdrop-filter: blur(10px);
+    }
+
+    .quick-nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 6px 12px;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.04);
+    }
+
+    .quick-nav a:hover,
+    .quick-nav a:focus {
+      border-color: #0284c7;
+      outline: 0;
+      background: #e0f2fe;
+    }
+
+    .management-summary {
+      margin-top: 24px;
+      padding: 24px;
+      border: 2px solid #0f172a;
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .management-summary h2 {
+      margin-bottom: 12px;
+    }
+
+    .management-summary p {
+      max-width: 1180px;
+      color: #1f2937;
+      font-size: 17px;
+    }
+
+    .summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .summary-strip div {
+      border-left: 6px solid #0284c7;
+      background: #f8fafc;
+      padding: 12px;
+      color: #1f2937;
+      font-size: 15px;
+    }
+
+    .section {
+      margin-top: 34px;
+      padding: 28px;
+      background: var(--paper);
+      border: 1px solid #dbe3ef;
+      border-radius: 14px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      min-height: 130px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 18px;
+      background: #fff;
+    }
+
+    .source {
+      background: var(--blue-bg);
+      border-color: var(--blue);
+    }
+
+    .model {
+      background: var(--green-bg);
+      border-color: var(--green);
+    }
+
+    .runtime {
+      background: var(--orange-bg);
+      border-color: var(--orange);
+    }
+
+    .test {
+      background: var(--purple-bg);
+      border-color: var(--purple);
+    }
+
+    .proof {
+      background: var(--red-bg);
+      border-color: var(--red);
+    }
+
+    .card ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .card li {
+      margin: 7px 0;
+      color: #1f2937;
+      font-size: 15px;
+    }
+
+    .arrow-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 74px minmax(0, 1fr) 74px minmax(0, 1fr);
+      align-items: center;
+      gap: 0;
+      margin-top: 18px;
+    }
+
+    .arrow {
+      position: relative;
+      height: 4px;
+      background: var(--line);
+      margin: 0 14px;
+    }
+
+    .arrow::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: -8px;
+      border-left: 16px solid var(--line);
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+    }
+
+    .lane-title {
+      display: inline-block;
+      margin-bottom: 10px;
+      border-radius: 999px;
+      padding: 5px 10px;
+      background: #e2e8f0;
+      color: #1e293b;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: 220px repeat(4, minmax(0, 1fr));
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .matrix div {
+      padding: 12px;
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      min-height: 58px;
+      font-size: 14px;
+    }
+
+    .matrix div:nth-child(5n) {
+      border-right: 0;
+    }
+
+    .matrix .head {
+      background: #e2e8f0;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .matrix .ok {
+      background: #dcfce7;
+    }
+
+    .matrix .planned {
+      background: #fef9c3;
+    }
+
+    .matrix .gap {
+      background: #fee2e2;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .step {
+      position: relative;
+      min-height: 150px;
+      padding: 16px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -21px;
+      width: 27px;
+      height: 3px;
+      background: var(--line);
+    }
+
+    .step:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      top: calc(50% - 7px);
+      right: -27px;
+      border-left: 12px solid var(--line);
+      border-top: 8px solid transparent;
+      border-bottom: 8px solid transparent;
+      z-index: 2;
+    }
+
+    .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 10px;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .callout {
+      margin-top: 18px;
+      border-left: 6px solid var(--purple);
+      padding: 14px 18px;
+      background: #faf5ff;
+      border-radius: 8px;
+    }
+
+    .callout strong {
+      color: var(--ink);
+    }
+
+    .red-callout {
+      border-left-color: var(--red);
+      background: var(--red-bg);
+    }
+
+    .green-callout {
+      border-left-color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .path {
+      display: block;
+      margin-top: 8px;
+      word-break: break-word;
+      color: #111827;
+      font-size: 13px;
+    }
+
+    .footer-note {
+      margin-top: 28px;
+      color: #334155;
+      font-size: 14px;
+    }
+
+    .diagram-frame {
+      width: 100%;
+      overflow: auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: #f8fafc;
+      padding: 16px;
+    }
+
+    .diagram-frame img {
+      display: block;
+      width: 100%;
+      min-width: 1120px;
+      height: auto;
+    }
+
+    .file-map {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr) minmax(0, 1fr);
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .file-map div {
+      padding: 13px;
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      font-size: 14px;
+    }
+
+    .file-map div:nth-child(3n) {
+      border-right: 0;
+    }
+
+    .file-map .head {
+      background: #e2e8f0;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .file-map .path-cell {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color: #111827;
+      word-break: break-word;
+      font-size: 13px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin: 18px 0;
+    }
+
+    .stat {
+      padding: 18px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .stat strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 30px;
+      line-height: 1;
+      color: #0f172a;
+    }
+
+    .stat span {
+      display: block;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    .funnel {
+      display: grid;
+      grid-template-columns: 1.35fr 0.16fr 1fr 0.16fr 0.9fr;
+      align-items: stretch;
+      gap: 0;
+      margin-top: 18px;
+    }
+
+    .funnel .card {
+      min-height: 220px;
+    }
+
+    .mini-arrow {
+      position: relative;
+      align-self: center;
+      height: 4px;
+      background: var(--line);
+      margin: 0 12px;
+    }
+
+    .mini-arrow::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: -8px;
+      border-left: 16px solid var(--line);
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+    }
+
+    .three-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .plan-table {
+      display: grid;
+      grid-template-columns: 140px minmax(0, 1.15fr) minmax(0, 1.2fr) minmax(0, 1fr) 150px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+      margin-top: 18px;
+    }
+
+    .plan-table div {
+      padding: 12px;
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      font-size: 14px;
+    }
+
+    .plan-table div:nth-child(5n) {
+      border-right: 0;
+    }
+
+    .plan-table .head {
+      background: #e2e8f0;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .metric-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .developer-flow {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 46px minmax(0, 1fr) 46px minmax(0, 1fr) 46px minmax(0, 1fr);
+      align-items: stretch;
+      margin-top: 18px;
+    }
+
+    .flow-card {
+      min-height: 150px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 16px;
+      background: #fff;
+    }
+
+    .flow-arrow {
+      position: relative;
+      align-self: center;
+      height: 4px;
+      background: var(--line);
+      margin: 0 12px;
+    }
+
+    .flow-arrow::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: -8px;
+      border-left: 16px solid var(--line);
+      border-top: 10px solid transparent;
+      border-bottom: 10px solid transparent;
+    }
+
+    .shape-diagram {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr 1fr;
+      gap: 18px;
+      margin-top: 18px;
+      align-items: stretch;
+    }
+
+    .tree {
+      padding: 18px;
+      border: 2px solid var(--blue);
+      border-radius: 12px;
+      background: var(--blue-bg);
+    }
+
+    .tree ul {
+      margin: 8px 0 0;
+      padding-left: 22px;
+    }
+
+    .tree li {
+      margin: 8px 0;
+      color: #1f2937;
+      font-size: 15px;
+    }
+
+    .contract-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .contract-item {
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 12px;
+      background: #fff;
+      font-size: 14px;
+      color: #1f2937;
+    }
+
+    .recipe-table {
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1.2fr);
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+      margin-top: 18px;
+    }
+
+    .recipe-table div {
+      padding: 12px;
+      border-right: 1px solid #cbd5e1;
+      border-bottom: 1px solid #cbd5e1;
+      font-size: 14px;
+    }
+
+    .recipe-table div:nth-child(3n) {
+      border-right: 0;
+    }
+
+    .recipe-table .head {
+      background: #e2e8f0;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .failure-list {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .failure-card {
+      display: grid;
+      grid-template-columns: minmax(190px, 0.95fr) minmax(220px, 1.1fr) minmax(260px, 1.25fr);
+      gap: 0;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      border-left: 6px solid var(--red);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .failure-cell {
+      padding: 14px;
+      border-left: 1px solid #e2e8f0;
+      color: #1f2937;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .failure-cell:first-child {
+      border-left: 0;
+      background: #fef2f2;
+    }
+
+    .failure-cell:last-child {
+      background: #f8fafc;
+    }
+
+    .failure-label {
+      display: block;
+      margin-bottom: 7px;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .failure-title {
+      display: block;
+      color: #991b1b;
+      font-weight: 800;
+      line-height: 1.3;
+    }
+
+    .reader-note {
+      margin-top: 18px;
+      border: 1px solid #bae6fd;
+      border-left: 7px solid #0284c7;
+      border-radius: 12px;
+      padding: 16px 18px;
+      background: #f0f9ff;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+    }
+
+    .reader-note strong {
+      display: block;
+      margin-bottom: 7px;
+      color: #0f172a;
+      font-size: 15px;
+    }
+
+    .reader-note p {
+      max-width: 1160px;
+      margin-bottom: 8px;
+      color: #1e293b;
+      font-size: 15px;
+    }
+
+    .reader-note p:last-child {
+      margin-bottom: 0;
+    }
+
+    .reader-note.warning {
+      border-color: #fecaca;
+      border-left-color: #dc2626;
+      background: #fff7f7;
+    }
+
+    .reader-note.success {
+      border-color: #bbf7d0;
+      border-left-color: #059669;
+      background: #f0fdf4;
+    }
+
+    .prompt-box,
+    .command-block {
+      margin-top: 16px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: #0f172a;
+      color: #e5e7eb;
+      overflow: auto;
+    }
+
+    .prompt-box pre,
+    .command-block pre {
+      margin: 0;
+      padding: 16px;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.5;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .prompt-box code,
+    .command-block code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border-radius: 0;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 12px 0 4px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      border-radius: 999px;
+      padding: 5px 11px;
+      background: #e2e8f0;
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .evidence-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 16px;
+    }
+
+    .evidence-item {
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 14px;
+      background: #fff;
+    }
+
+    .evidence-item strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #0f172a;
+    }
+
+    @media (max-width: 900px) {
+      .summary-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .failure-card {
+        grid-template-columns: 1fr;
+      }
+
+      .failure-cell {
+        border-left: 0;
+        border-top: 1px solid #e2e8f0;
+      }
+
+      .failure-cell:first-child {
+        border-top: 0;
+      }
+    }
+
+    @media (min-width: 901px) and (max-width: 1180px) {
+      .grid-4,
+      .grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .timeline {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .timeline .step::before,
+      .timeline .step::after {
+        display: none;
+      }
+
+      .developer-flow {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+      }
+
+      .flow-arrow {
+        display: none;
+      }
+    }
+
+    @media (max-width: 760px) {
+      main {
+        padding: 18px 14px 52px;
+      }
+
+      h1 {
+        font-size: 34px;
+      }
+
+      h2 {
+        font-size: 24px;
+      }
+
+      .hero,
+      .management-summary,
+      .section {
+        padding: 20px;
+        border-radius: 14px;
+      }
+
+      .lead,
+      .management-summary p {
+        font-size: 16px;
+      }
+
+      .grid-4,
+      .grid-3,
+      .grid-2,
+      .stat-grid,
+      .three-list,
+      .metric-strip,
+      .evidence-list,
+      .shape-diagram,
+      .summary-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow-row,
+      .funnel,
+      .developer-flow {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .arrow,
+      .mini-arrow,
+      .flow-arrow {
+        display: none;
+      }
+
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .timeline .step::before,
+      .timeline .step::after {
+        display: none;
+      }
+
+      .matrix,
+      .file-map,
+      .recipe-table,
+      .plan-table {
+        display: block;
+        overflow-x: auto;
+        white-space: normal;
+      }
+
+      .matrix div,
+      .file-map div,
+      .recipe-table div,
+      .plan-table div {
+        min-width: 240px;
+      }
+
+      .quick-nav {
+        position: static;
+      }
+    }
+
+    @media (min-width: 761px) {
+      main {
+        width: min(calc(100% - 56px), 1480px);
+        padding-left: 0;
+        padding-right: 0;
+      }
+    }
+
+    @media (min-width: 1181px) {
+      .grid-4 {
+        grid-template-columns: repeat(4, minmax(220px, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(250px, 1fr));
+      }
+    }
+
+    @supports (font-size: clamp(1rem, 2vw, 2rem)) {
+      h1 {
+        font-size: clamp(38px, 5vw, 68px);
+      }
+
+      h2 {
+        font-size: clamp(24px, 2.4vw, 34px);
+      }
+
+      h3 {
+        font-size: clamp(17px, 1.25vw, 20px);
+      }
+
+      .lead {
+        font-size: clamp(17px, 1.5vw, 21px);
+      }
+
+      main {
+        padding-top: clamp(22px, 4vw, 56px);
+        padding-bottom: clamp(48px, 6vw, 84px);
+      }
+
+      .hero {
+        padding: clamp(24px, 4vw, 48px);
+      }
+
+      .section,
+      .management-summary {
+        padding: clamp(22px, 3vw, 34px);
+      }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .card,
+      .step,
+      .section,
+      .quick-nav a,
+      .failure-card,
+      .evidence-item {
+        transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+      }
+
+      .card:hover,
+      .step:hover,
+      .failure-card:hover,
+      .evidence-item:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-soft);
+      }
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .section {
+        box-shadow: none;
+        break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header class="hero" id="top">
+    <span class="hero-kicker">Central assurance visual explainer</span>
+    <h1>XUI Assurance Harness POC</h1>
+    <p class="lead">A visual explanation of what sits where locally, where the configuration comes from, how it becomes representative slices, what is validated, and how the mutation proofs demonstrate the harness catching both EXUI-side config drift and CCD-definition-origin metadata drift.</p>
+  </header>
+
+  <nav class="quick-nav" aria-label="Page sections">
+    <a href="#top">Top</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#local-files">Files</a>
+    <a href="#prl-slice">PRL slice</a>
+    <a href="#developer-slices">Developer slices</a>
+    <a href="#run-manually">Run it</a>
+    <a href="#accessibility">Accessibility</a>
+    <a href="#coverage">Coverage</a>
+    <a href="#mutation">Mutation proof</a>
+    <a href="#route">Route forward</a>
+  </nav>
+
+  <section class="management-summary" id="summary">
+    <h2>Management summary</h2>
+    <p>
+      My proposal is simple: when the risk belongs to shared XUI behaviour, XUI should prove that risk centrally instead of asking every onboarded service to rediscover the same problem through broad SRT. This POC shows that we can take real EXUI configuration, real service-definition evidence, historic failure classes, and accessibility concerns, then turn them into a small set of executable assurance slices with inspectable Odhín evidence.
+    </p>
+    <p>
+      I am not claiming this replaces all service testing. Service-owned business journeys, bespoke content, documents, and unusual definitions still need service ownership. What I am saying is that we now have a working route to remove repeat testing where services are only proving the same EXUI rule from different angles.
+    </p>
+    <p>
+      The important bit is the proof: the harness has a green run, accessibility baseline gates, screenshots, API and UI evidence, and mutation runs that deliberately break shared EXUI and CCD-definition assumptions so we can show the gate going red. That makes this much more than a theoretical proposal.
+    </p>
+    <div class="summary-strip">
+      <div><strong>What changes:</strong> central proof for shared XUI risk, not repeated broad SRT for every service.</div>
+      <div><strong>How it works:</strong> source truth becomes representative slices, then Playwright proves the contract.</div>
+      <div><strong>What is new:</strong> accessibility is now a first-class baseline lane, not a manual afterthought.</div>
+      <div><strong>What comes next:</strong> service teams review the slice catalogue and call out shapes we have missed.</div>
+    </div>
+    <div class="reader-note">
+      <strong>Proposal in practice</strong>
+      <p>I am not selling a blanket replacement for service testing. I am selling a more sensible split of responsibility. If XUI owns the behaviour, XUI should prove it centrally. If a service owns the journey, callback, content, or data rule, that still belongs with the service.</p>
+      <p>The value is that we stop asking thirteen teams to prove the same shared XUI rule in thirteen slightly different ways. We prove that rule once, with source evidence, tests, screenshots, accessibility evidence and a report people can actually inspect.</p>
+    </div>
+  </section>
+
+  <section class="section" id="idea">
+    <h2>1. The basic idea</h2>
+    <div class="arrow-row">
+      <div class="card source">
+        <span class="lane-title">Inputs</span>
+        <h3>Real EXUI and service truth</h3>
+        <ul>
+          <li>EXUI config and API route behaviour from <code>rpx-xui-webapp</code></li>
+          <li>CCD definition evidence from service repos, starting with PRL</li>
+          <li>Historic SRT and incident failure classes</li>
+        </ul>
+      </div>
+      <div class="arrow"></div>
+      <div class="card model">
+        <span class="lane-title">Model</span>
+        <h3>Central assurance representation</h3>
+        <ul>
+          <li>Source snapshot JSON for traceability</li>
+          <li>Executable TypeScript model imported by tests</li>
+          <li>Representative service slices, not every journey</li>
+        </ul>
+      </div>
+      <div class="arrow"></div>
+      <div class="card test">
+        <span class="lane-title">Evidence</span>
+        <h3>Playwright proof</h3>
+        <ul>
+          <li>API contract checks</li>
+          <li>Thin UI checks where behaviour is visible</li>
+          <li>Mutation proof that deliberately makes the gate fail</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>The point:</strong> we are not saying one PRL test proves every PRL business journey. We are proving shared EXUI interpretation of configuration shapes so services do not all need to retest the same EXUI behaviour independently.
+    </div>
+    <div class="reader-note success">
+      <strong>The important shift</strong>
+      <p>The harness is organised around reusable XUI behaviours, not around service names. A service may contribute one or many slices, but the test only earns its place if it proves a distinct XUI interpretation path.</p>
+    </div>
+  </section>
+
+  <section class="section" id="architecture">
+    <h2>2. One-page architecture diagram</h2>
+    <p>This is the single picture version: source truth on the left, harness model in the middle, local runtime and validation on the right, and the controlled mutation proofs across the bottom.</p>
+    <div class="diagram-frame">
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1900' height='1200' viewBox='0 0 1900 1200'%3E %3Cdefs%3E %3Cmarker id='arrow' markerWidth='12' markerHeight='12' refX='10' refY='6' orient='auto'%3E %3Cpath d='M2%2C2 L10%2C6 L2%2C10 Z' fill='%23334155'/%3E %3C/marker%3E %3Cmarker id='redArrow' markerWidth='12' markerHeight='12' refX='10' refY='6' orient='auto'%3E %3Cpath d='M2%2C2 L10%2C6 L2%2C10 Z' fill='%23b91c1c'/%3E %3C/marker%3E %3Cstyle%3E .bg %7B fill: %23f8fafc%3B %7D .title %7B font: 700 32px Arial%2C sans-serif%3B fill: %230f172a%3B %7D .subtitle %7B font: 18px Arial%2C sans-serif%3B fill: %23334155%3B %7D .section-title %7B font: 700 19px Arial%2C sans-serif%3B fill: %230f172a%3B %7D .box-title %7B font: 700 17px Arial%2C sans-serif%3B fill: %23111827%3B %7D .box-text %7B font: 14px Arial%2C sans-serif%3B fill: %231f2937%3B %7D .small %7B font: 12px Arial%2C sans-serif%3B fill: %23334155%3B %7D .tiny %7B font: 11px Arial%2C sans-serif%3B fill: %23475569%3B %7D .source %7B fill: %23e0f2fe%3B stroke: %230284c7%3B stroke-width: 2%3B rx: 10%3B %7D .model %7B fill: %23ecfdf5%3B stroke: %23059669%3B stroke-width: 2%3B rx: 10%3B %7D .runtime %7B fill: %23fff7ed%3B stroke: %23ea580c%3B stroke-width: 2%3B rx: 10%3B %7D .test %7B fill: %23f5f3ff%3B stroke: %237c3aed%3B stroke-width: 2%3B rx: 10%3B %7D .proof %7B fill: %23fef2f2%3B stroke: %23dc2626%3B stroke-width: 2%3B rx: 10%3B %7D .neutral %7B fill: %23ffffff%3B stroke: %2364748b%3B stroke-width: 1.5%3B rx: 8%3B %7D .dash %7B stroke: %2364748b%3B stroke-width: 2%3B stroke-dasharray: 7 6%3B fill: none%3B marker-end: url(%23arrow)%3B %7D .line %7B stroke: %23334155%3B stroke-width: 2.2%3B fill: none%3B marker-end: url(%23arrow)%3B %7D .redline %7B stroke: %23b91c1c%3B stroke-width: 2.4%3B fill: none%3B marker-end: url(%23redArrow)%3B %7D .label %7B font: 700 12px Arial%2C sans-serif%3B fill: %23334155%3B %7D %3C/style%3E %3C/defs%3E %3Crect class='bg' x='0' y='0' width='1900' height='1200'/%3E %3Ctext class='title' x='60' y='58'%3EXUI Assurance Harness POC: what sits where%2C what is sourced%2C and what is proven%3C/text%3E %3Ctext class='subtitle' x='60' y='88'%3EGoal: replace repeated service regression for shared EXUI behaviour with source-backed representative slices%2C executable checks%2C and mutation proofs.%3C/text%3E %3Ctext class='section-title' x='70' y='145'%3E1. Source truth outside the harness%3C/text%3E %3Crect class='source' x='60' y='165' width='355' height='190'/%3E %3Ctext class='box-title' x='80' y='195'%3Erpx-xui-webapp%3C/text%3E %3Ctext class='box-text' x='80' y='222'%3EConfig and route truth for EXUI:%3C/text%3E %3Ctext class='box-text' x='96' y='248'%3Econfig/default.json%3C/text%3E %3Ctext class='box-text' x='96' y='272'%3Econfig/custom-environment-variables.json%3C/text%3E %3Ctext class='box-text' x='96' y='296'%3Econfig/local-ccd-srt.json%3C/text%3E %3Ctext class='box-text' x='96' y='320'%3Eapi/configuration/** and API routes%3C/text%3E %3Crect class='source' x='60' y='385' width='355' height='190'/%3E %3Ctext class='box-title' x='80' y='415'%3EService CCD definitions%3C/text%3E %3Ctext class='box-text' x='80' y='442'%3EFirst deep evidence source:%3C/text%3E %3Ctext class='box-text' x='96' y='468'%3Eprl-ccd-definitions%3C/text%3E %3Ctext class='box-text' x='96' y='492'%3ECaseType%2C CaseEventToFields%3C/text%3E %3Ctext class='box-text' x='96' y='516'%3EComplexTypes%2C authorisations%3C/text%3E %3Ctext class='box-text' x='96' y='540'%3Eroles%2C service code%2C search/workbasket evidence%3C/text%3E %3Crect class='source' x='60' y='605' width='355' height='150'/%3E %3Ctext class='box-title' x='80' y='635'%3EHistoric SRT and incidents%3C/text%3E %3Ctext class='box-text' x='80' y='662'%3EKnown failure classes used as replay map:%3C/text%3E %3Ctext class='box-text' x='96' y='688'%3EWA tabs%2C role assignment%2C auth endpoints%3C/text%3E %3Ctext class='box-text' x='96' y='712'%3ECYA%2C hidden data%2C event history%3C/text%3E %3Ctext class='box-text' x='96' y='736'%3EIDAM/session and explicit out-of-scope gaps%3C/text%3E %3Ctext class='section-title' x='510' y='145'%3E2. Harness model in rpx-xui-e2e-tests%3C/text%3E %3Crect class='model' x='485' y='165' width='390' height='190'/%3E %3Ctext class='box-title' x='505' y='195'%3ESource snapshot%3C/text%3E %3Ctext class='box-text' x='505' y='222'%3Esrc/data/exui-central-assurance-source.json%3C/text%3E %3Ctext class='box-text' x='505' y='250'%3EHuman-readable captured facts:%3C/text%3E %3Ctext class='box-text' x='521' y='276'%3Efamilies%2C service codes%2C jurisdictions%3C/text%3E %3Ctext class='box-text' x='521' y='300'%3Ecase types%2C roles%2C source evidence%3C/text%3E %3Ctext class='box-text' x='521' y='324'%3Esearch/workbasket metadata and gaps%3C/text%3E %3Crect class='model' x='485' y='385' width='390' height='245'/%3E %3Ctext class='box-title' x='505' y='415'%3EExecutable model%3C/text%3E %3Ctext class='box-text' x='505' y='442'%3Esrc/data/exui-central-assurance.ts%3C/text%3E %3Ctext class='box-text' x='505' y='470'%3EThis is what tests import:%3C/text%3E %3Ctext class='box-text' x='521' y='496'%3EEXUI_*_SERVICE_FAMILIES%3C/text%3E %3Ctext class='box-text' x='521' y='520'%3EEXUI_SERVICE_DEFINITION_PROFILES%3C/text%3E %3Ctext class='box-text' x='521' y='544'%3EEXUI_SERVICE_FAMILY_COVERAGE_DECISIONS%3C/text%3E %3Ctext class='box-text' x='521' y='568'%3EEXUI_HARNESS_SCENARIOS%3C/text%3E %3Ctext class='box-text' x='521' y='592'%3Ehistoric replay classification%3C/text%3E %3Crect class='model' x='485' y='660' width='390' height='150'/%3E %3Ctext class='box-title' x='505' y='690'%3ESlice rule%3C/text%3E %3Ctext class='box-text' x='505' y='718'%3EWe do not copy every service journey.%3C/text%3E %3Ctext class='box-text' x='505' y='744'%3EA slice is added only when EXUI sees a%3C/text%3E %3Ctext class='box-text' x='505' y='770'%3Edifferent configuration shape or UI behaviour.%3C/text%3E %3Ctext class='section-title' x='970' y='145'%3E3. Local runtime used by the proof%3C/text%3E %3Crect class='runtime' x='940' y='165' width='300' height='135'/%3E %3Ctext class='box-title' x='960' y='195'%3EEXUI shell%3C/text%3E %3Ctext class='box-text' x='960' y='222'%3Ehttp://localhost:3455%3C/text%3E %3Ctext class='box-text' x='960' y='248'%3Estatic/proxy shell for UI checks%3C/text%3E %3Ctext class='box-text' x='960' y='274'%3Eserves deterministic proof routes%3C/text%3E %3Crect class='runtime' x='1280' y='165' width='255' height='135'/%3E %3Ctext class='box-title' x='1300' y='195'%3EEXUI Node API%3C/text%3E %3Ctext class='box-text' x='1300' y='222'%3Ehttp://localhost:3001%3C/text%3E %3Ctext class='box-text' x='1300' y='248'%3Econfigured to use local CCD%3C/text%3E %3Ctext class='box-text' x='1300' y='274'%3Eand controlled test seams%3C/text%3E %3Crect class='runtime' x='940' y='335' width='300' height='190'/%3E %3Ctext class='box-title' x='960' y='365'%3Eccd-docker where needed%3C/text%3E %3Ctext class='box-text' x='960' y='392'%3ECCD gateway 3453%3C/text%3E %3Ctext class='box-text' x='960' y='416'%3EData store 4452%3C/text%3E %3Ctext class='box-text' x='960' y='440'%3EDocument services 4506 / 4455%3C/text%3E %3Ctext class='box-text' x='960' y='464'%3ES2S 4502%2C IDAM 5000%3C/text%3E %3Ctext class='box-text' x='960' y='488'%3ERole assignment 4096%3C/text%3E %3Crect class='runtime' x='1280' y='335' width='255' height='190'/%3E %3Ctext class='box-title' x='1300' y='365'%3ESynthetic shim%3C/text%3E %3Ctext class='box-text' x='1300' y='392'%3Ehttp://localhost:8091%3C/text%3E %3Ctext class='box-text' x='1300' y='416'%3EWA task lists%3C/text%3E %3Ctext class='box-text' x='1300' y='440'%3Ehearings/HMC%3C/text%3E %3Ctext class='box-text' x='1300' y='464'%3EPRD/location%3C/text%3E %3Ctext class='box-text' x='1300' y='488'%3Eother downstream seams%3C/text%3E %3Ctext class='section-title' x='970' y='585'%3E4. What we validate%3C/text%3E %3Crect class='test' x='940' y='605' width='820' height='240'/%3E %3Ctext class='box-title' x='960' y='635'%3EPlaywright API%2C UI%2C integration checks%3C/text%3E %3Ctext class='box-text' x='960' y='664'%3EManifest: every configured service family is classified.%3C/text%3E %3Ctext class='box-text' x='960' y='690'%3EAPI: /external/configuration%2C /api/configuration%2C global search%2C WA%2C staff%2C hearings.%3C/text%3E %3Ctext class='box-text' x='960' y='716'%3EUI: Manage Tasks filter and hearings visibility prove visible behaviour once per shape.%3C/text%3E %3Ctext class='box-text' x='960' y='742'%3EHistoric replay: maps previous SRT classes to covered%2C planned%2C or out of scope.%3C/text%3E %3Ctext class='box-text' x='960' y='768'%3ECCD metadata: PRL search/workbasket contract checks and mutation proof.%3C/text%3E %3Ctext class='box-text' x='960' y='800'%3ECommand: yarn harness:local:validate%3C/text%3E %3Ctext class='section-title' x='70' y='860'%3E5. Mutation proofs: how we prove the gate catches shared EXUI and CCD-origin regressions%3C/text%3E %3Crect class='proof' x='60' y='885' width='1700' height='210'/%3E %3Ctext class='box-title' x='85' y='920'%3EInjected fault 1: drop-prl-wa-family%3C/text%3E %3Ctext class='box-text' x='85' y='950'%3EControl run has no mutation. WA-supported service family list includes PRIVATELAW. Test passes.%3C/text%3E %3Ctext class='box-text' x='85' y='980'%3EMutated run removes PRIVATELAW from the observed WA list inside the test process only.%3C/text%3E %3Ctext class='box-text' x='85' y='1010'%3EExpected failure: 'api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW'.%3C/text%3E %3Ctext class='box-title' x='920' y='920'%3EInjected fault 2: remove CCD search input%3C/text%3E %3Ctext class='box-text' x='920' y='950'%3EControl run has PRL SearchInputFields metadata including %5BCASE_REFERENCE%5D. Test passes.%3C/text%3E %3Ctext class='box-text' x='920' y='980'%3EMutated run removes %5BCASE_REFERENCE%5D from the observed PRL CCD metadata contract in memory only.%3C/text%3E %3Ctext class='box-text' x='920' y='1010'%3EExpected failure: 'CCD search metadata is missing required EXUI search input fields: %5BCASE_REFERENCE%5D'.%3C/text%3E %3Ctext class='box-text' x='85' y='1060'%3EResult: the harness detects both EXUI-side configuration drift and service-definition-origin metadata drift without editing source files.%3C/text%3E %3Ctext class='section-title' x='70' y='1140'%3EWhat the POC proves%3C/text%3E %3Ctext class='box-text' x='70' y='1168'%3ECentral EXUI config and selected CCD definition metadata can be captured%2C classified%2C tested%2C shown in UI where relevant%2C reported%2C and mutation-tested. It supports SRT reduction for agreed shared EXUI behaviour%2C not blind removal of all service-owned regression.%3C/text%3E %3Cpath class='line' d='M415 250 C445 250%2C 455 250%2C 485 250'/%3E %3Cpath class='line' d='M415 480 C445 480%2C 455 480%2C 485 480'/%3E %3Cpath class='line' d='M415 680 C445 680%2C 455 680%2C 485 680'/%3E %3Cpath class='line' d='M875 260 C910 260%2C 910 230%2C 940 230'/%3E %3Cpath class='line' d='M875 510 C915 510%2C 910 690%2C 940 690'/%3E %3Cpath class='dash' d='M1240 232 C1260 232%2C 1260 232%2C 1280 232'/%3E %3Cpath class='dash' d='M1090 300 C1090 318%2C 1090 318%2C 1090 335'/%3E %3Cpath class='dash' d='M1408 300 C1408 318%2C 1408 318%2C 1408 335'/%3E %3Cpath class='line' d='M1238 605 C1238 565%2C 1238 565%2C 1238 525'/%3E %3Cpath class='redline' d='M990 845 C990 865%2C 990 865%2C 990 885'/%3E %3Cpath class='redline' d='M680 630 C680 840%2C 760 880%2C 915 910'/%3E %3Ctext class='label' x='430' y='235'%3Esource facts%3C/text%3E %3Ctext class='label' x='430' y='465'%3Edefinition evidence%3C/text%3E %3Ctext class='label' x='430' y='665'%3Efailure map%3C/text%3E %3Ctext class='label' x='1248' y='219'%3Eproxy/API%3C/text%3E %3Ctext class='label' x='1110' y='324'%3Ereal CCD seam%3C/text%3E %3Ctext class='label' x='1422' y='324'%3Emocked seam%3C/text%3E %3Ctext class='label' x='1008' y='874'%3Edeliberate red proof%3C/text%3E %3C/svg%3E" alt="XUI Assurance Harness POC architecture diagram">
+    </div>
+    <div class="callout">
+      <strong>How to read it:</strong> blue boxes are source evidence, green boxes are the harness model, orange boxes are local runtime, purple is validation, and red is deliberate green/red mutation proof.
+    </div>
+    <div class="reader-note">
+      <strong>Why this diagram matters</strong>
+      <p>The diagram is meant to remove the hand-waving. The source configuration is visible. The normalized model is visible. The tests are visible. The mutation proof is visible. There is no hidden assumption that a single happy-path browser test somehow proves the estate.</p>
+    </div>
+  </section>
+
+  <section class="section" id="local-runtime">
+    <h2>3. Where everything sits locally</h2>
+    <div class="grid grid-4">
+      <div class="card source">
+        <span class="lane-title">EXUI app</span>
+        <h3>rpx-xui-webapp</h3>
+        <ul>
+          <li><code>config/default.json</code></li>
+          <li><code>config/custom-environment-variables.json</code></li>
+          <li><code>config/local-ccd-srt.json</code></li>
+          <li><code>api/configuration/**</code></li>
+          <li>service-family API routes</li>
+        </ul>
+        <span class="path">&lt;workspace&gt;/rpx-xui-webapp</span>
+      </div>
+      <div class="card source">
+        <span class="lane-title">Service evidence</span>
+        <h3>PRL CCD definitions</h3>
+        <ul>
+          <li><code>CaseType.json</code></li>
+          <li><code>CaseEventToFields</code></li>
+          <li><code>ComplexTypes</code></li>
+          <li>authorisations, roles, service code</li>
+          <li>hearings/case type evidence</li>
+        </ul>
+        <span class="path">&lt;workspace&gt;/prl-ccd-definitions</span>
+      </div>
+      <div class="card model">
+        <span class="lane-title">Harness</span>
+        <h3>rpx-xui-e2e-tests</h3>
+        <ul>
+          <li><code>src/data/exui-central-assurance-source.json</code></li>
+          <li><code>src/data/exui-central-assurance.ts</code></li>
+          <li><code>src/tests/api/exui-central-assurance.api.ts</code></li>
+          <li><code>src/tests/api/exui-historic-replay-packs.api.ts</code></li>
+        </ul>
+        <span class="path">&lt;workspace&gt;/rpx-xui-e2e-tests</span>
+      </div>
+      <div class="card runtime">
+        <span class="lane-title">Local runtime</span>
+        <h3>EXUI shell plus shims</h3>
+        <ul>
+          <li>EXUI shell: <code>3455</code></li>
+          <li>EXUI Node API: <code>3001</code></li>
+          <li>EXUI backend mock: <code>8080</code></li>
+          <li>Synthetic shim: <code>8091</code></li>
+          <li>Role assignment seam: <code>4096</code></li>
+        </ul>
+        <span class="path">Optional future CCD-backed proof: &lt;workspace&gt;/ccd-docker</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="local-files">
+    <h2>4. File responsibility map</h2>
+    <p>This is the practical map for developers: when someone asks where a fact lives, these are the files to open first.</p>
+    <div class="file-map">
+      <div class="head">File or area</div>
+      <div class="head">Responsibility</div>
+      <div class="head">Why it matters for the POC</div>
+
+      <div class="path-cell">rpx-xui-webapp/config/default.json</div>
+      <div>Current EXUI service-family and endpoint configuration.</div>
+      <div>Primary source for which service families EXUI exposes through central behaviour.</div>
+
+      <div class="path-cell">rpx-xui-webapp/config/custom-environment-variables.json</div>
+      <div>Environment override mapping for EXUI config keys.</div>
+      <div>Shows how the same behaviour can change by deployment/runtime configuration.</div>
+
+      <div class="path-cell">rpx-xui-webapp/config/local-ccd-srt.json</div>
+      <div>Local POC configuration for EXUI pointing at local CCD/shims.</div>
+      <div>Lets the local EXUI instance behave like the assurance target without depending on AAT.</div>
+
+      <div class="path-cell">rpx-xui-webapp/api/configuration/**</div>
+      <div>Node API configuration surfaces consumed by the Angular shell.</div>
+      <div>Validates that browser-visible config contracts remain stable.</div>
+
+      <div class="path-cell">rpx-xui-webapp/api/** service-family routes</div>
+      <div>Routes such as global search, WA-supported jurisdiction, staff-supported jurisdiction, hearings.</div>
+      <div>These are the shared EXUI contracts services depend on.</div>
+
+      <div class="path-cell">prl-ccd-definitions/definitions/private-law/json/**</div>
+      <div>PRL CCD source definitions: case types, events, fields, complex types, authorisations.</div>
+      <div>Proves the PRL slice is backed by a real service definition, not invented harness data.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/data/exui-central-assurance-source.json</div>
+      <div>Durable captured source snapshot.</div>
+      <div>Human-readable trace from EXUI/service evidence into the assurance model.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/data/exui-central-assurance.ts</div>
+      <div>Executable assurance model imported by tests.</div>
+      <div>Contains service-family sets, profiles, coverage decisions, scenarios, and historic mappings.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/scripts/check-exui-harness-manifest.mjs</div>
+      <div>Static consistency gate for the model.</div>
+      <div>Stops a new configured family being ignored without classification.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/tests/api/exui-central-assurance.api.ts</div>
+      <div>Main API proof and mutation proof.</div>
+      <div>Checks central contracts and proves missing PRL WA family is caught.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/tests/api/exui-historic-replay-packs.api.ts</div>
+      <div>Historic failure-class replay and classification.</div>
+      <div>Connects old SRT incidents to covered, planned, or explicitly missed areas.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts</div>
+      <div>Hearings representative slice proof.</div>
+      <div>Shows configured case type exposure and hidden unsupported families.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts</div>
+      <div>Thin Manage Tasks UI proof, screenshot evidence, and accessibility scan.</div>
+      <div>Shows user-visible service-family filtering in the EXUI shell and runs a dedicated axe baseline gate for that representative WA filter surface.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/scripts/local-exui-static-proxy.mjs</div>
+      <div>Local shell/static proxy with deterministic proof routes.</div>
+      <div>Keeps local demo stable and decouples first POC from every downstream service.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/utils/ui/test-evidence.utils.ts</div>
+      <div>Shared UI evidence helpers for screenshots and axe accessibility reports.</div>
+      <div>Keeps accessibility reporting consistent across harness UI slices and attaches the report to the Playwright/Odhín evidence.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/scripts/run-harness-mutation-proof.mjs</div>
+      <div>Two-step green/red mutation proof wrapper.</div>
+      <div>Runs a control proof, injects the PRL WA fault, and asserts the expected failure text.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/scripts/run-harness-ccd-mutation-proof.mjs</div>
+      <div>Two-step green/red CCD-origin mutation proof wrapper.</div>
+      <div>Runs a control proof, removes the PRL case-reference search input in memory, and asserts the expected metadata failure text.</div>
+    </div>
+  </section>
+
+  <section class="section" id="prl-slice">
+    <h2>5. PRL: from 1,475 definition files to the first normalized slice family</h2>
+    <p>PRL is the first useful example because it is large enough to show why a full Cartesian service regression model does not scale. The harness does not shrink PRL by ignoring risk. It shrinks PRL by keeping only the parts that change EXUI behaviour.</p>
+    <div class="stat-grid">
+      <div class="stat source">
+        <strong>1,492</strong>
+        <span>JSON files in the PRL repo currently found locally, including tests/config/resources.</span>
+      </div>
+      <div class="stat source">
+        <strong>1,475</strong>
+        <span>CCD definition JSON files under <code>definitions/private-law/json</code>.</span>
+      </div>
+      <div class="stat source">
+        <strong>1,459</strong>
+        <span>Nested split definition files below the top-level definition area.</span>
+      </div>
+      <div class="stat model">
+        <strong>6</strong>
+        <span>Current PRL normalized EXUI behaviour shapes in the POC. This is a start, not exhaustive PRL coverage.</span>
+      </div>
+    </div>
+
+    <div class="funnel">
+      <div class="card source">
+        <span class="lane-title">PRL definition surface</span>
+        <h3>What exists in the service repo</h3>
+        <ul>
+          <li>376 <code>CaseEventToFields</code> files</li>
+          <li>230 <code>CaseEventToComplexTypes</code> files</li>
+          <li>218 <code>AuthorisationCaseEvent</code> files</li>
+          <li>185 <code>ComplexTypes</code> files</li>
+          <li>184 <code>AuthorisationCaseField</code> files</li>
+          <li>173 <code>CaseField</code> files</li>
+        </ul>
+      </div>
+      <div class="mini-arrow"></div>
+      <div class="card model">
+        <span class="lane-title">Normalization filter</span>
+        <h3>What EXUI actually interprets</h3>
+        <ul>
+          <li>service family: <code>PRIVATELAW</code></li>
+          <li>case type: <code>PRLAPPS</code></li>
+          <li>service code: <code>ABA5</code></li>
+          <li>role clusters that change tabs/actions</li>
+          <li>event/page/field patterns that affect CYA, hidden data, hearings, WA, access, search and workbasket metadata</li>
+        </ul>
+      </div>
+      <div class="mini-arrow"></div>
+      <div class="card test">
+        <span class="lane-title">Current slice</span>
+        <h3>What the POC keeps</h3>
+        <ul>
+          <li><code>prl-manage-orders-standard</code></li>
+          <li><code>prl-wa-manage-orders</code></li>
+          <li><code>prl-hearing-date-permutations</code></li>
+          <li><code>prl-access-and-flags</code></li>
+          <li><code>prl-service-of-documents-nested-cya</code></li>
+          <li><code>prl-ccd-search-workbasket-metadata</code></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="three-list">
+      <div class="card model">
+        <span class="lane-title">Kept</span>
+        <h3>Why these survive</h3>
+        <ul>
+          <li>They change EXUI-visible family membership, tab visibility, filters, hearings actions, or entitlement behaviour.</li>
+          <li>They map to known SRT risk areas: WA availability, hearings, role/access, CYA, hidden data, and search/workbasket metadata.</li>
+          <li>They are backed by concrete PRL definition evidence refs in <code>EXUI_PRL_NORMALIZED_SLICES</code>.</li>
+        </ul>
+      </div>
+      <div class="card source">
+        <span class="lane-title">Grouped away</span>
+        <h3>Why most files are not one test each</h3>
+        <ul>
+          <li>Many rows are service business variations that hit the same EXUI rendering path.</li>
+          <li>Repeated field/event definitions do not create new EXUI behaviour unless show conditions, hidden fields, roles, or tabs differ.</li>
+          <li>Service callback logic and business validation remain service-owned unless the risk is specifically EXUI interpretation.</li>
+        </ul>
+      </div>
+      <div class="card proof">
+        <span class="lane-title">Not thrown away</span>
+        <h3>What becomes explicit gap or next slice</h3>
+        <ul>
+          <li>Event-page/CYA data-loss risks need a promoted CCD-backed browser or toolkit replay slice before full journey replacement claims.</li>
+          <li>Every PRL journey is not claimed as covered.</li>
+          <li>If a definition pattern introduces a new EXUI interpretation shape, it becomes a new slice.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>The PRL argument:</strong> the POC compresses 1,475 PRL CCD definition files into a small number of EXUI-relevant behaviour lanes. That is the mechanism for SRT reduction: service variation is grouped only when EXUI would process it through the same shared path. This does not mean one PRL slice proves all of PRL.
+    </div>
+    <div class="reader-note warning">
+      <strong>What is not being thrown away</strong>
+      <p>The files we do not turn into individual tests are not ignored. They are grouped only when they hit the same XUI behaviour. If a definition introduces a different show/hide rule, hidden-data rule, complex-type shape, role condition, tab rule, search metadata shape or accessibility-relevant DOM shape, that becomes a new slice or an explicit gap.</p>
+    </div>
+  </section>
+
+  <section class="section" id="hard-questions">
+    <h2>6. Hard questions: what is actually covered, what is a lane, and who signs it off?</h2>
+    <p>This is the clarification that should stop the proposal being oversold. The current POC proves the mechanism. The next delivery phase is the work of building enough source-backed slices, with service-owner review, to make central evidence trustworthy lane by lane.</p>
+
+    <div class="grid grid-3">
+      <div class="card proof">
+        <span class="lane-title">Current POC</span>
+        <h3>Not exhaustive yet</h3>
+        <ul>
+          <li>PRL is the first real evidence source, not a claim that all PRL journeys are covered.</li>
+          <li>One slice per service is not enough for complex services.</li>
+          <li>The POC proves green evidence, red mutation evidence, and the source-to-slice model.</li>
+          <li>It does not remove SRT by itself.</li>
+        </ul>
+      </div>
+      <div class="card model">
+        <span class="lane-title">Lane</span>
+        <h3>A risk area, not a service</h3>
+        <ul>
+          <li>A lane is a shared EXUI-owned behaviour area.</li>
+          <li>Examples: <code>work-allocation</code>, <code>hearings</code>, <code>case-list-search</code>, <code>manage-case</code>, <code>cya-rendering</code>, <code>auth-session</code>.</li>
+          <li>A green lane does not automatically cover another lane.</li>
+          <li>A service usually maps to several lanes.</li>
+        </ul>
+      </div>
+      <div class="card source">
+        <span class="lane-title">Service review</span>
+        <h3>Acceptance, not blind trust</h3>
+        <ul>
+          <li>EXUI/harness team proposes a slice with source files and assertions.</li>
+          <li>Service team confirms whether the shape is real and representative.</li>
+          <li>Test lead accepts, rejects, or asks for another slice.</li>
+          <li>Only accepted lanes can reduce repeated SRT.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="file-map" style="margin-top: 18px;">
+      <div class="head">Question</div>
+      <div class="head">Honest answer</div>
+      <div class="head">Decision rule</div>
+
+      <div class="path-cell">How many slices for PRL?</div>
+      <div>Rough planning band: 10-14 slices before PRL EXUI-owned risk starts to look defensible. The current POC has only the first PRL slice family and selected lanes.</div>
+      <div>Add slices for distinct EXUI interpretation shapes: CYA/show-hide, hidden data, search/workbasket, WA, hearings, roles, event history, auth and protected endpoints.</div>
+
+      <div class="path-cell">How many for Civil or another large CCD service?</div>
+      <div>Likely 12-18 slices because the definition surface and case-type variation are broad.</div>
+      <div>Do not copy every Civil journey. Scan for shapes that EXUI interprets differently from PRL or existing slices.</div>
+
+      <div class="path-cell">How many for IA, SSCS, Employment or similar?</div>
+      <div>Likely 5-10 slices each, depending on hearings, case types, role clusters and definition complexity.</div>
+      <div>Reuse existing slices where the EXUI path is equivalent. Add new slices only where the shape differs.</div>
+
+      <div class="path-cell">What about Crime?</div>
+      <div>Unknown until source discovery. Crime is not currently part of the central EXUI family model inspected for this POC.</div>
+      <div>First step is discovery/classification: source repo, EXUI family membership, case types, roles, IDAM/CCD patterns, then slice decisions.</div>
+
+      <div class="path-cell">What about CCD itself?</div>
+      <div>Create a cross-service CCD interpretation pack, probably 12-15 slices, covering metadata and event/page/field interpretation patterns.</div>
+      <div>Cover CCD shapes once centrally when they hit shared EXUI logic: CaseType, SearchInputFields, WorkBasketResultFields, CaseEventToFields, ComplexTypes, authorisations, display contexts and show conditions.</div>
+
+      <div class="path-cell">What about IDAM/session?</div>
+      <div>Create an auth/session pack, probably 7-9 slices, covering login callback, session cookie, logout, role hydration, protected endpoints and internal/external persona differences.</div>
+      <div>Do not mix this with service journey proof. Treat IDAM as its own cross-cutting EXUI risk lane.</div>
+    </div>
+
+    <div class="callout red-callout">
+      <strong>Most important wording:</strong> the POC proves the assurance harness mechanism, not exhaustive PRL assurance. The implementation work is to turn this into a source-scanned slice catalogue where every configured service family, CCD shape, role cluster and EXUI seam is covered, grouped, canary, or explicitly out of scope.
+    </div>
+    <div class="reader-note">
+      <strong>How service teams stay involved</strong>
+      <p>The harness team should not decide in isolation that a slice represents a service. The sensible model is: XUI proposes the slice and shows the source evidence, the service confirms whether it is a real representative shape, and the test lead decides whether that evidence is good enough to reduce repeated SRT for that lane.</p>
+    </div>
+  </section>
+
+  <section class="section" id="service-to-slice">
+    <h2>7. How a service becomes a slice</h2>
+    <div class="timeline">
+      <div class="step source">
+        <span class="num">1</span>
+        <h3>Find EXUI membership</h3>
+        <p>Which configured sets mention this family: global search, WA, staff-supported, hearings, jurisdiction/case type maps?</p>
+      </div>
+      <div class="step source">
+        <span class="num">2</span>
+        <h3>Prove it is real</h3>
+        <p>Find service repo evidence: CCD jurisdiction, case types, service codes, roles, event/page/field patterns.</p>
+      </div>
+      <div class="step model">
+        <span class="num">3</span>
+        <h3>Classify the shape</h3>
+        <p>Candidate gate, grouped, canary, source-gap, or source-unavailable. New configured families must not silently disappear.</p>
+      </div>
+      <div class="step model">
+        <span class="num">4</span>
+        <h3>Add scenario</h3>
+        <p>Each scenario has lane, service family, role cluster, assertion, execution mode, and priority.</p>
+      </div>
+      <div class="step test">
+        <span class="num">5</span>
+        <h3>Pick proof level</h3>
+        <p>API first. Add UI only for visible behaviour. Promote to browser plus CCD only when that is the risk.</p>
+      </div>
+    </div>
+    <div class="callout green-callout">
+      <strong>PRL today:</strong> PRL is the first normalized service slice. It uses real PRL CCD definition evidence, but it deliberately does not copy all PRL definition files or claim every PRL journey is covered.
+    </div>
+    <div class="reader-note success">
+      <strong>The rule for adding more services</strong>
+      <p>A new service does not automatically mean a pile of new tests. First we ask whether it uses a shape the harness already covers. If it does, it can be grouped with evidence. If it does not, we add a new slice with the source files, the assertion, and the proof level that matches the risk.</p>
+    </div>
+  </section>
+
+  <section class="section" id="developer-slices">
+    <h2>8. EXUI Developer-requested slices: CCD shapes that hit shared EXUI logic</h2>
+    <p>After the first stakeholder demo, EXUI developers asked whether the harness can cover custom CCD definition shapes, especially show/hide conditions, collections, complex types, and service-owned search/workbasket metadata. That is now represented by concrete PRL slices rather than a broad PRL journey replay.</p>
+    <div class="reader-note">
+      <strong>Why this matters to developers</strong>
+      <p>This is where the harness starts to become useful beyond the original PRL service-family proof. Developers can point at a risky CCD shape and ask for that shape to be represented centrally: nested complex fields on CYA, fields hidden by conditions, collection rows, search metadata, workbasket columns, role-based action exposure, or any other pattern where XUI interprets service configuration.</p>
+    </div>
+
+    <div class="developer-flow">
+      <div class="flow-card source">
+        <span class="lane-title">Developer ask</span>
+        <h3>Can we test custom CCD shapes?</h3>
+        <p>Developers called out show/hide conditions, collections, and nested complex types as recurring sources of service regression testing.</p>
+      </div>
+      <div class="flow-arrow"></div>
+      <div class="flow-card source">
+        <span class="lane-title">Real evidence</span>
+        <h3>PRL Service of Documents</h3>
+        <p>The slice is anchored to PRL CCD definitions for <code>serviceOfDocuments</code>, not invented as a generic mock.</p>
+      </div>
+      <div class="flow-arrow"></div>
+      <div class="flow-card model">
+        <span class="lane-title">Normalized shape</span>
+        <h3>One EXUI interpretation contract</h3>
+        <p>The harness keeps only the EXUI risk: nested complex child rows controlled by <code>FieldShowCondition</code> must survive into CYA.</p>
+      </div>
+      <div class="flow-arrow"></div>
+      <div class="flow-card test">
+        <span class="lane-title">Executable proof</span>
+        <h3>Replay plus scenario</h3>
+        <p>The API replay asserts the submitted payload and CYA projection retain the nested values. The central scenario makes it visible in the harness model.</p>
+      </div>
+    </div>
+
+    <div class="shape-diagram">
+      <div class="tree">
+        <span class="lane-title">CCD definition shape</span>
+        <h3>What PRL defines</h3>
+        <ul>
+          <li><code>PRIVATELAW</code> / <code>PRLAPPS</code></li>
+          <li><code>serviceOfDocuments</code> event</li>
+          <li><code>sodAdditionalRecipientsList</code> complex collection-like field</li>
+          <li><code>emailInformation</code> nested complex data</li>
+          <li><code>emailName</code> and <code>emailAddress</code> child rows</li>
+          <li>child rows gated by <code>FieldShowCondition</code></li>
+        </ul>
+      </div>
+      <div class="card model">
+        <span class="lane-title">Harness contract</span>
+        <h3>What EXUI must preserve</h3>
+        <div class="contract-list">
+          <div class="contract-item">When the user selects the email branch, EXUI must keep <code>emailInformation</code> visible in the CYA projection.</div>
+          <div class="contract-item">EXUI must keep <code>emailInformation.emailName</code> and <code>emailInformation.emailAddress</code> after show-condition filtering.</div>
+          <div class="contract-item">EXUI must not reintroduce stale hidden-page data from a previous branch.</div>
+          <div class="contract-item">The slice must be linked to historic failure classes so we do not overclaim coverage.</div>
+        </div>
+      </div>
+      <div class="card proof">
+        <span class="lane-title">Failure it targets</span>
+        <h3>What would go red</h3>
+        <ul>
+          <li>Nested complex child rows missing from CYA.</li>
+          <li>Field show conditions evaluated against the wrong parent data.</li>
+          <li>Collection child values dropped when projected into summary rows.</li>
+          <li>A developer changing shared CYA/event-page logic without preserving this shape.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="file-map" style="margin-top: 18px;">
+      <div class="head">File or area</div>
+      <div class="head">What changed</div>
+      <div class="head">What to show in a demo</div>
+
+      <div class="path-cell">prl-ccd-definitions/definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json</div>
+      <div>Real PRL event evidence for <code>serviceOfDocuments</code>.</div>
+      <div>Shows the requested shape comes from a service definition repo.</div>
+
+      <div class="path-cell">prl-ccd-definitions/definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json</div>
+      <div>Real event-page field evidence for the additional-recipient page.</div>
+      <div>Shows this is about event-page and CYA interpretation, not only service-family lists.</div>
+
+      <div class="path-cell">prl-ccd-definitions/definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json</div>
+      <div>Real nested complex and <code>FieldShowCondition</code> evidence.</div>
+      <div>Use this when developers ask where the exact PRL shape came from.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/data/exui-central-assurance.ts</div>
+      <div>Added <code>prl-service-of-documents-nested-cya</code>, scenario <code>prl-service-of-documents-nested-complex-cya</code>, and historic failure mapping.</div>
+      <div>Show the model before the test. It explains the why.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/data/exui-historic-replay-packs.ts</div>
+      <div>Added the synthetic replay data for <code>sodAdditionalRecipientsList</code>, <code>emailInformation</code>, <code>emailName</code>, and <code>emailAddress</code>.</div>
+      <div>Show this as the normalized shape: small, readable, and deliberately EXUI-focused.</div>
+
+      <div class="path-cell">rpx-xui-e2e-tests/src/tests/api/exui-historic-replay-packs.api.ts</div>
+      <div>Asserts the payload and flattened CYA rows retain the nested child values.</div>
+      <div>Show this as the executable proof that would fail if EXUI drops the CYA rows.</div>
+    </div>
+
+    <div class="callout green-callout">
+      <strong>The essential message:</strong> developers can bring a concrete CCD shape from a ticket. The harness turns that shape into a central EXUI contract. We test the shared interpretation once, with source evidence, instead of asking every service to manually retest the same class of EXUI behaviour.
+    </div>
+    <div class="callout">
+      <strong>Important honesty point:</strong> this is currently an API/replay proof for the EXUI interpretation contract. It is not yet a full browser journey through PRL Service of Documents in live CCD. If service owners require visual proof for this class, the same model should be promoted to a browser-plus-CCD slice.
+    </div>
+    <div class="reader-note warning">
+      <strong>How far this slice goes</strong>
+      <p>The current slice proves the interpretation contract. It is deliberately narrower than a full PRL user journey. That is acceptable for the POC, but if this becomes a release gate for CYA/show-hide behaviour, the next sensible step is a CCD-backed browser slice for the highest-risk event-page pattern.</p>
+    </div>
+
+    <h3 style="margin-top: 28px;">Second worked example: CCD-origin search/workbasket metadata</h3>
+    <p>This second PRL slice answers a different developer question: what if the change does not start in EXUI code, but in CCD definitions that EXUI consumes when building case-list, search and workbasket behaviour?</p>
+
+    <div class="shape-diagram">
+      <div class="tree">
+        <span class="lane-title">CCD definition source</span>
+        <h3>What PRL defines</h3>
+        <ul>
+          <li><code>UserProfile.json</code> default jurisdiction, case type and state.</li>
+          <li><code>SearchInputFields.json</code> including required search input <code>[CASE_REFERENCE]</code>.</li>
+          <li><code>SearchCasesResultFields.json</code> result columns EXUI renders after search.</li>
+          <li><code>WorkBasketResultFields.json</code> workbasket columns EXUI uses for case-list surfaces.</li>
+        </ul>
+      </div>
+      <div class="card model">
+        <span class="lane-title">Harness contract</span>
+        <h3>What EXUI must still see</h3>
+        <div class="contract-list">
+          <div class="contract-item">PRL search and workbasket metadata stays anchored to <code>PRIVATELAW</code> / <code>PRLAPPS</code>.</div>
+          <div class="contract-item">The case-reference search input is present and named consistently.</div>
+          <div class="contract-item">Search result and workbasket result columns retain the fields EXUI relies on.</div>
+          <div class="contract-item">CCD-origin metadata drift is caught centrally instead of becoming a service-by-service surprise.</div>
+        </div>
+      </div>
+      <div class="card proof">
+        <span class="lane-title">Red proof</span>
+        <h3>What would fail</h3>
+        <ul>
+          <li>Run <code>yarn harness:mutation:ccd</code>.</li>
+          <li>The wrapper runs a green control proof first.</li>
+          <li>It then removes <code>[CASE_REFERENCE]</code> from the observed PRL search-input contract in memory.</li>
+          <li>Expected failure: <code>CCD search metadata is missing required EXUI search input fields: [CASE_REFERENCE]</code>.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="run-manually">
+    <h2>9. Developer instructions: run the harness manually</h2>
+    <p>This section is for developers and test leads who want to inspect the proof themselves. The harness can be reviewed and run directly from the repos using normal shell commands.</p>
+    <div class="reader-note">
+      <strong>What a reviewer should expect</strong>
+      <p>The green run should show API, UI, integration and accessibility lanes in the Odhín report. The red runs should fail on purpose and name the broken contract clearly. If the red run does not fail, the harness is not proving the risk. If it fails vaguely, the evidence is not good enough yet.</p>
+    </div>
+
+    <div class="grid grid-2">
+      <div class="card test">
+        <span class="lane-title">Required checkouts</span>
+        <h3>Use a sibling repo layout</h3>
+        <ul>
+          <li><code>rpx-xui-e2e-tests</code>: the harness, tests, reports, and mutation wrappers.</li>
+          <li><code>rpx-xui-webapp</code>: EXUI config source and local Node/API shell.</li>
+          <li><code>prl-ccd-definitions</code>: PRL source evidence for the first normalized CCD slices.</li>
+          <li><code>ccd-docker</code>: optional for future real CCD-backed browser journeys; not required for the current local demo proof.</li>
+        </ul>
+      </div>
+      <div class="card runtime">
+        <span class="lane-title">Local runtime</span>
+        <h3>What the demo starts</h3>
+        <ul>
+          <li>EXUI backend mock on <code>8080</code>.</li>
+          <li>EXUI Node API on <code>3001</code>.</li>
+          <li>EXUI static shell on <code>3455</code>.</li>
+          <li>Synthetic seams on <code>4096</code> and <code>8091</code> for local-only dependencies.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 22px;">Before you start</h3>
+    <div class="evidence-list">
+      <div class="evidence-item">
+        <strong>Tools</strong>
+        <p>Use Node.js compatible with the repos, Corepack/Yarn, Git, and Chromium via Playwright. On a standard developer Mac this should be enough for the current proof.</p>
+      </div>
+      <div class="evidence-item">
+        <strong>Credentials</strong>
+        <p>The local proof uses mocked or synthetic seams for the current POC, so no live case data or service credentials are needed for the demo run.</p>
+      </div>
+      <div class="evidence-item">
+        <strong>Ports</strong>
+        <p>The demo uses <code>8080</code>, <code>3001</code>, <code>3455</code>, <code>4096</code>, and <code>8091</code>. Stop conflicting local processes first, unless they are the same compatible harness services.</p>
+      </div>
+      <div class="evidence-item">
+        <strong>CCD Docker</strong>
+        <p>The current shareable proof does not require the full CCD Docker stack. Use <code>ccd-docker</code> only when extending the POC into a real CCD-backed event-page or CYA browser journey.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 22px;">1. Prepare the workspace</h3>
+    <p>The demo runner assumes <code>rpx-xui-e2e-tests</code>, <code>rpx-xui-webapp</code>, and <code>prl-ccd-definitions</code> are checked out next to each other under the same parent folder.</p>
+    <div class="command-block">
+      <pre><code>mkdir -p xui-assurance-demo
+cd xui-assurance-demo
+export XUI_HARNESS_WORKSPACE="$(pwd)"
+
+git clone git@github.com:hmcts/rpx-xui-e2e-tests.git
+git clone git@github.com:hmcts/rpx-xui-webapp.git
+git clone git@github.com:hmcts/prl-ccd-definitions.git
+
+cd "$XUI_HARNESS_WORKSPACE/rpx-xui-e2e-tests"
+git checkout test/harness-shareable-clean-history</code></pre>
+    </div>
+
+    <h3 style="margin-top: 22px;">2. Install dependencies</h3>
+    <p>Use the repo-managed Yarn versions. The harness needs Chromium for the UI proof; EXUI needs a local Angular build before the shell can be served.</p>
+    <div class="command-block">
+      <pre><code>cd "$XUI_HARNESS_WORKSPACE/rpx-xui-e2e-tests"
+corepack enable
+yarn install --immutable
+yarn test:setup:playwright-install-chromium
+
+cd "$XUI_HARNESS_WORKSPACE/rpx-xui-webapp"
+corepack enable
+yarn install --immutable
+yarn build:dev</code></pre>
+    </div>
+
+    <h3 style="margin-top: 22px;">3. Run the source/config drift gate</h3>
+    <p>This checks that the harness model still matches current EXUI config and that the PRL source anchors used by the normalized slices still exist.</p>
+    <div class="command-block">
+      <pre><code>cd "$XUI_HARNESS_WORKSPACE/rpx-xui-e2e-tests"
+yarn harness:manifest</code></pre>
+    </div>
+
+    <h3 style="margin-top: 22px;">4. Start the local demo runtime</h3>
+    <p>Keep this terminal open. The command starts or reuses the local services required by the current POC. If a port is already owned by a compatible service, the runner will reuse it.</p>
+    <div class="command-block">
+      <pre><code>cd xui-assurance-demo
+export XUI_HARNESS_WORKSPACE="$(pwd)"
+cd "$XUI_HARNESS_WORKSPACE/rpx-xui-e2e-tests"
+TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:demo:start</code></pre>
+    </div>
+
+    <h3 style="margin-top: 22px;">5. Run the green proof and open the report</h3>
+    <p>Use a second terminal for the proof run. This produces the Odhín report that test leads and developers should review.</p>
+    <div class="command-block">
+      <pre><code>cd xui-assurance-demo
+export XUI_HARNESS_WORKSPACE="$(pwd)"
+cd "$XUI_HARNESS_WORKSPACE/rpx-xui-e2e-tests"
+TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:local:odhin
+open test-results/harness-poc-odhin-report/harness-poc-odhin.html</code></pre>
+    </div>
+
+    <h3 style="margin-top: 22px;">6. Run the controlled red proofs</h3>
+    <p>These commands are useful when explaining why the harness is not just a set of happy-path checks. Each wrapper runs a good control first, then injects one targeted failure and expects the harness to catch it.</p>
+    <div class="command-block">
+      <pre><code>cd xui-assurance-demo
+export XUI_HARNESS_WORKSPACE="$(pwd)"
+cd "$XUI_HARNESS_WORKSPACE/rpx-xui-e2e-tests"
+TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:mutation:wa
+open functional-output/tests/harness/mutation-proof/odhin-report/harness-mutation-proof.html
+
+TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:mutation:ccd
+open functional-output/tests/harness/ccd-mutation-proof/odhin-report/harness-ccd-mutation-proof.html</code></pre>
+    </div>
+
+    <h3 style="margin-top: 22px;">What to look at in the report</h3>
+    <div class="evidence-list">
+      <div class="evidence-item">
+        <strong>Green central proof</strong>
+        <p>Look for config contract checks, global search families, WA-supported families, staff-supported families, historic replay packs, Manage Tasks UI, and Hearings UI.</p>
+      </div>
+      <div class="evidence-item">
+        <strong>UI screenshots</strong>
+        <p>The UI proofs attach screenshots for the Manage Tasks service-family filter, supported PRL hearings actions, and unsupported-family hidden Hearings tab.</p>
+      </div>
+      <div class="evidence-item">
+        <strong>Accessibility reports</strong>
+        <p>The representative UI slices now include explicit <code>accessibility baseline:</code> tests. The reports show current known axe debt and fail if a future EXUI change introduces a new rule violation or increases the recorded baseline.</p>
+      </div>
+      <div class="evidence-item">
+        <strong>WA mutation proof</strong>
+        <p>The red proof should name the missing shared service family, for example <code>PRIVATELAW</code>, rather than failing with a vague UI symptom.</p>
+      </div>
+      <div class="evidence-item">
+        <strong>CCD mutation proof</strong>
+        <p>The red proof should name the missing CCD-origin search metadata field, for example <code>[CASE_REFERENCE]</code>.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 22px;">Common setup failures</h3>
+    <p>Use this as the first triage list when the local proof does not start cleanly. These are setup problems, not product failures.</p>
+    <div class="failure-list">
+      <div class="failure-card">
+        <div class="failure-cell">
+          <span class="failure-label">Symptom</span>
+          <span class="failure-title">EXUI Angular build is missing</span>
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Likely cause</span>
+          <code>rpx-xui-webapp</code> has not been built locally.
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Fix</span>
+          Run <code>yarn build:dev</code> in <code>rpx-xui-webapp</code>.
+        </div>
+      </div>
+
+      <div class="failure-card">
+        <div class="failure-cell">
+          <span class="failure-label">Symptom</span>
+          <span class="failure-title">EXUI shell is not reachable</span>
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Likely cause</span>
+          The local demo runtime is not running, or port <code>3455</code> is blocked.
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Fix</span>
+          Run <code>yarn harness:demo:start</code> and keep that terminal open.
+        </div>
+      </div>
+
+      <div class="failure-card">
+        <div class="failure-cell">
+          <span class="failure-label">Symptom</span>
+          <span class="failure-title">Manifest fails on EXUI config</span>
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Likely cause</span>
+          The harness snapshot no longer matches <code>rpx-xui-webapp</code> config.
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Fix</span>
+          Review the EXUI config change and update the harness source snapshot/model if the change is intentional.
+        </div>
+      </div>
+
+      <div class="failure-card">
+        <div class="failure-cell">
+          <span class="failure-label">Symptom</span>
+          <span class="failure-title">Manifest fails on PRL evidence</span>
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Likely cause</span>
+          <code>prl-ccd-definitions</code> is missing, not next to the harness repo, or the PRL definition shape moved.
+        </div>
+        <div class="failure-cell">
+          <span class="failure-label">Fix</span>
+          Check out <code>prl-ccd-definitions</code> next to the harness repo, or update the source anchors if PRL changed intentionally.
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 22px;">How to add a new developer-requested shape manually</h3>
+    <div class="recipe-table">
+      <div class="head">Step</div>
+      <div class="head">Action</div>
+      <div class="head">Acceptance check</div>
+
+      <div>1</div>
+      <div>Capture the service family, jurisdiction, case type, event or route, roles, and exact CCD definition files that motivated the request.</div>
+      <div>The request is traceable to service evidence, not just a verbal concern.</div>
+
+      <div>2</div>
+      <div>Classify the EXUI lane: configuration, global search, work allocation, staff reference data, case-list search, hearings, manage case, event history, auth/session, or documents.</div>
+      <div>The lane explains which shared EXUI behaviour could regress.</div>
+
+      <div>3</div>
+      <div>Update <code>src/data/exui-central-assurance-source.json</code> with the source facts and file anchors.</div>
+      <div>The source snapshot records the human-readable evidence before test code changes.</div>
+
+      <div>4</div>
+      <div>Update <code>src/data/exui-central-assurance.ts</code> with the service profile, normalized slice, coverage decision, scenario, and historic-failure mapping if applicable.</div>
+      <div>The scenario has an id, lane, service family, role cluster, assertion, execution mode, and priority.</div>
+
+      <div>5</div>
+      <div>Add or update replay data in <code>src/data/exui-historic-replay-packs.ts</code> where the risk is CYA, hidden data, event-page state, roles, auth, search metadata, or another deterministic EXUI interpretation.</div>
+      <div>The replay is small and readable. It keeps the EXUI interpretation shape, not every service business field.</div>
+
+      <div>6</div>
+      <div>Add a focused API, integration, or UI proof under <code>src/tests</code>. Use UI only where visible behaviour is the actual risk, and add an accessibility scan when the slice represents a reusable EXUI page or component.</div>
+      <div>The test fails with a message that names the missing family, row, field, tab, action, contract, or accessibility violation.</div>
+
+      <div>7</div>
+      <div>Run <code>yarn harness:manifest</code>, the focused test, and then <code>yarn harness:local:odhin</code>.</div>
+      <div>The Odhín report becomes the review artefact for the new slice.</div>
+
+      <div>8</div>
+      <div>If the stakeholder needs confidence that the gate catches the risk, add a targeted mutation wrapper.</div>
+      <div>The wrapper proves green control, red mutation, and clear failure message.</div>
+    </div>
+
+    <div class="callout">
+      <strong>Review rule:</strong> do not claim a whole service is covered because one slice passes. A slice proves one shared EXUI configuration shape. Service owners still need to agree that the selected slices represent the risk they would otherwise regression test manually.
+    </div>
+  </section>
+
+  <section class="section" id="accessibility">
+    <h2>10. Accessibility in the assurance harness</h2>
+    <p>Accessibility should be treated as a first-class harness lane, not as a separate afterthought. A lot of EXUI accessibility regressions are caused by shared rendering changes: tab markup, filters, form controls, summary pages, conditional content, modal/dialog behaviour, table structure, focus order, and route-level layout. If those shared surfaces regress, asking every service team to rediscover the same axe failures is wasteful.</p>
+    <div class="reader-note">
+      <strong>Why accessibility belongs here</strong>
+      <p>The same logic applies to accessibility. If a shared XUI component creates an accessibility regression, it should not be discovered separately by every service team. The harness should scan the representative rendered shape, keep the evidence with the functional proof, and make the current baseline honest.</p>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="card source">
+        <span class="lane-title">Source of risk</span>
+        <h3>Shared EXUI rendering</h3>
+        <ul>
+          <li>Common shell, navigation, tabs, filters and layout.</li>
+          <li>CCD-driven event and CYA rendering through the toolkit.</li>
+          <li>Feature flags and service-family config changing what appears on screen.</li>
+          <li>Role and case-type configuration changing available actions.</li>
+        </ul>
+      </div>
+      <div class="card model">
+        <span class="lane-title">Harness model</span>
+        <h3>Scan representative shapes</h3>
+        <ul>
+          <li>Do not run the same accessibility scan thirteen times against the same EXUI component.</li>
+          <li>Pick the slice that exposes the distinct DOM shape: filter, tab, event page, CYA page, table, modal, document viewer.</li>
+          <li>Record which services are covered by that shared shape and which need their own slice.</li>
+          <li>Keep service-specific content issues separate from EXUI-owned component issues.</li>
+        </ul>
+      </div>
+      <div class="card test">
+        <span class="lane-title">Evidence</span>
+        <h3>Axe report plus UI proof</h3>
+        <ul>
+          <li>Use <code>@axe-core/playwright</code> from a shared harness helper so every slice produces the same style of evidence.</li>
+          <li>Attach the accessibility report to the same Playwright/Odhín evidence as the UI proof.</li>
+          <li>Fail the harness when the representative slice has a new axe rule violation or more nodes than the explicit known baseline.</li>
+          <li>Keep screenshots beside the a11y report so reviewers can see the scanned state.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout red-callout" style="margin-top: 22px;">
+      <strong>The first accessibility run found real existing issues.</strong>
+      That is the point of adding this lane. I would not hide those by disabling axe just to make the demo look clean. The harness records the current known violations as a small explicit baseline, keeps the axe report visible in Odhín, and fails if a future EXUI change introduces anything new or makes the current debt worse.
+    </div>
+
+    <h3 style="margin-top: 22px;">How the first POC accessibility proof works</h3>
+    <div class="matrix">
+      <div class="head">Screen shape</div>
+      <div class="head">Why this shape matters</div>
+      <div class="head">What the harness scans</div>
+      <div class="head">Evidence produced</div>
+      <div class="head">Claim we can make</div>
+
+      <div>Manage Tasks service-family filter</div>
+      <div>Service-family filtering is shared EXUI behaviour. If the filter markup, labels, checkboxes, accordion state, or layout regresses, multiple services can be affected.</div>
+      <div>The available-tasks page after the filter panel is open and populated with the central WA families.</div>
+      <div>Dedicated accessibility test row, screenshot, and axe report. Current known baseline includes label/table-header debt.</div>
+      <div>The representative WA filter surface is covered centrally for new or worsened accessibility regressions.</div>
+
+      <div>Hearings supported-family action view</div>
+      <div>Hearings tab/action exposure is driven by service family, case type and roles. The same component shape can be reused across services.</div>
+      <div>The PRL supported-family hearing summary/action screen after the mocked hearings route renders a hearing-manager action.</div>
+      <div>Dedicated accessibility test row, screenshot, and axe report. Current known baseline includes definition-list/heading debt.</div>
+      <div>The representative supported Hearings action surface is covered centrally for new or worsened accessibility regressions.</div>
+
+      <div>Hearings unsupported-family hidden-tab state</div>
+      <div>Accessibility is not only about visible happy paths. Hidden/unsupported states still need the surrounding case details page to remain structurally valid.</div>
+      <div>The Divorce unsupported-family case details state where the Hearings tab is intentionally absent.</div>
+      <div>Dedicated accessibility test row, screenshot, and axe report. Current known baseline includes landmark/H1 debt.</div>
+      <div>The unsupported-family state is guarded against new accessibility regressions while the hidden-tab behaviour is proved.</div>
+    </div>
+
+    <h3 style="margin-top: 22px;">How this scales without becoming another full SRT burden</h3>
+    <div class="timeline">
+      <div class="step source">
+        <span class="num">1</span>
+        <h3>Identify the shared UI shape</h3>
+        <p>Start from the EXUI change. Ask which reusable screen/component shape changed: task filter, case tab, CYA page, event page, search table, modal, document viewer, or auth page.</p>
+      </div>
+      <div class="step model">
+        <span class="num">2</span>
+        <h3>Map services to that shape</h3>
+        <p>Use EXUI config and CCD definitions to work out which service families exercise the same rendered structure. Group identical shapes; create a new slice only when the DOM or interaction pattern genuinely differs.</p>
+      </div>
+      <div class="step test">
+        <span class="num">3</span>
+        <h3>Scan once per shape</h3>
+        <p>Run the axe scan on the representative harness slice. Do not repeat the same scan per service unless the service has a materially different configuration shape.</p>
+      </div>
+      <div class="step proof">
+        <span class="num">4</span>
+        <h3>Attach reviewable evidence</h3>
+        <p>Keep the accessibility report, screenshot, scenario id, service-family grouping, and source anchors together so test leads can inspect why the slice is representative.</p>
+      </div>
+      <div class="step proof">
+        <span class="num">5</span>
+        <h3>Escalate real gaps</h3>
+        <p>If a service has custom labels, a unique complex CYA shape, unusual content, or a document-specific accessibility risk, it becomes a new slice or remains service-owned.</p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Practical rule:</strong> accessibility coverage follows the same assurance principle as functional coverage. We cover shared EXUI-owned shapes centrally. We do not claim central coverage for service-specific content, documents, or bespoke journeys unless a matching slice exists.
+    </div>
+    <div class="callout red-callout">
+      <strong>What this does not prove yet:</strong> the first POC does not prove full WCAG compliance for every EXUI page, every service journey, every uploaded document, or every browser/device combination. It proves that accessibility checks can be built into the central harness and attached to the same evidence trail.
+    </div>
+    <div class="reader-note warning">
+      <strong>Why the baseline approach is honest</strong>
+      <p>The first run found existing accessibility debt. That is useful. The harness should not hide it by switching axe off. It records the known debt explicitly and fails if a future XUI change introduces a new violation or makes the known one worse. That gives test leads a practical gate without pretending the whole product is already clean.</p>
+    </div>
+  </section>
+
+  <section class="section" id="coverage">
+    <h2>11. What the current POC validates</h2>
+    <div class="matrix">
+      <div class="head">Lane</div>
+      <div class="head">Source</div>
+      <div class="head">POC proof</div>
+      <div class="head">Why it matters</div>
+      <div class="head">Status</div>
+
+      <div>Config contract</div>
+      <div><code>rpx-xui-webapp</code> config/API routes</div>
+      <div>API checks for central config endpoints and required keys</div>
+      <div>Catches accidental config drift that would affect every service using EXUI shell config</div>
+      <div class="ok">Covered in POC</div>
+
+      <div>Global search families</div>
+      <div>EXUI configured service-family sets</div>
+      <div>Assert central must-run families are present, not brittle full equality</div>
+      <div>Catches a family disappearing from shared search behaviour</div>
+      <div class="ok">Covered in POC</div>
+
+      <div>Work Allocation families</div>
+      <div><code>/api/wa-supported-jurisdiction/get</code> and model</div>
+      <div>API proof plus Manage Tasks UI filter proof</div>
+      <div>Catches missing task-family exposure such as PRL disappearing from WA</div>
+      <div class="ok">Covered and mutation-tested</div>
+
+      <div>Hearings family/case type</div>
+      <div>EXUI hearings config plus PRL case type evidence</div>
+      <div>Supported PRL case type and unsupported/hidden family proof</div>
+      <div>Catches tab/action exposure errors for configured hearing families</div>
+      <div class="ok">Covered as focused slice</div>
+
+      <div>Case-list search/workbasket metadata</div>
+      <div>PRL CCD <code>UserProfile</code>, <code>SearchInputFields</code>, <code>SearchCasesResultFields</code>, <code>WorkBasketResultFields</code></div>
+      <div>API replay plus CCD-origin mutation proof for missing <code>[CASE_REFERENCE]</code></div>
+      <div>Catches service-definition metadata drift before EXUI search/workbasket surfaces lose required inputs or columns</div>
+      <div class="ok">Covered and mutation-tested</div>
+
+      <div>Historic SRT classes</div>
+      <div>User-supplied SRT incident notes</div>
+      <div>Replay model classifies covered, planned, or out of scope</div>
+      <div>Stops vague claims; shows which failures the harness should catch and which it will not</div>
+      <div class="planned">Partially covered, explicit gaps</div>
+
+      <div>Nested-complex CYA data integrity</div>
+      <div>CCD definition event/page/field patterns</div>
+      <div>API replay for nested complex child rows controlled by field-show conditions</div>
+      <div>Catches the central EXUI interpretation class; a full browser-plus-CCD journey remains the next strengthening step</div>
+      <div class="ok">Covered as replay; CCD browser path planned</div>
+
+      <div>Accessibility on representative UI shapes</div>
+      <div>EXUI shared UI surfaces rendered by the harness slices</div>
+      <div>Three explicit <code>accessibility baseline:</code> tests for Manage Tasks and Hearings representative states</div>
+      <div>Catches new or worsened accessibility regressions on shared EXUI-owned screens before asking every service to rediscover them</div>
+      <div class="ok">Covered as baseline gate; wider slice catalogue needed</div>
+
+      <div>Media Viewer redaction</div>
+      <div>Media Viewer rendering and document coordinate behaviour</div>
+      <div>No current harness proof</div>
+      <div>This is not a simple EXUI service-family config problem</div>
+      <div class="gap">Explicitly out of scope unless dedicated slice added</div>
+    </div>
+  </section>
+
+  <section class="section" id="mutation">
+    <h2>12. The mutation proofs, step by step</h2>
+    <p>In this context, a mutation proof means controlled fault injection. We deliberately remove one expected piece of shared configuration from the observed test contract, then prove the harness catches that exact missing piece with a clear failure message.</p>
+    <div class="timeline">
+      <div class="step test">
+        <span class="num">1</span>
+        <h3>Control run</h3>
+        <p>Run the focused proof with no mutation. Expected model and observed contract agree. Green.</p>
+      </div>
+      <div class="step proof">
+        <span class="num">2</span>
+        <h3>Pick fault class</h3>
+        <p>Use <code>harness:mutation:wa</code> for EXUI-side Work Allocation family drift, or <code>harness:mutation:ccd</code> for CCD-origin search metadata drift.</p>
+      </div>
+      <div class="step proof">
+        <span class="num">3</span>
+        <h3>Mutate in memory</h3>
+        <p>The proof removes either <code>PRIVATELAW</code> from the observed WA family list or <code>[CASE_REFERENCE]</code> from PRL search-input metadata. No source file is edited.</p>
+      </div>
+      <div class="step proof">
+        <span class="num">4</span>
+        <h3>Assert against model</h3>
+        <p>The assertion compares the observed contract with the central assurance model and source-backed PRL slice.</p>
+      </div>
+      <div class="step proof">
+        <span class="num">5</span>
+        <h3>Expected red</h3>
+        <p>The wrapper expects the exact missing-family or missing-search-input failure. If it does not fail, or fails differently, the demo fails.</p>
+      </div>
+    </div>
+    <div class="callout red-callout">
+      <strong>Exact expected WA failure:</strong>
+      <code>api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW</code>
+      <br>
+      <strong>Exact expected CCD metadata failure:</strong>
+      <code>CCD search metadata is missing required EXUI search input fields: [CASE_REFERENCE]</code>
+    </div>
+    <div class="callout">
+      <strong>Why this matters:</strong> it shows the harness is capable of detecting both a shared EXUI regression in the central WA family contract and a consuming-service CCD metadata drift that would affect EXUI search/workbasket behaviour.
+    </div>
+    <div class="callout green-callout">
+      <strong>What changes during the demo:</strong> only the test process environment changes. The focused proof mutates the observed contract in memory. No EXUI config file, CCD definition file, or harness source file is edited.
+    </div>
+    <div class="reader-note success">
+      <strong>Why the red proof is important</strong>
+      <p>A green test run on its own is not enough for this pitch. The red proof shows that the harness is sensitive to the type of shared break we care about. Remove PRL from the Work Allocation contract, or remove the required CCD search input shape, and the harness goes red with a useful message.</p>
+    </div>
+  </section>
+
+  <section class="section" id="claims">
+    <h2>13. What we can honestly claim</h2>
+    <div class="reader-note">
+      <strong>The boundary of the claim</strong>
+      <p>The strongest version of this proposal is also the safest one: centralise proof where the risk is shared XUI behaviour, and keep service-owned risk with the service. The POC is credible because it is clear about both sides.</p>
+    </div>
+    <div class="grid grid-2">
+      <div class="card model">
+        <span class="lane-title">Proven by the POC</span>
+        <ul>
+          <li>Central EXUI family config can be captured into an executable assurance model.</li>
+          <li>Configured services can be classified so new drift is visible.</li>
+          <li>API checks can protect shared EXUI contracts.</li>
+          <li>Thin UI checks can prove visible rendering once per representative shape.</li>
+          <li>Accessibility checks now run as explicit harness tests on representative UI slices, attach axe reports, and baseline known existing debt instead of hiding it.</li>
+          <li>A deliberate WA regression can be caught and reported with Odhín evidence.</li>
+          <li>A deliberate CCD-origin metadata regression can be caught before PRL search/workbasket surfaces lose required inputs.</li>
+        </ul>
+      </div>
+      <div class="card proof">
+        <span class="lane-title">Not proven yet</span>
+        <ul>
+          <li>Every service business journey is not covered.</li>
+          <li>Every CCD event, page, field, and show condition is not covered; only selected EXUI-facing shapes are represented.</li>
+          <li>Full accessibility compliance across every EXUI route, service journey, document and device is not proven by the first POC.</li>
+          <li>Media Viewer redaction coordinate correctness is not covered.</li>
+          <li>True downstream service defects are not covered by synthetic shims.</li>
+          <li>SRT can only be reduced where service owners accept the representative slice.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="route">
+    <h2>14. Route from POC to implementation</h2>
+    <p>The POC proves the mechanism. The next step is not to seek implementation approval prematurely, but to investigate the engineering and governance decisions that would make this safe as an EXUI release gate. No delivery date or resourcing level should be inferred from this walkthrough.</p>
+    <div class="plan-table">
+      <div class="head">Stage</div>
+      <div class="head">What to deliver</div>
+      <div class="head">Why this comes now</div>
+      <div class="head">Exit evidence</div>
+      <div class="head">Key decision before moving on</div>
+
+      <div>0. Stabilise POC</div>
+      <div>Clean PRL slice, keep naming consistent, make local harness repeatable, keep Odhín and mutation proof easy to run.</div>
+      <div>Before scaling, the demo must be reliably repeatable on a developer Mac and in CI.</div>
+      <div>Green local validate, green mutation proof, clear PRL compression story.</div>
+      <div>Is the POC stable enough to use as the baseline for the pilot?</div>
+
+      <div>1. Pipeline decision</div>
+      <div>Decide where the gate runs: EXUI PR checks, e2e repo checks, nightly, candidate-release gate, or a combination.</div>
+      <div>The delivery estimate is not credible until pipeline ownership, target environment, secrets, reports, and failure policy are agreed.</div>
+      <div>Written pipeline design with owners, trigger points, reports, and acceptance rules.</div>
+      <div>Which pipeline trigger is authoritative for release confidence?</div>
+
+      <div>2. Productionise core gates</div>
+      <div>Manifest drift gate, source snapshot update workflow, API contracts for config, global search, WA, staff, hearings.</div>
+      <div>These are the shared EXUI behaviours most suitable for central assurance.</div>
+      <div>PR-ready harness gate in <code>rpx-xui-e2e-tests</code>, CI command, Odhín/JUnit artefacts.</div>
+      <div>What is the minimum failing gate that should block an EXUI change?</div>
+
+      <div>3. Add representative services</div>
+      <div>Promote Civil, IA, SSCS/Public Law style slices where they introduce different EXUI interpretation shapes.</div>
+      <div>More than one service shape is needed before the approach can be treated as generally useful.</div>
+      <div>Each slice has source evidence, scenario, API proof, UI proof only where visible, and accessibility proof where the slice renders a shared page/component.</div>
+      <div>Which service families represent the next distinct EXUI shapes?</div>
+
+      <div>3a. Accessibility lane expansion</div>
+      <div>Classify shared EXUI UI shapes and add axe scans once per representative shape: filters, tabs, forms, CYA, tables, dialogs, documents.</div>
+      <div>This answers the test-lead concern that accessibility regressions currently fall back to multiple service teams.</div>
+      <div>Odhín report includes screenshots plus axe reports for each shared UI shape, with explicit grouped services and gaps.</div>
+      <div>Which accessibility failures are EXUI-owned component risks, and which remain service content or document risks?</div>
+
+      <div>4. Historic replay pack</div>
+      <div>Turn previous SRT failures into executable replay or explicit out-of-scope classifications.</div>
+      <div>This directly answers the stakeholder question: would this have caught our old pain?</div>
+      <div>Covered/planned/missed matrix, mutation or negative proof for highest-risk shared contracts.</div>
+      <div>Which historic failures are central EXUI risks versus service-owned risks?</div>
+
+      <div>5. CCD-backed event-page slice</div>
+      <div>Add one real browser-plus-CCD PRL/Civil event-page replay for CYA, hidden fields, Previous/Continue, complex types.</div>
+      <div>This is the first area where synthetic API proof is not enough.</div>
+      <div>Real CCD run proves data-retention path, not only mocked UI behaviour.</div>
+      <div>Which CCD-backed event path is representative enough for owner sign-off?</div>
+
+      <div>6. Adoption and governance</div>
+      <div>Agree service-owner sign-off, waiver process, source-gap handling, release criteria, dashboard/reporting.</div>
+      <div>SRT reduction is a product/governance change, not just an automation change.</div>
+      <div>Documented release policy: when harness green means no service SRT for agreed lanes.</div>
+      <div>Who can approve that a green harness replaces service SRT for each agreed lane?</div>
+    </div>
+    <div class="callout">
+      <strong>Implementation dependency:</strong> the work will need automation/SDET ownership, XUI developer input, DevOps/pipeline support, and named service-owner SMEs. The level of allocation will materially change the eventual plan, so it should be treated as an investigation output, not assumed here.
+    </div>
+  </section>
+
+  <section class="section" id="priorities">
+    <h2>15. What to address first</h2>
+    <div class="grid grid-3">
+      <div class="card proof">
+        <span class="lane-title">Priority 1</span>
+        <h3>Make the PRL story undeniable</h3>
+        <ul>
+          <li>Keep PRL as the first normalized slice.</li>
+          <li>Add one promoted CCD-backed event-page/CYA replay.</li>
+          <li>Show exactly which PRL risks are covered and which remain service-owned.</li>
+        </ul>
+      </div>
+      <div class="card model">
+        <span class="lane-title">Priority 2</span>
+        <h3>Make drift impossible to miss</h3>
+        <ul>
+          <li>Every EXUI configured family must be classified.</li>
+          <li>New service/config additions must fail the manifest until a decision is recorded.</li>
+          <li>Canaries and source gaps must stay visible.</li>
+        </ul>
+      </div>
+      <div class="card test">
+        <span class="lane-title">Priority 3</span>
+        <h3>Make evidence consumable</h3>
+        <ul>
+          <li>Keep local commands simple.</li>
+          <li>Publish Odhín/JUnit artefacts from CI.</li>
+          <li>Use mutation proof for demos and reviewer confidence.</li>
+          <li>Attach accessibility reports beside UI screenshots so test leads do not need to rerun the suite to inspect the proof.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>Important qualification:</strong> the implementation will only reduce SRT if the service families agree that the selected slices represent their EXUI risk. That agreement should be captured lane-by-lane, not as a blanket promise.
+    </div>
+  </section>
+
+  <section class="section" id="feasibility">
+    <h2>16. Feasibility model</h2>
+    <div class="metric-strip">
+      <div class="card model">
+        <span class="lane-title">Why feasible</span>
+        <ul>
+          <li>EXUI already centralises the shared UI/API behaviour.</li>
+          <li>Service-family config is discoverable and testable.</li>
+          <li>Most repeated SRT asks are about common EXUI lanes, not bespoke service logic.</li>
+        </ul>
+      </div>
+      <div class="card proof">
+        <span class="lane-title">Main risks</span>
+        <ul>
+          <li>Pipeline design is not yet fixed: PR gate, nightly, candidate-release gate, or all three.</li>
+          <li>CCD event-page behaviour needs real data-flow proof.</li>
+          <li>Some service definition sources or owners may be unclear.</li>
+          <li>Overclaiming would damage trust quickly.</li>
+        </ul>
+      </div>
+      <div class="card test">
+        <span class="lane-title">Control points</span>
+        <ul>
+          <li>Pipeline decision before full-scale build.</li>
+          <li>Manifest gate for config drift.</li>
+          <li>Source evidence required for each candidate gate slice.</li>
+          <li>Explicit out-of-scope and waiver decisions.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout">
+      <strong>Suggested next conversation:</strong> agree whether to move from POC into structured implementation discovery. That discovery should confirm the pipeline route, representative service set, CCD-backed event-page strategy, evidence standard, and service-owner sign-off model before committing to build scope.
+    </div>
+    <div class="reader-note">
+      <strong>Decision needed next</strong>
+      <p>The immediate decision is not a fixed delivery timeline. The immediate decision is whether the organisation wants to take this from a working POC into structured implementation discovery: pipeline placement, release policy, slice ownership, evidence standards, and which service shapes should be onboarded first.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>
