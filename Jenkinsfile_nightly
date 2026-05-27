@@ -16,7 +16,12 @@ properties([
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
       defaultValue: '6',
-      description: 'Default API Playwright workers. API is capped at 6 in Jenkins; UI remains capped at 4.'
+      description: 'Shared functional worker-count source. UI is capped at 4; API uses API_PW_WORKERS.'
+    ),
+    string(
+      name: 'API_PW_WORKERS',
+      defaultValue: '6',
+      description: 'API Playwright worker-count override, capped at 6 in Jenkins.'
     ),
     string(
       name: 'API_PW_INCLUDE_TAGS',
@@ -365,7 +370,12 @@ def effectiveIntegrationBuckets = { String rawTags ->
 
 def effectiveIntegrationWorkers = { String rawWorkers ->
   def trimmed = rawWorkers?.trim()
-  return (!trimmed || trimmed == '2') ? '6' : trimmed
+  return (!trimmed || trimmed == '2' || trimmed == '4') ? '6' : trimmed
+}
+
+def effectiveApiWorkers = { String rawWorkers ->
+  def trimmed = rawWorkers?.trim()
+  return trimmed ?: '6'
 }
 
 def effectiveIntegrationExcludedTags = { String rawTags ->
@@ -385,7 +395,7 @@ def hasCourtAdminUiCredentials = {
 
 withNightlyPipeline(type, product, component, 400) {
   loadVaultSecrets(secrets)
-  def apiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS, 6)
+  def apiWorkers = capJenkinsPlaywrightWorkers(effectiveApiWorkers(params.API_PW_WORKERS), 6)
   def uiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS, 4)
   def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS), 6)
   def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
@@ -467,6 +477,7 @@ withNightlyPipeline(type, product, component, 400) {
         }
 
         stage('API nightly') {
+          def apiOdhinEnvironment = buildOdhinEnvironmentLabel(apiWorkers)
           def apiOdhinEnv = [
             "FUNCTIONAL_TESTS_WORKERS=${apiWorkers}",
             "PLAYWRIGHT_WORKERS=${apiWorkers}",
@@ -476,6 +487,7 @@ withNightlyPipeline(type, product, component, 400) {
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+            "PW_ODHIN_ENV=${apiOdhinEnvironment}",
             "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
           ]
           try {
@@ -573,6 +585,7 @@ withNightlyPipeline(type, product, component, 400) {
         }
 
         stage('Integration tests') {
+          def integrationOdhinEnvironment = buildOdhinEnvironmentLabel(integrationWorkers)
           def integrationOdhinEnv = [
             "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
             "PLAYWRIGHT_WORKERS=${integrationWorkers}",
@@ -583,7 +596,7 @@ withNightlyPipeline(type, product, component, 400) {
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
             "PW_ODHIN_TARGET=${integrationReportDir}",
-            "PW_ODHIN_ENV=${params.TEST_ENV} | ci | workers=${integrationWorkers}",
+            "PW_ODHIN_ENV=${integrationOdhinEnvironment}",
             'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
             'PW_ODHIN_SKIP_API_ENDPOINTS=true',
             'PW_UI_STORAGE=1',

@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
 import {
   applySessionCookiesAndExtractUserId,
+  resolveBookingUiUserIdentifier,
   setupBookingUiMockRoutes
 } from "../helpers/index.js";
 import { setupTaskListMockRoutes } from "../helpers/taskListMockRoutes.helper.js";
@@ -32,13 +33,14 @@ test.describe(
   () => {
     test.describe.configure({ mode: "serial" });
 
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ page }, testInfo) => {
       getBookingsCalled = false;
       createBookingCalled = false;
       createBookingRequestBody = undefined;
       createBookingResponseBody = undefined;
 
-      const userId = await applySessionCookiesAndExtractUserId(page, userIdentifier);
+      const workerUserIdentifier = resolveBookingUiUserIdentifier({ parallelIndex: testInfo.parallelIndex });
+      const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       sessionUserId = userId;
       existingBookingsMock = buildExistingBookingsMock(userId);
 
@@ -82,13 +84,21 @@ test.describe(
         await expect(bookingUiPage.continueButton).toHaveCount(0);
       });
 
+      const activeBookingButton = bookingUiPage.existingBookings.getByRole("button", {
+        name: /Bromley Magistrates' Court/
+      });
+      const futureBookingButton = bookingUiPage.existingBookings.getByRole("button", {
+        name: /Central London County Court/
+      });
+
       await test.step("Select existing booking and verify enabled and disabled booking buttons", async () => {
         await bookingUiPage.chooseBookingOption("Choose an existing booking");
-        await expect(bookingUiPage.existingBookings.nth(1).getByRole("button")).toBeDisabled();
+        await expect(activeBookingButton).toBeEnabled();
+        await expect(futureBookingButton).toBeDisabled();
       });
 
       await test.step("Continue with the active booking and redirect to my work list", async () => {
-        await bookingUiPage.existingBookings.first().getByRole("button").click();
+        await activeBookingButton.click();
         await expect(page).toHaveURL(tasksPageUrlPattern);
       });
     });
