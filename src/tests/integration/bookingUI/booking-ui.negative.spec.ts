@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
 import {
   applySessionCookiesAndExtractUserId,
+  resolveBookingUiUserIdentifier,
   setupBookingUiMockRoutes
 } from "../helpers/index.js";
 import { setupTaskListMockRoutes } from "../helpers/taskListMockRoutes.helper.js";
@@ -37,13 +38,14 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
       let sessionUserId = "";
       let existingBookingsMock: ReturnType<typeof buildExistingBookingsMock>;
 
-      test.beforeEach(async ({ page }) => {
+      test.beforeEach(async ({ page }, testInfo) => {
         getBookingsCalled = false;
         createBookingCalled = false;
         refreshRoleAssignmentsCalled = false;
         createBookingRequestBody = undefined;
 
-        const userId = await applySessionCookiesAndExtractUserId(page, userIdentifier);
+        const workerUserIdentifier = resolveBookingUiUserIdentifier({ parallelIndex: testInfo.parallelIndex });
+        const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
         sessionUserId = userId;
         existingBookingsMock = buildExistingBookingsMock(userId);
 
@@ -145,8 +147,9 @@ test.describe(
   () => {
     let existingBookingsMock: ReturnType<typeof buildExistingBookingsMock>;
 
-    test.beforeEach(async ({ page }) => {
-      const userId = await applySessionCookiesAndExtractUserId(page, userIdentifier);
+    test.beforeEach(async ({ page }, testInfo) => {
+      const workerUserIdentifier = resolveBookingUiUserIdentifier({ parallelIndex: testInfo.parallelIndex });
+      const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
       await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3));
@@ -197,9 +200,10 @@ test.describe(
     let getBookingsCalled = false;
     let existingBookingsMock: ReturnType<typeof buildExistingBookingsMock>;
 
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ page }, testInfo) => {
       getBookingsCalled = false;
-      const userId = await applySessionCookiesAndExtractUserId(page, userIdentifier);
+      const workerUserIdentifier = resolveBookingUiUserIdentifier({ parallelIndex: testInfo.parallelIndex });
+      const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
       await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3));

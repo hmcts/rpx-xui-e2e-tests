@@ -31,7 +31,7 @@ function runPlaywright(label, env) {
     focusedSpec,
     "--grep",
     focusedGrep,
-    "--workers=1",
+    "--workers=4",
     "--timeout=90000",
     "--global-timeout=120000",
   ];

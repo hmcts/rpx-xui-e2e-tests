@@ -5,10 +5,12 @@ import {
   sortServiceFamilies
 } from "../../data/exui-central-assurance.js";
 import {
+  assertRequiredCcdSearchMetadataFieldsPresent,
   buildCyaRows,
   buildEventHistoryRowsForPersona,
   buildManageCaseSubmitPayload,
   canFetchEventDetails,
+  CCD_SEARCH_WORKBASKET_METADATA_REPLAY,
   EVENT_HISTORY_REPLAY,
   EVENT_START_SPINNER_REPLAY,
   findTaskToComplete,
@@ -19,6 +21,7 @@ import {
   isEventHistoryLayoutUsable,
   isSpinnerContractSatisfied,
   MANAGE_CASE_DATA_INTEGRITY_REPLAY,
+  mutateCcdSearchMetadataForDemo,
   PROTECTED_ENDPOINT_REPLAY,
   resolveCaseworkerJurisdictions,
   resolveRoleCategory,
@@ -27,6 +30,22 @@ import {
 } from "../../data/exui-historic-replay-packs.js";
 
 import { test, expect } from "./fixtures";
+
+type AttachmentSink = {
+  attach(name: string, options: { body: string; contentType: string }): Promise<void>;
+};
+
+async function attachCcdSearchMutationEvidence(testInfo: AttachmentSink): Promise<void> {
+  if (process.env.EXUI_ASSURANCE_MUTATION !== "drop-ccd-case-reference-search-input") {
+    return;
+  }
+
+  await testInfo.attach("exui-assurance-mutation.txt", {
+    body:
+      "drop-ccd-case-reference-search-input: Demo fault: simulate a service CCD definition change removing the PRL case-reference search input EXUI relies on.",
+    contentType: "text/plain"
+  });
+}
 
 test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-harness"] }, () => {
   test("Private Law replay pack is anchored to current central-assurance config", () => {
@@ -132,6 +151,24 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
         eventId: "updateReferral"
       })
     ).toBeUndefined();
+  });
+
+  test("CCD search/workbasket metadata replay keeps service-owned definition changes inside the EXUI contract", async ({}, testInfo) => {
+    const replay = mutateCcdSearchMetadataForDemo(CCD_SEARCH_WORKBASKET_METADATA_REPLAY);
+
+    await attachCcdSearchMutationEvidence(testInfo);
+
+    expect(() => assertRequiredCcdSearchMetadataFieldsPresent(replay)).not.toThrow();
+    expect(replay.searchInputFields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          caseTypeId: "PRLAPPS",
+          fieldId: "[CASE_REFERENCE]",
+          source: "SearchInputFields"
+        })
+      ])
+    );
+    expect(replay.workbasketInputFields.length).toBeGreaterThan(0);
   });
 
   test("protected endpoint replay rejects anonymous staff-data exposure", () => {

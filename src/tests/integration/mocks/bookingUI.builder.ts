@@ -16,7 +16,7 @@ const stableBookingId = (prefix: string, userId: string) =>
 
 export function buildExistingBookingsMock(
   userId: string,
-  referenceDate: Date = new Date("2026-04-23T12:00:00.000Z")
+  referenceDate: Date = new Date()
 ): BookingUiMock[] {
   const now = referenceDate.getTime();
   const activeBegin = new Date(now - 2 * DAY_MS).toISOString();

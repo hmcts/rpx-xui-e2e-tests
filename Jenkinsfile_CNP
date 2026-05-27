@@ -21,8 +21,13 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '4',
-      description: 'Number of Playwright workers, capped at 4 in Jenkins'
+      defaultValue: '6',
+      description: 'Shared functional worker-count source. UI is capped at 4; API uses API_PW_WORKERS.'
+    ),
+    string(
+      name: 'API_PW_WORKERS',
+      defaultValue: '6',
+      description: 'API Playwright worker-count override, capped at 6 in Jenkins.'
     ),
     string(
       name: 'API_PW_INCLUDE_TAGS',
@@ -56,8 +61,8 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
-      defaultValue: '4',
-      description: 'Integration worker-count override for bucket isolation, capped at 4 in Jenkins.'
+      defaultValue: '6',
+      description: 'Integration worker-count override for bucket isolation, capped at 6 in Jenkins.'
     ),
     string(
       name: 'INTEGRATION_PW_SHARD',
@@ -66,8 +71,8 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: 'workers=4',
-      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 4.'
+      defaultValue: 'workers=6',
+      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 6.'
     ),
     string(
       name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
@@ -80,7 +85,7 @@ properties([
 @Library("Infrastructure")
 
 def type = "nodejs"
-def product = "rpx"
+def product = "xui"
 def component = "xui-e2e-tests"
 def channel = "#xui-pipeline"
 
@@ -125,7 +130,12 @@ static String effectiveIntegrationBuckets(String rawTags) {
 
 static String effectiveIntegrationWorkers(String rawWorkers) {
   def trimmed = rawWorkers?.trim()
-  return (!trimmed || trimmed == '2') ? '4' : trimmed
+  return (!trimmed || trimmed == '2' || trimmed == '4') ? '6' : trimmed
+}
+
+static String effectiveApiWorkers(String rawWorkers) {
+  def trimmed = rawWorkers?.trim()
+  return trimmed ?: '6'
 }
 
 def secrets = [
@@ -181,12 +191,12 @@ def runInPlaywrightContainer = { Closure body ->
   }
 }
 
-def capJenkinsPlaywrightWorkers = { String configured ->
-  def parsed = (configured ?: '4').trim()
+def capJenkinsPlaywrightWorkers = { String configured, Integer maxWorkers ->
+  def parsed = (configured ?: maxWorkers.toString()).trim()
   if (!parsed.isInteger()) {
-    return '4'
+    return maxWorkers.toString()
   }
-  return Math.min(4, Math.max(1, parsed.toInteger())).toString()
+  return Math.min(maxWorkers, Math.max(1, parsed.toInteger())).toString()
 }
 
 def buildOdhinEnvironmentLabel = { String workers ->
@@ -306,8 +316,9 @@ def publishHarnessReports = {
 }
 
 def runCnpPlaywrightStages = {
-  def functionalWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
-  def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS))
+  def apiWorkers = capJenkinsPlaywrightWorkers(effectiveApiWorkers(params.API_PW_WORKERS), 6)
+  def uiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS, 4)
+  def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS), 6)
   def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
   def integrationExcludedTags = effectiveIntegrationExcludedTags(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE)
   def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
@@ -331,13 +342,13 @@ def runCnpPlaywrightStages = {
 
   runDiagnostics()
 
-  echo "[playwright] Running selected integration tests after API/E2E to isolate Jenkins agent failures."
+  echo "[playwright] Running functional suites sequentially: API (${apiWorkers}), UI (${uiWorkers}), then Integration (${integrationWorkers})."
 
   def runHarness = {
     stage('EXUI central assurance harness') {
       def harnessEnv = quietConsoleEnv + [
-        'FUNCTIONAL_TESTS_WORKERS=1',
-        'PLAYWRIGHT_WORKERS=1',
+        'FUNCTIONAL_TESTS_WORKERS=4',
+        'PLAYWRIGHT_WORKERS=4',
         'PLAYWRIGHT_REPORTERS=list,odhin,junit',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/harness/odhin-report',
         'PLAYWRIGHT_JUNIT_OUTPUT=playwright-harness-junit.xml',
@@ -363,21 +374,24 @@ def runCnpPlaywrightStages = {
 
   def runApiTests = {
     stage('API tests') {
+      def apiOdhinEnvironment = buildOdhinEnvironmentLabel(apiWorkers)
       def apiEnv = quietConsoleEnv + [
-        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
-        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
+        "FUNCTIONAL_TESTS_WORKERS=${apiWorkers}",
+        "PLAYWRIGHT_WORKERS=${apiWorkers}",
+        'PLAYWRIGHT_MAX_WORKERS=6',
         "API_PW_INCLUDE_TAGS=${params.API_PW_INCLUDE_TAGS}",
         "API_PW_EXCLUDED_TAGS_OVERRIDE=${apiExcludedTags}",
         "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin,junit',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
         'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+        "PW_ODHIN_ENV=${apiOdhinEnvironment}",
         'PLAYWRIGHT_SKIP_INSTALL=true'
       ]
       try {
         runInPlaywrightContainer {
           withEnv(apiEnv) {
-            runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${functionalWorkers}")
+            runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${apiWorkers}")
           }
         }
       } catch (Exception e) {
@@ -390,11 +404,12 @@ def runCnpPlaywrightStages = {
 
   def runUiTests = {
     stage('UI tests') {
-      def uiOdhinEnvironment = buildOdhinEnvironmentLabel(functionalWorkers)
+      def uiOdhinEnvironment = buildOdhinEnvironmentLabel(uiWorkers)
       def uiEnv = quietConsoleEnv + [
-        "FUNCTIONAL_TESTS_WORKERS=${functionalWorkers}",
-        "PLAYWRIGHT_WORKERS=${functionalWorkers}",
-        "PW_UI_WORKERS=${functionalWorkers}",
+        "FUNCTIONAL_TESTS_WORKERS=${uiWorkers}",
+        "PLAYWRIGHT_WORKERS=${uiWorkers}",
+        'PLAYWRIGHT_MAX_WORKERS=4',
+        "PW_UI_WORKERS=${uiWorkers}",
         "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
         "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
         "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
@@ -425,7 +440,7 @@ def runCnpPlaywrightStages = {
         } else {
           runInPlaywrightContainer {
             withEnv(uiEnv) {
-              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${functionalWorkers}")
+              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${uiWorkers}")
             }
           }
         }
@@ -444,17 +459,19 @@ def runCnpPlaywrightStages = {
 
   def runIntegrationTests = {
     stage('Integration tests') {
+      def integrationOdhinEnvironment = buildOdhinEnvironmentLabel(integrationWorkers)
       def integrationEnv = quietConsoleEnv + [
         "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
         "PLAYWRIGHT_WORKERS=${integrationWorkers}",
-        'PW_UI_WORKERS=2',
+        'PLAYWRIGHT_MAX_WORKERS=6',
+        "PW_UI_WORKERS=${uiWorkers}",
         "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
         "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
         "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
         "PW_ODHIN_TARGET=${integrationReportDir}",
-        "PW_ODHIN_ENV=${params.TEST_ENV} | ci | workers=${integrationWorkers}",
+        "PW_ODHIN_ENV=${integrationOdhinEnvironment}",
         'PW_ODHIN_SKIP_API_ENDPOINTS=true',
         'PW_UI_STORAGE=1',
         'PW_UI_STORAGE_STRICT=1',
@@ -491,7 +508,7 @@ withNightlyPipeline(type, product, component, 600) {
   env.TEST_URL = params.TEST_URL
   env.S2S_URL = params.S2S_URL
   env.TEST_ENV = params.TEST_ENV
-  env.FUNCTIONAL_TESTS_WORKERS = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS)
+  env.FUNCTIONAL_TESTS_WORKERS = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS, 6)
   env.PLAYWRIGHT_WORKERS = env.FUNCTIONAL_TESTS_WORKERS
   env.API_PW_INCLUDE_TAGS = params.API_PW_INCLUDE_TAGS
   env.API_PW_EXCLUDED_TAGS_OVERRIDE = effectiveTagOverride(params.API_PW_EXCLUDED_TAGS_OVERRIDE, '@svc-work-allocation')
