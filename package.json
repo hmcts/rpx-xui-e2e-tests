@@ -6,7 +6,7 @@
   "engines": {
     "node": ">=20.11.1"
   },
-  "packageManager": "yarn@4.15.0",
+  "packageManager": "yarn@4.16.0",
   "scripts": {
     "pwinstall": "yarn playwright install --with-deps",
     "test:setup:playwright-install-chromium": "yarn playwright install chromium",
