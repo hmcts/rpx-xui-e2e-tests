@@ -50,6 +50,22 @@ export interface CyaReplayRow {
   childRows?: readonly CyaReplayRow[];
 }
 
+export interface Exui4493NestedComplexCyaEvidence {
+  projection: "source-replay";
+  sourceShape: {
+    serviceFamily: "PRIVATELAW";
+    jurisdiction: "PRIVATELAW";
+    caseType: "PRLAPPS";
+    eventId: "serviceOfDocuments";
+    collectionFieldId: "sodAdditionalRecipientsList";
+    nestedComplexFieldId: "emailInformation";
+    showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"";
+  };
+  flattenedRows: readonly CyaReplayRow[];
+  requiredFieldIds: readonly string[];
+  missingFieldIds: readonly string[];
+}
+
 export interface RoleAssignmentFixture {
   id: string;
   userId: string;
@@ -491,6 +507,38 @@ function buildCyaRow(field: SyntheticCaseField, finalVisiblePageIds: ReadonlySet
 
 export function flattenCyaRows(rows: readonly CyaReplayRow[]): readonly CyaReplayRow[] {
   return rows.flatMap((row) => [row, ...flattenCyaRows(row.childRows ?? [])]);
+}
+
+export function buildExui4493NestedComplexCyaEvidence(): Exui4493NestedComplexCyaEvidence {
+  const requiredFieldIds = ["emailInformation.emailName", "emailInformation.emailAddress"] as const;
+  const flattenedRows = flattenCyaRows(buildCyaRows(MANAGE_CASE_DATA_INTEGRITY_REPLAY));
+  const actualFieldIds = new Set(flattenedRows.map((row) => row.fieldId));
+
+  return {
+    projection: "source-replay",
+    sourceShape: {
+      serviceFamily: "PRIVATELAW",
+      jurisdiction: "PRIVATELAW",
+      caseType: "PRLAPPS",
+      eventId: "serviceOfDocuments",
+      collectionFieldId: "sodAdditionalRecipientsList",
+      nestedComplexFieldId: "emailInformation",
+      showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+    },
+    flattenedRows,
+    requiredFieldIds,
+    missingFieldIds: requiredFieldIds.filter((fieldId) => !actualFieldIds.has(fieldId))
+  };
+}
+
+export function assertExui4493NestedComplexCyaRowsPresent(evidence: Exui4493NestedComplexCyaEvidence): void {
+  if (evidence.missingFieldIds.length > 0) {
+    throw new Error(
+      `EXUI-4493 nested complex CYA rows missing: ${evidence.missingFieldIds.join(
+        ", "
+      )}. Source shape: ${evidence.sourceShape.eventId} ${evidence.sourceShape.collectionFieldId} with ${evidence.sourceShape.showCondition}`
+    );
+  }
 }
 
 export function resolveCaseworkerJurisdictions(

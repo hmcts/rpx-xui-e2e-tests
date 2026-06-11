@@ -457,10 +457,17 @@ function injectHarnessLaneScript(root) {
   }
 
   function resolveDataTable() {
-    if (!window.jQuery || !window.jQuery.fn || !window.jQuery.fn.dataTable) {
+    var tableElement = document.querySelector('#test-list-table');
+    if (!tableElement || !window.jQuery || !window.jQuery.fn || !window.jQuery.fn.dataTable) {
       return null;
     }
-    return window.jQuery('#test-list-table').DataTable();
+    if (typeof window.jQuery.fn.dataTable.isDataTable === 'function' && !window.jQuery.fn.dataTable.isDataTable(tableElement)) {
+      return null;
+    }
+    if (!window.jQuery(tableElement).DataTable) {
+      return null;
+    }
+    return window.jQuery(tableElement).DataTable();
   }
 
   function cacheAllRows(dataTable) {
@@ -532,6 +539,11 @@ function injectHarnessLaneScript(root) {
     if (!tableElement || !statusFilterRow || document.querySelector('#odhin-harness-test-filters')) {
       return;
     }
+    var dataTable = resolveDataTable();
+    if (!dataTable) {
+      scheduleHarnessLaneEnhancementRetry();
+      return;
+    }
 
     var toolbar = document.createElement('div');
     toolbar.id = 'odhin-harness-test-filters';
@@ -546,7 +558,6 @@ function injectHarnessLaneScript(root) {
       '<div class="odhin-harness-filter-summary" id="odhin-harness-filter-summary"></div>';
     statusFilterRow.parentNode.insertBefore(toolbar, statusFilterRow);
 
-    var dataTable = resolveDataTable();
     cacheAllRows(dataTable);
 
     if (dataTable && !window.__odhinHarnessLaneFilterRegistered) {
@@ -705,6 +716,19 @@ function injectHarnessLaneScript(root) {
     addTestLaneFilters();
     addLaneBadges();
     addDashboardLaneSummary();
+  }
+
+  function scheduleHarnessLaneEnhancementRetry() {
+    window.__odhinHarnessLaneRetryCount = window.__odhinHarnessLaneRetryCount || 0;
+    if (window.__odhinHarnessLaneRetryPending || window.__odhinHarnessLaneRetryCount >= 50) {
+      return;
+    }
+    window.__odhinHarnessLaneRetryPending = true;
+    window.__odhinHarnessLaneRetryCount += 1;
+    window.setTimeout(function () {
+      window.__odhinHarnessLaneRetryPending = false;
+      initialiseHarnessLaneEnhancements();
+    }, 100);
   }
 
   if (document.readyState === 'loading') {

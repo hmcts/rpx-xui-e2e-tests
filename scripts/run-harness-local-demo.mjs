@@ -134,6 +134,12 @@ async function startSyntheticSeam(label, port) {
   }
 
   const server = http.createServer((req, res) => {
+    if (req.url === "/health") {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ status: "UP", seam: label }));
+      return;
+    }
+
     res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ message: `${label} synthetic seam` }));
   });

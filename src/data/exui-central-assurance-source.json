@@ -27,7 +27,8 @@
         "SSCS",
         "DIVORCE",
         "FR",
-        "PROBATE"
+        "PROBATE",
+        "HRS"
       ],
       "jurisdictions": [
         "DIVORCE",
@@ -125,6 +126,12 @@
           "service": "PROBATE",
           "serviceCodes": [
             "ABA6"
+          ]
+        },
+        {
+          "service": "HRS",
+          "serviceCodes": [
+            "HRS"
           ]
         }
       ]
@@ -658,16 +665,18 @@
       },
       {
         "serviceFamily": "HRS",
-        "priority": "canary",
+        "priority": "grouped",
         "proofLevel": "config-backed",
         "lanes": [
-          "canary"
+          "staff-ref-data"
         ],
         "representativeCaseTypes": [],
-        "serviceCodes": [],
+        "serviceCodes": [
+          "HRS"
+        ],
         "repos": [],
-        "rationale": "HRS is configured as a jurisdiction but not in the central global search, WA, staff, or hearings sets used for release-blocking assertions.",
-        "nextAction": "Keep HRS canary-only unless an EXUI owner identifies a release-blocking behaviour."
+        "rationale": "HRS is now staff-supported in EXUI config and is covered by the staff-supported config/API contract, but remains outside global search, WA, and hearings must-run lanes.",
+        "nextAction": "Keep HRS in staff-ref-data coverage; promote only if EXUI owners add it to global search, WA, hearings, or another release-blocking lane."
       }
     ]
   },
