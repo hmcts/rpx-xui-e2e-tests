@@ -10,7 +10,8 @@ export type ReplayPackId =
   | "work-allocation-availability"
   | "protected-endpoint-auth"
   | "event-history-and-layout"
-  | "dependency-auth-smoke";
+  | "dependency-auth-smoke"
+  | "auth-journey-guardrails";
 
 export type CaseFieldDisplayContext = "OPTIONAL" | "READONLY" | "HIDDEN";
 
@@ -131,6 +132,35 @@ export interface AuthSmokeReplay {
   shellRouteStatus: number;
   logoutStatus: number;
   roles: readonly string[];
+}
+
+export type AuthJourneyEntrypoint = "exui-auth-login" | "direct-idam-authorize" | "oauth-callback";
+export type AuthJourneyAuthenticationState = "not-authenticated" | "authenticated";
+export type AuthJourneyOutcome = "redirect-sso" | "login-bookmark" | "access-denied" | "logout-root-loop" | "app-shell";
+export type AuthJourneyOwnershipBucket =
+  | "auth-entrypoint-owned"
+  | "post-auth-authorisation-owned"
+  | "service-visual-layout-owned";
+
+export interface AuthJourneyReplayScenario {
+  id: string;
+  historicRefs: readonly string[];
+  entrypoint: AuthJourneyEntrypoint;
+  authenticationState: AuthJourneyAuthenticationState;
+  stateManagedByExui: boolean;
+  loginHint?: string;
+  roles: readonly string[];
+  requiredRolePattern?: string;
+  expectedOutcome: AuthJourneyOutcome;
+  legacyOutcome?: AuthJourneyOutcome;
+  ownerBucket: AuthJourneyOwnershipBucket;
+  baSummary: string;
+  developerSignal: string;
+}
+
+export interface AuthJourneyGuardrailReplay {
+  requiredRolePattern: string;
+  scenarios: readonly AuthJourneyReplayScenario[];
 }
 
 const privateLawBase = {
@@ -471,6 +501,71 @@ export const IDAM_PASSPORT_SESSION_REPLAY: AuthSmokeReplay = {
   roles: ["caseworker-privatelaw", "caseworker-privatelaw-courtadmin"]
 };
 
+export const AUTH_JOURNEY_GUARDRAIL_REPLAY: AuthJourneyGuardrailReplay = {
+  requiredRolePattern: "caseworker",
+  scenarios: [
+    {
+      id: "exui-4744-direct-idam-no-state-bookmark",
+      historicRefs: ["EXUI-4744", "EXUI-4184"],
+      entrypoint: "direct-idam-authorize",
+      authenticationState: "not-authenticated",
+      stateManagedByExui: false,
+      loginHint: "ejudiciary-aad",
+      roles: [],
+      expectedOutcome: "login-bookmark",
+      ownerBucket: "auth-entrypoint-owned",
+      baSummary:
+        "The user starts from a tile URL that skips EXUI, so EXUI never creates the auth state it later validates.",
+      developerSignal: "Direct IDAM authorize URL with login_hint but without EXUI-managed state reproduces the bookmark failure."
+    },
+    {
+      id: "exui-4744-exui-auth-login-hint",
+      historicRefs: ["EXUI-4744"],
+      entrypoint: "exui-auth-login",
+      authenticationState: "not-authenticated",
+      stateManagedByExui: true,
+      loginHint: "ejudiciary-aad",
+      roles: [],
+      expectedOutcome: "redirect-sso",
+      legacyOutcome: "login-bookmark",
+      ownerBucket: "auth-entrypoint-owned",
+      baSummary:
+        "The user starts from an EXUI-owned auth URL, EXUI creates state, carries the SSO hint, and sends the user to the right login route.",
+      developerSignal: "/auth/login?login_hint=ejudiciary-aad must be the tile-facing route, not a raw IDAM authorize URL."
+    },
+    {
+      id: "exui-4697-authenticated-user-missing-caseworker-role",
+      historicRefs: ["EXUI-4697", "INC-0156379", "INC-0161878"],
+      entrypoint: "oauth-callback",
+      authenticationState: "authenticated",
+      stateManagedByExui: true,
+      roles: ["citizen"],
+      requiredRolePattern: "caseworker",
+      expectedOutcome: "access-denied",
+      legacyOutcome: "logout-root-loop",
+      ownerBucket: "post-auth-authorisation-owned",
+      baSummary:
+        "IDAM authentication succeeded, but the account is not authorised for Manage Case, so the service should explain that rather than looping back to login.",
+      developerSignal:
+        "Post-auth role mismatch must branch to access denied before normal logout/root redirect code is used."
+    },
+    {
+      id: "exui-4697-authenticated-user-with-caseworker-role",
+      historicRefs: ["EXUI-4697"],
+      entrypoint: "oauth-callback",
+      authenticationState: "authenticated",
+      stateManagedByExui: true,
+      roles: ["caseworker", "caseworker-privatelaw"],
+      requiredRolePattern: "caseworker",
+      expectedOutcome: "app-shell",
+      ownerBucket: "post-auth-authorisation-owned",
+      baSummary:
+        "A correctly onboarded user still reaches Manage Case normally, so the guardrail does not block valid users.",
+      developerSignal: "The access-denied branch must be limited to missing-role outcomes."
+    }
+  ]
+};
+
 export function buildManageCaseSubmitPayload(replay: ManageCaseDataIntegrityReplay): Record<string, unknown> {
   const finalVisiblePageIds = new Set(replay.finalVisiblePageIds);
   return Object.fromEntries(
@@ -648,6 +743,55 @@ export function isAuthSmokeSessionValid(replay: AuthSmokeReplay): boolean {
     replay.logoutStatus >= 300 &&
     replay.logoutStatus < 400 &&
     replay.roles.includes("caseworker-privatelaw")
+  );
+}
+
+export function resolveAuthJourneyOutcome(scenario: AuthJourneyReplayScenario): AuthJourneyOutcome {
+  if (scenario.entrypoint === "direct-idam-authorize" && !scenario.stateManagedByExui) {
+    return "login-bookmark";
+  }
+
+  if (scenario.entrypoint === "exui-auth-login" && scenario.stateManagedByExui && scenario.loginHint) {
+    return "redirect-sso";
+  }
+
+  if (scenario.authenticationState === "authenticated" && scenario.requiredRolePattern) {
+    const roleMatcher = new RegExp(scenario.requiredRolePattern);
+    return scenario.roles.some((role) => roleMatcher.test(role)) ? "app-shell" : "access-denied";
+  }
+
+  return scenario.expectedOutcome;
+}
+
+export function resolveLegacyAuthJourneyOutcome(scenario: AuthJourneyReplayScenario): AuthJourneyOutcome {
+  return scenario.legacyOutcome ?? resolveAuthJourneyOutcome(scenario);
+}
+
+export function assertAuthJourneyGuardrailScenarios(replay: AuthJourneyGuardrailReplay): void {
+  for (const scenario of replay.scenarios) {
+    const actualOutcome = resolveAuthJourneyOutcome(scenario);
+
+    if (actualOutcome !== scenario.expectedOutcome) {
+      throw new Error(
+        `${scenario.id} resolved to ${actualOutcome}; expected ${scenario.expectedOutcome}. ${scenario.developerSignal}`
+      );
+    }
+  }
+}
+
+export function buildAuthJourneyClassificationSummary(
+  replay: AuthJourneyGuardrailReplay
+): Record<AuthJourneyOwnershipBucket, readonly string[]> {
+  return replay.scenarios.reduce<Record<AuthJourneyOwnershipBucket, string[]>>(
+    (summary, scenario) => {
+      summary[scenario.ownerBucket].push(scenario.id);
+      return summary;
+    },
+    {
+      "auth-entrypoint-owned": [],
+      "post-auth-authorisation-owned": [],
+      "service-visual-layout-owned": []
+    }
   );
 }
 

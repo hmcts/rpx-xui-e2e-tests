@@ -191,23 +191,45 @@ export type AssuranceScenarioLane =
   | "staff-ref-data"
   | "hearings"
   | "manage-case"
+  | "auth"
   | "canary";
 
 export type AssuranceScenarioPriority = "must-run" | "grouped" | "canary";
 export type AssuranceScenarioExecutionMode = "api" | "ui" | "hybrid" | "planned";
 export type AssuranceCoverageDisposition = "release-blocking" | "grouped" | "canary";
-export type AssuranceSourceRepository = "rpx-xui-webapp" | "rpx-xui-e2e-tests" | "prl-ccd-definitions";
-export type AssuranceSourceKind = "config" | "api" | "playwright" | "backend-mock" | "ccd-definition" | "docs";
+export type AssuranceSourceRepository =
+  | "rpx-xui-webapp"
+  | "rpx-xui-node-lib"
+  | "rpx-xui-e2e-tests"
+  | "prl-ccd-definitions";
+export type AssuranceSourceKind =
+  | "config"
+  | "api"
+  | "playwright"
+  | "backend-mock"
+  | "ccd-definition"
+  | "style"
+  | "node-lib"
+  | "docs";
 export type ExuiConfiguredServiceFamily = (typeof EXUI_ALL_CONFIGURED_SERVICE_FAMILIES)[number];
 export type ExuiDefinitionProfileLevel = "ccd-backed" | "config-backed" | "source-unidentified" | "source-unavailable";
-export type HistoricFailureCoverageStatus = "covered-now" | "would-catch-with-replay-pack" | "partial" | "out-of-scope";
+export type HistoricFailureCoverageStatus =
+  | "covered-now"
+  | "would-catch-with-replay-pack"
+  | "learning-case"
+  | "partial"
+  | "out-of-scope";
 export type HistoricFailureReplayPack =
   | "manage-case-data-integrity"
   | "work-allocation-availability"
   | "protected-endpoint-auth"
   | "event-history-and-layout"
   | "dependency-auth-smoke"
+  | "auth-journey-guardrails"
+  | "service-overview-layout"
   | "media-viewer-specialist";
+
+export type HistoricFailureHumanFixConfidence = "confirmed" | "candidate" | "indirect" | "not-found";
 
 export interface ExuiSuperserviceSourceRef {
   repository: AssuranceSourceRepository;
@@ -263,11 +285,29 @@ export const EXUI_SOURCE_OF_TRUTH_REFS = {
     kind: "api",
     reason: "Node API endpoints that expose EXUI configuration to tests and the Angular shell"
   },
+  webappAuthRoutes: {
+    repository: "rpx-xui-webapp",
+    path: "api/auth/**",
+    kind: "api",
+    reason: "EXUI-owned authentication entrypoints that create state and pass login hints before IDAM hand-off"
+  },
+  nodeLibAuthStrategy: {
+    repository: "rpx-xui-node-lib",
+    path: "auth/**",
+    kind: "node-lib",
+    reason: "Shared authentication strategy that validates callback state, roles, session, and access-denied outcomes"
+  },
   playwrightConfigUtilities: {
     repository: "rpx-xui-webapp",
     path: "playwright_tests_new/**",
     kind: "playwright",
     reason: "Existing EXUI Playwright bootstrap and configuration coverage patterns"
+  },
+  webappLayoutStyles: {
+    repository: "rpx-xui-webapp",
+    path: "src/style/**, src/styles.scss, src/app/**/**/*.scss",
+    kind: "style",
+    reason: "EXUI-owned GOV.UK/HMCTS styling and layout surfaces that can change shared page rendering"
   },
   backendCcdMocks: {
     repository: "rpx-xui-webapp",
@@ -639,6 +679,11 @@ export interface ExuiHistoricFailureCoverage {
   wouldHaveCaught: boolean;
   missReason?: string;
   nextScenarioId: string;
+  agenticExpectedBoundary?: string;
+  humanFixEvidence?: readonly string[];
+  humanFixConfidence?: HistoricFailureHumanFixConfidence;
+  comparisonLearning?: string;
+  executableProofGap?: string;
 }
 
 export interface ExuiServiceFamilyCoverageDecision {
@@ -849,6 +894,38 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     ]
   },
   {
+    id: "auth-login-hint-entrypoint-state-contract",
+    lane: "auth",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "EXUI",
+    roleCluster: "sso-user",
+    assertion: "EXUI /auth/login accepts a login_hint and owns state creation before IDAM hand-off",
+    source: "rpx-xui-webapp auth route and rpx-xui-node-lib strategy state validation",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.webappAuthRoutes,
+      EXUI_SOURCE_OF_TRUTH_REFS.nodeLibAuthStrategy,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "auth-role-mismatch-access-denied-contract",
+    lane: "auth",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "EXUI",
+    roleCluster: "authenticated-without-caseworker",
+    assertion:
+      "a user authenticated by IDAM but missing the service role matcher is shown service-owned access denied, not sent into a login loop",
+    source: "rpx-xui-webapp loginRoleMatcher configuration and rpx-xui-node-lib post-auth role verification",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.webappAuthRoutes,
+      EXUI_SOURCE_OF_TRUTH_REFS.nodeLibAuthStrategy,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
     id: "hearings-supported-family-config-contract",
     lane: "hearings",
     priority: "must-run",
@@ -911,6 +988,23 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.playwrightConfigUtilities,
       EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions
+    ]
+  },
+  {
+    id: "overview-page-layout-baseline-contract",
+    lane: "manage-case",
+    priority: "grouped",
+    executionMode: "planned",
+    serviceFamily: "IA",
+    roleCluster: "caseworker, admin, home-office, judge",
+    assertion:
+      "overview page keeps agreed headings, landmark structure, responsive layout, and accessibility baseline across representative role states",
+    source: "EXUI overview route, GOV.UK/HMCTS styling, and representative service role personas",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.webappLayoutStyles,
+      EXUI_SOURCE_OF_TRUTH_REFS.playwrightConfigUtilities,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },
   {
@@ -1077,6 +1171,61 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     nextScenarioId: "historic-idam-passport-session-smoke"
   },
   {
+    id: "sso-login-hint-entrypoint-state",
+    historicRefs: ["EXUI-4744", "EXUI-4184", "EXUI-3039"],
+    replayPack: "auth-journey-guardrails",
+    failureClass:
+      "SSO users entering through a JCM tile can bypass EXUI state creation and hit the Login bookmark used screen",
+    harnessContract:
+      "Auth replay compares the direct IDAM-authorize/no-state shape with the EXUI-owned /auth/login?login_hint journey and asserts the managed entrypoint redirects to SSO without bookmark failure.",
+    coverageStatus: "covered-now",
+    currentPocEvidence:
+      "Executable replay pack asserts the EXUI auth entrypoint owns state creation and preserves the SSO login_hint hand-off.",
+    wouldHaveCaught: true,
+    nextScenarioId: "auth-login-hint-entrypoint-state-contract"
+  },
+  {
+    id: "post-auth-role-mismatch-access-denied",
+    historicRefs: ["EXUI-4697", "INC-0156379", "INC-0161878"],
+    replayPack: "auth-journey-guardrails",
+    failureClass:
+      "Users authenticated by IDAM but missing the Manage Case role matcher are sent through logout/root and back into login",
+    harnessContract:
+      "Auth replay checks a valid authenticated user reaches the shell while an authenticated user without the required role reaches service-owned access denied instead of logout/root/login loop.",
+    coverageStatus: "covered-now",
+    currentPocEvidence:
+      "Executable replay pack asserts post-auth role mismatch resolves to access denied and valid role match resolves to the app shell.",
+    wouldHaveCaught: true,
+    nextScenarioId: "auth-role-mismatch-access-denied-contract"
+  },
+  {
+    id: "overview-page-layout-regression-classification",
+    historicRefs: ["EXUI-4756"],
+    replayPack: "service-overview-layout",
+    failureClass: "Service overview page layout changed unexpectedly for multiple roles in a specific environment",
+    harnessContract:
+      "Agentic triage must compare the reported visual drift with the actual human remediation evidence, then promote it into an overview-page DOM/visual/a11y baseline once the owning team agrees the stable contract.",
+    coverageStatus: "learning-case",
+    currentPocEvidence:
+      "Ticket is deliberately retained as a learning case: the harness model captures the likely EXUI layout/style boundary, the missing direct fix link, and the proposed executable overview-layout baseline.",
+    wouldHaveCaught: false,
+    missReason:
+      "No direct EXUI-4756 PR or commit has been found in the rendered Jira/GitHub evidence, so the current branch must not claim executable coverage yet.",
+    nextScenarioId: "overview-page-layout-baseline-contract",
+    agenticExpectedBoundary:
+      "Likely shared EXUI layout/styling or dependency-driven rendering drift, because the same overview page format changed across several role states rather than one service data field.",
+    humanFixEvidence: [
+      "Jira evidence says the overview page issue was fixed and the ticket was no longer required.",
+      "No direct EXUI-4756-linked PR or commit was found in rpx-xui-webapp or ccd-case-ui-toolkit search results.",
+      "Nearby human remediation evidence includes rpx-xui-webapp GOV.UK/HMCTS style migration work and manage-case accessibility coverage, but that is indirect until a developer supplies the exact fix link."
+    ],
+    humanFixConfidence: "indirect",
+    comparisonLearning:
+      "Done status is irrelevant to coverage value: the ticket is useful because it lets the team compare agentic classification against real remediation evidence and decide whether shared overview layout drift deserves a central gate.",
+    executableProofGap:
+      "Need an agreed overview route fixture, representative role personas, and stable DOM/visual/a11y assertions before this can move from learning-case to covered-now."
+  },
+  {
     id: "media-viewer-redaction-coordinate",
     historicRefs: ["INC5680323", "EXUI-2869", "EXUI-2924", "EM-6575", "EM-6588"],
     replayPack: "media-viewer-specialist",
@@ -1099,6 +1248,7 @@ export function buildHistoricFailureCoverageSummary(
     "would-catch-with-replay-pack": failures
       .filter((failure) => failure.coverageStatus === "would-catch-with-replay-pack")
       .map((failure) => failure.id),
+    "learning-case": failures.filter((failure) => failure.coverageStatus === "learning-case").map((failure) => failure.id),
     partial: failures.filter((failure) => failure.coverageStatus === "partial").map((failure) => failure.id),
     "out-of-scope": failures.filter((failure) => failure.coverageStatus === "out-of-scope").map((failure) => failure.id)
   };

@@ -6,7 +6,9 @@ import {
 } from "../../data/exui-central-assurance.js";
 import {
   assertRequiredCcdSearchMetadataFieldsPresent,
+  assertAuthJourneyGuardrailScenarios,
   buildCyaRows,
+  buildAuthJourneyClassificationSummary,
   buildEventHistoryRowsForPersona,
   buildExui4493NestedComplexCyaEvidence,
   buildManageCaseSubmitPayload,
@@ -24,11 +26,14 @@ import {
   MANAGE_CASE_DATA_INTEGRITY_REPLAY,
   mutateCcdSearchMetadataForDemo,
   PROTECTED_ENDPOINT_REPLAY,
+  resolveAuthJourneyOutcome,
+  resolveLegacyAuthJourneyOutcome,
   resolveCaseworkerJurisdictions,
   resolveRoleCategory,
   WORK_ALLOCATION_REPLAY,
   assertExui4493NestedComplexCyaRowsPresent,
-  assertPrivateLawConfigAnchors
+  assertPrivateLawConfigAnchors,
+  AUTH_JOURNEY_GUARDRAIL_REPLAY
 } from "../../data/exui-historic-replay-packs.js";
 import {
   assertExui4493ToolkitContract,
@@ -165,6 +170,41 @@ function buildExui4493ToolkitEvidenceSvg(evidence: ReturnType<typeof buildExui44
     ${rowCards}
 
     <text x="32" y="492" class="subtitle">This proof catches webapp dependency drift: old dependency red, current fixed state green.</text>
+  </svg>`;
+}
+
+function buildAuthJourneyGuardrailSvg(evidence: typeof AUTH_JOURNEY_GUARDRAIL_REPLAY): string {
+  const rows = evidence.scenarios
+    .map((scenario, index) => {
+      const y = 160 + index * 74;
+      const outcome = resolveAuthJourneyOutcome(scenario);
+      const legacyOutcome = resolveLegacyAuthJourneyOutcome(scenario);
+      const changed = outcome !== legacyOutcome;
+      const fill = outcome === scenario.expectedOutcome ? "#d8f0df" : "#f6d7d2";
+      const stroke = outcome === scenario.expectedOutcome ? "#00703c" : "#b10e1e";
+      return `
+        <rect x="32" y="${y - 34}" width="1096" height="58" rx="5" fill="${fill}" stroke="${stroke}" />
+        <text x="52" y="${y - 10}" class="row-title">${escapeSvgText(scenario.id)}</text>
+        <text x="52" y="${y + 12}" class="row-body">entrypoint=${escapeSvgText(scenario.entrypoint)} | roles=${escapeSvgText(
+          scenario.roles.join(", ") || "none"
+        )} | expected=${escapeSvgText(scenario.expectedOutcome)} | actual=${escapeSvgText(outcome)}${
+          changed ? ` | legacy=${escapeSvgText(legacyOutcome)}` : ""
+        }</text>`;
+    })
+    .join("");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="500" viewBox="0 0 1160 500" role="img" aria-label="EXUI auth journey guardrail evidence">
+    <style>
+      .title { font: 700 26px Arial, sans-serif; fill: #0b0c0c; }
+      .subtitle { font: 400 15px Arial, sans-serif; fill: #505a5f; }
+      .row-title { font: 700 15px Arial, sans-serif; fill: #0b0c0c; }
+      .row-body { font: 400 13px "Menlo", "Consolas", monospace; fill: #0b0c0c; }
+    </style>
+    <rect width="1160" height="500" fill="#ffffff" />
+    <text x="32" y="44" class="title">Auth journey guardrails</text>
+    <text x="32" y="72" class="subtitle">Central replay for SSO login-hint state creation and post-auth role mismatch access denied.</text>
+    <text x="32" y="100" class="subtitle">This is an EXUI/node-lib contract, not a service-specific end-to-end login journey.</text>
+    ${rows}
   </svg>`;
 }
 
@@ -398,6 +438,43 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
     ).toBe(true);
   });
 
+  test("auth journey replay covers SSO login-hint and post-auth role-mismatch guardrails", async ({}, testInfo) => {
+    const classificationSummary = buildAuthJourneyClassificationSummary(AUTH_JOURNEY_GUARDRAIL_REPLAY);
+
+    await testInfo.attach("auth-journey-guardrail-replay.json", {
+      body: JSON.stringify(AUTH_JOURNEY_GUARDRAIL_REPLAY, null, 2),
+      contentType: "application/json"
+    });
+    await testInfo.attach("auth-journey-guardrail-replay.svg", {
+      body: buildAuthJourneyGuardrailSvg(AUTH_JOURNEY_GUARDRAIL_REPLAY),
+      contentType: "image/svg+xml"
+    });
+
+    expect(() => assertAuthJourneyGuardrailScenarios(AUTH_JOURNEY_GUARDRAIL_REPLAY)).not.toThrow();
+    expect(classificationSummary["auth-entrypoint-owned"]).toEqual([
+      "exui-4744-direct-idam-no-state-bookmark",
+      "exui-4744-exui-auth-login-hint"
+    ]);
+    expect(classificationSummary["post-auth-authorisation-owned"]).toEqual([
+      "exui-4697-authenticated-user-missing-caseworker-role",
+      "exui-4697-authenticated-user-with-caseworker-role"
+    ]);
+
+    const exuiAuthLogin = AUTH_JOURNEY_GUARDRAIL_REPLAY.scenarios.find(
+      (scenario) => scenario.id === "exui-4744-exui-auth-login-hint"
+    );
+    const missingRole = AUTH_JOURNEY_GUARDRAIL_REPLAY.scenarios.find(
+      (scenario) => scenario.id === "exui-4697-authenticated-user-missing-caseworker-role"
+    );
+
+    expect(exuiAuthLogin).toBeDefined();
+    expect(missingRole).toBeDefined();
+    expect(resolveAuthJourneyOutcome(exuiAuthLogin!)).toBe("redirect-sso");
+    expect(resolveLegacyAuthJourneyOutcome(exuiAuthLogin!)).toBe("login-bookmark");
+    expect(resolveAuthJourneyOutcome(missingRole!)).toBe("access-denied");
+    expect(resolveLegacyAuthJourneyOutcome(missingRole!)).toBe("logout-root-loop");
+  });
+
   test("event-start spinner and IDAM/passport smoke contracts are executable", () => {
     expect(isSpinnerContractSatisfied(EVENT_START_SPINNER_REPLAY)).toBe(true);
     expect(isAuthSmokeSessionValid(IDAM_PASSPORT_SESSION_REPLAY)).toBe(true);
@@ -419,12 +496,16 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
         "event-history-external-role-gate",
         "event-history-layout-width",
         "event-start-spinner-latency",
-        "idam-passport-session-smoke"
+        "idam-passport-session-smoke",
+        "sso-login-hint-entrypoint-state",
+        "post-auth-role-mismatch-access-denied"
       ])
     );
 
     const coveredNow = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === "covered-now");
     expect(coveredNow.every((failure) => failure.currentPocEvidence.includes("Executable replay pack"))).toBe(true);
+    expect(summary["learning-case"]).toEqual(["overview-page-layout-regression-classification"]);
+    expect(summary.partial).toEqual([]);
     expect(summary["out-of-scope"]).toEqual(["media-viewer-redaction-coordinate"]);
   });
 });

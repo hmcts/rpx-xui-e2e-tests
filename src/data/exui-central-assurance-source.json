@@ -694,6 +694,9 @@
       "event-history-layout-width",
       "event-start-spinner-latency",
       "idam-passport-session-smoke",
+      "sso-login-hint-entrypoint-state",
+      "post-auth-role-mismatch-access-denied",
+      "overview-page-layout-regression-classification",
       "media-viewer-redaction-coordinate"
     ]
   }
