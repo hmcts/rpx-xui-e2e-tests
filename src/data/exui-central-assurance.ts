@@ -230,6 +230,12 @@ export type HistoricFailureReplayPack =
   | "media-viewer-specialist";
 
 export type HistoricFailureHumanFixConfidence = "confirmed" | "candidate" | "indirect" | "not-found";
+export type ExuiDefectIntakeRoute =
+  | "historic-replay-pack"
+  | "service-family-pack"
+  | "targeted-mutation-proof"
+  | "owner-confirmed-follow-up"
+  | "specialist-suite-follow-up";
 
 export interface ExuiSuperserviceSourceRef {
   repository: AssuranceSourceRepository;
@@ -686,6 +692,15 @@ export interface ExuiHistoricFailureCoverage {
   executableProofGap?: string;
 }
 
+export interface ExuiDefectIntakeRule {
+  id: string;
+  route: ExuiDefectIntakeRoute;
+  signalTerms: readonly string[];
+  target: string;
+  requiredEvidence: readonly string[];
+  rationale: string;
+}
+
 export interface ExuiServiceFamilyCoverageDecision {
   serviceFamily: string;
   disposition: AssuranceCoverageDisposition;
@@ -1023,6 +1038,69 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
   }
 ] as const;
 
+export const EXUI_DEFECT_INTAKE_RULES: readonly ExuiDefectIntakeRule[] = [
+  {
+    id: "known-contract-regression-red-proof",
+    route: "targeted-mutation-proof",
+    signalTerms: ["dropped service code", "missing case type", "missing family", "red proof", "mutation proof"],
+    target: "Add or extend a focused `harness:mutation:*` proof for the already-owned contract.",
+    requiredEvidence: [
+      "positive harness proof for the current contract",
+      "single injected fault that fails with the expected missing value",
+      "Odhín or console failure evidence path"
+    ],
+    rationale: "Known release-blocking contracts need a red proof so the harness cannot silently pass the defect class."
+  },
+  {
+    id: "ccd-event-data-integrity-replay",
+    route: "historic-replay-pack",
+    signalTerms: ["cya", "show condition", "hidden page", "complex field", "submit payload", "previous"],
+    target: "Add a synthetic historic replay under the manage-case data-integrity pack.",
+    requiredEvidence: [
+      "historic defect reference",
+      "minimal CCD/event shape that reproduces the failed interpretation",
+      "payload or CYA assertion that would have failed before the fix"
+    ],
+    rationale: "CCD interpretation bugs are best captured as deterministic replay packs rather than live UI journeys."
+  },
+  {
+    id: "central-service-family-config-pack",
+    route: "service-family-pack",
+    signalTerms: ["global search", "work allocation", "staff ref data", "service family", "jurisdiction missing"],
+    target: "Add or update the affected service-family assurance pack.",
+    requiredEvidence: [
+      "source-of-truth config or CCD definition reference",
+      "positive API/config assertion",
+      "owner-confirmed representative service or case type when source data is incomplete"
+    ],
+    rationale: "Central service-family drift belongs in the service-pack manifest and executable config proof."
+  },
+  {
+    id: "owner-contract-unclear-follow-up",
+    route: "owner-confirmed-follow-up",
+    signalTerms: ["owner confirmation", "unclear expected behaviour", "no source of truth", "manual check"],
+    target: "Keep as an explicit owner-confirmed follow-up until the stable contract is supplied.",
+    requiredEvidence: [
+      "problem statement and affected route or service",
+      "missing source-of-truth or owner decision",
+      "proposed harness scenario once the owner confirms the contract"
+    ],
+    rationale: "The harness should not turn uncertain product behaviour into a release gate without owner confirmation."
+  },
+  {
+    id: "specialist-non-exui-surface",
+    route: "specialist-suite-follow-up",
+    signalTerms: ["media viewer", "redaction", "document rendering", "pixel coordinate"],
+    target: "Route to the owning specialist suite before adding central EXUI shell coverage.",
+    requiredEvidence: [
+      "owning product or component",
+      "specialist fixture or artifact needed",
+      "central EXUI shell boundary if one still exists"
+    ],
+    rationale: "Specialist rendering or coordinate defects need owner-specific fixtures outside the first central harness boundary."
+  }
+] as const;
+
 export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverage[] = [
   {
     id: "manage-case-previous-navigation-data-loss",
@@ -1252,6 +1330,18 @@ export function buildHistoricFailureCoverageSummary(
     partial: failures.filter((failure) => failure.coverageStatus === "partial").map((failure) => failure.id),
     "out-of-scope": failures.filter((failure) => failure.coverageStatus === "out-of-scope").map((failure) => failure.id)
   };
+}
+
+export function classifyExuiDefectIntake(
+  title: string,
+  description = "",
+  rules: readonly ExuiDefectIntakeRule[] = EXUI_DEFECT_INTAKE_RULES
+): ExuiDefectIntakeRule {
+  const normalizedText = `${title} ${description}`.toLowerCase();
+  return (
+    rules.find((rule) => rule.signalTerms.some((term) => normalizedText.includes(term))) ??
+    EXUI_DEFECT_INTAKE_RULES.find((rule) => rule.route === "owner-confirmed-follow-up")!
+  );
 }
 
 export function buildServiceDefinitionProfileSummary(

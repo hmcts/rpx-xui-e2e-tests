@@ -5,11 +5,13 @@ import type { APIRequestContext, TestInfo } from '@playwright/test';
 import {
   buildDefinitionRepoCoverageTotals,
   buildCoverageSummary,
+  classifyExuiDefectIntake,
   buildGlobalSearchServicesCatalog,
   buildServiceDefinitionProfileSummary,
   buildSuperserviceKnowledgeIndex,
   EXUI_ALL_CONFIGURED_SERVICE_FAMILIES,
   EXUI_CANARY_SERVICE_FAMILIES,
+  EXUI_DEFECT_INTAKE_RULES,
   EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES,
   EXUI_HISTORIC_FAILURE_COVERAGE,
   EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY,
@@ -452,6 +454,45 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       }),
     ]);
     expect(outOfScopeFailures.every((failure) => (failure.missReason ?? '').trim().length > 0)).toBe(true);
+  });
+
+  test('defect intake rules route new EXUI findings to the right harness work type', () => {
+    const ruleIds = EXUI_DEFECT_INTAKE_RULES.map((rule) => rule.id);
+
+    expect(new Set(ruleIds).size).toBe(ruleIds.length);
+    expect(EXUI_DEFECT_INTAKE_RULES.map((rule) => rule.route)).toEqual([
+      'targeted-mutation-proof',
+      'historic-replay-pack',
+      'service-family-pack',
+      'owner-confirmed-follow-up',
+      'specialist-suite-follow-up',
+    ]);
+
+    for (const rule of EXUI_DEFECT_INTAKE_RULES) {
+      expect(rule.signalTerms.length, `${rule.id} should name its matching signals`).toBeGreaterThan(0);
+      expect(rule.requiredEvidence.length, `${rule.id} should define evidence before promotion`).toBeGreaterThan(0);
+      expect(rule.target.trim().length, `${rule.id} should name the next harness target`).toBeGreaterThan(0);
+      expect(rule.rationale.trim().length, `${rule.id} should explain the route`).toBeGreaterThan(0);
+    }
+
+    expect(classifyExuiDefectIntake('Dropped service code BHA1 is no longer caught').route).toBe(
+      'targeted-mutation-proof'
+    );
+    expect(classifyExuiDefectIntake('CYA loses complex field after Previous navigation').route).toBe(
+      'historic-replay-pack'
+    );
+    expect(classifyExuiDefectIntake('Civil is missing from Work Allocation jurisdiction list').route).toBe(
+      'service-family-pack'
+    );
+    expect(classifyExuiDefectIntake('Overview page changed but expected behaviour needs owner confirmation').route).toBe(
+      'owner-confirmed-follow-up'
+    );
+    expect(classifyExuiDefectIntake('Media Viewer redaction pixel coordinate moves after zoom').route).toBe(
+      'specialist-suite-follow-up'
+    );
+    expect(classifyExuiDefectIntake('Untriaged defect with no source evidence yet').route).toBe(
+      'owner-confirmed-follow-up'
+    );
   });
 
   test('hearings seam has executable supported and unsupported family contracts', () => {
