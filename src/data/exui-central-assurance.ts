@@ -80,8 +80,7 @@ export const EXUI_SERVICE_REF_DATA_MAPPING: Record<string, readonly string[]> = 
   PROBATE: ["ABA6"],
   PUBLICLAW: ["ABA3"],
   SSCS: ["BBA3"],
-  ST_CIC: ["BBA2"],
-  HRS: ["HRS"]
+  ST_CIC: ["BBA2"]
 };
 
 export const EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY: Record<string, readonly string[]> = {
