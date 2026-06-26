@@ -19,6 +19,11 @@ const mutationProofs = {
     expectedEvidence: ["drop-civil-hearings-case-type", "Array []"],
     summary: "the injected EXUI-style Civil hearings regression was caught",
   },
+  "drop-ia-hearings-bail-case-type": {
+    grep: "ia hearings routing mutation proof catches a missing Bail case type",
+    expectedEvidence: ["drop-ia-hearings-bail-case-type", "\"BAIL\""],
+    summary: "the injected EXUI-style IA hearings regression was caught",
+  },
 };
 const mutationProof = mutationProofs[mutation];
 if (!mutationProof) {
