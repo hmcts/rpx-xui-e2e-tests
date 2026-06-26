@@ -784,7 +784,8 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
     representativeScenarioIds: [
       "global-search-supported-service-families",
       "wa-supported-service-families",
-      "staff-supported-service-families"
+      "staff-supported-service-families",
+      "employment-service-code-ref-data-contract"
     ],
     rationale: "Central global search/WA/staff family sharing the same EXUI config contracts."
   },
@@ -921,6 +922,24 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "employment-service-code-ref-data-contract",
+    lane: "staff-ref-data",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "EMPLOYMENT",
+    caseType: "ET_EnglandWales,ET_Scotland",
+    roleCluster: "caseworker-employment",
+    assertion:
+      "Employment remains in global search, Work Allocation, and staff-supported ref-data with BHA1 service-code mapping",
+    source: "rpx-xui-webapp supported service-family config and Employment CCD definition metadata",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions,
       EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },
