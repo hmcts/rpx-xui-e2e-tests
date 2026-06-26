@@ -6,6 +6,7 @@ import {
   buildDefinitionRepoCoverageTotals,
   buildCoverageSummary,
   buildGlobalSearchServicesCatalog,
+  buildReleaseAssuranceVerdict,
   buildServiceDefinitionProfileSummary,
   buildSuperserviceKnowledgeIndex,
   EXUI_ALL_CONFIGURED_SERVICE_FAMILIES,
@@ -452,6 +453,43 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       }),
     ]);
     expect(outOfScopeFailures.every((failure) => (failure.missReason ?? '').trim().length > 0)).toBe(true);
+  });
+
+  test('release assurance verdict is deterministic and does not overclaim pending evidence', () => {
+    const verdict = buildReleaseAssuranceVerdict();
+
+    expect(verdict.overallStatus).toBe('warn');
+    expect(verdict.releaseBlockingCoverage).toEqual(
+      expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW'])
+    );
+    expect(verdict.releaseBlockingCoverage).not.toContain('ST_CIC');
+    expect(verdict.knownGaps).toEqual(
+      expect.arrayContaining([
+        'release-blocking family without CCD-backed profile: ST_CIC',
+        'historic learning case not executable yet: overview-page-layout-regression-classification',
+        'historic out-of-scope class: media-viewer-redaction-coordinate',
+        'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:ccd',
+      ])
+    );
+    expect(verdict.mutationEvidence).toEqual({
+      status: 'pending',
+      requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+    });
+    expect(verdict.historicFailureCoverage['covered-now']).toContain('nested-complex-fieldshowcondition-cya');
+  });
+
+  test('release assurance verdict fails when a configured family is not classified or profiled', () => {
+    const verdict = buildReleaseAssuranceVerdict({
+      configuredFamilies: [...EXUI_ALL_CONFIGURED_SERVICE_FAMILIES, 'NEW_SERVICE'],
+    });
+
+    expect(verdict.overallStatus).toBe('fail');
+    expect(verdict.knownGaps).toEqual(
+      expect.arrayContaining([
+        'unclassified configured family: NEW_SERVICE',
+        'unprofiled configured family: NEW_SERVICE',
+      ])
+    );
   });
 
   test('hearings seam has executable supported and unsupported family contracts', () => {

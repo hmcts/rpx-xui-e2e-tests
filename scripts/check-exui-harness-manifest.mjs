@@ -13,6 +13,7 @@ const source = readJson(sourcePath);
 const expectedDefault = source.rpxXuiWebapp["config/default.json"];
 const expectedEnv = source.rpxXuiWebapp["config/custom-environment-variables.json"];
 const expectedDefinitionProfiles = source.serviceDefinitionProfiles?.profiles ?? [];
+const mutationCommands = ["yarn harness:mutation:wa", "yarn harness:mutation:ccd"];
 
 const failures = [];
 
@@ -282,5 +283,11 @@ if (failures.length > 0) {
   );
   console.log(
     `[harness-manifest] service definition profiles cover ${expectedDefinitionProfiles.length} configured EXUI families; known CCD-source gaps are ST_CIC and PROBATE.`
+  );
+  const releaseBlockingCcdBacked = expectedDefinitionProfiles
+    .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel === "ccd-backed")
+    .map((profile) => normalize(profile.serviceFamily));
+  console.log(
+    `[harness-manifest] release assurance verdict=warn; release-blocking CCD-backed=${sorted(releaseBlockingCcdBacked).join(", ")}; pending mutation evidence=${mutationCommands.join(", ")}.`
   );
 }
