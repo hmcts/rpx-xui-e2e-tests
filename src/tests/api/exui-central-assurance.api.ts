@@ -248,7 +248,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'must-run',
         }),
         expect.objectContaining({
-          id: 'canary-cmc-hrs',
+          id: 'canary-cmc',
           priority: 'canary',
         }),
       ])
@@ -360,7 +360,8 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(buildCoverageSummary()).toEqual(
       expect.objectContaining({
         'release-blocking': expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC']),
-        canary: ['CMC', 'HRS'],
+        grouped: expect.arrayContaining(['HRS']),
+        canary: ['CMC'],
       })
     );
   });

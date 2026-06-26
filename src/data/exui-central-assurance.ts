@@ -26,7 +26,8 @@ export const EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES = [
   "SSCS",
   "DIVORCE",
   "FR",
-  "PROBATE"
+  "PROBATE",
+  "HRS"
 ] as const;
 
 export const EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES = [
@@ -51,7 +52,7 @@ export const EXUI_ALL_CONFIGURED_SERVICE_FAMILIES = [
   "ST_CIC"
 ] as const;
 
-export const EXUI_CANARY_SERVICE_FAMILIES = ["CMC", "HRS"] as const;
+export const EXUI_CANARY_SERVICE_FAMILIES = ["CMC"] as const;
 
 export const EXUI_SERVICE_LABELS: Record<string, string> = {
   CIVIL: "Civil",
@@ -73,6 +74,7 @@ export const EXUI_SERVICE_REF_DATA_MAPPING: Record<string, readonly string[]> = 
   DIVORCE: ["ABA1"],
   EMPLOYMENT: ["BHA1"],
   FR: ["ABA2"],
+  HRS: ["HRS"],
   IA: ["BFA1"],
   PRIVATELAW: ["ABA5"],
   PROBATE: ["ABA6"],
@@ -600,15 +602,15 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
   },
   {
     serviceFamily: "HRS",
-    priority: "canary",
+    priority: "grouped",
     proofLevel: "config-backed",
-    lanes: ["canary"],
+    lanes: ["staff-ref-data"],
     representativeCaseTypes: [],
-    serviceCodes: [],
+    serviceCodes: ["HRS"],
     repos: [],
     rationale:
-      "HRS is configured as a jurisdiction but not in the central global search, WA, staff, or hearings sets used for release-blocking assertions.",
-    nextAction: "Keep HRS canary-only unless an EXUI owner identifies a release-blocking behaviour."
+      "HRS is now staff-supported in rpx-xui-webapp config and has a config-backed ref-data mapping, but remains grouped until an HRS-specific EXUI behaviour is selected.",
+    nextAction: "Group through staff-supported assertions until a distinct HRS EXUI permutation is identified."
   }
 ] as const satisfies readonly ExuiServiceDefinitionProfile[];
 
@@ -758,15 +760,15 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
     serviceFamily: "CMC",
     disposition: "canary",
     lanes: ["canary"],
-    representativeScenarioIds: ["canary-cmc-hrs"],
+    representativeScenarioIds: ["canary-cmc"],
     rationale: "Present in configured jurisdictions but intentionally outside the central release-blocking family sets."
   },
   {
     serviceFamily: "HRS",
-    disposition: "canary",
-    lanes: ["canary"],
-    representativeScenarioIds: ["canary-cmc-hrs"],
-    rationale: "Present in configured jurisdictions but intentionally outside the central release-blocking family sets."
+    disposition: "grouped",
+    lanes: ["staff-ref-data"],
+    representativeScenarioIds: ["staff-supported-service-families"],
+    rationale: "Staff-supported only in this slice; grouped until a distinct HRS EXUI-facing behaviour is identified."
   }
 ] as const;
 
@@ -911,12 +913,12 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     ]
   },
   {
-    id: "canary-cmc-hrs",
+    id: "canary-cmc",
     lane: "canary",
     priority: "canary",
     executionMode: "api",
-    serviceFamily: "CMC,HRS",
-    assertion: "weak-evidence families stay outside the central release-blocking family sets",
+    serviceFamily: "CMC",
+    assertion: "weak-evidence family stays outside the central release-blocking family sets",
     source: "rpx-xui-webapp jurisdictions",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
