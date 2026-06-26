@@ -133,7 +133,7 @@ export class TaskListPage extends Base {
     await this.page.waitForTimeout(intervalMs);
   }
 
-  private async clickWithForceFallback(
+  private async clickWithActionableRetry(
     locator: Locator,
     options: { timeoutMs: number; noWaitAfter?: boolean } = { timeoutMs: FILTER_CONTROL_READY_TIMEOUT_MS }
   ): Promise<void> {
@@ -151,12 +151,12 @@ export class TaskListPage extends Base {
       }
 
       // Filter actions and task-row buttons are briefly covered during Angular redraws.
-      // eslint-disable-next-line playwright/no-force-option
-      await locator.click({ ...clickOptions, force: true });
+      await this.waitForTaskListPoll(250);
+      await locator.click(clickOptions);
     }
   }
 
-  private async setCheckedWithForceFallback(
+  private async setCheckedWithActionableRetry(
     checkbox: Locator,
     checked: boolean,
     timeoutMs = FILTER_CONTROL_READY_TIMEOUT_MS
@@ -170,8 +170,8 @@ export class TaskListPage extends Base {
       }
 
       // Checkbox labels can temporarily overlap the input while the filter panel collapses and reopens.
-      // eslint-disable-next-line playwright/no-force-option
-      await checkbox.setChecked(checked, { force: true, timeout: timeoutMs });
+      await this.waitForTaskListPoll(250);
+      await checkbox.setChecked(checked, { timeout: timeoutMs });
     }
   }
 
@@ -554,7 +554,7 @@ export class TaskListPage extends Base {
       if (await this.isFilterPanelOpen()) {
         return;
       }
-      await this.clickWithForceFallback(this.taskListFilterToggle, {
+      await this.clickWithActionableRetry(this.taskListFilterToggle, {
         timeoutMs: FILTER_CONTROL_READY_TIMEOUT_MS
       });
       await this.filterPanel
@@ -579,7 +579,7 @@ export class TaskListPage extends Base {
   async applyCurrentFilters() {
     await this.openFilterPanel();
     await this.applyFilterButton.waitFor({ state: 'visible', timeout: FILTER_CONTROL_READY_TIMEOUT_MS });
-    await this.applyFilterButton.evaluate((button: HTMLButtonElement) => button.click());
+    await this.clickWithActionableRetry(this.applyFilterButton, { timeoutMs: FILTER_CONTROL_READY_TIMEOUT_MS });
   }
 
   async waitForAllWorkFilterControlsReady() {
@@ -652,7 +652,7 @@ export class TaskListPage extends Base {
         return;
       }
       this.assertFilterInteractionAlive(`checkbox "${description}" update`, deadlineMs);
-      await this.setCheckedWithForceFallback(targetCheckbox, checked);
+      await this.setCheckedWithActionableRetry(targetCheckbox, checked);
       await this.waitForTaskListPoll(250);
       if ((await this.readFilterCheckboxState(targetCheckbox, description, deadlineMs)) === checked) {
         return;
@@ -686,7 +686,7 @@ export class TaskListPage extends Base {
       this.assertFilterInteractionAlive(`${groupName} child checkbox update`, deadlineMs);
       const checkbox = childCheckboxes.nth(index);
       if ((await this.readFilterCheckboxState(checkbox, `${groupName} option ${index + 1}`, deadlineMs)) !== checked) {
-        await this.setCheckedWithForceFallback(checkbox, checked);
+        await this.setCheckedWithActionableRetry(checkbox, checked);
       }
     }
     await this.waitForTaskListPoll(250);
@@ -929,14 +929,12 @@ export class TaskListPage extends Base {
     await manageButton.scrollIntoViewIfNeeded().catch(() => undefined);
 
       const clickStrategies = [
-        async () => this.clickWithForceFallback(manageButton, { timeoutMs }),
+        async () => this.clickWithActionableRetry(manageButton, { timeoutMs }),
         async () => {
           await manageButton.focus({ timeout: timeoutMs });
           await this.page.keyboard.press('Enter');
-      },
-      async () => manageButton.evaluate((element: HTMLButtonElement) => element.click()),
-      async () => manageButton.dispatchEvent('click'),
-    ];
+        },
+      ];
 
     let lastError: Error | null = null;
     for (const clickStrategy of clickStrategies) {
@@ -1077,11 +1075,11 @@ export class TaskListPage extends Base {
       const actionTimeoutMs = Math.max(1_000, Math.min(2_500, deadline - Date.now()));
       const clickStrategies = [
         async () =>
-          this.clickWithForceFallback(targetAction, {
+          this.clickWithActionableRetry(targetAction, {
             timeoutMs: actionTimeoutMs,
             noWaitAfter: true
           }),
-        async () => this.clickWithForceFallback(targetAction, { timeoutMs: actionTimeoutMs }),
+        async () => this.clickWithActionableRetry(targetAction, { timeoutMs: actionTimeoutMs }),
         async () => {
           await targetAction.focus({ timeout: actionTimeoutMs });
           await this.page.keyboard.press('Enter');
@@ -1197,14 +1195,10 @@ export class TaskListPage extends Base {
         if (attempt === 0) {
           await targetButton.click({ noWaitAfter: true, timeout: actionTimeoutMs });
         } else if (attempt === 1) {
-          await this.clickWithForceFallback(targetButton, {
+          await this.clickWithActionableRetry(targetButton, {
             timeoutMs: actionTimeoutMs,
             noWaitAfter: true
           });
-        } else if (attempt === 2) {
-          await targetButton.dispatchEvent('click');
-        } else if (attempt === 3) {
-          await targetButton.evaluate((buttonElement: HTMLButtonElement) => buttonElement.click());
         } else {
           await targetButton.focus();
           await this.page.keyboard.press('Enter');

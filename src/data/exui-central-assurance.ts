@@ -1,3 +1,5 @@
+import releaseAssuranceEvidence from "./exui-release-assurance-evidence.json" with { type: "json" };
+
 export const EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES = [
   "IA",
   "CIVIL",
@@ -261,13 +263,10 @@ interface BuildReleaseAssuranceVerdictOptions {
   mutationCommands?: readonly string[];
 }
 
-const EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS = [
-  "yarn harness:mutation:wa",
-  "yarn harness:mutation:civil",
-  "yarn harness:mutation:ia",
-  "yarn harness:mutation:employment",
-  "yarn harness:mutation:ccd"
-] as const;
+export const EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS =
+  releaseAssuranceEvidence.mutationEvidence.requiredCommands;
+export const EXUI_RELEASE_ASSURANCE_MUTATION_STATUS =
+  releaseAssuranceEvidence.mutationEvidence.status as ExuiReleaseAssuranceMutationStatus;
 
 export interface ExuiSuperserviceSourceRef {
   repository: AssuranceSourceRepository;
@@ -1570,7 +1569,7 @@ export function buildReleaseAssuranceVerdict(
   const profiles = options.profiles ?? EXUI_SERVICE_DEFINITION_PROFILES;
   const failures = options.failures ?? EXUI_HISTORIC_FAILURE_COVERAGE;
   const mutationCommands = options.mutationCommands ?? EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS;
-  const mutationEvidenceStatus = options.mutationEvidenceStatus ?? "pending";
+  const mutationEvidenceStatus = options.mutationEvidenceStatus ?? EXUI_RELEASE_ASSURANCE_MUTATION_STATUS;
   const coverageSummary = buildCoverageSummary(decisions);
   const historicFailureCoverage = buildHistoricFailureCoverageSummary(failures);
   const releaseBlockingSourceGaps = findReleaseBlockingFamiliesWithoutCcdBackedProfile(decisions, profiles);

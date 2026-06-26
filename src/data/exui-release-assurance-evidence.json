@@ -1,0 +1,12 @@
+{
+  "mutationEvidence": {
+    "status": "passed",
+    "requiredCommands": [
+      "yarn harness:mutation:wa",
+      "yarn harness:mutation:civil",
+      "yarn harness:mutation:ia",
+      "yarn harness:mutation:employment",
+      "yarn harness:mutation:ccd"
+    ]
+  }
+}

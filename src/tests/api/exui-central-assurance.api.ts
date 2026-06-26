@@ -18,6 +18,8 @@ import {
   EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY,
   EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES,
   EXUI_PRL_NORMALIZED_SLICES,
+  EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS,
+  EXUI_RELEASE_ASSURANCE_MUTATION_STATUS,
   EXUI_SERVICE_DEFINITION_PROFILES,
   EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS,
   EXUI_SERVICE_LABELS,
@@ -511,7 +513,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('release assurance verdict is deterministic and does not overclaim pending evidence', () => {
+  test('release assurance verdict is deterministic and uses recorded mutation evidence', () => {
     const verdict = buildReleaseAssuranceVerdict();
 
     expect(verdict.overallStatus).toBe('warn');
@@ -524,18 +526,15 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'release-blocking family without CCD-backed profile: ST_CIC',
         'historic learning case not executable yet: overview-page-layout-regression-classification',
         'historic out-of-scope class: media-viewer-redaction-coordinate',
-        'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd',
       ])
     );
+    expect(EXUI_RELEASE_ASSURANCE_MUTATION_STATUS).toBe('passed');
+    expect(verdict.knownGaps).not.toContain(
+      'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
+    );
     expect(verdict.mutationEvidence).toEqual({
-      status: 'pending',
-      requiredCommands: [
-        'yarn harness:mutation:wa',
-        'yarn harness:mutation:civil',
-        'yarn harness:mutation:ia',
-        'yarn harness:mutation:employment',
-        'yarn harness:mutation:ccd',
-      ],
+      status: EXUI_RELEASE_ASSURANCE_MUTATION_STATUS,
+      requiredCommands: EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS,
     });
     expect(verdict.historicFailureCoverage['covered-now']).toContain('nested-complex-fieldshowcondition-cya');
   });
