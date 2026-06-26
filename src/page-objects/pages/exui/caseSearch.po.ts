@@ -163,6 +163,7 @@ export class CaseSearchPage extends Base {
     await this.selectJurisdiction(jurisdictionLabel);
     await this.selectCaseType(caseTypeLabel);
     await this.waitForDynamicFilters();
+    await this.selectCaseType(caseTypeLabel);
     await this.fillCcdNumber(caseReference);
     await this.applyFilters();
   }

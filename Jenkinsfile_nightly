@@ -173,6 +173,26 @@ def ciLoadProfileDir = 'functional-output/tests/playwright-integration/load-prof
 def ciLoadProfileEventsFile = 'functional-output/tests/playwright-integration/load-profile/ci-stage-events.jsonl'
 def ciLoadProfilePublished = false
 
+def archivePlaywrightDiagnostics = {
+  steps.sh '''
+    set +e
+    out_dir="functional-output/tests/playwright-diagnostics/failure-data"
+    mkdir -p "${out_dir}"
+    if [ -d test-results ]; then
+      find test-results -type f -name 'failure-data.json' | while read -r file; do
+        rel="${file#test-results/}"
+        safe_name=$(echo "${rel}" | tr '/ ' '__')
+        cp "${file}" "${out_dir}/${safe_name}"
+      done
+    fi
+  '''
+  steps.archiveArtifacts(
+    allowEmptyArchive: true,
+    artifacts: 'functional-output/tests/playwright-diagnostics/failure-data/**/*',
+    excludes: 'test-results/.playwright-artifacts-*/**,**/.playwright-artifacts-*/**'
+  )
+}
+
 def runInPlaywrightContainer = { Closure body ->
   if (!params.PLAYWRIGHT_USE_DOCKER) {
     body()
@@ -428,7 +448,16 @@ withNightlyPipeline(type, product, component, 400) {
         if (params.PLAYWRIGHT_USE_DOCKER) {
           echo '[playwright-container] Skipping browser install; official Playwright image already contains browsers.'
         } else {
-          yarnBuilder.yarn('test:setup:playwright-install-crossbrowser')
+          try {
+            yarnBuilder.yarn('test:setup:playwright-install-all')
+          } catch (installWithDepsError) {
+            if (installWithDepsError instanceof org.jenkinsci.plugins.workflow.steps.FlowInterruptedException) {
+              throw installWithDepsError
+            }
+            echo "[playwright-install] install --with-deps failed; retrying browser-only install: ${installWithDepsError.getMessage()}"
+            yarnBuilder.yarn('test:setup:playwright-install-browsers')
+          }
+          yarnBuilder.yarn('test:setup:playwright-verify-all')
         }
       } finally {
         recordPlaywrightLoadEvent('Playwright browser install', 'finish')
@@ -638,6 +667,7 @@ withNightlyPipeline(type, product, component, 400) {
         }
       } finally {
         recordPlaywrightLoadEvent('Nightly functional tests', 'finish')
+        archivePlaywrightDiagnostics()
         publishCiLoadProfile('RPX E2E Nightly CI System Load')
       }
     }

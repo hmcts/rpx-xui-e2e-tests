@@ -159,6 +159,10 @@ test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, {
           id: 'page-has-heading-one',
           maxNodes: 1,
         },
+        {
+          id: 'region',
+          maxNodes: 4,
+        },
       ],
     });
     await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-hearings-unsupported-family-hidden-a11y.png');

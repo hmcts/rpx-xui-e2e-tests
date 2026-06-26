@@ -1,6 +1,6 @@
 import type { ApiClient as PlaywrightApiClient } from '@hmcts/playwright-common';
 
-import { withXsrf, expectStatus, withRetry } from '../../utils/api/apiTestUtils';
+import { withXsrf, expectStatus, StatusSets, withRetry } from '../../utils/api/apiTestUtils';
 import { stringifyCaseTypeId } from '../../utils/api/caseTypeIdUtils';
 import { assertJurisdictionsForUser } from '../../utils/api/ccdUtils';
 import { config as testConfig } from '../common/apiTestConfig';
@@ -67,7 +67,7 @@ test.describe('CCD endpoints', { tag: '@svc-ccd' }, () => {
       )
     );
 
-    expectStatus(response.status, [200, 500, 502, 504]);
+    expectStatus(response.status, StatusSets.guardedExtended);
     if (response.status === 200) {
       expect(response.data).toBeTruthy();
     }

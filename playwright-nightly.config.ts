@@ -188,6 +188,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
     ],
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
+      ignoreHTTPSErrors: true,
       trace: "retain-on-failure",
       screenshot: "only-on-failure",
       video: "retain-on-failure"
