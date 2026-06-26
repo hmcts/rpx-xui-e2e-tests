@@ -31,6 +31,7 @@
     "harness:local:odhin": "node ./scripts/run-harness-local-poc.mjs --odhin",
     "harness:local:validate": "node ./scripts/run-harness-local-poc.mjs --manifest --lint",
     "harness:mutation:wa": "node ./scripts/run-harness-mutation-proof.mjs",
+    "harness:mutation:civil": "EXUI_ASSURANCE_MUTATION=drop-civil-hearings-case-type node ./scripts/run-harness-mutation-proof.mjs",
     "harness:mutation:ia": "EXUI_ASSURANCE_MUTATION=drop-ia-hearings-bail-case-type node ./scripts/run-harness-mutation-proof.mjs",
     "harness:mutation:ccd": "node ./scripts/run-harness-ccd-mutation-proof.mjs",
     "harness:demo": "node ./scripts/run-harness-local-demo.mjs",

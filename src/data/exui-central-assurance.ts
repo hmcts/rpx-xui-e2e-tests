@@ -230,6 +230,35 @@ export type HistoricFailureReplayPack =
   | "media-viewer-specialist";
 
 export type HistoricFailureHumanFixConfidence = "confirmed" | "candidate" | "indirect" | "not-found";
+type ExuiReleaseAssuranceStatus = "pass" | "warn" | "fail";
+type ExuiReleaseAssuranceMutationStatus = "passed" | "pending";
+
+interface ExuiReleaseAssuranceMutationEvidence {
+  status: ExuiReleaseAssuranceMutationStatus;
+  requiredCommands: readonly string[];
+}
+
+interface ExuiReleaseAssuranceVerdict {
+  overallStatus: ExuiReleaseAssuranceStatus;
+  releaseBlockingCoverage: readonly string[];
+  knownGaps: readonly string[];
+  mutationEvidence: ExuiReleaseAssuranceMutationEvidence;
+  historicFailureCoverage: Record<HistoricFailureCoverageStatus, readonly string[]>;
+}
+
+interface BuildReleaseAssuranceVerdictOptions {
+  configuredFamilies?: readonly string[];
+  decisions?: readonly ExuiServiceFamilyCoverageDecision[];
+  profiles?: readonly ExuiServiceDefinitionProfile[];
+  failures?: readonly ExuiHistoricFailureCoverage[];
+  mutationEvidenceStatus?: ExuiReleaseAssuranceMutationStatus;
+  mutationCommands?: readonly string[];
+}
+
+const EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS = [
+  "yarn harness:mutation:wa",
+  "yarn harness:mutation:ccd"
+] as const;
 
 export interface ExuiSuperserviceSourceRef {
   repository: AssuranceSourceRepository;
@@ -718,7 +747,8 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
       "global-search-supported-service-families",
       "wa-supported-service-families",
       "staff-supported-service-families",
-      "hearings-supported-family-config-contract"
+      "hearings-supported-family-config-contract",
+      "civil-hearings-civil-case-type-contract"
     ],
     rationale: "Central global search/WA/staff family and a hearings-enabled jurisdiction."
   },
@@ -938,6 +968,24 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "civil-hearings-civil-case-type-contract",
+    lane: "hearings",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "CIVIL",
+    caseType: "CIVIL",
+    roleCluster: "hearing-manager",
+    assertion:
+      "Civil hearings config keeps the CIVIL case type enabled and tied to AAA6/AAA7 service-code mapping",
+    source: "rpx-xui-webapp services.hearings.civil.caseTypes and serviceRefDataMapping",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions,
       EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },
@@ -1399,5 +1447,46 @@ export function buildCoverageSummary(
     canary: sortServiceFamilies(
       decisions.filter((decision) => decision.disposition === "canary").map((decision) => decision.serviceFamily)
     )
+  };
+}
+
+export function buildReleaseAssuranceVerdict(
+  options: BuildReleaseAssuranceVerdictOptions = {}
+): ExuiReleaseAssuranceVerdict {
+  const configuredFamilies = options.configuredFamilies ?? EXUI_ALL_CONFIGURED_SERVICE_FAMILIES;
+  const decisions = options.decisions ?? EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS;
+  const profiles = options.profiles ?? EXUI_SERVICE_DEFINITION_PROFILES;
+  const failures = options.failures ?? EXUI_HISTORIC_FAILURE_COVERAGE;
+  const mutationCommands = options.mutationCommands ?? EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS;
+  const mutationEvidenceStatus = options.mutationEvidenceStatus ?? "pending";
+  const coverageSummary = buildCoverageSummary(decisions);
+  const historicFailureCoverage = buildHistoricFailureCoverageSummary(failures);
+  const releaseBlockingSourceGaps = findReleaseBlockingFamiliesWithoutCcdBackedProfile(decisions, profiles);
+  const unclassifiedFamilies = findUnclassifiedServiceFamilies(configuredFamilies, decisions);
+  const unprofiledFamilies = findUnprofiledServiceFamilies(configuredFamilies, profiles);
+  const knownGaps = [
+    ...releaseBlockingSourceGaps.map((family) => `release-blocking family without CCD-backed profile: ${family}`),
+    ...historicFailureCoverage["would-catch-with-replay-pack"].map((id) => `historic replay pack not executable yet: ${id}`),
+    ...historicFailureCoverage["learning-case"].map((id) => `historic learning case not executable yet: ${id}`),
+    ...historicFailureCoverage.partial.map((id) => `historic partial coverage: ${id}`),
+    ...historicFailureCoverage["out-of-scope"].map((id) => `historic out-of-scope class: ${id}`),
+    ...(mutationEvidenceStatus === "pending" ? [`mutation evidence pending: ${mutationCommands.join(", ")}`] : [])
+  ];
+  const fatalGaps = [
+    ...unclassifiedFamilies.map((family) => `unclassified configured family: ${family}`),
+    ...unprofiledFamilies.map((family) => `unprofiled configured family: ${family}`)
+  ];
+
+  return {
+    overallStatus: fatalGaps.length > 0 ? "fail" : knownGaps.length > 0 ? "warn" : "pass",
+    releaseBlockingCoverage: coverageSummary["release-blocking"].filter(
+      (family) => !releaseBlockingSourceGaps.includes(family)
+    ),
+    knownGaps: [...fatalGaps, ...knownGaps],
+    mutationEvidence: {
+      status: mutationEvidenceStatus,
+      requiredCommands: mutationCommands
+    },
+    historicFailureCoverage
   };
 }
