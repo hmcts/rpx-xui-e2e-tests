@@ -717,7 +717,8 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
       "global-search-supported-service-families",
       "wa-supported-service-families",
       "staff-supported-service-families",
-      "hearings-supported-family-config-contract"
+      "hearings-supported-family-config-contract",
+      "civil-hearings-civil-case-type-contract"
     ],
     rationale: "Central global search/WA/staff family and a hearings-enabled jurisdiction."
   },
@@ -937,6 +938,24 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "civil-hearings-civil-case-type-contract",
+    lane: "hearings",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "CIVIL",
+    caseType: "CIVIL",
+    roleCluster: "hearing-manager",
+    assertion:
+      "Civil hearings config keeps the CIVIL case type enabled and tied to AAA6/AAA7 service-code mapping",
+    source: "rpx-xui-webapp services.hearings.civil.caseTypes and serviceRefDataMapping",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions,
       EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },

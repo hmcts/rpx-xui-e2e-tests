@@ -93,6 +93,11 @@ const ASSURANCE_MUTATIONS = {
       'Demo fault: simulate EXUI no longer exposing Private Law as a Work Allocation-supported service family.',
     removedFamily: 'PRIVATELAW',
   },
+  'drop-civil-hearings-case-type': {
+    endpoint: 'services.hearings.civil.caseTypes',
+    description: 'Demo fault: simulate EXUI no longer exposing Civil as a hearings-enabled case type.',
+    removedFamily: 'CIVIL',
+  },
 } as const;
 type AssuranceMutation = keyof typeof ASSURANCE_MUTATIONS;
 
@@ -475,6 +480,38 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
+  test('civil release service pack has executable hearings and service-code contracts', () => {
+    const civilScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
+      (scenario) => scenario.id === 'civil-hearings-civil-case-type-contract'
+    );
+    const civilDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find(
+      (decision) => decision.serviceFamily === 'CIVIL'
+    );
+    const civilConfig = buildHearingsEnvironmentConfigMock({
+      enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
+      amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
+    });
+
+    expect(civilScenario).toEqual(
+      expect.objectContaining({
+        caseType: 'CIVIL',
+        executionMode: 'api',
+        lane: 'hearings',
+        priority: 'must-run',
+        serviceFamily: 'CIVIL',
+      })
+    );
+    expect(civilDecision?.representativeScenarioIds).toContain('civil-hearings-civil-case-type-contract');
+    expect(EXUI_SERVICE_REF_DATA_MAPPING.CIVIL).toEqual(['AAA6', 'AAA7']);
+    expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL).toEqual(['CIVIL']);
+    expect(civilConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
+      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
+    ]);
+    expect(civilConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
+      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
+    ]);
+  });
+
   test('scenario manifest is wiki-ready and traceable to source repositories', () => {
     const scenarioIds = EXUI_SUPERSERVICE_SCENARIOS.map((scenario) => scenario.id);
     expect(new Set(scenarioIds).size).toBe(scenarioIds.length);
@@ -645,6 +682,15 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       mutateStringArrayForDemo(EXUI_WA_SUPPORTED_SERVICE_FAMILIES, 'api/wa-supported-jurisdiction/get'),
       EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
       'api/wa-supported-jurisdiction/get'
+    );
+  });
+
+  test('civil hearings service pack mutation proof catches a missing Civil case type', async ({}, testInfo) => {
+    await attachMutationEvidence(testInfo);
+
+    expectExactFamilySet(
+      mutateStringArrayForDemo(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL, 'services.hearings.civil.caseTypes'),
+      EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL
     );
   });
 
