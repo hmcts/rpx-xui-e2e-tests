@@ -6,6 +6,7 @@ import {
   buildDefinitionRepoCoverageTotals,
   buildCoverageSummary,
   buildGlobalSearchServicesCatalog,
+  buildReleaseAssuranceVerdict,
   buildServiceDefinitionProfileSummary,
   buildSuperserviceKnowledgeIndex,
   EXUI_ALL_CONFIGURED_SERVICE_FAMILIES,
@@ -92,6 +93,11 @@ const ASSURANCE_MUTATIONS = {
     description:
       'Demo fault: simulate EXUI no longer exposing Private Law as a Work Allocation-supported service family.',
     removedFamily: 'PRIVATELAW',
+  },
+  'drop-civil-hearings-case-type': {
+    endpoint: 'services.hearings.civil.caseTypes',
+    description: 'Demo fault: simulate EXUI no longer exposing Civil as a hearings-enabled case type.',
+    removedFamily: 'CIVIL',
   },
   'drop-employment-service-code': {
     endpoint: 'service-ref-data.employment.serviceCodes',
@@ -459,6 +465,105 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(outOfScopeFailures.every((failure) => (failure.missReason ?? '').trim().length > 0)).toBe(true);
   });
 
+  test('release assurance verdict is deterministic and does not overclaim pending evidence', () => {
+    const verdict = buildReleaseAssuranceVerdict();
+
+    expect(verdict.overallStatus).toBe('warn');
+    expect(verdict.releaseBlockingCoverage).toEqual(
+      expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW'])
+    );
+    expect(verdict.releaseBlockingCoverage).not.toContain('ST_CIC');
+    expect(verdict.knownGaps).toEqual(
+      expect.arrayContaining([
+        'release-blocking family without CCD-backed profile: ST_CIC',
+        'historic learning case not executable yet: overview-page-layout-regression-classification',
+        'historic out-of-scope class: media-viewer-redaction-coordinate',
+        'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:ccd',
+      ])
+    );
+    expect(verdict.mutationEvidence).toEqual({
+      status: 'pending',
+      requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+    });
+    expect(verdict.historicFailureCoverage['covered-now']).toContain('nested-complex-fieldshowcondition-cya');
+  });
+
+  test('release assurance verdict fails when a configured family is not classified or profiled', () => {
+    const verdict = buildReleaseAssuranceVerdict({
+      configuredFamilies: [...EXUI_ALL_CONFIGURED_SERVICE_FAMILIES, 'NEW_SERVICE'],
+    });
+
+    expect(verdict.overallStatus).toBe('fail');
+    expect(verdict.knownGaps).toEqual(
+      expect.arrayContaining([
+        'unclassified configured family: NEW_SERVICE',
+        'unprofiled configured family: NEW_SERVICE',
+      ])
+    );
+  });
+
+  test('release assurance verdict passes when coverage is complete and mutation evidence has passed', () => {
+    const verdict = buildReleaseAssuranceVerdict({
+      configuredFamilies: ['CIVIL'],
+      decisions: [
+        {
+          serviceFamily: 'CIVIL',
+          disposition: 'release-blocking',
+          lanes: ['global-search'],
+          representativeScenarioIds: ['global-search-supported-service-families'],
+          rationale: 'Synthetic complete coverage for pass-branch proof.',
+        },
+      ],
+      profiles: [
+        {
+          serviceFamily: 'CIVIL',
+          priority: 'release-blocking',
+          proofLevel: 'ccd-backed',
+          lanes: ['global-search'],
+          representativeCaseTypes: ['CIVIL'],
+          serviceCodes: ['AAA6'],
+          repos: [
+            {
+              fullName: 'hmcts/civil-ccd-definition',
+              url: 'https://github.com/hmcts/civil-ccd-definition',
+              visibility: 'public',
+              updatedAt: '2026-05-12T13:40:51Z',
+              defaultBranch: 'master',
+              definitionRoot: 'ccd-definition',
+              jsonFiles: 1,
+              caseEventToFields: 1,
+              caseEventToComplexTypes: 1,
+              authorisationCaseField: 1,
+              caseField: 1,
+              complexTypes: 1,
+            },
+          ],
+          rationale: 'Synthetic complete profile for pass-branch proof.',
+          nextAction: 'None for pass-branch proof.',
+        },
+      ],
+      failures: [],
+      mutationEvidenceStatus: 'passed',
+    });
+
+    expect(verdict).toEqual({
+      overallStatus: 'pass',
+      releaseBlockingCoverage: ['CIVIL'],
+      knownGaps: [],
+      mutationEvidence: {
+        status: 'passed',
+        requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+      },
+      historicFailureCoverage: {
+        'covered-now': [],
+        'would-catch-with-replay-pack': [],
+        'learning-case': [],
+        partial: [],
+        'out-of-scope': [],
+      },
+    });
+  });
+
   test('hearings seam has executable supported and unsupported family contracts', () => {
     const enabledConfig = buildHearingsEnvironmentConfigMock({
       enabledCaseVariations: [{ jurisdiction: 'PRIVATELAW', caseType: 'PRLAPPS' }],
@@ -511,6 +616,38 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).toContain('EMPLOYMENT');
     expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).toContain('EMPLOYMENT');
     expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('EMPLOYMENT');
+  });
+
+  test('civil release service pack has executable hearings and service-code contracts', () => {
+    const civilScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
+      (scenario) => scenario.id === 'civil-hearings-civil-case-type-contract'
+    );
+    const civilDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find(
+      (decision) => decision.serviceFamily === 'CIVIL'
+    );
+    const civilConfig = buildHearingsEnvironmentConfigMock({
+      enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
+      amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
+    });
+
+    expect(civilScenario).toEqual(
+      expect.objectContaining({
+        caseType: 'CIVIL',
+        executionMode: 'api',
+        lane: 'hearings',
+        priority: 'must-run',
+        serviceFamily: 'CIVIL',
+      })
+    );
+    expect(civilDecision?.representativeScenarioIds).toContain('civil-hearings-civil-case-type-contract');
+    expect(EXUI_SERVICE_REF_DATA_MAPPING.CIVIL).toEqual(['AAA6', 'AAA7']);
+    expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL).toEqual(['CIVIL']);
+    expect(civilConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
+      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
+    ]);
+    expect(civilConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
+      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
+    ]);
   });
 
   test('scenario manifest is wiki-ready and traceable to source repositories', () => {
@@ -695,6 +832,15 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'service-ref-data.employment.serviceCodes'
       ),
       EXUI_SERVICE_REF_DATA_MAPPING.EMPLOYMENT
+    );
+  });
+
+  test('civil hearings service pack mutation proof catches a missing Civil case type', async ({}, testInfo) => {
+    await attachMutationEvidence(testInfo);
+
+    expectExactFamilySet(
+      mutateStringArrayForDemo(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL, 'services.hearings.civil.caseTypes'),
+      EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL
     );
   });
 
