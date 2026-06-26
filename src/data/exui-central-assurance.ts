@@ -74,6 +74,7 @@ export const EXUI_SERVICE_REF_DATA_MAPPING: Record<string, readonly string[]> = 
   DIVORCE: ["ABA1"],
   EMPLOYMENT: ["BHA1"],
   FR: ["ABA2"],
+  HRS: ["HRS"],
   IA: ["BFA1"],
   PRIVATELAW: ["ABA5"],
   PROBATE: ["ABA6"],
@@ -1013,7 +1014,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     priority: "canary",
     executionMode: "api",
     serviceFamily: "CMC",
-    assertion: "weak-evidence families stay outside the central release-blocking family sets",
+    assertion: "weak-evidence family stays outside the central release-blocking family sets",
     source: "rpx-xui-webapp jurisdictions",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,

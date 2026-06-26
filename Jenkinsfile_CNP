@@ -315,6 +315,21 @@ def publishHarnessReports = {
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/harness/**'
 }
 
+def archivePlaywrightDiagnostics = {
+  sh(
+    script: '''#!/usr/bin/env bash
+      set +e
+      output_dir="functional-output/tests/playwright-diagnostics/failure-data"
+      mkdir -p "$output_dir"
+      find test-results -path '*/failure-data.json' -type f -print 2>/dev/null | while IFS= read -r file; do
+        safe_name="$(printf '%s' "$file" | sed 's#[^A-Za-z0-9._-]#_#g')"
+        cp "$file" "$output_dir/${safe_name}"
+      done
+    '''.stripIndent()
+  )
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-diagnostics/**', excludes: '**/.playwright-artifacts-*/**'
+}
+
 def runCnpPlaywrightStages = {
   def apiWorkers = capJenkinsPlaywrightWorkers(effectiveApiWorkers(params.API_PW_WORKERS), 6)
   def uiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS, 4)
@@ -501,6 +516,7 @@ def runCnpPlaywrightStages = {
   runApiTests()
   runUiTests()
   runIntegrationTests()
+  archivePlaywrightDiagnostics()
 }
 
 withNightlyPipeline(type, product, component, 600) {
