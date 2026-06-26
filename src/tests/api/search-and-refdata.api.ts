@@ -143,7 +143,7 @@ test.describe('Role access / AM', { tag: '@svc-role-assignment' }, () => {
         apiClient.get<{ count?: number } | number>('api/role-access/roles/get-my-access-new-count', {
           throwOnError: false,
         }),
-      { retries: 1, retryStatuses: [502, 504] }
+      { retries: 2, retryStatuses: [502, 504] }
     );
     expectStatus(res.status, [200, 401, 403, 500, 502, 504]);
     assertMyAccessCount(res.status, res.data);
