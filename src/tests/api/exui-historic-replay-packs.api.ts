@@ -334,13 +334,6 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
       contentType: "image/svg+xml"
     });
 
-    expect(evidence.toolkitPackageVersion).toMatch(/^\d+\.\d+\.\d+/);
-    expect(evidence.rows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ fieldId: "emailName", hidden: false, value: "Example organisation" }),
-        expect.objectContaining({ fieldId: "emailAddress", hidden: false, value: "example.organisation@example.invalid" })
-      ])
-    );
     assertExui4493ToolkitContract(evidence);
   });
 

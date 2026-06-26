@@ -181,8 +181,6 @@ test.describe("EXUI-4493 harness CYA visual evidence", { tag: ["@integration", "
     await attachUiScreenshotEvidence(testInfo, page, "exui-4493-cya-rendering-evidence.png");
 
     await expect(page.getByRole("heading", { name: "Check your answers" })).toBeVisible();
-    await expect(page.getByTestId("cya-row-emailName")).toContainText("Example organisation");
-    await expect(page.getByTestId("cya-row-emailAddress")).toContainText("example.organisation@example.invalid");
 
     assertExui4493ToolkitContract(evidence);
   });

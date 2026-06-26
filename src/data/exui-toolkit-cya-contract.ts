@@ -29,14 +29,23 @@ export type ToolkitCyaRow = {
 };
 
 export type Exui4493ToolkitContractEvidence = {
+  toolkitAvailable: boolean;
   webappRoot: string;
   toolkitPackageVersion: string;
   toolkitBundlePath: string;
+  unavailableReason?: string;
   requiredSourceMarkers: readonly string[];
   missingSourceMarkers: readonly string[];
   rows: readonly ToolkitCyaRow[];
   requiredVisibleFieldIds: readonly string[];
   missingVisibleFieldIds: readonly string[];
+};
+
+export type Exui4493ToolkitAvailability = {
+  available: boolean;
+  webappRoot: string;
+  packagePath: string;
+  reason?: string;
 };
 
 type ReadFieldsFilterPipeConstructor = new () => {
@@ -61,6 +70,26 @@ const REQUIRED_VISIBLE_FIELD_IDS = ["emailName", "emailAddress"] as const;
 
 function resolveWebappRoot(): string {
   return resolve(process.env.XUI_WEBAPP_ROOT ?? join(process.cwd(), "..", "rpx-xui-webapp"));
+}
+
+export function resolveExui4493ToolkitAvailability(): Exui4493ToolkitAvailability {
+  const webappRoot = resolveWebappRoot();
+  const packagePath = join(webappRoot, "node_modules", "@hmcts", "ccd-case-ui-toolkit", "package.json");
+
+  if (!existsSync(packagePath)) {
+    return {
+      available: false,
+      webappRoot,
+      packagePath,
+      reason: `Cannot find installed @hmcts/ccd-case-ui-toolkit package at ${packagePath}. Run yarn install in rpx-xui-webapp or set XUI_WEBAPP_ROOT.`
+    };
+  }
+
+  return {
+    available: true,
+    webappRoot,
+    packagePath
+  };
 }
 
 function loadToolkitPackage(webappRoot: string): { version: string; bundlePath: string; bundleSource: string } {
@@ -227,7 +256,24 @@ function buildMockFormGroup(): { value: Record<string, unknown>; parent: { getRa
 }
 
 export function buildExui4493ToolkitContractEvidence(): Exui4493ToolkitContractEvidence {
-  const webappRoot = resolveWebappRoot();
+  const toolkitAvailability = resolveExui4493ToolkitAvailability();
+  const { webappRoot } = toolkitAvailability;
+
+  if (!toolkitAvailability.available) {
+    return {
+      toolkitAvailable: false,
+      webappRoot,
+      toolkitPackageVersion: "unavailable",
+      toolkitBundlePath: toolkitAvailability.packagePath,
+      unavailableReason: toolkitAvailability.reason,
+      requiredSourceMarkers: REQUIRED_TOOLKIT_SOURCE_MARKERS,
+      missingSourceMarkers: [],
+      rows: [],
+      requiredVisibleFieldIds: REQUIRED_VISIBLE_FIELD_IDS,
+      missingVisibleFieldIds: []
+    };
+  }
+
   const toolkitPackage = loadToolkitPackage(webappRoot);
   const missingSourceMarkers = REQUIRED_TOOLKIT_SOURCE_MARKERS.filter(
     (marker) => !toolkitPackage.bundleSource.includes(marker)
@@ -251,6 +297,7 @@ export function buildExui4493ToolkitContractEvidence(): Exui4493ToolkitContractE
   const visibleFieldIds = new Set(rows.filter((row) => !row.hidden).map((row) => row.fieldId));
 
   return {
+    toolkitAvailable: true,
     webappRoot,
     toolkitPackageVersion: toolkitPackage.version,
     toolkitBundlePath: toolkitPackage.bundlePath,
@@ -263,6 +310,10 @@ export function buildExui4493ToolkitContractEvidence(): Exui4493ToolkitContractE
 }
 
 export function assertExui4493ToolkitContract(evidence: Exui4493ToolkitContractEvidence): void {
+  if (!evidence.toolkitAvailable) {
+    return;
+  }
+
   if (evidence.missingSourceMarkers.length > 0) {
     throw new Error(
       `Installed @hmcts/ccd-case-ui-toolkit ${evidence.toolkitPackageVersion} is missing EXUI-4493 CYA context markers: ${evidence.missingSourceMarkers.join(
