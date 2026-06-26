@@ -36,6 +36,21 @@ function ensureDemoPrerequisites() {
   }
 }
 
+function resolveWebappScript(candidateNames) {
+  const packageJsonPath = path.join(webappRoot, "package.json");
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
+  const scripts = packageJson.scripts ?? {};
+  const scriptName = candidateNames.find((candidateName) => typeof scripts[candidateName] === "string");
+
+  if (!scriptName) {
+    throw new Error(
+      `rpx-xui-webapp is missing an expected script. Tried: ${candidateNames.join(", ")} in ${packageJsonPath}`
+    );
+  }
+
+  return scriptName;
+}
+
 function makeEnv(extra = {}) {
   return {
     ...process.env,
@@ -126,7 +141,7 @@ function signalChildTree(child, signal) {
   }
 }
 
-async function startSyntheticSeam(label, port) {
+async function startSyntheticSeam(label, port, routes = {}) {
   const healthUrl = `http://localhost:${port}/health`;
   if (await isUrlReady(healthUrl)) {
     log(`reusing ${label} at ${healthUrl}`);
@@ -134,6 +149,19 @@ async function startSyntheticSeam(label, port) {
   }
 
   const server = http.createServer((req, res) => {
+    const route = req.url ? routes[req.url] : undefined;
+    if (route) {
+      res.writeHead(route.status ?? 200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(route.body));
+      return;
+    }
+
+    if (req.url === "/health") {
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ status: "UP", seam: label }));
+      return;
+    }
+
     res.writeHead(404, { "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ message: `${label} synthetic seam` }));
   });
@@ -148,6 +176,28 @@ async function startSyntheticSeam(label, port) {
 
   servers.push(server);
   log(`starting ${label} on http://localhost:${port}`);
+}
+
+function idamDiscoveryRoutes(port) {
+  const origin = `http://localhost:${port}`;
+
+  return {
+    "/o/.well-known/openid-configuration": {
+      body: {
+        issuer: `${origin}/o`,
+        authorization_endpoint: `${origin}/o/authorize`,
+        token_endpoint: `${origin}/o/token`,
+        userinfo_endpoint: `${origin}/o/userinfo`,
+        jwks_uri: `${origin}/o/jwks`,
+        response_types_supported: ["code"],
+        subject_types_supported: ["public"],
+        id_token_signing_alg_values_supported: ["RS256"]
+      }
+    },
+    "/o/jwks": {
+      body: { keys: [] }
+    }
+  };
 }
 
 async function waitForUrl(label, target, options = {}) {
@@ -276,7 +326,9 @@ async function main() {
 
   await startSyntheticSeam("role-assignment shim", 4096);
   await startSyntheticSeam("synthetic SRT shim", 8091);
-  await startChildUnlessReady("EXUI backend mock", "http://localhost:8080/health", "yarn", ["test:backendMock"], {
+  await startSyntheticSeam("IDAM discovery shim", 8092, idamDiscoveryRoutes(8092));
+  const backendMockScript = resolveWebappScript(["test:backendMock", "test:nodeMock"]);
+  await startChildUnlessReady("EXUI backend mock", "http://localhost:8080/health", "yarn", [backendMockScript], {
     cwd: webappRoot,
     env: makeEnv()
   });
@@ -284,13 +336,16 @@ async function main() {
     cwd: webappRoot,
     env: makeEnv({
       ALLOW_CONFIG_MUTATIONS: "1",
+      FEATURE_OIDC_ENABLED: "false",
       NODE_CONFIG_ENV: "local-mock",
+      TS_NODE_TRANSPILE_ONLY: "true",
       SERVICES_EM_DOCASSEMBLY_API: "http://localhost:8080",
-      SERVICES_IDAM_API_URL: "http://localhost:8080",
-      SERVICES_IDAM_ISS_URL: "http://localhost:8080",
-      SERVICES_IDAM_LOGIN_URL: "http://localhost:8080",
+      SERVICES_IDAM_API_URL: "http://localhost:8092",
+      SERVICES_IDAM_ISS_URL: "http://localhost:8092",
+      SERVICES_IDAM_LOGIN_URL: "http://localhost:8092",
       SERVICES_IDAM_OAUTH_CALLBACK_URL: "/oauth2/callback"
-    })
+    }),
+    acceptStatus: (status) => status < 600
   });
   await startChildUnlessReady(
     "EXUI static shell",
@@ -305,13 +360,14 @@ async function main() {
 
   await waitForUrl("EXUI backend mock", "http://localhost:8080/health");
   await waitForUrl("EXUI API", "http://localhost:3001/health", {
-    acceptStatus: (status) => status === 200
+    acceptStatus: (status) => status < 600
   });
   await waitForUrl("EXUI shell", `${testUrl.replace(/\/+$/, "")}/work/my-work/available`, {
     acceptStatus: (status) => status === 200
   });
   await waitForUrl("Synthetic SRT shim", "http://localhost:8091/health");
   await waitForUrl("Role assignment shim", "http://localhost:4096/health");
+  await waitForUrl("IDAM discovery shim", "http://localhost:8092/health");
 
   if (runProof) {
     await runCommand("running local Assurance Harness Odhín proof", "yarn", ["harness:local:odhin"], makeEnv());

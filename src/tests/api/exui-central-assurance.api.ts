@@ -248,6 +248,24 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'must-run',
         }),
         expect.objectContaining({
+          executionMode: 'api',
+          id: 'auth-login-hint-entrypoint-state-contract',
+          lane: 'auth',
+          priority: 'must-run',
+        }),
+        expect.objectContaining({
+          executionMode: 'api',
+          id: 'auth-role-mismatch-access-denied-contract',
+          lane: 'auth',
+          priority: 'must-run',
+        }),
+        expect.objectContaining({
+          executionMode: 'planned',
+          id: 'overview-page-layout-baseline-contract',
+          lane: 'manage-case',
+          priority: 'grouped',
+        }),
+        expect.objectContaining({
           id: 'canary-cmc',
           priority: 'canary',
         }),
@@ -386,8 +404,11 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'event-history-layout-width',
         'event-start-spinner-latency',
         'idam-passport-session-smoke',
+        'sso-login-hint-entrypoint-state',
+        'post-auth-role-mismatch-access-denied',
       ])
     );
+    expect(summary['learning-case']).toEqual(['overview-page-layout-regression-classification']);
     expect(summary.partial).toEqual([]);
     expect(summary['would-catch-with-replay-pack']).toEqual([]);
     expect(summary['out-of-scope']).toEqual(['media-viewer-redaction-coordinate']);
@@ -403,9 +424,26 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     }
 
     const outOfScopeFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'out-of-scope');
-    const catchableFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus !== 'out-of-scope');
+    const executableFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'covered-now');
+    const partialFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'partial');
+    const learningCases = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'learning-case');
 
-    expect(catchableFailures.every((failure) => failure.wouldHaveCaught)).toBe(true);
+    expect(executableFailures.every((failure) => failure.wouldHaveCaught)).toBe(true);
+    expect(partialFailures).toEqual([]);
+    expect(learningCases).toEqual([
+      expect.objectContaining({
+        id: 'overview-page-layout-regression-classification',
+        agenticExpectedBoundary: expect.stringContaining('EXUI layout/styling'),
+        comparisonLearning: expect.stringContaining('Done status is irrelevant'),
+        executableProofGap: expect.stringContaining('stable DOM/visual/a11y assertions'),
+        humanFixConfidence: 'indirect',
+        humanFixEvidence: expect.arrayContaining([
+          expect.stringContaining('No direct EXUI-4756-linked PR or commit'),
+        ]),
+        missReason: expect.any(String),
+        wouldHaveCaught: false,
+      }),
+    ]);
     expect(outOfScopeFailures).toEqual([
       expect.objectContaining({
         id: 'media-viewer-redaction-coordinate',

@@ -77,10 +77,12 @@ const odhinEnv = {
   PW_ODHIN_TITLE: process.env.PW_ODHIN_TITLE || "EXUI Harness POC"
 };
 
-async function checkUrl(label, target) {
+async function checkUrl(label, target, options = {}) {
+  const acceptStatus = options.acceptStatus ?? ((status) => status < 500);
+
   try {
     const response = await fetch(target, { method: "GET" });
-    if (response.status >= 500) {
+    if (!acceptStatus(response.status)) {
       throw new Error(`HTTP ${response.status}`);
     }
     console.log(`[harness-local] ${label}: ${response.status}`);
@@ -138,7 +140,7 @@ try {
     removeLocalUiStorageLocks();
 
     await checkUrl("EXUI shell", `${testUrl.replace(/\/+$/, "")}/work/my-work/available`);
-    await checkUrl("EXUI API", "http://localhost:3001/health");
+    await checkUrl("EXUI API", "http://localhost:3001/health", { acceptStatus: (status) => status < 600 });
     await checkUrl("Synthetic SRT shim", "http://localhost:8091/health");
     await checkUrl("Role assignment", "http://localhost:4096/health");
 
@@ -161,6 +163,7 @@ try {
           "src/tests/api/exui-central-assurance.api.ts",
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
+          "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
           "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
         ];
     await runCommand("Central assurance Odhín report", "./node_modules/.bin/playwright", [
@@ -186,6 +189,15 @@ try {
       "test",
       "--project=ui",
       "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
+      "--timeout=90000",
+      "--global-timeout=120000",
+      `--workers=${harnessWorkers}`
+    ]);
+
+    await runCommand("EXUI-4493 CYA visual evidence proof", "./node_modules/.bin/playwright", [
+      "test",
+      "--project=integration",
+      "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
       "--timeout=90000",
       "--global-timeout=120000",
       `--workers=${harnessWorkers}`

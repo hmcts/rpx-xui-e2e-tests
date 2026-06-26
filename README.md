@@ -70,6 +70,29 @@ open test-results/harness-poc-odhin-report/harness-poc-odhin.html
 
 This is the main happy-path proof. The Odhín report includes lane filtering for `API`, `UI`, `Integration`, and `Accessibility`, so reviewers can jump straight to the type of evidence they care about.
 
+### Run the EXUI-4493 installed-toolkit proof
+
+The harness also has a focused proof for the nested complex CYA rendering defect class. This is deliberately not just a static JSON/config check. It reads the `@hmcts/ccd-case-ui-toolkit` package installed by the selected `rpx-xui-webapp` checkout, executes the relevant `ReadFieldsFilterPipe` contract, and proves that PRL-style nested complex fields with `FieldShowCondition` values still render on the CYA projection.
+
+Run it against the default neighbouring webapp checkout:
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:demo:exui4493
+open test-results/exui-4493-toolkit-odhin-report/exui-4493-toolkit.html
+```
+
+Run it against a specific old or candidate webapp checkout:
+
+```bash
+XUI_WEBAPP_ROOT=/path/to/rpx-xui-webapp \
+COREPACK_HOME=/private/tmp/corepack-cache \
+yarn harness:demo:exui4493
+
+open test-results/exui-4493-toolkit-odhin-report/exui-4493-toolkit.html
+```
+
+This proof does not need the full local webapp to boot. The selected webapp checkout only needs dependencies installed, because the harness is validating the toolkit dependency and CYA rendering contract that EXUI consumes.
+
 ### Run the controlled red proofs
 
 Work Allocation service-family mutation:
@@ -94,6 +117,7 @@ These commands deliberately inject a controlled fault into the observed contract
 COREPACK_HOME=/private/tmp/corepack-cache yarn harness:manifest
 COREPACK_HOME=/private/tmp/corepack-cache yarn lint
 COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/odhin-report-enhancer.unit.api.ts
+COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts
 ```
 
 ### Accessibility baseline approach

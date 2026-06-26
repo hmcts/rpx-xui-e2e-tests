@@ -54,10 +54,15 @@ function isNavigationDuringFilterRead(error: unknown): boolean {
 }
 
 function isTransientFilterReadError(error: unknown): boolean {
-  return isNavigationDuringFilterRead(error) || /element\(s\) not found|toBeVisible/i.test(asErrorMessage(error));
+  return (
+    isNavigationDuringFilterRead(error) ||
+    /element\(s\) not found|toBeVisible|toHaveCount|service filter values were not ready/i.test(asErrorMessage(error))
+  );
 }
 
 async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): Promise<string[]> {
+  const expectedServiceFilterCount = EXUI_WA_SUPPORTED_SERVICE_FAMILIES.length;
+
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     await page.waitForURL(/\/work\/my-work\/available(?:\?.*)?$/, { timeout: 5_000 }).catch(() => undefined);
     try {
@@ -65,7 +70,8 @@ async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): 
         await taskListPage.openFilterPanel();
       }
       await expect(taskListPage.selectAllServicesFilter).toBeVisible();
-      return await taskListPage.serviceFilterCheckboxes.evaluateAll((elements) =>
+      await expect(taskListPage.serviceFilterCheckboxes).toHaveCount(expectedServiceFilterCount);
+      const serviceFilterValues = await taskListPage.serviceFilterCheckboxes.evaluateAll((elements) =>
         elements
           .map((element) => {
             const checkbox = element as HTMLInputElement;
@@ -73,6 +79,14 @@ async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): 
           })
           .filter((value): value is string => Boolean(value))
       );
+
+      if (serviceFilterValues.length !== expectedServiceFilterCount) {
+        throw new Error(
+          `Service filter values were not ready: expected ${expectedServiceFilterCount}, read ${serviceFilterValues.length}.`
+        );
+      }
+
+      return serviceFilterValues;
     } catch (error) {
       if (attempt === 3 || !isTransientFilterReadError(error)) {
         throw error;

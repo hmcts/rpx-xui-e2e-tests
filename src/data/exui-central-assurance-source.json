@@ -675,8 +675,8 @@
           "HRS"
         ],
         "repos": [],
-        "rationale": "HRS is now staff-supported in rpx-xui-webapp config and has a config-backed ref-data mapping, but remains grouped until an HRS-specific EXUI behaviour is selected.",
-        "nextAction": "Group through staff-supported assertions until a distinct HRS EXUI permutation is identified."
+        "rationale": "HRS is now staff-supported in EXUI config and is covered by the staff-supported config/API contract, but remains outside global search, WA, and hearings must-run lanes.",
+        "nextAction": "Keep HRS in staff-ref-data coverage; promote only if EXUI owners add it to global search, WA, hearings, or another release-blocking lane."
       }
     ]
   },
@@ -694,6 +694,9 @@
       "event-history-layout-width",
       "event-start-spinner-latency",
       "idam-passport-session-smoke",
+      "sso-login-hint-entrypoint-state",
+      "post-auth-role-mismatch-access-denied",
+      "overview-page-layout-regression-classification",
       "media-viewer-redaction-coordinate"
     ]
   }

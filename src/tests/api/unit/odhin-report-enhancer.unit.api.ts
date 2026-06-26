@@ -153,6 +153,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).toContain('odhin-harness-lane-script');
     expect(nextHtml).toContain('Harness lane');
     expect(nextHtml).toContain('data-dashboard-harness-lane');
+    expect(nextHtml).toContain('dataTable.isDataTable');
     expect(nextHtml).toContain('Accessibility');
     expect(nextHtml.indexOf('Run info')).toBeLessThan(nextHtml.indexOf('Feature Overview'));
     expect(nextHtml.indexOf('Global Summary')).toBeLessThan(nextHtml.indexOf('Projects Summary'));
