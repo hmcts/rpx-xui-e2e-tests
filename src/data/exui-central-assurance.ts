@@ -734,7 +734,8 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
       "global-search-supported-service-families",
       "wa-supported-service-families",
       "staff-supported-service-families",
-      "hearings-supported-family-config-contract"
+      "hearings-supported-family-config-contract",
+      "ia-hearings-asylum-bail-routing-contract"
     ],
     rationale: "Central global search/WA/staff family and a hearings-enabled jurisdiction."
   },
@@ -1055,6 +1056,23 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.playwrightConfigUtilities,
       EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions
+    ]
+  },
+  {
+    id: "ia-hearings-asylum-bail-routing-contract",
+    lane: "hearings",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "IA",
+    caseType: "Asylum,Bail",
+    roleCluster: "caseworker, admin, home-office, judge",
+    assertion: "IA hearings routing keeps Asylum and Bail case types enabled with BFA1 service-code mapping",
+    source: "rpx-xui-webapp services.hearings.ia.caseTypes and serviceRefDataMapping",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },
   {

@@ -104,6 +104,11 @@ const ASSURANCE_MUTATIONS = {
     description: 'Demo fault: simulate EXUI no longer mapping Employment to the BHA1 service code.',
     removedFamily: 'BHA1',
   },
+  'drop-ia-hearings-bail-case-type': {
+    endpoint: 'services.hearings.ia.caseTypes',
+    description: 'Demo fault: simulate EXUI no longer exposing Bail as an IA hearings-enabled case type.',
+    removedFamily: 'BAIL',
+  },
 } as const;
 type AssuranceMutation = keyof typeof ASSURANCE_MUTATIONS;
 
@@ -618,6 +623,44 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('EMPLOYMENT');
   });
 
+  test('ia hearings routing pack has executable Asylum and Bail contracts', () => {
+    const iaScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
+      (scenario) => scenario.id === 'ia-hearings-asylum-bail-routing-contract'
+    );
+    const iaDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find((decision) => decision.serviceFamily === 'IA');
+    const iaConfig = buildHearingsEnvironmentConfigMock({
+      enabledCaseVariations: [
+        { jurisdiction: 'IA', caseType: 'Asylum' },
+        { jurisdiction: 'IA', caseType: 'Bail' },
+      ],
+      amendmentCaseVariations: [
+        { jurisdiction: 'IA', caseType: 'Asylum' },
+        { jurisdiction: 'IA', caseType: 'Bail' },
+      ],
+    });
+
+    expect(iaScenario).toEqual(
+      expect.objectContaining({
+        caseType: 'Asylum,Bail',
+        executionMode: 'api',
+        lane: 'hearings',
+        priority: 'must-run',
+        serviceFamily: 'IA',
+      })
+    );
+    expect(iaDecision?.representativeScenarioIds).toContain('ia-hearings-asylum-bail-routing-contract');
+    expect(EXUI_SERVICE_REF_DATA_MAPPING.IA).toEqual(['BFA1']);
+    expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.IA).toEqual(['Asylum', 'Bail']);
+    expect(iaConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
+      { jurisdiction: 'IA', includeCaseTypes: ['Asylum'] },
+      { jurisdiction: 'IA', includeCaseTypes: ['Bail'] },
+    ]);
+    expect(iaConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
+      { jurisdiction: 'IA', includeCaseTypes: ['Asylum'] },
+      { jurisdiction: 'IA', includeCaseTypes: ['Bail'] },
+    ]);
+  });
+
   test('civil release service pack has executable hearings and service-code contracts', () => {
     const civilScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
       (scenario) => scenario.id === 'civil-hearings-civil-case-type-contract'
@@ -832,6 +875,15 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'service-ref-data.employment.serviceCodes'
       ),
       EXUI_SERVICE_REF_DATA_MAPPING.EMPLOYMENT
+    );
+  });
+
+  test('ia hearings routing mutation proof catches a missing Bail case type', async ({}, testInfo) => {
+    await attachMutationEvidence(testInfo);
+
+    expectExactFamilySet(
+      mutateStringArrayForDemo(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.IA, 'services.hearings.ia.caseTypes'),
+      EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.IA
     );
   });
 

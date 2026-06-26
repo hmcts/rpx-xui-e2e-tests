@@ -24,6 +24,11 @@ const mutationProofs = {
     expectedEvidence: ["drop-employment-service-code", "\"BHA1\""],
     summary: "the injected EXUI-style Employment service-code regression was caught",
   },
+  "drop-ia-hearings-bail-case-type": {
+    grep: "ia hearings routing mutation proof catches a missing Bail case type",
+    expectedEvidence: ["drop-ia-hearings-bail-case-type", "\"BAIL\""],
+    summary: "the injected EXUI-style IA hearings regression was caught",
+  },
 };
 const mutationProof = mutationProofs[mutation];
 if (!mutationProof) {
