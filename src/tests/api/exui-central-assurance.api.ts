@@ -492,6 +492,68 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
+  test('release assurance verdict passes when coverage is complete and mutation evidence has passed', () => {
+    const verdict = buildReleaseAssuranceVerdict({
+      configuredFamilies: ['CIVIL'],
+      decisions: [
+        {
+          serviceFamily: 'CIVIL',
+          disposition: 'release-blocking',
+          lanes: ['global-search'],
+          representativeScenarioIds: ['global-search-supported-service-families'],
+          rationale: 'Synthetic complete coverage for pass-branch proof.',
+        },
+      ],
+      profiles: [
+        {
+          serviceFamily: 'CIVIL',
+          priority: 'release-blocking',
+          proofLevel: 'ccd-backed',
+          lanes: ['global-search'],
+          representativeCaseTypes: ['CIVIL'],
+          serviceCodes: ['AAA6'],
+          repos: [
+            {
+              fullName: 'hmcts/civil-ccd-definition',
+              url: 'https://github.com/hmcts/civil-ccd-definition',
+              visibility: 'public',
+              updatedAt: '2026-05-12T13:40:51Z',
+              defaultBranch: 'master',
+              definitionRoot: 'ccd-definition',
+              jsonFiles: 1,
+              caseEventToFields: 1,
+              caseEventToComplexTypes: 1,
+              authorisationCaseField: 1,
+              caseField: 1,
+              complexTypes: 1,
+            },
+          ],
+          rationale: 'Synthetic complete profile for pass-branch proof.',
+          nextAction: 'None for pass-branch proof.',
+        },
+      ],
+      failures: [],
+      mutationEvidenceStatus: 'passed',
+    });
+
+    expect(verdict).toEqual({
+      overallStatus: 'pass',
+      releaseBlockingCoverage: ['CIVIL'],
+      knownGaps: [],
+      mutationEvidence: {
+        status: 'passed',
+        requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+      },
+      historicFailureCoverage: {
+        'covered-now': [],
+        'would-catch-with-replay-pack': [],
+        'learning-case': [],
+        partial: [],
+        'out-of-scope': [],
+      },
+    });
+  });
+
   test('hearings seam has executable supported and unsupported family contracts', () => {
     const enabledConfig = buildHearingsEnvironmentConfigMock({
       enabledCaseVariations: [{ jurisdiction: 'PRIVATELAW', caseType: 'PRLAPPS' }],

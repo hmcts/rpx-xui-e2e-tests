@@ -72,6 +72,16 @@ function checkValue(label, actual, expected) {
   }
 }
 
+function configuredFamiliesFromSource() {
+  return [
+    ...expectedDefault.jurisdictions,
+    ...expectedDefault.globalSearchServices,
+    ...expectedDefault.waSupportedJurisdictions,
+    ...expectedDefault.staffSupportedJurisdictions,
+    ...expectedDefault.hearings.hearingsJurisdictions
+  ].map(normalize);
+}
+
 function normalizeMapping(mapping) {
   return Object.fromEntries(
     mapping.map(({ service, serviceCodes }) => [normalize(service), sorted(serviceCodes.map(normalize))])
@@ -220,15 +230,7 @@ function checkPrlDefinitions() {
 }
 
 function checkServiceDefinitionProfiles() {
-  const configuredFamilies = new Set(
-    [
-      ...expectedDefault.jurisdictions,
-      ...expectedDefault.globalSearchServices,
-      ...expectedDefault.waSupportedJurisdictions,
-      ...expectedDefault.staffSupportedJurisdictions,
-      ...expectedDefault.hearings.hearingsJurisdictions
-    ].map(normalize)
-  );
+  const configuredFamilies = new Set(configuredFamiliesFromSource());
   const profileFamilies = new Set(expectedDefinitionProfiles.map((profile) => normalize(profile.serviceFamily)));
 
   checkSet("serviceDefinitionProfiles configured family coverage", [...profileFamilies], [...configuredFamilies]);
@@ -261,6 +263,29 @@ function checkServiceDefinitionProfiles() {
   }
 }
 
+function buildReleaseAssuranceManifestVerdict() {
+  const configuredFamilies = new Set(configuredFamiliesFromSource());
+  const profileFamilies = new Set(expectedDefinitionProfiles.map((profile) => normalize(profile.serviceFamily)));
+  const releaseBlockingSourceGaps = expectedDefinitionProfiles
+    .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel !== "ccd-backed")
+    .map((profile) => normalize(profile.serviceFamily));
+  const releaseBlockingCoverage = expectedDefinitionProfiles
+    .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel === "ccd-backed")
+    .map((profile) => normalize(profile.serviceFamily));
+  const unprofiledFamilies = [...configuredFamilies].filter((family) => !profileFamilies.has(family));
+  const knownGaps = [
+    ...releaseBlockingSourceGaps.map((family) => `release-blocking family without CCD-backed profile: ${family}`),
+    `mutation evidence pending: ${mutationCommands.join(", ")}`
+  ];
+  const fatalGaps = unprofiledFamilies.map((family) => `unprofiled configured family: ${family}`);
+
+  return {
+    overallStatus: fatalGaps.length > 0 ? "fail" : knownGaps.length > 0 ? "warn" : "pass",
+    releaseBlockingCoverage: sorted(releaseBlockingCoverage),
+    mutationCommands
+  };
+}
+
 const { defaultConfig, envConfig } = readXuiConfig();
 checkXuiDefaultConfig(defaultConfig);
 checkXuiEnvConfig(envConfig);
@@ -284,10 +309,8 @@ if (failures.length > 0) {
   console.log(
     `[harness-manifest] service definition profiles cover ${expectedDefinitionProfiles.length} configured EXUI families; known CCD-source gaps are ST_CIC and PROBATE.`
   );
-  const releaseBlockingCcdBacked = expectedDefinitionProfiles
-    .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel === "ccd-backed")
-    .map((profile) => normalize(profile.serviceFamily));
+  const releaseAssuranceVerdict = buildReleaseAssuranceManifestVerdict();
   console.log(
-    `[harness-manifest] release assurance verdict=warn; release-blocking CCD-backed=${sorted(releaseBlockingCcdBacked).join(", ")}; pending mutation evidence=${mutationCommands.join(", ")}.`
+    `[harness-manifest] release assurance verdict=${releaseAssuranceVerdict.overallStatus}; release-blocking CCD-backed=${releaseAssuranceVerdict.releaseBlockingCoverage.join(", ")}; pending mutation evidence=${releaseAssuranceVerdict.mutationCommands.join(", ")}.`
   );
 }

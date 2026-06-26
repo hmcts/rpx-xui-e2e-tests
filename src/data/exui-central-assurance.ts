@@ -230,15 +230,15 @@ export type HistoricFailureReplayPack =
   | "media-viewer-specialist";
 
 export type HistoricFailureHumanFixConfidence = "confirmed" | "candidate" | "indirect" | "not-found";
-export type ExuiReleaseAssuranceStatus = "pass" | "warn" | "fail";
-export type ExuiReleaseAssuranceMutationStatus = "passed" | "pending";
+type ExuiReleaseAssuranceStatus = "pass" | "warn" | "fail";
+type ExuiReleaseAssuranceMutationStatus = "passed" | "pending";
 
-export interface ExuiReleaseAssuranceMutationEvidence {
+interface ExuiReleaseAssuranceMutationEvidence {
   status: ExuiReleaseAssuranceMutationStatus;
   requiredCommands: readonly string[];
 }
 
-export interface ExuiReleaseAssuranceVerdict {
+interface ExuiReleaseAssuranceVerdict {
   overallStatus: ExuiReleaseAssuranceStatus;
   releaseBlockingCoverage: readonly string[];
   knownGaps: readonly string[];
@@ -246,7 +246,7 @@ export interface ExuiReleaseAssuranceVerdict {
   historicFailureCoverage: Record<HistoricFailureCoverageStatus, readonly string[]>;
 }
 
-export interface BuildReleaseAssuranceVerdictOptions {
+interface BuildReleaseAssuranceVerdictOptions {
   configuredFamilies?: readonly string[];
   decisions?: readonly ExuiServiceFamilyCoverageDecision[];
   profiles?: readonly ExuiServiceDefinitionProfile[];
@@ -255,7 +255,7 @@ export interface BuildReleaseAssuranceVerdictOptions {
   mutationCommands?: readonly string[];
 }
 
-export const EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS = [
+const EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS = [
   "yarn harness:mutation:wa",
   "yarn harness:mutation:ccd"
 ] as const;
