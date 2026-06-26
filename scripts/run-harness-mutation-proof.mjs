@@ -5,7 +5,28 @@ import process from "node:process";
 
 const mutation = process.env.EXUI_ASSURANCE_MUTATION || "drop-prl-wa-family";
 const focusedSpec = "src/tests/api/exui-central-assurance.api.ts";
-const focusedGrep = "api/wa-supported-jurisdiction/get mutation proof catches a shared WA family regression";
+const mutationProofs = {
+  "drop-prl-wa-family": {
+    grep: "api/wa-supported-jurisdiction/get mutation proof catches a shared WA family regression",
+    expectedEvidence: [
+      "drop-prl-wa-family",
+      "api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW",
+    ],
+    summary: "the injected EXUI-style WA regression was caught",
+  },
+  "drop-employment-service-code": {
+    grep: "employment service-code mutation proof catches a missing BHA1 mapping",
+    expectedEvidence: ["drop-employment-service-code", "\"BHA1\""],
+    summary: "the injected EXUI-style Employment service-code regression was caught",
+  },
+};
+const mutationProof = mutationProofs[mutation];
+if (!mutationProof) {
+  console.error(`[harness-mutation] Unsupported EXUI_ASSURANCE_MUTATION=${mutation}.`);
+  console.error(`[harness-mutation] Supported values: ${Object.keys(mutationProofs).join(", ")}`);
+  process.exit(1);
+}
+const focusedGrep = process.env.EXUI_ASSURANCE_MUTATION_GREP || mutationProof.grep;
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const reportOutput =
   process.env.PW_ODHIN_OUTPUT || "functional-output/tests/harness/mutation-proof/odhin-report";
@@ -104,11 +125,7 @@ if (mutated.code === 0) {
   process.exit();
 }
 
-const expectedEvidence = [
-  "drop-prl-wa-family",
-  "api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW",
-];
-const missingEvidence = expectedEvidence.filter((needle) => !mutated.output.includes(needle));
+const missingEvidence = mutationProof.expectedEvidence.filter((needle) => !mutated.output.includes(needle));
 
 if (missingEvidence.length) {
   console.error("\n[harness-mutation] The mutation failed the suite, but not with the expected evidence.");
@@ -118,5 +135,5 @@ if (missingEvidence.length) {
 }
 
 console.log("\n[harness-mutation] Mutation proof passed.");
-console.log("[harness-mutation] The control run was green, the injected EXUI-style WA regression was caught, and no source config was changed.");
+console.log(`[harness-mutation] The control run was green, ${mutationProof.summary}, and no source config was changed.`);
 console.log(`[harness-mutation] Odhín failure report: ${path.join(reportOutput, reportIndex)}`);

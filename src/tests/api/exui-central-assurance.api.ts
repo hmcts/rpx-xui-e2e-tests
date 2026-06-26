@@ -93,6 +93,11 @@ const ASSURANCE_MUTATIONS = {
       'Demo fault: simulate EXUI no longer exposing Private Law as a Work Allocation-supported service family.',
     removedFamily: 'PRIVATELAW',
   },
+  'drop-employment-service-code': {
+    endpoint: 'service-ref-data.employment.serviceCodes',
+    description: 'Demo fault: simulate EXUI no longer mapping Employment to the BHA1 service code.',
+    removedFamily: 'BHA1',
+  },
 } as const;
 type AssuranceMutation = keyof typeof ASSURANCE_MUTATIONS;
 
@@ -475,6 +480,39 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
+  test('employment service pack has executable service-code and ref-data contracts', () => {
+    const employmentScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
+      (scenario) => scenario.id === 'employment-service-code-ref-data-contract'
+    );
+    const employmentDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find(
+      (decision) => decision.serviceFamily === 'EMPLOYMENT'
+    );
+    const employmentProfile = EXUI_SERVICE_DEFINITION_PROFILES.find(
+      (profile) => profile.serviceFamily === 'EMPLOYMENT'
+    );
+
+    expect(employmentScenario).toEqual(
+      expect.objectContaining({
+        caseType: 'ET_EnglandWales,ET_Scotland',
+        executionMode: 'api',
+        lane: 'staff-ref-data',
+        priority: 'must-run',
+        serviceFamily: 'EMPLOYMENT',
+      })
+    );
+    expect(employmentDecision?.representativeScenarioIds).toContain('employment-service-code-ref-data-contract');
+    expect(employmentProfile).toEqual(
+      expect.objectContaining({
+        representativeCaseTypes: ['ET_EnglandWales', 'ET_Scotland'],
+        serviceCodes: ['BHA1'],
+      })
+    );
+    expect(EXUI_SERVICE_REF_DATA_MAPPING.EMPLOYMENT).toEqual(['BHA1']);
+    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).toContain('EMPLOYMENT');
+    expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).toContain('EMPLOYMENT');
+    expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('EMPLOYMENT');
+  });
+
   test('scenario manifest is wiki-ready and traceable to source repositories', () => {
     const scenarioIds = EXUI_SUPERSERVICE_SCENARIOS.map((scenario) => scenario.id);
     expect(new Set(scenarioIds).size).toBe(scenarioIds.length);
@@ -645,6 +683,18 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       mutateStringArrayForDemo(EXUI_WA_SUPPORTED_SERVICE_FAMILIES, 'api/wa-supported-jurisdiction/get'),
       EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
       'api/wa-supported-jurisdiction/get'
+    );
+  });
+
+  test('employment service-code mutation proof catches a missing BHA1 mapping', async ({}, testInfo) => {
+    await attachMutationEvidence(testInfo);
+
+    expectExactFamilySet(
+      mutateStringArrayForDemo(
+        EXUI_SERVICE_REF_DATA_MAPPING.EMPLOYMENT,
+        'service-ref-data.employment.serviceCodes'
+      ),
+      EXUI_SERVICE_REF_DATA_MAPPING.EMPLOYMENT
     );
   });
 
