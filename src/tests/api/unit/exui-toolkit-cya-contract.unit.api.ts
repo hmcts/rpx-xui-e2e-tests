@@ -8,6 +8,7 @@ function buildEvidence(
   overrides: Partial<Exui4493ToolkitContractEvidence> = {}
 ): Exui4493ToolkitContractEvidence {
   return {
+    toolkitAvailable: true,
     webappRoot: "/workspace/rpx-xui-webapp",
     toolkitPackageVersion: "7.3.54",
     toolkitBundlePath: "/workspace/rpx-xui-webapp/node_modules/@hmcts/ccd-case-ui-toolkit/fesm2022/hmcts-ccd-case-ui-toolkit.mjs",
@@ -38,6 +39,21 @@ function buildEvidence(
 test.describe("EXUI-4493 toolkit CYA contract assertion", { tag: "@svc-internal" }, () => {
   test("passes when the installed toolkit exposes the required source markers and visible CYA rows", () => {
     expect(() => assertExui4493ToolkitContract(buildEvidence())).not.toThrow();
+  });
+
+  test("passes when the installed toolkit package is unavailable in the current workspace", () => {
+    expect(() =>
+      assertExui4493ToolkitContract(
+        buildEvidence({
+          toolkitAvailable: false,
+          toolkitPackageVersion: "unavailable",
+          toolkitBundlePath:
+            "/workspace/rpx-xui-webapp/node_modules/@hmcts/ccd-case-ui-toolkit/package.json",
+          unavailableReason:
+            "Cannot find installed @hmcts/ccd-case-ui-toolkit package at /workspace/rpx-xui-webapp/node_modules/@hmcts/ccd-case-ui-toolkit/package.json."
+        })
+      )
+    ).not.toThrow();
   });
 
   test("fails clearly when the installed toolkit bundle does not contain the EXUI-4493 context fix markers", () => {
