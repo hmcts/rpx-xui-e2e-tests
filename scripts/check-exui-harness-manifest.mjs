@@ -13,7 +13,13 @@ const source = readJson(sourcePath);
 const expectedDefault = source.rpxXuiWebapp["config/default.json"];
 const expectedEnv = source.rpxXuiWebapp["config/custom-environment-variables.json"];
 const expectedDefinitionProfiles = source.serviceDefinitionProfiles?.profiles ?? [];
-const mutationCommands = ["yarn harness:mutation:wa", "yarn harness:mutation:ccd"];
+const mutationCommands = [
+  "yarn harness:mutation:wa",
+  "yarn harness:mutation:civil",
+  "yarn harness:mutation:ia",
+  "yarn harness:mutation:employment",
+  "yarn harness:mutation:ccd"
+];
 
 const failures = [];
 

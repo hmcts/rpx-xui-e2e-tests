@@ -524,12 +524,18 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'release-blocking family without CCD-backed profile: ST_CIC',
         'historic learning case not executable yet: overview-page-layout-regression-classification',
         'historic out-of-scope class: media-viewer-redaction-coordinate',
-        'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:ccd',
+        'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd',
       ])
     );
     expect(verdict.mutationEvidence).toEqual({
       status: 'pending',
-      requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+      requiredCommands: [
+        'yarn harness:mutation:wa',
+        'yarn harness:mutation:civil',
+        'yarn harness:mutation:ia',
+        'yarn harness:mutation:employment',
+        'yarn harness:mutation:ccd',
+      ],
     });
     expect(verdict.historicFailureCoverage['covered-now']).toContain('nested-complex-fieldshowcondition-cya');
   });
@@ -598,7 +604,13 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       knownGaps: [],
       mutationEvidence: {
         status: 'passed',
-        requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+        requiredCommands: [
+          'yarn harness:mutation:wa',
+          'yarn harness:mutation:civil',
+          'yarn harness:mutation:ia',
+          'yarn harness:mutation:employment',
+          'yarn harness:mutation:ccd',
+        ],
       },
       historicFailureCoverage: {
         'covered-now': [],
