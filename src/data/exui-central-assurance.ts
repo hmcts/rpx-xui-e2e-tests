@@ -263,6 +263,9 @@ interface BuildReleaseAssuranceVerdictOptions {
 
 const EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS = [
   "yarn harness:mutation:wa",
+  "yarn harness:mutation:civil",
+  "yarn harness:mutation:ia",
+  "yarn harness:mutation:employment",
   "yarn harness:mutation:ccd"
 ] as const;
 
