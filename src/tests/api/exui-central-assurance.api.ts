@@ -7,6 +7,7 @@ import {
   buildCoverageSummary,
   classifyExuiDefectIntake,
   buildGlobalSearchServicesCatalog,
+  buildReleaseAssuranceVerdict,
   buildServiceDefinitionProfileSummary,
   buildSuperserviceKnowledgeIndex,
   EXUI_ALL_CONFIGURED_SERVICE_FAMILIES,
@@ -493,6 +494,105 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(classifyExuiDefectIntake('Untriaged defect with no source evidence yet').route).toBe(
       'owner-confirmed-follow-up'
     );
+  });
+
+  test('release assurance verdict is deterministic and does not overclaim pending evidence', () => {
+    const verdict = buildReleaseAssuranceVerdict();
+
+    expect(verdict.overallStatus).toBe('warn');
+    expect(verdict.releaseBlockingCoverage).toEqual(
+      expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW'])
+    );
+    expect(verdict.releaseBlockingCoverage).not.toContain('ST_CIC');
+    expect(verdict.knownGaps).toEqual(
+      expect.arrayContaining([
+        'release-blocking family without CCD-backed profile: ST_CIC',
+        'historic learning case not executable yet: overview-page-layout-regression-classification',
+        'historic out-of-scope class: media-viewer-redaction-coordinate',
+        'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:ccd',
+      ])
+    );
+    expect(verdict.mutationEvidence).toEqual({
+      status: 'pending',
+      requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+    });
+    expect(verdict.historicFailureCoverage['covered-now']).toContain('nested-complex-fieldshowcondition-cya');
+  });
+
+  test('release assurance verdict fails when a configured family is not classified or profiled', () => {
+    const verdict = buildReleaseAssuranceVerdict({
+      configuredFamilies: [...EXUI_ALL_CONFIGURED_SERVICE_FAMILIES, 'NEW_SERVICE'],
+    });
+
+    expect(verdict.overallStatus).toBe('fail');
+    expect(verdict.knownGaps).toEqual(
+      expect.arrayContaining([
+        'unclassified configured family: NEW_SERVICE',
+        'unprofiled configured family: NEW_SERVICE',
+      ])
+    );
+  });
+
+  test('release assurance verdict passes when coverage is complete and mutation evidence has passed', () => {
+    const verdict = buildReleaseAssuranceVerdict({
+      configuredFamilies: ['CIVIL'],
+      decisions: [
+        {
+          serviceFamily: 'CIVIL',
+          disposition: 'release-blocking',
+          lanes: ['global-search'],
+          representativeScenarioIds: ['global-search-supported-service-families'],
+          rationale: 'Synthetic complete coverage for pass-branch proof.',
+        },
+      ],
+      profiles: [
+        {
+          serviceFamily: 'CIVIL',
+          priority: 'release-blocking',
+          proofLevel: 'ccd-backed',
+          lanes: ['global-search'],
+          representativeCaseTypes: ['CIVIL'],
+          serviceCodes: ['AAA6'],
+          repos: [
+            {
+              fullName: 'hmcts/civil-ccd-definition',
+              url: 'https://github.com/hmcts/civil-ccd-definition',
+              visibility: 'public',
+              updatedAt: '2026-05-12T13:40:51Z',
+              defaultBranch: 'master',
+              definitionRoot: 'ccd-definition',
+              jsonFiles: 1,
+              caseEventToFields: 1,
+              caseEventToComplexTypes: 1,
+              authorisationCaseField: 1,
+              caseField: 1,
+              complexTypes: 1,
+            },
+          ],
+          rationale: 'Synthetic complete profile for pass-branch proof.',
+          nextAction: 'None for pass-branch proof.',
+        },
+      ],
+      failures: [],
+      mutationEvidenceStatus: 'passed',
+    });
+
+    expect(verdict).toEqual({
+      overallStatus: 'pass',
+      releaseBlockingCoverage: ['CIVIL'],
+      knownGaps: [],
+      mutationEvidence: {
+        status: 'passed',
+        requiredCommands: ['yarn harness:mutation:wa', 'yarn harness:mutation:ccd'],
+      },
+      historicFailureCoverage: {
+        'covered-now': [],
+        'would-catch-with-replay-pack': [],
+        'learning-case': [],
+        partial: [],
+        'out-of-scope': [],
+      },
+    });
   });
 
   test('hearings seam has executable supported and unsupported family contracts', () => {
