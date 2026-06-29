@@ -7,7 +7,10 @@ import {
 } from "../../../page-objects/pages/exui/exui-timeouts.js";
 import type { GlobalSearchPage } from "../../../page-objects/pages/exui/globalSearch.po.js";
 
-import { buildNgIntegrationAppConfigMock } from "./ngIntegrationMockRoutes.helper.js";
+import {
+  buildNgIntegrationAppConfigMock,
+  setupNgIntegrationOrganisationRoute
+} from "./ngIntegrationMockRoutes.helper.js";
 
 export interface FindCaseMockRoutesConfig {
   jurisdictions: unknown;
@@ -20,6 +23,8 @@ export async function setupFindCaseMockRoutes(
   page: Page,
   config: FindCaseMockRoutesConfig
 ): Promise<void> {
+  await setupNgIntegrationOrganisationRoute(page);
+
   await page.route("**/aggregated/caseworkers/**/jurisdictions*", async (route) => {
     await route.fulfill({
       status: 200,
@@ -82,6 +87,8 @@ export async function setupGlobalSearchMockRoutes(
   page: Page,
   config: GlobalSearchMockRoutesConfig
 ): Promise<void> {
+  await setupNgIntegrationOrganisationRoute(page);
+
   await page.route("**/aggregated/caseworkers/**/jurisdictions*", async (route) => {
     await route.fulfill({
       status: 200,

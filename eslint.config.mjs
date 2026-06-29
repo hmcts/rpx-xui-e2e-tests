@@ -45,5 +45,12 @@ export default tseslint.config(
         }
       ]
     }
+  },
+  {
+    files: ["src/tests/api/**/*.ts"],
+    rules: {
+      "playwright/no-conditional-expect": "off",
+      "playwright/no-conditional-in-test": "off"
+    }
   }
 );

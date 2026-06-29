@@ -1,4 +1,3 @@
-/* eslint-disable playwright/no-conditional-in-test -- These API unit tests validate helper branch behavior with deterministic fakes. */
 import { expect, test } from '@playwright/test';
 
 import { uploadDocumentViaApi } from '../../e2e/utils/test-setup/uploadDocumentViaApi.js';
