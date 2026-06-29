@@ -74,7 +74,6 @@
     "@hmcts/playwright-common": "^1.1.0",
     "@playwright/test": "^1.57.0",
     "@types/node": "^24.0.0",
-    "@types/uuid": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^8.8.0",
     "@typescript-eslint/parser": "^8.8.0",
     "axe-core": "^4.11.1",

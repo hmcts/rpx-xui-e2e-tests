@@ -1075,15 +1075,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/uuid@npm:^11.0.0":
-  version: 11.0.0
-  resolution: "@types/uuid@npm:11.0.0"
-  dependencies:
-    uuid: "npm:*"
-  checksum: 10c0/6ebf1448d8fdc78d348a8a84389b74083f2f58bed75a5a6cf3be8419d33dcf757735c8b2de746b066ff8ef07f4384d02549774dc84195ffa46b24745471e9d8e
-  languageName: node
-  linkType: hard
-
 "@types/yauzl@npm:^2.9.1":
   version: 2.10.3
   resolution: "@types/yauzl@npm:2.10.3"
@@ -5931,7 +5922,6 @@ __metadata:
     "@hmcts/playwright-common": "npm:^1.1.0"
     "@playwright/test": "npm:^1.57.0"
     "@types/node": "npm:^24.0.0"
-    "@types/uuid": "npm:^11.0.0"
     "@typescript-eslint/eslint-plugin": "npm:^8.8.0"
     "@typescript-eslint/parser": "npm:^8.8.0"
     axe-core: "npm:^4.11.1"

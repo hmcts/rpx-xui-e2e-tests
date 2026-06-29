@@ -7,7 +7,8 @@ import { buildAsylumCaseMock } from '../../mocks/cases/asylumCase.mock';
 import { formatUiDate } from '../../utils/tableUtils';
 
 const userIdentifier = 'STAFF_ADMIN';
-const inSixHours = faker.date.soon({ days: 0.25 }).toISOString();
+const sixHoursMs = 6 * 60 * 60 * 1000;
+const inSixHours = new Date(Date.now() + sixHoursMs).toISOString();
 const inTwoDays = faker.date.soon({ days: 2 }).toISOString();
 const in90Days = faker.date.future().toISOString();
 const caseId = faker.number.int({ min: 1000000000, max: 9999999999 }).toString();
