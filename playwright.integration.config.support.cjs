@@ -106,7 +106,7 @@ const buildConfig = (env = process.env) => {
     projects: [
       {
         name: "chromium",
-        testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
+        testMatch: "integration/**/*.spec.ts",
         workers: resolveConfiguredProjectWorkers(env),
         use: {
           channel: resolveBrowserChannel(env),
