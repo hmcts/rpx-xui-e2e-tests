@@ -1,4 +1,3 @@
-/* eslint-disable playwright/no-conditional-expect -- These API unit tests assert validation branch payloads from deterministic mocks. */
 import { expect, test } from '@playwright/test';
 
 import {

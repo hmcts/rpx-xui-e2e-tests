@@ -1,4 +1,3 @@
-/* eslint-disable playwright/no-conditional-in-test -- These API unit tests validate retry/diagnostic branches with deterministic fakes. */
 import { expect, test } from '@playwright/test';
 
 import { DynamicProvisioningError } from '../../e2e/utils/test-setup/dynamicProvisioningFlow.js';
