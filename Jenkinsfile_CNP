@@ -455,7 +455,7 @@ def runCnpPlaywrightStages = {
         } else {
           runInPlaywrightContainer {
             withEnv(uiEnv) {
-              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${uiWorkers}")
+              runPlaywrightShell("PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true corepack yarn test:ui:raw -- --workers=${uiWorkers}")
             }
           }
         }
@@ -501,7 +501,7 @@ def runCnpPlaywrightStages = {
       try {
         runInPlaywrightContainer {
           withEnv(integrationEnv) {
-            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
+            runPlaywrightShell("PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
           }
         }
       } catch (Exception e) {
