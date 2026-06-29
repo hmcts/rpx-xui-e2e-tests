@@ -69,7 +69,14 @@ const buildIntegrationConfig = (env: EnvMap) =>
     expect: { timeout?: number };
     reporter: [string, Record<string, unknown> | undefined][];
     use: { timezoneId?: string };
-    projects: Array<{ name: string; workers?: number; grep?: RegExp; grepInvert?: RegExp; use?: { channel?: string } }>;
+    projects: Array<{
+      name: string;
+      testMatch?: string | RegExp;
+      workers?: number;
+      grep?: RegExp;
+      grepInvert?: RegExp;
+      use?: { channel?: string };
+    }>;
   };
 
 const resolveIntegrationTagFilters = (env: EnvMap) =>
@@ -492,6 +499,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(config.use.timezoneId).toBe('Europe/London');
     expect(config.projects).toHaveLength(1);
     expect(config.projects[0]?.name).toBe('chromium');
+    expect(config.projects[0]?.testMatch).toBe('integration/**/*.spec.ts');
     expect(config.projects[0]?.workers).toBe(4);
   });
 
@@ -503,6 +511,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     });
 
     expect(config.projects).toHaveLength(1);
+    expect(config.projects[0]?.testMatch).toBe('integration/**/*.spec.ts');
     expect(config.projects[0]?.grep).toBeInstanceOf(RegExp);
     expect(config.projects[0]?.grep?.test('@integration-search-case')).toBe(true);
     expect(config.projects[0]?.grep?.test('@integration-manage-tasks')).toBe(false);
@@ -535,6 +544,41 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(integrationNightlyProject?.grep?.test('@nightly')).toBe(true);
     expect(integrationNightlyProject?.grepInvert?.test('@integration-bucket-6')).toBe(true);
     expect(integrationNightlyProject?.grepInvert?.test('@nightly')).toBe(false);
+  });
+
+  test('root config honours Jenkins UI and integration tag selections', async () => {
+    const config = buildConfig({
+      E2E_PW_INCLUDE_TAGS: '',
+      E2E_PW_EXCLUDED_TAGS_OVERRIDE: '@none',
+      INTEGRATION_PW_INCLUDE_TAGS:
+        '@integration-bucket-1,@integration-bucket-2,@integration-bucket-3,@integration-bucket-4,@integration-bucket-5',
+      INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: '@nightly,@integration-bucket-6',
+      PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: '@e2e-search-case @integration-manage-tasks @svc-auth',
+      PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES: 'true',
+      CI: 'true',
+    });
+
+    const uiProject = config.projects.find((project) => project.name === 'ui') as
+      | { testMatch?: string | RegExp; grep?: RegExp; grepInvert?: RegExp }
+      | undefined;
+    const integrationProject = config.projects.find((project) => project.name === 'integration') as
+      | { testMatch?: string | RegExp; grep?: RegExp; grepInvert?: RegExp }
+      | undefined;
+    const apiProject = config.projects.find((project) => project.name === 'api') as
+      | { testMatch?: string | RegExp }
+      | undefined;
+
+    expect(uiProject?.testMatch).toBe('e2e/**/*.spec.ts');
+    expect(uiProject?.grep).toBeUndefined();
+    expect(uiProject?.grepInvert).toBeUndefined();
+    expect(integrationProject?.testMatch).toBe('integration/**/*.spec.ts');
+    expect(integrationProject?.grep?.test('@integration-bucket-1')).toBe(true);
+    expect(integrationProject?.grep?.test('@integration-bucket-5')).toBe(true);
+    expect(integrationProject?.grep?.test('@integration-bucket-6')).toBe(false);
+    expect(integrationProject?.grepInvert?.test('@nightly')).toBe(true);
+    expect(integrationProject?.grepInvert?.test('@integration-bucket-6')).toBe(true);
+    expect(integrationProject?.grepInvert?.test('@integration-manage-tasks')).toBe(false);
+    expect(apiProject?.testMatch).toBe('api/**/*.api.ts');
   });
 
   test('integration filters apply only integration-scoped global exclusions', async () => {

@@ -55,6 +55,9 @@ export const expectValidUnassignSubmission = (submission: CapturedTaskSubmission
 };
 
 const DEFAULT_TASK_ID = 'f782bde3-8d51-11eb-a9a4-06d032acc76d';
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const isoDateFromNow = (days: number): string => new Date(Date.now() + days * DAY_MS).toISOString();
 
 const buildTaskDetailsResponse = (options: TaskActionMockOptions) => {
   const taskId = options.taskId ?? DEFAULT_TASK_ID;
@@ -62,6 +65,8 @@ const buildTaskDetailsResponse = (options: TaskActionMockOptions) => {
   const jurisdiction = options.jurisdiction ?? 'IA';
   const caseTypeId = options.caseTypeId ?? 'Asylum';
   const assigneeId = options.assigneeId ?? '10bac6bf-80a7-4c81-b2db-516aba826be6';
+  const createdDate = isoDateFromNow(-30);
+  const dueDate = isoDateFromNow(90);
 
   return {
     task: {
@@ -72,12 +77,12 @@ const buildTaskDetailsResponse = (options: TaskActionMockOptions) => {
       task_system: 'SELF',
       security_classification: 'PUBLIC',
       task_title: options.task_name ?? 'Review the appeal',
-      created_date: faker.date.past({ years: 0.25 }).toISOString(),
-      due_date: options.due_date ?? faker.date.future({ years: 0.25 }).toISOString(),
-      dueDate: options.dueDate ?? faker.date.future({ years: 0.25 }).toISOString(),
+      created_date: createdDate,
+      due_date: options.due_date ?? dueDate,
+      dueDate: options.dueDate ?? dueDate,
       minor_priority: options.minor_priority ?? 500,
       major_priority: options.major_priority ?? 1000,
-      priority_date: options.priority_date ?? faker.date.future({ years: 0.25 }).toISOString(),
+      priority_date: options.priority_date ?? dueDate,
       assignee: assigneeId,
       auto_assigned: false,
       execution_type: 'Case Management Task',

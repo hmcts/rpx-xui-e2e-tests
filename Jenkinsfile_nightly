@@ -166,7 +166,7 @@ def secrets = [
 ]
 
 def yarnBuilder = new uk.gov.hmcts.contino.YarnBuilder(this)
-def playwrightImage = "mcr.microsoft.com/playwright:v1.60.0-noble"
+def playwrightImage = "mcr.microsoft.com/playwright:v1.61.1-noble"
 def playwrightDockerOptions = "--ipc=host"
 def playwrightLoadProfileReportFile = 'load-profile.html'
 def ciLoadProfileDir = 'functional-output/tests/playwright-integration/load-profile/ci'

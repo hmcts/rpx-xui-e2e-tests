@@ -182,7 +182,7 @@ def secrets = [
   ]
 ]
 
-def playwrightImage = "mcr.microsoft.com/playwright:v1.60.0-noble"
+def playwrightImage = "mcr.microsoft.com/playwright:v1.61.1-noble"
 def playwrightDockerOptions = "--ipc=host"
 
 def runInPlaywrightContainer = { Closure body ->
@@ -425,9 +425,10 @@ def runCnpPlaywrightStages = {
         "PLAYWRIGHT_WORKERS=${uiWorkers}",
         'PLAYWRIGHT_MAX_WORKERS=4',
         "PW_UI_WORKERS=${uiWorkers}",
-        "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
+        'E2E_PW_INCLUDE_TAGS=',
         'E2E_PW_EXCLUDED_TAGS_OVERRIDE=@none',
         'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true',
+        'PLAYWRIGHT_LOG_TAG_FILTERS=true',
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
         'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
@@ -483,6 +484,7 @@ def runCnpPlaywrightStages = {
         "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
         "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
         'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true',
+        'PLAYWRIGHT_LOG_TAG_FILTERS=true',
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
         "PW_ODHIN_TARGET=${integrationReportDir}",
