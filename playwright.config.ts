@@ -488,7 +488,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
     projects: [
       {
         name: "ui",
-        testMatch: "e2e/**/*.spec.ts",
+        testMatch: /src\/tests\/e2e\/.*\.spec\.ts/,
         grep: e2eTagFilters.grep,
         grepInvert: e2eTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
@@ -512,7 +512,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       },
       {
         name: "integration",
-        testMatch: "integration/**/*.spec.ts",
+        testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
         grep: integrationTagFilters.grep,
         grepInvert: integrationTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
@@ -534,7 +534,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       },
       {
         name: "integration-nightly",
-        testMatch: "integration/**/*.spec.ts",
+        testMatch: /src\/tests\/integration\/.*\.spec\.ts/,
         grep: integrationNightlyTagFilters.grep,
         grepInvert: integrationNightlyTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,
@@ -556,7 +556,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       },
       {
         name: "api",
-        testMatch: "api/**/*.api.ts",
+        testMatch: /src\/tests\/api\/.*\.api\.ts/,
         grep: apiTagFilters.grep,
         grepInvert: apiTagFilters.grepInvert,
         retries: env.CI ? 1 : 0,

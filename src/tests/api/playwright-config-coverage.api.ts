@@ -568,17 +568,17 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
       | { testMatch?: string | RegExp }
       | undefined;
 
-    expect(uiProject?.testMatch).toBe('e2e/**/*.spec.ts');
+    expect(uiProject?.testMatch).toEqual(/src\/tests\/e2e\/.*\.spec\.ts/);
     expect(uiProject?.grep).toBeUndefined();
     expect(uiProject?.grepInvert).toBeUndefined();
-    expect(integrationProject?.testMatch).toBe('integration/**/*.spec.ts');
+    expect(integrationProject?.testMatch).toEqual(/src\/tests\/integration\/.*\.spec\.ts/);
     expect(integrationProject?.grep?.test('@integration-bucket-1')).toBe(true);
     expect(integrationProject?.grep?.test('@integration-bucket-5')).toBe(true);
     expect(integrationProject?.grep?.test('@integration-bucket-6')).toBe(false);
     expect(integrationProject?.grepInvert?.test('@nightly')).toBe(true);
     expect(integrationProject?.grepInvert?.test('@integration-bucket-6')).toBe(true);
     expect(integrationProject?.grepInvert?.test('@integration-manage-tasks')).toBe(false);
-    expect(apiProject?.testMatch).toBe('api/**/*.api.ts');
+    expect(apiProject?.testMatch).toEqual(/src\/tests\/api\/.*\.api\.ts/);
   });
 
   test('integration filters apply only integration-scoped global exclusions', async () => {
