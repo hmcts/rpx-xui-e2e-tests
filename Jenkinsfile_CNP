@@ -426,7 +426,7 @@ def runCnpPlaywrightStages = {
         'PLAYWRIGHT_MAX_WORKERS=4',
         "PW_UI_WORKERS=${uiWorkers}",
         "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
-        "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
+        'E2E_PW_EXCLUDED_TAGS_OVERRIDE=@none',
         'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true',
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
@@ -455,7 +455,7 @@ def runCnpPlaywrightStages = {
         } else {
           runInPlaywrightContainer {
             withEnv(uiEnv) {
-              runPlaywrightShell("PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true corepack yarn test:ui:raw -- --workers=${uiWorkers}")
+              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${uiWorkers}")
             }
           }
         }
@@ -482,7 +482,7 @@ def runCnpPlaywrightStages = {
         "PW_UI_WORKERS=${uiWorkers}",
         "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
         "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
-        "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
+        'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true',
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
         "PW_ODHIN_TARGET=${integrationReportDir}",
@@ -501,7 +501,7 @@ def runCnpPlaywrightStages = {
       try {
         runInPlaywrightContainer {
           withEnv(integrationEnv) {
-            runPlaywrightShell("PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
+            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
           }
         }
       } catch (Exception e) {
