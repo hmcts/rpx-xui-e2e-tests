@@ -62,8 +62,14 @@ export class ExuiHeaderComponent {
     await expect(this.languageToggle).toBeVisible();
     const normalized = language.trim().toLowerCase();
     const expectedLanguageCode = normalized === "english" ? "en" : "cy";
+    const expectedAppHeaderText = expectedLanguageCode === "en" ? /Manage Cases/i.source : /Rheoli achosion/i.source;
+    const expectedSignOutText = expectedLanguageCode === "en" ? /Sign out/i.source : /Allgofnodi/i.source;
     const alreadyRendered = await this.page
-      .evaluate((expectedCode) => {
+      .evaluate(({ expectedCode, expectedAppHeaderPattern, expectedSignOutPattern }) => {
+        const appHeaderText =
+          document.querySelector("exui-header .hmcts-header a.hmcts-header__link")?.textContent?.trim() ?? "";
+        const signOutText =
+          document.querySelector("exui-header .hmcts-header .hmcts-header__navigation-link")?.textContent?.trim() ?? "";
         const rawClientContext = window.sessionStorage.getItem("clientContext");
         if (!rawClientContext) {
           return false;
@@ -71,11 +77,19 @@ export class ExuiHeaderComponent {
 
         try {
           const clientContext = JSON.parse(rawClientContext);
-          return clientContext?.client_context?.user_language?.language === expectedCode;
+          return (
+            clientContext?.client_context?.user_language?.language === expectedCode &&
+            new RegExp(expectedAppHeaderPattern, "i").test(appHeaderText) &&
+            new RegExp(expectedSignOutPattern, "i").test(signOutText)
+          );
         } catch {
           return false;
         }
-      }, expectedLanguageCode)
+      }, {
+        expectedAppHeaderPattern: expectedAppHeaderText,
+        expectedCode: expectedLanguageCode,
+        expectedSignOutPattern: expectedSignOutText
+      })
       .catch(() => false);
     if (alreadyRendered) {
       return;
@@ -92,17 +106,14 @@ export class ExuiHeaderComponent {
       expectedLanguageCode === "en" ? /Manage Cases/i.source : /Rheoli achosion/i.source;
     const expectedSignOutLink =
       expectedLanguageCode === "en" ? /Sign out/i.source : /Allgofnodi/i.source;
-    const expectedPageSignal =
-      expectedLanguageCode === "en" ? /Case list|Manage Cases/i.source : /Rhestr achosion|Rheoli achosion/i.source;
 
     await this.page.waitForFunction(
-      ({ appHeaderPattern, expectedCode, expectedPageSignalPattern, expectedSignOutPattern }) => {
+      ({ appHeaderPattern, expectedCode, expectedSignOutPattern }) => {
         const appHeaderLink = document.querySelector("exui-header .hmcts-header a.hmcts-header__link");
         const signOutLink = document.querySelector(
           "exui-header .hmcts-header .hmcts-header__navigation-link"
         );
         const appHeaderText = appHeaderLink?.textContent?.trim() ?? "";
-        const bodyText = document.body.textContent?.trim() ?? "";
         const signOutText = signOutLink?.textContent?.trim() ?? "";
         const rawClientContext = window.sessionStorage.getItem("clientContext");
         if (!rawClientContext) {
@@ -112,12 +123,9 @@ export class ExuiHeaderComponent {
         try {
           const clientContext = JSON.parse(rawClientContext);
           const currentLanguage = clientContext?.client_context?.user_language?.language;
-          const pageHasExpectedLanguage =
-            new RegExp(appHeaderPattern, "i").test(appHeaderText) ||
-            new RegExp(expectedPageSignalPattern, "i").test(bodyText);
           return (
             currentLanguage === expectedCode &&
-            pageHasExpectedLanguage &&
+            new RegExp(appHeaderPattern, "i").test(appHeaderText) &&
             new RegExp(expectedSignOutPattern, "i").test(signOutText)
           );
         } catch {
@@ -127,7 +135,6 @@ export class ExuiHeaderComponent {
       {
         appHeaderPattern: expectedAppHeaderLink,
         expectedCode: expectedLanguageCode,
-        expectedPageSignalPattern: expectedPageSignal,
         expectedSignOutPattern: expectedSignOutLink
       },
       { timeout: ExuiHeaderComponent.LANGUAGE_STATE_TIMEOUT_MS }
