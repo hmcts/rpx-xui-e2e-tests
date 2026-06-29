@@ -323,6 +323,20 @@ export function buildNgIntegrationClientContextMock(
   };
 }
 
+export async function setupNgIntegrationOrganisationRoute(page: Page): Promise<void> {
+  await page.route("**/api/organisation*", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        name: "Harness Organisation",
+        organisationIdentifier: "HARNESS-ORG",
+        status: "ACTIVE"
+      })
+    });
+  });
+}
+
 export async function setupNgIntegrationBaseRoutes(
   page: Page,
   options?: NgIntegrationBaseRoutesOptions
@@ -393,6 +407,8 @@ export async function setupNgIntegrationBaseRoutes(
       body: JSON.stringify([])
     });
   });
+
+  await setupNgIntegrationOrganisationRoute(page);
 
   await page.route("**/workallocation/caseworker/getUsersByServiceName*", async (route) => {
     await route.fulfill({
