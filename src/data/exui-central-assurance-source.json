@@ -604,34 +604,70 @@
       {
         "serviceFamily": "PROBATE",
         "priority": "grouped",
-        "proofLevel": "source-unavailable",
+        "proofLevel": "ccd-backed",
         "lanes": [
           "staff-ref-data"
         ],
-        "representativeCaseTypes": [],
+        "representativeCaseTypes": [
+          "GrantOfRepresentation"
+        ],
         "serviceCodes": [
           "ABA6"
         ],
-        "repos": [],
-        "rationale": "Probate is staff-supported in EXUI config, but the discovered hmcts/probate-ccd-definitions repository was not usable for this snapshot because GitHub reported it as empty.",
-        "nextAction": "Confirm the current Probate CCD source with the owning team before building a normalized slice."
+        "repos": [
+          {
+            "fullName": "hmcts/probate-back-office",
+            "url": "https://github.com/hmcts/probate-back-office",
+            "visibility": "public",
+            "updatedAt": "2026-06-25T15:46:40Z",
+            "defaultBranch": "master",
+            "definitionRoot": "src/main/resources/dmn",
+            "jsonFiles": 0,
+            "caseEventToFields": 0,
+            "caseEventToComplexTypes": 0,
+            "authorisationCaseField": 0,
+            "caseField": 0,
+            "complexTypes": 0,
+            "notes": "Probate source is service-backed rather than a classic JSON definition repo; WA DMNs and runtime references identify PROBATE/GrantOfRepresentation."
+          }
+        ],
+        "rationale": "Probate is staff-supported in EXUI config and current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
+        "nextAction": "Keep Probate grouped through staff-supported assertions until a Probate-specific EXUI-visible behaviour justifies a normalized slice."
       },
       {
         "serviceFamily": "ST_CIC",
         "priority": "release-blocking",
-        "proofLevel": "source-unidentified",
+        "proofLevel": "ccd-backed",
         "lanes": [
           "global-search",
           "work-allocation",
           "staff-ref-data"
         ],
-        "representativeCaseTypes": [],
+        "representativeCaseTypes": [
+          "CriminalInjuriesCompensation"
+        ],
         "serviceCodes": [
           "BBA2"
         ],
-        "repos": [],
-        "rationale": "ST_CIC is release-blocking in EXUI config but GitHub searches for obvious Special Tribunals/CIC CCD definition sources did not identify a clear owner repo.",
-        "nextAction": "Resolve the ST_CIC CCD source owner before claiming definition-backed release-blocking coverage."
+        "repos": [
+          {
+            "fullName": "hmcts/sptribs-case-api",
+            "url": "https://github.com/hmcts/sptribs-case-api",
+            "visibility": "public",
+            "updatedAt": "2026-06-29T13:32:45Z",
+            "defaultBranch": "master",
+            "definitionRoot": "src/main/java/uk/gov/hmcts/sptribs",
+            "jsonFiles": 0,
+            "caseEventToFields": 0,
+            "caseEventToComplexTypes": 0,
+            "authorisationCaseField": 0,
+            "caseField": 0,
+            "complexTypes": 0,
+            "notes": "Special Tribunals source is CCD SDK/decentralised service-backed; CcdServiceCode maps ST_CIC to BBA2 and CriminalInjuriesCompensation."
+          }
+        ],
+        "rationale": "ST_CIC is release-blocking in EXUI config and hmcts/sptribs-case-api declares the ST_CIC/BBA2 CriminalInjuriesCompensation CCD service contract.",
+        "nextAction": "Add a normalized ST_CIC slice only if the next assurance phase needs Special Tribunals-specific case-event or WA behaviour beyond the central family contracts."
       },
       {
         "serviceFamily": "CMC",

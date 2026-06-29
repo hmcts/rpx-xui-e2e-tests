@@ -333,7 +333,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('service-definition profiles widen the proof beyond PRL and keep known source gaps explicit', () => {
+  test('service-definition profiles widen the proof beyond PRL and close known source gaps', () => {
     const profileFamilies = EXUI_SERVICE_DEFINITION_PROFILES.map((profile) => profile.serviceFamily);
     const profileSummary = buildServiceDefinitionProfileSummary();
     const repoTotals = buildDefinitionRepoCoverageTotals();
@@ -351,15 +351,17 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'EMPLOYMENT',
         'FR',
         'IA',
+        'PROBATE',
         'PRIVATELAW',
         'PUBLICLAW',
         'SSCS',
+        'ST_CIC',
       ])
     );
-    expect(profileSummary['source-unidentified']).toEqual(['ST_CIC']);
-    expect(profileSummary['source-unavailable']).toEqual(['PROBATE']);
+    expect(profileSummary['source-unidentified'] ?? []).toEqual([]);
+    expect(profileSummary['source-unavailable'] ?? []).toEqual([]);
     expect(profileSummary['config-backed']).toEqual(['HRS']);
-    expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual(['ST_CIC']);
+    expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual([]);
     expect(repoTotals.jsonFiles).toBeGreaterThan(4000);
     expect(repoTotals.caseEventToFields).toBeGreaterThan(600);
     expect(repoTotals.caseEventToComplexTypes).toBeGreaterThan(400);
@@ -518,16 +520,15 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
 
     expect(verdict.overallStatus).toBe('warn');
     expect(verdict.releaseBlockingCoverage).toEqual(
-      expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW'])
+      expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'])
     );
-    expect(verdict.releaseBlockingCoverage).not.toContain('ST_CIC');
     expect(verdict.knownGaps).toEqual(
       expect.arrayContaining([
-        'release-blocking family without CCD-backed profile: ST_CIC',
         'historic learning case not executable yet: overview-page-layout-regression-classification',
         'historic out-of-scope class: media-viewer-redaction-coordinate',
       ])
     );
+    expect(verdict.knownGaps).not.toContain('release-blocking family without CCD-backed profile: ST_CIC');
     expect(EXUI_RELEASE_ASSURANCE_MUTATION_STATUS).toBe('passed');
     expect(verdict.knownGaps).not.toContain(
       'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
