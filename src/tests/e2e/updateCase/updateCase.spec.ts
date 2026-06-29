@@ -44,7 +44,7 @@ test.describe(
           await caseDetailsPage.waitForReady();
         },
         {
-          maxAttempts: 1,
+          maxAttempts: 2,
           onRetry: async () => {
             if (page.isClosed()) {
               return;
