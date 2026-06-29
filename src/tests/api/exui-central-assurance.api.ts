@@ -5,9 +5,12 @@ import type { APIRequestContext, TestInfo } from '@playwright/test';
 import {
   buildDefinitionRepoCoverageTotals,
   buildCoverageSummary,
+  buildDefectIntakeDecision,
   classifyExuiDefectIntake,
   buildGlobalSearchServicesCatalog,
+  buildOwnerSliceCatalogue,
   buildReleaseAssuranceVerdict,
+  buildReleaseEvidenceSummary,
   buildServiceDefinitionProfileSummary,
   buildSuperserviceKnowledgeIndex,
   EXUI_ALL_CONFIGURED_SERVICE_FAMILIES,
@@ -74,6 +77,11 @@ type SourceTruth = {
   serviceDefinitionProfiles: {
     source: string;
     profiles: unknown[];
+  };
+};
+type ReleaseEvidence = {
+  releaseGate?: {
+    warnReasons?: string[];
   };
 };
 type RoutePattern = string | RegExp;
@@ -533,12 +541,23 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(classifyExuiDefectIntake('Untriaged defect with no source evidence yet').route).toBe(
       'owner-confirmed-follow-up'
     );
+    expect(buildDefectIntakeDecision('Dropped service code BHA1 is no longer caught')).toEqual(
+      expect.objectContaining({
+        route: 'targeted-mutation-proof',
+        ruleId: 'known-contract-regression-red-proof',
+      })
+    );
   });
 
   test('release assurance verdict is deterministic and uses recorded mutation evidence', () => {
     const verdict = buildReleaseAssuranceVerdict();
+    const evidence = JSON.parse(
+      readFileSync('src/data/exui-release-assurance-evidence.json', 'utf8')
+    ) as ReleaseEvidence;
 
     expect(verdict.overallStatus).toBe('warn');
+    expect(verdict.failReasons).toEqual([]);
+    expect(verdict.warnReasons).toEqual(evidence.releaseGate?.warnReasons);
     expect(verdict.releaseBlockingCoverage).toEqual(
       expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'])
     );
@@ -557,7 +576,49 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       status: EXUI_RELEASE_ASSURANCE_MUTATION_STATUS,
       requiredCommands: EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS,
     });
+    expect(verdict.evidenceSummary).toBe(
+      'warn: 6 release-blocking families, 0 fail reason(s), 2 warning(s), mutation evidence passed'
+    );
     expect(verdict.historicFailureCoverage['covered-now']).toContain('nested-complex-fieldshowcondition-cya');
+  });
+
+  test('owner slice catalogue exposes the service-family action list', () => {
+    const catalogue = buildOwnerSliceCatalogue();
+    const probate = catalogue.find((entry) => entry.serviceFamily === 'PROBATE');
+    const stCic = catalogue.find((entry) => entry.serviceFamily === 'ST_CIC');
+
+    expect(catalogue.map((entry) => entry.serviceFamily)).toEqual(sortServiceFamilies(EXUI_ALL_CONFIGURED_SERVICE_FAMILIES));
+    expect(catalogue.every((entry) => entry.ownerAction.trim().length > 0)).toBe(true);
+    expect(probate).toEqual(
+      expect.objectContaining({
+        disposition: 'grouped',
+        proofLevel: 'ccd-backed',
+        representativeCaseTypes: ['GrantOfRepresentation'],
+        serviceCodes: ['ABA6'],
+      })
+    );
+    expect(stCic).toEqual(
+      expect.objectContaining({
+        disposition: 'release-blocking',
+        proofLevel: 'ccd-backed',
+        representativeCaseTypes: ['CriminalInjuriesCompensation'],
+        serviceCodes: ['BBA2'],
+      })
+    );
+  });
+
+  test('release evidence summary joins verdict, owner slices, and intake routes', () => {
+    const summary = buildReleaseEvidenceSummary();
+
+    expect(summary.verdict.overallStatus).toBe('warn');
+    expect(summary.ownerSliceCatalogue).toHaveLength(EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.length);
+    expect(summary.defectIntakeRoutes.map((route) => route.route)).toEqual([
+      'targeted-mutation-proof',
+      'historic-replay-pack',
+      'service-family-pack',
+      'owner-confirmed-follow-up',
+      'specialist-suite-follow-up',
+    ]);
   });
 
   test('release assurance verdict fails when a configured family is not classified or profiled', () => {
@@ -566,6 +627,12 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     });
 
     expect(verdict.overallStatus).toBe('fail');
+    expect(verdict.failReasons).toEqual(
+      expect.arrayContaining([
+        'unclassified configured family: NEW_SERVICE',
+        'unprofiled configured family: NEW_SERVICE',
+      ])
+    );
     expect(verdict.knownGaps).toEqual(
       expect.arrayContaining([
         'unclassified configured family: NEW_SERVICE',
@@ -621,7 +688,10 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict).toEqual({
       overallStatus: 'pass',
       releaseBlockingCoverage: ['CIVIL'],
+      failReasons: [],
+      warnReasons: [],
       knownGaps: [],
+      evidenceSummary: 'pass: 1 release-blocking families, 0 fail reason(s), 0 warning(s), mutation evidence passed',
       mutationEvidence: {
         status: 'passed',
         requiredCommands: [

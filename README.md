@@ -115,10 +115,14 @@ These commands deliberately inject a controlled fault into the observed contract
 
 ```bash
 COREPACK_HOME=/private/tmp/corepack-cache yarn harness:manifest
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:release-summary
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:defect-intake -- "Dropped service code BHA1 is no longer caught"
 COREPACK_HOME=/private/tmp/corepack-cache yarn lint
 COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/odhin-report-enhancer.unit.api.ts
 COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts
 ```
+
+`harness:release-summary` writes `functional-output/tests/harness/release-assurance-summary.json`. It shows the current release gate status, explicit fail and warning reasons, mutation evidence status, and the owner slice catalogue for each service family. `harness:defect-intake` is the deterministic intake router for new defects; paste the defect title or notes after `--` and it returns the route, target harness action, and required evidence.
 
 ### Accessibility baseline approach
 
