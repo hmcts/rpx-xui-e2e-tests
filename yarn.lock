@@ -5514,7 +5514,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"playwright-core@npm:1.61.1":
+"playwright-core@npm:1.61.1, playwright-core@npm:^1.61.0":
   version: 1.61.1
   resolution: "playwright-core@npm:1.61.1"
   bin:
@@ -5941,6 +5941,7 @@ __metadata:
     eslint-plugin-playwright: "npm:^2.1.0"
     node-html-parser: "npm:^8.0.3"
     odhin-reports-playwright: "patch:odhin-reports-playwright@npm%3A1.1.8#~/.yarn/patches/odhin-reports-playwright-npm-1.1.8-a445ed88b7.patch"
+    playwright-core: "npm:^1.61.0"
     prettier: "npm:^3.9.0"
     typescript: "npm:^6.0.0"
     typescript-eslint: "npm:^8.59.1"

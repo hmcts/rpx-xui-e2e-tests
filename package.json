@@ -86,6 +86,7 @@
     "eslint-plugin-playwright": "^2.1.0",
     "node-html-parser": "^8.0.3",
     "odhin-reports-playwright": "patch:odhin-reports-playwright@npm%3A1.1.8#~/.yarn/patches/odhin-reports-playwright-npm-1.1.8-a445ed88b7.patch",
+    "playwright-core": "^1.61.0",
     "prettier": "^3.9.0",
     "typescript": "^6.0.0",
     "typescript-eslint": "^8.59.1",
