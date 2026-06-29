@@ -255,12 +255,12 @@ function checkServiceDefinitionProfiles() {
   const releaseBlockingWithoutCcd = expectedDefinitionProfiles
     .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel !== "ccd-backed")
     .map((profile) => normalize(profile.serviceFamily));
-  checkSet("release-blocking families without CCD-backed source are explicit known gaps", releaseBlockingWithoutCcd, ["ST_CIC"]);
+  checkSet("release-blocking families without CCD-backed source are explicit known gaps", releaseBlockingWithoutCcd, []);
 
   const knownSourceGaps = expectedDefinitionProfiles
     .filter((profile) => profile.proofLevel === "source-unidentified" || profile.proofLevel === "source-unavailable")
     .map((profile) => normalize(profile.serviceFamily));
-  checkSet("serviceDefinitionProfiles known CCD-source gaps", knownSourceGaps, ["PROBATE", "ST_CIC"]);
+  checkSet("serviceDefinitionProfiles known CCD-source gaps", knownSourceGaps, []);
 
   for (const profile of expectedDefinitionProfiles) {
     if (!String(profile.rationale ?? "").trim()) {
@@ -271,6 +271,20 @@ function checkServiceDefinitionProfiles() {
     }
     if (profile.proofLevel === "ccd-backed" && (profile.repos?.length ?? 0) === 0) {
       failures.push(`serviceDefinitionProfiles.${profile.serviceFamily} is CCD-backed but has no repository evidence.`);
+    }
+    for (const repo of profile.repos ?? []) {
+      const definitionMetricTotal =
+        repo.jsonFiles +
+        repo.caseEventToFields +
+        repo.caseEventToComplexTypes +
+        repo.authorisationCaseField +
+        repo.caseField +
+        repo.complexTypes;
+      if (profile.proofLevel === "ccd-backed" && definitionMetricTotal === 0 && (repo.evidenceRefs?.length ?? 0) === 0) {
+        failures.push(
+          `serviceDefinitionProfiles.${profile.serviceFamily}.${repo.fullName} is service-backed but has no structured evidenceRefs.`
+        );
+      }
     }
   }
 }
@@ -320,7 +334,7 @@ if (failures.length > 0) {
     `[harness-manifest] coverage input sets: global=${expectedDefault.globalSearchServices.length}, wa=${expectedDefault.waSupportedJurisdictions.length}, staff=${expectedDefault.staffSupportedJurisdictions.length}, hearings=${expectedDefault.hearings.hearingsJurisdictions.length}`
   );
   console.log(
-    `[harness-manifest] service definition profiles cover ${expectedDefinitionProfiles.length} configured EXUI families; known CCD-source gaps are ST_CIC and PROBATE.`
+    `[harness-manifest] service definition profiles cover ${expectedDefinitionProfiles.length} configured EXUI families; no known CCD-source gaps remain.`
   );
   const releaseAssuranceVerdict = buildReleaseAssuranceManifestVerdict();
   console.log(
