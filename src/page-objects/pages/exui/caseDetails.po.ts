@@ -477,11 +477,10 @@ export class CaseDetailsPage extends Base {
 
   async reopenCaseDetails(caseDetailsUrl: string): Promise<void> {
     await this.page.goto(caseDetailsUrl, { waitUntil: 'domcontentloaded' });
-    await this.waitForCaseActionsReady(60_000);
+    await this.waitForReady(60_000);
   }
 
   async waitForReady(timeoutMs = 60_000): Promise<void> {
-    await this.waitForCaseActionsReady(timeoutMs);
     await this.waitForCaseDetailsTabsReady(timeoutMs);
   }
 
@@ -860,29 +859,6 @@ export class CaseDetailsPage extends Base {
   async getTabCount() {
     const tabsCount = await this.tablist2.count();
     return tabsCount;
-  }
-
-  private async waitForCaseActionsReady(timeoutMs: number): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-
-    while (Date.now() < deadline) {
-      await this.acceptAnalyticsCookies().catch(() => undefined);
-
-      const [shellVisible, dropdownVisible, buttonVisible] = await Promise.all([
-        this.isCaseDetailsShellVisible(),
-        this.caseActionsDropdown.isVisible().catch(() => false),
-        this.caseActionGoButton.isVisible().catch(() => false)
-      ]);
-
-      if (shellVisible && dropdownVisible && buttonVisible) {
-        return;
-      }
-
-      await this.page.waitForLoadState('domcontentloaded').catch(() => undefined);
-      await this.waitForCaseDetailsPoll(200);
-    }
-
-    throw new Error(`Case details actions did not become visible within ${timeoutMs}ms.`);
   }
 
   private async waitForCaseDetailsTabsReady(timeoutMs: number): Promise<void> {
