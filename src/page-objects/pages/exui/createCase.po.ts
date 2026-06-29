@@ -56,7 +56,6 @@ export class CreateCasePage extends Base {
   readonly fileUploadStatusLabel = this.page.locator("ccd-write-document-field .error-message");
 
   // Locators for the Divorce
-  readonly person1Title = this.page.locator("#Person1_Title");
   readonly person1TitleInput = this.page.locator("#Person1_Title");
   readonly person1FirstNameInput = this.page.locator("#Person1_FirstName");
   readonly person1MaidenNameInput = this.page.locator("#Person1_MaidenName");
