@@ -637,9 +637,10 @@ export class CreateCasePage extends Base {
       if (!message.includes("intercepts pointer events")) {
         throw error;
       }
-      this.logger.warn("Submit click intercepted; retrying with force", { context });
+      this.logger.warn("Submit click intercepted; retrying after wizard settle", { context });
       // The sticky action bar occasionally intercepts the first click while the wizard settles.
-      await visibleSubmitButton.click({ force: true, timeout: EXUI_TIMEOUTS.SUBMIT_CLICK }); // eslint-disable-line playwright/no-force-option
+      await this.waitForCreateCasePoll(EXUI_TIMEOUTS.SUBMIT_POLL_INTERVAL);
+      await visibleSubmitButton.click({ timeout: EXUI_TIMEOUTS.SUBMIT_CLICK });
     }
   }
 

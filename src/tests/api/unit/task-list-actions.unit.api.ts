@@ -5,13 +5,9 @@ import { TaskListPage } from '../../../page-objects/pages/exui/taskList.po.js';
 function createActionLocator(config: {
   waitResults: Array<'visible' | 'hidden'>;
   clickFailures?: string[];
-  dispatchFailures?: string[];
-  evaluateFailures?: string[];
 }) {
   let waitAttempt = 0;
   let clickAttempt = 0;
-  let dispatchAttempt = 0;
-  let evaluateAttempt = 0;
   let focusAttempt = 0;
   const locator = {
     first() {
@@ -34,25 +30,11 @@ function createActionLocator(config: {
         throw new Error(failureMessage);
       }
     },
-    async dispatchEvent() {
-      const failureMessage = config.dispatchFailures?.[dispatchAttempt];
-      dispatchAttempt += 1;
-      if (failureMessage) {
-        throw new Error(failureMessage);
-      }
-    },
-    async evaluate() {
-      const failureMessage = config.evaluateFailures?.[evaluateAttempt];
-      evaluateAttempt += 1;
-      if (failureMessage) {
-        throw new Error(failureMessage);
-      }
-    },
     async focus() {
       focusAttempt += 1;
     },
     get attempts() {
-      return { waitAttempt, clickAttempt, dispatchAttempt, evaluateAttempt, focusAttempt };
+      return { waitAttempt, clickAttempt, focusAttempt };
     },
   };
 
@@ -78,13 +60,6 @@ function createButtonLocator(config: { clickFailures?: string[] }) {
         throw new Error(failureMessage);
       }
     },
-    async dispatchEvent() {
-      clickAttempt += 1;
-    },
-    async evaluate() {
-      clickAttempt += 1;
-      return { disabled: false, text: 'Submit', ariaDisabled: null };
-    },
     async focus() {
       return undefined;
     },
@@ -96,7 +71,7 @@ function createButtonLocator(config: { clickFailures?: string[] }) {
   return locator;
 }
 
-async function clickWithForceFallback(
+async function clickWithActionableRetry(
   locator: { click: (options?: unknown) => Promise<void> },
   options: { timeoutMs: number; noWaitAfter?: boolean }
 ) {
@@ -125,7 +100,7 @@ test.describe('Task list action helper unit tests', { tag: '@svc-internal' }, ()
         openManageActionsForRow: async (rowIndex: number, context: string) => {
           reopenedRows.push({ rowIndex, context });
         },
-        clickWithForceFallback,
+        clickWithActionableRetry,
         assertTaskListInteractive: async () => undefined,
         page: {
           waitForTimeout: async () => undefined,
@@ -142,7 +117,7 @@ test.describe('Task list action helper unit tests', { tag: '@svc-internal' }, ()
     );
 
     expect(reopenedRows).toEqual([{ rowIndex: 2, context: 'row scoped task action retry for row 3 reopen 1' }]);
-    expect(action.attempts).toEqual({ waitAttempt: 2, clickAttempt: 1, dispatchAttempt: 0, evaluateAttempt: 0, focusAttempt: 0 });
+    expect(action.attempts).toEqual({ waitAttempt: 2, clickAttempt: 1, focusAttempt: 0 });
   });
 
   test('clickTaskAction reopens the actions row after hidden and transient action refresh failures', async () => {
@@ -158,7 +133,7 @@ test.describe('Task list action helper unit tests', { tag: '@svc-internal' }, ()
       {
         assertTaskListInteractive: async (context: string) => interactiveContexts.push(context),
         openFirstManageActions: async (context: string) => manageContexts.push(context),
-        clickWithForceFallback,
+        clickWithActionableRetry,
         page: {
           waitForTimeout: async (ms: number) => waitIntervals.push(ms),
           url: () => 'https://manage-case.aat.platform.hmcts.net/work/my-work/list',
@@ -175,7 +150,7 @@ test.describe('Task list action helper unit tests', { tag: '@svc-internal' }, ()
       'clicking task action (unit task action retry)',
     ]);
     expect(waitIntervals).toEqual([]);
-    expect(action.attempts).toEqual({ waitAttempt: 2, clickAttempt: 2, dispatchAttempt: 0, evaluateAttempt: 0, focusAttempt: 0 });
+    expect(action.attempts).toEqual({ waitAttempt: 2, clickAttempt: 2, focusAttempt: 0 });
   });
 
   test('clickTaskAction retries a bounded fallback click when the action link rerenders during click', async () => {
@@ -188,7 +163,7 @@ test.describe('Task list action helper unit tests', { tag: '@svc-internal' }, ()
       {
         assertTaskListInteractive: async () => undefined,
         openFirstManageActions: async () => undefined,
-        clickWithForceFallback,
+        clickWithActionableRetry,
         page: {
           waitForTimeout: async () => undefined,
           keyboard: {
@@ -198,11 +173,11 @@ test.describe('Task list action helper unit tests', { tag: '@svc-internal' }, ()
         },
       },
       action as never,
-      'unit task action dispatch fallback',
+      'unit task action user-level fallback',
       { timeoutMs: 5_000, pollMs: 50 }
     );
 
-    expect(action.attempts).toEqual({ waitAttempt: 1, clickAttempt: 2, dispatchAttempt: 0, evaluateAttempt: 0, focusAttempt: 0 });
+    expect(action.attempts).toEqual({ waitAttempt: 1, clickAttempt: 2, focusAttempt: 0 });
   });
 
   test('clickButtonAndWaitForRequest retries after a transient click failure and returns the observed request', async () => {
@@ -218,7 +193,7 @@ test.describe('Task list action helper unit tests', { tag: '@svc-internal' }, ()
 
     const request = await TaskListPage.prototype.clickButtonAndWaitForRequest.call(
       {
-        clickWithForceFallback,
+        clickWithActionableRetry,
         page: {
           waitForRequest: async () => {
             waitForRequestCalls.push(1);

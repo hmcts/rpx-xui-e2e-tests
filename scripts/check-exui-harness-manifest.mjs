@@ -4,6 +4,7 @@ import process from "node:process";
 
 const repoRoot = process.cwd();
 const sourcePath = path.join(repoRoot, "src/data/exui-central-assurance-source.json");
+const evidencePath = path.join(repoRoot, "src/data/exui-release-assurance-evidence.json");
 const xuiWebappRoot = path.resolve(process.env.RPX_XUI_WEBAPP_DIR ?? path.join(repoRoot, "../rpx-xui-webapp"));
 const prlDefinitionsRoot = path.resolve(
   process.env.PRL_CCD_DEFINITIONS_DIR ?? path.join(repoRoot, "../prl-ccd-definitions")
@@ -13,15 +14,20 @@ const source = readJson(sourcePath);
 const expectedDefault = source.rpxXuiWebapp["config/default.json"];
 const expectedEnv = source.rpxXuiWebapp["config/custom-environment-variables.json"];
 const expectedDefinitionProfiles = source.serviceDefinitionProfiles?.profiles ?? [];
-const mutationCommands = [
-  "yarn harness:mutation:wa",
-  "yarn harness:mutation:civil",
-  "yarn harness:mutation:ia",
-  "yarn harness:mutation:employment",
-  "yarn harness:mutation:ccd"
-];
 
 const failures = [];
+const releaseEvidence = readJson(evidencePath);
+const mutationEvidence = releaseEvidence.mutationEvidence ?? {};
+const mutationCommands = Array.isArray(mutationEvidence.requiredCommands) ? mutationEvidence.requiredCommands : [];
+const mutationStatus = ["pending", "passed"].includes(mutationEvidence.status) ? mutationEvidence.status : "pending";
+
+if (!["pending", "passed"].includes(mutationEvidence.status)) {
+  failures.push(`release assurance mutation evidence has unsupported status: ${JSON.stringify(mutationEvidence.status)}`);
+}
+
+if (mutationCommands.length === 0) {
+  failures.push("release assurance mutation evidence has no required commands.");
+}
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -281,13 +287,14 @@ function buildReleaseAssuranceManifestVerdict() {
   const unprofiledFamilies = [...configuredFamilies].filter((family) => !profileFamilies.has(family));
   const knownGaps = [
     ...releaseBlockingSourceGaps.map((family) => `release-blocking family without CCD-backed profile: ${family}`),
-    `mutation evidence pending: ${mutationCommands.join(", ")}`
+    ...(mutationStatus === "pending" ? [`mutation evidence pending: ${mutationCommands.join(", ")}`] : [])
   ];
   const fatalGaps = unprofiledFamilies.map((family) => `unprofiled configured family: ${family}`);
 
   return {
     overallStatus: fatalGaps.length > 0 ? "fail" : knownGaps.length > 0 ? "warn" : "pass",
     releaseBlockingCoverage: sorted(releaseBlockingCoverage),
+    mutationStatus,
     mutationCommands
   };
 }
@@ -317,6 +324,6 @@ if (failures.length > 0) {
   );
   const releaseAssuranceVerdict = buildReleaseAssuranceManifestVerdict();
   console.log(
-    `[harness-manifest] release assurance verdict=${releaseAssuranceVerdict.overallStatus}; release-blocking CCD-backed=${releaseAssuranceVerdict.releaseBlockingCoverage.join(", ")}; pending mutation evidence=${releaseAssuranceVerdict.mutationCommands.join(", ")}.`
+    `[harness-manifest] release assurance verdict=${releaseAssuranceVerdict.overallStatus}; release-blocking CCD-backed=${releaseAssuranceVerdict.releaseBlockingCoverage.join(", ")}; mutation evidence=${releaseAssuranceVerdict.mutationStatus} (${releaseAssuranceVerdict.mutationCommands.join(", ")}).`
   );
 }
