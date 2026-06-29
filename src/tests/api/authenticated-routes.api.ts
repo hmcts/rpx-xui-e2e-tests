@@ -3,6 +3,12 @@ import { authenticatedRoutes } from '../common/authenticatedRoutes';
 
 import { test, expect } from './fixtures';
 
+function expectUnauthorizedMessageWhenPresent(status: number, data?: Record<string, unknown>) {
+  if (status === 401 && data) {
+    expect(data).toMatchObject({ message: 'Unauthorized' });
+  }
+}
+
 test.describe('Authenticated routes require session', { tag: '@svc-auth' }, () => {
   authenticatedRoutes.forEach(({ endpoint }, index) => {
     test(`[${index + 1}] GET ${endpoint} returns guarded status`, async ({ anonymousClient }) => {
@@ -10,9 +16,7 @@ test.describe('Authenticated routes require session', { tag: '@svc-auth' }, () =
         throwOnError: false,
       });
       expectStatus(response.status, [...StatusSets.guardedBasic, 500, 502]);
-      if (response.status === 401 && response.data) {
-        expect(response.data).toMatchObject({ message: 'Unauthorized' });
-      }
+      expectUnauthorizedMessageWhenPresent(response.status, response.data);
     });
   });
 });
