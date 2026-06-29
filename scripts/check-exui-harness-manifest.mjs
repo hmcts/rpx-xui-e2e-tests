@@ -272,6 +272,20 @@ function checkServiceDefinitionProfiles() {
     if (profile.proofLevel === "ccd-backed" && (profile.repos?.length ?? 0) === 0) {
       failures.push(`serviceDefinitionProfiles.${profile.serviceFamily} is CCD-backed but has no repository evidence.`);
     }
+    for (const repo of profile.repos ?? []) {
+      const definitionMetricTotal =
+        repo.jsonFiles +
+        repo.caseEventToFields +
+        repo.caseEventToComplexTypes +
+        repo.authorisationCaseField +
+        repo.caseField +
+        repo.complexTypes;
+      if (profile.proofLevel === "ccd-backed" && definitionMetricTotal === 0 && (repo.evidenceRefs?.length ?? 0) === 0) {
+        failures.push(
+          `serviceDefinitionProfiles.${profile.serviceFamily}.${repo.fullName} is service-backed but has no structured evidenceRefs.`
+        );
+      }
+    }
   }
 }
 

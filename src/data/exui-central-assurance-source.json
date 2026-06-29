@@ -628,7 +628,12 @@
             "authorisationCaseField": 0,
             "caseField": 0,
             "complexTypes": 0,
-            "notes": "Probate source is service-backed rather than a classic JSON definition repo; WA DMNs and runtime references identify PROBATE/GrantOfRepresentation."
+            "notes": "Probate source is service-backed rather than a classic JSON definition repo; WA DMNs and runtime references identify PROBATE/GrantOfRepresentation.",
+            "evidenceRefs": [
+              "src/main/java/uk/gov/hmcts/probate/model/ccd/CcdCaseType.java",
+              "src/cftlib/java/uk/gov/hmcts/probate/CftLibConfig.java",
+              "src/main/resources/dmn/wa-task-types-probate-grantofrepresentation.dmn"
+            ]
           }
         ],
         "rationale": "Probate is staff-supported in EXUI config and current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
@@ -663,7 +668,13 @@
             "authorisationCaseField": 0,
             "caseField": 0,
             "complexTypes": 0,
-            "notes": "Special Tribunals source is CCD SDK/decentralised service-backed; CcdServiceCode maps ST_CIC to BBA2 and CriminalInjuriesCompensation."
+            "notes": "Special Tribunals source is CCD SDK/decentralised service-backed; CcdServiceCode maps ST_CIC to BBA2 and CriminalInjuriesCompensation.",
+            "evidenceRefs": [
+              "src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdServiceCode.java",
+              "src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdJurisdiction.java",
+              "src/main/resources/application.yaml",
+              "src/main/resources/dmn/wa-task-types-st_cic-criminalinjuriescompensation.dmn"
+            ]
           }
         ],
         "rationale": "ST_CIC is release-blocking in EXUI config and hmcts/sptribs-case-api declares the ST_CIC/BBA2 CriminalInjuriesCompensation CCD service contract.",

@@ -289,6 +289,7 @@ export interface ExuiServiceDefinitionRepoEvidence {
   caseField: number;
   complexTypes: number;
   notes?: string;
+  evidenceRefs?: readonly string[];
 }
 
 export interface ExuiServiceDefinitionProfile {
@@ -648,7 +649,12 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
         caseField: 0,
         complexTypes: 0,
         notes:
-          "Probate source is service-backed rather than a classic JSON definition repo; WA DMNs and runtime references identify PROBATE/GrantOfRepresentation."
+          "Probate source is service-backed rather than a classic JSON definition repo; WA DMNs and runtime references identify PROBATE/GrantOfRepresentation.",
+        evidenceRefs: [
+          "src/main/java/uk/gov/hmcts/probate/model/ccd/CcdCaseType.java",
+          "src/cftlib/java/uk/gov/hmcts/probate/CftLibConfig.java",
+          "src/main/resources/dmn/wa-task-types-probate-grantofrepresentation.dmn"
+        ]
       }
     ],
     rationale:
@@ -678,7 +684,13 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
         caseField: 0,
         complexTypes: 0,
         notes:
-          "Special Tribunals source is CCD SDK/decentralised service-backed; CcdServiceCode maps ST_CIC to BBA2 and CriminalInjuriesCompensation."
+          "Special Tribunals source is CCD SDK/decentralised service-backed; CcdServiceCode maps ST_CIC to BBA2 and CriminalInjuriesCompensation.",
+        evidenceRefs: [
+          "src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdServiceCode.java",
+          "src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdJurisdiction.java",
+          "src/main/resources/application.yaml",
+          "src/main/resources/dmn/wa-task-types-st_cic-criminalinjuriescompensation.dmn"
+        ]
       }
     ],
     rationale:

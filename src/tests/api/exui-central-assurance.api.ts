@@ -362,6 +362,26 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(profileSummary['source-unavailable'] ?? []).toEqual([]);
     expect(profileSummary['config-backed']).toEqual(['HRS']);
     expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual([]);
+    const probateProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'PROBATE');
+    const stCicProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'ST_CIC');
+    expect(probateProfile).toBeDefined();
+    expect(stCicProfile).toBeDefined();
+    expect(probateProfile!.repos[0]).toEqual(
+      expect.objectContaining({
+        evidenceRefs: expect.arrayContaining([
+          'src/main/java/uk/gov/hmcts/probate/model/ccd/CcdCaseType.java',
+          'src/cftlib/java/uk/gov/hmcts/probate/CftLibConfig.java',
+        ]),
+      })
+    );
+    expect(stCicProfile!.repos[0]).toEqual(
+      expect.objectContaining({
+        evidenceRefs: expect.arrayContaining([
+          'src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdServiceCode.java',
+          'src/main/resources/application.yaml',
+        ]),
+      })
+    );
     expect(repoTotals.jsonFiles).toBeGreaterThan(4000);
     expect(repoTotals.caseEventToFields).toBeGreaterThan(600);
     expect(repoTotals.caseEventToComplexTypes).toBeGreaterThan(400);
