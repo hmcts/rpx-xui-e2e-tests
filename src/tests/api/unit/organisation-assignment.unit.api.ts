@@ -1,4 +1,3 @@
-/* eslint-disable playwright/no-conditional-in-test -- These API unit tests validate fallback branches with deterministic dependency fakes. */
 import { ApiClient } from '@hmcts/playwright-common';
 import { expect, test } from '@playwright/test';
 

@@ -1,4 +1,3 @@
-/* eslint-disable playwright/no-conditional-in-test -- These API unit tests assert branchy mock payload shapes without browser-side control flow. */
 import { expect, test } from '@playwright/test';
 
 import {

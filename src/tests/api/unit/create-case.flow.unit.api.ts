@@ -1,4 +1,3 @@
-/* eslint-disable playwright/no-conditional-in-test -- These API unit tests use fakes to exercise deterministic branch outcomes. */
 import { expect, test } from '@playwright/test';
 
 import {

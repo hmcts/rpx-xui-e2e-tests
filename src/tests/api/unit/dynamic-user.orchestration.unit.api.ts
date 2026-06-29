@@ -1,4 +1,3 @@
-/* eslint-disable playwright/no-conditional-in-test -- These API unit tests validate orchestration branches with deterministic dependency fakes. */
 import { expect, test } from '@playwright/test';
 
 import {
