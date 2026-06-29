@@ -96,11 +96,11 @@ test.describe('Playwright load monitor script', { tag: '@svc-internal' }, () => 
       'functional-output/tests/playwright-api/odhin-report',
       '--',
       'yarn',
-      'test:api:pw:raw',
+      'test:api:raw',
     ]);
 
     expect(parsed.options.reportFolder).toBe('functional-output/tests/playwright-api/odhin-report');
-    expect(parsed.commandArgs).toEqual(['yarn', 'test:api:pw:raw']);
+    expect(parsed.commandArgs).toEqual(['yarn', 'test:api:raw']);
   });
 
   test('treats options-only invocation as monitor-only mode', () => {

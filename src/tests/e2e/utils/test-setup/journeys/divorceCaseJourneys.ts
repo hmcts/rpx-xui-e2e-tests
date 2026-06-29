@@ -167,8 +167,8 @@ export async function createDivorceCasePoC(
       if (await genderRadio.isVisible().catch(() => false)) {
         await genderRadio.check();
       }
-      await createCasePage.person1Title.click();
-      await createCasePage.person1Title.fill(data?.person1Title ?? faker.person.prefix());
+      await createCasePage.person1TitleInput.click();
+      await createCasePage.person1TitleInput.fill(data?.person1Title ?? faker.person.prefix());
       await createCasePage.person1FirstNameInput.fill(data?.person1FirstName ?? faker.person.firstName());
       await createCasePage.person1LastNameInput.fill(data?.person1LastName ?? faker.person.lastName());
       await createCasePage.person1GenderSelect.selectOption(data?.person1Gender ?? gender);

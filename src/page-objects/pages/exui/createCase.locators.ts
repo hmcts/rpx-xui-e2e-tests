@@ -64,7 +64,6 @@ export function buildCreateCaseLocators(page: Page) {
     complexType4FirstTickBox: page.locator("#ComplexType_4_selectedCategories-item_1"),
     complexType4SelectList: page.locator("#ComplexType_4_FixedListField"),
     genderRadioButtons: page.locator("#Gender .multiple-choice"),
-    person1Title: page.locator("#Person1_Title"),
     person1TitleInput: page.locator("#Person1_Title"),
     person1FirstNameInput: page.locator("#Person1_FirstName"),
     person1MaidenNameInput: page.locator("#Person1_MaidenName"),
