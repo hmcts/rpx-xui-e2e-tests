@@ -2565,6 +2565,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"entities@npm:^8.0.0":
+  version: 8.0.0
+  resolution: "entities@npm:8.0.0"
+  checksum: 10c0/938e631664c19451823344a351aeeafd74fae2d5fa51e4d5b6ff635afaefd4bacf0f609989888c04c42733f46ffdac15211608267ebb02488005891a4793e94d
+  languageName: node
+  linkType: hard
+
 "env-paths@npm:^2.2.0":
   version: 2.2.1
   resolution: "env-paths@npm:2.2.1"
@@ -3715,7 +3722,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"he@npm:1.2.0, he@npm:^1.2.0":
+"he@npm:^1.2.0":
   version: 1.2.0
   resolution: "he@npm:1.2.0"
   bin:
@@ -4969,13 +4976,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-html-parser@npm:^7.0.0":
-  version: 7.1.0
-  resolution: "node-html-parser@npm:7.1.0"
+"node-html-parser@npm:^8.0.0":
+  version: 8.0.3
+  resolution: "node-html-parser@npm:8.0.3"
   dependencies:
     css-select: "npm:^5.1.0"
-    he: "npm:1.2.0"
-  checksum: 10c0/8bee2616de374bb6f43b62cc8523f6d923cd199b2b7a42c6cf2ca503f1e89c32fb44195bd5af17d6fde1b992ad62c24465b29437213ae25f7770261fc9819173
+    entities: "npm:^8.0.0"
+  checksum: 10c0/fb090081719fc4895145a92412c1cca752d390a90a05a7ee05d7f77a2bd0e9866dbe6b7029a768618f03d14d423da8455d32609203b9be821f0afadcc4449ee5
   languageName: node
   linkType: hard
 
@@ -5942,7 +5949,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.0.0"
     eslint-plugin-import: "npm:^2.31.0"
     eslint-plugin-playwright: "npm:^2.1.0"
-    node-html-parser: "npm:^7.0.0"
+    node-html-parser: "npm:^8.0.0"
     odhin-reports-playwright: "patch:odhin-reports-playwright@npm%3A1.1.8#~/.yarn/patches/odhin-reports-playwright-npm-1.1.8-a445ed88b7.patch"
     prettier: "npm:^3.3.3"
     typescript: "npm:^6.0.0"

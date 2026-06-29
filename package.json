@@ -85,7 +85,7 @@
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-playwright": "^2.1.0",
-    "node-html-parser": "^7.0.0",
+    "node-html-parser": "^8.0.0",
     "odhin-reports-playwright": "patch:odhin-reports-playwright@npm%3A1.1.8#~/.yarn/patches/odhin-reports-playwright-npm-1.1.8-a445ed88b7.patch",
     "prettier": "^3.3.3",
     "typescript": "^6.0.0",
