@@ -22,6 +22,11 @@ const mutationProofs = {
     ],
     summary: "the injected EXUI-style ST_CIC WA regression was caught",
   },
+  "drop-probate-staff-family": {
+    grep: "static staff-supported family mutation proof catches a Probate staff family regression",
+    expectedEvidence: ["drop-probate-staff-family", "\"PROBATE\""],
+    summary: "the injected EXUI-style Probate staff-supported regression was caught",
+  },
   "drop-civil-hearings-case-type": {
     grep: "civil hearings service pack mutation proof catches a missing Civil case type",
     expectedEvidence: ["drop-civil-hearings-case-type", "Array []"],

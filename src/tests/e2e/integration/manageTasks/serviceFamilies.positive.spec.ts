@@ -8,7 +8,6 @@ import {
 } from '../../../../data/exui-central-assurance.js';
 import { expect, test } from '../../../../fixtures/ui';
 import type { TaskListPage } from '../../../../page-objects/pages/exui/taskList.po.js';
-import { ensureUiStorageStateForUser } from '../../../../utils/ui/session-storage.utils.js';
 import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from '../../../../utils/ui/test-evidence.utils.js';
 import { probeUiRouteAvailability } from '../../../../utils/ui/uiHostAvailability.js';
 import {
@@ -119,14 +118,9 @@ test.beforeAll(async () => {
   const cachedSession = loadSessionCookies(userIdentifier);
   sessionCookies = cachedSession.cookies;
 
-  try {
-    await ensureUiStorageStateForUser(userIdentifier, { strict: sessionCookies.length === 0 });
-  } catch (error) {
-    sessionBootstrapIssue = asErrorMessage(error);
+  if (sessionCookies.length === 0) {
+    sessionBootstrapIssue = `No cached ${userIdentifier} UI session cookies were found. Run the UI global setup or yarn ui:session before the harness UI proof.`;
   }
-
-  const refreshedSession = loadSessionCookies(userIdentifier);
-  sessionCookies = refreshedSession.cookies;
 });
 
 test.beforeEach(async ({ page, request }, testInfo) => {

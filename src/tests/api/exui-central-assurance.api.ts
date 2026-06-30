@@ -118,6 +118,12 @@ const ASSURANCE_MUTATIONS = {
       'Demo fault: simulate EXUI no longer exposing Special Tribunals as a Work Allocation-supported service family.',
     removedFamily: 'ST_CIC',
   },
+  'drop-probate-staff-family': {
+    endpoint: 'api/staff-supported-jurisdiction/get',
+    description:
+      'Demo fault: simulate EXUI no longer exposing Probate as a staff-supported service family.',
+    removedFamily: 'PROBATE',
+  },
   'drop-civil-hearings-case-type': {
     endpoint: 'services.hearings.civil.caseTypes',
     description: 'Demo fault: simulate EXUI no longer exposing Civil as a hearings-enabled case type.',
@@ -582,7 +588,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.knownGaps).not.toContain('release-blocking family without CCD-backed profile: ST_CIC');
     expect(EXUI_RELEASE_ASSURANCE_MUTATION_STATUS).toBe('passed');
     expect(verdict.knownGaps).not.toContain(
-      'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:st-cic, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
+      'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:st-cic, yarn harness:mutation:probate, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
     );
     expect(verdict.mutationEvidence).toEqual({
       status: EXUI_RELEASE_ASSURANCE_MUTATION_STATUS,
@@ -735,6 +741,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         requiredCommands: [
           'yarn harness:mutation:wa',
           'yarn harness:mutation:st-cic',
+          'yarn harness:mutation:probate',
           'yarn harness:mutation:civil',
           'yarn harness:mutation:ia',
           'yarn harness:mutation:employment',
@@ -921,6 +928,52 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
+  test('probate grouped service pack has executable staff and service-code contracts', () => {
+    const probateScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
+      (scenario) => scenario.id === 'probate-staff-ref-data-contract'
+    );
+    const probateDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find(
+      (decision) => decision.serviceFamily === 'PROBATE'
+    );
+    const probateProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'PROBATE');
+
+    expect(probateScenario).toEqual(
+      expect.objectContaining({
+        caseType: 'GrantOfRepresentation',
+        executionMode: 'api',
+        lane: 'staff-ref-data',
+        priority: 'must-run',
+        serviceFamily: 'PROBATE',
+      })
+    );
+    expect(probateDecision).toEqual(
+      expect.objectContaining({
+        disposition: 'grouped',
+        lanes: ['staff-ref-data'],
+      })
+    );
+    expect(probateDecision?.representativeScenarioIds).toContain('probate-staff-ref-data-contract');
+    expect(probateProfile).toEqual(
+      expect.objectContaining({
+        proofLevel: 'ccd-backed',
+        representativeCaseTypes: ['GrantOfRepresentation'],
+        serviceCodes: ['ABA6'],
+      })
+    );
+    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).not.toContain('PROBATE');
+    expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).not.toContain('PROBATE');
+    expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('PROBATE');
+    expect(EXUI_SERVICE_REF_DATA_MAPPING.PROBATE).toEqual(['ABA6']);
+    expect(probateScenario?.sourceRefs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          repository: 'hmcts/probate-back-office',
+          path: 'src/main/java/uk/gov/hmcts/probate/model/ccd/CcdCaseType.java',
+        }),
+      ])
+    );
+  });
+
   test('scenario manifest is wiki-ready and traceable to source repositories', () => {
     const scenarioIds = EXUI_SUPERSERVICE_SCENARIOS.map((scenario) => scenario.id);
     expect(new Set(scenarioIds).size).toBe(scenarioIds.length);
@@ -1094,6 +1147,15 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
+  test('static staff-supported family mutation proof catches a Probate staff family regression', async ({}, testInfo) => {
+    await attachMutationEvidence(testInfo);
+
+    expectExactFamilySet(
+      mutateStringArrayForDemo(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'api/staff-supported-jurisdiction/get'),
+      EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES
+    );
+  });
+
   test('employment service-code mutation proof catches a missing BHA1 mapping', async ({}, testInfo) => {
     await attachMutationEvidence(testInfo);
 
@@ -1155,7 +1217,10 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       },
       'api/staff-supported-jurisdiction/get'
     );
-    expectExactFamilySet(actual, EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES);
+    expectExactFamilySet(
+      mutateStringArrayForDemo(actual, 'api/staff-supported-jurisdiction/get'),
+      EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES
+    );
     expectCanaryFamiliesExcluded(actual);
   });
 });

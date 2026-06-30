@@ -205,6 +205,7 @@ export type AssuranceSourceRepository =
   | "rpx-xui-node-lib"
   | "rpx-xui-e2e-tests"
   | "prl-ccd-definitions"
+  | "hmcts/probate-back-office"
   | "hmcts/sptribs-case-api";
 export type AssuranceSourceKind =
   | "config"
@@ -369,6 +370,12 @@ export const EXUI_SOURCE_OF_TRUTH_REFS = {
     path: "src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdServiceCode.java",
     kind: "ccd-definition",
     reason: "Special Tribunals CCD service-code and CriminalInjuriesCompensation case-type contract"
+  },
+  probateBackOffice: {
+    repository: "hmcts/probate-back-office",
+    path: "src/main/java/uk/gov/hmcts/probate/model/ccd/CcdCaseType.java",
+    kind: "ccd-definition",
+    reason: "Probate CCD GrantOfRepresentation case-type and ABA6 service-code contract"
   },
   localHarnessDocs: {
     repository: "rpx-xui-e2e-tests",
@@ -948,8 +955,12 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
     serviceFamily: "PROBATE",
     disposition: "grouped",
     lanes: ["staff-ref-data"],
-    representativeScenarioIds: ["staff-supported-service-families"],
-    rationale: "Staff-supported only in this first slice; grouped until a distinct EXUI-facing behaviour is identified."
+    representativeScenarioIds: [
+      "staff-supported-service-families",
+      "probate-staff-ref-data-contract"
+    ],
+    rationale:
+      "Staff-supported only in this first slice; grouped with a Probate-specific staff/ref-data contract until a distinct EXUI-facing behaviour is identified."
   },
   {
     serviceFamily: "CMC",
@@ -1075,6 +1086,24 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
       EXUI_SOURCE_OF_TRUTH_REFS.sptribsCaseApi,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "probate-staff-ref-data-contract",
+    lane: "staff-ref-data",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "PROBATE",
+    caseType: "GrantOfRepresentation",
+    roleCluster: "caseworker-probate",
+    assertion:
+      "PROBATE remains staff-supported but outside global search and Work Allocation release-blocking sets, with ABA6 service-code mapping",
+    source: "rpx-xui-webapp staff-supported config and probate-back-office CCD service metadata",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.probateBackOffice,
       EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },
