@@ -166,6 +166,9 @@ try {
           "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
           "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
         ];
+    if (runCi && !includeCiUi) {
+      console.log("[harness-local] CI mode is API-only by default; set HARNESS_CI_INCLUDE_UI=true to include UI, integration, and accessibility harness lanes.");
+    }
     await runCommand("Central assurance Odhín report", "./node_modules/.bin/playwright", [
       "test",
       ...projectArgs,

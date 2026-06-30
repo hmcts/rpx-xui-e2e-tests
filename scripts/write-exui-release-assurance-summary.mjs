@@ -17,6 +17,7 @@ const failReasons = releaseBlockingFamilies
   .filter((family) => !profiledFamilies.has(family))
   .map((family) => `release-blocking family without source profile: ${family}`);
 const mutationEvidence = evidence.mutationEvidence ?? { status: "pending", requiredCommands: [] };
+const harnessProofLanes = Array.isArray(evidence.harnessProofLanes) ? evidence.harnessProofLanes : [];
 const warnReasons = [
   ...((Array.isArray(evidence.releaseGate?.warnReasons) ? evidence.releaseGate.warnReasons : [])),
   ...(mutationEvidence.status === "pending"
@@ -45,6 +46,7 @@ const summary = {
   warnReasons,
   releaseBlockingCoverage: releaseBlockingFamilies.filter((family) => !failReasons.some((reason) => reason.endsWith(family))),
   mutationEvidence,
+  harnessProofLanes,
   evidenceSummary: `${overallStatus}: ${releaseBlockingFamilies.length} release-blocking families, ${failReasons.length} fail reason(s), ${warnReasons.length} warning(s), mutation evidence ${mutationEvidence.status}`,
   ownerSliceCatalogue
 };

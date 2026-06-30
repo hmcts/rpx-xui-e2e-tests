@@ -68,7 +68,7 @@ COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localho
 open test-results/harness-poc-odhin-report/harness-poc-odhin.html
 ```
 
-This is the main happy-path proof. The Odhín report includes lane filtering for `API`, `UI`, `Integration`, and `Accessibility`, so reviewers can jump straight to the type of evidence they care about.
+This is the main happy-path proof. The Odhín report includes lane filtering for `API`, `UI`, `Integration`, and `Accessibility`, plus service/jurisdiction slice badges and a dashboard slice table so reviewers can see which services, jurisdictions, and case types each harness proof covers.
 
 ### Run the EXUI-4493 installed-toolkit proof
 
@@ -129,7 +129,7 @@ COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src
 COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts
 ```
 
-`harness:release-summary` writes `functional-output/tests/harness/release-assurance-summary.json`. It shows the current release gate status, explicit fail and warning reasons, mutation evidence status, and the owner slice catalogue for each service family. `harness:defect-intake` is the deterministic intake router for new defects; paste the defect title or notes after `--` and it returns the route, target harness action, and required evidence.
+`harness:release-summary` writes `functional-output/tests/harness/release-assurance-summary.json`. It shows the current release gate status, explicit fail and warning reasons, mutation evidence status, harness proof lanes (API, UI, integration, and accessibility), and the owner slice catalogue for each service family. `harness:defect-intake` is the deterministic intake router for new defects; paste the defect title or notes after `--` and it returns the route, target harness action, and required evidence.
 
 ### Accessibility baseline approach
 

@@ -152,6 +152,10 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).toContain('odhin-dashboard-stack');
     expect(nextHtml).toContain('odhin-harness-lane-script');
     expect(nextHtml).toContain('Harness lane');
+    expect(nextHtml).toContain('Harness service/jurisdiction slices');
+    expect(nextHtml).toContain('WA_SHARED');
+    expect(nextHtml).toContain('PRIVATELAW / PRLAPPS');
+    expect(nextHtml).toContain('DIVORCE / DIVORCE');
     expect(nextHtml).toContain('data-dashboard-harness-lane');
     expect(nextHtml).toContain('dataTable.isDataTable');
     expect(nextHtml).toContain('Accessibility');
@@ -192,6 +196,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).toContain('Feature Overview');
     expect(nextHtml).toContain('odhin-feature-overview-layout-compact');
     expect(nextHtml).toContain('odhin-harness-lane-script');
+    expect(nextHtml).toContain('Harness service/jurisdiction slices');
     expect(nextHtml).not.toContain('id="chart-file"');
   });
 
