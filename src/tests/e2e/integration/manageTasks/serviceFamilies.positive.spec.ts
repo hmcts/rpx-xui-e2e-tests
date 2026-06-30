@@ -16,6 +16,7 @@ import {
 } from '../../../integration/helpers/manageTasksMockRoutes.helper.js';
 import { buildSupportedJurisdictionDetails } from '../../../integration/helpers/taskListMockRoutes.helper.js';
 import { buildTaskListMock, availableActionsList } from '../../../integration/mocks/taskList.mock.js';
+import { ensureUiSession } from '../../utils/ui-session.utils.js';
 import { loadSessionCookies } from '../utils/session.utils.js';
 
 const userIdentifier = 'COURT_ADMIN';
@@ -97,41 +98,52 @@ async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): 
   return [];
 }
 
-async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskListPage, testInfo: { skip: (condition: boolean, description: string) => void }) {
+async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskListPage) {
   try {
     await page.goto('/work/my-work/available', {
       waitUntil: 'domcontentloaded',
       timeout: 20_000,
     });
   } catch (error) {
-    testInfo.skip(true, `Task list navigation did not complete within 20s: ${asErrorMessage(error)}`);
+    throw new Error(`Task list navigation did not complete within 20s: ${asErrorMessage(error)}`, { cause: error });
   }
 
   const accessIssue = await findTaskListAccessIssue(page, '/work/my-work/available');
-  testInfo.skip(Boolean(accessIssue), accessIssue ?? '');
+  if (accessIssue) {
+    throw new Error(accessIssue);
+  }
   await taskListPage.waitForTaskListShellReady('central assurance service family proof');
   await taskListPage.openFilterPanel();
   await expect(taskListPage.selectAllServicesFilter).toBeVisible();
 }
 
 test.beforeAll(async () => {
+  try {
+    await ensureUiSession(userIdentifier);
+  } catch (error) {
+    sessionBootstrapIssue = asErrorMessage(error);
+  }
+
   const cachedSession = loadSessionCookies(userIdentifier);
   sessionCookies = cachedSession.cookies;
 
-  if (sessionCookies.length === 0) {
+  if (sessionCookies.length === 0 && !sessionBootstrapIssue) {
     sessionBootstrapIssue = `No cached ${userIdentifier} UI session cookies were found. Run the UI global setup or yarn ui:session before the harness UI proof.`;
   }
 });
 
-test.beforeEach(async ({ page, request }, testInfo) => {
+test.beforeEach(async ({ page, request }) => {
   const availability = await probeUiRouteAvailability(request, '/work/my-work/list');
-  testInfo.skip(availability.shouldSkip, availability.reason);
-  testInfo.skip(
-    sessionCookies.length === 0,
-    sessionBootstrapIssue
-      ? `No cached ${userIdentifier} UI session cookies were found after session bootstrap failed: ${sessionBootstrapIssue}`
-      : `No cached ${userIdentifier} UI session cookies were found for the manage-tasks proof.`
-  );
+  if (availability.shouldSkip) {
+    throw new Error(availability.reason);
+  }
+  if (sessionCookies.length === 0) {
+    throw new Error(
+      sessionBootstrapIssue
+        ? `No cached ${userIdentifier} UI session cookies were found after session bootstrap failed: ${sessionBootstrapIssue}`
+        : `No cached ${userIdentifier} UI session cookies were found for the manage-tasks proof.`
+    );
+  }
 
   await page.context().addCookies(sessionCookies);
   await setupManageTasksBaseRoutes(page, {
@@ -143,11 +155,12 @@ test.beforeEach(async ({ page, request }, testInfo) => {
 });
 
 test.describe(`Available task service families as ${userIdentifier}`, () => {
+  test.describe.configure({ mode: 'serial' });
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('available tasks filter exposes only the centrally supported WA families', async ({ page, taskListPage }, testInfo) => {
     await test.step('Open the available tasks tab and filter panel', async () => {
-      await openAvailableTasksServiceFilter(page, taskListPage, testInfo);
+      await openAvailableTasksServiceFilter(page, taskListPage);
     });
 
     await test.step('Verify the service filter values match the supported service-family list', async () => {
@@ -167,7 +180,7 @@ test.describe(`Available task service families as ${userIdentifier}`, () => {
     page,
     taskListPage,
   }, testInfo) => {
-    await openAvailableTasksServiceFilter(page, taskListPage, testInfo);
+    await openAvailableTasksServiceFilter(page, taskListPage);
 
     await attachAccessibilityEvidence(testInfo, page, 'Manage Tasks service-family filter accessibility report', {
       knownViolations: [

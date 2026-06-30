@@ -90,6 +90,8 @@ async function openUnsupportedDivorceCaseDetails(page: Parameters<typeof applySe
 }
 
 test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
+  test.describe.configure({ mode: 'serial' });
+
   test('supported Private Law PRLAPPS case renders hearing-manager actions', async ({
     page,
     caseDetailsPage,

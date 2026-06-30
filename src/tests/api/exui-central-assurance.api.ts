@@ -105,6 +105,8 @@ const CONFIGURATION_UI_KEYS = [
   'waWorkflowApi',
 ] as const;
 
+const EXPLICIT_SKIP_CALLS = ['test', 'testInfo', 'describe'].map((owner) => `${owner}.${'sk' + 'ip'}(`);
+
 const ASSURANCE_MUTATIONS = {
   'drop-prl-wa-family': {
     endpoint: 'api/wa-supported-jurisdiction/get',
@@ -252,18 +254,15 @@ function loadSourceTruth(): SourceTruth {
   ) as SourceTruth;
 }
 
-function skipUnlessExactContractStatus(
-  testInfo: { skip: (condition: boolean, description: string) => void },
-  status: number,
-  endpoint: string
-): void {
-  if ((process.env.TEST_ENV ?? '').toLowerCase() === 'local') {
-    expect(status, `${endpoint} should be reachable in the local assurance harness proof`).toBe(200);
-    return;
-  }
+function expectExactContractStatus(status: number, endpoint: string): void {
+  expect(status, `${endpoint} should be reachable for the exact assurance harness proof`).toBe(200);
+}
 
-  testInfo.skip(status !== 200, `${endpoint} returned ${status}; exact assurance harness proof requires an authenticated 200.`);
-  expect(status).toBe(200);
+function findExplicitSkipCalls(filePath: string): string[] {
+  const source = readFileSync(filePath, 'utf8');
+  return EXPLICIT_SKIP_CALLS.filter((skipCall) => source.includes(skipCall)).map(
+    (skipCall) => `${filePath}: ${skipCall}`
+  );
 }
 
 test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node-app', '@svc-ref-data'] }, () => {
@@ -274,6 +273,12 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           executionMode: 'api',
           id: 'configuration-open-ui-contract',
           lane: 'configuration',
+          priority: 'must-run',
+        }),
+        expect.objectContaining({
+          executionMode: 'hybrid',
+          id: 'global-search-supported-service-families',
+          lane: 'global-search',
           priority: 'must-run',
         }),
         expect.objectContaining({
@@ -651,6 +656,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       expect.arrayContaining([
         'src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts',
         'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
+        'src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts',
       ])
     );
     expect(proofLanes.accessibility?.testTitles).toEqual(
@@ -663,6 +669,16 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     proofLanes.accessibility?.testTitles?.forEach((title) => {
       expect(proofFileContents).toContain(title);
     });
+  });
+
+  test('release evidence proof lanes do not allow explicit skip calls', () => {
+    const proofFiles = [
+      ...new Set(buildReleaseEvidenceSummary().harnessProofLanes.flatMap((lane) => lane.testFiles ?? [])),
+    ];
+    const skipOffenders = proofFiles.flatMap((filePath) => findExplicitSkipCalls(filePath));
+
+    expect(proofFiles.length).toBeGreaterThan(0);
+    expect(skipOffenders).toEqual([]);
   });
 
   test('release assurance verdict fails when a configured family is not classified or profiled', () => {
@@ -1112,17 +1128,17 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     }
   });
 
-  test('api/configuration exposes selected feature flag values', async ({ apiClient }, testInfo) => {
+  test('api/configuration exposes selected feature flag values', async ({ apiClient }) => {
     const response = await apiClient.get<unknown>('api/configuration?configurationKey=termsAndConditionsEnabled', {
       throwOnError: false,
     });
-    skipUnlessExactContractStatus(testInfo, response.status, 'api/configuration?configurationKey=termsAndConditionsEnabled');
+    expectExactContractStatus(response.status, 'api/configuration?configurationKey=termsAndConditionsEnabled');
     expect(['boolean', 'string']).toContain(typeof response.data);
   });
 
-  test('api/globalSearch/services contains the central must-run service-family set', async ({ apiClient }, testInfo) => {
+  test('api/globalSearch/services contains the central must-run service-family set', async ({ apiClient }) => {
     const response = await apiClient.get<GlobalSearchService[]>('api/globalSearch/services', { throwOnError: false });
-    skipUnlessExactContractStatus(testInfo, response.status, 'api/globalSearch/services');
+    expectExactContractStatus(response.status, 'api/globalSearch/services');
     const services = expectGlobalSearchServicesOnSuccess({
       status: response.status,
       data: response.data,
@@ -1188,7 +1204,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
 
   test('api/wa-supported-jurisdiction/get contains the central WA must-run family set', async ({ apiClient }, testInfo) => {
     const response = await apiClient.get<string[]>('api/wa-supported-jurisdiction/get', { throwOnError: false });
-    skipUnlessExactContractStatus(testInfo, response.status, 'api/wa-supported-jurisdiction/get');
+    expectExactContractStatus(response.status, 'api/wa-supported-jurisdiction/get');
     const actual = expectStringArrayOnSuccess(
       {
         status: response.status,
@@ -1205,11 +1221,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('api/staff-supported-jurisdiction/get matches the central staff-supported family list', async ({
-    apiClient,
-  }, testInfo) => {
+  test('api/staff-supported-jurisdiction/get matches the central staff-supported family list', async ({ apiClient }) => {
     const response = await apiClient.get<string[]>('api/staff-supported-jurisdiction/get', { throwOnError: false });
-    skipUnlessExactContractStatus(testInfo, response.status, 'api/staff-supported-jurisdiction/get');
+    expectExactContractStatus(response.status, 'api/staff-supported-jurisdiction/get');
     const actual = expectStringArrayOnSuccess(
       {
         status: response.status,

@@ -300,6 +300,51 @@ test.describe('Helper utilities and retry logic', { tag: '@svc-internal' }, () =
     ).rejects.toThrow('boom');
   });
 
+  test('fixture helpers rebuild stale authenticated API storage before use', async () => {
+    type RequestContext = Awaited<ReturnType<typeof fixturesTest.buildRequestContext>>;
+
+    let staleDisposed = false;
+    const staleContext = {
+      get: async () => ({
+        status: () => 200,
+        json: async () => false,
+      }),
+      dispose: async () => {
+        staleDisposed = true;
+      },
+    } as unknown as RequestContext;
+    const freshContext = {
+      get: async () => ({
+        status: () => 200,
+        json: async () => true,
+      }),
+      dispose: async () => undefined,
+    } as unknown as RequestContext;
+    const contexts = [staleContext, freshContext];
+    const requestedStorageStates: Array<string | undefined> = [];
+    let unlinkCalls = 0;
+
+    const context = await fixturesTest.buildAuthenticatedRequestContext('solicitor', 'state-1', {}, {
+      requestFactory: async (options) => {
+        requestedStorageStates.push(typeof options?.storageState === 'string' ? options.storageState : undefined);
+        const nextContext = contexts.shift();
+        if (!nextContext) {
+          throw new Error('unexpected request context build');
+        }
+        return nextContext;
+      },
+      ensureStorageState: async () => 'state-2',
+      unlink: async () => {
+        unlinkCalls += 1;
+      },
+    });
+
+    expect(context).toBe(freshContext);
+    expect(staleDisposed).toBe(true);
+    expect(unlinkCalls).toBe(1);
+    expect(requestedStorageStates).toEqual(['state-1', 'state-2']);
+  });
+
   test('resolveRoleAccessCaseId returns env or default', () => {
     expect(resolveRoleAccessCaseId('case-1')).toBe('case-1');
     expect(resolveRoleAccessCaseId()).toBe('1234567890123456');
