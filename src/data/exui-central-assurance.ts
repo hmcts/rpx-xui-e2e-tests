@@ -203,7 +203,8 @@ export type AssuranceSourceRepository =
   | "rpx-xui-webapp"
   | "rpx-xui-node-lib"
   | "rpx-xui-e2e-tests"
-  | "prl-ccd-definitions";
+  | "prl-ccd-definitions"
+  | "hmcts/sptribs-case-api";
 export type AssuranceSourceKind =
   | "config"
   | "api"
@@ -358,6 +359,12 @@ export const EXUI_SOURCE_OF_TRUTH_REFS = {
     path: "definitions/**",
     kind: "ccd-definition",
     reason: "Representative consuming-service CCD setup for role, jurisdiction, and case-type permutations"
+  },
+  sptribsCaseApi: {
+    repository: "hmcts/sptribs-case-api",
+    path: "src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdServiceCode.java",
+    kind: "ccd-definition",
+    reason: "Special Tribunals CCD service-code and CriminalInjuriesCompensation case-type contract"
   },
   localHarnessDocs: {
     repository: "rpx-xui-e2e-tests",
@@ -861,9 +868,11 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
     representativeScenarioIds: [
       "global-search-supported-service-families",
       "wa-supported-service-families",
-      "staff-supported-service-families"
+      "staff-supported-service-families",
+      "st-cic-wa-family-config-contract"
     ],
-    rationale: "Central global search/WA/staff family sharing the same EXUI config contracts."
+    rationale:
+      "Central global search/WA/staff family with a Special Tribunals WA/service-code contract sourced from sptribs-case-api."
   },
   {
     serviceFamily: "SSCS",
@@ -1005,6 +1014,24 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
       EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "st-cic-wa-family-config-contract",
+    lane: "work-allocation",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "ST_CIC",
+    caseType: "CriminalInjuriesCompensation",
+    roleCluster: "caseworker-st_cic",
+    assertion:
+      "ST_CIC remains in global search, Work Allocation, and staff-supported config with BBA2 service-code mapping",
+    source: "rpx-xui-webapp supported service-family config and sptribs-case-api CCD service metadata",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
+      EXUI_SOURCE_OF_TRUTH_REFS.sptribsCaseApi,
       EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },

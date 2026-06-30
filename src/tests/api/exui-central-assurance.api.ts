@@ -98,6 +98,12 @@ const ASSURANCE_MUTATIONS = {
       'Demo fault: simulate EXUI no longer exposing Private Law as a Work Allocation-supported service family.',
     removedFamily: 'PRIVATELAW',
   },
+  'drop-st-cic-wa-family': {
+    endpoint: 'api/wa-supported-jurisdiction/get',
+    description:
+      'Demo fault: simulate EXUI no longer exposing Special Tribunals as a Work Allocation-supported service family.',
+    removedFamily: 'ST_CIC',
+  },
   'drop-civil-hearings-case-type': {
     endpoint: 'services.hearings.civil.caseTypes',
     description: 'Demo fault: simulate EXUI no longer exposing Civil as a hearings-enabled case type.',
@@ -551,7 +557,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.knownGaps).not.toContain('release-blocking family without CCD-backed profile: ST_CIC');
     expect(EXUI_RELEASE_ASSURANCE_MUTATION_STATUS).toBe('passed');
     expect(verdict.knownGaps).not.toContain(
-      'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
+      'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:st-cic, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
     );
     expect(verdict.mutationEvidence).toEqual({
       status: EXUI_RELEASE_ASSURANCE_MUTATION_STATUS,
@@ -626,6 +632,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         status: 'passed',
         requiredCommands: [
           'yarn harness:mutation:wa',
+          'yarn harness:mutation:st-cic',
           'yarn harness:mutation:civil',
           'yarn harness:mutation:ia',
           'yarn harness:mutation:employment',
@@ -764,6 +771,52 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(civilConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
       { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
     ]);
+  });
+
+  test('st cic release service pack has executable WA and service-code contracts', () => {
+    const stCicScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
+      (scenario) => scenario.id === 'st-cic-wa-family-config-contract'
+    );
+    const stCicDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find(
+      (decision) => decision.serviceFamily === 'ST_CIC'
+    );
+    const stCicProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'ST_CIC');
+
+    expect(stCicScenario).toEqual(
+      expect.objectContaining({
+        caseType: 'CriminalInjuriesCompensation',
+        executionMode: 'api',
+        lane: 'work-allocation',
+        priority: 'must-run',
+        serviceFamily: 'ST_CIC',
+      })
+    );
+    expect(stCicDecision).toEqual(
+      expect.objectContaining({
+        disposition: 'release-blocking',
+        lanes: expect.arrayContaining(['global-search', 'work-allocation', 'staff-ref-data']),
+      })
+    );
+    expect(stCicDecision?.representativeScenarioIds).toContain('st-cic-wa-family-config-contract');
+    expect(stCicProfile).toEqual(
+      expect.objectContaining({
+        proofLevel: 'ccd-backed',
+        representativeCaseTypes: ['CriminalInjuriesCompensation'],
+        serviceCodes: ['BBA2'],
+      })
+    );
+    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).toContain('ST_CIC');
+    expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).toContain('ST_CIC');
+    expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('ST_CIC');
+    expect(EXUI_SERVICE_REF_DATA_MAPPING.ST_CIC).toEqual(['BBA2']);
+    expect(stCicScenario?.sourceRefs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          repository: 'hmcts/sptribs-case-api',
+          path: 'src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdServiceCode.java',
+        }),
+      ])
+    );
   });
 
   test('scenario manifest is wiki-ready and traceable to source repositories', () => {
@@ -929,7 +982,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     }
   });
 
-  test('api/wa-supported-jurisdiction/get mutation proof catches a shared WA family regression', async ({}, testInfo) => {
+  test('static WA-supported family mutation proof catches a shared WA family regression', async ({}, testInfo) => {
     await attachMutationEvidence(testInfo);
 
     expectCentralMustRunFamiliesPresent(

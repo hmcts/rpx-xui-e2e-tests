@@ -7,12 +7,20 @@ const mutation = process.env.EXUI_ASSURANCE_MUTATION || "drop-prl-wa-family";
 const focusedSpec = "src/tests/api/exui-central-assurance.api.ts";
 const mutationProofs = {
   "drop-prl-wa-family": {
-    grep: "api/wa-supported-jurisdiction/get mutation proof catches a shared WA family regression",
+    grep: "static WA-supported family mutation proof catches a shared WA family regression",
     expectedEvidence: [
       "drop-prl-wa-family",
       "api/wa-supported-jurisdiction/get is missing central must-run service families: PRIVATELAW",
     ],
     summary: "the injected EXUI-style WA regression was caught",
+  },
+  "drop-st-cic-wa-family": {
+    grep: "static WA-supported family mutation proof catches a shared WA family regression",
+    expectedEvidence: [
+      "drop-st-cic-wa-family",
+      "api/wa-supported-jurisdiction/get is missing central must-run service families: ST_CIC",
+    ],
+    summary: "the injected EXUI-style ST_CIC WA regression was caught",
   },
   "drop-civil-hearings-case-type": {
     grep: "civil hearings service pack mutation proof catches a missing Civil case type",

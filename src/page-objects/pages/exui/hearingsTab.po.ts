@@ -109,7 +109,11 @@ export class HearingsTabPage {
   }
 
   async openRequestHearing(): Promise<void> {
-    await this.openActionAndWaitForUrlChange(this.requestHearingButton);
+    await this.openActionAndWaitForUrlChange(this.requestHearingButton, {
+      context: 'request hearing',
+      expectedPath: /\/hearings\/request\/hearing-requirements$/,
+    });
+    await expect(this.page.getByRole('heading', { name: /hearing requirements/i })).toBeVisible();
   }
 
   async openViewOrEdit(hearingId: string): Promise<void> {
