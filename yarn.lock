@@ -4968,12 +4968,12 @@ __metadata:
   linkType: hard
 
 "node-html-parser@npm:^8.0.3":
-  version: 8.0.3
-  resolution: "node-html-parser@npm:8.0.3"
+  version: 8.0.4
+  resolution: "node-html-parser@npm:8.0.4"
   dependencies:
     css-select: "npm:^5.1.0"
     entities: "npm:^8.0.0"
-  checksum: 10c0/fb090081719fc4895145a92412c1cca752d390a90a05a7ee05d7f77a2bd0e9866dbe6b7029a768618f03d14d423da8455d32609203b9be821f0afadcc4449ee5
+  checksum: 10c0/066283a4cfcc31fd9612f6e131d1b0bc03f1b85d927de98e5a623185fd91b6101fa95d92c42e477134d9beb768ce24a8eeef086b5beed2a6fb718229e9f38bc0
   languageName: node
   linkType: hard
 
