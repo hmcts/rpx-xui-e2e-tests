@@ -16,6 +16,7 @@ import {
 } from '../../../integration/helpers/manageTasksMockRoutes.helper.js';
 import { buildSupportedJurisdictionDetails } from '../../../integration/helpers/taskListMockRoutes.helper.js';
 import { buildTaskListMock, availableActionsList } from '../../../integration/mocks/taskList.mock.js';
+import { ensureUiSession } from '../../utils/ui-session.utils.js';
 import { loadSessionCookies } from '../utils/session.utils.js';
 
 const userIdentifier = 'COURT_ADMIN';
@@ -117,10 +118,16 @@ async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskLis
 }
 
 test.beforeAll(async () => {
+  try {
+    await ensureUiSession(userIdentifier);
+  } catch (error) {
+    sessionBootstrapIssue = asErrorMessage(error);
+  }
+
   const cachedSession = loadSessionCookies(userIdentifier);
   sessionCookies = cachedSession.cookies;
 
-  if (sessionCookies.length === 0) {
+  if (sessionCookies.length === 0 && !sessionBootstrapIssue) {
     sessionBootstrapIssue = `No cached ${userIdentifier} UI session cookies were found. Run the UI global setup or yarn ui:session before the harness UI proof.`;
   }
 });
