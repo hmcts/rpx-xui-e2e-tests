@@ -83,6 +83,12 @@ type ReleaseEvidence = {
   releaseGate?: {
     warnReasons?: string[];
   };
+  harnessProofLanes?: Array<{
+    lane: string;
+    project: string;
+    testFiles?: string[];
+    testTitles?: string[];
+  }>;
 };
 type RoutePattern = string | RegExp;
 type FulfillOptions = { status?: number; contentType?: string; body?: string };
@@ -615,6 +621,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
 
   test('release evidence summary joins verdict, owner slices, and intake routes', () => {
     const summary = buildReleaseEvidenceSummary();
+    const proofLanes = Object.fromEntries(summary.harnessProofLanes.map((lane) => [lane.lane, lane]));
 
     expect(summary.verdict.overallStatus).toBe('warn');
     expect(summary.ownerSliceCatalogue).toHaveLength(EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.length);
@@ -625,6 +632,31 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       'owner-confirmed-follow-up',
       'specialist-suite-follow-up',
     ]);
+    expect(Object.keys(proofLanes)).toEqual(['api', 'ui', 'integration', 'accessibility']);
+    const proofFileContents = Object.values(proofLanes)
+      .flatMap((lane) => lane.testFiles ?? [])
+      .map((filePath) => readFileSync(filePath, 'utf8'))
+      .join('\n');
+
+    expect(proofLanes.ui?.testFiles).toContain(
+      'src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts'
+    );
+    expect(proofLanes.integration?.testFiles).toEqual(
+      expect.arrayContaining([
+        'src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts',
+        'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
+      ])
+    );
+    expect(proofLanes.accessibility?.testTitles).toEqual(
+      expect.arrayContaining([
+        'accessibility baseline: available tasks service filter has no new axe violations',
+        'accessibility baseline: supported Private Law hearings action view has no new axe violations',
+        'accessibility baseline: unsupported Divorce case details state has no new axe violations',
+      ])
+    );
+    proofLanes.accessibility?.testTitles?.forEach((title) => {
+      expect(proofFileContents).toContain(title);
+    });
   });
 
   test('release assurance verdict fails when a configured family is not classified or profiled', () => {

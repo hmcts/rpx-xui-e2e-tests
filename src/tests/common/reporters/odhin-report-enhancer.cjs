@@ -114,6 +114,66 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+const HARNESS_SLICE_CATALOGUE = [
+  {
+    id: 'wa-supported-service-families',
+    badge: 'WA_SHARED',
+    label: 'Available tasks WA family filter',
+    services: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
+    jurisdictions: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
+    caseTypes: 'central WA family list',
+    fileIncludes: ['serviceFamilies.positive.spec.ts'],
+    titleIncludes: ['available tasks filter', 'accessibility baseline: available tasks service filter'],
+  },
+  {
+    id: 'hearings-privatelaw-prlapps-manager',
+    badge: 'PRIVATELAW / PRLAPPS',
+    label: 'Hearings supported family',
+    services: 'PRIVATELAW',
+    jurisdictions: 'PRIVATELAW',
+    caseTypes: 'PRLAPPS',
+    fileIncludes: ['harnessServiceFamilies.positive.spec.ts'],
+    titleIncludes: ['supported private law hearings action view'],
+  },
+  {
+    id: 'hearings-disabled-divorce',
+    badge: 'DIVORCE / DIVORCE',
+    label: 'Hearings unsupported grouped family',
+    services: 'DIVORCE',
+    jurisdictions: 'DIVORCE',
+    caseTypes: 'DIVORCE',
+    fileIncludes: ['harnessServiceFamilies.positive.spec.ts'],
+    titleIncludes: ['unsupported divorce case details state'],
+  },
+  {
+    id: 'prl-service-of-documents-nested-complex-cya',
+    badge: 'PRIVATELAW CYA',
+    label: 'Nested complex CYA rendering',
+    services: 'PRIVATELAW',
+    jurisdictions: 'PRIVATELAW',
+    caseTypes: 'PRLAPPS / Service of Documents',
+    fileIncludes: ['exui4493CyaRendering.visual.spec.ts'],
+  },
+  {
+    id: 'central-config-contracts',
+    badge: 'Central config',
+    label: 'Central assurance model',
+    services: 'All configured EXUI service families',
+    jurisdictions: 'Global search, WA, staff-supported, hearings config',
+    caseTypes: 'service-family configuration',
+    fileIncludes: ['exui-central-assurance.api.ts'],
+  },
+  {
+    id: 'historic-replay-packs',
+    badge: 'Historic PRL replay',
+    label: 'Historic replay packs',
+    services: 'PRIVATELAW',
+    jurisdictions: 'PRIVATELAW',
+    caseTypes: 'PRLAPPS / nested complex CYA',
+    fileIncludes: ['exui-historic-replay-packs.api.ts'],
+  },
+];
+
 function injectEnhancerStyles(root) {
   const head = root.querySelector('head');
   if (!head || root.querySelector('#odhin-enhancer-styles')) {
@@ -324,6 +384,17 @@ function injectEnhancerStyles(root) {
     text-align: center;
   }
 
+  .odhin-harness-slice-badge {
+    display: inline-block;
+    margin-right: 8px;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: #fff4d6;
+    color: #594300;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
   .odhin-harness-lane-link {
     border: 0;
     background: transparent;
@@ -359,6 +430,7 @@ function injectHarnessLaneScript(root) {
 (function () {
   var activeLane = 'all';
   var testRowsCache = null;
+  var harnessSliceCatalogue = ${JSON.stringify(HARNESS_SLICE_CATALOGUE)};
   var laneLabels = {
     all: 'All',
     api: 'API',
@@ -369,6 +441,15 @@ function injectHarnessLaneScript(root) {
 
   function normalise(value) {
     return String(value || '').trim().toLowerCase();
+  }
+
+  function escapeText(value) {
+    return String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function parseDuration(durationText) {
@@ -399,21 +480,30 @@ function injectHarnessLaneScript(root) {
     return document.querySelector(modalSelector);
   }
 
-  function getProjectForRow(row) {
+  function getInfoValueForRow(row, label) {
     var modal = getModalForRow(row);
+    var expectedLabel = normalise(label);
     if (!modal) {
       return '';
     }
 
-    var infoRows = modal.querySelectorAll('.testcase-run-info-table tr');
+    var infoRows = modal.querySelectorAll('tr');
     for (var index = 0; index < infoRows.length; index += 1) {
       var header = normalise(infoRows[index].querySelector('th') && infoRows[index].querySelector('th').textContent);
-      if (header === 'project') {
+      if (header === expectedLabel) {
         return normalise(infoRows[index].querySelector('td') && infoRows[index].querySelector('td').textContent);
       }
     }
 
     return '';
+  }
+
+  function getProjectForRow(row) {
+    return getInfoValueForRow(row, 'project');
+  }
+
+  function getFilenameForRow(row) {
+    return getInfoValueForRow(row, 'filename');
   }
 
   function getTitleForRow(row) {
@@ -432,6 +522,24 @@ function injectHarnessLaneScript(root) {
     }
 
     return 'other';
+  }
+
+  function includesAny(source, candidates) {
+    if (!candidates || !candidates.length) {
+      return true;
+    }
+    return candidates.some(function (candidate) {
+      return source.indexOf(normalise(candidate)) !== -1;
+    });
+  }
+
+  function getHarnessSliceForRow(row) {
+    var title = getTitleForRow(row);
+    var filename = getFilenameForRow(row);
+
+    return harnessSliceCatalogue.find(function (slice) {
+      return includesAny(filename, slice.fileIncludes) && includesAny(title, slice.titleIncludes);
+    }) || null;
   }
 
   function rowMatchesLane(row, lane) {
@@ -519,6 +627,38 @@ function injectHarnessLaneScript(root) {
     return stats;
   }
 
+  function sliceStats() {
+    var stats = {};
+    harnessSliceCatalogue.forEach(function (slice) {
+      stats[slice.id] = {
+        slice: slice,
+        tests: 0,
+        passed: 0,
+        failed: 0,
+        timedOut: 0,
+        skipped: 0,
+        interrupted: 0,
+        flaky: 0
+      };
+    });
+
+    allTestRows().forEach(function (row) {
+      var slice = getHarnessSliceForRow(row);
+      var status = statusKeyForRow(row);
+      if (!slice || !stats[slice.id]) {
+        return;
+      }
+      stats[slice.id].tests += 1;
+      if (Object.prototype.hasOwnProperty.call(stats[slice.id], status)) {
+        stats[slice.id][status] += 1;
+      }
+    });
+
+    return harnessSliceCatalogue
+      .map(function (slice) { return stats[slice.id]; })
+      .filter(function (entry) { return entry && entry.tests > 0; });
+  }
+
   function addLaneBadges() {
     allTestRows().forEach(function (row) {
       var titleCell = row.querySelector('td');
@@ -530,6 +670,15 @@ function injectHarnessLaneScript(root) {
       badge.className = 'odhin-harness-lane-badge';
       badge.textContent = laneLabels[lane] || 'Other';
       titleCell.insertBefore(badge, titleCell.firstChild);
+
+      var slice = getHarnessSliceForRow(row);
+      if (slice) {
+        var sliceBadge = document.createElement('span');
+        sliceBadge.className = 'odhin-harness-slice-badge';
+        sliceBadge.textContent = slice.badge;
+        sliceBadge.title = 'Services: ' + slice.services + ' | Jurisdictions: ' + slice.jurisdictions + ' | Case types: ' + slice.caseTypes;
+        titleCell.insertBefore(sliceBadge, badge.nextSibling);
+      }
     });
   }
 
@@ -537,12 +686,12 @@ function injectHarnessLaneScript(root) {
     var tableElement = document.querySelector('#test-list-table');
     var statusFilterRow = document.querySelector('#status-filter-row');
     if (!tableElement || !statusFilterRow || document.querySelector('#odhin-harness-test-filters')) {
-      return;
+      return true;
     }
     var dataTable = resolveDataTable();
     if (!dataTable) {
       scheduleHarnessLaneEnhancementRetry();
-      return;
+      return false;
     }
 
     var toolbar = document.createElement('div');
@@ -578,6 +727,7 @@ function injectHarnessLaneScript(root) {
     });
 
     updateFilterSummary();
+    return true;
   }
 
   function activateLane(lane) {
@@ -712,10 +862,71 @@ function injectHarnessLaneScript(root) {
     });
   }
 
+  function addDashboardSliceSummary() {
+    var dashboard = document.querySelector('#TabDashboard .row');
+    if (!dashboard || document.querySelector('#odhin-harness-slice-summary')) {
+      return;
+    }
+
+    var rows = sliceStats().map(function (entry) {
+      var slice = entry.slice;
+      return '<tr>' +
+        '<td class="text-start fs-6 text-secondary-emphasis summary-row-left-column"><strong>' + escapeText(slice.badge) + '</strong><br><span class="text-secondary-emphasis">' + escapeText(slice.label) + '</span></td>' +
+        '<td class="text-secondary-emphasis">' + escapeText(slice.services) + '</td>' +
+        '<td class="text-secondary-emphasis">' + escapeText(slice.jurisdictions) + '</td>' +
+        '<td class="text-secondary-emphasis">' + escapeText(slice.caseTypes) + '</td>' +
+        '<td class="text-secondary-emphasis">' + entry.tests + '</td>' +
+        '<td class="result-status-passed">' + entry.passed + '</td>' +
+        '<td class="result-status-failed">' + entry.failed + '</td>' +
+      '</tr>';
+    }).join('');
+
+    if (!rows) {
+      return;
+    }
+
+    var column = document.createElement('div');
+    column.className = 'col-12';
+    column.id = 'odhin-harness-slice-summary';
+    column.innerHTML =
+      '<div class="mt-3 mb-3 odhin-thin-border dashboard-block">' +
+        '<div class="info-box-header">Harness service/jurisdiction slices</div>' +
+        '<div class="odhin-table">' +
+          '<div class="table-responsive tableFixHead">' +
+            '<table class="table table-sm mb-0">' +
+              '<thead><tr>' +
+                '<th class="odhin-text-2 px-2">Slice</th>' +
+                '<th class="odhin-text-2 px-2">Services</th>' +
+                '<th class="odhin-text-2 px-2">Jurisdictions</th>' +
+                '<th class="odhin-text-2 px-2">Case types</th>' +
+                '<th class="odhin-text-2 px-2">Tests</th>' +
+                '<th class="odhin-text-2 px-2">Passed</th>' +
+                '<th class="odhin-text-2 px-2">Failed</th>' +
+              '</tr></thead>' +
+              '<tbody>' + rows + '</tbody>' +
+            '</table>' +
+          '</div>' +
+          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; harness:ci runs API, UI, integration, and embedded accessibility proofs.</div>' +
+        '</div>' +
+      '</div>';
+
+    var laneSummary = document.querySelector('#odhin-harness-lane-summary');
+    if (laneSummary && laneSummary.nextSibling) {
+      dashboard.insertBefore(column, laneSummary.nextSibling);
+    } else if (laneSummary) {
+      dashboard.appendChild(column);
+    } else {
+      dashboard.appendChild(column);
+    }
+  }
+
   function initialiseHarnessLaneEnhancements() {
-    addTestLaneFilters();
+    if (!addTestLaneFilters()) {
+      return;
+    }
     addLaneBadges();
     addDashboardLaneSummary();
+    addDashboardSliceSummary();
   }
 
   function scheduleHarnessLaneEnhancementRetry() {

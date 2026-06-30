@@ -821,10 +821,21 @@ export interface ExuiDefectIntakeDecision {
   rationale: string;
 }
 
+export interface ExuiHarnessProofLane {
+  lane: "api" | "ui" | "integration" | "accessibility";
+  project: string;
+  requiredFor: "local" | "local-and-ci";
+  ciPolicy?: string;
+  proof: string;
+  testFiles?: readonly string[];
+  testTitles?: readonly string[];
+}
+
 export interface ExuiReleaseEvidenceSummary {
   verdict: ExuiReleaseAssuranceVerdict;
   ownerSliceCatalogue: readonly ExuiOwnerSliceCatalogueEntry[];
   defectIntakeRoutes: readonly ExuiDefectIntakeDecision[];
+  harnessProofLanes: readonly ExuiHarnessProofLane[];
 }
 
 const commonCentralLanes = ["global-search", "work-allocation", "staff-ref-data"] as const;
@@ -1654,7 +1665,8 @@ export function buildReleaseEvidenceSummary(): ExuiReleaseEvidenceSummary {
       target: rule.target,
       requiredEvidence: rule.requiredEvidence,
       rationale: rule.rationale
-    }))
+    })),
+    harnessProofLanes: releaseAssuranceEvidence.harnessProofLanes as readonly ExuiHarnessProofLane[]
   };
 }
 

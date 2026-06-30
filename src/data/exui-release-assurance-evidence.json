@@ -15,5 +15,50 @@
       "yarn harness:mutation:employment",
       "yarn harness:mutation:ccd"
     ]
-  }
+  },
+  "harnessProofLanes": [
+    {
+      "lane": "api",
+      "project": "api",
+      "requiredFor": "local-and-ci",
+      "proof": "Central assurance config, release gate, mutation evidence, and historic replay packs.",
+      "testFiles": [
+        "src/tests/api/exui-central-assurance.api.ts",
+        "src/tests/api/exui-historic-replay-packs.api.ts"
+      ]
+    },
+    {
+      "lane": "ui",
+      "project": "ui",
+      "requiredFor": "local-and-ci",
+      "ciPolicy": "Included in harness:ci.",
+      "proof": "Manage Tasks service-family filter screen evidence.",
+      "testFiles": [
+        "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts"
+      ]
+    },
+    {
+      "lane": "integration",
+      "project": "integration",
+      "requiredFor": "local-and-ci",
+      "ciPolicy": "Included in harness:ci.",
+      "proof": "EXUI-4493 CYA visual evidence and Hearings supported/unsupported family slices.",
+      "testFiles": [
+        "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
+        "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
+      ]
+    },
+    {
+      "lane": "accessibility",
+      "project": "ui/integration",
+      "requiredFor": "local-and-ci",
+      "ciPolicy": "Included in harness:ci through the UI and integration harness specs.",
+      "proof": "Axe baseline checks embedded in the Manage Tasks and Hearings harness specs.",
+      "testTitles": [
+        "accessibility baseline: available tasks service filter has no new axe violations",
+        "accessibility baseline: supported Private Law hearings action view has no new axe violations",
+        "accessibility baseline: unsupported Divorce case details state has no new axe violations"
+      ]
+    }
+  ]
 }
