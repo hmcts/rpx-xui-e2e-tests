@@ -906,7 +906,7 @@ function injectHarnessLaneScript(root) {
               '<tbody>' + rows + '</tbody>' +
             '</table>' +
           '</div>' +
-          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; API-only CI can still omit UI, integration, and accessibility unless HARNESS_CI_INCLUDE_UI=true.</div>' +
+          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; harness:ci runs API, UI, integration, and embedded accessibility proofs.</div>' +
         '</div>' +
       '</div>';
 

@@ -8,7 +8,6 @@ const runLint = args.has("--lint");
 const runManifest = args.has("--manifest");
 const runCi = args.has("--ci");
 const runOdhin = args.has("--odhin") || runCi;
-const includeCiUi = ["1", "true", "yes", "on"].includes((process.env.HARNESS_CI_INCLUDE_UI ?? "").toLowerCase());
 const harnessWorkers = process.env.HARNESS_WORKERS || process.env.PLAYWRIGHT_WORKERS || "4";
 const testUrl = process.env.TEST_URL || (runCi ? "https://manage-case.aat.platform.hmcts.net" : "http://localhost:3455");
 const storagePath = process.env.PW_UI_STORAGE_PATH;
@@ -156,23 +155,16 @@ try {
   }
 
   if (runOdhin) {
-    const projectArgs = runCi && !includeCiUi ? ["--project=api"] : ["--project=api", "--project=ui", "--project=integration"];
-    const specArgs = runCi && !includeCiUi
-      ? ["src/tests/api/exui-central-assurance.api.ts", "src/tests/api/exui-historic-replay-packs.api.ts"]
-      : [
-          "src/tests/api/exui-central-assurance.api.ts",
-          "src/tests/api/exui-historic-replay-packs.api.ts",
-          "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
-          "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
-          "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
-        ];
-    if (runCi && !includeCiUi) {
-      console.log("[harness-local] CI mode is API-only by default; set HARNESS_CI_INCLUDE_UI=true to include UI, integration, and accessibility harness lanes.");
-    }
     await runCommand("Central assurance Odhín report", "./node_modules/.bin/playwright", [
       "test",
-      ...projectArgs,
-      ...specArgs,
+      "--project=api",
+      "--project=ui",
+      "--project=integration",
+      "src/tests/api/exui-central-assurance.api.ts",
+      "src/tests/api/exui-historic-replay-packs.api.ts",
+      "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
+      "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
+      "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
       `--workers=${harnessWorkers}`,
       "--timeout=90000",
       "--global-timeout=120000"

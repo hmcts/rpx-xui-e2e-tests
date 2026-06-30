@@ -30,8 +30,8 @@
     {
       "lane": "ui",
       "project": "ui",
-      "requiredFor": "local",
-      "ciPolicy": "Included in harness:ci when HARNESS_CI_INCLUDE_UI=true.",
+      "requiredFor": "local-and-ci",
+      "ciPolicy": "Included in harness:ci.",
       "proof": "Manage Tasks service-family filter screen evidence.",
       "testFiles": [
         "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts"
@@ -40,8 +40,8 @@
     {
       "lane": "integration",
       "project": "integration",
-      "requiredFor": "local",
-      "ciPolicy": "Included in harness:ci when HARNESS_CI_INCLUDE_UI=true.",
+      "requiredFor": "local-and-ci",
+      "ciPolicy": "Included in harness:ci.",
       "proof": "EXUI-4493 CYA visual evidence and Hearings supported/unsupported family slices.",
       "testFiles": [
         "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
@@ -51,8 +51,8 @@
     {
       "lane": "accessibility",
       "project": "ui/integration",
-      "requiredFor": "local",
-      "ciPolicy": "Included in harness:ci when HARNESS_CI_INCLUDE_UI=true.",
+      "requiredFor": "local-and-ci",
+      "ciPolicy": "Included in harness:ci through the UI and integration harness specs.",
       "proof": "Axe baseline checks embedded in the Manage Tasks and Hearings harness specs.",
       "testTitles": [
         "accessibility baseline: available tasks service filter has no new axe violations",
