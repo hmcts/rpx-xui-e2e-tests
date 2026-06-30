@@ -61,36 +61,10 @@ export class ExuiHeaderComponent {
   public async switchLanguage(language: string): Promise<void> {
     await expect(this.languageToggle).toBeVisible();
     const normalized = language.trim().toLowerCase();
-    const expectedLanguageCode = normalized === "english" ? "en" : "cy";
-    const expectedAppHeaderText = expectedLanguageCode === "en" ? /Manage Cases/i.source : /Rheoli achosion/i.source;
-    const expectedSignOutText = expectedLanguageCode === "en" ? /Sign out/i.source : /Allgofnodi/i.source;
-    const alreadyRendered = await this.page
-      .evaluate(({ expectedCode, expectedAppHeaderPattern, expectedSignOutPattern }) => {
-        const appHeaderText =
-          document.querySelector("exui-header .hmcts-header a.hmcts-header__link")?.textContent?.trim() ?? "";
-        const signOutText =
-          document.querySelector("exui-header .hmcts-header .hmcts-header__navigation-link")?.textContent?.trim() ?? "";
-        const rawClientContext = window.sessionStorage.getItem("clientContext");
-        if (!rawClientContext) {
-          return false;
-        }
-
-        try {
-          const clientContext = JSON.parse(rawClientContext);
-          return (
-            clientContext?.client_context?.user_language?.language === expectedCode &&
-            new RegExp(expectedAppHeaderPattern, "i").test(appHeaderText) &&
-            new RegExp(expectedSignOutPattern, "i").test(signOutText)
-          );
-        } catch {
-          return false;
-        }
-      }, {
-        expectedAppHeaderPattern: expectedAppHeaderText,
-        expectedCode: expectedLanguageCode,
-        expectedSignOutPattern: expectedSignOutText
-      })
-      .catch(() => false);
+    const toggleText = (await this.languageToggle.textContent().catch(() => ""))?.trim().toLowerCase() ?? "";
+    const alreadyRendered =
+      (normalized === "english" && toggleText.includes("cymraeg")) ||
+      (normalized !== "english" && toggleText.includes("english"));
     if (alreadyRendered) {
       return;
     }
@@ -102,19 +76,11 @@ export class ExuiHeaderComponent {
   public async waitForRenderedLanguageState(language: string): Promise<void> {
     const normalized = language.trim().toLowerCase();
     const expectedLanguageCode = normalized === "english" ? "en" : "cy";
-    const expectedAppHeaderLink =
-      expectedLanguageCode === "en" ? /Manage Cases/i.source : /Rheoli achosion/i.source;
-    const expectedSignOutLink =
-      expectedLanguageCode === "en" ? /Sign out/i.source : /Allgofnodi/i.source;
+    const expectedAppHeaderLink = expectedLanguageCode === "en" ? "Manage Cases" : "Rheoli achosion";
+    const expectedSignOutLink = expectedLanguageCode === "en" ? "Sign out" : "Allgofnodi";
 
     await this.page.waitForFunction(
-      ({ appHeaderPattern, expectedCode, expectedSignOutPattern }) => {
-        const appHeaderLink = document.querySelector("exui-header .hmcts-header a.hmcts-header__link");
-        const signOutLink = document.querySelector(
-          "exui-header .hmcts-header .hmcts-header__navigation-link"
-        );
-        const appHeaderText = appHeaderLink?.textContent?.trim() ?? "";
-        const signOutText = signOutLink?.textContent?.trim() ?? "";
+      (expectedCode) => {
         const rawClientContext = window.sessionStorage.getItem("clientContext");
         if (!rawClientContext) {
           return false;
@@ -122,22 +88,19 @@ export class ExuiHeaderComponent {
 
         try {
           const clientContext = JSON.parse(rawClientContext);
-          const currentLanguage = clientContext?.client_context?.user_language?.language;
-          return (
-            currentLanguage === expectedCode &&
-            new RegExp(appHeaderPattern, "i").test(appHeaderText) &&
-            new RegExp(expectedSignOutPattern, "i").test(signOutText)
-          );
+          return clientContext?.client_context?.user_language?.language === expectedCode;
         } catch {
           return false;
         }
       },
-      {
-        appHeaderPattern: expectedAppHeaderLink,
-        expectedCode: expectedLanguageCode,
-        expectedSignOutPattern: expectedSignOutLink
-      },
+      expectedLanguageCode,
       { timeout: ExuiHeaderComponent.LANGUAGE_STATE_TIMEOUT_MS }
     );
+    await expect(this.appHeaderLink).toContainText(expectedAppHeaderLink, {
+      timeout: ExuiHeaderComponent.LANGUAGE_STATE_TIMEOUT_MS
+    });
+    await expect(this.signOutLink).toContainText(expectedSignOutLink, {
+      timeout: ExuiHeaderComponent.LANGUAGE_STATE_TIMEOUT_MS
+    });
   }
 }

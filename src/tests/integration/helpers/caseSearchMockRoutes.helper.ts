@@ -250,10 +250,6 @@ async function gotoCasesReadyForHeaderQuickSearch(caseSearchPage: CaseSearchPage
   for (let attempt = 1; attempt <= MAX_NAVIGATION_RETRY_ATTEMPTS; attempt += 1) {
     await caseSearchPage.page.goto("/cases", { waitUntil: "domcontentloaded" });
     try {
-      await caseSearchPage.exuiHeader.appHeaderLink.waitFor({
-        state: "attached",
-        timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
-      });
       await expect(caseSearchPage.caseIdTextBox).toBeVisible({
         timeout: EXUI_TIMEOUTS.SEARCH_FIELD_VISIBLE
       });
