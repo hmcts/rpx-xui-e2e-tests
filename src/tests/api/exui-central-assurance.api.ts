@@ -277,6 +277,12 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         }),
         expect.objectContaining({
           executionMode: 'hybrid',
+          id: 'global-search-supported-service-families',
+          lane: 'global-search',
+          priority: 'must-run',
+        }),
+        expect.objectContaining({
+          executionMode: 'hybrid',
           id: 'wa-supported-service-families',
           lane: 'work-allocation',
           priority: 'must-run',
@@ -650,6 +656,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       expect.arrayContaining([
         'src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts',
         'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
+        'src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts',
       ])
     );
     expect(proofLanes.accessibility?.testTitles).toEqual(

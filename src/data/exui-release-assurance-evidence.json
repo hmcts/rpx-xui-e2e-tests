@@ -43,10 +43,11 @@
       "project": "integration",
       "requiredFor": "local-and-ci",
       "ciPolicy": "Included in harness:ci.",
-      "proof": "EXUI-4493 CYA visual evidence and Hearings supported/unsupported family slices.",
+      "proof": "EXUI-4493 CYA visual evidence, Global Search service-family selector, and Hearings supported/unsupported family slices.",
       "testFiles": [
         "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
-        "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
+        "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
+        "src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts"
       ]
     },
     {

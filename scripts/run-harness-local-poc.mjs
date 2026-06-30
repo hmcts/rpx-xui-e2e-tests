@@ -165,6 +165,7 @@ try {
       "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
       "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
       "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
+      "src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts",
       `--workers=${harnessWorkers}`,
       "--timeout=90000",
       "--global-timeout=120000"
@@ -202,6 +203,15 @@ try {
       "test",
       "--project=integration",
       "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
+      "--timeout=90000",
+      "--global-timeout=120000",
+      `--workers=${harnessWorkers}`
+    ]);
+
+    await runCommand("Global search service-family proof", "./node_modules/.bin/playwright", [
+      "test",
+      "--project=integration",
+      "src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts",
       "--timeout=90000",
       "--global-timeout=120000",
       `--workers=${harnessWorkers}`

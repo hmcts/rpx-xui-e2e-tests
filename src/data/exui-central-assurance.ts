@@ -1011,7 +1011,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     id: "global-search-supported-service-families",
     lane: "global-search",
     priority: "must-run",
-    executionMode: "api",
+    executionMode: "hybrid",
     serviceFamily: "GLOBAL_SEARCH_SHARED",
     roleCluster: "solicitor",
     assertion: "global search exposes every central must-run service family",

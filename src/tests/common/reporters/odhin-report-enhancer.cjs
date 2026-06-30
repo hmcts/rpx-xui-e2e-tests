@@ -164,6 +164,15 @@ const HARNESS_SLICE_CATALOGUE = [
     fileIncludes: ['exui-central-assurance.api.ts'],
   },
   {
+    id: 'global-search-supported-service-families',
+    badge: 'Global search',
+    label: 'Global search service-family selector',
+    services: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
+    jurisdictions: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
+    caseTypes: 'central global-search family list',
+    fileIncludes: ['globalSearchServiceFamilies.positive.spec.ts'],
+  },
+  {
     id: 'historic-replay-packs',
     badge: 'Historic PRL replay',
     label: 'Historic replay packs',
