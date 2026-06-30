@@ -121,7 +121,7 @@ async function createNodeApiClient(
 ): Promise<PlaywrightApiClient> {
   const storageState = role === "anonymous" ? undefined : await ensureStorageState(role as ApiUserRole);
   const defaultHeaders = await buildDefaultHeaders(role);
-  const context = await buildRequestContext(role, storageState, defaultHeaders);
+  const context = await buildAuthenticatedRequestContext(role, storageState, defaultHeaders);
 
   const client = new PlaywrightApiClient({
     baseUrl,
@@ -176,6 +176,44 @@ type RequestContextDeps = {
   unlink?: typeof fs.unlink;
 };
 
+async function buildAuthenticatedRequestContext(
+  role: ApiUserRole | "anonymous",
+  storageState: string | undefined,
+  defaultHeaders: Record<string, string>,
+  deps: RequestContextDeps = {}
+) {
+  const ensureState = deps.ensureStorageState ?? ensureStorageState;
+  const unlinkFile = deps.unlink ?? fs.unlink;
+  const context = await buildRequestContext(role, storageState, defaultHeaders, deps);
+
+  if (role === "anonymous" || (await isContextAuthenticated(context))) {
+    return context;
+  }
+
+  await context.dispose();
+  if (storageState) {
+    await unlinkFile(storageState).catch(() => undefined);
+  }
+
+  const rebuiltStorageState = await ensureState(role);
+  const rebuiltContext = await buildRequestContext(role, rebuiltStorageState, defaultHeaders, deps);
+  if (await isContextAuthenticated(rebuiltContext)) {
+    return rebuiltContext;
+  }
+
+  await rebuiltContext.dispose();
+  throw new Error(`Authenticated API storage for role "${role}" is not valid; auth/isAuthenticated did not return true.`);
+}
+
+async function isContextAuthenticated(context: Awaited<ReturnType<typeof request.newContext>>): Promise<boolean> {
+  const response = await context.get("auth/isAuthenticated", { failOnStatusCode: false });
+  if (response.status() !== 200) {
+    return false;
+  }
+
+  return (await response.json().catch(() => false)) === true;
+}
+
 async function buildRequestContext(
   role: ApiUserRole | "anonymous",
   storageState: string | undefined,
@@ -213,8 +251,10 @@ async function buildRequestContext(
 }
 
 export const __test__ = {
+  buildAuthenticatedRequestContext,
   buildDefaultHeaders,
   buildRequestContext,
+  isContextAuthenticated,
   shouldAutoInjectXsrf,
   stripTrailingSlash
 };

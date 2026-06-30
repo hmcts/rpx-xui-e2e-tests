@@ -5,6 +5,7 @@ import path from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import { __test__ as sessionCaptureTest } from '../../common/sessionCapture.js';
+import { __test__ as integrationSessionTest } from '../../e2e/integration/utils/session.utils.js';
 import { __test__ as sessionStorageTest } from '../../e2e/utils/session-storage.utils.js';
 import { resolveUiStoragePathForUser, writeUiStorageMetadata } from '../../e2e/utils/storage-state.utils.js';
 
@@ -100,6 +101,42 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     expect(firstPath).not.toBe(secondPath);
     expect(firstPath).toContain('solicitor-first-example-test');
     expect(secondPath).toContain('solicitor-second-example-test');
+  });
+
+  test('integration session lookup falls back to latest metadata match for a user identifier', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-session-unit-'));
+
+    try {
+      const oldStorageFile = path.join(tempDir, 'court_admin-old.json');
+      const currentStorageFile = path.join(tempDir, 'court_admin-current.json');
+      fs.writeFileSync(oldStorageFile, '{"cookies":[]}', 'utf8');
+      fs.writeFileSync(currentStorageFile, '{"cookies":[]}', 'utf8');
+      fs.writeFileSync(
+        oldStorageFile.replace(/\.json$/, '.meta.json'),
+        JSON.stringify({ userIdentifier: 'COURT_ADMIN', email: 'old@example.test', updatedAt: '2026-01-01T00:00:00.000Z' }),
+        'utf8'
+      );
+      fs.writeFileSync(
+        currentStorageFile.replace(/\.json$/, '.meta.json'),
+        JSON.stringify({
+          userIdentifier: 'COURT_ADMIN',
+          email: 'current@example.test',
+          updatedAt: '2026-06-30T00:00:00.000Z',
+        }),
+        'utf8'
+      );
+
+      expect(integrationSessionTest.findStorageFileByMetadata('COURT_ADMIN', tempDir)).toBe(currentStorageFile);
+      expect(
+        integrationSessionTest.resolveSessionStorageFile(
+          'COURT_ADMIN',
+          path.join(tempDir, 'missing.json'),
+          path.join(tempDir, 'legacy.json')
+        )
+      ).toBe(currentStorageFile);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   test('local UI login targets do not fall back to AAT IDAM by default', () => {
