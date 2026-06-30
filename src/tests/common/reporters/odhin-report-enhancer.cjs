@@ -686,12 +686,12 @@ function injectHarnessLaneScript(root) {
     var tableElement = document.querySelector('#test-list-table');
     var statusFilterRow = document.querySelector('#status-filter-row');
     if (!tableElement || !statusFilterRow || document.querySelector('#odhin-harness-test-filters')) {
-      return;
+      return true;
     }
     var dataTable = resolveDataTable();
     if (!dataTable) {
       scheduleHarnessLaneEnhancementRetry();
-      return;
+      return false;
     }
 
     var toolbar = document.createElement('div');
@@ -727,6 +727,7 @@ function injectHarnessLaneScript(root) {
     });
 
     updateFilterSummary();
+    return true;
   }
 
   function activateLane(lane) {
@@ -920,7 +921,9 @@ function injectHarnessLaneScript(root) {
   }
 
   function initialiseHarnessLaneEnhancements() {
-    addTestLaneFilters();
+    if (!addTestLaneFilters()) {
+      return;
+    }
     addLaneBadges();
     addDashboardLaneSummary();
     addDashboardSliceSummary();

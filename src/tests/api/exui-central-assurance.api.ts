@@ -633,6 +633,11 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       'specialist-suite-follow-up',
     ]);
     expect(Object.keys(proofLanes)).toEqual(['api', 'ui', 'integration', 'accessibility']);
+    const proofFileContents = Object.values(proofLanes)
+      .flatMap((lane) => lane.testFiles ?? [])
+      .map((filePath) => readFileSync(filePath, 'utf8'))
+      .join('\n');
+
     expect(proofLanes.ui?.testFiles).toContain(
       'src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts'
     );
@@ -649,6 +654,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'accessibility baseline: unsupported Divorce case details state has no new axe violations',
       ])
     );
+    proofLanes.accessibility?.testTitles?.forEach((title) => {
+      expect(proofFileContents).toContain(title);
+    });
   });
 
   test('release assurance verdict fails when a configured family is not classified or profiled', () => {

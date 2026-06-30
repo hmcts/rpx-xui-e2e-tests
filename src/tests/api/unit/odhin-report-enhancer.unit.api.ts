@@ -167,6 +167,89 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).not.toContain("document.getElementById('chart-file').getContext('2d');");
   });
 
+  test('waits for DataTables rows before building harness slice summaries', async ({ page }) => {
+    const baseHtml = `
+      <!DOCTYPE html>
+      <html>
+        <body>
+          <div id="TabDashboard">
+            <div class="row">
+              <div class="col-12">
+                <div class="info-box-header">Status by project</div>
+              </div>
+            </div>
+          </div>
+          <div id="status-filter-row"></div>
+          <table id="test-list-table">
+            <tbody>
+              <tr class="test-row-result" data-bs-target="#wa-row-modal">
+                <td>available tasks filter exposes only the centrally supported WA families</td>
+                <td>passed</td>
+                <td>0h 0m 1s 0ms</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+          <div id="wa-row-modal">
+            <table>
+              <tr><th>Project</th><td>ui</td></tr>
+              <tr><th>Filename</th><td>src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts</td></tr>
+            </table>
+          </div>
+          <div id="config-row-modal">
+            <table>
+              <tr><th>Project</th><td>api</td></tr>
+              <tr><th>Filename</th><td>src/tests/api/exui-central-assurance.api.ts</td></tr>
+            </table>
+          </div>
+          <script>
+            window.__odhinDataTableReady = false;
+            window.__odhinHiddenRow = document.createElement('tr');
+            window.__odhinHiddenRow.className = 'test-row-result';
+            window.__odhinHiddenRow.setAttribute('data-bs-target', '#config-row-modal');
+            window.__odhinHiddenRow.innerHTML = '<td>release evidence summary joins verdict, owner slices, and intake routes</td><td>passed</td><td>0h 0m 2s 0ms</td><td></td>';
+            window.__odhinRows = Array.prototype.slice.call(document.querySelectorAll('#test-list-table tbody tr.test-row-result')).concat(window.__odhinHiddenRow);
+            window.jQuery = function () {
+              return {
+                DataTable: function () {
+                  return {
+                    rows: function () {
+                      return { nodes: function () { return window.__odhinRows; } };
+                    },
+                    row: function (index) {
+                      return { node: function () { return window.__odhinRows[index]; } };
+                    },
+                    draw: function () {}
+                  };
+                }
+              };
+            };
+            window.jQuery.fn = {
+              dataTable: {
+                ext: { search: [] },
+                isDataTable: function () { return window.__odhinDataTableReady; }
+              }
+            };
+            window.setTimeout(function () {
+              window.__odhinDataTableReady = true;
+            }, 10);
+          </script>
+        </body>
+      </html>`;
+
+    const stat = createEmptyFeatureStat('assuranceHarness');
+    stat.totalTests = 2;
+    stat.durationMs = 3000;
+    stat.passed = 2;
+
+    await page.setContent(enhancerTest.enhanceDashboardHtml(baseHtml, [stat]));
+
+    await expect(page.locator('#odhin-harness-filter-summary')).toContainText('Showing 2 of 2 tests in All');
+    await expect(page.locator('#odhin-harness-slice-summary tbody tr')).toHaveCount(2);
+    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('WA_SHARED');
+    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Central config');
+  });
+
   test('renders compact feature summary cards when only one feature is present', () => {
     const baseHtml = `
       <!DOCTYPE html>
