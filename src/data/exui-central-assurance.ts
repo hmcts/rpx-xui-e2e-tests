@@ -1,3 +1,4 @@
+import defectIntakeRules from "./exui-defect-intake-rules.json" with { type: "json" };
 import releaseAssuranceEvidence from "./exui-release-assurance-evidence.json" with { type: "json" };
 
 export const EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES = [
@@ -239,23 +240,26 @@ export type ExuiDefectIntakeRoute =
   | "targeted-mutation-proof"
   | "owner-confirmed-follow-up"
   | "specialist-suite-follow-up";
-type ExuiReleaseAssuranceStatus = "pass" | "warn" | "fail";
-type ExuiReleaseAssuranceMutationStatus = "passed" | "pending";
+export type ExuiReleaseAssuranceStatus = "pass" | "warn" | "fail";
+export type ExuiReleaseAssuranceMutationStatus = "passed" | "pending";
 
-interface ExuiReleaseAssuranceMutationEvidence {
+export interface ExuiReleaseAssuranceMutationEvidence {
   status: ExuiReleaseAssuranceMutationStatus;
   requiredCommands: readonly string[];
 }
 
-interface ExuiReleaseAssuranceVerdict {
+export interface ExuiReleaseAssuranceVerdict {
   overallStatus: ExuiReleaseAssuranceStatus;
   releaseBlockingCoverage: readonly string[];
+  failReasons: readonly string[];
+  warnReasons: readonly string[];
   knownGaps: readonly string[];
+  evidenceSummary: string;
   mutationEvidence: ExuiReleaseAssuranceMutationEvidence;
   historicFailureCoverage: Record<HistoricFailureCoverageStatus, readonly string[]>;
 }
 
-interface BuildReleaseAssuranceVerdictOptions {
+export interface BuildReleaseAssuranceVerdictOptions {
   configuredFamilies?: readonly string[];
   decisions?: readonly ExuiServiceFamilyCoverageDecision[];
   profiles?: readonly ExuiServiceDefinitionProfile[];
@@ -795,6 +799,34 @@ export interface ExuiServiceFamilyCoverageDecision {
   rationale: string;
 }
 
+export interface ExuiOwnerSliceCatalogueEntry {
+  serviceFamily: string;
+  label: string;
+  disposition: AssuranceCoverageDisposition;
+  lanes: readonly AssuranceScenarioLane[];
+  representativeScenarioIds: readonly string[];
+  proofLevel: ExuiDefinitionProfileLevel | "unprofiled";
+  representativeCaseTypes: readonly string[];
+  serviceCodes: readonly string[];
+  sourceRepositories: readonly string[];
+  ownerAction: string;
+  rationale: string;
+}
+
+export interface ExuiDefectIntakeDecision {
+  route: ExuiDefectIntakeRoute;
+  ruleId: string;
+  target: string;
+  requiredEvidence: readonly string[];
+  rationale: string;
+}
+
+export interface ExuiReleaseEvidenceSummary {
+  verdict: ExuiReleaseAssuranceVerdict;
+  ownerSliceCatalogue: readonly ExuiOwnerSliceCatalogueEntry[];
+  defectIntakeRoutes: readonly ExuiDefectIntakeDecision[];
+}
+
 const commonCentralLanes = ["global-search", "work-allocation", "staff-ref-data"] as const;
 
 export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyCoverageDecision[] = [
@@ -1200,68 +1232,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
   }
 ] as const;
 
-export const EXUI_DEFECT_INTAKE_RULES: readonly ExuiDefectIntakeRule[] = [
-  {
-    id: "known-contract-regression-red-proof",
-    route: "targeted-mutation-proof",
-    signalTerms: ["dropped service code", "missing case type", "missing family", "red proof", "mutation proof"],
-    target: "Add or extend a focused `harness:mutation:*` proof for the already-owned contract.",
-    requiredEvidence: [
-      "positive harness proof for the current contract",
-      "single injected fault that fails with the expected missing value",
-      "Odhín or console failure evidence path"
-    ],
-    rationale: "Known release-blocking contracts need a red proof so the harness cannot silently pass the defect class."
-  },
-  {
-    id: "ccd-event-data-integrity-replay",
-    route: "historic-replay-pack",
-    signalTerms: ["cya", "show condition", "hidden page", "complex field", "submit payload", "previous"],
-    target: "Add a synthetic historic replay under the manage-case data-integrity pack.",
-    requiredEvidence: [
-      "historic defect reference",
-      "minimal CCD/event shape that reproduces the failed interpretation",
-      "payload or CYA assertion that would have failed before the fix"
-    ],
-    rationale: "CCD interpretation bugs are best captured as deterministic replay packs rather than live UI journeys."
-  },
-  {
-    id: "central-service-family-config-pack",
-    route: "service-family-pack",
-    signalTerms: ["global search", "work allocation", "staff ref data", "service family", "jurisdiction missing"],
-    target: "Add or update the affected service-family assurance pack.",
-    requiredEvidence: [
-      "source-of-truth config or CCD definition reference",
-      "positive API/config assertion",
-      "owner-confirmed representative service or case type when source data is incomplete"
-    ],
-    rationale: "Central service-family drift belongs in the service-pack manifest and executable config proof."
-  },
-  {
-    id: "owner-contract-unclear-follow-up",
-    route: "owner-confirmed-follow-up",
-    signalTerms: ["owner confirmation", "unclear expected behaviour", "no source of truth", "manual check"],
-    target: "Keep as an explicit owner-confirmed follow-up until the stable contract is supplied.",
-    requiredEvidence: [
-      "problem statement and affected route or service",
-      "missing source-of-truth or owner decision",
-      "proposed harness scenario once the owner confirms the contract"
-    ],
-    rationale: "The harness should not turn uncertain product behaviour into a release gate without owner confirmation."
-  },
-  {
-    id: "specialist-non-exui-surface",
-    route: "specialist-suite-follow-up",
-    signalTerms: ["media viewer", "redaction", "document rendering", "pixel coordinate"],
-    target: "Route to the owning specialist suite before adding central EXUI shell coverage.",
-    requiredEvidence: [
-      "owning product or component",
-      "specialist fixture or artifact needed",
-      "central EXUI shell boundary if one still exists"
-    ],
-    rationale: "Specialist rendering or coordinate defects need owner-specific fixtures outside the first central harness boundary."
-  }
-] as const;
+export const EXUI_DEFECT_INTAKE_RULES = defectIntakeRules as readonly ExuiDefectIntakeRule[];
 
 export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverage[] = [
   {
@@ -1506,6 +1477,17 @@ export function classifyExuiDefectIntake(
   );
 }
 
+export function buildDefectIntakeDecision(title: string, description = ""): ExuiDefectIntakeDecision {
+  const rule = classifyExuiDefectIntake(title, description);
+  return {
+    route: rule.route,
+    ruleId: rule.id,
+    target: rule.target,
+    requiredEvidence: rule.requiredEvidence,
+    rationale: rule.rationale
+  };
+}
+
 export function buildServiceDefinitionProfileSummary(
   profiles: readonly ExuiServiceDefinitionProfile[] = EXUI_SERVICE_DEFINITION_PROFILES
 ): Record<ExuiDefinitionProfileLevel, readonly string[]> {
@@ -1636,6 +1618,46 @@ export function buildCoverageSummary(
   };
 }
 
+export function buildOwnerSliceCatalogue(
+  decisions: readonly ExuiServiceFamilyCoverageDecision[] = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS,
+  profiles: readonly ExuiServiceDefinitionProfile[] = EXUI_SERVICE_DEFINITION_PROFILES
+): readonly ExuiOwnerSliceCatalogueEntry[] {
+  return [...decisions]
+    .map((decision) => {
+      const serviceFamily = normalizeServiceFamily(decision.serviceFamily);
+      const profile = profiles.find((candidate) => normalizeServiceFamily(candidate.serviceFamily) === serviceFamily);
+      const proofLevel: ExuiDefinitionProfileLevel | "unprofiled" = profile?.proofLevel ?? "unprofiled";
+      return {
+        serviceFamily,
+        label: EXUI_SERVICE_LABELS[serviceFamily] ?? serviceFamily,
+        disposition: decision.disposition,
+        lanes: decision.lanes,
+        representativeScenarioIds: decision.representativeScenarioIds,
+        proofLevel,
+        representativeCaseTypes: profile?.representativeCaseTypes ?? [],
+        serviceCodes: profile?.serviceCodes ?? [],
+        sourceRepositories: profile?.repos.map((repo) => repo.fullName) ?? [],
+        ownerAction: profile?.nextAction ?? "Supply a service definition profile before promotion into the release gate.",
+        rationale: decision.rationale
+      };
+    })
+    .sort((left, right) => left.serviceFamily.localeCompare(right.serviceFamily));
+}
+
+export function buildReleaseEvidenceSummary(): ExuiReleaseEvidenceSummary {
+  return {
+    verdict: buildReleaseAssuranceVerdict(),
+    ownerSliceCatalogue: buildOwnerSliceCatalogue(),
+    defectIntakeRoutes: EXUI_DEFECT_INTAKE_RULES.map((rule) => ({
+      route: rule.route,
+      ruleId: rule.id,
+      target: rule.target,
+      requiredEvidence: rule.requiredEvidence,
+      rationale: rule.rationale
+    }))
+  };
+}
+
 export function buildReleaseAssuranceVerdict(
   options: BuildReleaseAssuranceVerdictOptions = {}
 ): ExuiReleaseAssuranceVerdict {
@@ -1650,7 +1672,7 @@ export function buildReleaseAssuranceVerdict(
   const releaseBlockingSourceGaps = findReleaseBlockingFamiliesWithoutCcdBackedProfile(decisions, profiles);
   const unclassifiedFamilies = findUnclassifiedServiceFamilies(configuredFamilies, decisions);
   const unprofiledFamilies = findUnprofiledServiceFamilies(configuredFamilies, profiles);
-  const knownGaps = [
+  const warnReasons = [
     ...releaseBlockingSourceGaps.map((family) => `release-blocking family without CCD-backed profile: ${family}`),
     ...historicFailureCoverage["would-catch-with-replay-pack"].map((id) => `historic replay pack not executable yet: ${id}`),
     ...historicFailureCoverage["learning-case"].map((id) => `historic learning case not executable yet: ${id}`),
@@ -1658,17 +1680,21 @@ export function buildReleaseAssuranceVerdict(
     ...historicFailureCoverage["out-of-scope"].map((id) => `historic out-of-scope class: ${id}`),
     ...(mutationEvidenceStatus === "pending" ? [`mutation evidence pending: ${mutationCommands.join(", ")}`] : [])
   ];
-  const fatalGaps = [
+  const failReasons = [
     ...unclassifiedFamilies.map((family) => `unclassified configured family: ${family}`),
     ...unprofiledFamilies.map((family) => `unprofiled configured family: ${family}`)
   ];
+  const overallStatus = failReasons.length > 0 ? "fail" : warnReasons.length > 0 ? "warn" : "pass";
 
   return {
-    overallStatus: fatalGaps.length > 0 ? "fail" : knownGaps.length > 0 ? "warn" : "pass",
+    overallStatus,
     releaseBlockingCoverage: coverageSummary["release-blocking"].filter(
       (family) => !releaseBlockingSourceGaps.includes(family)
     ),
-    knownGaps: [...fatalGaps, ...knownGaps],
+    failReasons,
+    warnReasons,
+    knownGaps: [...failReasons, ...warnReasons],
+    evidenceSummary: `${overallStatus}: ${coverageSummary["release-blocking"].length} release-blocking families, ${failReasons.length} fail reason(s), ${warnReasons.length} warning(s), mutation evidence ${mutationEvidenceStatus}`,
     mutationEvidence: {
       status: mutationEvidenceStatus,
       requiredCommands: mutationCommands

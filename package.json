@@ -25,6 +25,8 @@
     "ui:session": "node ./scripts/record-ui-session.mjs",
     "harness:local:shell": "node ./scripts/local-exui-static-proxy.mjs",
     "harness:manifest": "node ./scripts/check-exui-harness-manifest.mjs",
+    "harness:release-summary": "node ./scripts/write-exui-release-assurance-summary.mjs",
+    "harness:defect-intake": "node ./scripts/classify-exui-defect-intake.mjs",
     "harness:ci": "node ./scripts/run-harness-local-poc.mjs --ci --odhin",
     "harness:local:prove": "node ./scripts/run-harness-local-poc.mjs",
     "harness:local:odhin": "node ./scripts/run-harness-local-poc.mjs --odhin",

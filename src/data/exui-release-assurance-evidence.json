@@ -1,4 +1,10 @@
 {
+  "releaseGate": {
+    "warnReasons": [
+      "historic learning case not executable yet: overview-page-layout-regression-classification",
+      "historic out-of-scope class: media-viewer-redaction-coordinate"
+    ]
+  },
   "mutationEvidence": {
     "status": "passed",
     "requiredCommands": [
