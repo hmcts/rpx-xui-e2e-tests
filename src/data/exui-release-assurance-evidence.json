@@ -3,6 +3,7 @@
     "status": "passed",
     "requiredCommands": [
       "yarn harness:mutation:wa",
+      "yarn harness:mutation:st-cic",
       "yarn harness:mutation:civil",
       "yarn harness:mutation:ia",
       "yarn harness:mutation:employment",

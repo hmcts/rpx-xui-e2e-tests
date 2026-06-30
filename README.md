@@ -102,6 +102,13 @@ COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localho
 open functional-output/tests/harness/mutation-proof/odhin-report/harness-mutation-proof.html
 ```
 
+Special Tribunals WA service-family mutation:
+
+```bash
+COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localhost:3455 yarn harness:mutation:st-cic
+open functional-output/tests/harness/mutation-proof/odhin-report/harness-mutation-proof.html
+```
+
 CCD metadata mutation:
 
 ```bash
