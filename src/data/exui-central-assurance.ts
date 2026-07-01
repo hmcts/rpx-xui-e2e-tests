@@ -1253,7 +1253,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     id: "overview-page-layout-baseline-contract",
     lane: "manage-case",
     priority: "grouped",
-    executionMode: "planned",
+    executionMode: "ui",
     serviceFamily: "IA",
     roleCluster: "caseworker, admin, home-office, judge",
     assertion:
@@ -1465,13 +1465,11 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     replayPack: "service-overview-layout",
     failureClass: "Service overview page layout changed unexpectedly for multiple roles in a specific environment",
     harnessContract:
-      "Agentic triage must compare the reported visual drift with the actual human remediation evidence, then promote it into an overview-page DOM/visual/a11y baseline once the owning team agrees the stable contract.",
-    coverageStatus: "learning-case",
+      "Mocked IA case-details journey opens the real EXUI overview route and asserts the stable heading, selected tab, key fields, screenshot evidence, and accessibility baseline.",
+    coverageStatus: "covered-now",
     currentPocEvidence:
-      "Ticket is deliberately retained as a learning case: the harness model captures the likely EXUI layout/style boundary, the missing direct fix link, and the proposed executable overview-layout baseline.",
-    wouldHaveCaught: false,
-    missReason:
-      "No direct EXUI-4756 PR or commit has been found in the rendered Jira/GitHub evidence, so the current branch must not claim executable coverage yet.",
+      "Executable replay pack renders the mocked IA Asylum overview route, checks the agreed layout contract, and attaches screenshot plus axe evidence.",
+    wouldHaveCaught: true,
     nextScenarioId: "overview-page-layout-baseline-contract",
     agenticExpectedBoundary:
       "Likely shared EXUI layout/styling or dependency-driven rendering drift, because the same overview page format changed across several role states rather than one service data field.",
@@ -1482,9 +1480,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     ],
     humanFixConfidence: "indirect",
     comparisonLearning:
-      "Done status is irrelevant to coverage value: the ticket is useful because it lets the team compare agentic classification against real remediation evidence and decide whether shared overview layout drift deserves a central gate.",
-    executableProofGap:
-      "Need an agreed overview route fixture, representative role personas, and stable DOM/visual/a11y assertions before this can move from learning-case to covered-now."
+      "Done status is irrelevant to coverage value: the ticket is useful because it let the team compare agentic classification against real remediation evidence and add a central overview layout gate."
   },
   {
     id: "media-viewer-redaction-coordinate",
