@@ -1,16 +1,9 @@
 {
   "releaseGate": {
     "warnReasons": [
-      "historic learning case not executable yet: overview-page-layout-regression-classification",
       "historic out-of-scope class: media-viewer-redaction-coordinate"
     ],
     "acceptedWarnings": [
-      {
-        "reason": "historic learning case not executable yet: overview-page-layout-regression-classification",
-        "classification": "historic-learning-case",
-        "ownerAction": "Keep as a learning-only classification until the overview layout contract is owner-confirmed and executable.",
-        "closureCriteria": "Promote into a replay pack once a stable owner-backed layout assertion exists."
-      },
       {
         "reason": "historic out-of-scope class: media-viewer-redaction-coordinate",
         "classification": "specialist-suite-follow-up",
@@ -57,9 +50,10 @@
       "project": "integration",
       "requiredFor": "local-and-ci",
       "ciPolicy": "Included in harness:ci.",
-      "proof": "EXUI-4493 CYA visual evidence, Global Search service-family selector, and Hearings supported/unsupported family slices.",
+      "proof": "EXUI-4493 CYA visual evidence, Overview layout route proof, Global Search service-family selector, and Hearings supported/unsupported family slices.",
       "testFiles": [
         "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
+        "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
         "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
         "src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts"
       ]
@@ -69,9 +63,10 @@
       "project": "ui/integration",
       "requiredFor": "local-and-ci",
       "ciPolicy": "Included in harness:ci through the UI and integration harness specs.",
-      "proof": "Axe baseline checks embedded in the Manage Tasks and Hearings harness specs.",
+      "proof": "Axe baseline checks embedded in the Manage Tasks, Overview layout, and Hearings harness specs.",
       "testTitles": [
         "accessibility baseline: available tasks service filter has no new axe violations",
+        "accessibility baseline: IA overview case details has no new axe violations",
         "accessibility baseline: supported Private Law hearings action view has no new axe violations",
         "accessibility baseline: unsupported Divorce case details state has no new axe violations"
       ]
