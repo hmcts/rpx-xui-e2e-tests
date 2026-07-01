@@ -3,6 +3,20 @@
     "warnReasons": [
       "historic learning case not executable yet: overview-page-layout-regression-classification",
       "historic out-of-scope class: media-viewer-redaction-coordinate"
+    ],
+    "acceptedWarnings": [
+      {
+        "reason": "historic learning case not executable yet: overview-page-layout-regression-classification",
+        "classification": "historic-learning-case",
+        "ownerAction": "Keep as a learning-only classification until the overview layout contract is owner-confirmed and executable.",
+        "closureCriteria": "Promote into a replay pack once a stable owner-backed layout assertion exists."
+      },
+      {
+        "reason": "historic out-of-scope class: media-viewer-redaction-coordinate",
+        "classification": "specialist-suite-follow-up",
+        "ownerAction": "Keep with the Media Viewer specialist suite rather than the central EXUI release gate.",
+        "closureCriteria": "Close only if Media Viewer owners add this coordinate-redaction contract to central EXUI release evidence."
+      }
     ]
   },
   "mutationEvidence": {

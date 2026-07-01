@@ -100,10 +100,8 @@ async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): 
 
 async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskListPage) {
   try {
-    await page.goto('/work/my-work/available', {
-      waitUntil: 'domcontentloaded',
-      timeout: 20_000,
-    });
+    await taskListPage.goto();
+    await taskListPage.taskTableTabs.filter({ hasText: 'Available tasks' }).first().click();
   } catch (error) {
     throw new Error(`Task list navigation did not complete within 20s: ${asErrorMessage(error)}`, { cause: error });
   }
@@ -119,7 +117,10 @@ async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskLis
 
 test.beforeAll(async () => {
   try {
-    await ensureUiSession(userIdentifier);
+    sessionCookies = loadSessionCookies(userIdentifier).cookies;
+    if (sessionCookies.length === 0) {
+      await ensureUiSession(userIdentifier, { strict: false });
+    }
   } catch (error) {
     sessionBootstrapIssue = asErrorMessage(error);
   }
