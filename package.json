@@ -13,7 +13,7 @@
     "test:setup:playwright-install-browsers": "./node_modules/.bin/playwright install chromium firefox webkit",
     "test:setup:playwright-install-chromium": "./node_modules/.bin/playwright install chromium",
     "test:setup:playwright-verify-all": "node scripts/verify-playwright-browsers.cjs chromium firefox webkit",
-    "setup": "yarn install --immutable && yarn env:populate:playwright:aat && yarn pwinstall && ./node_modules/.bin/playwright install webkit && ./node_modules/.bin/playwright install firefox",
+    "setup": "yarn install --immutable && yarn env:populate:playwright:aat && yarn pwinstall",
     "get-secrets": "node ./node_modules/@hmcts/playwright-common/dist/scripts/get-secrets.js",
     "env:populate": "bash ./scripts/populate-env-from-keyvault.sh",
     "env:populate:aat": "bash ./scripts/populate-env-from-keyvault.sh aat",
@@ -59,7 +59,7 @@
     "test:ui:raw": "sh -c 'if [ \"${1:-}\" = \"--\" ]; then shift; fi; export PW_UI_STORAGE=1 PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin.html PW_ODHIN_FALLBACK_SUITE_NAME=\"Playwright E2E Test\" PLAYWRIGHT_REPORTERS=${PLAYWRIGHT_REPORTERS:-list,odhin}; ./node_modules/.bin/playwright test \"$@\" --project=ui; status=$?; node ./scripts/ensure-odhin-report.cjs || true; exit \"$status\"' --",
     "test:playwrightE2E": "yarn test:ui",
     "test:crossbrowser": "sh -c 'if [ \"${1:-}\" = \"--\" ]; then shift; fi; PW_LOAD_PROFILE_OUTPUT=${PW_LOAD_PROFILE_OUTPUT:-functional-output/tests/playwright-e2e/odhin-report/load-profile} node scripts/playwright-load-monitor.cjs --report-folder functional-output/tests/playwright-e2e/odhin-report --label \"${PW_LOAD_PROFILE_LABEL:-E2E cross-browser}\" -- yarn test:crossbrowser:raw \"$@\"' --",
-    "test:crossbrowser:raw": "sh -c 'if [ \"${1:-}\" = \"--\" ]; then shift; fi; if [ \"${PLAYWRIGHT_SKIP_INSTALL}\" != \"true\" ]; then ./node_modules/.bin/playwright install --with-deps && ./node_modules/.bin/playwright install webkit && ./node_modules/.bin/playwright install firefox; fi; export E2E_PW_INCLUDE_TAGS=${E2E_PW_INCLUDE_TAGS:-@nightly} E2E_PW_EXCLUDED_TAGS_OVERRIDE=${E2E_PW_EXCLUDED_TAGS_OVERRIDE:-@none} PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-nightly.html PW_ODHIN_INDEX=playwright-odhin-nightly.html PW_ODHIN_FALLBACK_SUITE_NAME=\"Playwright E2E Cross-Browser\"; ./node_modules/.bin/playwright test -c playwright-nightly.config.ts \"$@\"; status=$?; node ./scripts/ensure-odhin-report.cjs || true; exit \"$status\"' --"
+    "test:crossbrowser:raw": "sh -c 'if [ \"${1:-}\" = \"--\" ]; then shift; fi; if [ \"${PLAYWRIGHT_SKIP_INSTALL}\" != \"true\" ]; then ./node_modules/.bin/playwright install --with-deps; fi; export E2E_PW_INCLUDE_TAGS=${E2E_PW_INCLUDE_TAGS:-@nightly} E2E_PW_EXCLUDED_TAGS_OVERRIDE=${E2E_PW_EXCLUDED_TAGS_OVERRIDE:-@none} PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-nightly.html PW_ODHIN_INDEX=playwright-odhin-nightly.html PW_ODHIN_FALLBACK_SUITE_NAME=\"Playwright E2E Cross-Browser\"; ./node_modules/.bin/playwright test -c playwright-nightly.config.ts \"$@\"; status=$?; node ./scripts/ensure-odhin-report.cjs || true; exit \"$status\"' --"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
