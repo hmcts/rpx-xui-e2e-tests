@@ -82,6 +82,12 @@ type SourceTruth = {
 type ReleaseEvidence = {
   releaseGate?: {
     warnReasons?: string[];
+    acceptedWarnings?: Array<{
+      reason: string;
+      classification: string;
+      ownerAction: string;
+      closureCriteria: string;
+    }>;
   };
   harnessProofLanes?: Array<{
     lane: string;
@@ -581,6 +587,23 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.overallStatus).toBe('warn');
     expect(verdict.failReasons).toEqual([]);
     expect(verdict.warnReasons).toEqual(evidence.releaseGate?.warnReasons);
+    expect(evidence.releaseGate?.acceptedWarnings?.map((warning) => warning.reason)).toEqual(verdict.warnReasons);
+    expect(evidence.releaseGate?.acceptedWarnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          reason: 'historic learning case not executable yet: overview-page-layout-regression-classification',
+          classification: 'historic-learning-case',
+          ownerAction: expect.stringContaining('learning-only classification'),
+          closureCriteria: expect.stringContaining('Promote into a replay pack'),
+        }),
+        expect.objectContaining({
+          reason: 'historic out-of-scope class: media-viewer-redaction-coordinate',
+          classification: 'specialist-suite-follow-up',
+          ownerAction: expect.stringContaining('Media Viewer specialist suite'),
+          closureCriteria: expect.stringContaining('Media Viewer owners'),
+        }),
+      ])
+    );
     expect(verdict.releaseBlockingCoverage).toEqual(
       expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'])
     );
@@ -635,6 +658,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     const proofLanes = Object.fromEntries(summary.harnessProofLanes.map((lane) => [lane.lane, lane]));
 
     expect(summary.verdict.overallStatus).toBe('warn');
+    expect(summary.acceptedWarnings.map((warning) => warning.reason)).toEqual(summary.verdict.warnReasons);
     expect(summary.ownerSliceCatalogue).toHaveLength(EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.length);
     expect(summary.defectIntakeRoutes.map((route) => route.route)).toEqual([
       'targeted-mutation-proof',

@@ -249,6 +249,13 @@ export interface ExuiReleaseAssuranceMutationEvidence {
   requiredCommands: readonly string[];
 }
 
+export interface ExuiReleaseAssuranceAcceptedWarning {
+  reason: string;
+  classification: string;
+  ownerAction: string;
+  closureCriteria: string;
+}
+
 export interface ExuiReleaseAssuranceVerdict {
   overallStatus: ExuiReleaseAssuranceStatus;
   releaseBlockingCoverage: readonly string[];
@@ -273,6 +280,8 @@ export const EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS =
   releaseAssuranceEvidence.mutationEvidence.requiredCommands;
 export const EXUI_RELEASE_ASSURANCE_MUTATION_STATUS =
   releaseAssuranceEvidence.mutationEvidence.status as ExuiReleaseAssuranceMutationStatus;
+export const EXUI_RELEASE_ASSURANCE_ACCEPTED_WARNINGS =
+  releaseAssuranceEvidence.releaseGate.acceptedWarnings as readonly ExuiReleaseAssuranceAcceptedWarning[];
 
 export interface ExuiSuperserviceSourceRef {
   repository: AssuranceSourceRepository;
@@ -843,6 +852,7 @@ export interface ExuiReleaseEvidenceSummary {
   ownerSliceCatalogue: readonly ExuiOwnerSliceCatalogueEntry[];
   defectIntakeRoutes: readonly ExuiDefectIntakeDecision[];
   harnessProofLanes: readonly ExuiHarnessProofLane[];
+  acceptedWarnings: readonly ExuiReleaseAssuranceAcceptedWarning[];
 }
 
 const commonCentralLanes = ["global-search", "work-allocation", "staff-ref-data"] as const;
@@ -1695,7 +1705,8 @@ export function buildReleaseEvidenceSummary(): ExuiReleaseEvidenceSummary {
       requiredEvidence: rule.requiredEvidence,
       rationale: rule.rationale
     })),
-    harnessProofLanes: releaseAssuranceEvidence.harnessProofLanes as readonly ExuiHarnessProofLane[]
+    harnessProofLanes: releaseAssuranceEvidence.harnessProofLanes as readonly ExuiHarnessProofLane[],
+    acceptedWarnings: EXUI_RELEASE_ASSURANCE_ACCEPTED_WARNINGS
   };
 }
 

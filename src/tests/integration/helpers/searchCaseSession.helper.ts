@@ -116,8 +116,14 @@ export async function ensureSearchCaseSessionAccessForUser(
     }
 
     try {
-      await ensureUiStorageStateForUser(candidateUser, { strict: true });
-      return candidateUser;
+      if (loadSessionCookies(candidateUser).cookies.length > 0) {
+        return candidateUser;
+      }
+      await ensureUiStorageStateForUser(candidateUser, { strict: false });
+      if (loadSessionCookies(candidateUser).cookies.length > 0) {
+        return candidateUser;
+      }
+      failureMessages.push(`${candidateUser}: no cached session cookies after warm-up`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failureMessages.push(`${candidateUser}: ${message}`);

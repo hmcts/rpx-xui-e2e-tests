@@ -18,12 +18,19 @@ const failReasons = releaseBlockingFamilies
   .map((family) => `release-blocking family without source profile: ${family}`);
 const mutationEvidence = evidence.mutationEvidence ?? { status: "pending", requiredCommands: [] };
 const harnessProofLanes = Array.isArray(evidence.harnessProofLanes) ? evidence.harnessProofLanes : [];
+const releaseGateWarnReasons = Array.isArray(evidence.releaseGate?.warnReasons) ? evidence.releaseGate.warnReasons : [];
+const acceptedWarnings = Array.isArray(evidence.releaseGate?.acceptedWarnings) ? evidence.releaseGate.acceptedWarnings : [];
 const warnReasons = [
-  ...((Array.isArray(evidence.releaseGate?.warnReasons) ? evidence.releaseGate.warnReasons : [])),
+  ...releaseGateWarnReasons,
   ...(mutationEvidence.status === "pending"
     ? [`mutation evidence pending: ${(mutationEvidence.requiredCommands ?? []).join(", ")}`]
     : [])
 ];
+const acceptedWarningReasons = new Set(acceptedWarnings.map((warning) => warning.reason));
+const unclassifiedReleaseWarnings = releaseGateWarnReasons.filter((reason) => !acceptedWarningReasons.has(reason));
+failReasons.push(
+  ...unclassifiedReleaseWarnings.map((reason) => `release warning without accepted catalogue entry: ${reason}`)
+);
 const overallStatus = failReasons.length > 0 ? "fail" : warnReasons.length > 0 ? "warn" : "pass";
 const ownerSliceCatalogue = profiles
   .map((profile) => ({
@@ -47,6 +54,7 @@ const summary = {
   releaseBlockingCoverage: releaseBlockingFamilies.filter((family) => !failReasons.some((reason) => reason.endsWith(family))),
   mutationEvidence,
   harnessProofLanes,
+  acceptedWarnings,
   evidenceSummary: `${overallStatus}: ${releaseBlockingFamilies.length} release-blocking families, ${failReasons.length} fail reason(s), ${warnReasons.length} warning(s), mutation evidence ${mutationEvidence.status}`,
   ownerSliceCatalogue
 };
