@@ -72,7 +72,7 @@ test.describe(`Available Task List as ${userIdentifier}`, { tag: ['@integration-
     });
 
     await test.step('Navigate to the my tasks list page', async () => {
-      await taskListPage.goto();
+      await taskListPage.goto({ allowServiceDown: true });
       await taskListPage.exuiSpinnerComponent.wait();
     });
 

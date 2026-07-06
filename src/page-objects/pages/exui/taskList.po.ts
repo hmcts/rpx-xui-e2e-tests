@@ -7,6 +7,7 @@ const FILTER_PANEL_READY_TIMEOUT_MS = 10_000;
 const FILTER_CONTROL_READY_TIMEOUT_MS = 15_000;
 const FILTER_GROUP_OPERATION_TIMEOUT_MS = 10_000;
 const FILTER_INTERACTION_ATTEMPTS = 2;
+const TASK_LIST_NAVIGATION_ATTEMPTS = 2;
 const PRIORITY_LIMIT_URGENT = 2000;
 const PRIORITY_LIMIT_HIGH = 5000;
 
@@ -182,8 +183,8 @@ export class TaskListPage extends Base {
     await this.applyCurrentFilters();
   }
 
-  async goto() {
-    await this.navigateToTaskListView('/work/my-work/list', /\/work\/my-work\/list(?:\?.*)?$/, 'task list navigation');
+  async goto(options: { allowServiceDown?: boolean } = {}) {
+    await this.navigateToTaskListView('/work/my-work/list', /\/work\/my-work\/list(?:\?.*)?$/, 'task list navigation', options);
   }
 
   async setServiceFilterByLabel(label: string, checked: boolean) {
@@ -217,38 +218,37 @@ export class TaskListPage extends Base {
     options: {
       rowIndex?: number;
       timeoutMs?: number;
-      maxAttempts?: number;
     } = {}
   ) {
     const rowIndex = options.rowIndex ?? 0;
     const timeoutMs = options.timeoutMs ?? TASK_LIST_READY_TIMEOUT_MS;
-    const maxAttempts = options.maxAttempts ?? 3;
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        await this.page.goto('/work/my-work/list', { waitUntil: 'domcontentloaded' });
-        await this.page.waitForURL(/\/work\/my-work\/list(?:\?.*)?$/, { timeout: timeoutMs }).catch(() => undefined);
-        await this.waitForExuiAppShell(context, timeoutMs);
-        await this.waitForTaskListSpinnerToSettle(10_000);
-        await this.waitForTaskListShellReady(`${context} shell bootstrap`);
-        await this.waitForTaskRowReady(`${context} row bootstrap`, { rowIndex, timeoutMs });
-        return;
-      } catch (error) {
-        if (attempt === maxAttempts || !this.isTransientTaskListNavigationFailure(error)) {
-          throw error;
-        }
-
-        await this.page.goto('about:blank').catch(() => undefined);
-      }
-    }
+    await this.gotoTaskListPath('/work/my-work/list', /\/work\/my-work\/list(?:\?.*)?$/, `${context} navigation`, timeoutMs);
+    await this.waitForTaskListSpinnerToSettle(10_000);
+    await this.waitForTaskListShellReadyAfterNavigation(
+      /\/work\/my-work\/list(?:\?.*)?$/,
+      `${context} shell bootstrap`,
+      timeoutMs
+    );
+    await this.waitForTaskRowReady(`${context} row bootstrap`, { rowIndex, timeoutMs });
   }
 
-  async gotoMyCases() {
-    await this.navigateToTaskListView('/work/my-work/my-cases', /\/work\/my-work\/my-cases(?:\?.*)?$/, 'my cases navigation');
+  async gotoMyCases(options: { allowServiceDown?: boolean } = {}) {
+    await this.navigateToTaskListView(
+      '/work/my-work/my-cases',
+      /\/work\/my-work\/my-cases(?:\?.*)?$/,
+      'my cases navigation',
+      options
+    );
   }
 
-  async gotoMyAccess() {
-    await this.navigateToTaskListView('/work/my-work/my-access', /\/work\/my-work\/my-access(?:\?.*)?$/, 'my access navigation');
+  async gotoMyAccess(options: { allowServiceDown?: boolean } = {}) {
+    await this.navigateToTaskListView(
+      '/work/my-work/my-access',
+      /\/work\/my-work\/my-access(?:\?.*)?$/,
+      'my access navigation',
+      options
+    );
   }
 
   async gotoAllWorkTasks() {
@@ -335,49 +335,101 @@ export class TaskListPage extends Base {
       .catch(() => undefined);
   }
 
-  private isTransientTaskListNavigationFailure(error: unknown): boolean {
-    const message = error instanceof Error ? error.message : String(error);
-    return /Task list showed service down|Task list shell did not become ready|Something went wrong page was displayed|service-down|Gateway Timeout|Azure Front Door|OriginTimeout|net::ERR|ERR_CONNECTION_RESET|Timeout .* exceeded/i.test(
-      message
-    );
-  }
-
   private async navigateToTaskListView(
     path: string,
     urlPattern: RegExp,
     context: string,
-    timeoutMs = TASK_LIST_READY_TIMEOUT_MS
+    options: { allowServiceDown?: boolean; timeoutMs?: number } = {}
   ) {
-    const maxAttempts = 3;
+    const timeoutMs = options.timeoutMs ?? TASK_LIST_READY_TIMEOUT_MS;
+    await this.gotoTaskListPath(path, urlPattern, context, timeoutMs);
+    await this.waitForTaskListSpinnerToSettle(10_000);
+    await this.waitForTaskListShellReadyAfterNavigation(urlPattern, context, timeoutMs, {
+      allowServiceDown: options.allowServiceDown,
+    });
+  }
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  private async gotoTaskListPath(path: string, urlPattern: RegExp, context: string, timeoutMs: number): Promise<void> {
+    const navigationAttemptTimeoutMs = Math.min(timeoutMs, 15_000);
+
+    for (let attempt = 1; attempt <= TASK_LIST_NAVIGATION_ATTEMPTS; attempt += 1) {
       try {
-        await this.page.goto(path, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-        await this.page.waitForURL(urlPattern, { timeout: timeoutMs }).catch(() => undefined);
-        await this.waitForExuiAppShell(context, timeoutMs);
-        await this.waitForTaskListSpinnerToSettle(10_000);
-        await this.waitForTaskListShellReady(context);
-        return;
+        await this.page.goto(path, { waitUntil: 'commit', timeout: navigationAttemptTimeoutMs });
+        break;
       } catch (error) {
-        if (attempt === maxAttempts || !this.isTransientTaskListNavigationFailure(error)) {
-          throw error;
+        const navigationError = error as Error;
+        if (!this.isTransientTaskListNavigationError(navigationError, urlPattern) || attempt === TASK_LIST_NAVIGATION_ATTEMPTS) {
+          throw navigationError;
         }
-
-        await this.page.goto('about:blank').catch(() => undefined);
+        // Short retry gap for transient Chrome navigation failures before the document commits.
+        // eslint-disable-next-line playwright/no-wait-for-timeout
+        await this.page.waitForTimeout(500);
       }
+    }
+
+    await this.page.waitForURL(urlPattern, { timeout: timeoutMs }).catch(() => undefined);
+    if (!urlPattern.test(this.page.url())) {
+      throw new Error(`Task list navigation for ${context} landed on ${this.page.url()} instead of ${urlPattern}.`);
     }
   }
 
-  private async waitForExuiAppShell(context: string, timeoutMs: number): Promise<void> {
-    const shellTimeoutMs = Math.max(1_000, Math.min(10_000, timeoutMs));
+  private isTransientTaskListNavigationError(error: Error, urlPattern: RegExp): boolean {
+    return (
+      /net::ERR_NETWORK_CHANGED|net::ERR_CONNECTION_TIMED_OUT|Timeout \d+ms exceeded|chrome-error:\/\/chromewebdata/i.test(
+        error.message
+      ) &&
+      (this.page.url() === 'about:blank' || this.page.url().startsWith('chrome-error://') || urlPattern.test(this.page.url()))
+    );
+  }
 
-    await Promise.any([
-      this.exuiHeader.appHeaderLink.waitFor({ state: 'attached', timeout: shellTimeoutMs }),
-      this.errorPageHeading.waitFor({ state: 'visible', timeout: shellTimeoutMs }),
-      this.serviceDownError.waitFor({ state: 'visible', timeout: shellTimeoutMs }),
-    ]).catch(async () => {
-      await this.assertTaskListHealthy(`waiting for EXUI app shell (${context})`, { allowServiceDown: true });
-    });
+  private async waitForTaskListShellReadyAfterNavigation(
+    urlPattern: RegExp,
+    context: string,
+    timeoutMs: number,
+    options: { allowServiceDown?: boolean } = {}
+  ): Promise<void> {
+    const shellReadyAttemptTimeoutMs = Math.min(timeoutMs, 15_000);
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= TASK_LIST_NAVIGATION_ATTEMPTS; attempt += 1) {
+      try {
+        await this.waitForTaskListShellReady(
+          attempt === 1 ? context : `${context} after blank-page reload`,
+          shellReadyAttemptTimeoutMs,
+          { allowServiceDown: options.allowServiceDown }
+        );
+        if (!urlPattern.test(this.page.url()) && !(options.allowServiceDown && (await this.isServiceDownPage()))) {
+          throw new Error(`Task list navigation for ${context} landed on ${this.page.url()} after shell bootstrap.`);
+        }
+        return;
+      } catch (error) {
+        lastError = error;
+        if (!(await this.isBlankTaskListDocument(urlPattern))) {
+          throw error;
+        }
+
+        this.logger.warn('TASK_LIST_BLANK_DOCUMENT_RETRY', {
+          context,
+          url: this.page.url(),
+        });
+        await this.gotoTaskListPath(this.page.url(), urlPattern, `${context} blank-page retry ${attempt}`, timeoutMs);
+        await this.waitForTaskListSpinnerToSettle(10_000);
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(`Task list shell was not ready while ${context}.`);
+  }
+
+  private async isBlankTaskListDocument(urlPattern: RegExp): Promise<boolean> {
+    if (!urlPattern.test(this.page.url())) {
+      return false;
+    }
+
+    const bodyText = await this.page
+      .locator('body')
+      .innerText({ timeout: 500 })
+      .catch(() => '');
+    return bodyText.trim().length === 0;
   }
 
   private async assertTaskListHealthy(context: string, options: { allowServiceDown?: boolean } = {}): Promise<void> {
@@ -385,16 +437,28 @@ export class TaskListPage extends Base {
       throw new Error(`Something went wrong page was displayed while ${context}.`);
     }
 
-    const onServiceDownPage =
-      this.page.url().includes('/service-down') || (await this.serviceDownError.isVisible().catch(() => false));
-    if (onServiceDownPage && !options.allowServiceDown) {
+    if ((await this.isServiceDownPage()) && !options.allowServiceDown) {
       throw new Error(`Task list showed service down while ${context}.`);
     }
   }
 
-  async waitForTaskListShellReady(context: string) {
-    const findVisibleShellSignal = async () => {
-      const signals: Array<[string, Locator]> = [
+  private async isServiceDownPage(): Promise<boolean> {
+    return this.page.url().includes('/service-down') || (await this.serviceDownError.isVisible().catch(() => false));
+  }
+
+  async waitForTaskListShellReady(
+    context: string,
+    timeoutMs = TASK_LIST_READY_TIMEOUT_MS,
+    options: { allowServiceDown?: boolean } = {}
+  ) {
+    await this.page
+      .waitForURL(/\/(?:work\/(?:my-work\/(?:list|available|my-cases|my-access)|all-work\/(?:tasks|cases)))/, {
+        timeout: timeoutMs,
+      })
+      .catch(() => undefined);
+    await this.waitForTaskListSpinnerToSettle(10_000);
+    const bootstrapSignal = await this.waitForVisibleSignal(
+      [
         ['heading', this.myWorkHeading],
         ['tabs', this.taskTableTabs.first()],
         ['filter-toggle', this.taskListFilterToggle],
@@ -404,81 +468,52 @@ export class TaskListPage extends Base {
         ['results-summary', this.taskListResultsAmount],
         ['error-page', this.errorPageHeading],
         ['service-down', this.serviceDownError],
-      ];
+      ],
+      `task list shell (${context})`,
+      timeoutMs
+    );
 
+    if (bootstrapSignal === 'error-page' || bootstrapSignal === 'service-down') {
+      await this.assertTaskListHealthy(`waiting for task list shell (${context})`, options);
+    }
+
+    await this.waitForTaskListSpinnerToSettle(5_000);
+    await this.assertTaskListHealthy(`waiting for task list shell (${context})`, options);
+  }
+
+  private async assertTaskListInteractive(context: string): Promise<void> {
+    await this.assertTaskListHealthy(context);
+  }
+
+  private async waitForVisibleSignal(
+    signals: Array<[string, Locator]>,
+    context: string,
+    timeoutMs: number,
+    pollMs = 250
+  ): Promise<string> {
+    const deadlineMs = Date.now() + timeoutMs;
+
+    while (Date.now() < deadlineMs) {
       for (const [signal, locator] of signals) {
         if (await locator.isVisible().catch(() => false)) {
           return signal;
         }
       }
-
-      return null;
-    };
-
-    await this.page
-      .waitForURL(/\/(?:work\/(?:my-work\/(?:list|available|my-cases|my-access)|all-work\/(?:tasks|cases))|service-down)/, {
-        timeout: TASK_LIST_READY_TIMEOUT_MS,
-      })
-      .catch(() => undefined);
-    await this.waitForTaskListSpinnerToSettle(10_000);
-    const immediateSignal = await findVisibleShellSignal();
-    if (immediateSignal) {
-      if (immediateSignal === 'error-page') {
-        await this.assertTaskListHealthy(`waiting for task list shell (${context})`);
-      }
-
-      if (immediateSignal !== 'service-down') {
-        await this.waitForTaskListSpinnerToSettle(5_000);
-        await this.assertTaskListHealthy(`waiting for task list shell (${context})`, { allowServiceDown: true });
-      }
-
-      return;
+      // Poll multiple shell signals without extending each locator to a full Playwright timeout.
+      // eslint-disable-next-line playwright/no-wait-for-timeout
+      await this.page.waitForTimeout(Math.min(pollMs, Math.max(0, deadlineMs - Date.now())));
     }
 
-    const bootstrapSignal = await Promise.any([
-      this.myWorkHeading.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'heading'),
-      this.taskTableTabs
-        .first()
-        .waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS })
-        .then(() => 'tabs'),
-      this.taskListFilterToggle.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'filter-toggle'),
-      this.taskListTable.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'table'),
-      this.taskTableHeader.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'table-header'),
-      this.taskTableFooter.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'table-footer'),
-      this.taskListResultsAmount.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'results-summary'),
-      this.errorPageHeading.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'error-page'),
-      this.serviceDownError.waitFor({ state: 'visible', timeout: TASK_LIST_READY_TIMEOUT_MS }).then(() => 'service-down'),
-    ]).catch(async () => {
-      const lateSignal = await findVisibleShellSignal();
-      if (lateSignal) {
-        return lateSignal;
-      }
-      const headingText = await this.page
-        .locator('main h1, main h2, main h3')
-        .first()
-        .textContent()
-        .catch(() => '');
-      throw new Error(
-        `Task list shell did not become ready within ${TASK_LIST_READY_TIMEOUT_MS}ms (${context}). url=${this.page.url()} heading=${
-          headingText?.trim() || 'unknown'
-        }`
-      );
-    });
-
-    if (bootstrapSignal === 'error-page') {
-      await this.assertTaskListHealthy(`waiting for task list shell (${context})`);
-    }
-
-    if (bootstrapSignal === 'service-down') {
-      return;
-    }
-
-    await this.waitForTaskListSpinnerToSettle(5_000);
-    await this.assertTaskListHealthy(`waiting for task list shell (${context})`, { allowServiceDown: true });
-  }
-
-  private async assertTaskListInteractive(context: string): Promise<void> {
-    await this.assertTaskListHealthy(context);
+    const headingText = await this.page
+      .locator('main h1, main h2, main h3')
+      .first()
+      .textContent()
+      .catch(() => '');
+    throw new Error(
+      `No visible ${context} signal appeared within ${timeoutMs}ms. url=${this.page.url()} heading=${
+        headingText?.trim() || 'unknown'
+      }`
+    );
   }
 
   private resolveInteractionTimeout(deadlineMs: number | undefined, fallbackMs: number): number {

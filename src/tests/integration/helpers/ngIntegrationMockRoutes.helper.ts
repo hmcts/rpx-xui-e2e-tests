@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -286,6 +286,18 @@ export function buildNgIntegrationAppConfigMock(): UnknownRecord {
   return deepClone(appConfigTemplate);
 }
 
+export function buildNgIntegrationWorkAllocationHeaderConfigMock(): UnknownRecord {
+  const headerConfig = deepClone(headerConfigTemplate) as Record<string, Array<Record<string, unknown>>>;
+  for (const menuItems of Object.values(headerConfig)) {
+    for (const item of menuItems) {
+      if (typeof item.href === "string" && item.href.startsWith("/work/")) {
+        delete item.flags;
+      }
+    }
+  }
+  return headerConfig;
+}
+
 export function buildNgIntegrationEnvironmentConfigMock(
   options?: NgIntegrationEnvironmentConfigOptions
 ): UnknownRecord {
@@ -306,21 +318,69 @@ export function buildNgIntegrationEnvironmentConfigMock(
 export function buildNgIntegrationClientContextMock(
   featureFlags?: Record<string, unknown>
 ): UnknownRecord {
+  const resolvedFeatureFlags = buildNgIntegrationFeatureFlags(featureFlags);
+
   return {
     client_context: {
-      feature_flags: {
-        MC_Work_Allocation: true,
-        MC_Notice_of_Change: true,
-        "feature-global-search": true,
-        "feature-refunds": true,
-        "mc-work-allocation-active-feature": "WorkAllocationRelease2",
-        ...featureFlags
-      },
+      feature_flags: resolvedFeatureFlags,
       user_language: {
         language: "en"
       }
     }
   };
+}
+
+function buildNgIntegrationFeatureFlags(featureFlags?: Record<string, unknown>): Record<string, unknown> {
+  return {
+    MC_Work_Allocation: true,
+    MC_Notice_of_Change: true,
+    "feature-global-search": true,
+    "feature-refunds": true,
+    "mc-work-allocation-active-feature": "WorkAllocationRelease2",
+    ...featureFlags
+  };
+}
+
+const buildNgIntegrationLaunchDarklyFlagSet = (featureFlags?: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(buildNgIntegrationFeatureFlags(featureFlags)).map(([flagName, value]) => [flagName, { value, version: 1 }])
+  );
+
+async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
+  await route.fulfill({
+    status,
+    contentType: "application/json",
+    body: JSON.stringify(body)
+  });
+}
+
+export async function setupNgIntegrationLaunchDarklyRoute(
+  page: Page,
+  featureFlags?: Record<string, unknown>
+): Promise<void> {
+  const launchDarklyFlagSet = buildNgIntegrationLaunchDarklyFlagSet(featureFlags);
+
+  await page.route("**/*launchdarkly.com/**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+
+    if (pathname.includes("/sdk/goals")) {
+      await fulfillJson(route, []);
+      return;
+    }
+
+    if (pathname.includes("/sdk/evalx") || pathname.includes("/sdk/latest-all")) {
+      await fulfillJson(route, launchDarklyFlagSet);
+      return;
+    }
+
+    if (request.method() !== "GET") {
+      await route.fulfill({ status: 202, body: "" });
+      return;
+    }
+
+    await fulfillJson(route, launchDarklyFlagSet);
+  });
 }
 
 export async function setupNgIntegrationOrganisationRoute(page: Page): Promise<void> {
@@ -345,6 +405,8 @@ export async function setupNgIntegrationBaseRoutes(
   const appConfig = buildNgIntegrationAppConfigMock();
   const environmentConfig = buildNgIntegrationEnvironmentConfigMock(options?.environmentConfig);
   const clientContext = buildNgIntegrationClientContextMock(options?.clientContextFeatureFlags);
+
+  await setupNgIntegrationLaunchDarklyRoute(page, options?.clientContextFeatureFlags);
 
   if (!options?.skipUserDetailsMock) {
     await page.addInitScript(

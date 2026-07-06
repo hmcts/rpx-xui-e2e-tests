@@ -2,8 +2,17 @@ import type { Page, Route } from '@playwright/test';
 
 import { extractUserIdFromCookies } from '../../e2e/integration/utils/extractUserIdFromCookies.js';
 
-import { setupNgIntegrationBaseRoutes, type NgIntegrationUserDetailsOptions } from './ngIntegrationMockRoutes.helper';
-import { setupTaskListBootstrapRoutes, taskListRoutePattern } from './taskListMockRoutes.helper';
+import {
+  buildNgIntegrationWorkAllocationHeaderConfigMock,
+  setupNgIntegrationBaseRoutes,
+  type NgIntegrationUserDetailsOptions,
+} from './ngIntegrationMockRoutes.helper';
+import {
+  setupTaskListBootstrapRoutes,
+  taskListRoutePattern,
+  type TaskListBootstrapRoleAssignment,
+  type TaskListBootstrapUserOptions,
+} from './taskListMockRoutes.helper';
 import { assertValidWorkAllocationTaskListMock } from './workAllocationMockValidation.helper';
 
 export const myCasesRoutePattern = /\/workallocation\/my-work\/cases(?:\?.*)?$/;
@@ -32,18 +41,40 @@ type BaseManageTaskRouteOptions = {
   taskListHandler?: (route: Route) => Promise<void>;
   supportedJurisdictions?: readonly string[];
   supportedJurisdictionDetails?: Array<{ serviceId: string; serviceName: string }>;
+  user?: TaskListBootstrapUserOptions;
   userDetails?: NgIntegrationUserDetailsOptions;
 };
+
+function toTaskListBootstrapUserOptions(userDetails?: NgIntegrationUserDetailsOptions): TaskListBootstrapUserOptions | undefined {
+  if (!userDetails) {
+    return undefined;
+  }
+
+  return {
+    userId: userDetails.userId,
+    roleCategory: userDetails.roleCategory,
+    roles: userDetails.roles,
+    roleAssignments: userDetails.roleAssignmentInfo as TaskListBootstrapRoleAssignment[] | undefined,
+    replaceRoleAssignments: true,
+  };
+}
 
 export async function setupManageTasksBaseRoutes(page: Page, options: BaseManageTaskRouteOptions = {}): Promise<void> {
   const customUserDetailsConfigured = Boolean((page as Page & Record<string, unknown>)[customUserDetailsConfiguredKey]);
   const resolvedUserId = customUserDetailsConfigured ? undefined : await resolveManageTasksUserId(page);
   const userDetails = options.userDetails ?? (customUserDetailsConfigured ? undefined : buildDefaultManageTasksUserDetails(resolvedUserId));
+  const bootstrapUser =
+    options.user ??
+    toTaskListBootstrapUserOptions(userDetails) ??
+    (customUserDetailsConfigured ? { skipUserDetailsMock: true } : undefined);
+
   await setupNgIntegrationBaseRoutes(page, {
-    userDetails,
-    skipUserDetailsMock: customUserDetailsConfigured && !options.userDetails,
+    environmentConfig: {
+      headerConfig: buildNgIntegrationWorkAllocationHeaderConfigMock(),
+    },
+    skipUserDetailsMock: true,
   });
-  await setupTaskListBootstrapRoutes(page, options.supportedJurisdictions, options.supportedJurisdictionDetails);
+  await setupTaskListBootstrapRoutes(page, options.supportedJurisdictions, options.supportedJurisdictionDetails, bootstrapUser);
 
   await page.route('**/api/role-access/roles/getJudicialUsers*', async (route) => {
     await route.fulfill({
