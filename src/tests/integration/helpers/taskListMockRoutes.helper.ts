@@ -149,9 +149,11 @@ export async function setupTaskListBootstrapRoutes(
       ...routeRoleAssignments,
     ];
 
-    await page.addInitScript((seededUserInfo) => {
-      window.sessionStorage.setItem('userDetails', JSON.stringify(seededUserInfo));
-    }, userDetails.userInfo);
+    if (typeof (page as { addInitScript?: unknown }).addInitScript === 'function') {
+      await page.addInitScript((seededUserInfo) => {
+        window.sessionStorage.setItem('userDetails', JSON.stringify(seededUserInfo));
+      }, userDetails.userInfo);
+    }
 
     await page.route('**/auth/isAuthenticated*', async (route) => {
       await route.fulfill({
@@ -169,7 +171,8 @@ export async function setupTaskListBootstrapRoutes(
       });
     };
 
-    await page.context().route(userDetailsRoutePattern, fulfillUserDetails);
+    const context = typeof (page as { context?: unknown }).context === 'function' ? page.context() : undefined;
+    await context?.route(userDetailsRoutePattern, fulfillUserDetails);
     await page.route(userDetailsRoutePattern, fulfillUserDetails);
 
     await page.route('**/api/organisation*', async (route) => {
