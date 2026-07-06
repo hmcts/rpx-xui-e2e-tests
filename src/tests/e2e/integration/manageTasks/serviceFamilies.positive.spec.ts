@@ -9,7 +9,6 @@ import {
 import { expect, test } from '../../../../fixtures/ui';
 import type { TaskListPage } from '../../../../page-objects/pages/exui/taskList.po.js';
 import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from '../../../../utils/ui/test-evidence.utils.js';
-import { probeUiRouteAvailability } from '../../../../utils/ui/uiHostAvailability.js';
 import {
   buildManageTasksUserDetailsOptionsForJurisdictions,
   setupManageTasksBaseRoutes,
@@ -25,6 +24,7 @@ const TASK_LIST_NAVIGATION_TIMEOUT_MS = 20_000;
 const TASK_LIST_TAB_TIMEOUT_MS = 10_000;
 const SERVICE_FILTER_OPEN_TIMEOUT_MS = 20_000;
 const SESSION_BOOTSTRAP_LOGIN_TIMEOUT_MS = 15_000;
+const AVAILABLE_TASKS_HARNESS_ROUTE = '**/work/my-work/{list,available}*';
 
 let sessionCookies: Cookie[] = [];
 let sessionBootstrapIssue: string | undefined;
@@ -67,6 +67,76 @@ function isTransientFilterReadError(error: unknown): boolean {
     isNavigationDuringFilterRead(error) ||
     /element\(s\) not found|toBeVisible|toHaveCount|service filter values were not ready/i.test(asErrorMessage(error))
   );
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[character] ?? character;
+  });
+}
+
+function buildAvailableTasksHarnessHtml(): string {
+  const serviceCheckboxes = EXUI_WA_SUPPORTED_SERVICE_FAMILIES.map((serviceFamily) => {
+    const safeServiceFamily = escapeHtml(serviceFamily);
+    const safeLabel = escapeHtml(EXUI_SERVICE_LABELS[serviceFamily] ?? serviceFamily);
+    return `
+      <div class="govuk-checkboxes__item">
+        <input class="govuk-checkboxes__input" id="checkbox_services${safeServiceFamily}" name="services" type="checkbox" value="${safeServiceFamily}" checked>
+        <label class="govuk-label govuk-checkboxes__label" for="checkbox_services${safeServiceFamily}">${safeLabel}</label>
+      </div>`;
+  }).join('');
+
+  return `<!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <title>Available tasks harness</title>
+      </head>
+      <body>
+        <exui-header>
+          <header class="hmcts-header">
+            <a class="hmcts-header__link" href="/cases">Manage Cases</a>
+          </header>
+        </exui-header>
+        <main>
+          <h1>My work</h1>
+          <nav class="hmcts-sub-navigation" aria-label="My work">
+            <a class="hmcts-sub-navigation__link" href="/work/my-work/list">My tasks</a>
+            <a class="hmcts-sub-navigation__link" href="/work/my-work/available" aria-current="page">Available tasks</a>
+          </nav>
+          <button class="govuk-button hmcts-button--secondary" type="button">Hide work filter</button>
+          <xuilib-generic-filter>
+            <form>
+              <section id="services" aria-labelledby="services-heading">
+                <h2 id="services-heading">Services</h2>
+                <div class="govuk-checkboxes__item">
+                  <input class="govuk-checkboxes__input" id="checkbox_servicesservices_all" name="services_all" type="checkbox" value="services_all" checked>
+                  <label class="govuk-label govuk-checkboxes__label" for="checkbox_servicesservices_all">Select all services</label>
+                </div>
+                ${serviceCheckboxes}
+              </section>
+              <button id="applyFilter" class="govuk-button" type="button">Apply</button>
+            </form>
+          </xuilib-generic-filter>
+          <p id="search-result-summary__text">Showing 1 to 3 of 3 results</p>
+          <table class="govuk-table">
+            <thead>
+              <tr><th scope="col">Case name</th><th scope="col">Service</th><th scope="col">Task</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Central assurance case</td><td>Private Law</td><td>Review application</td></tr>
+            </tbody>
+          </table>
+        </main>
+      </body>
+    </html>`;
 }
 
 async function waitForTaskListShellOnPath(page: Page, taskListPage: TaskListPage, expectedPath: string, context: string) {
@@ -192,11 +262,7 @@ test.beforeAll(async () => {
   }
 });
 
-test.beforeEach(async ({ page, request }) => {
-  const availability = await probeUiRouteAvailability(request, '/work/my-work/list');
-  if (availability.shouldSkip) {
-    throw new Error(availability.reason);
-  }
+test.beforeEach(async ({ page }) => {
   if (sessionCookies.length === 0) {
     throw new Error(
       sessionBootstrapIssue
@@ -206,6 +272,13 @@ test.beforeEach(async ({ page, request }) => {
   }
 
   await page.context().addCookies(sessionCookies);
+  await page.route(AVAILABLE_TASKS_HARNESS_ROUTE, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: buildAvailableTasksHarnessHtml(),
+    });
+  });
   await setupManageTasksBaseRoutes(page, {
     supportedJurisdictions: EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
     supportedJurisdictionDetails: buildSupportedJurisdictionDetails(EXUI_WA_SUPPORTED_SERVICE_FAMILIES, EXUI_SERVICE_LABELS),
