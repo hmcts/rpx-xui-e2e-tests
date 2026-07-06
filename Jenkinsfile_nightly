@@ -1,7 +1,7 @@
 #!groovy
 
 properties([
-  pipelineTriggers([cron('10 18 * * 1-5')]),
+  pipelineTriggers([cron('0 19 * * 1-5')]),
   parameters([
     string(
       name: 'TEST_URL',
@@ -15,7 +15,7 @@ properties([
     ),
     string(
       name: 'FUNCTIONAL_TESTS_WORKERS',
-      defaultValue: '2',
+      defaultValue: '6',
       description: 'Shared functional worker-count source. UI is capped at 4; API uses API_PW_WORKERS.'
     ),
     string(
