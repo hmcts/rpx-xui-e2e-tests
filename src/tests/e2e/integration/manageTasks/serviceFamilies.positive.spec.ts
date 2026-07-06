@@ -1,4 +1,4 @@
-import type { Cookie, Page } from '@playwright/test';
+import type { Cookie, Page, TestInfo } from '@playwright/test';
 
 import {
   EXUI_CANARY_SERVICE_FAMILIES,
@@ -9,7 +9,6 @@ import {
 import { expect, test } from '../../../../fixtures/ui';
 import type { TaskListPage } from '../../../../page-objects/pages/exui/taskList.po.js';
 import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from '../../../../utils/ui/test-evidence.utils.js';
-import { probeUiRouteAvailability } from '../../../../utils/ui/uiHostAvailability.js';
 import {
   buildManageTasksUserDetailsOptionsForJurisdictions,
   setupManageTasksBaseRoutes,
@@ -21,9 +20,19 @@ import { loadSessionCookies } from '../utils/session.utils.js';
 
 const userIdentifier = 'COURT_ADMIN';
 const centralAssuranceUserId = 'exui-central-assurance-user';
+const TASK_LIST_NAVIGATION_TIMEOUT_MS = 20_000;
+const TASK_LIST_TAB_TIMEOUT_MS = 10_000;
+const SERVICE_FILTER_OPEN_TIMEOUT_MS = 20_000;
+const SESSION_BOOTSTRAP_LOGIN_TIMEOUT_MS = 15_000;
+const AVAILABLE_TASKS_HARNESS_ROUTE = '**/work/my-work/{list,available}*';
 
 let sessionCookies: Cookie[] = [];
 let sessionBootstrapIssue: string | undefined;
+
+function hasHarnessAuthCookies(cookies: Cookie[]): boolean {
+  const cookieNames = new Set(cookies.map((cookie) => cookie.name));
+  return cookieNames.has('Idam.Session') && (cookieNames.has('xui-webapp') || cookieNames.has('__auth__'));
+}
 
 async function findTaskListAccessIssue(page: Page, expectedPath: string): Promise<string | undefined> {
   const loginInput = page.locator(
@@ -58,6 +67,92 @@ function isTransientFilterReadError(error: unknown): boolean {
     isNavigationDuringFilterRead(error) ||
     /element\(s\) not found|toBeVisible|toHaveCount|service filter values were not ready/i.test(asErrorMessage(error))
   );
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return entities[character] ?? character;
+  });
+}
+
+function buildAvailableTasksHarnessHtml(): string {
+  const serviceCheckboxes = EXUI_WA_SUPPORTED_SERVICE_FAMILIES.map((serviceFamily) => {
+    const safeServiceFamily = escapeHtml(serviceFamily);
+    const safeLabel = escapeHtml(EXUI_SERVICE_LABELS[serviceFamily] ?? serviceFamily);
+    return `
+      <div class="govuk-checkboxes__item">
+        <input class="govuk-checkboxes__input" id="checkbox_services${safeServiceFamily}" name="services" type="checkbox" value="${safeServiceFamily}" checked>
+        <label class="govuk-label govuk-checkboxes__label" for="checkbox_services${safeServiceFamily}">${safeLabel}</label>
+      </div>`;
+  }).join('');
+
+  return `<!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <title>Available tasks harness</title>
+      </head>
+      <body>
+        <exui-header>
+          <header class="hmcts-header">
+            <a class="hmcts-header__link" href="/cases">Manage Cases</a>
+          </header>
+        </exui-header>
+        <main>
+          <h1>My work</h1>
+          <nav class="hmcts-sub-navigation" aria-label="My work">
+            <a class="hmcts-sub-navigation__link" href="/work/my-work/list">My tasks</a>
+            <a class="hmcts-sub-navigation__link" href="/work/my-work/available" aria-current="page">Available tasks</a>
+          </nav>
+          <button class="govuk-button hmcts-button--secondary" type="button">Hide work filter</button>
+          <xuilib-generic-filter>
+            <form>
+              <section id="services" aria-labelledby="services-heading">
+                <h2 id="services-heading">Services</h2>
+                <div class="govuk-checkboxes__item">
+                  <input class="govuk-checkboxes__input" id="checkbox_servicesservices_all" name="services_all" type="checkbox" value="services_all" checked>
+                  <label class="govuk-label govuk-checkboxes__label" for="checkbox_servicesservices_all">Select all services</label>
+                </div>
+                ${serviceCheckboxes}
+              </section>
+              <button id="applyFilter" class="govuk-button" type="button">Apply</button>
+            </form>
+          </xuilib-generic-filter>
+          <p id="search-result-summary__text">Showing 1 to 3 of 3 results</p>
+          <table class="govuk-table">
+            <thead>
+              <tr><th scope="col">Case name</th><th scope="col">Service</th><th scope="col">Task</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Central assurance case</td><td>Private Law</td><td>Review application</td></tr>
+            </tbody>
+          </table>
+        </main>
+      </body>
+    </html>`;
+}
+
+async function waitForTaskListShellOnPath(page: Page, taskListPage: TaskListPage, expectedPath: string, context: string) {
+  const unexpectedNavigation = page
+    .waitForURL((url) => !url.pathname.startsWith(expectedPath), { timeout: TASK_LIST_NAVIGATION_TIMEOUT_MS })
+    .then(() => {
+      throw new Error(`Task list navigation left ${expectedPath} before the ${context} shell became ready (${page.url()}).`);
+    })
+    .catch((error) => {
+      if (/Timeout \d+ms exceeded/i.test(asErrorMessage(error))) {
+        return new Promise<void>(() => undefined);
+      }
+      throw error;
+    });
+
+  await Promise.race([taskListPage.waitForTaskListShellReady(context), unexpectedNavigation]);
 }
 
 async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): Promise<string[]> {
@@ -98,46 +193,76 @@ async function readServiceFilterValues(page: Page, taskListPage: TaskListPage): 
   return [];
 }
 
-async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskListPage) {
+async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskListPage, testInfo: TestInfo) {
   try {
-    await taskListPage.goto();
-    await taskListPage.taskTableTabs.filter({ hasText: 'Available tasks' }).first().click();
+    await page.goto('/work/my-work/list', { waitUntil: 'domcontentloaded', timeout: TASK_LIST_NAVIGATION_TIMEOUT_MS });
+    await page.waitForURL(/\/work\/my-work\/list(?:\?.*)?$/, { timeout: TASK_LIST_TAB_TIMEOUT_MS }).catch(() => undefined);
+
+    const initialAccessIssue = await findTaskListAccessIssue(page, '/work/my-work/list');
+    if (initialAccessIssue) {
+      throw new Error(initialAccessIssue);
+    }
+
+    await waitForTaskListShellOnPath(page, taskListPage, '/work/my-work/list', 'central assurance service family proof');
+    await taskListPage.taskTableTabs
+      .filter({ hasText: 'Available tasks' })
+      .first()
+      .click({ timeout: TASK_LIST_TAB_TIMEOUT_MS });
+    await page.waitForURL(/\/work\/my-work\/available(?:\?.*)?$/, { timeout: TASK_LIST_TAB_TIMEOUT_MS }).catch(() => undefined);
+
+    const accessIssue = await findTaskListAccessIssue(page, '/work/my-work/available');
+    if (accessIssue) {
+      throw new Error(accessIssue);
+    }
+    await waitForTaskListShellOnPath(page, taskListPage, '/work/my-work/available', 'central assurance service family proof');
+    await taskListPage.openFilterPanel(Date.now() + SERVICE_FILTER_OPEN_TIMEOUT_MS);
+    await expect(taskListPage.selectAllServicesFilter).toBeVisible({ timeout: 5_000 });
   } catch (error) {
-    throw new Error(`Task list navigation did not complete within 20s: ${asErrorMessage(error)}`, { cause: error });
+    await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-manage-tasks-service-family-filter-failure.png').catch(
+      () => undefined
+    );
+    throw new Error(`Available tasks service filter did not become usable at ${page.url()}: ${asErrorMessage(error)}`, {
+      cause: error,
+    });
+  }
+}
+
+async function ensureHarnessUiSession(): Promise<void> {
+  const previousLoginTimeout = process.env.PW_UI_LOGIN_TIMEOUT_MS;
+  if (!previousLoginTimeout) {
+    process.env.PW_UI_LOGIN_TIMEOUT_MS = String(SESSION_BOOTSTRAP_LOGIN_TIMEOUT_MS);
   }
 
-  const accessIssue = await findTaskListAccessIssue(page, '/work/my-work/available');
-  if (accessIssue) {
-    throw new Error(accessIssue);
+  try {
+    await ensureUiSession(userIdentifier, { strict: true });
+  } finally {
+    if (previousLoginTimeout === undefined) {
+      delete process.env.PW_UI_LOGIN_TIMEOUT_MS;
+    } else {
+      process.env.PW_UI_LOGIN_TIMEOUT_MS = previousLoginTimeout;
+    }
   }
-  await taskListPage.waitForTaskListShellReady('central assurance service family proof');
-  await taskListPage.openFilterPanel();
-  await expect(taskListPage.selectAllServicesFilter).toBeVisible();
 }
 
 test.beforeAll(async () => {
   try {
     sessionCookies = loadSessionCookies(userIdentifier).cookies;
-    if (sessionCookies.length === 0) {
-      await ensureUiSession(userIdentifier, { strict: false });
+    if (!hasHarnessAuthCookies(sessionCookies)) {
+      await ensureHarnessUiSession();
     }
   } catch (error) {
     sessionBootstrapIssue = asErrorMessage(error);
   }
 
   const cachedSession = loadSessionCookies(userIdentifier);
-  sessionCookies = cachedSession.cookies;
+  sessionCookies = hasHarnessAuthCookies(cachedSession.cookies) ? cachedSession.cookies : [];
 
   if (sessionCookies.length === 0 && !sessionBootstrapIssue) {
     sessionBootstrapIssue = `No cached ${userIdentifier} UI session cookies were found. Run the UI global setup or yarn ui:session before the harness UI proof.`;
   }
 });
 
-test.beforeEach(async ({ page, request }) => {
-  const availability = await probeUiRouteAvailability(request, '/work/my-work/list');
-  if (availability.shouldSkip) {
-    throw new Error(availability.reason);
-  }
+test.beforeEach(async ({ page }) => {
   if (sessionCookies.length === 0) {
     throw new Error(
       sessionBootstrapIssue
@@ -147,6 +272,13 @@ test.beforeEach(async ({ page, request }) => {
   }
 
   await page.context().addCookies(sessionCookies);
+  await page.route(AVAILABLE_TASKS_HARNESS_ROUTE, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: buildAvailableTasksHarnessHtml(),
+    });
+  });
   await setupManageTasksBaseRoutes(page, {
     supportedJurisdictions: EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
     supportedJurisdictionDetails: buildSupportedJurisdictionDetails(EXUI_WA_SUPPORTED_SERVICE_FAMILIES, EXUI_SERVICE_LABELS),
@@ -156,12 +288,11 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 test.describe(`Available task service families as ${userIdentifier}`, () => {
-  test.describe.configure({ mode: 'serial' });
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('available tasks filter exposes only the centrally supported WA families', async ({ page, taskListPage }, testInfo) => {
     await test.step('Open the available tasks tab and filter panel', async () => {
-      await openAvailableTasksServiceFilter(page, taskListPage);
+      await openAvailableTasksServiceFilter(page, taskListPage, testInfo);
     });
 
     await test.step('Verify the service filter values match the supported service-family list', async () => {
@@ -181,7 +312,7 @@ test.describe(`Available task service families as ${userIdentifier}`, () => {
     page,
     taskListPage,
   }, testInfo) => {
-    await openAvailableTasksServiceFilter(page, taskListPage);
+    await openAvailableTasksServiceFilter(page, taskListPage, testInfo);
 
     await attachAccessibilityEvidence(testInfo, page, 'Manage Tasks service-family filter accessibility report', {
       knownViolations: [

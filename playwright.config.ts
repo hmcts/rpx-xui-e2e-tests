@@ -525,6 +525,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
           video: "retain-on-failure",
+          serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {
                 executablePath: chromiumExecutablePath
@@ -547,6 +548,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
           video: "retain-on-failure",
+          serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {
                 executablePath: chromiumExecutablePath

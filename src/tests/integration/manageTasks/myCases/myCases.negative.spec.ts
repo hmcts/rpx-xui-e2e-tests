@@ -17,7 +17,7 @@ test.describe(`My Cases as ${userIdentifier}`, { tag: ['@integration-bucket-3', 
       });
 
       await test.step('Navigate to My cases', async () => {
-        await taskListPage.gotoMyCases();
+        await taskListPage.gotoMyCases({ allowServiceDown: true });
       });
 
       await test.step('Verify the service down page is shown', async () => {
@@ -54,7 +54,7 @@ test.describe(`My Cases as ${userIdentifier}`, { tag: ['@integration-bucket-3', 
     });
 
     await test.step('Navigate to My cases', async () => {
-      await taskListPage.gotoMyCases();
+      await taskListPage.gotoMyCases({ allowServiceDown: true });
     });
 
     await test.step('Verify the service down page is shown', async () => {

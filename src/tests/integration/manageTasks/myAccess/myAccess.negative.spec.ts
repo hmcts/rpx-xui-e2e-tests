@@ -17,7 +17,7 @@ test.describe(`My Access as ${userIdentifier}`, { tag: ['@integration-bucket-3',
       });
 
       await test.step('Navigate to My access', async () => {
-        await taskListPage.gotoMyAccess();
+        await taskListPage.gotoMyAccess({ allowServiceDown: true });
       });
 
       await test.step('Verify the service down page is shown', async () => {
@@ -61,7 +61,7 @@ test.describe(`My Access as ${userIdentifier}`, { tag: ['@integration-bucket-3',
     });
 
     await test.step('Navigate to My access', async () => {
-      await taskListPage.gotoMyAccess();
+      await taskListPage.gotoMyAccess({ allowServiceDown: true });
     });
 
     await test.step('Verify the service down page is shown', async () => {

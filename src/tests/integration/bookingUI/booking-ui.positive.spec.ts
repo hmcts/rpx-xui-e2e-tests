@@ -19,6 +19,7 @@ const userIdentifier = "BOOKING_UI-FT-ON";
 const defaultBookingLocation = singleLocationMock[0];
 const bookingPageUrlPattern = /\/booking$/;
 const tasksPageUrlPattern = /\/work\/my-work\/list/;
+const taskListRouteOnlyOptions = { bootstrapUser: { skipUserDetailsMock: true } };
 
 let getBookingsCalled = false;
 let createBookingCalled = false;
@@ -44,7 +45,7 @@ test.describe(
       sessionUserId = userId;
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3));
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock,

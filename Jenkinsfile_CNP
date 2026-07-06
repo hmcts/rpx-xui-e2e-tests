@@ -61,8 +61,8 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
-      defaultValue: '6',
-      description: 'Integration worker-count override for bucket isolation, capped at 6 in Jenkins.'
+      defaultValue: '7',
+      description: 'Integration worker-count override for bucket isolation, capped at 7 in Jenkins.'
     ),
     string(
       name: 'INTEGRATION_PW_SHARD',
@@ -71,8 +71,8 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: 'workers=6',
-      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 6.'
+      defaultValue: 'workers=7',
+      description: 'Integration profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 7.'
     ),
     string(
       name: 'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES',
@@ -130,7 +130,7 @@ static String effectiveIntegrationBuckets(String rawTags) {
 
 static String effectiveIntegrationWorkers(String rawWorkers) {
   def trimmed = rawWorkers?.trim()
-  return (!trimmed || trimmed == '2' || trimmed == '4') ? '6' : trimmed
+  return (!trimmed || trimmed == '2' || trimmed == '4' || trimmed == '6') ? '7' : trimmed
 }
 
 static String effectiveApiWorkers(String rawWorkers) {
@@ -176,6 +176,14 @@ def secrets = [
     secret('caseworker-r2-password', 'CASEWORKER_R2_PASSWORD'),
     secret('court-admin-username', 'COURT_ADMIN_USERNAME'),
     secret('court-admin-password', 'COURT_ADMIN_PASSWORD'),
+    secret('e2e-staff-admin-1-username', 'STAFF_ADMIN_1_USERNAME'),
+    secret('e2e-staff-admin-1-password', 'STAFF_ADMIN_1_PASSWORD'),
+    secret('e2e-staff-admin-2-username', 'STAFF_ADMIN_2_USERNAME'),
+    secret('e2e-staff-admin-2-password', 'STAFF_ADMIN_2_PASSWORD'),
+    secret('e2e-staff-admin-3-username', 'STAFF_ADMIN_3_USERNAME'),
+    secret('e2e-staff-admin-3-password', 'STAFF_ADMIN_3_PASSWORD'),
+    secret('e2e-staff-admin-4-username', 'STAFF_ADMIN_4_USERNAME'),
+    secret('e2e-staff-admin-4-password', 'STAFF_ADMIN_4_PASSWORD'),
     secret('staff-admin-username', 'STAFF_ADMIN_USERNAME'),
     secret('staff-admin-password', 'STAFF_ADMIN_PASSWORD'),
     secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS')
@@ -333,7 +341,7 @@ def archivePlaywrightDiagnostics = {
 def runCnpPlaywrightStages = {
   def apiWorkers = capJenkinsPlaywrightWorkers(effectiveApiWorkers(params.API_PW_WORKERS), 6)
   def uiWorkers = capJenkinsPlaywrightWorkers(params.FUNCTIONAL_TESTS_WORKERS, 4)
-  def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS), 6)
+  def integrationWorkers = capJenkinsPlaywrightWorkers(effectiveIntegrationWorkers(params.INTEGRATION_PW_WORKERS), 7)
   def integrationIncludeTags = effectiveIntegrationBuckets(params.INTEGRATION_PW_INCLUDE_TAGS)
   def integrationExcludedTags = effectiveIntegrationExcludedTags(params.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE)
   def integrationTagSlug = integrationIncludeTags.replaceAll(/[^A-Za-z0-9._-]+/, '-').replaceAll(/^-|-$/, '') ?: 'selected'
@@ -479,7 +487,7 @@ def runCnpPlaywrightStages = {
       def integrationEnv = quietConsoleEnv + [
         "FUNCTIONAL_TESTS_WORKERS=${integrationWorkers}",
         "PLAYWRIGHT_WORKERS=${integrationWorkers}",
-        'PLAYWRIGHT_MAX_WORKERS=6',
+        'PLAYWRIGHT_MAX_WORKERS=7',
         "PW_UI_WORKERS=${uiWorkers}",
         "INTEGRATION_PW_INCLUDE_TAGS=${integrationIncludeTags}",
         "INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE=${integrationExcludedTags}",
@@ -491,6 +499,7 @@ def runCnpPlaywrightStages = {
         "PW_ODHIN_ENV=${integrationOdhinEnvironment}",
         'PW_ODHIN_SKIP_API_ENDPOINTS=true',
         'PW_UI_STORAGE=1',
+        'STAFF_ADMIN_POOL_ENABLED=true',
         'PW_UI_STORAGE_STRICT=1',
         'PW_UI_STORAGE_TTL_MIN=15',
         'PW_UI_LOGIN_TIMEOUT_MS=120000',
