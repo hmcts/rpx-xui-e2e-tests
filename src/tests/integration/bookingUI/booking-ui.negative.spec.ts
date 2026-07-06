@@ -20,6 +20,7 @@ const userIdentifier = "BOOKING_UI-FT-ON";
 const defaultBookingLocation = singleLocationMock[0];
 const bookingPageUrlPattern = /\/booking$/;
 const casesPageUrlPattern = /\/cases(?:$|[/?#])/;
+const taskListRouteOnlyOptions = { bootstrapUser: { skipUserDetailsMock: true } };
 
 const createBookingErrorCases = [
   { status: 400, expectedUrlPattern: /\/booking-service-down$/ },
@@ -49,7 +50,7 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
         sessionUserId = userId;
         existingBookingsMock = buildExistingBookingsMock(userId);
 
-        await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3));
+        await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
         await setupBookingUiMockRoutes(page, {
           locationResponseBody: singleLocationMock,
           getBookingsResponseBody: existingBookingsMock,
@@ -152,7 +153,7 @@ test.describe(
       const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3));
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock
@@ -206,7 +207,7 @@ test.describe(
       const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3));
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock,
