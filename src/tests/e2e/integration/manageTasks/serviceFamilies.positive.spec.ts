@@ -215,7 +215,6 @@ test.beforeEach(async ({ page, request }) => {
 });
 
 test.describe(`Available task service families as ${userIdentifier}`, () => {
-  test.describe.configure({ mode: 'serial' });
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('available tasks filter exposes only the centrally supported WA families', async ({ page, taskListPage }, testInfo) => {

@@ -112,6 +112,7 @@ const CONFIGURATION_UI_KEYS = [
 ] as const;
 
 const EXPLICIT_SKIP_CALLS = ['test', 'testInfo', 'describe'].map((owner) => `${owner}.${'sk' + 'ip'}(`);
+const SERIAL_HARNESS_CONFIG_PATTERN = /^\s*test\.describe\.configure\(\s*\{\s*mode:\s*['"]serial['"]\s*\}\s*\);?\s*$/m;
 
 const ASSURANCE_MUTATIONS = {
   'drop-prl-wa-family': {
@@ -269,6 +270,11 @@ function findExplicitSkipCalls(filePath: string): string[] {
   return EXPLICIT_SKIP_CALLS.filter((skipCall) => source.includes(skipCall)).map(
     (skipCall) => `${filePath}: ${skipCall}`
   );
+}
+
+function findSerialHarnessConfigs(filePath: string): string[] {
+  const source = readFileSync(filePath, 'utf8');
+  return SERIAL_HARNESS_CONFIG_PATTERN.test(source) ? [`${filePath}: test.describe.configure({ mode: 'serial' })`] : [];
 }
 
 test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node-app', '@svc-ref-data'] }, () => {
@@ -695,14 +701,16 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     });
   });
 
-  test('release evidence proof lanes do not allow explicit skip calls', () => {
+  test('release evidence proof lanes do not allow explicit skip calls or serial coupling', () => {
     const proofFiles = [
       ...new Set(buildReleaseEvidenceSummary().harnessProofLanes.flatMap((lane) => lane.testFiles ?? [])),
     ];
     const skipOffenders = proofFiles.flatMap((filePath) => findExplicitSkipCalls(filePath));
+    const serialOffenders = proofFiles.flatMap((filePath) => findSerialHarnessConfigs(filePath));
 
     expect(proofFiles.length).toBeGreaterThan(0);
     expect(skipOffenders).toEqual([]);
+    expect(serialOffenders).toEqual([]);
   });
 
   test('release assurance verdict fails when a configured family is not classified or profiled', () => {
