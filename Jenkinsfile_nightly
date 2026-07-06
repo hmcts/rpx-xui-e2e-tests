@@ -55,7 +55,7 @@ properties([
     ),
     string(
       name: 'INTEGRATION_PW_WORKERS',
-      defaultValue: '2',
+      defaultValue: '6',
       description: 'Integration worker-count override for bucket isolation, capped at 6 in Jenkins.'
     ),
     string(
@@ -65,7 +65,7 @@ properties([
     ),
     text(
       name: 'INTEGRATION_PW_PROFILE_RUNS',
-      defaultValue: 'workers=2',
+      defaultValue: 'workers=6',
       description: 'Integration load-profile matrix. One run per line or semicolon. Supported keys: workers=<n> and optional shard=<index/total>; workers are capped at 6.'
     ),
     string(
@@ -390,7 +390,7 @@ def effectiveIntegrationBuckets = { String rawTags ->
 
 def effectiveIntegrationWorkers = { String rawWorkers ->
   def trimmed = rawWorkers?.trim()
-  return trimmed ?: '2'
+  return (!trimmed || trimmed == '2' || trimmed == '4') ? '6' : trimmed
 }
 
 def effectiveApiWorkers = { String rawWorkers ->
