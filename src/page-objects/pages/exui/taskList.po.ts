@@ -775,12 +775,39 @@ export class TaskListPage extends Base {
     return this.paginationControls.locator(`[aria-label="Page ${pageNumber}"]`).first();
   }
 
-  async openPaginationPage(pageNumber: number) {
-    await this.getPaginationPageControl(pageNumber).waitFor({
-      state: 'visible',
-      timeout: FILTER_CONTROL_READY_TIMEOUT_MS
+  private async getVisiblePaginationPageControl(pageNumber: number): Promise<Locator> {
+    const pageText = pageNumber.toString();
+    const ariaLabelledControl = this.getPaginationPageControl(pageNumber);
+
+    if (await ariaLabelledControl.isVisible().catch(() => false)) {
+      return ariaLabelledControl;
+    }
+
+    const candidateControls = this.paginationControls.locator('a, button').filter({
+      hasText: new RegExp(String.raw`^\s*(?:page\s*)?${pageText}\s*$`, 'i')
     });
-    await this.getPaginationPageControl(pageNumber).click();
+    const candidateCount = await candidateControls.count();
+
+    for (let index = 0; index < candidateCount; index += 1) {
+      const candidate = candidateControls.nth(index);
+      if (await candidate.isVisible().catch(() => false)) {
+        return candidate;
+      }
+    }
+
+    const paginationItems = (await this.paginationControls.locator('li').allTextContents()).map((item) => item.trim());
+    throw new Error(
+      `Pagination page control "${pageText}" was not visible. Available items: ${paginationItems.join(', ')}`
+    );
+  }
+
+  async openPaginationPage(pageNumber: number) {
+    await expect
+      .poll(async () => (await this.getVisiblePaginationPageControl(pageNumber)).isVisible(), {
+        timeout: FILTER_CONTROL_READY_TIMEOUT_MS
+      })
+      .toBe(true);
+    await (await this.getVisiblePaginationPageControl(pageNumber)).click();
   }
 
   async waitForManageButton(
