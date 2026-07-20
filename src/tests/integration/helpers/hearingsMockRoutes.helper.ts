@@ -39,6 +39,17 @@ type HearingsEndpoint =
   | 'putLinkedHearingGroup'
   | 'deleteLinkedHearingGroup';
 type RouteAbortCode = Parameters<Route['abort']>[0];
+type CaseDetailsRouteBody = {
+  case_id?: unknown;
+  case_type?: {
+    id?: unknown;
+    name?: unknown;
+    jurisdiction?: {
+      id?: unknown;
+      name?: unknown;
+    };
+  };
+} & Record<string, unknown>;
 
 interface HearingsApiOverride {
   status?: number;
@@ -51,6 +62,7 @@ interface HearingsApiOverride {
 export interface HearingsMockRoutesConfig {
   userRoles: string[];
   caseConfig?: HearingsCaseConfig;
+  caseDetailsBody?: CaseDetailsRouteBody;
   hearings?: HearingScenario[];
   summaryHearing?: HearingScenario;
   enabledCaseVariations?: HearingsCaseVariation[];
@@ -121,7 +133,7 @@ export async function setupHearingsMockRoutes(page: Page, config: HearingsMockRo
     enabledCaseVariations: config.enabledCaseVariations,
     amendmentCaseVariations: config.amendmentCaseVariations,
   });
-  const caseDetails = buildHearingsCaseDetailsMock(config.caseConfig);
+  const caseDetails: CaseDetailsRouteBody = config.caseDetailsBody ?? buildHearingsCaseDetailsMock(config.caseConfig);
   const hearingsList = buildHearingsListMock(hearingScenarios, config.caseConfig);
   const hearingValues = buildServiceHearingValuesMock(config.caseConfig, summaryHearing);
   const hearingActuals = buildHearingActualsMock();
