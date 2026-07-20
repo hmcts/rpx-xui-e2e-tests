@@ -6,7 +6,7 @@
   "engines": {
     "node": ">=20.11.1"
   },
-  "packageManager": "yarn@4.17.0",
+  "packageManager": "yarn@4.17.1",
   "scripts": {
     "pwinstall": "./node_modules/.bin/playwright install --with-deps",
     "test:setup:playwright-install-all": "./node_modules/.bin/playwright install --with-deps",
