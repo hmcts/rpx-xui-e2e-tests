@@ -82,7 +82,7 @@
     "odhin-reports-playwright": "patch:odhin-reports-playwright@npm%3A1.1.8#~/.yarn/patches/odhin-reports-playwright-npm-1.1.8-a445ed88b7.patch",
     "playwright-core": "1.61.1",
     "prettier": "^3.9.0",
-    "typescript": "^6.0.0",
+    "typescript": "^7.0.0",
     "typescript-eslint": "^8.59.1",
     "uuid": "^14.0.0",
     "zod": "^4.0.0"
