@@ -14,7 +14,11 @@ export type UiFixtures = PageFixtures &
     attachUserContext: void;
   };
 
-export const test = base.extend<UiFixtures>({
+type UiWorkerFixtures = {
+  setParallelIndex: void;
+};
+
+export const test = base.extend<UiFixtures, UiWorkerFixtures>({
   ...pageFixtures,
   ...uiUtilsFixtures,
   autoAcceptAnalytics: [
@@ -36,6 +40,21 @@ export const test = base.extend<UiFixtures>({
       await attachUiUserContext(page, testInfo);
     },
     { auto: true }
+  ],
+  setParallelIndex: [
+    async ({}, use, workerInfo) => {
+      const previousParallelIndex = process.env.TEST_PARALLEL_INDEX;
+      process.env.TEST_PARALLEL_INDEX = String(workerInfo.parallelIndex);
+
+      await use(undefined);
+
+      if (previousParallelIndex === undefined) {
+        delete process.env.TEST_PARALLEL_INDEX;
+      } else {
+        process.env.TEST_PARALLEL_INDEX = previousParallelIndex;
+      }
+    },
+    { auto: true, scope: "worker" }
   ]
 });
 
