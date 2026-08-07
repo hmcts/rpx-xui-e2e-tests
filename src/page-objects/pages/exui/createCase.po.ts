@@ -54,6 +54,8 @@ export class CreateCasePage extends Base {
   readonly submitButton = this.page.getByRole("button", { name: "Submit" });
   readonly fileUploadInput = this.page.locator("#DocumentUrl");
   readonly fileUploadStatusLabel = this.page.locator("ccd-write-document-field .error-message");
+  readonly additionalPeople = this.page.locator("#People");
+  readonly addNewPersonButton = this.additionalPeople.locator("button.write-collection-add-item__top");
 
   // Locators for the Divorce
   readonly person1TitleInput = this.page.locator("#Person1_Title");
@@ -186,6 +188,13 @@ export class CreateCasePage extends Base {
 
   constructor(page: Page) {
     super(page);
+  }
+
+  async waitForCreateCaseFormReady(context: string): Promise<void> {
+    const visible = await this.person1TitleInput.isVisible().catch(() => false);
+    if (visible) return;
+    await this.page.reload({ waitUntil: "domcontentloaded" });
+    await expect(this.person1TitleInput, `Create case form did not render ${context}`).toBeVisible();
   }
 
   private async waitForCreateCasePoll(intervalMs: number): Promise<void> {

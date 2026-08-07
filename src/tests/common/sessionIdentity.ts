@@ -1,6 +1,5 @@
-import { UserUtils } from "../e2e/utils/user.utils.js";
-
-import { resolvePooledUserIdentifier } from "./userPoolIdentifiers.js";
+import { UserUtils } from '../e2e/utils/user.utils.js';
+import { resolveStaffAdminUserIdentifier } from './staffAdminUserPool.js';
 
 export type SessionIdentity = {
   userIdentifier: string;
@@ -16,36 +15,30 @@ type SessionIdentityDeps = {
 };
 
 function normaliseSessionStorageKey(value: string): string {
-  return value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-");
+  return value.trim().replace(/[^a-zA-Z0-9._-]+/g, '-');
 }
 
-export function resolveSessionIdentity(
-  input: SessionIdentityInput,
-  deps: SessionIdentityDeps = {}
-): SessionIdentity {
-  if (typeof input !== "string") {
+export function resolveSessionIdentity(input: SessionIdentityInput, deps: SessionIdentityDeps = {}): SessionIdentity {
+  if (typeof input !== 'string') {
     return {
       userIdentifier: input.userIdentifier,
       email: input.email,
       password: input.password,
-      sessionKey: input.sessionKey
+      sessionKey: input.sessionKey,
     };
   }
 
   const userUtils = deps.userUtils ?? new UserUtils();
-  const userIdentifier = resolvePooledUserIdentifier(input);
+  const userIdentifier = resolveStaffAdminUserIdentifier(input);
   const credentials = userUtils.getUserCredentials(userIdentifier);
   return {
     userIdentifier,
     email: credentials.email,
-    password: credentials.password
+    password: credentials.password,
   };
 }
 
-export function resolveSessionStorageKey(
-  input: SessionIdentityInput,
-  deps: SessionIdentityDeps = {}
-): string {
+export function resolveSessionStorageKey(input: SessionIdentityInput, deps: SessionIdentityDeps = {}): string {
   const identity = resolveSessionIdentity(input, deps);
   return normaliseSessionStorageKey(identity.sessionKey?.trim() || identity.email);
 }

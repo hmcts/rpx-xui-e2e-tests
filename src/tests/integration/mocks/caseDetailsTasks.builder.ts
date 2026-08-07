@@ -253,8 +253,7 @@ export const buildCaseDetailsTasksMinimal = (options: CaseDetailsTasksMinimalOpt
     warnings = [],
   } = options;
   // support both camelCase `warningList` and legacy `warning_list` from tests
-  const warningList: TaskWarningList[] | undefined =
-    (options as CaseDetailsTasksMinimalOptions & { warningList?: TaskWarningList[] }).warningList ?? options.warning_list;
+  const warningList: TaskWarningList[] | undefined = options.warningList ?? options.warning_list;
   return titles.map((title, index) => {
     const state = states[index] ?? states[0];
     const type = types[index] ?? types[0];

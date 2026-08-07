@@ -3,33 +3,31 @@ export const DEFAULT_TRANSIENT_MAX_ATTEMPTS = 2;
 const TRANSIENT_FAILURE_PATTERNS: RegExp[] = [
   /DOWNSTREAM_API_5\d\d/,
   /status\s+5\d\d/i,
+  /status\s+429/i,
+  /HTTP\s+429/i,
   /NETWORK_TIMEOUT/,
   /SLOW_API_RESPONSE/,
   /The event could not be created/i,
-  /Validation error after/i,
   /Something went wrong page was displayed/i,
-  /Task list showed service down/i,
-  /Task list failed while waiting for task row/i,
-  /Gateway Timeout page was displayed/i,
+  /Task list showed service down while/i,
   /callback data failed validation/i,
   /timeout of \d+ms exceeded/i,
   /timeout \d+ms exceeded/i,
   /ECONNRESET/i,
+  /ENOTFOUND|getaddrinfo/i,
   /ETIMEDOUT/i,
   /Exceeded \d+ auto-advance attempts before submit/i,
   /Submit button did not become available/i,
   /Submit button not visible/i,
-  /Continue button not visible while waiting to submit/i,
-  /Case details actions did not become visible/i,
-  /Case details tabs did not become visible/i,
+  /Continue button not visible while retrying wizard advance/i,
   /Critical wizard endpoint failure/i,
   /Transient dependency instability after submit/i,
-  /Test ended/i
+  /Test ended/i,
 ];
 
 const FATAL_PAGE_CLOSED_PATTERNS: RegExp[] = [
   /Target page, context or browser has been closed/i,
-  /Execution context was destroyed/i
+  /Execution context was destroyed/i,
 ];
 
 function asErrorMessage(error: unknown): string {
@@ -41,9 +39,24 @@ export async function waitForRetryInterval(intervalMs: number): Promise<void> {
     return;
   }
 
-  await new Promise((resolve) => {
-    setTimeout(resolve, intervalMs);
-  });
+  await new Promise((resolve) => setTimeout(resolve, intervalMs));
+}
+
+export function formatErrorMessage(error: unknown): string {
+  return asErrorMessage(error);
+}
+
+export function isDependencyEnvironmentFailure(error: unknown): boolean {
+  const message = asErrorMessage(error);
+  return (
+    /returned HTTP 5\d\d/i.test(message) ||
+    /status\s+5\d\d/i.test(message) ||
+    /something went wrong page/i.test(message) ||
+    /network timeout/i.test(message) ||
+    /ECONNRESET|ENOTFOUND|ETIMEDOUT|getaddrinfo/i.test(message) ||
+    /Target page, context or browser has been closed/i.test(message) ||
+    /setup exceeded \d+ms/i.test(message)
+  );
 }
 
 export function isTransientWorkflowFailure(error: unknown): boolean {
@@ -70,12 +83,17 @@ export async function retryOnTransientFailure<T>(
       if (attempt === maxAttempts || !isTransientWorkflowFailure(error)) {
         throw error;
       }
-
       if (options.onRetry) {
-        await options.onRetry(attempt, error);
+        try {
+          await options.onRetry(attempt, error);
+        } catch (retryError) {
+          if (!isTransientWorkflowFailure(retryError)) {
+            throw retryError;
+          }
+        }
       }
     }
   }
 
-  throw new Error("retryOnTransientFailure exhausted without returning or throwing.");
+  throw new Error('retryOnTransientFailure exhausted without returning or throwing.');
 }

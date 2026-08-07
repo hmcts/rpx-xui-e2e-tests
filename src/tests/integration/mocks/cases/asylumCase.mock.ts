@@ -36,12 +36,6 @@ export type CaseMockOverrides = {
   triggers?: Array<{ id: string; name: string; description?: string | null; order?: number }>;
 };
 
-const removeTabId = <T extends { tabId?: string }>(value: T): Omit<T, "tabId"> => {
-  const clone = { ...value };
-  delete clone.tabId;
-  return clone;
-};
-
 const applyTabAndFieldOverrides = (
   tabs: CaseTab[],
   tabOverrides?: Record<string, Partial<CaseTab>>,
@@ -59,12 +53,18 @@ const applyTabAndFieldOverrides = (
       if (override.tabId && override.tabId !== tab.id) {
         return field;
       }
-      return { ...field, ...(removeTabId(override) as Partial<CaseTabField>) };
+      const fieldOverride = { ...override };
+      delete fieldOverride.tabId;
+      return { ...field, ...fieldOverride };
     });
 
     const extraFields = fieldAdds
       .filter((item) => (item.tabId ?? 'overview') === tab.id)
-      .map((item) => removeTabId(item) as CaseTabField);
+      .map((item) => {
+        const field = { ...item };
+        delete field.tabId;
+        return field;
+      });
 
     return {
       ...tab,

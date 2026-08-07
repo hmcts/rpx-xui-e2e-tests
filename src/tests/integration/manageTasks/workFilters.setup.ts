@@ -76,7 +76,7 @@ export async function setupWorkFiltersUser(page: Page, options: SetupWorkFilters
   userDetails.userInfo.id = workFiltersUserId;
   userDetails.userInfo.uid = workFiltersUserId;
   userDetails.userInfo.roleCategory = 'LEGAL_OPERATIONS';
-  userDetails.roleAssignmentInfo = options.roleAssignments ?? [
+  (userDetails as unknown as { roleAssignmentInfo: WorkFilterRoleAssignment[] }).roleAssignmentInfo = options.roleAssignments ?? [
     { jurisdiction: 'IA', substantive: 'Y', roleType: 'ORGANISATION', baseLocation: '765324' },
     { jurisdiction: 'CIVIL', substantive: 'Y', roleType: 'ORGANISATION', baseLocation: '231596' },
   ];

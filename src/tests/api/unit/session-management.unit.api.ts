@@ -204,7 +204,10 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
               newPage: async () => ({
                 goto: async () => undefined,
               }),
-              cookies: async () => [{ name: 'Idam.Session', value: 'session-cookie', domain: 'example.test', path: '/' }],
+              cookies: async () => [
+                { name: 'Idam.Session', value: 'session-cookie', domain: 'example.test', path: '/' },
+                { name: '__auth__', value: 'auth-cookie', domain: 'example.test', path: '/' },
+              ],
             }),
             close: async () => undefined,
           };
@@ -215,6 +218,7 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
         login: async () => undefined,
       }),
       isSessionFresh: () => true,
+      executeLoginAttemptFn: async () => undefined,
       lockfile: {
         lock: async () => {
           lockCalls.push('lock');

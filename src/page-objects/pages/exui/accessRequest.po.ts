@@ -52,6 +52,21 @@ export class AccessRequestPage extends Base {
     await this.waitForReviewSpecificPage();
   }
 
+  async gotoSpecificAccessRequest(path: string): Promise<void> {
+    await this.page.goto(path, { waitUntil: "domcontentloaded" });
+    await this.specificAccessReasonInput.waitFor({ state: "visible" });
+  }
+
+  async gotoChallengedAccessRequest(path: string): Promise<void> {
+    await this.page.goto(path, { waitUntil: "domcontentloaded" });
+    await this.challengedAccessHeading.waitFor({ state: "visible" });
+  }
+
+  async gotoReviewSpecificRequestServiceDown(path: string): Promise<void> {
+    await this.page.goto(path, { waitUntil: "domcontentloaded" });
+    await this.page.waitForURL(/\/service-down$/);
+  }
+
   errorMessage(text: string): Locator {
     return this.errorMessages.filter({ hasText: text });
   }

@@ -15,7 +15,7 @@ type SetupCaseRequest = {
   mode?: SetupMode;
   allowUiFallback?: boolean;
   apiPayload?: Record<string, unknown>;
-  uiCreate: () => Promise<void>;
+  uiCreate?: () => Promise<void>;
   page: Page;
   createCasePage: CreateCasePage;
   caseDetailsPage: CaseDetailsPage;
@@ -486,6 +486,9 @@ export async function setupCaseForJourney(request: SetupCaseRequest): Promise<Se
     }
   }
 
+  if (!request.uiCreate) {
+    throw new Error(`UI case creation is required for '${request.scenario}' but no uiCreate callback was supplied.`);
+  }
   await request.uiCreate();
   const uiCaseNumber = await request.caseDetailsPage.getCaseNumberFromUrl();
   logger.info("Case setup created via UI fallback", {

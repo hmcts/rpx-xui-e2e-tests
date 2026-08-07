@@ -28,6 +28,7 @@ import { GlobalSearchPage } from "./exui/globalSearch.po";
 import { HearingsTabPage } from "./exui/hearingsTab.po";
 import { HearingViewEditSummaryPage } from "./exui/hearingViewEditSummary.po";
 import { HearingViewSummaryPage } from "./exui/hearingViewSummary.po";
+import { QueryManagementPage } from "./exui/queryManagement.po";
 import { SearchCasePage } from "./exui/searchCase.po";
 import { TaskListPage } from "./exui/taskList.po";
 
@@ -47,6 +48,7 @@ export interface PageFixtures {
   hearingViewSummaryPage: HearingViewSummaryPage;
   bookingUiPage: BookingUiPage;
   accessRequestPage: AccessRequestPage;
+  queryManagementPage: QueryManagementPage;
   mediaViewerPage: ExuiMediaViewerPage;
   idamPage: IdamPage;
   apiClient: ApiClient;
@@ -151,6 +153,12 @@ export const pageFixtures = {
     use: (page: AccessRequestPage) => Promise<void>
   ) => {
     await use(new AccessRequestPage(determinePage));
+  },
+  queryManagementPage: async (
+    { determinePage }: FixtureArgs,
+    use: (page: QueryManagementPage) => Promise<void>
+  ) => {
+    await use(new QueryManagementPage(determinePage));
   },
   mediaViewerPage: async (
     { determinePage }: FixtureArgs,

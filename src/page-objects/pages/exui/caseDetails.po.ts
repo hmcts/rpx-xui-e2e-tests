@@ -760,6 +760,17 @@ export class CaseDetailsPage extends Base {
     await this.waitForTabPanelReadiness(visibleTabPanel, tabLoadTimeoutMs);
   }
 
+  async openCaseDetails(jurisdiction: string, caseType: string, caseId: string, timeoutMs = 30_000): Promise<void> {
+    await this.page.goto(`/cases/case-details/${jurisdiction}/${caseType}/${caseId}`, { waitUntil: 'domcontentloaded' });
+    await this.waitForCaseDetailsTabsReady(timeoutMs);
+  }
+
+  async openTasksTab(jurisdiction: string, caseType: string, caseId: string, timeoutMs = 30_000): Promise<void> {
+    await this.page.goto(`/cases/case-details/${jurisdiction}/${caseType}/${caseId}/tasks`, { waitUntil: 'domcontentloaded' });
+    await this.taskListContainer.waitFor({ state: 'visible', timeout: timeoutMs });
+    await this.exuiSpinnerComponent.wait();
+  }
+
   async openHistoryTab(): Promise<void> {
     await this.selectCaseDetailsTab('History');
     await this.historyTable.waitFor({ state: 'visible', timeout: this.getRecommendedTimeoutMs() });
