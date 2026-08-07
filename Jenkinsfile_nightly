@@ -531,7 +531,7 @@ withNightlyPipeline(type, product, component, 400) {
             recordPlaywrightLoadEvent('API', 'start')
             runInPlaywrightContainer {
               withEnv(apiOdhinEnv) {
-                runPlaywrightCommand("test:api:ci:raw -- --workers=${apiWorkers}")
+                runPlaywrightCommand("test:api:ci -- --workers=${apiWorkers}")
               }
             }
           } catch (Error) {
@@ -594,7 +594,7 @@ withNightlyPipeline(type, product, component, 400) {
             } else {
               runInPlaywrightContainer {
                 withEnv(uiOdhinEnv) {
-                  runPlaywrightCommand('test:crossbrowser:raw')
+                  runPlaywrightCommand('test:crossbrowser')
                 }
               }
             }
@@ -652,7 +652,7 @@ withNightlyPipeline(type, product, component, 400) {
             recordPlaywrightLoadEvent('Integration tests', 'start')
             runInPlaywrightContainer {
               withEnv(integrationOdhinEnv) {
-                runPlaywrightCommand("test:integration:nightly:raw -- --workers=${integrationWorkers}")
+                runPlaywrightCommand("test:integration:nightly -- --workers=${integrationWorkers}")
               }
             }
           } catch (Error) {
