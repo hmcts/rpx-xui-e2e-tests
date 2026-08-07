@@ -8,7 +8,7 @@ import {
   ACCESS_REQUEST_REVIEW_PATH,
   ACCESS_REQUEST_TASK_ID,
   applySessionCookies,
-  setupReviewSpecificAccessMockRoutes
+  setupReviewSpecificAccessMockRoutes,
 } from "../helpers/index.js";
 
 const userIdentifier = "STAFF_ADMIN";
@@ -22,30 +22,39 @@ test.beforeEach(async ({ page }) => {
 
 test.describe(
   `Review Specific Access Request as ${userIdentifier}`,
-  { tag: ['@integration-bucket-2', "@integration", "@integration-access-requests"] },
+  {
+    tag: [
+      "@integration-bucket-2",
+      "@integration",
+      "@integration-access-requests",
+    ],
+  },
   () => {
     test("User can open Review Specific Access Request from a task and see request details", async ({
       accessRequestPage,
-      page
+      page,
     }) => {
       await setupReviewSpecificAccessMockRoutes(page);
 
-      await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
-
-      await accessRequestPage.waitForReviewSpecificPage();
+      await accessRequestPage.gotoReviewSpecificRequest(
+        ACCESS_REQUEST_REVIEW_PATH,
+      );
       await expect(page.getByText(ACCESS_REQUEST_CASE_NAME)).toBeVisible();
-      await expect(page.getByText(formatCaseNumberWithDashes(ACCESS_REQUEST_CASE_ID))).toBeVisible();
+      await expect(
+        page.getByText(formatCaseNumberWithDashes(ACCESS_REQUEST_CASE_ID)),
+      ).toBeVisible();
       await expect(page.getByText("Alice Example")).toBeVisible();
       await expect(page.getByText(ACCESS_REQUEST_REASON)).toBeVisible();
     });
 
     test("User sees the correct fields for each access duration option", async ({
       accessRequestPage,
-      page
+      page,
     }) => {
       await setupReviewSpecificAccessMockRoutes(page);
-      await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
-      await accessRequestPage.waitForReviewSpecificPage();
+      await accessRequestPage.gotoReviewSpecificRequest(
+        ACCESS_REQUEST_REVIEW_PATH,
+      );
 
       await accessRequestPage.chooseApproveRequestAndContinueToDuration();
 
@@ -66,11 +75,12 @@ test.describe(
 
     test("User can approve a specific access request and reach the success page", async ({
       accessRequestPage,
-      page
+      page,
     }) => {
       await setupReviewSpecificAccessMockRoutes(page);
-      await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
-      await accessRequestPage.waitForReviewSpecificPage();
+      await accessRequestPage.gotoReviewSpecificRequest(
+        ACCESS_REQUEST_REVIEW_PATH,
+      );
 
       await accessRequestPage.chooseApproveRequestAndContinueToDuration();
 
@@ -80,7 +90,7 @@ test.describe(
       const approvalRequestPromise = page.waitForRequest(
         (request) =>
           request.method() === "POST" &&
-          request.url().includes("/api/am/specific-access-approval")
+          request.url().includes("/api/am/specific-access-approval"),
       );
 
       await accessRequestPage.submitButton.click();
@@ -91,15 +101,19 @@ test.describe(
       };
 
       await expect(accessRequestPage.accessApprovedHeading).toBeVisible();
-      expect(payload.specificAccessStateData.caseId).toBe(ACCESS_REQUEST_CASE_ID);
-      expect(payload.specificAccessStateData.taskId).toBe(ACCESS_REQUEST_TASK_ID);
+      expect(payload.specificAccessStateData.caseId).toBe(
+        ACCESS_REQUEST_CASE_ID,
+      );
+      expect(payload.specificAccessStateData.taskId).toBe(
+        ACCESS_REQUEST_TASK_ID,
+      );
       expect(payload.specificAccessStateData.requestId).toBeDefined();
       expect(
         payload.specificAccessStateData.assigneeId ??
-          payload.specificAccessStateData.actorId
+          payload.specificAccessStateData.actorId,
       ).toBe(ACCESS_REQUEST_REQUESTER_ID);
       expect(payload.specificAccessStateData.requestedRole).toBe(
-        ACCESS_REQUEST_REQUESTED_ROLE
+        ACCESS_REQUEST_REQUESTED_ROLE,
       );
       expect(payload.period.startDate).toBeTruthy();
       expect(payload.period.endDate).toBeTruthy();
@@ -107,11 +121,12 @@ test.describe(
 
     test("User can approve a specific access request for another period and submit the selected end date", async ({
       accessRequestPage,
-      page
+      page,
     }) => {
       await setupReviewSpecificAccessMockRoutes(page);
-      await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
-      await accessRequestPage.waitForReviewSpecificPage();
+      await accessRequestPage.gotoReviewSpecificRequest(
+        ACCESS_REQUEST_REVIEW_PATH,
+      );
 
       await accessRequestPage.chooseApproveRequestAndContinueToDuration();
 
@@ -123,7 +138,7 @@ test.describe(
       const approvalRequestPromise = page.waitForRequest(
         (request) =>
           request.method() === "POST" &&
-          request.url().includes("/api/am/specific-access-approval")
+          request.url().includes("/api/am/specific-access-approval"),
       );
 
       await accessRequestPage.submitButton.click();
@@ -136,10 +151,14 @@ test.describe(
       const endDate = new Date(payload.period.endDate);
 
       await expect(accessRequestPage.accessApprovedHeading).toBeVisible();
-      expect(payload.specificAccessStateData.caseId).toBe(ACCESS_REQUEST_CASE_ID);
-      expect(payload.specificAccessStateData.taskId).toBe(ACCESS_REQUEST_TASK_ID);
+      expect(payload.specificAccessStateData.caseId).toBe(
+        ACCESS_REQUEST_CASE_ID,
+      );
+      expect(payload.specificAccessStateData.taskId).toBe(
+        ACCESS_REQUEST_TASK_ID,
+      );
       expect(payload.specificAccessStateData.requestedRole).toBe(
-        ACCESS_REQUEST_REQUESTED_ROLE
+        ACCESS_REQUEST_REQUESTED_ROLE,
       );
       expect(Number.isNaN(startDate.getTime())).toBe(false);
       expect(Number.isNaN(endDate.getTime())).toBe(false);
@@ -151,36 +170,42 @@ test.describe(
 
     test("User can choose Request more information and complete that path", async ({
       accessRequestPage,
-      page
+      page,
     }) => {
       await setupReviewSpecificAccessMockRoutes(page);
-      await page.goto(ACCESS_REQUEST_REVIEW_PATH, { waitUntil: "domcontentloaded" });
-      await accessRequestPage.waitForReviewSpecificPage();
+      await accessRequestPage.gotoReviewSpecificRequest(
+        ACCESS_REQUEST_REVIEW_PATH,
+      );
 
       await accessRequestPage.chooseRequestMoreInformationAndContinue();
 
-      await expect(accessRequestPage.requestMoreInformationHeading).toBeVisible();
+      await expect(
+        accessRequestPage.requestMoreInformationHeading,
+      ).toBeVisible();
       await accessRequestPage.reviewMoreDetailInput.fill(
-        "Please provide the linked application details."
+        "Please provide the linked application details.",
       );
 
       const requestMoreInformationPromise = page.waitForRequest(
         (request) =>
           request.method() === "POST" &&
-          request.url().includes("/api/specific-access-request/request-more-information")
+          request
+            .url()
+            .includes("/api/specific-access-request/request-more-information"),
       );
 
       await accessRequestPage.continueButton.click();
 
-      const payload = (await requestMoreInformationPromise).postDataJSON() as Record<
-        string,
-        unknown
-      >;
+      const payload = (
+        await requestMoreInformationPromise
+      ).postDataJSON() as Record<string, unknown>;
       await expect(accessRequestPage.requestDeniedHeading).toBeVisible();
       expect(payload.caseId).toBe(ACCESS_REQUEST_CASE_ID);
       expect(payload.taskId).toBe(ACCESS_REQUEST_TASK_ID);
       expect(payload.specificAccessReason).toBe(ACCESS_REQUEST_REASON);
-      expect(payload.comment).toBe("Please provide the linked application details.");
+      expect(payload.comment).toBe(
+        "Please provide the linked application details.",
+      );
     });
-  }
+  },
 );

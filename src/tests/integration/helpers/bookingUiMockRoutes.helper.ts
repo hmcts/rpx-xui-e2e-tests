@@ -1,6 +1,20 @@
 import type { Page, Route } from "@playwright/test";
 
+import {
+  buildExistingBookingsMock,
+  singleLocationMock,
+} from "../mocks/bookingUI.mock.js";
+import { buildMyTaskListMock } from "../mocks/taskList.mock.js";
+import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
+import { applySessionCookiesAndExtractUserId } from "./sessionUser.helper.js";
+import { resolveBookingUiUserIdentifier } from "./bookingUiUserPool.helper.js";
+import {
+  setupTaskListMockRoutes,
+  type TaskListBootstrapUserOptions,
+} from "./taskListMockRoutes.helper.js";
+
 type RouteHandler = (route: Route) => Promise<void>;
+type ParallelIndexSource = { parallelIndex: number };
 
 type BookingUiMockRoutesOptions = {
   locationResponseBody: unknown;
@@ -10,23 +24,51 @@ type BookingUiMockRoutesOptions = {
   onRefreshRoleAssignments?: RouteHandler;
 };
 
+type BookingUiTestRoutesOptions = {
+  onCreateBooking?: RouteHandler;
+  onRefreshRoleAssignments?: RouteHandler;
+};
+
+export type BookingUiTestRouteState = {
+  existingBookingsMock: ReturnType<typeof buildExistingBookingsMock>;
+  getBookingsCalled: () => boolean;
+  sessionUserId: string;
+};
+
+export const buildBookingUiBootstrapUser = (
+  userId: string,
+): TaskListBootstrapUserOptions => ({
+  userId,
+  roleCategory: "JUDICIAL",
+  roles: ["caseworker-judge"],
+  roleAssignments: [
+    {
+      bookable: true,
+      jurisdiction: "IA",
+      roleName: "fee-paid-judge",
+      roleType: "ORGANISATION",
+      substantive: "Y",
+    },
+  ],
+});
+
 export async function setupBookingUiMockRoutes(
   page: Page,
-  options: BookingUiMockRoutesOptions
+  options: BookingUiMockRoutesOptions,
 ): Promise<void> {
   const {
     locationResponseBody,
     getBookingsResponseBody,
     onGetBookings,
     onCreateBooking,
-    onRefreshRoleAssignments
+    onRefreshRoleAssignments,
   } = options;
 
   await page.route("**/api/locations/getLocations*", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(locationResponseBody)
+      body: JSON.stringify(locationResponseBody),
     });
   });
 
@@ -35,7 +77,7 @@ export async function setupBookingUiMockRoutes(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(getBookingsResponseBody)
+      body: JSON.stringify(getBookingsResponseBody),
     });
   });
 
@@ -48,7 +90,7 @@ export async function setupBookingUiMockRoutes(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ bookingResponse: {} })
+      body: JSON.stringify({ bookingResponse: {} }),
     });
   });
 
@@ -61,7 +103,48 @@ export async function setupBookingUiMockRoutes(
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({})
+      body: JSON.stringify({}),
     });
+  });
+}
+
+export async function setupBookableBookingUiRoutesForTest(
+  page: Page,
+  testInfo: ParallelIndexSource,
+  options: BookingUiTestRoutesOptions = {},
+): Promise<BookingUiTestRouteState> {
+  let getBookingsCalled = false;
+  const userIdentifier = resolveBookingUiUserIdentifier(testInfo);
+  const userId = await applySessionCookiesAndExtractUserId(
+    page,
+    userIdentifier,
+  );
+  const existingBookingsMock = buildExistingBookingsMock(userId);
+
+  await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+    bootstrapUser: buildBookingUiBootstrapUser(userId),
+  });
+  await setupBookingUiMockRoutes(page, {
+    locationResponseBody: singleLocationMock,
+    getBookingsResponseBody: existingBookingsMock,
+    onGetBookings: () => {
+      getBookingsCalled = true;
+    },
+    onCreateBooking: options.onCreateBooking,
+    onRefreshRoleAssignments: options.onRefreshRoleAssignments,
+  });
+
+  return {
+    existingBookingsMock,
+    getBookingsCalled: () => getBookingsCalled,
+    sessionUserId: userId,
+  };
+}
+
+export async function warmBookableBookingUiSessionForWorker(
+  testInfo: ParallelIndexSource,
+): Promise<void> {
+  await ensureUiStorageStateForUser(resolveBookingUiUserIdentifier(testInfo), {
+    strict: true,
   });
 }

@@ -47,6 +47,11 @@ export class AccessRequestPage extends Base {
     super(page);
   }
 
+  async gotoReviewSpecificRequest(path: string): Promise<void> {
+    await this.page.goto(path, { waitUntil: "domcontentloaded" });
+    await this.waitForReviewSpecificPage();
+  }
+
   errorMessage(text: string): Locator {
     return this.errorMessages.filter({ hasText: text });
   }
