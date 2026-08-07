@@ -1,3 +1,5 @@
+/* global module */
+
 const menuConfig = {
   '(judge)|(judiciary)': [
     {
@@ -242,4 +244,3 @@ const menuConfig = {
 };
 
 module.exports = menuConfig;
-
