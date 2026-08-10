@@ -8,7 +8,10 @@ import { setupNgIntegrationBaseRoutes } from "./ngIntegrationMockRoutes.helper.j
 
 const DEFAULT_CREATED_CASE_ID = "1234123412341234";
 
-export async function setupCreateCaseBaseRoutes(page: Page): Promise<void> {
+export async function setupCreateCaseBaseRoutes(
+  page: Page,
+  options: { caseData?: unknown } = {}
+): Promise<void> {
   await setupNgIntegrationBaseRoutes(page, {
     userDetails: {
       roles: ["caseworker-divorce-solicitor", "caseworker-divorce", "caseworker-privatelaw"]
@@ -36,7 +39,7 @@ export async function setupCreateCaseBaseRoutes(page: Page): Promise<void> {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(divorcePocCaseData())
+      body: JSON.stringify(options.caseData ?? divorcePocCaseData())
     });
   });
 
@@ -190,6 +193,7 @@ export async function openCreateCaseJourney(
     jurisdiction?: string;
     caseType?: string;
     maxAttempts?: number;
+    afterNavigation?: () => Promise<void>;
   } = {}
 ): Promise<void> {
   const jurisdiction = options.jurisdiction ?? "DIVORCE";
@@ -198,8 +202,6 @@ export async function openCreateCaseJourney(
   await navigateWithTransientGatewayRetry(page, `/cases/case-create/${jurisdiction}/${caseType}/createCase/`, {
     maxAttempts: options.maxAttempts,
     contextLabel: "create case",
-    afterNavigation: async () => {
-      await createCasePage.waitForDivorcePocPersonalDetailsReady();
-    }
+    afterNavigation: options.afterNavigation ?? (async () => createCasePage.waitForDivorcePocPersonalDetailsReady())
   });
 }
