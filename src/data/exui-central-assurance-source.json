@@ -41,7 +41,8 @@
         "HRS",
         "CIVIL",
         "CMC",
-        "PRIVATELAW"
+        "PRIVATELAW",
+        "PCS"
       ],
       "hearings": {
         "hearingsJurisdictions": [
@@ -132,6 +133,12 @@
           "service": "HRS",
           "serviceCodes": [
             "HRS"
+          ]
+        },
+        {
+          "service": "PCS",
+          "serviceCodes": [
+            "AAA3"
           ]
         }
       ]
@@ -724,6 +731,21 @@
         "repos": [],
         "rationale": "HRS is now staff-supported in EXUI config and is covered by the staff-supported config/API contract, but remains outside global search, WA, and hearings must-run lanes.",
         "nextAction": "Keep HRS in staff-ref-data coverage; promote only if EXUI owners add it to global search, WA, hearings, or another release-blocking lane."
+      },
+      {
+        "serviceFamily": "PCS",
+        "priority": "canary",
+        "proofLevel": "config-backed",
+        "lanes": [
+          "canary"
+        ],
+        "representativeCaseTypes": [],
+        "serviceCodes": [
+          "AAA3"
+        ],
+        "repos": [],
+        "rationale": "PCS is present in the webapp jurisdiction and service-code configuration but is outside the central global-search, WA, staff-supported, and hearings release-blocking sets.",
+        "nextAction": "Keep PCS canary-only until EXUI owners add a distinct PCS contract to a central assurance lane."
       }
     ]
   },
