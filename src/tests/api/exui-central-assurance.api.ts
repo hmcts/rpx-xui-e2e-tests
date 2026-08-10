@@ -332,6 +332,10 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           id: 'canary-cmc',
           priority: 'canary',
         }),
+        expect.objectContaining({
+          id: 'canary-pcs',
+          priority: 'canary',
+        }),
       ])
     );
 
@@ -403,7 +407,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
     expect(profileSummary['source-unidentified'] ?? []).toEqual([]);
     expect(profileSummary['source-unavailable'] ?? []).toEqual([]);
-    expect(profileSummary['config-backed']).toEqual(['HRS']);
+    expect(profileSummary['config-backed']).toEqual(['HRS', 'PCS']);
     expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual([]);
     const probateProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'PROBATE');
     const stCicProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'ST_CIC');
@@ -464,7 +468,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       expect.objectContaining({
         'release-blocking': expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC']),
         grouped: expect.arrayContaining(['HRS']),
-        canary: ['CMC'],
+        canary: ['CMC', 'PCS'],
       })
     );
   });

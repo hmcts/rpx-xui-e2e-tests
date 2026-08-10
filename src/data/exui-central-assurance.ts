@@ -52,10 +52,11 @@ export const EXUI_ALL_CONFIGURED_SERVICE_FAMILIES = [
   "CIVIL",
   "CMC",
   "PRIVATELAW",
+  "PCS",
   "ST_CIC"
 ] as const;
 
-export const EXUI_CANARY_SERVICE_FAMILIES = ["CMC"] as const;
+export const EXUI_CANARY_SERVICE_FAMILIES = ["CMC", "PCS"] as const;
 
 export const EXUI_SERVICE_LABELS: Record<string, string> = {
   CIVIL: "Civil",
@@ -67,6 +68,7 @@ export const EXUI_SERVICE_LABELS: Record<string, string> = {
   IA: "Immigration and Asylum",
   PRIVATELAW: "Private Law",
   PROBATE: "Probate",
+  PCS: "Possession Claims",
   PUBLICLAW: "Public Law",
   SSCS: "Social Security and Child Support",
   ST_CIC: "Special Tribunals"
@@ -80,6 +82,7 @@ export const EXUI_SERVICE_REF_DATA_MAPPING: Record<string, readonly string[]> = 
   HRS: ["HRS"],
   IA: ["BFA1"],
   PRIVATELAW: ["ABA5"],
+  PCS: ["AAA3"],
   PROBATE: ["ABA6"],
   PUBLICLAW: ["ABA3"],
   SSCS: ["BBA3"],
@@ -764,6 +767,18 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
       "HRS is now staff-supported in EXUI config and is covered by the staff-supported config/API contract, but remains outside global search, WA, and hearings must-run lanes.",
     nextAction:
       "Keep HRS in staff-ref-data coverage; promote only if EXUI owners add it to global search, WA, hearings, or another release-blocking lane."
+  },
+  {
+    serviceFamily: "PCS",
+    priority: "canary",
+    proofLevel: "config-backed",
+    lanes: ["canary"],
+    representativeCaseTypes: [],
+    serviceCodes: ["AAA3"],
+    repos: [],
+    rationale:
+      "PCS is present in the webapp jurisdiction and service-code configuration but is outside the central global-search, WA, staff-supported, and hearings release-blocking sets.",
+    nextAction: "Keep PCS canary-only until EXUI owners add a distinct PCS contract to a central assurance lane."
   }
 ] as const satisfies readonly ExuiServiceDefinitionProfile[];
 
@@ -985,6 +1000,13 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
     lanes: ["staff-ref-data"],
     representativeScenarioIds: ["staff-supported-service-families"],
     rationale: "Staff-supported config-backed family; grouped until a distinct EXUI-facing behaviour is identified."
+  },
+  {
+    serviceFamily: "PCS",
+    disposition: "canary",
+    lanes: ["canary"],
+    representativeScenarioIds: ["canary-pcs"],
+    rationale: "Present in configured jurisdictions but intentionally outside the central release-blocking family sets."
   }
 ] as const;
 
@@ -1274,6 +1296,20 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     serviceFamily: "CMC",
     assertion: "weak-evidence family stays outside the central release-blocking family sets",
     source: "rpx-xui-webapp jurisdictions",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.backendCcdMocks,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "canary-pcs",
+    lane: "canary",
+    priority: "canary",
+    executionMode: "api",
+    serviceFamily: "PCS",
+    assertion: "newly configured PCS jurisdiction remains outside the central release-blocking family sets until an owner-backed contract is added",
+    source: "rpx-xui-webapp jurisdictions and serviceRefDataMapping",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.backendCcdMocks,
