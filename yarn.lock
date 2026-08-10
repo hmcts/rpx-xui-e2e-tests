@@ -5111,13 +5111,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-html-parser@npm:^8.0.3":
-  version: 8.0.4
-  resolution: "node-html-parser@npm:8.0.4"
+"node-html-parser@npm:^9.0.0":
+  version: 9.0.1
+  resolution: "node-html-parser@npm:9.0.1"
   dependencies:
     css-select: "npm:^5.1.0"
     entities: "npm:^8.0.0"
-  checksum: 10c0/066283a4cfcc31fd9612f6e131d1b0bc03f1b85d927de98e5a623185fd91b6101fa95d92c42e477134d9beb768ce24a8eeef086b5beed2a6fb718229e9f38bc0
+  checksum: 10c0/41ff52ae3a739eaa4bdfaa22b902b7b3627ea85f7f2fbd1d6be3543417bb091dd76b32d72746b711840e379b0f24743d44fa09a9cf4c87332a3752e3cdac63b5
   languageName: node
   linkType: hard
 
@@ -6083,7 +6083,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.0.0"
     eslint-plugin-import: "npm:^2.31.0"
     eslint-plugin-playwright: "npm:^2.1.0"
-    node-html-parser: "npm:^8.0.3"
+    node-html-parser: "npm:^9.0.0"
     odhin-reports-playwright: "patch:odhin-reports-playwright@npm%3A1.1.8#~/.yarn/patches/odhin-reports-playwright-npm-1.1.8-a445ed88b7.patch"
     playwright-core: "npm:1.62.1"
     prettier: "npm:^3.9.0"
