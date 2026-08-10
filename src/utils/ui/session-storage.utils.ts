@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { IdamPage } from "@hmcts/playwright-common";
-import { chromium, request, type BrowserContext, type Page } from "@playwright/test";
+import { chromium, request, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
 import config from "./config.utils.js";
 import { decodeJwtPayload } from "./jwt.utils.js";
@@ -37,6 +37,13 @@ const resolveLoginTimeoutMs = (): number => {
 
 const resolveUiBootstrapRetryAttempts = (): number => {
   const raw = process.env.PW_UI_BOOTSTRAP_NAV_MAX_ATTEMPTS;
+  if (!raw) return 2;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isNaN(parsed) ? 2 : Math.max(1, parsed);
+};
+
+const resolveUiSessionCaptureAttempts = (): number => {
+  const raw = process.env.PW_UI_SESSION_CAPTURE_ATTEMPTS;
   if (!raw) return 2;
   const parsed = Number.parseInt(raw, 10);
   return Number.isNaN(parsed) ? 2 : Math.max(1, parsed);
@@ -149,6 +156,12 @@ const TRANSIENT_UI_BOOTSTRAP_PATTERNS: RegExp[] = [
   /net::ERR_(TIMED_OUT|CONNECTION_ABORTED|CONNECTION_CLOSED|CONNECTION_RESET|CONNECTION_REFUSED|INTERNET_DISCONNECTED|NAME_NOT_RESOLVED|NETWORK_CHANGED)/i
 ];
 
+const TRANSIENT_UI_SESSION_CAPTURE_PATTERNS: RegExp[] = [
+  /Target page, context or browser has been closed/i,
+  /browser has been disconnected/i,
+  /page has been crashed/i
+];
+
 const asErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
@@ -190,6 +203,11 @@ const resolveUiLoginTargets = (baseUrl: string, env: NodeJS.ProcessEnv = process
 export const isTransientUiBootstrapFailure = (error: unknown): boolean => {
   const message = asErrorMessage(error);
   return TRANSIENT_UI_BOOTSTRAP_PATTERNS.some((pattern) => pattern.test(message));
+};
+
+export const isTransientUiSessionCaptureFailure = (error: unknown): boolean => {
+  const message = asErrorMessage(error);
+  return TRANSIENT_UI_SESSION_CAPTURE_PATTERNS.some((pattern) => pattern.test(message));
 };
 
 export const navigateToBaseUrlWithRetry = async (
@@ -405,7 +423,19 @@ const waitForAuthCookies = async (
   const deadline = Date.now() + timeoutMs;
   const loginInput = page.locator('input#username, input[name="username"], input[type="email"]');
   while (Date.now() < deadline) {
-    const cookies = await context.cookies();
+    if (page.isClosed()) {
+      return { ok: false, reason: "Target page, context or browser has been closed while waiting for auth cookies." };
+    }
+
+    let cookies;
+    try {
+      cookies = await context.cookies();
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `Target page, context or browser has been closed while waiting for auth cookies: ${asErrorMessage(error)}`
+      };
+    }
     if (hasRequiredAuthCookies(cookies)) {
       return { ok: true };
     }
@@ -534,6 +564,27 @@ const resolveAuthBaseUrl = (baseUrl: string): string => {
 };
 
 const resolveStorageStateLockPath = (storagePath: string): string => `${storagePath}.lock`;
+
+const resolveBrowserCloseTimeoutMs = (): number => {
+  const configured = Number(process.env.PW_UI_BROWSER_CLOSE_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured >= 1_000 ? configured : 5_000;
+};
+
+const closeBrowserSafely = async (browser: Browser): Promise<void> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      browser.close(),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, resolveBrowserCloseTimeoutMs());
+      })
+    ]);
+  } catch {
+    // Browser shutdown is best effort after storage capture has completed or failed.
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
 
 const resolveStorageLockTimeoutMs = (): number => {
   const configured = Number(process.env.PW_UI_STORAGE_LOCK_TIMEOUT_MS);
@@ -708,32 +759,53 @@ export const ensureUiStorageStateForUser = async (
     }
 
     try {
-      const browser = await chromium.launch();
-
-      try {
-        const context = await browser.newContext();
+      let lastError: unknown;
+      for (let attempt = 1; attempt <= resolveUiSessionCaptureAttempts(); attempt += 1) {
+        let browser: Browser | undefined;
+        const tempStoragePath = `${storagePath}.${process.pid}.${Date.now()}.tmp`;
         try {
-          const page = await context.newPage();
-          await captureUiStorageState(context, page, userIdentifier, email, password, baseUrl);
+          browser = await chromium.launch();
+          const context = await browser.newContext({ ignoreHTTPSErrors: true });
+          try {
+            const page = await context.newPage();
+            await captureUiStorageState(context, page, userIdentifier, email, password, baseUrl);
 
-          await page
-            .locator("exui-header")
-            .first()
-            .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
-            .catch(() => {
-              // Proceed even if header is slow to render; cookies are already present.
-            });
+            await page
+              .locator("exui-header")
+              .first()
+              .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
+              .catch(() => {
+                // Proceed even if header is slow to render; cookies are already present.
+              });
 
-          await addAnalyticsCookie(context, baseUrl);
-          await context.storageState({ path: storagePath });
-          writeUiStorageMetadata(storagePath, { userIdentifier, email });
-          clearSessionCaptureFailure(failurePath);
+            await addAnalyticsCookie(context, baseUrl);
+            await context.storageState({ path: tempStoragePath });
+            fs.renameSync(tempStoragePath, storagePath);
+            writeUiStorageMetadata(storagePath, { userIdentifier, email });
+            clearSessionCaptureFailure(failurePath);
+            lastError = undefined;
+            break;
+          } finally {
+            await context.close().catch(() => undefined);
+          }
+        } catch (error) {
+          lastError = error;
+          try {
+            fs.rmSync(tempStoragePath, { force: true });
+          } catch {
+            // Best effort cleanup of an incomplete storage state.
+          }
+          if (attempt === resolveUiSessionCaptureAttempts() || !isTransientUiSessionCaptureFailure(error)) {
+            throw error;
+          }
+          console.warn(
+            `[ui.session] UI session capture lost its browser context for ${userIdentifier}; retrying with a fresh browser (${attempt + 1}/${resolveUiSessionCaptureAttempts()}).`
+          );
         } finally {
-          await context.close().catch(() => undefined);
+          if (browser) await closeBrowserSafely(browser);
         }
-      } finally {
-        await browser.close();
       }
+      if (lastError) throw lastError;
     } catch (error) {
       writeSessionCaptureFailure(failurePath, error);
       handleUiStorageWarmupFailure(error, userIdentifier, strict);
@@ -755,6 +827,7 @@ export const __test__ = {
   resolveSessionCaptureFailurePath,
   resolveSessionCaptureFailureTtlMs,
   resolveUiLoginTargets,
+  isTransientUiSessionCaptureFailure,
   writeSessionCaptureFailure,
   handleUiStorageWarmupFailure,
   shouldRefreshStorageState

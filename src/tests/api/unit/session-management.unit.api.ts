@@ -182,6 +182,17 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     ).toEqual(['http://localhost:3000/cases', 'http://localhost:5000/login']);
   });
 
+  test('closed browser session failures are classified for one fresh capture retry only', () => {
+    expect(
+      sessionStorageTest.isTransientUiSessionCaptureFailure(
+        new Error('browserContext.cookies: Target page, context or browser has been closed')
+      )
+    ).toBe(true);
+    expect(
+      sessionStorageTest.isTransientUiSessionCaptureFailure(new Error('Login page did not render'))
+    ).toBe(false);
+  });
+
   test('storage reuse refreshes when cached metadata belongs to a different resolved email for the same alias', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
     const storagePath = path.join(tempDir, 'storage.json');
