@@ -35,19 +35,29 @@ const baseCookie = (name: string, value: string): Cookie => ({
 });
 
 test.describe('Session and cookie utilities coverage', { tag: '@svc-internal' }, () => {
-  let originalCaseworkerR1Username: string | undefined;
-  let originalCaseworkerR1Password: string | undefined;
+  const credentialEnvironmentKeys = [
+    'IAC_CASEOFFICER_R1_USERNAME',
+    'IAC_CASEOFFICER_R1_PASSWORD',
+    'CASEOFFICER_R1_USERNAME',
+    'CASEOFFICER_R1_PASSWORD',
+    'CASEWORKER_R1_USERNAME',
+    'CASEWORKER_R1_PASSWORD',
+  ] as const;
+  const originalCredentialEnvironment = new Map<string, string | undefined>();
 
   test.beforeAll(() => {
-    originalCaseworkerR1Username = process.env.CASEWORKER_R1_USERNAME;
-    originalCaseworkerR1Password = process.env.CASEWORKER_R1_PASSWORD;
+    for (const key of credentialEnvironmentKeys) {
+      originalCredentialEnvironment.set(key, process.env[key]);
+      delete process.env[key];
+    }
     process.env.CASEWORKER_R1_USERNAME = 'caseworker-r1@example.test';
     process.env.CASEWORKER_R1_PASSWORD = 'caseworker-r1-password';
   });
 
   test.afterAll(() => {
-    restoreEnv('CASEWORKER_R1_USERNAME', originalCaseworkerR1Username);
-    restoreEnv('CASEWORKER_R1_PASSWORD', originalCaseworkerR1Password);
+    for (const key of credentialEnvironmentKeys) {
+      restoreEnv(key, originalCredentialEnvironment.get(key));
+    }
   });
 
   test('isSessionFresh returns false when stat fails', () => {

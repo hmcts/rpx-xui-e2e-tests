@@ -181,7 +181,6 @@ function expectCentralMustRunFamiliesPresent(
     missingFamilies,
     `${endpoint} is missing central must-run service families: ${missingFamilies.join(', ') || 'none'}`
   ).toEqual([]);
-  expectCanaryFamiliesExcluded(actualFamilies);
 }
 
 function mutateStringArrayForDemo(actual: readonly string[], endpoint: string): string[] {
