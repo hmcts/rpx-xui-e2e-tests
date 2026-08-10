@@ -491,13 +491,14 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
         "event-start-spinner-latency",
         "idam-passport-session-smoke",
         "sso-login-hint-entrypoint-state",
-        "post-auth-role-mismatch-access-denied"
+        "post-auth-role-mismatch-access-denied",
+        "overview-page-layout-regression-classification"
       ])
     );
 
     const coveredNow = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === "covered-now");
     expect(coveredNow.every((failure) => failure.currentPocEvidence.includes("Executable replay pack"))).toBe(true);
-    expect(summary["learning-case"]).toEqual(["overview-page-layout-regression-classification"]);
+    expect(summary["learning-case"]).toEqual([]);
     expect(summary.partial).toEqual([]);
     expect(summary["out-of-scope"]).toEqual(["media-viewer-redaction-coordinate"]);
   });

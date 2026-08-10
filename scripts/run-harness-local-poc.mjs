@@ -164,6 +164,7 @@ try {
       "src/tests/api/exui-historic-replay-packs.api.ts",
       "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts",
       "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
+      "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
       "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
       "src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts",
       `--workers=${harnessWorkers}`,
@@ -190,10 +191,11 @@ try {
       `--workers=${harnessWorkers}`
     ]);
 
-    await runCommand("EXUI-4493 CYA visual evidence proof", "./node_modules/.bin/playwright", [
+    await runCommand("Harness visual evidence proof", "./node_modules/.bin/playwright", [
       "test",
       "--project=integration",
       "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
+      "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
       "--timeout=90000",
       "--global-timeout=120000",
       `--workers=${harnessWorkers}`
