@@ -78,6 +78,23 @@ export async function setupRolesAndAccessMockRoutes(
     });
   });
 
+  await page.route("**/workallocation/caseworker/getUsersByIdamIds*", async (route) => {
+    const requestBody = (route.request().postDataJSON() as { idamIds?: string[]; services?: string[] }) ?? {};
+    const requestedIds = Array.isArray(requestBody.idamIds) ? requestBody.idamIds : [];
+    const requestedServices = Array.isArray(requestBody.services) ? requestBody.services : [];
+    const filteredCaseworkers = requestedServices.includes(options.jurisdiction ?? "IA")
+      ? entityView.caseworkers.filter(
+          (caseworker) => requestedIds.includes(caseworker.idamId) && requestedServices.includes(caseworker.service)
+        )
+      : [];
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(filteredCaseworkers)
+    });
+  });
+
   await page.route("**/api/role-access/roles/post*", async (route) => {
     await route.fulfill({
       status: 200,

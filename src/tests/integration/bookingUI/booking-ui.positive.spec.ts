@@ -18,7 +18,7 @@ import { formatUiDate, normalizeUiDateValue } from "../utils/tableUtils.js";
 const userIdentifier = "BOOKING_UI-FT-ON";
 const defaultBookingLocation = singleLocationMock[0];
 const bookingPageUrlPattern = /\/booking$/;
-const tasksPageUrlPattern = /\/work\/my-work\/list/;
+const bookingDestinationUrlPattern = /\/cases/;
 const taskListRouteOnlyOptions = { bootstrapUser: { skipUserDetailsMock: true } };
 
 let getBookingsCalled = false;
@@ -100,7 +100,7 @@ test.describe(
 
       await test.step("Continue with the active booking and redirect to my work list", async () => {
         await activeBookingButton.click();
-        await expect(page).toHaveURL(tasksPageUrlPattern);
+        await expect(page).toHaveURL(bookingDestinationUrlPattern);
       });
     });
 
@@ -142,7 +142,7 @@ test.describe(
         expect(normalizeUiDateValue(table[1].value)).toBe(`${today} to ${today}`);
         await expect(bookingUiPage.bookingButton).toBeEnabled();
         await Promise.all([
-          page.waitForURL(tasksPageUrlPattern, { timeout: 30_000 }),
+          page.waitForURL(bookingDestinationUrlPattern, { timeout: 30_000 }),
           bookingUiPage.bookingButton.click()
         ]);
       });
@@ -181,7 +181,7 @@ test.describe(
       });
 
       await test.step("Continue and redirect to my work list", async () => {
-        await expect(page).toHaveURL(tasksPageUrlPattern);
+        await expect(page).toHaveURL(bookingDestinationUrlPattern);
       });
     });
 
@@ -200,7 +200,7 @@ test.describe(
 
       await test.step("Continue and redirect to my work list", async () => {
         await bookingUiPage.continueButton.click();
-        await expect(page).toHaveURL(tasksPageUrlPattern);
+        await expect(page).toHaveURL(bookingDestinationUrlPattern);
       });
     });
   }

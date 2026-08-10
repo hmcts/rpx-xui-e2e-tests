@@ -1,4 +1,3 @@
-import { faker } from '@faker-js/faker';
 import { expect, type Page, type Route } from '@playwright/test';
 
 export type UiTaskAction = 'cancel' | 'complete' | 'go' | 'reassign' | 'unassign';
@@ -132,6 +131,7 @@ const buildCaseworkerResponse = (assigneeId: string) => [
       locationName: 'Newport (South Wales) Immigration and Asylum Tribunal',
     },
     roleCategory: 'LEGAL_OPERATIONS',
+    roleCategories: ['LEGAL_OPERATIONS'],
     service: 'IA',
   },
 ];
@@ -317,6 +317,15 @@ export const setupTaskActionEndpointMocks = async (
 ): Promise<TaskActionExpectation> => {
   const expectation = getTaskActionExpectation(action, options);
 
+  const assigneeId = options.assigneeId ?? '10bac6bf-80a7-4c81-b2db-516aba826be6';
+  await page.route('**/workallocation/caseworker/getUserByIdamId*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildCaseworkerResponse(assigneeId)[0]),
+    });
+  });
+
   for (const apiCall of expectation.apiCalls) {
     await page.route(apiCall.urlPattern, async (route) => {
       const request = route.request();
@@ -412,7 +421,7 @@ export const singleUsersGetByRoleMockResponse = [
   {
     email: 'auto_test1@example.com',
     firstName: 'test',
-    idamId: faker.string.uuid(),
+    idamId: '38400000-8cf0-11bd-b23e-10b96e4ef00d',
     lastName: 'Legal Operations',
     location: {
       id: 231596,
@@ -420,12 +429,13 @@ export const singleUsersGetByRoleMockResponse = [
       services: ['CIVIL', 'PUBLICLAW', 'PRIVATELAW', 'IA'],
     },
     roleCategory: 'LEGAL_OPERATIONS',
+    roleCategories: ['LEGAL_OPERATIONS'],
     service: 'IA',
   },
   {
     email: 'auto_test2@example.com',
     firstName: 'test',
-    idamId: faker.string.uuid(),
+    idamId: '38400000-8cf0-11bd-b23e-10b96e4ef00e',
     lastName: 'Judiciary',
     location: {
       id: 231596,
@@ -433,6 +443,7 @@ export const singleUsersGetByRoleMockResponse = [
       services: ['CIVIL', 'PUBLICLAW', 'PRIVATELAW', 'IA'],
     },
     roleCategory: 'JUDICIARY',
+    roleCategories: ['JUDICIARY'],
     service: 'IA',
   },
 ];

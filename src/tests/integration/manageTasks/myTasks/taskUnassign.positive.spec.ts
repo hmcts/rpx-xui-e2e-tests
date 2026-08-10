@@ -67,7 +67,7 @@ test.describe(`Task Unassign as ${userIdentifier}`, { tag: ['@integration-bucket
 
       await expect(page).toHaveURL(MY_WORK_LIST_URL_REGEX);
       await expect(taskListPage.taskListTable).toBeVisible();
-      await expect(taskListPage.exuiBodyComponent.message).toContainText(
+      await expect(taskListPage.exuiBodyComponent.successMessage).toContainText(
         `You've unassigned a task. It's now in Available tasks.`
       );
     });

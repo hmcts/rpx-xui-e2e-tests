@@ -50,6 +50,7 @@ test.describe(`Task Go To as ${userIdentifier}`, { tag: ['@integration-bucket-3'
           locationName: 'Newport (South Wales) Immigration and Asylum Tribunal',
         },
         roleCategory: 'LEGAL_OPERATIONS',
+        roleCategories: ['LEGAL_OPERATIONS'],
         service: 'IA',
       },
     ];
@@ -75,6 +76,15 @@ test.describe(`Task Go To as ${userIdentifier}`, { tag: ['@integration-bucket-3'
 
     await page.route('**/workallocation/caseworker/getUsersByServiceName*', async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(userRequestMockResponse) });
+    });
+    await page.route('**/workallocation/caseworker/getUsersByIdamIds*', async (route) => {
+      const requestBody = (route.request().postDataJSON() as { idamIds?: string[] }) ?? {};
+      const idamIds = Array.isArray(requestBody.idamIds) ? requestBody.idamIds : [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(idamIds.map((idamId) => ({ ...userRequestMockResponse[0], idamId }))),
+      });
     });
 
     await taskListPage.gotoAndWaitForTaskRow('my tasks go to case details');

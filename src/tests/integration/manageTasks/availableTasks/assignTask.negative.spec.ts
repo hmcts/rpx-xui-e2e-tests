@@ -111,7 +111,7 @@ test.describe(
 
         await expect(claimAction).toBeHidden();
         await expect(taskListPage.taskListTable).toBeVisible();
-        await expect(taskListPage.exuiBodyComponent.warningMessage).toContainText(TASK_UNAVAILABLE_WARNING);
+        await expect(taskListPage.exuiBodyComponent.message.filter({ hasText: TASK_UNAVAILABLE_WARNING })).toContainText(TASK_UNAVAILABLE_WARNING);
         await expect(taskListPage.exuiBodyComponent.infoMessage).toContainText('The list has been refreshed.');
       });
     });

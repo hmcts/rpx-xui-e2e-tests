@@ -172,10 +172,62 @@ export async function setupRestrictedAccessMocks(
     });
   });
 
-  await page.route("**/api/prd/judicial/searchJudicialUserByIdamId*", async (route) => {
-    let responseBody = judicialUsersBody;
+  await page.route("**/workallocation/caseworker/getUserByIdamId*", async (route) => {
+    await route.fulfill({
+      status: caseworkersStatus,
+      contentType: "application/json",
+      body: JSON.stringify(caseworkersBody)
+    });
+  });
 
-    if (judicialUsersStatus === 200 && Array.isArray(judicialUsersBody)) {
+  await page.route("**/workallocation/caseworker/getUsersByIdamIds*", async (route) => {
+    await route.fulfill({
+      status: caseworkersStatus,
+      contentType: "application/json",
+      body: JSON.stringify(caseworkersBody)
+    });
+  });
+
+  await page.route("**/api/role-access/roles/getJudicialUsers*", async (route) => {
+    let responseBody = caseworkersStatus === 200 ? judicialUsersBody : [];
+
+    if (caseworkersStatus === 200 && judicialUsersStatus === 200 && Array.isArray(judicialUsersBody)) {
+      let requestedIds: string[] = [];
+      try {
+        const requestBody = route.request().postDataJSON() as { userIds?: string[] };
+        requestedIds = Array.isArray(requestBody?.userIds) ? requestBody.userIds : [];
+      } catch {
+        requestedIds = [];
+      }
+
+      const requestedUsers = judicialUsersBody.filter((user: { idamId?: string }) =>
+        requestedIds.length === 0 || (typeof user.idamId === "string" && requestedIds.includes(user.idamId))
+      );
+      responseBody = requestedUsers.map((user: { idamId?: string; fullName?: string; emailId?: string }) => ({
+        appointments: [],
+        known_as: user.fullName ?? "",
+        full_name: user.fullName ?? "",
+        surname: user.fullName?.split(" ").at(-1) ?? "",
+        sidam_id: user.idamId ?? "",
+        idam_id: user.idamId ?? "",
+        email_id: user.emailId ?? "",
+        idamId: user.idamId ?? "",
+        fullName: user.fullName ?? "",
+        emailId: user.emailId ?? ""
+      }));
+    }
+
+    await route.fulfill({
+      status: judicialUsersStatus,
+      contentType: "application/json",
+      body: JSON.stringify(responseBody)
+    });
+  });
+
+  await page.route("**/api/prd/judicial/searchJudicialUserByIdamId*", async (route) => {
+    let responseBody = caseworkersStatus === 200 ? judicialUsersBody : [];
+
+    if (caseworkersStatus === 200 && judicialUsersStatus === 200 && Array.isArray(judicialUsersBody)) {
       let requestedIds: string[] = [];
       try {
         const requestBody = route.request().postDataJSON() as { sidam_ids?: string[] };

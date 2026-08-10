@@ -82,7 +82,7 @@ properties([
   ])
 ])
 
-@Library("Infrastructure")
+@Library("Infrastructure@2.4.9")
 
 def type = "nodejs"
 def product = "xui"
@@ -190,7 +190,7 @@ def secrets = [
   ]
 ]
 
-def playwrightImage = "mcr.microsoft.com/playwright:v1.61.1-noble"
+def playwrightImage = "mcr.microsoft.com/playwright:v1.62.1-noble"
 def playwrightDockerOptions = "--ipc=host"
 
 def runInPlaywrightContainer = { Closure body ->

@@ -59,7 +59,7 @@ test.describe(`Task Completion as ${userIdentifier}`, { tag: ['@integration-buck
 
       await expect(page).toHaveURL(MY_WORK_LIST_URL_REGEX);
       await expect(taskListPage.taskListTable).toBeVisible();
-      await expect(taskListPage.exuiBodyComponent.message).toContainText(
+      await expect(taskListPage.exuiBodyComponent.successMessage).toContainText(
         `You've marked a task as done. It has been removed from the task list.`
       );
     });

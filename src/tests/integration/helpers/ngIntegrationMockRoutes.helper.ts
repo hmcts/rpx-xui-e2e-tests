@@ -276,6 +276,7 @@ export function buildNgIntegrationUserDetailsMock(options?: NgIntegrationUserDet
       email: options?.email ?? "wave2.playwright@justice.gov.uk",
       active: true,
       roleCategory: options?.roleCategory ?? "LEGAL_OPERATIONS",
+      roleCategories: [options?.roleCategory ?? "LEGAL_OPERATIONS"],
       roles
     },
     roleAssignmentInfo: deepClone(options?.roleAssignmentInfo ?? [])

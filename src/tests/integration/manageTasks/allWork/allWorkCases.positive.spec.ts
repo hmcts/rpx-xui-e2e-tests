@@ -28,6 +28,7 @@ const currentFilterPerson = {
     services: ['IA', 'SSCS'],
   },
   roleCategory: 'LEGAL_OPERATIONS',
+  roleCategories: ['LEGAL_OPERATIONS'],
   service: 'IA',
 };
 
@@ -42,6 +43,7 @@ const emptyFilterPerson = {
     services: ['IA', 'SSCS'],
   },
   roleCategory: 'LEGAL_OPERATIONS',
+  roleCategories: ['LEGAL_OPERATIONS'],
   service: 'IA',
 };
 

@@ -42,6 +42,65 @@ const resolveUiBootstrapRetryAttempts = (): number => {
   return Number.isNaN(parsed) ? 2 : Math.max(1, parsed);
 };
 
+const DEFAULT_SESSION_CAPTURE_FAILURE_TTL_MS = 120_000;
+
+const resolveSessionCaptureFailureTtlMs = (env: NodeJS.ProcessEnv = process.env): number => {
+  const configured = Number(env.PW_SESSION_CAPTURE_FAILURE_TTL_MS);
+  return Number.isFinite(configured) && configured >= 0
+    ? configured
+    : DEFAULT_SESSION_CAPTURE_FAILURE_TTL_MS;
+};
+
+const resolveSessionCaptureFailurePath = (storagePath: string): string =>
+  `${storagePath}.capture-failed.json`;
+
+const recentSessionCaptureFailureMessage = (
+  failurePath: string,
+  ttlMs: number,
+  now = Date.now()
+): string | undefined => {
+  if (ttlMs === 0 || !fs.existsSync(failurePath)) return undefined;
+
+  try {
+    const failure = JSON.parse(fs.readFileSync(failurePath, "utf8")) as {
+      timestamp?: number;
+      message?: string;
+    };
+    if (
+      typeof failure.timestamp !== "number" ||
+      failure.timestamp > now ||
+      now - failure.timestamp > ttlMs
+    ) {
+      return undefined;
+    }
+    return failure.message?.trim() || "previous session capture failed";
+  } catch {
+    return undefined;
+  }
+};
+
+const writeSessionCaptureFailure = (failurePath: string, error: unknown): void => {
+  try {
+    fs.writeFileSync(
+      failurePath,
+      JSON.stringify({
+        timestamp: Date.now(),
+        message: asErrorMessage(error).slice(0, 500)
+      })
+    );
+  } catch {
+    // Best effort only: retain the original capture failure as the actionable error.
+  }
+};
+
+const clearSessionCaptureFailure = (failurePath: string): void => {
+  try {
+    fs.rmSync(failurePath, { force: true });
+  } catch {
+    // Best effort cleanup.
+  }
+};
+
 const resolveManualUserIdentifiers = (): Set<string> => {
   const raw = process.env.PW_UI_MANUAL_USERS ?? process.env.PW_UI_MANUAL_USER ?? "";
   const values = raw
@@ -581,6 +640,7 @@ export const ensureUiStorageStateForUser = async (
   }
 
   const storagePath = resolveUiStoragePathForUser(userIdentifier, { email });
+  const failurePath = resolveSessionCaptureFailurePath(storagePath);
   const expectedIdentity = { userIdentifier, email };
   fs.mkdirSync(path.dirname(storagePath), { recursive: true });
   migrateLegacyUiStorageStateIfPresent(userIdentifier, email, storagePath);
@@ -592,7 +652,22 @@ export const ensureUiStorageStateForUser = async (
       expectedIdentity
     }));
   if (!needsRefresh) {
+    clearSessionCaptureFailure(failurePath);
     return;
+  }
+
+  if (options?.force !== true) {
+    const recentFailure = recentSessionCaptureFailureMessage(
+      failurePath,
+      resolveSessionCaptureFailureTtlMs()
+    );
+    if (recentFailure) {
+      const message =
+        `Recent UI session capture failed for ${userIdentifier}; refusing a repeated login attempt for now: ${recentFailure}`;
+      if (strict) throw new Error(message);
+      console.warn(`[ui.session] ${message}`);
+      return;
+    }
   }
 
   if (manualUsers.has(normalisedUser)) {
@@ -614,7 +689,22 @@ export const ensureUiStorageStateForUser = async (
         expectedIdentity
       }));
     if (!needsRefresh) {
+      clearSessionCaptureFailure(failurePath);
       return;
+    }
+
+    if (options?.force !== true) {
+      const recentFailure = recentSessionCaptureFailureMessage(
+        failurePath,
+        resolveSessionCaptureFailureTtlMs()
+      );
+      if (recentFailure) {
+        const message =
+          `Recent UI session capture failed for ${userIdentifier}; refusing a repeated login attempt for now: ${recentFailure}`;
+        if (strict) throw new Error(message);
+        console.warn(`[ui.session] ${message}`);
+        return;
+      }
     }
 
     try {
@@ -637,6 +727,7 @@ export const ensureUiStorageStateForUser = async (
           await addAnalyticsCookie(context, baseUrl);
           await context.storageState({ path: storagePath });
           writeUiStorageMetadata(storagePath, { userIdentifier, email });
+          clearSessionCaptureFailure(failurePath);
         } finally {
           await context.close().catch(() => undefined);
         }
@@ -644,6 +735,7 @@ export const ensureUiStorageStateForUser = async (
         await browser.close();
       }
     } catch (error) {
+      writeSessionCaptureFailure(failurePath, error);
       handleUiStorageWarmupFailure(error, userIdentifier, strict);
     }
   } finally {
@@ -655,10 +747,15 @@ export const resolveUiStorageTtlMinutes = (): number =>
   Math.round(resolveStorageTtlMs() / 60_000);
 
 export const __test__ = {
+  clearSessionCaptureFailure,
   migrateLegacyUiStorageStateIfPresent,
   isUiServiceUnavailablePage,
+  recentSessionCaptureFailureMessage,
   resolveLegacyUiStoragePathForUser,
+  resolveSessionCaptureFailurePath,
+  resolveSessionCaptureFailureTtlMs,
   resolveUiLoginTargets,
+  writeSessionCaptureFailure,
   handleUiStorageWarmupFailure,
   shouldRefreshStorageState
 };
