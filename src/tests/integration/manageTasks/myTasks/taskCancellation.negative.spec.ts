@@ -108,6 +108,6 @@ test.describe(`Task Cancellation negative scenarios as ${userIdentifier}`, { tag
 
     await expect(page).toHaveURL(MY_WORK_LIST_URL_REGEX);
     await expect(taskListPage.taskListTable).toBeVisible();
-    await expect(taskListPage.exuiBodyComponent.message).toContainText(TASK_UNAVAILABLE_WARNING);
+    await expect(taskListPage.exuiBodyComponent.message.filter({ hasText: TASK_UNAVAILABLE_WARNING })).toContainText(TASK_UNAVAILABLE_WARNING);
   });
 });

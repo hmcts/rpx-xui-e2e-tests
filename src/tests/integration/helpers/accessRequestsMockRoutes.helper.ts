@@ -221,6 +221,17 @@ export async function setupReviewSpecificAccessMockRoutes(
     });
   });
 
+  await page.route("**/workallocation/caseworker/getUserByIdamId*", async (route) => {
+    await route.fulfill({
+      status: options.caseworkersStatus ?? 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        options.caseworkersBody ??
+          buildSpecificAccessCaseworkerMock({ service: ACCESS_REQUEST_SERVICE_NAME })
+      )
+    });
+  });
+
   await page.route("**/api/role-access/roles/getJudicialUsers*", async (route) => {
     await route.fulfill({
       status: options.judicialUsersStatus ?? 200,

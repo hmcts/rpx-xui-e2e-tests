@@ -36,10 +36,31 @@ test.beforeEach(async ({ page }) => {
           locationName: 'Newport (South Wales) Immigration and Asylum Tribunal',
         },
         roleCategory: 'LEGAL_OPERATIONS',
+        roleCategories: ['LEGAL_OPERATIONS'],
         service: 'IA',
       },
     ]);
     await route.fulfill({ status: 200, contentType: 'application/json', body });
+  });
+  await page.route(`**/workallocation/caseworker/getUsersByIdamIds*`, async (route) => {
+    const requestBody = (route.request().postDataJSON() as { idamIds?: string[] }) ?? {};
+    const idamIds = Array.isArray(requestBody.idamIds) ? requestBody.idamIds : [];
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        idamIds.map((idamId) => ({
+          email: 'test@example.com',
+          firstName: 'Test',
+          idamId,
+          lastName: 'User',
+          location: { id: 227101, locationName: 'Newport (South Wales) Immigration and Asylum Tribunal' },
+          roleCategory: 'LEGAL_OPERATIONS',
+          roleCategories: ['LEGAL_OPERATIONS'],
+          service: 'IA',
+        }))
+      ),
+    });
   });
 });
 
@@ -183,10 +204,31 @@ test.describe(`User ${userIdentifier} can see assigned tasks on a case`, { tag: 
             locationName: 'Newport (South Wales) Immigration and Asylum Tribunal',
           },
           roleCategory: 'LEGAL_OPERATIONS',
+          roleCategories: ['LEGAL_OPERATIONS'],
           service: 'IA',
         },
       ]);
       await route.fulfill({ status: 200, contentType: 'application/json', body });
+    });
+    await page.route(`**/workallocation/caseworker/getUsersByIdamIds*`, async (route) => {
+      const requestBody = (route.request().postDataJSON() as { idamIds?: string[] }) ?? {};
+      const idamIds = Array.isArray(requestBody.idamIds) ? requestBody.idamIds : [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          idamIds.map((idamId) => ({
+            email: 'test@example.com',
+            firstName: 'User',
+            idamId,
+            lastName: 'Test',
+            location: { id: 227101, locationName: 'Newport (South Wales) Immigration and Asylum Tribunal' },
+            roleCategory: 'LEGAL_OPERATIONS',
+            roleCategories: ['LEGAL_OPERATIONS'],
+            service: 'IA',
+          }))
+        ),
+      });
     });
 
     await setupCaseTaskListMockRoute(page, caseId, buildCaseDetailsTasksMinimal(taskData));

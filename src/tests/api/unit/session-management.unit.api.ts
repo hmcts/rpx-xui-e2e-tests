@@ -68,6 +68,33 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     ).toThrow(failure);
   });
 
+  test('session capture failure markers use the webapp cooldown and are cleared explicitly', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-capture-failure-unit-'));
+    const failurePath = path.join(tempDir, 'user.storage.json.capture-failed.json');
+
+    try {
+      expect(sessionStorageTest.resolveSessionCaptureFailureTtlMs({} as NodeJS.ProcessEnv)).toBe(120_000);
+      expect(
+        sessionStorageTest.resolveSessionCaptureFailureTtlMs({
+          PW_SESSION_CAPTURE_FAILURE_TTL_MS: '5000',
+        } as NodeJS.ProcessEnv)
+      ).toBe(5000);
+
+      sessionStorageTest.writeSessionCaptureFailure(failurePath, new Error('IDAM unavailable'));
+      expect(sessionStorageTest.recentSessionCaptureFailureMessage(failurePath, 120_000)).toBe(
+        'IDAM unavailable'
+      );
+      expect(
+        sessionStorageTest.recentSessionCaptureFailureMessage(failurePath, 1000, Date.now() + 2000)
+      ).toBeUndefined();
+
+      sessionStorageTest.clearSessionCaptureFailure(failurePath);
+      expect(fs.existsSync(failurePath)).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('strict storage reuse refreshes when the cached state is no longer authenticated server-side', async () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
     const storagePath = path.join(tempDir, 'storage.json');

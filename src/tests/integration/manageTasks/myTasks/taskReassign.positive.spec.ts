@@ -97,7 +97,7 @@ test.describe(`Task Reassign as ${userIdentifier}`, { tag: ['@integration-bucket
 
     await test.step('Verify user is returned to task list with success message', async () => {
       await expect(taskListPage.taskListTable).toBeVisible();
-      await expect(taskListPage.exuiBodyComponent.message).toContainText(`You've reassigned a task to somebody else.`);
+      await expect(taskListPage.exuiBodyComponent.successMessage).toContainText(`You've reassigned a task to somebody else.`);
     });
   });
 });
