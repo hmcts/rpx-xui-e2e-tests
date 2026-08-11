@@ -82,7 +82,6 @@ export const EXUI_SERVICE_REF_DATA_MAPPING: Record<string, readonly string[]> = 
   HRS: ["HRS"],
   IA: ["BFA1"],
   PRIVATELAW: ["ABA5"],
-  PCS: ["AAA3"],
   PROBATE: ["ABA6"],
   PUBLICLAW: ["ABA3"],
   SSCS: ["BBA3"],
@@ -208,6 +207,7 @@ export type AssuranceSourceRepository =
   | "rpx-xui-node-lib"
   | "rpx-xui-e2e-tests"
   | "prl-ccd-definitions"
+  | "hmcts/civil-ccd-definition"
   | "hmcts/probate-back-office"
   | "hmcts/sptribs-case-api";
 export type AssuranceSourceKind =
@@ -320,6 +320,11 @@ export interface ExuiServiceDefinitionProfile {
   repos: readonly ExuiServiceDefinitionRepoEvidence[];
   rationale: string;
   nextAction: string;
+  representativeEvents?: readonly {
+    eventId: string;
+    caseType: string;
+    sourceRefs: readonly string[];
+  }[];
 }
 
 export const EXUI_SOURCE_OF_TRUTH_REFS = {
@@ -377,6 +382,12 @@ export const EXUI_SOURCE_OF_TRUTH_REFS = {
     kind: "ccd-definition",
     reason: "Representative consuming-service CCD setup for role, jurisdiction, and case-type permutations"
   },
+  civilCcdDefinitions: {
+    repository: "hmcts/civil-ccd-definition",
+    path: "ccd-definition/civil/CaseEvent/{User/UserEvents.json,CaseEventToFields/CreateClaim.json}",
+    kind: "ccd-definition",
+    reason: "Civil CREATE_CLAIM event post-state, conditional-page, and hidden-value retention source contract"
+  },
   sptribsCaseApi: {
     repository: "hmcts/sptribs-case-api",
     path: "src/main/java/uk/gov/hmcts/sptribs/common/ccd/CcdServiceCode.java",
@@ -402,7 +413,7 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
     serviceFamily: "CIVIL",
     priority: "release-blocking",
     proofLevel: "ccd-backed",
-    lanes: ["global-search", "work-allocation", "staff-ref-data", "hearings"],
+    lanes: ["global-search", "work-allocation", "staff-ref-data", "hearings", "manage-case"],
     representativeCaseTypes: ["CIVIL", "GENERALAPPLICATION"],
     serviceCodes: ["AAA6", "AAA7"],
     repos: [
@@ -437,7 +448,17 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
     ],
     rationale:
       "Civil is in every central EXUI family set and has the largest discovered CCD definition surface, so it is a release-blocking representative for broad case-event and complex-type permutations.",
-    nextAction: "Add Civil normalized slices for event data integrity and Work Allocation filters after owner review of representative case events."
+    nextAction: "Keep the Civil CREATE_CLAIM event slice as the representative data-integrity contract; add further events only when they change EXUI interpretation.",
+    representativeEvents: [
+      {
+        eventId: "CREATE_CLAIM",
+        caseType: "CIVIL",
+        sourceRefs: [
+          "hmcts/civil-ccd-definition:ccd-definition/civil/CaseEvent/User/UserEvents.json",
+          "hmcts/civil-ccd-definition:ccd-definition/civil/CaseEventToFields/CreateClaim.json"
+        ]
+      }
+    ]
   },
   {
     serviceFamily: "PRIVATELAW",
@@ -889,13 +910,14 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
   {
     serviceFamily: "CIVIL",
     disposition: "release-blocking",
-    lanes: [...commonCentralLanes, "hearings"],
+    lanes: [...commonCentralLanes, "hearings", "manage-case"],
     representativeScenarioIds: [
       "global-search-supported-service-families",
       "wa-supported-service-families",
       "staff-supported-service-families",
       "hearings-supported-family-config-contract",
-      "civil-hearings-civil-case-type-contract"
+      "civil-hearings-civil-case-type-contract",
+      "civil-create-claim-event-data-integrity"
     ],
     rationale: "Central global search/WA/staff family and a hearings-enabled jurisdiction."
   },
@@ -1201,6 +1223,23 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
       EXUI_SOURCE_OF_TRUTH_REFS.apiConfiguration,
       EXUI_SOURCE_OF_TRUTH_REFS.serviceCcdDefinitions,
+      EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
+    ]
+  },
+  {
+    id: "civil-create-claim-event-data-integrity",
+    lane: "manage-case",
+    priority: "must-run",
+    executionMode: "api",
+    serviceFamily: "CIVIL",
+    caseType: "CIVIL",
+    roleCluster: "caseworker-civil",
+    assertion:
+      "Civil CREATE_CLAIM preserves its post-state, conditional pages, and hidden-value retention contract consumed by EXUI manage-case",
+    source: "hmcts/civil-ccd-definition civil CREATE_CLAIM event and CaseEventToFields definition",
+    sourceRefs: [
+      EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
+      EXUI_SOURCE_OF_TRUTH_REFS.civilCcdDefinitions,
       EXUI_SOURCE_OF_TRUTH_REFS.localHarnessDocs
     ]
   },

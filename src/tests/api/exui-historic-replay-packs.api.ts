@@ -14,6 +14,7 @@ import {
   buildManageCaseSubmitPayload,
   canFetchEventDetails,
   CCD_SEARCH_WORKBASKET_METADATA_REPLAY,
+  CIVIL_CREATE_CLAIM_EVENT_REPLAY,
   EVENT_HISTORY_REPLAY,
   EVENT_START_SPINNER_REPLAY,
   findTaskToComplete,
@@ -33,6 +34,8 @@ import {
   WORK_ALLOCATION_REPLAY,
   assertExui4493NestedComplexCyaRowsPresent,
   assertPrivateLawConfigAnchors,
+  assertCivilCreateClaimEventContract,
+  mutateCivilCreateClaimEventForDemo,
   AUTH_JOURNEY_GUARDRAIL_REPLAY
 } from "../../data/exui-historic-replay-packs.js";
 import {
@@ -231,6 +234,33 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
         serviceCode: "ABA5"
       })
     );
+  });
+
+  test("Civil CREATE_CLAIM replay preserves source-backed event data integrity", () => {
+    const replay = mutateCivilCreateClaimEventForDemo(CIVIL_CREATE_CLAIM_EVENT_REPLAY);
+
+    expect(() => assertCivilCreateClaimEventContract(replay)).not.toThrow();
+    expect(replay).toMatchObject({
+      serviceFamily: "CIVIL",
+      caseType: "CIVIL",
+      serviceCode: "AAA6",
+      eventId: "CREATE_CLAIM",
+      postConditionState: "PENDING_CASE_ISSUED"
+    });
+  });
+
+  test("Civil CREATE_CLAIM mutation proof catches a dropped required event field", async ({}, testInfo) => {
+    if (process.env.EXUI_ASSURANCE_MUTATION !== "drop-civil-create-claim-field") {
+      return;
+    }
+
+    await testInfo.attach("exui-assurance-mutation.txt", {
+      body:
+        "drop-civil-create-claim-field: Demo fault: simulate the Civil CCD CREATE_CLAIM definition losing courtLocation.",
+      contentType: "text/plain"
+    });
+
+    assertCivilCreateClaimEventContract(mutateCivilCreateClaimEventForDemo(CIVIL_CREATE_CLAIM_EVENT_REPLAY));
   });
 
   test("manage-case data-integrity replay keeps hidden complex data and drops stale hidden-page data", () => {
