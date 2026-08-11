@@ -1,7 +1,7 @@
 import { LintingConfig } from "@hmcts/playwright-common";
 import pluginJs from "@eslint/js";
 import prettier from "eslint-config-prettier";
-import pluginImport from "eslint-plugin-import";
+import pluginImport from "eslint-plugin-import-x";
 import tseslint from "typescript-eslint";
 
 const ignored = {

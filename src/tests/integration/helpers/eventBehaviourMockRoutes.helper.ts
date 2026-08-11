@@ -1,15 +1,15 @@
 import type { Page, Route } from "@playwright/test";
 
-import { setupNgIntegrationBaseRoutes } from "./ngIntegrationMockRoutes.helper.js";
 import {
   buildEventBehaviourCaseDetails,
   buildEventBehaviourTrigger,
   EVENT_BEHAVIOUR_CASE_REFERENCE,
   EVENT_BEHAVIOUR_CASE_TYPE,
-  EVENT_BEHAVIOUR_EVENT_TOKEN,
   EVENT_BEHAVIOUR_JURISDICTION,
   EVENT_BEHAVIOUR_TRIGGER_ID
 } from "../mocks/eventBehaviour.mock.js";
+
+import { setupNgIntegrationBaseRoutes } from "./ngIntegrationMockRoutes.helper.js";
 
 type RouteAbortCode = Parameters<Route["abort"]>[0];
 
