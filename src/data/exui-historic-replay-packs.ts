@@ -6,6 +6,7 @@ import {
 
 export type ReplayPackId =
   | "manage-case-data-integrity"
+  | "civil-create-claim-event-data-integrity"
   | "ccd-search-workbasket-metadata"
   | "work-allocation-availability"
   | "protected-endpoint-auth"
@@ -40,6 +41,18 @@ export interface ManageCaseDataIntegrityReplay {
   visitedPageIds: readonly string[];
   finalVisiblePageIds: readonly string[];
   pages: readonly SyntheticWizardPage[];
+}
+
+export interface CivilCreateClaimEventReplay {
+  serviceFamily: "CIVIL";
+  jurisdiction: "CIVIL";
+  caseType: "CIVIL";
+  serviceCode: "AAA6";
+  eventId: "CREATE_CLAIM";
+  postConditionState: "PENDING_CASE_ISSUED";
+  requiredFieldIds: readonly string[];
+  conditionalPages: readonly { pageId: string; showCondition: string }[];
+  retainedHiddenFields: readonly { fieldId: string; retainHiddenValue: boolean }[];
 }
 
 export interface CyaReplayRow {
@@ -335,6 +348,22 @@ export const MANAGE_CASE_DATA_INTEGRITY_REPLAY: ManageCaseDataIntegrityReplay = 
       ]
     }
   ]
+};
+
+export const CIVIL_CREATE_CLAIM_EVENT_REPLAY: CivilCreateClaimEventReplay = {
+  serviceFamily: "CIVIL",
+  jurisdiction: "CIVIL",
+  caseType: "CIVIL",
+  serviceCode: "AAA6",
+  eventId: "CREATE_CLAIM",
+  postConditionState: "PENDING_CASE_ISSUED",
+  requiredFieldIds: ["claimStarted", "eligibilityQuestions", "courtLocation", "applicant1"],
+  conditionalPages: [
+    { pageId: "References", showCondition: 'claimStarted="Yes"' },
+    { pageId: "Court", showCondition: 'claimStarted="Yes"' },
+    { pageId: "Claimant", showCondition: 'claimStarted="Yes"' }
+  ],
+  retainedHiddenFields: [{ fieldId: "claimStarted", retainHiddenValue: true }]
 };
 
 export const WORK_ALLOCATION_REPLAY = {
@@ -692,6 +721,51 @@ export function assertRequiredCcdSearchMetadataFieldsPresent(replay: CcdSearchWo
   if (missing.length > 0) {
     throw new Error(`CCD search metadata is missing required EXUI search input fields: ${missing.join(", ")}`);
   }
+}
+
+export function assertCivilCreateClaimEventContract(replay: CivilCreateClaimEventReplay): void {
+  if (replay.eventId !== "CREATE_CLAIM" || replay.caseType !== "CIVIL") {
+    throw new Error(`Civil event replay is not anchored to CIVIL/CREATE_CLAIM: ${replay.caseType}/${replay.eventId}`);
+  }
+
+  const missingFields = ["claimStarted", "eligibilityQuestions", "courtLocation", "applicant1"].filter(
+    (fieldId) => !replay.requiredFieldIds.includes(fieldId)
+  );
+  if (missingFields.length > 0) {
+    throw new Error(`Civil CREATE_CLAIM event is missing required EXUI fields: ${missingFields.join(", ")}`);
+  }
+
+  if (replay.postConditionState !== "PENDING_CASE_ISSUED") {
+    throw new Error(`Civil CREATE_CLAIM post-state drifted to ${replay.postConditionState}`);
+  }
+
+  const conditionalPageIds = replay.conditionalPages.map(({ pageId }) => pageId);
+  if (!conditionalPageIds.includes("Court") || !conditionalPageIds.includes("Claimant")) {
+    throw new Error("Civil CREATE_CLAIM event is missing conditional Court/Claimant pages");
+  }
+
+  const retainedHiddenField = replay.retainedHiddenFields.find(({ fieldId }) => fieldId === "claimStarted");
+  if (!retainedHiddenField?.retainHiddenValue) {
+    throw new Error("Civil CREATE_CLAIM event no longer retains hidden claimStarted data");
+  }
+
+  if (replay.conditionalPages.some(({ showCondition }) => showCondition !== 'claimStarted="Yes"')) {
+    throw new Error("Civil CREATE_CLAIM event has unexpected conditional-page show condition");
+  }
+}
+
+export function mutateCivilCreateClaimEventForDemo(
+  replay: CivilCreateClaimEventReplay,
+  mutation = process.env.EXUI_ASSURANCE_MUTATION?.trim()
+): CivilCreateClaimEventReplay {
+  if (mutation !== "drop-civil-create-claim-field") {
+    return replay;
+  }
+
+  return {
+    ...replay,
+    requiredFieldIds: replay.requiredFieldIds.filter((fieldId) => fieldId !== "courtLocation")
+  };
 }
 
 export function isAnonymousProtectedEndpointResponseSafe(

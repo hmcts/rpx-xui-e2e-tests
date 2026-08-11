@@ -134,12 +134,6 @@
           "serviceCodes": [
             "HRS"
           ]
-        },
-        {
-          "service": "PCS",
-          "serviceCodes": [
-            "AAA3"
-          ]
         }
       ]
     },
@@ -296,7 +290,8 @@
           "global-search",
           "work-allocation",
           "staff-ref-data",
-          "hearings"
+          "hearings",
+          "manage-case"
         ],
         "representativeCaseTypes": [
           "CIVIL",
@@ -337,7 +332,17 @@
           }
         ],
         "rationale": "Civil is in every central EXUI family set and has the largest discovered CCD definition surface, so it is a release-blocking representative for broad case-event and complex-type permutations.",
-        "nextAction": "Add Civil normalized slices for event data integrity and Work Allocation filters after owner review of representative case events."
+        "nextAction": "Keep the Civil CREATE_CLAIM event slice as the representative data-integrity contract; add further events only when they change EXUI interpretation.",
+        "representativeEvents": [
+          {
+            "eventId": "CREATE_CLAIM",
+            "caseType": "CIVIL",
+            "sourceRefs": [
+              "hmcts/civil-ccd-definition:ccd-definition/civil/CaseEvent/User/UserEvents.json",
+              "hmcts/civil-ccd-definition:ccd-definition/civil/CaseEventToFields/CreateClaim.json"
+            ]
+          }
+        ]
       },
       {
         "serviceFamily": "PRIVATELAW",

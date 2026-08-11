@@ -924,6 +924,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     const civilDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find(
       (decision) => decision.serviceFamily === 'CIVIL'
     );
+    const civilProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'CIVIL');
     const civilConfig = buildHearingsEnvironmentConfigMock({
       enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
       amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
@@ -939,6 +940,10 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       })
     );
     expect(civilDecision?.representativeScenarioIds).toContain('civil-hearings-civil-case-type-contract');
+    expect(civilDecision?.representativeScenarioIds).toContain('civil-create-claim-event-data-integrity');
+    expect(civilProfile?.representativeEvents).toEqual([
+      expect.objectContaining({ eventId: 'CREATE_CLAIM', caseType: 'CIVIL' })
+    ]);
     expect(EXUI_SERVICE_REF_DATA_MAPPING.CIVIL).toEqual(['AAA6', 'AAA7']);
     expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL).toEqual(['CIVIL']);
     expect(civilConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([

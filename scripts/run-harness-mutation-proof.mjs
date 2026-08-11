@@ -4,7 +4,6 @@ import path from "node:path";
 import process from "node:process";
 
 const mutation = process.env.EXUI_ASSURANCE_MUTATION || "drop-prl-wa-family";
-const focusedSpec = "src/tests/api/exui-central-assurance.api.ts";
 const mutationProofs = {
   "drop-prl-wa-family": {
     grep: "static WA-supported family mutation proof catches a shared WA family regression",
@@ -32,6 +31,12 @@ const mutationProofs = {
     expectedEvidence: ["drop-civil-hearings-case-type", "Array []"],
     summary: "the injected EXUI-style Civil hearings regression was caught",
   },
+  "drop-civil-create-claim-field": {
+    spec: "src/tests/api/exui-historic-replay-packs.api.ts",
+    grep: "Civil CREATE_CLAIM mutation proof catches a dropped required event field",
+    expectedEvidence: ["drop-civil-create-claim-field", "Civil CREATE_CLAIM event is missing required EXUI fields: courtLocation"],
+    summary: "the injected EXUI-style Civil event-field regression was caught",
+  },
   "drop-employment-service-code": {
     grep: "employment service-code mutation proof catches a missing BHA1 mapping",
     expectedEvidence: ["drop-employment-service-code", "\"BHA1\""],
@@ -50,6 +55,7 @@ if (!mutationProof) {
   process.exit(1);
 }
 const focusedGrep = process.env.EXUI_ASSURANCE_MUTATION_GREP || mutationProof.grep;
+const focusedSpec = mutationProof.spec || "src/tests/api/exui-central-assurance.api.ts";
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const reportOutput =
   process.env.PW_ODHIN_OUTPUT || "functional-output/tests/harness/mutation-proof/odhin-report";
