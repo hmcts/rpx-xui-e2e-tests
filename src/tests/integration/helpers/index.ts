@@ -4,6 +4,7 @@ export * from "./allWorkCasesRequest.helper.js";
 export * from "./bookingUiMockRoutes.helper.js";
 export * from "./bookingUiUserPool.helper.js";
 export * from "./caseFileViewMockRoutes.helper.js";
+export * from "./caseViewerMockRoutes.helper.js";
 export * from "./caseLinkingMockRoutes.helper.js";
 export * from "./eventBehaviourMockRoutes.helper.js";
 export * from "./caseListMockRoutes.helper.js";
