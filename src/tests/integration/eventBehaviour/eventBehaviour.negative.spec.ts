@@ -1,6 +1,11 @@
 import { expect, test } from "../../../fixtures/ui";
 import { applySessionCookies, openEventBehaviourJourney } from "../helpers/index.js";
-import { EVENT_BEHAVIOUR_TRIGGER_NAME } from "../mocks/eventBehaviour.mock.js";
+import {
+  EVENT_BEHAVIOUR_CASE_REFERENCE,
+  EVENT_BEHAVIOUR_CASE_TYPE,
+  EVENT_BEHAVIOUR_JURISDICTION,
+  EVENT_BEHAVIOUR_TRIGGER_NAME
+} from "../mocks/eventBehaviour.mock.js";
 
 test.describe(
   "Event behaviour integration failures",
@@ -10,7 +15,7 @@ test.describe(
       await applySessionCookies(page, "SOLICITOR");
     });
 
-    test("does not offer the event action when the user is not authorised", async ({ caseDetailsPage, page }) => {
+    test("does not offer an unavailable event action", async ({ caseDetailsPage, page }) => {
       await openEventBehaviourJourney(page, caseDetailsPage, { eventAvailable: false });
 
       const actionLabels = await caseDetailsPage.caseActionsDropdown.locator("option").allTextContents();
@@ -118,6 +123,26 @@ test.describe(
 
       await expect(caseDetailsPage.checkYourAnswersHeading).toBeVisible();
       await expect(caseDetailsPage.eventCreationErrorHeading).toBeVisible();
+
+      const refreshedCaseDetails = page.waitForResponse(
+        (response) =>
+          response.url().includes(`/data/internal/cases/${EVENT_BEHAVIOUR_CASE_REFERENCE}`) &&
+          response.request().method() === "GET" &&
+          response.status() === 200
+      );
+      await page.goto(
+        `/cases/case-details/${EVENT_BEHAVIOUR_JURISDICTION}/${EVENT_BEHAVIOUR_CASE_TYPE}/${EVENT_BEHAVIOUR_CASE_REFERENCE}`
+      );
+      await caseDetailsPage.waitForReady();
+      const refreshedResponse = await refreshedCaseDetails;
+      const refreshedBody = (await refreshedResponse.json()) as {
+        events?: Array<{ event_name?: string; state_name?: string }>;
+      };
+      expect(refreshedBody.events).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ event_name: EVENT_BEHAVIOUR_TRIGGER_NAME, state_name: "Outcome recorded" })
+        ])
+      );
     });
   }
 );

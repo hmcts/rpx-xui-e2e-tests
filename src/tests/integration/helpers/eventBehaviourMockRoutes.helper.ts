@@ -94,7 +94,8 @@ export async function setupEventBehaviourMockRoutes(
   await page.route(`**/data/cases/${EVENT_BEHAVIOUR_CASE_REFERENCE}/events*`, async (route) => {
     const submit = config.submit;
     const status = submit?.status ?? 201;
-    if (status >= 200 && status < 300) {
+
+    if (!submit?.abortErrorCode && status >= 200 && status < 300) {
       eventRecorded = true;
     }
 
