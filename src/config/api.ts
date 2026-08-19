@@ -47,7 +47,10 @@ export const config = {
   },
   users: {
     aat: {
-      solicitor: { e: "xui_auto_test_user_solicitor@mailinator.com", sec: "Monday01" },
+      solicitor: {
+        e: pick(process.env.SOLICITOR_USERNAME, process.env.WA_SOLICITOR_USERNAME) ?? "xui_auto_test_user_solicitor@mailinator.com",
+        sec: pick(process.env.SOLICITOR_PASSWORD, process.env.WA_SOLICITOR_PASSWORD) ?? "Monday01"
+      },
       waSolicitor: {
         e: pick(
           process.env.WA_SOLICITOR_USERNAME,
