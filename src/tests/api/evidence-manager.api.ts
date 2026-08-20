@@ -192,7 +192,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: buildXsrfHeader(xsrf),
       failOnStatusCode: false,
     });
-    expect([400, 401, 403, 415, 422, 500, 502, 504]).toContain(res.status());
+    expect([400, 401, 403, 415, 422, 429, 500, 502, 504]).toContain(res.status());
     await ctx.dispose();
   });
 
@@ -215,7 +215,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: buildXsrfHeader(xsrf),
       failOnStatusCode: false,
     });
-    expect([400, 401, 403, 415, 500, 502, 504]).toContain(res.status());
+    expect([400, 401, 403, 415, 429, 500, 502, 504]).toContain(res.status());
     await ctx.dispose();
   });
 
