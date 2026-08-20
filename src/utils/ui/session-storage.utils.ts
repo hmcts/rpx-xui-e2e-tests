@@ -1,7 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { chromium, request, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import {
+  chromium,
+  request,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page
+} from "@playwright/test";
 
 import config from "./config.utils.js";
 import { decodeJwtPayload } from "./jwt.utils.js";
@@ -287,10 +294,14 @@ const waitForIdamLogin = async (page: Page) => {
   }
 
   const usernameInput = page.locator(
-    'input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]'
+    '[data-testid="idam-username-input"], input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]'
   );
-  const passwordInput = page.locator('input#password, input[name="password"], input[type="password"]');
-  const submitButton = page.locator('[name="save"], button[type="submit"]');
+  const passwordInput = page.locator(
+    '[data-testid="idam-password-input"], input#password, input[name="password"], input[type="password"]'
+  );
+  const submitButton = page.locator(
+    '[data-testid="idam-submit-button"], [name="save"], button[type="submit"], input[type="submit"]'
+  );
   const appReady = page.locator("exui-header, exui-case-home");
   const timeoutMs = resolveLoginTimeoutMs();
 
@@ -322,6 +333,27 @@ const waitForIdamLogin = async (page: Page) => {
   return { usernameInput, passwordInput, submitButton };
 };
 
+const firstVisibleLocator = async (locator: Locator, timeoutMs: number): Promise<Locator | undefined> => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const count = await locator.count();
+    for (let index = 0; index < count; index += 1) {
+      const candidate = locator.nth(index);
+      if (await candidate.isVisible().catch(() => false)) return candidate;
+    }
+    await delay(100);
+  }
+  return undefined;
+};
+
+const submitActiveLoginField = async (submitButton: Locator | undefined, activeField: Locator): Promise<void> => {
+  if (submitButton && (await submitButton.isVisible().catch(() => false))) {
+    await submitButton.click();
+    return;
+  }
+  await activeField.press("Enter");
+};
+
 const completeIdamCredentialFlow = async (
   page: Page,
   loginFields: Awaited<ReturnType<typeof waitForIdamLogin>>,
@@ -330,26 +362,20 @@ const completeIdamCredentialFlow = async (
 ): Promise<void> => {
   if (!loginFields) return;
 
-  await loginFields.usernameInput.first().fill(email);
-  const passwordInput = loginFields.passwordInput.first();
-  let submitButton = loginFields.submitButton.first();
+  const usernameInput = (await firstVisibleLocator(loginFields.usernameInput, resolveLoginTimeoutMs())) ?? loginFields.usernameInput.first();
+  await usernameInput.fill(email);
+  let passwordInput = await firstVisibleLocator(loginFields.passwordInput, 1_000);
+  let submitButton = await firstVisibleLocator(loginFields.submitButton, 1_000);
 
-  if (!(await passwordInput.isVisible().catch(() => false))) {
-    if (await submitButton.isVisible().catch(() => false)) {
-      await submitButton.click();
-    } else {
-      await loginFields.usernameInput.first().press("Enter");
-    }
-    await passwordInput.waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() });
+  if (!passwordInput) {
+    await submitActiveLoginField(submitButton, usernameInput);
+    passwordInput =
+      (await firstVisibleLocator(loginFields.passwordInput, resolveLoginTimeoutMs())) ?? loginFields.passwordInput.first();
+    submitButton = await firstVisibleLocator(loginFields.submitButton, 1_000);
   }
 
   await passwordInput.fill(password);
-  submitButton = loginFields.submitButton.first();
-  if (await submitButton.isVisible().catch(() => false)) {
-    await submitButton.click();
-  } else {
-    await passwordInput.press("Enter");
-  }
+  await submitActiveLoginField(submitButton, passwordInput);
   await page.waitForLoadState("domcontentloaded").catch(() => undefined);
 };
 
