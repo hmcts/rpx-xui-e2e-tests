@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { IdamPage } from "@hmcts/playwright-common";
 import { chromium, request, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
 import config from "./config.utils.js";
@@ -323,6 +322,37 @@ const waitForIdamLogin = async (page: Page) => {
   return { usernameInput, passwordInput, submitButton };
 };
 
+const completeIdamCredentialFlow = async (
+  page: Page,
+  loginFields: Awaited<ReturnType<typeof waitForIdamLogin>>,
+  email: string,
+  password: string
+): Promise<void> => {
+  if (!loginFields) return;
+
+  await loginFields.usernameInput.first().fill(email);
+  const passwordInput = loginFields.passwordInput.first();
+  let submitButton = loginFields.submitButton.first();
+
+  if (!(await passwordInput.isVisible().catch(() => false))) {
+    if (await submitButton.isVisible().catch(() => false)) {
+      await submitButton.click();
+    } else {
+      await loginFields.usernameInput.first().press("Enter");
+    }
+    await passwordInput.waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() });
+  }
+
+  await passwordInput.fill(password);
+  submitButton = loginFields.submitButton.first();
+  if (await submitButton.isVisible().catch(() => false)) {
+    await submitButton.click();
+  } else {
+    await passwordInput.press("Enter");
+  }
+  await page.waitForLoadState("domcontentloaded").catch(() => undefined);
+};
+
 const describeLoginFailure = async (page: Page): Promise<string | undefined> => {
   const errorSelectors = [
     ".govuk-error-summary",
@@ -499,7 +529,6 @@ const captureUiStorageState = async (
   password: string,
   baseUrl: string
 ): Promise<void> => {
-  const idamPage = new IdamPage(page);
   const attemptErrors: string[] = [];
 
   for (const loginTarget of resolveUiLoginTargets(baseUrl)) {
@@ -514,13 +543,7 @@ const captureUiStorageState = async (
       const loginFields = await waitForIdamLogin(page);
 
       if (loginFields) {
-        if (await idamPage.usernameInput.isVisible().catch(() => false)) {
-          await idamPage.login({ username: email, password });
-        } else {
-          await loginFields.usernameInput.fill(email);
-          await loginFields.passwordInput.fill(password);
-          await loginFields.submitButton.click();
-        }
+        await completeIdamCredentialFlow(page, loginFields, email, password);
       }
 
       const loginOutcome = await waitForAuthCookies(context, page);
