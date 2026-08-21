@@ -7,6 +7,7 @@ import config from "../../../utils/ui/config.utils.js";
 import { ensureUiStorageStateForUser } from "../../../utils/ui/session-storage.utils.js";
 import { USER_ENV_MAP } from "../../../utils/ui/user.utils.js";
 import type { SessionIdentity, SessionIdentityInput } from "../../common/sessionIdentity.js";
+import { getConfiguredPrlSolicitorUserIdentifiers, PRL_SOLICITOR_USER } from "../../common/userPoolIdentifiers.js";
 import { loadSessionCookies } from "../../e2e/integration/utils/session.utils.js";
 
 const defaultWelshLanguageSessionUsers = [
@@ -142,7 +143,13 @@ export function resolveConfiguredWelshLanguageSessionIdentities(
     configuredUserFilter.length > 0 ? configuredUserFilter : [...defaultWelshLanguageSessionUsers];
   const seenEmails = new Set<string>();
 
-  return filteredDefaults
+  const expandedUsers = filteredDefaults.flatMap((userIdentifier) =>
+    userIdentifier === PRL_SOLICITOR_USER
+      ? getConfiguredPrlSolicitorUserIdentifiers(env).map((configuredUserIdentifier) => configuredUserIdentifier)
+      : [userIdentifier]
+  );
+
+  return expandedUsers
     .map((userIdentifier) => buildConfiguredIdentity(userIdentifier, env))
     .filter((identity): identity is WelshLanguageSessionIdentity => Boolean(identity))
     .filter((identity) => {
