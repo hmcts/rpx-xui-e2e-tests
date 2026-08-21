@@ -59,6 +59,17 @@ test.describe('Helper utilities and retry logic', { tag: '@svc-internal' }, () =
     expect(timeoutRes.status).toBe(200);
     expect(timeoutAttempts).toBe(2);
 
+    let abortedAttempts = 0;
+    const abortedRes = await withRetry(
+      () =>
+        (abortedAttempts += 1) === 1
+          ? Promise.reject(new Error('apiRequestContext.fetch: aborted'))
+          : Promise.resolve({ status: 200 }),
+      { retries: 1 }
+    );
+    expect(abortedRes.status).toBe(200);
+    expect(abortedAttempts).toBe(2);
+
     let finalTimeoutError: Error | undefined;
     try {
       await withRetry(
