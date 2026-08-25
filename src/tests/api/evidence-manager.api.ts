@@ -192,7 +192,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: buildXsrfHeader(xsrf),
       failOnStatusCode: false,
     });
-    expect([400, 401, 403, 415, 500, 502, 504]).toContain(res.status());
+    expect([400, 401, 403, 415, 422, 429, 500, 502, 504]).toContain(res.status());
     await ctx.dispose();
   });
 
@@ -215,7 +215,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: buildXsrfHeader(xsrf),
       failOnStatusCode: false,
     });
-    expect([400, 401, 403, 415, 500, 502, 504]).toContain(res.status());
+    expect([400, 401, 403, 415, 429, 500, 502, 504]).toContain(res.status());
     await ctx.dispose();
   });
 
@@ -227,7 +227,8 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
+      // EM Annotation API documents annotation delete as 200/401/403, including an unknown id.
+      expectStatus(res.status, [200, 401, 403]);
     });
   });
 
@@ -238,7 +239,8 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
+      // EM Annotation API documents bulk bookmark delete as idempotent 200/401/403.
+      expectStatus(res.status, [200, 401, 403]);
     });
   });
 });

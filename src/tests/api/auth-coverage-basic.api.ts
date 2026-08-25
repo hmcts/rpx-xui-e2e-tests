@@ -21,10 +21,14 @@ test.describe('Auth helper coverage - basic utilities', { tag: '@svc-auth' }, ()
     expect(authTest.stripTrailingSlash('https://example.com///')).toBe('https://example.com');
   });
 
-  test('getCacheKey includes test environment', () => {
-    expect(authTest.getCacheKey('solicitor', { TEST_WORKER_INDEX: '2' } as NodeJS.ProcessEnv)).toBe(
-      `${config.testEnv}-worker-2-solicitor`
-    );
+  test('getCacheKey is identity-aware and does not vary by worker', () => {
+    const first = authTest.getCacheKeyForIdentity(config.testEnv, 'solicitor', 'Solicitor.One@hmcts.net');
+    const sameIdentity = authTest.getCacheKeyForIdentity(config.testEnv, 'solicitor', ' solicitor.one@hmcts.net ');
+    const second = authTest.getCacheKeyForIdentity(config.testEnv, 'solicitor', 'solicitor.two@hmcts.net');
+
+    expect(first).toBe(sameIdentity);
+    expect(first).not.toBe(second);
+    expect(first).not.toContain('solicitor.one@hmcts.net');
   });
 
   test('getCredentials returns configured users and errors on unknown roles', () => {

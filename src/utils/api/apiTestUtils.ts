@@ -92,7 +92,7 @@ export async function withRetry<T extends { status: number }>(
 
   const isTransientApiRequestError = (error: unknown): boolean => {
     const message = error instanceof Error ? error.message : String(error);
-    return /apiRequestContext\.fetch: Timeout \d+ms exceeded|Timeout \d+ms exceeded|ETIMEDOUT|ECONNRESET|socket hang up/i.test(
+    return /apiRequestContext\.fetch: Timeout \d+ms exceeded|Timeout \d+ms exceeded|apiRequestContext\.fetch: aborted|ETIMEDOUT|ECONNRESET|socket hang up/i.test(
       message
     );
   };

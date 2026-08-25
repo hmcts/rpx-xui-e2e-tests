@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { promises as fs } from "node:fs";
+import * as fsSync from "node:fs";
 import path from "node:path";
 
 import { IdamUtils, ServiceAuthUtils, createLogger } from "@hmcts/playwright-common";
@@ -12,8 +14,7 @@ type UsersConfig = typeof config.users[keyof typeof config.users];
 export type ApiUserRole = (keyof UsersConfig) & string;
 
 const baseUrl = stripTrailingSlash(config.baseUrl);
-const storageRoot = path.resolve(process.cwd(), "test-results", "storage-states", "api");
-const storagePromises = new Map<string, Promise<string>>();
+const storageRoot = path.resolve(process.cwd(), ".sessions");
 
 const mask = (value?: string) => (value ? "***" : "missing");
 const present = (value?: string) => (value && value.trim().length > 0 ? "yes" : "no");
@@ -23,12 +24,44 @@ type LoggerInstance = ReturnType<typeof createLogger>;
 
 type StorageState = { cookies?: Array<{ name?: string; value?: string }> };
 
+type LoginForm = {
+  action: string;
+  hiddenFields: Record<string, string>;
+  hasEmail: boolean;
+  hasUsername: boolean;
+  hasPassword: boolean;
+};
+
+type AuthCheckResponse = {
+  status: () => number;
+  url?: () => string;
+  headers?: () => Record<string, string>;
+  text?: () => Promise<string>;
+  json?: () => Promise<unknown>;
+};
+
+type AuthCheckResult = {
+  isAuthenticated: boolean;
+  status: number;
+  contentType?: string;
+  bodyPreview?: string;
+};
+
+type AuthCheckContext = {
+  get: (url: string, options?: Record<string, unknown>) => Promise<AuthCheckResponse>;
+};
+
+type StorageValidationResult = "authenticated" | "unauthenticated" | "unavailable";
+
 type StorageDeps = {
   env?: NodeJS.ProcessEnv;
-  storagePromises: Map<string, Promise<string>>;
+  storageRoot?: string;
   createStorageState: (role: ApiUserRole) => Promise<string>;
   tryReadState: (storagePath: string) => Promise<StorageState | undefined>;
   unlink: (pathValue: string) => Promise<void>;
+  validateStorageState?: (storagePath: string) => Promise<StorageValidationResult>;
+  isStorageStateFresh?: (storagePath: string) => boolean;
+  acquireLock?: (storagePath: string) => Promise<() => void>;
   reuseExistingStorage?: boolean;
 };
 
@@ -51,56 +84,60 @@ type TokenBootstrapDeps = {
   requestFactory?: typeof request.newContext;
   logger?: LoggerInstance;
   readState?: typeof tryReadState;
+  authCheckAttempts?: number;
+  authCheckDelayMs?: number;
 };
 
 type FormLoginDeps = {
   requestFactory?: typeof request.newContext;
   extractCsrf?: typeof extractCsrf;
+  authCheckAttempts?: number;
+  authCheckDelayMs?: number;
 };
 
 const defaultStorageDeps: StorageDeps = {
   env: process.env,
-  storagePromises,
   createStorageState,
   tryReadState,
   unlink: fs.unlink,
+  validateStorageState,
   reuseExistingStorage: true
 };
+
+const validatedStorageStates = new Map<string, { mtimeMs: number; validUntil: number }>();
+const STORAGE_VALIDATION_CACHE_MS = 15_000;
 
 export async function ensureStorageState(role: ApiUserRole): Promise<string> {
   return ensureStorageStateWith(role);
 }
 
 async function ensureStorageStateWith(role: ApiUserRole, deps: StorageDeps = defaultStorageDeps): Promise<string> {
-  const cacheKey = getCacheKey(role, deps.env);
-  const existingStoragePath = getStorageStatePath(storageRoot, role, deps.env);
-  if (deps.reuseExistingStorage && !deps.storagePromises.has(cacheKey) && (await deps.tryReadState(existingStoragePath))) {
-    return existingStoragePath;
-  }
+  const root = deps.storageRoot ?? storageRoot;
+  const storagePath = getStorageStatePath(root, role, deps.env);
+  await fs.mkdir(root, { recursive: true });
+  const release = await (deps.acquireLock ?? acquireStorageStateLock)(storagePath);
 
-  if (!deps.storagePromises.has(cacheKey)) {
-    deps.storagePromises.set(cacheKey, deps.createStorageState(role));
-  }
-  const storagePromise = deps.storagePromises.get(cacheKey);
-  if (!storagePromise) {
-    throw new Error(`Storage promise not found for role "${role}" after initialisation`);
-  }
-  const storagePath = await storagePromise;
-  const state = await deps.tryReadState(storagePath);
-  if (!state) {
-    try {
-      await deps.unlink(storagePath);
-    } catch {
-      // ignore unlink errors
+  try {
+    const state = await deps.tryReadState(storagePath);
+    if (deps.reuseExistingStorage && state && (deps.isStorageStateFresh ?? isStorageStateFresh)(storagePath)) {
+      const validation = await (deps.validateStorageState ?? validateStorageState)(storagePath);
+      if (validation === "authenticated" || validation === "unavailable") {
+        return storagePath;
+      }
     }
-    deps.storagePromises.set(cacheKey, deps.createStorageState(role));
-    const rebuilt = deps.storagePromises.get(cacheKey);
-    if (!rebuilt) {
-      throw new Error(`Storage promise not found for role "${role}" after rebuild`);
+
+    if (!state) {
+      await deps.unlink(storagePath).catch(() => undefined);
     }
-    return rebuilt;
+    const createdPath = await deps.createStorageState(role);
+    if (!(await deps.tryReadState(createdPath))) {
+      await deps.unlink(createdPath).catch(() => undefined);
+      throw new Error(`Unable to read storage state for role "${role}" after creation.`);
+    }
+    return createdPath;
+  } finally {
+    release();
   }
-  return storagePath;
 }
 
 export async function getStoredCookie(role: ApiUserRole, cookieName: string): Promise<string | undefined> {
@@ -112,14 +149,8 @@ async function getStoredCookieWith(
   cookieName: string,
   deps: StorageDeps = defaultStorageDeps
 ): Promise<string | undefined> {
-  let storagePath = await ensureStorageStateWith(role, deps);
-  let state = await deps.tryReadState(storagePath);
-
-  if (!state) {
-    deps.storagePromises.delete(getCacheKey(role, deps.env));
-    storagePath = await ensureStorageStateWith(role, deps);
-    state = await deps.tryReadState(storagePath);
-  }
+  const storagePath = await ensureStorageStateWith(role, deps);
+  const state = await deps.tryReadState(storagePath);
 
   if (!state) {
     throw new Error(`Unable to read storage state for role "${role}".`);
@@ -225,18 +256,21 @@ async function tryTokenBootstrap(
     });
 
     await context.get("auth/login", { failOnStatusCode: false });
-    const authCheck = await context.get("auth/isAuthenticated", { failOnStatusCode: false });
-    const isAuth = authCheck.status() === 200 ? await authCheck.json().catch(() => false) : false;
+    await context.get("/");
+    const authStatus = await waitForAuthenticated(context, {
+      attempts: deps.authCheckAttempts,
+      delayMs: deps.authCheckDelayMs
+    });
 
     await context.storageState({ path: storagePath });
     const state = await readState(storagePath);
     const hasCookies = Array.isArray(state?.cookies) && state.cookies.length > 0;
 
-    if (isAuth && hasCookies) {
+    if (authStatus.isAuthenticated && hasCookies) {
       return true;
     }
     activeLogger.warn(
-      `Token bootstrap for role "${role}" returned isAuthenticated=${String(isAuth)}; falling back to form login`
+      `Token bootstrap for role "${role}" returned isAuthenticated=${String(authStatus.isAuthenticated)}; falling back to form login`
     );
     return false;
   } catch (error) {
@@ -254,7 +288,6 @@ async function createStorageStateViaForm(
   deps: FormLoginDeps = {}
 ): Promise<void> {
   const requestFactory = deps.requestFactory ?? ((options) => request.newContext(options));
-  const extract = deps.extractCsrf ?? extractCsrf;
   const context = await requestFactory({
     baseURL: baseUrl,
     ignoreHTTPSErrors: true,
@@ -268,22 +301,44 @@ async function createStorageStateViaForm(
     }
 
     const loginUrl = loginPage.url();
-    const csrfToken = extract(await loginPage.text());
-    const formPayload: Record<string, string> = {
-      username: credentials.username,
-      password: credentials.password,
-      save: "Sign in"
+    const loginForm = parseLoginForm(await loginPage.text(), loginUrl);
+    const submit = (form: LoginForm) => {
+      const formPayload: Record<string, string> = { ...form.hiddenFields };
+      if (form.hasEmail) formPayload.email = credentials.username;
+      if (form.hasUsername) formPayload.username = credentials.username;
+      if (form.hasPassword) formPayload.password = credentials.password;
+      formPayload.save = form.hasPassword ? "Sign in" : "Continue";
+      return context.post(form.action, { form: formPayload });
     };
-    if (csrfToken) {
-      formPayload._csrf = csrfToken;
-    }
 
-    const loginResponse = await context.post(loginUrl, { form: formPayload });
+    const loginResponse = await submit(loginForm);
     if (loginResponse.status() >= 400) {
       throw new Error(`POST ${loginUrl} responded with ${loginResponse.status()}`);
     }
 
+    if (loginForm.hasEmail && !loginForm.hasPassword) {
+      const passwordPageUrl = loginResponse.url?.() ?? loginUrl;
+      const passwordHtml = await loginResponse.text?.();
+      if (!passwordHtml) {
+        throw new Error("Progressive IDAM password page was empty");
+      }
+      const passwordForm = parseLoginForm(passwordHtml, passwordPageUrl);
+      if (!passwordForm.hasPassword) {
+        throw new Error("Progressive IDAM password form was not found");
+      }
+      await submit(passwordForm);
+    }
+
     await context.get("/");
+    const authStatus = await waitForAuthenticated(context, {
+      attempts: deps.authCheckAttempts,
+      delayMs: deps.authCheckDelayMs
+    });
+    if (!authStatus.isAuthenticated) {
+      throw new Error(
+        `Login failed for role "${role}" (auth/isAuthenticated returned ${authStatus.status}; body=${authStatus.bodyPreview ?? "<empty>"})`
+      );
+    }
     await context.storageState({ path: storagePath });
   } catch (error) {
     throw new Error(`Failed to login as ${role}: ${formatUnknownError(error)}`, { cause: error });
@@ -296,7 +351,9 @@ const apiRoleToUiUserIdentifier = (role: ApiUserRole): string => {
   const map: Partial<Record<ApiUserRole, string>> = {
     caseOfficer_r1: "CASEWORKER_R1",
     caseOfficer_r2: "CASEWORKER_R2",
-    solicitor: "SOLICITOR"
+    // The generic API solicitor role uses the AAT divorce solicitor account.
+    // The generic SOLICITOR vault account is a separate service persona.
+    solicitor: "DIVORCE_SOLICITOR"
   };
   return map[role] ?? role.toUpperCase();
 };
@@ -328,10 +385,15 @@ function getCredentials(role: ApiUserRole): { username: string; password: string
     throw new Error(`No credentials configured for role "${role}" in environment "${config.testEnv}"`);
   }
 
-  return {
-    username: userConfig.e ?? "",
-    password: userConfig.sec ?? ""
-  };
+  const username = userConfig.e?.trim();
+  const password = userConfig.sec?.trim();
+  if (!username || !password) {
+    throw new Error(
+      `Required credentials for role "${role}" are not configured. Set SOLICITOR_USERNAME, DIVORCE_SOLICITOR_USERNAME, or WA_SOLICITOR_USERNAME with the matching password variable.`
+    );
+  }
+
+  return { username, password };
 }
 
 function extractCsrf(html: string): string | undefined {
@@ -339,12 +401,104 @@ function extractCsrf(html: string): string | undefined {
   return match?.[1];
 }
 
+function parseLoginForm(html: string, pageUrl: string): LoginForm {
+  const formMatch = /<form\b([^>]*)>/i.exec(html);
+  const formAttributes = formMatch?.[1] ?? "";
+  const actionMatch = /\baction=["']([^"']*)["']/i.exec(formAttributes);
+  const action = new URL(actionMatch?.[1] || pageUrl, pageUrl).toString();
+  const formEnd = formMatch ? html.indexOf("</form>", formMatch.index) : -1;
+  const formHtml = formMatch && formEnd >= 0 ? html.slice(formMatch.index, formEnd) : html;
+  const hiddenFields: Record<string, string> = {};
+  for (const input of formHtml.match(/<input\b[^>]*type=["']hidden["'][^>]*>/gi) ?? []) {
+    const name = /\bname=["']([^"']+)["']/i.exec(input)?.[1];
+    const value = /\bvalue=["']([^"']*)["']/i.exec(input)?.[1];
+    if (name && value !== undefined) hiddenFields[name] = value;
+  }
+  return {
+    action,
+    hiddenFields,
+    hasEmail: /<input\b[^>]*(?:name|id)=["'](?:email|emailAddress)["'][^>]*>/i.test(formHtml),
+    hasUsername: /<input\b[^>]*(?:name|id)=["']username["'][^>]*>/i.test(formHtml),
+    hasPassword: /<input\b[^>]*type=["']password["'][^>]*>/i.test(formHtml)
+  };
+}
+
+async function readAuthCheck(response: AuthCheckResponse): Promise<AuthCheckResult> {
+  const status = response.status();
+  const headers = typeof response.headers === "function" ? response.headers() : {};
+  const contentType = headers["content-type"] ?? headers["Content-Type"];
+  const body = await readResponseBody(response);
+  const bodyPreview = body?.replace(/\s+/g, " ").trim().slice(0, 200);
+
+  if (status !== 200) {
+    return { isAuthenticated: false, status, contentType, bodyPreview };
+  }
+
+  return { isAuthenticated: parseAuthValue(body), status, contentType, bodyPreview };
+}
+
+async function waitForAuthenticated(
+  context: AuthCheckContext,
+  options: { attempts?: number; delayMs?: number } = {}
+): Promise<AuthCheckResult> {
+  const attempts = readPositiveInteger(options.attempts, process.env.API_AUTH_CHECK_ATTEMPTS, 5);
+  const delayMs = readPositiveInteger(options.delayMs, process.env.API_AUTH_CHECK_DELAY_MS, 1000, true);
+  let lastResult: AuthCheckResult | undefined;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const authCheck = await context.get("auth/isAuthenticated", { failOnStatusCode: false });
+    lastResult = await readAuthCheck(authCheck);
+    if (lastResult.isAuthenticated || lastResult.status !== 200 || attempt === attempts) {
+      return lastResult;
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+
+  return lastResult ?? { isAuthenticated: false, status: 0 };
+}
+
+function readPositiveInteger(override: number | undefined, envValue: string | undefined, fallback: number, allowZero = false): number {
+  const value = override ?? (envValue ? Number.parseInt(envValue, 10) : fallback);
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(allowZero ? 0 : 1, value);
+}
+
+async function readResponseBody(response: AuthCheckResponse): Promise<string | undefined> {
+  if (typeof response.text === "function") {
+    return response.text().catch(() => undefined);
+  }
+  if (typeof response.json === "function") {
+    return response.json().then((value) => JSON.stringify(value)).catch(() => undefined);
+  }
+  return undefined;
+}
+
+function parseAuthValue(body: string | undefined): boolean {
+  if (!body) {
+    return false;
+  }
+  const trimmed = body.trim();
+  if (trimmed === "true") return true;
+  if (trimmed === "false") return false;
+  try {
+    const parsed = JSON.parse(trimmed);
+    return typeof parsed === "boolean"
+      ? parsed
+      : Boolean(parsed && typeof parsed === "object" && parsed.isAuthenticated === true);
+  } catch {
+    return false;
+  }
+}
+
 function stripTrailingSlash(value: string): string {
   return value.replace(/\/+$/, "");
 }
 
 function getStorageStatePath(root: string, role: ApiUserRole, env: NodeJS.ProcessEnv = process.env): string {
-  return path.join(root, config.testEnv, getWorkerStorageId(env), `${role}.json`);
+  void env;
+  return path.join(root, `api-${getCacheKey(role)}.storage.json`);
 }
 
 function getWorkerStorageId(env: NodeJS.ProcessEnv = process.env): string {
@@ -357,7 +511,90 @@ function getWorkerStorageId(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 function getCacheKey(role: ApiUserRole, env: NodeJS.ProcessEnv = process.env): string {
-  return `${config.testEnv}-${getWorkerStorageId(env)}-${role}`;
+  void env;
+  return getCacheKeyForIdentity(config.testEnv, role, getCredentials(role).username);
+}
+
+function getCacheKeyForIdentity(testEnvironment: string, role: ApiUserRole, username: string): string {
+  const identityHash = createHash("sha256")
+    .update(username.trim().toLowerCase())
+    .digest("hex")
+    .slice(0, 16);
+  return `${testEnvironment}-${role}-${identityHash}`;
+}
+
+function isStorageStateFresh(storagePath: string, ttlMs = 15 * 60_000): boolean {
+  try {
+    return Date.now() - fsSync.statSync(storagePath).mtimeMs <= ttlMs;
+  } catch {
+    return false;
+  }
+}
+
+async function acquireStorageStateLock(storagePath: string): Promise<() => void> {
+  const lockPath = `${storagePath}.lock`;
+  const deadline = Date.now() + 120_000;
+
+  for (;;) {
+    try {
+      fsSync.mkdirSync(lockPath);
+      return () => {
+        fsSync.rmSync(lockPath, { recursive: true, force: true });
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
+        throw error;
+      }
+
+      try {
+        if (Date.now() - fsSync.statSync(lockPath).mtimeMs > 120_000) {
+          fsSync.rmSync(lockPath, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        // The lock may have been released between the existence and stat checks.
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for API auth storage lock ${path.basename(lockPath)}.`, { cause: error });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+}
+
+async function validateStorageState(storagePath: string): Promise<StorageValidationResult> {
+  let mtimeMs: number;
+  try {
+    mtimeMs = fsSync.statSync(storagePath).mtimeMs;
+  } catch {
+    return "unauthenticated";
+  }
+
+  const cached = validatedStorageStates.get(storagePath);
+  if (cached?.mtimeMs === mtimeMs && cached.validUntil > Date.now()) {
+    return "authenticated";
+  }
+
+  let context: (AuthCheckContext & { dispose?: () => Promise<void> }) | undefined;
+  try {
+    context = await request.newContext({
+      baseURL: baseUrl,
+      ignoreHTTPSErrors: true,
+      storageState: storagePath
+    });
+    const result = await waitForAuthenticated(context, { attempts: 1, delayMs: 0 });
+    if (!result.isAuthenticated) {
+      return "unauthenticated";
+    }
+    validatedStorageStates.set(storagePath, { mtimeMs, validUntil: Date.now() + STORAGE_VALIDATION_CACHE_MS });
+    return "authenticated";
+  } catch (error) {
+    logger.warn(`Unable to validate cached API storage state: ${formatUnknownError(error)}`);
+    return "unavailable";
+  } finally {
+    await context?.dispose?.().catch(() => undefined);
+  }
 }
 
 function hasCookie(state: StorageState | undefined, cookieName: string): boolean {
@@ -413,11 +650,15 @@ function formatUnknownError(error: unknown): string {
 }
 
 export const __test__ = {
+  apiRoleToUiUserIdentifier,
   extractCsrf,
   stripTrailingSlash,
   getWorkerStorageId,
   getStorageStatePath,
   getCacheKey,
+  getCacheKeyForIdentity,
+  isStorageStateFresh,
+  validateStorageState,
   isUiSessionBootstrapEnabled,
   isTokenBootstrapEnabled,
   tryReadState,
