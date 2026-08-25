@@ -11,6 +11,8 @@ import { test, expect } from '@playwright/test';
 
 import { __test__ as authTest } from '../../utils/api/auth';
 
+import { setTestSolicitorCredentials } from './apiTestCredentials';
+
 test.describe.configure({ mode: 'serial' });
 
 const mockPassword = process.env.PW_MOCK_PASSWORD ?? String(Date.now());
@@ -19,6 +21,16 @@ type EnsureStorageStateDeps = NonNullable<Parameters<typeof authTest.ensureStora
 type GetStoredCookieDeps = NonNullable<Parameters<typeof authTest.getStoredCookieWith>[2]>;
 
 test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' }, () => {
+  let restoreCredentials: () => void;
+
+  test.beforeEach(() => {
+    restoreCredentials = setTestSolicitorCredentials();
+  });
+
+  test.afterEach(() => {
+    restoreCredentials();
+  });
+
   test('maps the generic API solicitor role to the configured divorce solicitor session', () => {
     expect(authTest.apiRoleToUiUserIdentifier('solicitor')).toBe('DIVORCE_SOLICITOR');
     expect(authTest.apiRoleToUiUserIdentifier('caseOfficer_r1')).toBe('CASEWORKER_R1');
