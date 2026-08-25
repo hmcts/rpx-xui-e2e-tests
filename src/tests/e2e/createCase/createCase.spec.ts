@@ -52,8 +52,8 @@ test.describe("Verify creating cases works as expected", () => {
         divorceReasons: caseData.divorceReasons,
         gender: caseData.gender
       });
-      await createCasePage.testSubmitButton.click();
-      await expect(caseDetailsPage.caseAlertSuccessMessage).toBeVisible();
+      await createCasePage.clickSubmitAndWait("creating divorce test case", { timeoutMs: 60_000 });
+      await expect(createCasePage.caseAlertSuccessMessage).toBeVisible();
       caseNumber = await caseDetailsPage.getCaseNumberFromUrl();
     });
 

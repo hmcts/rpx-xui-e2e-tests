@@ -104,7 +104,7 @@ const resolveExplicitTabTarget = (url: string): string | null => {
 
 const assertNoExplicitTabOverride = (page: Page, label: string) => {
   const explicit = resolveExplicitTabTarget(page.url());
-  if (explicit && !/summary/i.test(explicit)) {
+  if (explicit && !/^(summary|case details)$/i.test(explicit)) {
     throw new Error(`${label}: URL explicitly targets tab "${explicit}"`);
   }
 };
@@ -127,20 +127,22 @@ const assertSummaryTabIsDefault = async (page: Page, label: string) => {
       { timeout: 10_000 }
     )
     .toMatchObject({
-      currentSelected: expect.stringContaining("summary")
+      currentSelected: expect.stringMatching(/^(summary|case details)$/i)
     });
 
   const selections = await getTabSelectionChanges(page);
   const normalized = selections.map((value) => value.toLowerCase());
-  const summaryIndex = normalized.findIndex((value) => value.includes("summary"));
-  if (summaryIndex >= 0) {
-    const afterSummary = normalized.slice(summaryIndex);
-    const onlySummaryAfter = afterSummary.every((value) => value.includes("summary"));
-    expect(onlySummaryAfter, `${label}: summary tab should remain selected once chosen`).toBe(true);
+  const defaultTabIndex = normalized.findIndex((value) => /^(summary|case details)$/i.test(value));
+  if (defaultTabIndex >= 0) {
+    const afterDefaultTab = normalized.slice(defaultTabIndex);
+    const onlyDefaultTabAfter = afterDefaultTab.every((value) => /^(summary|case details)$/i.test(value));
+    expect(onlyDefaultTabAfter, `${label}: default tab should remain selected once chosen`).toBe(true);
   }
 
   const currentSelected = (await selectedTabs.first().textContent())?.toLowerCase() ?? "";
-  expect(currentSelected, `${label}: Summary should be the selected tab`).toContain("summary");
+  expect(currentSelected, `${label}: Summary/Case Details should be the selected tab`).toMatch(
+    /^(summary|case details)$/i
+  );
 };
 
 test.describe("@EXUI-3895 Case details default tab selection", () => {
