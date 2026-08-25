@@ -5,5 +5,6 @@ export {
   HEARING_MANAGER_CR84_ON_POOLED_USER_IDENTIFIERS,
   HEARING_MANAGER_CR84_ON_USER,
   resolveHearingManagerUserIdentifier,
+  resolveHearingManagerSessionCandidates,
   type HearingManagerUserIdentifier
 } from "../../common/userPoolIdentifiers.js";

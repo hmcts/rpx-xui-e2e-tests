@@ -1,4 +1,4 @@
-import { expect, type Page, type Response } from '@playwright/test';
+import { expect, test, type Page, type Response, type TestInfo } from '@playwright/test';
 
 import type { CaseDetailsPage } from '../../../page-objects/pages/exui/caseDetails.po';
 import type { HearingsTabPage } from '../../../page-objects/pages/exui/hearingsTab.po';
@@ -13,6 +13,7 @@ import {
 import {
   HEARING_MANAGER_CR84_ON_USER,
   resolveHearingManagerUserIdentifier,
+  resolveHearingManagerSessionCandidates,
   type HearingManagerUserIdentifier,
 } from './hearingManagerUserPool.helper';
 import { setupHearingsMockRoutes, type HearingsMockRoutesConfig } from './hearingsMockRoutes.helper';
@@ -122,6 +123,27 @@ export async function openHearingsTab(
   await gotoCaseDetailsWithRetry(page, targetUrl);
   await waitForCaseDetailsShellWithRetry(page, caseDetailsPage, targetUrl);
   await caseDetailsPage.selectCaseDetailsTab('Hearings');
+}
+
+export async function applyHearingManagerSessionCookies(
+  page: Page,
+  userIdentifier: HearingManagerUserIdentifier,
+  testInfo: Pick<TestInfo, 'annotations'> & Partial<Pick<TestInfo, 'parallelIndex'>> = test.info()
+): Promise<string> {
+  const candidates = resolveHearingManagerSessionCandidates(userIdentifier, { parallelIndex: testInfo.parallelIndex });
+  let firstError: unknown;
+
+  for (const candidate of candidates) {
+    try {
+      await applySessionCookies(page, candidate);
+      testInfo.annotations.push({ type: 'session-user', description: candidate });
+      return candidate;
+    } catch (error) {
+      firstError ??= error;
+    }
+  }
+
+  throw firstError;
 }
 
 export async function openHearingsTabForScenario(

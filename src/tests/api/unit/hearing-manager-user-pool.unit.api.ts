@@ -4,7 +4,8 @@ import {
   getConfiguredHearingManagerUserIdentifiers,
   HEARING_MANAGER_CR84_OFF_USER,
   HEARING_MANAGER_CR84_ON_USER,
-  resolveHearingManagerUserIdentifier
+  resolveHearingManagerUserIdentifier,
+  resolveHearingManagerSessionCandidates
 } from "../../integration/helpers/hearingManagerUserPool.helper.js";
 
 const configuredEnv = {
@@ -63,6 +64,17 @@ test.describe("Hearing manager user pool unit tests", { tag: "@svc-internal" }, 
     expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 4 }, configuredEnv)).toBe(
       "HEARING_MANAGER_CR84_ON-1"
     );
+  });
+
+  test("tries the selected hearing manager before the remaining configured identities", () => {
+    expect(
+      resolveHearingManagerSessionCandidates(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 2 }, configuredEnv)
+    ).toEqual([
+      "HEARING_MANAGER_CR84_ON-3",
+      "HEARING_MANAGER_CR84_ON-1",
+      "HEARING_MANAGER_CR84_ON-2",
+      "HEARING_MANAGER_CR84_ON-4"
+    ]);
   });
 
   test("selects configured CR84 OFF pooled users by Playwright worker env when no source is passed", () => {
