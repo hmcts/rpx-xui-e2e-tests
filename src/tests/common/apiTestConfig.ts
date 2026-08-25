@@ -8,14 +8,27 @@ export function resolveTestEnv(value?: string): string {
   return value !== undefined && (value.includes("aat") || value.includes("demo") || value.includes("local")) ? value : "aat";
 }
 
+const useDivorceSolicitorCoverage = (env: NodeJS.ProcessEnv = process.env): boolean =>
+  Boolean(env.DIVORCE_SOLICITOR_USERNAME?.trim() && env.DIVORCE_SOLICITOR_PASSWORD?.trim());
+
+const aatJurisdictions = (env: NodeJS.ProcessEnv = process.env) =>
+  useDivorceSolicitorCoverage(env)
+    ? [
+        { id: "DIVORCE", caseTypeIds: ["xuiTestCaseType"] },
+        { id: "IA", caseTypeIds: [] },
+        { id: "PROBATE", caseTypeIds: [] }
+      ]
+    : [{ id: "PRIVATELAW", caseTypeIds: ["PRLAPPS"] }];
+
+const aatJurisdictionNames = (env: NodeJS.ProcessEnv = process.env): string[] =>
+  useDivorceSolicitorCoverage(env)
+    ? ["Family Divorce", "Public Law", "Immigration & Asylum", "Manage probate application"]
+    : ["Family Private Law"];
+
 export const config = {
   baseUrl: resolveBaseUrl(process.env.TEST_URL),
   jurisdictions: {
-    aat: [
-      { id: "DIVORCE", caseTypeIds: ["xuiTestCaseType"] },
-      { id: "IA", caseTypeIds: [] },
-      { id: "PROBATE", caseTypeIds: [] }
-    ],
+    aat: aatJurisdictions(),
     demo: [
       { id: "DIVORCE", caseTypeIds: ["DIVORCE", "FinancialRemedyMVP2", "FinancialRemedyMVP2"] },
       { id: "IA", caseTypeIds: ["Asylum"] },
@@ -28,7 +41,7 @@ export const config = {
     ]
   },
   jurisdictionNames: {
-    aat: ["Family Divorce", "Public Law", "Immigration & Asylum", "Manage probate application"],
+    aat: aatJurisdictionNames(),
     demo: ["Family Divorce - v104-26.1", "Public Law", "Immigration & Asylum"],
     local: ["Family Divorce", "Public Law", "Immigration & Asylum", "Manage probate application"]
   },
@@ -157,5 +170,7 @@ export const config = {
 
 export const __test__ = {
   resolveBaseUrl,
-  resolveTestEnv
+  resolveTestEnv,
+  aatJurisdictions,
+  aatJurisdictionNames
 };
