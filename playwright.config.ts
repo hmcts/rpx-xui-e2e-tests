@@ -510,7 +510,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: "off",
           storageState: shouldUseUiStorage() ? resolveUiStoragePath() : undefined,
           launchOptions: chromiumExecutablePath
             ? {
@@ -533,7 +533,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: "off",
           serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {
@@ -556,7 +556,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: "off",
           serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {
