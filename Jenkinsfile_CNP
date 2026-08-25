@@ -239,8 +239,7 @@ def secrets = [
     secret('e2e-hearing-manager-cr84-off-3-username', 'HEARING_MANAGER_CR84_OFF_3_USERNAME'),
     secret('e2e-hearing-manager-cr84-off-3-password', 'HEARING_MANAGER_CR84_OFF_3_PASSWORD'),
     secret('e2e-hearing-manager-cr84-off-4-username', 'HEARING_MANAGER_CR84_OFF_4_USERNAME'),
-    secret('e2e-hearing-manager-cr84-off-4-password', 'HEARING_MANAGER_CR84_OFF_4_PASSWORD'),
-    secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS')
+    secret('e2e-hearing-manager-cr84-off-4-password', 'HEARING_MANAGER_CR84_OFF_4_PASSWORD')
   ]
 ]
 
