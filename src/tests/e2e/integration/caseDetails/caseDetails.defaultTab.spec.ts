@@ -69,10 +69,17 @@ const getTabSelectionChanges = async (page: Page): Promise<string[]> =>
   });
 
 const resolveExplicitTabTarget = (url: string): string | null => {
+  const decodeTarget = (value: string) => {
+    try {
+      return decodeURIComponent(value.replace(/\+/g, " "));
+    } catch {
+      return value;
+    }
+  };
   try {
     const parsed = new URL(url);
     const hash = parsed.hash.replace(/^#/, "").trim();
-    if (hash) return hash;
+    if (hash) return decodeTarget(hash);
 
     const params = parsed.searchParams;
     const keys = [
@@ -88,18 +95,18 @@ const resolveExplicitTabTarget = (url: string): string | null => {
     ];
     for (const key of keys) {
       const value = params.get(key);
-      if (value?.trim()) return value.trim();
+      if (value?.trim()) return decodeTarget(value.trim());
     }
   } catch {
     const hashIndex = url.indexOf("#");
     if (hashIndex >= 0) {
       const fragment = url.slice(hashIndex + 1).trim();
-      if (fragment) return fragment;
+      if (fragment) return decodeTarget(fragment);
     }
   }
 
   const pathMatch = url.match(/\/tab[s]?\/([^/?#]+)/i);
-  return pathMatch?.[1] ?? null;
+  return pathMatch?.[1] ? decodeTarget(pathMatch[1]) : null;
 };
 
 const assertNoExplicitTabOverride = (page: Page, label: string) => {
@@ -183,15 +190,7 @@ test.describe("@EXUI-3895 Case details default tab selection", () => {
 
     await test.step("Open case details via Find Case", async () => {
       await resetTabSelectionTracker(page);
-      await caseSearchPage.goto();
-      await caseSearchPage.waitForReady();
-      await caseSearchPage.ensureFiltersVisible();
-      await caseSearchPage.selectJurisdiction(jurisdiction);
-      await caseSearchPage.selectCaseType(caseType);
-      await caseSearchPage.waitForDynamicFilters();
-      await caseSearchPage.fillCcdNumber(caseReference);
-      await caseSearchPage.applyFilters();
-      await caseSearchPage.openFirstResult();
+      await caseSearchPage.searchWith16DigitCaseId(caseReference);
       await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
       await caseDetailsPage.waitForReady();
     });

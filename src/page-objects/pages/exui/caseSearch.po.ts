@@ -41,7 +41,10 @@ export class CaseSearchPage extends Base {
   readonly jurisdictionSelect = this.page.locator("#s-jurisdiction");
   readonly caseTypeSelect = this.page.locator("#s-case-type");
   readonly dynamicFilters = this.page.locator("#dynamicFilters");
-  readonly ccdNumberInput = this.page.locator("#\\[CASE_REFERENCE\\]");
+  readonly ccdNumberInput = this.page
+    .locator(String.raw`#dynamicFilters #\\[CASE_REFERENCE\\], input[id*="CASE_REFERENCE"]`)
+    .or(this.page.getByLabel("Case Number", { exact: true }))
+    .first();
   readonly applyButton = this.page.locator('button[title="Apply filter"], button[aria-label="Apply filter"]');
   readonly resultsTable = this.page.locator("ccd-search-result");
   readonly searchResultsDataTable = this.resultsTable.locator("table").first();

@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
 import {
   applySessionCookiesAndExtractUserId,
+  buildBookingUiBootstrapUser,
   resolveBookingUiUserIdentifier,
   setupBookingUiMockRoutes
 } from "../helpers/index.js";
@@ -20,8 +21,6 @@ const userIdentifier = "BOOKING_UI-FT-ON";
 const defaultBookingLocation = singleLocationMock[0];
 const bookingPageUrlPattern = /\/booking$/;
 const casesPageUrlPattern = /\/cases(?:$|[/?#])/;
-const taskListRouteOnlyOptions = { bootstrapUser: { skipUserDetailsMock: true } };
-
 const createBookingErrorCases = [
   { status: 400, expectedUrlPattern: /\/booking-service-down$/ },
   { status: 500, expectedUrlPattern: /\/service-down$/ }
@@ -50,7 +49,9 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
         sessionUserId = userId;
         existingBookingsMock = buildExistingBookingsMock(userId);
 
-        await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
+        await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+          bootstrapUser: buildBookingUiBootstrapUser(userId)
+        });
         await setupBookingUiMockRoutes(page, {
           locationResponseBody: singleLocationMock,
           getBookingsResponseBody: existingBookingsMock,
@@ -153,7 +154,9 @@ test.describe(
       const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+        bootstrapUser: buildBookingUiBootstrapUser(userId)
+      });
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock
@@ -207,7 +210,9 @@ test.describe(
       const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+        bootstrapUser: buildBookingUiBootstrapUser(userId)
+      });
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock,
