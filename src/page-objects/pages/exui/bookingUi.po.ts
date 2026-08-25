@@ -37,27 +37,8 @@ export const getUtcDayRangeForLocalDate = (beginDate: Date, endDate: Date): Book
   ).toISOString()
 });
 
-export const normalizeCreateBookingDates = (beginDate: Date, endDate: Date): BookingDayRange => {
-  let normalizedBeginDate = beginDate;
-  let normalizedEndDate = endDate;
-
-  if (normalizedBeginDate.getHours() !== normalizedBeginDate.getUTCHours()) {
-    normalizedBeginDate = new Date(
-      Date.UTC(normalizedBeginDate.getFullYear(), normalizedBeginDate.getMonth(), normalizedBeginDate.getDate(), 0, 0, 0, 0)
-    );
-  }
-
-  if (normalizedEndDate.getHours() !== normalizedEndDate.getUTCHours()) {
-    normalizedEndDate = new Date(
-      Date.UTC(normalizedEndDate.getFullYear(), normalizedEndDate.getMonth(), normalizedEndDate.getDate(), 23, 59, 59, 999)
-    );
-  }
-
-  return {
-    beginDate: normalizedBeginDate.toISOString(),
-    endDate: normalizedEndDate.toISOString(),
-  };
-};
+export const normalizeCreateBookingDates = (beginDate: Date, endDate: Date): BookingDayRange =>
+  getUtcDayRangeForLocalDate(beginDate, endDate);
 
 export const getExpectedTodayOnlyCreateBookingRange = (beginDate: Date): BookingDayRange => {
   const endDate = new Date(beginDate);
