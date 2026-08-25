@@ -603,10 +603,6 @@ withNightlyPipeline(type, product, component, 400) {
             ])
             junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
-            publishPlaywrightLoadProfile(
-              'functional-output/tests/api_functional/odhin-report/load-profile',
-              "API Nightly System Load (${apiWorkers} workers)"
-            )
             recordPlaywrightLoadEvent('API', 'finish')
           }
         }
@@ -666,10 +662,6 @@ withNightlyPipeline(type, product, component, 400) {
               reportName           : 'UI nightly report (Odhín)'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-            publishPlaywrightLoadProfile(
-              'functional-output/tests/playwright-e2e/odhin-report/load-profile',
-              "UI Nightly System Load (${uiWorkers} workers)"
-            )
             recordPlaywrightLoadEvent('UI', 'finish')
           }
         }
@@ -720,10 +712,6 @@ withNightlyPipeline(type, product, component, 400) {
               reportName           : 'Integration tests'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportDir}/**"
-            publishPlaywrightLoadProfile(
-              "${integrationReportDir}/load-profile",
-              "Integration Tests System Load (${integrationWorkers} workers)"
-            )
             recordPlaywrightLoadEvent('Integration tests', 'finish')
           }
         }
