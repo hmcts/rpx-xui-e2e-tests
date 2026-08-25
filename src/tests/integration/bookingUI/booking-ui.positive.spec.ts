@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
 import {
   applySessionCookiesAndExtractUserId,
+  buildBookingUiBootstrapUser,
   resolveBookingUiUserIdentifier,
   setupBookingUiMockRoutes
 } from "../helpers/index.js";
@@ -19,8 +20,6 @@ const userIdentifier = "BOOKING_UI-FT-ON";
 const defaultBookingLocation = singleLocationMock[0];
 const bookingPageUrlPattern = /\/booking$/;
 const bookingDestinationUrlPattern = /\/cases/;
-const taskListRouteOnlyOptions = { bootstrapUser: { skipUserDetailsMock: true } };
-
 let getBookingsCalled = false;
 let createBookingCalled = false;
 let createBookingRequestBody: CreateBookingRequest | undefined;
@@ -45,7 +44,9 @@ test.describe(
       sessionUserId = userId;
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+        bootstrapUser: buildBookingUiBootstrapUser(userId)
+      });
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock,
@@ -93,7 +94,7 @@ test.describe(
       });
 
       await test.step("Select existing booking and verify enabled and disabled booking buttons", async () => {
-        await bookingUiPage.chooseBookingOption("Choose an existing booking");
+        await bookingUiPage.selectOption("Choose an existing booking");
         await expect(activeBookingButton).toBeEnabled();
         await expect(futureBookingButton).toBeDisabled();
       });
@@ -113,7 +114,7 @@ test.describe(
       });
 
       await test.step("Select create new booking option and verify continue button", async () => {
-        await bookingUiPage.chooseBookingOption("Create a new booking");
+        await bookingUiPage.selectOption("Create a new booking");
         await expect(bookingUiPage.continueButton).toBeVisible();
       });
 
@@ -194,7 +195,7 @@ test.describe(
       });
 
       await test.step("Select view tasks and cases option and verify continue button", async () => {
-        await bookingUiPage.chooseBookingOption("View tasks and cases");
+        await bookingUiPage.selectOption("View tasks and cases");
         await expect(bookingUiPage.continueButton).toBeVisible();
       });
 

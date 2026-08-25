@@ -277,7 +277,8 @@ test.describe("Document upload V1", { tag: ["@e2e", "@e2e-document-upload"] }, (
   }) => {
     await test.step("Start document upload process", async () => {
       await caseDetailsPage.selectCaseAction(TEST_DATA.V1.ACTION, {
-        expectedLocator: createCasePage.page.locator("#documentCollection button")
+        expectedLocator: createCasePage.page.locator("#documentCollection button"),
+        timeoutMs: DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS
       });
     });
 
@@ -306,7 +307,8 @@ test.describe("Document upload V1", { tag: ["@e2e", "@e2e-document-upload"] }, (
               await caseDetailsPage.waitForReady();
             });
             await caseDetailsPage.selectCaseAction(TEST_DATA.V1.ACTION, {
-              expectedLocator: createCasePage.page.locator("#documentCollection button")
+              expectedLocator: createCasePage.page.locator("#documentCollection button"),
+              timeoutMs: DOCUMENT_UPLOAD_SUBMIT_TIMEOUT_MS
             });
           }
         }

@@ -1,8 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { IdamPage } from "@hmcts/playwright-common";
-import { chromium, request, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import {
+  chromium,
+  request,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page
+} from "@playwright/test";
 
 import config from "./config.utils.js";
 import { decodeJwtPayload } from "./jwt.utils.js";
@@ -159,7 +165,8 @@ const TRANSIENT_UI_BOOTSTRAP_PATTERNS: RegExp[] = [
 const TRANSIENT_UI_SESSION_CAPTURE_PATTERNS: RegExp[] = [
   /Target page, context or browser has been closed/i,
   /browser has been disconnected/i,
-  /page has been crashed/i
+  /page has been crashed/i,
+  /waiting for locator\(['"]exui-header['"]\) to be visible/i
 ];
 
 const asErrorMessage = (error: unknown): string =>
@@ -288,10 +295,14 @@ const waitForIdamLogin = async (page: Page) => {
   }
 
   const usernameInput = page.locator(
-    'input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]'
+    '[data-testid="idam-username-input"], input#username, input[name="username"], input[type="email"], input#email, input[name="email"], input[name="emailAddress"], input[autocomplete="email"]'
   );
-  const passwordInput = page.locator('input#password, input[name="password"], input[type="password"]');
-  const submitButton = page.locator('[name="save"], button[type="submit"]');
+  const passwordInput = page.locator(
+    '[data-testid="idam-password-input"], input#password, input[name="password"], input[type="password"]'
+  );
+  const submitButton = page.locator(
+    '[data-testid="idam-submit-button"], [name="save"], button[type="submit"], input[type="submit"]'
+  );
   const appReady = page.locator("exui-header, exui-case-home");
   const timeoutMs = resolveLoginTimeoutMs();
 
@@ -321,6 +332,52 @@ const waitForIdamLogin = async (page: Page) => {
   }
 
   return { usernameInput, passwordInput, submitButton };
+};
+
+const firstVisibleLocator = async (locator: Locator, timeoutMs: number): Promise<Locator | undefined> => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const count = await locator.count();
+    for (let index = 0; index < count; index += 1) {
+      const candidate = locator.nth(index);
+      if (await candidate.isVisible().catch(() => false)) return candidate;
+    }
+    await delay(100);
+  }
+  return undefined;
+};
+
+const submitActiveLoginField = async (submitButton: Locator | undefined, activeField: Locator): Promise<void> => {
+  if (submitButton && (await submitButton.isVisible().catch(() => false))) {
+    await submitButton.click();
+    return;
+  }
+  await activeField.press("Enter");
+};
+
+const completeIdamCredentialFlow = async (
+  page: Page,
+  loginFields: Awaited<ReturnType<typeof waitForIdamLogin>>,
+  email: string,
+  password: string
+): Promise<void> => {
+  if (!loginFields) return;
+
+  const usernameInput = (await firstVisibleLocator(loginFields.usernameInput, resolveLoginTimeoutMs())) ?? loginFields.usernameInput.first();
+  await usernameInput.fill(email);
+  let passwordInput = await firstVisibleLocator(loginFields.passwordInput, 1_000);
+  let submitButton = await firstVisibleLocator(loginFields.submitButton, 1_000);
+
+  if (!passwordInput) {
+    await submitActiveLoginField(submitButton, usernameInput);
+    passwordInput =
+      (await firstVisibleLocator(loginFields.passwordInput, resolveLoginTimeoutMs())) ?? loginFields.passwordInput.first();
+    submitButton = await firstVisibleLocator(loginFields.submitButton, 1_000);
+  }
+
+  await passwordInput.fill(password);
+  await submitActiveLoginField(submitButton, passwordInput);
+  await page.waitForLoadState("domcontentloaded").catch(() => undefined);
 };
 
 const describeLoginFailure = async (page: Page): Promise<string | undefined> => {
@@ -499,7 +556,6 @@ const captureUiStorageState = async (
   password: string,
   baseUrl: string
 ): Promise<void> => {
-  const idamPage = new IdamPage(page);
   const attemptErrors: string[] = [];
 
   for (const loginTarget of resolveUiLoginTargets(baseUrl)) {
@@ -514,13 +570,7 @@ const captureUiStorageState = async (
       const loginFields = await waitForIdamLogin(page);
 
       if (loginFields) {
-        if (await idamPage.usernameInput.isVisible().catch(() => false)) {
-          await idamPage.login({ username: email, password });
-        } else {
-          await loginFields.usernameInput.fill(email);
-          await loginFields.passwordInput.fill(password);
-          await loginFields.submitButton.click();
-        }
+        await completeIdamCredentialFlow(page, loginFields, email, password);
       }
 
       const loginOutcome = await waitForAuthCookies(context, page);
@@ -770,13 +820,7 @@ export const ensureUiStorageStateForUser = async (
             const page = await context.newPage();
             await captureUiStorageState(context, page, userIdentifier, email, password, baseUrl);
 
-            await page
-              .locator("exui-header")
-              .first()
-              .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
-              .catch(() => {
-                // Proceed even if header is slow to render; cookies are already present.
-              });
+            await page.locator("exui-header").first().waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() });
 
             await addAnalyticsCookie(context, baseUrl);
             await context.storageState({ path: tempStoragePath });

@@ -16,9 +16,9 @@ const escapeForRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '
 export class TaskListPage extends Base {
   readonly myWorkHeading = this.page.getByRole('heading', { name: /my work/i }).first();
   readonly taskListFilterToggle = this.page
-    .locator('exui-task-list-filter .govuk-button.hmcts-button--secondary:visible')
+    .locator('exui-my-work-filter .govuk-button.hmcts-button--secondary')
     .first();
-  readonly filterPanel = this.page.locator('xuilib-generic-filter:visible').first();
+  readonly filterPanel = this.page.locator('xuilib-generic-filter').first();
   readonly selectAllServicesFilter = this.filterPanel.locator('input#checkbox_servicesservices_all').first();
   readonly serviceFilterCheckboxes = this.filterPanel.locator(
     '#services .govuk-checkboxes__input:not(#checkbox_servicesservices_all)'

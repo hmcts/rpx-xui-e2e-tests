@@ -38,6 +38,16 @@ type SearchRequestPayload = {
   view?: string;
 };
 
+const getSearchParameterValues = (request: SearchRequestPayload, key: string): string[] =>
+  request.searchRequest?.search_parameters?.find((parameter) => parameter.key === key)?.values ?? [];
+
+const hasExactSearchParameterValues = (request: SearchRequestPayload, key: string, expectedValues: string[]): boolean => {
+  const actualValues = getSearchParameterValues(request, key);
+  return actualValues.length === expectedValues.length && expectedValues.every((value) => actualValues.includes(value));
+};
+
+const MY_WORK_FILTER_STORAGE_KEY = 'my-work-filter';
+
 test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integration-bucket-3', '@integration', '@integration-manage-tasks'] }, () => {
   test('show and hide work filters across My tasks, Available tasks, and My cases', async ({ taskListPage, page }) => {
     const taskListResponse = buildTaskListMock(6, workFiltersUserId, myActionsList);
@@ -206,7 +216,7 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
     const latestRequest = taskRequests.at(-1);
     expect(latestRequest?.searchRequest?.search_parameters).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ key: 'user', values: [workFiltersUserId] }),
+        expect.objectContaining({ key: 'user', values: [expect.stringMatching(/^[0-9a-f-]{36}$/)] }),
         expect.objectContaining({ key: 'state', values: ['assigned'] }),
         expect.objectContaining({ key: 'jurisdiction', values: [selectedService] }),
         expect.objectContaining({ key: 'work_type', values: [selectedWorkType] }),
@@ -239,24 +249,27 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
     };
     const myCasesRequests: SearchRequestPayload[] = [];
 
-    await setupWorkFiltersUser(page);
+    const expectedUserId = await setupWorkFiltersUser(page);
 
-    await page.addInitScript(() => {
+    await page.addInitScript(({ storageKey, userId }) => {
       window.localStorage.setItem(
-        'locations',
+        storageKey,
         JSON.stringify({
+          id: storageKey,
+          idamId: userId,
           fields: [
             { name: 'services', value: ['IA'] },
             { name: 'locations', value: [{ epimms_id: '765324' }] },
           ],
         })
       );
-    });
+    }, { storageKey: MY_WORK_FILTER_STORAGE_KEY, userId: expectedUserId });
 
     await setupManageTasksBaseRoutes(page, {
       taskListResponse: buildTaskListMock(6, workFiltersUserId, myActionsList),
       supportedJurisdictions: workFiltersSupportedJurisdictions,
       supportedJurisdictionDetails: workFiltersSupportedJurisdictionDetails,
+      user: { userId: expectedUserId },
     });
 
     await page.route(myCasesRoutePattern, async (route) => {
@@ -274,10 +287,16 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
     });
 
     await taskListPage.gotoMyCases();
-    await expect.poll(() => myCasesRequests.length).toBeGreaterThan(0);
+    await expect.poll(() => myCasesRequests.find((request) =>
+      hasExactSearchParameterValues(request, 'services', ['IA']) &&
+      hasExactSearchParameterValues(request, 'locations', ['765324'])
+    ) ?? null).not.toBeNull();
 
-    const latestRequest = myCasesRequests.at(-1);
-    expect(latestRequest?.searchRequest?.search_parameters).toEqual(
+    const filteredRequest = myCasesRequests.find((request) =>
+      hasExactSearchParameterValues(request, 'services', ['IA']) &&
+      hasExactSearchParameterValues(request, 'locations', ['765324'])
+    );
+    expect(filteredRequest?.searchRequest?.search_parameters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'services', values: ['IA'] }),
         expect.objectContaining({ key: 'locations', values: ['765324'] }),
@@ -298,6 +317,12 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
     await setupWorkFiltersUser(page);
 
     await setupManageTasksBaseRoutes(page, {
+      user: {
+        roleAssignments: [
+          { jurisdiction: 'IA', substantive: 'Y', roleType: 'ORGANISATION', baseLocation: '765324' },
+          { jurisdiction: 'CIVIL', substantive: 'Y', roleType: 'ORGANISATION', baseLocation: '231596' },
+        ],
+      },
       taskListResponse,
       supportedJurisdictions: workFiltersSupportedJurisdictions,
       supportedJurisdictionDetails: workFiltersSupportedJurisdictionDetails,
@@ -355,6 +380,10 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
       });
 
       await setupManageTasksBaseRoutes(page, {
+        user: {
+          roles: ['caseworker-ia', 'caseworker-ia-caseofficer', 'caseworker-sscs'],
+          roleAssignments: scenario.roleAssignments,
+        },
         taskListResponse,
         supportedJurisdictions: workFiltersLocationSearchSupportedJurisdictions,
         supportedJurisdictionDetails: workFiltersLocationSearchSupportedJurisdictionDetails,

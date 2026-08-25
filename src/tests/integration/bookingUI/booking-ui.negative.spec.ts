@@ -1,6 +1,7 @@
 import { expect, test } from "../../../fixtures/ui";
 import {
   applySessionCookiesAndExtractUserId,
+  buildBookingUiBootstrapUser,
   resolveBookingUiUserIdentifier,
   setupBookingUiMockRoutes
 } from "../helpers/index.js";
@@ -20,8 +21,6 @@ const userIdentifier = "BOOKING_UI-FT-ON";
 const defaultBookingLocation = singleLocationMock[0];
 const bookingPageUrlPattern = /\/booking$/;
 const casesPageUrlPattern = /\/cases(?:$|[/?#])/;
-const taskListRouteOnlyOptions = { bootstrapUser: { skipUserDetailsMock: true } };
-
 const createBookingErrorCases = [
   { status: 400, expectedUrlPattern: /\/booking-service-down$/ },
   { status: 500, expectedUrlPattern: /\/service-down$/ }
@@ -50,7 +49,9 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
         sessionUserId = userId;
         existingBookingsMock = buildExistingBookingsMock(userId);
 
-        await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
+        await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+          bootstrapUser: buildBookingUiBootstrapUser(userId)
+        });
         await setupBookingUiMockRoutes(page, {
           locationResponseBody: singleLocationMock,
           getBookingsResponseBody: existingBookingsMock,
@@ -93,7 +94,7 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
         });
 
         await test.step("Choose create new booking and continue", async () => {
-          await bookingUiPage.chooseBookingOption("Create a new booking");
+          await bookingUiPage.selectOption("Create a new booking");
           await bookingUiPage.continueButton.click();
           await expect(page).toHaveURL(bookingPageUrlPattern);
         });
@@ -153,7 +154,9 @@ test.describe(
       const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+        bootstrapUser: buildBookingUiBootstrapUser(userId)
+      });
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock
@@ -207,7 +210,9 @@ test.describe(
       const userId = await applySessionCookiesAndExtractUserId(page, workerUserIdentifier);
       existingBookingsMock = buildExistingBookingsMock(userId);
 
-      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), taskListRouteOnlyOptions);
+      await setupTaskListMockRoutes(page, buildMyTaskListMock(userId, 3), {
+        bootstrapUser: buildBookingUiBootstrapUser(userId)
+      });
       await setupBookingUiMockRoutes(page, {
         locationResponseBody: singleLocationMock,
         getBookingsResponseBody: existingBookingsMock,
@@ -225,7 +230,7 @@ test.describe(
         await bookingUiPage.goto();
         await expect(page).toHaveURL(bookingPageUrlPattern);
         await expect.poll(() => getBookingsCalled).toBeTruthy();
-        await bookingUiPage.chooseBookingOption("Create a new booking");
+        await bookingUiPage.selectOption("Create a new booking");
         await bookingUiPage.continueButton.click();
         await expect(page.getByRole("heading", { name: /Select a location/i })).toBeVisible();
       });
@@ -254,7 +259,7 @@ test.describe(
         await bookingUiPage.goto();
         await expect(page).toHaveURL(bookingPageUrlPattern);
         await expect.poll(() => getBookingsCalled).toBeTruthy();
-        await bookingUiPage.chooseBookingOption("Create a new booking");
+        await bookingUiPage.selectOption("Create a new booking");
         await bookingUiPage.continueButton.click();
         await bookingUiPage.selectFirstLocationFromSearch("Lon");
         await bookingUiPage.continueButton.click();

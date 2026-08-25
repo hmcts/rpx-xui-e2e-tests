@@ -18,6 +18,9 @@ const runtimeOverrideKeys = [
   "TEST_ENVIRONMENT",
   "PW_UI_STORAGE",
   "PW_UI_STORAGE_STRICT",
+  "PW_UI_STORAGE_TTL_MIN",
+  "PW_UI_LOGIN_TIMEOUT_MS",
+  "PW_UI_IDLE_TIMEOUT_MS",
   "PW_UI_STORAGE_PATH",
   "PW_UI_USERS",
   "PW_UI_USER",
@@ -29,11 +32,17 @@ const runtimeOverrideKeys = [
   "IDAM_OAUTH2_SCOPE",
   "IDAM_RETURN_URL",
   "S2S_URL",
+  "API_AUTH_MODE",
+  "API_USE_TOKEN_LOGIN",
   "S2S_MICROSERVICE_NAME",
   "MICROSERVICE",
   "S2S_SECRET",
   "SOLICITOR_USERNAME",
   "SOLICITOR_PASSWORD",
+  "DIVORCE_SOLICITOR_USERNAME",
+  "DIVORCE_SOLICITOR_PASSWORD",
+  "WA_SOLICITOR_USERNAME",
+  "WA_SOLICITOR_PASSWORD",
   "CASEOFFICER_R1_USERNAME",
   "CASEOFFICER_R1_PASSWORD",
   "CASEOFFICER_R2_USERNAME",
@@ -501,7 +510,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: "off",
           storageState: shouldUseUiStorage() ? resolveUiStoragePath() : undefined,
           launchOptions: chromiumExecutablePath
             ? {
@@ -524,7 +533,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: "off",
           serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {
@@ -547,7 +556,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: !safeBoolean(env.HEAD, false),
           trace: "retain-on-failure",
           screenshot: "only-on-failure",
-          video: "retain-on-failure",
+          video: "off",
           serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {

@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 
-import { applySessionCookies, markManageTasksCustomUserDetailsConfigured } from '../helpers';
+import { extractUserIdFromCookies } from '../../e2e/integration/utils/extractUserIdFromCookies.js';
+import { applySessionCookies } from '../helpers';
 import { buildHearingsUserDetailsMock } from '../mocks/hearings.mock';
 import {
   workFiltersIaSearchLocation,
@@ -65,16 +66,16 @@ const workFiltersKnownLocations = [
   workFiltersSscsSearchLocationSecondary,
 ];
 
-export async function setupWorkFiltersUser(page: Page, options: SetupWorkFiltersUserOptions = {}): Promise<void> {
-  await applySessionCookies(page, workFiltersUserIdentifier);
-  markManageTasksCustomUserDetailsConfigured(page);
+export async function setupWorkFiltersUser(page: Page, options: SetupWorkFiltersUserOptions = {}): Promise<string> {
+  const session = await applySessionCookies(page, workFiltersUserIdentifier);
+  const sessionUserId = extractUserIdFromCookies(session.cookies) ?? workFiltersUserId;
 
   const userDetails = buildHearingsUserDetailsMock(
     options.roles ?? ['caseworker-ia', 'caseworker-ia-caseofficer', 'caseworker-civil']
   );
 
-  userDetails.userInfo.id = workFiltersUserId;
-  userDetails.userInfo.uid = workFiltersUserId;
+  userDetails.userInfo.id = sessionUserId;
+  userDetails.userInfo.uid = sessionUserId;
   userDetails.userInfo.roleCategory = 'LEGAL_OPERATIONS';
   userDetails.roleAssignmentInfo = options.roleAssignments ?? [
     { jurisdiction: 'IA', substantive: 'Y', roleType: 'ORGANISATION', baseLocation: '765324' },
@@ -105,4 +106,6 @@ export async function setupWorkFiltersUser(page: Page, options: SetupWorkFilters
       body: JSON.stringify(workFiltersKnownLocations.filter((location) => requestedLocationIds.includes(location.epimms_id))),
     });
   });
+
+  return sessionUserId;
 }

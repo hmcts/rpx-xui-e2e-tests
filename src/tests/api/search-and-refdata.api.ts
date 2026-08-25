@@ -137,7 +137,7 @@ test.describe('Role access / AM', { tag: '@svc-role-assignment' }, () => {
     expectStatus(res.status, StatusSets.allocateRole);
   });
 
-  test('get-my-access-new-count', async ({ apiClient }) => {
+  test('get-my-access-new-count', { tag: '@svc-work-allocation' }, async ({ apiClient }) => {
     const res = await withRetry(
       () =>
         apiClient.get<{ count?: number } | number>('api/role-access/roles/get-my-access-new-count', {

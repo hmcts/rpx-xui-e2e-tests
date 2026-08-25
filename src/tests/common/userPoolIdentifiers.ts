@@ -4,14 +4,39 @@ import { UserUtils } from "../e2e/utils/user.utils.js";
 import type { SessionIdentity } from "./sessionIdentity.js";
 
 export const STAFF_ADMIN_USER = "STAFF_ADMIN" as const;
-export const STAFF_ADMIN_POOLED_USER_IDENTIFIERS = ["STAFF_ADMIN-1", "STAFF_ADMIN-2", "STAFF_ADMIN-3", "STAFF_ADMIN-4"] as const;
+export const STAFF_ADMIN_POOLED_USER_IDENTIFIERS = [
+  "STAFF_ADMIN-1",
+  "STAFF_ADMIN-2",
+  "STAFF_ADMIN-3",
+  "STAFF_ADMIN-4",
+  "STAFF_ADMIN-5",
+  "STAFF_ADMIN-6",
+  "STAFF_ADMIN-7",
+  "STAFF_ADMIN-8"
+] as const;
+
+export const PRL_SOLICITOR_USER = "PRL_SOLICITOR" as const;
+export const PRL_SOLICITOR_POOLED_USER_IDENTIFIERS = [
+  PRL_SOLICITOR_USER,
+  "PRL_SOLICITOR2",
+  "PRL_SOLICITOR3",
+  "PRL_SOLICITOR4",
+  "PRL_SOLICITOR5",
+  "PRL_SOLICITOR6",
+  "PRL_SOLICITOR7",
+  "PRL_SOLICITOR8"
+] as const;
 
 export const BOOKING_UI_LEGACY_USER_IDENTIFIER = "BOOKING_UI-FT-ON" as const;
 export const BOOKING_UI_POOLED_USER_IDENTIFIERS = [
   "BOOKING_UI-FT-ON-1",
   "BOOKING_UI-FT-ON-2",
   "BOOKING_UI-FT-ON-3",
-  "BOOKING_UI-FT-ON-4"
+  "BOOKING_UI-FT-ON-4",
+  "BOOKING_UI-FT-ON-5",
+  "BOOKING_UI-FT-ON-6",
+  "BOOKING_UI-FT-ON-7",
+  "BOOKING_UI-FT-ON-8"
 ] as const;
 
 export const HEARING_MANAGER_CR84_ON_USER = "HEARING_MANAGER_CR84_ON" as const;
@@ -30,6 +55,7 @@ export const HEARING_MANAGER_CR84_OFF_POOLED_USER_IDENTIFIERS = [
 ] as const;
 
 export type StaffAdminUserIdentifier = typeof STAFF_ADMIN_USER | (typeof STAFF_ADMIN_POOLED_USER_IDENTIFIERS)[number];
+export type PrlSolicitorUserIdentifier = (typeof PRL_SOLICITOR_POOLED_USER_IDENTIFIERS)[number];
 export type BookingUiUserIdentifier =
   | typeof BOOKING_UI_LEGACY_USER_IDENTIFIER
   | (typeof BOOKING_UI_POOLED_USER_IDENTIFIERS)[number];
@@ -98,6 +124,27 @@ export function getLegacyStaffAdminSessionIdentity(userUtils: UserUtils = new Us
   };
 }
 
+export function getConfiguredPrlSolicitorUserIdentifiers(env: EnvMap = process.env): PrlSolicitorUserIdentifier[] {
+  return PRL_SOLICITOR_POOLED_USER_IDENTIFIERS.filter((userIdentifier) => hasConfiguredCredentials(userIdentifier, env));
+}
+
+export function resolvePrlSolicitorUserIdentifier(
+  userIdentifier: string,
+  source?: ParallelIndexSource,
+  env: EnvMap = process.env
+): string {
+  if (userIdentifier !== PRL_SOLICITOR_USER) {
+    return userIdentifier;
+  }
+
+  const configuredUserIdentifiers = getConfiguredPrlSolicitorUserIdentifiers(env);
+  if (configuredUserIdentifiers.length === 0) {
+    return userIdentifier;
+  }
+
+  return configuredUserIdentifiers[resolveParallelIndex(source, env) % configuredUserIdentifiers.length];
+}
+
 export function getConfiguredBookingUiUserIdentifiers(env: EnvMap = process.env): BookingUiUserIdentifier[] {
   return BOOKING_UI_POOLED_USER_IDENTIFIERS.filter((userIdentifier) => hasConfiguredCredentials(userIdentifier, env));
 }
@@ -143,11 +190,32 @@ export function resolveHearingManagerUserIdentifier(
   return configuredUserIdentifiers[resolveParallelIndex(source, env) % configuredUserIdentifiers.length];
 }
 
+export function resolveHearingManagerSessionCandidates(
+  userIdentifier: HearingManagerUserIdentifier,
+  source?: ParallelIndexSource,
+  env: EnvMap = process.env
+): HearingManagerUserIdentifier[] {
+  const selectedUserIdentifier = resolveHearingManagerUserIdentifier(userIdentifier, source, env);
+  if (userIdentifier !== HEARING_MANAGER_CR84_ON_USER && userIdentifier !== HEARING_MANAGER_CR84_OFF_USER) {
+    return [selectedUserIdentifier];
+  }
+
+  const configuredUserIdentifiers = getConfiguredHearingManagerUserIdentifiers(userIdentifier, env);
+  return configuredUserIdentifiers.length > 0
+    ? Array.from(new Set([selectedUserIdentifier, ...configuredUserIdentifiers]))
+    : [userIdentifier];
+}
+
 export function resolvePooledUserIdentifier(
   userIdentifier: string,
   source?: ParallelIndexSource,
   env: EnvMap = process.env
 ): string {
+  const prlSolicitorUserIdentifier = resolvePrlSolicitorUserIdentifier(userIdentifier, source, env);
+  if (prlSolicitorUserIdentifier !== userIdentifier) {
+    return prlSolicitorUserIdentifier;
+  }
+
   const staffAdminUserIdentifier = resolveStaffAdminUserIdentifier(userIdentifier, source, env);
   if (staffAdminUserIdentifier !== userIdentifier) {
     return staffAdminUserIdentifier;

@@ -41,7 +41,10 @@ export class CaseSearchPage extends Base {
   readonly jurisdictionSelect = this.page.locator("#s-jurisdiction");
   readonly caseTypeSelect = this.page.locator("#s-case-type");
   readonly dynamicFilters = this.page.locator("#dynamicFilters");
-  readonly ccdNumberInput = this.page.locator("#\\[CASE_REFERENCE\\]");
+  readonly ccdNumberInput = this.page
+    .locator(String.raw`#dynamicFilters #\\[CASE_REFERENCE\\], input[id*="CASE_REFERENCE"]`)
+    .or(this.page.getByLabel("Case Number", { exact: true }))
+    .first();
   readonly applyButton = this.page.locator('button[title="Apply filter"], button[aria-label="Apply filter"]');
   readonly resultsTable = this.page.locator("ccd-search-result");
   readonly searchResultsDataTable = this.resultsTable.locator("table").first();
@@ -89,9 +92,11 @@ export class CaseSearchPage extends Base {
     const immediateOutcomeReached = await this.waitForImmediateSearchOutcome(
       CaseSearchPage.QUICK_SEARCH_OUTCOME_PROBE_MS
     );
-    if (!immediateOutcomeReached && (await this.shouldRetrySearchSubmit(caseId))) {
-      await this.caseIdTextBox.press("Enter");
-      await this.waitForPostSearchSpinnerCycle();
+    if (!immediateOutcomeReached) {
+      this.logger.warn("Header quick-search produced no immediate outcome after submit", {
+        caseId,
+        currentUrl: this.page.url()
+      });
     }
   }
 
@@ -212,25 +217,6 @@ export class CaseSearchPage extends Base {
         .then(() => true),
       this.noResultsContainer.waitFor({ state: "visible", timeout: timeoutMs }).then(() => true)
     ]).catch(() => false);
-  }
-
-  private async shouldRetrySearchSubmit(caseId: string): Promise<boolean> {
-    const currentUrl = this.page.url();
-    if (!/\/cases(?:[/?#]|$)/.test(currentUrl)) {
-      return false;
-    }
-
-    if (await this.noResultsContainer.isVisible().catch(() => false)) {
-      return false;
-    }
-
-    const inputVisible = await this.caseIdTextBox.isVisible().catch(() => false);
-    if (!inputVisible) {
-      return false;
-    }
-
-    const currentValue = await this.caseIdTextBox.inputValue().catch(() => "");
-    return currentValue === caseId;
   }
 
   private async selectOptionByLabel(select: Locator, label: string): Promise<void> {

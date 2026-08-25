@@ -10,7 +10,8 @@ import path from 'node:path';
 import { test, expect } from '@playwright/test';
 
 import { __test__ as authTest } from '../../utils/api/auth';
-import { config } from '../common/apiTestConfig';
+
+import { setTestSolicitorCredentials } from './apiTestCredentials';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -20,6 +21,21 @@ type EnsureStorageStateDeps = NonNullable<Parameters<typeof authTest.ensureStora
 type GetStoredCookieDeps = NonNullable<Parameters<typeof authTest.getStoredCookieWith>[2]>;
 
 test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' }, () => {
+  let restoreCredentials: () => void;
+
+  test.beforeEach(() => {
+    restoreCredentials = setTestSolicitorCredentials();
+  });
+
+  test.afterEach(() => {
+    restoreCredentials();
+  });
+
+  test('maps the generic API solicitor role to the configured divorce solicitor session', () => {
+    expect(authTest.apiRoleToUiUserIdentifier('solicitor')).toBe('DIVORCE_SOLICITOR');
+    expect(authTest.apiRoleToUiUserIdentifier('caseOfficer_r1')).toBe('CASEWORKER_R1');
+  });
+
   test('tryReadState returns parsed state or undefined for invalid content', async () => {
     const tmpDir = path.join(process.cwd(), 'test-results', 'tmp-auth-state');
     await fs.mkdir(tmpDir, { recursive: true });
@@ -38,27 +54,46 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
     expect(missing).toBeUndefined();
   });
 
-  test('ensureStorageStateWith caches and rebuilds when state missing', async () => {
+  test('API storage lock waits for the whole configured UI capture window', () => {
+    expect(
+      authTest.resolveStorageLockTimeoutMs({
+        PW_UI_LOGIN_TIMEOUT_MS: '120000',
+        PW_UI_SESSION_CAPTURE_ATTEMPTS: '2',
+        PW_UI_STORAGE_LOCK_TIMEOUT_MS: '60000'
+      } as NodeJS.ProcessEnv)
+    ).toBe(300000);
+  });
+
+  test('ensureStorageStateWith reuses an authenticated state under the filesystem lock', async () => {
     let createCalls = 0;
-    const createdStates = ['state-1', 'state-2'];
+    let createdPath = '';
     const validStates = new Map([['state-2', { cookies: [] }]]);
     const deps = {
-      storagePromises: new Map<string, Promise<string>>(),
+      storageRoot: path.join(process.cwd(), 'test-results', 'auth-lock-cache'),
+      acquireLock: async () => () => undefined,
       createStorageState: async () => {
         createCalls += 1;
-        return createdStates.shift() ?? 'state-2';
+        createdPath = authTest.getStorageStatePath(
+          path.join(process.cwd(), 'test-results', 'auth-lock-cache'),
+          'solicitor'
+        );
+        return createdPath;
       },
-      tryReadState: async (path: string) => validStates.get(path),
+      tryReadState: async (pathValue: string) =>
+        pathValue === createdPath ? { cookies: [] } : validStates.get(pathValue),
       unlink: async () => {
         throw new Error('unlink failed');
       },
+      validateStorageState: async () => 'authenticated' as const,
+      isStorageStateFresh: () => true,
+      reuseExistingStorage: true,
     };
 
     const first = await authTest.ensureStorageStateWith('solicitor', deps as unknown as EnsureStorageStateDeps);
-    expect(first).toBe('state-2');
+    expect(first).toBe(createdPath);
     const second = await authTest.ensureStorageStateWith('solicitor', deps as unknown as EnsureStorageStateDeps);
-    expect(second).toBe('state-2');
-    expect(createCalls).toBe(2);
+    expect(second).toBe(createdPath);
+    expect(createCalls).toBe(1);
   });
 
   test('getStoredCookieWith rebuilds corrupted state and throws when still missing', async () => {
@@ -68,26 +103,30 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
       { cookies: [{ name: 'XSRF-TOKEN', value: 'token' }] }
     ];
     const deps = {
-      storagePromises: new Map<string, Promise<string>>(),
+      storageRoot: path.join(process.cwd(), 'test-results', 'auth-cookie-cache'),
+      acquireLock: async () => () => undefined,
       createStorageState: async () => {
         createCalls += 1;
         return `state-${createCalls}`;
       },
       tryReadState: async (pathValue: string) => {
         void pathValue;
-        return readStates.shift();
+        return readStates.shift() ?? { cookies: [{ name: 'XSRF-TOKEN', value: 'token' }] };
       },
       unlink: async () => {},
+      validateStorageState: async () => 'unauthenticated' as const,
     };
 
     const value = await authTest.getStoredCookieWith('solicitor', 'XSRF-TOKEN', deps as unknown as GetStoredCookieDeps);
     expect(value).toBe('token');
 
     const emptyDeps = {
-      storagePromises: new Map<string, Promise<string>>(),
+      storageRoot: path.join(process.cwd(), 'test-results', 'auth-empty-cache'),
+      acquireLock: async () => () => undefined,
       createStorageState: async () => 'state-1',
       tryReadState: async () => undefined,
       unlink: async () => {},
+      validateStorageState: async () => 'unauthenticated' as const,
     };
     await expect(
       authTest.getStoredCookieWith('solicitor', 'XSRF-TOKEN', emptyDeps as unknown as GetStoredCookieDeps)
@@ -97,7 +136,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
   test('createStorageStateWith honors token bootstrap and falls back to form login', async () => {
     const storageRoot = path.join(process.cwd(), 'test-results', 'auth-storage');
     const workerEnv = { TEST_WORKER_INDEX: '3' } as NodeJS.ProcessEnv;
-    const expectedStorageStateSuffix = path.join(config.testEnv, 'worker-3', 'solicitor.json');
+    const expectedStorageStateSuffix = 'api-';
     let formCalls = 0;
     const onForm = async () => {
       formCalls += 1;
@@ -107,6 +146,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
       storageRoot,
       mkdir: async () => undefined,
       getCredentials: () => mockCredentials,
+      isUiSessionBootstrapEnabled: () => false,
       isTokenBootstrapEnabled: () => true,
       tryTokenBootstrap: async () => true,
       createStorageStateViaForm: onForm,
@@ -119,6 +159,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
       storageRoot,
       mkdir: async () => undefined,
       getCredentials: () => mockCredentials,
+      isUiSessionBootstrapEnabled: () => false,
       isTokenBootstrapEnabled: () => true,
       tryTokenBootstrap: async () => false,
       createStorageStateViaForm: onForm,
@@ -130,7 +171,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
   test('createStorageStateWith can use UI session bootstrap for local EXUI auth', async () => {
     const storageRoot = path.join(process.cwd(), 'test-results', 'auth-storage-ui');
     const workerEnv = { TEST_WORKER_INDEX: '2' } as NodeJS.ProcessEnv;
-    const expectedStorageStateSuffix = path.join(config.testEnv, 'worker-2', 'solicitor.json');
+    const expectedStorageStateSuffix = 'api-';
     let uiCalls = 0;
     let formCalls = 0;
     let tokenCalls = 0;

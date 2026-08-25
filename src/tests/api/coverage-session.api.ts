@@ -36,6 +36,8 @@ const baseCookie = (name: string, value: string): Cookie => ({
 
 test.describe('Session and cookie utilities coverage', { tag: '@svc-internal' }, () => {
   const credentialEnvironmentKeys = [
+    'PW_IAC_CASEOFFICER_R1_EMAIL',
+    'PW_IAC_CASEOFFICER_R1_PASSWORD',
     'IAC_CASEOFFICER_R1_USERNAME',
     'IAC_CASEOFFICER_R1_PASSWORD',
     'CASEOFFICER_R1_USERNAME',

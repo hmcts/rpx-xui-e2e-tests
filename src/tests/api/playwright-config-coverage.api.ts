@@ -213,6 +213,11 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(odhinOptions?.testEnvironment).toMatch(/agent_ram_gib=\d+\.\d/);
     expect(config.projects[0]?.use?.headless).toBe(false);
 
+    for (const projectName of ['ui', 'integration', 'integration-nightly']) {
+      const project = config.projects.find((candidate) => candidate.name === projectName);
+      expect(project?.use?.video).toBe('off');
+    }
+
     const apiProject = config.projects.find((p) => p.name === 'api');
     expect(apiProject).toBeDefined();
     expect(apiProject?.workers).toBe(resolveApiProjectWorkerCount({ CI: 'true' }));

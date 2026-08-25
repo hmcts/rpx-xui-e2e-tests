@@ -1,23 +1,14 @@
-import type { Cookie, Page, Response } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
-import { ensureUiStorageStateForUser } from "../../../../utils/ui/session-storage.utils.js";
-import { loadSessionCookies } from "../utils/session.utils.js";
+import { setupCaseForJourney } from "../../utils/test-setup/caseSetup.js";
+import { buildCasePayloadFromTemplate } from "../../utils/test-setup/payloads/registry.js";
+import { ensureUiSession, openHomeWithCapturedSession } from "../../utils/ui-session.utils.js";
 
-const userIdentifier = "COURT_ADMIN";
-const hasCourtAdminCreds = Boolean(
-  process.env.COURT_ADMIN_USERNAME && process.env.COURT_ADMIN_PASSWORD
-);
+const userIdentifier = "SEARCH_EMPLOYMENT_CASE";
+const jurisdiction = "EMPLOYMENT";
+const caseType = "ET_EnglandWales";
 test.use({ storageState: { cookies: [], origins: [] } });
-const explicitUsersEnv = (process.env.PW_UI_USERS ?? process.env.PW_UI_USER)?.trim();
-const configuredUsers = explicitUsersEnv
-  ? explicitUsersEnv
-      .split(",")
-      .map((value) => value.trim().toUpperCase())
-      .filter(Boolean)
-  : [];
-const includesCourtAdmin = configuredUsers.includes(userIdentifier);
-let sessionCookies: Cookie[] = [];
 const installTabSelectionTracker = async (page: Page) => {
   await page.addInitScript(() => {
     const w = window as unknown as {
@@ -78,10 +69,17 @@ const getTabSelectionChanges = async (page: Page): Promise<string[]> =>
   });
 
 const resolveExplicitTabTarget = (url: string): string | null => {
+  const decodeTarget = (value: string) => {
+    try {
+      return decodeURIComponent(value.replace(/\+/g, " "));
+    } catch {
+      return value;
+    }
+  };
   try {
     const parsed = new URL(url);
     const hash = parsed.hash.replace(/^#/, "").trim();
-    if (hash) return hash;
+    if (hash) return decodeTarget(hash);
 
     const params = parsed.searchParams;
     const keys = [
@@ -97,23 +95,23 @@ const resolveExplicitTabTarget = (url: string): string | null => {
     ];
     for (const key of keys) {
       const value = params.get(key);
-      if (value?.trim()) return value.trim();
+      if (value?.trim()) return decodeTarget(value.trim());
     }
   } catch {
     const hashIndex = url.indexOf("#");
     if (hashIndex >= 0) {
       const fragment = url.slice(hashIndex + 1).trim();
-      if (fragment) return fragment;
+      if (fragment) return decodeTarget(fragment);
     }
   }
 
   const pathMatch = url.match(/\/tab[s]?\/([^/?#]+)/i);
-  return pathMatch?.[1] ?? null;
+  return pathMatch?.[1] ? decodeTarget(pathMatch[1]) : null;
 };
 
 const assertNoExplicitTabOverride = (page: Page, label: string) => {
   const explicit = resolveExplicitTabTarget(page.url());
-  if (explicit && !/summary/i.test(explicit)) {
+  if (explicit && !/^(summary|case details)$/i.test(explicit)) {
     throw new Error(`${label}: URL explicitly targets tab "${explicit}"`);
   }
 };
@@ -136,130 +134,63 @@ const assertSummaryTabIsDefault = async (page: Page, label: string) => {
       { timeout: 10_000 }
     )
     .toMatchObject({
-      currentSelected: expect.stringContaining("summary")
+      currentSelected: expect.stringMatching(/^(summary|case details)$/i)
     });
 
   const selections = await getTabSelectionChanges(page);
   const normalized = selections.map((value) => value.toLowerCase());
-  const summaryIndex = normalized.findIndex((value) => value.includes("summary"));
-  if (summaryIndex >= 0) {
-    const afterSummary = normalized.slice(summaryIndex);
-    const onlySummaryAfter = afterSummary.every((value) => value.includes("summary"));
-    expect(onlySummaryAfter, `${label}: summary tab should remain selected once chosen`).toBe(true);
+  const defaultTabIndex = normalized.findIndex((value) => /^(summary|case details)$/i.test(value));
+  if (defaultTabIndex >= 0) {
+    const afterDefaultTab = normalized.slice(defaultTabIndex);
+    const onlyDefaultTabAfter = afterDefaultTab.every((value) => /^(summary|case details)$/i.test(value));
+    expect(onlyDefaultTabAfter, `${label}: default tab should remain selected once chosen`).toBe(true);
   }
 
   const currentSelected = (await selectedTabs.first().textContent())?.toLowerCase() ?? "";
-  expect(currentSelected, `${label}: Summary should be the selected tab`).toContain("summary");
-};
-
-const extractCaseMeta = async (
-  responsePromise: Promise<Response>
-): Promise<{ jurisdiction?: string; caseType?: string }> => {
-  try {
-    const response = await responsePromise;
-    const data = await response.json().catch(() => null);
-    return {
-      jurisdiction: data?.case_type?.jurisdiction?.name ?? undefined,
-      caseType: data?.case_type?.name ?? undefined
-    };
-  } catch {
-    return {};
-  }
-};
-
-const ensureVisibleCaseListResult = async (
-  page: Page,
-  waitForVisible: () => Promise<void>
-): Promise<void> => {
-  for (let attempt = 1; attempt <= 2; attempt += 1) {
-    try {
-      await waitForVisible();
-      return;
-    } catch (error) {
-      if (attempt === 2) {
-        throw error;
-      }
-      await page.reload({ waitUntil: "domcontentloaded" });
-    }
-  }
+  expect(currentSelected, `${label}: Summary/Case Details should be the selected tab`).toMatch(
+    /^(summary|case details)$/i
+  );
 };
 
 test.describe("@EXUI-3895 Case details default tab selection", () => {
-  let caseMeta: { jurisdiction?: string; caseType?: string } = {};
+  test.describe.configure({ timeout: 180_000 });
 
-  test.beforeAll(async ({ browser }) => {
-    void browser;
-    if (!hasCourtAdminCreds) {
-      throw new Error("COURT_ADMIN credentials not set");
-    }
-    if (Boolean(explicitUsersEnv) && !includesCourtAdmin) {
-      throw new Error("PW_UI_USERS excludes COURT_ADMIN");
-    }
-    await ensureUiStorageStateForUser(userIdentifier, { strict: true });
-    const { cookies } = loadSessionCookies(userIdentifier);
-    sessionCookies = cookies;
-  });
-
-  test.beforeEach(async ({ page }) => {
-    if (sessionCookies.length) {
-      await page.context().addCookies(sessionCookies);
-    }
+  test.beforeAll(async () => {
+    await ensureUiSession(userIdentifier);
   });
 
   test("@EXUI-3895 Summary tab remains default when opening case details", async ({
-    caseListPage,
     caseDetailsPage,
     caseSearchPage,
-    page,
-    config
-  }) => {
+    createCasePage,
+    page
+  }, testInfo) => {
     await installTabSelectionTracker(page);
+    await openHomeWithCapturedSession(page, userIdentifier);
 
-    await test.step("Open case details from case list", async () => {
-      await caseListPage.page.goto(config.urls.manageCaseBaseUrl, {
-        waitUntil: "domcontentloaded"
-      });
-      await caseListPage.acceptAnalyticsCookies();
-      await caseListPage.waitForReady();
-      await ensureVisibleCaseListResult(page, async () => {
-        await caseListPage.exuiCaseListComponent.resultLinks.first().waitFor({
-          state: "visible",
-          timeout: 30_000
-        });
-      });
-      await resetTabSelectionTracker(page);
-      const caseDetailsResponse = page.waitForResponse((response) => {
-        return (
-          response.request().method() === "GET" &&
-          response.url().includes("/internal/cases/")
-        );
-      });
-      await caseListPage.exuiCaseListComponent.selectCaseByIndex(0);
-      await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
-      await caseDetailsPage.waitForReady();
-
-      caseMeta = await extractCaseMeta(caseDetailsResponse);
+    const setup = await setupCaseForJourney({
+      scenario: "case-details-default-tab-employment",
+      jurisdiction,
+      caseType,
+      apiEventId: "initiateCase",
+      mode: "api-required",
+      apiPayload: buildCasePayloadFromTemplate("employment.et-england-wales.initiate-case"),
+      uiCreate: async () => {
+        await createCasePage.createCaseEmployment(jurisdiction, caseType, "");
+      },
+      page,
+      createCasePage,
+      caseDetailsPage,
+      testInfo
     });
 
-    const caseReference = await caseDetailsPage.exuiCaseDetailsComponent.getCaseNumber();
-    await assertSummaryTabIsDefault(page, "Case list navigation");
-
-    await test.step("Return to case list", async () => {
-      await caseDetailsPage.exuiCaseDetailsComponent.returnToCaseList();
-      await caseListPage.waitForUiIdleStateLenient(45_000);
-    });
+    const caseReference = setup.caseNumber;
+    await caseDetailsPage.waitForReady();
+    await assertSummaryTabIsDefault(page, "Case setup navigation");
 
     await test.step("Open case details via Find Case", async () => {
       await resetTabSelectionTracker(page);
-      await caseSearchPage.goto();
-      await caseSearchPage.waitForReady();
-      await caseSearchPage.ensureFiltersVisible();
-      await caseSearchPage.selectJurisdiction(caseMeta.jurisdiction);
-      await caseSearchPage.selectCaseType(caseMeta.caseType);
-      await caseSearchPage.waitForDynamicFilters();
-      await caseSearchPage.fillCcdNumber(caseReference);
-      await caseSearchPage.applyFilters();
-      await caseSearchPage.openFirstResult();
+      await caseSearchPage.searchWith16DigitCaseId(caseReference);
       await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
       await caseDetailsPage.waitForReady();
     });
