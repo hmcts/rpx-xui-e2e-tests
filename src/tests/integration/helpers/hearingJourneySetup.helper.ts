@@ -12,7 +12,6 @@ import {
 
 import {
   HEARING_MANAGER_CR84_ON_USER,
-  resolveHearingManagerUserIdentifier,
   resolveHearingManagerSessionCandidates,
   type HearingManagerUserIdentifier,
 } from './hearingManagerUserPool.helper';
@@ -116,7 +115,7 @@ export async function openHearingsTab(
     caseReference?: string;
   }
 ): Promise<void> {
-  await applySessionCookies(page, resolveHearingManagerUserIdentifier(options.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER));
+  await applyHearingManagerSessionCookies(page, options.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER);
   await setupHearingsMockRoutes(page, options.routeConfig);
   const route = resolveHearingsCaseRoute(options);
   const targetUrl = caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference);
@@ -156,7 +155,7 @@ export async function openHearingsTabForScenario(
     waitForLoadServiceHearingValuesResponse?: boolean;
   }
 ): Promise<Response | null> {
-  await applySessionCookies(page, resolveHearingManagerUserIdentifier(options?.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER));
+  await applyHearingManagerSessionCookies(page, options?.userIdentifier ?? HEARING_MANAGER_CR84_ON_USER);
   await setupHearingsMockRoutes(page, config);
   const route = resolveHearingsCaseRoute({ routeConfig: config });
   const targetUrl = caseDetailsUrl(route.jurisdictionId, route.caseTypeId, route.caseReference);

@@ -17,6 +17,12 @@ test.describe('Configuration resolution coverage', { tag: '@svc-internal' }, () 
     expect(apiTestConfigTest.resolveTestEnv('aat')).toBe('aat');
     expect(apiTestConfigTest.resolveTestEnv('local')).toBe('local');
     expect(apiTestConfigTest.resolveTestEnv('prod')).toBe('aat');
+
+    expect(apiTestConfigTest.aatJurisdictionNames({})).toEqual(['Family Private Law']);
+    expect(apiTestConfigTest.aatJurisdictions({})).toEqual([{ id: 'PRIVATELAW', caseTypeIds: ['PRLAPPS'] }]);
+    const divorceSolicitor = { DIVORCE_SOLICITOR_USERNAME: 'configured', DIVORCE_SOLICITOR_PASSWORD: 'configured' };
+    expect(apiTestConfigTest.aatJurisdictionNames(divorceSolicitor)).toContain('Family Divorce');
+    expect(apiTestConfigTest.aatJurisdictions(divorceSolicitor)).toContainEqual({ id: 'DIVORCE', caseTypeIds: ['xuiTestCaseType'] });
   });
 
   test('appTestConfig helpers resolve preview and test env', () => {
