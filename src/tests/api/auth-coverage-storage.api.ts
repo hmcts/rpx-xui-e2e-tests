@@ -54,6 +54,16 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
     expect(missing).toBeUndefined();
   });
 
+  test('API storage lock waits for the whole configured UI capture window', () => {
+    expect(
+      authTest.resolveStorageLockTimeoutMs({
+        PW_UI_LOGIN_TIMEOUT_MS: '120000',
+        PW_UI_SESSION_CAPTURE_ATTEMPTS: '2',
+        PW_UI_STORAGE_LOCK_TIMEOUT_MS: '60000'
+      } as NodeJS.ProcessEnv)
+    ).toBe(300000);
+  });
+
   test('ensureStorageStateWith reuses an authenticated state under the filesystem lock', async () => {
     let createCalls = 0;
     let createdPath = '';

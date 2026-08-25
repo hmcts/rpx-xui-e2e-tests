@@ -165,7 +165,8 @@ const TRANSIENT_UI_BOOTSTRAP_PATTERNS: RegExp[] = [
 const TRANSIENT_UI_SESSION_CAPTURE_PATTERNS: RegExp[] = [
   /Target page, context or browser has been closed/i,
   /browser has been disconnected/i,
-  /page has been crashed/i
+  /page has been crashed/i,
+  /waiting for locator\(['"]exui-header['"]\) to be visible/i
 ];
 
 const asErrorMessage = (error: unknown): string =>
@@ -819,13 +820,7 @@ export const ensureUiStorageStateForUser = async (
             const page = await context.newPage();
             await captureUiStorageState(context, page, userIdentifier, email, password, baseUrl);
 
-            await page
-              .locator("exui-header")
-              .first()
-              .waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() })
-              .catch(() => {
-                // Proceed even if header is slow to render; cookies are already present.
-              });
+            await page.locator("exui-header").first().waitFor({ state: "visible", timeout: resolveLoginTimeoutMs() });
 
             await addAnalyticsCookie(context, baseUrl);
             await context.storageState({ path: tempStoragePath });

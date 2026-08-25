@@ -182,10 +182,15 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     ).toEqual(['http://localhost:3000/cases', 'http://localhost:5000/login']);
   });
 
-  test('closed browser session failures are classified for one fresh capture retry only', () => {
+  test('transient browser and XUI-shell failures are classified for one fresh capture retry only', () => {
     expect(
       sessionStorageTest.isTransientUiSessionCaptureFailure(
         new Error('browserContext.cookies: Target page, context or browser has been closed')
+      )
+    ).toBe(true);
+    expect(
+      sessionStorageTest.isTransientUiSessionCaptureFailure(
+        new Error("locator.waitFor: Timeout 120000ms exceeded. waiting for locator('exui-header') to be visible")
       )
     ).toBe(true);
     expect(

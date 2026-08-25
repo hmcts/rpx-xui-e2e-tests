@@ -106,6 +106,7 @@ const defaultStorageDeps: StorageDeps = {
 
 const validatedStorageStates = new Map<string, { mtimeMs: number; validUntil: number }>();
 const STORAGE_VALIDATION_CACHE_MS = 15_000;
+const DEFAULT_STORAGE_LOCK_TIMEOUT_MS = 120_000;
 
 export async function ensureStorageState(role: ApiUserRole): Promise<string> {
   return ensureStorageStateWith(role);
@@ -531,9 +532,23 @@ function isStorageStateFresh(storagePath: string, ttlMs = 15 * 60_000): boolean 
   }
 }
 
-async function acquireStorageStateLock(storagePath: string): Promise<() => void> {
+function resolveStorageLockTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
+  const configured = Number(env.PW_UI_STORAGE_LOCK_TIMEOUT_MS);
+  const loginTimeoutMs = Number(env.PW_UI_LOGIN_TIMEOUT_MS) || 60_000;
+  const captureAttempts = Number(env.PW_UI_SESSION_CAPTURE_ATTEMPTS) || 2;
+  return Math.max(
+    DEFAULT_STORAGE_LOCK_TIMEOUT_MS,
+    loginTimeoutMs * captureAttempts + 60_000,
+    Number.isFinite(configured) && configured > 0 ? configured : 0
+  );
+}
+
+async function acquireStorageStateLock(
+  storagePath: string,
+  timeoutMs = resolveStorageLockTimeoutMs()
+): Promise<() => void> {
   const lockPath = `${storagePath}.lock`;
-  const deadline = Date.now() + 120_000;
+  const deadline = Date.now() + timeoutMs;
 
   for (;;) {
     try {
@@ -547,7 +562,7 @@ async function acquireStorageStateLock(storagePath: string): Promise<() => void>
       }
 
       try {
-        if (Date.now() - fsSync.statSync(lockPath).mtimeMs > 120_000) {
+        if (Date.now() - fsSync.statSync(lockPath).mtimeMs > timeoutMs) {
           fsSync.rmSync(lockPath, { recursive: true, force: true });
           continue;
         }
@@ -658,6 +673,8 @@ export const __test__ = {
   getCacheKey,
   getCacheKeyForIdentity,
   isStorageStateFresh,
+  resolveStorageLockTimeoutMs,
+  acquireStorageStateLock,
   validateStorageState,
   isUiSessionBootstrapEnabled,
   isTokenBootstrapEnabled,
