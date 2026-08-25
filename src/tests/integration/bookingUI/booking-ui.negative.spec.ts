@@ -93,7 +93,7 @@ createBookingErrorCases.forEach(({ status, expectedUrlPattern }) => {
         });
 
         await test.step("Choose create new booking and continue", async () => {
-          await bookingUiPage.chooseBookingOption("Create a new booking");
+          await bookingUiPage.selectOption("Create a new booking");
           await bookingUiPage.continueButton.click();
           await expect(page).toHaveURL(bookingPageUrlPattern);
         });
@@ -225,7 +225,7 @@ test.describe(
         await bookingUiPage.goto();
         await expect(page).toHaveURL(bookingPageUrlPattern);
         await expect.poll(() => getBookingsCalled).toBeTruthy();
-        await bookingUiPage.chooseBookingOption("Create a new booking");
+        await bookingUiPage.selectOption("Create a new booking");
         await bookingUiPage.continueButton.click();
         await expect(page.getByRole("heading", { name: /Select a location/i })).toBeVisible();
       });
@@ -254,7 +254,7 @@ test.describe(
         await bookingUiPage.goto();
         await expect(page).toHaveURL(bookingPageUrlPattern);
         await expect.poll(() => getBookingsCalled).toBeTruthy();
-        await bookingUiPage.chooseBookingOption("Create a new booking");
+        await bookingUiPage.selectOption("Create a new booking");
         await bookingUiPage.continueButton.click();
         await bookingUiPage.selectFirstLocationFromSearch("Lon");
         await bookingUiPage.continueButton.click();

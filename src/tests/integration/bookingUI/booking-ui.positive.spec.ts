@@ -93,7 +93,7 @@ test.describe(
       });
 
       await test.step("Select existing booking and verify enabled and disabled booking buttons", async () => {
-        await bookingUiPage.chooseBookingOption("Choose an existing booking");
+        await bookingUiPage.selectOption("Choose an existing booking");
         await expect(activeBookingButton).toBeEnabled();
         await expect(futureBookingButton).toBeDisabled();
       });
@@ -113,7 +113,7 @@ test.describe(
       });
 
       await test.step("Select create new booking option and verify continue button", async () => {
-        await bookingUiPage.chooseBookingOption("Create a new booking");
+        await bookingUiPage.selectOption("Create a new booking");
         await expect(bookingUiPage.continueButton).toBeVisible();
       });
 
@@ -194,7 +194,7 @@ test.describe(
       });
 
       await test.step("Select view tasks and cases option and verify continue button", async () => {
-        await bookingUiPage.chooseBookingOption("View tasks and cases");
+        await bookingUiPage.selectOption("View tasks and cases");
         await expect(bookingUiPage.continueButton).toBeVisible();
       });
 

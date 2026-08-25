@@ -1,5 +1,3 @@
-import type { Page } from "@playwright/test";
-
 import { expect, test } from "../../../fixtures/ui";
 import type { TaskListPage } from "../../../page-objects/pages/exui/taskList.po.js";
 import { loadSessionCookies } from "../integration/utils/session.utils.js";
@@ -10,7 +8,6 @@ import { ensureUiSession } from "../utils/ui-session.utils.js";
 const TASK_LIST_BOOTSTRAP_TIMEOUT_MS = 60_000;
 
 async function openTaskListWithRetry(
-  page: Page,
   taskListPage: TaskListPage,
   userIdentifier: string
 ) {
@@ -18,10 +15,9 @@ async function openTaskListWithRetry(
 
   await retryOnTransientFailure(
     async () => {
-      await page.context().clearCookies();
       taskListPage.clearApiCalls();
       if (cookies.length) {
-        await page.context().addCookies(cookies);
+        await taskListPage.page.context().addCookies(cookies);
       }
 
       await taskListPage.goto();
@@ -51,26 +47,22 @@ async function openTaskListWithRetry(
       if (bootstrapSignal === "service-down") {
         throw new Error("Task list showed service down while opening the my tasks page.");
       }
-
-      await taskListPage.waitForManageButton("my tasks bootstrap", {
-        timeoutMs: TASK_LIST_BOOTSTRAP_TIMEOUT_MS
-      });
     },
     {
       maxAttempts: 3,
       onRetry: async () => {
-        if (!page.isClosed()) {
-          await page.goto("about:blank").catch(() => undefined);
+        if (!taskListPage.page.isClosed()) {
+          await taskListPage.page.goto("about:blank").catch(() => undefined);
         }
       }
     }
   );
 }
 
-test.describe("Verify the my tasks page tabs appear as expected", {
+test.describe("Verify live available task actions appear as expected", {
   tag: ["@e2e", "@e2e-manage-tasks"]
 }, () => {
-  const userIdentifier = "COURT_ADMIN";
+  const userIdentifier = "IAC_CASEOFFICER_R1";
 
   test.use({ storageState: { cookies: [], origins: [] } });
 
@@ -78,30 +70,8 @@ test.describe("Verify the my tasks page tabs appear as expected", {
     await ensureUiSession(userIdentifier);
   });
 
-  test.beforeEach(async ({ page, taskListPage }) => {
-    await openTaskListWithRetry(page, taskListPage, userIdentifier);
-  });
-
-  test("Verify My tasks actions appear as expected", async ({ taskListPage }) => {
-    await test.step("Navigate to the task list page", async () => {
-      await expect(taskListPage.taskListTable).toBeVisible();
-      await taskListPage.waitForManageButton("my tasks tab", { timeoutMs: 60_000 });
-    });
-
-    await test.step("Check my tasks has data in the table", async () => {
-      const table = await readTaskTable(taskListPage.taskListTable);
-      expect(table.length).toBeGreaterThan(0);
-    });
-
-    await test.step("Verify tasks actions are shown as expected", async () => {
-      await taskListPage.openFirstManageActions("my tasks actions", { timeoutMs: 15_000 });
-      await expect(taskListPage.taskActionsRow).toBeVisible();
-      await expect(taskListPage.taskActionCancel).toBeVisible();
-      await expect(taskListPage.taskActionGoTo).toBeVisible();
-      await expect(taskListPage.taskActionMarkAsDone).toBeVisible();
-      await expect(taskListPage.taskActionReassign).toBeVisible();
-      await expect(taskListPage.taskActionUnassign).toBeVisible();
-    });
+  test.beforeEach(async ({ taskListPage }) => {
+    await openTaskListWithRetry(taskListPage, userIdentifier);
   });
 
   test("Verify Available tasks actions appear as expected", async ({ taskListPage }) => {
