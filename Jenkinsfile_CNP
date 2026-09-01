@@ -206,6 +206,8 @@ def secrets = [
     secret('e2e-iac-caseofficer-r1-password', 'PW_IAC_CASEOFFICER_R1_PASSWORD'),
     secret('e2e-search-employment-case-username', 'SEARCH_EMPLOYMENT_CASE_USERNAME'),
     secret('e2e-search-employment-case-password', 'SEARCH_EMPLOYMENT_CASE_PASSWORD'),
+    secret('e2e-fpl-global-search-username', 'FPL_GLOBAL_SEARCH_USERNAME'),
+    secret('e2e-fpl-global-search-password', 'FPL_GLOBAL_SEARCH_PASSWORD'),
     secret('e2e-user-with-flags-username', 'USER_WITH_FLAGS_USERNAME'),
     secret('e2e-user-with-flags-password', 'USER_WITH_FLAGS_PASSWORD'),
     secret('e2e-staff-admin-1-username', 'STAFF_ADMIN_1_USERNAME'),
