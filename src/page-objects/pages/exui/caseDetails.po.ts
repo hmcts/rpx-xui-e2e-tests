@@ -662,7 +662,9 @@ export class CaseDetailsPage extends Base {
   }
 
   async todaysDateFormatted(): Promise<string> {
-    return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new Date()
+      .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      .replace('Sept', 'Sep');
   }
 
   // Case flag methods
