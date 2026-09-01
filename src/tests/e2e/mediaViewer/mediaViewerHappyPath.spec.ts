@@ -7,7 +7,6 @@ import type { Response } from "@playwright/test";
 import { expect, test } from "../../../fixtures/ui";
 import { CaseDetailsPage } from "../../../page-objects/pages/exui/caseDetails.po";
 import { CaseFileViewPage } from "../../../page-objects/pages/exui/caseFileView.po";
-import { requireCreateCaseSelection } from "../utils/create-case-selection.utils.js";
 import { retryOnTransientFailure } from "../utils/transient-failure.utils.js";
 import { ensureUiSession, openHomeWithCapturedSession } from "../utils/ui-session.utils.js";
 
@@ -61,12 +60,6 @@ test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] },
     });
 
     await test.step("Create a case for this test run", async () => {
-      const selection = await createCasePage.resolveCreateCaseSelection(
-        DESIRED_JURISDICTION,
-        DESIRED_CASE_TYPE
-      );
-      requireCreateCaseSelection(selection, DESIRED_JURISDICTION, DESIRED_CASE_TYPE);
-
       await createCasePage.createDivorceCase(
         DESIRED_JURISDICTION,
         DESIRED_CASE_TYPE,
