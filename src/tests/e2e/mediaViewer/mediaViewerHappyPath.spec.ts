@@ -41,7 +41,7 @@ function captureBinaryResponse(binaryResponses: string[], response: Response): v
 
 test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] }, () => {
   test.beforeAll(async () => {
-    await ensureUiSession("SOLICITOR");
+    await ensureUiSession("DIVORCE_SOLICITOR");
   });
 
   test("Opens uploaded document in the Media Viewer end-to-end", async ({
@@ -56,7 +56,7 @@ test.describe("Media Viewer happy path", { tag: ["@e2e", "@e2e-media-viewer"] },
     const caseMarker = `media-viewer-${faker.string.alphanumeric(8)}-${uniqueSuffix}`;
 
     await test.step("Apply solicitor session and open the app shell", async () => {
-      await openHomeWithCapturedSession(page, "SOLICITOR");
+      await openHomeWithCapturedSession(page, "DIVORCE_SOLICITOR");
       await expect(page.locator("exui-header")).toBeVisible();
     });
 

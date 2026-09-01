@@ -7,6 +7,7 @@ import {
   setupHearingsMockRoutes,
 } from '../helpers/index.js';
 import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
+import { navigateWithTransientGatewayRetry } from '../utils/transientGatewayPage.utils.js';
 
 const userIdentifier = HEARING_MANAGER_CR84_ON_USER;
 const hearingsTabUrl = `${caseDetailsUrl()}/hearings`;
@@ -43,11 +44,17 @@ test.describe(`Hearings CR84 integration as ${userIdentifier}`, { tag: ['@integr
     await gotoCaseDetailsWithRetry(page, caseDetailsUrl());
     await expect(page.getByRole('tab', { name: /hearings/i })).toHaveCount(0);
 
-    await page.goto(hearingsTabUrl, { waitUntil: 'domcontentloaded' });
+    await navigateWithTransientGatewayRetry(page, hearingsTabUrl, {
+      allowAbortedNavigation: true,
+      contextLabel: 'hearings tab',
+    });
     await expect(hearingsTabPage.container).toHaveCount(0);
     await expect(hearingsTabPage.viewDetailsButton(HEARINGS_LISTED_HEARING_ID)).toHaveCount(0);
 
-    await page.goto('/hearings/view/hearing-view-summary', { waitUntil: 'domcontentloaded' });
+    await navigateWithTransientGatewayRetry(page, '/hearings/view/hearing-view-summary', {
+      allowAbortedNavigation: true,
+      contextLabel: 'hearing summary',
+    });
     await expect
       .poll(() => page.url(), {
         timeout: 30_000,
