@@ -101,7 +101,7 @@ test.describe("Case level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, () 
         Comments: "Welsh",
         "Creation date": await caseDetailsPage.todaysDateFormatted(),
         "Last modified": "",
-        "Flag status": "ACTIVE"
+        "Flag status": "Active"
       };
       await expect
         .poll(
@@ -239,7 +239,7 @@ test.describe("Party level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, ()
         Comments: `Welsh ${testValue}`,
         "Creation date": await caseDetailsPage.todaysDateFormatted(),
         "Last modified": "",
-        "Flag status": "ACTIVE"
+        "Flag status": "Active"
       };
       await expect
         .poll(
