@@ -4775,12 +4775,12 @@ __metadata:
   linkType: hard
 
 "node-html-parser@npm:^9.0.0":
-  version: 9.0.3
-  resolution: "node-html-parser@npm:9.0.3"
+  version: 9.0.4
+  resolution: "node-html-parser@npm:9.0.4"
   dependencies:
     css-select: "npm:^5.1.0"
     entities: "npm:^8.0.0"
-  checksum: 10c0/e20edf9fe40b0772693b40647ecaf47556a8268f4780f20d7c25c1dc0952449a7b0d9d4d0b7c59b96e09c3779131d574bf793456f3a7649235ee66c2e1568da6
+  checksum: 10c0/129752b901d30d16137729817a7042546e5f603b58ac57d6339b0cefad82630196e1a5f16fd374b22a83dc0d127b0bf743b05a1840d0d8beaa80f6dbcd17c487
   languageName: node
   linkType: hard
 
