@@ -137,6 +137,9 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean) => {
   return defaultValue;
 };
 
+const shouldEmitCiEvidence = (env: EnvMap = process.env) =>
+  safeBoolean(env.PLAYWRIGHT_CI_EVIDENCE, Boolean(env.CI || env.JENKINS_URL || env.BUILD_NUMBER));
+
 const firstNonBlank = (...values: Array<string | undefined>): string | undefined =>
   values.map((value) => value?.trim()).find((value): value is string => Boolean(value));
 
@@ -423,6 +426,16 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
 
   if (!safeBoolean(env.PW_FLAKE_GATE_DISABLED, false)) {
     reporters.push(["./src/tests/common/reporters/flake-gate.reporter.cjs"]);
+  }
+
+  if (shouldEmitCiEvidence(env)) {
+    reporters.push([
+      "./src/tests/common/reporters/ci-evidence.reporter.cjs",
+      {
+        outputFolder: resolveOdhinOutputFolder(env),
+        repository: "rpx-xui-e2e-tests"
+      }
+    ]);
   }
 
   return reporters;

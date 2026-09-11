@@ -22,6 +22,7 @@
     "env:populate:playwright:aat": "bash ./scripts/populate-playwright-env-from-keyvault.sh aat",
     "env:populate:playwright:demo": "bash ./scripts/populate-playwright-env-from-keyvault.sh demo",
     "lint": "yarn tsc -p tsconfig.json && node ./node_modules/eslint/bin/eslint.js .",
+    "test:ci-evidence": "PLAYWRIGHT_REPORTERS=list PLAYWRIGHT_SKIP_INSTALL=true playwright test src/tests/api/unit/ci-evidence-reporter.unit.api.ts --project=api",
     "ui:session": "node ./scripts/record-ui-session.mjs",
     "harness:local:shell": "node ./scripts/local-exui-static-proxy.mjs",
     "harness:manifest": "node ./scripts/check-exui-harness-manifest.mjs",

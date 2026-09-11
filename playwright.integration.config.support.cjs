@@ -13,6 +13,9 @@ const safeBoolean = (value, defaultValue) => {
   return defaultValue;
 };
 
+const shouldEmitCiEvidence = (env) =>
+  safeBoolean(env.PLAYWRIGHT_CI_EVIDENCE, Boolean(env.CI || env.JENKINS_URL || env.BUILD_NUMBER));
+
 const parsePositiveInteger = (value) => {
   if (!value) return undefined;
   const parsed = Number.parseInt(value, 10);
@@ -56,6 +59,9 @@ const resolveConfiguredProjectWorkers = (env = process.env) => {
 
 const buildConfig = (env = process.env) => {
   const consoleCapture = resolveOdhinConsoleCapture(env);
+  const outputFolder =
+    firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
+    "functional-output/tests/playwright-integration/odhin-report";
   return {
     testDir: "./src/tests/integration",
     timeout: 120000,
@@ -75,9 +81,7 @@ const buildConfig = (env = process.env) => {
       [
         "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
         {
-          outputFolder:
-            firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
-            "functional-output/tests/playwright-integration/odhin-report",
+          outputFolder,
           indexFilename: firstNonBlank(env.PW_ODHIN_INDEX, env.PLAYWRIGHT_REPORT_INDEX_FILENAME) ?? "playwright-odhin-integration.html",
           title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e integration",
           testEnvironment:
@@ -94,7 +98,13 @@ const buildConfig = (env = process.env) => {
           testOutput: env.PW_ODHIN_TEST_OUTPUT ?? "only-on-failure",
           apiLogs: env.PW_ODHIN_API_LOGS ?? "summary"
         }
-      ]
+      ],
+      ...(shouldEmitCiEvidence(env)
+        ? [[
+            "./src/tests/common/reporters/ci-evidence.reporter.cjs",
+            { outputFolder, repository: "rpx-xui-e2e-tests", suite: "integration" }
+          ]]
+        : [])
     ],
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",

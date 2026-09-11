@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { cpus, totalmem } from "node:os";
 
-import { defineConfig, type PlaywrightTestConfig } from "@playwright/test";
+import { defineConfig, type PlaywrightTestConfig, type ReporterDescription } from "@playwright/test";
 
 import { logResolvedTagFilters, resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
 
@@ -27,6 +27,9 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean): boolean 
   if (falsy.has(normalised)) return false;
   return defaultValue;
 };
+
+const shouldEmitCiEvidence = (env: EnvMap) =>
+  safeBoolean(env.PLAYWRIGHT_CI_EVIDENCE, Boolean(env.CI || env.JENKINS_URL || env.BUILD_NUMBER));
 
 const firstNonBlank = (...values: Array<string | undefined>): string | undefined =>
   values.map((value) => value?.trim()).find((value): value is string => Boolean(value));
@@ -140,6 +143,9 @@ const resolveE2eTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const e2eTagFilters = resolveE2eTagFilters(env);
   const workers = resolveE2EWorkerCount(env);
+  const outputFolder =
+    firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
+    "functional-output/tests/playwright-e2e/odhin-report";
   logResolvedTagFilters("E2E nightly", e2eTagFilters, env);
 
   return {
@@ -165,9 +171,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       [
         "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
         {
-          outputFolder:
-            firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
-            "functional-output/tests/playwright-e2e/odhin-report",
+          outputFolder,
           indexFilename: firstNonBlank(env.PW_ODHIN_INDEX, env.PLAYWRIGHT_REPORT_INDEX_FILENAME) ?? "playwright-odhin-nightly.html",
           title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e nightly",
           testEnvironment: resolveOdhinTestEnvironment(env, workers),
@@ -184,7 +188,13 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
             parseNonNegativeInteger(env.PW_ODHIN_RUNTIME_HOOK_TIMEOUT_MS ?? env.PW_ODHIN_HARD_TIMEOUT_MS) ??
             (env.CI ? 0 : 15000)
         }
-      ]
+      ],
+      ...(shouldEmitCiEvidence(env)
+        ? [[
+            "./src/tests/common/reporters/ci-evidence.reporter.cjs",
+            { outputFolder, repository: "rpx-xui-e2e-tests", suite: "e2e-nightly" }
+          ] as ReporterDescription]
+        : [])
     ],
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
