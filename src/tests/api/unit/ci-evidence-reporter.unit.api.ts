@@ -23,7 +23,7 @@ const reporterModule = require('../../common/reporters/ci-evidence.reporter.cjs'
       readCgroupCpuUsageNs?: () => number | undefined,
       readClock?: () => bigint
     ) => (elapsedMs: number) => Record<string, unknown>;
-    projectApiEntries: (entries: unknown[]) => unknown[];
+    projectApiEntries: (entries: unknown[]) => Array<Record<string, unknown>>;
     sanitizeDiagnostic: (value: unknown) => string | undefined;
     sanitizeUrl: (value: unknown) => { host: string; path: string } | undefined;
   };
@@ -323,7 +323,7 @@ test.describe('CI evidence reporter', { tag: '@svc-internal' }, () => {
       () => ({ idle: 0, all: 0 }),
       () => 2,
       () => usage.shift(),
-      () => clocks.shift()
+      () => clocks.shift() ?? 0n
     );
 
     sampler(0);
