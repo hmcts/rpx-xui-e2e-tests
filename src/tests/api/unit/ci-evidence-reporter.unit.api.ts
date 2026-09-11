@@ -16,6 +16,13 @@ const reporterModule = require('../../common/reporters/ci-evidence.reporter.cjs'
     buildSafeLoadProfile: (summary: Record<string, unknown>, samples: unknown[]) => Record<string, unknown> & {
       timeline: Array<Record<string, unknown>>;
     };
+    createSystemSampler: (
+      metadata: Record<string, unknown>,
+      readCpuTimes?: () => { idle: number; all: number },
+      readLoadAverage?: () => number,
+      readCgroupCpuUsageNs?: () => number | undefined,
+      readClock?: () => bigint
+    ) => (elapsedMs: number) => Record<string, unknown>;
     projectApiEntries: (entries: unknown[]) => unknown[];
     sanitizeDiagnostic: (value: unknown) => string | undefined;
     sanitizeUrl: (value: unknown) => { host: string; path: string } | undefined;
@@ -59,7 +66,8 @@ const result = (overrides: Record<string, unknown> = {}) => ({
 
 const createReporter = (
   options: Record<string, unknown> = {},
-  config: Record<string, unknown> = { workers: 4, shard: null }
+  config: Record<string, unknown> = { workers: 4, shard: null },
+  allTests: unknown[] = [{}]
 ) => {
   const outputFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'xui-ci-evidence-'));
   const reporter = new EvidenceReporter({
@@ -79,7 +87,7 @@ const createReporter = (
     loadMetadata: { effectiveCpuCount: 4, memoryLimitBytes: 8_000_000_000 },
     ...options,
   });
-  reporter.onBegin(config, { allTests: () => [{}] });
+  reporter.onBegin(config, { allTests: () => allTests });
   return { outputFolder, reporter };
 };
 
@@ -95,6 +103,7 @@ test.describe('CI evidence reporter', { tag: '@svc-internal' }, () => {
 
     const evidence = readEvidence(outputFolder);
     expect(evidence.schema_version).toBe('xui-playwright-evidence/v1');
+    expect(evidence.document.producer.version).toBe('2');
     expect(evidence.run.outcome).toBe('CLEAN_PASS');
     expect(evidence.run).toMatchObject({ discovered_tests: 1, attempt_count: 1, retry_attempt_count: 0 });
     expect(evidence.run.counts).toMatchObject({ total: 1, passed: 1, flaky: 0, failed: 0 });
@@ -182,6 +191,20 @@ test.describe('CI evidence reporter', { tag: '@svc-internal' }, () => {
     expect(evidence.run.counts).toMatchObject({ total: 1, interrupted: 1 });
     expect(evidence.capture).toMatchObject({ test_begin_callbacks: 1, test_end_callbacks: 0, open_attempts: 1 });
     expect(evidence.exceptional_tests[0].attempts[0].status).toBe('interrupted');
+  });
+
+  test('keeps the observed pass separate from an incomplete collection', async () => {
+    const completed = testCase({ id: 'completed' });
+    const missing = testCase({ id: 'missing' });
+    const { outputFolder, reporter } = createReporter({}, { workers: 4, shard: null }, [completed, missing]);
+
+    reporter.onTestEnd(completed, result());
+    await reporter.onEnd({ status: 'passed' });
+
+    const evidence = readEvidence(outputFolder);
+    expect(evidence.run.outcome).toBe('CLEAN_PASS');
+    expect(evidence.run.collection_outcome).toBe('PARTIAL');
+    expect(evidence.run.discovered_tests).toBe(2);
   });
 
   test('counts a global runner error without retaining its text', async () => {
@@ -272,6 +295,42 @@ test.describe('CI evidence reporter', { tag: '@svc-internal' }, () => {
     expect(projected[0]).toMatchObject({ signal_id: expect.stringMatching(/^[a-f0-9]{64}$/), event_order: 0 });
     expect(JSON.stringify(projected)).not.toContain('authorization');
     expect(JSON.stringify(projected)).not.toContain('private');
+  });
+
+  test('does not retain transport-error prose', () => {
+    const projected = helpers.projectApiEntries([
+      {
+        method: 'GET',
+        url: 'https://service.test/health',
+        error: 'request failed for https://service.test/health?session=secret-value',
+      },
+      {
+        method: 'GET',
+        url: 'https://service.test/health',
+        error: 'UND_ERR_SECRET_VALUE',
+      },
+    ]);
+
+    expect(projected.every((entry) => !('transport_error' in entry))).toBe(true);
+    expect(JSON.stringify(projected)).not.toContain('secret-value');
+  });
+
+  test('uses fractional cgroup CPU usage for scoped CPU telemetry', () => {
+    const usage = [0, 500_000_000];
+    const clocks = [0n, 1_000_000_000n];
+    const sampler = helpers.createSystemSampler(
+      { effectiveCpuCount: 0.5, logicalCpuCount: 2, memoryLimitBytes: 100, memoryLimitSource: 'host' },
+      () => ({ idle: 0, all: 0 }),
+      () => 2,
+      () => usage.shift(),
+      () => clocks.shift()
+    );
+
+    sampler(0);
+    const sample = sampler(1000);
+
+    expect(sample.cpuPercent).toBe(100);
+    expect(sample.load1PerCore).toBe(1);
   });
 
   test('preserves allowlisted Odhín diagnosis and its named downstream evidence', async () => {
@@ -452,5 +511,33 @@ test.describe('CI evidence reporter', { tag: '@svc-internal' }, () => {
     expect(hasEvidenceReporter(nightly.__test__.buildConfig({ CI: 'true' }) as never)).toBe(true);
     expect(hasEvidenceReporter(main.__test__.buildConfig({ PLAYWRIGHT_CI_EVIDENCE: 'true' }) as never)).toBe(true);
     expect(hasEvidenceReporter(main.__test__.buildConfig({}) as never)).toBe(false);
+  });
+
+  test('does not write evidence for an accessibility suite', async () => {
+    const { outputFolder, reporter } = createReporter({ suite: 'a11y' });
+    await reporter.onEnd({ status: 'passed' });
+    expect(fs.existsSync(path.join(outputFolder, 'xui-ci-evidence.json'))).toBe(false);
+
+    const accessibilityProject = testCase({ id: 'a11y-project', title: 'normal journey', titlePath: () => ['normal journey'], parent: { project: () => ({ name: 'accessibility-chromium' }) } });
+    const projectRun = createReporter({ suite: 'e2e' }, { workers: 4, shard: null }, [accessibilityProject]);
+    projectRun.reporter.onTestEnd(accessibilityProject, result());
+    await projectRun.reporter.onEnd({ status: 'passed' });
+    expect(fs.existsSync(path.join(projectRun.outputFolder, 'xui-ci-evidence.json'))).toBe(false);
+  });
+
+  test('classifies smoke output and cross-browser smoke projects as the smoke suite', async () => {
+    const smokeOutput = fs.mkdtempSync(path.join(os.tmpdir(), 'playwright-smoke-'));
+    const smokeReporter = new EvidenceReporter({ outputFolder: smokeOutput, repository: 'rpx-xui-e2e-tests', env: {} });
+    smokeReporter.onBegin({}, { allTests: () => [] });
+    await smokeReporter.onEnd({ status: 'passed' });
+    expect(readEvidence(smokeOutput).run.suite).toBe('smoke');
+
+    const smokeProject = testCase({ id: 'cross-browser-smoke', title: 'normal journey', titlePath: () => ['normal journey'], parent: { project: () => ({ name: 'cross-browser-smoke' }) } });
+    const projectOutput = fs.mkdtempSync(path.join(os.tmpdir(), 'xui-ci-evidence-'));
+    const projectReporter = new EvidenceReporter({ outputFolder: projectOutput, repository: 'rpx-xui-e2e-tests', suite: 'e2e', env: {} });
+    projectReporter.onBegin({}, { allTests: () => [smokeProject] });
+    projectReporter.onTestEnd(smokeProject, result());
+    await projectReporter.onEnd({ status: 'passed' });
+    expect(readEvidence(projectOutput).run.suite).toBe('smoke');
   });
 });
