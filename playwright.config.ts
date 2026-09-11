@@ -137,9 +137,6 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean) => {
   return defaultValue;
 };
 
-const shouldEmitCiEvidence = (env: EnvMap = process.env) =>
-  safeBoolean(env.PLAYWRIGHT_CI_EVIDENCE, Boolean(env.CI || env.JENKINS_URL || env.BUILD_NUMBER));
-
 const firstNonBlank = (...values: Array<string | undefined>): string | undefined =>
   values.map((value) => value?.trim()).find((value): value is string => Boolean(value));
 
@@ -343,6 +340,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
     configured?.length && configured[0] !== ""
       ? configured
       : resolveDefaultReporterNames(env);
+  if (env.CI && env.PLAYWRIGHT_INCLUDE_A11Y !== "true" && env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" && !reporterNames.some(name => name.toLowerCase() === "json")) reporterNames.push("json");
 
   const reporters: ReporterDescription[] = [];
 
@@ -377,6 +375,12 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           {
             outputFile: env.PLAYWRIGHT_JUNIT_OUTPUT ?? "playwright-junit.xml"
           }
+        ]);
+        break;
+      case "json":
+        reporters.push([
+          "json",
+          { outputFile: env.PLAYWRIGHT_JSON_OUTPUT ?? `${resolveOdhinOutputFolder(env)}/ci-evidence/playwright.json` }
         ]);
         break;
       case "odhin":
@@ -426,16 +430,6 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
 
   if (!safeBoolean(env.PW_FLAKE_GATE_DISABLED, false)) {
     reporters.push(["./src/tests/common/reporters/flake-gate.reporter.cjs"]);
-  }
-
-  if (shouldEmitCiEvidence(env)) {
-    reporters.push([
-      "./src/tests/common/reporters/ci-evidence.reporter.cjs",
-      {
-        outputFolder: resolveOdhinOutputFolder(env),
-        repository: "rpx-xui-e2e-tests"
-      }
-    ]);
   }
 
   return reporters;

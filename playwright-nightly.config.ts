@@ -28,9 +28,6 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean): boolean 
   return defaultValue;
 };
 
-const shouldEmitCiEvidence = (env: EnvMap) =>
-  safeBoolean(env.PLAYWRIGHT_CI_EVIDENCE, Boolean(env.CI || env.JENKINS_URL || env.BUILD_NUMBER));
-
 const firstNonBlank = (...values: Array<string | undefined>): string | undefined =>
   values.map((value) => value?.trim()).find((value): value is string => Boolean(value));
 
@@ -189,12 +186,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
             (env.CI ? 0 : 15000)
         }
       ],
-      ...(shouldEmitCiEvidence(env)
-        ? [[
-            "./src/tests/common/reporters/ci-evidence.reporter.cjs",
-            { outputFolder, repository: "rpx-xui-e2e-tests", suite: "e2e-nightly" }
-          ] as ReporterDescription]
-        : [])
+      ...(env.CI && env.PLAYWRIGHT_INCLUDE_A11Y !== "true" && env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" ? [["json", { outputFile: env.PLAYWRIGHT_JSON_OUTPUT ?? `${outputFolder}/ci-evidence/playwright.json` }] as ReporterDescription] : []),
     ],
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",

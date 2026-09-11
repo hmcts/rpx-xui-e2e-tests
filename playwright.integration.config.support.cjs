@@ -13,9 +13,6 @@ const safeBoolean = (value, defaultValue) => {
   return defaultValue;
 };
 
-const shouldEmitCiEvidence = (env) =>
-  safeBoolean(env.PLAYWRIGHT_CI_EVIDENCE, Boolean(env.CI || env.JENKINS_URL || env.BUILD_NUMBER));
-
 const parsePositiveInteger = (value) => {
   if (!value) return undefined;
   const parsed = Number.parseInt(value, 10);
@@ -99,12 +96,7 @@ const buildConfig = (env = process.env) => {
           apiLogs: env.PW_ODHIN_API_LOGS ?? "summary"
         }
       ],
-      ...(shouldEmitCiEvidence(env)
-        ? [[
-            "./src/tests/common/reporters/ci-evidence.reporter.cjs",
-            { outputFolder, repository: "rpx-xui-e2e-tests", suite: "integration" }
-          ]]
-        : [])
+      ...(env.CI ? [["json", { outputFile: env.PLAYWRIGHT_JSON_OUTPUT ?? `${outputFolder}/ci-evidence/playwright.json` }]] : [])
     ],
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
