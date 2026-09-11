@@ -241,7 +241,7 @@ const projectError = (error) => {
   const diagnostic = String(error.message ?? error.value ?? error.name ?? '');
   const category = /\b(?:timeout|timed out|etimedout)\b/i.test(diagnostic)
     ? 'timeout'
-    : /\b(?:expect(?:ed|ation)?|assert(?:ion)?)\b|expect\s*\(/i.test(diagnostic)
+    : /(?:\bexpect\b|\bexpected\b|\bexpectation\b|\bassert\b|\bassertion\b|expect\s*\()/i.test(diagnostic)
       ? 'assertion'
       : /\b(?:target page|browser|context) (?:has been )?closed\b/i.test(diagnostic)
         ? 'browser_closed'
@@ -267,7 +267,7 @@ const deriveResultSignals = (result, errors) => {
   const diagnostic = errors.map((error) => `${error?.name ?? ''} ${error?.message ?? error?.value ?? ''}`).join(' ');
   const signals = [];
   if (result.status === 'timedOut') signals.push({ type: 'runner', category: 'test_timeout' });
-  if (/\b(?:expect(?:ed|ation)?|assert(?:ion)?)\b|expect\s*\(/i.test(diagnostic)) {
+  if (/(?:\bexpect\b|\bexpected\b|\bexpectation\b|\bassert\b|\bassertion\b|expect\s*\()/i.test(diagnostic)) {
     signals.push({ type: 'assertion', category: 'expectation_mismatch' });
   }
   if (/\b(?:target page|browser|context) (?:has been )?closed\b/i.test(diagnostic)) {
