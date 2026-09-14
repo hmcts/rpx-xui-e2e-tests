@@ -340,6 +340,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
     configured?.length && configured[0] !== ""
       ? configured
       : resolveDefaultReporterNames(env);
+  if (env.CI && env.PLAYWRIGHT_INCLUDE_A11Y !== "true" && env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" && !reporterNames.some(name => name.toLowerCase() === "json")) reporterNames.push("json");
 
   const reporters: ReporterDescription[] = [];
 
@@ -374,6 +375,12 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           {
             outputFile: env.PLAYWRIGHT_JUNIT_OUTPUT ?? "playwright-junit.xml"
           }
+        ]);
+        break;
+      case "json":
+        reporters.push([
+          "json",
+          { outputFile: env.PLAYWRIGHT_JSON_OUTPUT ?? `${resolveOdhinOutputFolder(env)}/ci-evidence/playwright.json` }
         ]);
         break;
       case "odhin":

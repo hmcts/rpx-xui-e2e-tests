@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { cpus, totalmem } from "node:os";
 
-import { defineConfig, type PlaywrightTestConfig } from "@playwright/test";
+import { defineConfig, type PlaywrightTestConfig, type ReporterDescription } from "@playwright/test";
 
 import { logResolvedTagFilters, resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
 
@@ -140,6 +140,9 @@ const resolveE2eTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
 const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const e2eTagFilters = resolveE2eTagFilters(env);
   const workers = resolveE2EWorkerCount(env);
+  const outputFolder =
+    firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
+    "functional-output/tests/playwright-e2e/odhin-report";
   logResolvedTagFilters("E2E nightly", e2eTagFilters, env);
 
   return {
@@ -165,9 +168,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
       [
         "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
         {
-          outputFolder:
-            firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
-            "functional-output/tests/playwright-e2e/odhin-report",
+          outputFolder,
           indexFilename: firstNonBlank(env.PW_ODHIN_INDEX, env.PLAYWRIGHT_REPORT_INDEX_FILENAME) ?? "playwright-odhin-nightly.html",
           title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e nightly",
           testEnvironment: resolveOdhinTestEnvironment(env, workers),
@@ -184,7 +185,8 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
             parseNonNegativeInteger(env.PW_ODHIN_RUNTIME_HOOK_TIMEOUT_MS ?? env.PW_ODHIN_HARD_TIMEOUT_MS) ??
             (env.CI ? 0 : 15000)
         }
-      ]
+      ],
+      ...(env.CI && env.PLAYWRIGHT_INCLUDE_A11Y !== "true" && env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" ? [["json", { outputFile: env.PLAYWRIGHT_JSON_OUTPUT ?? `${outputFolder}/ci-evidence/playwright.json` }] as ReporterDescription] : []),
     ],
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
