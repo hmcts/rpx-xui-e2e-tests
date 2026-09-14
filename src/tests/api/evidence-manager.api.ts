@@ -344,17 +344,17 @@ test.describe('Evidence Manager helper coverage', { tag: '@svc-evidence-manager'
       ensureStorageState: async () => 'state.json',
       getStoredCookie: async () => 'token',
       requestFactory: async () => ctx as unknown as UploadRequestContext,
-      uuidFn: () => 'fallback-id',
     });
     expect(uploaded).toBe('doc-1');
     expect(disposed).toBe(true);
   });
 
-  test('uploadSyntheticDoc falls back when response is not ok', async () => {
+  test('uploadSyntheticDoc fails when response is not ok', async () => {
     let disposed = false;
 
     const response = {
       ok: () => false,
+      status: () => 502,
       json: async () => ({}),
     };
     const ctx = {
@@ -364,23 +364,19 @@ test.describe('Evidence Manager helper coverage', { tag: '@svc-evidence-manager'
       },
     };
 
-    const uploaded = await uploadSyntheticDoc({
+    await expect(uploadSyntheticDoc({
       ensureStorageState: async () => 'state.json',
       getStoredCookie: async () => undefined,
       requestFactory: async () => ctx as unknown as UploadRequestContext,
-      uuidFn: () => 'fallback-id',
-    });
-    expect(uploaded).toBe('fallback-id');
+    })).rejects.toThrow('HTTP 502');
     expect(disposed).toBe(true);
   });
 
-  test('uploadSyntheticDoc falls back on errors', async () => {
-    const uploaded = await uploadSyntheticDoc({
+  test('uploadSyntheticDoc preserves setup errors', async () => {
+    await expect(uploadSyntheticDoc({
       ensureStorageState: async () => {
         throw new Error('boom');
       },
-      uuidFn: () => 'fallback-id',
-    });
-    expect(uploaded).toBe('fallback-id');
+    })).rejects.toThrow('boom');
   });
 });

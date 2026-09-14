@@ -165,7 +165,6 @@ type UploadDeps = {
   getStoredCookie?: typeof getStoredCookie;
   requestFactory?: typeof playwrightRequest.newContext;
   resolveUploadedDocId?: typeof resolveUploadedDocId;
-  uuidFn?: typeof uuid;
 };
 
 export async function uploadSyntheticDoc(deps: UploadDeps = {}): Promise<string> {
@@ -174,16 +173,15 @@ export async function uploadSyntheticDoc(deps: UploadDeps = {}): Promise<string>
   const getCookie = deps.getStoredCookie ?? getStoredCookie;
   const requestFactory = deps.requestFactory ?? ((options) => playwrightRequest.newContext(options));
   const resolveId = deps.resolveUploadedDocId ?? resolveUploadedDocId;
-  const uuidFn = deps.uuidFn ?? uuid;
+  const storageState = await ensure('solicitor');
+  const xsrf = await getCookie('solicitor', 'XSRF-TOKEN');
+  const ctx = await requestFactory({
+    baseURL: config.baseUrl.replace(/\/+$/, ''),
+    storageState,
+    ignoreHTTPSErrors: true,
+  });
+  let uploadFailed = false;
   try {
-    const storageState = await ensure('solicitor');
-    const xsrf = await getCookie('solicitor', 'XSRF-TOKEN');
-    const ctx = await requestFactory({
-      baseURL: config.baseUrl.replace(/\/+$/, ''),
-      storageState,
-      ignoreHTTPSErrors: true,
-    });
-
     const res = await ctx.post('documents', {
       multipart: {
         files: {
@@ -194,19 +192,23 @@ export async function uploadSyntheticDoc(deps: UploadDeps = {}): Promise<string>
       },
       headers: buildXsrfHeader(xsrf),
     });
-    if (res.ok()) {
-      const body = await res.json();
-      const id = resolveId(body);
-      if (id) {
-        await ctx.dispose();
-        return id;
-      }
+    if (!res.ok()) {
+      throw new Error(`Synthetic document upload failed: HTTP ${res.status()}`);
     }
-    await ctx.dispose();
-  } catch {
-    // best-effort; fall through
+    const id = resolveId(await res.json());
+    if (!id?.trim()) {
+      throw new Error('Synthetic document upload returned no document ID');
+    }
+    return id;
+  } catch (error) {
+    uploadFailed = true;
+    throw error;
+  } finally {
+    await ctx.dispose().catch((error) => {
+      // Keep the upload failure authoritative if cleanup also fails.
+      if (!uploadFailed) throw error;
+    });
   }
-  return uuidFn();
 }
 
 function getAnnotations(data: unknown): unknown[] {

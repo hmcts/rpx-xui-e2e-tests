@@ -11,8 +11,11 @@ test.describe("@api @smoke", () => {
       ignoreHTTPSErrors: true
     });
 
-    const response = await apiRequest.get("/health");
-    expect.soft([200, 401, 403]).toContain(response.status());
-    await apiRequest.dispose();
+    try {
+      const response = await apiRequest.get("/health");
+      expect(response.status()).toBe(200);
+    } finally {
+      await apiRequest.dispose();
+    }
   });
 });
