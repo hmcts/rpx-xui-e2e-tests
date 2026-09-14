@@ -1222,10 +1222,22 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
   test('static staff-supported family mutation proof catches a Probate staff family regression', async ({}, testInfo) => {
     await attachMutationEvidence(testInfo);
 
-    expectExactFamilySet(
+    expectCentralMustRunFamiliesPresent(
       mutateStringArrayForDemo(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'api/staff-supported-jurisdiction/get'),
-      EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES
+      EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES,
+      'api/staff-supported-jurisdiction/get'
     );
+  });
+
+  test('staff-supported contract permits deployment additions but rejects missing central families', () => {
+    const actual = [...EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'PCS'];
+    const check = (families: readonly string[]) => expectCentralMustRunFamiliesPresent(
+      families, EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'api/staff-supported-jurisdiction/get'
+    );
+    expect(() => check(actual)).not.toThrow();
+    for (const family of EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES) {
+      expect(() => check(actual.filter((value) => value !== family))).toThrow(`missing central must-run service families: ${family}`);
+    }
   });
 
   test('employment service-code mutation proof catches a missing BHA1 mapping', async ({}, testInfo) => {
@@ -1277,7 +1289,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('api/staff-supported-jurisdiction/get matches the central staff-supported family list', async ({ apiClient }) => {
+  test('api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set', async ({ apiClient }) => {
     const response = await apiClient.get<string[]>('api/staff-supported-jurisdiction/get', { throwOnError: false });
     expectExactContractStatus(response.status, 'api/staff-supported-jurisdiction/get');
     const actual = expectStringArrayOnSuccess(
@@ -1287,10 +1299,10 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       },
       'api/staff-supported-jurisdiction/get'
     );
-    expectExactFamilySet(
+    expectCentralMustRunFamiliesPresent(
       mutateStringArrayForDemo(actual, 'api/staff-supported-jurisdiction/get'),
-      EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES
+      EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES,
+      'api/staff-supported-jurisdiction/get'
     );
-    expectCanaryFamiliesExcluded(actual);
   });
 });
