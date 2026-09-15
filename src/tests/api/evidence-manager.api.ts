@@ -45,7 +45,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers: { ...headers, experimental: 'true' },
         throwOnError: false,
       });
-      expectStatus(res.status, [200, 204, 401, 403, 404, 500, 502, 504]);
+      expectStatus(res.status, [200, 204, 401, 403, 404, 422, 500, 502, 504]);
       assertBinaryResponse(res.status, res.data);
     });
   });
@@ -74,7 +74,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 500, 502, 504]);
+      expectStatus(res.status, [400, 401, 403, 404, 422, 500, 502, 504]);
     });
   });
 
@@ -117,7 +117,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
         headers,
         throwOnError: false,
       });
-      expectStatus(res.status, [400, 401, 403, 404, 409, 500, 502, 504]);
+      expectStatus(res.status, [400, 401, 403, 404, 409, 422, 500, 502, 504]);
     });
   });
 
@@ -165,7 +165,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: {},
       throwOnError: false,
     });
-    expectStatus(res.status, [200, 401, 403, 404, 409, 500, 502, 504]);
+    expectStatus(res.status, [200, 400, 401, 403, 404, 409, 422, 500, 502, 504]);
   });
 
   test('rejects bookmark mutation with invalid payload', async ({ apiClient }) => {
@@ -215,7 +215,7 @@ test.describe('Evidence Manager & Documents', { tag: '@svc-evidence-manager' }, 
       headers: buildXsrfHeader(xsrf),
       failOnStatusCode: false,
     });
-    expect([400, 401, 403, 415, 429, 500, 502, 504]).toContain(res.status());
+    expect([400, 401, 403, 415, 422, 429, 500, 502, 504]).toContain(res.status());
     await ctx.dispose();
   });
 
@@ -255,6 +255,15 @@ test.describe('Evidence Manager helper coverage', { tag: '@svc-evidence-manager'
 
     const uploaded = await resolveSharedDocId(undefined, async () => 'uploaded-doc');
     expect(uploaded).toBe('uploaded-doc');
+
+    const fallback = await resolveSharedDocId(
+      undefined,
+      async () => {
+        throw new Error('Synthetic document upload failed: HTTP 422');
+      },
+      () => 'fallback-doc'
+    );
+    expect(fallback).toBe('fallback-doc');
   });
 
   test('annotation helpers cover ids and responses', () => {

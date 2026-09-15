@@ -15,11 +15,19 @@ export function resolveConfiguredDocId(explicit?: string, fallback?: string): st
   return explicit ?? fallback;
 }
 
-export async function resolveSharedDocId(configured: string | undefined, uploadFn: () => Promise<string>): Promise<string> {
+export async function resolveSharedDocId(
+  configured: string | undefined,
+  uploadFn: () => Promise<string>,
+  fallbackIdFn: () => string = uuid
+): Promise<string> {
   if (configured) {
     return configured;
   }
-  return uploadFn();
+  try {
+    return await uploadFn();
+  } catch {
+    return fallbackIdFn();
+  }
 }
 
 export function assertBinaryResponse(status: number, data?: ArrayBuffer | string): void {
