@@ -296,13 +296,13 @@ def hasCourtAdminUiCredentials = {
   env.COURT_ADMIN_USERNAME?.trim() && env.COURT_ADMIN_PASSWORD?.trim()
 }
 
-def runPlaywrightShell = { String command ->
+def runPlaywrightShell = { String command, String browsers = "" ->
   sh(
     script: """#!/usr/bin/env bash
       set -euxo pipefail
       export PATH="\$HOME/.local/bin:\$PATH"
       corepack yarn --version
-      ${command}
+      ${browsers ? "node scripts/verify-playwright-browsers.cjs ${browsers} &&" : ""} ${command}
     """.stripIndent()
   )
 }
@@ -445,7 +445,7 @@ def runCnpPlaywrightStages = {
       try {
         runInPlaywrightContainer {
           withEnv(harnessEnv) {
-            runPlaywrightShell('corepack yarn harness:ci')
+            runPlaywrightShell('corepack yarn harness:ci', 'chromium')
           }
         }
       } catch (Exception e) {
@@ -481,7 +481,7 @@ def runCnpPlaywrightStages = {
       try {
         runInPlaywrightContainer {
           withEnv(apiEnv) {
-            runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${apiWorkers}")
+            runPlaywrightShell("corepack yarn test:api:ci:raw -- --workers=${apiWorkers}", "chromium")
           }
         }
       } catch (Exception e) {
@@ -531,7 +531,7 @@ def runCnpPlaywrightStages = {
         } else {
           runInPlaywrightContainer {
             withEnv(uiEnv) {
-              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${uiWorkers}")
+              runPlaywrightShell("corepack yarn test:ui:raw -- --workers=${uiWorkers}", "chromium")
             }
           }
         }
@@ -579,7 +579,7 @@ def runCnpPlaywrightStages = {
       try {
         runInPlaywrightContainer {
           withEnv(integrationEnv) {
-            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${integrationWorkers}")
+            runPlaywrightShell("corepack yarn test:integration:raw -- --workers=${integrationWorkers}", "chromium")
           }
         }
       } catch (Exception e) {
