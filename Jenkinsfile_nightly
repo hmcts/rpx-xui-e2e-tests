@@ -272,7 +272,7 @@ def runInPlaywrightContainer = { Closure body ->
   }
 }
 
-def runPlaywrightCommand = { String command ->
+def runPlaywrightCommand = { String command, String browsers = "chromium" ->
   if (!params.PLAYWRIGHT_USE_DOCKER) {
     yarnBuilder.yarn(command)
     return
@@ -280,7 +280,7 @@ def runPlaywrightCommand = { String command ->
   def shellCommand = command.startsWith('node ') ? command : "corepack yarn ${command}"
   steps.sh """
     set +ex
-    ${shellCommand}
+    node scripts/verify-playwright-browsers.cjs ${browsers} && ${shellCommand}
   """
 }
 
@@ -649,7 +649,7 @@ withNightlyPipeline(type, product, component, 400) {
             } else {
               runInPlaywrightContainer {
                 withEnv(uiOdhinEnv) {
-                  runPlaywrightCommand('test:crossbrowser:raw')
+                  runPlaywrightCommand('test:crossbrowser:raw', 'firefox webkit')
                 }
               }
             }
