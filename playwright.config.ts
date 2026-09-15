@@ -518,7 +518,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
           headless: !safeBoolean(env.HEAD, false),
-          trace: "retain-on-failure",
+          trace: { mode: "retain-on-failure", snapshots: { dom: true, aria: true, screen: true } },
           screenshot: "only-on-failure",
           video: "off",
           storageState: shouldUseUiStorage() ? resolveUiStoragePath() : undefined,
@@ -541,7 +541,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
           headless: !safeBoolean(env.HEAD, false),
-          trace: "retain-on-failure",
+          trace: { mode: "retain-on-failure", snapshots: { dom: true, aria: true, screen: true } },
           screenshot: "only-on-failure",
           video: "off",
           serviceWorkers: "block",
@@ -564,7 +564,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
           headless: !safeBoolean(env.HEAD, false),
-          trace: "retain-on-failure",
+          trace: { mode: "retain-on-failure", snapshots: { dom: true, aria: true, screen: true } },
           screenshot: "only-on-failure",
           video: "off",
           serviceWorkers: "block",
@@ -587,7 +587,7 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: true,
           screenshot: "off",
           video: "off",
-          trace: "off"
+          trace: { mode: "retain-on-failure", snapshots: { dom: true, aria: true, screen: true } }
         }
       }
     ]
