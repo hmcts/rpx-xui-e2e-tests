@@ -432,6 +432,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
     reporters.push(["./src/tests/common/reporters/flake-gate.reporter.cjs"]);
   }
 
+  if (safeBoolean(env.PW_ENABLE_PERFETTO, true)) reporters.push(["perfetto"]);
   return reporters;
 };
 
@@ -497,7 +498,9 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
       ignoreHTTPSErrors: true,
-      trace: "retain-on-failure",
+      trace: process.env.PW_TRACE_RICH !== "false"
+        ? { mode: "retain-on-failure", snapshots: { dom: true, aria: true, screen: true } }
+        : "retain-on-failure",
       screenshot: "only-on-failure",
       video: "off"
     },
