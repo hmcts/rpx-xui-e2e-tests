@@ -51,3 +51,14 @@ for (const pipeline of ['Jenkinsfile_CNP', 'Jenkinsfile_nightly']) {
     }
   });
 }
+
+
+test('every configured Jenkins test suite selects its required browsers', () => {
+  const cnp = readFileSync('Jenkinsfile_CNP', 'utf8');
+  const suiteCalls = cnp.split('\n').filter((line) => /runPlaywrightShell\(['"]corepack yarn (?:harness:ci|test:)/.test(line));
+  assert.equal(suiteCalls.length, 4);
+  for (const line of suiteCalls) assert.match(line, /, ['"]chromium['"]\)/);
+  const nightly = readFileSync('Jenkinsfile_nightly', 'utf8');
+  assert.match(nightly, /def runPlaywrightCommand = \{ String command, String browsers = "chromium" ->/);
+  assert.match(nightly, /runPlaywrightCommand\('test:crossbrowser:raw', 'firefox webkit'\)/);
+});
