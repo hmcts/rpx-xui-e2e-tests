@@ -432,6 +432,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
     reporters.push(["./src/tests/common/reporters/flake-gate.reporter.cjs"]);
   }
 
+  if (safeBoolean(env.PW_ENABLE_PERFETTO, false)) reporters.push(["perfetto"]);
   return reporters;
 };
 
