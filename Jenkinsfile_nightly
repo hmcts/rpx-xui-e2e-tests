@@ -332,7 +332,7 @@ def stagePerfettoArtifacts = {
   sh(
     script: '''#!/usr/bin/env bash
       set -eu
-      for mapping in api:playwright-api integration:playwright-integration integration-nightly:playwright-integration-nightly ui:playwright-e2e; do
+      for mapping in api:playwright-api integration:playwright-integration integration-nightly:playwright-integration ui:playwright-e2e; do
         source=${mapping%%:*}
         suite=${mapping##*:}
         for file in test-results/${source}/perfetto*.json; do
