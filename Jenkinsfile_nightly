@@ -327,6 +327,24 @@ def recordPlaywrightContainerDiagnostics = {
   }
 }
 
+
+def stagePerfettoArtifacts = {
+  sh(
+    script: '''#!/usr/bin/env bash
+      set -eu
+      for mapping in api:playwright-api integration:playwright-integration integration-nightly:playwright-integration ui:playwright-e2e; do
+        source=${mapping%%:*}
+        suite=${mapping##*:}
+        for file in test-results/${source}/perfetto*.json; do
+          [ -f "$file" ] || continue
+          mkdir -p "functional-output/tests/${suite}/test-results"
+          cp "$file" "functional-output/tests/${suite}/test-results/$(basename "$file")"
+        done
+      done
+    '''.stripIndent()
+  )
+}
+
 def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
   if (!fileExists('scripts/ensure-load-profile-report.cjs')) {
     echo "[playwright-report] Skipping ${reportName}: scripts/ensure-load-profile-report.cjs is unavailable in the current workspace."
@@ -349,6 +367,7 @@ def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
     fi
   """
   archiveArtifacts allowEmptyArchive: true, artifacts: "${slimReportDir}/${playwrightLoadProfileReportFile}"
+  stagePerfettoArtifacts()
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
   publishHTML([
     allowMissing         : true,
@@ -669,7 +688,8 @@ withNightlyPipeline(type, product, component, 400) {
               reportName           : 'UI nightly report (Odhín)'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
+            stagePerfettoArtifacts()
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('UI', 'finish')
           }
         }
