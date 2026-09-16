@@ -57,9 +57,12 @@ test.describe(`@nightly Welsh language backend smoke as ${userIdentifier}`, { ta
       | { translations?: Record<string, unknown> }
       | null;
     expect(payload).not.toBeNull();
-    expect(Object.keys(payload?.translations ?? {}).length).toBeGreaterThan(0);
+    expect(payload?.translations).toHaveProperty("Case list");
 
-    await caseListPage.exuiHeader.waitForRenderedLanguageState("Cymraeg");
-    await expect(page.getByRole("heading", { name: "Rhestr achosion" })).toBeVisible();
+    await expect(caseListPage.exuiHeader.languageToggle).toContainText("English");
+    await expect(caseListPage.exuiHeader.notificationBannerTitle).toContainText("Pwysig");
+    await expect(caseListPage.exuiHeader.notificationBannerContent).toContainText(
+      "Nid yw rhai sgriniau yn y gwasanaeth hwn wedi'u cyfieithu i'r Gymraeg eto"
+    );
   });
 });
