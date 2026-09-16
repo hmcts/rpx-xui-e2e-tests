@@ -4,22 +4,11 @@ import { cpus, homedir, totalmem } from "node:os";
 import path from "node:path";
 
 import { CommonConfig, ProjectsConfig } from "@hmcts/playwright-common";
-import {
-  defineConfig,
-  type PlaywrightTestConfig,
-  type ReporterDescription,
-} from "@playwright/test";
+import { defineConfig, type PlaywrightTestConfig, type ReporterDescription } from "@playwright/test";
 import { config as loadEnv } from "dotenv";
 
-import {
-  logResolvedTagFilters,
-  resolveTagFilters,
-  type ResolvedTagFilters,
-} from "./playwright-config-utils.js";
-import {
-  resolveUiStoragePath,
-  shouldUseUiStorage,
-} from "./src/utils/ui/storage-state.utils.js";
+import { logResolvedTagFilters, resolveTagFilters, type ResolvedTagFilters } from "./playwright-config-utils.js";
+import { resolveUiStoragePath, shouldUseUiStorage } from "./src/utils/ui/storage-state.utils.js";
 
 export type EnvMap = Record<string, string | undefined>;
 
@@ -80,23 +69,23 @@ const runtimeOverrideKeys = [
   "PW_ODHIN_TEST_FOLDER",
   "PW_ODHIN_API_LOGS",
   "PW_ODHIN_LIGHTWEIGHT",
-  "PW_ODHIN_CONSOLE_TEST_OUTPUT",
+  "PW_ODHIN_CONSOLE_TEST_OUTPUT"
 ] as const;
 
 const captureRuntimeOverrides = <TKey extends string>(
   env: EnvMap,
-  keys: readonly TKey[],
+  keys: readonly TKey[]
 ): Partial<Record<TKey, string>> =>
   Object.fromEntries(
     keys.flatMap((key) => {
       const value = env[key];
       return value === undefined ? [] : [[key, value]];
-    }),
+    })
   ) as Partial<Record<TKey, string>>;
 
 const restoreRuntimeOverrides = <TKey extends string>(
   env: EnvMap,
-  overrides: Partial<Record<TKey, string>>,
+  overrides: Partial<Record<TKey, string>>
 ) => {
   for (const key of Object.keys(overrides) as TKey[]) {
     const value = overrides[key];
@@ -106,23 +95,18 @@ const restoreRuntimeOverrides = <TKey extends string>(
   }
 };
 
-const runtimeOverrides = captureRuntimeOverrides(
-  process.env,
-  runtimeOverrideKeys,
-);
+const runtimeOverrides = captureRuntimeOverrides(process.env, runtimeOverrideKeys);
 
 loadEnv({
   path: path.resolve(process.cwd(), ".env"),
   quiet: true,
-  override: false,
+  override: false
 });
 
 restoreRuntimeOverrides(process.env, runtimeOverrides);
 
 const require = createRequire(import.meta.url);
-const { version: appVersion } = require("./package.json") as {
-  version: string;
-};
+const { version: appVersion } = require("./package.json") as { version: string };
 
 const truthy = new Set(["1", "true", "yes", "on"]);
 const falsy = new Set(["0", "false", "no", "off"]);
@@ -153,31 +137,22 @@ const safeBoolean = (value: string | undefined, defaultValue: boolean) => {
   return defaultValue;
 };
 
-const firstNonBlank = (
-  ...values: Array<string | undefined>
-): string | undefined =>
-  values
-    .map((value) => value?.trim())
-    .find((value): value is string => Boolean(value));
+const firstNonBlank = (...values: Array<string | undefined>): string | undefined =>
+  values.map((value) => value?.trim()).find((value): value is string => Boolean(value));
 
-const parsePositiveInteger = (
-  value: string | undefined,
-): number | undefined => {
+const parsePositiveInteger = (value: string | undefined): number | undefined => {
   if (!value) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) || parsed <= 0 ? undefined : parsed;
 };
 
-const parseNonNegativeInteger = (
-  value: string | undefined,
-): number | undefined => {
+const parseNonNegativeInteger = (value: string | undefined): number | undefined => {
   if (value === undefined) return undefined;
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) || parsed < 0 ? undefined : parsed;
 };
 
-const formatGib = (bytes: number): string =>
-  (bytes / 1024 / 1024 / 1024).toFixed(1);
+const formatGib = (bytes: number): string => (bytes / 1024 / 1024 / 1024).toFixed(1);
 
 const readTrimmedFile = (filePath: string): string | undefined => {
   try {
@@ -193,27 +168,14 @@ const resolveCgroupCpuCores = (): number | undefined => {
     const [quotaRaw, periodRaw] = cpuMax.split(/\s+/);
     const quota = Number(quotaRaw);
     const period = Number(periodRaw);
-    if (
-      quotaRaw !== "max" &&
-      Number.isFinite(quota) &&
-      Number.isFinite(period) &&
-      quota > 0 &&
-      period > 0
-    ) {
+    if (quotaRaw !== "max" && Number.isFinite(quota) && Number.isFinite(period) && quota > 0 && period > 0) {
       return Math.max(1, Math.round(quota / period));
     }
   }
 
   const quota = Number(readTrimmedFile("/sys/fs/cgroup/cpu/cpu.cfs_quota_us"));
-  const period = Number(
-    readTrimmedFile("/sys/fs/cgroup/cpu/cpu.cfs_period_us"),
-  );
-  if (
-    Number.isFinite(quota) &&
-    Number.isFinite(period) &&
-    quota > 0 &&
-    period > 0
-  ) {
+  const period = Number(readTrimmedFile("/sys/fs/cgroup/cpu/cpu.cfs_period_us"));
+  if (Number.isFinite(quota) && Number.isFinite(period) && quota > 0 && period > 0) {
     return Math.max(1, Math.round(quota / period));
   }
 
@@ -222,77 +184,45 @@ const resolveCgroupCpuCores = (): number | undefined => {
 
 const resolveCgroupMemoryLimitBytes = (): number | undefined => {
   const totalMemoryBytes = totalmem();
-  for (const filePath of [
-    "/sys/fs/cgroup/memory.max",
-    "/sys/fs/cgroup/memory/memory.limit_in_bytes",
-  ]) {
+  for (const filePath of ["/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes"]) {
     const rawLimit = readTrimmedFile(filePath);
     if (!rawLimit || rawLimit === "max") {
       continue;
     }
     const limitBytes = Number(rawLimit);
-    if (
-      Number.isFinite(limitBytes) &&
-      limitBytes > 0 &&
-      limitBytes <= totalMemoryBytes * 2
-    ) {
+    if (Number.isFinite(limitBytes) && limitBytes > 0 && limitBytes <= totalMemoryBytes * 2) {
       return limitBytes;
     }
   }
   return undefined;
 };
 
-const resolveAgentCpuCores = (): number =>
-  resolveCgroupCpuCores() ?? cpus()?.length ?? 1;
-const resolveAgentRamGib = (): string =>
-  formatGib(resolveCgroupMemoryLimitBytes() ?? totalmem());
+const resolveAgentCpuCores = (): number => resolveCgroupCpuCores() ?? cpus()?.length ?? 1;
+const resolveAgentRamGib = (): string => formatGib(resolveCgroupMemoryLimitBytes() ?? totalmem());
 
-const appendEnvironmentSegment = (
-  segments: string[],
-  key: string,
-  value: string,
-) => {
-  if (
-    !segments.some(
-      (segment) => segment === value || segment.startsWith(`${key}=`),
-    )
-  ) {
+const appendEnvironmentSegment = (segments: string[], key: string, value: string) => {
+  if (!segments.some((segment) => segment === value || segment.startsWith(`${key}=`))) {
     segments.push(value);
   }
 };
 
 const resolveWorkerCount = (env: EnvMap = process.env) => {
-  const configured = parsePositiveInteger(
-    env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS,
-  );
-  const maxWorkers = Math.min(
-    parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS,
-    ABSOLUTE_MAX_WORKERS,
-  );
+  const configured = parsePositiveInteger(env.PLAYWRIGHT_WORKERS ?? env.FUNCTIONAL_TESTS_WORKERS);
+  const maxWorkers = Math.min(parsePositiveInteger(env.PLAYWRIGHT_MAX_WORKERS) ?? DEFAULT_MAX_WORKERS, ABSOLUTE_MAX_WORKERS);
   if (configured) return Math.min(maxWorkers, configured);
   return maxWorkers;
 };
 
-const resolveApiProjectWorkerCount = (env: EnvMap = process.env) =>
-  resolveWorkerCount(env);
+const resolveApiProjectWorkerCount = (env: EnvMap = process.env) => resolveWorkerCount(env);
 
 const resolveUiProjectWorkerCount = (env: EnvMap = process.env) => {
-  const configured = parsePositiveInteger(
-    env.PW_UI_WORKERS ?? env.PLAYWRIGHT_UI_WORKERS,
-  );
+  const configured = parsePositiveInteger(env.PW_UI_WORKERS ?? env.PLAYWRIGHT_UI_WORKERS);
   if (configured) return configured;
   return Math.min(MAX_UI_WORKERS, resolveWorkerCount(env));
 };
 
-const resolveOdhinTestEnvironment = (
-  env: EnvMap = process.env,
-  workers = resolveWorkerCount(env),
-) => {
-  const baseEnvironment =
-    firstNonBlank(env.PW_ODHIN_ENV) ??
-    env.TEST_ENV ??
-    env.TEST_ENVIRONMENT ??
-    (env.CI ? "ci" : "aat");
+const resolveOdhinTestEnvironment = (env: EnvMap = process.env, workers = resolveWorkerCount(env)) => {
+  const baseEnvironment = firstNonBlank(env.PW_ODHIN_ENV) ?? env.TEST_ENV ?? env.TEST_ENVIRONMENT ?? (env.CI ? "ci" : "aat");
   const segments = baseEnvironment
     .split("|")
     .map((segment) => segment.trim())
@@ -305,16 +235,8 @@ const resolveOdhinTestEnvironment = (
   appendEnvironmentSegment(segments, "workers", `workers=${workers}`);
 
   if (env.CI) {
-    appendEnvironmentSegment(
-      segments,
-      "agent_cpu_cores",
-      `agent_cpu_cores=${resolveAgentCpuCores()}`,
-    );
-    appendEnvironmentSegment(
-      segments,
-      "agent_ram_gib",
-      `agent_ram_gib=${resolveAgentRamGib()}`,
-    );
+    appendEnvironmentSegment(segments, "agent_cpu_cores", `agent_cpu_cores=${resolveAgentCpuCores()}`);
+    appendEnvironmentSegment(segments, "agent_ram_gib", `agent_ram_gib=${resolveAgentRamGib()}`);
   }
 
   return segments.join(" | ");
@@ -329,7 +251,7 @@ const resolveApiTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
     defaultConfigPath: "src/tests/api/service-tag-filter.json",
     globalExcludedTagsEnvVar: "PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS",
     ignoreGlobalExcludesEnvVar: "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES",
-    globalExcludedTagsPattern: API_GLOBAL_EXCLUDED_TAGS_PATTERN,
+    globalExcludedTagsPattern: API_GLOBAL_EXCLUDED_TAGS_PATTERN
   });
 
 const resolveE2eTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
@@ -342,12 +264,10 @@ const resolveE2eTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
     suiteTag: "@e2e",
     globalExcludedTagsEnvVar: "PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS",
     ignoreGlobalExcludesEnvVar: "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES",
-    globalExcludedTagsPattern: E2E_GLOBAL_EXCLUDED_TAGS_PATTERN,
+    globalExcludedTagsPattern: E2E_GLOBAL_EXCLUDED_TAGS_PATTERN
   });
 
-const resolveIntegrationTagFilters = (
-  env: EnvMap = process.env,
-): ResolvedTagFilters =>
+const resolveIntegrationTagFilters = (env: EnvMap = process.env): ResolvedTagFilters =>
   resolveTagFilters({
     env,
     includeTagsEnvVar: "INTEGRATION_PW_INCLUDE_TAGS",
@@ -357,13 +277,10 @@ const resolveIntegrationTagFilters = (
     suiteTag: "@integration",
     globalExcludedTagsEnvVar: "PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS",
     ignoreGlobalExcludesEnvVar: "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES",
-    globalExcludedTagsPattern: INTEGRATION_GLOBAL_EXCLUDED_TAGS_PATTERN,
+    globalExcludedTagsPattern: INTEGRATION_GLOBAL_EXCLUDED_TAGS_PATTERN
   });
 
-const removeTagInput = (
-  rawTags: string | undefined,
-  tagToRemove: string,
-): string | undefined => {
+const removeTagInput = (rawTags: string | undefined, tagToRemove: string): string | undefined => {
   if (!rawTags?.trim()) {
     return rawTags;
   }
@@ -373,10 +290,7 @@ const removeTagInput = (
     .join(",");
 };
 
-const withIntegrationBucket6Excluded = (
-  rawTags: string | undefined,
-  fallbackTags: string,
-): string => {
+const withIntegrationBucket6Excluded = (rawTags: string | undefined, fallbackTags: string): string => {
   const tags = (rawTags?.trim() || fallbackTags)
     .split(/[\s,]+/)
     .filter((tag) => tag && tag !== "@none");
@@ -387,24 +301,19 @@ const withIntegrationBucket6Excluded = (
 };
 
 const resolveOdhinOutputFolder = (env: EnvMap = process.env) =>
-  firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ??
-  "test-results/odhin-report";
+  firstNonBlank(env.PLAYWRIGHT_REPORT_FOLDER, env.PW_ODHIN_OUTPUT) ?? "test-results/odhin-report";
 
 const resolveOdhinIndexFilename = (env: EnvMap = process.env) =>
-  firstNonBlank(env.PW_ODHIN_INDEX, env.PLAYWRIGHT_REPORT_INDEX_FILENAME) ??
-  "playwright-odhin.html";
+  firstNonBlank(env.PW_ODHIN_INDEX, env.PLAYWRIGHT_REPORT_INDEX_FILENAME) ?? "playwright-odhin.html";
 
 const resolveOdhinProject = (env: EnvMap = process.env) =>
-  firstNonBlank(env.PLAYWRIGHT_REPORT_PROJECT, env.PW_ODHIN_PROJECT) ??
-  "rpx-xui-e2e-tests";
+  firstNonBlank(env.PLAYWRIGHT_REPORT_PROJECT, env.PW_ODHIN_PROJECT) ?? "rpx-xui-e2e-tests";
 
 const resolveOdhinRelease = (env: EnvMap = process.env) =>
   firstNonBlank(env.PLAYWRIGHT_REPORT_RELEASE, env.PW_ODHIN_RELEASE) ??
   `${appVersion} | branch=${env.GIT_BRANCH ?? "local"}`;
 
-const resolveOdhinTestOutput = (
-  env: EnvMap = process.env,
-): boolean | "only-on-failure" => {
+const resolveOdhinTestOutput = (env: EnvMap = process.env): boolean | "only-on-failure" => {
   const configured = env.PW_ODHIN_TEST_OUTPUT;
   if (configured?.trim()) {
     const normalised = configured.trim().toLowerCase();
@@ -422,7 +331,8 @@ const resolveOdhinTestOutput = (
 };
 
 const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
-  const configured = env.PLAYWRIGHT_REPORTERS?.split(",")
+  const configured = env.PLAYWRIGHT_REPORTERS
+    ?.split(",")
     .map((name) => name.trim())
     .filter(Boolean);
 
@@ -430,13 +340,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
     configured?.length && configured[0] !== ""
       ? configured
       : resolveDefaultReporterNames(env);
-  if (
-    env.CI &&
-    env.PLAYWRIGHT_INCLUDE_A11Y !== "true" &&
-    env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" &&
-    !reporterNames.some((name) => name.toLowerCase() === "json")
-  )
-    reporterNames.push("json");
+  if (env.CI && env.PLAYWRIGHT_INCLUDE_A11Y !== "true" && env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" && !reporterNames.some(name => name.toLowerCase() === "json")) reporterNames.push("json");
 
   const reporters: ReporterDescription[] = [];
 
@@ -460,26 +364,23 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           "html",
           {
             open: env.PLAYWRIGHT_HTML_OPEN ?? "never",
-            outputFolder: env.PLAYWRIGHT_HTML_OUTPUT ?? "playwright-report",
-          },
+            outputFolder:
+              env.PLAYWRIGHT_HTML_OUTPUT ?? "playwright-report"
+          }
         ]);
         break;
       case "junit":
         reporters.push([
           "junit",
           {
-            outputFile: env.PLAYWRIGHT_JUNIT_OUTPUT ?? "playwright-junit.xml",
-          },
+            outputFile: env.PLAYWRIGHT_JUNIT_OUTPUT ?? "playwright-junit.xml"
+          }
         ]);
         break;
       case "json":
         reporters.push([
           "json",
-          {
-            outputFile:
-              env.PLAYWRIGHT_JSON_OUTPUT ??
-              `${resolveOdhinOutputFolder(env)}/ci-evidence/playwright.json`,
-          },
+          { outputFile: env.PLAYWRIGHT_JSON_OUTPUT ?? `${resolveOdhinOutputFolder(env)}/ci-evidence/playwright.json` }
         ]);
         break;
       case "odhin":
@@ -488,62 +389,37 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           "./src/tests/common/reporters/odhin-progress.reporter.cjs",
           {
             enabled: true,
-            graceMs:
-              parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_GRACE_MS) ?? 1500,
-            intervalMs:
-              parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_INTERVAL_MS) ??
-              5000,
+            graceMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_GRACE_MS) ?? 1500,
+            intervalMs: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_INTERVAL_MS) ?? 5000,
             hardTimeoutMs:
-              parseNonNegativeInteger(
-                env.PW_ODHIN_PROGRESS_HARD_TIMEOUT_MS ??
-                  env.PW_ODHIN_HARD_TIMEOUT_MS,
-              ) ?? (env.CI ? 0 : 30000),
-            timeoutExitCode:
-              parseNonNegativeInteger(
-                env.PW_ODHIN_PROGRESS_TIMEOUT_EXIT_CODE,
-              ) ?? 1,
-            completionExitDelayMs:
-              parseNonNegativeInteger(env.PW_ODHIN_COMPLETION_EXIT_DELAY_MS) ??
-              (env.CI ? 1000 : 0),
-            forceExitOnCompletion: safeBoolean(
-              env.PW_ODHIN_FORCE_EXIT_ON_COMPLETION,
-              Boolean(env.CI),
-            ),
-          },
+              parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_HARD_TIMEOUT_MS ?? env.PW_ODHIN_HARD_TIMEOUT_MS) ??
+              (env.CI ? 0 : 30000),
+            timeoutExitCode: parseNonNegativeInteger(env.PW_ODHIN_PROGRESS_TIMEOUT_EXIT_CODE) ?? 1,
+            completionExitDelayMs: parseNonNegativeInteger(env.PW_ODHIN_COMPLETION_EXIT_DELAY_MS) ?? (env.CI ? 1000 : 0),
+            forceExitOnCompletion: safeBoolean(env.PW_ODHIN_FORCE_EXIT_ON_COMPLETION, Boolean(env.CI))
+          }
         ]);
         reporters.push([
           "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
           {
             outputFolder: resolveOdhinOutputFolder(env),
             indexFilename: resolveOdhinIndexFilename(env),
-            title:
-              firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e Playwright",
-            testEnvironment: resolveOdhinTestEnvironment(
-              env,
-              resolveWorkerCount(env),
-            ),
+            title: firstNonBlank(env.PW_ODHIN_TITLE) ?? "rpx-xui-e2e Playwright",
+            testEnvironment: resolveOdhinTestEnvironment(env, resolveWorkerCount(env)),
             project: resolveOdhinProject(env),
             release: resolveOdhinRelease(env),
             testFolder: firstNonBlank(env.PW_ODHIN_TEST_FOLDER) ?? "src/tests",
             startServer: safeBoolean(env.PW_ODHIN_START_SERVER, false),
             lightweight: safeBoolean(env.PW_ODHIN_LIGHTWEIGHT, !env.CI),
             consoleLog: safeBoolean(env.PW_ODHIN_CONSOLE_LOG, true),
-            simpleConsoleLog: safeBoolean(
-              env.PW_ODHIN_SIMPLE_CONSOLE_LOG,
-              false,
-            ),
+            simpleConsoleLog: safeBoolean(env.PW_ODHIN_SIMPLE_CONSOLE_LOG, false),
             consoleError: safeBoolean(env.PW_ODHIN_CONSOLE_ERROR, true),
-            consoleTestOutput: safeBoolean(
-              env.PW_ODHIN_CONSOLE_TEST_OUTPUT,
-              true,
-            ),
+            consoleTestOutput: safeBoolean(env.PW_ODHIN_CONSOLE_TEST_OUTPUT, true),
             testOutput: resolveOdhinTestOutput(env),
             apiLogs: env.PW_ODHIN_API_LOGS ?? "summary",
             profile: safeBoolean(env.PW_ODHIN_PROFILE, true),
-            runtimeHookTimeoutMs:
-              parsePositiveInteger(env.PW_ODHIN_RUNTIME_HOOK_TIMEOUT_MS) ??
-              (env.CI ? 0 : 15000),
-          },
+            runtimeHookTimeoutMs: parsePositiveInteger(env.PW_ODHIN_RUNTIME_HOOK_TIMEOUT_MS) ?? (env.CI ? 0 : 15000)
+          }
         ]);
         break;
       default:
@@ -560,9 +436,7 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
   return reporters;
 };
 
-const resolveChromiumExecutablePath = (
-  env: EnvMap = process.env,
-): string | undefined => {
+const resolveChromiumExecutablePath = (env: EnvMap = process.env): string | undefined => {
   const override = env.PW_CHROMIUM_PATH;
   if (override?.trim()) return override;
   if (process.platform !== "darwin" || process.arch !== "arm64") {
@@ -573,9 +447,7 @@ const resolveChromiumExecutablePath = (
     path.join(homedir(), "Library", "Caches", "ms-playwright");
   if (!existsSync(root)) return undefined;
   const candidates = readdirSync(root, { withFileTypes: true })
-    .filter(
-      (entry) => entry.isDirectory() && entry.name.startsWith("chromium-"),
-    )
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("chromium-"))
     .map((entry) => entry.name)
     .sort((a, b) => {
       const aNum = Number.parseInt(a.replace("chromium-", ""), 10);
@@ -590,7 +462,7 @@ const resolveChromiumExecutablePath = (
       "Google Chrome for Testing.app",
       "Contents",
       "MacOS",
-      "Google Chrome for Testing",
+      "Google Chrome for Testing"
     );
     if (existsSync(exe)) return exe;
   }
@@ -603,26 +475,15 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
   const e2eTagFilters = resolveE2eTagFilters(env);
   const integrationTagFilters = resolveIntegrationTagFilters({
     ...env,
-    INTEGRATION_PW_INCLUDE_TAGS: removeTagInput(
-      env.INTEGRATION_PW_INCLUDE_TAGS,
-      "@nightly",
-    ),
-    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: withIntegrationBucket6Excluded(
-      env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE,
-      "@nightly",
-    ),
+    INTEGRATION_PW_INCLUDE_TAGS: removeTagInput(env.INTEGRATION_PW_INCLUDE_TAGS, "@nightly"),
+    INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE: withIntegrationBucket6Excluded(env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, "@nightly")
   });
   const integrationNightlyTagFilters = resolveIntegrationTagFilters({
     ...env,
     INTEGRATION_PW_INCLUDE_TAGS: env.INTEGRATION_PW_INCLUDE_TAGS ?? "@nightly",
     INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE:
-      removeTagInput(
-        withIntegrationBucket6Excluded(
-          env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE,
-          INTEGRATION_BUCKET_6_TAG,
-        ),
-        "@nightly",
-      ) || INTEGRATION_BUCKET_6_TAG,
+      removeTagInput(withIntegrationBucket6Excluded(env.INTEGRATION_PW_EXCLUDED_TAGS_OVERRIDE, INTEGRATION_BUCKET_6_TAG), "@nightly") ||
+      INTEGRATION_BUCKET_6_TAG
   });
   logResolvedTagFilters("API", apiTagFilters, env);
   logResolvedTagFilters("E2E", e2eTagFilters, env);
@@ -637,17 +498,11 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
       ignoreHTTPSErrors: true,
-      trace:
-        process.env.PW_TRACE_RICH !== "false"
-          ? {
-              mode: "retain-on-failure" as const,
-              snapshots: { dom: true, aria: true, screen: true },
-              screenshots: true,
-              sources: true,
-            }
-          : "retain-on-failure",
+      trace: process.env.PW_TRACE_RICH !== "false"
+        ? { mode: "retain-on-failure" as const, snapshots: true, screenshots: true, sources: true }
+        : "retain-on-failure",
       screenshot: "only-on-failure",
-      video: "off",
+      video: "off"
     },
     projects: [
       {
@@ -663,23 +518,16 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
           headless: !safeBoolean(env.HEAD, false),
-          trace: {
-            mode: "retain-on-failure" as const,
-            snapshots: { dom: true, aria: true, screen: true },
-            screenshots: true,
-            sources: true,
-          },
+          trace: { mode: "retain-on-failure" as const, snapshots: true, screenshots: true, sources: true },
           screenshot: "only-on-failure",
           video: "off",
-          storageState: shouldUseUiStorage()
-            ? resolveUiStoragePath()
-            : undefined,
+          storageState: shouldUseUiStorage() ? resolveUiStoragePath() : undefined,
           launchOptions: chromiumExecutablePath
             ? {
-                executablePath: chromiumExecutablePath,
+                executablePath: chromiumExecutablePath
               }
-            : undefined,
-        },
+            : undefined
+        }
       },
       {
         name: "integration",
@@ -693,21 +541,16 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
           headless: !safeBoolean(env.HEAD, false),
-          trace: {
-            mode: "retain-on-failure" as const,
-            snapshots: { dom: true, aria: true, screen: true },
-            screenshots: true,
-            sources: true,
-          },
+          trace: "retain-on-failure",
           screenshot: "only-on-failure",
           video: "off",
           serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {
-                executablePath: chromiumExecutablePath,
+                executablePath: chromiumExecutablePath
               }
-            : undefined,
-        },
+            : undefined
+        }
       },
       {
         name: "integration-nightly",
@@ -721,21 +564,16 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           channel: env.PW_UI_CHANNEL,
           viewport: CommonConfig.DEFAULT_VIEWPORT,
           headless: !safeBoolean(env.HEAD, false),
-          trace: {
-            mode: "retain-on-failure" as const,
-            snapshots: { dom: true, aria: true, screen: true },
-            screenshots: true,
-            sources: true,
-          },
+          trace: "retain-on-failure",
           screenshot: "only-on-failure",
           video: "off",
           serviceWorkers: "block",
           launchOptions: chromiumExecutablePath
             ? {
-                executablePath: chromiumExecutablePath,
+                executablePath: chromiumExecutablePath
               }
-            : undefined,
-        },
+            : undefined
+        }
       },
       {
         name: "api",
@@ -749,15 +587,10 @@ const buildConfig = (env: EnvMap = process.env): PlaywrightTestConfig => {
           headless: true,
           screenshot: "off",
           video: "off",
-          trace: {
-            mode: "retain-on-failure" as const,
-            snapshots: { dom: true, aria: true, screen: true },
-            screenshots: true,
-            sources: true,
-          },
-        },
-      },
-    ],
+          trace: "retain-on-failure"
+        }
+      }
+    ]
   };
 };
 
@@ -769,7 +602,7 @@ export const __test__ = {
   resolveIntegrationTagFilters,
   resolveOdhinTestEnvironment,
   resolveUiProjectWorkerCount,
-  resolveWorkerCount,
+  resolveWorkerCount
 };
 
 export default defineConfig(buildConfig(process.env));
