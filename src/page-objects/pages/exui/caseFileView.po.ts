@@ -96,6 +96,11 @@ export class CaseFileViewPage extends Base {
     return this.getFile(folderNode, fileName).locator("..").locator("..").locator(".node__document-upload-timestamp").first();
   }
 
+  public async waitForFile(folderPath: string, fileName: string): Promise<void> {
+    const folderNode = await this.getExpandedFolderNode(folderPath);
+    await expect(this.getFile(folderNode, fileName)).toBeVisible({ timeout: CASE_FILE_VIEW_FOLDER_TIMEOUT_MS });
+  }
+
   public async getVisibleFileNamesUnderFolder(folderPath: string): Promise<string[]> {
     const folderNode = await this.getExpandedFolderNode(folderPath);
     return folderNode.locator(".document-tree-container__node--document > button .node-name-document").evaluateAll((nodes) =>
