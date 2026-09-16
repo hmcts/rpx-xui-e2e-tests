@@ -60,5 +60,9 @@ test.describe(`@nightly Welsh language backend smoke as ${userIdentifier}`, { ta
     expect(payload?.translations).toHaveProperty("Case list");
 
     await expect(caseListPage.exuiHeader.languageToggle).toContainText("English");
+    await expect(caseListPage.exuiHeader.notificationBannerTitle).toContainText("Pwysig");
+    await expect(caseListPage.exuiHeader.notificationBannerContent).toContainText(
+      "Nid yw rhai sgriniau yn y gwasanaeth hwn wedi'u cyfieithu i'r Gymraeg eto"
+    );
   });
 });
