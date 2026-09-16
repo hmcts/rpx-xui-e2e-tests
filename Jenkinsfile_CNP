@@ -357,7 +357,7 @@ def publishUiReports = {
     reportName           : 'UI Odhín report'
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/perfetto*.json'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishIntegrationReports = { String reportDir, String reportName ->
@@ -398,7 +398,7 @@ def archivePlaywrightDiagnostics = {
     '''.stripIndent()
   )
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-diagnostics/**', excludes: '**/.playwright-artifacts-*/**'
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/perfetto*.json'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def runCnpPlaywrightStages = {
