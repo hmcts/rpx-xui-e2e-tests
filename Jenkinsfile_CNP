@@ -363,6 +363,8 @@ def publishApiReports = {
   ])
   junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
+  stagePerfettoArtifacts()
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishUiReports = {
@@ -389,6 +391,8 @@ def publishIntegrationReports = { String reportDir, String reportName ->
     reportName           : reportName
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**"
+  stagePerfettoArtifacts()
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishHarnessReports = {
