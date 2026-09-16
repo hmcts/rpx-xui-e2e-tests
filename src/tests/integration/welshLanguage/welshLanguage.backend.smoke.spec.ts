@@ -59,7 +59,7 @@ test.describe(`@nightly Welsh language backend smoke as ${userIdentifier}`, { ta
     expect(payload).not.toBeNull();
     expect(Object.keys(payload?.translations ?? {}).length).toBeGreaterThan(0);
 
-    await expect(caseListPage.exuiHeader.languageToggle).toContainText("English");
+    await caseListPage.exuiHeader.waitForRenderedLanguageState("Cymraeg");
     await expect(page.getByRole("heading", { name: "Rhestr achosion" })).toBeVisible();
   });
 });
