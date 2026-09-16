@@ -101,7 +101,7 @@ const buildConfig = (env = process.env) => {
     use: {
       baseURL: env.TEST_URL ?? "https://manage-case.aat.platform.hmcts.net",
       timezoneId: "Europe/London",
-      trace: { mode: "retain-on-failure", snapshots: true, screenshots: true, sources: true },
+      trace: { mode: "retain-on-failure", snapshots: { dom: true, aria: true, screen: true }, screenshots: true, sources: true },
       screenshot: "only-on-failure",
       video: "retain-on-failure"
     },
