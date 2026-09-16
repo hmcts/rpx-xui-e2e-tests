@@ -334,6 +334,24 @@ def runDiagnostics = {
   }
 }
 
+
+def stagePerfettoArtifacts = {
+  sh(
+    script: '''#!/usr/bin/env bash
+      set -eu
+      for mapping in api:playwright-api integration:playwright-integration integration-nightly:playwright-integration-nightly ui:playwright-e2e; do
+        source=${mapping%%:*}
+        suite=${mapping##*:}
+        for file in test-results/${source}/perfetto*.json; do
+          [ -f "$file" ] || continue
+          mkdir -p "functional-output/tests/${suite}/test-results"
+          cp "$file" "functional-output/tests/${suite}/test-results/$(basename "$file")"
+        done
+      done
+    '''.stripIndent()
+  )
+}
+
 def publishApiReports = {
   publishHTML([
     allowMissing         : true,
@@ -357,7 +375,8 @@ def publishUiReports = {
     reportName           : 'UI Odhín report'
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/{api,integration,integration-nightly,ui}/perfetto*.json'
+  stagePerfettoArtifacts()
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishIntegrationReports = { String reportDir, String reportName ->
@@ -398,7 +417,8 @@ def archivePlaywrightDiagnostics = {
     '''.stripIndent()
   )
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-diagnostics/**', excludes: '**/.playwright-artifacts-*/**'
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'test-results/{api,integration,integration-nightly,ui}/perfetto*.json'
+  stagePerfettoArtifacts()
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def runCnpPlaywrightStages = {
