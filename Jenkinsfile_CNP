@@ -353,6 +353,7 @@ def stagePerfettoArtifacts = {
 }
 
 def publishApiReports = {
+  stagePerfettoArtifacts()
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
@@ -363,11 +364,11 @@ def publishApiReports = {
   ])
   junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
-  stagePerfettoArtifacts()
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishUiReports = {
+  stagePerfettoArtifacts()
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
@@ -377,11 +378,11 @@ def publishUiReports = {
     reportName           : 'UI Odhín report'
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-  stagePerfettoArtifacts()
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishIntegrationReports = { String reportDir, String reportName ->
+  stagePerfettoArtifacts()
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
@@ -391,7 +392,6 @@ def publishIntegrationReports = { String reportDir, String reportName ->
     reportName           : reportName
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**"
-  stagePerfettoArtifacts()
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
