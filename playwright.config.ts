@@ -343,10 +343,6 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
   if (env.CI && env.PLAYWRIGHT_INCLUDE_A11Y !== "true" && env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" && !reporterNames.some(name => name.toLowerCase() === "json")) reporterNames.push("json");
 
   const reporters: ReporterDescription[] = [];
-  if (safeBoolean(env.PW_ENABLE_PERFETTO, true) && !reporterNames.some(name => name.toLowerCase() === "perfetto")) {
-    reporters.push(["perfetto"]);
-  }
-
   for (const name of reporterNames) {
     const normalised = name.toLowerCase();
     switch (normalised) {
@@ -433,6 +429,10 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
 
   if (!safeBoolean(env.PW_FLAKE_GATE_DISABLED, false)) {
     reporters.push(["./src/tests/common/reporters/flake-gate.reporter.cjs"]);
+  }
+
+  if (safeBoolean(env.PW_ENABLE_PERFETTO, true) && !reporterNames.some(name => name.toLowerCase() === "perfetto")) {
+    reporters.push(["perfetto"]);
   }
 
   return reporters;
