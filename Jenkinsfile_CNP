@@ -353,6 +353,7 @@ def stagePerfettoArtifacts = {
 }
 
 def publishApiReports = {
+  stagePerfettoArtifacts()
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
@@ -363,11 +364,11 @@ def publishApiReports = {
   ])
   junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
-  stagePerfettoArtifacts()
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishUiReports = {
+  stagePerfettoArtifacts()
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
@@ -377,11 +378,11 @@ def publishUiReports = {
     reportName           : 'UI Odhín report'
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-  stagePerfettoArtifacts()
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def publishIntegrationReports = { String reportDir, String reportName ->
+  stagePerfettoArtifacts()
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
@@ -391,7 +392,6 @@ def publishIntegrationReports = { String reportDir, String reportName ->
     reportName           : reportName
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**"
-  stagePerfettoArtifacts()
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
@@ -501,6 +501,7 @@ def runCnpPlaywrightStages = {
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin,junit',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
         'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+        'PLAYWRIGHT_PERFETTO_OUTPUT_FILE=functional-output/tests/playwright-api/test-results/perfetto.json',
         "PW_ODHIN_ENV=${apiOdhinEnvironment}",
         'PLAYWRIGHT_SKIP_INSTALL=true'
       ]
@@ -533,6 +534,7 @@ def runCnpPlaywrightStages = {
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
         'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
+        'PLAYWRIGHT_PERFETTO_OUTPUT_FILE=functional-output/tests/playwright-e2e/test-results/perfetto.json',
         "PW_ODHIN_ENV=${uiOdhinEnvironment}",
         'PW_ODHIN_SKIP_API_ENDPOINTS=true',
         'PW_UI_USERS=COURT_ADMIN,IAC_CASEOFFICER_R1',
@@ -589,6 +591,7 @@ def runCnpPlaywrightStages = {
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin',
         "PLAYWRIGHT_REPORT_FOLDER=${integrationReportDir}",
         "PW_ODHIN_TARGET=${integrationReportDir}",
+        'PLAYWRIGHT_PERFETTO_OUTPUT_FILE=functional-output/tests/playwright-integration/test-results/perfetto.json',
         "PW_ODHIN_ENV=${integrationOdhinEnvironment}",
         'PW_ODHIN_SKIP_API_ENDPOINTS=true',
         'PW_UI_STORAGE=1',

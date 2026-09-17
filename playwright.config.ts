@@ -343,7 +343,13 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
   if (env.CI && env.PLAYWRIGHT_INCLUDE_A11Y !== "true" && env.PLAYWRIGHT_INCLUDE_WAVE_A11Y !== "true" && !reporterNames.some(name => name.toLowerCase() === "json")) reporterNames.push("json");
 
   const reporters: ReporterDescription[] = [];
-
+  let perfettoAdded = false;
+  const addPerfetto = () => {
+    if (safeBoolean(env.PW_ENABLE_PERFETTO, true) && !perfettoAdded) {
+      reporters.push(["perfetto"]);
+      perfettoAdded = true;
+    }
+  };
   for (const name of reporterNames) {
     const normalised = name.toLowerCase();
     switch (normalised) {
@@ -383,8 +389,12 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
           { outputFile: env.PLAYWRIGHT_JSON_OUTPUT ?? `${resolveOdhinOutputFolder(env)}/ci-evidence/playwright.json` }
         ]);
         break;
+      case "perfetto":
+        addPerfetto();
+        break;
       case "odhin":
       case "odhin-reports-playwright":
+        addPerfetto();
         reporters.push([
           "./src/tests/common/reporters/odhin-progress.reporter.cjs",
           {
@@ -432,7 +442,8 @@ const resolveReporters = (env: EnvMap = process.env): ReporterDescription[] => {
     reporters.push(["./src/tests/common/reporters/flake-gate.reporter.cjs"]);
   }
 
-  if (safeBoolean(env.PW_ENABLE_PERFETTO, true)) reporters.push(["perfetto"]);
+  addPerfetto();
+
   return reporters;
 };
 

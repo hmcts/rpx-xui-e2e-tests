@@ -19,7 +19,7 @@ const createEmptyFeatureStat = enhancerModule.createEmptyFeatureStat as (name: s
 const deriveFeatureName = enhancerModule.deriveFeatureName as (filePath: string) => string;
 
 const enhancerTest = enhancerModule.__test__ as {
-  enhanceDashboardHtml: (html: string, featureStats: unknown) => string;
+  enhanceDashboardHtml: (html: string, featureStats: unknown, perfettoFiles?: string[], perfettoHrefPrefix?: string) => string;
   formatDuration: (durationMs: number) => string;
   buildFeatureOverviewBlock: (featureStats: unknown) => string;
   normalizeFeatureStats: (featureStats: unknown) => Array<{
@@ -313,5 +313,18 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
 
     expect(html).toContain('odhin-feature-overview-layout-balanced');
     expect(html).not.toContain('odhin-feature-overview-layout-dense');
+  });
+
+  test('adds a Perfetto Results tab with the artifact link', () => {
+    const html = enhancerTest.enhanceDashboardHtml(
+      '<html><body><div class="tab"><button class="main-tablinks">Dashboard</button></div></body></html>',
+      [],
+      ['perfetto.json'],
+      'https://jenkins.example/job/1/artifact/functional-output/tests/playwright-e2e/test-results'
+    );
+
+    expect(html).toContain('Perfetto Results');
+    expect(html).toContain('id="TabPerfetto"');
+    expect(html).toContain('https://jenkins.example/job/1/artifact/functional-output/tests/playwright-e2e/test-results/perfetto.json');
   });
 });
