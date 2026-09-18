@@ -1193,9 +1193,12 @@ function enhanceGeneratedReport(outputFolder, featureStats) {
       ? fs.readdirSync(testResultsFolder).filter((name) => /^perfetto(?:[-_].*)?\.json$/i.test(name))
       : [];
     const artifactBaseUrl = (process.env.PLAYWRIGHT_PERFETTO_ARTIFACT_BASE_URL || process.env.BUILD_URL)?.trim().replace(/\/$/, '');
+    const relativeTestResultsFolder = testResultsFolder
+      ? path.relative(outputFolder, testResultsFolder).split(path.sep).join('/')
+      : '';
     const perfettoHrefPrefix = artifactBaseUrl && testResultsFolder
       ? `${artifactBaseUrl}/artifact/${path.relative(process.cwd(), testResultsFolder).split(path.sep).join('/')}`
-      : testResultsFolder === path.join(outputFolder, 'test-results') ? 'test-results' : '../test-results';
+      : relativeTestResultsFolder || '.';
     fs.writeFileSync(filePath, enhanceDashboardHtml(currentHtml, featureStats, perfettoFiles, perfettoHrefPrefix), 'utf8');
   });
 }
