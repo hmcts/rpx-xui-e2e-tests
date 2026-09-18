@@ -364,7 +364,7 @@ def publishApiReports = {
   ])
   junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/test-results/perfetto*.json'
 }
 
 def publishUiReports = {
@@ -378,7 +378,7 @@ def publishUiReports = {
     reportName           : 'UI Odhín report'
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/test-results/perfetto*.json'
 }
 
 def publishIntegrationReports = { String reportDir, String reportName ->
@@ -392,7 +392,7 @@ def publishIntegrationReports = { String reportDir, String reportName ->
     reportName           : reportName
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**"
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/test-results/perfetto*.json'
 }
 
 def publishHarnessReports = {
