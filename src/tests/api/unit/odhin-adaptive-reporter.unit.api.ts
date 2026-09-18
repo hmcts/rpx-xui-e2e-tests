@@ -25,6 +25,12 @@ const odhinAdaptiveTest = OdhinAdaptiveReporter.__test__ as {
 };
 
 test.describe('odhin adaptive reporter', { tag: '@svc-internal' }, () => {
+  test('always keeps Odhín attachments external, even when embedding is requested', () => {
+    const reporter = new OdhinAdaptiveReporter({ embedAttachments: true });
+
+    expect(reporter.inner.generate.execOptions.embedAttachments).toBe(false);
+  });
+
   test('normalizes test output mode inputs', () => {
     expect(odhinAdaptiveTest.normalizeTestOutputMode(undefined)).toBe('only-on-failure');
     expect(odhinAdaptiveTest.normalizeTestOutputMode('true')).toBe(true);
