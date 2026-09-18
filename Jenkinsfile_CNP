@@ -421,8 +421,6 @@ def archivePlaywrightDiagnostics = {
     '''.stripIndent()
   )
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-diagnostics/**', excludes: '**/.playwright-artifacts-*/**'
-  stagePerfettoArtifacts()
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
 def runCnpPlaywrightStages = {

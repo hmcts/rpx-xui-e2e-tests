@@ -367,8 +367,6 @@ def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
     fi
   """
   archiveArtifacts allowEmptyArchive: true, artifacts: "${slimReportDir}/${playwrightLoadProfileReportFile}"
-  stagePerfettoArtifacts()
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
