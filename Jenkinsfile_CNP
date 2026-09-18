@@ -358,12 +358,12 @@ def publishApiReports = {
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
     keepAll              : true,
-    reportDir            : 'functional-output/tests/api_functional/odhin-report',
+    reportDir            : 'functional-output/tests/playwright-api/odhin-report',
     reportFiles          : 'playwright-odhin.html',
     reportName           : 'API Odhín report'
   ])
   junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
 }
 
@@ -500,7 +500,7 @@ def runCnpPlaywrightStages = {
         "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
         'PLAYWRIGHT_REPORTERS=ci-brief,odhin,junit',
         'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-        'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+        'PW_ODHIN_TARGET=functional-output/tests/playwright-api/odhin-report',
         'PLAYWRIGHT_PERFETTO_OUTPUT_FILE=functional-output/tests/playwright-api/test-results/perfetto.json',
         "PW_ODHIN_ENV=${apiOdhinEnvironment}",
         'PLAYWRIGHT_SKIP_INSTALL=true'
