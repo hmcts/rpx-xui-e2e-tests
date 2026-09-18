@@ -630,6 +630,8 @@ withNightlyPipeline(type, product, component, 400) {
             ])
             junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
+            stagePerfettoArtifacts()
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('API', 'finish')
           }
         }
@@ -743,6 +745,8 @@ withNightlyPipeline(type, product, component, 400) {
               reportName           : 'Integration tests'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportDir}/**"
+            stagePerfettoArtifacts()
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('Integration tests', 'finish')
           }
         }
