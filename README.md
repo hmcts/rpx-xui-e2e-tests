@@ -217,7 +217,7 @@ Use the `:raw` variants only when you deliberately want to bypass load-profile w
 Odhin reports are split for Jenkins publishing. You can override paths using `PLAYWRIGHT_REPORT_FOLDER` (output folder), `PW_ODHIN_TARGET` (copy target), and `PW_ODHIN_INDEX` / `PLAYWRIGHT_REPORT_INDEX_FILENAME` (index filename).
 
 - API Odhin output (raw): `functional-output/tests/playwright-api/odhin-report`
-- API Odhin publish target: `functional-output/tests/api_functional/odhin-report`
+- API Odhin output/publish: `functional-output/tests/playwright-api/odhin-report`
 - Integration Odhin output/publish: `functional-output/tests/playwright-integration/odhin-report`
 - Integration nightly Odhin output/publish: `functional-output/tests/playwright-integration-nightly/odhin-report`
 - E2E Odhin output/publish: `functional-output/tests/playwright-e2e/odhin-report`
@@ -232,7 +232,7 @@ Coverage, endpoint, and load-profile artifacts:
 - Coverage: `coverage/` (includes `coverage-summary.txt` and `coverage-summary-rows.json`)
 - Static endpoint inventory: `coverage/api-endpoints.json`
 - API runtime endpoint log: per-test `node-api-calls.json`, copied into the API Odhin endpoint tab when available
-- API load profile: `functional-output/tests/api_functional/odhin-report/load-profile/load-profile.html`
+- API load profile: `functional-output/tests/playwright-api/odhin-report/load-profile/load-profile.html`
 - Integration load profile: `functional-output/tests/playwright-integration/odhin-report/load-profile/load-profile.html`
 - E2E load profile: `functional-output/tests/playwright-e2e/odhin-report/load-profile/load-profile.html`
 
