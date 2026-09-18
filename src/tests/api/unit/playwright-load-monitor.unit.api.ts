@@ -91,8 +91,6 @@ test.describe('Playwright load monitor script', { tag: '@svc-internal' }, () => 
   test('uses the last report folder option for the wrapped Playwright command', () => {
     const parsed = loadMonitor.parseArgs([
       '--report-folder',
-      'functional-output/tests/api_functional/odhin-report',
-      '--report-folder',
       'functional-output/tests/playwright-api/odhin-report',
       '--',
       'yarn',

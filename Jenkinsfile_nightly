@@ -367,8 +367,6 @@ def publishPlaywrightLoadProfile = { String reportDir, String reportName ->
     fi
   """
   archiveArtifacts allowEmptyArchive: true, artifacts: "${slimReportDir}/${playwrightLoadProfileReportFile}"
-  stagePerfettoArtifacts()
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
   publishHTML([
     allowMissing         : true,
     alwaysLinkToLastBuild: true,
@@ -602,7 +600,7 @@ withNightlyPipeline(type, product, component, 400) {
             "API_PW_EXCLUDED_TAGS_OVERRIDE=${params.API_PW_EXCLUDED_TAGS_OVERRIDE}",
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-api/odhin-report',
-            'PW_ODHIN_TARGET=functional-output/tests/api_functional/odhin-report',
+            'PW_ODHIN_TARGET=functional-output/tests/playwright-api/odhin-report',
             'PLAYWRIGHT_PERFETTO_OUTPUT_FILE=functional-output/tests/playwright-api/test-results/perfetto.json',
             "PW_ODHIN_ENV=${apiOdhinEnvironment}",
             "PW_LOAD_PROFILE_EVENTS_FILE=${ciLoadProfileEventsFile}"
@@ -624,12 +622,14 @@ withNightlyPipeline(type, product, component, 400) {
               allowMissing         : true,
               alwaysLinkToLastBuild: true,
               keepAll              : true,
-              reportDir            : "functional-output/tests/api_functional/odhin-report",
+              reportDir            : "functional-output/tests/playwright-api/odhin-report",
               reportFiles          : 'playwright-odhin.html',
               reportName           : 'API nightly report (Odhín)'
             ])
             junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/api_functional/**'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
+            stagePerfettoArtifacts()
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('API', 'finish')
           }
         }
@@ -691,7 +691,7 @@ withNightlyPipeline(type, product, component, 400) {
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
             stagePerfettoArtifacts()
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('UI', 'finish')
           }
         }
@@ -743,6 +743,8 @@ withNightlyPipeline(type, product, component, 400) {
               reportName           : 'Integration tests'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportDir}/**"
+            stagePerfettoArtifacts()
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('Integration tests', 'finish')
           }
         }
