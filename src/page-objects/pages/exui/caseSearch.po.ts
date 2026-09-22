@@ -13,9 +13,6 @@ export class CaseSearchPage extends Base {
   private static readonly QUICK_SEARCH_OUTCOME_PROBE_MS = 10_000;
 
   readonly pageHeading = this.page.locator("main h1");
-  readonly findCaseLinkOnMenu = this.page
-    .locator('.hmcts-primary-navigation__nav .hmcts-primary-navigation__link[href*="case-search"]')
-    .first();
   readonly findCaseLinkOnTopRight = this.page
     .locator('.hmcts-primary-navigation__search .hmcts-primary-navigation__link[href*="case-search"]')
     .first();
@@ -101,12 +98,9 @@ export class CaseSearchPage extends Base {
   }
 
   async goto(): Promise<void> {
-    await this.openFromMainMenu();
+    await this.page.goto("/cases/case-search", { waitUntil: "domcontentloaded" });
   }
 
-  async openFromMainMenu(): Promise<void> {
-    await this.openFindCaseVia(this.findCaseLinkOnMenu);
-  }
 
   async openFromTopRight(): Promise<void> {
     await this.openFindCaseVia(this.findCaseLinkOnTopRight);
