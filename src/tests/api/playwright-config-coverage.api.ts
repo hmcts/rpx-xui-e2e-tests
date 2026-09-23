@@ -504,7 +504,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(config.use.timezoneId).toBe('Europe/London');
     expect(config.projects).toHaveLength(1);
     expect(config.projects[0]?.name).toBe('chromium');
-    expect(config.projects[0]?.testMatch).toBe('integration/**/*.spec.ts');
+    expect(config.projects[0]?.testMatch).toBe('**/*.spec.ts');
     expect(config.projects[0]?.workers).toBe(4);
   });
 
@@ -516,7 +516,7 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     });
 
     expect(config.projects).toHaveLength(1);
-    expect(config.projects[0]?.testMatch).toBe('integration/**/*.spec.ts');
+    expect(config.projects[0]?.testMatch).toBe('**/*.spec.ts');
     expect(config.projects[0]?.grep).toBeInstanceOf(RegExp);
     expect(config.projects[0]?.grep?.test('@integration-search-case')).toBe(true);
     expect(config.projects[0]?.grep?.test('@integration-manage-tasks')).toBe(false);
