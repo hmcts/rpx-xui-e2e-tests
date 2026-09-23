@@ -4,6 +4,7 @@ import { Base } from "../../base";
 
 const CASE_FILE_VIEW_FOLDER_TIMEOUT_MS = 10_000;
 const CASE_FILE_VIEW_FOLDER_POLL_INTERVAL_MS = 200;
+const CASE_FILE_VIEW_FILE_TIMEOUT_MS = 30_000;
 
 type FolderLookupOptions = {
   expandTarget?: boolean;
@@ -97,8 +98,22 @@ export class CaseFileViewPage extends Base {
   }
 
   public async waitForFile(folderPath: string, fileName: string): Promise<void> {
-    const folderNode = await this.getExpandedFolderNode(folderPath);
-    await expect(this.getFile(folderNode, fileName)).toBeVisible({ timeout: CASE_FILE_VIEW_FOLDER_TIMEOUT_MS });
+    await expect
+      .poll(
+        async () => {
+          try {
+            const folderNode = await this.getExpandedFolderNode(folderPath);
+            return await this.getFile(folderNode, fileName).isVisible();
+          } catch {
+            return false;
+          }
+        },
+        {
+          timeout: CASE_FILE_VIEW_FILE_TIMEOUT_MS,
+          intervals: [CASE_FILE_VIEW_FOLDER_POLL_INTERVAL_MS]
+        }
+      )
+      .toBe(true);
   }
 
   public async getVisibleFileNamesUnderFolder(folderPath: string): Promise<string[]> {
