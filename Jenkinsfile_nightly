@@ -246,7 +246,7 @@ def archivePlaywrightDiagnostics = {
     diagnostics_dir="functional-output/tests/playwright-diagnostics"
     mkdir -p "${diagnostics_dir}/failure-data" "${diagnostics_dir}/traces" "${diagnostics_dir}/screenshots"
     if [ -d test-results ]; then
-      find test-results -type f \( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \) | while read -r file; do
+      find test-results -type f \\( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \\) | while read -r file; do
         rel="${file#test-results/}"
         safe_name=$(echo "${rel}" | tr '/ ' '__')
         case "${file}" in

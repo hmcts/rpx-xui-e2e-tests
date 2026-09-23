@@ -414,7 +414,7 @@ def archivePlaywrightDiagnostics = {
       set +e
       diagnostics_dir="functional-output/tests/playwright-diagnostics"
       mkdir -p "$diagnostics_dir/failure-data" "$diagnostics_dir/traces" "$diagnostics_dir/screenshots"
-      find test-results -type f \( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \) -print 2>/dev/null | while IFS= read -r file; do
+      find test-results -type f \\( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \\) -print 2>/dev/null | while IFS= read -r file; do
         safe_name="$(printf '%s' "${file#test-results/}" | sed 's#[^A-Za-z0-9._-]#_#g')"
         case "$file" in
           */failure-data.json) output_dir="$diagnostics_dir/failure-data" ;;
