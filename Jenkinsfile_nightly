@@ -261,7 +261,7 @@ def archivePlaywrightDiagnostics = {
   steps.archiveArtifacts(
     allowEmptyArchive: true,
     artifacts: 'functional-output/tests/playwright-diagnostics/**/*',
-    excludes: 'test-results/.playwright-artifacts-*/**,**/.playwright-artifacts-*/**'
+    excludes: '**/.playwright-artifacts-*/**'
   )
 }
 
