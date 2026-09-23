@@ -363,7 +363,7 @@ def publishApiReports = {
     reportName           : 'API Odhín report'
   ])
   junit(testResults: 'playwright-junit.xml', allowEmptyResults: true)
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**', excludes: '**/trace.zip,**/*.png,**/*.jpg,**/*.jpeg'
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/test-results/perfetto*.json'
 }
 

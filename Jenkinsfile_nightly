@@ -632,7 +632,7 @@ withNightlyPipeline(type, product, component, 400) {
               reportName           : 'API nightly report (Odhín)'
             ])
             junit(testResults: "playwright-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/odhin-report/**', excludes: '**/trace.zip,**/*.png,**/*.jpg,**/*.jpeg'
             stagePerfettoArtifacts()
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-api/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('API', 'finish')
@@ -694,7 +694,7 @@ withNightlyPipeline(type, product, component, 400) {
               reportFiles          : 'playwright-odhin.html',
               reportName           : 'UI nightly report (Odhín)'
             ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**'
+            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**', excludes: '**/trace.zip,**/*.png,**/*.jpg,**/*.jpeg'
             stagePerfettoArtifacts()
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('UI', 'finish')
@@ -747,7 +747,7 @@ withNightlyPipeline(type, product, component, 400) {
               reportFiles          : 'playwright-odhin-integration-nightly.html',
               reportName           : 'Integration tests'
             ])
-            archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportDir}/**"
+            archiveArtifacts allowEmptyArchive: true, artifacts: "${integrationReportDir}/**", excludes: '**/trace.zip,**/*.png,**/*.jpg,**/*.jpeg'
             stagePerfettoArtifacts()
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/test-results/perfetto*.json'
             recordPlaywrightLoadEvent('Integration tests', 'finish')
