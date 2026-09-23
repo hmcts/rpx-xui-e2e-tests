@@ -116,14 +116,11 @@ export async function ensureSearchCaseSessionAccessForUser(
     }
 
     try {
+      await ensureUiStorageStateForUser(candidateUser, { strict: true, baseUrl: env.TEST_URL });
       if (loadSessionCookies(candidateUser).cookies.length > 0) {
         return candidateUser;
       }
-      await ensureUiStorageStateForUser(candidateUser, { strict: false });
-      if (loadSessionCookies(candidateUser).cookies.length > 0) {
-        return candidateUser;
-      }
-      failureMessages.push(`${candidateUser}: no cached session cookies after warm-up`);
+      failureMessages.push(`${candidateUser}: no authenticated session cookies after validation`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failureMessages.push(`${candidateUser}: ${message}`);
@@ -150,7 +147,7 @@ export async function applySearchCaseSessionCookies(
   env: NodeJS.ProcessEnv = process.env
 ): Promise<string> {
   const preferredUserIdentifier = resolveSearchCaseUserIdentifier(testInfo, env);
-  const userIdentifier = resolveCapturedSearchCaseSessionUser(preferredUserIdentifier, env);
+  const userIdentifier = await ensureSearchCaseSessionAccessForUser(preferredUserIdentifier, env);
   const session = loadSessionCookies(userIdentifier);
 
   if (session.cookies.length > 0) {

@@ -100,9 +100,9 @@ async function globalSetup(config: FullConfig) {
 
   const strict = resolveStrictOverride(process.env.PW_UI_STORAGE_STRICT, strictFromConfig || shouldWarmIntegrationUsers);
 
-  for (const userIdentifier of targetUsers) {
-    await ensureUiStorageStateForUser(userIdentifier, { strict });
-  }
+  await Promise.all(
+    [...targetUsers].map((userIdentifier) => ensureUiStorageStateForUser(userIdentifier, { strict }))
+  );
 }
 
 export default globalSetup;

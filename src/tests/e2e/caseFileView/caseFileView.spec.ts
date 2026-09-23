@@ -87,9 +87,8 @@ test.describe("Case file view", { tag: ["@e2e", "@e2e-case-file-view"] }, () => 
       await expect(caseFileViewPage.getFolderName(folderNode)).toContainText(DOCUMENT_CATEGORY_FOLDER);
       await expect(caseFileViewPage.getFolderCount(folderNode)).toHaveText("1");
       await caseFileViewPage.waitForFile(DOCUMENT_FILE_FOLDER_PATH, documentFileName);
-      await expect
-        .poll(() => caseFileViewPage.getVisibleFileNamesUnderFolder(DOCUMENT_FILE_FOLDER_PATH))
-        .toEqual([documentFileName]);
+      const loadedFolderNode = await caseFileViewPage.getExpandedFolderNode(DOCUMENT_FILE_FOLDER_PATH);
+      await expect(caseFileViewPage.getFile(loadedFolderNode, documentFileName)).toBeVisible();
     });
 
     await test.step("Open the uploaded document and verify the viewer content", async () => {
