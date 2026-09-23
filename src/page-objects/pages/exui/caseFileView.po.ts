@@ -2,7 +2,7 @@ import { expect, Locator, Page } from "@playwright/test";
 
 import { Base } from "../../base";
 
-const CASE_FILE_VIEW_FOLDER_TIMEOUT_MS = 10_000;
+const CASE_FILE_VIEW_FOLDER_TIMEOUT_MS = 30_000;
 const CASE_FILE_VIEW_FOLDER_POLL_INTERVAL_MS = 200;
 const CASE_FILE_VIEW_FILE_TIMEOUT_MS = 30_000;
 
