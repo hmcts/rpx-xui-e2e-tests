@@ -53,7 +53,7 @@ const DEFAULT_IGNORE_PATTERNS: RegExp[] = [
   /ruxit/i,
 ];
 
-type UiNetworkError = { status: number; url: string };
+type UiNetworkError = { status: number; url: string; error?: string };
 
 export interface UiIdleOptions {
   timeoutMs?: number;
@@ -106,6 +106,10 @@ class UiNetworkTracker {
   private onRequestDone(request: Request): void {
     if (!this.shouldTrack(request)) return;
     this.pending.delete(request);
+    const failure = request.failure();
+    if (failure) {
+      this.lastError = { status: 0, url: request.url(), error: failure.errorText };
+    }
   }
 
   private onResponse(response: Response): void {
@@ -121,25 +125,11 @@ class UiNetworkTracker {
   async waitForIdle(timeoutMs: number, idleMs: number): Promise<void> {
     const start = Date.now();
     const quietMs = Math.max(0, idleMs);
-    let lastPendingCount = this.pending.size;
-    let lastPendingChange = Date.now();
-
     while (Date.now() - start < timeoutMs) {
-      if (this.pending.size !== lastPendingCount) {
-        lastPendingCount = this.pending.size;
-        lastPendingChange = Date.now();
-      }
-
-      if (this.pending.size > 0 && Date.now() - lastPendingChange > timeoutMs) {
-        // Treat stalled requests as idle so UI waits don't hang forever.
-        this.pending.clear();
-        return;
-      }
-
       if (this.lastError) {
-        const { status, url } = this.lastError;
+        const { status, url, error } = this.lastError;
         this.lastError = null;
-        throw new Error(`UI API response ${status} for ${url}`);
+        throw new Error(`UI API request failed${status ? ` with response ${status}` : ""} for ${url}${error ? `: ${error}` : ""}`);
       }
 
       if (this.pending.size === 0) {
@@ -152,8 +142,10 @@ class UiNetworkTracker {
       }
     }
 
+    const pendingUrls = Array.from(this.pending, (request) => request.url()).slice(0, 5);
+    const suffix = pendingUrls.length ? `: ${pendingUrls.join(", ")}` : "";
     throw new Error(
-      `UI network idle timeout after ${timeoutMs}ms (pending requests: ${this.pending.size}).`
+      `UI network idle timeout after ${timeoutMs}ms (pending requests: ${this.pending.size}${suffix}).`
     );
   }
 }
