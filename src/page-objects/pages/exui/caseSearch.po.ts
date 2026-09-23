@@ -101,7 +101,8 @@ export class CaseSearchPage extends Base {
   }
 
   async goto(): Promise<void> {
-    await this.openFromMainMenu();
+    await this.page.goto("/cases/case-search", { waitUntil: "domcontentloaded" });
+    await this.waitForReady();
   }
 
   async openFromMainMenu(): Promise<void> {

@@ -243,19 +243,24 @@ def ciLoadProfilePublished = false
 def archivePlaywrightDiagnostics = {
   steps.sh '''
     set +e
-    out_dir="functional-output/tests/playwright-diagnostics/failure-data"
-    mkdir -p "${out_dir}"
+    diagnostics_dir="functional-output/tests/playwright-diagnostics"
+    mkdir -p "${diagnostics_dir}/failure-data" "${diagnostics_dir}/traces" "${diagnostics_dir}/screenshots"
     if [ -d test-results ]; then
-      find test-results -type f -name 'failure-data.json' | while read -r file; do
+      find test-results -type f \( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \) | while read -r file; do
         rel="${file#test-results/}"
         safe_name=$(echo "${rel}" | tr '/ ' '__')
+        case "${file}" in
+          */failure-data.json) out_dir="${diagnostics_dir}/failure-data" ;;
+          */trace.zip) out_dir="${diagnostics_dir}/traces" ;;
+          *) out_dir="${diagnostics_dir}/screenshots" ;;
+        esac
         cp "${file}" "${out_dir}/${safe_name}"
       done
     fi
   '''
   steps.archiveArtifacts(
     allowEmptyArchive: true,
-    artifacts: 'functional-output/tests/playwright-diagnostics/failure-data/**/*',
+    artifacts: 'functional-output/tests/playwright-diagnostics/**/*',
     excludes: 'test-results/.playwright-artifacts-*/**,**/.playwright-artifacts-*/**'
   )
 }
