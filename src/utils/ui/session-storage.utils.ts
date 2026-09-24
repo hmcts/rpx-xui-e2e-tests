@@ -377,7 +377,7 @@ const completeIdamCredentialFlow = async (
 
   await passwordInput.fill(password);
   await submitActiveLoginField(submitButton, passwordInput);
-  await page.waitForLoadState("domcontentloaded").catch(() => undefined);
+  await page.waitForLoadState("domcontentloaded");
 };
 
 const describeLoginFailure = async (page: Page): Promise<string | undefined> => {
@@ -874,5 +874,6 @@ export const __test__ = {
   isTransientUiSessionCaptureFailure,
   writeSessionCaptureFailure,
   handleUiStorageWarmupFailure,
+  completeIdamCredentialFlow,
   shouldRefreshStorageState
 };
