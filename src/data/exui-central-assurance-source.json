@@ -7,8 +7,7 @@
         "PRIVATELAW",
         "PUBLICLAW",
         "EMPLOYMENT",
-        "ST_CIC",
-        "PROBATE"
+        "ST_CIC"
       ],
       "waSupportedJurisdictions": [
         "IA",
@@ -619,7 +618,6 @@
         "priority": "grouped",
         "proofLevel": "ccd-backed",
         "lanes": [
-          "global-search",
           "staff-ref-data"
         ],
         "representativeCaseTypes": [
@@ -650,8 +648,8 @@
             ]
           }
         ],
-        "rationale": "Probate is now supported by EXUI global search and staff ref-data config; current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
-        "nextAction": "Keep Probate grouped while the shared global-search and staff/ref-data contracts provide the release evidence."
+        "rationale": "Probate is staff-supported in EXUI config and current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
+        "nextAction": "Keep Probate grouped through staff-supported assertions until a Probate-specific EXUI-visible behaviour justifies a normalized slice."
       },
       {
         "serviceFamily": "ST_CIC",

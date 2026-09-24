@@ -1021,10 +1021,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(probateDecision).toEqual(
       expect.objectContaining({
         disposition: 'grouped',
-        lanes: ['global-search', 'staff-ref-data'],
+        lanes: ['staff-ref-data'],
       })
     );
-    expect(probateDecision?.representativeScenarioIds).toContain('global-search-supported-service-families');
     expect(probateDecision?.representativeScenarioIds).toContain('probate-staff-ref-data-contract');
     expect(probateProfile).toEqual(
       expect.objectContaining({
@@ -1033,7 +1032,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         serviceCodes: ['ABA6'],
       })
     );
-    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).toContain('PROBATE');
+    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).not.toContain('PROBATE');
     expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).not.toContain('PROBATE');
     expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('PROBATE');
     expect(EXUI_SERVICE_REF_DATA_MAPPING.PROBATE).toEqual(['ABA6']);
