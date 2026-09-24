@@ -1032,7 +1032,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         serviceCodes: ['ABA6'],
       })
     );
-    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).not.toContain('PROBATE');
+    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).toContain('PROBATE');
     expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).not.toContain('PROBATE');
     expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('PROBATE');
     expect(EXUI_SERVICE_REF_DATA_MAPPING.PROBATE).toEqual(['ABA6']);

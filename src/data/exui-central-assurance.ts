@@ -7,7 +7,8 @@ export const EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES = [
   "PRIVATELAW",
   "PUBLICLAW",
   "EMPLOYMENT",
-  "ST_CIC"
+  "ST_CIC",
+  "PROBATE"
 ] as const;
 
 export const EXUI_WA_SUPPORTED_SERVICE_FAMILIES = [
@@ -1152,7 +1153,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     caseType: "GrantOfRepresentation",
     roleCluster: "caseworker-probate",
     assertion:
-      "PROBATE remains staff-supported but outside global search and Work Allocation release-blocking sets, with ABA6 service-code mapping",
+      "PROBATE is now supported by global search while remaining outside Work Allocation release-blocking sets, with ABA6 service-code mapping",
     source: "rpx-xui-webapp staff-supported config and probate-back-office CCD service metadata",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,

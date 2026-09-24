@@ -7,7 +7,8 @@
         "PRIVATELAW",
         "PUBLICLAW",
         "EMPLOYMENT",
-        "ST_CIC"
+        "ST_CIC",
+        "PROBATE"
       ],
       "waSupportedJurisdictions": [
         "IA",
