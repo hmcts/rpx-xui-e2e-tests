@@ -683,7 +683,7 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
     serviceFamily: "PROBATE",
     priority: "grouped",
     proofLevel: "ccd-backed",
-    lanes: ["staff-ref-data"],
+    lanes: ["global-search", "staff-ref-data"],
     representativeCaseTypes: ["GrantOfRepresentation"],
     serviceCodes: ["ABA6"],
     repos: [
@@ -710,9 +710,9 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
       }
     ],
     rationale:
-      "Probate is staff-supported in EXUI config and current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
+      "Probate is now supported by EXUI global search and staff ref-data config; current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
     nextAction:
-      "Keep Probate grouped through staff-supported assertions until a Probate-specific EXUI-visible behaviour justifies a normalized slice."
+      "Keep Probate grouped while the shared global-search and staff/ref-data contracts provide the release evidence."
   },
   {
     serviceFamily: "ST_CIC",
@@ -1002,13 +1002,14 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
   {
     serviceFamily: "PROBATE",
     disposition: "grouped",
-    lanes: ["staff-ref-data"],
+    lanes: ["global-search", "staff-ref-data"],
     representativeScenarioIds: [
+      "global-search-supported-service-families",
       "staff-supported-service-families",
       "probate-staff-ref-data-contract"
     ],
     rationale:
-      "Staff-supported only in this first slice; grouped with a Probate-specific staff/ref-data contract until a distinct EXUI-facing behaviour is identified."
+      "Global-search and staff-supported config contracts are covered, with a Probate-specific staff/ref-data contract for the GrantOfRepresentation service mapping."
   },
   {
     serviceFamily: "CMC",
@@ -1153,7 +1154,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     caseType: "GrantOfRepresentation",
     roleCluster: "caseworker-probate",
     assertion:
-      "PROBATE is now supported by global search while remaining outside Work Allocation release-blocking sets, with ABA6 service-code mapping",
+      "PROBATE remains staff-supported with ABA6 service-code mapping while global search is covered by the shared family contract",
     source: "rpx-xui-webapp staff-supported config and probate-back-office CCD service metadata",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,

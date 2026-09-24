@@ -874,5 +874,6 @@ export const __test__ = {
   isTransientUiSessionCaptureFailure,
   writeSessionCaptureFailure,
   handleUiStorageWarmupFailure,
+  completeIdamCredentialFlow,
   shouldRefreshStorageState
 };

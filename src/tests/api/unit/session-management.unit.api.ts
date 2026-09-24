@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { __test__ as sessionCaptureTest } from '../../common/sessionCapture.js';
 import { __test__ as integrationSessionTest } from '../../e2e/integration/utils/session.utils.js';
@@ -10,6 +10,32 @@ import { __test__ as sessionStorageTest } from '../../e2e/utils/session-storage.
 import { resolveUiStoragePathForUser, writeUiStorageMetadata } from '../../e2e/utils/storage-state.utils.js';
 
 test.describe('Session management hardening unit tests', { tag: '@svc-internal' }, () => {
+  const buildCredentialLocators = () => {
+    const buildVisibleLocator = () => {
+      const locator = {
+        count: async () => 1,
+        nth: () => locator,
+        isVisible: async () => true,
+        fill: async () => undefined,
+        press: async () => undefined,
+      };
+      return locator as unknown as Locator;
+    };
+
+    const submitButton = {
+      count: async () => 1,
+      nth: () => submitButton,
+      isVisible: async () => true,
+      click: async () => undefined,
+    } as unknown as Locator;
+
+    return {
+      usernameInput: buildVisibleLocator(),
+      passwordInput: buildVisibleLocator(),
+      submitButton,
+    };
+  };
+
   test('confirmAuthenticatedLogin accepts auth-cookie based success for fallback IDAM login', async () => {
     const infoCalls: Array<Record<string, unknown>> = [];
 
@@ -66,6 +92,42 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     expect(() =>
       sessionStorageTest.handleUiStorageWarmupFailure(failure, 'FPL_GLOBAL_SEARCH', true, () => undefined)
     ).toThrow(failure);
+  });
+
+  test('IDAM credential flow propagates navigation failures after submitting credentials', async () => {
+    const { usernameInput, passwordInput, submitButton } = buildCredentialLocators();
+
+    await expect(
+      sessionStorageTest.completeIdamCredentialFlow(
+        {
+          waitForLoadState: async () => {
+            throw new Error('navigation failed');
+          },
+        } as unknown as Page,
+        { usernameInput, passwordInput, submitButton },
+        'user@example.test',
+        'password'
+      )
+    ).rejects.toThrow('navigation failed');
+  });
+
+  test('IDAM credential flow completes when navigation reaches DOMContentLoaded', async () => {
+    let loaded = false;
+    const { usernameInput, passwordInput, submitButton } = buildCredentialLocators();
+
+    await expect(
+      sessionStorageTest.completeIdamCredentialFlow(
+        {
+          waitForLoadState: async () => {
+            loaded = true;
+          },
+        } as unknown as Page,
+        { usernameInput, passwordInput, submitButton },
+        'user@example.test',
+        'password'
+      )
+    ).resolves.toBeUndefined();
+    expect(loaded).toBe(true);
   });
 
   test('session capture failure markers use the webapp cooldown and are cleared explicitly', () => {

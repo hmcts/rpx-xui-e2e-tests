@@ -1021,9 +1021,10 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(probateDecision).toEqual(
       expect.objectContaining({
         disposition: 'grouped',
-        lanes: ['staff-ref-data'],
+        lanes: ['global-search', 'staff-ref-data'],
       })
     );
+    expect(probateDecision?.representativeScenarioIds).toContain('global-search-supported-service-families');
     expect(probateDecision?.representativeScenarioIds).toContain('probate-staff-ref-data-contract');
     expect(probateProfile).toEqual(
       expect.objectContaining({
