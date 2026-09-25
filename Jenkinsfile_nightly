@@ -100,6 +100,7 @@ static Map<String, Object> secret(String secretName, String envVariable) {
 // Populate with real Key Vault secret names once known; empty list keeps the pattern intact.
 def secrets = [
   "rpx-${params.TEST_ENV}": [
+    secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS'),
     secret('mc-s2s-client-secret', 'S2S_SECRET'),
     secret('mc-idam-client-secret', 'IDAM_SECRET'),
     secret('idam-web-url', 'IDAM_WEB_URL'),
@@ -648,7 +649,7 @@ withNightlyPipeline(type, product, component, 400) {
             "PW_E2E_WORKERS=${uiWorkers}",
             "E2E_PW_INCLUDE_TAGS=${params.E2E_PW_INCLUDE_TAGS}",
             "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
-            'PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=true',
+            "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PLAYWRIGHT_PERFETTO_OUTPUT_FILE=functional-output/tests/playwright-e2e/test-results/perfetto.json',
