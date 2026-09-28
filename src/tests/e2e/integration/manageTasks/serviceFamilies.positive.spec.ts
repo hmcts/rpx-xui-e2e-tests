@@ -1,4 +1,4 @@
-import type { Cookie, Page, TestInfo } from '@playwright/test';
+import type { Page, TestInfo } from '@playwright/test';
 
 import {
   EXUI_CANARY_SERVICE_FAMILIES,
@@ -15,24 +15,13 @@ import {
 } from '../../../integration/helpers/manageTasksMockRoutes.helper.js';
 import { buildSupportedJurisdictionDetails } from '../../../integration/helpers/taskListMockRoutes.helper.js';
 import { buildTaskListMock, availableActionsList } from '../../../integration/mocks/taskList.mock.js';
-import { ensureUiSession } from '../../utils/ui-session.utils.js';
-import { loadSessionCookies } from '../utils/session.utils.js';
 
 const userIdentifier = 'COURT_ADMIN';
 const centralAssuranceUserId = 'exui-central-assurance-user';
 const TASK_LIST_NAVIGATION_TIMEOUT_MS = 20_000;
 const TASK_LIST_TAB_TIMEOUT_MS = 10_000;
 const SERVICE_FILTER_OPEN_TIMEOUT_MS = 20_000;
-const SESSION_BOOTSTRAP_LOGIN_TIMEOUT_MS = 15_000;
 const AVAILABLE_TASKS_HARNESS_ROUTE = '**/work/my-work/{list,available}*';
-
-let sessionCookies: Cookie[] = [];
-let sessionBootstrapIssue: string | undefined;
-
-function hasHarnessAuthCookies(cookies: Cookie[]): boolean {
-  const cookieNames = new Set(cookies.map((cookie) => cookie.name));
-  return cookieNames.has('Idam.Session') && (cookieNames.has('xui-webapp') || cookieNames.has('__auth__'));
-}
 
 async function findTaskListAccessIssue(page: Page, expectedPath: string): Promise<string | undefined> {
   const loginInput = page.locator(
@@ -227,51 +216,7 @@ async function openAvailableTasksServiceFilter(page: Page, taskListPage: TaskLis
   }
 }
 
-async function ensureHarnessUiSession(): Promise<void> {
-  const previousLoginTimeout = process.env.PW_UI_LOGIN_TIMEOUT_MS;
-  if (!previousLoginTimeout) {
-    process.env.PW_UI_LOGIN_TIMEOUT_MS = String(SESSION_BOOTSTRAP_LOGIN_TIMEOUT_MS);
-  }
-
-  try {
-    await ensureUiSession(userIdentifier, { strict: true });
-  } finally {
-    if (previousLoginTimeout === undefined) {
-      delete process.env.PW_UI_LOGIN_TIMEOUT_MS;
-    } else {
-      process.env.PW_UI_LOGIN_TIMEOUT_MS = previousLoginTimeout;
-    }
-  }
-}
-
-test.beforeAll(async () => {
-  try {
-    sessionCookies = loadSessionCookies(userIdentifier).cookies;
-    if (!hasHarnessAuthCookies(sessionCookies)) {
-      await ensureHarnessUiSession();
-    }
-  } catch (error) {
-    sessionBootstrapIssue = asErrorMessage(error);
-  }
-
-  const cachedSession = loadSessionCookies(userIdentifier);
-  sessionCookies = hasHarnessAuthCookies(cachedSession.cookies) ? cachedSession.cookies : [];
-
-  if (sessionCookies.length === 0 && !sessionBootstrapIssue) {
-    sessionBootstrapIssue = `No cached ${userIdentifier} UI session cookies were found. Run the UI global setup or yarn ui:session before the harness UI proof.`;
-  }
-});
-
 test.beforeEach(async ({ page }) => {
-  if (sessionCookies.length === 0) {
-    throw new Error(
-      sessionBootstrapIssue
-        ? `No cached ${userIdentifier} UI session cookies were found after session bootstrap failed: ${sessionBootstrapIssue}`
-        : `No cached ${userIdentifier} UI session cookies were found for the manage-tasks proof.`
-    );
-  }
-
-  await page.context().addCookies(sessionCookies);
   await page.route(AVAILABLE_TASKS_HARNESS_ROUTE, async (route) => {
     await route.fulfill({
       status: 200,
