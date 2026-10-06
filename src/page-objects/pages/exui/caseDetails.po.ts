@@ -302,7 +302,7 @@ export class CaseDetailsPage extends Base {
       });
 
       for (const row of dataRows) {
-        const cells = Array.from(row.querySelectorAll('th, td')).filter(
+        const cells = Array.from(row.querySelectorAll(':scope > th, :scope > td')).filter(
           (cell) => !(cell.tagName === 'TD' && cell.classList.contains('case-field-change'))
         );
         if (cells.length < 2) {
@@ -320,6 +320,11 @@ export class CaseDetailsPage extends Base {
           .slice(1)
           .map((c) => {
             const clone = c.cloneNode(true) as Element;
+            clone.querySelectorAll('table.multi-select-list-field-table').forEach((table) => {
+              const values = Array.from(table.querySelectorAll('tbody > tr > td'))
+                .map((cell) => (cell.textContent || '').trim());
+              table.replaceWith(values.join(' '));
+            });
             clone.querySelectorAll('table').forEach((t) => t.remove());
             return findFirstText(clone).replace(trailingSortIndicatorRegex, '').trim();
           })
