@@ -139,6 +139,8 @@ def secrets = [
     secret('e2e-booking-ui-ft-on-8-password', 'BOOKING_UI_FT_ON_8_PASSWORD'),
     secret('solicitor-username', 'SOLICITOR_USERNAME'),
     secret('solicitor-password', 'SOLICITOR_PASSWORD'),
+    secret('e2e-civil-solicitor-username', 'CIVIL_SOLICITOR_USERNAME'),
+    secret('e2e-civil-solicitor-password', 'CIVIL_SOLICITOR_PASSWORD'),
     secret('e2e-divorce-solicitor-username', 'DIVORCE_SOLICITOR_USERNAME'),
     secret('e2e-divorce-solicitor-password', 'DIVORCE_SOLICITOR_PASSWORD'),
     secret('e2e-wa-solicitor-username', 'WA_SOLICITOR_USERNAME'),
