@@ -65,14 +65,14 @@ test.describe("FPL global search user - find case", { tag: ["@e2e", "@e2e-search
     });
   });
 
-  test("Search is accessible from main menu navigation", async ({
-    globalSearchPage,
+  test("Find case is accessible from main menu navigation", async ({
+    findCasePage,
     page
   }) => {
     await openHomeWithCapturedSession(page, "FPL_GLOBAL_SEARCH");
-    await globalSearchPage.searchLinkOnMenuBar.click();
-    await expect(page).toHaveURL(/\/search/);
-    await expect(globalSearchPage.pageHeading).toHaveText(/Search cases/);
+    await findCasePage.openFromMainMenu();
+    await expect(page).toHaveURL(/\/cases\/case-search/);
+    await expect(findCasePage.pageHeading).toHaveText("Search");
   });
 });
 
