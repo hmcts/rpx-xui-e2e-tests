@@ -52,7 +52,7 @@ export class CaseFileViewPage extends Base {
     for (const [index, segment] of segments.entries()) {
       folderNode = await this.findDirectChildFolderNode(currentScope, segment);
 
-      const folderButton = folderNode.locator(':scope > button.node[role="treeitem"]').first();
+      const folderButton = folderNode.locator(':scope > button.node').first();
 
       await folderButton.waitFor({ state: "visible" });
       const needsExpanded = index < segments.length - 1 || options.expandTarget === true;

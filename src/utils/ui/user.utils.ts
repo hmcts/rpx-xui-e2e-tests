@@ -115,6 +115,10 @@ export const USER_ENV_MAP: Record<string, UserEnvMapping> = {
     username: "DIVORCE_SOLICITOR_USERNAME",
     password: "DIVORCE_SOLICITOR_PASSWORD"
   },
+  CIVIL_SOLICITOR: {
+    username: "CIVIL_SOLICITOR_USERNAME",
+    password: "CIVIL_SOLICITOR_PASSWORD"
+  },
   CASEWORKER_R1: {
     username: "CASEWORKER_R1_USERNAME",
     password: "CASEWORKER_R1_PASSWORD"

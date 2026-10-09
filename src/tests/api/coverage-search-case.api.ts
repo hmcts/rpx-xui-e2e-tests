@@ -125,6 +125,23 @@ test.describe("Search-case support coverage", () => {
     );
   });
 
+  test("USER_WITH_FLAGS uses configured credentials when they are available", async () => {
+    await withEnv(
+      {
+        USER_WITH_FLAGS_USERNAME: "flags-user@example.com",
+        USER_WITH_FLAGS_PASSWORD: "flags-password",
+        TEST_ENV: "aat"
+      },
+      () => {
+        const userUtils = new UserUtils();
+        expect(userUtils.getUserCredentials("USER_WITH_FLAGS")).toEqual({
+          email: "flags-user@example.com",
+          password: "flags-password"
+        });
+      }
+    );
+  });
+
   test("integration session warmup users match the source baseline and include configured search users", async () => {
     await withEnv(
       {

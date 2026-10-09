@@ -25,13 +25,13 @@ test.describe(
     test.describe.configure({ timeout: 240_000 });
 
     test.beforeAll(async () => {
-      await ensureUiSession("SOLICITOR");
+      await ensureUiSession("CIVIL_SOLICITOR");
     });
 
     test.beforeEach(async ({ page, createCasePage, caseDetailsPage }) => {
       await retryOnTransientFailure(
         async () => {
-          await openHomeWithCapturedSession(page, "SOLICITOR");
+          await openHomeWithCapturedSession(page, "CIVIL_SOLICITOR");
           await createCasePage.acceptAnalyticsCookies();
           await createCasePage.waitForUiIdleState();
 
@@ -80,10 +80,19 @@ test.describe(
           async () => {
             await createCasePage.person2FirstNameInput.fill(updatedFirstName);
             await createCasePage.person2LastNameInput.fill(updatedLastName);
-            await createCasePage.clickSubmitAndWait("after updating case fields", {
-              timeoutMs: 60_000,
-              maxAutoAdvanceAttempts: 3
-            });
+            try {
+              await createCasePage.clickSubmitAndWait("after updating case fields", {
+                timeoutMs: 60_000
+              });
+            } catch (error) {
+              if (!(error instanceof Error) || !error.message.includes("Do you agree? is required")) {
+                throw error;
+              }
+              await createCasePage.doYouAgreeYesRadio.check();
+              await createCasePage.clickSubmitAndWait("after confirming agreement", {
+                timeoutMs: 60_000
+              });
+            }
           },
           {
             maxAttempts: 2,

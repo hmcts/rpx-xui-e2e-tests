@@ -30,6 +30,10 @@ const dynamicUserEnvMap: Record<string, RuntimeUserCredentialEnvMapping> = {
     username: 'DIVORCE_SOLICITOR_USERNAME',
     password: 'DIVORCE_SOLICITOR_PASSWORD',
   },
+  CIVIL_SOLICITOR: {
+    username: 'CIVIL_SOLICITOR_USERNAME',
+    password: 'CIVIL_SOLICITOR_PASSWORD',
+  },
   PROD_LIKE: {
     username: 'PROD_LIKE_USERNAME',
     password: 'PROD_LIKE_PASSWORD',
