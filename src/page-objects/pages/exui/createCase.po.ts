@@ -88,6 +88,9 @@ export class CreateCasePage extends Base {
   readonly person2LastNameInput = this.page.locator(
     '[data-testid="Person2_LastName"] input, [data-testid="Person2_LastName"], #Person2_LastName, [name="Person2_LastName"]'
   );
+  readonly doYouAgreeYesRadio = this.page
+    .getByRole("group", { name: /Do you agree\?/i })
+    .getByRole("radio", { name: /^Yes$/i });
   readonly person2GenderSelect = this.page.locator("#Person2_PersonGender");
   readonly person2JobTitleInput = this.page.locator("#Person2_PersonJob_Title");
   readonly person2JobDescriptionInput = this.page.locator("#Person2_PersonJob_Description");

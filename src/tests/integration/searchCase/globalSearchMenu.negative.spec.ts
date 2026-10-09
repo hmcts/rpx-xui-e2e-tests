@@ -63,7 +63,9 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, { tag: ['@int
           response.status() === status
       );
       await caseListPage.navigateTo();
-      await globalSearchPage.submitFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, "PUBLICLAW");
+      await expect(
+        globalSearchPage.performGlobalSearchWithCase(GLOBAL_SEARCH_CASE_REFERENCE, "PUBLICLAW")
+      ).rejects.toThrow('Global search returned "Something went wrong" before results were usable');
 
       await searchResponse;
       await expect(page).toHaveURL(/\/search\/noresults/);

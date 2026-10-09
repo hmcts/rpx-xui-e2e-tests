@@ -63,15 +63,24 @@ export class GlobalSearchPage extends Base {
     caseType: string,
     applicantOrPartyName?: string
   ): Promise<void> {
-    await this.performGlobalSearchWithCase(caseId, caseType, applicantOrPartyName);
-    const isErrorPage = await this.errorPageHeading.isVisible().catch(() => false);
-    if (!isErrorPage) {
+    try {
+      await this.performGlobalSearchWithCase(caseId, caseType, applicantOrPartyName);
       return;
-    }
+    } catch (firstError) {
+      if (!(await this.errorPageHeading.isVisible().catch(() => false))) {
+        throw firstError;
+      }
 
-    await this.performGlobalSearchWithCase(caseId, caseType, applicantOrPartyName);
-    if (await this.errorPageHeading.isVisible().catch(() => false)) {
-      throw new Error('Global search returned "Something went wrong" after retry.');
+      const firstFailure = firstError instanceof Error ? firstError.message : String(firstError);
+      try {
+        await this.performGlobalSearchWithCase(caseId, caseType, applicantOrPartyName);
+      } catch (secondError) {
+        const secondFailure = secondError instanceof Error ? secondError.message : String(secondError);
+        throw new Error(
+          `Global search failed after one bounded retry. First attempt: ${firstFailure}. Second attempt: ${secondFailure}`,
+          { cause: secondError }
+        );
+      }
     }
   }
 
@@ -116,14 +125,21 @@ export class GlobalSearchPage extends Base {
   }
 
   private async waitForSearchResults(caseId: string): Promise<void> {
+    await expect
+      .poll(
+        async () =>
+          (await this.errorPageHeading.isVisible().catch(() => false)) ||
+          (await this.searchResultsTable.isVisible().catch(() => false)),
+        { timeout: EXUI_TIMEOUTS.SEARCH_SPINNER_RESULT_HIDDEN }
+      )
+      .toBe(true);
+
     if (await this.errorPageHeading.isVisible().catch(() => false)) {
-      return;
+      throw new Error(
+        `Global search returned "Something went wrong" before results were usable. Current URL: ${this.page.url()}`
+      );
     }
 
-    await this.searchResultsTable.waitFor({
-      state: "visible",
-      timeout: EXUI_TIMEOUTS.SEARCH_SPINNER_RESULT_HIDDEN
-    });
     await this.searchResultRows.first().waitFor({
       state: "visible",
       timeout: EXUI_TIMEOUTS.SEARCH_SPINNER_RESULT_HIDDEN
@@ -149,7 +165,9 @@ export class GlobalSearchPage extends Base {
       });
     } catch {
       if (await this.errorPageHeading.isVisible().catch(() => false)) {
-        return;
+        throw new Error(
+          `Global search returned "Something went wrong" before case ${caseId} was usable. Current URL: ${this.page.url()}`
+        );
       }
       throw new Error(
         `Global search results did not contain case reference ${caseId} within ${EXUI_TIMEOUTS.SEARCH_SPINNER_RESULT_HIDDEN}ms`

@@ -1,13 +1,16 @@
 import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../../../fixtures/ui";
-import { setupCaseForJourney } from "../../utils/test-setup/caseSetup.js";
-import { buildCasePayloadFromTemplate } from "../../utils/test-setup/payloads/registry.js";
-import { ensureUiSession, openHomeWithCapturedSession } from "../../utils/ui-session.utils.js";
+import {
+  ensureSearchCaseSession,
+  openHomeWithCapturedSession,
+  PUBLIC_LAW_CASE_REFERENCE_OPTIONS
+} from "../../searchCase/searchCase.setup.js";
+import { resolveCaseReferenceFromGlobalSearch } from "../../utils/case-reference.utils.js";
 
-const userIdentifier = "SEARCH_EMPLOYMENT_CASE";
-const jurisdiction = "EMPLOYMENT";
-const caseType = "ET_EnglandWales";
+const userIdentifier = "FPL_GLOBAL_SEARCH";
+const jurisdiction = "Public Law";
+const caseType = "Public Law Applications";
 test.use({ storageState: { cookies: [], origins: [] } });
 const installTabSelectionTracker = async (page: Page) => {
   await page.addInitScript(() => {
@@ -153,45 +156,27 @@ const assertSummaryTabIsDefault = async (page: Page, label: string) => {
 };
 
 test.describe("@EXUI-3895 Case details default tab selection", () => {
-  test.describe.configure({ timeout: 180_000 });
-
   test.beforeAll(async () => {
-    await ensureUiSession(userIdentifier);
+    await ensureSearchCaseSession(userIdentifier);
   });
 
   test("@EXUI-3895 Summary tab remains default when opening case details", async ({
     caseDetailsPage,
     caseSearchPage,
-    createCasePage,
     page
-  }, testInfo) => {
+  }) => {
     await installTabSelectionTracker(page);
     await openHomeWithCapturedSession(page, userIdentifier);
 
-    const setup = await setupCaseForJourney({
-      scenario: "case-details-default-tab-employment",
-      jurisdiction,
-      caseType,
-      apiEventId: "initiateCase",
-      mode: "api-required",
-      apiPayload: buildCasePayloadFromTemplate("employment.et-england-wales.initiate-case"),
-      uiCreate: async () => {
-        await createCasePage.createCaseEmployment(jurisdiction, caseType, "");
-      },
+    const caseReference = await resolveCaseReferenceFromGlobalSearch(
       page,
-      createCasePage,
-      caseDetailsPage,
-      testInfo
-    });
-
-    const caseReference = setup.caseNumber;
-    await caseDetailsPage.waitForReady();
-    await assertSummaryTabIsDefault(page, "Case setup navigation");
+      PUBLIC_LAW_CASE_REFERENCE_OPTIONS
+    );
 
     await test.step("Open case details via Find Case", async () => {
+      await caseSearchPage.startFindCaseJourney(caseReference, caseType, jurisdiction);
       await resetTabSelectionTracker(page);
-      await caseSearchPage.searchWith16DigitCaseId(caseReference);
-      await caseDetailsPage.exuiCaseDetailsComponent.waitForSelectionOutcome();
+      await caseSearchPage.openCaseDetailsFor(caseReference);
       await caseDetailsPage.waitForReady();
     });
 

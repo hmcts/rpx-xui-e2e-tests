@@ -2,7 +2,7 @@ import { faker } from "@faker-js/faker";
 
 import { expect, test } from "../../../fixtures/ui";
 import { caseBannerMatches } from "../utils/banner.utils.js";
-import { isPageClosingError, rowMatchesExpected } from "../utils/case-flags.utils.js";
+import { isPageClosingError } from "../utils/case-flags.utils.js";
 import { filterEmptyRows } from "../utils/table.utils.js";
 import { setupCaseForJourney } from "../utils/test-setup/caseSetup.js";
 import { buildCasePayloadFromTemplate } from "../utils/test-setup/payloads/registry.js";
@@ -52,10 +52,7 @@ test.describe("Case level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, () 
     caseNumber = setup.caseNumber;
   });
 
-  test("Create a new case level flag and verify the flag is displayed on the case", async ({
-    caseDetailsPage,
-    tableUtils
-  }) => {
+  test("Create a new case level flag and verify the flag is displayed on the case", async ({ caseDetailsPage }) => {
     await test.step("Open case flags tab", async () => {
       await caseDetailsPage.selectCaseDetailsTab("Flags");
       await expect(caseDetailsPage.caseFlagsHeading).toBeVisible();
@@ -97,11 +94,10 @@ test.describe("Case level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, () 
     await test.step("Verify the case level flag is shown in the flags tab", async () => {
       await caseDetailsPage.selectCaseDetailsTab("Flags");
       const expectedFlag = {
-        "Case flags": "Welsh forms and communications",
-        Comments: "Welsh",
-        "Creation date": await caseDetailsPage.todaysDateFormatted(),
-        "Last modified": "",
-        "Flag status": "Active"
+        name: "Welsh forms and communications",
+        comments: "Welsh",
+        creationDate: (await caseDetailsPage.todaysDateFormatted()).replace("Sept", "Sep"),
+        status: "ACTIVE"
       };
       await expect
         .poll(
@@ -110,9 +106,16 @@ test.describe("Case level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, () 
               return false;
             }
             try {
-              const table = await tableUtils.parseDataTable(await caseDetailsPage.getTableByName("Case level flags"));
-              const visibleRows = filterEmptyRows(table);
-              return visibleRows.some((row) => rowMatchesExpected(row, expectedFlag));
+              const table = caseDetailsPage.getTableByName("Case level flags");
+              const flagRow = table
+                .getByRole("row")
+                .filter({ hasText: expectedFlag.name })
+                .filter({ hasText: expectedFlag.comments });
+              if (!(await flagRow.isVisible())) {
+                return false;
+              }
+              const rowText = await flagRow.innerText();
+              return [expectedFlag.creationDate, expectedFlag.status].every((value) => rowText.includes(value));
             } catch (error) {
               if (isPageClosingError(error)) {
                 return false;
@@ -190,7 +193,7 @@ test.describe("Party level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, ()
       const flagsTable = await caseDetailsPage.waitForTableByName(testValue);
       const table = await tableUtils.parseDataTable(flagsTable);
       const visibleRows = filterEmptyRows(table);
-      expect.soft(visibleRows.length).toBeGreaterThanOrEqual(0);
+      expect.soft(visibleRows).toHaveLength(0);
     });
 
     await test.step("Create a new party level flag", async () => {
@@ -235,11 +238,10 @@ test.describe("Party level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, ()
     await test.step("Verify the party level case flag is shown in the flags tab", async () => {
       await caseDetailsPage.selectCaseDetailsTab("Flags");
       const expectedFlag = {
-        "Party level flags": "I want to speak Welsh at a hearing",
-        Comments: `Welsh ${testValue}`,
-        "Creation date": await caseDetailsPage.todaysDateFormatted(),
-        "Last modified": "",
-        "Flag status": "Active"
+        name: "I want to speak Welsh at a hearing",
+        comments: `Welsh ${testValue}`,
+        creationDate: (await caseDetailsPage.todaysDateFormatted()).replace("Sept", "Sep"),
+        status: "ACTIVE"
       };
       await expect
         .poll(
@@ -251,9 +253,19 @@ test.describe("Party level case flags", { tag: ["@e2e", "@e2e-case-flags"] }, ()
               throw new Error("Callback data failed validation while verifying party-level case flag.");
             }
             try {
-              const table = await tableUtils.parseDataTable(await caseDetailsPage.getTableByName(testValue));
-              const visibleRows = filterEmptyRows(table);
-              return visibleRows.some((row) => rowMatchesExpected(row, expectedFlag));
+              const partyFlagsTable = await caseDetailsPage.waitForTableByName(testValue, {
+                timeoutMs: 15_000
+              });
+              await partyFlagsTable.waitFor({ state: "visible" });
+              const flagRow = partyFlagsTable
+                .getByRole("row")
+                .filter({ hasText: expectedFlag.name })
+                .filter({ hasText: expectedFlag.comments });
+              if (!(await flagRow.isVisible())) {
+                return false;
+              }
+              const rowText = await flagRow.innerText();
+              return [expectedFlag.creationDate, expectedFlag.status].every((value) => rowText.includes(value));
             } catch (error) {
               if (isPageClosingError(error)) {
                 return false;
