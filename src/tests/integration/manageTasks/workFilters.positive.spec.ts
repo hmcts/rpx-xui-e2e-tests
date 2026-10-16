@@ -232,7 +232,7 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
     expect(table[0]['Task']).toBe(filteredTask.task_title);
   });
 
-  test('My cases request honours persisted service and location filters from local storage', async ({
+  test('My cases request honours persisted service and location filters from session storage', async ({
     taskListPage,
     page,
     tableUtils,
@@ -251,19 +251,18 @@ test.describe(`Work filters as ${workFiltersUserIdentifier}`, { tag: ['@integrat
 
     const expectedUserId = await setupWorkFiltersUser(page);
 
-    await page.addInitScript(({ storageKey, userId }) => {
-      window.localStorage.setItem(
+    await page.addInitScript(({ storageKey }) => {
+      window.sessionStorage.setItem(
         storageKey,
         JSON.stringify({
           id: storageKey,
-          idamId: userId,
           fields: [
             { name: 'services', value: ['IA'] },
             { name: 'locations', value: [{ epimms_id: '765324' }] },
           ],
         })
       );
-    }, { storageKey: MY_WORK_FILTER_STORAGE_KEY, userId: expectedUserId });
+    }, { storageKey: MY_WORK_FILTER_STORAGE_KEY });
 
     await setupManageTasksBaseRoutes(page, {
       taskListResponse: buildTaskListMock(6, workFiltersUserId, myActionsList),

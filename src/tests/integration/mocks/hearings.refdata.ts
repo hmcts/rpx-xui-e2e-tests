@@ -215,24 +215,24 @@ export const hearingLinksState = {
     {
       caseReference: '4652724902696213',
       caseName: 'Smith vs Peterson',
-      reasonsForLink: ['Linked for a hearing'],
+      reasonsForLink: ['CLRC017'],
     },
     {
       caseReference: '5283819672542864',
       caseName: 'Smith vs Peterson',
-      reasonsForLink: ['Linked for a hearing', 'Progressed as part of lead case'],
+      reasonsForLink: ['CLRC017', 'Progressed as part of lead case'],
     },
     {
       caseReference: '8254902572336147',
       caseName: 'Smith vs Peterson',
-      reasonsForLink: ['Familial', 'Guardian', 'Linked for a hearing'],
+      reasonsForLink: ['Familial', 'Guardian', 'CLRC017'],
     },
   ],
   serviceLinkedCasesWithHearings: [
     {
       caseRef: '4652724902696213',
       caseName: 'Smith vs Peterson',
-      reasonsForLink: ['Linked for a hearing'],
+      reasonsForLink: ['CLRC017'],
       caseHearings: [
         {
           hearingID: 'h100001',
@@ -255,7 +255,7 @@ export const hearingLinksState = {
     {
       caseRef: '8254902572336147',
       caseName: 'Smith vs Peterson',
-      reasonsForLink: ['Familial', 'Guardian', 'Linked for a hearing'],
+      reasonsForLink: ['Familial', 'Guardian', 'CLRC017'],
       caseHearings: [
         {
           hearingID: 'h100010',
