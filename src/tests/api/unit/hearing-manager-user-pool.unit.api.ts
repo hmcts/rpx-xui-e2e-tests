@@ -66,6 +66,16 @@ test.describe("Hearing manager user pool unit tests", { tag: "@svc-internal" }, 
     );
   });
 
+  test("honours an explicit zero parallel index over the environment fallback", () => {
+    expect(
+      resolveHearingManagerUserIdentifier(
+        HEARING_MANAGER_CR84_ON_USER,
+        { parallelIndex: 0 },
+        { ...configuredEnv, TEST_PARALLEL_INDEX: "3" }
+      )
+    ).toBe("HEARING_MANAGER_CR84_ON-1");
+  });
+
   test("tries the selected hearing manager before the remaining configured identities", () => {
     expect(
       resolveHearingManagerSessionCandidates(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 2 }, configuredEnv)

@@ -74,6 +74,9 @@ test.describe("Staff admin user pool unit tests", { tag: "@svc-internal" }, () =
     expect(resolveStaffAdminUserIdentifier(STAFF_ADMIN_USER, { parallelIndex: 4 }, configuredEnv)).toBe("STAFF_ADMIN-5");
     expect(resolveStaffAdminUserIdentifier(STAFF_ADMIN_USER, { parallelIndex: 7 }, configuredEnv)).toBe("STAFF_ADMIN-8");
     expect(resolveStaffAdminUserIdentifier(STAFF_ADMIN_USER, { parallelIndex: 8 }, configuredEnv)).toBe("STAFF_ADMIN-1");
+    expect(
+      resolveStaffAdminUserIdentifier(STAFF_ADMIN_USER, { parallelIndex: 0 }, { ...configuredEnv, TEST_PARALLEL_INDEX: "3" })
+    ).toBe("STAFF_ADMIN-1");
   });
 
   test("keeps non-staff-admin user identifiers unchanged", () => {

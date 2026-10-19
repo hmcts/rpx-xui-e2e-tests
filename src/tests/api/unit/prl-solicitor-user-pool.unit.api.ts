@@ -31,5 +31,8 @@ test.describe("PRL solicitor user pool unit tests", { tag: "@svc-internal" }, ()
     expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 3 }, configuredEnv)).toBe("PRL_SOLICITOR");
     expect(resolvePooledUserIdentifier("PRL_SOLICITOR", { parallelIndex: 1 }, configuredEnv)).toBe("PRL_SOLICITOR2");
     expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, {})).toBe("PRL_SOLICITOR");
+    expect(
+      resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, { ...configuredEnv, TEST_PARALLEL_INDEX: "2" })
+    ).toBe("PRL_SOLICITOR");
   });
 });

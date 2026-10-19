@@ -50,5 +50,8 @@ test.describe("Booking UI user pool unit tests", { tag: "@svc-internal" }, () =>
     expect(resolveBookingUiUserIdentifier({ parallelIndex: 4 }, configuredEnv)).toBe("BOOKING_UI-FT-ON-5");
     expect(resolveBookingUiUserIdentifier({ parallelIndex: 7 }, configuredEnv)).toBe("BOOKING_UI-FT-ON-8");
     expect(resolveBookingUiUserIdentifier({ parallelIndex: 8 }, configuredEnv)).toBe("BOOKING_UI-FT-ON-1");
+    expect(
+      resolveBookingUiUserIdentifier({ parallelIndex: 0 }, { ...configuredEnv, TEST_PARALLEL_INDEX: "3" })
+    ).toBe("BOOKING_UI-FT-ON-1");
   });
 });
