@@ -403,6 +403,19 @@ export async function setupNgIntegrationBaseRoutes(
   options?: NgIntegrationBaseRoutesOptions
 ): Promise<void> {
   const userDetails = buildNgIntegrationUserDetailsMock(options?.userDetails);
+  const profile = {
+    user: {
+      idam: {
+        id: userDetails.userInfo.id,
+        email: userDetails.userInfo.email,
+        forename: userDetails.userInfo.forename,
+        surname: userDetails.userInfo.surname,
+        roles: userDetails.userInfo.roles
+      }
+    },
+    channels: [],
+    jurisdictions: []
+  };
   const appConfig = buildNgIntegrationAppConfigMock();
   const environmentConfig = buildNgIntegrationEnvironmentConfigMock(options?.environmentConfig);
   const clientContext = buildNgIntegrationClientContextMock(options?.clientContextFeatureFlags);
@@ -423,6 +436,14 @@ export async function setupNgIntegrationBaseRoutes(
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(userDetails)
+      });
+    });
+
+    await page.route("**/data/internal/profile*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(profile)
       });
     });
   } else {
