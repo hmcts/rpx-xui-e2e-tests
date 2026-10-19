@@ -81,13 +81,13 @@ function hasConfiguredCredentials(userIdentifier: string, env: EnvMap): boolean 
 }
 
 function resolveParallelIndex(source?: ParallelIndexSource, env: EnvMap = process.env): number {
-  if (Number.isInteger(source?.parallelIndex) && Number(source?.parallelIndex) > 0) {
+  if (Number.isInteger(source?.parallelIndex) && Number(source?.parallelIndex) >= 0) {
     return Number(source?.parallelIndex);
   }
 
   const envParallelIndex = env.TEST_PARALLEL_INDEX ?? env.TEST_WORKER_INDEX;
   const parsedParallelIndex = Number(envParallelIndex);
-  return Number.isInteger(parsedParallelIndex) && parsedParallelIndex > 0 ? parsedParallelIndex : 0;
+  return Number.isInteger(parsedParallelIndex) && parsedParallelIndex >= 0 ? parsedParallelIndex : 0;
 }
 
 export function getConfiguredStaffAdminUserIdentifiers(env: EnvMap = process.env): StaffAdminUserIdentifier[] {

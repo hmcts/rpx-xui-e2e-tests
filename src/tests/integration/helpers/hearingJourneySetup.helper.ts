@@ -2,6 +2,7 @@ import { expect, test, type Page, type Response, type TestInfo } from '@playwrig
 
 import type { CaseDetailsPage } from '../../../page-objects/pages/exui/caseDetails.po';
 import type { HearingsTabPage } from '../../../page-objects/pages/exui/hearingsTab.po';
+import { withOrderedSessionFallback } from '../../common/orderedSessionFallback.js';
 import {
   HEARINGS_CASE_JURISDICTION,
   HEARINGS_CASE_REFERENCE,
@@ -127,22 +128,13 @@ export async function openHearingsTab(
 export async function applyHearingManagerSessionCookies(
   page: Page,
   userIdentifier: HearingManagerUserIdentifier,
-  testInfo: Pick<TestInfo, 'annotations'> & Partial<Pick<TestInfo, 'parallelIndex'>> = test.info()
+  testInfo: Pick<TestInfo, 'annotations'> & Partial<Pick<TestInfo, 'parallelIndex'>> = test.info(),
+  applySession: typeof applySessionCookies = applySessionCookies
 ): Promise<string> {
   const candidates = resolveHearingManagerSessionCandidates(userIdentifier, { parallelIndex: testInfo.parallelIndex });
-  let firstError: unknown;
-
-  for (const candidate of candidates) {
-    try {
-      await applySessionCookies(page, candidate);
-      testInfo.annotations.push({ type: 'session-user', description: candidate });
-      return candidate;
-    } catch (error) {
-      firstError ??= error;
-    }
-  }
-
-  throw firstError;
+  const result = await withOrderedSessionFallback(candidates, (identity) => applySession(page, identity.userIdentifier));
+  testInfo.annotations.push({ type: 'session-user', description: result.selectedUserIdentifier });
+  return result.selectedUserIdentifier;
 }
 
 export async function openHearingsTabForScenario(
