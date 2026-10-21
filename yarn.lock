@@ -4824,12 +4824,12 @@ __metadata:
   linkType: hard
 
 "node-html-parser@npm:^9.0.0":
-  version: 9.0.4
-  resolution: "node-html-parser@npm:9.0.4"
+  version: 9.0.5
+  resolution: "node-html-parser@npm:9.0.5"
   dependencies:
     css-select: "npm:^5.1.0"
     entities: "npm:^8.0.0"
-  checksum: 10c0/129752b901d30d16137729817a7042546e5f603b58ac57d6339b0cefad82630196e1a5f16fd374b22a83dc0d127b0bf743b05a1840d0d8beaa80f6dbcd17c487
+  checksum: 10c0/7bca03fe415afb1117e1c2e36e49630f624156cc378cff8c866114f9f80b3787579d1eafa377ed89cb9504ee2c72a7f1401ebe9587db4df0d9405a1984d12063
   languageName: node
   linkType: hard
 
