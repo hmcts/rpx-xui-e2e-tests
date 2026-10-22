@@ -1,5 +1,6 @@
 import { expect, test } from "../../../fixtures/ui";
 import { openCaseViewer } from "../helpers/caseViewerMockRoutes.helper.js";
+import { CASE_VIEWER_CASE_REFERENCE } from "../mocks/caseViewer.mock.js";
 
 test.describe("CCD case viewer empty and shuttered states", { tag: ["@integration", "@integration-case-viewer"] }, () => {
   test("renders an empty history tab without inventing event rows", async ({ page, caseDetailsPage }) => {
@@ -19,11 +20,14 @@ test.describe("CCD case viewer empty and shuttered states", { tag: ["@integratio
     await expect(page.getByRole("link", { name: /print/i }).or(page.getByRole("button", { name: /print/i }))).toHaveCount(0);
   });
 
-  test("shows the case-viewer error state when case details cannot be loaded", async ({ page, caseDetailsPage }) => {
+  test("redirects without viewer tabs when case details cannot be loaded", async ({ page, caseDetailsPage }) => {
+    const caseDetailsResponse = page.waitForResponse((response) =>
+      response.url().includes(`/data/internal/cases/${CASE_VIEWER_CASE_REFERENCE}`)
+    );
     await openCaseViewer(page, caseDetailsPage, "populated", 500);
 
-    await expect(caseDetailsPage.generalProblemHeading).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Something went wrong" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Activity and history" })).toHaveCount(0);
+    expect((await caseDetailsResponse).status()).toBe(500);
+    await expect(page).toHaveURL(/\/cases\/?$/);
+    await expect(page.getByRole("tab")).toHaveCount(0);
   });
 });
