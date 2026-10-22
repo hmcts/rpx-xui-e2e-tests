@@ -29,6 +29,7 @@ export type ResolvedTagFilters = {
   grep?: RegExp;
   grepInvert?: RegExp;
   ignoredGlobalExcludedTags: string[];
+  unmatchedGlobalExcludedTags: string[];
   includeTags: string[];
   suiteTag?: string;
 };
@@ -185,25 +186,27 @@ export function resolveTagFilters({
     : overrideExcludedTags.length
       ? overrideExcludedTags
       : configuredExcludedTags;
-  const { globalExcludedTags, ignoredGlobalExcludedTags, ignoreGlobalExcludes } = resolveGlobalExcludedTags({
+  const { globalExcludedTags: scopedGlobalExcludedTags, ignoredGlobalExcludedTags, ignoreGlobalExcludes } = resolveGlobalExcludedTags({
     env,
     globalExcludedTagsEnvVar,
     globalExcludedTagsPattern,
     ignoreGlobalExcludesEnvVar
   });
+  // The shared Vault list also contains tags owned by other repositories.
+  const globalExcludedTags = scopedGlobalExcludedTags.filter((tag) => allowedTags.has(tag));
+  const unmatchedGlobalExcludedTags = scopedGlobalExcludedTags.filter((tag) => !allowedTags.has(tag));
   const combinedExcludedTags = mergeTags(excludedTags, globalExcludedTags);
 
   validateKnownTags(configuredExcludedTags, allowedTags, `Config excludes in ${configPath}`, configPath);
   validateKnownTags(includeTags, allowedTags, includeTagsEnvVar, configPath);
   validateKnownTags(excludedTags, allowedTags, excludedTagsEnvVar, configPath);
-  validateKnownTags(globalExcludedTags, allowedTags, globalExcludedTagsEnvVar ?? "Global excluded tags", configPath);
 
   const normalizedIncludeTags =
-    suiteTag && includeTags.includes(suiteTag) && includeTags.length > 1
+    suiteTag && includeTags.includes(suiteTag)
       ? includeTags.filter((tag) => tag !== suiteTag)
       : includeTags;
 
-  if (suiteTag && !env.PLAYWRIGHT_ALLOW_EMPTY_TAG_SELECTION) {
+  if (suiteTag && !resolveBooleanEnvFlag(env.PLAYWRIGHT_ALLOW_EMPTY_TAG_SELECTION)) {
     const featureTags = availableTags.filter((tag) => tag !== suiteTag);
     const requested = normalizedIncludeTags.length ? normalizedIncludeTags : featureTags;
     if (combinedExcludedTags.includes(suiteTag) || requested.filter((tag) => !combinedExcludedTags.includes(tag)).length === 0) {
@@ -221,29 +224,35 @@ export function resolveTagFilters({
     grep: buildTagRegex(normalizedIncludeTags),
     grepInvert: buildTagRegex(combinedExcludedTags),
     ignoredGlobalExcludedTags,
+    unmatchedGlobalExcludedTags,
     includeTags: normalizedIncludeTags,
     suiteTag
   };
 }
 
-const formatTagLogValue = (tags: string[]): string => tags.length ? tags.join(",") : "<none>";
-
 export function logResolvedTagFilters(suiteName: string, filters: ResolvedTagFilters, env: EnvMap = process.env): void {
+  const isCi = Boolean(env.CI || env.JENKINS_URL || env.BUILD_NUMBER);
+  if (isCi && filters.unmatchedGlobalExcludedTags.length) {
+    process.stderr.write(
+      `[playwright-tags] ${suiteName}: unapplied global exclusions count=${filters.unmatchedGlobalExcludedTags.length}; absent from the local catalog (possible foreign-repository, stale or typo tags).\n`
+    );
+  }
   const configured = env.PLAYWRIGHT_LOG_TAG_FILTERS?.trim().toLowerCase();
   if (configured && falsy.has(configured)) {
     return;
   }
-  if (!env.CI && !resolveBooleanEnvFlag(configured)) {
+  if (!isCi && !resolveBooleanEnvFlag(configured)) {
     return;
   }
 
   process.stdout.write(
     [
       `[playwright-tags] ${suiteName}`,
-      `include=${formatTagLogValue(filters.includeTags)}`,
-      `exclude=${formatTagLogValue(filters.excludedTags)}`,
-      `globalApplied=${formatTagLogValue(filters.globalExcludedTags)}`,
-      `globalIgnored=${formatTagLogValue(filters.ignoredGlobalExcludedTags)}`,
+      `includeCount=${filters.includeTags.length}`,
+      `excludeCount=${filters.excludedTags.length}`,
+      `globalAppliedCount=${filters.globalExcludedTags.length}`,
+      `globalIgnoredCount=${filters.ignoredGlobalExcludedTags.length}`,
+      `globalUnmatchedCount=${filters.unmatchedGlobalExcludedTags.length}`,
       `source=${filters.excludedTagsSource}`,
       `config=${path.relative(process.cwd(), filters.configPath)}`
     ].join(" | ") + "\n"
