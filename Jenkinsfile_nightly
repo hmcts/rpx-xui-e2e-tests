@@ -644,6 +644,7 @@ withNightlyPipeline(type, product, component, 400) {
 
         stage('UI nightly') {
           def uiOdhinEnvironment = buildOdhinEnvironmentLabel(uiWorkers)
+          def uiReportSuiteName = 'Playwright E2E Cross-Browser'
           def uiOdhinEnv = [
             "FUNCTIONAL_TESTS_WORKERS=${uiWorkers}",
             "PLAYWRIGHT_WORKERS=${uiWorkers}",
@@ -653,6 +654,8 @@ withNightlyPipeline(type, product, component, 400) {
             "E2E_PW_EXCLUDED_TAGS_OVERRIDE=${params.E2E_PW_EXCLUDED_TAGS_OVERRIDE}",
             "PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=${params.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES}",
             'PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report',
+            'PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-nightly.html',
+            'PW_ODHIN_INDEX=playwright-odhin-nightly.html',
             'PW_ODHIN_TARGET=functional-output/tests/playwright-e2e/odhin-report',
             'PLAYWRIGHT_PERFETTO_OUTPUT_FILE=functional-output/tests/playwright-e2e/test-results/perfetto.json',
             "PW_ODHIN_ENV=${uiOdhinEnvironment}",
@@ -673,9 +676,7 @@ withNightlyPipeline(type, product, component, 400) {
             recordPlaywrightLoadEvent('UI', 'start')
             if (!hasCourtAdminUiCredentials()) {
               echo '[playwright-ui] Skipping UI nightly tests: COURT_ADMIN_USERNAME/COURT_ADMIN_PASSWORD were not loaded from Key Vault.'
-              withEnv(uiOdhinEnv) {
-                runOptionalPlaywrightNodeScript('scripts/ensure-odhin-report.cjs', 'UI empty Odhín report generation')
-              }
+              uiReportSuiteName = 'Playwright UI nightly - not run (required credentials unavailable)'
             } else {
               runInPlaywrightContainer {
                 withEnv(uiOdhinEnv) {
@@ -686,15 +687,19 @@ withNightlyPipeline(type, product, component, 400) {
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
-            withEnv(uiOdhinEnv) {
+            withEnv(uiOdhinEnv + ["PW_ODHIN_FALLBACK_SUITE_NAME=${uiReportSuiteName}"]) {
               runOptionalPlaywrightNodeScript('scripts/copy-odhin-report.cjs', 'UI Odhín report copy')
+              runOptionalPlaywrightNodeScript('scripts/ensure-odhin-report.cjs', 'UI unavailable Odhín report generation')
+              if (!fileExists('functional-output/tests/playwright-e2e/odhin-report/playwright-odhin-nightly.html')) {
+                echo '[playwright-report] UI nightly HTML report remains unavailable after finalisation; see preceding diagnostics.'
+              }
             }
             publishHTML([
               allowMissing         : true,
               alwaysLinkToLastBuild: true,
               keepAll              : true,
               reportDir            : "functional-output/tests/playwright-e2e/odhin-report",
-              reportFiles          : 'playwright-odhin.html',
+              reportFiles          : 'playwright-odhin-nightly.html',
               reportName           : 'UI nightly report (Odhín)'
             ])
             archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**', excludes: '**/trace.zip,**/*.png,**/*.jpg,**/*.jpeg'

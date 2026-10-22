@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } = require('node:fs');
 const { tmpdir } = require('node:os');
-const { join } = require('node:path');
+const { join, resolve } = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
 
@@ -34,9 +34,21 @@ for (const pipeline of ['Jenkinsfile_CNP', 'Jenkinsfile_nightly']) {
         .replace(/\$\{(?:shellCommand|command)\}/g, 'touch suite-started');
       for (const browser of browsers.split(' ')) {
         for (const mode of ['missing', 'launch']) {
-          const result = spawnSync('bash', ['-c', shell], { cwd: directory, env: { ...process.env, FAIL_BROWSER: browser, FAIL_MODE: mode } });
-          assert.notEqual(result.status, 0, `${browser} ${mode} must fail`);
+          const result = spawnSync('bash', ['-c', shell], { cwd: directory, env: { PATH: process.env.PATH, FAIL_BROWSER: browser, FAIL_MODE: mode } });
+          assert.equal(result.status, 1, `${browser} ${mode} must preserve the preflight failure`);
+          assert.match(result.stderr.toString(), mode === 'missing' ? new RegExp(`Missing Playwright ${browser} executable`) : /Browser launch failed/);
           assert.equal(existsSync(join(directory, 'suite-started')), false, 'suite must not execute after failed preflight');
+          if (pipeline === 'Jenkinsfile_nightly') {
+            const finalisationDir = join(directory, `${browser}-${mode}`);
+            mkdirSync(finalisationDir);
+            const reports = runNightlyFinalisation(finalisationDir);
+            for (const report of reports) assert.equal(report.status, 0, report.stderr);
+            const reportPath = join(finalisationDir, nightlyReportEnv.PLAYWRIGHT_REPORT_FOLDER, nightlyReportFile);
+            assert.ok(existsSync(reportPath), 'reached finalisation must create the nightly fallback after preflight failure');
+            const html = readFileSync(reportPath, 'utf8');
+            assert.match(html, /results are unavailable/i);
+            assert.doesNotMatch(html, /integration command failed|never ran|not run/i);
+          }
         }
       }
       rmSync(join(directory, 'verified'), { force: true });
@@ -71,6 +83,158 @@ const extractStageBlock = (source, stageName) => {
   const nextStage = remainder.search(/\n\s+stage\('/);
   return source.slice(start, nextStage === -1 ? source.length : start + marker.length + nextStage);
 };
+
+const nightlySource = readFileSync('Jenkinsfile_nightly', 'utf8');
+const nightlyUi = extractStageBlock(nightlySource, 'UI nightly');
+const nightlyFinalisation = nightlyUi.slice(nightlyUi.indexOf('} finally {'));
+const nightlyRecipeName = nightlyUi.match(/runPlaywrightCommand\('([^']+)', 'firefox webkit'\)/)[1];
+const nightlyRecipe = JSON.parse(readFileSync('package.json', 'utf8')).scripts[nightlyRecipeName];
+const nightlyReportFile = nightlyRecipe.match(/PW_ODHIN_INDEX=([^\s;]+)/)[1];
+const nightlySuiteName = nightlyUi.match(/def uiReportSuiteName = '([^']+)'/)?.[1];
+const nightlyReportEnv = Object.fromEntries([...nightlyUi.matchAll(/'((?:PLAYWRIGHT_REPORT_|PW_ODHIN_)[A-Z_]+)=([^'$]*)'/g)]
+  .map((match) => [match[1], match[2]]));
+const finalisationScripts = [...nightlyFinalisation.matchAll(/runOptionalPlaywrightNodeScript\('([^']+)'/g)].map((match) => match[1]);
+
+// Execute the source-selected helpers; Jenkins Groovy control flow is checked separately below.
+const runNightlyFinalisation = (cwd, env = {}) => finalisationScripts.map((script) =>
+  spawnSync(process.execPath, [resolve(script)], {
+    cwd, encoding: 'utf8', env: {
+      PATH: process.env.PATH, ...nightlyReportEnv, PW_ODHIN_LINK_COVERAGE: 'false',
+      PW_ODHIN_FALLBACK_SUITE_NAME: nightlySuiteName, ...env
+    }
+  }));
+
+test('nightly UI publishes the recipe filename after copy, ensure and an independent missing-file check', () => {
+  assert.equal(nightlyRecipeName, 'test:crossbrowser:raw');
+  assert.equal(nightlyReportFile, 'playwright-odhin-nightly.html');
+  assert.equal(nightlyUi.match(/reportFiles\s*:\s*'([^']+)'/)[1], nightlyReportFile);
+  assert.equal(nightlyReportEnv.PW_ODHIN_INDEX, nightlyReportFile);
+  assert.equal(nightlyReportEnv.PLAYWRIGHT_REPORT_INDEX_FILENAME, nightlyReportFile);
+  assert.equal(extractStageBlock(nightlySource, 'API nightly').match(/reportFiles\s*:\s*'([^']+)'/)[1], 'playwright-odhin.html');
+  assert.equal(extractStageBlock(nightlySource, 'Integration tests').match(/reportFiles\s*:\s*'([^']+)'/)[1], 'playwright-odhin-integration-nightly.html');
+  assert.deepEqual(finalisationScripts, ['scripts/copy-odhin-report.cjs', 'scripts/ensure-odhin-report.cjs']);
+  const ensureAt = nightlyFinalisation.indexOf("runOptionalPlaywrightNodeScript('scripts/ensure-odhin-report.cjs'");
+  const checkAt = nightlyFinalisation.indexOf(`if (!fileExists('${nightlyReportEnv.PLAYWRIGHT_REPORT_FOLDER}/${nightlyReportFile}'))`);
+  const diagnosticAt = nightlyFinalisation.indexOf('UI nightly HTML report remains unavailable after finalisation');
+  assert.ok(ensureAt >= 0 && checkAt > ensureAt && diagnosticAt > checkAt && nightlyFinalisation.indexOf('publishHTML(') > diagnosticAt);
+  assert.match(nightlyUi, /catch \(Error\)\s*\{\s*unstable\(message: "\$\{STAGE_NAME\} is unstable: " \+ Error\.toString\(\)\)/);
+  assert.match(nightlyUi, /allowMissing\s*:\s*true/);
+  assert.match(nightlyFinalisation, /withEnv\(uiOdhinEnv \+ \["PW_ODHIN_FALLBACK_SUITE_NAME=\$\{uiReportSuiteName\}"\]\)/);
+  assert.equal((nightlyUi.match(/runOptionalPlaywrightNodeScript\('scripts\/ensure-odhin-report.cjs'/g) || []).length, 1);
+});
+
+test('nightly raw recipe preserves a Playwright failure while creating the expected fallback', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'nightly-raw-report-'));
+  try {
+    mkdirSync(join(directory, 'scripts'));
+    mkdirSync(join(directory, 'node_modules/.bin'), { recursive: true });
+    writeFileSync(join(directory, 'scripts/ensure-odhin-report.cjs'), readFileSync('scripts/ensure-odhin-report.cjs'));
+    writeFileSync(join(directory, 'node_modules/.bin/playwright'), '#!/bin/sh\n[ "$1" = test ] || exit 99\necho synthetic-playwright-failure >&2\nexit 23\n', { mode: 0o755 });
+    const result = spawnSync('sh', ['-c', nightlyRecipe], {
+      cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH, PLAYWRIGHT_SKIP_INSTALL: 'true' }
+    });
+    assert.equal(result.status, 23, result.stderr);
+    assert.match(result.stderr, /synthetic-playwright-failure/);
+    const html = readFileSync(join(directory, 'functional-output/tests/playwright-e2e/odhin-report', nightlyReportFile), 'utf8');
+    assert.match(html, /results are unavailable/i);
+    assert.doesNotMatch(html, /integration command failed|never ran|not run/i);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+for (const sameDirectory of [true, false]) {
+  test(`nightly copy then ensure preserves genuine report bytes (same directory: ${sameDirectory})`, () => {
+    const directory = mkdtempSync(join(tmpdir(), 'nightly-genuine-report-'));
+    try {
+      const source = join(directory, 'source');
+      const target = sameDirectory ? source : join(directory, 'target');
+      mkdirSync(source);
+      const bytes = Buffer.from('<!doctype html>\r\n<html><body>Genuine Odhín report — π</body></html>\n');
+      writeFileSync(join(source, nightlyReportFile), bytes);
+      const copy = spawnSync(process.execPath, [resolve(finalisationScripts[0])], {
+        cwd: directory, encoding: 'utf8', env: {
+          PATH: process.env.PATH, PLAYWRIGHT_REPORT_FOLDER: source, PW_ODHIN_TARGET: target,
+          PW_ODHIN_SKIP_API_ENDPOINTS: 'true', PW_ODHIN_LINK_COVERAGE: 'false'
+        }
+      });
+      assert.equal(copy.status, 0, copy.stderr);
+      assert.deepEqual(readFileSync(join(target, nightlyReportFile)), bytes, 'actual copy must produce unchanged bytes');
+      const ensure = spawnSync(process.execPath, [resolve(finalisationScripts[1])], {
+        cwd: directory, encoding: 'utf8', env: {
+          PATH: process.env.PATH, ...nightlyReportEnv, PLAYWRIGHT_REPORT_FOLDER: target,
+          PW_ODHIN_FALLBACK_SUITE_NAME: 'UI not run - must not replace genuine HTML'
+        }
+      });
+      assert.equal(ensure.status, 0, ensure.stderr);
+      assert.deepEqual(readFileSync(join(target, nightlyReportFile)), bytes);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
+test('helper CLI failure is visible even when the actual optional shell returns zero', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'nightly-helper-failure-'));
+  try {
+    const blocker = join(directory, 'blocked');
+    writeFileSync(blocker, 'synthetic fixture');
+    const reportDir = join(blocker, 'reports');
+    const env = { PATH: process.env.PATH, ...nightlyReportEnv, PLAYWRIGHT_REPORT_FOLDER: reportDir };
+    const script = resolve('scripts/ensure-odhin-report.cjs');
+    const direct = spawnSync(process.execPath, [script], { cwd: directory, env, encoding: 'utf8' });
+    assert.equal(direct.status, 1);
+    assert.match(direct.stderr, /ensure-odhin-report:.*ENOTDIR/);
+    const closure = nightlySource.slice(nightlySource.indexOf('def runOptionalPlaywrightNodeScript ='), nightlySource.indexOf('def recordPlaywrightContainerDiagnostics ='));
+    assert.match(closure, /if \(!fileExists\(scriptPath\)\)/);
+    assert.match(closure, /Skipping.*is unavailable in the current workspace/);
+    const shell = closure.match(/steps\.sh """([\s\S]*?)"""/)[1]
+      .replaceAll('${scriptPath}', script)
+      .replaceAll('${context}', 'UI unavailable Odhín report generation')
+      .replace(/\\\$/g, '$');
+    const optional = spawnSync('bash', ['-c', shell], { cwd: directory, env, encoding: 'utf8' });
+    assert.equal(optional.status, 0);
+    assert.match(optional.stdout, /failed with status 1/);
+    assert.match(optional.stderr, /ensure-odhin-report:.*ENOTDIR/);
+    assert.equal(existsSync(join(reportDir, nightlyReportFile)), false);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('credential predicate contract labels only skipped UI results and does not expose synthetic credentials', () => {
+  assert.match(nightlySource, /def hasCourtAdminUiCredentials = \{\s*env\.COURT_ADMIN_USERNAME\?\.trim\(\) && env\.COURT_ADMIN_PASSWORD\?\.trim\(\)\s*\}/);
+  const skip = nightlyUi.match(/if \(!hasCourtAdminUiCredentials\(\)\) \{([\s\S]*?)\} else \{/)[1];
+  assert.doesNotMatch(skip, /runPlaywrightCommand/);
+  const skippedLabelMatch = skip.match(/uiReportSuiteName = '([^']+)'/);
+  assert.ok(skippedLabelMatch, 'credential skip must supply an explicit UI not-run label');
+  const skippedLabel = skippedLabelMatch[1];
+  assert.equal(nightlySuiteName, 'Playwright E2E Cross-Browser');
+  const directory = mkdtempSync(join(tmpdir(), 'nightly-credential-label-'));
+  try {
+    // Predicate fixture only: Groovy/authentication execution remains a Jenkins acceptance check.
+    const cases = [[undefined, 'synthetic-password', false], ['', 'synthetic-password', false], [' \t', 'synthetic-password', false],
+      ['synthetic-user', undefined, false], ['synthetic-user', '', false], ['synthetic-user', ' \t', false], ['synthetic-user', 'synthetic-password', true]];
+    for (const [index, [username, password, shouldRun]] of cases.entries()) {
+      const enabled = Boolean(username?.trim() && password?.trim());
+      assert.equal(enabled, shouldRun);
+      const reportDir = join(directory, String(index));
+      const results = runNightlyFinalisation(directory, {
+        PLAYWRIGHT_REPORT_FOLDER: reportDir, PW_ODHIN_TARGET: reportDir,
+        PW_ODHIN_FALLBACK_SUITE_NAME: enabled ? nightlySuiteName : skippedLabel,
+        COURT_ADMIN_USERNAME: username ?? '', COURT_ADMIN_PASSWORD: password ?? ''
+      });
+      for (const result of results) assert.equal(result.status, 0, result.stderr);
+      const html = readFileSync(join(reportDir, nightlyReportFile), 'utf8');
+      assert.match(html, /results are unavailable/i);
+      if (shouldRun) assert.doesNotMatch(html, /not run/i);
+      else assert.match(html, /Playwright UI nightly - not run \(required credentials unavailable\)/);
+      assert.doesNotMatch(html, /synthetic-user|synthetic-password|integration command failed|\b\d+ passed\b/i);
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 for (const [pipeline, stageNames] of Object.entries({
   Jenkinsfile_CNP: ['UI tests', 'Integration tests'],
