@@ -62,3 +62,138 @@ test('every configured Jenkins test suite selects its required browsers', () => 
   assert.match(nightly, /def runPlaywrightCommand = \{ String command, String browsers = "chromium" ->/);
   assert.match(nightly, /runPlaywrightCommand\('test:crossbrowser:raw', 'firefox webkit'\)/);
 });
+
+const extractStageBlock = (source, stageName) => {
+  const marker = `stage('${stageName}')`;
+  const start = source.indexOf(marker);
+  assert.notEqual(start, -1, `${stageName} stage exists`);
+  const remainder = source.slice(start + marker.length);
+  const nextStage = remainder.search(/\n\s+stage\('/);
+  return source.slice(start, nextStage === -1 ? source.length : start + marker.length + nextStage);
+};
+
+for (const [pipeline, stageNames] of Object.entries({
+  Jenkinsfile_CNP: ['UI tests', 'Integration tests'],
+  Jenkinsfile_nightly: ['API nightly', 'UI nightly', 'Integration tests']
+})) {
+  test(`${pipeline}: source contract wires Vault globals and the parameterized bypass to each lane`, () => {
+    const source = readFileSync(pipeline, 'utf8');
+    const secretMapping = source.indexOf("secret('xui-playwright-global-excluded-tags', 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS')");
+    const vaultLoad = source.indexOf('loadVaultSecrets(secrets)');
+    assert.ok(secretMapping > -1 && secretMapping < vaultLoad, 'Vault mapping is declared before the secret load');
+    for (const stageName of stageNames) {
+      assert.match(
+        extractStageBlock(source, stageName),
+        /PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES=\$\{params\.PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES\}/,
+        `${stageName} must receive the parameterized bypass`
+      );
+    }
+  });
+}
+
+// Exercise the real pure resolver on the supported Node 20 runtime without a TS loader dependency.
+const tagUtils = import(`data:text/javascript;base64,${Buffer.from(require('typescript').transpileModule(
+  readFileSync('playwright-config-utils.ts', 'utf8'),
+  { compilerOptions: { module: require('typescript').ModuleKind.ESNext, target: require('typescript').ScriptTarget.ES2022 } }
+).outputText).toString('base64')}`);
+
+const e2eFilters = async (env = {}) => (await tagUtils).resolveTagFilters({
+  env,
+  configPathEnvVar: 'E2E_PW_TAG_FILTER_CONFIG',
+  defaultConfigPath: 'src/tests/e2e/tag-filter.json',
+  includeTagsEnvVar: 'E2E_PW_INCLUDE_TAGS',
+  excludedTagsEnvVar: 'E2E_PW_EXCLUDED_TAGS_OVERRIDE',
+  globalExcludedTagsEnvVar: 'PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS',
+  globalExcludedTagsPattern: /^@e2e(?:-|$)/,
+  suiteTag: '@e2e'
+});
+
+test('shared globals intersect the local catalog and report unmatched scoped tags in CI without logging the raw value', async (t) => {
+  const rawGlobalTags = ' @e2e-search-case,  @e2e-civil-data-loss @e2e-typo @svc-auth @integration-case-list ';
+  const globalSentinels = ['@e2e-search-case', '@e2e-civil-data-loss', '@e2e-typo', '@svc-auth', '@integration-case-list'];
+  const filters = await e2eFilters({
+    PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: rawGlobalTags,
+    E2E_PW_EXCLUDED_TAGS_OVERRIDE: '@none'
+  });
+  assert.deepEqual(filters.globalExcludedTags, ['@e2e-search-case']);
+  assert.deepEqual(filters.unmatchedGlobalExcludedTags, ['@e2e-civil-data-loss', '@e2e-typo']);
+  assert.deepEqual(filters.ignoredGlobalExcludedTags, ['@svc-auth', '@integration-case-list']);
+  assert.deepEqual(filters.excludedTags, ['@e2e-search-case']);
+  assert.equal(filters.grepInvert.test('@e2e-search-case'), true);
+  const stderr = t.mock.method(process.stderr, 'write', () => true);
+  const stdout = t.mock.method(process.stdout, 'write', () => true);
+  (await tagUtils).logResolvedTagFilters('E2E', filters, { CI: 'true', PLAYWRIGHT_LOG_TAG_FILTERS: 'false' });
+  assert.equal(stderr.mock.callCount(), 1);
+  assert.match(stderr.mock.calls[0].arguments[0], /unapplied global exclusions count=2.*foreign.*stale.*typo/i);
+  assert.equal(stderr.mock.calls[0].arguments[0].includes(rawGlobalTags), false);
+  for (const sentinel of globalSentinels) assert.equal(stderr.mock.calls[0].arguments[0].includes(sentinel), false, sentinel);
+  assert.equal(stdout.mock.callCount(), 0);
+  (await tagUtils).logResolvedTagFilters('E2E', filters, { CI: 'true', PLAYWRIGHT_LOG_TAG_FILTERS: 'true' });
+  assert.match(stdout.mock.calls[0].arguments[0], /globalAppliedCount=1.*globalIgnoredCount=2.*globalUnmatchedCount=2/);
+  for (const sentinel of globalSentinels) assert.equal(stdout.mock.calls[0].arguments[0].includes(sentinel), false, sentinel);
+  (await tagUtils).logResolvedTagFilters('E2E', filters, {});
+  assert.equal(stderr.mock.callCount(), 2, 'local defaults stay quiet');
+  for (const marker of ['BUILD_NUMBER', 'JENKINS_URL']) {
+    (await tagUtils).logResolvedTagFilters('E2E', filters, { [marker]: 'jenkins', PLAYWRIGHT_LOG_TAG_FILTERS: 'false' });
+  }
+  assert.equal(stderr.mock.callCount(), 4, 'Jenkins warnings do not depend on CI being set');
+});
+
+test('absent, empty and @none globals preserve local defaults; bypass keeps local overrides', async () => {
+  const baseline = await e2eFilters();
+  for (const raw of ['', '@none', ' , @none @none ']) {
+    assert.deepEqual((await e2eFilters({ PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: raw })).excludedTags, baseline.excludedTags);
+  }
+  const filters = await e2eFilters({
+    PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: '@e2e-search-case @e2e-typo',
+    PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES: 'true',
+    E2E_PW_EXCLUDED_TAGS_OVERRIDE: '@e2e-document-upload'
+  });
+  assert.deepEqual(filters.excludedTags, ['@e2e-document-upload']);
+  assert.deepEqual(filters.globalExcludedTags, []);
+  assert.deepEqual(filters.unmatchedGlobalExcludedTags, []);
+  assert.equal(filters.grepInvert.test('@e2e-document-upload-v1'), true, 'existing prefix regex contract remains');
+});
+
+test('local @none clears configured exclusions while preserving explicit local exclusions', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'playwright-tag-config-'));
+  const configPath = join(directory, 'tag-filter.json');
+  writeFileSync(configPath, JSON.stringify({
+    excludedTags: ['@e2e-document-upload'],
+    availableTags: ['@e2e', '@e2e-document-upload', '@e2e-search-case']
+  }));
+  try {
+    const filters = await e2eFilters({
+      E2E_PW_TAG_FILTER_CONFIG: configPath,
+      E2E_PW_EXCLUDED_TAGS_OVERRIDE: '@none,@e2e-search-case'
+    });
+    assert.deepEqual(filters.excludedTags, ['@e2e-search-case']);
+    assert.equal(filters.grepInvert.test('@e2e-document-upload'), false);
+    assert.equal(filters.grepInvert.test('@e2e-search-case'), true);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('explicit unknown selections remain strict; globals cannot empty the selected suite', async () => {
+  for (const key of ['E2E_PW_INCLUDE_TAGS', 'E2E_PW_EXCLUDED_TAGS_OVERRIDE']) {
+    for (const value of ['@e2e-typo', '@e2e-.*']) {
+      await assert.rejects(e2eFilters({ [key]: value }), /unknown tag/);
+    }
+  }
+  await assert.rejects(e2eFilters({ PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: '@e2e' }), /leave no tagged functional tests/);
+  await assert.rejects(e2eFilters({
+    PLAYWRIGHT_ALLOW_EMPTY_TAG_SELECTION: 'false',
+    PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: '@e2e'
+  }), /leave no tagged functional tests/);
+  await assert.rejects(e2eFilters({
+    E2E_PW_INCLUDE_TAGS: '@e2e-search-case',
+    E2E_PW_EXCLUDED_TAGS_OVERRIDE: '@none',
+    PLAYWRIGHT_GLOBAL_EXCLUDED_TAGS: '@e2e-search-case',
+    PLAYWRIGHT_IGNORE_GLOBAL_EXCLUDES: 'false'
+  }), /leave no tagged functional tests/);
+  await assert.rejects(e2eFilters({
+    E2E_PW_INCLUDE_TAGS: '@e2e',
+    E2E_PW_EXCLUDED_TAGS_OVERRIDE: '@e2e-case-flags @e2e-case-file-view @e2e-create-case @e2e-document-upload @e2e-document-upload-v1 @e2e-manage-tasks @e2e-media-viewer @e2e-search-case @e2e-smoke @nightly @e2e-update-case'
+  }), /leave no tagged functional tests/);
+});
