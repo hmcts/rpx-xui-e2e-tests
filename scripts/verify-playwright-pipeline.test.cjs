@@ -104,7 +104,7 @@ const runNightlyFinalisation = (cwd, env = {}) => finalisationScripts.map((scrip
     }
   }));
 
-test('nightly UI publishes the recipe filename after copy, ensure and an independent missing-file check', () => {
+test('nightly UI publishes the recipe filename after copy and rejects a fallback report', () => {
   assert.equal(nightlyRecipeName, 'test:crossbrowser:raw');
   assert.equal(nightlyReportFile, 'playwright-odhin-nightly.html');
   assert.equal(nightlyUi.match(/reportFiles\s*:\s*'([^']+)'/)[1], nightlyReportFile);
@@ -114,7 +114,7 @@ test('nightly UI publishes the recipe filename after copy, ensure and an indepen
   assert.equal(extractStageBlock(nightlySource, 'Integration tests').match(/reportFiles\s*:\s*'([^']+)'/)[1], 'playwright-odhin-integration-nightly.html');
   assert.deepEqual(finalisationScripts, ['scripts/copy-odhin-report.cjs', 'scripts/ensure-odhin-report.cjs']);
   const ensureAt = nightlyFinalisation.indexOf("runOptionalPlaywrightNodeScript('scripts/ensure-odhin-report.cjs'");
-  const checkAt = nightlyFinalisation.indexOf(`if (!fileExists('${nightlyReportEnv.PLAYWRIGHT_REPORT_FOLDER}/${nightlyReportFile}'))`);
+  const checkAt = nightlyFinalisation.indexOf("grep -Fq '<strong>Odhín HTML report is unavailable.</strong>'");
   const diagnosticAt = nightlyFinalisation.indexOf('UI nightly HTML report remains unavailable after finalisation');
   assert.ok(ensureAt >= 0 && checkAt > ensureAt && diagnosticAt > checkAt && nightlyFinalisation.indexOf('publishHTML(') > diagnosticAt);
   assert.match(nightlyUi, /catch \(Error\)\s*\{\s*unstable\(message: "\$\{STAGE_NAME\} is unstable: " \+ Error\.toString\(\)\)/);
@@ -202,16 +202,40 @@ test('helper CLI failure is visible even when the actual optional shell returns 
   }
 });
 
-test('UI nightly marks an unavailable finalised HTML report unstable', () => {
-  const guard = nightlyFinalisation.match(/if \(!fileExists\('([^']+)'\)\) \{([\s\S]*?)\n\s+\}/);
-  assert.ok(guard, 'UI finalisation checks whether its expected report exists');
+test('UI nightly rejects a fallback report only when the UI suite was expected', () => {
+  const guard = nightlyFinalisation.match(/def uiReportPath = '([^']+)'\s+def fallbackReportStatus = fileExists\(uiReportPath\)\s*\?\s*sh\(returnStatus: true, script: "([^"]+)"\)\s*:\s*0/);
+  assert.ok(guard, 'UI finalisation inspects an existing report and treats a missing report as unavailable');
   assert.equal(guard[1], 'functional-output/tests/playwright-e2e/odhin-report/playwright-odhin-nightly.html');
-  assert.match(guard[2], /unstable\(message:.*UI nightly HTML report remains unavailable/);
+  assert.match(guard[2], /grep -Fq '<strong>Odhín HTML report is unavailable\.<\/strong>'/);
+  assert.match(nightlyUi, /def uiTestsExpected = hasCourtAdminUiCredentials\(\)/);
+  assert.match(nightlyFinalisation, /if \(uiTestsExpected\)\s*\{[\s\S]*?if \(fallbackReportStatus != 1\)\s*\{\s*unstable\(message:.*UI nightly HTML report remains unavailable/);
+
+  const directory = mkdtempSync(join(tmpdir(), 'nightly-report-marker-'));
+  try {
+    const fallbackPath = join(directory, nightlyReportFile);
+    const fallback = spawnSync(process.execPath, [resolve('scripts/ensure-odhin-report.cjs')], {
+      cwd: directory, encoding: 'utf8', env: {
+        PATH: process.env.PATH, PLAYWRIGHT_REPORT_FOLDER: directory,
+        PLAYWRIGHT_REPORT_INDEX_FILENAME: nightlyReportFile
+      }
+    });
+    assert.equal(fallback.status, 0, fallback.stderr);
+    const markerCommand = guard[2].replace('${uiReportPath}', fallbackPath);
+    assert.equal(spawnSync('sh', ['-c', markerCommand]).status, 0,
+      'fallback marker must be detected');
+
+    writeFileSync(fallbackPath, '<!doctype html><html><body>Genuine Odhín report</body></html>');
+    assert.equal(spawnSync('sh', ['-c', markerCommand]).status, 1,
+      'genuine report must not be mistaken for the fallback');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('credential predicate contract labels only skipped UI results and does not expose synthetic credentials', () => {
   assert.match(nightlySource, /def hasCourtAdminUiCredentials = \{\s*env\.COURT_ADMIN_USERNAME\?\.trim\(\) && env\.COURT_ADMIN_PASSWORD\?\.trim\(\)\s*\}/);
-  const skip = nightlyUi.match(/if \(!hasCourtAdminUiCredentials\(\)\) \{([\s\S]*?)\} else \{/)[1];
+  assert.match(nightlyUi, /def uiTestsExpected = hasCourtAdminUiCredentials\(\)/);
+  const skip = nightlyUi.match(/if \(!uiTestsExpected\) \{([\s\S]*?)\} else \{/)[1];
   assert.doesNotMatch(skip, /runPlaywrightCommand/);
   const skippedLabelMatch = skip.match(/uiReportSuiteName = '([^']+)'/);
   assert.ok(skippedLabelMatch, 'credential skip must supply an explicit UI not-run label');
