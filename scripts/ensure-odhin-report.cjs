@@ -69,10 +69,10 @@ function buildFallbackReportHtml(options) {
   <body>
     <h1>${escapeHtml(options.suiteName)}</h1>
     <div class="warning">
-      <strong>Odhín HTML report was not generated before Jenkins publishing.</strong>
-      <p>The Playwright integration command failed or was interrupted before the Odhín reporter wrote
-      <code>${escapeHtml(options.reportFile || DEFAULT_REPORT_FILE)}</code>. Jenkins generated this fallback so the build
-      always exposes a report artifact for failed integration runs.</p>
+      <strong>Odhín HTML report is unavailable.</strong>
+      <p>Test results are unavailable in this report because
+      <code>${escapeHtml(options.reportFile || DEFAULT_REPORT_FILE)}</code> was not found during finalisation.
+      Consult the original command outcome and available diagnostics; this page does not establish whether tests ran or passed.</p>
     </div>
     <div class="meta">
       <p><strong>Generated:</strong> ${escapeHtml(generatedAt)}</p>

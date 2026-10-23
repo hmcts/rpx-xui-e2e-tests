@@ -47,5 +47,7 @@ export async function openCaseViewer(
   await page.goto(
     `/cases/case-details/${CASE_VIEWER_JURISDICTION}/${CASE_VIEWER_CASE_TYPE}/${CASE_VIEWER_CASE_REFERENCE}`
   );
-  await caseDetailsPage.waitForReady();
+  if (caseDetailsStatus === 200) {
+    await caseDetailsPage.waitForReady();
+  }
 }

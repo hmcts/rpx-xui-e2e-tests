@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import { test, expect } from '@playwright/test';
@@ -659,6 +660,27 @@ test.describe('Playwright config coverage', { tag: '@svc-internal' }, () => {
     expect(odhinOptions?.runtimeHookTimeoutMs).toBe(0);
     expect(config.projects.find((project) => project.name === 'firefox')?.use?.headless).toBe(false);
     expect(config.projects.find((project) => project.name === 'webkit')?.use?.headless).toBe(false);
+  });
+
+  test('nightly reporter filename agrees with the raw recipe and respects override precedence', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    const recipeFile = manifest.scripts['test:crossbrowser:raw'].match(/PW_ODHIN_INDEX=([^\s;]+)/)![1];
+    expect(recipeFile).toBe('playwright-odhin-nightly.html');
+    const cases: Array<{ env: EnvMap; expected: string }> = [
+      { env: {}, expected: 'playwright-odhin-nightly.html' },
+      { env: { PLAYWRIGHT_REPORT_INDEX_FILENAME: 'fallback.html' }, expected: 'fallback.html' },
+      { env: { PW_ODHIN_INDEX: 'preferred.html', PLAYWRIGHT_REPORT_INDEX_FILENAME: 'fallback.html' }, expected: 'preferred.html' },
+      { env: { PW_ODHIN_INDEX: '  ', PLAYWRIGHT_REPORT_INDEX_FILENAME: 'fallback.html' }, expected: 'fallback.html' },
+      { env: { PW_ODHIN_INDEX: recipeFile, PLAYWRIGHT_REPORT_INDEX_FILENAME: recipeFile }, expected: recipeFile },
+    ];
+    for (const { env, expected } of cases) {
+      const config = buildNightlyConfig(env);
+      const [, options] = getReporterTuple(config.reporter, './src/tests/common/reporters/odhin-adaptive.reporter.cjs');
+      expect(options).toBeDefined();
+      expect(options!.indexFilename).toBe(expected);
+    }
   });
 
   test('nightly odhin test environment appends Jenkins agent composition to an existing label', async () => {
