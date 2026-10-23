@@ -691,7 +691,7 @@ withNightlyPipeline(type, product, component, 400) {
               runOptionalPlaywrightNodeScript('scripts/copy-odhin-report.cjs', 'UI Odhín report copy')
               runOptionalPlaywrightNodeScript('scripts/ensure-odhin-report.cjs', 'UI unavailable Odhín report generation')
               if (!fileExists('functional-output/tests/playwright-e2e/odhin-report/playwright-odhin-nightly.html')) {
-                echo '[playwright-report] UI nightly HTML report remains unavailable after finalisation; see preceding diagnostics.'
+                unstable(message: '[playwright-report] UI nightly HTML report remains unavailable after finalisation; see preceding diagnostics.')
               }
             }
             publishHTML([

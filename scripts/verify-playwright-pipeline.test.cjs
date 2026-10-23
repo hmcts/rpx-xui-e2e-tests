@@ -202,6 +202,13 @@ test('helper CLI failure is visible even when the actual optional shell returns 
   }
 });
 
+test('UI nightly marks an unavailable finalised HTML report unstable', () => {
+  const guard = nightlyFinalisation.match(/if \(!fileExists\('([^']+)'\)\) \{([\s\S]*?)\n\s+\}/);
+  assert.ok(guard, 'UI finalisation checks whether its expected report exists');
+  assert.equal(guard[1], 'functional-output/tests/playwright-e2e/odhin-report/playwright-odhin-nightly.html');
+  assert.match(guard[2], /unstable\(message:.*UI nightly HTML report remains unavailable/);
+});
+
 test('credential predicate contract labels only skipped UI results and does not expose synthetic credentials', () => {
   assert.match(nightlySource, /def hasCourtAdminUiCredentials = \{\s*env\.COURT_ADMIN_USERNAME\?\.trim\(\) && env\.COURT_ADMIN_PASSWORD\?\.trim\(\)\s*\}/);
   const skip = nightlyUi.match(/if \(!hasCourtAdminUiCredentials\(\)\) \{([\s\S]*?)\} else \{/)[1];
