@@ -60,7 +60,7 @@ export class TaskListPage extends Base {
     .first();
   readonly allWorkLocationSearchInput = this.locationPicker.locator('input#inputLocationSearch').first();
   readonly allWorkAutocompleteOptions = this.page.locator('.cdk-overlay-container .mat-autocomplete-panel [role="option"]');
-  readonly allWorkLocationSearchResults = this.page.locator('.cdk-overlay-container .mat-autocomplete-panel mat-option span');
+  readonly allWorkLocationSearchResults = this.page.locator('.cdk-overlay-container').getByRole('listbox').getByRole('option');
   readonly selectedLocationTags = this.locationPicker.locator('.location-picker-custom .location-selection a.hmcts-filter__tag');
   readonly allWorkCasesApplyPrompt = this.page.getByText('Please select filters and click Apply').first();
   readonly allWorkCasesEmptyMessage = this.page.getByText('Change your selection to view cases').first();
