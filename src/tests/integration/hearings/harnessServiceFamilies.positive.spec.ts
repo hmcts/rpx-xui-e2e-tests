@@ -8,10 +8,13 @@ import {
   applySessionCookies,
   caseDetailsUrl,
   HEARING_MANAGER_CR84_ON_USER,
+  HEARING_MANAGER_CR84_OFF_USER,
+  hearingManagerRoles as linkedHearingManagerRoles,
+  openHearingsTab,
   openHearingsTabForScenario,
   setupHearingsMockRoutes,
 } from '../helpers/index.js';
-import { HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
+import { HEARINGS_CASE_REFERENCE, HEARINGS_LISTED_HEARING_ID, LISTED_HEARING_SCENARIO } from '../mocks/hearings.mock.js';
 
 const userIdentifier = HEARING_MANAGER_CR84_ON_USER;
 const hearingManagerRoles = ['caseworker-privatelaw', 'caseworker-privatelaw-courtadmin', 'case-allocator', 'hearing-manager'];
@@ -146,5 +149,38 @@ test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, {
       ],
     });
     await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-hearings-unsupported-family-hidden-a11y.png');
+  });
+});
+
+test.describe(`EXUI assurance harness Civil linked hearings as ${HEARING_MANAGER_CR84_OFF_USER}`, {
+  tag: ['@integration-bucket-5', '@integration', '@integration-hearings'],
+}, () => {
+  test('supported Civil amendments-on configuration retains linked-hearing entry', async ({
+    page,
+    caseDetailsPage,
+    hearingsTabPage,
+  }) => {
+    expect(EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES).toContain('CIVIL');
+    expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL).toContain('CIVIL');
+
+    await openHearingsTab(page, caseDetailsPage, {
+      userIdentifier: HEARING_MANAGER_CR84_OFF_USER,
+      routeConfig: {
+        userRoles: linkedHearingManagerRoles,
+        hearings: [{ ...LISTED_HEARING_SCENARIO, hearingIsLinkedFlag: true }],
+        caseConfig: { jurisdictionId: 'CIVIL', caseTypeId: 'CIVIL' },
+        enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
+        amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
+      },
+    });
+
+    await hearingsTabPage.waitForReady(HEARINGS_LISTED_HEARING_ID);
+    await expect(hearingsTabPage.viewDetailsButton(HEARINGS_LISTED_HEARING_ID)).toBeVisible();
+    await expect(hearingsTabPage.viewOrEditButton(HEARINGS_LISTED_HEARING_ID)).toHaveCount(0);
+    await expect(hearingsTabPage.linkHearingButton(HEARINGS_LISTED_HEARING_ID)).toBeVisible();
+    await hearingsTabPage.openLinkHearing(HEARINGS_LISTED_HEARING_ID);
+
+    await expect(page).toHaveURL(new RegExp(`/hearings/link/${HEARINGS_CASE_REFERENCE}/${HEARINGS_LISTED_HEARING_ID}$`));
+    await expect(page.getByRole('heading', { name: /which hearings should be linked\?/i })).toBeVisible();
   });
 });
