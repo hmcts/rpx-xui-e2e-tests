@@ -24,8 +24,15 @@ The repository is moving to central configuration, role, definition and data-int
 | 7f0f2e4 | 6 | Find rendering/empty outcomes and four global-search HTTP errors consolidate canonically; exact DOM-count and local PO diagnostic-wording predicates deliberately retired. Mocked View→summary remains. |
 | df538e1 | 1 | Orphan Find handler/self-test, builders, wrappers and constants removed; eight used support callbacks remain. |
 | 8793250 | 21 | Ordinary create/list field, page/filter, request and error outcomes retained canonically; incidental row-order/hidden-DOM/diagnostic differences explicitly retired. |
+| 237ba33 | 11 | Completion, unassign, reassign and cancellation-error outcomes retained canonically. Sole-use assertion utility and helper declarations removed. |
+| 3885a76 | 6 | Case-file hierarchy/date/sort/empty/viewer outcomes retained canonically. Unsupported pretranslated-URL fixture and unasserted OFF-account distinctions explicitly retired. |
+| 1517991 | 1 | Positive Go-to-task route, observed task response and displayed fields retained canonically. Two negative cases remain because their canonical browser owner is blocked. |
+| 42d4e44 | 4 | Unreachable integration case-file helpers/mocks and their four dedicated fake checks removed. |
+| 3e25039 | 1 | Real Employment case/PDF upload, saved file-tree and viewer text retained canonically; setup transport/lease differences disclosed. |
+| c03448f | 1 | Final unused case-file PDF, page object, generated-DOM test/fixture and sole unused HTML export removed after caller review. |
+| db78082 | 8 | Task cancellation transitions, request inputs, warnings and returned routes retained canonically; two exclusive utilities removed. |
 
-One hundred and sixty-six runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+One hundred and ninety-eight runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -93,6 +100,16 @@ Canonical directory: [searchCase](https://github.com/hmcts/rpx-xui-webapp/tree/7
 Ordinary create/list retirement uses the same trigger/ACL/field/show-condition inputs and intercepted submission shapes. Canonical selected-then-hidden reason clearing is stronger. Six nonempty list callbacks now rely on canonical record/field association without retaining local positional row matching; no sorting gesture was asserted. LocalStorage/sessionStorage setup and hidden-DOM/error-surface differences remain explicit limits, not claimed equivalent. All21 mapped canonical callbacks are selected; blocked additional cases were not used as replacements. Exclusive integration case-list routes, mocks and scenario constants were separately removed in4cbf03b; the same-named E2E mock and shared dynamic-field helpers remain.
 
 The search-support cut removes603 lines, including its sole unused handler test, while preserving restricted-access header routes. Eight surviving offline support checks pass with network access denied. Unused support removal does not authorize deleting live authentication or framework tests.
+
+Task-action comparisons verify five request contracts and both accepted unassign payload modes at204/400/500, preserving exact transitions and messages. Account purpose, default dates and scalar role fields differ where unasserted. Go-to-task negatives are retained: their canonical browser suite is blocked, and its expected error message differs.
+
+Case-file source review distinguishes supported raw backend document links from the old fixture's already-translated `/documentsv2` prefix. Canonical tests cover both configured gateways from raw links. No producer contract established the mixed pretranslated fixture as a required shape, so it is retired without a new central port. The OFF-labelled content test asserts only fixture-derived document count/date; canonical supplies OFF frontend user details, and no identity-dependent permission or flag outcome was asserted. Real account/permission equivalence is not claimed.
+
+The separate real-backend case-file E2E counterpart preserves Employment creation, upload-event body/headers, identical PDF bytes, reopened case file tree and viewer text, with a stricter filename list. Session leases, upload transports, retries and generated names differ; they are setup distinctions, not asserted configuration contracts. The final PDF/page-object caller review found no surviving consumers; those files and their sole generated-DOM self-test are removed in c03448f. Unreachable create-page methods/types and wrapper were separately pruned inaa13251, retaining dynamic-field helpers and the distinct E2E generator.
+
+Cancellation retirement compares all eight actual callback inputs and ordered fake-provider transitions, including PRL/PRLAPPS and PUBLICLAW contexts. Failure400/409 cases assert warnings/routes, not backend state integrity. Canonical full case fixtures, role-route setup and serial selection differ; shared support remains.
+
+Canonical directories: [task actions](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/manageTasks/myTasks), [case-file integration](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/caseFileView), [case-file E2E](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/E2E/test/caseFileView/caseFileView.spec.ts).
 
 ## Useful central scenarios
 

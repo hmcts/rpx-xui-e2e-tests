@@ -19,6 +19,8 @@ yarn harness:candidate --scope exui-wa-scope-pilot --candidate /path/to/fresh-ca
 
 Candidate preparation uses pinned Node 24.22.1 on Debian 12 and validates the source Node engine and committed Yarn release. It needs a seeded immutable Yarn cache, including Linux/arm64 optional packages. It installs/builds without network access and seals the UI, Node bundle, dependency tree, configuration, lock and Node binary. The runner verifies those bytes, reviewed configuration sources, the test dependencies and browser before execution. Uncommitted Harness inputs, unexpected destinations, missing reports, retries and unrelated teardown errors block approval. Logs and raw artifacts stay private; only the fixed-schema public summary is eligible for general publication.
 
+A composed local run at Harness commit `268bdc2` passed all three fixed phases against sealed webapp `76bf7a840fa71af466961de87294973023b2f0f3`. Nine invocations included five intended mutation failures; raw receipts and denied-write state/history were independently verified, and all 25 owned containers were confirmed removed. This evidence belongs to those exact inputs on Linux/arm64. It does not establish full catalogue coverage, CI acceptance or release approval.
+
 The opt-in fixed-pilot job runs family baseline/fault, derives the production scope mutant, runs IA/Civil scope, then starts fresh CCD for nested/access/integrity baselines and faults:
 
 ```bash
