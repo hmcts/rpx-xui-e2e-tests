@@ -11,8 +11,10 @@ The repository is moving to central configuration, role, definition and data-int
 | 08d241a | 7 | Edit labels, pre-CR84 action, validation/error and create navigation retained in canonical webapp. Sole-use SHV fixture also removed. |
 | 9e85589 | 4 | Actuals summaries, submitted values, completion and error behavior retained in canonical webapp. Unused navigation wrapper removed; reporter parser check preserved. |
 | 575196e | 6 | Anonymous configuration/auth/login/user-details/header/health callbacks retained in canonical webapp. All12 remaining callbacks and used support preserved; unreachable schema helper removed. |
+| 17fc738 | 7 | Work-filter visibility, requests, restored state, base locations and three IA/SSCS cells retained canonically; My cases work-type visibility remains in myWorkFilters. Two unused assertion helpers removed. |
+| f25fb6c | 10 | Six HTTP failures, malformed/null responses, timeout and delayed rows retained canonically. Two exclusive helpers and three constants removed. |
 
-Twenty-eight runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+Forty-five runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -38,6 +40,13 @@ Additional canonical counterparts:
 - [node-app-endpoints.api.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/api/node-app-endpoints.api.ts)
 
 Anonymous endpoint retirement verifies equivalent request-client bytes, helper behavior, assertions and explicit canonical owner selection. All12 surviving callbacks are unchanged. External job filters can still omit the service tag; no current remote execution or mandatory-selection claim is made. Authenticated/refdata callbacks remain because persona and transport-error behavior differ.
+
+Work-filter persistence is outcome-based retirement: canonical owner-bound localStorage adds reload and isolation checks. The legacy ownerless sessionStorage compatibility path still exists in production, but its injected-storage test is deliberately retired here; this is not claimed as branch-level equivalence. Shared storage/mocks/support remain. The separate central scope slice verifies real requests and visible suggestions.
+
+Negative-resilience comparisons preserve all ten response/abort/delay inputs and empty/reload/hidden-row outcomes. Different session/readiness plumbing is documented; no new product browser or live CI run was performed for these deletions.
+
+- [workFilters.positive.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/manageTasks/workFilters.positive.spec.ts)
+- [hearingDetails.resilience.negative.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingDetails.resilience.negative.spec.ts)
 
 ## Useful central scenarios
 
