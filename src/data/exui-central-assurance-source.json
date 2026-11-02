@@ -7,7 +7,10 @@
         "PRIVATELAW",
         "PUBLICLAW",
         "EMPLOYMENT",
-        "ST_CIC"
+        "ST_CIC",
+        "PROBATE",
+        "PCS",
+        "DIVORCE"
       ],
       "waSupportedJurisdictions": [
         "IA",
@@ -15,7 +18,8 @@
         "PRIVATELAW",
         "PUBLICLAW",
         "EMPLOYMENT",
-        "ST_CIC"
+        "ST_CIC",
+        "PCS"
       ],
       "staffSupportedJurisdictions": [
         "ST_CIC",
@@ -28,7 +32,8 @@
         "DIVORCE",
         "FR",
         "PROBATE",
-        "HRS"
+        "HRS",
+        "PCS"
       ],
       "jurisdictions": [
         "DIVORCE",
@@ -544,6 +549,7 @@
         "priority": "grouped",
         "proofLevel": "ccd-backed",
         "lanes": [
+          "global-search",
           "staff-ref-data",
           "hearings"
         ],
@@ -584,8 +590,8 @@
             "complexTypes": 10
           }
         ],
-        "rationale": "Divorce is staff-supported and is the explicit unsupported-hearings/hidden-surface family in the current UI proof.",
-        "nextAction": "Keep Divorce as the negative hearings family and add event-definition slices only if divorce-specific EXUI behaviour is selected."
+        "rationale": "Divorce is global-search and staff-supported while remaining the explicit unsupported-hearings/hidden-surface family.",
+        "nextAction": "Keep grouped global-search/staff membership and the negative hearings representative; add event-definition slices only for a distinct selected EXUI behaviour."
       },
       {
         "serviceFamily": "FR",
@@ -624,6 +630,7 @@
         "priority": "grouped",
         "proofLevel": "ccd-backed",
         "lanes": [
+          "global-search",
           "staff-ref-data"
         ],
         "representativeCaseTypes": [
@@ -654,8 +661,8 @@
             ]
           }
         ],
-        "rationale": "Probate is staff-supported in EXUI config and current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
-        "nextAction": "Keep Probate grouped through staff-supported assertions until a Probate-specific EXUI-visible behaviour justifies a normalized slice."
+        "rationale": "Probate is global-search and staff-supported; existing source evidence identifies probate-back-office/GrantOfRepresentation, without establishing service runtime coverage.",
+        "nextAction": "Keep Probate grouped through global-search and staff/ref-data membership; select a separate normalized slice only for a distinct EXUI-visible shape."
       },
       {
         "serviceFamily": "ST_CIC",
@@ -745,18 +752,20 @@
       },
       {
         "serviceFamily": "PCS",
-        "priority": "canary",
+        "priority": "release-blocking",
         "proofLevel": "config-backed",
         "lanes": [
-          "canary"
+          "global-search",
+          "work-allocation",
+          "staff-ref-data"
         ],
         "representativeCaseTypes": [],
         "serviceCodes": [
           "AAA3"
         ],
         "repos": [],
-        "rationale": "PCS is present in the webapp jurisdiction and service-code configuration but is outside the central global-search, WA, staff-supported, and hearings release-blocking sets.",
-        "nextAction": "Keep PCS canary-only until EXUI owners add a distinct PCS contract to a central assurance lane."
+        "rationale": "PCS is configured for global search, Work Allocation and staff/ref-data with AAA3; discovered definition source is not yet reviewed or represented in this catalogue, so required source and service-assurance gaps remain.",
+        "nextAction": "Review and represent the discovered PCS definition source and representative runtime shapes; keep the required assurance gap explicit until that review is complete."
       }
     ]
   },

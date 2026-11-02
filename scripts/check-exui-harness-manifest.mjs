@@ -16,6 +16,7 @@ const expectedEnv = source.rpxXuiWebapp["config/custom-environment-variables.jso
 const expectedDefinitionProfiles = source.serviceDefinitionProfiles?.profiles ?? [];
 
 const failures = [];
+const assuranceGaps = [];
 const releaseEvidence = readJson(evidencePath);
 const mutationEvidence = releaseEvidence.mutationEvidence ?? {};
 const mutationCommands = Array.isArray(mutationEvidence.requiredCommands) ? mutationEvidence.requiredCommands : [];
@@ -261,12 +262,16 @@ function checkServiceDefinitionProfiles() {
   const releaseBlockingWithoutCcd = expectedDefinitionProfiles
     .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel !== "ccd-backed")
     .map((profile) => normalize(profile.serviceFamily));
-  checkSet("release-blocking families without CCD-backed source are explicit known gaps", releaseBlockingWithoutCcd, []);
+  for (const family of releaseBlockingWithoutCcd) {
+    assuranceGaps.push(`${family}: required configured family has no CCD-backed source profile.`);
+  }
 
   const knownSourceGaps = expectedDefinitionProfiles
     .filter((profile) => profile.proofLevel === "source-unidentified" || profile.proofLevel === "source-unavailable")
     .map((profile) => normalize(profile.serviceFamily));
-  checkSet("serviceDefinitionProfiles known CCD-source gaps", knownSourceGaps, []);
+  for (const family of knownSourceGaps) {
+    assuranceGaps.push(`${family}: CCD definition source is unidentified or unavailable.`);
+  }
 
   for (const profile of expectedDefinitionProfiles) {
     if (!String(profile.rationale ?? "").trim()) {
@@ -306,7 +311,6 @@ if (failures.length > 0) {
   for (const failure of failures) {
     console.error(`\n- ${failure}`);
   }
-  process.exitCode = 1;
 } else {
   console.log(`[harness-manifest] rpx-xui-webapp config matches ${path.relative(repoRoot, sourcePath)}.`);
   if (prlSourceChecked) {
@@ -319,6 +323,12 @@ if (failures.length > 0) {
     `[harness-manifest] catalogue classifies ${expectedDefinitionProfiles.length} configured EXUI families; CCD-backed labels describe source inventory only.`
   );
   console.log(
-    `[harness-manifest] catalogue diagnostic only; no release approval. Recorded source/model mutation status=${mutationStatus} (${mutationCommands.join(", ")}). Candidate/CCD execution, independent denied-write observation and validated interaction constraints remain unproved.`
+    `[harness-manifest] catalogue diagnostic only; no release approval. Recorded source/model mutation status=${mutationStatus} (${mutationCommands.join(", ")}). Source validation does not prove candidate/CCD execution, independent denied-write integrity or valid interaction coverage.`
   );
 }
+
+if (assuranceGaps.length > 0) {
+  console.error("[harness-manifest] Assurance gaps remain; BLOCKED diagnostic, no release approval.");
+  for (const gap of [...new Set(assuranceGaps)]) console.error(`\n- ${gap}`);
+}
+process.exitCode = failures.length > 0 ? 1 : assuranceGaps.length > 0 ? 2 : 0;

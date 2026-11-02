@@ -332,8 +332,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'canary',
         }),
         expect.objectContaining({
-          id: 'canary-pcs',
-          priority: 'canary',
+          id: 'pcs-config-membership-contract',
+          lane: 'configuration',
+          priority: 'must-run',
         }),
       ])
     );
@@ -379,7 +380,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('service-definition profiles widen the proof beyond PRL and close known source gaps', () => {
+  test('service-definition source profiles classify configured families and preserve required gaps', () => {
     const profileFamilies = EXUI_SERVICE_DEFINITION_PROFILES.map((profile) => profile.serviceFamily);
     const profileSummary = buildServiceDefinitionProfileSummary();
     const repoTotals = buildDefinitionRepoCoverageTotals();
@@ -407,7 +408,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(profileSummary['source-unidentified'] ?? []).toEqual([]);
     expect(profileSummary['source-unavailable'] ?? []).toEqual([]);
     expect(profileSummary['config-backed']).toEqual(['HRS', 'PCS']);
-    expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual([]);
+    expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual(['PCS']);
     const probateProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'PROBATE');
     const stCicProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'ST_CIC');
     expect(probateProfile).toBeDefined();
@@ -467,7 +468,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       expect.objectContaining({
         'release-blocking': expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC']),
         grouped: expect.arrayContaining(['HRS']),
-        canary: ['CMC', 'PCS'],
+        canary: ['CMC'],
       })
     );
   });
@@ -608,8 +609,13 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
 
     expect(verdict.overallStatus).toBe('warn');
     expect(verdict.failReasons).toEqual([]);
-    expect(verdict.warnReasons).toEqual(evidence.releaseGate?.warnReasons);
-    expect(evidence.releaseGate?.acceptedWarnings?.map((warning) => warning.reason)).toEqual(verdict.warnReasons);
+    expect(verdict.warnReasons).toEqual([
+      'release-blocking family without CCD-backed profile: PCS',
+      ...(evidence.releaseGate?.warnReasons ?? []),
+    ]);
+    const acceptedReasons = evidence.releaseGate?.acceptedWarnings?.map((warning) => warning.reason) ?? [];
+    expect(acceptedReasons).toEqual(evidence.releaseGate?.warnReasons);
+    expect(acceptedReasons).not.toContain('release-blocking family without CCD-backed profile: PCS');
     expect(evidence.releaseGate?.acceptedWarnings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -632,6 +638,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       'historic learning case not executable yet: overview-page-layout-regression-classification'
     );
     expect(verdict.knownGaps).not.toContain('release-blocking family without CCD-backed profile: ST_CIC');
+    expect(verdict.knownGaps).toContain('release-blocking family without CCD-backed profile: PCS');
     expect(EXUI_RELEASE_ASSURANCE_MUTATION_STATUS).toBe('passed');
     expect(verdict.knownGaps).not.toContain(
       'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:st-cic, yarn harness:mutation:probate, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
@@ -643,7 +650,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       releaseCredit: false,
     });
     expect(verdict.evidenceSummary).toBe(
-      'catalogue diagnostic (warn): 6 release-blocking source profiles; no release approval; recorded source/model mutation status passed'
+      'catalogue diagnostic (warn): 7 release-blocking source profiles; no release approval; recorded source/model mutation status passed'
     );
     expect(verdict.historicFailureCoverage['supporting-only']).toEqual(
       expect.arrayContaining([
@@ -683,7 +690,13 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     const proofLanes = Object.fromEntries(summary.harnessProofLanes.map((lane) => [lane.lane, lane]));
 
     expect(summary.verdict.overallStatus).toBe('warn');
-    expect(summary.acceptedWarnings.map((warning) => warning.reason)).toEqual(summary.verdict.warnReasons);
+    expect(summary.verdict.warnReasons).toEqual([
+      'release-blocking family without CCD-backed profile: PCS',
+      ...summary.acceptedWarnings.map((warning) => warning.reason),
+    ]);
+    expect(summary.acceptedWarnings.map((warning) => warning.reason)).not.toContain(
+      'release-blocking family without CCD-backed profile: PCS'
+    );
     expect(summary.ownerSliceCatalogue).toHaveLength(EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.length);
     expect(summary.defectIntakeRoutes.map((route) => route.route)).toEqual([
       'targeted-mutation-proof',
@@ -965,7 +978,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(probateDecision).toEqual(
       expect.objectContaining({
         disposition: 'grouped',
-        lanes: ['staff-ref-data'],
+        lanes: ['global-search', 'staff-ref-data'],
       })
     );
     expect(probateDecision?.representativeScenarioIds).toContain('probate-staff-ref-data-contract');
@@ -976,7 +989,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         serviceCodes: ['ABA6'],
       })
     );
-    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).not.toContain('PROBATE');
+    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).toContain('PROBATE');
     expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).not.toContain('PROBATE');
     expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('PROBATE');
     expect(EXUI_SERVICE_REF_DATA_MAPPING.PROBATE).toEqual(['ABA6']);
@@ -1174,7 +1187,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
   });
 
   test('staff-supported contract permits deployment additions but rejects missing central families', () => {
-    const actual = [...EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'PCS'];
+    const actual = [...EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'SYNTHETIC_DEPLOYMENT_FAMILY'];
     const check = (families: readonly string[]) => expectCentralMustRunFamiliesPresent(
       families, EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'api/staff-supported-jurisdiction/get'
     );

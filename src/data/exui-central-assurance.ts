@@ -7,7 +7,10 @@ export const EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES = [
   "PRIVATELAW",
   "PUBLICLAW",
   "EMPLOYMENT",
-  "ST_CIC"
+  "ST_CIC",
+  "PROBATE",
+  "PCS",
+  "DIVORCE"
 ] as const;
 
 export const EXUI_WA_SUPPORTED_SERVICE_FAMILIES = [
@@ -16,7 +19,8 @@ export const EXUI_WA_SUPPORTED_SERVICE_FAMILIES = [
   "PRIVATELAW",
   "PUBLICLAW",
   "EMPLOYMENT",
-  "ST_CIC"
+  "ST_CIC",
+  "PCS"
 ] as const;
 
 export const EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES = [
@@ -30,7 +34,8 @@ export const EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES = [
   "DIVORCE",
   "FR",
   "PROBATE",
-  "HRS"
+  "HRS",
+  "PCS"
 ] as const;
 
 export const EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES = [
@@ -56,7 +61,7 @@ export const EXUI_ALL_CONFIGURED_SERVICE_FAMILIES = [
   "ST_CIC"
 ] as const;
 
-export const EXUI_CANARY_SERVICE_FAMILIES = ["CMC", "PCS"] as const;
+export const EXUI_CANARY_SERVICE_FAMILIES = ["CMC"] as const;
 
 export const EXUI_SERVICE_LABELS: Record<string, string> = {
   CIVIL: "Civil",
@@ -629,7 +634,11 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
     serviceFamily: "DIVORCE",
     priority: "grouped",
     proofLevel: "ccd-backed",
-    lanes: ["staff-ref-data", "hearings"],
+    lanes: [
+      "global-search",
+      "staff-ref-data",
+      "hearings"
+    ],
     representativeCaseTypes: ["DIVORCE", "NFD"],
     serviceCodes: ["ABA1"],
     repos: [
@@ -662,8 +671,8 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
         complexTypes: 10
       }
     ],
-    rationale: "Divorce is staff-supported and is the explicit unsupported-hearings/hidden-surface family in the current UI proof.",
-    nextAction: "Keep Divorce as the negative hearings family and add event-definition slices only if divorce-specific EXUI behaviour is selected."
+    rationale: "Divorce is global-search and staff-supported while remaining the explicit unsupported-hearings/hidden-surface family.",
+    nextAction: "Keep grouped global-search/staff membership and the negative hearings representative; add event-definition slices only for a distinct selected EXUI behaviour."
   },
   {
     serviceFamily: "FR",
@@ -696,7 +705,10 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
     serviceFamily: "PROBATE",
     priority: "grouped",
     proofLevel: "ccd-backed",
-    lanes: ["staff-ref-data"],
+    lanes: [
+      "global-search",
+      "staff-ref-data"
+    ],
     representativeCaseTypes: ["GrantOfRepresentation"],
     serviceCodes: ["ABA6"],
     repos: [
@@ -722,10 +734,8 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
         ]
       }
     ],
-    rationale:
-      "Probate is staff-supported in EXUI config and current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
-    nextAction:
-      "Keep Probate grouped through staff-supported assertions until a Probate-specific EXUI-visible behaviour justifies a normalized slice."
+    rationale: "Probate is global-search and staff-supported; existing source evidence identifies probate-back-office/GrantOfRepresentation, without establishing service runtime coverage.",
+    nextAction: "Keep Probate grouped through global-search and staff/ref-data membership; select a separate normalized slice only for a distinct EXUI-visible shape."
   },
   {
     serviceFamily: "ST_CIC",
@@ -805,15 +815,18 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
   },
   {
     serviceFamily: "PCS",
-    priority: "canary",
+    priority: "release-blocking",
     proofLevel: "config-backed",
-    lanes: ["canary"],
+    lanes: [
+      "global-search",
+      "work-allocation",
+      "staff-ref-data"
+    ],
     representativeCaseTypes: [],
     serviceCodes: ["AAA3"],
     repos: [],
-    rationale:
-      "PCS is present in the webapp jurisdiction and service-code configuration but is outside the central global-search, WA, staff-supported, and hearings release-blocking sets.",
-    nextAction: "Keep PCS canary-only until EXUI owners add a distinct PCS contract to a central assurance lane."
+    rationale: "PCS is configured for global search, Work Allocation and staff/ref-data with AAA3; discovered definition source is not yet reviewed or represented in this catalogue, so required source and service-assurance gaps remain.",
+    nextAction: "Review and represent the discovered PCS definition source and representative runtime shapes; keep the required assurance gap explicit until that review is complete."
   }
 ] as const satisfies readonly ExuiServiceDefinitionProfile[];
 
@@ -998,12 +1011,17 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
   {
     serviceFamily: "DIVORCE",
     disposition: "grouped",
-    lanes: ["staff-ref-data", "hearings"],
+    lanes: [
+      "global-search",
+      "staff-ref-data",
+      "hearings"
+    ],
     representativeScenarioIds: [
+      "global-search-supported-service-families",
       "staff-supported-service-families",
       "hearings-disabled-divorce"
     ],
-    rationale: "Staff-supported family used as the explicit unsupported-hearings canary for hidden-surface behaviour."
+    rationale: "Global-search and staff-supported source grouping; Divorce remains the unsupported-hearings representative."
   },
   {
     serviceFamily: "FR",
@@ -1015,13 +1033,16 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
   {
     serviceFamily: "PROBATE",
     disposition: "grouped",
-    lanes: ["staff-ref-data"],
+    lanes: [
+      "global-search",
+      "staff-ref-data"
+    ],
     representativeScenarioIds: [
+      "global-search-supported-service-families",
       "staff-supported-service-families",
       "probate-staff-ref-data-contract"
     ],
-    rationale:
-      "Staff-supported only in this first slice; grouped with a Probate-specific staff/ref-data contract until a distinct EXUI-facing behaviour is identified."
+    rationale: "Global-search and staff/ref-data membership are required; the source profile does not establish full Probate runtime coverage."
   },
   {
     serviceFamily: "CMC",
@@ -1039,10 +1060,19 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
   },
   {
     serviceFamily: "PCS",
-    disposition: "canary",
-    lanes: ["canary"],
-    representativeScenarioIds: ["canary-pcs"],
-    rationale: "Present in configured jurisdictions but intentionally outside the central release-blocking family sets."
+    disposition: "release-blocking",
+    lanes: [
+      "global-search",
+      "work-allocation",
+      "staff-ref-data"
+    ],
+    representativeScenarioIds: [
+      "global-search-supported-service-families",
+      "wa-supported-service-families",
+      "staff-supported-service-families",
+      "pcs-config-membership-contract"
+    ],
+    rationale: "Required configured membership has config-backed evidence only; discovered definition source is not yet reviewed or represented, and service-specific assurance remains a gap."
   }
 ] as const;
 
@@ -1166,7 +1196,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     caseType: "GrantOfRepresentation",
     roleCluster: "caseworker-probate",
     assertion:
-      "PROBATE remains staff-supported but outside global search and Work Allocation release-blocking sets, with ABA6 service-code mapping",
+      "PROBATE is global-search and staff-supported, remains outside Work Allocation, and maps to service code ABA6",
     source: "rpx-xui-webapp staff-supported config and probate-back-office CCD service metadata",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
@@ -1356,12 +1386,12 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     ]
   },
   {
-    id: "canary-pcs",
-    lane: "canary",
-    priority: "canary",
+    id: "pcs-config-membership-contract",
+    lane: "configuration",
+    priority: "must-run",
     executionMode: "api",
     serviceFamily: "PCS",
-    assertion: "newly configured PCS jurisdiction remains outside the central release-blocking family sets until an owner-backed contract is added",
+    assertion: "PCS is configured for global search, WA and staff with AAA3; discovered source awaits catalogue review and its required service-assurance gap remains explicit",
     source: "rpx-xui-webapp jurisdictions and serviceRefDataMapping",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
