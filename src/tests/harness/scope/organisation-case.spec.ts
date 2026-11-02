@@ -59,11 +59,13 @@ test(
       name: "Synthetic Hearing Centre",
       exact: true,
     });
+
     await test.step("harness-assertion:location-selection", async () => {
       await expect(selectedLocation).toBeVisible();
       await selectedLocation.click();
       await expect(selectedLocation).toHaveCount(0);
     });
+
     const location = filter.getByRole("combobox").first();
     const searchRequest = page.waitForRequest(
       (request) =>

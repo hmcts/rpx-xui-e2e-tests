@@ -71,6 +71,41 @@ export function loseNestedChild(body) {
   return changed;
 }
 
+const userId =
+  "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
+const caseworker = `/caseworkers/${userId}/jurisdictions/HARNESS/case-types/HarnessNestedPRL`;
+const ccdRoutes = {
+  GET: [
+    new RegExp(`^${caseworker}/event-triggers/create/token$`),
+    new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`),
+    /^\/internal\/case-types\/HarnessNestedPRL\/event-triggers\/create$/,
+    /^\/internal\/cases\/[0-9]{16}$/,
+  ],
+  POST: [
+    new RegExp(`^${caseworker}/cases$`),
+    /^\/case-types\/HarnessNestedPRL\/cases$/,
+    /^\/case-types\/HarnessNestedPRL\/validate$/,
+    /^\/cases\/[0-9]{16}\/events$/,
+  ],
+};
+
+function ccdTransportRoute(method, pathname) {
+  // Current EXUI removes /data at its proxy mount; older bundles retain it.
+  const upstreamPath = pathname.startsWith("/data/")
+    ? pathname.slice(5)
+    : pathname;
+  if (ccdRoutes[method]?.some((route) => route.test(upstreamPath)))
+    return { path: `/data${upstreamPath}`, upstreamPath };
+  if (
+    method === "GET" &&
+    new RegExp(`^/aggregated/caseworkers/${userId}/jurisdictions$`).test(
+      pathname,
+    )
+  )
+    return { path: pathname, upstreamPath: pathname.slice(11) };
+  return null;
+}
+
 // This gateway implements path/auth transport only. CCD owns every baseline case/event response.
 export async function startCcdGateway(output, credentials, mutation = null) {
   const server = http.createServer(async (request, response) => {
@@ -79,6 +114,7 @@ export async function startCcdGateway(output, credentials, mutation = null) {
       for await (const chunk of request) chunks.push(chunk);
       let body = Buffer.concat(chunks).toString();
       const url = new URL(request.url, "http://127.0.0.1:3101");
+      const receivedPath = request.url.split("?")[0];
       const actor = Object.values(credentials).find(
         (credential) =>
           credential.headers.Authorization === request.headers.authorization,
@@ -100,11 +136,18 @@ export async function startCcdGateway(output, credentials, mutation = null) {
       ]) {
         if (request.headers[key]) headers[key] = request.headers[key];
       }
+      const ccdRoute =
+        receivedPath === url.pathname
+          ? ccdTransportRoute(request.method, transportedPath)
+          : null;
+      const journal = {
+        path: ccdRoute?.path ?? receivedPath,
+        receivedPath,
+        upstreamPath: ccdRoute?.upstreamPath ?? url.pathname,
+      };
       let target;
-      if (url.pathname.startsWith("/data/"))
-        target = `http://127.0.0.1:4452${transportedPath.slice(5)}${url.search}`;
-      else if (url.pathname.startsWith("/aggregated/"))
-        target = `http://127.0.0.1:4452${transportedPath.slice(11)}${url.search}`;
+      if (ccdRoute)
+        target = `http://127.0.0.1:4452${ccdRoute.upstreamPath}${url.search}`;
       else if (url.pathname === "/lease") {
         response.writeHead(200, { "content-type": "text/plain" });
         response.end(credentials.allowed.headers.ServiceAuthorization);
@@ -128,7 +171,7 @@ export async function startCcdGateway(output, credentials, mutation = null) {
       } else {
         fs.appendFileSync(
           `${output}/unhandled-provider.jsonl`,
-          JSON.stringify({ method: request.method, path: url.pathname }) + "\n",
+          JSON.stringify({ method: request.method, path: receivedPath }) + "\n",
         );
         response.writeHead(501, { "content-type": "application/json" });
         response.end('{"code":"UNDECLARED_CCD_GATEWAY_REQUEST"}');
@@ -157,15 +200,12 @@ export async function startCcdGateway(output, credentials, mutation = null) {
         if (trigger.status !== 200) throw new Error("FAULT_EVENT_START_FAILED");
         const payload = JSON.parse(body);
         payload.event_token = trigger.body.token;
-        const written = await realCcdRequest(
-          `/caseworkers/${credentials.allowed.userId}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases/${caseId}/events`,
-          credentials.allowed,
-          {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(payload),
-          },
-        );
+        const writePath = `/caseworkers/${credentials.allowed.userId}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases/${caseId}/events`;
+        const written = await realCcdRequest(writePath, credentials.allowed, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
         fs.appendFileSync(
           `${output}/fault-actions.jsonl`,
           JSON.stringify({ mutation, caseId, status: written.status }) + "\n",
@@ -175,7 +215,8 @@ export async function startCcdGateway(output, credentials, mutation = null) {
           `${output}/ccd-requests.jsonl`,
           JSON.stringify({
             method: request.method,
-            path: url.pathname,
+            ...journal,
+            upstreamPath: writePath,
             status: 403,
             mutation,
             faultWriteStatus: written.status,
@@ -196,7 +237,7 @@ export async function startCcdGateway(output, credentials, mutation = null) {
         `${output}/ccd-requests.jsonl`,
         JSON.stringify({
           method: request.method,
-          path: url.pathname,
+          ...journal,
           status: upstream.status,
           mutation,
         }) + "\n",
