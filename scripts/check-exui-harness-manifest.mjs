@@ -168,8 +168,10 @@ function checkXuiEnvConfig(envConfig) {
 
 function checkPrlDefinitions() {
   if (!fs.existsSync(prlDefinitionsRoot)) {
-    console.log(`[harness-manifest] PRL CCD definitions not present at ${prlDefinitionsRoot}; skipping optional PRL source check.`);
-    return;
+    const message = `PRL CCD definitions not present at ${prlDefinitionsRoot}; source evidence unavailable.`;
+    if (process.env.HARNESS_MANIFEST_EXTERNAL_SOURCE_MODE === "strict") failures.push(message);
+    else console.log(`[harness-manifest] ${message}`);
+    return false;
   }
 
   const expectedPrl = source.prlCcdDefinitions.representativeCaseType;
@@ -239,11 +241,15 @@ function checkPrlDefinitions() {
       }
     }
   }
+  return true;
 }
 
 function checkServiceDefinitionProfiles() {
   const configuredFamilies = new Set(configuredFamiliesFromSource());
   const profileFamilies = new Set(expectedDefinitionProfiles.map((profile) => normalize(profile.serviceFamily)));
+  if (profileFamilies.size !== expectedDefinitionProfiles.length) {
+    failures.push("serviceDefinitionProfiles contains duplicate normalized family profiles.");
+  }
 
   checkSet("serviceDefinitionProfiles configured family coverage", [...profileFamilies], [...configuredFamilies]);
 
@@ -289,34 +295,10 @@ function checkServiceDefinitionProfiles() {
   }
 }
 
-function buildReleaseAssuranceManifestVerdict() {
-  const configuredFamilies = new Set(configuredFamiliesFromSource());
-  const profileFamilies = new Set(expectedDefinitionProfiles.map((profile) => normalize(profile.serviceFamily)));
-  const releaseBlockingSourceGaps = expectedDefinitionProfiles
-    .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel !== "ccd-backed")
-    .map((profile) => normalize(profile.serviceFamily));
-  const releaseBlockingCoverage = expectedDefinitionProfiles
-    .filter((profile) => profile.priority === "release-blocking" && profile.proofLevel === "ccd-backed")
-    .map((profile) => normalize(profile.serviceFamily));
-  const unprofiledFamilies = [...configuredFamilies].filter((family) => !profileFamilies.has(family));
-  const knownGaps = [
-    ...releaseBlockingSourceGaps.map((family) => `release-blocking family without CCD-backed profile: ${family}`),
-    ...(mutationStatus === "pending" ? [`mutation evidence pending: ${mutationCommands.join(", ")}`] : [])
-  ];
-  const fatalGaps = unprofiledFamilies.map((family) => `unprofiled configured family: ${family}`);
-
-  return {
-    overallStatus: fatalGaps.length > 0 ? "fail" : knownGaps.length > 0 ? "warn" : "pass",
-    releaseBlockingCoverage: sorted(releaseBlockingCoverage),
-    mutationStatus,
-    mutationCommands
-  };
-}
-
 const { defaultConfig, envConfig } = readXuiConfig();
 checkXuiDefaultConfig(defaultConfig);
 checkXuiEnvConfig(envConfig);
-checkPrlDefinitions();
+const prlSourceChecked = checkPrlDefinitions();
 checkServiceDefinitionProfiles();
 
 if (failures.length > 0) {
@@ -327,17 +309,16 @@ if (failures.length > 0) {
   process.exitCode = 1;
 } else {
   console.log(`[harness-manifest] rpx-xui-webapp config matches ${path.relative(repoRoot, sourcePath)}.`);
-  console.log(
-    `[harness-manifest] PRL representative case type, hearing role, ABA5 source anchors, and ${source.prlCcdDefinitions.normalizedSlices.length} normalized slice(s) are present.`
-  );
+  if (prlSourceChecked) {
+    console.log(`[harness-manifest] Available PRL source anchors checked for ${source.prlCcdDefinitions.normalizedSlices.length} declared slice(s); no runtime or semantic-equivalence proof.`);
+  }
   console.log(
     `[harness-manifest] coverage input sets: global=${expectedDefault.globalSearchServices.length}, wa=${expectedDefault.waSupportedJurisdictions.length}, staff=${expectedDefault.staffSupportedJurisdictions.length}, hearings=${expectedDefault.hearings.hearingsJurisdictions.length}`
   );
   console.log(
-    `[harness-manifest] service definition profiles cover ${expectedDefinitionProfiles.length} configured EXUI families; no known CCD-source gaps remain.`
+    `[harness-manifest] catalogue classifies ${expectedDefinitionProfiles.length} configured EXUI families; CCD-backed labels describe source inventory only.`
   );
-  const releaseAssuranceVerdict = buildReleaseAssuranceManifestVerdict();
   console.log(
-    `[harness-manifest] release assurance verdict=${releaseAssuranceVerdict.overallStatus}; release-blocking CCD-backed=${releaseAssuranceVerdict.releaseBlockingCoverage.join(", ")}; mutation evidence=${releaseAssuranceVerdict.mutationStatus} (${releaseAssuranceVerdict.mutationCommands.join(", ")}).`
+    `[harness-manifest] catalogue diagnostic only; no release approval. Recorded source/model mutation status=${mutationStatus} (${mutationCommands.join(", ")}). Candidate/CCD execution, independent denied-write observation and validated interaction constraints remain unproved.`
   );
 }

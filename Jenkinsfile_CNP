@@ -382,7 +382,7 @@ def publishUiReports = {
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/odhin-report/**', excludes: '**/trace.zip,**/*.png,**/*.jpg,**/*.jpeg'
   stagePerfettoArtifacts()
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-e2e/test-results/perfetto*.json'
 }
 
 def publishIntegrationReports = { String reportDir, String reportName ->
@@ -397,20 +397,15 @@ def publishIntegrationReports = { String reportDir, String reportName ->
   ])
   archiveArtifacts allowEmptyArchive: true, artifacts: "${reportDir}/**", excludes: '**/trace.zip,**/*.png,**/*.jpg,**/*.jpeg'
   stagePerfettoArtifacts()
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/**/test-results/perfetto*.json'
+  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/playwright-integration/test-results/perfetto*.json'
 }
 
 def publishHarnessReports = {
-  publishHTML([
-    allowMissing         : true,
-    alwaysLinkToLastBuild: true,
-    keepAll              : true,
-    reportDir            : 'functional-output/tests/harness/odhin-report',
-    reportFiles          : 'harness-central-assurance.html',
-    reportName           : 'EXUI central assurance harness'
-  ])
-  junit(testResults: 'playwright-harness-junit.xml', allowEmptyResults: true)
-  archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/harness/**'
+  echo '[harness-report] Raw Harness reports remain job-local; only the validated public summary is eligible for publication.'
+  if (fileExists('functional-output/tests/harness/public/release-assurance-summary.json')) {
+    sh 'node scripts/write-exui-release-assurance-summary.mjs --validate-public-summary functional-output/tests/harness/public/release-assurance-summary.json'
+    archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/harness/public/release-assurance-summary.json'
+  }
 }
 
 def archivePlaywrightDiagnostics = {
@@ -419,7 +414,7 @@ def archivePlaywrightDiagnostics = {
       set +e
       diagnostics_dir="functional-output/tests/playwright-diagnostics"
       mkdir -p "$diagnostics_dir/failure-data" "$diagnostics_dir/traces" "$diagnostics_dir/screenshots"
-      find test-results -type f \\( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \\) -print 2>/dev/null | while IFS= read -r file; do
+      find test-results -path 'test-results/harness*' -prune -o -type f \\( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \\) -print 2>/dev/null | while IFS= read -r file; do
         safe_name="$(printf '%s' "${file#test-results/}" | sed 's#[^A-Za-z0-9._-]#_#g')"
         case "$file" in
           */failure-data.json) output_dir="$diagnostics_dir/failure-data" ;;

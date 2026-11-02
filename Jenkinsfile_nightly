@@ -249,7 +249,7 @@ def archivePlaywrightDiagnostics = {
     diagnostics_dir="functional-output/tests/playwright-diagnostics"
     mkdir -p "${diagnostics_dir}/failure-data" "${diagnostics_dir}/traces" "${diagnostics_dir}/screenshots"
     if [ -d test-results ]; then
-      find test-results -type f \\( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \\) | while read -r file; do
+      find test-results -path 'test-results/harness*' -prune -o -type f \\( -name 'failure-data.json' -o -name 'trace.zip' -o -name '*.png' -o -name '*.jpg' -o -name '*.jpeg' \\) -print | while read -r file; do
         rel="${file#test-results/}"
         safe_name=$(echo "${rel}" | tr '/ ' '__')
         case "${file}" in
@@ -584,16 +584,11 @@ withNightlyPipeline(type, product, component, 400) {
           } catch (Error) {
             unstable(message: "${STAGE_NAME} is unstable: " + Error.toString())
           } finally {
-            publishHTML([
-              allowMissing         : true,
-              alwaysLinkToLastBuild: true,
-              keepAll              : true,
-              reportDir            : "functional-output/tests/harness/odhin-report",
-              reportFiles          : 'harness-central-assurance.html',
-              reportName           : 'EXUI central assurance harness'
-            ])
-            junit(testResults: "playwright-harness-junit.xml", allowEmptyResults: true)
-            archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/harness/**'
+            echo '[harness-report] Raw Harness reports remain job-local; only the validated public summary is eligible for publication.'
+            if (fileExists('functional-output/tests/harness/public/release-assurance-summary.json')) {
+              sh 'node scripts/write-exui-release-assurance-summary.mjs --validate-public-summary functional-output/tests/harness/public/release-assurance-summary.json'
+              archiveArtifacts allowEmptyArchive: true, artifacts: 'functional-output/tests/harness/public/release-assurance-summary.json'
+            }
             recordPlaywrightLoadEvent('EXUI central assurance harness', 'finish')
           }
         }

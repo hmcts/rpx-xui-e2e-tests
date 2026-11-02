@@ -84,6 +84,65 @@ const extractStageBlock = (source, stageName) => {
   return source.slice(start, nextStage === -1 ? source.length : start + marker.length + nextStage);
 };
 
+for (const pipeline of ['Jenkinsfile_CNP', 'Jenkinsfile_nightly']) {
+  test(`${pipeline}: Harness publication contains only the validated public summary`, () => {
+    const source = readFileSync(pipeline, 'utf8');
+    const publication = pipeline === 'Jenkinsfile_CNP'
+      ? source.slice(source.indexOf('def publishHarnessReports ='), source.indexOf('def archivePlaywrightDiagnostics ='))
+      : extractStageBlock(source, 'EXUI central assurance harness');
+    const archived = [...publication.matchAll(/artifacts:\s*'([^']+)'/g)].map((match) => match[1]);
+    assert.deepEqual(archived, ['functional-output/tests/harness/public/release-assurance-summary.json']);
+    assert.doesNotMatch(publication, /publishHTML\(|junit\(/, 'raw Harness HTML and JUnit must remain job-local');
+    assert.doesNotMatch(source, /artifacts:\s*'functional-output\/tests\/\*\*/, 'other publishers must not recapture private Harness outputs');
+    const validation = publication.match(/sh 'node (scripts\/write-exui-release-assurance-summary\.mjs) --validate-public-summary ([^']+)'/);
+    assert.ok(validation, 'publisher validates summary bytes before archiving');
+    assert.equal(validation[2], archived[0]);
+    assert.ok(publication.indexOf(validation[0]) < publication.indexOf('archiveArtifacts'));
+    assert.match(publication, /if \(fileExists\('functional-output\/tests\/harness\/public\/release-assurance-summary\.json'\)\)/);
+
+    const directory = mkdtempSync(join(tmpdir(), 'harness-summary-validation-'));
+    try {
+      const summaryPath = join(directory, archived[0]);
+      mkdirSync(join(directory, 'functional-output/tests/harness/public'), { recursive: true });
+      const valid = { schemaVersion: 1, kind: 'pilot-evidence-summary', status: 'BLOCKED', releaseApproval: false,
+        fullReleaseScopeAvailable: false, receiptAvailable: false, reasonCodes: ['EVIDENCE_REJECTED'] };
+      for (const [content, exit] of [[JSON.stringify(valid, null, 2) + '\n', 0], [JSON.stringify({ ...valid, secret: 'synthetic-publication-secret' }), 2], [JSON.stringify(valid).replace('{', '{\"status\":\"synthetic-publication-secret\",'), 2], ['{invalid', 2]]) {
+        writeFileSync(summaryPath, content);
+        const result = spawnSync(process.execPath, [resolve(validation[1]), '--validate-public-summary', summaryPath], {
+          cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH }
+        });
+        assert.equal(result.status, exit, result.stderr);
+        assert.doesNotMatch(result.stdout + result.stderr, /synthetic-publication-secret/);
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  test(`${pipeline}: generic diagnostic collection preserves ordinary failures without copying Harness raw artifacts`, () => {
+    const source = readFileSync(pipeline, 'utf8');
+    const collector = source.slice(source.indexOf('def archivePlaywrightDiagnostics ='));
+    const shell = collector.match(/'''([\s\S]*?)'''/)[1].replace(/\\\\/g, '\\');
+    const directory = mkdtempSync(join(tmpdir(), 'harness-publication-'));
+    try {
+      for (const folder of ['test-results/api/ordinary', 'test-results/harness-poc-odhin-report/raw', 'functional-output/tests/harness/private/test-results/raw']) {
+        mkdirSync(join(directory, folder), { recursive: true });
+        writeFileSync(join(directory, folder, 'trace.zip'), folder.startsWith('test-results/api') ? 'ordinary-trace' : 'private-harness-sentinel');
+        writeFileSync(join(directory, folder, 'failure-data.json'), folder.startsWith('test-results/api') ? '{}' : 'private-harness-sentinel');
+      }
+      const result = spawnSync('bash', ['-c', shell], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH } });
+      assert.equal(result.status, 0, result.stderr);
+      const { readdirSync } = require('node:fs');
+      const diagnostics = join(directory, 'functional-output/tests/playwright-diagnostics');
+      const files = readdirSync(diagnostics, { recursive: true }).filter((file) => /\.(zip|json)$/.test(file));
+      assert.equal(files.length, 2, 'only the ordinary trace and failure data are copied');
+      for (const file of files) assert.doesNotMatch(readFileSync(join(diagnostics, file), 'utf8'), /private-harness-sentinel/);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
 const nightlySource = readFileSync('Jenkinsfile_nightly', 'utf8');
 const nightlyUi = extractStageBlock(nightlySource, 'UI nightly');
 const nightlyFinalisation = nightlyUi.slice(nightlyUi.indexOf('} finally {'));

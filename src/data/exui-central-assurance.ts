@@ -81,6 +81,7 @@ export const EXUI_SERVICE_REF_DATA_MAPPING: Record<string, readonly string[]> = 
   FR: ["ABA2"],
   HRS: ["HRS"],
   IA: ["BFA1"],
+  PCS: ["AAA3"],
   PRIVATELAW: ["ABA5"],
   PROBATE: ["ABA6"],
   PUBLICLAW: ["ABA3"],
@@ -223,6 +224,7 @@ export type ExuiConfiguredServiceFamily = (typeof EXUI_ALL_CONFIGURED_SERVICE_FA
 export type ExuiDefinitionProfileLevel = "ccd-backed" | "config-backed" | "source-unidentified" | "source-unavailable";
 export type HistoricFailureCoverageStatus =
   | "covered-now"
+  | "supporting-only"
   | "would-catch-with-replay-pack"
   | "learning-case"
   | "partial"
@@ -244,12 +246,14 @@ export type ExuiDefectIntakeRoute =
   | "targeted-mutation-proof"
   | "owner-confirmed-follow-up"
   | "specialist-suite-follow-up";
-export type ExuiReleaseAssuranceStatus = "pass" | "warn" | "fail";
+export type ExuiReleaseAssuranceStatus = "warn" | "fail";
 export type ExuiReleaseAssuranceMutationStatus = "passed" | "pending";
 
 export interface ExuiReleaseAssuranceMutationEvidence {
   status: ExuiReleaseAssuranceMutationStatus;
   requiredCommands: readonly string[];
+  boundary: "source-and-model";
+  releaseCredit: false;
 }
 
 export interface ExuiReleaseAssuranceAcceptedWarning {
@@ -260,11 +264,14 @@ export interface ExuiReleaseAssuranceAcceptedWarning {
 }
 
 export interface ExuiReleaseAssuranceVerdict {
+  kind: "catalogue-diagnostic";
+  releaseApproval: false;
   overallStatus: ExuiReleaseAssuranceStatus;
-  releaseBlockingCoverage: readonly string[];
+  releaseBlockingSourceProfiles: readonly string[];
   failReasons: readonly string[];
   warnReasons: readonly string[];
   knownGaps: readonly string[];
+  executionGaps: readonly string[];
   evidenceSummary: string;
   mutationEvidence: ExuiReleaseAssuranceMutationEvidence;
   historicFailureCoverage: Record<HistoricFailureCoverageStatus, readonly string[]>;
@@ -285,6 +292,13 @@ export const EXUI_RELEASE_ASSURANCE_MUTATION_STATUS =
   releaseAssuranceEvidence.mutationEvidence.status as ExuiReleaseAssuranceMutationStatus;
 export const EXUI_RELEASE_ASSURANCE_ACCEPTED_WARNINGS =
   releaseAssuranceEvidence.releaseGate.acceptedWarnings as readonly ExuiReleaseAssuranceAcceptedWarning[];
+
+export const EXUI_CATALOGUE_EXECUTION_GAPS = [
+  "No current candidate-bound execution evidence is supplied by the catalogue.",
+  "No real CCD import/persistence evidence is supplied by the catalogue.",
+  "No independent authorised CCD observer proves denied mutations leave protected state unchanged.",
+  "No independently validated constraint/grouping denominator proves interaction coverage."
+] as const;
 
 export interface ExuiSuperserviceSourceRef {
   repository: AssuranceSourceRepository;
@@ -824,7 +838,7 @@ export interface ExuiHistoricFailureCoverage {
   harnessContract: string;
   coverageStatus: HistoricFailureCoverageStatus;
   currentPocEvidence: string;
-  wouldHaveCaught: boolean;
+  wouldHaveCaught: boolean | null; // null means product-level detection has not been demonstrated.
   missReason?: string;
   nextScenarioId: string;
   agenticExpectedBoundary?: string;
@@ -1367,9 +1381,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Previous/Continue navigation with page show conditions can submit stale hidden page data as null",
     harnessContract:
       "Synthetic CCD event journey drives Continue, Previous, changed page visibility, CYA, Submit, then asserts submitted payload and retained case data.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts stale hidden-page data is excluded while retained hidden complex data is submitted.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model replay checks a constructed submission payload; no real CCD submission or readback occurs.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-manage-case-previous-hidden-page-retention"
   },
   {
@@ -1379,9 +1393,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "CYA fields or change links are missing when show conditions use complex, collection, tabular, or read-only data",
     harnessContract:
       "Synthetic CCD definitions cover complex collection show conditions, read-only tabular fields, and ShowSummaryChangeOption change links.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts complex/collection CYA rows and change-link contracts are represented.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model replay checks constructed CYA rows and change links; no candidate form is exercised.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-cya-complex-summary-visibility"
   },
   {
@@ -1392,10 +1406,10 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
       "Nested complex child values do not render on CYA when CaseEventToComplexTypes child rows have FieldShowCondition",
     harnessContract:
       "PRL Service of Documents additional-recipient replay models sodAdditionalRecipientsList, nested emailInformation, and child FieldShowCondition rows, then asserts CYA includes parent and child values.",
-    coverageStatus: "covered-now",
+    coverageStatus: "supporting-only",
     currentPocEvidence:
-      "Executable replay pack asserts Service of Documents nested complex child CYA rows survive show-condition filtering.",
-    wouldHaveCaught: true,
+      "Model replay checks constructed nested CYA rows; the generated CYA page is diagnostic, not candidate rendering.",
+    wouldHaveCaught: null,
     nextScenarioId: "prl-service-of-documents-nested-complex-cya"
   },
   {
@@ -1405,9 +1419,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Hidden complex values are removed or submitted as null, causing case data loss",
     harnessContract:
       "Synthetic event contains complex fields whose children are all HIDDEN; submit must retain the parent complex payload correctly.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts a hidden complex parent with hidden children survives submit payload pruning.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper checks pruning of a constructed payload; real CCD data retention is unverified.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-hidden-complex-submit-retention"
   },
   {
@@ -1417,9 +1431,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Work Allocation task autocompletion closes the wrong task or fails to close the right task",
     harnessContract:
       "Route-mocked task lifecycle replay correlates event completion with task id/event id and rejects stale completion data.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts task completion correlates by task id, case id, and event id and rejects stale events.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper checks task/event identifiers in supplied values; real task lifecycle correlation is unverified.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-wa-task-autocomplete-correlation"
   },
   {
@@ -1429,9 +1443,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Users cannot see My Tasks, Available Tasks, All Work, My Cases, My Access, case search, or location filters",
     harnessContract:
       "Persona matrix for judge, deputy judge, caseworker, allocator, and hearing manager asserts tabs, case search, task list, and location filters.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts judge, deputy judge, caseworker, allocator, and hearing-manager tab/location expectations.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper checks supplied persona tab/location expectations; candidate permission-sensitive rendering is unverified.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-wa-role-location-tab-availability"
   },
   {
@@ -1441,9 +1455,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Role assignments with null jurisdiction/service are ignored by caseworker lookup",
     harnessContract:
       "Caseworker lookup fixture includes explicit-service role, null-service role, and no-category fallback role assignments.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts null-service role assignments expand to the central WA service-family set.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper expands supplied null-service assignments; candidate role interpretation is unverified.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-role-assignment-null-service-caseworker-lookup"
   },
   {
@@ -1453,9 +1467,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Unauthenticated access to protected EXUI staff-data endpoint returns personal data",
     harnessContract:
       "Unauthenticated negative matrix probes protected EXUI proxy/API endpoints and asserts 401/redirect/no staff data.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts high-risk staff-data endpoints are safe under anonymous guarded responses.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper checks synthetic guarded responses; no protected endpoint or CCD denial is exercised.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-protected-endpoint-auth-negative"
   },
   {
@@ -1465,9 +1479,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "External users can click event history links and retrieve case event details",
     harnessContract:
       "Internal and external role personas assert event history summary visibility, hyperlink removal, and blocked event-detail fetch.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts external personas see event summaries without event-detail links or fetch access.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper builds external-persona rows and fetch predicates; real event-detail authorisation is unverified.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-event-history-external-role-gate"
   },
   {
@@ -1477,9 +1491,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Event history details layout is too narrow for Case File View and other components",
     harnessContract:
       "Visual/layout proof opens event details and asserts component width/viewport usability for representative embedded components.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts representative event-history embedded component width remains usable.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper compares supplied width numbers; no candidate event-history layout is measured.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-event-history-layout-width"
   },
   {
@@ -1489,9 +1503,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Slow event start gives no feedback or spinner is not removed",
     harnessContract:
       "Delayed callback fixture asserts spinner appears during latency and clears on success/failure.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts delayed event-start spinner appears before callback completion and clears after.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper checks supplied spinner state values; no candidate callback sequence is exercised.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-event-start-spinner-latency"
   },
   {
@@ -1501,9 +1515,9 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Passport, IDAM, or dependency updates break login, logout, session, or role-sensitive shell behaviour",
     harnessContract:
       "Auth smoke lane verifies login callback, session continuity, role-sensitive shell route, and logout.",
-    coverageStatus: "covered-now",
-    currentPocEvidence: "Executable replay pack asserts IDAM callback redirect, session cookie, role-sensitive shell route, and logout contract.",
-    wouldHaveCaught: true,
+    coverageStatus: "supporting-only",
+    currentPocEvidence: "Model helper checks supplied callback/session/role values; no IDAM or browser login runs in this replay.",
+    wouldHaveCaught: null,
     nextScenarioId: "historic-idam-passport-session-smoke"
   },
   {
@@ -1514,10 +1528,10 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
       "SSO users entering through a JCM tile can bypass EXUI state creation and hit the Login bookmark used screen",
     harnessContract:
       "Auth replay compares the direct IDAM-authorize/no-state shape with the EXUI-owned /auth/login?login_hint journey and asserts the managed entrypoint redirects to SSO without bookmark failure.",
-    coverageStatus: "covered-now",
+    coverageStatus: "supporting-only",
     currentPocEvidence:
-      "Executable replay pack asserts the EXUI auth entrypoint owns state creation and preserves the SSO login_hint hand-off.",
-    wouldHaveCaught: true,
+      "Model helper predicts auth entrypoint outcomes from supplied state/login_hint values; candidate protocol behaviour is unverified.",
+    wouldHaveCaught: null,
     nextScenarioId: "auth-login-hint-entrypoint-state-contract"
   },
   {
@@ -1528,10 +1542,10 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
       "Users authenticated by IDAM but missing the Manage Case role matcher are sent through logout/root and back into login",
     harnessContract:
       "Auth replay checks a valid authenticated user reaches the shell while an authenticated user without the required role reaches service-owned access denied instead of logout/root/login loop.",
-    coverageStatus: "covered-now",
+    coverageStatus: "supporting-only",
     currentPocEvidence:
-      "Executable replay pack asserts post-auth role mismatch resolves to access denied and valid role match resolves to the app shell.",
-    wouldHaveCaught: true,
+      "Model helper predicts supplied role-match outcomes; no candidate or CCD authorisation is exercised.",
+    wouldHaveCaught: null,
     nextScenarioId: "auth-role-mismatch-access-denied-contract"
   },
   {
@@ -1541,10 +1555,10 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     failureClass: "Service overview page layout changed unexpectedly for multiple roles in a specific environment",
     harnessContract:
       "Mocked IA case-details journey opens the real EXUI overview route and asserts the stable heading, selected tab, key fields, screenshot evidence, and accessibility baseline.",
-    coverageStatus: "covered-now",
+    coverageStatus: "supporting-only",
     currentPocEvidence:
       "Executable replay pack renders the mocked IA Asylum overview route, checks the agreed layout contract, and attaches screenshot plus axe evidence.",
-    wouldHaveCaught: true,
+    wouldHaveCaught: null,
     nextScenarioId: "overview-page-layout-baseline-contract",
     agenticExpectedBoundary:
       "Likely shared EXUI layout/styling or dependency-driven rendering drift, because the same overview page format changed across several role states rather than one service data field.",
@@ -1577,6 +1591,7 @@ export function buildHistoricFailureCoverageSummary(
 ): Record<HistoricFailureCoverageStatus, readonly string[]> {
   return {
     "covered-now": failures.filter((failure) => failure.coverageStatus === "covered-now").map((failure) => failure.id),
+    "supporting-only": failures.filter((failure) => failure.coverageStatus === "supporting-only").map((failure) => failure.id),
     "would-catch-with-replay-pack": failures
       .filter((failure) => failure.coverageStatus === "would-catch-with-replay-pack")
       .map((failure) => failure.id),
@@ -1739,6 +1754,25 @@ export function buildCoverageSummary(
   };
 }
 
+function findCatalogueDecisionErrors(decisions: readonly ExuiServiceFamilyCoverageDecision[]): string[] {
+  const errors: string[] = [];
+  const families = new Set<string>();
+  const scenarioIds = new Set(EXUI_SUPERSERVICE_SCENARIOS.map((scenario) => scenario.id));
+  for (const decision of decisions) {
+    const family = normalizeServiceFamily(decision.serviceFamily);
+    if (!family || families.has(family)) errors.push(`empty or duplicate catalogue family: ${family}`);
+    families.add(family);
+    if (decision.representativeScenarioIds.length === 0) errors.push(`catalogue family without scenario references: ${family}`);
+    const references = new Set<string>();
+    for (const id of decision.representativeScenarioIds) {
+      if (!scenarioIds.has(id)) errors.push(`unknown catalogue scenario for ${family}: ${id}`);
+      if (references.has(id)) errors.push(`duplicate catalogue scenario for ${family}: ${id}`);
+      references.add(id);
+    }
+  }
+  return errors;
+}
+
 export function buildOwnerSliceCatalogue(
   decisions: readonly ExuiServiceFamilyCoverageDecision[] = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS,
   profiles: readonly ExuiServiceDefinitionProfile[] = EXUI_SERVICE_DEFINITION_PROFILES
@@ -1781,6 +1815,7 @@ export function buildReleaseEvidenceSummary(): ExuiReleaseEvidenceSummary {
   };
 }
 
+// Legacy name retained for catalogue consumers; execution approval belongs to the release evaluator.
 export function buildReleaseAssuranceVerdict(
   options: BuildReleaseAssuranceVerdictOptions = {}
 ): ExuiReleaseAssuranceVerdict {
@@ -1804,23 +1839,29 @@ export function buildReleaseAssuranceVerdict(
     ...(mutationEvidenceStatus === "pending" ? [`mutation evidence pending: ${mutationCommands.join(", ")}`] : [])
   ];
   const failReasons = [
+    ...findCatalogueDecisionErrors(decisions),
     ...unclassifiedFamilies.map((family) => `unclassified configured family: ${family}`),
     ...unprofiledFamilies.map((family) => `unprofiled configured family: ${family}`)
   ];
-  const overallStatus = failReasons.length > 0 ? "fail" : warnReasons.length > 0 ? "warn" : "pass";
+  const overallStatus = failReasons.length > 0 ? "fail" : "warn";
 
   return {
+    kind: "catalogue-diagnostic",
+    releaseApproval: false,
     overallStatus,
-    releaseBlockingCoverage: coverageSummary["release-blocking"].filter(
+    releaseBlockingSourceProfiles: coverageSummary["release-blocking"].filter(
       (family) => !releaseBlockingSourceGaps.includes(family)
     ),
     failReasons,
     warnReasons,
-    knownGaps: [...failReasons, ...warnReasons],
-    evidenceSummary: `${overallStatus}: ${coverageSummary["release-blocking"].length} release-blocking families, ${failReasons.length} fail reason(s), ${warnReasons.length} warning(s), mutation evidence ${mutationEvidenceStatus}`,
+    knownGaps: [...failReasons, ...warnReasons, ...EXUI_CATALOGUE_EXECUTION_GAPS],
+    executionGaps: [...EXUI_CATALOGUE_EXECUTION_GAPS],
+    evidenceSummary: `catalogue diagnostic (${overallStatus}): ${coverageSummary["release-blocking"].length} release-blocking source profiles; no release approval; recorded source/model mutation status ${mutationEvidenceStatus}`,
     mutationEvidence: {
       status: mutationEvidenceStatus,
-      requiredCommands: mutationCommands
+      requiredCommands: mutationCommands,
+      boundary: "source-and-model",
+      releaseCredit: false
     },
     historicFailureCoverage
   };

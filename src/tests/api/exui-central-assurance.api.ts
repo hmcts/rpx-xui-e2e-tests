@@ -472,13 +472,13 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('historic SRT failure classes are classified as caught, planned, or explicitly missed', () => {
+  test('historic SRT failure classes distinguish supporting diagnostics from product proof', () => {
     const historicIds = EXUI_HISTORIC_FAILURE_COVERAGE.map((failure) => failure.id);
     const summary = buildHistoricFailureCoverageSummary();
 
     expect(new Set(historicIds).size).toBe(historicIds.length);
     expect(EXUI_HISTORIC_FAILURE_COVERAGE.length).toBeGreaterThanOrEqual(12);
-    expect(summary['covered-now']).toEqual(
+    expect(summary['supporting-only']).toEqual(
       expect.arrayContaining([
         'manage-case-previous-navigation-data-loss',
         'cya-complex-show-condition-summary',
@@ -513,22 +513,22 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     }
 
     const outOfScopeFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'out-of-scope');
-    const executableFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'covered-now');
+    const supportingFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'supporting-only');
     const partialFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'partial');
     const learningCases = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'learning-case');
     const overviewFailure = EXUI_HISTORIC_FAILURE_COVERAGE.find(
       (failure) => failure.id === 'overview-page-layout-regression-classification'
     );
 
-    expect(executableFailures.every((failure) => failure.wouldHaveCaught)).toBe(true);
+    expect(supportingFailures.every((failure) => !failure.wouldHaveCaught)).toBe(true);
     expect(partialFailures).toEqual([]);
-    expect(executableFailures).toEqual(
+    expect(supportingFailures).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: 'overview-page-layout-regression-classification',
           harnessContract: expect.stringContaining('Mocked IA case-details journey'),
           currentPocEvidence: expect.stringContaining('screenshot plus axe evidence'),
-          wouldHaveCaught: true,
+          wouldHaveCaught: null,
         }),
       ])
     );
@@ -542,7 +542,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         humanFixEvidence: expect.arrayContaining([
           expect.stringContaining('No direct EXUI-4756-linked PR or commit'),
         ]),
-        wouldHaveCaught: true,
+        wouldHaveCaught: null,
       })
     );
     expect(outOfScopeFailures).toEqual([
@@ -600,7 +600,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('release assurance verdict is deterministic and uses recorded mutation evidence', () => {
+  test('catalogue diagnostic preserves source metadata without release approval', () => {
     const verdict = buildReleaseAssuranceVerdict();
     const evidence = JSON.parse(
       readFileSync('src/data/exui-release-assurance-evidence.json', 'utf8')
@@ -620,7 +620,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         }),
       ])
     );
-    expect(verdict.releaseBlockingCoverage).toEqual(
+    expect(verdict.releaseBlockingSourceProfiles).toEqual(
       expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'])
     );
     expect(verdict.knownGaps).toEqual(
@@ -639,11 +639,13 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.mutationEvidence).toEqual({
       status: EXUI_RELEASE_ASSURANCE_MUTATION_STATUS,
       requiredCommands: EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS,
+      boundary: 'source-and-model',
+      releaseCredit: false,
     });
     expect(verdict.evidenceSummary).toBe(
-      'warn: 6 release-blocking families, 0 fail reason(s), 1 warning(s), mutation evidence passed'
+      'catalogue diagnostic (warn): 6 release-blocking source profiles; no release approval; recorded source/model mutation status passed'
     );
-    expect(verdict.historicFailureCoverage['covered-now']).toEqual(
+    expect(verdict.historicFailureCoverage['supporting-only']).toEqual(
       expect.arrayContaining([
         'nested-complex-fieldshowcondition-cya',
         'overview-page-layout-regression-classification',
@@ -752,77 +754,19 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('release assurance verdict passes when coverage is complete and mutation evidence has passed', () => {
-    const verdict = buildReleaseAssuranceVerdict({
-      configuredFamilies: ['CIVIL'],
-      decisions: [
-        {
-          serviceFamily: 'CIVIL',
-          disposition: 'release-blocking',
-          lanes: ['global-search'],
-          representativeScenarioIds: ['global-search-supported-service-families'],
-          rationale: 'Synthetic complete coverage for pass-branch proof.',
-        },
-      ],
-      profiles: [
-        {
-          serviceFamily: 'CIVIL',
-          priority: 'release-blocking',
-          proofLevel: 'ccd-backed',
-          lanes: ['global-search'],
-          representativeCaseTypes: ['CIVIL'],
-          serviceCodes: ['AAA6'],
-          repos: [
-            {
-              fullName: 'hmcts/civil-ccd-definition',
-              url: 'https://github.com/hmcts/civil-ccd-definition',
-              visibility: 'public',
-              updatedAt: '2026-05-12T13:40:51Z',
-              defaultBranch: 'master',
-              definitionRoot: 'ccd-definition',
-              jsonFiles: 1,
-              caseEventToFields: 1,
-              caseEventToComplexTypes: 1,
-              authorisationCaseField: 1,
-              caseField: 1,
-              complexTypes: 1,
-            },
-          ],
-          rationale: 'Synthetic complete profile for pass-branch proof.',
-          nextAction: 'None for pass-branch proof.',
-        },
-      ],
-      failures: [],
-      mutationEvidenceStatus: 'passed',
-    });
+  test('complete catalogue metadata cannot approve a current candidate release', () => {
+    const verdict = buildReleaseAssuranceVerdict({ failures: [], mutationEvidenceStatus: 'passed' });
 
-    expect(verdict).toEqual({
-      overallStatus: 'pass',
-      releaseBlockingCoverage: ['CIVIL'],
-      failReasons: [],
-      warnReasons: [],
-      knownGaps: [],
-      evidenceSummary: 'pass: 1 release-blocking families, 0 fail reason(s), 0 warning(s), mutation evidence passed',
-      mutationEvidence: {
-        status: 'passed',
-        requiredCommands: [
-          'yarn harness:mutation:wa',
-          'yarn harness:mutation:st-cic',
-          'yarn harness:mutation:probate',
-          'yarn harness:mutation:civil',
-          'yarn harness:mutation:ia',
-          'yarn harness:mutation:employment',
-          'yarn harness:mutation:ccd',
-        ],
-      },
-      historicFailureCoverage: {
-        'covered-now': [],
-        'would-catch-with-replay-pack': [],
-        'learning-case': [],
-        partial: [],
-        'out-of-scope': [],
-      },
-    });
+    expect(verdict.overallStatus).toBe('warn');
+    expect(verdict.kind).toBe('catalogue-diagnostic');
+    expect(verdict.releaseApproval).toBe(false);
+    expect(verdict.executionGaps).toEqual(expect.arrayContaining([
+      expect.stringContaining('candidate'),
+      expect.stringContaining('CCD'),
+      expect.stringContaining('denied mutations'),
+      expect.stringContaining('constraint/grouping'),
+    ]));
+    expect(verdict.historicFailureCoverage['covered-now']).toEqual([]);
   });
 
   test('hearings seam has executable supported and unsupported family contracts', () => {

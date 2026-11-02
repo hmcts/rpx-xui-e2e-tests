@@ -2,8 +2,23 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { writePublicSummary } from "./lib/exui-evidence-io.mjs";
 
 const args = new Set(process.argv.slice(2));
+const diagnosticOptions = new Set(["--lint", "--manifest", "--ci", "--odhin", "--"]);
+if ([...args].some((argument) => !diagnosticOptions.has(argument))) {
+  console.error("[harness-local] BLOCKED: diagnostic POC only; candidate/release execution requires an isolated candidate runner. Supported options: --lint --manifest --ci --odhin.");
+  process.exit(2);
+}
+try {
+  writePublicSummary("functional-output/tests/harness/public/release-assurance-summary.json", {
+    status: "BLOCKED", exitCode: 2, reasons: []
+  });
+} catch {
+  console.error("[harness-local] BLOCKED: public diagnostic summary could not be initialized.");
+  process.exit(2);
+}
+console.log("[harness-local] Diagnostic POC only: no release credit; runtime and network isolation are not established.");
 const runLint = args.has("--lint");
 const runManifest = args.has("--manifest");
 const runCi = args.has("--ci");
@@ -13,11 +28,12 @@ const testUrl = process.env.TEST_URL || (runCi ? "https://manage-case.aat.platfo
 const storagePath = process.env.PW_UI_STORAGE_PATH;
 const storageDescription = storagePath || "per-user storage under test-results/storage-states/ui";
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const odhinOutput =
+const privateOutput = "functional-output/tests/harness/private";
+const odhinOutput = runCi ? `${privateOutput}/odhin-report` :
   process.env.PW_ODHIN_OUTPUT ||
   process.env.PLAYWRIGHT_REPORT_FOLDER ||
-  (runCi ? "functional-output/tests/harness/odhin-report" : "test-results/harness-poc-odhin-report");
-const odhinIndex = process.env.PW_ODHIN_INDEX || (runCi ? "harness-central-assurance.html" : "harness-poc-odhin.html");
+  "test-results/harness-poc-odhin-report";
+const odhinIndex = runCi ? "harness-central-assurance.html" : process.env.PW_ODHIN_INDEX || "harness-poc-odhin.html";
 const uiStorageRoot = path.join(process.cwd(), "test-results", "storage-states", "ui");
 
 const commonEnv = {
@@ -76,6 +92,34 @@ const odhinEnv = {
   PW_ODHIN_TITLE: process.env.PW_ODHIN_TITLE || "EXUI Harness POC"
 };
 
+if (runCi) {
+  // Native reporter environment overrides take precedence over config output paths.
+  Object.assign(odhinEnv, {
+    PLAYWRIGHT_REPORTERS: "list,odhin,junit",
+    PW_TEST_REPORTER: "",
+    PLAYWRIGHT_REPORT_FOLDER: odhinOutput,
+    PLAYWRIGHT_REPORT_TARGET: odhinOutput,
+    PW_ODHIN_OUTPUT: odhinOutput,
+    PW_ODHIN_TARGET: odhinOutput,
+    PW_ODHIN_INDEX: odhinIndex,
+    PLAYWRIGHT_REPORT_INDEX_FILENAME: odhinIndex,
+    PW_ODHIN_START_SERVER: "false",
+    PLAYWRIGHT_JUNIT_OUTPUT: `${privateOutput}/junit.xml`,
+    PLAYWRIGHT_JUNIT_OUTPUT_FILE: `${privateOutput}/junit.xml`,
+    PLAYWRIGHT_JSON_OUTPUT: `${privateOutput}/playwright.json`,
+    PLAYWRIGHT_JSON_OUTPUT_FILE: `${privateOutput}/playwright.json`,
+    PLAYWRIGHT_PERFETTO_OUTPUT_FILE: `${privateOutput}/perfetto.json`,
+    PLAYWRIGHT_HTML_OUTPUT: `${privateOutput}/html-report`,
+    PLAYWRIGHT_HTML_OUTPUT_DIR: `${privateOutput}/html-report`,
+    PLAYWRIGHT_HTML_REPORT: `${privateOutput}/html-report`,
+    PLAYWRIGHT_LAST_RUN_OUTPUT_FILE: `${privateOutput}/test-results/.last-run.json`,
+    PLAYWRIGHT_OUTPUT_DIR: `${privateOutput}/test-results`,
+    PLAYWRIGHT_TEST_OUTPUT_DIR: `${privateOutput}/test-results`,
+    PW_NODE_API_LOG_ROOT: `${privateOutput}/test-results`,
+    PW_API_ENDPOINTS_OUTPUT: `${privateOutput}/api-endpoints.json`
+  });
+}
+
 async function checkUrl(label, target, options = {}) {
   const acceptStatus = options.acceptStatus ?? ((status) => status < 500);
 
@@ -92,6 +136,10 @@ async function checkUrl(label, target, options = {}) {
 }
 
 function runCommand(label, command, commandArgs, env = commonEnv) {
+  // Keep Harness raw artifacts out of the conventional suites' diagnostic collector.
+  if (runCi && command === "./node_modules/.bin/playwright") {
+    commandArgs = [...commandArgs, `--output=${privateOutput}/test-results`];
+  }
   console.log(`\n[harness-local] ${label}`);
   console.log(`[harness-local] ${command} ${commandArgs.join(" ")}`);
 

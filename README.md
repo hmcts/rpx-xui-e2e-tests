@@ -123,20 +123,21 @@ COREPACK_HOME=/private/tmp/corepack-cache TEST_ENV=local TEST_URL=http://localho
 open functional-output/tests/harness/ccd-mutation-proof/odhin-report/harness-ccd-mutation-proof.html
 ```
 
-These commands deliberately inject a controlled fault into the observed contract. The point is to show the harness going red for the right reason, with a failure message that names the missing shared configuration or CCD metadata.
+These diagnostic commands inject faults into source/model contracts. The CCD metadata command edits definition source; it does not demonstrate persistence or denied-write integrity in a running CCD service. Their results receive no candidate release credit.
 
 ### Useful focused checks
 
 ```bash
 COREPACK_HOME=/private/tmp/corepack-cache yarn harness:manifest
-COREPACK_HOME=/private/tmp/corepack-cache yarn harness:release-summary
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:unit
+COREPACK_HOME=/private/tmp/corepack-cache yarn harness:release-summary # exits 2 without verified run evidence
 COREPACK_HOME=/private/tmp/corepack-cache yarn harness:defect-intake -- "Dropped service code BHA1 is no longer caught"
 COREPACK_HOME=/private/tmp/corepack-cache yarn lint
 COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/odhin-report-enhancer.unit.api.ts
 COREPACK_HOME=/private/tmp/corepack-cache yarn playwright test --project=api src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts
 ```
 
-`harness:release-summary` writes `functional-output/tests/harness/release-assurance-summary.json`. It shows the current release gate status, explicit fail and warning reasons, mutation evidence status, harness proof lanes (API, UI, integration, and accessibility), and the owner slice catalogue for each service family. `harness:defect-intake` is the deterministic intake router for new defects; paste the defect title or notes after `--` and it returns the route, target harness action, and required evidence.
+`harness:release-summary --run <run-directory>/run.json` evaluates verified framework artifacts against the checked-in pilot policy, writes a private identity-bearing `gate.json`, and publishes only a fixed-schema summary at `functional-output/tests/harness/public/release-assurance-summary.json`. No run evidence means BLOCKED (exit 2), even when historical catalogue metadata says mutations passed. The current policy covers a family-membership pilot; it cannot approve a full EXUI release or scope isolation. `harness:verify-gate --receipt <gate.json> --expected <deployment-expectations.json>` checks independently supplied deployment identity and the immutable receipt artifact digest. See [the evidence contract](docs/harness-evidence-contract.md) for inputs and trust boundaries. `harness:defect-intake` is the deterministic intake router for new defects; paste the defect title or notes after `--` and it returns the route, target harness action, and required evidence.
 
 ### Accessibility baseline approach
 
@@ -260,3 +261,11 @@ You can control which users are created and whether missing/failed sessions shou
 - `PW_UI_USERS` / `PW_UI_USER`: comma-separated list of UI users to pre-auth (e.g., `COURT_ADMIN`).
 - `PW_UI_STORAGE`: enable/disable storage state usage (default: on).
 - `PW_UI_STORAGE_STRICT=1`: fail early if storage state cannot be created (e.g., bad credentials or login error).
+
+### Release safeguards and current limits
+
+The source catalogue remains available through `buildReleaseEvidenceSummary()` and the legacy `buildReleaseAssuranceVerdict()` name, but its output is explicitly `catalogue-diagnostic`, never release PASS. `releaseBlockingSourceProfiles` describes source classification; `executionGaps` records absent runtime evidence. Historic `wouldHaveCaught: null` means unverified.
+
+The POC local/CI commands remain diagnostics. Unsupported candidate/release arguments stop before contact. CI writes raw Harness outputs into a private job-local directory and publishes only validated summary bytes. Raw HTML, traces, screenshots and JUnit are withheld from general Harness publication until sanitisation is verified. Local diagnostic reports remain available locally.
+
+The isolated candidate producer, independent CCD denied-write observer, independently validated interaction generator and actual deployment-gate wiring still need implementation/acceptance. These gaps cannot be discharged by catalogue labels or by the offline tests. No conventional suite is retired by these safeguards.

@@ -1,4 +1,6 @@
 {
+  "kind": "catalogue-diagnostic",
+  "releaseApproval": false,
   "releaseGate": {
     "warnReasons": [
       "historic out-of-scope class: media-viewer-redaction-coordinate"
@@ -22,14 +24,17 @@
       "yarn harness:mutation:ia",
       "yarn harness:mutation:employment",
       "yarn harness:mutation:ccd"
-    ]
+    ],
+    "boundary": "source-and-model",
+    "releaseCredit": false,
+    "provenance": "Historical checked-in record; not evidence of the current candidate run."
   },
   "harnessProofLanes": [
     {
       "lane": "api",
       "project": "api",
       "requiredFor": "local-and-ci",
-      "proof": "Central assurance config, release gate, mutation evidence, and historic replay packs.",
+      "proof": "Source/configuration HTTP checks and model/helper/catalogue replay diagnostics; no release decision or real CCD denied-write proof.",
       "testFiles": [
         "src/tests/api/exui-central-assurance.api.ts",
         "src/tests/api/exui-historic-replay-packs.api.ts"
@@ -40,7 +45,7 @@
       "project": "ui",
       "requiredFor": "local-and-ci",
       "ciPolicy": "Included in harness:ci.",
-      "proof": "Manage Tasks service-family filter screen evidence.",
+      "proof": "Generated Manage Tasks HTML diagnostic; does not execute the candidate filter screen.",
       "testFiles": [
         "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts"
       ]
@@ -50,7 +55,7 @@
       "project": "integration",
       "requiredFor": "local-and-ci",
       "ciPolicy": "Included in harness:ci.",
-      "proof": "EXUI-4493 CYA visual evidence, Overview layout route proof, Global Search service-family selector, and Hearings supported/unsupported family slices.",
+      "proof": "Generated EXUI-4493 CYA evidence page plus candidate routes with controlled responses for Overview, Global Search and Hearings; no CCD persistence proof.",
       "testFiles": [
         "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
         "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
@@ -63,7 +68,7 @@
       "project": "ui/integration",
       "requiredFor": "local-and-ci",
       "ciPolicy": "Included in harness:ci through the UI and integration harness specs.",
-      "proof": "Axe baseline checks embedded in the Manage Tasks, Overview layout, and Hearings harness specs.",
+      "proof": "Axe checks on generated Manage Tasks HTML and selected candidate routes with controlled responses; not comprehensive accessibility acceptance.",
       "testTitles": [
         "accessibility baseline: available tasks service filter has no new axe violations",
         "accessibility baseline: IA overview case details has no new axe violations",

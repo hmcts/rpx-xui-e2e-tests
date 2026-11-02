@@ -503,10 +503,11 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
     expect(isAuthSmokeSessionValid(IDAM_PASSPORT_SESSION_REPLAY)).toBe(true);
   });
 
-  test("historic coverage status only claims covered-now where an executable replay pack exists", () => {
+  test("historic replay status describes supporting checks without product coverage credit", () => {
     const summary = buildHistoricFailureCoverageSummary();
 
-    expect(summary["covered-now"]).toEqual(
+    expect(summary["covered-now"]).toEqual([]);
+    expect(summary["supporting-only"]).toEqual(
       expect.arrayContaining([
         "manage-case-previous-navigation-data-loss",
         "cya-complex-show-condition-summary",
@@ -526,8 +527,8 @@ test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-h
       ])
     );
 
-    const coveredNow = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === "covered-now");
-    expect(coveredNow.every((failure) => failure.currentPocEvidence.includes("Executable replay pack"))).toBe(true);
+    const supporting = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === "supporting-only");
+    expect(supporting.every((failure) => !failure.wouldHaveCaught)).toBe(true);
     expect(summary["learning-case"]).toEqual([]);
     expect(summary.partial).toEqual([]);
     expect(summary["out-of-scope"]).toEqual(["media-viewer-redaction-coordinate"]);
