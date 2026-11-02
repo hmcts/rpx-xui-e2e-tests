@@ -345,3 +345,68 @@ test("synthetic current runtime supplies the exact renamed managed Redis propert
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("scope derivation preserves symlink modes under private umask and still rejects unrelated payload changes", async () => {
+  const { describeCandidateArtifact } =
+    await import("./lib/exui-candidate-artifact.mjs");
+  const { deriveScopeMutant, verifyScopeMutant } =
+    await import("./prepare-harness-scope-mutant.mjs");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "scope-copy-mode-"));
+  const root = path.join(directory, "baseline");
+  const files = {
+    "dist/rpx-exui/browser/index.html": "<app-root></app-root>",
+    "dist/rpx-exui/browser/guard.js":
+      'a.filter(h=>h.roleType&&h.roleType==="ORGANISATION").map(h=>h.jurisdiction)',
+    "dist/rpx-exui/api/server.bundle.js": "server-fixture",
+    "api/package.json": '{"name":"jui"}',
+    "config/default.json": "{}",
+    "runtime/node": "node-fixture",
+    "package.json": '{"dependencies":{"@hmcts/ccd-case-ui-toolkit":"7.4.21"}}',
+    "yarn.lock": "lock-fixture",
+    "node_modules/@hmcts/ccd-case-ui-toolkit/package.json":
+      '{"version":"7.4.21"}',
+    "node_modules/tool/cli.js": "tool-fixture",
+  };
+  for (const [name, contents] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true });
+    fs.writeFileSync(path.join(root, name), contents);
+  }
+  const link = "node_modules/.bin/tool";
+  fs.mkdirSync(path.dirname(path.join(root, link)), { recursive: true });
+  fs.symlinkSync("../tool/cli.js", path.join(root, link));
+  if (process.platform === "darwin")
+    fs.lchmodSync(path.join(root, link), 0o755);
+  const baseline = await describeCandidateArtifact(root, {
+    sourceMethod: "git-archive",
+    webappCommit: "a".repeat(40),
+    sourceTree: "b".repeat(40),
+    platform: "linux/arm64",
+    buildImage: "sha256:" + "c".repeat(64),
+    install: "immutable-offline",
+  });
+  const manifest = path.join(directory, "baseline.json");
+  fs.writeFileSync(manifest, JSON.stringify(baseline));
+  const previous = process.umask(0o077);
+  try {
+    const { mutant } = await deriveScopeMutant(
+      manifest,
+      path.join(directory, "mutant"),
+    );
+    assert.equal(
+      fs.lstatSync(path.join(mutant.candidateRoot, link)).mode & 0o777,
+      fs.lstatSync(path.join(root, link)).mode & 0o777,
+    );
+    await verifyScopeMutant(baseline, mutant);
+    fs.writeFileSync(
+      path.join(mutant.candidateRoot, "unrelated.js"),
+      "unrelated-change",
+    );
+    await assert.rejects(
+      verifyScopeMutant(baseline, mutant),
+      /UNRELATED_SCOPE_MUTANT_PAYLOAD_CHANGE/,
+    );
+  } finally {
+    process.umask(previous);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
