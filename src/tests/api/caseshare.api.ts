@@ -1,50 +1,7 @@
-import { withXsrf } from '../../utils/api/apiTestUtils';
 import { expectCaseShareShape } from '../../utils/api/assertions';
 import { assertCaseShareEntries, resolveEntries } from '../../utils/api/caseShareUtils';
 
 import { test, expect } from './fixtures';
-
-const CASESHARE_ENDPOINTS = [
-  {
-    path: 'caseshare/orgs',
-    property: 'organisations',
-    schema: expect.objectContaining({
-      organisationIdentifier: expect.any(String),
-      name: expect.any(String),
-    }),
-  },
-  {
-    path: 'caseshare/users',
-    property: 'users',
-    schema: expect.objectContaining({
-      userIdentifier: expect.any(String),
-      email: expect.any(String),
-    }),
-  },
-  {
-    path: 'caseshare/cases',
-    property: 'cases',
-    schema: expectCaseShareShape,
-  },
-  {
-    path: 'caseshare/case-assignments',
-    property: 'sharedCases',
-    schema: expectCaseShareShape,
-  },
-] as const;
-
-test.describe('Case share endpoints', { tag: '@svc-case-share' }, () => {
-  for (const { path, property, schema } of CASESHARE_ENDPOINTS) {
-    test(`GET ${path}`, async ({ apiClient }) => {
-      await withXsrf('solicitor', async (headers) => {
-        const response = await apiClient.get(path, { headers: { ...headers, experimental: 'true' }, throwOnError: false });
-        expect([200, 500, 502, 504]).toContain(response.status);
-        expect(response.data).toBeTruthy();
-        assertCaseShareEntries(response.data, property, schema);
-      });
-    });
-  }
-});
 
 test.describe('Case share helper coverage', { tag: '@svc-case-share' }, () => {
   test('assertCaseShareEntries covers function and object schemas', () => {

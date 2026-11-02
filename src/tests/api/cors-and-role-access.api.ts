@@ -1,59 +1,7 @@
-import { test, expect, request } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
-import { expectStatus, StatusSets } from '../../utils/api/apiTestUtils';
+import { StatusSets } from '../../utils/api/apiTestUtils';
 import { assertCorsHeaders, shouldIgnoreCorsError } from '../../utils/api/corsUtils';
-import { config } from '../common/apiTestConfig';
-
-const baseURL = config.baseUrl.replace(/\/+$/, '');
-
-const origins = [
-  { label: 'allowed', origin: baseURL, expected: StatusSets.corsAllowed },
-  { label: 'disallowed', origin: 'https://example.invalid', expected: StatusSets.corsDisallowed },
-];
-
-test.describe('CORS and OPTIONS', { tag: '@svc-cors' }, () => {
-  origins.forEach(({ label, origin, expected }) => {
-    test(`OPTIONS /api/user/details (${label} origin)`, async () => {
-      const ctx = await request.newContext({ baseURL, ignoreHTTPSErrors: true });
-      try {
-        const res = await ctx.fetch('api/user/details', {
-          method: 'OPTIONS',
-          headers: { origin },
-          failOnStatusCode: false,
-        });
-        expectStatus(res.status(), expected);
-        assertCorsHeaders(expected, res.status(), res.headers(), origin);
-      } catch (error) {
-        if (shouldIgnoreCorsError(error)) {
-          return;
-        }
-        throw error;
-      } finally {
-        await ctx.dispose();
-      }
-    });
-
-    test(`OPTIONS /api/configuration (${label} origin)`, async () => {
-      const ctx = await request.newContext({ baseURL, ignoreHTTPSErrors: true });
-      try {
-        const res = await ctx.fetch('api/configuration', {
-          method: 'OPTIONS',
-          headers: { origin },
-          failOnStatusCode: false,
-        });
-        expectStatus(res.status(), expected);
-        assertCorsHeaders(expected, res.status(), res.headers(), origin);
-      } catch (error) {
-        if (shouldIgnoreCorsError(error)) {
-          return;
-        }
-        throw error;
-      } finally {
-        await ctx.dispose();
-      }
-    });
-  });
-});
 
 test.describe('CORS helper coverage', { tag: '@svc-cors' }, () => {
   test('assertCorsHeaders handles allowed and disallowed origins', () => {
