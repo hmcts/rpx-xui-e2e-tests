@@ -64,6 +64,41 @@ for (const pipeline of ['Jenkinsfile_CNP', 'Jenkinsfile_nightly']) {
   });
 }
 
+test('the Build lint command requires Harness support checks and preserves their failure before downstream checks', () => {
+  const lint = JSON.parse(readFileSync('package.json', 'utf8')).scripts.lint;
+  const directory = mkdtempSync(join(tmpdir(), 'harness-build-lint-'));
+  const callsFile = join(directory, 'calls');
+  try {
+    writeFileSync(join(directory, 'yarn'), `#!/bin/sh
+      printf 'yarn:%s\\n' "$*" >> "$CALLS_FILE"
+      if [ "$1" = 'harness:unit' ]; then exit "$HARNESS_UNIT_EXIT"; fi
+      exit 0
+    `, { mode: 0o755 });
+    writeFileSync(join(directory, 'node'), `#!/bin/sh
+      printf 'node:%s\\n' "$*" >> "$CALLS_FILE"
+      exit 0
+    `, { mode: 0o755 });
+    const execute = (exitCode) => spawnSync('/bin/sh', ['-c', lint], {
+      cwd: directory, encoding: 'utf8',
+      env: { PATH: directory, CALLS_FILE: callsFile, HARNESS_UNIT_EXIT: String(exitCode) }
+    });
+    const failure = execute(23);
+    assert.equal(failure.status, 23, failure.stderr);
+    assert.deepEqual(readFileSync(callsFile, 'utf8').trim().split('\n'), ['yarn:harness:unit'],
+      'no pipeline, TypeScript or ESLint check may run after the Harness support failure');
+
+    rmSync(callsFile);
+    const success = execute(0);
+    assert.equal(success.status, 0, success.stderr);
+    const calls = readFileSync(callsFile, 'utf8').trim().split('\n');
+    assert.equal(calls[0], 'yarn:harness:unit');
+    assert.ok(calls.length > 1 && calls.slice(1).some((call) => call.startsWith('node:')),
+      'passing Harness support checks must allow downstream validation to run');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 
 test('every configured Jenkins test suite selects its required browsers', () => {
   const cnp = readFileSync('Jenkinsfile_CNP', 'utf8');

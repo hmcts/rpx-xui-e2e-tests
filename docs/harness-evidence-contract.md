@@ -12,6 +12,17 @@ yarn harness:verify-gate --receipt /path/to/immutable-run/gate.json --expected /
 
 Exit codes are 0 for PASS, 1 for coherent product FAIL, and 2 for BLOCKED evidence. A pilot PASS permits only its named gate step. Missing input, unknown scopes, malformed evidence and missing output after a killed job must deny promotion. CI must use a fresh run directory and independent deployment expectations; a last-green badge or mutable shared directory is insufficient.
 
+## Archive candidate preparation
+
+The archive producer uses pinned Linux/arm64 Node 24.22.1 on Debian 12 (Bookworm). Cache the exact image separately before running; the producer does not pull images or packages:
+
+```bash
+docker pull --platform linux/arm64 node@sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea
+yarn harness:candidate:prepare --source /path/to/rpx-xui-webapp --commit 76bf7a840fa71af466961de87294973023b2f0f3 --cache /path/to/seeded-yarn-cache --output /path/to/fresh-candidate
+```
+
+The producer checks the committed Node engine, packageManager and regular committed Yarn release, then verifies actual Node/OS and Yarn versions before the build. Installation, build and production pruning retain immutable cache inputs and `--network none`; missing cache entries fail. The owned compile container uses `--init`, 8 GiB memory, four CPUs and a 512-PID limit; its observed terminal state and exit are retained in `build-execution.json`, with cleanup on normal completion or cancellation. Provenance records the immutable image reference, observed Node/Yarn versions and source engine. This archive artifact remains separate from proof of an owning Dockerfile/OCI delivery path.
+
 ## Producer input
 
 `run.json` has these fields:

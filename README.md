@@ -1,12 +1,12 @@
 # rpx-xui-e2e-tests
 
-Expert UI E2E test suite
+EXUI configuration assurance Harness, with conventional suites retained during the evidence-led migration.
 
 ## Candidate-bound Harness pilots
 
 The dedicated Harness runs the built EXUI Angular and Node application with isolated synthetic personas and declared downstream seams. Three separate pilot policies cover WA family selection, organisation/case location scope, and nested CCD persistence/access integrity. Each requires a passing baseline and its intended failing mutation. A pilot receipt cannot authorize a full EXUI release.
 
-The current runtime requires Docker with the pinned Linux/arm64 images, an immutable candidate artifact, and the matching Linux/arm64 Chromium cache. Build from an exact committed webapp revision; dirty primary source and existing `dist` output are not build inputs:
+The archive runtime requires Docker with the pinned Linux/arm64 images, an immutable candidate artifact, and the matching Linux/arm64 Chromium cache. Build from an exact committed webapp revision; dirty primary source and existing `dist` output are not build inputs:
 
 ```bash
 yarn harness:candidate:prepare --source /path/to/rpx-xui-webapp --commit <40-character-sha> --output /path/to/fresh-candidate
@@ -15,7 +15,7 @@ node scripts/prepare-harness-scope-mutant.mjs /path/to/fresh-candidate/candidate
 yarn harness:candidate --scope exui-wa-scope-pilot --candidate /path/to/fresh-candidate/candidate-artifact.json --mutant /path/to/fresh-scope-mutant/candidate-artifact.json --browser /path/to/linux-arm64-browser-cache --output /path/to/fresh-scope-run
 ```
 
-Candidate preparation needs a seeded immutable Yarn cache, including Linux/arm64 optional packages. It installs/builds without network access and seals the UI, Node bundle, dependency tree, configuration, lock and Node binary. The runner verifies those bytes, reviewed configuration sources, the test dependencies and browser before execution. Uncommitted Harness inputs, unexpected destinations, missing reports, retries and unrelated teardown errors block approval. Logs and raw artifacts stay private; only the fixed-schema public summary is eligible for general publication.
+Candidate preparation uses pinned Node 24.22.1 on Debian 12 and validates the source Node engine and committed Yarn release. It needs a seeded immutable Yarn cache, including Linux/arm64 optional packages. It installs/builds without network access and seals the UI, Node bundle, dependency tree, configuration, lock and Node binary. The runner verifies those bytes, reviewed configuration sources, the test dependencies and browser before execution. Uncommitted Harness inputs, unexpected destinations, missing reports, retries and unrelated teardown errors block approval. Logs and raw artifacts stay private; only the fixed-schema public summary is eligible for general publication.
 
 The OCI adapter runs an immutable registry image in its own Node/OS runtime, with the browser and provider seams in a separate container sharing an owned network namespace:
 
@@ -38,7 +38,7 @@ yarn harness:catalogue --webapp /path/to/rpx-xui-webapp --definitions /path/to/p
 
 CCD access coverage uses real RBAC with a synthetic identity provider and a separately authorised state/history observer. ABAC, identity-provider correctness and service business callbacks remain excluded. Catalogue checks report source drift, feasible pilot cells and missing runtime obligations; they do not grant release credit. See [the evidence contract](docs/harness-evidence-contract.md) for receipt and promotion checks.
 
-Conventional suites and the existing Jenkins diagnostic command remain during migration. Retirement requires equivalent effective coverage for each consequential outcome; a missing owner gate remains a release gap. The first retirement removes only an empty spec and an identical same-scope API test.
+Conventional suites and the existing Jenkins diagnostic command remain during migration. Retirement requires equivalent effective coverage for each consequential outcome; a missing owner gate remains a release gap. Retired so far: an empty spec, an identical same-scope API test, and two unreachable cookie wrappers with their sole mock call-count tests. Live expired-session assertions remain.
 
 ## XUI Assurance Harness POC
 
