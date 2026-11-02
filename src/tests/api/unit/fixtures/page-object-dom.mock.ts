@@ -17,6 +17,18 @@ export const caseFileFolderHtml = `
     </cdk-nested-tree-node>
   </cdk-tree></div></div>`;
 
+export const taskLocationSearchHtml = `
+  <div role="listbox"><div role="option">Unrelated option outside the overlay</div></div>
+  <div class="cdk-overlay-container">
+    <div role="listbox" class="mat-mdc-autocomplete-panel" hidden>
+      <mat-option role="option"><span>Hidden location</span></mat-option>
+    </div>
+    <div role="listbox" class="mat-mdc-autocomplete-panel">
+      <mat-option role="option"><span class="mdc-list-item__primary-text">IA Court Centre 1</span></mat-option>
+      <mat-option role="option"><span class="mdc-list-item__primary-text"><span>SSCS</span> Court Centre 1</span></mat-option>
+    </div>
+  </div>`;
+
 export const checkYourAnswersHtml = `
   <style>.govuk-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }</style>
   <table id="answers"><tbody>
