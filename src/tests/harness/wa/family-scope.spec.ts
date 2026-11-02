@@ -28,19 +28,13 @@ test(
     await expect(service).toBeVisible();
 
     await test.step("harness-assertion:family-membership", async () => {
-      await expect
-        .poll(async () =>
-          (
-            await service
-              .locator("option")
-              .evaluateAll((options) =>
-                options.map((option) => (option as HTMLOptionElement).value),
-              )
-          )
-            .filter(Boolean)
-            .sort(),
-        )
-        .toEqual(families);
+      const options = service.locator('option:not([value=""])');
+      await expect(options).toHaveCount(families.length);
+      expect(
+        await options.evaluateAll((items) =>
+          items.map((option) => (option as HTMLOptionElement).value).sort(),
+        ),
+      ).toEqual(families);
     });
 
     for (const family of families) {
