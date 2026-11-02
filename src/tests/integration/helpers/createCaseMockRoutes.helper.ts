@@ -177,15 +177,6 @@ export async function routeCaseCreationFlow(
   return interceptedRequestPromise;
 }
 
-export async function submitCaseAndCaptureRequest(
-  page: Page,
-  createCasePage: Pick<CreateCasePage, "testSubmitButton">
-): Promise<unknown> {
-  const interceptedCreateCaseRequestBodyPromise = routeCaseCreationFlow(page);
-  await Promise.all([interceptedCreateCaseRequestBodyPromise, createCasePage.testSubmitButton.click()]);
-  return interceptedCreateCaseRequestBodyPromise;
-}
-
 export async function openCreateCaseJourney(
   page: Page,
   createCasePage: Pick<CreateCasePage, "waitForDivorcePocPersonalDetailsReady">,
