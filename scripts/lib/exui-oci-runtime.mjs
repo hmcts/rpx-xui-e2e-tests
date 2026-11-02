@@ -7,11 +7,16 @@ import {
 } from "./exui-candidate-runtime.mjs";
 
 export const OCI_SOURCE_FILES = [
-  ...HARNESS_SOURCE_FILES,
-  "scripts/run-harness-oci-candidate.mjs",
-  "scripts/lib/exui-oci-candidate.mjs",
-  "scripts/lib/exui-oci-runtime.mjs",
+  ...new Set([
+    ...HARNESS_SOURCE_FILES,
+    "scripts/run-harness-oci-candidate.mjs",
+    "scripts/lib/exui-oci-candidate.mjs",
+    "scripts/lib/exui-oci-extraction.mjs",
+    "scripts/lib/exui-oci-runtime.mjs",
+  ]),
 ];
+export const NATIVE_API_RUNTIME_REFERENCE =
+  "node@sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea";
 export const ARM64_BROWSER_RUNTIME =
   "sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27";
 const digest = (value) => /^sha256:[a-f0-9]{64}$/.test(value ?? "");
@@ -28,7 +33,7 @@ const mount = (source, target, readonly = false) => {
   ];
 };
 const ownerFlags = (owner, service) => {
-  if (!/^harness-oci-[a-f0-9-]+$/.test(owner))
+  if (!/^(?:harness-oci|candidate|ccd)-[a-f0-9-]+$/.test(owner))
     throw new Error("OWNED_OCI_CONTAINER_REQUIRED");
   return [
     "--label",
@@ -115,9 +120,28 @@ export function toolContainerArguments({
   browserRoot,
   sessions,
   invocationId,
+  native = false,
+  namespace,
 }) {
   if (!digest(image)) throw new Error("PINNED_BROWSER_RUNTIME_REQUIRED");
-  if (!["baseline", "wa-drop-family"].includes(invocationId))
+  if (namespace && !/^[a-f0-9]{64}$/.test(namespace))
+    throw new Error("OWNED_TOOLS_NAMESPACE_REQUIRED");
+  if (
+    !(
+      native
+        ? [
+            "baseline",
+            "wa-drop-family",
+            "scope-ia",
+            "scope-civil",
+            "wa-scope-broadened",
+            "ccd-drop-child",
+            "ccd-broaden-access",
+            "ccd-write-then-deny",
+          ]
+        : ["baseline", "wa-drop-family"]
+    ).includes(invocationId)
+  )
     throw new Error("UNSUPPORTED_OCI_INVOCATION");
   assertReadOnlyMountIsolation(
     [harnessRoot, dependenciesRoot, candidateRoot, browserRoot],
@@ -126,7 +150,7 @@ export function toolContainerArguments({
   return [
     "create",
     "--network",
-    "none",
+    namespace ? `container:${namespace}` : "none",
     "--platform",
     platform,
     ...hardened,
@@ -148,10 +172,101 @@ export function toolContainerArguments({
     "PATH=/usr/local/bin:/usr/bin:/bin",
     "HOME=/tmp",
     "node",
-    "scripts/run-harness-oci-candidate.mjs",
+    native
+      ? "scripts/run-harness-native-tools.mjs"
+      : "scripts/run-harness-oci-candidate.mjs",
     "--inside-providers",
     "--invocation",
     invocationId,
+  ];
+}
+
+export function candidateArchiveArguments({
+  image,
+  namespace,
+  owner,
+  invocationId,
+  candidateRoot,
+  sessions,
+  diagnostics,
+  guard,
+  config,
+  evidenceRoot,
+  harnessRoot,
+}) {
+  if (!digest(image) || !/^[a-f0-9]{64}$/.test(namespace))
+    throw Error("PINNED_NATIVE_RUNTIME_AND_NAMESPACE_REQUIRED");
+  if (
+    ![
+      "baseline",
+      "wa-drop-family",
+      "scope-ia",
+      "scope-civil",
+      "wa-scope-broadened",
+      "ccd-drop-child",
+      "ccd-broaden-access",
+      "ccd-write-then-deny",
+    ].includes(invocationId)
+  )
+    throw Error("UNSUPPORTED_NATIVE_INVOCATION");
+  assertReadOnlyMountIsolation(
+    [candidateRoot, guard, evidenceRoot, harnessRoot],
+    [sessions, diagnostics],
+  );
+  const env = {
+    ...candidateEnvironment(config, "/diagnostics"),
+    NODE_CONFIG_DIR: "/candidate/config",
+  };
+  return [
+    "create",
+    "--name",
+    `${owner}-${invocationId}-candidate`,
+    "--network",
+    `container:${namespace}`,
+    "--platform",
+    "linux/arm64",
+    ...hardened,
+    ...ownerFlags(owner, "candidate"),
+    ...mount(candidateRoot, "/candidate", true),
+    ...mount(sessions, "/tmp/.sessions"),
+    ...mount(diagnostics, "/diagnostics"),
+    ...mount(guard, "/harness-network-guard.cjs", true),
+    "--workdir",
+    "/tmp",
+    "--entrypoint",
+    "/usr/bin/env",
+    image,
+    "-i",
+    ...Object.entries(env).map(([key, value]) => `${key}=${value}`),
+    "/candidate/runtime/node",
+    "--require",
+    "/harness-network-guard.cjs",
+    "/candidate/dist/rpx-exui/api/server.bundle.js",
+  ];
+}
+
+export function extractionContainerArguments({ descriptor, owner }) {
+  if (
+    !descriptor.imageReference?.endsWith(`@${descriptor.digest}`) ||
+    !digest(descriptor.observedImageId)
+  )
+    throw Error("IMMUTABLE_EXTRACTION_IMAGE_REQUIRED");
+  return [
+    "create",
+    "--name",
+    `${owner}-payload`,
+    "--pull",
+    "never",
+    "--network",
+    "none",
+    "--platform",
+    descriptor.platform,
+    ...hardened,
+    ...ownerFlags(owner, "payload-extraction"),
+    "--entrypoint",
+    "/usr/local/bin/node",
+    descriptor.imageReference,
+    "--version",
   ];
 }
 
@@ -200,7 +315,7 @@ export function candidateImageArguments({
   ];
 }
 
-export function assertOwnedContainer(
+export function assertOwnedContainerAuthority(
   info,
   { image, namespace, owner, service, running, mounts },
 ) {
@@ -258,15 +373,6 @@ export function assertOwnedContainer(
     {},
     "OCI_CONTAINER_PUBLISHED_PORT",
   );
-  assert.equal(info.RestartCount, 0, "OCI_CONTAINER_RESTARTED");
-  assert.equal(
-    info.State.Running,
-    running,
-    running
-      ? "OCI_CONTAINER_EXITED_DURING_PROOF"
-      : "OCI_CONTAINER_STILL_RUNNING",
-  );
-  assert.equal(info.State.OOMKilled, false, "OCI_CONTAINER_OOM");
   const actual = info.Mounts.filter((item) => item.Type !== "tmpfs")
     .map((item) => [item.Source, item.Destination, item.RW])
     .sort();
@@ -279,6 +385,20 @@ export function assertOwnedContainer(
     info.Mounts.every((item) => item.Type === "bind" || item.Type === "tmpfs"),
     "OCI_CONTAINER_SHARED_VOLUME",
   );
+}
+
+export function assertOwnedContainer(info, expected) {
+  assertOwnedContainerAuthority(info, expected);
+  const { running } = expected;
+  assert.equal(info.RestartCount, 0, "OCI_CONTAINER_RESTARTED");
+  assert.equal(
+    info.State.Running,
+    running,
+    running
+      ? "OCI_CONTAINER_EXITED_DURING_PROOF"
+      : "OCI_CONTAINER_STILL_RUNNING",
+  );
+  assert.equal(info.State.OOMKilled, false, "OCI_CONTAINER_OOM");
 }
 
 // A pre-existing SIGTERM exit must never be mistaken for the controller's requested shutdown.

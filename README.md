@@ -6,7 +6,7 @@ EXUI configuration assurance Harness, with conventional suites retained during t
 
 The dedicated Harness runs the built EXUI Angular and Node application with isolated synthetic personas and declared downstream seams. Three separate pilot policies cover WA family selection, organisation/case location scope, and nested CCD persistence/access integrity. Each requires a passing baseline and its intended failing mutation. A pilot receipt cannot authorize a full EXUI release.
 
-Native archive runs currently provide local diagnostic observations: the application and evidence writer still share filesystem authority. They must not supply authoritative CI acceptance until candidate write authority is separated. The opt-in `harness:candidate:ci --input <job.json>` entry point is deliberately BLOCKED after artifact verification while this open integrity finding is fixed. Its strict job JSON contains `schemaVersion: 1`, absolute `candidateManifest`, `browserCache` and fresh `output` paths, and an independently supplied `expectedArtifactDigest`. It grants no full-release approval and leaves the existing Jenkins command unchanged.
+Native archive runs now launch the API separately from the browser, providers and evidence writer. The API receives only the sealed application and network guard read-only, plus writable synthetic sessions and diagnostics. Observer credentials, reports, controller source and the Docker socket are absent from its mounts. Earlier same-container native observations remain diagnostic; they do not gain stronger authority retrospectively. Source review and adversarial support checks cover the replacement boundary; composed runtime acceptance is recorded separately.
 
 The archive runtime requires Docker with the pinned Linux/arm64 images, an immutable candidate artifact, and the matching Linux/arm64 Chromium cache. Build from an exact committed webapp revision; dirty primary source and existing `dist` output are not build inputs:
 
@@ -18,6 +18,26 @@ yarn harness:candidate --scope exui-wa-scope-pilot --candidate /path/to/fresh-ca
 ```
 
 Candidate preparation uses pinned Node 24.22.1 on Debian 12 and validates the source Node engine and committed Yarn release. It needs a seeded immutable Yarn cache, including Linux/arm64 optional packages. It installs/builds without network access and seals the UI, Node bundle, dependency tree, configuration, lock and Node binary. The runner verifies those bytes, reviewed configuration sources, the test dependencies and browser before execution. Uncommitted Harness inputs, unexpected destinations, missing reports, retries and unrelated teardown errors block approval. Logs and raw artifacts stay private; only the fixed-schema public summary is eligible for general publication.
+
+The opt-in fixed-pilot job runs family baseline/fault, derives the production scope mutant, runs IA/Civil scope, then starts fresh CCD for nested/access/integrity baselines and faults:
+
+```bash
+yarn harness:candidate:ci --input /absolute/path/job.json
+```
+
+Its strict input is:
+
+```json
+{
+  "schemaVersion": 1,
+  "candidateManifest": "/absolute/candidate/candidate-artifact.json",
+  "expectedArtifactDigest": "sha256:<independently-supplied-64-hex-digest>",
+  "browserCache": "/absolute/linux-arm64-browser-cache",
+  "output": "/absolute/fresh-job-output"
+}
+```
+
+Use a clean committed Harness checkout and a Linux/arm64 Docker engine with the pinned native, browser and seven CCD images cached. The host controller owns Docker; containers receive no Docker socket. Missing caches, wrong platforms, dirty source, overlapping inputs/output and incomplete cleanup block. The job chooses all three fixed policies and captures independent phase expectations before gate consumption. Exit0 means those pilots passed; it grants no full EXUI release approval. Existing Jenkins/default commands remain diagnostic during cutover. Raw outputs stay under the private job directory; only the validated fixed-schema summary is public.
 
 The OCI adapter runs an immutable registry image in its own Node/OS runtime, with the browser and provider seams in a separate container sharing an owned network namespace:
 
@@ -310,4 +330,4 @@ The source catalogue remains available through `buildReleaseEvidenceSummary()` a
 
 The POC local/CI commands remain diagnostics. Unsupported candidate/release arguments stop before contact. CI writes raw Harness outputs into a private job-local directory and publishes only validated summary bytes. Raw HTML, traces, screenshots and JUnit are withheld from general Harness publication until sanitisation is verified. Local diagnostic reports remain available locally.
 
-The isolated candidate producer, independent CCD denied-write observer, independently validated interaction generator and actual deployment-gate wiring still need implementation/acceptance. These gaps cannot be discharged by catalogue labels or by the offline tests. No conventional suite is retired by these safeguards.
+Candidate producers, real CCD persistence/access pilots and the independent denied-write observer are implemented, with evidence tied to each recorded source/run identity. Effective environment coverage, full runtime coverage of catalogue obligations, service-owner grouping acceptance and actual deployment-gate wiring remain incomplete. Catalogue labels and offline checks cannot discharge those gaps. Verified product-test retirements and their explicit limits are recorded in the retirement ledger.

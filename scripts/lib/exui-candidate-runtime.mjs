@@ -179,32 +179,7 @@ export function isolatedContainerArguments({
   ];
 }
 
-export const HARNESS_SOURCE_FILES = [
-  "playwright.harness.config.ts",
-  "tsconfig.json",
-  "src/fixtures/harness.ts",
-  "src/harness/candidate.ts",
-  "src/tests/harness/wa/family-scope.spec.ts",
-  "src/tests/harness/scope/organisation-case.spec.ts",
-  "scripts/run-harness-candidate.mjs",
-  "scripts/prepare-harness-scope-mutant.mjs",
-  "scripts/lib/exui-candidate-runtime.mjs",
-  "scripts/lib/exui-candidate-child.mjs",
-  "scripts/lib/exui-oci-runtime.mjs",
-  "scripts/lib/exui-configuration-catalogue.mjs",
-  "scripts/fixtures/exui-configuration-review.json",
-  "scripts/lib/exui-provider-seams.mjs",
-  "scripts/lib/exui-runtime-network-guard.cjs",
-  "scripts/lib/exui-candidate-artifact.mjs",
-  "scripts/lib/exui-evidence-io.mjs",
-  "scripts/lib/exui-harness-dependencies.mjs",
-  "scripts/lib/exui-external-evidence.mjs",
-  "scripts/lib/exui-playwright-evidence-reporter.mjs",
-  "scripts/lib/exui-release-evidence.mjs",
-  "scripts/lib/exui-release-policy.mjs",
-  "package.json",
-  "yarn.lock",
-];
+export { NATIVE_HARNESS_SOURCE_FILES as HARNESS_SOURCE_FILES } from "./exui-native-sources.mjs";
 
 export function assertCandidateShutdown(terminal, requestedStop) {
   if (!requestedStop || terminal.code !== null || terminal.signal !== "SIGTERM")

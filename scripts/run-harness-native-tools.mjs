@@ -1,0 +1,200 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
+import { createHmac } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import {
+  nativeInvocation,
+  selectedArtifact,
+  seedAppCcdSessions,
+} from "./lib/exui-native-contract.mjs";
+import {
+  describeCandidateArtifact,
+  digestCandidateTree,
+} from "./lib/exui-candidate-artifact.mjs";
+import { assertRuntimeIdentity } from "./lib/exui-candidate-runtime.mjs";
+import { verifyHarnessDependencies } from "./lib/exui-harness-dependencies.mjs";
+import { assertCandidateConfigurationSources } from "./lib/exui-configuration-catalogue.mjs";
+import {
+  startProviderSeams,
+  scopeRoleAssignments,
+  seedSyntheticSession,
+} from "./lib/exui-provider-seams.mjs";
+import {
+  startCcdGateway,
+  seedCcdSession,
+} from "./lib/exui-ccd-browser-runtime.mjs";
+import { digestBytes, writeJsonAtomic } from "./lib/exui-evidence-io.mjs";
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
+const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
+
+async function providers(input, invocation, directory) {
+  const source = digestBytes(
+    JSON.stringify(
+      input.harnessSources.map((file) => [
+        file,
+        digestBytes(fs.readFileSync(path.join(root, file))),
+      ]),
+    ),
+  );
+  assert.equal(
+    source,
+    input.harnessSourceDigest,
+    "HARNESS_SOURCE_SNAPSHOT_MISMATCH",
+  );
+  await verifyHarnessDependencies(
+    "/harness/node_modules",
+    path.join(root, "package.json"),
+    path.join(root, "yarn.lock"),
+    input.harnessDependencies.digest,
+  );
+  assert.equal(
+    await digestCandidateTree("/browser"),
+    input.browserDigest,
+    "BROWSER_ARTIFACT_MISMATCH",
+  );
+  const artifact = selectedArtifact(input, invocation),
+    observed = await describeCandidateArtifact(
+      "/candidate",
+      artifact.provenance,
+    );
+  assertRuntimeIdentity(artifact.identity, observed.identity);
+  assertCandidateConfigurationSources(
+    "/candidate",
+    read(path.join(root, "scripts/fixtures/exui-configuration-review.json")),
+  );
+  let server, cookie;
+  if (input.releaseScopeId === "exui-ccd-pilot") {
+    for (const [service, port] of [
+      ["data", 4452],
+      ["definition", 4451],
+    ]) {
+      const response = await fetch(`http://127.0.0.1:${port}/v3/api-docs`, {
+        redirect: "error",
+      });
+      assert(response.ok, "CCD_API_CONTRACT_REQUIRED");
+      assert.equal(
+        digestBytes(JSON.stringify(await response.json())),
+        input.apiContracts[service],
+        "CCD_API_CONTRACT_MISMATCH",
+      );
+    }
+    const definition = await fetch(
+      "http://127.0.0.1:4451/api/data/case-type/HarnessNestedPRL",
+      { headers: input.credentials.observer.headers, redirect: "error" },
+    );
+    assert(definition.ok, "CCD_IMPORTED_DEFINITION_REQUIRED");
+    assert.equal(
+      digestBytes(JSON.stringify(await definition.json())),
+      input.definition.observedDefinitionDigest,
+      "CCD_IMPORTED_DEFINITION_DRIFT",
+    );
+    const sessions = seedAppCcdSessions(input.credentials, seedCcdSession);
+    cookie = sessions.allowed;
+    writeJsonAtomic(path.join(directory, "personas.json"), {
+      credentials: input.credentials,
+      sessions,
+    });
+    server = await startCcdGateway(
+      directory,
+      input.credentials,
+      invocation.mutation ?? null,
+    );
+  } else {
+    const assignments = invocation.persona
+      ? scopeRoleAssignments(invocation.persona.toUpperCase())
+      : undefined;
+    server = await startProviderSeams(directory, assignments);
+    const persona = seedSyntheticSession(assignments);
+    cookie = `s:${persona.id}.${createHmac("sha256", "synthetic-session-value").update(persona.id).digest("base64").replace(/=+$/, "")}`;
+  }
+  writeJsonAtomic(path.join(directory, "provider-ready.json"), {
+    cookie,
+    sourceDigest: source,
+    artifactVerified: true,
+  });
+  process.once("SIGTERM", () => {
+    server.close((error) => {
+      if (error) process.exit(2);
+      writeJsonAtomic(path.join(directory, "provider-stopped.json"), {
+        closed: true,
+        requestedSignal: "SIGTERM",
+      });
+      process.exit(0);
+    });
+  });
+}
+async function proof(input, invocation, directory) {
+  const ccd = input.releaseScopeId === "exui-ccd-pilot";
+  const env = {
+    PATH: "/usr/local/bin:/usr/bin:/bin",
+    HOME: "/tmp",
+    EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
+    EXUI_HARNESS_SLICE:
+      input.releaseScopeId === "exui-wa-scope-pilot" ? "scope" : "family",
+    EXUI_CANDIDATE_RUN_MANIFEST: path.join(directory, "manifest.json"),
+    EXUI_CANDIDATE_URL: "http://127.0.0.1:3100",
+    EXUI_RUNTIME_IDENTITY: path.join(directory, "runtime-identity.json"),
+    EXUI_CANDIDATE_ASSETS: "/candidate/dist/rpx-exui/browser",
+    EXUI_HARNESS_TEST_OUTPUT: path.join(directory, "test-output"),
+    EXUI_EVIDENCE_CONTEXT: path.join(directory, "context.json"),
+    EXUI_EVIDENCE_REPORT: path.join(directory, "report.json"),
+    EXUI_PROVIDER_REQUESTS: path.join(directory, "provider-requests.jsonl"),
+    EXUI_SESSION_COOKIE: read(path.join(directory, "provider-ready.json"))
+      .cookie,
+    EXUI_CHROMIUM_EXECUTABLE: input.browserExecutable,
+    ...(invocation.mutation
+      ? { EXUI_HARNESS_MUTATION: invocation.mutation }
+      : {}),
+    ...(invocation.persona ? { EXUI_SCOPE_PERSONA: invocation.persona } : {}),
+    ...(ccd
+      ? {
+          EXUI_CCD_PERSONAS: path.join(directory, "personas.json"),
+          EXUI_CCD_EVIDENCE: directory,
+        }
+      : {}),
+  };
+  const args = [
+    "/harness/node_modules/@playwright/test/cli.js",
+    "test",
+    "--config",
+    "/harness/playwright.harness.config.ts",
+  ];
+  if (ccd && invocation.mutation)
+    args.push(
+      invocation.mutation === "ccd-drop-child"
+        ? "nested-conditional.spec.ts"
+        : "case-event-policy.spec.ts",
+    );
+  const child = spawn(process.execPath, args, {
+    cwd: root,
+    env,
+    stdio: "inherit",
+  });
+  const terminal = await new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("exit", (code, signal) => resolve({ code, signal }));
+  });
+  writeJsonAtomic(path.join(directory, "framework-terminal.json"), terminal);
+  process.exitCode = terminal.signal ? 2 : terminal.code;
+}
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  try {
+    const input = read("/output/input.json"),
+      invocation = nativeInvocation(input, arg("--invocation")),
+      directory = path.join("/output", invocation.invocationId);
+    if (process.argv.includes("--inside-providers"))
+      await providers(input, invocation, directory);
+    else if (process.argv.includes("--inside-proof"))
+      await proof(input, invocation, directory);
+    else throw Error("NATIVE_TOOLS_MODE_REQUIRED");
+  } catch (error) {
+    console.error(`BLOCKED: ${error.message}`);
+    process.exitCode = 2;
+  }
+}

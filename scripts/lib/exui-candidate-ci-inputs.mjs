@@ -4,6 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import semver from "semver";
+export {
+  createFreshHarnessOutput as createCiOutput,
+  writeHarnessPublicSummary as writeCiPublicSummary,
+} from "./exui-output-boundary.mjs";
 import {
   verifyCandidateArtifact,
   digestCandidateTree,
@@ -18,6 +22,7 @@ import { assertCandidateConfigurationSources } from "./exui-configuration-catalo
 import { CCD_IMAGES } from "./exui-ccd-runtime.mjs";
 import {
   ARM64_BROWSER_RUNTIME,
+  NATIVE_API_RUNTIME_REFERENCE,
   assertBrowserRuntime,
   assertReadOnlyMountIsolation,
 } from "./exui-oci-runtime.mjs";
@@ -31,7 +36,6 @@ const ROOT = path.resolve(
   "../..",
 );
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
-const blocked = () => ({ status: "BLOCKED", exitCode: 2 });
 const transportEnv = () => ({ PATH: process.env.PATH });
 const digest = (value) => /^sha256:[a-f0-9]{64}$/.test(value ?? "");
 const safePath = (value) =>
@@ -51,75 +55,6 @@ export function validateCiJob(input) {
     "EXPECTED_ARTIFACT_DIGEST_REQUIRED",
   );
   return structuredClone(input);
-}
-function canonicalProspective(file) {
-  const missing = [];
-  let ancestor = path.resolve(file);
-  for (;;) {
-    try {
-      fs.lstatSync(ancestor);
-      break;
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-      missing.unshift(path.basename(ancestor));
-      const parent = path.dirname(ancestor);
-      assert.notEqual(parent, ancestor, "CI_OUTPUT_PARENT_REQUIRED");
-      ancestor = parent;
-    }
-  }
-  return path.join(fs.realpathSync(ancestor), ...missing);
-}
-export function writeCiPublicSummary(
-  output,
-  verdict,
-  receiptAvailable = false,
-) {
-  const canonical = fs.realpathSync(output);
-  assert.equal(path.resolve(output), canonical, "CI_PUBLIC_ROOT_ALIAS");
-  const directory = path.join(canonical, "public");
-  try {
-    fs.mkdirSync(directory, { mode: 0o700 });
-  } catch (error) {
-    if (error.code !== "EEXIST") throw error;
-  }
-  const info = fs.lstatSync(directory);
-  assert(
-    info.isDirectory() &&
-      !info.isSymbolicLink() &&
-      fs.realpathSync(directory) === directory,
-    "CI_PUBLIC_DIRECTORY_ESCAPE",
-  );
-  const file = path.join(directory, "release-assurance-summary.json");
-  try {
-    const existing = fs.lstatSync(file);
-    assert(
-      existing.isFile() && !existing.isSymbolicLink(),
-      "CI_PUBLIC_FILE_ESCAPE",
-    );
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  writePublicSummary(file, verdict, receiptAvailable);
-}
-export function createCiOutput(output, readonlyRoots = []) {
-  const canonical = canonicalProspective(output);
-  for (const root of readonlyRoots.map(canonicalProspective))
-    assert(
-      canonical !== root &&
-        !canonical.startsWith(root + path.sep) &&
-        !root.startsWith(canonical + path.sep),
-      "CI_OUTPUT_IMMUTABLE_INPUT_OVERLAP",
-    );
-  fs.mkdirSync(path.dirname(canonical), { recursive: true });
-  try {
-    fs.mkdirSync(canonical, { mode: 0o700 });
-  } catch (error) {
-    if (error.code === "EEXIST") throw Error("FRESH_CI_OUTPUT_REQUIRED");
-    throw error;
-  }
-  fs.mkdirSync(path.join(canonical, "private"), { mode: 0o700 });
-  writeCiPublicSummary(canonical, blocked());
-  return canonical;
 }
 function command(command, args) {
   const result = spawnSync(command, args, {
@@ -161,6 +96,21 @@ export function observeCiToolchain({
     run("docker", ["image", "inspect", ARM64_BROWSER_RUNTIME]),
   )[0];
   assertBrowserRuntime(runtime, ARM64_BROWSER_RUNTIME, "linux/arm64");
+  const native = JSON.parse(
+    run("docker", ["image", "inspect", NATIVE_API_RUNTIME_REFERENCE]),
+  )[0];
+  assert.equal(native.Os, "linux", "CI_NATIVE_RUNTIME_OS");
+  assert.equal(native.Architecture, "arm64", "CI_NATIVE_RUNTIME_ARCH");
+  assert(
+    native.RepoDigests?.some((ref) =>
+      ref.endsWith(
+        NATIVE_API_RUNTIME_REFERENCE.slice(
+          NATIVE_API_RUNTIME_REFERENCE.indexOf("@"),
+        ),
+      ),
+    ),
+    "CI_NATIVE_RUNTIME_PROVENANCE",
+  );
   const ccdImages = {};
   for (const [service, image] of Object.entries(CCD_IMAGES)) {
     const info = JSON.parse(run("docker", ["image", "inspect", image]))[0];
@@ -189,6 +139,11 @@ export function observeCiToolchain({
       os: runtime.Os,
       architecture: runtime.Architecture,
     },
+    nativeRuntime: {
+      reference: NATIVE_API_RUNTIME_REFERENCE,
+      imageId: native.Id,
+      platform: "linux/arm64",
+    },
     ccdImages,
   };
 }
@@ -205,8 +160,6 @@ export async function prepareCiJob(job, output) {
     "linux/arm64",
     "CI_NATIVE_ARM64_ARTIFACT_REQUIRED",
   );
-  // Keep this opt-in job closed until native API authority is separated from evidence.
-  throw new Error("NATIVE_CANDIDATE_AUTHORITY_ISOLATION_REQUIRED");
   assertCandidateConfigurationSources(
     artifact.candidateRoot,
     read(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json")),
@@ -263,6 +216,8 @@ export async function prepareCiJob(job, output) {
       ccd: sourceDigest(CCD_HARNESS_SOURCE_FILES),
     },
     job,
+    nativeRuntime: observations.nativeRuntime,
+    browserRuntimeImage: observations.browserRuntime.image,
     artifact,
     browserRoot,
     dependencies,

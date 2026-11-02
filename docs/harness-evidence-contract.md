@@ -23,6 +23,16 @@ yarn harness:candidate:prepare --source /path/to/rpx-xui-webapp --commit 76bf7a8
 
 The producer checks the committed Node engine, packageManager and regular committed Yarn release, then verifies actual Node/OS and Yarn versions before the build. Installation, build and production pruning retain immutable cache inputs and `--network none`; missing cache entries fail. The owned compile container uses `--init`, 8 GiB memory, four CPUs and a 512-PID limit; its observed terminal state and exit are retained in `build-execution.json`, with cleanup on normal completion or cancellation. Provenance records the immutable image reference, observed Node/Yarn versions and source engine. This archive artifact remains separate from proof of an owning Dockerfile/OCI delivery path.
 
+## Native runtime authority and fixed CI job
+
+The native API runs in a separate pinned Node/Debian container. Its mounts are the sealed candidate and network guard read-only, with only synthetic sessions and diagnostics writable. The trusted Tools container runs providers and Playwright, owns private reports and observer credentials, and has no Docker socket. Only allowed/denied application sessions are shared with the API; the observer calls CCD directly from trusted test Node.
+
+The host checks exact container identity, labels, namespace, hardened settings and mounts, then observes write denial before proof execution. It verifies actual Node/OS, framework terminal status, provider/gateway/network journals, requested shutdown and removal. Uncertain creation or cleanup blocks. A Tools namespace remains while its API removal is unsettled, permitting verified retry. OCI payload extraction records planned ownership before create, recovers only that exact owned name and never starts image code for extraction.
+
+`harness:candidate:ci --input <absolute-job.json>` accepts exactly schemaVersion1, absolute candidateManifest/browserCache/fresh output, and independently supplied expectedArtifactDigest. It requires a clean committed checkout, cached pinned images and a Linux/arm64 Docker engine. It runs the fixed family→scope→fresh CCD sequence, never a caller-selected subset. The parent reconstructs ownership and phase identities from declared candidate/toolchain/policy inputs; it does not derive identity expectations from a receipt. Cancellation prevents later phases, quiesces known children, attempts all safely owned cleanup and replaces any intervening PASS with BLOCKED. The result is a fixed-pilot suite, with releaseApproval:false.
+
+Previous same-container native receipts remain local diagnostic observations. Separate-container source review and boundary probes do not themselves prove the composed job or a full release; acceptance must retain that job's actual immutable evidence and source identity. Existing Jenkins commands are not automatically changed by this opt-in command.
+
 ## Producer input
 
 `run.json` has these fields:

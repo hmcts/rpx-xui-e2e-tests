@@ -8,6 +8,7 @@ import { CCD_IMAGES, stopCcdRuntime } from "./exui-ccd-runtime.mjs";
 import { installCancellationCleanup } from "./exui-oci-runtime.mjs";
 import { writeJsonAtomic } from "./exui-evidence-io.mjs";
 import { writeCiPublicSummary } from "./exui-candidate-ci-inputs.mjs";
+import { cleanupNativeOwnership } from "./exui-native-ci-ownership.mjs";
 import { captureCiOwnership } from "./exui-candidate-ci-evidence.mjs";
 import { terminateOwnedChild } from "./exui-candidate-runtime.mjs";
 const ROOT = path.resolve(
@@ -107,8 +108,12 @@ export async function executeCiProcess({
   onPrepared,
   onChild = () => {},
 }) {
-  fs.mkdirSync(output, { mode: 0o700 });
-  const log = fs.openSync(path.join(output, "supervisor.log"), "wx", 0o600);
+  assert(!fs.existsSync(output), "FRESH_CI_PHASE_OUTPUT_REQUIRED");
+  const log = fs.openSync(
+    path.join(path.dirname(output), path.basename(output) + "-supervisor.log"),
+    "wx",
+    0o600,
+  );
   const child = spawn(process.execPath, [script, ...args], {
     cwd: ROOT,
     env: { ...transportEnv(), TMPDIR: fs.realpathSync(os.tmpdir()) },
@@ -186,6 +191,14 @@ export async function cleanupCiPhase(
       resource.directory,
       resource.name,
     );
+  if (expected.mode === "native-separate-api") {
+    await cleanupNativeOwnership(expected, { inspect, remove });
+    assert(
+      !terminal.forced,
+      "CI_NATIVE_CONTROLLER_FORCED_TERMINATION_UNCERTAIN",
+    );
+    return;
+  }
   const cidFile = path.join(resource.directory, "container-id"),
     deadline = Date.now() + reconcileMs;
   let id, info;
@@ -320,6 +333,7 @@ export function installCiCancellation({
   output,
   target = process,
   phaseResults = [],
+  onCancel = () => {},
 }) {
   output = fs.realpathSync(output);
   let interruptedBy;
@@ -333,6 +347,7 @@ export function installCiCancellation({
     },
     onCancel: (signal) => {
       interruptedBy = signal;
+      onCancel(signal);
       writeCiPublicSummary(output, blocked());
     },
     target: {

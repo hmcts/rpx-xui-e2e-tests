@@ -17,8 +17,6 @@ import {
   assertBrowserRuntime,
   toolContainerArguments,
   candidateImageArguments,
-  assertOwnedContainer,
-  stopCandidateAndObserve,
   readImageMetadata,
   installCancellationCleanup,
 } from "./lib/exui-oci-runtime.mjs";
@@ -26,7 +24,12 @@ import {
   effectiveCandidateConfiguration,
   assertRuntimeIdentity,
 } from "./lib/exui-candidate-runtime.mjs";
+import { withOwnedImageExtraction } from "./lib/exui-oci-extraction.mjs";
 import { digestCandidateTree } from "./lib/exui-candidate-artifact.mjs";
+import {
+  runHostInvocation,
+  removeHostResource,
+} from "./lib/exui-host-invocation.mjs";
 import { assertCandidateConfigurationSources } from "./lib/exui-configuration-catalogue.mjs";
 import { verifyHarnessDependencies } from "./lib/exui-harness-dependencies.mjs";
 import {
@@ -43,8 +46,10 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const ownedContainers = new Map();
+const invocationResources = new Map();
 const privatePayloads = [];
 let activeOutput;
+let interrupted = false;
 const arg = (name) => {
   const index = process.argv.indexOf(name);
   return index < 0 ? undefined : process.argv[index + 1];
@@ -83,27 +88,6 @@ const docker = (args, options = {}) => {
     );
   return result.stdout.trim();
 };
-const inspect = (id) => JSON.parse(docker(["inspect", id]))[0];
-const containerLog = (id) => {
-  const result = spawnSync("docker", ["logs", id], {
-    env: { PATH: process.env.PATH },
-    encoding: "utf8",
-    timeout: 10000,
-    maxBuffer: 32 * 1024 * 1024,
-  });
-  if (result.status !== 0) throw new Error("OCI_CONTAINER_LOG_UNAVAILABLE");
-  return result.stdout + result.stderr;
-};
-const containerResources = (id, executable = "node") =>
-  JSON.parse(
-    docker([
-      "exec",
-      id,
-      executable,
-      "-e",
-      "const fs=require('fs');console.log(JSON.stringify({source:'container-cgroup-v2',peakMemoryBytes:Number(fs.readFileSync('/sys/fs/cgroup/memory.peak','utf8')),cpuUsageMicros:Number(/^usage_usec (\\d+)$/m.exec(fs.readFileSync('/sys/fs/cgroup/cpu.stat','utf8'))[1]),pidsAtCompletion:Number(fs.readFileSync('/sys/fs/cgroup/pids.current','utf8'))}))",
-    ]),
-  );
 const sourceDigest = (files) =>
   digestBytes(
     JSON.stringify(
@@ -200,29 +184,9 @@ async function insideProof() {
   process.exitCode = terminal.signal ? 2 : terminal.code;
 }
 
-async function waitForFile(file, container, timeout = 180000) {
-  const until = Date.now() + timeout;
-  while (Date.now() < until) {
-    if (!inspect(container).State.Running)
-      throw new Error("OCI_PROVIDER_EXITED_DURING_STARTUP");
-    if (fs.existsSync(file)) return;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  throw new Error("OCI_PROVIDER_STARTUP_TIMEOUT");
-}
-
 function expectedMount(source, target, writable) {
   return { source: fs.realpathSync(source), target, writable };
 }
-function removeOwned(id, owner) {
-  if (!ownedContainers.has(id)) return;
-  const info = JSON.parse(docker(["inspect", id], { timeout: 5000 }))[0];
-  if (info.Config.Labels?.["exui.harness.owner"] !== owner)
-    throw new Error("OCI_CLEANUP_OWNER_MISMATCH");
-  docker(["rm", "-f", "-v", id], { timeout: 5000 });
-  ownedContainers.delete(id);
-}
-
 async function runInvocation(input, output, staged, invocation, policy) {
   const directory = path.join(output, invocation);
   const sessions = path.join(directory, "synthetic-sessions");
@@ -284,8 +248,6 @@ async function runInvocation(input, output, staged, invocation, policy) {
   });
   const owner = `harness-oci-${randomUUID()}`;
   const guard = path.join(staged, "scripts/lib/exui-runtime-network-guard.cjs");
-  let toolsId, candidateId;
-  const started = Date.now();
   const toolMounts = [
     expectedMount(staged, "/harness", false),
     expectedMount(`${root}/node_modules`, "/harness/node_modules", false),
@@ -299,227 +261,74 @@ async function runInvocation(input, output, staged, invocation, policy) {
     expectedMount(diagnostics, "/diagnostics", true),
     expectedMount(guard, "/harness-network-guard.cjs", false),
   ];
-  const candidateExpected = () => ({
-    image: input.observedImageId,
-    namespace: toolsId,
-    owner,
-    service: "candidate",
-    mounts: candidateMounts,
-  });
-  try {
-    toolsId = docker(
-      toolContainerArguments({
-        owner,
-        image: input.browserRuntime,
-        platform: input.descriptor.platform,
-        harnessRoot: staged,
-        dependenciesRoot: `${root}/node_modules`,
-        candidateRoot: input.artifact.candidateRoot,
-        output,
-        browserRoot: input.browserRoot,
-        sessions,
-        invocationId: invocation,
-      }),
-    );
-    ownedContainers.set(toolsId, owner);
-    writeJsonAtomic(`${directory}/owned-containers.json`, { owner, toolsId });
-    docker(["start", toolsId]);
-    await waitForFile(`${directory}/provider-ready.json`, toolsId);
-    assertOwnedContainer(inspect(toolsId), {
-      image: input.browserRuntime,
+  manifest.runtimeMetadata.candidateBuildNodeVersion =
+    input.artifact.provenance.buildRuntime.nodeVersion;
+  const { terminal } = await runHostInvocation(
+    {
+      output,
+      directory,
       owner,
-      service: "browser-provider",
-      mounts: toolMounts,
-      running: true,
-    });
-    // Probe outside destinations from the actual namespace, before giving the candidate a process.
-    const probes = JSON.parse(
-      docker([
-        "exec",
-        toolsId,
-        "node",
-        "-e",
-        "const net=require('net');Promise.all(['1.1.1.1','host.docker.internal'].map(host=>new Promise(resolve=>{const s=net.connect({host,port:443});s.setTimeout(500);s.on('connect',()=>{s.destroy();resolve(true)});s.on('error',()=>resolve(false));s.on('timeout',()=>{s.destroy();resolve(false)});}))).then(result=>console.log(JSON.stringify(result)))",
-      ]),
-    );
-    if (probes.some(Boolean)) throw new Error("OCI_NAMESPACE_EGRESS_AVAILABLE");
-    candidateId = docker(
-      candidateImageArguments({
-        descriptor: input.descriptor,
-        namespace: toolsId,
-        owner,
-        sessions,
-        diagnostics,
-        guard,
-        config,
-      }),
-    );
-    ownedContainers.set(candidateId, owner);
-    writeJsonAtomic(`${directory}/owned-containers.json`, {
-      owner,
-      toolsId,
-      candidateId,
-    });
-    docker(["start", candidateId]);
-    assertOwnedContainer(inspect(candidateId), {
-      ...candidateExpected(),
-      running: true,
-    });
-    const runtime = JSON.parse(
-      docker([
-        "exec",
-        candidateId,
-        "/usr/local/bin/node",
-        "-e",
-        "console.log(JSON.stringify({nodeVersion:process.version,platform:process.platform,architecture:process.arch}))",
-      ]),
-    );
-    const expectedArch =
-      input.descriptor.platform === "linux/arm64" ? "arm64" : "x64";
-    if (runtime.platform !== "linux" || runtime.architecture !== expectedArch)
-      throw new Error("OCI_CANDIDATE_RUNTIME_PLATFORM_MISMATCH");
-    if (!/^v\d+\.\d+\.\d+$/.test(runtime.nodeVersion ?? ""))
-      throw new Error("OCI_CANDIDATE_NODE_IDENTITY_MISSING");
-    manifest.runtimeMetadata.candidateRuntimeNodeVersion = runtime.nodeVersion;
-    manifest.runtimeMetadata.candidateBuildNodeVersion =
-      input.artifact.provenance.buildRuntime.nodeVersion;
-    writeJsonAtomic(`${directory}/manifest.json`, manifest);
-    writeJsonAtomic(`${directory}/runtime-identity.json`, {
-      identity,
-      payloadDigest: input.descriptor.digest,
-      candidateContainerId: candidateId,
-      observedImageId: inspect(candidateId).Image,
-      runtime,
-    });
-    docker([
-      "exec",
-      toolsId,
-      "node",
-      "--input-type=module",
-      "-e",
-      "let ready=false;for(let i=0;i<120;i++){try{if((await fetch('http://127.0.0.1:3100/external/config/ui')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,250));}if(!ready)process.exit(2)",
-    ]);
-    assertOwnedContainer(inspect(candidateId), {
-      ...candidateExpected(),
-      running: true,
-    });
-    const log = fs.openSync(`${directory}/playwright.log`, "wx", 0o600);
-    let terminal;
-    try {
-      terminal = await exited(
-        spawn(
-          "docker",
-          [
-            "exec",
-            toolsId,
-            "node",
-            "scripts/run-harness-oci-candidate.mjs",
-            "--inside-proof",
-            "--invocation",
-            invocation,
-          ],
-          { env: { PATH: process.env.PATH }, stdio: ["ignore", log, log] },
-        ),
-      );
-    } finally {
-      fs.closeSync(log);
-    }
-    const beforeStop = inspect(candidateId);
-    assertOwnedContainer(beforeStop, { ...candidateExpected(), running: true });
-    const measured = {
-      candidate: containerResources(candidateId, "/usr/local/bin/node"),
-      browserProvider: containerResources(toolsId),
-    };
-    const lifecycle = await stopCandidateAndObserve({
-      inspect: () => inspect(candidateId),
-      signal: () => {
-        docker(["kill", "--signal", "SIGTERM", candidateId]);
-        return true;
-      },
-      wait: () => docker(["wait", candidateId]),
-    });
-    assertOwnedContainer(lifecycle.after, {
-      ...candidateExpected(),
-      running: false,
-    });
-    writeJsonAtomic(`${directory}/candidate-lifecycle.json`, lifecycle);
-    fs.writeFileSync(`${directory}/candidate.log`, containerLog(candidateId), {
-      mode: 0o600,
-    });
-    docker(["kill", "--signal", "SIGTERM", toolsId]);
-    docker(["wait", toolsId]);
-    const toolFinal = inspect(toolsId);
-    assertOwnedContainer(toolFinal, {
-      image: input.browserRuntime,
-      owner,
-      service: "browser-provider",
-      mounts: toolMounts,
-      running: false,
-    });
-    if (
-      toolFinal.State.ExitCode !== 0 ||
-      read(`${directory}/provider-stopped.json`).closed !== true
-    )
-      throw new Error("OCI_PROVIDER_SHUTDOWN_FAILED");
-    for (const file of [
-      `${diagnostics}/network-rejections.jsonl`,
-      `${directory}/provider-rejections.jsonl`,
-    ])
-      if (fs.existsSync(file)) throw new Error("OCI_UNDECLARED_DESTINATION");
-    const framework = read(`${directory}/framework-terminal.json`);
-    if (framework.signal || terminal.signal || framework.code !== terminal.code)
-      throw new Error("OCI_FRAMEWORK_TERMINATION_MISMATCH");
-    const report = read(`${directory}/report.json`);
-    const execution = {
       invocationId: invocation,
-      runId: input.runId,
-      identity,
-      kind: mutation ? "mutation" : "baseline",
-      terminalState: "completed",
-      runnerExitCode: terminal.code,
-      unexpectedGlobalErrors: report.globalErrors,
-      resultArtifact: ref(output, `${directory}/report.json`),
-    };
-    writeJsonAtomic(`${directory}/execution.json`, execution);
-    writeJsonAtomic(`${directory}/resources.json`, {
-      elapsedMs: Date.now() - started,
-      measured,
-      isolation: "two containers in owned network-none namespace",
-      perContainerLimits: { memoryBytes: 4294967296, cpus: 2, pids: 256 },
-    });
-    return {
+      platform: input.descriptor.platform,
       manifest,
-      identity,
-      reference: ref(output, `${directory}/execution.json`),
-    };
-  } finally {
-    const cleanupErrors = [];
-    for (const [id, logName] of [
-      [candidateId, "candidate"],
-      [toolsId, "browser-provider"],
-    ])
-      if (id) {
-        try {
-          fs.writeFileSync(
-            `${directory}/${logName}-container.log`,
-            containerLog(id),
-            { mode: 0o600 },
-          );
-        } catch (error) {
-          cleanupErrors.push(error);
-        }
-        try {
-          removeOwned(id, owner);
-        } catch (error) {
-          cleanupErrors.push(error);
-        }
-      }
-    if (cleanupErrors.length)
-      throw new AggregateError(
-        cleanupErrors,
-        "OCI_OWNED_RESOURCE_CLEANUP_FAILED",
-      );
-  }
+      payloadDigest: input.descriptor.digest,
+      diagnostics,
+      tools: {
+        image: input.browserRuntime,
+        mounts: toolMounts,
+        args: toolContainerArguments({
+          owner,
+          image: input.browserRuntime,
+          platform: input.descriptor.platform,
+          harnessRoot: staged,
+          dependenciesRoot: `${root}/node_modules`,
+          candidateRoot: input.artifact.candidateRoot,
+          output,
+          browserRoot: input.browserRoot,
+          sessions,
+          invocationId: invocation,
+        }),
+      },
+      candidate: {
+        image: input.observedImageId,
+        node: "/usr/local/bin/node",
+        mounts: candidateMounts,
+        arguments: (namespace) =>
+          candidateImageArguments({
+            descriptor: input.descriptor,
+            namespace,
+            owner,
+            sessions,
+            diagnostics,
+            guard,
+            config,
+          }),
+      },
+      proofArguments: [
+        "scripts/run-harness-oci-candidate.mjs",
+        "--inside-proof",
+        "--invocation",
+        invocation,
+      ],
+    },
+    { resources: invocationResources, isCancelled: () => interrupted },
+  );
+  const report = read(`${directory}/report.json`);
+  writeJsonAtomic(`${directory}/execution.json`, {
+    invocationId: invocation,
+    runId: input.runId,
+    identity,
+    kind: mutation ? "mutation" : "baseline",
+    terminalState: "completed",
+    runnerExitCode: terminal.code,
+    unexpectedGlobalErrors: report.globalErrors,
+    resultArtifact: ref(output, `${directory}/report.json`),
+  });
+  return {
+    manifest,
+    identity,
+    reference: ref(output, `${directory}/execution.json`),
+  };
 }
 
 async function extractCandidate(descriptor, observedImageId, output) {
@@ -529,47 +338,35 @@ async function extractCandidate(descriptor, observedImageId, output) {
   );
   fs.chmodSync(candidateRoot, 0o700);
   privatePayloads.push(candidateRoot);
-  const id = docker([
-    "create",
-    "--network",
-    "none",
-    "--read-only",
-    "--label",
-    `exui.harness.owner=${owner}`,
-    "--platform",
-    descriptor.platform,
-    "--entrypoint",
-    "/usr/local/bin/node",
-    descriptor.imageReference,
-    "--version",
-  ]);
-  ownedContainers.set(id, owner);
   writeJsonAtomic(`${output}/extracted-files.json`, {
     root: candidateRoot,
     imageReference: descriptor.imageReference,
     observedImageId,
     readonlyOutsideOutput: true,
   });
-  try {
-    if (inspect(id).Image !== observedImageId)
-      throw new Error("OCI_EXTRACTION_IMAGE_MISMATCH");
-    for (const item of [
-      "dist",
-      "config",
-      "api",
-      "package.json",
-      "yarn.lock",
-      "harness-build.json",
-    ])
-      docker(["cp", `${id}:/opt/app/${item}`, path.join(candidateRoot, item)]);
-    return await verifyImageMetadata(
-      descriptor,
-      readImageMetadata(candidateRoot),
-      candidateRoot,
-    );
-  } finally {
-    removeOwned(id, owner);
-  }
+  return withOwnedImageExtraction(
+    { descriptor, observedImageId, owner, output, resources: ownedContainers },
+    async (id) => {
+      for (const item of [
+        "dist",
+        "config",
+        "api",
+        "package.json",
+        "yarn.lock",
+        "harness-build.json",
+      ])
+        docker([
+          "cp",
+          `${id}:/opt/app/${item}`,
+          path.join(candidateRoot, item),
+        ]);
+      return verifyImageMetadata(
+        descriptor,
+        readImageMetadata(candidateRoot),
+        candidateRoot,
+      );
+    },
+  );
 }
 
 async function launch() {
@@ -739,9 +536,17 @@ try {
   else if (process.argv.includes("--inside-proof")) await insideProof();
   else {
     const dispose = installCancellationCleanup({
-      resources: ownedContainers,
-      remove: removeOwned,
+      resources: new Map([
+        ["payloads", ownedContainers],
+        ["invocations", invocationResources],
+      ]),
+      remove: async (_group, resources) => {
+        for (const [key] of [...resources].reverse()) {
+          await removeHostResource(resources, key, activeOutput);
+        }
+      },
       onCancel: (signal) => {
+        interrupted = true;
         if (!activeOutput) return;
         for (const name of ["run.json", "gate.json"]) {
           const file = path.join(activeOutput, name);
@@ -751,10 +556,7 @@ try {
         writeJsonAtomic(`${activeOutput}/cancelled.json`, {
           signal,
           status: "BLOCKED",
-          containers: [...ownedContainers].map(([id, owner]) => ({
-            id,
-            owner,
-          })),
+          containers: [...ownedContainers.values()],
         });
         writePublicSummary(
           `${activeOutput}/public/release-assurance-summary.json`,

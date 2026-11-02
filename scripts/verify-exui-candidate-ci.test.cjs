@@ -228,7 +228,7 @@ test("support only: process controller captures launch expectations before gate 
     const script = path.join(directory, "child.cjs");
     fs.writeFileSync(
       script,
-      `const fs=require('fs'),p=process.argv[2];fs.writeFileSync(p+'/input.json',JSON.stringify({runId:'owned-launch'}));fs.writeFileSync(p+'/container-launch.json','{}');const timer=setInterval(()=>{if(fs.existsSync(p+'/independent-preexecution.json')){clearInterval(timer);fs.writeFileSync(p+'/gate.json','{}');process.exit(23);}},5);`,
+      `const fs=require('fs'),p=process.argv[2];fs.mkdirSync(p);fs.writeFileSync(p+'/input.json',JSON.stringify({runId:'owned-launch'}));fs.writeFileSync(p+'/container-launch.json','{}');const timer=setInterval(()=>{if(fs.existsSync(p+'/independent-preexecution.json')){clearInterval(timer);fs.writeFileSync(p+'/gate.json','{}');process.exit(23);}},5);`,
     );
     const result = await executeCiProcess({
       script,
@@ -263,7 +263,7 @@ test("support only: launch cannot credit a completed or absent input handoff", a
       fs.writeFileSync(
         script,
         earlyGate
-          ? `const fs=require('fs'),p=process.argv[2];fs.writeFileSync(p+'/gate.json','{}');fs.writeFileSync(p+'/input.json','{}');fs.writeFileSync(p+'/container-launch.json','{}');setTimeout(()=>process.exit(0),100);`
+          ? `const fs=require('fs'),p=process.argv[2];fs.mkdirSync(p);fs.writeFileSync(p+'/gate.json','{}');fs.writeFileSync(p+'/input.json','{}');fs.writeFileSync(p+'/container-launch.json','{}');setTimeout(()=>process.exit(0),100);`
           : "process.exit(0)",
       );
       await assert.rejects(
@@ -345,7 +345,7 @@ test("support only: observed daemon architecture and pinned image inventory cont
         Id: image,
         Os: "linux",
         Architecture: "arm64",
-        RepoDigests: ["registry/image@" + image],
+        RepoDigests: [image.includes("@") ? image : "registry/image@" + image],
       },
     ]);
   };
@@ -488,7 +488,7 @@ test("support only: child transport preserves the owned temporary root and exclu
     const script = path.join(directory, "child.cjs");
     fs.writeFileSync(
       script,
-      `const fs=require('fs'),p=process.argv[2];fs.writeFileSync(p+'/environment.json',JSON.stringify({tmp:process.env.TMPDIR,secret:process.env.IDAM_SECRET}));fs.writeFileSync(p+'/input.json','{}');fs.writeFileSync(p+'/container-launch.json','{}');const timer=setInterval(()=>{if(fs.existsSync(p+'/independent-preexecution.json')){clearInterval(timer);process.exit(0);}},5);`,
+      `const fs=require('fs'),p=process.argv[2];fs.mkdirSync(p);fs.writeFileSync(p+'/environment.json',JSON.stringify({tmp:process.env.TMPDIR,secret:process.env.IDAM_SECRET}));fs.writeFileSync(p+'/input.json','{}');fs.writeFileSync(p+'/container-launch.json','{}');const timer=setInterval(()=>{if(fs.existsSync(p+'/independent-preexecution.json')){clearInterval(timer);process.exit(0);}},5);`,
     );
     await executeCiProcess({
       script,
@@ -521,6 +521,7 @@ test("support only: independently declared artifact mismatch initializes BLOCKED
       "dist/rpx-exui/api/server.bundle.js": "server-fixture",
       "api/package.json": "{}",
       "config/default.json": "{}",
+      "config/custom-environment-variables.json": "{}",
       "runtime/node": "node-fixture",
       "package.json":
         '{"dependencies":{"@hmcts/ccd-case-ui-toolkit":"7.4.21"}}',
@@ -580,31 +581,31 @@ test("support only: independently declared artifact mismatch initializes BLOCKED
     assert.deepEqual(fs.readdirSync(path.join(output, "public")), [
       "release-assurance-summary.json",
     ]);
-    const guardedOutput = path.join(directory, "authority-guarded");
+    const unreviewedOutput = path.join(directory, "unreviewed-configuration");
     fs.writeFileSync(
       input,
       JSON.stringify({
         ...job,
         candidateManifest,
-        output: guardedOutput,
+        output: unreviewedOutput,
         expectedArtifactDigest: manifest.identity.artifactDigest,
       }),
     );
-    const guarded = spawnSync(
+    const unreviewed = spawnSync(
       process.execPath,
       [path.resolve("scripts/run-harness-ci.mjs"), "--input", input],
       { encoding: "utf8", env: { PATH: process.env.PATH } },
     );
-    assert.equal(guarded.status, 2);
+    assert.equal(unreviewed.status, 2);
     assert.match(
       fs.readFileSync(
-        path.join(guardedOutput, "private/orchestration-error.json"),
+        path.join(unreviewedOutput, "private/orchestration-error.json"),
         "utf8",
       ),
-      /NATIVE_CANDIDATE_AUTHORITY_ISOLATION_REQUIRED/,
+      /CANDIDATE_CONFIGURATION_SOURCE_DRIFT/,
     );
     assert.equal(
-      fs.existsSync(path.join(guardedOutput, "private/family")),
+      fs.existsSync(path.join(unreviewedOutput, "private/family")),
       false,
     );
   } finally {
@@ -1067,4 +1068,99 @@ test("support only: actual CI stop callback returns owned cleanup completion and
     }),
     /controlled-owned-cleanup-rejection/,
   );
+});
+
+test("support only: fixed job cancellation at phase, derivation or CCD startup prevents subsequent work and still stops owned CCD", async () => {
+  const { runFixedCiPilots } = await load();
+  for (const point of ["family", "derive", "scope", "start", "ccd"]) {
+    const calls = [];
+    let cancelled = false;
+    await assert.rejects(
+      runFixedCiPilots({
+        isCancelled: () => cancelled,
+        phase: async (name) => {
+          calls.push(name);
+          if (name === point) cancelled = true;
+          return { status: "PASS", exitCode: 0 };
+        },
+        derive: async () => {
+          calls.push("derive");
+          if (point === "derive") cancelled = true;
+        },
+        start: async () => {
+          calls.push("start");
+          if (point === "start") cancelled = true;
+        },
+        stop: async () => calls.push("stop"),
+      }),
+      /CI_JOB_CANCELLED/,
+    );
+    const expected = ["family", "derive", "scope", "start", "ccd"].slice(
+      0,
+      ["family", "derive", "scope", "start", "ccd"].indexOf(point) + 1,
+    );
+    if (["start", "ccd"].includes(point)) expected.push("stop");
+    assert.deepEqual(calls, expected);
+  }
+});
+
+test("support only: an asynchronous cancellation cleanup cannot allow a completed phase to start another phase", async () => {
+  const { runFixedCiPilots, installCiCancellation } = await load();
+  const { EventEmitter } = require("node:events");
+  const output = fs.mkdtempSync(
+    path.join(os.tmpdir(), "ci-continuation-cancel-"),
+  );
+  const target = new EventEmitter();
+  target.stderr = { write: () => {} };
+  let exit,
+    release,
+    cancelled = false;
+  target.exit = (code) => {
+    exit = code;
+  };
+  const uninstall = installCiCancellation({
+    output,
+    target,
+    resources: new Map([["phase", "owned"]]),
+    onCancel: () => {
+      cancelled = true;
+    },
+    remove: () =>
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+  });
+  try {
+    const calls = [];
+    await assert.rejects(
+      runFixedCiPilots({
+        isCancelled: () => cancelled,
+        phase: async (name) => {
+          calls.push(name);
+          target.emit("SIGTERM");
+          return { status: "PASS", exitCode: 0 };
+        },
+        derive: () => assert.fail("cancelled continuation"),
+        start: () => assert.fail("cancelled startup"),
+        stop: () => {},
+      }),
+      /CI_JOB_CANCELLED/,
+    );
+    assert.deepEqual(calls, ["family"]);
+    assert.equal(exit, undefined);
+    release();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(exit, 2);
+    assert.equal(
+      JSON.parse(
+        fs.readFileSync(
+          path.join(output, "public/release-assurance-summary.json"),
+        ),
+      ).status,
+      "BLOCKED",
+    );
+  } finally {
+    uninstall();
+    fs.rmSync(output, { recursive: true, force: true });
+  }
 });

@@ -10,6 +10,8 @@ import {
   loadRunEvidence,
   writeJsonAtomic,
 } from "./exui-evidence-io.mjs";
+import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
+import { captureNativeOwnership } from "./exui-native-ci-ownership.mjs";
 import { ARM64_BROWSER_RUNTIME } from "./exui-oci-runtime.mjs";
 import { HARNESS_SOURCE_FILES } from "./exui-candidate-runtime.mjs";
 import { CCD_HARNESS_SOURCE_FILES } from "./exui-ccd-browser-runtime.mjs";
@@ -36,6 +38,12 @@ export function validateCiPhase(directory, expected, terminal) {
     loaded.receipt,
     "CI_PHASE_RECEIPT_RECOMPUTATION_MISMATCH",
   );
+  if (expected.nativeAuthority)
+    validateNativePhaseFinalization(
+      directory,
+      loaded.input.executions,
+      terminal,
+    );
   const promotion = {
     ...expected,
     evidenceManifestDigest: loaded.evidenceManifestDigest,
@@ -133,11 +141,12 @@ export function captureCiPhaseExpectation(
     "CI_LAUNCH_SOURCE_DIGEST_MISMATCH",
   );
   assert.equal(handoff.owner, input.runId, "CI_LAUNCH_OWNER_MISMATCH");
-  assert.equal(
-    handoff.cidFile,
-    path.join(directory, "container-id"),
-    "CI_LAUNCH_CID_PATH_MISMATCH",
-  );
+  if (handoff.mode !== "native-separate-api")
+    assert.equal(
+      handoff.cidFile,
+      path.join(directory, "container-id"),
+      "CI_LAUNCH_CID_PATH_MISMATCH",
+    );
   assert(
     safePath(handoff.stagedHarness) &&
       fs
@@ -155,6 +164,9 @@ export function captureCiPhaseExpectation(
     harnessSourceDigest: sourceDigest,
     harnessDependencyDigest: context.dependencies.digest,
     browserDigest: context.browserDigest,
+    ...(handoff.mode === "native-separate-api"
+      ? { nativeAuthority: true }
+      : {}),
   };
 }
 export function captureCiOwnership(input, handoff, context, directory, name) {
@@ -169,11 +181,12 @@ export function captureCiOwnership(input, handoff, context, directory, name) {
     "CI_PARENT_SOURCE_DIGEST_MISMATCH",
   );
   assert.equal(handoff.owner, input.runId, "CI_CLEANUP_OWNER_HANDOFF_MISMATCH");
-  assert.equal(
-    handoff.cidFile,
-    path.join(directory, "container-id"),
-    "CI_CLEANUP_CID_PATH_MISMATCH",
-  );
+  if (handoff.mode !== "native-separate-api")
+    assert.equal(
+      handoff.cidFile,
+      path.join(directory, "container-id"),
+      "CI_CLEANUP_CID_PATH_MISMATCH",
+    );
   assert(safePath(handoff.stagedHarness), "CI_PRIVATE_SOURCE_HANDOFF_REQUIRED");
   const stage = fs.realpathSync(handoff.stagedHarness);
   assert.equal(stage, handoff.stagedHarness, "CI_SOURCE_SNAPSHOT_ALIAS");
@@ -202,6 +215,8 @@ export function captureCiOwnership(input, handoff, context, directory, name) {
     input.harnessSourceDigest,
     "CI_SOURCE_SNAPSHOT_DIGEST_MISMATCH",
   );
+  if (handoff.mode === "native-separate-api")
+    return captureNativeOwnership(input, handoff, context, directory, name);
   const mounts = [
     { source: stage, target: "/harness", writable: false },
     {

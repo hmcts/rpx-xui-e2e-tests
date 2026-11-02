@@ -264,32 +264,4 @@ export async function startCcdGateway(output, credentials, mutation = null) {
   return server;
 }
 
-// Exact controller-owned source closure shared by launch and CI expectation capture.
-export const CCD_HARNESS_SOURCE_FILES = Object.freeze([
-  "package.json",
-  "yarn.lock",
-  "tsconfig.json",
-  "playwright.harness.config.ts",
-  "src/harness/candidate.ts",
-  "src/fixtures/harnessCcd.ts",
-  "src/tests/harness/ccd/nested-conditional.spec.ts",
-  "src/tests/harness/ccd/case-event-policy.spec.ts",
-  "scripts/run-harness-ccd-candidate.mjs",
-  "scripts/fixtures/exui-configuration-review.json",
-  "scripts/lib/exui-harness-dependencies.mjs",
-  ...[
-    "exui-candidate-artifact.mjs",
-    "exui-candidate-runtime.mjs",
-    "exui-candidate-child.mjs",
-    "exui-oci-runtime.mjs",
-    "exui-ccd-runtime.mjs",
-    "exui-ccd-browser-runtime.mjs",
-    "exui-configuration-catalogue.mjs",
-    "exui-evidence-io.mjs",
-    "exui-release-evidence.mjs",
-    "exui-external-evidence.mjs",
-    "exui-release-policy.mjs",
-    "exui-playwright-evidence-reporter.mjs",
-    "exui-runtime-network-guard.cjs",
-  ].map((name) => `scripts/lib/${name}`),
-]);
+export { NATIVE_HARNESS_SOURCE_FILES as CCD_HARNESS_SOURCE_FILES } from "./exui-native-sources.mjs";

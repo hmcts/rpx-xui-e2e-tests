@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { effectiveCandidateConfiguration } from "./lib/exui-candidate-runtime.mjs";
+import { verifyCandidateArtifact } from "./lib/exui-candidate-artifact.mjs";
 import { deriveScopeMutant } from "./prepare-harness-scope-mutant.mjs";
 import {
   startCcdRuntime,
@@ -40,18 +41,26 @@ const scopes = {
 };
 export async function runFixedCiPilots(operations) {
   const results = [];
+  const checkCancellation = () =>
+    assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
   const phase = async (name) => {
+    checkCancellation();
     const result = await operations.phase(name);
+    checkCancellation();
     results.push({ phase: name, ...result });
     return result;
   };
   let result = await phase("family");
   if (result.exitCode !== 0) return { ...result, results };
+  checkCancellation();
   await operations.derive();
+  checkCancellation();
   result = await phase("scope");
   if (result.exitCode !== 0) return { ...result, results };
   try {
+    checkCancellation();
     await operations.start();
+    checkCancellation();
     result = await phase("ccd");
     return { ...result, results };
   } finally {
@@ -77,7 +86,8 @@ export async function runHarnessCi(jobPath) {
     phaseResults = [];
   let context,
     verdict = blocked(),
-    cleanupComplete = true;
+    cleanupComplete = true,
+    cancelled = false;
   const privateRoot = path.join(job.output, "private");
   const remove = async (_id, resource) => {
     if (resource.kind === "ccd") cleanupCiCcd(resource.directory);
@@ -89,12 +99,18 @@ export async function runHarnessCi(jobPath) {
     remove,
     output: job.output,
     phaseResults,
+    onCancel: () => {
+      cancelled = true;
+    },
   });
   try {
     context = await prepareCiJob(job, job.output);
+    assert(!cancelled, "CI_JOB_CANCELLED");
     writeJsonAtomic(path.join(privateRoot, "job-input.json"), job);
     const operations = {
+      isCancelled: () => cancelled,
       phase: async (name) => {
+        assert(!cancelled, "CI_JOB_CANCELLED");
         const directory = path.join(privateRoot, name),
           resource = { kind: "phase", name, directory, child: null };
         resources.set(name, resource);
@@ -131,6 +147,11 @@ export async function runHarnessCi(jobPath) {
               resource.child = child;
             },
             onPrepared: (input, handoff) => {
+              assert.equal(
+                handoff.mode,
+                "native-separate-api",
+                "CI_NATIVE_AUTHORITY_HANDOFF_REQUIRED",
+              );
               const expected = captureCiPhaseExpectation(
                 name,
                 input,
@@ -148,6 +169,7 @@ export async function runHarnessCi(jobPath) {
               return expected;
             },
           });
+          assert(!cancelled, "CI_JOB_CANCELLED");
           const validated = validateCiPhase(
             directory,
             result.expected,
@@ -159,11 +181,15 @@ export async function runHarnessCi(jobPath) {
           await remove(name, resource);
         }
       },
-      derive: () =>
-        deriveScopeMutant(
+      derive: async () => {
+        await deriveScopeMutant(
           job.candidateManifest,
           path.join(privateRoot, "scope-mutant"),
-        ),
+        );
+        context.mutantArtifact = await verifyCandidateArtifact(
+          path.join(privateRoot, "scope-mutant/candidate-artifact.json"),
+        );
+      },
       start: async () => {
         const directory = path.join(privateRoot, "ccd-runtime");
         resources.set("ccd-runtime", { kind: "ccd", directory });
@@ -231,6 +257,7 @@ export async function runHarnessCi(jobPath) {
         verdict = blocked();
       }
     uninstall();
+    if (cancelled) verdict = blocked();
     writeJsonAtomic(path.join(privateRoot, "ci-result.json"), {
       classification: "fixed-pilot-suite-no-full-release-approval",
       jobRunId: `ci-${randomUUID()}`,
