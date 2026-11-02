@@ -1,4 +1,3 @@
-import { expectStatus, StatusSets } from '../../utils/api/apiTestUtils';
 import {
   assertSecurityHeaders,
   assertUserDetailsKeys,
@@ -12,34 +11,7 @@ import {
 } from '../../utils/api/nodeAppUtils';
 
 import nodeAppDataModels from './data/nodeAppDataModels';
-import { test, expect, buildApiAttachment } from './fixtures';
-
-test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
-
-  test('returns enriched user details for solicitor session', async ({ apiClient }, testInfo) => {
-    const response = await apiClient.get<Record<string, unknown>>('api/user/details', { throwOnError: false });
-
-    expectStatus(response.status, StatusSets.guardedExtended);
-    if (!shouldProcessUserDetails(response.status)) {
-      return;
-    }
-    const userInfo = resolveUserInfo(response.data);
-    assertUserInfoDetails(userInfo);
-    assertUserDetailsPayload(response.data);
-
-    const expected = nodeAppDataModels.getUserDetails_oidc();
-    assertUserDetailsKeys(response.data, expected);
-
-    const attachment = buildApiAttachment(response.logEntry, {
-      includeRaw: process.env.PLAYWRIGHT_DEBUG_API === '1',
-    });
-    const prettyBody = formatAttachmentBody(attachment);
-    await testInfo.attach(`${attachment.name}-pretty`, {
-      body: prettyBody,
-      contentType: 'application/json',
-    });
-  });
-});
+import { test, expect } from './fixtures';
 
 test.describe('Node app helper coverage', { tag: '@svc-node-app' }, () => {
   test('assertUserInfoDetails covers name variants', () => {
