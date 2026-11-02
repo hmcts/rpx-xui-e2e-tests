@@ -124,6 +124,7 @@ test("observed containers reject host networking, extra writable mounts and priv
     HostConfig: {
       NetworkMode: `container:${expected.namespace}`,
       ReadonlyRootfs: true,
+      Init: true,
       CapDrop: ["ALL"],
       SecurityOpt: ["no-new-privileges"],
       PidsLimit: 256,
@@ -148,6 +149,7 @@ test("observed containers reject host networking, extra writable mounts and priv
     { CapDrop: [] },
     { SecurityOpt: [] },
     { ReadonlyRootfs: false },
+    { Init: false },
     { PortBindings: { "3100/tcp": [{ HostPort: "3100" }] } },
   ])
     assert.throws(() =>
@@ -196,6 +198,7 @@ test("OCI candidate executes image-owned Node with narrow mounts and no inherite
     config,
   });
   assert(args.includes(`container:${"c".repeat(64)}`));
+  assert(args.includes("--init"));
   assert(args.includes(descriptor.imageReference));
   assert.deepEqual(args.slice(-4), [
     "/usr/local/bin/node",

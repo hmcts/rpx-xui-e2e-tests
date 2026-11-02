@@ -38,6 +38,7 @@ const ownerFlags = (owner, service) => {
   ];
 };
 const hardened = [
+  "--init",
   "--read-only",
   "--cap-drop",
   "ALL",
@@ -223,6 +224,11 @@ export function assertOwnedContainer(
     info.HostConfig.ReadonlyRootfs,
     true,
     "OCI_CONTAINER_WRITABLE_ROOT",
+  );
+  assert.equal(
+    info.HostConfig.Init,
+    true,
+    "OCI_CONTAINER_SIGNAL_FORWARDING_REQUIRED",
   );
   assert.equal(
     info.HostConfig.Privileged || false,
