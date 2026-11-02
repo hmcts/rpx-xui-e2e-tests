@@ -180,15 +180,3 @@ export async function continueHearingsFlow(page: Page): Promise<void> {
 export async function goBackInHearingsFlow(page: Page): Promise<void> {
   await page.getByRole('link', { name: /^back$/i }).click();
 }
-
-export async function selectOrderedLinkedHearings(page: Page): Promise<void> {
-  await page.locator('#linked-form input[type="radio"]').first().check();
-  await continueHearingsFlow(page);
-  await page.locator('#particularOrder').check();
-
-  const orderSelects = page.locator('select[id^="hearingsOrder"]');
-  const orderCount = await orderSelects.count();
-  for (let index = 0; index < orderCount; index += 1) {
-    await orderSelects.nth(index).selectOption(String(index + 1));
-  }
-}
