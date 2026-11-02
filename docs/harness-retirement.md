@@ -10,8 +10,9 @@ The repository is moving to central configuration, role, definition and data-int
 | e18b4b4 | 6 | Lifecycle statuses/actions/summary routes retained in canonical webapp. Five callback templates expand to six cases. |
 | 08d241a | 7 | Edit labels, pre-CR84 action, validation/error and create navigation retained in canonical webapp. Sole-use SHV fixture also removed. |
 | 9e85589 | 4 | Actuals summaries, submitted values, completion and error behavior retained in canonical webapp. Unused navigation wrapper removed; reporter parser check preserved. |
+| 575196e | 6 | Anonymous configuration/auth/login/user-details/header/health callbacks retained in canonical webapp. All12 remaining callbacks and used support preserved; unreachable schema helper removed. |
 
-Twenty-two runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+Twenty-eight runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -29,6 +30,14 @@ Lifecycle checks compared20 payload/outcome projections. Edit/create checks comp
 Known setup differences were assessed rather than hidden: canonical click navigation is stronger than the retired direct-navigation fallback; actuals mocks include extra unasserted data; navigation-header configuration differs while the direct Hearings journeys assert no header behavior. Shared fixtures/helpers remain where other tests use them.
 
 Actuals retirement compared40 relevant responses and preserved35 direct assertion expressions. Canonical also retains additional Back-navigation regression tests; those extra cases were not used to obscure any missing counterpart. The reporter filename substitution passed its existing path-parser unit test.
+
+Additional canonical counterparts:
+
+- [hearingActuals.positive.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingActuals.positive.spec.ts)
+- [hearingActuals.negative.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingActuals.negative.spec.ts)
+- [node-app-endpoints.api.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/api/node-app-endpoints.api.ts)
+
+Anonymous endpoint retirement verifies equivalent request-client bytes, helper behavior, assertions and explicit canonical owner selection. All12 surviving callbacks are unchanged. External job filters can still omit the service tag; no current remote execution or mandatory-selection claim is made. Authenticated/refdata callbacks remain because persona and transport-error behavior differ.
 
 ## Useful central scenarios
 
