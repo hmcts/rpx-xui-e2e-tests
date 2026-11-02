@@ -16,8 +16,9 @@ The repository is moving to central configuration, role, definition and data-int
 | 1fbc970 | 2 | Ordinary Divorce create/update saved fields, hidden field and history retained canonically. Two unused utilities and their barrel export removed. |
 | 13c7f2b | 13 | Same CR84 family/flag/role/status cells retained canonically. Sole-use assertion utility removed; canonical reporter filename fixture retained. |
 | 5fa29d4 | 2 | Linked submission/order and server-error flows retained canonically; the distinct Civil entry cell is preserved in the Harness. Sole-use selector removed. |
+| c73237e | 6 | Five generic navigation/resilience callbacks retained canonically; exact Continue/Back/Back and returned-row checks are preserved in Civil Harness3b9ca01. Unused dataset generator and its sole unit callback removed. |
 
-Sixty-two runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+Sixty-eight runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -53,7 +54,7 @@ Negative-resilience comparisons preserve all ten response/abort/delay inputs and
 
 CRUD consolidation does not claim identical accounts: canonical uses an explicit Divorce solicitor pool, while retired aliases were generic/civil aliases whose tests asserted no role matrix. The additional update-specific exact date-string comparison is retired; generic list/detail equality remains in canonical create using the same history component, and update retains today/readback checks.
 
-CR84 retirement compares the same configured family, flag, role and status inputs, not merely similar UI assertions. The distinct Civil linked-entry context is now retained as its own browser-tested Harness slice; generic linked submit/error flows are separately consolidated. Extra create-Back row assertions remain held.
+CR84 retirement compares the same configured family, flag, role and status inputs, not merely similar UI assertions. The distinct Civil linked-entry context is now retained as its own browser-tested Harness slice; generic linked submit/error flows are separately consolidated. The exact Continue/Back/Back sequence and returned-row checks are now preserved in the Civil Harness slice.
 
 - [createCase.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/E2E/test/createCase/createCase.spec.ts)
 - [updateCase.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/E2E/test/updateCase/updateCase.spec.ts)
@@ -65,9 +66,14 @@ Linked retirement verifies both actual fixtures through the committed inclusion,
 - [hearingLinked.positive.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingLinked.positive.spec.ts)
 - [hearingLinked.negative.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingLinked.negative.spec.ts)
 
+Navigation/resilience retirement compared35 canonical response projections plus seven Civil/input projections. Large-list35-row/count/edge labels, four null fields/no Invalid Date, empty-state message and request-entry outcomes remain in the webapp. The useful exact navigation sequence passed in the retained Civil slice against18 sealed frontend JavaScript responses with zero retries and no undeclared destinations. The activity/presence seam uses only the exact synthetic-case GET/POST contract. This is controlled frontend evidence, with no real Civil service-code or candidate/release-gate credit. The old generic cases used bucket4; the retained Civil slice uses bucket5 and is excluded by an optional bucket4-only selection. All13 surviving relevant helper checks passed; Continue/Back and shared mock/auth support remain.
+
+- [hearingCreate.navigationControls.positive.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingCreate.navigationControls.positive.spec.ts)
+- [hearingDetails.resilience.positive.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingDetails.resilience.positive.spec.ts)
+
 ## Useful central scenarios
 
-The actual-candidate scope slice now verifies scoped service/location requests, the exact rendered suggestion list and selection/add behavior. Its IA/Civil browser baselines passed and its broadened-organisation-scope fault was detected. A separate diagnostic returned no venue suggestions with HTTP200 and unchanged valid queries; both personas failed exactly at location-search-results. That altered-source diagnostic remained BLOCKED and receives no production mutation credit. The legacy work-filter file remains because its persistence setup and other variants are not yet certified redundant. Generated/model diagnostics receive no candidate or real-CCD release credit.
+The actual-candidate scope slice now verifies scoped service/location requests, the exact rendered suggestion list and selection/add behavior. Its IA/Civil browser baselines passed and its broadened-organisation-scope fault was detected. A separate diagnostic returned no venue suggestions with HTTP200 and unchanged valid queries; both personas failed exactly at location-search-results. That altered-source diagnostic remained BLOCKED and receives no production mutation credit. The generic work-filter file was retired after the documented outcome comparison; ownerless injected-storage compatibility is the explicit limit described above. Generated/model diagnostics receive no candidate or real-CCD release credit.
 
 ## Rollback and remaining work
 
