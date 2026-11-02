@@ -55,6 +55,15 @@ test(
     await expect(
       filter.locator(`input[type="checkbox"][value="${caseFamily}"]`),
     ).toHaveCount(0);
+    const selectedLocation = filter.getByRole("link", {
+      name: "Synthetic Hearing Centre",
+      exact: true,
+    });
+    await test.step("harness-assertion:location-selection", async () => {
+      await expect(selectedLocation).toBeVisible();
+      await selectedLocation.click();
+      await expect(selectedLocation).toHaveCount(0);
+    });
     const location = filter.getByRole("combobox").first();
     const searchRequest = page.waitForRequest(
       (request) =>
@@ -94,5 +103,19 @@ test(
           .map((item) => item.query.service_code.split(",").sort()),
       )
       .toEqual([serviceCodes[organisationFamily].sort()]);
+
+    await test.step("harness-assertion:location-search-results", async () => {
+      const suggestion = page.getByRole("option", {
+        name: "Synthetic Hearing Centre",
+        exact: true,
+      });
+      await expect(suggestion).toBeVisible();
+      await expect(page.getByRole("option")).toHaveText([
+        "Synthetic Hearing Centre",
+      ]);
+      await suggestion.click();
+      await filter.getByRole("link", { name: "Add location", exact: true }).click();
+      await expect(selectedLocation).toBeVisible();
+    });
   },
 );
