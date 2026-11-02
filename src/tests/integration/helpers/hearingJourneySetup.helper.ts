@@ -6,8 +6,6 @@ import {
   HEARINGS_CASE_JURISDICTION,
   HEARINGS_CASE_REFERENCE,
   HEARINGS_CASE_TYPE,
-  LISTED_HEARING_SCENARIO,
-  type HearingScenario,
 } from '../mocks/hearings.mock';
 
 import {
@@ -163,14 +161,6 @@ export async function openHearingsTabForScenario(
   const getHearingsResponse = await pendingGetHearingsResponse;
   await pendingServiceHearingValuesResponse;
   return getHearingsResponse;
-}
-
-export function buildLargeListedHearings(total: number): HearingScenario[] {
-  return Array.from({ length: total }, (_value, index) => ({
-    ...LISTED_HEARING_SCENARIO,
-    hearingId: String(1705615000000 + index),
-    hearingType: `ABA5-LISTED-${index + 1}`,
-  }));
 }
 
 export async function continueHearingsFlow(page: Page): Promise<void> {

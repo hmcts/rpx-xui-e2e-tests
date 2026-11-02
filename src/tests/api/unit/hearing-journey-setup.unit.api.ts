@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test';
 
 import {
   applyHearingManagerSessionCookies,
-  buildLargeListedHearings,
   resolveHearingsCaseRoute,
 } from '../../integration/helpers/hearingJourneySetup.helper.js';
 
@@ -56,23 +55,6 @@ test.describe('hearing journey setup helper', { tag: '@svc-internal' }, () => {
       caseTypeId: 'CIVIL',
       caseReference: '1234567812345678',
     });
-  });
-
-  test('builds a stable listed-hearings dataset with sequential ids and hearing types', () => {
-    expect(buildLargeListedHearings(3)).toEqual([
-      expect.objectContaining({
-        hearingId: '1705615000000',
-        hearingType: 'ABA5-LISTED-1',
-      }),
-      expect.objectContaining({
-        hearingId: '1705615000001',
-        hearingType: 'ABA5-LISTED-2',
-      }),
-      expect.objectContaining({
-        hearingId: '1705615000002',
-        hearingType: 'ABA5-LISTED-3',
-      }),
-    ]);
   });
 
   test('annotates the selected hearing manager when applying a session', async () => {
