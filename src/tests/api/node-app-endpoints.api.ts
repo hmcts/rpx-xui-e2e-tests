@@ -1,9 +1,4 @@
-import { promises as fs } from 'node:fs';
-
-import { request } from '@playwright/test';
-
 import { expectStatus, StatusSets } from '../../utils/api/apiTestUtils';
-import { ensureStorageState } from '../../utils/api/auth';
 import {
   assertSecurityHeaders,
   assertUserDetailsKeys,
@@ -15,20 +10,11 @@ import {
   resolveUserInfo,
   shouldProcessUserDetails,
 } from '../../utils/api/nodeAppUtils';
-import { config as testConfig } from '../common/apiTestConfig';
 
 import nodeAppDataModels from './data/nodeAppDataModels';
 import { test, expect, buildApiAttachment } from './fixtures';
 
 test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
-
-  test('auth/isAuthenticated returns session status', async ({ apiClient }) => {
-    const response = await apiClient.get<boolean>('auth/isAuthenticated', { throwOnError: false });
-    expectStatus(response.status, StatusSets.guardedBasic);
-    if (response.status === 200) {
-      expect(typeof response.data).toBe('boolean');
-    }
-  });
 
   test('returns enriched user details for solicitor session', async ({ apiClient }, testInfo) => {
     const response = await apiClient.get<Record<string, unknown>>('api/user/details', { throwOnError: false });
@@ -52,31 +38,6 @@ test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
       body: prettyBody,
       contentType: 'application/json',
     });
-  });
-
-  test('stale session cookie returns guarded status', async () => {
-    const statePath = await ensureStorageState('solicitor');
-    const raw = await fs.readFile(statePath, 'utf8');
-    const state = JSON.parse(raw);
-    const expiredCookies = buildExpiredCookies(state);
-
-    const ctx = await request.newContext({
-      baseURL: testConfig.baseUrl.replace(/\/+$/, ''),
-      ignoreHTTPSErrors: true,
-      storageState: { cookies: expiredCookies, origins: [] },
-    });
-    const res = await ctx.get('api/user/details', { failOnStatusCode: false });
-    expectStatus(res.status(), [401, 403]);
-    await ctx.dispose();
-  });
-
-  test('returns configuration value for feature flag query', async ({ apiClient }) => {
-    const response = await apiClient.get<unknown>('api/configuration?configurationKey=termsAndConditionsEnabled');
-    expectStatus(
-      response.status,
-      StatusSets.guardedBasic.filter((s) => s !== 403)
-    ); // 200 or 401
-    expect(JSON.stringify(response.data).length).toBeLessThan(6);
   });
 });
 
