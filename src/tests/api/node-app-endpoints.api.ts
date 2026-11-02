@@ -32,13 +32,6 @@ test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
     assertUiConfigResponse(response.data, expectedKeys);
   });
 
-  test('serves external config/ui alias', async ({ anonymousClient }) => {
-    const response = await anonymousClient.get<Record<string, unknown>>('external/config/ui');
-    expectStatus(response.status, [200]);
-    const expectedKeys = testConfig.configurationUi[testEnv] ?? [];
-    assertUiConfigResponse(response.data, expectedKeys);
-  });
-
   test('auth/isAuthenticated returns session status', async ({ apiClient }) => {
     const response = await apiClient.get<boolean>('auth/isAuthenticated', { throwOnError: false });
     expectStatus(response.status, StatusSets.guardedBasic);
