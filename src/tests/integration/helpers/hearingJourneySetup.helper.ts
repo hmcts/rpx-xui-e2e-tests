@@ -1,7 +1,6 @@
-import { expect, test, type Page, type Response, type TestInfo } from '@playwright/test';
+import { test, type Page, type Response, type TestInfo } from '@playwright/test';
 
 import type { CaseDetailsPage } from '../../../page-objects/pages/exui/caseDetails.po';
-import type { HearingsTabPage } from '../../../page-objects/pages/exui/hearingsTab.po';
 import { withOrderedSessionFallback } from '../../common/orderedSessionFallback.js';
 import {
   HEARINGS_CASE_JURISDICTION,
@@ -19,9 +18,6 @@ import {
 import { setupHearingsMockRoutes, type HearingsMockRoutesConfig } from './hearingsMockRoutes.helper';
 import { applySessionCookies } from './sessionUser.helper.js';
 
-export const HEARINGS_TERMINAL_STATE_TIMEOUT_MS = 15_000;
-export const HEARINGS_ROWS_HIDDEN_TIMEOUT_MS = 10_000;
-export const HEARINGS_SLOW_RESPONSE_DELAY_MS = 4_000;
 const HEARINGS_NAVIGATION_ATTEMPTS = 3;
 const HEARINGS_CASE_DETAILS_SHELL_TIMEOUT_MS = 30_000;
 
@@ -175,29 +171,6 @@ export function buildLargeListedHearings(total: number): HearingScenario[] {
     hearingId: String(1705615000000 + index),
     hearingType: `ABA5-LISTED-${index + 1}`,
   }));
-}
-
-export async function waitForHearingsTerminalState(page: Page, hearingsTabPage: HearingsTabPage): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        if (await hearingsTabPage.reloadButton.isVisible()) {
-          return 'reload';
-        }
-        if (await page.getByText('No current and upcoming hearings found').isVisible()) {
-          return 'empty';
-        }
-        return 'pending';
-      },
-      { timeout: HEARINGS_TERMINAL_STATE_TIMEOUT_MS }
-    )
-    .not.toBe('pending');
-}
-
-export async function expectHearingsRowsHiddenBeforeResponse(page: Page): Promise<void> {
-  await expect(page.locator('[id^="link-view-details-"]')).toHaveCount(0, {
-    timeout: HEARINGS_ROWS_HIDDEN_TIMEOUT_MS,
-  });
 }
 
 export async function continueHearingsFlow(page: Page): Promise<void> {
