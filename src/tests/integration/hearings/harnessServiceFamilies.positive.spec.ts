@@ -90,7 +90,7 @@ async function openUnsupportedDivorceCaseDetails(page: Parameters<typeof applySe
 }
 
 test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, { tag: ['@integration', '@integration-hearings'] }, () => {
-  test('supported Private Law PRLAPPS case renders hearing-manager actions', async ({
+  test('accessibility baseline: supported Private Law hearings action view has no new axe violations', async ({
     page,
     caseDetailsPage,
     hearingsTabPage,
@@ -104,28 +104,6 @@ test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, {
     });
 
     await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-hearings-private-law-actions.png');
-  });
-
-  test('unsupported Divorce case keeps the Hearings tab hidden', async ({ page, caseDetailsPage }, testInfo) => {
-    await openUnsupportedDivorceCaseDetails(page, caseDetailsPage);
-
-    await expect(page.getByRole('tab', { name: /hearings/i })).toHaveCount(0);
-
-    await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-hearings-unsupported-family-hidden.png');
-  });
-
-  test('accessibility baseline: supported Private Law hearings action view has no new axe violations', async ({
-    page,
-    caseDetailsPage,
-    hearingsTabPage,
-    hearingViewSummaryPage,
-  }, testInfo) => {
-    await openSupportedPrivateLawHearingSummary({
-      page,
-      caseDetailsPage,
-      hearingsTabPage,
-      hearingViewSummaryPage,
-    });
 
     await attachAccessibilityEvidence(testInfo, page, 'Hearings supported-family accessibility report', {
       knownViolations: [
@@ -148,6 +126,8 @@ test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, {
   }, testInfo) => {
     await openUnsupportedDivorceCaseDetails(page, caseDetailsPage);
     await expect(page.getByRole('tab', { name: /hearings/i })).toHaveCount(0);
+
+    await attachUiScreenshotEvidence(testInfo, page, 'exui-assurance-hearings-unsupported-family-hidden.png');
 
     await attachAccessibilityEvidence(testInfo, page, 'Hearings unsupported-family hidden-tab accessibility report', {
       knownViolations: [
