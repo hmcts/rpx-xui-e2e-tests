@@ -47,9 +47,22 @@ test("container has no shared network, host socket, environment inheritance, or 
     output: "/output",
     browserRoot: "/browser",
     dependenciesRoot: "/dependencies",
+    owner: "candidate-11111111-1111-4111-8111-111111111111",
+    cidFile: "/output/container-id",
     image: "sha256:" + "a".repeat(64),
   });
   assert.equal(args[args.indexOf("--network") + 1], "none");
+  assert.equal(args[args.indexOf("--cidfile") + 1], "/output/container-id");
+  assert.equal(
+    args[args.indexOf("--name") + 1],
+    "candidate-11111111-1111-4111-8111-111111111111",
+  );
+  assert(
+    args.includes(
+      "exui.harness.owner=candidate-11111111-1111-4111-8111-111111111111",
+    ),
+  );
+  assert(args.includes("exui.harness.service=candidate-runtime"));
   assert(args.includes("--read-only"));
   assert(args.includes("type=bind,src=/candidate,dst=/candidate,readonly"));
   assert(
@@ -407,6 +420,85 @@ test("scope derivation preserves symlink modes under private umask and still rej
     );
   } finally {
     process.umask(previous);
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("known child termination is observed and forced shutdown stays explicit", async () => {
+  const { terminateOwnedChild } = await load();
+  const { spawn } = require("node:child_process");
+  const { once } = require("node:events");
+  for (const ignore of [false, true]) {
+    const child = spawn(
+      process.execPath,
+      [
+        "-e",
+        `process.on('SIGTERM',()=>{${ignore ? "" : "process.exit(0)"}});console.log('ready');setInterval(()=>{},1000);`,
+      ],
+      { stdio: ["ignore", "pipe", "pipe"] },
+    );
+    await once(child.stdout, "data");
+    const result = await terminateOwnedChild(child, {
+      graceMs: 25,
+      killMs: 1000,
+    });
+    assert.equal(result.observed, true);
+    assert.equal(result.forced, ignore);
+    assert.equal(
+      ignore ? child.signalCode : child.exitCode,
+      ignore ? "SIGKILL" : 0,
+    );
+  }
+});
+
+test("phase supervisor forwards cancellation to its exact Docker client and observes exit", async () => {
+  const { runOwnedDocker } = await import("./lib/exui-candidate-child.mjs");
+  const { spawn } = require("node:child_process");
+  const { once, EventEmitter } = require("node:events");
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "owned-docker-client-"),
+  );
+  const target = new EventEmitter();
+  let finish;
+  const done = new Promise((resolve) => {
+    finish = resolve;
+  });
+  target.exit = finish;
+  target.stderr = { write: () => {} };
+  let child;
+  try {
+    const running = runOwnedDocker([], {
+      output: directory,
+      owner: "owned-test-client",
+      signalTarget: target,
+      launch: () => {
+        child = spawn(
+          process.execPath,
+          [
+            "-e",
+            "process.on('SIGTERM',()=>process.exit(0));console.log('ready');setInterval(()=>{},1000);",
+          ],
+          { stdio: ["ignore", "pipe", "pipe"] },
+        );
+        return child;
+      },
+    });
+    const rejected = assert.rejects(running, /CANCELLED/);
+    await once(child.stdout, "data");
+    target.emit("SIGTERM");
+    await rejected;
+    assert.equal(await done, 2);
+    const receipt = JSON.parse(
+      fs.readFileSync(path.join(directory, "docker-client-shutdown.json")),
+    );
+    assert.equal(receipt.observed, true);
+    assert.equal(receipt.forced, false);
+    assert.equal(child.exitCode, 0);
+  } finally {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      child.kill("SIGKILL");
+      await once(child, "exit");
+    }
     fs.rmSync(directory, { recursive: true, force: true });
   }
 });

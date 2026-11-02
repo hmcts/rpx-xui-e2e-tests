@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
+import { runOwnedDocker } from "./lib/exui-candidate-child.mjs";
 import { randomUUID } from "node:crypto";
 import {
   verifyCandidateArtifact,
@@ -24,6 +25,7 @@ import {
 } from "./lib/exui-ccd-runtime.mjs";
 import {
   startCcdGateway,
+  CCD_HARNESS_SOURCE_FILES,
   seedCcdSession,
 } from "./lib/exui-ccd-browser-runtime.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
@@ -463,32 +465,7 @@ async function launch() {
     cwd: root,
     encoding: "utf8",
   });
-  const harnessSources = [
-    "package.json",
-    "yarn.lock",
-    "tsconfig.json",
-    "playwright.harness.config.ts",
-    "src/harness/candidate.ts",
-    "src/fixtures/harnessCcd.ts",
-    "src/tests/harness/ccd/nested-conditional.spec.ts",
-    "src/tests/harness/ccd/case-event-policy.spec.ts",
-    "scripts/run-harness-ccd-candidate.mjs",
-    "scripts/fixtures/exui-configuration-review.json",
-    "scripts/lib/exui-harness-dependencies.mjs",
-    ...[
-      "exui-candidate-artifact.mjs",
-      "exui-candidate-runtime.mjs",
-      "exui-ccd-runtime.mjs",
-      "exui-ccd-browser-runtime.mjs",
-      "exui-configuration-catalogue.mjs",
-      "exui-evidence-io.mjs",
-      "exui-release-evidence.mjs",
-      "exui-external-evidence.mjs",
-      "exui-release-policy.mjs",
-      "exui-playwright-evidence-reporter.mjs",
-      "exui-runtime-network-guard.cjs",
-    ].map((name) => `scripts/lib/${name}`),
-  ];
+  const harnessSources = CCD_HARNESS_SOURCE_FILES;
   const harnessSourceDigest = digestBytes(
     JSON.stringify(
       harnessSources.map((file) => [
@@ -497,6 +474,7 @@ async function launch() {
       ]),
     ),
   );
+  const runId = `ccd-${randomUUID()}`;
   writeJsonAtomic(`${output}/input.json`, {
     artifact,
     ccd,
@@ -516,7 +494,7 @@ async function launch() {
     harnessSourceState: dirty.stdout.trim() ? "dirty" : "clean",
     harnessSources,
     harnessSourceDigest,
-    runId: `ccd-${randomUUID()}`,
+    runId,
     only: arg("--only"),
   });
   fs.chmodSync(`${output}/input.json`, 0o600);
@@ -530,7 +508,16 @@ async function launch() {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.join(root, file), target);
   }
+  const cidFile = path.join(output, "container-id");
+  writeJsonAtomic(`${output}/container-launch.json`, {
+    owner: runId,
+    name: runId,
+    cidFile,
+    stagedHarness,
+  });
   const args = isolatedContainerArguments({
+    owner: runId,
+    cidFile,
     harnessRoot: stagedHarness,
     dependenciesRoot: path.join(root, "node_modules"),
     candidateRoot: artifact.candidateRoot,
@@ -541,25 +528,24 @@ async function launch() {
   args[args.indexOf("none")] = `container:${ccd.namespace}`;
   args[args.indexOf("scripts/run-harness-candidate.mjs")] =
     "scripts/run-harness-ccd-candidate.mjs";
-  const child = spawn("docker", args, {
-    env: { PATH: process.env.PATH },
-    stdio: "inherit",
-  });
+
   try {
-    const result = await exited(child);
+    const result = await runOwnedDocker(args, { output, owner: runId });
     process.exitCode = result.code ?? 2;
   } finally {
-    // Docker Desktop releases its read-only nested bind after the client exits.
-    for (let attempt = 0; ; attempt++) {
-      try {
-        fs.rmdirSync(path.join(stagedHarness, "node_modules"));
-        break;
-      } catch (error) {
-        if (error.code !== "EACCES" || attempt === 19) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 100));
+    if (!fs.existsSync(path.join(output, "controller-cancelled.json"))) {
+      // Docker Desktop releases its read-only nested bind after the client exits.
+      for (let attempt = 0; ; attempt++) {
+        try {
+          fs.rmdirSync(path.join(stagedHarness, "node_modules"));
+          break;
+        } catch (error) {
+          if (error.code !== "EACCES" || attempt === 19) throw error;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       }
+      fs.rmSync(stagedHarness, { recursive: true, force: true });
     }
-    fs.rmSync(stagedHarness, { recursive: true, force: true });
   }
   console.log(`CCD candidate private evidence: ${output}`);
 }

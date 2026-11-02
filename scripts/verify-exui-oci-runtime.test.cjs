@@ -335,3 +335,39 @@ test("host lifecycle finalizes only an observed running candidate followed by it
     /NOT_REQUESTED/,
   );
 });
+
+test("cancellation awaits asynchronous owned cleanup before terminal exit and preserves failures", async () => {
+  const { installCancellationCleanup } =
+    await import("./lib/exui-oci-runtime.mjs");
+  const { EventEmitter } = await import("node:events");
+  for (const fail of [false, true]) {
+    const target = new EventEmitter(),
+      order = [];
+    let release;
+    target.stderr = { write: () => order.push("warning") };
+    target.exit = (code) => order.push(`exit:${code}`);
+    const pending = new Promise((resolve, reject) => {
+      release = () => (fail ? reject(Error("cleanup")) : resolve());
+    });
+    const uninstall = installCancellationCleanup({
+      resources: new Map([["owned", "owner"]]),
+      target,
+      onCancel: () => order.push("invalidate"),
+      remove: () => {
+        order.push("remove");
+        return pending;
+      },
+    });
+    target.emit("SIGTERM");
+    assert.deepEqual(order, ["invalidate", "remove"]);
+    release();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(
+      order,
+      fail
+        ? ["invalidate", "remove", "warning", "exit:2"]
+        : ["invalidate", "remove", "exit:2"],
+    );
+    uninstall();
+  }
+});

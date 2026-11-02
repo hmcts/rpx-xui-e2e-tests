@@ -319,21 +319,42 @@ export function installCancellationCleanup({
     if (cancelling) return;
     cancelling = true;
     const errors = [];
-    try {
-      onCancel(signal);
-    } catch (error) {
-      errors.push(error);
-    }
-    for (const [id, owner] of [...resources].reverse()) {
+    const actions = [
+      () => onCancel(signal),
+      ...[...resources].reverse().map(
+        ([id, owner]) =>
+          () =>
+            remove(id, owner),
+      ),
+    ];
+    const finish = () => {
+      if (errors.length)
+        target.stderr.write("OCI_CANCELLATION_CLEANUP_INCOMPLETE\n");
+      target.exit(2);
+    };
+    const next = (index) => {
+      if (index === actions.length) {
+        finish();
+        return;
+      }
       try {
-        remove(id, owner);
+        const result = actions[index]();
+        if (result && typeof result.then === "function") {
+          Promise.resolve(result).then(
+            () => next(index + 1),
+            (error) => {
+              errors.push(error);
+              next(index + 1);
+            },
+          );
+          return;
+        }
       } catch (error) {
         errors.push(error);
       }
-    }
-    if (errors.length)
-      target.stderr.write("OCI_CANCELLATION_CLEANUP_INCOMPLETE\n");
-    target.exit(2);
+      next(index + 1);
+    };
+    next(0);
   };
   const interrupt = () => cancel("SIGINT");
   const terminate = () => cancel("SIGTERM");

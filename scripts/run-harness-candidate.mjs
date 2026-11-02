@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
+import { runOwnedDocker } from "./lib/exui-candidate-child.mjs";
 import { randomUUID, createHmac } from "node:crypto";
 import {
   verifyCandidateArtifact,
@@ -452,6 +453,7 @@ async function launch() {
       ]),
     ),
   );
+  const runId = `candidate-${randomUUID()}`;
   writeJsonAtomic(`${output}/input.json`, {
     artifact,
     releaseScopeId,
@@ -461,7 +463,7 @@ async function launch() {
     harnessSourceDigest,
     harnessSources,
     harnessCommit: commit.stdout.trim(),
-    runId: `candidate-${randomUUID()}`,
+    runId,
     browserExecutable: `/browser/${browserRelative}`,
     browserDigest,
     browserVersion: `playwright-1.64.1-chromium-${revision}-linux-arm64`,
@@ -476,7 +478,16 @@ async function launch() {
     fs.copyFileSync(path.join(root, file), destination);
   }
   fs.mkdirSync(path.join(stagedHarness, "node_modules"));
+  const cidFile = path.join(output, "container-id");
+  writeJsonAtomic(`${output}/container-launch.json`, {
+    owner: runId,
+    name: runId,
+    cidFile,
+    stagedHarness,
+  });
   const args = isolatedContainerArguments({
+    owner: runId,
+    cidFile,
     harnessRoot: stagedHarness,
     dependenciesRoot: path.join(root, "node_modules"),
     candidateRoot: artifact.candidateRoot,
@@ -485,16 +496,14 @@ async function launch() {
     ...(mutantArtifact ? { mutantRoot: mutantArtifact.candidateRoot } : {}),
     image: runtimeImage,
   });
-  const child = spawn("docker", args, {
-    env: { PATH: process.env.PATH },
-    stdio: "inherit",
-  });
+
   try {
-    const terminal = await childExit(child);
+    const terminal = await runOwnedDocker(args, { output, owner: runId });
     process.exitCode = terminal.code ?? 2;
   } finally {
     try {
-      fs.rmSync(stagedHarness, { recursive: true, force: true });
+      if (!fs.existsSync(path.join(output, "controller-cancelled.json")))
+        fs.rmSync(stagedHarness, { recursive: true, force: true });
     } catch (error) {
       if (!["EACCES", "EPERM"].includes(error.code)) throw error;
       writeJsonAtomic(`${output}/source-snapshot.json`, {

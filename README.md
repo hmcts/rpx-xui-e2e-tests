@@ -6,6 +6,8 @@ EXUI configuration assurance Harness, with conventional suites retained during t
 
 The dedicated Harness runs the built EXUI Angular and Node application with isolated synthetic personas and declared downstream seams. Three separate pilot policies cover WA family selection, organisation/case location scope, and nested CCD persistence/access integrity. Each requires a passing baseline and its intended failing mutation. A pilot receipt cannot authorize a full EXUI release.
 
+Native archive runs currently provide local diagnostic observations: the application and evidence writer still share filesystem authority. They must not supply authoritative CI acceptance until candidate write authority is separated. The opt-in `harness:candidate:ci --input <job.json>` entry point is deliberately BLOCKED after artifact verification while this open integrity finding is fixed. Its strict job JSON contains `schemaVersion: 1`, absolute `candidateManifest`, `browserCache` and fresh `output` paths, and an independently supplied `expectedArtifactDigest`. It grants no full-release approval and leaves the existing Jenkins command unchanged.
+
 The archive runtime requires Docker with the pinned Linux/arm64 images, an immutable candidate artifact, and the matching Linux/arm64 Chromium cache. Build from an exact committed webapp revision; dirty primary source and existing `dist` output are not build inputs:
 
 ```bash
@@ -38,7 +40,7 @@ yarn harness:catalogue --webapp /path/to/rpx-xui-webapp --definitions /path/to/p
 
 CCD access coverage uses real RBAC with a synthetic identity provider and a separately authorised state/history observer. ABAC, identity-provider correctness and service business callbacks remain excluded. Catalogue checks report source drift, feasible pilot cells and missing runtime obligations; they do not grant release credit. See [the evidence contract](docs/harness-evidence-contract.md) for receipt and promotion checks. The [retirement ledger](docs/harness-retirement.md) records verified duplicate removals, preserved canonical outcomes and rollback boundaries. Harness support files run serially because the real network-guard and gateway probes share the fixed synthetic port3101.
 
-Conventional suites and the existing Jenkins diagnostic command remain during migration. Retirement requires equivalent effective coverage for each consequential outcome; a missing owner gate remains a release gap. Retired so far: an empty spec, an identical same-scope API test, and two unreachable cookie wrappers with their sole mock call-count tests. Live expired-session assertions remain.
+Conventional suites and the existing Jenkins diagnostic command remain during migration. Retirement requires equivalent effective coverage for each consequential outcome; a missing owner gate remains a release gap. The retirement ledger currently records 60 retired runnable cases, their retained canonical outcomes, explicit compatibility limits and independent rollback commits. Useful Civil configuration coverage has been ported; still-used shared support and live expired-session assertions remain.
 
 ## XUI Assurance Harness POC
 

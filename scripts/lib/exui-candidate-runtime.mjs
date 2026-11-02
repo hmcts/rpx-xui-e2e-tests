@@ -106,7 +106,16 @@ export function isolatedContainerArguments({
   dependenciesRoot,
   mutantRoot,
   image,
+  owner,
+  cidFile,
 }) {
+  if (
+    !/^(?:candidate|ccd)-[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(
+      owner ?? "",
+    ) ||
+    cidFile !== path.join(output, "container-id")
+  )
+    throw new Error("OWNED_CANDIDATE_HANDOFF_REQUIRED");
   for (const value of [
     harnessRoot,
     candidateRoot,
@@ -123,6 +132,14 @@ export function isolatedContainerArguments({
   return [
     "run",
     "--rm",
+    "--name",
+    owner,
+    "--label",
+    `exui.harness.owner=${owner}`,
+    "--label",
+    "exui.harness.service=candidate-runtime",
+    "--cidfile",
+    cidFile,
     "--network",
     "none",
     "--read-only",
@@ -172,6 +189,8 @@ export const HARNESS_SOURCE_FILES = [
   "scripts/run-harness-candidate.mjs",
   "scripts/prepare-harness-scope-mutant.mjs",
   "scripts/lib/exui-candidate-runtime.mjs",
+  "scripts/lib/exui-candidate-child.mjs",
+  "scripts/lib/exui-oci-runtime.mjs",
   "scripts/lib/exui-configuration-catalogue.mjs",
   "scripts/fixtures/exui-configuration-review.json",
   "scripts/lib/exui-provider-seams.mjs",
@@ -190,4 +209,52 @@ export const HARNESS_SOURCE_FILES = [
 export function assertCandidateShutdown(terminal, requestedStop) {
   if (!requestedStop || terminal.code !== null || terminal.signal !== "SIGTERM")
     throw new Error("CANDIDATE_UNEXPECTED_TERMINATION");
+}
+
+// Only children spawned by this controller are signalled; Docker ownership is checked separately.
+export async function terminateOwnedChild(
+  child,
+  { graceMs = 5000, killMs = 2000 } = {},
+) {
+  if (!child?.pid) return { started: false, observed: true, forced: false };
+  if (Number.isInteger(child.exitCode) || typeof child.signalCode === "string")
+    return {
+      started: true,
+      observed: true,
+      forced: false,
+      code: child.exitCode,
+      signal: child.signalCode,
+    };
+  let finish;
+  const terminal = new Promise((resolve) => {
+    finish = (code, signal) => resolve({ code, signal });
+    child.once("exit", finish);
+  });
+  const wait = async (milliseconds) => {
+    let timer;
+    try {
+      return await Promise.race([
+        terminal,
+        new Promise((resolve) => {
+          timer = setTimeout(() => resolve(null), milliseconds);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  try {
+    child.kill("SIGTERM");
+    let result = await wait(graceMs);
+    let forced = false;
+    if (!result) {
+      forced = true;
+      child.kill("SIGKILL");
+      result = await wait(killMs);
+    }
+    if (!result) throw new Error("OWNED_CHILD_TERMINATION_UNOBSERVED");
+    return { started: true, observed: true, forced, ...result };
+  } finally {
+    child.removeListener("exit", finish);
+  }
 }
