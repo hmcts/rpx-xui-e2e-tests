@@ -1,0 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {startCcdRuntime,stopCcdRuntime,importCcdDefinition,proveCcdPolicy,loadCcdRuntimeForReuse} from './lib/exui-ccd-runtime.mjs';
+const outputIndex=process.argv.indexOf('--output');
+if(outputIndex>=0&&!process.argv[outputIndex+1])throw new Error('CCD_OUTPUT_PATH_REQUIRED');
+const output=path.resolve(outputIndex<0?'test-results/harness-ccd':process.argv[outputIndex+1]);
+let state;
+try {
+ if(process.argv.includes('--stop')){state=JSON.parse(fs.readFileSync(path.join(output,'runtime.json')));stopCcdRuntime(state);console.log('Owned CCD runtime removed');}
+ else {state=process.argv.includes('--reuse')?loadCcdRuntimeForReuse(output):await startCcdRuntime(output);importCcdDefinition(state);const proof=proveCcdPolicy(state);console.log(JSON.stringify({namespace:state.namespace,output,caseId:proof.caseId,policy:proof.policy}));}
+}catch(error){console.error(error.message);process.exitCode=1;}

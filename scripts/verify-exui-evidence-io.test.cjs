@@ -93,6 +93,22 @@ test('artifact loading verifies digests and refuses traversal and resolved symli
 const { writeRunBundle } = require('./fixtures/exui-evidence-bundle.mock.cjs');
 const policy = async () => (await import(moduleUrl('exui-release-policy.mjs'))).getReleasePolicy('exui-wa-family-pilot');
 
+test('summary recomputation cannot turn dirty source evidence into approval or relabel its raw provenance', async () => {
+  const { loadRunEvidence } = await evidence();
+  const releasePolicy = await policy();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-source-gate-'));
+  try {
+    const { runPath, run } = writeRunBundle(directory, releasePolicy, { runtimeMetadata: { harnessSourceState: 'dirty-diagnostic' } });
+    assert.equal(loadRunEvidence(runPath, releasePolicy).receipt.verdict.status, 'BLOCKED');
+    const result = spawnSync(process.execPath, [cli, '--run', runPath], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH } });
+    assert.equal(result.status, 2);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(directory, 'gate.json'))).verdict.status, 'BLOCKED');
+    run.manifest.runtimeMetadata.harnessSourceState = 'clean';
+    fs.writeFileSync(runPath, JSON.stringify(run));
+    assert.throws(() => loadRunEvidence(runPath, releasePolicy), /REPORT_CONTEXT/);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('verified bundle drives the same gate and CLI; tampering or self-supplied policy blocks', async () => {
   const { loadRunEvidence } = await evidence();
   const releasePolicy = await policy();

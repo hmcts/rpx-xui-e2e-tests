@@ -1,6 +1,6 @@
 # Harness evidence contract
 
-This is the evidence-validation foundation. The existing POC is a diagnostic runner, not a candidate producer. The only policy currently supplied is `exui-wa-family-pilot`; it covers family membership, not organisation/case scope or full EXUI readiness. Unsupported scopes block. Real candidate identity, isolation and production-facing mutation provenance must come from the planned trusted runner; this parser cannot independently attest to a deployed runtime.
+The existing POC remains a diagnostic runner. Dedicated candidate producers support `exui-wa-family-pilot`, `exui-wa-scope-pilot` and `exui-ccd-pilot`; each requires its own complete baseline and mutation evidence. Unsupported scopes, including full EXUI release, block. Artifact identity, isolation and applied mutation provenance come from the trusted runners; the parser cannot independently attest to a deployed runtime.
 
 ## Commands
 
@@ -25,7 +25,7 @@ The checked-in `scripts/lib/exui-release-policy.mjs` supplies policy and mutatio
 
 Each execution receipt carries observed terminal state and exit code, run/invocation/candidate identity, unexpected global errors, and `resultArtifact: { path, digest }`. Its result artifact is produced by `scripts/lib/exui-playwright-evidence-reporter.mjs`. The supervising launcher must finalize the receipt only after the test process exits; reporter completion alone does not establish successful process termination.
 
-The reporter requires `EXUI_EVIDENCE_REPORT` and `EXUI_EVIDENCE_CONTEXT`. The latter names a JSON file containing `runId`, `invocationId`, `identity`, `harnessCommit`, `releaseScopeId` and `policyDigest`. The reporter embeds that context; the loader compares it before deriving proofs. Rewrapping an old report with a new execution receipt fails.
+The reporter requires `EXUI_EVIDENCE_REPORT` and `EXUI_EVIDENCE_CONTEXT`. The latter names a JSON file containing `runId`, `invocationId`, `identity`, `harnessCommit`, `releaseScopeId`, `policyDigest`, `harnessSourceState` and `harnessSourceDigest`. The last two are also recorded in manifest runtime metadata. Shared evaluation requires clean source and a valid digest, so regenerating a summary cannot remove a dirty-source blocker. The reporter embeds that context; the loader compares it before deriving proofs. Rewrapping an old report with a new execution receipt fails.
 
 Tests carry one `harness-proof` annotation. Product assertions run inside `test.step('harness-assertion:<policy-failure-id>', ...)`. The adapter attributes only a single failed Playwright expectation inside a test-body step. Hook/fixture assertions, setup errors, unrelated cleanup failures and console text cannot satisfy mutation witnesses. Every attempt and test must be accounted for; unknown proofs and retries cannot disappear.
 
@@ -37,7 +37,7 @@ An optional `externalResults` array uses a distinct adapter. Each entry binds th
 
 Checked-in compatibility rules specify the producer gate/scope/proof, its reviewed gate-configuration digest, a run-specific HTTPS artifact URI template, maximum age and explicit producer-to-candidate identity bindings. A separately versioned provider can match its dependency image/API-contract digests without pretending to share the webapp commit. Freshness uses the evaluator's current UTC clock, never a timestamp supplied in the run manifest. Producer run IDs must be immutable numeric build IDs; aliases such as `lastSuccessfulBuild` are rejected even when repeated consistently in the wrapper and original receipt. Missing, future, stale, incomplete, retried, mismatched or BLOCKED evidence denies promotion; a coherent original FAIL remains FAIL. An internal Playwright result cannot substitute for an external receipt.
 
-The adapter has offline positive and adversarial tests. No real external owner gate is configured yet: adding a compatibility rule still requires evidence that the named producer and promotion path enforce that obligation. A digest or a self-reported PASS alone does not establish that ownership. The current family pilot remains unchanged and cannot approve a full release.
+The adapter has offline positive and adversarial tests. No real external owner gate is configured yet: adding a compatibility rule still requires evidence that the named producer and promotion path enforce that obligation. A digest or a self-reported PASS alone does not establish that ownership. The current pilot policies cannot approve a full release.
 
 ## Promotion consumer
 
@@ -49,7 +49,7 @@ The consumer validates receipt bytes before comparing identity and status. Deriv
 
 Only `functional-output/tests/harness/public/release-assurance-summary.json` is eligible for general Harness publication. The writer projects a fixed schema with enumerated status/reason values and `releaseApproval: false`; it does not copy arbitrary IDs, errors, credentials or metadata. Jenkins validates exact bytes/schema before archive. `gate.json` and raw diagnostics are not included in that public allowlist.
 
-Started CI diagnostics replace stale public output with BLOCKED before contact, pin reporter destinations under Harness private output, and preserve conventional-suite diagnostics. This is publication quarantine, not a shared sanitizer repair or a network sandbox. Local diagnostic console/report safety and actual candidate/CCD isolation still require their planned work.
+Started CI diagnostics replace stale public output with BLOCKED before contact, pin reporter destinations under Harness private output, and preserve conventional-suite diagnostics. This is publication quarantine, not a shared sanitizer repair. Dedicated candidate runs use a network-isolated runtime and curated read-only source/dependency mounts; legacy POC diagnostics retain their separate execution boundary.
 
 ## Validation evidence
 

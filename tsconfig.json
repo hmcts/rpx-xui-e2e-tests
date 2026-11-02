@@ -14,6 +14,7 @@
   },
   "include": [
     "playwright.config.ts",
+    "playwright.harness.config.ts",
     "playwright.integration.config.ts",
     "playwright-nightly.config.ts",
     "src/**/*.ts"

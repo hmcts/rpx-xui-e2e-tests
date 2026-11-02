@@ -6,7 +6,7 @@ const { completeRun } = require('./exui-release-evidence.mock.cjs');
 function writeRunBundle(directory, policy, options = {}) {
   fs.mkdirSync(directory, { recursive: true });
   const source = completeRun();
-  const manifest = { ...source.manifest, releaseScopeId: policy.releaseScopeId, policyDigest: policy.policyDigest, requiredObligationIds: [...policy.requiredObligationIds] };
+  const manifest = { ...source.manifest, runtimeMetadata: { ...source.manifest.runtimeMetadata, ...options.runtimeMetadata }, releaseScopeId: policy.releaseScopeId, policyDigest: policy.policyDigest, requiredObligationIds: [...policy.requiredObligationIds] };
   const definition = policy.mutationDefinitions[0];
   const report = (proofId, status, failureId = null) => ({
     schemaVersion: 1, complete: true, status, globalErrors: [],
@@ -47,6 +47,6 @@ function writeRunBundle(directory, policy, options = {}) {
   return { runPath, run, baselineReport, mutantReport };
 }
 function reportContext(manifest, execution) {
-  return { runId: execution.runId, invocationId: execution.invocationId, identity: execution.identity, harnessCommit: manifest.harnessCommit, releaseScopeId: manifest.releaseScopeId, policyDigest: manifest.policyDigest };
+  return { runId: execution.runId, invocationId: execution.invocationId, identity: execution.identity, harnessCommit: manifest.harnessCommit, releaseScopeId: manifest.releaseScopeId, policyDigest: manifest.policyDigest, harnessSourceState: manifest.runtimeMetadata.harnessSourceState, harnessSourceDigest: manifest.runtimeMetadata.harnessSourceDigest };
 }
 module.exports = { writeRunBundle, reportContext };

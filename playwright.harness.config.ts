@@ -1,0 +1,59 @@
+import { defineConfig } from "@playwright/test";
+
+import {
+  buildHarnessConfig,
+  loadCandidateManifest,
+  type HarnessSelection,
+} from "./src/harness/candidate";
+const selection = (process.env.EXUI_HARNESS_SELECTION ??
+  "support") as HarnessSelection;
+const manifest = process.env.EXUI_CANDIDATE_RUN_MANIFEST;
+const config = buildHarnessConfig(
+  selection,
+  manifest
+    ? {
+        manifest: loadCandidateManifest(manifest),
+        baseURL: process.env.EXUI_CANDIDATE_URL ?? "",
+      }
+    : undefined,
+);
+const slice = process.env.EXUI_HARNESS_SLICE ?? "family";
+if (!["family", "scope"].includes(slice))
+  throw new Error("UNKNOWN_HARNESS_SLICE");
+export default defineConfig({
+  ...config,
+  ...(selection === "candidate" && slice === "scope"
+    ? { testMatch: "**/scope/*.spec.ts" }
+    : {}),
+  timeout: 60_000,
+  use: {
+    ...config.use,
+    storageState: process.env.EXUI_SESSION_COOKIE
+      ? {
+          cookies: [
+            {
+              name: "xui-webapp",
+              value: process.env.EXUI_SESSION_COOKIE,
+              domain: "127.0.0.1",
+              path: "/",
+              expires: -1,
+              httpOnly: true,
+              secure: false,
+              sameSite: "Lax",
+            },
+          ],
+          origins: [],
+        }
+      : undefined,
+    launchOptions: {
+      executablePath: process.env.EXUI_CHROMIUM_EXECUTABLE,
+      args: ["--no-sandbox"],
+    },
+  },
+  outputDir:
+    process.env.EXUI_HARNESS_TEST_OUTPUT ??
+    "functional-output/tests/harness/private/support",
+  reporter: process.env.EXUI_EVIDENCE_CONTEXT
+    ? [["./scripts/lib/exui-playwright-evidence-reporter.mjs"]]
+    : [["list"]],
+});

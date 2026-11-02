@@ -18,7 +18,7 @@ function completeRun() {
     harnessCommit: 'b'.repeat(40),
     releaseScopeId: 'pilot-wa',
     policyDigest: digest('1'),
-    runtimeMetadata: { node: '22', playwright: '1.64.1', os: 'synthetic', architecture: 'arm64' },
+    runtimeMetadata: { node: '22', playwright: '1.64.1', os: 'synthetic', architecture: 'arm64', harnessSourceState: 'clean', harnessSourceDigest: digest('9') },
     identity,
     requiredObligationIds: ['wa-family-scope']
   };

@@ -25,6 +25,7 @@
     "ui:session": "node ./scripts/record-ui-session.mjs",
     "harness:local:shell": "node ./scripts/local-exui-static-proxy.mjs",
     "harness:manifest": "node ./scripts/check-exui-harness-manifest.mjs",
+    "harness:catalogue": "node scripts/check-exui-configuration-catalogue.mjs",
     "harness:release-summary": "node ./scripts/write-exui-release-assurance-summary.mjs",
     "harness:defect-intake": "node ./scripts/classify-exui-defect-intake.mjs",
     "harness:ci": "node ./scripts/run-harness-local-poc.mjs --ci --odhin",
@@ -61,8 +62,12 @@
     "test:playwrightE2E": "yarn test:ui",
     "test:crossbrowser": "sh -c 'if [ \"${1:-}\" = \"--\" ]; then shift; fi; PW_LOAD_PROFILE_OUTPUT=${PW_LOAD_PROFILE_OUTPUT:-functional-output/tests/playwright-e2e/odhin-report/load-profile} node scripts/playwright-load-monitor.cjs --report-folder functional-output/tests/playwright-e2e/odhin-report --label \"${PW_LOAD_PROFILE_LABEL:-E2E cross-browser}\" -- yarn test:crossbrowser:raw \"$@\"' --",
     "test:crossbrowser:raw": "sh -c 'if [ \"${1:-}\" = \"--\" ]; then shift; fi; if [ \"${PLAYWRIGHT_SKIP_INSTALL}\" != \"true\" ]; then ./node_modules/.bin/playwright install --with-deps; fi; export E2E_PW_INCLUDE_TAGS=${E2E_PW_INCLUDE_TAGS:-@nightly} E2E_PW_EXCLUDED_TAGS_OVERRIDE=${E2E_PW_EXCLUDED_TAGS_OVERRIDE:-@none} PLAYWRIGHT_REPORT_FOLDER=functional-output/tests/playwright-e2e/odhin-report PLAYWRIGHT_REPORT_INDEX_FILENAME=playwright-odhin-nightly.html PW_ODHIN_INDEX=playwright-odhin-nightly.html PW_ODHIN_FALLBACK_SUITE_NAME=\"Playwright E2E Cross-Browser\"; ./node_modules/.bin/playwright test -c playwright-nightly.config.ts \"$@\"; status=$?; node ./scripts/ensure-odhin-report.cjs || true; exit \"$status\"' --",
-    "harness:unit": "node --test scripts/verify-exui-release-evidence.test.cjs scripts/verify-exui-evidence-io.test.cjs scripts/verify-exui-catalogue.test.cjs scripts/verify-harness-runtime-safety.test.cjs",
-    "harness:verify-gate": "node scripts/verify-exui-release-gate.mjs"
+    "harness:unit": "node --test scripts/verify-exui-release-evidence.test.cjs scripts/verify-exui-evidence-io.test.cjs scripts/verify-exui-catalogue.test.cjs scripts/verify-harness-runtime-safety.test.cjs scripts/verify-exui-candidate-artifact.test.cjs scripts/verify-exui-candidate-runtime.test.cjs scripts/verify-exui-configuration-catalogue.test.cjs scripts/verify-exui-external-evidence.test.cjs scripts/verify-exui-ccd-runtime.test.cjs scripts/verify-exui-ccd-browser-runtime.test.cjs",
+    "harness:candidate:prepare": "node scripts/prepare-harness-candidate.mjs",
+    "harness:candidate": "node scripts/run-harness-candidate.mjs",
+    "harness:verify-gate": "node scripts/verify-exui-release-gate.mjs",
+    "harness:ccd:start": "node scripts/start-harness-ccd.mjs",
+    "harness:ccd:candidate": "node scripts/run-harness-ccd-candidate.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",

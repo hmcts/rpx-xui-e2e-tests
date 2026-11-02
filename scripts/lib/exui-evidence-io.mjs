@@ -47,7 +47,8 @@ export function loadRunEvidence(runPath, policy) {
     requireFact(isDeepStrictEqual(execution.unexpectedGlobalErrors, report.globalErrors), 'GLOBAL_ERROR_MISMATCH');
     requireFact(isDeepStrictEqual(report.context, {
       runId: execution.runId, invocationId: execution.invocationId, identity: execution.identity,
-      harnessCommit: manifest.harnessCommit, releaseScopeId: manifest.releaseScopeId, policyDigest: manifest.policyDigest
+      harnessCommit: manifest.harnessCommit, releaseScopeId: manifest.releaseScopeId, policyDigest: manifest.policyDigest,
+      harnessSourceState: manifest.runtimeMetadata.harnessSourceState, harnessSourceDigest: manifest.runtimeMetadata.harnessSourceDigest
     }), 'REPORT_CONTEXT_MISMATCH');
     const observedErrors = [...report.globalErrors];
     for (const test of report.tests) {

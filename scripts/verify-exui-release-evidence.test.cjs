@@ -3,6 +3,40 @@ const { test } = require('node:test');
 const { completeRun, digest, promotionExpected } = require('./fixtures/exui-release-evidence.mock.cjs');
 const contract = import('./lib/exui-release-evidence.mjs');
 
+test('dirty or missing Harness provenance blocks in the shared evaluator without hiding failed witnesses', async () => {
+  const { evaluateReleaseEvidence } = await contract;
+  for (const state of ['dirty-diagnostic', undefined]) {
+    const input = completeRun();
+    if (state) input.manifest.runtimeMetadata.harnessSourceState = state;
+    else delete input.manifest.runtimeMetadata.harnessSourceState;
+    assert.equal(evaluateReleaseEvidence(input).status, 'BLOCKED');
+    input.mutations[0].mutantResult.outcome = 'passed';
+    input.mutations[0].mutantResult.failureId = null;
+    const result = evaluateReleaseEvidence(input);
+    assert.ok(result.reasons.includes('EXPECTED_MUTATION_ASSERTION_MISSING'));
+    assert.ok(result.reasons.includes('UNCOMMITTED_OR_UNVERIFIED_HARNESS_SOURCE'));
+  }
+  const input = completeRun();
+  delete input.manifest.runtimeMetadata.harnessSourceDigest;
+  assert.equal(evaluateReleaseEvidence(input).status, 'BLOCKED');
+});
+
+test('checked-in pilot policies require every named proof and cannot authorize full release', async () => {
+  const { getReleasePolicy } = await import('./lib/exui-release-policy.mjs');
+  const { evaluateReleaseEvidence } = await contract;
+  for (const scope of ['exui-wa-family-pilot', 'exui-wa-scope-pilot', 'exui-ccd-pilot']) {
+    const input = completeRun();
+    input.policy = getReleasePolicy(scope);
+    Object.assign(input.manifest, { releaseScopeId: scope, policyDigest: input.policy.policyDigest, requiredObligationIds: input.policy.requiredObligationIds });
+    input.manifest.identity.dependencyIdentities.ccd = { artifactDigest: digest('6'), apiContractDigest: digest('7') };
+    input.executions = []; input.results = []; input.mutations = [];
+    const verdict = evaluateReleaseEvidence(input);
+    assert.equal(verdict.status, 'BLOCKED');
+    assert.ok(verdict.reasons.some((reason) => reason.startsWith('MISSING_PROOF:')), verdict.reasons.join(','));
+  }
+  assert.throws(() => getReleasePolicy('exui-full-release'), /UNSUPPORTED_RELEASE_SCOPE/);
+});
+
 test('a complete candidate baseline and intended mutant yield PASS', async () => {
   const { evaluateReleaseEvidence } = await contract;
   assert.deepEqual(evaluateReleaseEvidence(completeRun()), { status: 'PASS', exitCode: 0, reasons: [] });

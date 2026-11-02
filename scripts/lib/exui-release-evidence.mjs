@@ -135,6 +135,7 @@ function verdict(status, reasons = []) {
 
 /** Evaluate parsed evidence after the caller verifies raw reports, assertion attribution and mutation derivation. */
 export function evaluateReleaseEvidence(input, evaluatedAt = new Date().toISOString()) {
+  const sourceBlockers = [];
   const failures = Array.isArray(input?.results)
     ? input.results.filter((proof) => proof?.outcome === 'failed' && id(proof.proofId) && id(proof.failureId))
       .map((proof) => `OBSERVED_FAILED_RESULT:${proof.proofId}:${proof.failureId}`)
@@ -146,6 +147,8 @@ export function evaluateReleaseEvidence(input, evaluatedAt = new Date().toISOStr
   try {
     requireValue(record(input), 'INVALID_EVIDENCE');
     const manifest = validateRunManifest(input.manifest);
+    if (manifest.runtimeMetadata.harnessSourceState !== 'clean') sourceBlockers.push('UNCOMMITTED_OR_UNVERIFIED_HARNESS_SOURCE');
+    if (!digest(manifest.runtimeMetadata.harnessSourceDigest)) sourceBlockers.push('UNVERIFIED_HARNESS_SOURCE_DIGEST');
     const { obligations, mutations: definitions } = validatePolicy(input.policy);
     requireValue(input.policy.releaseScopeId === manifest.releaseScopeId && input.policy.policyDigest === manifest.policyDigest, 'POLICY_IDENTITY_MISMATCH');
     requireValue(sameIds(input.policy.requiredObligationIds, manifest.requiredObligationIds), 'POLICY_SELECTION_MISMATCH');
@@ -215,9 +218,10 @@ export function evaluateReleaseEvidence(input, evaluatedAt = new Date().toISOStr
       requireValue(execution.runnerExitCode === (failed ? 1 : 0), `INCOHERENT_RUNNER_EXIT:${invocationId}`);
     }
     failures.push(...evaluateExternalEvidence(manifest, input.policy, input.externalResults, evaluatedAt));
+    if (sourceBlockers.length) return verdict('BLOCKED', [...failures, ...sourceBlockers]);
     return failures.length ? verdict('FAIL', failures) : verdict('PASS');
   } catch (error) {
-    return verdict('BLOCKED', [...failures, error instanceof Error ? error.message : 'INVALID_EVIDENCE']);
+    return verdict('BLOCKED', [...failures, ...sourceBlockers, error instanceof Error ? error.message : 'INVALID_EVIDENCE']);
   }
 }
 
