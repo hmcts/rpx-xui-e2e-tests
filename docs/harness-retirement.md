@@ -19,8 +19,10 @@ The repository is moving to central configuration, role, definition and data-int
 | c73237e | 6 | Five generic navigation/resilience callbacks retained canonically; exact Continue/Back/Back and returned-row checks are preserved in Civil Harness3b9ca01. Unused dataset generator and its sole unit callback removed. |
 | c057265 | 26 | Ordinary task-list, pagination, sorting, claim and error outcomes retained canonically. Central service-family slices and shared support remain. |
 | 1796901 | 21 | Challenged/specific/review access-request validation, conditional fields, request values and success/error outcomes retained canonically. |
+| ea2b985 | 6 | Unused access-request PO/fixture, route/mock/decoder helpers and their six dedicated self-tests removed. Shared authentication, WA access and reporter support remain. |
+| 12c57c2 | 17 | Verified generic Find/header/menu search outcomes retained canonically; seven unresolved cases and central service-family slice remain. |
 
-One hundred and fifteen runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+One hundred and thirty-eight runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -78,6 +80,12 @@ Task-list retirement compares26 expanded cases/20 declarations, identical task-b
 Access-request retirement replays21 actual setup callbacks/eight option shapes with last-matching-route precedence. Actual toolkit7.4.21 role/request builders produce three strictly equal submission payloads for the effective mocked personas. All21 canonical counterparts are selected by default and explicit access-request tags. Additional Harness retries, radio/readiness checks and ancillary shell/service-label differences are disclosed; generic form, validation, payload and success/error assertions remain canonical. Reporter filename-parser coverage stays meaningful with canonical filenames. No new configuration slice is justified by these ordinary product callbacks.
 
 Canonical directories: [manageTasks](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/manageTasks), [accessRequests](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/accessRequests).
+
+Access support pruning removes1,080 lines/eight obsolete files and two registrations after the import/export graph found no surviving consumers. The six removed self-tests exercised only the removed mock builders/decoder. Harness support still in use is preserved.
+
+Search consolidation compares24 expanded cases,65 fixed-source hashes,15 builder evaluations and ten actual handler comparisons;17 cases have mapped product outcomes and selected canonical ownership. Seven are deliberately retained: exact rendered anchor-count/empty-DOM checks, local search-helper rejection behavior and mocked View→details/summary. The unequal case-details builder belongs to that retained success flow. Session fallbacks, header403 dependency seams and differing tags are disclosed; no browser/live-CI claim is made.
+
+Canonical directory: [searchCase](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/searchCase).
 
 ## Useful central scenarios
 
