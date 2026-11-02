@@ -5,7 +5,6 @@ export * from "./caseFileViewMockRoutes.helper.js";
 export * from "./caseViewerMockRoutes.helper.js";
 export * from "./caseLinkingMockRoutes.helper.js";
 export * from "./eventBehaviourMockRoutes.helper.js";
-export * from "./caseListMockRoutes.helper.js";
 export * from "./caseworkerJurisdictionMockRoutes.helper.js";
 export * from "./caseSearchMockRoutes.helper.js";
 export * from "./caseSearchRouteHandlers.helper.js";
