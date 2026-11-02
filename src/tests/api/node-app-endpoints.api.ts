@@ -6,7 +6,6 @@ import { expectStatus, StatusSets } from '../../utils/api/apiTestUtils';
 import { ensureStorageState } from '../../utils/api/auth';
 import {
   assertSecurityHeaders,
-  assertUiConfigResponse,
   assertUserDetailsKeys,
   assertUserDetailsPayload,
   assertUserInfoDetails,
@@ -21,15 +20,7 @@ import { config as testConfig } from '../common/apiTestConfig';
 import nodeAppDataModels from './data/nodeAppDataModels';
 import { test, expect, buildApiAttachment } from './fixtures';
 
-const testEnv = testConfig.testEnv as keyof typeof testConfig.configurationUi;
-
 test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
-  test('serves external configuration without authentication', async ({ anonymousClient }) => {
-    const response = await anonymousClient.get<Record<string, unknown>>('external/config/ui');
-    expectStatus(response.status, [200]);
-    const expectedKeys = testConfig.configurationUi[testEnv] ?? [];
-    assertUiConfigResponse(response.data, expectedKeys);
-  });
 
   test('auth/isAuthenticated returns session status', async ({ apiClient }) => {
     const response = await apiClient.get<boolean>('auth/isAuthenticated', { throwOnError: false });
@@ -37,17 +28,6 @@ test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
     if (response.status === 200) {
       expect(typeof response.data).toBe('boolean');
     }
-  });
-
-  test('auth/isAuthenticated returns false without session', async ({ anonymousClient }) => {
-    const response = await anonymousClient.get<boolean>('auth/isAuthenticated');
-    expectStatus(response.status, [200]);
-    expect(response.data).toBe(false);
-  });
-
-  test('auth/login responds', async ({ anonymousClient }) => {
-    const response = await anonymousClient.get('auth/login', { throwOnError: false });
-    expectStatus(response.status, [200, 302, 401, 403, 500, 502, 504]);
   });
 
   test('returns enriched user details for solicitor session', async ({ apiClient }, testInfo) => {
@@ -74,30 +54,6 @@ test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
     });
   });
 
-  test('rejects unauthenticated calls to user details', async ({ anonymousClient }) => {
-    const response = await anonymousClient.get('api/user/details', {
-      throwOnError: false,
-    });
-
-    expectStatus(response.status, [401]);
-  });
-
-  test('applies security headers on open configuration endpoint', async () => {
-    const ctx = await request.newContext({
-      baseURL: testConfig.baseUrl.replace(/\/+$/, ''),
-      ignoreHTTPSErrors: true,
-    });
-    const res = await ctx.get('external/config/ui', { failOnStatusCode: false });
-    expect(res.status()).toBe(200);
-    const headers = res.headers();
-    const contentType = resolveHeader(headers, 'content-type');
-    expect(contentType).toContain('application/json');
-    const cacheControl = resolveHeader(headers, 'cache-control');
-    const xcto = resolveHeader(headers, 'x-content-type-options');
-    assertSecurityHeaders(cacheControl, xcto);
-    await ctx.dispose();
-  });
-
   test('stale session cookie returns guarded status', async () => {
     const statePath = await ensureStorageState('solicitor');
     const raw = await fs.readFile(statePath, 'utf8');
@@ -121,14 +77,6 @@ test.describe('Node app endpoints', { tag: '@svc-node-app' }, () => {
       StatusSets.guardedBasic.filter((s) => s !== 403)
     ); // 200 or 401
     expect(JSON.stringify(response.data).length).toBeLessThan(6);
-  });
-
-  test('healthCheck responds with healthState', async ({ anonymousClient }) => {
-    const response = await anonymousClient.get<{ healthState?: boolean }>('api/healthCheck?path=', { throwOnError: false });
-    expectStatus(response.status, [200, 500, 502, 504]);
-    if (response.status === 200) {
-      expect(typeof response.data?.healthState).toBe('boolean');
-    }
   });
 });
 

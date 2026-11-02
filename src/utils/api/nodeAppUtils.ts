@@ -24,17 +24,6 @@ export function assertUserInfoDetails(userInfo: UnknownRecord) {
   }
 }
 
-export function assertUiConfigResponse(data: Record<string, unknown>, expectedKeys: string[]) {
-  expect(Object.keys(data)).toEqual(expect.arrayContaining(expectedKeys));
-  expect(data.clientId).toBe('xuiwebapp');
-  expect(data).toEqual(
-    expect.objectContaining({
-      protocol: expect.any(String),
-      oAuthCallback: expect.any(String),
-    })
-  );
-}
-
 export function assertUserDetailsPayload(payload: UnknownRecord) {
   expect(payload).toEqual(
     expect.objectContaining({
