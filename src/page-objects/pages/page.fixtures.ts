@@ -18,7 +18,6 @@ import type {
 
 import { BookingUiPage } from "./exui/bookingUi.po";
 import { CaseDetailsPage } from "./exui/caseDetails.po";
-import { CaseFileViewPage } from "./exui/caseFileView.po";
 import { CaseListPage } from "./exui/caseList.po";
 import { CaseSearchPage } from "./exui/caseSearch.po";
 import { CreateCasePage } from "./exui/createCase.po";
@@ -33,7 +32,6 @@ import { TaskListPage } from "./exui/taskList.po";
 export interface PageFixtures {
   determinePage: Page;
   caseDetailsPage: CaseDetailsPage;
-  caseFileViewPage: CaseFileViewPage;
   caseListPage: CaseListPage;
   caseSearchPage: CaseSearchPage;
   searchCasePage: SearchCasePage;
@@ -71,12 +69,6 @@ export const pageFixtures = {
     use: (page: CaseDetailsPage) => Promise<void>
   ) => {
     await use(new CaseDetailsPage(determinePage));
-  },
-  caseFileViewPage: async (
-    { determinePage }: FixtureArgs,
-    use: (page: CaseFileViewPage) => Promise<void>
-  ) => {
-    await use(new CaseFileViewPage(determinePage));
   },
   caseListPage: async (
     { determinePage }: FixtureArgs,

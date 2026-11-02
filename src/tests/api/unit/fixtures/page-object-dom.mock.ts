@@ -1,22 +1,3 @@
-export const caseFileFolderHtml = `
-  <div id="case-file-view"><div class="document-tree-container"><cdk-tree role="tree">
-    <cdk-nested-tree-node class="document-tree-container__folder" role="treeitem">
-      <button class="node" aria-expanded="false" onclick="this.setAttribute('aria-expanded', 'true'); this.nextElementSibling.hidden = false">
-        <span class="node__name--folder">Orders</span>
-      </button>
-      <div role="group" hidden>
-        <cdk-nested-tree-node class="document-tree-container__folder" role="treeitem">
-          <button class="node" aria-expanded="false" onclick="this.setAttribute('aria-expanded', 'true')">
-            <span class="node__name--folder">Evidence</span>
-          </button>
-        </cdk-nested-tree-node>
-      </div>
-    </cdk-nested-tree-node>
-    <cdk-nested-tree-node class="document-tree-container__folder" role="treeitem">
-      <button class="node" aria-expanded="false"><span class="node__name--folder">Evidence</span></button>
-    </cdk-nested-tree-node>
-  </cdk-tree></div></div>`;
-
 export const taskLocationSearchHtml = `
   <div role="listbox"><div role="option">Unrelated option outside the overlay</div></div>
   <div class="cdk-overlay-container">
