@@ -22,8 +22,10 @@ The repository is moving to central configuration, role, definition and data-int
 | ea2b985 | 6 | Unused access-request PO/fixture, route/mock/decoder helpers and their six dedicated self-tests removed. Shared authentication, WA access and reporter support remain. |
 | 12c57c2 | 17 | Verified generic Find/header/menu search outcomes retained canonically; seven unresolved cases and central service-family slice remain. |
 | 7f0f2e4 | 6 | Find rendering/empty outcomes and four global-search HTTP errors consolidate canonically; exact DOM-count and local PO diagnostic-wording predicates deliberately retired. Mocked View→summary remains. |
+| df538e1 | 1 | Orphan Find handler/self-test, builders, wrappers and constants removed; eight used support callbacks remain. |
+| 8793250 | 21 | Ordinary create/list field, page/filter, request and error outcomes retained canonically; incidental row-order/hidden-DOM/diagnostic differences explicitly retired. |
 
-One hundred and forty-four runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+One hundred and sixty-six runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -87,6 +89,10 @@ Access support pruning removes1,080 lines/eight obsolete files and two registrat
 Search consolidation compares24 expanded cases,65 fixed-source hashes,15 builder evaluations and ten actual handler comparisons;17 cases have mapped product outcomes and selected canonical ownership. A later source-grounded decision retires six of the held cases: the toolkit7.4.21 table/empty notification use complementary structural branches, with one first-column link per result, and the error-rejection phrase comes from local test support. Exact future DOM-duplication or helper-wording defects are no longer independently checked here; no central configuration dimension is lost. The mocked View→details/summary case remains. The unequal case-details builder belongs to that retained success flow. Session fallbacks, header403 dependency seams and differing tags are disclosed; no browser/live-CI claim is made.
 
 Canonical directory: [searchCase](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/searchCase).
+
+Ordinary create/list retirement uses the same trigger/ACL/field/show-condition inputs and intercepted submission shapes. Canonical selected-then-hidden reason clearing is stronger. Six nonempty list callbacks now rely on canonical record/field association without retaining local positional row matching; no sorting gesture was asserted. LocalStorage/sessionStorage setup and hidden-DOM/error-surface differences remain explicit limits, not claimed equivalent. All21 mapped canonical callbacks are selected; blocked additional cases were not used as replacements. Exclusive integration case-list routes, mocks and scenario constants were separately removed in4cbf03b; the same-named E2E mock and shared dynamic-field helpers remain.
+
+The search-support cut removes603 lines, including its sole unused handler test, while preserving restricted-access header routes. Eight surviving offline support checks pass with network access denied. Unused support removal does not authorize deleting live authentication or framework tests.
 
 ## Useful central scenarios
 
