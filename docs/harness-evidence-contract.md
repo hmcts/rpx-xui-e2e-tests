@@ -31,6 +31,14 @@ Tests carry one `harness-proof` annotation. Product assertions run inside `test.
 
 Artifacts stay under the run directory. Loading checks their digests and resolved paths, including symlink escapes. Input receipts/reports and the run manifest contribute to the evidence-manifest digest. These artifacts remain private; test framework output can contain sensitive diagnostics.
 
+## Independent owner receipts
+
+An optional `externalResults` array uses a distinct adapter. Each entry binds the current `releaseRunId`, local `proofId`/`obligationId`, policy-owned `compatibilityRuleId`, original `producerRunId`, and `producerArtifact: { uri, path, digest }`. The loader reads the original receipt bytes from that path; an inline replacement is rejected. The original producer identity is retained, never overwritten with the webapp identity.
+
+Checked-in compatibility rules specify the producer gate/scope/proof, its reviewed gate-configuration digest, a run-specific HTTPS artifact URI template, maximum age and explicit producer-to-candidate identity bindings. A separately versioned provider can match its dependency image/API-contract digests without pretending to share the webapp commit. Freshness uses the evaluator's current UTC clock, never a timestamp supplied in the run manifest. Producer run IDs must be immutable numeric build IDs; aliases such as `lastSuccessfulBuild` are rejected even when repeated consistently in the wrapper and original receipt. Missing, future, stale, incomplete, retried, mismatched or BLOCKED evidence denies promotion; a coherent original FAIL remains FAIL. An internal Playwright result cannot substitute for an external receipt.
+
+The adapter has offline positive and adversarial tests. No real external owner gate is configured yet: adding a compatibility rule still requires evidence that the named producer and promotion path enforce that obligation. A digest or a self-reported PASS alone does not establish that ownership. The current family pilot remains unchanged and cannot approve a full release.
+
 ## Promotion consumer
 
 The expectation file is supplied independently by the deployment job. It contains run ID, Harness commit, release scope, policy digest, exact candidate identity, evidence-manifest digest and `receiptArtifactDigest` (SHA-256 of the immutable `gate.json` bytes from the trusted producer).

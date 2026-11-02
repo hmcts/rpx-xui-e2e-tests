@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from 'node:util';
+import { evaluateExternalEvidence } from './exui-external-evidence.mjs';
 
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
 const commitPattern = /^[a-f0-9]{40}$/;
@@ -133,11 +134,15 @@ function verdict(status, reasons = []) {
 }
 
 /** Evaluate parsed evidence after the caller verifies raw reports, assertion attribution and mutation derivation. */
-export function evaluateReleaseEvidence(input) {
+export function evaluateReleaseEvidence(input, evaluatedAt = new Date().toISOString()) {
   const failures = Array.isArray(input?.results)
     ? input.results.filter((proof) => proof?.outcome === 'failed' && id(proof.proofId) && id(proof.failureId))
       .map((proof) => `OBSERVED_FAILED_RESULT:${proof.proofId}:${proof.failureId}`)
     : [];
+  if (Array.isArray(input?.externalResults)) {
+    failures.push(...input.externalResults.filter((proof) => proof?.original?.outcome === 'FAIL' && id(proof.proofId))
+      .map((proof) => `OBSERVED_FAILED_EXTERNAL_RESULT:${proof.proofId}`));
+  }
   try {
     requireValue(record(input), 'INVALID_EVIDENCE');
     const manifest = validateRunManifest(input.manifest);
@@ -149,7 +154,7 @@ export function evaluateReleaseEvidence(input) {
     const requiredMutations = new Set();
     for (const obligationId of manifest.requiredObligationIds) {
       const obligation = obligations.get(obligationId);
-      requireValue(obligation.boundary !== 'external', `EXTERNAL_ADAPTER_UNAVAILABLE:${obligationId}`);
+      if (obligation.boundary === 'external') continue;
       if (obligation.boundary === 'ccd') {
         requireValue(record(manifest.identity.dependencyIdentities.ccd) && Object.keys(manifest.identity.definitionDigests).length > 0, `CCD_IDENTITY_UNAVAILABLE:${obligationId}`);
       }
@@ -209,6 +214,7 @@ export function evaluateReleaseEvidence(input) {
       const failed = proofs.some((proof) => proof.outcome === 'failed');
       requireValue(execution.runnerExitCode === (failed ? 1 : 0), `INCOHERENT_RUNNER_EXIT:${invocationId}`);
     }
+    failures.push(...evaluateExternalEvidence(manifest, input.policy, input.externalResults, evaluatedAt));
     return failures.length ? verdict('FAIL', failures) : verdict('PASS');
   } catch (error) {
     return verdict('BLOCKED', [...failures, error instanceof Error ? error.message : 'INVALID_EVIDENCE']);

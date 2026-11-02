@@ -26,13 +26,13 @@ export function loadRunEvidence(runPath, policy) {
   const run = JSON.parse(runBytes);
   requireFact(run.schemaVersion === 1 && !Object.hasOwn(run, 'policy'), 'INVALID_RUN_ENVELOPE');
   const manifest = validateRunManifest(run.manifest);
-  requireFact(Array.isArray(run.executionArtifacts) && run.executionArtifacts.length > 0 && Array.isArray(run.mutations), 'MISSING_EXECUTIONS');
+  requireFact(Array.isArray(run.executionArtifacts) && Array.isArray(run.mutations), 'MISSING_EXECUTIONS');
   const references = [{ path: path.basename(runPath), digest: digestBytes(runBytes) }];
   const executions = [];
   const allResults = [];
   const cells = new Map();
   for (const obligation of policy.obligations) {
-    for (const proofId of obligation.requiredProofIds) cells.set(proofId, obligation);
+    if (obligation.boundary !== 'external') for (const proofId of obligation.requiredProofIds) cells.set(proofId, obligation);
   }
   for (const mutation of policy.mutationDefinitions) {
     cells.set(mutation.mutantProofId, policy.obligations.find((item) => item.id === mutation.obligationId));
@@ -92,8 +92,15 @@ export function loadRunEvidence(runPath, policy) {
   // Every failed/retried/unexpected proof must reach evaluation, including mutant extras.
   const represented = new Set([...results, ...mutations.map((item) => item.mutantResult)]);
   requireFact(allResults.every((result) => represented.has(result)), 'UNACCOUNTED_PROOF');
+  requireFact(run.externalResults === undefined || Array.isArray(run.externalResults), 'INVALID_EXTERNAL_RESULTS');
+  const externalResults = (run.externalResults ?? []).map((result) => {
+    requireFact(result && !Object.hasOwn(result, 'original'), 'EXTERNAL_ORIGINAL_MUST_BE_ARTIFACT');
+    const { value: original } = readEvidenceArtifact(root, result.producerArtifact);
+    references.push(result.producerArtifact);
+    return { ...result, original };
+  });
   const evidenceManifestDigest = digestBytes(JSON.stringify(references));
-  const input = { manifest, policy, executions, results, mutations };
+  const input = { manifest, policy, executions, results, mutations, externalResults };
   const verdict = evaluateReleaseEvidence(input);
   return { input, evidenceManifestDigest, receipt: createGateReceipt(manifest, evidenceManifestDigest, verdict) };
 }

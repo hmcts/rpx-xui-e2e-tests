@@ -1,0 +1,1048 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "repository": "rpx-xui-webapp",
+      "revision": "ffedc9fad762f9de05f7d87e9e49ec4f6182e991",
+      "path": "config/custom-environment-variables.json",
+      "tracked": true,
+      "fileDigest": "04645100bf429aac417bd11f3fd768596dbcfe2b6c07b40f31aeae93f9017451",
+      "document": {
+        "jurisdictions": "JURISDICTIONS",
+        "globalSearchServices": "GLOBAL_SEARCH_SERVICES",
+        "waSupportedJurisdictions": "WA_SUPPORTED_JURISDICTIONS",
+        "staffSupportedJurisdictions": "STAFF_SUPPORTED_JURISDICTIONS",
+        "serviceRefDataMapping": {
+          "__name": "SERVICE_REF_DATA_MAPPING",
+          "__format": "json"
+        },
+        "feature": {
+          "workAllocationEnabled": {
+            "__name": "FEATURE_WORKALLOCATION_ENABLED",
+            "__format": "json"
+          }
+        },
+        "services": {
+          "hearings": {
+            "hearingsJurisdictions": "HEARINGS_JURISDICTIONS",
+            "sscs": {
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_SSCS"
+            },
+            "privatelaw": {
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_PRIVATELAW"
+            },
+            "civil": {
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_CIVIL"
+            },
+            "ia": {
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_IAC"
+            },
+            "employment": {
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_ET"
+            }
+          }
+        }
+      }
+    },
+    {
+      "repository": "rpx-xui-webapp",
+      "revision": "ffedc9fad762f9de05f7d87e9e49ec4f6182e991",
+      "path": "config/default.json",
+      "tracked": true,
+      "fileDigest": "f00a7587da43f097e523cbe26626d637d37b275fcfb7dd757ab8bf2387c9a1c2",
+      "document": {
+        "jurisdictions": "DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,HRS,CIVIL,CMC,PRIVATELAW,PCS",
+        "globalSearchServices": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC",
+        "waSupportedJurisdictions": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC",
+        "staffSupportedJurisdictions": "ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS",
+        "serviceRefDataMapping": [
+          {
+            "service": "IA",
+            "serviceCodes": [
+              "BFA1"
+            ]
+          },
+          {
+            "service": "CIVIL",
+            "serviceCodes": [
+              "AAA6",
+              "AAA7"
+            ]
+          },
+          {
+            "service": "PRIVATELAW",
+            "serviceCodes": [
+              "ABA5"
+            ]
+          },
+          {
+            "service": "PUBLICLAW",
+            "serviceCodes": [
+              "ABA3"
+            ]
+          },
+          {
+            "service": "SSCS",
+            "serviceCodes": [
+              "BBA3"
+            ]
+          },
+          {
+            "service": "ST_CIC",
+            "serviceCodes": [
+              "BBA2"
+            ]
+          },
+          {
+            "service": "EMPLOYMENT",
+            "serviceCodes": [
+              "BHA1"
+            ]
+          },
+          {
+            "service": "DIVORCE",
+            "serviceCodes": [
+              "ABA1"
+            ]
+          },
+          {
+            "service": "FR",
+            "serviceCodes": [
+              "ABA2"
+            ]
+          },
+          {
+            "service": "PROBATE",
+            "serviceCodes": [
+              "ABA6"
+            ]
+          },
+          {
+            "service": "HRS",
+            "serviceCodes": [
+              "HRS"
+            ]
+          },
+          {
+            "service": "PCS",
+            "serviceCodes": [
+              "AAA3"
+            ]
+          }
+        ],
+        "wildcardSearchFields": {
+          "Benefit": [
+            "generatedSurname",
+            "appeal.appellant.name.lastName"
+          ],
+          "HearingRecordings": [
+            "recordingReference"
+          ],
+          "xuiTestCaseType": [
+            "TextField"
+          ]
+        },
+        "wildcardSearchRoles": [
+          "caseworker"
+        ],
+        "feature": {
+          "workAllocationEnabled": false
+        },
+        "services": {
+          "hearings": {
+            "hearingsJurisdictions": "SSCS,PRIVATELAW,CIVIL,IA",
+            "sscs": {
+              "caseTypes": "Benefit"
+            },
+            "privatelaw": {
+              "caseTypes": "PRLAPPS"
+            },
+            "civil": {
+              "caseTypes": "CIVIL"
+            },
+            "ia": {
+              "caseTypes": "Asylum,Bail"
+            },
+            "employment": {
+              "caseTypes": "ET_EnglandWales,ET_Scotland,ET_EnglandWales_Multiple,ET_Scotland_Multiple"
+            }
+          }
+        }
+      }
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json",
+      "tracked": true,
+      "fileDigest": "685707c79e49ee0b51883c5d06187e38a584ce3e4cd526124f72b3fbfe4a9748",
+      "document": [
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodSelectDocumentsLabel",
+          "FieldType": "Label",
+          "Label": "## Select documents to be served",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodDocumentsList",
+          "Label": "Documents",
+          "HintText": "Select a document to reference",
+          "FieldType": "Collection",
+          "FieldTypeParameter": "DocumentsDynamicList",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodAdditionalDocumentsLabel",
+          "FieldType": "Label",
+          "Label": "## Upload additional documents to be served",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodAdditionalDocumentsList",
+          "Label": "Upload additional documents",
+          "FieldType": "Collection",
+          "FieldTypeParameter": "Document",
+          "HintText": "Please upload cover letter as first document if any, that is to be sent to both the applicant and the respondent.",
+          "SecurityClassification": "Public",
+          "Searchable": "N",
+          "CategoryID": "anyOtherDoc"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodAdditionalRecipients",
+          "Label": "Select additional recipients who needs to be served",
+          "FieldType": "MultiSelectList",
+          "HintText": "For example, Cafcass, Local authority and Other organization",
+          "FieldTypeParameter": "AdditionalRecipients",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodAdditionalRecipientsList",
+          "Label": "Recipient",
+          "FieldType": "Collection",
+          "FieldTypeParameter": "ServeOrgDetails",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodDocumentsCheckOptions",
+          "Label": "Does someone need to check the documents?",
+          "FieldType": "FixedRadioList",
+          "FieldTypeParameter": "ServiceOfDocumentsCheckEnum",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodSolicitorServingRespondentsOptions",
+          "Label": "Who is responsible for serving the respondent?",
+          "FieldType": "FixedRadioList",
+          "FieldTypeParameter": "SodSolicitorServingRespondentsEnum",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodCitizenServingRespondentsOptions",
+          "Label": "Who is responsible for serving the respondent?",
+          "FieldType": "FixedRadioList",
+          "FieldTypeParameter": "SodCitizenServingRespondentsEnum",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodUnServedPack",
+          "Label": "Unserved documents",
+          "FieldType": "SodPack",
+          "SecurityClassification": "Public",
+          "Searchable": "N",
+          "FieldShowCondition": "servedBy=\"DO_NOT_SHOW\""
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "servedDocumentsDetailsList",
+          "Label": "Notifications",
+          "FieldType": "Collection",
+          "FieldTypeParameter": "ServedApplicationDetails",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "sodServeToRespondentOptions",
+          "Label": "Does this document need to be personally served on the respondent?",
+          "FieldType": "FixedRadioList",
+          "FieldTypeParameter": "YesNoNotApplicable",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json",
+      "tracked": true,
+      "fileDigest": "c169af98fa7ea2b08bb97b63d75ad7411513c28982f54aeba84740cbe859e5f6",
+      "document": [
+        {
+          "LiveFrom": "01/12/2022",
+          "ID": "EmailInformation",
+          "ListElementCode": "emailName",
+          "FieldType": "Text",
+          "ElementLabel": "Name",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/12/2022",
+          "ID": "EmailInformation",
+          "ListElementCode": "emailAddress",
+          "FieldType": "Text",
+          "ElementLabel": "Email address",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/12/2022",
+          "ID": "PostalInformation",
+          "ListElementCode": "postalName",
+          "FieldType": "Text",
+          "ElementLabel": "Name",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/12/2022",
+          "ID": "PostalInformation",
+          "ListElementCode": "postalAddress",
+          "FieldType": "AddressUK",
+          "ElementLabel": " ",
+          "SecurityClassification": "Public",
+          "Searchable": "N"
+        },
+        {
+          "LiveFrom": "01/08/2023",
+          "ID": "ServeOrgDetails",
+          "ListElementCode": "serveByPostOrEmail",
+          "FieldType": "FixedRadioList",
+          "FieldTypeParameter": "DeliveryByEnum",
+          "ElementLabel": " ",
+          "Searchable": "N",
+          "SecurityClassification": "Public"
+        },
+        {
+          "LiveFrom": "01/08/2023",
+          "ID": "ServeOrgDetails",
+          "ListElementCode": "emailInformation",
+          "FieldType": "EmailInformation",
+          "ElementLabel": " ",
+          "Searchable": "N",
+          "SecurityClassification": "Public"
+        },
+        {
+          "LiveFrom": "01/08/2023",
+          "ID": "ServeOrgDetails",
+          "ListElementCode": "postalInformation",
+          "FieldType": "PostalInformation",
+          "ElementLabel": " ",
+          "Searchable": "N",
+          "SecurityClassification": "Public"
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+      "tracked": true,
+      "fileDigest": "246b111d163ec15d3e9303c807b9ede7c987133de336bc541a483b0f3bbb90c1",
+      "document": [
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "missingAddressWarningTextLabel",
+          "DisplayContext": "READONLY",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 1,
+          "ShowSummaryChangeOption": "N",
+          "FieldShowCondition": "missingAddressWarningText!=\"\""
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodServeToRespondentOptions",
+          "DisplayContext": "MANDATORY",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 2,
+          "ShowSummaryChangeOption": "Y"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodSolicitorServingRespondentsOptions",
+          "DisplayContext": "MANDATORY",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 3,
+          "ShowSummaryChangeOption": "Y",
+          "FieldShowCondition": "sodServeToRespondentOptions=\"Yes\" AND displayLegalRepOption=\"Yes\""
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodCitizenServingRespondentsOptions",
+          "DisplayContext": "MANDATORY",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 4,
+          "ShowSummaryChangeOption": "Y",
+          "FieldShowCondition": "sodServeToRespondentOptions=\"Yes\" AND displayLegalRepOption=\"No\""
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "soaRecipientsOptions",
+          "DisplayContext": "MANDATORY",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 5,
+          "ShowSummaryChangeOption": "Y",
+          "FieldShowCondition": "sodServeToRespondentOptions=\"No\""
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "soaOtherParties",
+          "DisplayContext": "OPTIONAL",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 6,
+          "ShowSummaryChangeOption": "Y",
+          "FieldShowCondition": "soaOtherPeoplePresentInCaseFlag=\"Yes\" AND caseTypeOfApplication=\"C100\""
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipients",
+          "DisplayContext": "OPTIONAL",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 7,
+          "ShowSummaryChangeOption": "Y"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "DisplayContext": "COMPLEX",
+          "PageID": 2,
+          "PageDisplayOrder": 2,
+          "PageFieldDisplayOrder": 8,
+          "ShowSummaryChangeOption": "Y",
+          "FieldShowCondition": "sodAdditionalRecipients=\"additionalRecipients\"",
+          "CallBackURLMidEvent": "${CCD_DEF_COS_URL}/service-of-documents/validate-additional-recipients"
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+      "tracked": true,
+      "fileDigest": "74d798a7a4898843685274d5b92b35e74bdda339a1bb478d81b17a006bd55f59",
+      "document": [
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "EmailInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "emailInformation",
+          "ListElementCode": "emailName",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "1",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "EmailInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "emailInformation",
+          "ListElementCode": "emailAddress",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "2",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalName",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "1",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "2",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress.AddressLine1",
+          "FieldDisplayOrder": "3",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress.AddressLine2",
+          "FieldDisplayOrder": "9",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress.AddressLine3",
+          "FieldDisplayOrder": "10",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress.PostTown",
+          "FieldDisplayOrder": "11",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress.County",
+          "FieldDisplayOrder": "12",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress.PostCode",
+          "FieldDisplayOrder": "13",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "PostalInformation",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "postalInformation",
+          "ListElementCode": "postalAddress.Country",
+          "FieldDisplayOrder": "14",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "serveByPostOrEmail",
+          "EventElementLabel": "Served by",
+          "FieldDisplayOrder": "1",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "emailInformation",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "2",
+          "DisplayContext": "COMPLEX"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "emailInformation.emailAddress",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "4",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "emailInformation.emailName",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "3",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "ListElementCode": "postalInformation",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "5",
+          "DisplayContext": "COMPLEX"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalName",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "6",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "7",
+          "DisplayContext": "COMPLEX"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress.AddressLine1",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "8",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress.AddressLine2",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "9",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress.AddressLine3",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "10",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress.PostTown",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "11",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress.County",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "12",
+          "DisplayContext": "OPTIONAL"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress.PostCode",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "13",
+          "DisplayContext": "MANDATORY"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "ServeOrgDetails",
+          "CaseEventID": "serviceOfDocuments",
+          "CaseFieldID": "sodAdditionalRecipientsList",
+          "ListElementCode": "postalInformation.postalAddress.Country",
+          "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+          "EventElementLabel": " ",
+          "FieldDisplayOrder": "14",
+          "DisplayContext": "OPTIONAL"
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json",
+      "tracked": true,
+      "fileDigest": "4e1c87b9fe4c0757b89e93ee0b8d55566126c3dc6eacb2224056b99ff695efef",
+      "document": [
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "CaseEventID": "serviceOfDocuments",
+          "AccessControl": [
+            {
+              "UserRoles": [
+                "caseworker-privatelaw-courtadmin",
+                "caseworker-privatelaw-systemupdate"
+              ],
+              "CRUD": "CRU"
+            },
+            {
+              "UserRoles": [
+                "caseworker-privatelaw-judge",
+                "caseworker-privatelaw-la",
+                "caseworker-privatelaw-readonly"
+              ],
+              "CRUD": "R"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+      "tracked": true,
+      "fileDigest": "afe3f95198712736e5da00f056c80021315ec1d5809e79b619dbf3edc8aa46be",
+      "document": [
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "serviceOfDocuments",
+          "Name": "Service of documents",
+          "Description": "Event to serve the documents to the parties",
+          "DisplayOrder": 50,
+          "PreConditionState(s)": "JUDICIAL_REVIEW;PREPARE_FOR_HEARING_CONDUCT_HEARING;DECISION_OUTCOME",
+          "PostConditionState": "*",
+          "SecurityClassification": "Public",
+          "ShowSummary": "Y",
+          "ShowEventNotes": "N",
+          "CallBackURLAboutToStartEvent": "${CCD_DEF_COS_URL}/service-of-documents/about-to-start",
+          "CallBackURLAboutToSubmitEvent": "${CCD_DEF_COS_URL}/service-of-documents/about-to-submit",
+          "CallBackURLSubmittedEvent": "${CCD_DEF_COS_URL}/service-of-documents/submitted",
+          "EndButtonLabel": "Save and continue",
+          "Publish": "True"
+        },
+        {
+          "LiveFrom": "01/09/2024",
+          "CaseTypeID": "PRLAPPS",
+          "ID": "serviceOfDocumentsConfCheck",
+          "Name": "Confidential check - Documents",
+          "Description": "Confidentiality check for service of documents",
+          "DisplayOrder": 51,
+          "PreConditionState(s)": "JUDICIAL_REVIEW;PREPARE_FOR_HEARING_CONDUCT_HEARING;DECISION_OUTCOME",
+          "PostConditionState": "*",
+          "SecurityClassification": "Public",
+          "ShowSummary": "Y",
+          "ShowEventNotes": "N",
+          "CallBackURLAboutToStartEvent": "${CCD_DEF_COS_URL}/sod-conf-check/about-to-start",
+          "CallBackURLAboutToSubmitEvent": "${CCD_DEF_COS_URL}/sod-conf-check/about-to-submit",
+          "CallBackURLSubmittedEvent": "${CCD_DEF_COS_URL}/sod-conf-check/submitted",
+          "EndButtonLabel": "Save and continue",
+          "Publish": "True"
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/SearchResultFields.json",
+      "tracked": true,
+      "fileDigest": "60be8ea6c2c56db59334ad6ffeb7860b7f5226f03dbccebf580d23f47b10f871",
+      "document": [
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "applicantCaseName",
+          "Label": "Case name",
+          "DisplayOrder": 1
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "selectedCaseTypeID",
+          "Label": "Case type",
+          "DisplayOrder": 2
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "[CREATED_DATE]",
+          "Label": "Case created date ",
+          "DisplayOrder": 3
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "applicantName",
+          "Label": "Applicant name",
+          "DisplayOrder": 4
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "respondentName",
+          "Label": "Respondent name",
+          "DisplayOrder": 5
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "childName",
+          "Label": "Child name",
+          "DisplayOrder": 6
+        },
+        {
+          "LiveFrom": "01/01/2022",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "dateSubmitted",
+          "Label": "Date submitted",
+          "DisplayOrder": 7
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/WorkBasketInputFields.json",
+      "tracked": true,
+      "fileDigest": "ac3730134ceccce93b468658210876eafc6bad9159560bd724ed0a0eaaa29c96",
+      "document": [
+        {
+          "LiveFrom": "01/01/2017",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "dfjArea",
+          "Label": "DFJ Area",
+          "DisplayOrder": 1
+        },
+        {
+          "LiveFrom": "01/01/2017",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "swanseaDFJCourt",
+          "Label": "Court",
+          "DisplayOrder": 2,
+          "FieldShowCondition": "dfjArea = \"SWANSEA\""
+        },
+        {
+          "LiveFrom": "01/01/2017",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "humbersideDFJCourt",
+          "Label": "Court",
+          "DisplayOrder": 2,
+          "FieldShowCondition": "dfjArea = \"HUMBERSIDE\""
+        },
+        {
+          "LiveFrom": "01/01/2017",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "essexAndSuffolkDFJCourt",
+          "Label": "Court",
+          "DisplayOrder": 2,
+          "FieldShowCondition": "dfjArea = \"ESSEX_AND_SUFFOLK\""
+        },
+        {
+          "LiveFrom": "01/01/2017",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "wolverhamptonDFJCourt",
+          "Label": "Court",
+          "DisplayOrder": 2,
+          "FieldShowCondition": "dfjArea = \"WOLVERHAMPTON\""
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "applicantCaseName",
+          "Label": "Case name",
+          "DisplayOrder": 3
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "familymanCaseNumber",
+          "Label": "Familyman number",
+          "DisplayOrder": 4
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "[CASE_REFERENCE]",
+          "Label": "CCD number",
+          "DisplayOrder": 5
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "caseTypeOfApplication",
+          "Label": "Application type",
+          "DisplayOrder": 6
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "dateSubmitted",
+          "Label": "Date Submitted",
+          "DisplayOrder": 7
+        }
+      ]
+    },
+    {
+      "repository": "prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/WorkBasketResultFields.json",
+      "tracked": true,
+      "fileDigest": "fc8c5a0b67387c4ce65d679ae0b3acca86614a09c29d92697d3e7c9f118cfcdb",
+      "document": [
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "applicantCaseName",
+          "Label": "Case",
+          "DisplayOrder": 1
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "familymanCaseNumber",
+          "Label": "Familyman number",
+          "DisplayOrder": 2
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "selectedCaseTypeID",
+          "Label": "Case type",
+          "DisplayOrder": 3
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "[STATE]",
+          "Label": "State",
+          "DisplayOrder": 4
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "applicantName",
+          "Label": "Applicant name",
+          "DisplayOrder": 5
+        },
+        {
+          "LiveFrom": "01/07/2021",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "respondentName",
+          "Label": "Respondent name",
+          "DisplayOrder": 6
+        },
+        {
+          "LiveFrom": "01/01/2022",
+          "CaseTypeID": "PRLAPPS",
+          "CaseFieldID": "caseSubmittedTimeStamp",
+          "Label": "Submitted date and time",
+          "DisplayOrder": 7,
+          "ResultsOrdering": "1:DESC"
+        }
+      ]
+    }
+  ]
+}
