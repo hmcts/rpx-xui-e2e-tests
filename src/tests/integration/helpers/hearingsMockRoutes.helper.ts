@@ -15,7 +15,6 @@ import {
   buildHearingActualsMock,
   buildLinkedCasesWithHearingsMock,
   buildLinkedHearingGroupMock,
-  buildLinkedHearingGroupResponseMock,
   buildLovRefDataMock,
   buildServiceLinkedCasesMock,
   buildServiceHearingValuesMock,
@@ -34,10 +33,7 @@ type HearingsEndpoint =
   | 'hearingActualsCompletion'
   | 'loadServiceLinkedCases'
   | 'loadLinkedCasesWithHearings'
-  | 'getLinkedHearingGroup'
-  | 'postLinkedHearingGroup'
-  | 'putLinkedHearingGroup'
-  | 'deleteLinkedHearingGroup';
+  | 'getLinkedHearingGroup';
 type RouteAbortCode = Parameters<Route['abort']>[0];
 type CaseDetailsRouteBody = {
   case_id?: unknown;
@@ -140,7 +136,6 @@ export async function setupHearingsMockRoutes(page: Page, config: HearingsMockRo
   const serviceLinkedCases = buildServiceLinkedCasesMock();
   const linkedCasesWithHearings = buildLinkedCasesWithHearingsMock();
   const linkedHearingGroup = buildLinkedHearingGroupMock();
-  const linkedHearingGroupResponse = buildLinkedHearingGroupResponseMock();
   const caseFlags = buildCaseFlagsMock();
   const courtLocation = buildCourtLocationMock(config.caseConfig);
   const hearingTypes = Array.from(
@@ -293,15 +288,6 @@ export async function setupHearingsMockRoutes(page: Page, config: HearingsMockRo
         return;
       case '/api/hearings/getLinkedHearingGroup':
         await fulfillHearingsEndpoint(route, hearingsApiOverrides.getLinkedHearingGroup, linkedHearingGroup);
-        return;
-      case '/api/hearings/postLinkedHearingGroup':
-        await fulfillHearingsEndpoint(route, hearingsApiOverrides.postLinkedHearingGroup, linkedHearingGroupResponse);
-        return;
-      case '/api/hearings/putLinkedHearingGroup':
-        await fulfillHearingsEndpoint(route, hearingsApiOverrides.putLinkedHearingGroup, linkedHearingGroupResponse);
-        return;
-      case '/api/hearings/deleteLinkedHearingGroup':
-        await fulfillHearingsEndpoint(route, hearingsApiOverrides.deleteLinkedHearingGroup, linkedHearingGroupResponse);
         return;
       default:
         if (path.startsWith('/api/hearings/hearingActuals/')) {

@@ -662,9 +662,3 @@ export function buildLinkedHearingGroupMock() {
   const hearingLinks = resolveHearingLinks();
   return deepClone(hearingLinks.linkedHearingGroup ?? { groupDetails: {}, hearingsInGroup: [] });
 }
-
-export function buildLinkedHearingGroupResponseMock() {
-  return {
-    hearingGroupRequestId: 'g100001',
-  };
-}
