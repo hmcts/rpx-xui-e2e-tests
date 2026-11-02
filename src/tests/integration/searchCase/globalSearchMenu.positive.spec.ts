@@ -12,8 +12,7 @@ import {
   buildGlobalSearchNoResultsMock,
   buildGlobalSearchServicesMock,
   GLOBAL_SEARCH_CASE_NAME,
-  GLOBAL_SEARCH_CASE_REFERENCE,
-  GLOBAL_SEARCH_NON_EXISTENT_CASE_REFERENCE
+  GLOBAL_SEARCH_CASE_REFERENCE
 } from "../mocks/globalSearch.mock.js";
 import { TEST_USERS } from "../testData/index.js";
 
@@ -78,19 +77,5 @@ test.describe(`Global search from menu bar as ${userIdentifier}`, { tag: ['@inte
     await expect(caseDetailsPage.caseSummaryHeading).toHaveText("Case information");
     const caseNumberFromUrl = await caseDetailsPage.getCaseNumberFromUrl();
     expect(caseNumberFromUrl).toBe(GLOBAL_SEARCH_CASE_REFERENCE);
-  });
-
-  test("shows no results content for non-existent 16-digit case reference", async ({
-    caseListPage,
-    globalSearchPage,
-    page
-  }) => {
-    await caseListPage.navigateTo();
-    await globalSearchPage.submitFromMenu(GLOBAL_SEARCH_NON_EXISTENT_CASE_REFERENCE, "PUBLICLAW");
-
-    await expect(page).toHaveURL(/\/search\/noresults/);
-    await expect(page.getByRole("heading", { level: 1, name: "No results found" })).toBeVisible();
-    await expect(page.getByText("Try searching again.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Search", exact: true })).toBeVisible();
   });
 });

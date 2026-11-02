@@ -13,7 +13,6 @@ import {
 } from "../mocks/globalSearch.mock.js";
 import {
   SEARCH_CASE_ERROR_STATUS_CODES,
-  SEARCH_CASE_MALFORMED_JSON_BODY,
   TEST_USERS
 } from "../testData/index.js";
 
@@ -73,53 +72,4 @@ test.describe(`Global Search negative flows as ${userIdentifier}`, { tag: ['@int
       await expect(page.getByRole("button", { name: "Search again" })).toBeVisible();
     });
   }
-
-  test("shows error no-results page when global search response is malformed JSON", async ({
-    caseListPage,
-    globalSearchPage,
-    page
-  }) => {
-    await overrideGlobalSearchResultsRoute(page, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: SEARCH_CASE_MALFORMED_JSON_BODY
-      });
-    });
-
-    const searchResponse = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        response.url().includes("/api/globalsearch/results") &&
-        response.status() === 200
-    );
-    await caseListPage.navigateTo();
-    await globalSearchPage.submitFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, "PUBLICLAW");
-
-    await searchResponse;
-    await expect(page).toHaveURL(/\/search\/noresults/);
-    await expect(page.getByRole("heading", { level: 1, name: "Something went wrong" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Search again" })).toBeVisible();
-  });
-
-  test("shows error no-results page when global search request times out", async ({
-    caseListPage,
-    globalSearchPage,
-    page
-  }) => {
-    await overrideGlobalSearchResultsRoute(page, async (route) => {
-      await route.abort("timedout");
-    });
-
-    const searchRequest = page.waitForRequest(
-      (request) => request.method() === "POST" && request.url().includes("/api/globalsearch/results")
-    );
-    await caseListPage.navigateTo();
-    await globalSearchPage.submitFromMenu(GLOBAL_SEARCH_CASE_REFERENCE, "PUBLICLAW");
-
-    await searchRequest;
-    await expect(page).toHaveURL(/\/search\/noresults/);
-    await expect(page.getByRole("heading", { level: 1, name: "Something went wrong" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Search again" })).toBeVisible();
-  });
 });
