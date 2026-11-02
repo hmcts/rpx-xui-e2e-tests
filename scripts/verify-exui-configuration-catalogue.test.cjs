@@ -263,3 +263,52 @@ test('event authorisation for another case type cannot satisfy PRLAPPS pilot exa
   assert.equal(result.denominator.validPilotCells, 16);
   assert.equal(result.denominator.cataloguedPilotCells, 0);
 });
+
+test('current pinned seven-family source is accepted while the previous six-family source and missing PCS are rejected', () => {
+  const expected = ['CIVIL', 'EMPLOYMENT', 'IA', 'PCS', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'];
+  const current = source(snapshot, 'config/default.json');
+  assert.deepEqual(current.document.waSupportedJurisdictions.split(',').sort(), expected);
+  assert.equal(current.revision, '76bf7a840fa71af466961de87294973023b2f0f3');
+  assert.equal(current.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
+  assert.deepEqual(current.document.serviceRefDataMapping.find((row) => row.service === 'PCS').serviceCodes, ['AAA3']);
+  assert.deepEqual(api.validateConfigurationCatalogue({ snapshot, review, catalogue: build() }).errors, []);
+  for (const historical of [false, true]) {
+    const changed = structuredClone(snapshot);
+    const defaults = source(changed, 'config/default.json');
+    defaults.document.waSupportedJurisdictions = defaults.document.waSupportedJurisdictions.split(',').filter((id) => id !== 'PCS').join(',');
+    if (historical) {
+      defaults.revision = 'ffedc9fad762f9de05f7d87e9e49ec4f6182e991';
+      defaults.fileDigest = 'f00a7587da43f097e523cbe26626d637d37b275fcfb7dd757ab8bf2387c9a1c2';
+    }
+    const result = api.validateConfigurationCatalogue({ snapshot: changed, review, catalogue: build(changed) });
+    assert.ok(result.errors.includes('source-drift:rpx-xui-webapp:config/default.json'));
+    if (historical) {
+      assert.ok(result.errors.includes('source-file-drift:rpx-xui-webapp:config/default.json'));
+      assert.ok(result.errors.includes('source-revision-drift:rpx-xui-webapp:config/default.json'));
+    }
+    assert.equal(result.denominator.validPilotCells, 16);
+  }
+});
+
+test('checked-in Helm overrides stay explicit source inventory and do not approve unavailable deployed profiles', () => {
+  const profiles = review.checkedInDeploymentProfiles;
+  assert.equal(profiles.boundary, 'checked-in-source-inventory');
+  assert.equal(profiles.ownerAcceptance, 'pending');
+  assert.equal(profiles.renderedOrDeployedEnvironment, 'unavailable');
+  assert.equal(review.ownerAcceptance, 'pending');
+  assert.deepEqual(Object.keys(profiles.profiles).sort(), ['aat', 'base', 'preview']);
+  for (const profile of Object.values(profiles.profiles)) {
+    assert.equal(profile.environment.WA_SUPPORTED_JURISDICTIONS, null);
+    assert.deepEqual(profile.sourceDerivedWaFamilies.slice().sort(), ['CIVIL', 'EMPLOYMENT', 'IA', 'PCS', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC']);
+    assert.equal(profile.renderedOrDeployedEnvironment, 'unavailable');
+  }
+  assert.equal(profiles.profiles.base.environment.FEATURE_WORKALLOCATION_ENABLED, false);
+  assert.equal(profiles.profiles.aat.environment.FEATURE_WORKALLOCATION_ENABLED, false);
+  assert.equal(profiles.profiles.preview.environment.FEATURE_WORKALLOCATION_ENABLED, true);
+  assert.ok(profiles.profiles.preview.environment.JURISDICTIONS.split(',').includes('PT'));
+  assert.ok(!review.families.includes('PT'));
+  const result = api.validateConfigurationCatalogue({ snapshot, review, catalogue: build() });
+  assert.ok(result.gaps.includes('effective-environment-values-unavailable'));
+  assert.ok(result.gaps.includes('owner-grouping-acceptance-pending'));
+  assert.equal(result.releaseCredit, false);
+});

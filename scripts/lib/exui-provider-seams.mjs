@@ -7,6 +7,7 @@ export const REVIEWED_FAMILIES = [
   "PUBLICLAW",
   "EMPLOYMENT",
   "ST_CIC",
+  "PCS",
 ];
 const labels = [
   "Immigration and Asylum",
@@ -15,6 +16,7 @@ const labels = [
   "Public Law",
   "Employment",
   "Special Tribunals",
+  "Mortgage and Landlord Possession Claims",
 ];
 export async function startProviderSeams(
   output,

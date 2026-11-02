@@ -7,6 +7,7 @@ const families = [
   "CIVIL",
   "EMPLOYMENT",
   "IA",
+  "PCS",
   "PRIVATELAW",
   "PUBLICLAW",
   "ST_CIC",

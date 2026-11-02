@@ -17,6 +17,16 @@ yarn harness:candidate --scope exui-wa-scope-pilot --candidate /path/to/fresh-ca
 
 Candidate preparation needs a seeded immutable Yarn cache, including Linux/arm64 optional packages. It installs/builds without network access and seals the UI, Node bundle, dependency tree, configuration, lock and Node binary. The runner verifies those bytes, reviewed configuration sources, the test dependencies and browser before execution. Uncommitted Harness inputs, unexpected destinations, missing reports, retries and unrelated teardown errors block approval. Logs and raw artifacts stay private; only the fixed-schema public summary is eligible for general publication.
 
+The OCI adapter runs an immutable registry image in its own Node/OS runtime, with the browser and provider seams in a separate container sharing an owned network namespace:
+
+```bash
+yarn harness:candidate:oci --candidate /path/to/image-candidate.json --browser /path/to/matching-linux-browser-cache --output /path/to/fresh-oci-run
+```
+
+`image-candidate.json` must identify the exact registry/repository/digest reference, source commit/tree, producer job/build/invocation, build tag, Linux platform and producer-local `observedImageId`. The image must contain `/opt/app/harness-build.json` with source/producer metadata and seals for its built UI/API, configuration, lock and build-time toolkit. Missing or mismatched metadata blocks execution. The consumer checks the actual registry digest, platform, runtime bytes and its own Docker image ID; Docker engine IDs are observations, not portable configuration-blob digests. Linux/amd64 additionally requires `--browser-runtime-image sha256:<image-id>` for an inspected matching browser runtime. Only the family pilot is supported by this adapter; scope and CCD image adapters remain explicit gaps.
+
+The repository owns the Harness consumer and evidence checks. Producing metadata in an upstream image and enforcing receipts in another repository's release pipeline are external integration dependencies. A locally built image and loopback registry validate this consumer without granting production release approval. SIGINT/SIGTERM triggers owned-container cleanup and invalidates decision artifacts; SIGKILL or Docker daemon failure requires cleanup using the recorded owner labels.
+
 Real CCD pilots use fresh isolated storage and source-backed synthetic definitions. The startup command records owned resources for cleanup; it refuses to overwrite an existing runtime directory:
 
 ```bash

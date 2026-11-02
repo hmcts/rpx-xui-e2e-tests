@@ -275,3 +275,73 @@ test("candidate finalization requires observed supervisor-requested shutdown, in
     /CANDIDATE_UNEXPECTED_TERMINATION/,
   );
 });
+
+test("provider seam preserves independently expected PCS membership and its source-backed label", async () => {
+  const { startProviderSeams } = await import("./lib/exui-provider-seams.mjs");
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "current-wa-provider-"),
+  );
+  const server = await startProviderSeams(directory);
+  try {
+    const response = await fetch(
+      "http://127.0.0.1:3101/refdata/location/orgServices",
+    );
+    assert.equal(response.status, 200);
+    const rows = await response.json();
+    assert.deepEqual(rows.map((row) => row.ccd_service_name).sort(), [
+      "CIVIL",
+      "EMPLOYMENT",
+      "IA",
+      "PCS",
+      "PRIVATELAW",
+      "PUBLICLAW",
+      "ST_CIC",
+    ]);
+    assert.equal(
+      rows.find((row) => row.ccd_service_name === "PCS")
+        .service_short_description,
+      "Mortgage and Landlord Possession Claims",
+    );
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("synthetic current runtime supplies the exact renamed managed Redis property without inherited credentials", async () => {
+  const { effectiveCandidateConfiguration } = await load();
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "current-redis-config-"),
+  );
+  fs.mkdirSync(path.join(directory, "config"));
+  fs.writeFileSync(
+    path.join(directory, "config/default.json"),
+    JSON.stringify({
+      services: { idam: { oauthCallbackUrl: "/oauth2/callback" } },
+      feature: {},
+      waSupportedJurisdictions:
+        "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS",
+    }),
+  );
+  try {
+    const { config } = effectiveCandidateConfiguration(directory);
+    assert.equal(
+      Object.hasOwn(
+        config.secrets.rpx,
+        "webapp-managed-redis-connection-string",
+      ),
+      true,
+    );
+    assert.equal(
+      Object.hasOwn(config.secrets.rpx, "webapp-redis-connection-string"),
+      false,
+    );
+    assert.equal(config.feature.redisEnabled, false);
+    assert.equal(
+      config.waSupportedJurisdictions,
+      "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS",
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});

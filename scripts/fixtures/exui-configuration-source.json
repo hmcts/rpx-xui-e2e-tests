@@ -3,10 +3,10 @@
   "sources": [
     {
       "repository": "rpx-xui-webapp",
-      "revision": "ffedc9fad762f9de05f7d87e9e49ec4f6182e991",
+      "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
       "path": "config/custom-environment-variables.json",
       "tracked": true,
-      "fileDigest": "04645100bf429aac417bd11f3fd768596dbcfe2b6c07b40f31aeae93f9017451",
+      "fileDigest": "59f4b48d697b832fe61e8b18a14b6e3ed7b2a7db7450af69cbbddeae68d34c42",
       "document": {
         "jurisdictions": "JURISDICTIONS",
         "globalSearchServices": "GLOBAL_SEARCH_SERVICES",
@@ -46,15 +46,15 @@
     },
     {
       "repository": "rpx-xui-webapp",
-      "revision": "ffedc9fad762f9de05f7d87e9e49ec4f6182e991",
+      "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
       "path": "config/default.json",
       "tracked": true,
-      "fileDigest": "f00a7587da43f097e523cbe26626d637d37b275fcfb7dd757ab8bf2387c9a1c2",
+      "fileDigest": "ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1",
       "document": {
         "jurisdictions": "DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,HRS,CIVIL,CMC,PRIVATELAW,PCS",
-        "globalSearchServices": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC",
-        "waSupportedJurisdictions": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC",
-        "staffSupportedJurisdictions": "ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS",
+        "globalSearchServices": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PROBATE,PCS,DIVORCE",
+        "waSupportedJurisdictions": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS",
+        "staffSupportedJurisdictions": "ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS",
         "serviceRefDataMapping": [
           {
             "service": "IA",

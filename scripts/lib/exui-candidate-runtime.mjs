@@ -80,7 +80,7 @@ export function effectiveCandidateConfiguration(
   effective.secrets = {
     rpx: {
       "mc-session-secret": "synthetic-session-value",
-      "webapp-redis-connection-string": "",
+      "webapp-managed-redis-connection-string": "",
       "mc-idam-client-secret": "synthetic-client-value",
       "mc-s2s-client-secret": "JBSWY3DPEHPK3PXP",
       "system-user-name": "synthetic-user",
