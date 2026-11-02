@@ -17,30 +17,3 @@ export async function assertSharedMyWorkFilterSections(
 
   await expect(taskListPage.filterPanel.locator("#types-of-work")).toBeHidden();
 }
-
-export async function assertFullLocationRequestScope(
-  fullLocationRequests: string[],
-  expectedFullLocationServiceCodes?: string[]
-): Promise<void> {
-  if (expectedFullLocationServiceCodes) {
-    await expect.poll(() => fullLocationRequests.length).toBeGreaterThan(0);
-    expect(fullLocationRequests.at(-1)?.split(",").sort()).toEqual(
-      [...expectedFullLocationServiceCodes].sort()
-    );
-    return;
-  }
-
-  await expect.poll(() => fullLocationRequests.length).toBe(0);
-}
-
-export async function assertInitialSelectedLocations(
-  taskListPage: TaskListPage,
-  expectedInitialLocations: string[]
-): Promise<void> {
-  if (expectedInitialLocations.length > 0) {
-    await expect(taskListPage.selectedLocationTags).toHaveText(expectedInitialLocations);
-    return;
-  }
-
-  await expect(taskListPage.selectedLocationTags).toHaveCount(0);
-}
