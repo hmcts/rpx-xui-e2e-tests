@@ -26,15 +26,25 @@ The repository is moving to central configuration, role, definition and data-int
 | 8793250 | 21 | Ordinary create/list field, page/filter, request and error outcomes retained canonically; incidental row-order/hidden-DOM/diagnostic differences explicitly retired. |
 | 237ba33 | 11 | Completion, unassign, reassign and cancellation-error outcomes retained canonically. Sole-use assertion utility and helper declarations removed. |
 | 3885a76 | 6 | Case-file hierarchy/date/sort/empty/viewer outcomes retained canonically. Unsupported pretranslated-URL fixture and unasserted OFF-account distinctions explicitly retired. |
-| 1517991 | 1 | Positive Go-to-task route, observed task response and displayed fields retained canonically. Two negative cases remain because their canonical browser owner is blocked. |
+| 1517991 | 1 | Positive Go-to-task route, observed task response and displayed fields retained canonically. Two negative cases initially held for a blocked canonical owner; later explicitly withdrawn in b6c1b55. |
 | 42d4e44 | 4 | Unreachable integration case-file helpers/mocks and their four dedicated fake checks removed. |
 | 3e25039 | 1 | Real Employment case/PDF upload, saved file-tree and viewer text retained canonically; setup transport/lease differences disclosed. |
 | c03448f | 1 | Final unused case-file PDF, page object, generated-DOM test/fixture and sole unused HTML export removed after caller review. |
 | db78082 | 8 | Task cancellation transitions, request inputs, warnings and returned routes retained canonically; two exclusive utilities removed. |
 
-| 81ea322 | 16 | Generic search/refdata and role-access status/payload outcomes retained canonically; all six unresolved product callbacks and 13 meaningful helper checks remain. |
+| 81ea322 | 16 | Generic search/refdata and role-access status/payload outcomes retained canonically; six unresolved product callbacks initially held and13 meaningful helper checks preserved; the former were explicitly withdrawn later in824116b. |
 
-Two hundred and fourteen runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+| f4b27c5 | 3 | Generic session/feature-flag/stale-cookie callbacks retained canonically; eight used Node helper checks preserved. |
+| 2ad5f78 | 3 | Old E2E direct-submit/list outcomes consolidate canonically; exclusive E2E list mock removed, positional row predicate withdrawn. |
+| 824116b | 7 | Remaining generic Node/refdata product scope withdrawn with timeout/status/persona/count endpoint limits explicit; all21 helper checks preserved. |
+| 35730bd | 7 | Generic E2E search outcomes consolidate; menu-link requirement and automatic initial detail-view predicates deliberately withdrawn. |
+| a86a295 | 2 | Canonical interactive IDAM smoke owns cookie/auth/header outcomes; generic case-list readiness smoke retired. |
+| 21dce10 | 6 | Ordinary work-filter mandatory-service/recovery/isolation outcomes consolidate; extra My cases DOM-visibility predicate withdrawn. |
+| b6c1b55 | 3 | Generic Go-to error navigation and mocked View→summary checks withdrawn; blocked/different canonical browser contracts are not claimed equivalent. |
+
+| bdc7c22 | 84 | One anonymous GET template expands82 canonically duplicated rows plus two obsolete inventory withdrawals; exclusive inventory/re-export removed. |
+
+Three hundred and twenty-nine runnable cases are retired. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -95,7 +105,7 @@ Canonical directories: [manageTasks](https://github.com/hmcts/rpx-xui-webapp/tre
 
 Access support pruning removes1,080 lines/eight obsolete files and two registrations after the import/export graph found no surviving consumers. The six removed self-tests exercised only the removed mock builders/decoder. Harness support still in use is preserved.
 
-Search consolidation compares24 expanded cases,65 fixed-source hashes,15 builder evaluations and ten actual handler comparisons;17 cases have mapped product outcomes and selected canonical ownership. A later source-grounded decision retires six of the held cases: the toolkit7.4.21 table/empty notification use complementary structural branches, with one first-column link per result, and the error-rejection phrase comes from local test support. Exact future DOM-duplication or helper-wording defects are no longer independently checked here; no central configuration dimension is lost. The mocked View→details/summary case remains. The unequal case-details builder belongs to that retained success flow. Session fallbacks, header403 dependency seams and differing tags are disclosed; no browser/live-CI claim is made.
+Search consolidation compares24 expanded cases,65 fixed-source hashes,15 builder evaluations and ten actual handler comparisons;17 cases have mapped product outcomes and selected canonical ownership. A later source-grounded decision retires six of the held cases: the toolkit7.4.21 table/empty notification use complementary structural branches, with one first-column link per result, and the error-rejection phrase comes from local test support. Exact future DOM-duplication or helper-wording defects are no longer independently checked here; no central configuration dimension is lost. The mocked View→details/summary case was initially held and later withdrawn in b6c1b55, without claiming equivalent automatic initial-view coverage. The unequal case-details builder belongs to that retained success flow. Session fallbacks, header403 dependency seams and differing tags are disclosed; no browser/live-CI claim is made.
 
 Canonical directory: [searchCase](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/searchCase).
 
@@ -103,7 +113,7 @@ Ordinary create/list retirement uses the same trigger/ACL/field/show-condition i
 
 The search-support cut removes603 lines, including its sole unused handler test, while preserving restricted-access header routes. Eight surviving offline support checks pass with network access denied. Unused support removal does not authorize deleting live authentication or framework tests.
 
-Task-action comparisons verify five request contracts and both accepted unassign payload modes at204/400/500, preserving exact transitions and messages. Account purpose, default dates and scalar role fields differ where unasserted. Go-to-task negatives are retained: their canonical browser suite is blocked, and its expected error message differs.
+Task-action comparisons verify five request contracts and both accepted unassign payload modes at204/400/500, preserving exact transitions and messages. Account purpose, default dates and scalar role fields differ where unasserted. Go-to-task negatives were initially retained because their canonical browser suite is blocked and expects different text. Their later product-scope withdrawal is explicit in b6c1b55; enabled router/service units do not replace the full rendered contract.
 
 Case-file source review distinguishes supported raw backend document links from the old fixture's already-translated `/documentsv2` prefix. Canonical tests cover both configured gateways from raw links. No producer contract established the mixed pretranslated fixture as a required shape, so it is retired without a new central port. The OFF-labelled content test asserts only fixture-derived document count/date; canonical supplies OFF frontend user details, and no identity-dependent permission or flag outcome was asserted. Real account/permission equivalence is not claimed.
 
@@ -113,7 +123,13 @@ Cancellation retirement compares all eight actual callback inputs and ordered fa
 
 Canonical directories: [task actions](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/manageTasks/myTasks), [case-file integration](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/caseFileView), [case-file E2E](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/E2E/test/caseFileView/caseFileView.spec.ts).
 
-The search/refdata API batch compares actual request/payload traces, status acceptance, malformed bodies and transport failures for16 ordinary callbacks. Canonical ownership uses the same solicitor purpose with different account precedence and session bootstrap; this is no same-account or live authorization proof. Broad status guards are not promoted into a stronger CSRF guarantee. Timeout/status acceptance differences, the unmatched access-count callback and the configured case-officer authorization cell remain explicit holds. All13 helper callback bodies remain unchanged.
+The search/refdata API batch compares actual request/payload traces, status acceptance, malformed bodies and transport failures for16 ordinary callbacks. Canonical ownership uses the same solicitor purpose with different account precedence and session bootstrap; this is no same-account or live authorization proof. Broad status guards are not promoted into a stronger CSRF guarantee. The later824116b withdrawal records timeout/status acceptance differences, the unmatched access-count endpoint and the different case-officer authorization cell; no exact replacement or central-coverage claim is made. All13 helper callback bodies remain unchanged.
+
+The old E2E create/list and smoke batches consolidate ordinary product outcomes: canonical submit validation requires the refresh/modal return and no create submission; list assertions associate values by reference rather than local position. Canonical IDAM smoke checks both progressive/single-page forms, required cookies, auth200/true and header. Session/bootstrap differences are explicit; no current live identity-provider result is claimed.
+
+E2E search retires the extra FPL menu-link requirement (canonical permits fallback) and automatic initial Case information view (canonical explicitly selects Summary). Work-filter parity retires the local My cases types-of-work hidden predicate; canonical ignores it and the corresponding unit is disabled. These are deliberate product-scope withdrawals with no newly proved replacement, not useful configuration shapes to copy into Harness.
+
+The anonymous-route batch is one shallow template with84 endpoint rows, not84 business scenarios. It accepts200/401/403/500/502/504 and checks an Unauthorized body only for truthy401 payloads; it does not establish universal session rejection.82 rows share canonical requests/assertions/selection. Two literal-parameter GET paths have no current handlers and are withdrawn as obsolete; no equivalent new routes or successful business calls are claimed.
 
 ## Useful central scenarios
 
