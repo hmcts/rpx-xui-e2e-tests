@@ -52,7 +52,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
         '/opt/jenkins/workspace/S_j_to_z_rpx-xui-e2e-tests_PR-47/src/tests/integration/bookingUI/booking-ui.positive.spec.ts'
       )
     ).toBe('bookingUI');
-    expect(deriveFeatureName('src/tests/integration/hearings/hearingActuals.positive.spec.ts')).toBe('hearings');
+    expect(deriveFeatureName('src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts')).toBe('hearings');
     expect(deriveFeatureName('integration/accessRequests/challengedAccessRequest.positive.spec.ts')).toBe(
       'accessRequests'
     );

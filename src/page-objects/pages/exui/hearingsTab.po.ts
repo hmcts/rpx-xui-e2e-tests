@@ -120,13 +120,6 @@ export class HearingsTabPage {
     await this.openActionAndWaitForUrlChange(this.viewOrEditButton(hearingId));
   }
 
-  async openAddOrEdit(hearingId: string): Promise<void> {
-    await this.openActionAndWaitForUrlChange(this.addOrEditButton(hearingId), {
-      context: 'add or edit hearing actuals',
-      expectedPath: new RegExp(`/hearings/actuals/${hearingId}/hearing-actual-add-edit-summary$`),
-    });
-  }
-
   private async openActionAndWaitForUrlChange(
     actionButton: Locator,
     options: { context?: string; expectedPath?: RegExp } = {}
