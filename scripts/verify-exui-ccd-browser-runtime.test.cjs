@@ -72,6 +72,7 @@ test("current rewritten CCD routes and legacy aliases preserve real upstream tra
     const caseworker =
       "/caseworkers/11111111-1111-4111-8111-111111111111/jurisdictions/HARNESS/case-types/HarnessNestedPRL";
     const routes = [
+      ["GET", "/internal/profile"],
       ["GET", `${caseworker}/event-triggers/create/token`],
       [
         "GET",
@@ -136,6 +137,8 @@ test("current rewritten CCD routes and legacy aliases preserve real upstream tra
 test("CCD gateway rejects malformed, unrelated and unsupported method aliases without upstream calls", async (t) => {
   await withGateway(t, async ({ request, upstream, output }) => {
     const invalid = [
+      ["POST", "/internal/profile"],
+      ["GET", "/internal/profile/extra"],
       ["GET", "/internal/cases/not-a-case"],
       ["GET", "/internal/cases/1793646213983629/extra"],
       ["GET", "/internal/case-types/OtherCase/event-triggers/create"],

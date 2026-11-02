@@ -9,8 +9,9 @@ The repository is moving to central configuration, role, definition and data-int
 | f4b5b2e | 2 | Hearings functional assertions execute in retained accessibility tests with identical fixtures/tags and all screenshots preserved. |
 | e18b4b4 | 6 | Lifecycle statuses/actions/summary routes retained in canonical webapp. Five callback templates expand to six cases. |
 | 08d241a | 7 | Edit labels, pre-CR84 action, validation/error and create navigation retained in canonical webapp. Sole-use SHV fixture also removed. |
+| 9e85589 | 4 | Actuals summaries, submitted values, completion and error behavior retained in canonical webapp. Unused navigation wrapper removed; reporter parser check preserved. |
 
-Eighteen runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+Twenty-two runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -26,6 +27,8 @@ The product comparisons use committed webapp76bf7a840fa71af466961de87294973023b2
 Lifecycle checks compared20 payload/outcome projections. Edit/create checks compared63 relevant responses and19 locator/assertion definitions. Canonical tag resolution selects all these cases in default and Hearings modes; the Chromium integration configuration and preview/AAT Jenkins commands include them. These are source/helper comparisons, not a newly observed canonical browser or CI run.
 
 Known setup differences were assessed rather than hidden: canonical click navigation is stronger than the retired direct-navigation fallback; actuals mocks include extra unasserted data; navigation-header configuration differs while the direct Hearings journeys assert no header behavior. Shared fixtures/helpers remain where other tests use them.
+
+Actuals retirement compared40 relevant responses and preserved35 direct assertion expressions. Canonical also retains additional Back-navigation regression tests; those extra cases were not used to obscure any missing counterpart. The reporter filename substitution passed its existing path-parser unit test.
 
 ## Useful central scenarios
 

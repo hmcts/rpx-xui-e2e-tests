@@ -76,6 +76,7 @@ const userId =
 const caseworker = `/caseworkers/${userId}/jurisdictions/HARNESS/case-types/HarnessNestedPRL`;
 const ccdRoutes = {
   GET: [
+    /^\/internal\/profile$/,
     new RegExp(`^${caseworker}/event-triggers/create/token$`),
     new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`),
     /^\/internal\/case-types\/HarnessNestedPRL\/event-triggers\/create$/,
