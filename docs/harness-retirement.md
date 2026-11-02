@@ -17,8 +17,10 @@ The repository is moving to central configuration, role, definition and data-int
 | 13c7f2b | 13 | Same CR84 family/flag/role/status cells retained canonically. Sole-use assertion utility removed; canonical reporter filename fixture retained. |
 | 5fa29d4 | 2 | Linked submission/order and server-error flows retained canonically; the distinct Civil entry cell is preserved in the Harness. Sole-use selector removed. |
 | c73237e | 6 | Five generic navigation/resilience callbacks retained canonically; exact Continue/Back/Back and returned-row checks are preserved in Civil Harness3b9ca01. Unused dataset generator and its sole unit callback removed. |
+| c057265 | 26 | Ordinary task-list, pagination, sorting, claim and error outcomes retained canonically. Central service-family slices and shared support remain. |
+| 1796901 | 21 | Challenged/specific/review access-request validation, conditional fields, request values and success/error outcomes retained canonically. |
 
-Sixty-eight runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+One hundred and fifteen runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -70,6 +72,12 @@ Navigation/resilience retirement compared35 canonical response projections plus 
 
 - [hearingCreate.navigationControls.positive.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingCreate.navigationControls.positive.spec.ts)
 - [hearingDetails.resilience.positive.spec.ts](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/hearings/hearingDetails.resilience.positive.spec.ts)
+
+Task-list retirement compares26 expanded cases/20 declarations, identical task-builder bytes, five date-format examples and52 actual default/explicit canonical selection checks. Compatible staff purpose is established through the exercised task actions/CLAIM/status predicates; accounts and bootstrap role arrays are not claimed identical. Shared TableUtils versions differ; this is product-outcome consolidation, with no parser implementation parity or live-CI claim.
+
+Access-request retirement replays21 actual setup callbacks/eight option shapes with last-matching-route precedence. Actual toolkit7.4.21 role/request builders produce three strictly equal submission payloads for the effective mocked personas. All21 canonical counterparts are selected by default and explicit access-request tags. Additional Harness retries, radio/readiness checks and ancillary shell/service-label differences are disclosed; generic form, validation, payload and success/error assertions remain canonical. Reporter filename-parser coverage stays meaningful with canonical filenames. No new configuration slice is justified by these ordinary product callbacks.
+
+Canonical directories: [manageTasks](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/manageTasks), [accessRequests](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/accessRequests).
 
 ## Useful central scenarios
 
