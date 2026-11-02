@@ -32,7 +32,9 @@ The repository is moving to central configuration, role, definition and data-int
 | c03448f | 1 | Final unused case-file PDF, page object, generated-DOM test/fixture and sole unused HTML export removed after caller review. |
 | db78082 | 8 | Task cancellation transitions, request inputs, warnings and returned routes retained canonically; two exclusive utilities removed. |
 
-One hundred and ninety-eight runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
+| 81ea322 | 16 | Generic search/refdata and role-access status/payload outcomes retained canonically; all six unresolved product callbacks and 13 meaningful helper checks remain. |
+
+Two hundred and fourteen runnable cases are retired. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -110,6 +112,8 @@ The separate real-backend case-file E2E counterpart preserves Employment creatio
 Cancellation retirement compares all eight actual callback inputs and ordered fake-provider transitions, including PRL/PRLAPPS and PUBLICLAW contexts. Failure400/409 cases assert warnings/routes, not backend state integrity. Canonical full case fixtures, role-route setup and serial selection differ; shared support remains.
 
 Canonical directories: [task actions](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/manageTasks/myTasks), [case-file integration](https://github.com/hmcts/rpx-xui-webapp/tree/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/integration/test/caseFileView), [case-file E2E](https://github.com/hmcts/rpx-xui-webapp/blob/76bf7a840fa71af466961de87294973023b2f0f3/playwright_tests_new/E2E/test/caseFileView/caseFileView.spec.ts).
+
+The search/refdata API batch compares actual request/payload traces, status acceptance, malformed bodies and transport failures for16 ordinary callbacks. Canonical ownership uses the same solicitor purpose with different account precedence and session bootstrap; this is no same-account or live authorization proof. Broad status guards are not promoted into a stronger CSRF guarantee. Timeout/status acceptance differences, the unmatched access-count callback and the configured case-officer authorization cell remain explicit holds. All13 helper callback bodies remain unchanged.
 
 ## Useful central scenarios
 
