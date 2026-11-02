@@ -7,7 +7,6 @@ import { ensureStorageState } from '../../utils/api/auth';
 import { AuthenticationError } from '../../utils/api/errors';
 import { seedRoleAccessCaseId } from '../../utils/api/role-access';
 import {
-  applyExpiredCookies,
   assertGlobalSearchResults,
   assertGlobalSearchServices,
   assertLocationsResponse,
@@ -417,19 +416,6 @@ test.describe('Search/refdata helper coverage', { tag: ['@svc-global-search', '@
     assertRoleAssignmentsIfPresent(201, [{ roleCategory: 'LEGAL', roleName: 'role' }]);
     assertRoleAssignmentsIfPresent(200, []);
     assertRoleAssignmentsIfPresent(400, undefined);
-  });
-
-  test('applyExpiredCookies handles empty and populated arrays', async () => {
-    let calls = 0;
-    const ctx = {
-      storageState: async () => {
-        calls += 1;
-      },
-    };
-    await applyExpiredCookies(ctx, []);
-    expect(calls).toBe(0);
-    await applyExpiredCookies(ctx, [{ name: 'cookie', value: '1', expires: 0 }]);
-    expect(calls).toBe(1);
   });
 
   test('buildExpiredCookies handles missing cookies', () => {

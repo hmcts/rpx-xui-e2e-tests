@@ -5,7 +5,6 @@ import { request } from '@playwright/test';
 import { expectStatus, StatusSets } from '../../utils/api/apiTestUtils';
 import { ensureStorageState } from '../../utils/api/auth';
 import {
-  applyExpiredCookies,
   assertSecurityHeaders,
   assertUiConfigResponse,
   assertUserDetailsKeys,
@@ -192,19 +191,6 @@ test.describe('Node app helper coverage', { tag: '@svc-node-app' }, () => {
     expect(resolveHeader({ 'Content-Type': 'app/json' }, 'content-type')).toBe('app/json');
     expect(resolveHeader({ 'CONTENT-TYPE': 'app/json' }, 'content-type')).toBe('app/json');
     expect(resolveHeader({}, 'content-type')).toBeUndefined();
-  });
-
-  test('applyExpiredCookies handles empty and populated arrays', async () => {
-    let calls = 0;
-    const ctx = {
-      storageState: async () => {
-        calls += 1;
-      },
-    };
-    await applyExpiredCookies(ctx, []);
-    expect(calls).toBe(0);
-    await applyExpiredCookies(ctx, [{ name: 'cookie', value: '1', expires: 0 }]);
-    expect(calls).toBe(1);
   });
 
   test('buildExpiredCookies handles missing cookies', () => {

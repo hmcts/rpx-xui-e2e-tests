@@ -109,12 +109,3 @@ export function buildExpiredCookies(state: StorageState): Cookie[] {
       }))
     : [];
 }
-
-export async function applyExpiredCookies(
-  ctx: { storageState: (opts: { cookies: Cookie[]; origins: [] }) => Promise<void> },
-  cookies: Array<Cookie | StorageCookie>
-) {
-  if (cookies.length) {
-    await ctx.storageState({ cookies: buildExpiredCookies({ cookies: cookies as StorageCookie[] }), origins: [] });
-  }
-}
