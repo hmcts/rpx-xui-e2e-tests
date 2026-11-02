@@ -1,8 +1,6 @@
 import { TEST_CASE_REFERENCES } from "../testData/index.js";
 
 export const VALID_SEARCH_CASE_REFERENCE = TEST_CASE_REFERENCES.QUICK_SEARCH_VALID;
-export const INVALID_SEARCH_CASE_REFERENCE = TEST_CASE_REFERENCES.QUICK_SEARCH_INVALID;
-
 export function buildSearchCaseJurisdictionsMock() {
   return [
     {
@@ -72,116 +70,5 @@ export function buildGlobalSearchNoResultsMock() {
       moreResultsToGo: false
     },
     results: []
-  };
-}
-
-export function buildCaseDetailsMock(caseReference: string = VALID_SEARCH_CASE_REFERENCE) {
-  return {
-    _links: {
-      self: {
-        href: `http://localhost:3000/data/internal/cases/${caseReference}`
-      }
-    },
-    case_id: caseReference,
-    case_type: {
-      id: "CARE_SUPERVISION_EPO",
-      name: "Care and supervision",
-      description: "FPL case type for integration tests",
-      jurisdiction: {
-        id: "PUBLICLAW",
-        name: "Public Law",
-        description: "Public law jurisdiction"
-      },
-      printEnabled: false
-    },
-    tabs: [
-      {
-        id: "caseSummary",
-        label: "Case summary",
-        order: 1,
-        fields: [
-          {
-            id: "caseSummaryTabHeading",
-            label: "Case information",
-            value: "Case information",
-            metadata: false,
-            field_type: {
-              id: "Label",
-              type: "Label",
-              fixed_list_items: [],
-              complex_fields: [],
-              collection_field_type: null,
-              min: null,
-              max: null,
-              regular_expression: null
-            }
-          }
-        ]
-      }
-    ],
-    metadataFields: [
-      {
-        id: "[CASE_REFERENCE]",
-        label: "Case Reference",
-        value: Number(caseReference),
-        metadata: true,
-        field_type: {
-          id: "Text",
-          type: "Text",
-          fixed_list_items: [],
-          complex_fields: [],
-          collection_field_type: null,
-          min: null,
-          max: null,
-          regular_expression: null
-        }
-      },
-      {
-        id: "[JURISDICTION]",
-        label: "Jurisdiction",
-        value: "PUBLICLAW",
-        metadata: true,
-        field_type: {
-          id: "Text",
-          type: "Text",
-          fixed_list_items: [],
-          complex_fields: [],
-          collection_field_type: null,
-          min: null,
-          max: null,
-          regular_expression: null
-        }
-      },
-      {
-        id: "[CASE_TYPE]",
-        label: "Case Type",
-        value: "CARE_SUPERVISION_EPO",
-        metadata: true,
-        field_type: {
-          id: "Text",
-          type: "Text",
-          fixed_list_items: [],
-          complex_fields: [],
-          collection_field_type: null,
-          min: null,
-          max: null,
-          regular_expression: null
-        }
-      }
-    ],
-    state: {
-      id: "Open",
-      name: "Open",
-      description: "Open case",
-      title_display: "# ${[CASE_REFERENCE]}"
-    },
-    triggers: [
-      {
-        id: "updateCase",
-        name: "Update case",
-        description: "Update case details",
-        order: 1
-      }
-    ]
   };
 }

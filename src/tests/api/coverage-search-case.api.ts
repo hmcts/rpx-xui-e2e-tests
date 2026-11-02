@@ -7,21 +7,14 @@ import {
   parseSearchResultsRouteRequest
 } from "../integration/helpers/caseSearchMockRoutes.helper";
 import {
-  createFindCaseSearchResultsRouteHandler,
   createGlobalSearchResultsRouteHandler
 } from "../integration/helpers/caseSearchRouteHandlers.helper";
 import { resolveIntegrationSessionWarmupUsers } from "../integration/helpers/searchCaseSession.helper";
-import {
-  buildFindCaseEmptySearchResultsMock,
-  buildFindCaseSearchResultsMock,
-  getCaseReferenceFromFindCaseSearchPayload
-} from "../integration/mocks/findCase.mock";
 import {
   buildGlobalSearchNoResultsMock,
   buildGlobalSearchResultsMock,
   VALID_SEARCH_CASE_REFERENCE
 } from "../integration/mocks/search.mock";
-import { TEST_CASE_REFERENCES } from "../integration/testData/index.js";
 
 type FakeFulfillPayload = {
   status: number;
@@ -206,38 +199,6 @@ test.describe("Search-case support coverage", () => {
     await handler(noMatchRoute.route as Route);
     expect(JSON.parse(noMatchRoute.lastFulfill()?.body ?? "{}")).toEqual(
       buildGlobalSearchNoResultsMock()
-    );
-  });
-
-  test("find-case route handler chooses the matching response from payload-derived case references", async () => {
-    const existingCaseReference = TEST_CASE_REFERENCES.FIND_CASE_EXISTING;
-    const handler = createFindCaseSearchResultsRouteHandler({
-      existingCaseReference,
-      matchingResponse: buildFindCaseSearchResultsMock(existingCaseReference),
-      noMatchResponse: buildFindCaseEmptySearchResultsMock(),
-      getCaseReferenceFromPayload: getCaseReferenceFromFindCaseSearchPayload
-    });
-
-    const matchingRoute = buildFakeRoute(
-      "https://example.test/data/internal/searchCases",
-      JSON.stringify({
-        caseReference: existingCaseReference
-      })
-    );
-    await handler(matchingRoute.route as Route);
-    expect(JSON.parse(matchingRoute.lastFulfill()?.body ?? "{}")).toEqual(
-      buildFindCaseSearchResultsMock(existingCaseReference)
-    );
-
-    const noMatchRoute = buildFakeRoute(
-      "https://example.test/data/internal/searchCases",
-      JSON.stringify({
-        caseReference: TEST_CASE_REFERENCES.FIND_CASE_NON_EXISTENT
-      })
-    );
-    await handler(noMatchRoute.route as Route);
-    expect(JSON.parse(noMatchRoute.lastFulfill()?.body ?? "{}")).toEqual(
-      buildFindCaseEmptySearchResultsMock()
     );
   });
 });

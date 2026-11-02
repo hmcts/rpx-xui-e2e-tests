@@ -1,8 +1,6 @@
 import { TEST_CASE_REFERENCES } from "../testData/index.js";
 
 export const GLOBAL_SEARCH_CASE_REFERENCE = TEST_CASE_REFERENCES.GLOBAL_SEARCH_VALID;
-export const GLOBAL_SEARCH_NON_EXISTENT_CASE_REFERENCE =
-  TEST_CASE_REFERENCES.GLOBAL_SEARCH_NON_EXISTENT;
 export const GLOBAL_SEARCH_CASE_NAME = "Care Proceedings - Child A";
 
 export function buildGlobalSearchServicesMock() {
