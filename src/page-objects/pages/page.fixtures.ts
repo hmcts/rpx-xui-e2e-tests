@@ -16,7 +16,6 @@ import type {
   WorkerInfo,
 } from "@playwright/test";
 
-import { AccessRequestPage } from "./exui/accessRequest.po";
 import { BookingUiPage } from "./exui/bookingUi.po";
 import { CaseDetailsPage } from "./exui/caseDetails.po";
 import { CaseFileViewPage } from "./exui/caseFileView.po";
@@ -46,7 +45,6 @@ export interface PageFixtures {
   hearingViewEditSummaryPage: HearingViewEditSummaryPage;
   hearingViewSummaryPage: HearingViewSummaryPage;
   bookingUiPage: BookingUiPage;
-  accessRequestPage: AccessRequestPage;
   mediaViewerPage: ExuiMediaViewerPage;
   idamPage: IdamPage;
   apiClient: ApiClient;
@@ -145,12 +143,6 @@ export const pageFixtures = {
     use: (page: BookingUiPage) => Promise<void>
   ) => {
     await use(new BookingUiPage(determinePage));
-  },
-  accessRequestPage: async (
-    { determinePage }: FixtureArgs,
-    use: (page: AccessRequestPage) => Promise<void>
-  ) => {
-    await use(new AccessRequestPage(determinePage));
   },
   mediaViewerPage: async (
     { determinePage }: FixtureArgs,
