@@ -7,6 +7,8 @@ import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from '../../.
 import {
   applySessionCookies,
   caseDetailsUrl,
+  continueHearingsFlow,
+  goBackInHearingsFlow,
   HEARING_MANAGER_CR84_ON_USER,
   HEARING_MANAGER_CR84_OFF_USER,
   hearingManagerRoles as linkedHearingManagerRoles,
@@ -155,7 +157,7 @@ test.describe(`EXUI assurance harness hearings families as ${userIdentifier}`, {
 test.describe(`EXUI assurance harness Civil linked hearings as ${HEARING_MANAGER_CR84_OFF_USER}`, {
   tag: ['@integration-bucket-5', '@integration', '@integration-hearings'],
 }, () => {
-  test('supported Civil amendments-on configuration retains linked-hearing entry', async ({
+  test('supported Civil amendments-on configuration retains request navigation and linked entry', async ({
     page,
     caseDetailsPage,
     hearingsTabPage,
@@ -173,6 +175,22 @@ test.describe(`EXUI assurance harness Civil linked hearings as ${HEARING_MANAGER
         amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
       },
     });
+
+    await expect(hearingsTabPage.requestHearingButton).toBeVisible();
+    await hearingsTabPage.openRequestHearing();
+    await expect(page).toHaveURL(/\/hearings\/request\/hearing-requirements$/);
+    await expect(page.getByRole('heading', { name: /hearing requirements/i })).toBeVisible();
+
+    await continueHearingsFlow(page);
+    await expect(page).toHaveURL(/\/hearings\/request\/hearing-facilities$/);
+    await expect(page.getByRole('heading', { name: /do you require any additional facilities\?/i })).toBeVisible();
+
+    await goBackInHearingsFlow(page);
+    await expect(page).toHaveURL(/\/hearings\/request\/hearing-requirements$/);
+    await expect(page.getByRole('heading', { name: /hearing requirements/i })).toBeVisible();
+
+    await goBackInHearingsFlow(page);
+    await expect(page).toHaveURL(new RegExp(`/cases/case-details/CIVIL/CIVIL/${HEARINGS_CASE_REFERENCE}#Hearings$`));
 
     await hearingsTabPage.waitForReady(HEARINGS_LISTED_HEARING_ID);
     await expect(hearingsTabPage.viewDetailsButton(HEARINGS_LISTED_HEARING_ID)).toBeVisible();
