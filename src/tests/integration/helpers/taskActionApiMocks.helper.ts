@@ -1,4 +1,4 @@
-import { expect, type Page, type Route } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 export type UiTaskAction = 'cancel' | 'complete' | 'go' | 'reassign' | 'unassign';
 export type UnassignMode = 'unclaim' | 'assign-null';
@@ -36,22 +36,6 @@ export interface TaskActionExpectation {
   apiCalls: ExpectedApiCall[];
   notes?: string[];
 }
-
-export interface CapturedTaskSubmission {
-  mode: 'unclaim' | 'assign-null';
-  requestJson?: unknown;
-  status: number;
-  url: string;
-}
-
-export const expectValidUnassignSubmission = (submission: CapturedTaskSubmission) => {
-  if (submission.mode === 'assign-null') {
-    expect(submission.requestJson).toEqual({ userId: null });
-    return;
-  }
-
-  expect(submission.requestJson).toEqual({ hasNoAssigneeOnComplete: false });
-};
 
 const DEFAULT_TASK_ID = 'f782bde3-8d51-11eb-a9a4-06d032acc76d';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -345,60 +329,6 @@ export const setupTaskActionEndpointMocks = async (
   return expectation;
 };
 
-export const setupUnassignSubmissionCapture = async (
-  page: Page,
-  options: {
-    taskId: string;
-    status: number;
-    responseJson?: unknown;
-  }
-): Promise<{ submissionPromise: Promise<CapturedTaskSubmission> }> => {
-  const unclaimPattern = `**/workallocation/task/${options.taskId}/unclaim*`;
-  const assignPattern = `**/workallocation/task/${options.taskId}/assign*`;
-  let resolved = false;
-  let resolveSubmission: (value: CapturedTaskSubmission) => void;
-
-  const submissionPromise = new Promise<CapturedTaskSubmission>((resolve) => {
-    resolveSubmission = resolve;
-  });
-
-  const captureSubmission = async (route: Route, mode: 'unclaim' | 'assign-null') => {
-    const request = route.request();
-    if (request.method() !== 'POST') {
-      await route.continue();
-      return;
-    }
-
-    let requestJson: unknown;
-    try {
-      requestJson = request.postDataJSON();
-    } catch {
-      requestJson = undefined;
-    }
-
-    if (!resolved) {
-      resolved = true;
-      resolveSubmission({
-        mode,
-        requestJson,
-        status: options.status,
-        url: request.url(),
-      });
-    }
-
-    await route.fulfill({
-      status: options.status,
-      contentType: 'application/json',
-      body: JSON.stringify(options.responseJson ?? {}),
-    });
-  };
-
-  await page.route(unclaimPattern, async (route) => captureSubmission(route, 'unclaim'));
-  await page.route(assignPattern, async (route) => captureSubmission(route, 'assign-null'));
-
-  return { submissionPromise };
-};
-
 /**
  * Example usage in a Playwright test:
  *
@@ -416,34 +346,3 @@ export const testTaskActionMockContract = async (
 ): Promise<TaskActionExpectation> => {
   return setupTaskActionEndpointMocks(page, action, options);
 };
-
-export const singleUsersGetByRoleMockResponse = [
-  {
-    email: 'auto_test1@example.com',
-    firstName: 'test',
-    idamId: '38400000-8cf0-11bd-b23e-10b96e4ef00d',
-    lastName: 'Legal Operations',
-    location: {
-      id: 231596,
-      locationName: 'Birmingham',
-      services: ['CIVIL', 'PUBLICLAW', 'PRIVATELAW', 'IA'],
-    },
-    roleCategory: 'LEGAL_OPERATIONS',
-    roleCategories: ['LEGAL_OPERATIONS'],
-    service: 'IA',
-  },
-  {
-    email: 'auto_test2@example.com',
-    firstName: 'test',
-    idamId: '38400000-8cf0-11bd-b23e-10b96e4ef00e',
-    lastName: 'Judiciary',
-    location: {
-      id: 231596,
-      locationName: 'Birmingham',
-      services: ['CIVIL', 'PUBLICLAW', 'PRIVATELAW', 'IA'],
-    },
-    roleCategory: 'JUDICIARY',
-    roleCategories: ['JUDICIARY'],
-    service: 'IA',
-  },
-];
