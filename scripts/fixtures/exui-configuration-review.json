@@ -715,5 +715,105 @@
       "baselineArtifactDigest": "sha256:86df28b8788c846c4710f6a698f83865924496b831ab70722d142a5a08115729",
       "executableReferenceBoundary": "Known baseline reference only; changed sealed implementations are admissible with independent expected identity and unchanged reviewed raw configuration."
     }
+  },
+  "definitionDiscovery": {
+    "schemaVersion": 1,
+    "repository": "prl-ccd-definitions",
+    "revision": "694b9951e94369f1394380506960c4f04f25755d",
+    "root": "definitions/private-law/json",
+    "gitTree": "b6f4cbcdeee1167b94ae7c563ce1e0a94d3cb6e3",
+    "projection": [
+      {
+        "path": "definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json",
+        "allRows": true
+      },
+      {
+        "path": "definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json",
+        "ids": [
+          "ServeOrgDetails",
+          "EmailInformation",
+          "PostalInformation"
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+        "allRows": true
+      },
+      {
+        "path": "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+        "allRows": true
+      },
+      {
+        "path": "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json",
+        "allRows": true
+      },
+      {
+        "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+        "allRows": true
+      },
+      {
+        "path": "definitions/private-law/json/SearchResultFields.json",
+        "allRows": true
+      },
+      {
+        "path": "definitions/private-law/json/WorkBasketInputFields.json",
+        "allRows": true
+      },
+      {
+        "path": "definitions/private-law/json/WorkBasketResultFields.json",
+        "allRows": true
+      }
+    ],
+    "pins": {
+      "manifestDigest": "sha256:31ffc92c4c1b20a1f2f0ef43b929844ec40b8e45f04ab003cdc0becaae98193f",
+      "graphDigest": "sha256:701716eec76595dc9adaddf3baac4acf2c01b3695b3ff096f425ab47e1efc85e",
+      "files": 1475,
+      "regularFiles": 1475,
+      "bytes": 9655361,
+      "rows": 30035,
+      "edges": 74141,
+      "graphGaps": 165416
+    },
+    "referenceWitnesses": [
+      {
+        "sourcePath": "definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json",
+        "row": 1,
+        "kind": "collection-type",
+        "target": "DocumentsDynamicList",
+        "status": "resolved",
+        "candidatePaths": [
+          "definitions/private-law/json/ComplexTypes/Documents/ComplexTypes.json"
+        ]
+      },
+      {
+        "sourcePath": "definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json",
+        "row": 70,
+        "kind": "fixed-list",
+        "target": "DeliveryByEnum",
+        "status": "resolved",
+        "candidatePaths": [
+          "definitions/private-law/json/FixedLists.json",
+          "definitions/private-law/json/FixedLists.json"
+        ]
+      },
+      {
+        "sourcePath": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+        "row": 0,
+        "kind": "case-field",
+        "target": "PRLAPPS|missingAddressWarningTextLabel",
+        "status": "resolved",
+        "candidatePaths": [
+          "definitions/private-law/json/CaseField/ServiceOfApplication/CaseField.json"
+        ]
+      },
+      {
+        "sourcePath": "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+        "row": 23,
+        "kind": "nested-member",
+        "target": "AddressUK.PostCode",
+        "status": "unresolved",
+        "candidatePaths": []
+      }
+    ]
   }
 }

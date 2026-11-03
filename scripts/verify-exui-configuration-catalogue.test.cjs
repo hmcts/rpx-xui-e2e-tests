@@ -37,7 +37,7 @@ test('pinned decentralised case-type destinations and empty service map remain d
   assert.equal(modelAndCcd.coverage.candidate, 0);
   assert(modelAndCcd.coverage.missingCandidateOrCcd.includes(routes[0].id));
   for (const path of ['config/custom-environment-variables.json', 'common/decentralisation/decentralised-redirect.util.ts', 'src/decentralisation/decentralised-redirect.service.ts', 'api/noc/index.ts']) {
-    const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'rpx-xui-webapp', path }]);
+    const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'rpx-xui-webapp', path }], { snapshot, review });
     assert.equal(selection.mode, 'broad'); assert.equal(selection.obligationIds.length, 112);
   }
 });
@@ -228,20 +228,21 @@ test('unknown families and malformed/unsupported definition input never silently
   assert.throws(() => build(copy), /definition.*array/i);
 });
 
-test('direct definition changes select dependent shared renderer and permission obligations', () => {
+test('committed discovery pins keep direct definition changes broad while preserving shared obligations', () => {
   const catalogue = build();
-  const selected = api.selectConfigurationObligations(catalogue, [{ repository: 'prl-ccd-definitions', path: 'definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json' }]);
-  assert.equal(selected.mode, 'focused');
+  const selected = api.selectConfigurationObligations(catalogue, [{ repository: 'prl-ccd-definitions', path: 'definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json' }], { snapshot, review });
+  assert.equal(selected.mode, 'broad');
+  assert.equal(selected.reason, 'unverified-discovery');
   assert.ok(selected.obligationIds.some((id) => id.startsWith('configuration-cell:')));
   assert.ok(selected.obligationIds.includes('configuration-shared:nested-renderer'));
   assert.ok(selected.obligationIds.includes('configuration-shared:role-policy'));
-  assert.ok(selected.obligationIds.length < catalogue.obligations.length);
+  assert.equal(selected.obligationIds.length, catalogue.obligations.length);
 });
 
 test('unknown paths/features, empty input and new overlay impact select all obligations', () => {
   const catalogue = build();
   for (const paths of [[], [{ repository: 'rpx-xui-webapp', path: 'src/new-renderer.ts' }], [{ repository: 'rpx-xui-webapp', path: 'config/new-overlay.json' }], [{ repository: 'new-repository', path: 'new.json' }]]) {
-    const selected = api.selectConfigurationObligations(catalogue, paths);
+    const selected = api.selectConfigurationObligations(catalogue, paths, { snapshot, review });
     assert.equal(selected.mode, 'broad');
     assert.deepEqual(selected.obligationIds, catalogue.obligations.map((item) => item.id));
   }
@@ -263,7 +264,7 @@ test('selection/execution accounting cannot turn helper evidence into candidate 
 });
 
 test('source reader uses real paths, projects allowlisted keys and discovers new configuration overlays', () => {
-  const directory = mkdtempSync(join(tmpdir(), 'exui-shapes-'));
+  const directory = require('node:fs').realpathSync(mkdtempSync(join(tmpdir(), 'exui-shapes-')));
   try {
     for (const item of snapshot.sources) {
       const root = join(directory, item.repository);
@@ -281,7 +282,7 @@ test('source reader uses real paths, projects allowlisted keys and discovers new
       writeFileSync(path, require('js-yaml').dump(document));
     }
     writeFileSync(join(directory, 'rpx-xui-webapp/config/new-overlay.json'), '{"waSupportedJurisdictions":"NEWFAMILY","secret":"DO-NOT-COPY"}');
-    const result = api.readConfigurationSources({ webappRoot: join(directory, 'rpx-xui-webapp'), definitionsRoot: join(directory, 'prl-ccd-definitions') });
+    const result = api.readConfigurationSources({ webappRoot: join(directory, 'rpx-xui-webapp'), definitionsRoot: join(directory, 'prl-ccd-definitions'), review });
     for (const path of ['config/default.json', 'config/custom-environment-variables.json']) {
       for (const key of ['decentralisedCaseTypeConfig', 'decentralisedServiceMap']) assert.deepEqual(source(result, path).document[key], source(snapshot, path).document[key]);
     }
@@ -289,7 +290,7 @@ test('source reader uses real paths, projects allowlisted keys and discovers new
     assert.ok(!JSON.stringify(result).includes('DO-NOT-COPY'));
     assert.ok(build(result).diagnosticFamilies.some((item) => item.id === 'NEWFAMILY'));
     rmSync(join(directory, 'prl-ccd-definitions/definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json'));
-    assert.throws(() => api.readConfigurationSources({ webappRoot: join(directory, 'rpx-xui-webapp'), definitionsRoot: join(directory, 'prl-ccd-definitions') }), /ENOENT/);
+    assert.throws(() => api.readConfigurationSources({ webappRoot: join(directory, 'rpx-xui-webapp'), definitionsRoot: join(directory, 'prl-ccd-definitions'), review }), /PROJECTION_SOURCE_MISSING/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
@@ -484,7 +485,7 @@ test('postal sequence retains its source impact dependencies and unknown fixed-l
     ['rpx-xui-webapp', 'config/default.json'],
     ['prl-ccd-definitions', 'definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json'],
     ['prl-ccd-definitions', 'definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json'],
-  ]) assert(api.selectConfigurationObligations(catalogue, [{ repository, path }]).obligationIds.includes(id));
-  const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'prl-ccd-definitions', path: 'definitions/private-law/json/FixedLists.json' }]);
+  ]) assert(api.selectConfigurationObligations(catalogue, [{ repository, path }], { snapshot, review }).obligationIds.includes(id));
+  const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'prl-ccd-definitions', path: 'definitions/private-law/json/FixedLists.json' }], { snapshot, review });
   assert.equal(selection.mode, 'broad');assert.equal(selection.obligationIds.length, 112);
 });

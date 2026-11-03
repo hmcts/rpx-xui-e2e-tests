@@ -1164,6 +1164,58 @@
           "historic replay status describes supporting checks without product coverage credit"
         ]
       }
+    ],
+    "environment": [
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "external UI configuration exposes the expected EXUI keys"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/configuration exposes selected feature flag values"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/globalSearch/services contains the central must-run service-family set"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/wa-supported-jurisdiction/get contains the central WA must-run family set"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set"
+        ]
+      }
     ]
   }
 }

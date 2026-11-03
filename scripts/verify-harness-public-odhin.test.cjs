@@ -5,8 +5,16 @@ const path = require("node:path");
 const { test } = require("node:test");
 
 const reporterPath = path.join(__dirname, "harness-public-odhin-reporter.cjs");
-const titles =
+const buckets =
   require("./fixtures/harness-public-report-titles.json").selections;
+const titles = {
+  harness: [...buckets.support, ...buckets.model].map((entry) => ({
+    ...entry,
+    titlePath: entry.titlePath.map((title, index) =>
+      index === 2 ? entry.file : title,
+    ),
+  })),
+};
 const canary = "PRIVATE_AUTH_cookie_QuerySecret_7f38";
 
 function sandbox(t) {
@@ -28,7 +36,7 @@ function api() {
   );
   return require(reporterPath);
 }
-function testsFor(selection = "model") {
+function testsFor(selection = "harness") {
   return titles[selection].map((entry, index) => ({
     id: `${canary}-${index}`,
     title: canary,
@@ -77,7 +85,7 @@ function result(status = "passed", index = 0) {
   };
 }
 async function complete(
-  selection = "model",
+  selection = "harness",
   statuses = [],
   finalStatus = "passed",
   globalErrors = 0,
@@ -100,11 +108,11 @@ async function complete(
   await reporter.onEnd({ ...fullResult(finalStatus), error: canary });
   return Reporter;
 }
-function output(selection = "model") {
+function output(_selection = "harness") {
   return path.join(
     process.cwd(),
     "functional-output/tests/harness/public",
-    `odhin-${selection}`,
+    "odhin",
     "index.html",
   );
 }
@@ -112,16 +120,16 @@ function output(selection = "model") {
 test("real Odhin preserves failed/passed/skipped/timedOut outcomes and strips rich diagnostics", async (t) => {
   sandbox(t);
   const Reporter = await complete(
-    "support",
+    "harness",
     ["failed", "skipped", "timedOut"],
     "failed",
   );
-  const html = fs.readFileSync(output("support"), "utf8");
-  const summary = Reporter.validatePublicReport("support");
-  assert.equal(summary.tests, 78);
+  const html = fs.readFileSync(output("harness"), "utf8");
+  const summary = Reporter.validatePublicReport("harness");
+  assert.equal(summary.tests, 116);
   assert.equal(summary.status, "failed");
   assert.deepEqual(summary.counts, {
-    passed: 75,
+    passed: 113,
     failed: 1,
     skipped: 1,
     timedOut: 1,
@@ -133,7 +141,7 @@ test("real Odhin preserves failed/passed/skipped/timedOut outcomes and strips ri
   assert.match(html, /data-duration-ms="12"/);
   assert.match(
     html,
-    /<td data-report-metadata>Auth helper coverage - basic utilities<\/td>/,
+    /<td data-report-metadata>Retained Harness framework checks<\/td>/,
   );
   assert.match(html, /no release credit/);
   assert.match(html, /extractCsrf parses token/);
@@ -145,26 +153,26 @@ test("real Odhin preserves failed/passed/skipped/timedOut outcomes and strips ri
     assert.ok(!html.includes(value));
   assert.ok(!html.includes("fonts.gstatic.com"));
   assert.ok(!html.includes("{{."));
-  assert.deepEqual(fs.readdirSync(path.dirname(output("support"))), [
+  assert.deepEqual(fs.readdirSync(path.dirname(output("harness"))), [
     "index.html",
   ]);
 });
 
-test("model output validates and reset withdraws only its complete owned report", async (t) => {
+test("combined output validates and reset withdraws only its complete owned report", async (t) => {
   sandbox(t);
   const Reporter = await complete();
-  assert.equal(Reporter.validatePublicReport("model").tests, 38);
-  assert.equal(Reporter.validatePublicReport("model").status, "passed");
-  Reporter.resetPublicReport("model");
+  assert.equal(Reporter.validatePublicReport("harness").tests, 116);
+  assert.equal(Reporter.validatePublicReport("harness").status, "passed");
+  Reporter.resetPublicReport("harness");
   assert.ok(!fs.existsSync(output()));
-  assert.throws(() => Reporter.validatePublicReport("model"), /PUBLIC_ODHIN/);
-  Reporter.resetPublicReport("support");
+  assert.throws(() => Reporter.validatePublicReport("harness"), /PUBLIC_ODHIN/);
+  Reporter.resetPublicReport("harness");
 });
 
 test("global errors remain numeric failed-run facts without copying their messages", async (t) => {
   sandbox(t);
-  const Reporter = await complete("model", [], "failed", 1);
-  const summary = Reporter.validatePublicReport("model");
+  const Reporter = await complete("harness", [], "failed", 1);
+  const summary = Reporter.validatePublicReport("harness");
   assert.equal(summary.status, "failed");
   assert.equal(summary.globalErrors, 1);
   assert.ok(!fs.readFileSync(output(), "utf8").includes(canary));
@@ -174,7 +182,7 @@ test("unknown/missing/duplicate declarations and unexpected retry cannot publish
   sandbox(t);
   const Reporter = api();
   for (const mutation of ["unknown", "missing", "duplicate", "retry"]) {
-    const reporter = new Reporter({ selection: "model" });
+    const reporter = new Reporter({ selection: "harness" });
     const tests = testsFor();
     if (mutation === "unknown") tests[0].titlePath = () => [canary];
     if (mutation === "missing") tests.pop();
@@ -201,7 +209,7 @@ test("incomplete/empty/interrupted and invalid result records cannot publish", a
     "duplicate",
     "retry",
   ]) {
-    const reporter = new Reporter({ selection: "model" });
+    const reporter = new Reporter({ selection: "harness" });
     const tests = testsFor();
     if (mutation === "empty") {
       await assert.rejects(
@@ -248,24 +256,24 @@ test("extra files, symlinks, tampering and unowned stale reports fail without de
   const Reporter = await complete();
   const html = fs.readFileSync(output());
   fs.writeFileSync(path.join(path.dirname(output()), "foreign.txt"), canary);
-  assert.throws(() => Reporter.resetPublicReport("model"), /PUBLIC_ODHIN/);
-  assert.throws(() => Reporter.validatePublicReport("model"), /PUBLIC_ODHIN/);
+  assert.throws(() => Reporter.resetPublicReport("harness"), /PUBLIC_ODHIN/);
+  assert.throws(() => Reporter.validatePublicReport("harness"), /PUBLIC_ODHIN/);
   assert.equal(
     fs.readFileSync(path.join(path.dirname(output()), "foreign.txt"), "utf8"),
     canary,
   );
   fs.unlinkSync(path.join(path.dirname(output()), "foreign.txt"));
   fs.writeFileSync(output(), `${html}\n${canary}`);
-  assert.throws(() => Reporter.validatePublicReport("model"), /PUBLIC_ODHIN/);
+  assert.throws(() => Reporter.validatePublicReport("harness"), /PUBLIC_ODHIN/);
   fs.writeFileSync(output(), html);
-  Reporter.resetPublicReport("model");
+  Reporter.resetPublicReport("harness");
   fs.writeFileSync(path.join(root, "foreign"), canary);
   fs.symlinkSync(path.join(root, "foreign"), output());
-  assert.throws(() => Reporter.resetPublicReport("model"), /PUBLIC_ODHIN/);
+  assert.throws(() => Reporter.resetPublicReport("harness"), /PUBLIC_ODHIN/);
   assert.equal(fs.readFileSync(path.join(root, "foreign"), "utf8"), canary);
   fs.unlinkSync(output());
   fs.writeFileSync(output(), canary);
-  assert.throws(() => Reporter.resetPublicReport("model"), /PUBLIC_ODHIN/);
+  assert.throws(() => Reporter.resetPublicReport("harness"), /PUBLIC_ODHIN/);
   assert.equal(fs.readFileSync(output(), "utf8"), canary);
 });
 
@@ -287,7 +295,7 @@ test("actual renderer write failure cannot leave a validated public report", asy
   await assert.rejects(() => complete(), /PUBLIC_ODHIN/);
   assert.equal(fired, true);
   assert.ok(!fs.existsSync(output()));
-  assert.throws(() => api().validatePublicReport("model"), /PUBLIC_ODHIN/);
+  assert.throws(() => api().validatePublicReport("harness"), /PUBLIC_ODHIN/);
 });
 
 test("public publication failure withdraws the matching private record and new HTML", async (t) => {
@@ -319,7 +327,7 @@ test("public publication failure withdraws the matching private record and new H
     !fs.existsSync(
       path.join(
         process.cwd(),
-        "functional-output/tests/harness/private/public-odhin-model.json",
+        "functional-output/tests/harness/private/public-odhin-harness.json",
       ),
     ),
   );
@@ -328,7 +336,7 @@ test("public publication failure withdraws the matching private record and new H
 test("safe boundary never reads attachment paths or mutates the original diagnostic result", async (t) => {
   sandbox(t);
   const Reporter = api();
-  const reporter = new Reporter({ selection: "model" });
+  const reporter = new Reporter({ selection: "harness" });
   const tests = testsFor();
   reporter.onBegin({}, { allTests: () => tests });
   const raw = result("failed");
@@ -362,7 +370,7 @@ test("symlink ancestors reject reset without touching external destinations", (t
     path.join(root, "foreign"),
     path.join(root, "functional-output"),
   );
-  assert.throws(() => Reporter.resetPublicReport("model"), /PUBLIC_ODHIN/);
+  assert.throws(() => Reporter.resetPublicReport("harness"), /PUBLIC_ODHIN/);
   assert.deepEqual(fs.readdirSync(path.join(root, "foreign")), ["sentinel"]);
   assert.equal(
     fs.readFileSync(path.join(root, "foreign", "sentinel"), "utf8"),
@@ -431,12 +439,12 @@ test("fluid presentation is the exact reviewed owning-webapp source including bo
 test("aggregate run/file/project timing uses observed clocks rather than replay time", async (t) => {
   sandbox(t);
   const Reporter = api();
-  const reporter = new Reporter({ selection: "model" });
+  const reporter = new Reporter({ selection: "harness" });
   const tests = testsFor();
   reporter.onBegin({}, { allTests: () => tests });
   for (let i = 0; i < tests.length; i++) {
     const observed = result();
-    const isFirstFile = titles.model[i].file === titles.model[0].file;
+    const isFirstFile = titles.harness[i].file === titles.harness[0].file;
     observed.startTime = new Date(
       isFirstFile ? "2026-11-03T12:00:10.125Z" : "2026-11-03T12:01:00.250Z",
     );
@@ -465,12 +473,15 @@ test("aggregate run/file/project timing uses observed clocks rather than replay 
     const cells = row.querySelectorAll("td");
     assert.equal(
       cells[2].textContent.trim(),
-      cells[0].textContent.trim() === titles.model[0].file
+      cells[0].textContent.trim() === titles.harness[0].file
         ? "0h 0m 2s 250ms"
         : "0h 0m 3s 500ms",
     );
   }
-  assert.equal(fileRows.length, 2);
+  assert.equal(
+    fileRows.length,
+    new Set(titles.harness.map((entry) => entry.file)).size,
+  );
   const projectRows = panel("Status by project")
     .querySelectorAll("tr")
     .slice(1);
@@ -479,7 +490,7 @@ test("aggregate run/file/project timing uses observed clocks rather than replay 
     projectRows[0].querySelectorAll("td")[2].textContent.trim(),
     "0h 0m 53s 625ms",
   );
-  assert.equal(Reporter.validatePublicReport("model").duration, 90000);
+  assert.equal(Reporter.validatePublicReport("harness").duration, 90000);
 });
 
 test("invalid completed-run timestamps/durations cannot publish", async (t) => {
@@ -493,7 +504,7 @@ test("invalid completed-run timestamps/durations cannot publish", async (t) => {
     { startTime: "2026-11-03T12:00:00Z", duration: 1000 },
     { startTime: new Date(), duration: Number.MAX_VALUE },
   ]) {
-    const reporter = new Reporter({ selection: "model" });
+    const reporter = new Reporter({ selection: "harness" });
     const tests = testsFor();
     reporter.onBegin({}, { allTests: () => tests });
     for (const testCase of tests) reporter.onTestEnd(testCase, result());
@@ -502,5 +513,78 @@ test("invalid completed-run timestamps/durations cannot publish", async (t) => {
       /PUBLIC_ODHIN/,
     );
     assert.ok(!fs.existsSync(output()));
+  }
+});
+
+test("one report explains actual groups and preserves all runtime/owner gaps independently of pass count", async (t) => {
+  sandbox(t);
+  const Reporter = await complete("harness", ["failed"], "failed");
+  const html = fs.readFileSync(output(), "utf8");
+  const root = require("node-html-parser").parse(html);
+  assert.equal(root.querySelectorAll("#harness-overview").length, 1);
+  assert.ok(
+    root.querySelector("#TabDashboard #harness-overview"),
+    "Run context must belong to Dashboard so the Tests tab shows only check details",
+  );
+  assert.equal(
+    root
+      .querySelector("#TabDashboard > .container-fluid > .row")
+      .closest("#harness-overview"),
+    null,
+    "The fluid dashboard selector must retain its native result grid",
+  );
+  assert.match(
+    root.querySelector("#harness-overview").textContent,
+    /What this run checked/,
+  );
+  assert.match(html, /EXUI Assurance Harness/);
+  for (const [id, checks] of [
+    ["catalogue", 26],
+    ["replay", 12],
+    ["framework", 78],
+  ]) {
+    const group = root.querySelector(`[data-harness-group="${id}"]`);
+    assert.equal(group.getAttribute("data-checks"), String(checks));
+  }
+  assert.equal(
+    root
+      .querySelector("[data-runtime-obligations]")
+      .getAttribute("data-runtime-obligations"),
+    "112",
+  );
+  assert.match(
+    root.querySelector("#harness-overview").textContent,
+    /0.*112.*NOT RUN/s,
+  );
+  assert.match(root.querySelector("#harness-overview").textContent, /45.*9/s);
+  assert.match(
+    root.querySelector("#harness-overview").textContent,
+    /Global search|Work allocation|Hearings/,
+  );
+  assert.match(root.querySelector("#harness-overview").textContent, /PCS/);
+  assert.match(
+    root.querySelector("#harness-overview").textContent,
+    /not.*product.*coverage/i,
+  );
+  assert.equal(Reporter.validatePublicReport("harness").tests, 116);
+  const publicRoot = path.dirname(path.dirname(output()));
+  assert.deepEqual(fs.readdirSync(publicRoot), ["odhin"]);
+});
+
+test("overview rejects source-model drift even when every runner check passes", async (t) => {
+  sandbox(t);
+  const snapshot = require("./fixtures/exui-configuration-source.json");
+  const source = snapshot.sources.find(
+    (item) =>
+      item.repository === "rpx-xui-webapp" &&
+      item.path === "config/default.json",
+  );
+  const previous = source.document.waSupportedJurisdictions;
+  try {
+    source.document.waSupportedJurisdictions = "IA";
+    await assert.rejects(complete(), /PUBLIC_ODHIN/);
+    assert.ok(!fs.existsSync(output()));
+  } finally {
+    source.document.waSupportedJurisdictions = previous;
   }
 });

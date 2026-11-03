@@ -186,7 +186,7 @@ export function writeConfigurationCoverage(args) {
     terminal,
   } = args;
   const input = loadCommittedConfigurationCatalogue(harnessRoot);
-  const selection = selectConfigurationObligations(input.catalogue, []);
+  const selection = selectConfigurationObligations(input.catalogue, [], { snapshot: input.snapshot, review: input.review });
   const executedProofs = [],
     references = [],
     unacceptedExecutionFacts = [];
@@ -281,8 +281,9 @@ export function writeConfigurationCoverage(args) {
     sourceArtifactDigests: input.sourceArtifactDigests,
     sourceManifest: input.catalogue.sourceManifest,
     deploymentSourceManifest: input.catalogue.deploymentSourceManifest,
+    definitionDiscovery: input.catalogue.definitionDiscovery,
     sourceMetadataLimit:
-      "Committed reviewed projection; complete external source files were not freshly rehashed.",
+      "Committed reviewed projection and discovery pins only; the full external inventory and reference graph are unavailable and cannot narrow selection.",
   };
   writeJsonAtomic(path.join(output, "catalogue.json"), input.catalogue);
   writeJsonAtomic(path.join(output, "selection.json"), selection);

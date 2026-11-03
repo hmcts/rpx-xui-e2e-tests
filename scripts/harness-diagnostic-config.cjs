@@ -52,7 +52,6 @@ function buildConfig(env = process.env) {
       testOutput: 'only-on-failure', apiLogs: 'summary', lightweight: true
     }]);
   }
-  if (env.CI && selection === 'model') reporter.push(['./scripts/harness-public-odhin-reporter.cjs', { selection: 'model' }]);
   if (env.CI) reporter.push(['junit', { outputFile: `${output}/junit.xml` }]);
   return {
     testDir: '.', testMatch: [...selections[selection]],

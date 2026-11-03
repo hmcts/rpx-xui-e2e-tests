@@ -72,15 +72,15 @@ for (const args of [
   });
 }
 
-test('CI diagnostics select only portable models and keep raw output private', () => {
+test('CI checks select the combined Harness config once and keep raw output private', () => {
   runDiagnostic(['--ci'], (result, directory) => {
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /diagnostic.*no release credit/i);
     const calls = readFileSync(join(directory, 'contacts.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     const playwrightCalls = calls.filter((call) => call.command === './node_modules/.bin/playwright');
     assert.equal(playwrightCalls.length, 1);
-    assert.ok(playwrightCalls[0].args.includes('--config=playwright.harness-diagnostic.config.ts'));
-    assert.ok(playwrightCalls[0].args.includes('--output=functional-output/tests/harness/private/diagnostics/model/test-results'));
+    assert.ok(playwrightCalls[0].args.includes('--config=playwright.harness-ci.config.ts'));
+    assert.ok(playwrightCalls[0].args.includes('--output=functional-output/tests/harness/private/ci/test-results'));
     assert.equal(calls.some((call) => call.network), false);
   });
 });

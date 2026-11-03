@@ -115,7 +115,7 @@ test("support only: profile metadata cannot be removed or discharged by passing 
   assert.equal(result.gaps.filter(x=>x.startsWith("deployment-runtime-unproved:")).length,45);
   for(const family of unknown) assert(result.gaps.includes(`unreviewed-deployment-family:preview:JURISDICTIONS:${family}`));
   for(const file of ["charts/xui-webapp/Chart.yaml","charts/xui-webapp/values.preview.template.yaml","charts/xui-webapp/values.future.yaml"]){
-    const selected=api.selectConfigurationObligations(catalogue,[{repository:"rpx-xui-webapp",path:file}]);
+    const selected=api.selectConfigurationObligations(catalogue,[{repository:"rpx-xui-webapp",path:file}],{snapshot,review});
     assert.equal(selected.mode,"broad");assert.equal(selected.obligationIds.length,112);
   }
   catalogue.deploymentProfiles=[];

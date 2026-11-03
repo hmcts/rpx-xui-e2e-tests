@@ -3,7 +3,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const { setImmediate: nextTurn } = require("node:timers/promises");
-const fixture = require("./fixtures/harness-public-report-titles.json");
+const overview = require("./harness-public-overview.cjs");
+const fixture = { selections: overview.profiles };
 const Generate = require("odhin-reports-playwright/lib/generate").default;
 const { parse } = require("node-html-parser");
 const { applyPresentation } = require("./odhin-presentation/enhance.cjs");
@@ -63,9 +64,9 @@ function paths(selection) {
   const base = path.join(root, "functional-output/tests/harness");
   return {
     base,
-    dir: path.join(base, "public", `odhin-${selection}`),
-    html: path.join(base, "public", `odhin-${selection}`, "index.html"),
-    record: path.join(base, "private", `public-odhin-${selection}.json`),
+    dir: path.join(base, "public", "odhin"),
+    html: path.join(base, "public", "odhin", "index.html"),
+    record: path.join(base, "private", "public-odhin-harness.json"),
     privateDir: path.join(base, "private"),
   };
 }
@@ -131,6 +132,7 @@ function validateHtml(html, record) {
   if (
     !html.includes(marker) ||
     !html.includes("no release credit") ||
+    !html.includes('id="harness-overview"') ||
     !html.includes(record.startTime) ||
     !html.includes(
       new Date(
@@ -159,11 +161,13 @@ function validateHtml(html, record) {
 }
 function validatePublicReport(selection) {
   try {
-    const p = paths(selection);
+    const p = paths(selection || "harness");
     inventory(p);
     regular(p.html);
     regular(p.record);
     const record = JSON.parse(fs.readFileSync(p.record, "utf8"));
+    selection ||= record.selection;
+    if (!Object.hasOwn(fixture.selections, selection)) throw failure();
     if (
       record.schemaVersion !== 1 ||
       record.selection !== selection ||
@@ -206,7 +210,7 @@ function resetPublicReport(selection) {
     const p = paths(selection);
     inventory(p);
     if (fs.existsSync(p.html)) {
-      validatePublicReport(selection);
+      validatePublicReport();
       fs.unlinkSync(p.html);
     }
     if (fs.existsSync(p.record)) fs.unlinkSync(p.record);
@@ -265,7 +269,11 @@ class HarnessPublicOdhinReporter {
           .relative(process.cwd(), test.location.file)
           .split(path.sep)
           .join("/");
-        const identity = key({ file, titlePath: test.titlePath() });
+        const identity = key({
+          file,
+          titlePath: overview.normalize({ file, titlePath: test.titlePath() })
+            .titlePath,
+        });
         if (
           !this.expected.has(identity) ||
           seen.has(identity) ||
@@ -302,7 +310,40 @@ class HarnessPublicOdhinReporter {
       result.parallelIndex < -1
     )
       this.reject();
+    const isAat = overview.groupFor(this.expected.get(identity).file) === "aat";
+    if (
+      isAat &&
+      (![
+        "response-passed",
+        "login-setup-blocked",
+        "failure-unclassified",
+        "service-family-contract-mismatch",
+        "skipped",
+      ].includes(result.aatOutcome) ||
+        (result.status === "passed" &&
+          result.aatOutcome !== "response-passed") ||
+        (result.status !== "passed" && result.aatOutcome === "response-passed"))
+    )
+      this.reject();
+    if (
+      isAat &&
+      result.aatOutcome === "service-family-contract-mismatch" &&
+      (this.expected.get(identity).titlePath.at(-1) !==
+        "api/globalSearch/services contains the central must-run service-family set" ||
+        !Array.isArray(result.aatMissingFamilies) ||
+        !result.aatMissingFamilies.length ||
+        new Set(result.aatMissingFamilies).size !==
+          result.aatMissingFamilies.length ||
+        result.aatMissingFamilies.some(
+          (code) => !Object.hasOwn(overview.familyNames, code),
+        ))
+    )
+      this.reject();
     this.results.set(identity, {
+      ...(isAat ? { aatOutcome: result.aatOutcome } : {}),
+      ...(isAat && result.aatOutcome === "service-family-contract-mismatch"
+        ? { aatMissingFamilies: [...result.aatMissingFamilies] }
+        : {}),
       status: result.status,
       retry: 0,
       duration: result.duration,
@@ -351,7 +392,7 @@ class HarnessPublicOdhinReporter {
       const renderer = new Generate({
         outputFolder: renderDir,
         indexFilename: "index.html",
-        title: `Harness ${this.selection} diagnostics — no release credit`,
+        title: "EXUI Assurance Harness — supporting evidence",
         project: `Harness ${this.selection}`,
         testEnvironment: this.selection,
         release: "",
@@ -463,7 +504,7 @@ class HarnessPublicOdhinReporter {
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Harness ${this.selection}: ${record.status}.</strong> Supporting diagnostics only; no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Checks: ${record.status}.</strong> Supporting diagnostics only; no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
@@ -473,11 +514,21 @@ class HarnessPublicOdhinReporter {
         presentation,
         [...this.expected].map(([identity, entry], index) => ({
           target: `#harness-${index}-0`,
-          feature: entry.titlePath[3],
+          feature: overview.definitions[overview.groupFor(entry.file)].title,
           tags: [],
           retry: 0,
           durationMs: this.results.get(identity).duration,
         })),
+      );
+      presentation.querySelector("#TabDashboard").insertAdjacentHTML(
+        "afterbegin",
+        await overview.renderOverview(
+          [...this.expected].map(([identity, entry]) => ({
+            entry,
+            observed: this.results.get(identity),
+          })),
+          this.selection,
+        ),
       );
       html = presentation.toString();
       validateHtml(html, record);

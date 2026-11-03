@@ -104,12 +104,16 @@ Local diagnostics run portable models followed by five environment probes agains
 ## Source coverage and receipts
 
 ```bash
-yarn harness:catalogue --webapp /absolute/rpx-xui-webapp --definitions /absolute/prl-ccd-definitions --output /absolute/source-report
+yarn harness:catalogue --webapp /absolute/rpx-xui-webapp --definitions /absolute/prl-ccd-definitions --output /absolute/private-source-reports/fresh-run
 RPX_XUI_WEBAPP_DIR=/absolute/rpx-xui-webapp PRL_CCD_DEFINITIONS_DIR=/absolute/prl-ccd-definitions HARNESS_MANIFEST_EXTERNAL_SOURCE_MODE=strict yarn harness:manifest
 yarn harness:defect-intake -- "defect title and bounded notes"
 ```
 
+The catalogue output must be fresh, beneath an existing owned parent with `0700` permissions, and outside Harness, source and review inputs. It cannot use public report directories.
+
 External-checkout source inspection requires the actual selected source paths. The native fixed job uses committed reviewed projections and separate byte/revision/row pins; it does not silently refresh upstream sources. The legacy manifest reports source drift separately from required assurance gaps. PCS membership is required. Its Java SDK/decentralised source owner and base case type are pinned, but definition generation/import, deployed suffix and runtime assurance remain unproved. The profile stays config-backed and its required gap remains unaccepted.
+
+The source diagnostic inventories the complete pinned PRL definition root and resolves typed references beyond the reviewed nine-file projection. It writes private `definition-file-inventory.json` and `definition-reference-graph.json` alongside the catalogue, selection and source-validation report; the latter binds both artifact digests. Added, removed or changed source files block validation. Unsupported schemas, expressions, external types and ambiguous variants remain named gaps and keep impact selection broad. Committed compact summaries contain no live graph and cannot authorize narrowing or release credit. The existing 112 obligation objects remain unchanged.
 
 The source diagnostic also reads the pinned chart metadata and base/AAT/preview values files. It reports15 selected environment keys per profile with explicit presence, source provenance and runtime gaps, including nine unreviewed preview families. Missing or changed source pins block validation. These source-only profiles neither change the112 obligation objects nor prove deployed values or profile equivalence.
 
@@ -123,13 +127,16 @@ Checked-in Jenkins jobs run Harness supporting checks and portable diagnostics. 
 
 The shared Jenkins library deletes its workspace at job completion. Job-local raw reports are not durable evidence retention; an approved private store is still required for native CI acceptance.
 
-Raw native evidence and detailed diagnostic failures stay under `functional-output/tests/harness/private/`. Both Jenkins jobs are configured to publish two build-page links: **Harness support — Odhín (no release credit)** and **Harness models — Odhín (no release credit)**. Each uses the webapp fluid presentation from pinned master `b978cf7` (responsive cards, resizing/reordering, compact view, filters and improved test details) over the installed Odhín renderer, containing reviewed test names and actual outcomes/durations; errors, logs, steps and attachments stay private. Exact validated HTML files are also archived:
+Raw native evidence and detailed diagnostic failures stay under `functional-output/tests/harness/private/`. Both Jenkins jobs publish one **EXUI Assurance Harness** Odhín report at `functional-output/tests/harness/public/odhin/index.html`.
 
-- `functional-output/tests/harness/public/odhin-support/index.html`
-- `functional-output/tests/harness/public/odhin-model/index.html`
+Run `yarn harness:ci` for the same combined report locally. One Playwright runner executes the retained framework checks and portable models once. The first screen explains what ran, why it matters, and what remains untested: configuration/service catalogue models, cross-service historical defect replays, and Harness framework checks. Group counts and outcomes come from actual records; Build-time Node/pipeline/TypeScript/lint checks are explained separately, not invented as Playwright rows.
 
-The job clears prior reports first, validates each report before publication and publishes a model report only if models ran. A support failure stops models; absence means unavailable, not passed. The existing fixed-schema `public/release-assurance-summary.json` remains BLOCKED for these supporting checks. Live Jenkins report rendering/CSP still needs acceptance; download the HTML artifact if the Jenkins wrapper prevents interactive scripts. No global Jenkins security settings are changed.
+The service/capability view uses reviewed source metadata. It is model-only evidence, not per-service application coverage: candidate and CCD checks are **NOT RUN**, so this job observes **0 of 112 required runtime obligations**. The 112 are a bounded inventory; deployment-profile/key gaps, unreviewed preview-family cells, discovery and owner acceptance remain additional gaps. Historical native receipts and retired mock UI are not results of this build.
 
-For the same local reports, run `CI=true yarn harness:support` and `yarn harness:diagnostic:ci`. These commands neither execute a native candidate nor grant release approval. Human review is required before merge or deployment.
+The report uses the pinned webapp fluid presentation (`b978cf7`) over genuine Odhín, with responsive cards, filters and improved modal details. Reviewed test names and actual outcomes/durations are public; errors, logs, raw steps and attachments remain private. The job resets previous output, validates its private digest record and archives/publishes only the one self-contained HTML file. Incomplete or unreviewed records prevent publication. `public/release-assurance-summary.json` remains BLOCKED: supporting checks grant no release approval.
+
+For the explicitly authorized live AAT configuration slice, `yarn harness:aat` runs offline116 in a credential-free child, then the five retained read-only environment probes in a separate AAT/auth child. Supply the approved AAT/IDAM origins and configured solicitor credentials through the local environment; never commit or publish them. This produces one121-record report, with endpoint response passes distinguished from login/setup blocks and unclassified failures. The deployed AAT version is unknown, and these response probes do not discharge the112 candidate-bound obligations or prove UI/CCD behaviour. Each collection uses fresh private JSON/output/session paths; raw data stays private. CI remains offline116 and does not run AAT.
+
+Focused `yarn harness:support` and `yarn harness:diagnostic` commands remain available locally. Live Jenkins rendering/CSP still requires acceptance; download the HTML if the wrapper blocks its scripts. No global Jenkins security setting changes. Human review is required before merge or deployment.
 
 AI-assisted implementation; audit reference: harness-plan-execution-20261102.

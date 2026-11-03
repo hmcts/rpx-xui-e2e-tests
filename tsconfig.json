@@ -20,6 +20,7 @@
     "playwright.harness.config.ts",
     "playwright.harness-diagnostic.config.ts",
     "playwright.harness-support.config.ts",
+    "playwright.harness-ci.config.ts",
     "src/**/*.ts"
   ]
 }

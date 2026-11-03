@@ -87,9 +87,9 @@ node() {
     [[ "$FAIL_COMMAND" != package-manager ]] || return 23
     "$REAL_NODE" "$@"
   elif [[ "$1" == scripts/manage-harness-public-reports.cjs ]]; then
-    [[ "$#" == 3 && "$2" == --validate && ( "$3" == support || "$3" == model ) ]] || return 96
-    printf 'report:validate:%s\\n' "$3" >> "$CALLS_FILE"
-    [[ "$FAIL_COMMAND" != "validate-$3" ]] || return 23
+    [[ "$#" == 2 && "$2" == --validate ]] || return 96
+    printf '%s\\n' 'report:validate' >> "$CALLS_FILE"
+    [[ "$FAIL_COMMAND" != validate ]] || return 23
   else
     [[ "$*" == 'scripts/verify-playwright-browsers.cjs chromium' ]] || return 96
     printf '%s\\n' 'browser:preflight' >> "$CALLS_FILE"
@@ -107,8 +107,7 @@ corepack() {
       const expectedCalls = [
         'nvm:source', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
         'corepack:yarn test:setup:playwright-install-chromium', 'browser:preflight',
-        'corepack:yarn harness:support', 'report:validate:support',
-        'corepack:yarn harness:diagnostic:ci', 'report:validate:model'
+        'corepack:yarn harness:ci', 'report:validate'
       ];
       const cases = [
         { fail: 'source', status: 23, through: 1 },
@@ -120,11 +119,9 @@ corepack() {
         { fail: 'yarn-version', status: 1, through: 5 },
         { fail: 'test:setup:playwright-install-chromium', status: 23, through: 6 },
         { fail: 'browser', status: 1, through: 7 },
-        { fail: 'harness:support', status: 23, through: 8 },
-        { fail: 'validate-support', status: 23, through: 9 },
-        { fail: 'harness:diagnostic:ci', status: 23, through: 10 },
-        { fail: 'validate-model', status: 23, through: 11 },
-        { fail: '', status: 0, through: 11 }
+        { fail: 'harness:ci', status: 23, through: 8 },
+        { fail: 'validate', status: 23, through: 9 },
+        { fail: '', status: 0, through: 9 }
       ];
       for (const { fail, status, through } of cases) {
         rmSync(calls, { force: true });
@@ -153,19 +150,17 @@ corepack() {
     const archived = [...source.matchAll(/archiveArtifacts[^\n]*artifacts:\s*'([^']+)'/g)].map((match) => match[1]);
     assert.deepEqual(archived, [
       'functional-output/tests/harness/public/release-assurance-summary.json',
-      'functional-output/tests/harness/public/odhin-support/index.html',
-      'functional-output/tests/harness/public/odhin-model/index.html'
+      'functional-output/tests/harness/public/odhin/index.html'
     ]);
     assert.ok(source.indexOf('manage-harness-public-reports.cjs --reset') < source.indexOf('try {'));
-    for (const selection of ['support', 'model']) {
-      const validation = source.indexOf(`manage-harness-public-reports.cjs --validate ${selection}`, source.indexOf('finally {'));
-      const publication = source.indexOf(`reportDir: 'functional-output/tests/harness/public/odhin-${selection}'`);
-      assert.ok(validation >= 0 && validation < publication, `${selection}: validate before HTML publication`);
-      assert.match(source, new RegExp(`fileExists\\('functional-output/tests/harness/public/odhin-${selection}/index.html'\\)`));
-    }
-    assert.equal((source.match(/publishHTML\(/g) ?? []).length, 2);
-    assert.equal((source.match(/includes: 'index.html'/g) ?? []).length, 2);
-    assert.equal((source.match(/allowMissing: false/g) ?? []).length, 2);
+    const validation = source.indexOf('manage-harness-public-reports.cjs --validate', source.indexOf('finally {'));
+    const publication = source.indexOf("reportDir: 'functional-output/tests/harness/public/odhin'");
+    assert.ok(validation >= 0 && validation < publication);
+    assert.ok(source.includes("fileExists('functional-output/tests/harness/public/odhin/index.html')"));
+    assert.equal((source.match(/publishHTML\(/g) ?? []).length, 1);
+    assert.equal((source.match(/includes: 'index.html'/g) ?? []).length, 1);
+    assert.equal((source.match(/allowMissing: false/g) ?? []).length, 1);
+    assert.doesNotMatch(source, /odhin-support|odhin-model|yarn harness:support|yarn harness:diagnostic:ci/);
     assert.doesNotMatch(source, /loadVaultSecrets|junit\(|unstable\(|catch\s*\(|test:(?:api|ui|integration|crossbrowser)/);
     assert.ok(source.indexOf('--validate-public-summary') < source.indexOf('archiveArtifacts'));
     assert.match(source, /finally\s*\{/);
@@ -272,6 +267,31 @@ test('every remaining API test file is explicitly selected as Harness support or
     .filter(file => file.endsWith('.api.ts')).map(file => `src/tests/api/${file.replaceAll('\\', '/')}`);
   assert.deepEqual(sources.filter(file => !selected.has(file)).sort(), [],
     'select useful Harness regressions or retire obsolete tests; do not leave silent unselected suites');
+  const combined = spawnSync(process.execPath, [resolve('node_modules/@playwright/test/cli.js'), 'test',
+    '--config', 'playwright.harness-ci.config.ts', '--list', '--reporter=json'], {
+    cwd: process.cwd(), encoding: 'utf8', timeout: 10000,
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, CI: 'true' },
+  });
+  assert.equal(combined.status, 0, combined.stderr);
+  const identities = [];
+  const combinedFiles = new Set();
+  function collect(suite, parents = []) {
+    for (const spec of suite.specs ?? []) {
+      combinedFiles.add(spec.file);
+      identities.push(JSON.stringify([spec.file, ...parents, spec.title]));
+    }
+    for (const child of suite.suites ?? []) collect(child, [...parents, child.title]);
+  }
+  collect(JSON.parse(combined.stdout));
+  assert.equal(identities.length, 116);
+  assert.equal(new Set(identities).size, 116, 'one execution per reviewed contract');
+  assert.deepEqual([...combinedFiles].sort(), [...selected].sort());
+  assert.match(readFileSync('scripts/run-harness-local-poc.mjs','utf8'), /runCi \? "--config=playwright.harness-ci.config.ts"/);
+  const ciSource = readFileSync('playwright.harness-ci.config.ts','utf8');
+  assert.doesNotMatch(ciSource, /process.env.TEST_(?:ENV|URL)\s*=/);
+  assert.match(readFileSync('scripts/run-harness-local-poc.mjs','utf8'), /mode !== "environment" && !runCi/);
+
+
 });
 
 
@@ -295,7 +315,7 @@ test('Jenkins report-management wrapper pins Node before reset or validation', (
       fi
     }
     `);
-    for (const command of ['scripts/manage-harness-public-reports.cjs --reset', 'scripts/manage-harness-public-reports.cjs --validate support', 'scripts/manage-harness-public-reports.cjs --validate model']) {
+    for (const command of ['scripts/manage-harness-public-reports.cjs --reset', 'scripts/manage-harness-public-reports.cjs --validate']) {
       for (const [failAt, expected] of [['source',23],['use',23],['version',1],['command',23],['',0]]) {
         const calls = join(directory, 'calls');
         rmSync(calls, { force: true });

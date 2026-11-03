@@ -71,3 +71,69 @@ export function createFreshHarnessOutput(output, readonlyRoots = []) {
   writeHarnessPublicSummary(canonical, { status: "BLOCKED", exitCode: 2 });
   return canonical;
 }
+
+export function createPrivateSourceDiagnosticOutput(
+  output,
+  harnessRoot,
+  readonlyInputs,
+) {
+  const resolved = path.resolve(output);
+  const canonical = canonicalProspective(resolved);
+  assert.equal(resolved, canonical, "SOURCE_DIAGNOSTIC_OUTPUT_ALIAS");
+  const harness = fs.realpathSync(harnessRoot);
+  assert.equal(
+    path.resolve(harnessRoot),
+    harness,
+    "SOURCE_DIAGNOSTIC_OUTPUT_ALIAS",
+  );
+  const contains = (parent, child) => {
+    const relative = path.relative(parent, child);
+    return (
+      !path.isAbsolute(relative) &&
+      relative !== ".." &&
+      !relative.startsWith(".." + path.sep)
+    );
+  };
+  const overlaps = (left, right) =>
+    contains(left, right) || contains(right, left);
+  for (const relative of [
+    "functional-output/tests/harness/public",
+    "playwright-report",
+    "test-results/odhin-report",
+  ]) {
+    assert(
+      !overlaps(canonical, canonicalProspective(path.join(harness, relative))),
+      "SOURCE_DIAGNOSTIC_PUBLIC_OUTPUT_FORBIDDEN",
+    );
+  }
+  for (const input of readonlyInputs) {
+    assert(
+      !overlaps(canonical, canonicalProspective(input)),
+      "SOURCE_DIAGNOSTIC_OUTPUT_IMMUTABLE_INPUT_OVERLAP",
+    );
+  }
+  const parent = path.dirname(canonical);
+  let info;
+  try {
+    info = fs.lstatSync(parent);
+  } catch {
+    /* Missing parents must not be created. */
+  }
+  assert(
+    info?.isDirectory() &&
+      !info.isSymbolicLink() &&
+      typeof process.getuid === "function" &&
+      info.uid === process.getuid() &&
+      (info.mode & 0o077) === 0,
+    "SOURCE_DIAGNOSTIC_OUTPUT_PRIVATE_PARENT_REQUIRED",
+  );
+  try {
+    fs.mkdirSync(canonical, { mode: 0o700 });
+  } catch (error) {
+    if (error.code === "EEXIST")
+      throw Error("FRESH_SOURCE_DIAGNOSTIC_OUTPUT_REQUIRED");
+    throw error;
+  }
+  fs.chmodSync(canonical, 0o700);
+  return canonical;
+}

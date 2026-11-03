@@ -1267,5 +1267,25 @@
         }
       }
     ]
+  },
+  "definitionDiscovery": {
+    "schemaVersion": 1,
+    "evidenceMode": "pinned-summary",
+    "repository": "prl-ccd-definitions",
+    "revision": "694b9951e94369f1394380506960c4f04f25755d",
+    "root": "definitions/private-law/json",
+    "gitTree": "b6f4cbcdeee1167b94ae7c563ce1e0a94d3cb6e3",
+    "graphAvailable": false,
+    "narrowingAllowed": false,
+    "pins": {
+      "manifestDigest": "sha256:31ffc92c4c1b20a1f2f0ef43b929844ec40b8e45f04ab003cdc0becaae98193f",
+      "graphDigest": "sha256:701716eec76595dc9adaddf3baac4acf2c01b3695b3ff096f425ab47e1efc85e",
+      "files": 1475,
+      "regularFiles": 1475,
+      "bytes": 9655361,
+      "rows": 30035,
+      "edges": 74141,
+      "graphGaps": 165416
+    }
   }
 }

@@ -34,6 +34,13 @@ test("support only: committed source projections load112 obligations without an 
     const coverage = JSON.parse(fs.readFileSync(path.join(output, "coverage.json")));
     assert.deepEqual(coverage.provenance.deploymentSourceManifest, loaded.catalogue.deploymentSourceManifest);
     assert.equal(coverage.provenance.deploymentSourceManifest.length, 4);
+    assert.equal(coverage.provenance.definitionDiscovery.evidenceMode, "pinned-summary");
+    assert.equal(coverage.provenance.definitionDiscovery.graphAvailable, false);
+    assert(coverage.gaps.includes("definition-discovery-graph-unavailable:prl-ccd-definitions"));
+    assert.equal(coverage.gaps.filter(item => item.startsWith("unreviewed-deployment-family:")).length, 9);
+    const selection = JSON.parse(fs.readFileSync(path.join(output, "selection.json")));
+    assert.equal(selection.mode, "broad");
+    assert.equal(selection.obligationIds.length, 112);
     assert(coverage.gaps.includes("unreviewed-deployment-family:preview:JURISDICTIONS:PT"));
     assert.throws(
       () =>
@@ -609,3 +616,26 @@ for (const fault of [
       }
     },
   );
+
+
+test("support only: native committed-summary loading needs no source checkout or parsing dependencies", () => {
+  const { execFileSync } = require("node:child_process");
+  const program = `
+    import Module from 'node:module';
+    import fs from 'node:fs';
+    const original = Module._load;
+    Module._load = function(name, ...args) {
+      if (['typescript', 'js-yaml'].includes(name)) throw Error('SOURCE_PARSER_LOADED');
+      return original.call(this, name, ...args);
+    };
+    const originalRead = fs.readFileSync;
+    fs.readFileSync = function(file, ...args) {
+      if (String(file).includes('/definitions/private-law/json/')) throw Error('OWNER_SOURCE_READ');
+      return originalRead.call(this, file, ...args);
+    };
+    const { loadCommittedConfigurationCatalogue } = await import('./scripts/lib/exui-configuration-runtime-coverage.mjs');
+    const loaded = loadCommittedConfigurationCatalogue();
+    if (loaded.catalogue.obligations.length !== 112 || loaded.validation.errors.length || loaded.catalogue.definitionDiscovery.graphAvailable !== false) process.exit(2);
+  `;
+  execFileSync(process.execPath, ["--input-type=module", "-e", program], { cwd: path.resolve("."), stdio: "pipe" });
+});

@@ -34,7 +34,8 @@ const SOURCE_FILES = [
   'scripts/lib/exui-native-host.mjs', 'scripts/lib/exui-native-containers.mjs',
   'scripts/lib/exui-host-invocation.mjs', 'scripts/lib/exui-output-boundary.mjs',
   'scripts/lib/exui-candidate-runtime.mjs', 'scripts/lib/exui-candidate-child.mjs',
-  'scripts/lib/exui-configuration-catalogue.mjs', 'scripts/lib/exui-deployment-profiles.mjs',
+  'scripts/lib/exui-configuration-catalogue.mjs', 'scripts/lib/exui-definition-discovery.mjs',
+  'scripts/lib/exui-definition-references.mjs', 'scripts/lib/exui-deployment-profiles.mjs',
   'scripts/lib/exui-provider-seams.mjs', 'scripts/lib/exui-runtime-network-guard.cjs',
   'scripts/lib/exui-candidate-artifact.mjs', 'scripts/lib/exui-evidence-io.mjs',
   'scripts/lib/exui-harness-dependencies.mjs', 'scripts/lib/exui-external-evidence.mjs',
@@ -136,7 +137,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 62);
+  assert.equal(SOURCE_FILES.length, 64);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

@@ -5,7 +5,7 @@ import diagnosticConfig from "./harness-diagnostic-config.cjs";
 import { writePublicSummary } from "./lib/exui-evidence-io.mjs";
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
-const switches = new Set(["--lint", "--manifest", "--ci", "--odhin", "--local"]);
+const switches = new Set(["--aat", "--lint", "--manifest", "--ci", "--odhin", "--local"]);
 const selected = args.filter((arg) => arg.startsWith("--selection="));
 if (selected.length > 1 || args.some((arg) => !switches.has(arg) && !arg.startsWith("--selection="))) {
   console.error("[harness-diagnostic] BLOCKED: diagnostic POC only; candidate/release execution requires an isolated candidate runner.");
@@ -14,7 +14,8 @@ if (selected.length > 1 || args.some((arg) => !switches.has(arg) && !arg.startsW
 const selection = selected[0]?.slice("--selection=".length) || "model";
 const runCi = args.includes("--ci");
 const local = args.includes("--local");
-if (!Object.hasOwn(diagnosticConfig.selections, selection) || (local && (runCi || selected.length)) || (runCi && selection !== "model")) {
+const aat = args.includes("--aat");
+if ((aat && args.some(arg => arg !== "--aat")) || !Object.hasOwn(diagnosticConfig.selections, selection) || (local && (runCi || selected.length)) || (runCi && selection !== "model")) {
   console.error("[harness-diagnostic] BLOCKED: invalid diagnostic selection.");
   process.exit(2);
 }
@@ -25,6 +26,17 @@ try {
 } catch {
   console.error("[harness-diagnostic] BLOCKED: public diagnostic summary could not be initialized.");
   process.exit(2);
+}
+if (aat) {
+  try {
+    const { runLocalAat } = (await import("./run-harness-local-aat.cjs")).default;
+    const result = await runLocalAat(process.env);
+    console.log(`[harness-aat] Combined report: ${result.status}; no release approval.`);
+    process.exit(result.exitCode);
+  } catch {
+    console.error("[harness-aat] Collection incomplete or invalid; see private diagnostics.");
+    process.exit(2);
+  }
 }
 console.log("[harness-diagnostic] Diagnostic only: no release credit; no native candidate receipt is produced.");
 
@@ -80,21 +92,21 @@ try {
   if (local) await run("node", ["scripts/bootstrap-harness-local-sessions.mjs"], localEnv);
   if (args.includes("--manifest")) await run("yarn", ["harness:manifest"], offlineEnv);
   if (args.includes("--lint")) await run("yarn", ["lint"], offlineEnv);
-  for (const mode of local ? ["model", "environment"] : [selection]) {
-    const output = `functional-output/tests/harness/private/diagnostics/${mode}`;
+  for (const mode of runCi ? ["harness"] : local ? ["model", "environment"] : [selection]) {
+    const output = runCi ? "functional-output/tests/harness/private/ci" : `functional-output/tests/harness/private/diagnostics/${mode}`;
     const env = {
       ...(mode === "environment" ? (local ? localEnv : process.env) : offlineEnv),
       ...(runCi ? { CI: "true" } : {}),
-      ...(mode !== "environment" ? { TEST_URL: "http://127.0.0.1:3455", TEST_ENV: "local" } : {}),
+      ...(mode !== "environment" && !runCi ? { TEST_URL: "http://127.0.0.1:3455", TEST_ENV: "local" } : {}),
       ...privateReporting(output),
       EXUI_DIAGNOSTIC_SELECTION: mode,
       EXUI_DIAGNOSTIC_ODHIN: args.includes("--odhin") || runCi ? "1" : "0"
     };
-    diagnosticConfig.buildConfig(env);
+    if (!runCi) diagnosticConfig.buildConfig(env);
     if (mode === "environment") env.API_AUTH_MODE = "ui";
     console.log(`[harness-diagnostic] selection=${mode}; supporting evidence only`);
     await run("./node_modules/.bin/playwright", [
-      "test", "--config=playwright.harness-diagnostic.config.ts", `--output=${output}/test-results`
+      "test", runCi ? "--config=playwright.harness-ci.config.ts" : "--config=playwright.harness-diagnostic.config.ts", `--output=${output}/test-results`
     ], env);
   }
 } catch (error) {

@@ -1,21 +1,14 @@
+import process from 'node:process';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, basename, extname } from 'node:path';
 import { readDeploymentSources, deploymentProfileAccounting } from './exui-deployment-profiles.mjs';
+import { collectDefinitionDiscovery, selectReviewedDefinitionSources, summarizeDefinitionDiscovery, validateDefinitionDiscovery } from './exui-definition-discovery.mjs';
+import { validateDefinitionProjection } from './exui-definition-references.mjs';
 
 const routingKeys = ['decentralisedCaseTypeConfig', 'decentralisedServiceMap'];
 const configurationKeys = ['jurisdictions', 'globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping', 'wildcardSearchFields', 'wildcardSearchRoles', ...routingKeys];
-const definitionPaths = [
-  'CaseField/ServiceOfDocuments/CaseField.json',
-  'ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json',
-  'CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json',
-  'CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json',
-  'AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json',
-  'CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json',
-  'SearchResultFields.json', 'WorkBasketInputFields.json', 'WorkBasketResultFields.json'
-].map((path) => `definitions/private-law/json/${path}`);
-const complexIds = ['ServeOrgDetails', 'EmailInformation', 'PostalInformation'];
 const sharedIds = ['configuration-shared:nested-renderer', 'configuration-shared:role-policy'];
 const boundaries = ['model', 'candidate', 'ccd', 'external'];
 const sourceKey = (source) => `${source.repository}:${source.path}`;
@@ -84,31 +77,25 @@ function projectConfiguration(document) {
 function gitMetadata(root, path) {
   try {
     return {
-      revision: execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(),
-      tracked: Boolean(execFileSync('git', ['-C', root, 'ls-files', '--', path], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim())
+      revision: execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_OPTIONAL_LOCKS: '0' } }).trim(),
+      tracked: Boolean(execFileSync('git', ['-C', root, 'ls-files', '--', path], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], env: { ...process.env, GIT_NO_LAZY_FETCH: '1', GIT_OPTIONAL_LOCKS: '0' } }).trim())
     };
   } catch { return { revision: null, tracked: false }; }
 }
 
-export function readConfigurationSources({ webappRoot, definitionsRoot }) {
+export function readConfigurationSources({ webappRoot, definitionsRoot, review }) {
   const sources = [];
   const configurationFiles = readdirSync(join(webappRoot, 'config')).sort();
-  // node-config parser.js supports these formats; this bounded reader deliberately parses JSON only.
+  // node-config supports these formats; the source reader deliberately parses JSON only.
   const unsupportedExtensions = new Set(['.js', '.cjs', '.mjs', '.ts', '.jsonc', '.json5', '.hjson', '.toml', '.coffee', '.iced', '.yaml', '.yml', '.cson', '.properties', '.xml', '.boolean', '.number']);
   for (const path of configurationFiles) if (unsupportedExtensions.has(extname(path))) throw new Error(`unsupported-configuration-format:config/${path}`);
-  for (const [repository, root, paths] of [
-    ['rpx-xui-webapp', webappRoot, configurationFiles.filter((path) => path.endsWith('.json')).map((path) => `config/${path}`)],
-    ['prl-ccd-definitions', definitionsRoot, definitionPaths]
-  ]) {
-    for (const path of paths) {
-      const bytes = readFileSync(join(root, path));
-      let document = JSON.parse(bytes.toString('utf8'));
-      if (repository === 'rpx-xui-webapp') document = projectConfiguration(document);
-      else if (path.includes('/ComplexTypes/')) document = document.filter((row) => complexIds.includes(row.ID));
-      sources.push({ repository, ...gitMetadata(root, path), path, fileDigest: fileDigest(bytes), document });
-    }
+  for (const name of configurationFiles.filter(path => path.endsWith('.json'))) {
+    const path = `config/${name}`, bytes = readFileSync(join(webappRoot, path));
+    sources.push({ repository: 'rpx-xui-webapp', ...gitMetadata(webappRoot, path), path, fileDigest: fileDigest(bytes), document: projectConfiguration(JSON.parse(bytes.toString('utf8'))) });
   }
-  return { schemaVersion: 1, sources, deploymentSources: readDeploymentSources(webappRoot, path => gitMetadata(webappRoot, path)) };
+  const definitionDiscovery = collectDefinitionDiscovery({ repositoryRoot: definitionsRoot, review });
+  for (const source of selectReviewedDefinitionSources({ discovery: definitionDiscovery, review })) sources.push(source);
+  return { schemaVersion: 1, sources, definitionDiscovery, deploymentSources: readDeploymentSources(webappRoot, path => gitMetadata(webappRoot, path)) };
 }
 
 function familiesInConfiguration(config) {
@@ -148,6 +135,9 @@ function mergeConfiguration(base, overlay) {
 export function buildConfigurationCatalogue(snapshot, review) {
   if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.sources) || snapshot.sources.length === 0) throw new Error('Invalid configuration source snapshot');
   if (new Set(snapshot.sources.map(sourceKey)).size !== snapshot.sources.length) throw new Error('Duplicate configuration source');
+  const projection = review.definitionDiscovery?.projection;
+  validateDefinitionProjection(projection);
+  const definitionPaths = new Set(projection.map(item => item.path));
   const configurations = snapshot.sources.filter((source) => source.repository === 'rpx-xui-webapp');
   configurations.forEach(validateRoutingConfiguration);
   const defaults = configurations.find((source) => source.path === 'config/default.json');
@@ -173,7 +163,7 @@ export function buildConfigurationCatalogue(snapshot, review) {
     }
   }
   for (const source of snapshot.sources.filter((item) => item.repository !== 'rpx-xui-webapp')) {
-    if (source.repository !== 'prl-ccd-definitions' || !definitionPaths.includes(source.path)) throw new Error('Unsupported definition source');
+    if (source.repository !== 'prl-ccd-definitions' || !definitionPaths.has(source.path)) throw new Error('Unsupported definition source');
     if (!Array.isArray(source.document)) throw new Error('Definition document must be an array');
     for (const row of source.document) {
       if (!row || typeof row !== 'object' || Array.isArray(row)) throw new Error('Invalid definition row');
@@ -222,7 +212,7 @@ export function buildConfigurationCatalogue(snapshot, review) {
         'rpx-xui-webapp:config/default.json',
         'prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json']) };
   });
-  obligations.push(...sequences);
+  for (const sequence of sequences) obligations.push(sequence);
   for (const [prefix, entry] of Object.entries(defaults.document.decentralisedCaseTypeConfig ?? {})) {
     const signature = routingSignature(defaults, prefix, entry);
     obligations.push({ id: routingId(signature), kind: 'configuration-decentralisation', requiredBoundary: 'candidate', signature,
@@ -234,26 +224,43 @@ export function buildConfigurationCatalogue(snapshot, review) {
   return { schemaVersion: 1, scope: review.scope, seed: review.seed, boundary: 'source-and-catalogue', releaseCredit: false,
     pilotAccessBoundary: 'Selected AuthorisationCaseEvent CRUD only; no case, field or state authorisation inferred.',
     sourceManifest: snapshot.sources.map((source) => ({ repository: source.repository, revision: source.revision, path: source.path, tracked: source.tracked, diagnosticOnly: diagnosticConfiguration(source), fileDigest: source.fileDigest, fragmentDigest: digest(source.document) })),
+    definitionDiscovery: snapshot.definitionDiscovery ? summarizeDefinitionDiscovery(snapshot.definitionDiscovery) : null,
     deploymentProfiles: deployment.profiles, deploymentSourceManifest: deployment.sourceManifest,
     families: [...families.values()].sort((a, b) => a.id.localeCompare(b.id)), diagnosticFamilies: [...diagnosticFamilies.values()].sort((a, b) => a.id.localeCompare(b.id)), configurationProfiles, features, pilotCells, sequences, obligations };
 }
 
-export function selectConfigurationObligations(catalogue, changedPaths) {
-  const all = catalogue.obligations.map((item) => item.id);
-  if (!Array.isArray(changedPaths) || changedPaths.length === 0) return { mode: 'broad', reason: 'unknown-impact', obligationIds: all };
+export function selectConfigurationObligations(catalogue, changedPaths, context) {
+  if (!context?.snapshot || !context?.review) throw new Error('TRUSTED_CONFIGURATION_CONTEXT_REQUIRED');
+  const { snapshot, review } = context;
+  const authoritative = buildConfigurationCatalogue(snapshot, review);
+  const all = authoritative.obligations.map(item => item.id);
+  const broad = reason => ({ mode: 'broad', reason, obligationIds: all });
+  if (digest(catalogue.obligations) !== digest(authoritative.obligations)) return broad('catalogue-authority-mismatch');
+  const discovery = validateDefinitionDiscovery({ discovery: snapshot.definitionDiscovery, review });
+  const validation = validateConfigurationCatalogue({ snapshot, review, catalogue: authoritative });
+  if (!discovery.canFocus || validation.errors.length || review.ownerAcceptance !== 'accepted') return broad('unverified-discovery');
+  if (!Array.isArray(changedPaths) || changedPaths.length === 0) return broad('unknown-impact');
   const keys = changedPaths.map(({ repository, path }) => `${repository}:${path}`);
-  const known = new Set(catalogue.obligations.flatMap((item) => item.sourceKeys));
-  if (keys.some((key) => !known.has(key))) return { mode: 'broad', reason: 'unknown-impact', obligationIds: all };
-  const obligationIds = catalogue.obligations.filter((item) => sharedIds.includes(item.id) || item.sourceKeys.some((key) => keys.includes(key))).map((item) => item.id);
-  return { mode: 'focused', reason: 'direct-and-shared-dependencies', obligationIds };
+  const known = new Set([...authoritative.obligations.flatMap(item => item.sourceKeys), ...discovery.graph.nodes.map(node => `${review.definitionDiscovery.repository}:${node.path}`)]);
+  if (keys.some(key => !known.has(key))) return broad('unknown-impact');
+  const impacted = new Set(keys);
+  for (const node of discovery.graph.nodes.filter(node => Object.hasOwn(discovery.graph.dependencies, node.id))) {
+    if (discovery.graph.dependencies[node.id]?.some(path => keys.includes(`${review.definitionDiscovery.repository}:${path}`))) impacted.add(`${review.definitionDiscovery.repository}:${node.path}`);
+  }
+  const obligationIds = authoritative.obligations.filter(item => sharedIds.includes(item.id) || item.sourceKeys.some(key => impacted.has(key))).map(item => item.id);
+  return { mode: 'focused', reason: 'reviewed-reference-and-shared-dependencies', obligationIds };
 }
 
 export function validateConfigurationCatalogue({ snapshot, review, catalogue, expectedSnapshot, selectedIds, executedProofs = [] }) {
   const errors = [];
-  const gaps = ['effective-environment-values-unavailable', 'definition-discovery-bounded', 'runtime-proof-not-established'];
+  const gaps = ['effective-environment-values-unavailable', 'runtime-proof-not-established'];
+  const discovery = validateDefinitionDiscovery({ discovery: snapshot.definitionDiscovery, review });
+  for (const error of discovery.errors) errors.push(error);
+  for (const gap of discovery.gaps) gaps.push(gap);
+  if (digest(catalogue.definitionDiscovery ?? null) !== digest(discovery.summary)) errors.push('definition-discovery-metadata-drift');
   const deployment = deploymentProfileAccounting(snapshot.deploymentSources, review);
-  errors.push(...deployment.errors);
-  gaps.push(...deployment.gaps);
+  for (const error of deployment.errors) errors.push(error);
+  for (const gap of deployment.gaps) gaps.push(gap);
   if (digest(catalogue.deploymentProfiles ?? null) !== digest(deployment.profiles) ||
       digest(catalogue.deploymentSourceManifest ?? null) !== digest(deployment.sourceManifest)) errors.push('deployment-profile-metadata-drift');
   if (review.ownerAcceptance !== 'accepted') gaps.push('owner-grouping-acceptance-pending');
