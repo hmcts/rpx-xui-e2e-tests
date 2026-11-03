@@ -70,7 +70,7 @@ Each comparison below describes its recorded batch and source pin. Later reviewe
 | 16effa4 | 112 | Obsolete config/session/mock/load/report support and duplicate reporter checks removed; useful auth/session/resolver/toolkit/task-list checks retained, adaptive timeout regression moved intact and all surviving API tests explicitly selected. |
 | 6ea3416 | 10 | Accepted native Global Search configuration composition replaces one mock-backed selector diagnostic; nine sole-consumer helper checks and ten unreachable files removed. Exact old labels/screenshot and live-persona parity explicitly withdrawn. |
 | ae743ae | 7 | Retire generated WA/CYA browser illustrations, three sole-consumer task-list validator checks and one fake-route bootstrap model check; retain installed-toolkit class and real frontend/native consumers. |
-| this batch | 2 | Explicit withdrawal of generic IA overview layout and broad page-axe diagnostics; historical EXUI-4756 remains an unexecuted learning case and warning, without a waiver. |
+| 8c4a7a4 | 2 | Explicit withdrawal of generic IA overview layout and broad page-axe diagnostics; historical EXUI-4756 remains an unexecuted learning case and warning, without a waiver. |
 
 Eight hundred and ninety-one recorded Playwright registrations are retired. Node evaluator/pipeline check refactoring is counted separately in validation, not added to this total. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
 
