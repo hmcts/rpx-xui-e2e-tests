@@ -157,7 +157,9 @@ async function proof(input, invocation, directory) {
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === GLOBAL_SEARCH_SCOPE
+      input.releaseScopeId === "exui-hearing-publication-pilot"
+        ? "hearing-publication"
+        : input.releaseScopeId === GLOBAL_SEARCH_SCOPE
         ? "global-search"
         : input.releaseScopeId === ROUTING_SCOPE
         ? "routing"

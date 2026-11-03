@@ -17,6 +17,7 @@ import {
   removeHostResource,
   inspectHostContainer,
 } from "./exui-host-invocation.mjs";
+import { verifyHearingPublicationMutant } from "./exui-hearing-publication-mutation.mjs";
 import { verifyScopeMutant } from "../prepare-harness-scope-mutant.mjs";
 import { installCancellationCleanup } from "./exui-oci-runtime.mjs";
 import { getReleasePolicy } from "./exui-release-policy.mjs";
@@ -48,7 +49,7 @@ function invalidate(output, signal, cleanupComplete) {
     cleanupComplete,
   });
 }
-function derivations(input, output, policy, identities, scopeDerivation) {
+function derivations(input, output, policy, identities, artifactDerivation) {
   const mutations = [];
   for (const definition of policy.mutationDefinitions) {
     const baselineId =
@@ -68,13 +69,13 @@ function derivations(input, output, policy, identities, scopeDerivation) {
       baselineIdentity: baseline.identity,
       mutantIdentity: mutant.identity,
       transformation: definition.mutationId,
-      ...(scopeDerivation
+      ...(artifactDerivation
         ? {
             productionArtifact: input.mutantArtifact,
-            transformationRecord: scopeDerivation,
-            target: scopeDerivation.target,
-            beforeDigest: scopeDerivation.beforeDigest,
-            afterDigest: scopeDerivation.afterDigest,
+            transformationRecord: artifactDerivation,
+            target: artifactDerivation.target,
+            beforeDigest: artifactDerivation.beforeDigest,
+            afterDigest: artifactDerivation.afterDigest,
           }
         : input.releaseScopeId === GLOBAL_SEARCH_SCOPE
           ? { target: "NODE_CONFIG.globalSearchServices",
@@ -183,10 +184,12 @@ export async function runNativeHostPhase(output, stagedHarness) {
         "CCD_OWNERSHIP_ISOLATION_MISMATCH",
       );
     }
-    const scopeDerivation =
+    const artifactDerivation =
       input.releaseScopeId === "exui-wa-scope-pilot"
         ? await verifyScopeMutant(input.artifact, input.mutantArtifact)
-        : null;
+        : input.releaseScopeId === "exui-hearing-publication-pilot"
+          ? await verifyHearingPublicationMutant(input.artifact, input.mutantArtifact)
+          : null;
     const handoff = {
       mode: "native-separate-api",
       owner: input.runId,
@@ -222,6 +225,15 @@ export async function runNativeHostPhase(output, stagedHarness) {
           playwrightVersion: input.harnessDependencies.playwrightVersion,
           candidateRuntimeReference: input.nativeRuntime.reference,
           candidateBuildNodeVersion: artifact.provenance.runtimeNodeVersion,
+          ...(input.releaseScopeId === "exui-hearing-publication-pilot"
+            ? {
+                hearingProfileSelection: JSON.stringify({
+                  idamLoginUrl: config.services.idam.idamLoginUrl,
+                  previewDeploymentVariable: false,
+                  browserExecuted: false,
+                }),
+              }
+            : {}),
           ...(input.releaseScopeId === GLOBAL_SEARCH_SCOPE ? { globalSearchContract: JSON.stringify(globalSearchContract()) } : {}),
           ...(input.releaseScopeId === ROUTING_SCOPE
             ? {
@@ -246,7 +258,9 @@ export async function runNativeHostPhase(output, stagedHarness) {
               }
             : {}),
           excludedSeams:
-            input.releaseScopeId === GLOBAL_SEARCH_SCOPE
+            input.releaseScopeId === "exui-hearing-publication-pilot"
+              ? "synthetic startup auth; actual Node prod capability publication only; no browser/UI/accessibility/roles/CSRF/HMC/CCD/profile/catalogue credit"
+              : input.releaseScopeId === GLOBAL_SEARCH_SCOPE
               ? "synthetic-auth,reference-data,empty-search-response,auxiliary-read-jurisdictions,feature-flags,telemetry; no CCD search/access/cache algorithm/profile credit"
               : input.releaseScopeId === ROUTING_SCOPE
               ? "synthetic-auth,upstream-definition-metadata,central-NoC-response,PCS-NoC-response,PCS-destination-marker,feature-flags,telemetry; no PCS backend/CCD/access/persistence or aggregate80ee credit"
@@ -291,7 +305,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
       output,
       policy,
       identities,
-      scopeDerivation,
+      artifactDerivation,
     );
     writeJsonAtomic(path.join(output, "run.json"), {
       schemaVersion: 1,

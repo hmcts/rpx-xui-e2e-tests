@@ -23,6 +23,7 @@ const ROOT = path.resolve(
 const safePath = (value) =>
   typeof value === "string" && path.isAbsolute(value) && !/[\r\n,]/.test(value);
 const scopes = {
+  hearingPublication: "exui-hearing-publication-pilot",
   globalSearch: "exui-global-search-pilot",
   routing: "exui-decentralised-routing-pilot",
   family: "exui-wa-family-pilot",

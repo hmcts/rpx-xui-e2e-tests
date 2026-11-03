@@ -18,7 +18,15 @@ const config = buildHarnessConfig(
     : undefined,
 );
 const slice = process.env.EXUI_HARNESS_SLICE ?? "family";
-if (!["family", "scope", "routing", "global-search"].includes(slice))
+if (
+  ![
+    "family",
+    "scope",
+    "routing",
+    "global-search",
+    "hearing-publication",
+  ].includes(slice)
+)
   throw new Error("UNKNOWN_HARNESS_SLICE");
 export default defineConfig({
   ...config,
@@ -30,6 +38,9 @@ export default defineConfig({
     : {}),
   ...(selection === "candidate" && slice === "global-search"
     ? { testMatch: "**/global-search/*.spec.ts" }
+    : {}),
+  ...(selection === "candidate" && slice === "hearing-publication"
+    ? { testMatch: "**/hearing-publication/*.spec.ts" }
     : {}),
   timeout: 60_000,
   use: {

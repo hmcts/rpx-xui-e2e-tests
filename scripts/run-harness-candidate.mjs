@@ -20,6 +20,7 @@ import {
   ROUTING_SCOPE,
   assertRoutingInterpreter,
 } from "./lib/exui-routing-contract.mjs";
+import { verifyHearingPublicationMutant } from "./lib/exui-hearing-publication-mutation.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
@@ -45,9 +46,13 @@ async function launch() {
   const mutantPath = arg("--mutant");
   if (releaseScopeId === "exui-wa-scope-pilot" && !mutantPath)
     throw new Error("SCOPE_MUTANT_ARTIFACT_REQUIRED");
+  if (releaseScopeId === "exui-hearing-publication-pilot" && !mutantPath)
+    throw new Error("HEARING_MUTANT_ARTIFACT_REQUIRED");
   const mutantArtifact = mutantPath
     ? await verifyCandidateArtifact(path.resolve(mutantPath))
     : null;
+  if (releaseScopeId === "exui-hearing-publication-pilot")
+    await verifyHearingPublicationMutant(artifact, mutantArtifact);
   const browserRoot = fs.realpathSync(
     path.resolve(arg("--browser") ?? "functional-output/inputs/browser"),
   );

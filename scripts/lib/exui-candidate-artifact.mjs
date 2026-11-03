@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, readdir, readlink, realpath } from 'node:fs/promises';
+import { lstat, readFile, readdir, readlink, realpath, cp, lchmod } from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 
 const hash = (value) => `sha256:${createHash('sha256').update(value).digest('hex')}`;
@@ -58,4 +59,25 @@ export async function verifyCandidateArtifact(manifestPath) {
   const observed = await describeCandidateArtifact(manifest.candidateRoot, manifest.provenance);
   if (JSON.stringify(observed) !== JSON.stringify(manifest)) throw new Error('Candidate artifact identity mismatch: payload or provenance changed');
   return observed;
+}
+
+// Shared with scope and Hearing derivation; preserve the existing platform-specific copy behavior.
+async function preserveSymlinkModes(source, destination) {
+  // Darwin applies the caller's umask when fs.cp recreates a symlink.
+  // Linux symlink modes are fixed and lchmod is unsupported.
+  if (process.platform !== "darwin") return;
+  for (const entry of await readdir(source, { withFileTypes: true })) {
+    const sourcePath = path.join(source, entry.name);
+    const destinationPath = path.join(destination, entry.name);
+    if (entry.isSymbolicLink()) {
+      const { mode } = await lstat(sourcePath);
+      await lchmod(destinationPath, mode & 0o777);
+    } else if (entry.isDirectory()) {
+      await preserveSymlinkModes(sourcePath, destinationPath);
+    }
+  }
+}
+export async function copyCandidateArtifact(source, destination) {
+  await cp(source, destination, { recursive: true, verbatimSymlinks: true, mode: constants.COPYFILE_FICLONE });
+  await preserveSymlinkModes(source, destination);
 }

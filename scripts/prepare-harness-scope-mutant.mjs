@@ -1,11 +1,11 @@
 import fs from "node:fs/promises";
-import { constants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   verifyCandidateArtifact,
   describeCandidateArtifact,
   digestCandidateTree,
+  copyCandidateArtifact,
 } from "./lib/exui-candidate-artifact.mjs";
 import { writeJsonAtomic, digestBytes } from "./lib/exui-evidence-io.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
@@ -66,21 +66,6 @@ export async function verifyScopeMutant(baseline, mutant) {
     mutantArtifactDigest: mutant.identity.artifactDigest,
   };
 }
-async function preserveSymlinkModes(source, destination) {
-  // Darwin applies the caller's umask when fs.cp recreates a symlink.
-  // Linux symlink modes are fixed and lchmod is unsupported.
-  if (process.platform !== "darwin") return;
-  for (const entry of await fs.readdir(source, { withFileTypes: true })) {
-    const sourcePath = path.join(source, entry.name);
-    const destinationPath = path.join(destination, entry.name);
-    if (entry.isSymbolicLink()) {
-      const { mode } = await fs.lstat(sourcePath);
-      await fs.lchmod(destinationPath, mode & 0o777);
-    } else if (entry.isDirectory()) {
-      await preserveSymlinkModes(sourcePath, destinationPath);
-    }
-  }
-}
 export async function deriveScopeMutant(baselinePath, output) {
   const baseline = await verifyCandidateArtifact(path.resolve(baselinePath));
   const candidateRoot = path.join(path.resolve(output), "artifact");
@@ -92,12 +77,7 @@ export async function deriveScopeMutant(baselinePath, output) {
     if (error.code !== "ENOENT") throw error;
   }
   const { target, source } = await transformationTarget(baseline.candidateRoot);
-  await fs.cp(baseline.candidateRoot, candidateRoot, {
-    recursive: true,
-    verbatimSymlinks: true,
-    mode: constants.COPYFILE_FICLONE,
-  });
-  await preserveSymlinkModes(baseline.candidateRoot, candidateRoot);
+  await copyCandidateArtifact(baseline.candidateRoot, candidateRoot);
   await fs.writeFile(
     path.join(candidateRoot, target),
     transformOrganisationGuard(source),

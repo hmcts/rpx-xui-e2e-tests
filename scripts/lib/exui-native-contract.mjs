@@ -10,6 +10,14 @@ import {
 import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration } from "./exui-global-search-contract.mjs";
 
 const slices = {
+  "exui-hearing-publication-pilot": [
+    { invocationId: "baseline", kind: "baseline", mutation: null },
+    {
+      invocationId: "hearing-amendments-use-enabled-map",
+      kind: "mutation",
+      mutation: "hearing-amendments-use-enabled-map",
+    },
+  ],
   [GLOBAL_SEARCH_SCOPE]: [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     { invocationId: GLOBAL_SEARCH_MUTATION, kind: "mutation", mutation: GLOBAL_SEARCH_MUTATION },
@@ -72,7 +80,7 @@ export function nativeInvocation(input, id) {
   return value;
 }
 export function selectedArtifact(input, invocation) {
-  return invocation.mutation === "wa-broaden-scope"
+  return ["wa-broaden-scope", "hearing-amendments-use-enabled-map"].includes(invocation.mutation)
     ? input.mutantArtifact
     : input.artifact;
 }

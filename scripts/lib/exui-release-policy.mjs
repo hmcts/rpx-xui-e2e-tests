@@ -5,6 +5,18 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 
 // This reviewed pilot scope cannot authorize a full EXUI release.
 export function getReleasePolicy(scope) {
+  if (scope === 'exui-hearing-publication-pilot') {
+    const policy = {
+      releaseScopeId: scope,
+      requiredObligationIds: ['hearing-published-capabilities'],
+      obligations: [{ id: 'hearing-published-capabilities', boundary: 'candidate',
+        requiredProofIds: ['hearing-prod-capabilities'], requiredMutationIds: ['hearing-amendments-use-enabled-map'] }],
+      mutationDefinitions: [{ mutationId: 'hearing-amendments-use-enabled-map', obligationId: 'hearing-published-capabilities',
+        definitionDigest: digest({ boundary: 'candidate', transformation: 'replace-prod-amendment-map-with-candidate-prod-enabled-map' }),
+        expectedFailureId: 'hearing-amendment-capability-map', baselineProofId: 'hearing-prod-capabilities', mutantProofId: 'hearing-amendment-map-broadened' }],
+    };
+    return { ...policy, policyDigest: digest(policy) };
+  }
   if (scope === 'exui-global-search-pilot') {
     const policy = { releaseScopeId: scope, requiredObligationIds: ['global-search-capability-composition'],
       obligations: [{ id: 'global-search-capability-composition', boundary: 'candidate', requiredProofIds: ['global-search-all-services'], requiredMutationIds: ['global-search-wa-capability'] }],

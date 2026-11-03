@@ -142,6 +142,7 @@ export function toolContainerArguments({
             "routing-omit-web-url",
             "routing-omit-noc-base-url",
             "global-search-wa-capability",
+            "hearing-amendments-use-enabled-map",
           ]
         : ["baseline", "wa-drop-family"]
     ).includes(invocationId)
@@ -232,6 +233,7 @@ export function candidateArchiveArguments({
       "routing-omit-web-url",
       "routing-omit-noc-base-url",
       "global-search-wa-capability",
+      "hearing-amendments-use-enabled-map",
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
@@ -251,6 +253,16 @@ export function candidateArchiveArguments({
     throw Error("GLOBAL_SEARCH_SCOPE_REQUIRED");
   if (releaseScopeId === "exui-global-search-pilot" && !["baseline", "global-search-wa-capability"].includes(invocationId))
     throw Error("UNSUPPORTED_GLOBAL_SEARCH_INVOCATION");
+  if (
+    invocationId === "hearing-amendments-use-enabled-map" &&
+    releaseScopeId !== "exui-hearing-publication-pilot"
+  )
+    throw Error("HEARING_PUBLICATION_SCOPE_REQUIRED");
+  if (
+    releaseScopeId === "exui-hearing-publication-pilot" &&
+    !["baseline", "hearing-amendments-use-enabled-map"].includes(invocationId)
+  )
+    throw Error("UNSUPPORTED_HEARING_PUBLICATION_INVOCATION");
   assertReadOnlyMountIsolation(
     [candidateRoot, guard, evidenceRoot, harnessRoot],
     [sessions, diagnostics],

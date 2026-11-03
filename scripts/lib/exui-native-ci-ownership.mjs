@@ -10,6 +10,7 @@ import { writeJsonAtomic } from "./exui-evidence-io.mjs";
 
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const scopes = {
+  hearingPublication: "exui-hearing-publication-pilot",
   globalSearch: "exui-global-search-pilot",
   routing: "exui-decentralised-routing-pilot",
   family: "exui-wa-family-pilot",
@@ -56,7 +57,7 @@ export function captureNativeOwnership(
     context.browserRuntimeImage,
     "CI_NATIVE_TOOLS_IMAGE_MISMATCH",
   );
-  if (name === "scope")
+  if (name === "scope" || name === "hearingPublication")
     assert.deepEqual(
       input.mutantArtifact,
       context.mutantArtifact,
