@@ -21,6 +21,7 @@ import { verifyScopeMutant } from "../prepare-harness-scope-mutant.mjs";
 import { installCancellationCleanup } from "./exui-oci-runtime.mjs";
 import { getReleasePolicy } from "./exui-release-policy.mjs";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
+import { GLOBAL_SEARCH_SCOPE, globalSearchContract } from "./exui-global-search-contract.mjs";
 import { ROUTING_SCOPE } from "./exui-routing-contract.mjs";
 import {
   digestBytes,
@@ -75,6 +76,10 @@ function derivations(input, output, policy, identities, scopeDerivation) {
             beforeDigest: scopeDerivation.beforeDigest,
             afterDigest: scopeDerivation.afterDigest,
           }
+        : input.releaseScopeId === GLOBAL_SEARCH_SCOPE
+          ? { target: "NODE_CONFIG.globalSearchServices",
+              before: nativeIdentity(input, { mutation: null }, input.artifact.candidateRoot).config.globalSearchServices,
+              after: nativeIdentity(input, { mutation: definition.mutationId }, input.artifact.candidateRoot).config.globalSearchServices }
         : input.releaseScopeId === ROUTING_SCOPE
           ? {
               target: `NODE_CONFIG.decentralisedCaseTypeConfig.PCS.${definition.mutationId === "routing-omit-web-url" ? "webUrl" : "nocBaseUrl"}`,
@@ -217,6 +222,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
           playwrightVersion: input.harnessDependencies.playwrightVersion,
           candidateRuntimeReference: input.nativeRuntime.reference,
           candidateBuildNodeVersion: artifact.provenance.runtimeNodeVersion,
+          ...(input.releaseScopeId === GLOBAL_SEARCH_SCOPE ? { globalSearchContract: JSON.stringify(globalSearchContract()) } : {}),
           ...(input.releaseScopeId === ROUTING_SCOPE
             ? {
                 routingInterpreter: JSON.stringify(input.routingInterpreter),
@@ -240,7 +246,9 @@ export async function runNativeHostPhase(output, stagedHarness) {
               }
             : {}),
           excludedSeams:
-            input.releaseScopeId === ROUTING_SCOPE
+            input.releaseScopeId === GLOBAL_SEARCH_SCOPE
+              ? "synthetic-auth,reference-data,empty-search-response,auxiliary-read-jurisdictions,feature-flags,telemetry; no CCD search/access/cache algorithm/profile credit"
+              : input.releaseScopeId === ROUTING_SCOPE
               ? "synthetic-auth,upstream-definition-metadata,central-NoC-response,PCS-NoC-response,PCS-destination-marker,feature-flags,telemetry; no PCS backend/CCD/access/persistence or aggregate80ee credit"
               : input.ccd
                 ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; real CCD RBAC only; ABAC/provider excluded"

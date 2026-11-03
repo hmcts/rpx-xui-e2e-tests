@@ -2,12 +2,51 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import type { BrowserContext } from "@playwright/test";
+
 import { test as base, expect } from "./harnessIdentity";
+
+export async function installCandidateBrowserSeams(context: BrowserContext) {
+  const rejected: string[] = [];
+  const flags = Object.fromEntries(
+    Object.entries({
+      MC_Work_Allocation: true,
+      "mc-work-allocation-active-feature": "WorkAllocationRelease2",
+      "feature-global-search": true,
+    }).map(([key, value]) => [key, { value, version: 1 }]),
+  );
+  await context.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.origin === "http://127.0.0.1:3100") {
+      await route.continue();
+      return;
+    }
+    // Explicitly excluded feature flag/telemetry providers; no candidate-owned route is fulfilled.
+    if (
+      [
+        "clientstream.launchdarkly.com",
+        "clientsdk.launchdarkly.com",
+        "events.launchdarkly.com",
+        "app.launchdarkly.com",
+      ].includes(url.hostname)
+    ) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify(url.pathname.includes("goals") ? [] : flags),
+      });
+      return;
+    }
+    rejected.push(`UNDECLARED_BROWSER_DESTINATION:${url.origin}`);
+    await route.abort("blockedbyclient");
+  });
+  return rejected;
+}
 
 export const test = base.extend<{ candidateIdentity: void }>({
   candidateIdentity: [
     async ({ context }, use) => {
-      const rejected: string[] = [];
       const assetChecks: Promise<void>[] = [];
       context.on("response", (assetResponse) => {
         const assetUrl = new URL(assetResponse.url());
@@ -31,39 +70,7 @@ export const test = base.extend<{ candidateIdentity: void }>({
           })(),
         );
       });
-      const flags = Object.fromEntries(
-        Object.entries({
-          MC_Work_Allocation: true,
-          "mc-work-allocation-active-feature": "WorkAllocationRelease2",
-          "feature-global-search": true,
-        }).map(([key, value]) => [key, { value, version: 1 }]),
-      );
-      await context.route("**/*", async (route) => {
-        const url = new URL(route.request().url());
-        if (url.origin === "http://127.0.0.1:3100") {
-          await route.continue();
-          return;
-        }
-        // Explicitly excluded feature flag/telemetry providers; no candidate-owned route is fulfilled.
-        if (
-          [
-            "clientstream.launchdarkly.com",
-            "clientsdk.launchdarkly.com",
-            "events.launchdarkly.com",
-            "app.launchdarkly.com",
-          ].includes(url.hostname)
-        ) {
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            headers: { "access-control-allow-origin": "*" },
-            body: JSON.stringify(url.pathname.includes("goals") ? [] : flags),
-          });
-          return;
-        }
-        rejected.push(`UNDECLARED_BROWSER_DESTINATION:${url.origin}`);
-        await route.abort("blockedbyclient");
-      });
+      const rejected = await installCandidateBrowserSeams(context);
       await use();
       expect(
         assetChecks.length,

@@ -10,6 +10,7 @@ import { writeJsonAtomic } from "./exui-evidence-io.mjs";
 
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const scopes = {
+  globalSearch: "exui-global-search-pilot",
   routing: "exui-decentralised-routing-pilot",
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",

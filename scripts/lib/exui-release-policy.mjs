@@ -5,6 +5,14 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 
 // This reviewed pilot scope cannot authorize a full EXUI release.
 export function getReleasePolicy(scope) {
+  if (scope === 'exui-global-search-pilot') {
+    const policy = { releaseScopeId: scope, requiredObligationIds: ['global-search-capability-composition'],
+      obligations: [{ id: 'global-search-capability-composition', boundary: 'candidate', requiredProofIds: ['global-search-all-services'], requiredMutationIds: ['global-search-wa-capability'] }],
+      mutationDefinitions: [{ mutationId: 'global-search-wa-capability', obligationId: 'global-search-capability-composition',
+        definitionDigest: digest({ boundary: 'candidate', transformation: 'bind-globalSearchServices-to-waSupportedJurisdictions' }),
+        expectedFailureId: 'global-search-capability-scope', baselineProofId: 'global-search-all-services', mutantProofId: 'global-search-wa-list' }] };
+    return { ...policy, policyDigest: digest(policy) };
+  }
   if (scope === 'exui-decentralised-routing-pilot') {
     const policy = { releaseScopeId: scope, requiredObligationIds: ['routing-create-entry', 'routing-noc-cache'],
       obligations: [

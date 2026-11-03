@@ -31,6 +31,8 @@ import {
   assertRoutingInterpreter,
 } from "./lib/exui-routing-contract.mjs";
 import { startRoutingProviders } from "./lib/exui-routing-provider.mjs";
+import { GLOBAL_SEARCH_SCOPE } from "./lib/exui-global-search-contract.mjs";
+import { startGlobalSearchProviders } from "./lib/exui-global-search-provider.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
@@ -71,7 +73,9 @@ async function providers(input, invocation, directory) {
     read(path.join(root, "scripts/fixtures/exui-configuration-review.json")),
   );
   let server, cookie;
-  if (input.releaseScopeId === ROUTING_SCOPE) {
+  if (input.releaseScopeId === GLOBAL_SEARCH_SCOPE) {
+    ({ server, cookie } = await startGlobalSearchProviders(directory));
+  } else if (input.releaseScopeId === ROUTING_SCOPE) {
     const review = read(
       path.join(root, "scripts/fixtures/exui-configuration-review.json"),
     );
@@ -153,7 +157,9 @@ async function proof(input, invocation, directory) {
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === ROUTING_SCOPE
+      input.releaseScopeId === GLOBAL_SEARCH_SCOPE
+        ? "global-search"
+        : input.releaseScopeId === ROUTING_SCOPE
         ? "routing"
         : input.releaseScopeId === "exui-wa-scope-pilot"
           ? "scope"
@@ -173,6 +179,7 @@ async function proof(input, invocation, directory) {
       ? { EXUI_HARNESS_MUTATION: invocation.mutation }
       : {}),
     ...(invocation.persona ? { EXUI_SCOPE_PERSONA: invocation.persona } : {}),
+    ...(input.releaseScopeId === GLOBAL_SEARCH_SCOPE ? { EXUI_GLOBAL_SEARCH_EVIDENCE: directory } : {}),
     ...(input.releaseScopeId === ROUTING_SCOPE
       ? {
           EXUI_ROUTING_SESSIONS: path.join(directory, "routing-sessions.json"),

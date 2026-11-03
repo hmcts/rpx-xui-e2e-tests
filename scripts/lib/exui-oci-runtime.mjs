@@ -141,6 +141,7 @@ export function toolContainerArguments({
             "ccd-drop-postal-optional-child",
             "routing-omit-web-url",
             "routing-omit-noc-base-url",
+            "global-search-wa-capability",
           ]
         : ["baseline", "wa-drop-family"]
     ).includes(invocationId)
@@ -230,6 +231,7 @@ export function candidateArchiveArguments({
       "ccd-drop-postal-optional-child",
       "routing-omit-web-url",
       "routing-omit-noc-base-url",
+      "global-search-wa-capability",
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
@@ -245,6 +247,10 @@ export function candidateArchiveArguments({
     )
   )
     throw Error("UNSUPPORTED_ROUTING_INVOCATION");
+  if (invocationId === "global-search-wa-capability" && releaseScopeId !== "exui-global-search-pilot")
+    throw Error("GLOBAL_SEARCH_SCOPE_REQUIRED");
+  if (releaseScopeId === "exui-global-search-pilot" && !["baseline", "global-search-wa-capability"].includes(invocationId))
+    throw Error("UNSUPPORTED_GLOBAL_SEARCH_INVOCATION");
   assertReadOnlyMountIsolation(
     [candidateRoot, guard, evidenceRoot, harnessRoot],
     [sessions, diagnostics],

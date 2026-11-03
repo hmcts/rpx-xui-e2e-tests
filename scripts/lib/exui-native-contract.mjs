@@ -7,7 +7,13 @@ import {
   routingConfiguration,
 } from "./exui-routing-contract.mjs";
 
+import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration } from "./exui-global-search-contract.mjs";
+
 const slices = {
+  [GLOBAL_SEARCH_SCOPE]: [
+    { invocationId: "baseline", kind: "baseline", mutation: null },
+    { invocationId: GLOBAL_SEARCH_MUTATION, kind: "mutation", mutation: GLOBAL_SEARCH_MUTATION },
+  ],
   [ROUTING_SCOPE]: [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     ...["routing-omit-web-url", "routing-omit-noc-base-url"].map(
@@ -76,6 +82,10 @@ export function nativeIdentity(input, invocation, candidateRoot) {
     candidateRoot,
     invocation.mutation === "wa-drop-family" ? "wa-drop-family" : null,
   );
+  if (input.releaseScopeId === GLOBAL_SEARCH_SCOPE) {
+    const global = globalSearchConfiguration(config, invocation.mutation ?? null);
+    return { config: global, identity: { ...artifact.identity, configurationDigest: digestBytes(JSON.stringify(global)), definitionDigests: {}, dependencyIdentities: {} } };
+  }
   if (input.releaseScopeId === ROUTING_SCOPE) {
     const routed = routingConfiguration(config, invocation.mutation ?? null);
     return {
