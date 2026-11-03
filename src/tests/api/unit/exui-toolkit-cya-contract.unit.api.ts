@@ -1,8 +1,9 @@
+import { test, expect } from "@playwright/test";
+
 import {
   assertExui4493ToolkitContract,
   type Exui4493ToolkitContractEvidence
 } from "../../../data/exui-toolkit-cya-contract.js";
-import { test, expect } from "../../../fixtures/api";
 
 function buildEvidence(
   overrides: Partial<Exui4493ToolkitContractEvidence> = {}

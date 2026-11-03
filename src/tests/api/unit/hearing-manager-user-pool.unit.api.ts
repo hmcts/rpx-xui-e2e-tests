@@ -6,7 +6,7 @@ import {
   HEARING_MANAGER_CR84_ON_USER,
   resolveHearingManagerUserIdentifier,
   resolveHearingManagerSessionCandidates
-} from "../../integration/helpers/hearingManagerUserPool.helper.js";
+} from "../../common/userPoolIdentifiers.js";
 
 const configuredEnv = {
   HEARING_MANAGER_CR84_OFF_1_USERNAME: "hearing-off-1@example.test",

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-import type { APIRequestContext, TestInfo } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
 
 import {
   buildDefinitionRepoCoverageTotals,
@@ -39,24 +39,9 @@ import {
   sortServiceFamilies,
   sortedUniqueServiceFamilies,
 } from '../../data/exui-central-assurance.js';
+import { attachMutationEvidence, expectCentralMustRunFamiliesPresent, mutateStringArrayForDemo } from '../../harness/diagnostics/central-assurance.utils.js';
 import { isUiHostUnavailableStatus, probeUiRouteAvailability } from '../../utils/ui/uiHostAvailability.js';
-import {
-  aggregatedCaseworkerJurisdictionsRoutePattern,
-  buildSupportedJurisdictionDetails,
-  healthCheckRoutePattern,
-  setupTaskListBootstrapRoutes,
-  waSupportedJurisdictionsDetailRoutePattern,
-  waSupportedJurisdictionsGetRoutePattern,
-  workAllocationCaseworkerByServiceNameRoutePattern,
-  workAllocationFullLocationRoutePattern,
-  workAllocationRegionLocationRoutePattern,
-  workAllocationTypesOfWorkRoutePattern,
-} from '../integration/helpers/taskListMockRoutes.helper.js';
-import { buildHearingsEnvironmentConfigMock } from '../integration/mocks/hearings.mock.js';
 
-import { test, expect } from './fixtures';
-
-type GlobalSearchService = { serviceId: string; serviceName: string };
 type SourceTruth = {
   rpxXuiWebapp: {
     'config/default.json': {
@@ -96,66 +81,9 @@ type ReleaseEvidence = {
     testTitles?: string[];
   }>;
 };
-type RoutePattern = string | RegExp;
-type FulfillOptions = { status?: number; contentType?: string; body?: string };
-type RouteHandler = (route: { fulfill: (options: FulfillOptions) => Promise<void> }) => Promise<void>;
-
-const CONFIGURATION_UI_KEYS = [
-  'clientId',
-  'headerConfig',
-  'idamWeb',
-  'oAuthCallback',
-  'protocol',
-  'ccdGatewayUrl',
-  'accessManagementEnabled',
-  'waWorkflowApi',
-] as const;
 
 const EXPLICIT_SKIP_CALLS = ['test', 'testInfo', 'describe'].map((owner) => `${owner}.${'sk' + 'ip'}(`);
 const SERIAL_HARNESS_CONFIG_PATTERN = /^\s*test\.describe\.configure\(\s*\{\s*mode:\s*['"]serial['"]\s*\}\s*\);?\s*$/m;
-
-const ASSURANCE_MUTATIONS = {
-  'drop-prl-wa-family': {
-    endpoint: 'api/wa-supported-jurisdiction/get',
-    description:
-      'Demo fault: simulate EXUI no longer exposing Private Law as a Work Allocation-supported service family.',
-    removedFamily: 'PRIVATELAW',
-  },
-  'drop-st-cic-wa-family': {
-    endpoint: 'api/wa-supported-jurisdiction/get',
-    description:
-      'Demo fault: simulate EXUI no longer exposing Special Tribunals as a Work Allocation-supported service family.',
-    removedFamily: 'ST_CIC',
-  },
-  'drop-probate-staff-family': {
-    endpoint: 'api/staff-supported-jurisdiction/get',
-    description:
-      'Demo fault: simulate EXUI no longer exposing Probate as a staff-supported service family.',
-    removedFamily: 'PROBATE',
-  },
-  'drop-civil-hearings-case-type': {
-    endpoint: 'services.hearings.civil.caseTypes',
-    description: 'Demo fault: simulate EXUI no longer exposing Civil as a hearings-enabled case type.',
-    removedFamily: 'CIVIL',
-  },
-  'drop-employment-service-code': {
-    endpoint: 'service-ref-data.employment.serviceCodes',
-    description: 'Demo fault: simulate EXUI no longer mapping Employment to the BHA1 service code.',
-    removedFamily: 'BHA1',
-  },
-  'drop-ia-hearings-bail-case-type': {
-    endpoint: 'services.hearings.ia.caseTypes',
-    description: 'Demo fault: simulate EXUI no longer exposing Bail as an IA hearings-enabled case type.',
-    removedFamily: 'BAIL',
-  },
-} as const;
-type AssuranceMutation = keyof typeof ASSURANCE_MUTATIONS;
-
-const ASSURANCE_MUTATION = process.env.EXUI_ASSURANCE_MUTATION?.trim();
-
-function isAssuranceMutation(value: string): value is AssuranceMutation {
-  return value in ASSURANCE_MUTATIONS;
-}
 
 function expectExactFamilySet(actual: readonly string[], expected: readonly string[]): void {
   expect(sortedUniqueServiceFamilies(actual)).toEqual(sortServiceFamilies(expected));
@@ -168,100 +96,10 @@ function expectCanaryFamiliesExcluded(actual: readonly string[]): void {
   }
 }
 
-function expectCentralMustRunFamiliesPresent(
-  actual: readonly string[],
-  expected: readonly string[],
-  endpoint: string
-): void {
-  const actualFamilies = sortedUniqueServiceFamilies(actual);
-  const expectedFamilies = sortServiceFamilies(expected);
-  const missingFamilies = expectedFamilies.filter((family) => !actualFamilies.includes(family));
-
-  expect(
-    missingFamilies,
-    `${endpoint} is missing central must-run service families: ${missingFamilies.join(', ') || 'none'}`
-  ).toEqual([]);
-}
-
-function mutateStringArrayForDemo(actual: readonly string[], endpoint: string): string[] {
-  if (!ASSURANCE_MUTATION) {
-    return [...actual];
-  }
-
-  if (!isAssuranceMutation(ASSURANCE_MUTATION)) {
-    throw new Error(
-      `Unsupported EXUI_ASSURANCE_MUTATION=${ASSURANCE_MUTATION}. Supported values: ${Object.keys(ASSURANCE_MUTATIONS).join(', ')}`
-    );
-  }
-
-  const mutation = ASSURANCE_MUTATIONS[ASSURANCE_MUTATION];
-  if (mutation.endpoint !== endpoint) {
-    return [...actual];
-  }
-
-  return actual.filter((family) => normalizeServiceFamily(family) !== mutation.removedFamily);
-}
-
-function mutationLabel(): string | undefined {
-  if (!ASSURANCE_MUTATION) {
-    return undefined;
-  }
-
-  if (!isAssuranceMutation(ASSURANCE_MUTATION)) {
-    return `unknown mutation ${ASSURANCE_MUTATION}`;
-  }
-
-  const mutation = ASSURANCE_MUTATIONS[ASSURANCE_MUTATION];
-  return `${ASSURANCE_MUTATION}: ${mutation.description}`;
-}
-
-async function attachMutationEvidence(testInfo: TestInfo): Promise<void> {
-  const mutation = mutationLabel();
-  if (!mutation) {
-    return;
-  }
-
-  testInfo.annotations.push({ type: 'EXUI assurance mutation', description: mutation });
-  await testInfo.attach('exui-assurance-mutation.txt', {
-    body: mutation,
-    contentType: 'text/plain',
-  });
-}
-
-function expectStringArrayOnSuccess(response: { status: number; data: unknown }, endpoint: string): string[] {
-  expect(Array.isArray(response.data), `${endpoint} should return a JSON array when status is 200`).toBe(true);
-  expect(
-    (response.data as unknown[]).every((entry) => typeof entry === 'string'),
-    `${endpoint} should return only string family identifiers when status is 200`
-  ).toBe(true);
-
-  return response.data as string[];
-}
-
-function expectGlobalSearchServicesOnSuccess(response: { status: number; data: unknown }): GlobalSearchService[] {
-  expect(Array.isArray(response.data), 'api/globalSearch/services should return a JSON array when status is 200').toBe(true);
-  expect(
-    (response.data as unknown[]).every(
-      (entry) =>
-        typeof entry === 'object' &&
-        entry !== null &&
-        typeof (entry as { serviceId?: unknown }).serviceId === 'string' &&
-        typeof (entry as { serviceName?: unknown }).serviceName === 'string'
-    ),
-    'api/globalSearch/services should return serviceId/serviceName objects when status is 200'
-  ).toBe(true);
-
-  return response.data as GlobalSearchService[];
-}
-
 function loadSourceTruth(): SourceTruth {
   return JSON.parse(
     readFileSync(new URL('../../data/exui-central-assurance-source.json', import.meta.url), 'utf8')
   ) as SourceTruth;
-}
-
-function expectExactContractStatus(status: number, endpoint: string): void {
-  expect(status, `${endpoint} should be reachable for the exact assurance harness proof`).toBe(200);
 }
 
 function findExplicitSkipCalls(filePath: string): string[] {
@@ -299,7 +137,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'must-run',
         }),
         expect.objectContaining({
-          executionMode: 'ui',
+          executionMode: 'planned',
           id: 'hearings-privatelaw-prlapps-manager',
           lane: 'hearings',
         }),
@@ -322,7 +160,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'must-run',
         }),
         expect.objectContaining({
-          executionMode: 'ui',
+          executionMode: 'planned',
           id: 'overview-page-layout-baseline-contract',
           lane: 'manage-case',
           priority: 'grouped',
@@ -332,8 +170,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'canary',
         }),
         expect.objectContaining({
-          id: 'canary-pcs',
-          priority: 'canary',
+          id: 'pcs-config-membership-contract',
+          lane: 'configuration',
+          priority: 'must-run',
         }),
       ])
     );
@@ -379,7 +218,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('service-definition profiles widen the proof beyond PRL and close known source gaps', () => {
+  test('service-definition source profiles classify configured families and preserve required gaps', () => {
     const profileFamilies = EXUI_SERVICE_DEFINITION_PROFILES.map((profile) => profile.serviceFamily);
     const profileSummary = buildServiceDefinitionProfileSummary();
     const repoTotals = buildDefinitionRepoCoverageTotals();
@@ -407,7 +246,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(profileSummary['source-unidentified'] ?? []).toEqual([]);
     expect(profileSummary['source-unavailable'] ?? []).toEqual([]);
     expect(profileSummary['config-backed']).toEqual(['HRS', 'PCS']);
-    expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual([]);
+    expect(findReleaseBlockingFamiliesWithoutCcdBackedProfile()).toEqual(['PCS']);
     const probateProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'PROBATE');
     const stCicProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'ST_CIC');
     expect(probateProfile).toBeDefined();
@@ -467,18 +306,18 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       expect.objectContaining({
         'release-blocking': expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC']),
         grouped: expect.arrayContaining(['HRS']),
-        canary: ['CMC', 'PCS'],
+        canary: ['CMC'],
       })
     );
   });
 
-  test('historic SRT failure classes are classified as caught, planned, or explicitly missed', () => {
+  test('historic SRT failure classes distinguish supporting diagnostics from product proof', () => {
     const historicIds = EXUI_HISTORIC_FAILURE_COVERAGE.map((failure) => failure.id);
     const summary = buildHistoricFailureCoverageSummary();
 
     expect(new Set(historicIds).size).toBe(historicIds.length);
     expect(EXUI_HISTORIC_FAILURE_COVERAGE.length).toBeGreaterThanOrEqual(12);
-    expect(summary['covered-now']).toEqual(
+    expect(summary['supporting-only']).toEqual(
       expect.arrayContaining([
         'manage-case-previous-navigation-data-loss',
         'cya-complex-show-condition-summary',
@@ -494,10 +333,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'idam-passport-session-smoke',
         'sso-login-hint-entrypoint-state',
         'post-auth-role-mismatch-access-denied',
-        'overview-page-layout-regression-classification',
       ])
     );
-    expect(summary['learning-case']).toEqual([]);
+    expect(summary['learning-case']).toEqual(['overview-page-layout-regression-classification']);
     expect(summary.partial).toEqual([]);
     expect(summary['would-catch-with-replay-pack']).toEqual([]);
     expect(summary['out-of-scope']).toEqual(['media-viewer-redaction-coordinate']);
@@ -513,36 +351,33 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     }
 
     const outOfScopeFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'out-of-scope');
-    const executableFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'covered-now');
+    const supportingFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'supporting-only');
     const partialFailures = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'partial');
     const learningCases = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === 'learning-case');
     const overviewFailure = EXUI_HISTORIC_FAILURE_COVERAGE.find(
       (failure) => failure.id === 'overview-page-layout-regression-classification'
     );
 
-    expect(executableFailures.every((failure) => failure.wouldHaveCaught)).toBe(true);
+    expect(supportingFailures.every((failure) => !failure.wouldHaveCaught)).toBe(true);
     expect(partialFailures).toEqual([]);
-    expect(executableFailures).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'overview-page-layout-regression-classification',
-          harnessContract: expect.stringContaining('Mocked IA case-details journey'),
-          currentPocEvidence: expect.stringContaining('screenshot plus axe evidence'),
-          wouldHaveCaught: true,
-        }),
-      ])
-    );
-    expect(learningCases).toEqual([]);
+    expect(learningCases).toEqual([
+      expect.objectContaining({
+        id: 'overview-page-layout-regression-classification',
+        harnessContract: expect.stringContaining('explicitly retired'),
+        currentPocEvidence: expect.stringContaining('Retired browser diagnostic; no current IA overview rendering or accessibility proof'),
+        wouldHaveCaught: null,
+      }),
+    ]);
     expect(overviewFailure).toEqual(
       expect.objectContaining({
         id: 'overview-page-layout-regression-classification',
         agenticExpectedBoundary: expect.stringContaining('EXUI layout/styling'),
-        comparisonLearning: expect.stringContaining('central overview layout gate'),
+        comparisonLearning: expect.stringContaining('no native replacement is claimed'),
         humanFixConfidence: 'indirect',
         humanFixEvidence: expect.arrayContaining([
           expect.stringContaining('No direct EXUI-4756-linked PR or commit'),
         ]),
-        wouldHaveCaught: true,
+        wouldHaveCaught: null,
       })
     );
     expect(outOfScopeFailures).toEqual([
@@ -600,7 +435,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('release assurance verdict is deterministic and uses recorded mutation evidence', () => {
+  test('catalogue diagnostic preserves source metadata without release approval', () => {
     const verdict = buildReleaseAssuranceVerdict();
     const evidence = JSON.parse(
       readFileSync('src/data/exui-release-assurance-evidence.json', 'utf8')
@@ -608,8 +443,15 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
 
     expect(verdict.overallStatus).toBe('warn');
     expect(verdict.failReasons).toEqual([]);
-    expect(verdict.warnReasons).toEqual(evidence.releaseGate?.warnReasons);
-    expect(evidence.releaseGate?.acceptedWarnings?.map((warning) => warning.reason)).toEqual(verdict.warnReasons);
+    expect(verdict.warnReasons).toEqual([
+      'release-blocking family without CCD-backed profile: PCS',
+      'historic learning case not executable yet: overview-page-layout-regression-classification',
+      ...(evidence.releaseGate?.warnReasons ?? []),
+    ]);
+    const acceptedReasons = evidence.releaseGate?.acceptedWarnings?.map((warning) => warning.reason) ?? [];
+    expect(acceptedReasons).toEqual(evidence.releaseGate?.warnReasons);
+    expect(acceptedReasons).not.toContain('release-blocking family without CCD-backed profile: PCS');
+    expect(acceptedReasons).not.toContain('historic learning case not executable yet: overview-page-layout-regression-classification');
     expect(evidence.releaseGate?.acceptedWarnings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -620,7 +462,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         }),
       ])
     );
-    expect(verdict.releaseBlockingCoverage).toEqual(
+    expect(verdict.releaseBlockingSourceProfiles).toEqual(
       expect.arrayContaining(['CIVIL', 'EMPLOYMENT', 'IA', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'])
     );
     expect(verdict.knownGaps).toEqual(
@@ -628,10 +470,11 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'historic out-of-scope class: media-viewer-redaction-coordinate',
       ])
     );
-    expect(verdict.knownGaps).not.toContain(
+    expect(verdict.knownGaps).toContain(
       'historic learning case not executable yet: overview-page-layout-regression-classification'
     );
     expect(verdict.knownGaps).not.toContain('release-blocking family without CCD-backed profile: ST_CIC');
+    expect(verdict.knownGaps).toContain('release-blocking family without CCD-backed profile: PCS');
     expect(EXUI_RELEASE_ASSURANCE_MUTATION_STATUS).toBe('passed');
     expect(verdict.knownGaps).not.toContain(
       'mutation evidence pending: yarn harness:mutation:wa, yarn harness:mutation:st-cic, yarn harness:mutation:probate, yarn harness:mutation:civil, yarn harness:mutation:ia, yarn harness:mutation:employment, yarn harness:mutation:ccd'
@@ -639,16 +482,18 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.mutationEvidence).toEqual({
       status: EXUI_RELEASE_ASSURANCE_MUTATION_STATUS,
       requiredCommands: EXUI_RELEASE_ASSURANCE_MUTATION_COMMANDS,
+      boundary: 'source-and-model',
+      releaseCredit: false,
     });
     expect(verdict.evidenceSummary).toBe(
-      'warn: 6 release-blocking families, 0 fail reason(s), 1 warning(s), mutation evidence passed'
+      'catalogue diagnostic (warn): 7 release-blocking source profiles; no release approval; recorded source/model mutation status passed'
     );
-    expect(verdict.historicFailureCoverage['covered-now']).toEqual(
+    expect(verdict.historicFailureCoverage['supporting-only']).toEqual(
       expect.arrayContaining([
         'nested-complex-fieldshowcondition-cya',
-        'overview-page-layout-regression-classification',
       ])
     );
+    expect(verdict.historicFailureCoverage['learning-case']).toEqual(['overview-page-layout-regression-classification']);
   });
 
   test('owner slice catalogue exposes the service-family action list', () => {
@@ -681,7 +526,14 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     const proofLanes = Object.fromEntries(summary.harnessProofLanes.map((lane) => [lane.lane, lane]));
 
     expect(summary.verdict.overallStatus).toBe('warn');
-    expect(summary.acceptedWarnings.map((warning) => warning.reason)).toEqual(summary.verdict.warnReasons);
+    expect(summary.verdict.warnReasons).toEqual([
+      'release-blocking family without CCD-backed profile: PCS',
+      'historic learning case not executable yet: overview-page-layout-regression-classification',
+      ...summary.acceptedWarnings.map((warning) => warning.reason),
+    ]);
+    expect(summary.acceptedWarnings.map((warning) => warning.reason)).not.toContain(
+      'release-blocking family without CCD-backed profile: PCS'
+    );
     expect(summary.ownerSliceCatalogue).toHaveLength(EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.length);
     expect(summary.defectIntakeRoutes.map((route) => route.route)).toEqual([
       'targeted-mutation-proof',
@@ -690,34 +542,22 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       'owner-confirmed-follow-up',
       'specialist-suite-follow-up',
     ]);
-    expect(Object.keys(proofLanes)).toEqual(['api', 'ui', 'integration', 'accessibility']);
-    const proofFileContents = Object.values(proofLanes)
-      .flatMap((lane) => lane.testFiles ?? [])
-      .map((filePath) => readFileSync(filePath, 'utf8'))
-      .join('\n');
-
-    expect(proofLanes.ui?.testFiles).toContain(
-      'src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts'
-    );
-    expect(proofLanes.integration?.testFiles).toEqual(
-      expect.arrayContaining([
-        'src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts',
-        'src/tests/integration/harness/overviewPageLayout.positive.spec.ts',
-        'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
-        'src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts',
-      ])
-    );
-    expect(proofLanes.accessibility?.testTitles).toEqual(
-      expect.arrayContaining([
-        'accessibility baseline: available tasks service filter has no new axe violations',
-        'accessibility baseline: IA overview case details has no new axe violations',
-        'accessibility baseline: supported Private Law hearings action view has no new axe violations',
-        'accessibility baseline: unsupported Divorce case details state has no new axe violations',
-      ])
-    );
-    proofLanes.accessibility?.testTitles?.forEach((title) => {
-      expect(proofFileContents).toContain(title);
-    });
+    expect(Object.keys(proofLanes)).toEqual(['api']);
+    expect(proofLanes.api?.testFiles).toEqual([
+      'src/tests/api/exui-central-assurance.api.ts',
+      'src/tests/api/exui-historic-replay-packs.api.ts',
+      'src/tests/harness/diagnostic/configuration.spec.ts',
+      'src/tests/harness/diagnostic/toolkit.spec.ts',
+    ]);
+    for (const filePath of proofLanes.api?.testFiles ?? []) {
+      expect(readFileSync(filePath, 'utf8').length).toBeGreaterThan(0);
+    }
+    expect(proofLanes.api?.testTitles).toBeUndefined();
+    for (const id of ['hearings-privatelaw-prlapps-manager', 'hearings-disabled-divorce']) {
+      expect(EXUI_SUPERSERVICE_SCENARIOS.find((scenario) => scenario.id === id)).toEqual(
+        expect.objectContaining({ executionMode: 'planned', assertion: expect.stringContaining('withdrawn') })
+      );
+    }
   });
 
   test('release evidence proof lanes do not allow explicit skip calls or serial coupling', () => {
@@ -752,98 +592,19 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('release assurance verdict passes when coverage is complete and mutation evidence has passed', () => {
-    const verdict = buildReleaseAssuranceVerdict({
-      configuredFamilies: ['CIVIL'],
-      decisions: [
-        {
-          serviceFamily: 'CIVIL',
-          disposition: 'release-blocking',
-          lanes: ['global-search'],
-          representativeScenarioIds: ['global-search-supported-service-families'],
-          rationale: 'Synthetic complete coverage for pass-branch proof.',
-        },
-      ],
-      profiles: [
-        {
-          serviceFamily: 'CIVIL',
-          priority: 'release-blocking',
-          proofLevel: 'ccd-backed',
-          lanes: ['global-search'],
-          representativeCaseTypes: ['CIVIL'],
-          serviceCodes: ['AAA6'],
-          repos: [
-            {
-              fullName: 'hmcts/civil-ccd-definition',
-              url: 'https://github.com/hmcts/civil-ccd-definition',
-              visibility: 'public',
-              updatedAt: '2026-05-12T13:40:51Z',
-              defaultBranch: 'master',
-              definitionRoot: 'ccd-definition',
-              jsonFiles: 1,
-              caseEventToFields: 1,
-              caseEventToComplexTypes: 1,
-              authorisationCaseField: 1,
-              caseField: 1,
-              complexTypes: 1,
-            },
-          ],
-          rationale: 'Synthetic complete profile for pass-branch proof.',
-          nextAction: 'None for pass-branch proof.',
-        },
-      ],
-      failures: [],
-      mutationEvidenceStatus: 'passed',
-    });
+  test('complete catalogue metadata cannot approve a current candidate release', () => {
+    const verdict = buildReleaseAssuranceVerdict({ failures: [], mutationEvidenceStatus: 'passed' });
 
-    expect(verdict).toEqual({
-      overallStatus: 'pass',
-      releaseBlockingCoverage: ['CIVIL'],
-      failReasons: [],
-      warnReasons: [],
-      knownGaps: [],
-      evidenceSummary: 'pass: 1 release-blocking families, 0 fail reason(s), 0 warning(s), mutation evidence passed',
-      mutationEvidence: {
-        status: 'passed',
-        requiredCommands: [
-          'yarn harness:mutation:wa',
-          'yarn harness:mutation:st-cic',
-          'yarn harness:mutation:probate',
-          'yarn harness:mutation:civil',
-          'yarn harness:mutation:ia',
-          'yarn harness:mutation:employment',
-          'yarn harness:mutation:ccd',
-        ],
-      },
-      historicFailureCoverage: {
-        'covered-now': [],
-        'would-catch-with-replay-pack': [],
-        'learning-case': [],
-        partial: [],
-        'out-of-scope': [],
-      },
-    });
-  });
-
-  test('hearings seam has executable supported and unsupported family contracts', () => {
-    const enabledConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [{ jurisdiction: 'PRIVATELAW', caseType: 'PRLAPPS' }],
-      amendmentCaseVariations: [{ jurisdiction: 'PRIVATELAW', caseType: 'PRLAPPS' }],
-    });
-    const disabledConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-      amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-    });
-
-    expect(enabledConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
-      { jurisdiction: 'PRIVATELAW', includeCaseTypes: ['PRLAPPS'] },
-    ]);
-    expect(enabledConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
-      { jurisdiction: 'PRIVATELAW', includeCaseTypes: ['PRLAPPS'] },
-    ]);
-    expect(disabledConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).not.toContainEqual(
-      expect.objectContaining({ jurisdiction: 'DIVORCE' })
-    );
+    expect(verdict.overallStatus).toBe('warn');
+    expect(verdict.kind).toBe('catalogue-diagnostic');
+    expect(verdict.releaseApproval).toBe(false);
+    expect(verdict.executionGaps).toEqual(expect.arrayContaining([
+      expect.stringContaining('candidate'),
+      expect.stringContaining('CCD'),
+      expect.stringContaining('denied mutations'),
+      expect.stringContaining('constraint/grouping'),
+    ]));
+    expect(verdict.historicFailureCoverage['covered-now']).toEqual([]);
   });
 
   test('employment service pack has executable service-code and ref-data contracts', () => {
@@ -884,17 +645,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       (scenario) => scenario.id === 'ia-hearings-asylum-bail-routing-contract'
     );
     const iaDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find((decision) => decision.serviceFamily === 'IA');
-    const iaConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [
-        { jurisdiction: 'IA', caseType: 'Asylum' },
-        { jurisdiction: 'IA', caseType: 'Bail' },
-      ],
-      amendmentCaseVariations: [
-        { jurisdiction: 'IA', caseType: 'Asylum' },
-        { jurisdiction: 'IA', caseType: 'Bail' },
-      ],
-    });
-
     expect(iaScenario).toEqual(
       expect.objectContaining({
         caseType: 'Asylum,Bail',
@@ -907,14 +657,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(iaDecision?.representativeScenarioIds).toContain('ia-hearings-asylum-bail-routing-contract');
     expect(EXUI_SERVICE_REF_DATA_MAPPING.IA).toEqual(['BFA1']);
     expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.IA).toEqual(['Asylum', 'Bail']);
-    expect(iaConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
-      { jurisdiction: 'IA', includeCaseTypes: ['Asylum'] },
-      { jurisdiction: 'IA', includeCaseTypes: ['Bail'] },
-    ]);
-    expect(iaConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
-      { jurisdiction: 'IA', includeCaseTypes: ['Asylum'] },
-      { jurisdiction: 'IA', includeCaseTypes: ['Bail'] },
-    ]);
   });
 
   test('civil release service pack has executable hearings and service-code contracts', () => {
@@ -925,11 +667,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       (decision) => decision.serviceFamily === 'CIVIL'
     );
     const civilProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'CIVIL');
-    const civilConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-      amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-    });
-
     expect(civilScenario).toEqual(
       expect.objectContaining({
         caseType: 'CIVIL',
@@ -946,12 +683,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     ]);
     expect(EXUI_SERVICE_REF_DATA_MAPPING.CIVIL).toEqual(['AAA6', 'AAA7']);
     expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL).toEqual(['CIVIL']);
-    expect(civilConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
-      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
-    ]);
-    expect(civilConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
-      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
-    ]);
   });
 
   test('st cic release service pack has executable WA and service-code contracts', () => {
@@ -1021,7 +752,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(probateDecision).toEqual(
       expect.objectContaining({
         disposition: 'grouped',
-        lanes: ['staff-ref-data'],
+        lanes: ['global-search', 'staff-ref-data'],
       })
     );
     expect(probateDecision?.representativeScenarioIds).toContain('probate-staff-ref-data-contract');
@@ -1032,7 +763,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         serviceCodes: ['ABA6'],
       })
     );
-    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).not.toContain('PROBATE');
+    expect(EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES).toContain('PROBATE');
     expect(EXUI_WA_SUPPORTED_SERVICE_FAMILIES).not.toContain('PROBATE');
     expect(EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES).toContain('PROBATE');
     expect(EXUI_SERVICE_REF_DATA_MAPPING.PROBATE).toEqual(['ABA6']);
@@ -1100,54 +831,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     }
   });
 
-  test('shared UI route helpers register deterministic WA family bootstrap routes', async () => {
-    const registeredRoutes: Array<{ pattern: RoutePattern; handler: RouteHandler }> = [];
-    const fakePage = {
-      route: async (pattern: RoutePattern, handler: RouteHandler) => {
-        registeredRoutes.push({ pattern, handler });
-      },
-    };
-    const supportedDetails = buildSupportedJurisdictionDetails(EXUI_WA_SUPPORTED_SERVICE_FAMILIES, EXUI_SERVICE_LABELS);
-
-    await setupTaskListBootstrapRoutes(fakePage as never, EXUI_WA_SUPPORTED_SERVICE_FAMILIES, supportedDetails);
-
-    expect(registeredRoutes.map(({ pattern }) => pattern)).toEqual(
-      expect.arrayContaining([
-        waSupportedJurisdictionsGetRoutePattern,
-        waSupportedJurisdictionsDetailRoutePattern,
-        aggregatedCaseworkerJurisdictionsRoutePattern,
-        workAllocationTypesOfWorkRoutePattern,
-        healthCheckRoutePattern,
-        workAllocationRegionLocationRoutePattern,
-        workAllocationFullLocationRoutePattern,
-        workAllocationCaseworkerByServiceNameRoutePattern,
-      ])
-    );
-
-    const waRoute = registeredRoutes.find(({ pattern }) => pattern === waSupportedJurisdictionsGetRoutePattern);
-    const waDetailRoute = registeredRoutes.find(({ pattern }) => pattern === waSupportedJurisdictionsDetailRoutePattern);
-    expect(waRoute).toBeDefined();
-    expect(waDetailRoute).toBeDefined();
-
-    let waFulfill: FulfillOptions | undefined;
-    await waRoute?.handler({
-      fulfill: async (options) => {
-        waFulfill = options;
-      },
-    });
-    expect(waFulfill).toEqual(expect.objectContaining({ contentType: 'application/json', status: 200 }));
-    expect(JSON.parse(waFulfill?.body ?? '[]')).toEqual(EXUI_WA_SUPPORTED_SERVICE_FAMILIES);
-
-    let waDetailFulfill: FulfillOptions | undefined;
-    await waDetailRoute?.handler({
-      fulfill: async (options) => {
-        waDetailFulfill = options;
-      },
-    });
-    expect(waDetailFulfill).toEqual(expect.objectContaining({ contentType: 'application/json', status: 200 }));
-    expect(JSON.parse(waDetailFulfill?.body ?? '[]')).toEqual(supportedDetails);
-  });
-
   test('UI availability probe identifies service-unavailable statuses without hiding 500s', async () => {
     const okRequest = {
       get: async () => ({ status: () => 200 }),
@@ -1176,39 +859,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     );
   });
 
-  test('external UI configuration exposes the expected EXUI keys', async ({ anonymousClient }) => {
-    const response = await anonymousClient.get<Record<string, unknown>>('external/config/ui');
-    expect(response.status).toBe(200);
-    for (const key of CONFIGURATION_UI_KEYS) {
-      expect(response.data, `external/config/ui should expose ${key}`).toHaveProperty(key);
-    }
-  });
-
-  test('api/configuration exposes selected feature flag values', async ({ apiClient }) => {
-    const response = await apiClient.get<unknown>('api/configuration?configurationKey=termsAndConditionsEnabled', {
-      throwOnError: false,
-    });
-    expectExactContractStatus(response.status, 'api/configuration?configurationKey=termsAndConditionsEnabled');
-    expect(['boolean', 'string']).toContain(typeof response.data);
-  });
-
-  test('api/globalSearch/services contains the central must-run service-family set', async ({ apiClient }) => {
-    const response = await apiClient.get<GlobalSearchService[]>('api/globalSearch/services', { throwOnError: false });
-    expectExactContractStatus(response.status, 'api/globalSearch/services');
-    const services = expectGlobalSearchServicesOnSuccess({
-      status: response.status,
-      data: response.data,
-    });
-    expectCentralMustRunFamiliesPresent(
-      services.map((entry) => entry.serviceId),
-      EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES,
-      'api/globalSearch/services'
-    );
-    for (const service of services) {
-      expect(service.serviceName.trim().length).toBeGreaterThan(0);
-    }
-  });
-
   test('static WA-supported family mutation proof catches a shared WA family regression', async ({}, testInfo) => {
     await attachMutationEvidence(testInfo);
 
@@ -1230,7 +880,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
   });
 
   test('staff-supported contract permits deployment additions but rejects missing central families', () => {
-    const actual = [...EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'PCS'];
+    const actual = [...EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'SYNTHETIC_DEPLOYMENT_FAMILY'];
     const check = (families: readonly string[]) => expectCentralMustRunFamiliesPresent(
       families, EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES, 'api/staff-supported-jurisdiction/get'
     );
@@ -1267,42 +917,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expectExactFamilySet(
       mutateStringArrayForDemo(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL, 'services.hearings.civil.caseTypes'),
       EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL
-    );
-  });
-
-  test('api/wa-supported-jurisdiction/get contains the central WA must-run family set', async ({ apiClient }, testInfo) => {
-    const response = await apiClient.get<string[]>('api/wa-supported-jurisdiction/get', { throwOnError: false });
-    expectExactContractStatus(response.status, 'api/wa-supported-jurisdiction/get');
-    const actual = expectStringArrayOnSuccess(
-      {
-        status: response.status,
-        data: response.data,
-      },
-      'api/wa-supported-jurisdiction/get'
-    );
-    await attachMutationEvidence(testInfo);
-
-    expectCentralMustRunFamiliesPresent(
-      mutateStringArrayForDemo(actual, 'api/wa-supported-jurisdiction/get'),
-      EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
-      'api/wa-supported-jurisdiction/get'
-    );
-  });
-
-  test('api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set', async ({ apiClient }) => {
-    const response = await apiClient.get<string[]>('api/staff-supported-jurisdiction/get', { throwOnError: false });
-    expectExactContractStatus(response.status, 'api/staff-supported-jurisdiction/get');
-    const actual = expectStringArrayOnSuccess(
-      {
-        status: response.status,
-        data: response.data,
-      },
-      'api/staff-supported-jurisdiction/get'
-    );
-    expectCentralMustRunFamiliesPresent(
-      mutateStringArrayForDemo(actual, 'api/staff-supported-jurisdiction/get'),
-      EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES,
-      'api/staff-supported-jurisdiction/get'
     );
   });
 });

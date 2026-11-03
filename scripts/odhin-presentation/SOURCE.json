@@ -1,0 +1,21 @@
+{
+  "repository": "https://github.com/hmcts/rpx-xui-webapp",
+  "commit": "b978cf7fa15df7fadf678ea41ef9deb638436d40",
+  "files": [
+    {
+      "file": "enhance.cjs",
+      "sourcePath": "playwright_tests_new/common/reporters/presentation/enhance.cjs",
+      "sha256": "5bdf0ffd699934c0f8a84b9bfb022cc3cae70911c2495af35179135019f7ba6f"
+    },
+    {
+      "file": "report.css",
+      "sourcePath": "playwright_tests_new/common/reporters/presentation/report.css",
+      "sha256": "1874d8772b973366b22533b9cef915c632fab0d650841bb24f422701d016fc21"
+    },
+    {
+      "file": "report.js",
+      "sourcePath": "playwright_tests_new/common/reporters/presentation/report.js",
+      "sha256": "29b8927ce07a31104a14f576ad5911ce9a544c819f92396a7f9561dba1de5bca"
+    }
+  ]
+}

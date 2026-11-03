@@ -105,4 +105,40 @@ test.describe('odhin adaptive reporter', { tag: '@svc-internal' }, () => {
       code: 'ODHIN_TIMEOUT',
     });
   });
+
+  test('adaptive reporter bounds stalled runtime hooks and still reaches onEnd', async () => {
+    let onEndCalls = 0;
+    const reporter = new OdhinAdaptiveReporter({
+      profile: false,
+      runtimeHookTimeoutMs: 20,
+      createInnerReporter: () => ({
+        onTestEnd: async () => new Promise(() => {}),
+        onEnd: async () => {
+          onEndCalls += 1;
+        },
+      }),
+    });
+    const stderrWrites: string[] = [];
+    const originalWrite = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderrWrites.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+
+    try {
+      await reporter.onTestEnd({ title: 'stalled test' }, { status: 'passed' });
+      await reporter.onEnd({ status: 'passed' });
+    } finally {
+      process.stderr.write = originalWrite;
+    }
+
+    expect(onEndCalls).toBe(1);
+    expect(reporter.runtimeHookStats).toMatchObject({
+      queued: 1,
+      completed: 0,
+      timedOut: 1,
+      failed: 0,
+    });
+    expect(stderrWrites.some((entry) => entry.includes('onTestEnd timed out'))).toBe(true);
+  });
 });

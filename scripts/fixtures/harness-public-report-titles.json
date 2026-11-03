@@ -1,0 +1,1221 @@
+{
+  "schemaVersion": 1,
+  "selections": {
+    "support": [
+      {
+        "file": "src/tests/api/auth-coverage-basic.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-basic.api.ts",
+          "Auth helper coverage - basic utilities",
+          "extractCsrf parses token and returns undefined when missing"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-basic.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-basic.api.ts",
+          "Auth helper coverage - basic utilities",
+          "stripTrailingSlash removes trailing slashes"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-basic.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-basic.api.ts",
+          "Auth helper coverage - basic utilities",
+          "getCacheKey is identity-aware and does not vary by worker"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-basic.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-basic.api.ts",
+          "Auth helper coverage - basic utilities",
+          "getCredentials returns test-owned configured users and errors on unknown roles"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-basic.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-basic.api.ts",
+          "Auth helper coverage - basic utilities",
+          "getCredentials fails closed when solicitor credentials are absent"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-bootstrap.api.ts",
+          "Auth helper coverage - token bootstrap",
+          "isTokenBootstrapEnabled respects env overrides"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-bootstrap.api.ts",
+          "Auth helper coverage - token bootstrap",
+          "isUiSessionBootstrapEnabled respects explicit browser auth modes"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-bootstrap.api.ts",
+          "Auth helper coverage - token bootstrap",
+          "createStorageStateViaForm handles csrf and login errors"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-bootstrap.api.ts",
+          "Auth helper coverage - token bootstrap",
+          "tryTokenBootstrap covers env and response branches"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-bootstrap.api.ts",
+          "Auth helper coverage - token bootstrap",
+          "tryTokenBootstrap logs and returns false on request failures"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-storage.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-storage.api.ts",
+          "Auth helper coverage - storage operations",
+          "maps the generic API solicitor role to the configured divorce solicitor session"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-storage.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-storage.api.ts",
+          "Auth helper coverage - storage operations",
+          "tryReadState returns parsed state or undefined for invalid content"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-storage.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-storage.api.ts",
+          "Auth helper coverage - storage operations",
+          "API storage lock waits for the whole configured UI capture window"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-storage.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-storage.api.ts",
+          "Auth helper coverage - storage operations",
+          "ensureStorageStateWith reuses an authenticated state under the filesystem lock"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-storage.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-storage.api.ts",
+          "Auth helper coverage - storage operations",
+          "getStoredCookieWith rebuilds corrupted state and throws when still missing"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-storage.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-storage.api.ts",
+          "Auth helper coverage - storage operations",
+          "createStorageStateWith honors token bootstrap and falls back to form login"
+        ]
+      },
+      {
+        "file": "src/tests/api/auth-coverage-storage.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "auth-coverage-storage.api.ts",
+          "Auth helper coverage - storage operations",
+          "createStorageStateWith can use UI session bootstrap for local EXUI auth"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-config.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-config.api.ts",
+          "Configuration resolution coverage",
+          "withEnv restores pre-existing variables"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-helpers.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-helpers.api.ts",
+          "Helper utilities and retry logic",
+          "fixture helpers cover default headers and request recovery"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-helpers.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-helpers.api.ts",
+          "Helper utilities and retry logic",
+          "fixture helpers rebuild stale authenticated API storage before use"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-search-case.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-search-case.api.ts",
+          "Search-case support coverage",
+          "FPL global search credentials fall back to the source-compatible AAT account when env vars are absent"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-search-case.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-search-case.api.ts",
+          "Search-case support coverage",
+          "FPL global search credentials keep the source-compatible baseline even when env vars are present"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-search-case.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-search-case.api.ts",
+          "Search-case support coverage",
+          "search-case alias users keep the source-compatible baseline even when env vars are present"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-search-case.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-search-case.api.ts",
+          "Search-case support coverage",
+          "SOLICITOR resolves from the source-compatible default account when env vars are absent"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-search-case.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-search-case.api.ts",
+          "Search-case support coverage",
+          "USER_WITH_FLAGS uses configured credentials when they are available"
+        ]
+      },
+      {
+        "file": "src/tests/api/coverage-session.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "coverage-session.api.ts",
+          "Session and cookie utilities coverage",
+          "UserUtils returns credentials for known users and errors on unknown"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/auth-journey-guardrails.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/auth-journey-guardrails.unit.api.ts",
+          "auth journey guardrail replay",
+          "classifies SSO entrypoint and post-auth role mismatch as separate central contracts"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/auth-journey-guardrails.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/auth-journey-guardrails.unit.api.ts",
+          "auth journey guardrail replay",
+          "resolves the historic broken outcomes and the fixed central outcomes"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/auth-journey-guardrails.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/auth-journey-guardrails.unit.api.ts",
+          "auth journey guardrail replay",
+          "fails if any replay scenario resolves to the wrong target outcome"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/dynamic-user.pure.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/dynamic-user.pure.unit.api.ts",
+          "Dynamic user support unit tests: pure modules",
+          "runtime user credentials registry normalizes identifiers"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/dynamic-user.pure.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/dynamic-user.pure.unit.api.ts",
+          "Dynamic user support unit tests: pure modules",
+          "runtime user credential env publication mirrors dynamic aliases and restores previous env values"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/exui-toolkit-cya-contract.unit.api.ts",
+          "EXUI-4493 toolkit CYA contract assertion",
+          "passes when the installed toolkit exposes the required source markers and visible CYA rows"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/exui-toolkit-cya-contract.unit.api.ts",
+          "EXUI-4493 toolkit CYA contract assertion",
+          "passes when the installed toolkit package is unavailable in the current workspace"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/exui-toolkit-cya-contract.unit.api.ts",
+          "EXUI-4493 toolkit CYA contract assertion",
+          "fails clearly when the installed toolkit bundle does not contain the EXUI-4493 context fix markers"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/exui-toolkit-cya-contract.unit.api.ts",
+          "EXUI-4493 toolkit CYA contract assertion",
+          "fails clearly when nested complex CYA rows are not rendered"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/hearing-manager-user-pool.unit.api.ts",
+          "Hearing manager user pool unit tests",
+          "falls back to the legacy hearing manager users when no pooled users are configured"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/hearing-manager-user-pool.unit.api.ts",
+          "Hearing manager user pool unit tests",
+          "returns only fully configured pooled users for the requested CR84 mode"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/hearing-manager-user-pool.unit.api.ts",
+          "Hearing manager user pool unit tests",
+          "selects configured CR84 ON pooled users by Playwright parallel index"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/hearing-manager-user-pool.unit.api.ts",
+          "Hearing manager user pool unit tests",
+          "honours an explicit zero parallel index over the environment fallback"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/hearing-manager-user-pool.unit.api.ts",
+          "Hearing manager user pool unit tests",
+          "tries the selected hearing manager before the remaining configured identities"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/hearing-manager-user-pool.unit.api.ts",
+          "Hearing manager user pool unit tests",
+          "selects configured CR84 OFF pooled users by Playwright worker env when no source is passed"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/hearing-manager-user-pool.unit.api.ts",
+          "Hearing manager user pool unit tests",
+          "keeps an already pooled user identifier unchanged"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "always keeps Odh\u00edn attachments external, even when embedding is requested"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "normalizes test output mode inputs"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "normalizes runtime hook timeout inputs"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "normalizes final status and final-attempt detection for grouped feature stats"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "trims passed-test output and heavy artifacts in lightweight mode"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "keeps failure artifacts when only-on-failure mode is used"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "times out stalled runtime hook promises"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-adaptive-reporter.unit.api.ts",
+          "odhin adaptive reporter",
+          "adaptive reporter bounds stalled runtime hooks and still reaches onEnd"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "derives feature names from Playwright file paths"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "normalizes and sorts grouped feature stats"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "replaces raw file summary blocks with inline grouped feature blocks"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "waits for DataTables rows before building harness slice summaries"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "renders compact feature summary cards when only one feature is present"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "feature overview block keeps feature distribution and outcome columns together"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "feature overview uses balanced layout for medium feature counts"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/odhin-report-enhancer.unit.api.ts",
+          "odhin report enhancer",
+          "adds a Perfetto Results tab with the artifact link"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/prl-solicitor-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/prl-solicitor-user-pool.unit.api.ts",
+          "PRL solicitor user pool unit tests",
+          "returns configured PRL users in stable identifier order"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/prl-solicitor-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/prl-solicitor-user-pool.unit.api.ts",
+          "PRL solicitor user pool unit tests",
+          "selects configured PRL users by parallel index and preserves fallback"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "non-strict UI storage warm-up failure warns without aborting global setup"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "strict UI storage warm-up failure still aborts required session setup"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "IDAM credential flow propagates navigation failures after submitting credentials"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "IDAM credential flow completes when navigation reaches DOMContentLoaded"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "session capture failure markers use the webapp cooldown and are cleared explicitly"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "strict storage reuse refreshes when the cached state is no longer authenticated server-side"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "storage path is keyed by the resolved runtime email, not just the alias"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "integration session lookup falls back to latest metadata match for a user identifier"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "local UI login targets do not fall back to AAT IDAM by default"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "transient browser and XUI-shell failures are classified for one fresh capture retry only"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/session-management.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/session-management.unit.api.ts",
+          "Session management hardening unit tests",
+          "storage reuse refreshes when cached metadata belongs to a different resolved email for the same alias"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/staff-admin-user-pool.unit.api.ts",
+          "Staff admin user pool unit tests",
+          "falls back to the legacy staff admin user when no pooled users are configured"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/staff-admin-user-pool.unit.api.ts",
+          "Staff admin user pool unit tests",
+          "returns only fully configured pooled users"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/staff-admin-user-pool.unit.api.ts",
+          "Staff admin user pool unit tests",
+          "keeps the legacy staff admin user unless the pool is explicitly enabled"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/staff-admin-user-pool.unit.api.ts",
+          "Staff admin user pool unit tests",
+          "selects configured pooled users by Playwright parallel index"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/staff-admin-user-pool.unit.api.ts",
+          "Staff admin user pool unit tests",
+          "keeps non-staff-admin user identifiers unchanged"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/staff-admin-user-pool.unit.api.ts",
+          "Staff admin user pool unit tests",
+          "creates an explicit legacy staff admin session identity that bypasses pool resolution"
+        ]
+      },
+      {
+        "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "unit/staff-admin-user-pool.unit.api.ts",
+          "Staff admin user pool unit tests",
+          "routes legacy STAFF_ADMIN session identity through the configured pool"
+        ]
+      }
+    ],
+    "model": [
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "scenario manifest keeps must-run lanes, planned lanes, and canaries explicit"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "source-truth snapshot matches the executable assurance harness manifest constants"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "service-definition source profiles classify configured families and preserve required gaps"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "coverage decisions classify every configured family and fail for synthetic unknown service families"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "historic SRT failure classes distinguish supporting diagnostics from product proof"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "defect intake rules route new EXUI findings to the right harness work type"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "catalogue diagnostic preserves source metadata without release approval"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "owner slice catalogue exposes the service-family action list"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "release evidence summary joins verdict, owner slices, and intake routes"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "release evidence proof lanes do not allow explicit skip calls or serial coupling"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "release assurance verdict fails when a configured family is not classified or profiled"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "complete catalogue metadata cannot approve a current candidate release"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "employment service pack has executable service-code and ref-data contracts"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "ia hearings routing pack has executable Asylum and Bail contracts"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "civil release service pack has executable hearings and service-code contracts"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "st cic release service pack has executable WA and service-code contracts"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "probate grouped service pack has executable staff and service-code contracts"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "scenario manifest is wiki-ready and traceable to source repositories"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "service-family sets are normalised, labelled, and non-overlapping with canaries"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "UI availability probe identifies service-unavailable statuses without hiding 500s"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "static WA-supported family mutation proof catches a shared WA family regression"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "static staff-supported family mutation proof catches a Probate staff family regression"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "staff-supported contract permits deployment additions but rejects missing central families"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "employment service-code mutation proof catches a missing BHA1 mapping"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "ia hearings routing mutation proof catches a missing Bail case type"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-central-assurance.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-central-assurance.api.ts",
+          "EXUI assurance harness central assurance POC",
+          "civil hearings service pack mutation proof catches a missing Civil case type"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "Private Law replay pack is anchored to current central-assurance config"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "Civil CREATE_CLAIM replay preserves source-backed event data integrity"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "Civil CREATE_CLAIM mutation proof catches a dropped required event field"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "manage-case data-integrity replay keeps hidden complex data and drops stale hidden-page data"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "EXUI-4493 config-driven replay keeps nested complex FieldShowCondition values on CYA"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "work-allocation replay covers null-service roles, persona tabs, locations, and task correlation"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "CCD search/workbasket metadata replay keeps service-owned definition changes inside the EXUI contract"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "protected endpoint replay rejects anonymous staff-data exposure"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "event-history replay gates external users and keeps embedded component layout usable"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "auth journey replay covers SSO login-hint and post-auth role-mismatch guardrails"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "event-start spinner and IDAM/passport smoke contracts are executable"
+        ]
+      },
+      {
+        "file": "src/tests/api/exui-historic-replay-packs.api.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/api/exui-historic-replay-packs.api.ts",
+          "EXUI historic SRT replay packs",
+          "historic replay status describes supporting checks without product coverage credit"
+        ]
+      }
+    ],
+    "environment": [
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "external UI configuration exposes the expected EXUI keys"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/configuration exposes selected feature flag values"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/globalSearch/services contains the central must-run service-family set"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/wa-supported-jurisdiction/get contains the central WA must-run family set"
+        ]
+      },
+      {
+        "file": "src/tests/harness/diagnostic/configuration.spec.ts",
+        "titlePath": [
+          "",
+          "",
+          "src/tests/harness/diagnostic/configuration.spec.ts",
+          "Harness environment configuration diagnostics",
+          "api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set"
+        ]
+      }
+    ]
+  }
+}

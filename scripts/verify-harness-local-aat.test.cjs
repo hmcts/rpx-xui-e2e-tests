@@ -1,0 +1,441 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const { test } = require("node:test");
+const canary = "PRIVATE_AAT_HEADERS_cookie_Query_9b";
+const modulePath = path.join(__dirname, "run-harness-local-aat.cjs");
+const fixture = require("./fixtures/harness-public-report-titles.json");
+function api() {
+  assert.ok(
+    fs.existsSync(modulePath),
+    "fixed AAT collection adapter must exist",
+  );
+  return require(modulePath);
+}
+function document(entries) {
+  return {
+    config: { rootDir: process.cwd(), metadata: { canary } },
+    errors: [],
+    stats: {
+      startTime: "2026-11-03T12:00:00Z",
+      duration: 1000,
+      expected: entries.length,
+      unexpected: 0,
+      skipped: 0,
+      flaky: 0,
+    },
+    suites: entries.map((entry) => ({
+      title: entry.titlePath[2],
+      suites: [
+        {
+          title: entry.titlePath[3],
+          specs: [
+            {
+              file: entry.file,
+              title: entry.titlePath.at(-1),
+              tests: [
+                {
+                  expectedStatus: "passed",
+                  status: "expected",
+                  results: [
+                    {
+                      status: "passed",
+                      retry: 0,
+                      duration: 10,
+                      startTime: "2026-11-03T12:00:00.100Z",
+                      workerIndex: 0,
+                      parallelIndex: 0,
+                      errors: [{ message: canary }],
+                      stdout: [canary],
+                      attachments: [{ path: canary }],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })),
+  };
+}
+test("fixed phases admit complete failed results and retain no raw diagnostic fields", () => {
+  const { normalizePhase } = api();
+  const entries = fixture.selections.environment;
+  const raw = document(entries);
+  raw.suites[0].suites[0].specs[0].tests[0].results[0].status = "failed";
+  raw.suites[0].suites[0].specs[0].tests[0].status = "unexpected";
+  raw.stats.expected--;
+  raw.stats.unexpected++;
+  const result = normalizePhase(raw, entries, 1, process.cwd());
+  assert.equal(result.records.length, 5);
+  assert.equal(result.status, "failed");
+  assert.equal(result.records[0].observed.status, "failed");
+  assert.ok(!JSON.stringify(result).includes(canary));
+});
+test("incomplete, duplicate, unknown, retried, inconsistent exit and stale-root phases fail closed", () => {
+  const { normalizePhase } = api();
+  const entries = fixture.selections.environment;
+  for (const mutation of [
+    "missing",
+    "duplicate",
+    "unknown",
+    "retry",
+    "root",
+    "exit",
+    "stats",
+    "interrupted",
+  ]) {
+    const raw = document(entries);
+    let code = 0;
+    if (mutation === "missing") raw.suites.pop();
+    if (mutation === "duplicate") raw.suites[0] = raw.suites[1];
+    if (mutation === "unknown") raw.suites[0].suites[0].specs[0].title = canary;
+    if (mutation === "retry")
+      raw.suites[0].suites[0].specs[0].tests[0].results[0].retry = 1;
+    if (mutation === "root") raw.config.rootDir = "/unowned";
+    if (mutation === "exit") code = 2;
+    if (mutation === "stats") raw.stats.expected--;
+    if (mutation === "interrupted")
+      raw.suites[0].suites[0].specs[0].tests[0].results[0].status =
+        "interrupted";
+    assert.throws(
+      () => normalizePhase(raw, entries, code, process.cwd()),
+      /LOCAL_AAT/,
+    );
+  }
+});
+test("live-AAT profile adds exactly five reviewed probes without claiming candidate credit", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  assert.equal(overview.profiles["local-aat"].length, 121);
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: { status: "passed", aatOutcome: "response-passed" },
+  }));
+  const html = await overview.renderOverview(records, "local-aat");
+  assert.match(html, /Live AAT configuration probes/);
+  assert.match(html, /5 checks recorded/);
+  assert.match(html, /deployed version.*unknown/i);
+  assert.match(html, /0 \/ 112/);
+  assert.match(html, /candidate-bound/i);
+  assert.doesNotMatch(html, /It did not run.*EXUI application/);
+});
+
+test("known fixture login/header timeout is setup-blocked without leaking its private message", () => {
+  const { normalizePhase } = api();
+  const entries = fixture.selections.environment;
+  const raw = document(entries),
+    r = raw.suites[1].suites[0].specs[0].tests[0];
+  r.status = "unexpected";
+  r.results[0].status = "failed";
+  r.results[0].error = {
+    message: `${canary} Recent UI session capture failed locator.waitFor exui-header Timeout`,
+    stack: "at createStorageStateViaUi (/owned/src/fixtures/api-auth.ts:365:1)",
+  };
+  raw.stats.expected--;
+  raw.stats.unexpected++;
+  const normalized = normalizePhase(raw, entries, 1, process.cwd());
+  assert.equal(
+    normalized.records[1].observed.aatOutcome,
+    "login-setup-blocked",
+  );
+  assert.ok(!JSON.stringify(normalized).includes(canary));
+  r.results[0].error.stack = "at unrelatedFixture";
+  assert.equal(
+    normalizePhase(raw, entries, 1, process.cwd()).records[1].observed
+      .aatOutcome,
+    "failure-unclassified",
+  );
+});
+test("offline environment cannot receive credentials and AAT targets are fixed with owned UI storage", () => {
+  const { phaseEnvironment, normalizePhase, AAT_ORIGIN, IDAM_ORIGIN } = api();
+  const env = {
+    PATH: "/bin",
+    HOME: "/owned",
+    TEST_URL: AAT_ORIGIN,
+    TEST_ENV: "aat",
+    IDAM_WEB_URL: IDAM_ORIGIN,
+    SOLICITOR_USERNAME: canary,
+    SOLICITOR_PASSWORD: canary,
+    OTHER_SECRET: canary,
+    PW_UI_STORAGE_PATH: "/foreign",
+  };
+  const projected = phaseEnvironment(env, "/owned/run");
+  assert.ok(!JSON.stringify(projected.offline).includes(canary));
+  assert.equal(
+    projected.aat.PW_UI_STORAGE_PATH,
+    "/owned/run/aat/ui-storage.json",
+  );
+  assert.equal(projected.aat.OTHER_SECRET, undefined);
+  assert.throws(
+    () =>
+      phaseEnvironment(
+        { ...env, TEST_URL: AAT_ORIGIN + "?q=" + canary },
+        "/owned/run",
+      ),
+    /LOCAL_AAT/,
+  );
+  assert.throws(
+    () =>
+      normalizePhase(
+        document(fixture.selections.environment),
+        fixture.selections.environment,
+        0,
+        process.cwd(),
+        { startedAt: Date.now(), finishedAt: Date.now() },
+      ),
+    /LOCAL_AAT/,
+  );
+});
+
+test("real renderer combines121 records, labels login setup honestly, and resets across profiles", async (t) => {
+  const os = require("node:os");
+  const { normalizePhase } = api();
+  const Reporter = require("./harness-public-odhin-reporter.cjs");
+  const overview = require("./harness-public-overview.cjs");
+  const previous = process.cwd(),
+    root = fs.mkdtempSync(
+      path.join(fs.realpathSync(os.tmpdir()), "aat-report-"),
+    );
+  process.chdir(root);
+  t.after(() => {
+    process.chdir(previous);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const raw = document(fixture.selections.environment);
+  for (const suite of raw.suites.slice(1)) {
+    const testCase = suite.suites[0].specs[0].tests[0];
+    testCase.status = "unexpected";
+    testCase.results[0].status = "failed";
+    testCase.results[0].error = {
+      message: `${canary} locator.waitFor exui-header Timeout`,
+      stack:
+        "at createStorageStateViaUi (/owned/src/fixtures/api-auth.ts:365:1)",
+    };
+  }
+  raw.stats.expected = 1;
+  raw.stats.unexpected = 4;
+  const live = normalizePhase(raw, fixture.selections.environment, 1, root);
+  const offline = normalizePhase(
+    document(overview.entries),
+    overview.entries,
+    0,
+    root,
+  );
+  const records = [...offline.records, ...live.records];
+  const reporter = new Reporter({ selection: "local-aat" });
+  const tests = records.map((record) => ({
+    location: { file: path.join(root, record.entry.file) },
+    titlePath: () => record.entry.titlePath,
+    retries: 0,
+    expectedStatus: "passed",
+  }));
+  reporter.onBegin({}, { allTests: () => tests });
+  records.forEach((record, index) =>
+    reporter.onTestEnd(tests[index], record.observed),
+  );
+  await reporter.onEnd({
+    status: "failed",
+    startTime: new Date("2026-11-03T12:00:00Z"),
+    duration: 1000,
+  });
+  const html = fs.readFileSync(
+    path.join(root, "functional-output/tests/harness/public/odhin/index.html"),
+    "utf8",
+  );
+  assert.match(
+    html,
+    /1\/5 response checks passed; 4 failed callbacks \(4 blocked by login\/setup\)/,
+  );
+  assert.match(html, /login-setup-blocked/);
+  assert.ok(!html.includes(canary));
+  assert.equal(Reporter.validatePublicReport("local-aat").tests, 121);
+  assert.equal(Reporter.validatePublicReport().selection, "local-aat");
+  assert.throws(() => Reporter.validatePublicReport("harness"), /PUBLIC_ODHIN/);
+  Reporter.resetPublicReport("harness");
+  assert.ok(
+    !fs.existsSync(
+      path.join(
+        root,
+        "functional-output/tests/harness/public/odhin/index.html",
+      ),
+    ),
+  );
+});
+
+test("global-search family mismatch exposes only reviewed codes, never arbitrary raw errors", async () => {
+  const { normalizePhase } = api();
+  const overview = require("./harness-public-overview.cjs");
+  const raw = document(fixture.selections.environment),
+    testCase = raw.suites[2].suites[0].specs[0].tests[0];
+  testCase.status = "unexpected";
+  testCase.results[0].status = "failed";
+  testCase.results[0].error = {
+    message: `Error: api/globalSearch/services is missing central must-run service families: DIVORCE, PROBATE\n${canary}`,
+  };
+  raw.stats.expected--;
+  raw.stats.unexpected++;
+  const phase = normalizePhase(
+    raw,
+    fixture.selections.environment,
+    1,
+    process.cwd(),
+  );
+  assert.equal(
+    phase.records[2].observed.aatOutcome,
+    "service-family-contract-mismatch",
+  );
+  assert.deepEqual(phase.records[2].observed.aatMissingFamilies, [
+    "DIVORCE",
+    "PROBATE",
+  ]);
+  const records = [
+    ...overview.entries.map((entry) => ({
+      entry,
+      observed: { status: "passed" },
+    })),
+    ...phase.records,
+  ];
+  const html = await overview.renderOverview(records, "local-aat");
+  assert.match(html, /Required service-family contract differs/);
+  assert.match(html, /Divorce \(DIVORCE\), Probate \(PROBATE\)/);
+  assert.match(
+    html,
+    /116 local Harness\/model checks \+ 5 live AAT probes = 121 checks/,
+  );
+  assert.match(html, /AAT: 4\/5 response checks passed/);
+  assert.match(html, /one configured solicitor session/);
+  const dom = require("node-html-parser").parse(html);
+  for (const card of dom.querySelectorAll("[data-harness-group]")) {
+    assert.equal(card.getAttribute("class"), "col-md-6 col-xl-3");
+  }
+  assert.ok(
+    html.indexOf("data-aat-contract-mismatch") <
+      html.indexOf("data-harness-group"),
+  );
+
+  assert.ok(!html.includes(canary));
+  testCase.results[0].error.message =
+    "Error: api/globalSearch/services is missing central must-run service families: UNKNOWN_SECRET";
+  assert.equal(
+    normalizePhase(raw, fixture.selections.environment, 1, process.cwd())
+      .records[2].observed.aatOutcome,
+    "failure-unclassified",
+  );
+});
+
+test("actual controller launches AAT in its fresh private cwd with absolute config and observes complete failure", async (t) => {
+  const os = require("node:os");
+  const { EventEmitter } = require("node:events");
+  const cp = require("node:child_process");
+  const previous = process.cwd(),
+    root = fs.mkdtempSync(
+      path.join(fs.realpathSync(os.tmpdir()), "aat-controller-"),
+    );
+  process.chdir(root);
+  const oldSpawn = cp.spawn;
+  t.after(() => {
+    cp.spawn = oldSpawn;
+    delete require.cache[modulePath];
+    process.chdir(previous);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const calls = [];
+  cp.spawn = function (command, args, options) {
+    const isAat = options.env.EXUI_DIAGNOSTIC_SELECTION === "environment";
+    calls.push({ command, args, options });
+    const entries = isAat
+      ? fixture.selections.environment
+      : require("./harness-public-overview.cjs").entries;
+    const raw = document(entries);
+    raw.config.rootDir = root;
+    raw.stats.startTime = new Date().toISOString();
+    raw.stats.duration = 1;
+    for (const suite of raw.suites)
+      for (const nested of suite.suites)
+        for (const spec of nested.specs)
+          spec.tests[0].results[0].startTime = raw.stats.startTime;
+    if (isAat) {
+      const testCase = raw.suites[2].suites[0].specs[0].tests[0];
+      testCase.status = "unexpected";
+      testCase.results[0].status = "failed";
+      testCase.results[0].error = {
+        message:
+          "Error: api/globalSearch/services is missing central must-run service families: DIVORCE, PROBATE",
+      };
+      raw.stats.expected--;
+      raw.stats.unexpected++;
+    }
+    fs.writeFileSync(
+      options.env.PLAYWRIGHT_JSON_OUTPUT_FILE,
+      JSON.stringify(raw),
+    );
+    const child = new EventEmitter();
+    child.kill = () => {};
+    setImmediate(() => child.emit("close", isAat ? 1 : 0, null));
+    return child;
+  };
+  delete require.cache[modulePath];
+  const { runLocalAat, AAT_ORIGIN, IDAM_ORIGIN } = require(modulePath);
+  const result = await runLocalAat({
+    PATH: "/bin",
+    HOME: "/owned",
+    TEST_URL: AAT_ORIGIN,
+    TEST_ENV: "aat",
+    IDAM_WEB_URL: IDAM_ORIGIN,
+    SOLICITOR_USERNAME: canary,
+    SOLICITOR_PASSWORD: canary,
+  });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.status, "failed");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].options.cwd, root);
+  assert.equal(calls[0].options.env.SOLICITOR_PASSWORD, undefined);
+  const aat = calls[1];
+  assert.notEqual(aat.options.cwd, root);
+  assert.equal(path.basename(aat.options.cwd), "aat");
+  assert.ok(
+    aat.options.cwd.startsWith(
+      path.join(root, "functional-output/tests/harness/private/.local-aat-"),
+    ),
+  );
+  assert.equal(
+    aat.args[aat.args.indexOf("--config") + 1],
+    path.join(root, "playwright.harness-diagnostic.config.ts"),
+  );
+  assert.equal(
+    aat.options.env.PW_UI_STORAGE_PATH,
+    path.join(aat.options.cwd, "ui-storage.json"),
+  );
+  assert.ok(fs.statSync(aat.options.cwd).isDirectory());
+  const report =
+    require("./harness-public-odhin-reporter.cjs").validatePublicReport(
+      "local-aat",
+    );
+  assert.equal(report.tests, 121);
+  assert.equal(report.counts.passed, 120);
+  assert.equal(report.counts.failed, 1);
+});
+
+test("live family labels do not trust the separate legacy central arrays", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  const legacy = require("../src/data/exui-central-assurance-source.json")
+    .rpxXuiWebapp["config/default.json"];
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: { status: "passed", aatOutcome: "response-passed" },
+  }));
+  const before = await overview.renderOverview(records, "local-aat");
+  const previous = legacy.globalSearchServices;
+  try {
+    legacy.globalSearchServices = [];
+    const after = await overview.renderOverview(records, "local-aat");
+    assert.equal(
+      after,
+      before,
+      "live labels must come from the independently validated default projection",
+    );
+  } finally {
+    legacy.globalSearchServices = previous;
+  }
+});

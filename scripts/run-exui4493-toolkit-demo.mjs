@@ -5,8 +5,10 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
-const workspaceRoot = resolve(repoRoot, "..");
-const webappRoot = resolve(process.env.XUI_WEBAPP_ROOT ?? join(workspaceRoot, "rpx-xui-webapp"));
+if (!process.env.XUI_WEBAPP_ROOT) throw new Error("DIAGNOSTIC_EXPLICIT_TOOLKIT_ROOT_REQUIRED");
+const webappRoot = resolve(process.env.XUI_WEBAPP_ROOT);
+const reportOutput = "functional-output/tests/harness/private/diagnostics/toolkit/odhin-report";
+const reportIndex = "harness-diagnostic.html";
 const toolkitPackagePath = join(webappRoot, "node_modules", "@hmcts", "ccd-case-ui-toolkit", "package.json");
 
 function readToolkitVersion() {
@@ -20,10 +22,8 @@ function readToolkitVersion() {
 function runPlaywrightProof() {
   const env = {
     ...process.env,
-    PLAYWRIGHT_REPORTERS: process.env.PLAYWRIGHT_REPORTERS ?? "list,odhin",
-    PW_ODHIN_OUTPUT: process.env.PW_ODHIN_OUTPUT ?? "test-results/exui-4493-toolkit-odhin-report",
-    PW_ODHIN_INDEX: process.env.PW_ODHIN_INDEX ?? "exui-4493-toolkit.html",
-    PW_ODHIN_TITLE: process.env.PW_ODHIN_TITLE ?? "EXUI-4493 installed toolkit proof",
+    EXUI_DIAGNOSTIC_SELECTION: "toolkit",
+    EXUI_DIAGNOSTIC_ODHIN: "1",
     XUI_WEBAPP_ROOT: webappRoot
   };
 
@@ -31,10 +31,10 @@ function runPlaywrightProof() {
     "./node_modules/.bin/playwright",
     [
       "test",
-      "--project=api",
-      "src/tests/api/exui-historic-replay-packs.api.ts",
+      "--config=playwright.harness-diagnostic.config.ts",
+      "src/tests/harness/diagnostic/toolkit.spec.ts",
       "-g",
-      "EXUI-4493 installed webapp toolkit"
+      "EXUI-4493 extracted installed toolkit class"
     ],
     {
       cwd: repoRoot,
@@ -44,10 +44,12 @@ function runPlaywrightProof() {
   ).status ?? 1;
 }
 
-console.log("\n[EXUI-4493 real toolkit proof]");
+console.log("\n[EXUI-4493 extracted installed-class diagnostic]");
 console.log(`webapp=${webappRoot}`);
 console.log(`installed toolkit=${readToolkitVersion()}`);
 console.log("This proof executes the ReadFieldsFilterPipe class from the toolkit bundle installed by rpx-xui-webapp.");
 console.log("For a genuine red run, set XUI_WEBAPP_ROOT to a webapp checkout that has the older/broken toolkit installed.");
 
-process.exit(runPlaywrightProof());
+const status = runPlaywrightProof();
+console.log(`Supporting Odhín diagnostic report (no release credit): ${join(reportOutput, reportIndex)}`);
+process.exit(status);

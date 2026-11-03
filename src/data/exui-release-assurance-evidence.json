@@ -1,4 +1,6 @@
 {
+  "kind": "catalogue-diagnostic",
+  "releaseApproval": false,
   "releaseGate": {
     "warnReasons": [
       "historic out-of-scope class: media-viewer-redaction-coordinate"
@@ -22,54 +24,24 @@
       "yarn harness:mutation:ia",
       "yarn harness:mutation:employment",
       "yarn harness:mutation:ccd"
-    ]
+    ],
+    "boundary": "source-and-model",
+    "releaseCredit": false,
+    "provenance": "Historical checked-in record; not evidence of the current candidate run."
   },
   "harnessProofLanes": [
     {
       "lane": "api",
-      "project": "api",
-      "requiredFor": "local-and-ci",
-      "proof": "Central assurance config, release gate, mutation evidence, and historic replay packs.",
+      "project": "model/environment/toolkit diagnostics",
+      "requiredFor": "supporting-diagnostics",
+      "proof": "Pure catalogue/model checks plus separately selected environment probes and extracted installed-class diagnostics; no release credit.",
       "testFiles": [
         "src/tests/api/exui-central-assurance.api.ts",
-        "src/tests/api/exui-historic-replay-packs.api.ts"
-      ]
-    },
-    {
-      "lane": "ui",
-      "project": "ui",
-      "requiredFor": "local-and-ci",
-      "ciPolicy": "Included in harness:ci.",
-      "proof": "Manage Tasks service-family filter screen evidence.",
-      "testFiles": [
-        "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts"
-      ]
-    },
-    {
-      "lane": "integration",
-      "project": "integration",
-      "requiredFor": "local-and-ci",
-      "ciPolicy": "Included in harness:ci.",
-      "proof": "EXUI-4493 CYA visual evidence, Overview layout route proof, Global Search service-family selector, and Hearings supported/unsupported family slices.",
-      "testFiles": [
-        "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
-        "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
-        "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts",
-        "src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts"
-      ]
-    },
-    {
-      "lane": "accessibility",
-      "project": "ui/integration",
-      "requiredFor": "local-and-ci",
-      "ciPolicy": "Included in harness:ci through the UI and integration harness specs.",
-      "proof": "Axe baseline checks embedded in the Manage Tasks, Overview layout, and Hearings harness specs.",
-      "testTitles": [
-        "accessibility baseline: available tasks service filter has no new axe violations",
-        "accessibility baseline: IA overview case details has no new axe violations",
-        "accessibility baseline: supported Private Law hearings action view has no new axe violations",
-        "accessibility baseline: unsupported Divorce case details state has no new axe violations"
-      ]
+        "src/tests/api/exui-historic-replay-packs.api.ts",
+        "src/tests/harness/diagnostic/configuration.spec.ts",
+        "src/tests/harness/diagnostic/toolkit.spec.ts"
+      ],
+      "ciPolicy": "harness:diagnostic:ci runs only 38 portable model checks; environment and toolkit inputs are explicit."
     }
   ]
 }

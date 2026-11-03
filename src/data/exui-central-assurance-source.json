@@ -7,7 +7,10 @@
         "PRIVATELAW",
         "PUBLICLAW",
         "EMPLOYMENT",
-        "ST_CIC"
+        "ST_CIC",
+        "PROBATE",
+        "PCS",
+        "DIVORCE"
       ],
       "waSupportedJurisdictions": [
         "IA",
@@ -15,7 +18,8 @@
         "PRIVATELAW",
         "PUBLICLAW",
         "EMPLOYMENT",
-        "ST_CIC"
+        "ST_CIC",
+        "PCS"
       ],
       "staffSupportedJurisdictions": [
         "ST_CIC",
@@ -28,7 +32,8 @@
         "DIVORCE",
         "FR",
         "PROBATE",
-        "HRS"
+        "HRS",
+        "PCS"
       ],
       "jurisdictions": [
         "DIVORCE",
@@ -133,6 +138,12 @@
           "service": "HRS",
           "serviceCodes": [
             "HRS"
+          ]
+        },
+        {
+          "service": "PCS",
+          "serviceCodes": [
+            "AAA3"
           ]
         }
       ]
@@ -538,6 +549,7 @@
         "priority": "grouped",
         "proofLevel": "ccd-backed",
         "lanes": [
+          "global-search",
           "staff-ref-data",
           "hearings"
         ],
@@ -578,8 +590,8 @@
             "complexTypes": 10
           }
         ],
-        "rationale": "Divorce is staff-supported and is the explicit unsupported-hearings/hidden-surface family in the current UI proof.",
-        "nextAction": "Keep Divorce as the negative hearings family and add event-definition slices only if divorce-specific EXUI behaviour is selected."
+        "rationale": "Divorce is global-search and staff-supported while remaining the explicit unsupported-hearings/hidden-surface family.",
+        "nextAction": "Keep grouped global-search/staff membership and the negative hearings representative; add event-definition slices only for a distinct selected EXUI behaviour."
       },
       {
         "serviceFamily": "FR",
@@ -618,6 +630,7 @@
         "priority": "grouped",
         "proofLevel": "ccd-backed",
         "lanes": [
+          "global-search",
           "staff-ref-data"
         ],
         "representativeCaseTypes": [
@@ -648,8 +661,8 @@
             ]
           }
         ],
-        "rationale": "Probate is staff-supported in EXUI config and current source evidence points to hmcts/probate-back-office for the GrantOfRepresentation case type.",
-        "nextAction": "Keep Probate grouped through staff-supported assertions until a Probate-specific EXUI-visible behaviour justifies a normalized slice."
+        "rationale": "Probate is global-search and staff-supported; existing source evidence identifies probate-back-office/GrantOfRepresentation, without establishing service runtime coverage.",
+        "nextAction": "Keep Probate grouped through global-search and staff/ref-data membership; select a separate normalized slice only for a distinct EXUI-visible shape."
       },
       {
         "serviceFamily": "ST_CIC",
@@ -739,18 +752,45 @@
       },
       {
         "serviceFamily": "PCS",
-        "priority": "canary",
+        "priority": "release-blocking",
         "proofLevel": "config-backed",
         "lanes": [
-          "canary"
+          "global-search",
+          "work-allocation",
+          "staff-ref-data"
         ],
-        "representativeCaseTypes": [],
+        "representativeCaseTypes": [
+          "PCS"
+        ],
         "serviceCodes": [
           "AAA3"
         ],
-        "repos": [],
-        "rationale": "PCS is present in the webapp jurisdiction and service-code configuration but is outside the central global-search, WA, staff-supported, and hearings release-blocking sets.",
-        "nextAction": "Keep PCS canary-only until EXUI owners add a distinct PCS contract to a central assurance lane."
+        "repos": [
+          {
+            "fullName": "hmcts/pcs-api",
+            "url": "https://github.com/hmcts/pcs-api",
+            "visibility": "public",
+            "updatedAt": "2026-11-02T22:38:09Z",
+            "defaultBranch": "master",
+            "revision": "efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8",
+            "definitionRoot": "src/main/java/uk/gov/hmcts/reform/pcs/ccd",
+            "jsonFiles": 0,
+            "caseEventToFields": 0,
+            "caseEventToComplexTypes": 0,
+            "authorisationCaseField": 0,
+            "caseField": 0,
+            "complexTypes": 0,
+            "notes": "Java CCD SDK configuration inputs generate build/definitions; the decentralised runtime uses PCS-owned relational case persistence. Repository metadata was observed separately from the pinned source revision; no generation, import or runtime evidence is claimed.",
+            "evidenceRefs": [
+              "src/main/java/uk/gov/hmcts/reform/pcs/ccd/CaseType.java",
+              "src/main/java/uk/gov/hmcts/reform/pcs/ccd/domain/PCSCase.java",
+              "src/main/java/uk/gov/hmcts/reform/pcs/ccd/PCSCaseView.java",
+              "build.gradle"
+            ]
+          }
+        ],
+        "rationale": "PCS is configured for global search, Work Allocation and staff/ref-data with AAA3. Verified hmcts/pcs-api Java sources declare base case type PCS and decentralised CCD participation with service-owned persistence; CASE_TYPE_SUFFIX remains unresolved and deployed identity is unverified. This source-owner record does not fulfil the required CCD-backed assurance gap.",
+        "nextAction": "Resolve the deployed identity and review representative PCS shapes and its decentralised persistence boundary; establish generation, import and runtime evidence before considering CCD-backed assurance."
       }
     ]
   },

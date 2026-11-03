@@ -116,45 +116,6 @@ function escapeHtml(value) {
 
 const HARNESS_SLICE_CATALOGUE = [
   {
-    id: 'wa-supported-service-families',
-    badge: 'WA_SHARED',
-    label: 'Available tasks WA family filter',
-    services: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
-    jurisdictions: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
-    caseTypes: 'central WA family list',
-    fileIncludes: ['serviceFamilies.positive.spec.ts'],
-    titleIncludes: ['available tasks filter', 'accessibility baseline: available tasks service filter'],
-  },
-  {
-    id: 'hearings-privatelaw-prlapps-manager',
-    badge: 'PRIVATELAW / PRLAPPS',
-    label: 'Hearings supported family',
-    services: 'PRIVATELAW',
-    jurisdictions: 'PRIVATELAW',
-    caseTypes: 'PRLAPPS',
-    fileIncludes: ['harnessServiceFamilies.positive.spec.ts'],
-    titleIncludes: ['supported private law hearings action view'],
-  },
-  {
-    id: 'hearings-disabled-divorce',
-    badge: 'DIVORCE / DIVORCE',
-    label: 'Hearings unsupported grouped family',
-    services: 'DIVORCE',
-    jurisdictions: 'DIVORCE',
-    caseTypes: 'DIVORCE',
-    fileIncludes: ['harnessServiceFamilies.positive.spec.ts'],
-    titleIncludes: ['unsupported divorce case details state'],
-  },
-  {
-    id: 'prl-service-of-documents-nested-complex-cya',
-    badge: 'PRIVATELAW CYA',
-    label: 'Nested complex CYA rendering',
-    services: 'PRIVATELAW',
-    jurisdictions: 'PRIVATELAW',
-    caseTypes: 'PRLAPPS / Service of Documents',
-    fileIncludes: ['exui4493CyaRendering.visual.spec.ts'],
-  },
-  {
     id: 'central-config-contracts',
     badge: 'Central config',
     label: 'Central assurance model',
@@ -162,15 +123,6 @@ const HARNESS_SLICE_CATALOGUE = [
     jurisdictions: 'Global search, WA, staff-supported, hearings config',
     caseTypes: 'service-family configuration',
     fileIncludes: ['exui-central-assurance.api.ts'],
-  },
-  {
-    id: 'global-search-supported-service-families',
-    badge: 'Global search',
-    label: 'Global search service-family selector',
-    services: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
-    jurisdictions: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
-    caseTypes: 'central global-search family list',
-    fileIncludes: ['globalSearchServiceFamilies.positive.spec.ts'],
   },
   {
     id: 'historic-replay-packs',
@@ -915,7 +867,7 @@ function injectHarnessLaneScript(root) {
               '<tbody>' + rows + '</tbody>' +
             '</table>' +
           '</div>' +
-          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; harness:ci runs API, UI, integration, and embedded accessibility proofs.</div>' +
+          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; Harness diagnostics separate portable models, explicit environment targets and extracted toolkit-class inputs; none grants release credit.</div>' +
         '</div>' +
       '</div>';
 

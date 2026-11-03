@@ -1,78 +1,45 @@
-import fs from "node:fs";
-import path from "node:path";
-import process from "node:process";
+import fs from 'node:fs';
+import path from 'node:path';
+import { getReleasePolicy } from './lib/exui-release-policy.mjs';
+import { loadRunEvidence, writeJsonAtomic, writePublicSummary, validatePublicSummary } from './lib/exui-evidence-io.mjs';
 
-const repoRoot = process.cwd();
-const sourcePath = path.join(repoRoot, "src/data/exui-central-assurance-source.json");
-const evidencePath = path.join(repoRoot, "src/data/exui-release-assurance-evidence.json");
-const defaultOutputPath = path.join(repoRoot, "functional-output/tests/harness/release-assurance-summary.json");
-const outputPath = path.resolve(process.env.EXUI_RELEASE_SUMMARY_OUTPUT ?? defaultOutputPath);
-
-const source = readJson(sourcePath);
-const evidence = readJson(evidencePath);
-const profiles = source.serviceDefinitionProfiles?.profiles ?? [];
-const releaseBlockingFamilies = normalizeList(source.rpxXuiWebapp?.["config/default.json"]?.globalSearchServices ?? []);
-const profiledFamilies = new Set(profiles.map((profile) => normalize(profile.serviceFamily)));
-const failReasons = releaseBlockingFamilies
-  .filter((family) => !profiledFamilies.has(family))
-  .map((family) => `release-blocking family without source profile: ${family}`);
-const mutationEvidence = evidence.mutationEvidence ?? { status: "pending", requiredCommands: [] };
-const harnessProofLanes = Array.isArray(evidence.harnessProofLanes) ? evidence.harnessProofLanes : [];
-const releaseGateWarnReasons = Array.isArray(evidence.releaseGate?.warnReasons) ? evidence.releaseGate.warnReasons : [];
-const acceptedWarnings = Array.isArray(evidence.releaseGate?.acceptedWarnings) ? evidence.releaseGate.acceptedWarnings : [];
-const warnReasons = [
-  ...releaseGateWarnReasons,
-  ...(mutationEvidence.status === "pending"
-    ? [`mutation evidence pending: ${(mutationEvidence.requiredCommands ?? []).join(", ")}`]
-    : [])
-];
-const acceptedWarningReasons = new Set(acceptedWarnings.map((warning) => warning.reason));
-const unclassifiedReleaseWarnings = releaseGateWarnReasons.filter((reason) => !acceptedWarningReasons.has(reason));
-failReasons.push(
-  ...unclassifiedReleaseWarnings.map((reason) => `release warning without accepted catalogue entry: ${reason}`)
-);
-const overallStatus = failReasons.length > 0 ? "fail" : warnReasons.length > 0 ? "warn" : "pass";
-const ownerSliceCatalogue = profiles
-  .map((profile) => ({
-    serviceFamily: normalize(profile.serviceFamily),
-    label: profile.serviceFamily,
-    disposition: profile.priority,
-    lanes: profile.lanes ?? [],
-    proofLevel: profile.proofLevel,
-    representativeCaseTypes: profile.representativeCaseTypes ?? [],
-    serviceCodes: profile.serviceCodes ?? [],
-    sourceRepositories: (profile.repos ?? []).map((repo) => repo.fullName),
-    ownerAction: profile.nextAction,
-    rationale: profile.rationale
-  }))
-  .sort((left, right) => left.serviceFamily.localeCompare(right.serviceFamily));
-
-const summary = {
-  overallStatus,
-  failReasons,
-  warnReasons,
-  releaseBlockingCoverage: releaseBlockingFamilies.filter((family) => !failReasons.some((reason) => reason.endsWith(family))),
-  mutationEvidence,
-  harnessProofLanes,
-  acceptedWarnings,
-  evidenceSummary: `${overallStatus}: ${releaseBlockingFamilies.length} release-blocking families, ${failReasons.length} fail reason(s), ${warnReasons.length} warning(s), mutation evidence ${mutationEvidence.status}`,
-  ownerSliceCatalogue
-};
-
-fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-fs.writeFileSync(outputPath, `${JSON.stringify(summary, null, 2)}\n`);
-console.log(
-  `[harness-release-summary] wrote ${path.relative(repoRoot, outputPath)} status=${overallStatus} fail=${failReasons.length} warn=${warnReasons.length}`
-);
-
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+const args = process.argv.slice(2);
+if (args[0] === '--validate-public-summary') {
+  try {
+    if (args.length !== 2) throw new Error('INVALID_ARGUMENTS');
+    validatePublicSummary(path.resolve(args[1]));
+    process.exit(0);
+  } catch {
+    console.error('[harness-release-summary] BLOCKED: unsafe or missing public artifact');
+    process.exit(2);
+  }
 }
-
-function normalize(value) {
-  return String(value).trim().toUpperCase();
+const publicPath = path.resolve('functional-output/tests/harness/public/release-assurance-summary.json');
+let verdict = { status: 'BLOCKED', exitCode: 2, reasons: ['RUN_EVIDENCE_REQUIRED'] };
+const runPath = args.length === 2 && args[0] === '--run' && args[1] ? path.resolve(args[1]) : null;
+const gatePath = runPath ? path.join(path.dirname(runPath), 'gate.json') : null;
+let failureCode = 'SUMMARY_PUBLICATION_FAILED';
+try {
+  for (const file of [gatePath, publicPath].filter(Boolean)) fs.rmSync(file, { force: true });
+  writePublicSummary(publicPath, verdict, false);
+  failureCode = 'RUN_EVIDENCE_UNAVAILABLE_OR_INVALID';
+  if (args.length !== 2 || args[0] !== '--run') throw new Error('RUN_EVIDENCE_REQUIRED');
+  const header = JSON.parse(fs.readFileSync(runPath, 'utf8'));
+  const policy = getReleasePolicy(header.manifest?.releaseScopeId);
+  const { receipt } = loadRunEvidence(runPath, policy);
+  verdict = receipt.verdict;
+  failureCode = 'SUMMARY_PUBLICATION_FAILED';
+  writePublicSummary(publicPath, verdict, true);
+  // The machine receipt is the final commit: public publication must succeed first.
+  failureCode = 'GATE_PUBLICATION_FAILED';
+  writeJsonAtomic(gatePath, receipt);
+} catch {
+  // Raw parser, path and framework errors can contain secrets; publish fixed reason codes only.
+  verdict = { status: 'BLOCKED', exitCode: 2, reasons: [...verdict.reasons, failureCode] };
+  for (const file of [gatePath, publicPath].filter(Boolean)) {
+    try { fs.rmSync(file, { force: true }); } catch { /* The producer must still report failed finalization if cleanup is unavailable. */ }
+  }
+  try { writePublicSummary(publicPath, verdict, false); } catch { /* Best effort; never replace the nonzero exit. */ }
 }
-
-function normalizeList(values) {
-  return [...new Set(values.map(normalize).filter(Boolean))].sort((left, right) => left.localeCompare(right));
-}
+console.log(`[harness-release-summary] ${verdict.status}; full EXUI release approval unavailable`);
+process.exitCode = verdict.exitCode;

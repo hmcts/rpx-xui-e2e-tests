@@ -16,6 +16,7 @@ node_modules/
 # Playwright artifacts
 playwright-report/
 test-results/
+.sessions/
 functional-output/
 playwright-junit.xml
 
