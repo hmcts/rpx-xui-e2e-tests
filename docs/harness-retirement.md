@@ -66,7 +66,10 @@ Each comparison below describes its recorded batch and source pin. Later reviewe
 
 | ce360bf | 220 | Atomic Harness default/config/CI switch:83 dead fixture/provisioning self-tests,105 dead API-support self-tests,31 obsolete product-config checks and one generic health callback removed; actual Harness/auth/report support preserved. |
 
-Seven hundred and thirty-nine Playwright cases are retired. Node evaluator/pipeline check refactoring is counted separately in validation, not added to this total. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
+| cff68e8 | 21 | Unreachable case-reference/retry/gateway/case-linking support and sole-use implementations removed after caller review; two useful Hearings builder checks retained and selected. |
+| 16effa4 | 112 | Obsolete config/session/mock/load/report support and duplicate reporter checks removed; useful auth/session/resolver/toolkit/task-list checks retained, adaptive timeout regression moved intact and all surviving API tests explicitly selected. |
+
+Eight hundred and seventy-two recorded Playwright registrations are retired. Node evaluator/pipeline check refactoring is counted separately in validation, not added to this total. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -162,6 +165,10 @@ Viewer/link/event consolidation retains conditional mandatory fields and payload
 The actual-candidate scope slice now verifies scoped service/location requests, the exact rendered suggestion list and selection/add behavior. Its IA/Civil browser baselines passed and its broadened-organisation-scope fault was detected. A separate diagnostic returned no venue suggestions with HTTP200 and unchanged valid queries; both personas failed exactly at location-search-results. That altered-source diagnostic remained BLOCKED and receives no production mutation credit. The generic work-filter file was retired after the documented outcome comparison; ownerless injected-storage compatibility is the explicit limit described above. Generated/model diagnostics receive no candidate or real-CCD release credit.
 
 All ordinary product integration/E2E specs have now retired. Five retained browser files contain central Harness diagnostic/configuration scenarios and retain historical source paths and use explicit Harness configuration. WA and evidence-manager product APIs have also retired. Explicit Harness execution and the command/config/CI cutover are implemented.17 conventional suite commands and six product CI stages are removed; environment/toolkit/frontend diagnostics remain explicitly selected and separately bounded. This does not establish current production identity-provider/translation/booking acceptance.
+
+## Active Harness support
+
+The explicit support suite contains 105 checks in 23 files. Together with the two portable model files, every remaining API test file has an active selection. A pipeline check compares actual Playwright discovery with the source inventory; an unselected-file probe is rejected. Generic product tests are not recreated as support. Useful authentication, session/storage, persona resolution, fixture, toolkit assertion, mock validation and report behavior remain checked.
 
 ## Rollback and remaining work
 
