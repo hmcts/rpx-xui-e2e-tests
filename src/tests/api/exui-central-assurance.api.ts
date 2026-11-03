@@ -41,18 +41,6 @@ import {
 } from '../../data/exui-central-assurance.js';
 import { attachMutationEvidence, expectCentralMustRunFamiliesPresent, mutateStringArrayForDemo } from '../../harness/diagnostics/central-assurance.utils.js';
 import { isUiHostUnavailableStatus, probeUiRouteAvailability } from '../../utils/ui/uiHostAvailability.js';
-import {
-  aggregatedCaseworkerJurisdictionsRoutePattern,
-  buildSupportedJurisdictionDetails,
-  healthCheckRoutePattern,
-  setupTaskListBootstrapRoutes,
-  waSupportedJurisdictionsDetailRoutePattern,
-  waSupportedJurisdictionsGetRoutePattern,
-  workAllocationCaseworkerByServiceNameRoutePattern,
-  workAllocationFullLocationRoutePattern,
-  workAllocationRegionLocationRoutePattern,
-  workAllocationTypesOfWorkRoutePattern,
-} from '../integration/helpers/taskListMockRoutes.helper.js';
 import { buildHearingsEnvironmentConfigMock } from '../integration/mocks/hearings.mock.js';
 
 type SourceTruth = {
@@ -94,9 +82,6 @@ type ReleaseEvidence = {
     testTitles?: string[];
   }>;
 };
-type RoutePattern = string | RegExp;
-type FulfillOptions = { status?: number; contentType?: string; body?: string };
-type RouteHandler = (route: { fulfill: (options: FulfillOptions) => Promise<void> }) => Promise<void>;
 
 const EXPLICIT_SKIP_CALLS = ['test', 'testInfo', 'describe'].map((owner) => `${owner}.${'sk' + 'ip'}(`);
 const SERIAL_HARNESS_CONFIG_PATTERN = /^\s*test\.describe\.configure\(\s*\{\s*mode:\s*['"]serial['"]\s*\}\s*\);?\s*$/m;
@@ -559,25 +544,20 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       'owner-confirmed-follow-up',
       'specialist-suite-follow-up',
     ]);
-    expect(Object.keys(proofLanes)).toEqual(['api', 'ui', 'integration', 'accessibility']);
+    expect(Object.keys(proofLanes)).toEqual(['api', 'integration', 'accessibility']);
     const proofFileContents = Object.values(proofLanes)
       .flatMap((lane) => lane.testFiles ?? [])
       .map((filePath) => readFileSync(filePath, 'utf8'))
       .join('\n');
 
-    expect(proofLanes.ui?.testFiles).toContain(
-      'src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts'
-    );
     expect(proofLanes.integration?.testFiles).toEqual(
       expect.arrayContaining([
-        'src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts',
         'src/tests/integration/harness/overviewPageLayout.positive.spec.ts',
         'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
       ])
     );
     expect(proofLanes.accessibility?.testTitles).toEqual(
       expect.arrayContaining([
-        'accessibility baseline: available tasks service filter has no new axe violations',
         'accessibility baseline: IA overview case details has no new axe violations',
         'accessibility baseline: supported Private Law hearings action view has no new axe violations',
         'accessibility baseline: unsupported Divorce case details state has no new axe violations',
@@ -908,54 +888,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       expect(EXUI_SERVICE_LABELS[family], `${family} should have a human-readable label`).toEqual(expect.any(String));
       expect(EXUI_SERVICE_LABELS[family].trim().length).toBeGreaterThan(0);
     }
-  });
-
-  test('shared UI route helpers register deterministic WA family bootstrap routes', async () => {
-    const registeredRoutes: Array<{ pattern: RoutePattern; handler: RouteHandler }> = [];
-    const fakePage = {
-      route: async (pattern: RoutePattern, handler: RouteHandler) => {
-        registeredRoutes.push({ pattern, handler });
-      },
-    };
-    const supportedDetails = buildSupportedJurisdictionDetails(EXUI_WA_SUPPORTED_SERVICE_FAMILIES, EXUI_SERVICE_LABELS);
-
-    await setupTaskListBootstrapRoutes(fakePage as never, EXUI_WA_SUPPORTED_SERVICE_FAMILIES, supportedDetails);
-
-    expect(registeredRoutes.map(({ pattern }) => pattern)).toEqual(
-      expect.arrayContaining([
-        waSupportedJurisdictionsGetRoutePattern,
-        waSupportedJurisdictionsDetailRoutePattern,
-        aggregatedCaseworkerJurisdictionsRoutePattern,
-        workAllocationTypesOfWorkRoutePattern,
-        healthCheckRoutePattern,
-        workAllocationRegionLocationRoutePattern,
-        workAllocationFullLocationRoutePattern,
-        workAllocationCaseworkerByServiceNameRoutePattern,
-      ])
-    );
-
-    const waRoute = registeredRoutes.find(({ pattern }) => pattern === waSupportedJurisdictionsGetRoutePattern);
-    const waDetailRoute = registeredRoutes.find(({ pattern }) => pattern === waSupportedJurisdictionsDetailRoutePattern);
-    expect(waRoute).toBeDefined();
-    expect(waDetailRoute).toBeDefined();
-
-    let waFulfill: FulfillOptions | undefined;
-    await waRoute?.handler({
-      fulfill: async (options) => {
-        waFulfill = options;
-      },
-    });
-    expect(waFulfill).toEqual(expect.objectContaining({ contentType: 'application/json', status: 200 }));
-    expect(JSON.parse(waFulfill?.body ?? '[]')).toEqual(EXUI_WA_SUPPORTED_SERVICE_FAMILIES);
-
-    let waDetailFulfill: FulfillOptions | undefined;
-    await waDetailRoute?.handler({
-      fulfill: async (options) => {
-        waDetailFulfill = options;
-      },
-    });
-    expect(waDetailFulfill).toEqual(expect.objectContaining({ contentType: 'application/json', status: 200 }));
-    expect(JSON.parse(waDetailFulfill?.body ?? '[]')).toEqual(supportedDetails);
   });
 
   test('UI availability probe identifies service-unavailable statuses without hiding 500s', async () => {

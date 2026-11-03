@@ -41,38 +41,26 @@
         "src/tests/harness/diagnostic/configuration.spec.ts",
         "src/tests/harness/diagnostic/toolkit.spec.ts"
       ],
-      "ciPolicy": "harness:diagnostic:ci runs only 40 portable model checks; environment and toolkit inputs are explicit."
-    },
-    {
-      "lane": "ui",
-      "project": "model-browser diagnostic",
-      "requiredFor": "explicit-diagnostic",
-      "ciPolicy": "Selected explicitly by harness:diagnostic:model-browser; generated HTML only.",
-      "proof": "Generated Manage Tasks HTML diagnostic; does not execute the candidate filter screen.",
-      "testFiles": [
-        "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts"
-      ]
+      "ciPolicy": "harness:diagnostic:ci runs only 39 portable model checks; environment and toolkit inputs are explicit."
     },
     {
       "lane": "integration",
-      "project": "frontend/toolkit-browser diagnostics",
+      "project": "frontend diagnostics",
       "requiredFor": "explicit-diagnostic",
-      "ciPolicy": "Frontend requires explicit TEST_URL/TEST_ENV; toolkit-browser requires XUI_WEBAPP_ROOT.",
-      "proof": "Real frontend routes with controlled responses plus a separately selected generated CYA illustration; no native receipt or CCD persistence credit.",
+      "ciPolicy": "Frontend requires explicit TEST_URL/TEST_ENV and IDAM_WEB_URL.",
+      "proof": "Real frontend routes with controlled responses; no native receipt or CCD persistence credit.",
       "testFiles": [
-        "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
         "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
         "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
       ]
     },
     {
       "lane": "accessibility",
-      "project": "model-browser/frontend diagnostics",
+      "project": "frontend diagnostics",
       "requiredFor": "explicit-diagnostic",
       "ciPolicy": "Included only with the explicitly selected browser diagnostics; no candidate gate credit.",
-      "proof": "Axe checks on generated Manage Tasks HTML and selected candidate routes with controlled responses; not comprehensive accessibility acceptance.",
+      "proof": "Axe checks on selected frontend routes with controlled responses; not comprehensive accessibility acceptance.",
       "testTitles": [
-        "accessibility baseline: available tasks service filter has no new axe violations",
         "accessibility baseline: IA overview case details has no new axe violations",
         "accessibility baseline: supported Private Law hearings action view has no new axe violations",
         "accessibility baseline: unsupported Divorce case details state has no new axe violations"

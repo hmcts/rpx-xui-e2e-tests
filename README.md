@@ -90,13 +90,11 @@ Only complete native phases are supported. Whole-job orchestration, interrupted/
 | Command | Evidence boundary |
 |---|---|
 | `yarn harness:diagnostic` | Portable catalogue/model checks; no candidate or service execution credit |
-| `yarn harness:diagnostic:model-browser` | Generated WA HTML and accessibility illustration |
 | `yarn harness:diagnostic:frontend` | Actual frontend routes with mocked providers and explicit session setup |
 | `yarn harness:diagnostic:environment` | Five configuration requests against an explicitly selected environment |
 | `yarn harness:diagnostic:toolkit` | Contract extracted from an explicitly selected installed toolkit class |
-| `yarn harness:diagnostic:toolkit-browser` | Generated CYA illustration based on that toolkit contract |
 
-Frontend/environment selections require explicit `TEST_URL`, `TEST_ENV` and `IDAM_WEB_URL`; they do not default to AAT. Environment probes use UI-session authentication and reject a conflicting explicit authentication mode. Provide only their retained personas through approved secret/session management. Toolkit selections require an absolute `XUI_WEBAPP_ROOT` containing the installed package. Model/generated HTML and extracted-class checks are separate from real Angular/CCD execution.
+Frontend/environment selections require explicit `TEST_URL`, `TEST_ENV` and `IDAM_WEB_URL`; they do not default to AAT. Environment probes use UI-session authentication and reject a conflicting explicit authentication mode. Provide only their retained personas through approved secret/session management. The toolkit selection requires an absolute `XUI_WEBAPP_ROOT` containing the installed package. Portable model and extracted-class checks are separate from real Angular/CCD execution; the generated WA/CYA browser illustrations have retired.
 
 Local frontend diagnostics require an explicitly prepared loopback target. Candidate-bound native runs use their own fixed configuration and evidence, independent of these diagnostics. The remaining legacy source paths hold retained Harness diagnostics/support; their names do not establish a product suite or stronger evidence boundary.
 

@@ -7,14 +7,12 @@ const selections = Object.freeze({
     'src/tests/api/exui-central-assurance.api.ts',
     'src/tests/api/exui-historic-replay-packs.api.ts'
   ],
-  'model-browser': ['src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts'],
   frontend: [
     'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
     'src/tests/integration/harness/overviewPageLayout.positive.spec.ts'
   ],
   environment: ['src/tests/harness/diagnostic/configuration.spec.ts'],
-  toolkit: ['src/tests/harness/diagnostic/toolkit.spec.ts'],
-  'toolkit-browser': ['src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts']
+  toolkit: ['src/tests/harness/diagnostic/toolkit.spec.ts']
 });
 
 function validateHttpUrl(value) {

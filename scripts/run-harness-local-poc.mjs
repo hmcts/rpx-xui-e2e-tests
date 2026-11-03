@@ -80,7 +80,7 @@ try {
   if (local) await run("node", ["scripts/bootstrap-harness-local-sessions.mjs"], localEnv);
   if (args.includes("--manifest")) await run("yarn", ["harness:manifest"], offlineEnv);
   if (args.includes("--lint")) await run("yarn", ["lint"], offlineEnv);
-  for (const mode of local ? ["model", "model-browser", "frontend", "environment"] : [selection]) {
+  for (const mode of local ? ["model", "frontend", "environment"] : [selection]) {
     const output = `functional-output/tests/harness/private/diagnostics/${mode}`;
     const env = {
       ...(["frontend", "environment"].includes(mode) ? (local ? localEnv : process.env) : offlineEnv),
@@ -92,7 +92,7 @@ try {
     };
     diagnosticConfig.buildConfig(env);
     if (mode === "environment") env.API_AUTH_MODE = "ui";
-    if (["model-browser", "frontend", "toolkit-browser"].includes(mode)) {
+    if (mode === "frontend") {
       await run("node", ["scripts/verify-playwright-browsers.cjs", "chromium"], env);
     }
     console.log(`[harness-diagnostic] selection=${mode}; supporting evidence only`);

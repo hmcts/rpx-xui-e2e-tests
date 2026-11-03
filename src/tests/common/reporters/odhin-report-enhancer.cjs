@@ -116,16 +116,6 @@ function escapeHtml(value) {
 
 const HARNESS_SLICE_CATALOGUE = [
   {
-    id: 'wa-supported-service-families',
-    badge: 'WA_SHARED',
-    label: 'Available tasks WA family filter',
-    services: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
-    jurisdictions: 'IA, CIVIL, PRIVATELAW, PUBLICLAW, EMPLOYMENT, ST_CIC',
-    caseTypes: 'central WA family list',
-    fileIncludes: ['serviceFamilies.positive.spec.ts'],
-    titleIncludes: ['available tasks filter', 'accessibility baseline: available tasks service filter'],
-  },
-  {
     id: 'hearings-privatelaw-prlapps-manager',
     badge: 'PRIVATELAW / PRLAPPS',
     label: 'Hearings supported family',
@@ -144,15 +134,6 @@ const HARNESS_SLICE_CATALOGUE = [
     caseTypes: 'DIVORCE',
     fileIncludes: ['harnessServiceFamilies.positive.spec.ts'],
     titleIncludes: ['unsupported divorce case details state'],
-  },
-  {
-    id: 'prl-service-of-documents-nested-complex-cya',
-    badge: 'PRIVATELAW CYA',
-    label: 'Nested complex CYA rendering',
-    services: 'PRIVATELAW',
-    jurisdictions: 'PRIVATELAW',
-    caseTypes: 'PRLAPPS / Service of Documents',
-    fileIncludes: ['exui4493CyaRendering.visual.spec.ts'],
   },
   {
     id: 'central-config-contracts',

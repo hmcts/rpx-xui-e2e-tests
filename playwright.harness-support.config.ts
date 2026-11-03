@@ -16,7 +16,6 @@ export default defineConfig({
     "hearings-mock-builders.api.ts",
     "unit/dynamic-user.pure.unit.api.ts",
     "unit/session-management.unit.api.ts",
-    "unit/work-allocation-mock-validation.unit.api.ts",
     "unit/exui-toolkit-cya-contract.unit.api.ts",
     "unit/prl-solicitor-user-pool.unit.api.ts",
     "unit/staff-admin-user-pool.unit.api.ts",

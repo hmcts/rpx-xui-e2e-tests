@@ -287,18 +287,6 @@ export function buildNgIntegrationAppConfigMock(): UnknownRecord {
   return deepClone(appConfigTemplate);
 }
 
-export function buildNgIntegrationWorkAllocationHeaderConfigMock(): UnknownRecord {
-  const headerConfig = deepClone(headerConfigTemplate) as Record<string, Array<Record<string, unknown>>>;
-  for (const menuItems of Object.values(headerConfig)) {
-    for (const item of menuItems) {
-      if (typeof item.href === "string" && item.href.startsWith("/work/")) {
-        delete item.flags;
-      }
-    }
-  }
-  return headerConfig;
-}
-
 export function buildNgIntegrationEnvironmentConfigMock(
   options?: NgIntegrationEnvironmentConfigOptions
 ): UnknownRecord {

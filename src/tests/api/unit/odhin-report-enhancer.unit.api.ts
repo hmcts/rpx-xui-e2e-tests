@@ -153,7 +153,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).toContain('odhin-harness-lane-script');
     expect(nextHtml).toContain('Harness lane');
     expect(nextHtml).toContain('Harness service/jurisdiction slices');
-    expect(nextHtml).toContain('WA_SHARED');
+    expect(nextHtml).toContain('Central config');
     expect(nextHtml).toContain('PRIVATELAW / PRLAPPS');
     expect(nextHtml).toContain('DIVORCE / DIVORCE');
     expect(nextHtml).toContain('data-dashboard-harness-lane');
@@ -182,18 +182,18 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
           <div id="status-filter-row"></div>
           <table id="test-list-table">
             <tbody>
-              <tr class="test-row-result" data-bs-target="#wa-row-modal">
-                <td>available tasks filter exposes only the centrally supported WA families</td>
+              <tr class="test-row-result" data-bs-target="#prl-hearing-row-modal">
+                <td>supported Private Law hearings action view</td>
                 <td>passed</td>
                 <td>0h 0m 1s 0ms</td>
                 <td></td>
               </tr>
             </tbody>
           </table>
-          <div id="wa-row-modal">
+          <div id="prl-hearing-row-modal">
             <table>
               <tr><th>Project</th><td>ui</td></tr>
-              <tr><th>Filename</th><td>src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts</td></tr>
+              <tr><th>Filename</th><td>src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts</td></tr>
             </table>
           </div>
           <div id="config-row-modal">
@@ -246,7 +246,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
 
     await expect(page.locator('#odhin-harness-filter-summary')).toContainText('Showing 2 of 2 tests in All');
     await expect(page.locator('#odhin-harness-slice-summary tbody tr')).toHaveCount(2);
-    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('WA_SHARED');
+    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('PRIVATELAW / PRLAPPS');
     await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Central config');
   });
 

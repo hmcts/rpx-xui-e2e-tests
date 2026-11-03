@@ -51,11 +51,9 @@
     "harness:ccd:candidate": "node scripts/run-harness-ccd-candidate.mjs",
     "harness:diagnostic": "node scripts/run-harness-local-poc.mjs",
     "harness:diagnostic:ci": "node scripts/run-harness-local-poc.mjs --ci --odhin",
-    "harness:diagnostic:model-browser": "node scripts/run-harness-local-poc.mjs --selection=model-browser",
     "harness:diagnostic:frontend": "node scripts/run-harness-local-poc.mjs --selection=frontend",
     "harness:diagnostic:environment": "node scripts/run-harness-local-poc.mjs --selection=environment",
     "harness:diagnostic:toolkit": "node scripts/run-harness-local-poc.mjs --selection=toolkit",
-    "harness:diagnostic:toolkit-browser": "node scripts/run-harness-local-poc.mjs --selection=toolkit-browser",
     "harness:support": "./node_modules/.bin/playwright test -c playwright.harness-support.config.ts"
   },
   "devDependencies": {
