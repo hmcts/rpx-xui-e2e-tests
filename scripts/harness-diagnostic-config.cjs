@@ -7,9 +7,6 @@ const selections = Object.freeze({
     'src/tests/api/exui-central-assurance.api.ts',
     'src/tests/api/exui-historic-replay-packs.api.ts'
   ],
-  frontend: [
-    'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts'
-  ],
   environment: ['src/tests/harness/diagnostic/configuration.spec.ts'],
   toolkit: ['src/tests/harness/diagnostic/toolkit.spec.ts']
 });
@@ -26,7 +23,7 @@ function buildConfig(env = process.env) {
   const selection = env.EXUI_DIAGNOSTIC_SELECTION || 'model';
   if (!Object.hasOwn(selections, selection)) throw new Error('UNKNOWN_HARNESS_DIAGNOSTIC_SELECTION');
   let baseURL = "http://127.0.0.1:3455";
-  if (['frontend', 'environment'].includes(selection)) {
+  if (selection === 'environment') {
     if (!env.TEST_URL || !['local', 'aat', 'demo'].includes(env.TEST_ENV)) {
       throw new Error('DIAGNOSTIC_TEST_URL_AND_TEST_ENV_REQUIRED');
     }

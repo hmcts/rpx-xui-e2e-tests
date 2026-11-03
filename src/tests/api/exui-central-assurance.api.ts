@@ -41,7 +41,6 @@ import {
 } from '../../data/exui-central-assurance.js';
 import { attachMutationEvidence, expectCentralMustRunFamiliesPresent, mutateStringArrayForDemo } from '../../harness/diagnostics/central-assurance.utils.js';
 import { isUiHostUnavailableStatus, probeUiRouteAvailability } from '../../utils/ui/uiHostAvailability.js';
-import { buildHearingsEnvironmentConfigMock } from '../integration/mocks/hearings.mock.js';
 
 type SourceTruth = {
   rpxXuiWebapp: {
@@ -138,7 +137,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'must-run',
         }),
         expect.objectContaining({
-          executionMode: 'ui',
+          executionMode: 'planned',
           id: 'hearings-privatelaw-prlapps-manager',
           lane: 'hearings',
         }),
@@ -543,26 +542,22 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       'owner-confirmed-follow-up',
       'specialist-suite-follow-up',
     ]);
-    expect(Object.keys(proofLanes)).toEqual(['api', 'integration', 'accessibility']);
-    const proofFileContents = Object.values(proofLanes)
-      .flatMap((lane) => lane.testFiles ?? [])
-      .map((filePath) => readFileSync(filePath, 'utf8'))
-      .join('\n');
-
-    expect(proofLanes.integration?.testFiles).toEqual(
-      expect.arrayContaining([
-        'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
-      ])
-    );
-    expect(proofLanes.accessibility?.testTitles).toEqual(
-      expect.arrayContaining([
-        'accessibility baseline: supported Private Law hearings action view has no new axe violations',
-        'accessibility baseline: unsupported Divorce case details state has no new axe violations',
-      ])
-    );
-    proofLanes.accessibility?.testTitles?.forEach((title) => {
-      expect(proofFileContents).toContain(title);
-    });
+    expect(Object.keys(proofLanes)).toEqual(['api']);
+    expect(proofLanes.api?.testFiles).toEqual([
+      'src/tests/api/exui-central-assurance.api.ts',
+      'src/tests/api/exui-historic-replay-packs.api.ts',
+      'src/tests/harness/diagnostic/configuration.spec.ts',
+      'src/tests/harness/diagnostic/toolkit.spec.ts',
+    ]);
+    for (const filePath of proofLanes.api?.testFiles ?? []) {
+      expect(readFileSync(filePath, 'utf8').length).toBeGreaterThan(0);
+    }
+    expect(proofLanes.api?.testTitles).toBeUndefined();
+    for (const id of ['hearings-privatelaw-prlapps-manager', 'hearings-disabled-divorce']) {
+      expect(EXUI_SUPERSERVICE_SCENARIOS.find((scenario) => scenario.id === id)).toEqual(
+        expect.objectContaining({ executionMode: 'planned', assertion: expect.stringContaining('withdrawn') })
+      );
+    }
   });
 
   test('release evidence proof lanes do not allow explicit skip calls or serial coupling', () => {
@@ -612,27 +607,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.historicFailureCoverage['covered-now']).toEqual([]);
   });
 
-  test('hearings seam has executable supported and unsupported family contracts', () => {
-    const enabledConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [{ jurisdiction: 'PRIVATELAW', caseType: 'PRLAPPS' }],
-      amendmentCaseVariations: [{ jurisdiction: 'PRIVATELAW', caseType: 'PRLAPPS' }],
-    });
-    const disabledConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-      amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-    });
-
-    expect(enabledConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
-      { jurisdiction: 'PRIVATELAW', includeCaseTypes: ['PRLAPPS'] },
-    ]);
-    expect(enabledConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
-      { jurisdiction: 'PRIVATELAW', includeCaseTypes: ['PRLAPPS'] },
-    ]);
-    expect(disabledConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).not.toContainEqual(
-      expect.objectContaining({ jurisdiction: 'DIVORCE' })
-    );
-  });
-
   test('employment service pack has executable service-code and ref-data contracts', () => {
     const employmentScenario = EXUI_SUPERSERVICE_SCENARIOS.find(
       (scenario) => scenario.id === 'employment-service-code-ref-data-contract'
@@ -671,17 +645,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       (scenario) => scenario.id === 'ia-hearings-asylum-bail-routing-contract'
     );
     const iaDecision = EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS.find((decision) => decision.serviceFamily === 'IA');
-    const iaConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [
-        { jurisdiction: 'IA', caseType: 'Asylum' },
-        { jurisdiction: 'IA', caseType: 'Bail' },
-      ],
-      amendmentCaseVariations: [
-        { jurisdiction: 'IA', caseType: 'Asylum' },
-        { jurisdiction: 'IA', caseType: 'Bail' },
-      ],
-    });
-
     expect(iaScenario).toEqual(
       expect.objectContaining({
         caseType: 'Asylum,Bail',
@@ -694,14 +657,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(iaDecision?.representativeScenarioIds).toContain('ia-hearings-asylum-bail-routing-contract');
     expect(EXUI_SERVICE_REF_DATA_MAPPING.IA).toEqual(['BFA1']);
     expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.IA).toEqual(['Asylum', 'Bail']);
-    expect(iaConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
-      { jurisdiction: 'IA', includeCaseTypes: ['Asylum'] },
-      { jurisdiction: 'IA', includeCaseTypes: ['Bail'] },
-    ]);
-    expect(iaConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
-      { jurisdiction: 'IA', includeCaseTypes: ['Asylum'] },
-      { jurisdiction: 'IA', includeCaseTypes: ['Bail'] },
-    ]);
   });
 
   test('civil release service pack has executable hearings and service-code contracts', () => {
@@ -712,11 +667,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
       (decision) => decision.serviceFamily === 'CIVIL'
     );
     const civilProfile = EXUI_SERVICE_DEFINITION_PROFILES.find((profile) => profile.serviceFamily === 'CIVIL');
-    const civilConfig = buildHearingsEnvironmentConfigMock({
-      enabledCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-      amendmentCaseVariations: [{ jurisdiction: 'CIVIL', caseType: 'CIVIL' }],
-    });
-
     expect(civilScenario).toEqual(
       expect.objectContaining({
         caseType: 'CIVIL',
@@ -733,12 +683,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     ]);
     expect(EXUI_SERVICE_REF_DATA_MAPPING.CIVIL).toEqual(['AAA6', 'AAA7']);
     expect(EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY.CIVIL).toEqual(['CIVIL']);
-    expect(civilConfig.hearingJurisdictionConfig.hearingJurisdictions['.*']).toEqual([
-      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
-    ]);
-    expect(civilConfig.hearingJurisdictionConfig.hearingAmendment['.*']).toEqual([
-      { jurisdiction: 'CIVIL', includeCaseTypes: ['CIVIL'] },
-    ]);
   });
 
   test('st cic release service pack has executable WA and service-code contracts', () => {

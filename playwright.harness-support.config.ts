@@ -5,7 +5,6 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./src/tests/api",
   testMatch: [
-    "coverage-analytics.api.ts",
     "coverage-config.api.ts",
     "coverage-session.api.ts",
     "coverage-helpers.api.ts",
@@ -13,16 +12,13 @@ export default defineConfig({
     "auth-coverage-bootstrap.api.ts",
     "auth-coverage-storage.api.ts",
     "coverage-search-case.api.ts",
-    "hearings-mock-builders.api.ts",
     "unit/dynamic-user.pure.unit.api.ts",
     "unit/session-management.unit.api.ts",
     "unit/exui-toolkit-cya-contract.unit.api.ts",
     "unit/prl-solicitor-user-pool.unit.api.ts",
     "unit/staff-admin-user-pool.unit.api.ts",
     "unit/auth-journey-guardrails.unit.api.ts",
-    "unit/hearing-journey-setup.unit.api.ts",
     "unit/hearing-manager-user-pool.unit.api.ts",
-    "unit/ordered-session-fallback.unit.api.ts",
     "unit/odhin-adaptive-reporter.unit.api.ts",
     "unit/odhin-report-enhancer.unit.api.ts"
   ],

@@ -42,7 +42,7 @@ if (local) {
     process.exit(2);
   }
   Object.assign(localEnv, { API_AUTH_MODE: "ui", API_AUTH_STORAGE_SCOPE: "harness-local", PW_UI_STORAGE: "0" });
-  for (const persona of ["SOLICITOR", "HEARING_MANAGER_CR84_ON", "HEARING_MANAGER_CR84_OFF"]) {
+  for (const persona of ["SOLICITOR"]) {
     localEnv[`${persona}_USERNAME`] ||= "exui.local.srt@hmcts.net";
     localEnv[`${persona}_PASSWORD`] ||= "Pa55word11";
   }
@@ -80,21 +80,18 @@ try {
   if (local) await run("node", ["scripts/bootstrap-harness-local-sessions.mjs"], localEnv);
   if (args.includes("--manifest")) await run("yarn", ["harness:manifest"], offlineEnv);
   if (args.includes("--lint")) await run("yarn", ["lint"], offlineEnv);
-  for (const mode of local ? ["model", "frontend", "environment"] : [selection]) {
+  for (const mode of local ? ["model", "environment"] : [selection]) {
     const output = `functional-output/tests/harness/private/diagnostics/${mode}`;
     const env = {
-      ...(["frontend", "environment"].includes(mode) ? (local ? localEnv : process.env) : offlineEnv),
+      ...(mode === "environment" ? (local ? localEnv : process.env) : offlineEnv),
       ...(runCi ? { CI: "true" } : {}),
-      ...(!["frontend", "environment"].includes(mode) ? { TEST_URL: "http://127.0.0.1:3455", TEST_ENV: "local" } : {}),
+      ...(mode !== "environment" ? { TEST_URL: "http://127.0.0.1:3455", TEST_ENV: "local" } : {}),
       ...privateReporting(output),
       EXUI_DIAGNOSTIC_SELECTION: mode,
       EXUI_DIAGNOSTIC_ODHIN: args.includes("--odhin") || runCi ? "1" : "0"
     };
     diagnosticConfig.buildConfig(env);
     if (mode === "environment") env.API_AUTH_MODE = "ui";
-    if (mode === "frontend") {
-      await run("node", ["scripts/verify-playwright-browsers.cjs", "chromium"], env);
-    }
     console.log(`[harness-diagnostic] selection=${mode}; supporting evidence only`);
     await run("./node_modules/.bin/playwright", [
       "test", "--config=playwright.harness-diagnostic.config.ts", `--output=${output}/test-results`

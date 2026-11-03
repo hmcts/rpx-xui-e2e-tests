@@ -8,7 +8,7 @@ const { buildConfig } = require("./scripts/harness-diagnostic-config.cjs") as {
 };
 
 const config = buildConfig(process.env);
-if (!["frontend", "environment"].includes(process.env.EXUI_DIAGNOSTIC_SELECTION ?? "model")) {
+if (process.env.EXUI_DIAGNOSTIC_SELECTION !== "environment") {
   process.env.TEST_URL = "http://127.0.0.1:3455";
   process.env.TEST_ENV = "local";
 }

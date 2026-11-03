@@ -12,10 +12,7 @@ const uiStorageRoot = path.join(repoRoot, "test-results", "storage-states", "ui"
 const apiStorageRoot = path.join(repoRoot, "test-results", "storage-states", "api", testEnv, `worker-${apiStorageScope}`);
 
 const harnessUsers = [
-  ["SOLICITOR", process.env.SOLICITOR_USERNAME || "exui.local.srt@hmcts.net"],
-  ["COURT_ADMIN", process.env.COURT_ADMIN_USERNAME || "exui.local.srt@hmcts.net"],
-  ["HEARING_MANAGER_CR84_ON", process.env.HEARING_MANAGER_CR84_ON_USERNAME || "exui.local.srt@hmcts.net"],
-  ["HEARING_MANAGER_CR84_OFF", process.env.HEARING_MANAGER_CR84_OFF_USERNAME || "exui.local.srt@hmcts.net"]
+  ["SOLICITOR", process.env.SOLICITOR_USERNAME || "exui.local.srt@hmcts.net"]
 ];
 
 const toStorageName = (value) =>

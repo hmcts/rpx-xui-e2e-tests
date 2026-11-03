@@ -428,6 +428,8 @@ export const EXUI_SOURCE_OF_TRUTH_REFS = {
   }
 } as const satisfies Record<string, ExuiSuperserviceSourceRef>;
 
+// Profile metadata mirrors the frozen source snapshot, not current execution credit.
+// Current scenario records and the retirement ledger disclose withdrawn UI diagnostics.
 export const EXUI_SERVICE_DEFINITION_PROFILES = [
   {
     serviceFamily: "CIVIL",
@@ -984,7 +986,7 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
       "prl-service-of-documents-nested-complex-cya"
     ],
     rationale:
-      "Representative PRL family covers service-code, role, hearing-manager, and nested CYA/complex-field permutations sourced from PRL CCD definitions."
+      "Representative PRL source/model contracts describe service codes and nested CYA fields; the Hearing-manager UI concern remains planned after its generic diagnostic was withdrawn."
   },
   {
     serviceFamily: "PUBLICLAW",
@@ -1045,7 +1047,7 @@ export const EXUI_SERVICE_FAMILY_COVERAGE_DECISIONS: readonly ExuiServiceFamilyC
       "staff-supported-service-families",
       "hearings-disabled-divorce"
     ],
-    rationale: "Global-search and staff-supported source grouping; Divorce remains the unsupported-hearings representative."
+    rationale: "Global-search and staff-supported source grouping; Divorce remains the unsupported-Hearing source concern, with its UI diagnostic withdrawn."
   },
   {
     serviceFamily: "FR",
@@ -1315,11 +1317,11 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     id: "hearings-privatelaw-prlapps-manager",
     lane: "hearings",
     priority: "must-run",
-    executionMode: "ui",
+    executionMode: "planned",
     serviceFamily: "PRIVATELAW",
     caseType: "PRLAPPS",
     roleCluster: "hearing-manager",
-    assertion: "hearings tab renders manager actions for a supported family",
+    assertion: "Generic Hearing-manager action UI diagnostic withdrawn; no current Harness UI, role or hypothetical PRL amendment configuration proof.",
     source: "rpx-xui-webapp hearingJurisdictionConfig",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
@@ -1349,11 +1351,11 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     id: "hearings-disabled-divorce",
     lane: "hearings",
     priority: "grouped",
-    executionMode: "ui",
+    executionMode: "planned",
     serviceFamily: "DIVORCE",
     caseType: "DIVORCE",
     roleCluster: "hearing-manager",
-    assertion: "hearings tab is hidden for a grouped unsupported family",
+    assertion: "Generic unsupported-family hidden-tab UI diagnostic withdrawn; source map exclusion does not prove rendered tab visibility or accessibility.",
     source: "rpx-xui-webapp hearingJurisdictionConfig",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,

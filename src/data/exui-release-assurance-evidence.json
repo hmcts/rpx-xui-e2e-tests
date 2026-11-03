@@ -41,28 +41,7 @@
         "src/tests/harness/diagnostic/configuration.spec.ts",
         "src/tests/harness/diagnostic/toolkit.spec.ts"
       ],
-      "ciPolicy": "harness:diagnostic:ci runs only 39 portable model checks; environment and toolkit inputs are explicit."
-    },
-    {
-      "lane": "integration",
-      "project": "frontend diagnostics",
-      "requiredFor": "explicit-diagnostic",
-      "ciPolicy": "Frontend requires explicit TEST_URL/TEST_ENV and IDAM_WEB_URL.",
-      "proof": "Real frontend routes with controlled responses; no native receipt or CCD persistence credit.",
-      "testFiles": [
-        "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
-      ]
-    },
-    {
-      "lane": "accessibility",
-      "project": "frontend diagnostics",
-      "requiredFor": "explicit-diagnostic",
-      "ciPolicy": "Included only with the explicitly selected browser diagnostics; no candidate gate credit.",
-      "proof": "Axe checks on selected frontend routes with controlled responses; not comprehensive accessibility acceptance.",
-      "testTitles": [
-        "accessibility baseline: supported Private Law hearings action view has no new axe violations",
-        "accessibility baseline: unsupported Divorce case details state has no new axe violations"
-      ]
+      "ciPolicy": "harness:diagnostic:ci runs only 38 portable model checks; environment and toolkit inputs are explicit."
     }
   ]
 }

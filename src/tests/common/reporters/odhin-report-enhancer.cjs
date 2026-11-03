@@ -116,26 +116,6 @@ function escapeHtml(value) {
 
 const HARNESS_SLICE_CATALOGUE = [
   {
-    id: 'hearings-privatelaw-prlapps-manager',
-    badge: 'PRIVATELAW / PRLAPPS',
-    label: 'Hearings supported family',
-    services: 'PRIVATELAW',
-    jurisdictions: 'PRIVATELAW',
-    caseTypes: 'PRLAPPS',
-    fileIncludes: ['harnessServiceFamilies.positive.spec.ts'],
-    titleIncludes: ['supported private law hearings action view'],
-  },
-  {
-    id: 'hearings-disabled-divorce',
-    badge: 'DIVORCE / DIVORCE',
-    label: 'Hearings unsupported grouped family',
-    services: 'DIVORCE',
-    jurisdictions: 'DIVORCE',
-    caseTypes: 'DIVORCE',
-    fileIncludes: ['harnessServiceFamilies.positive.spec.ts'],
-    titleIncludes: ['unsupported divorce case details state'],
-  },
-  {
     id: 'central-config-contracts',
     badge: 'Central config',
     label: 'Central assurance model',
@@ -887,7 +867,7 @@ function injectHarnessLaneScript(root) {
               '<tbody>' + rows + '</tbody>' +
             '</table>' +
           '</div>' +
-          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; Harness diagnostics separate portable models, generated HTML, explicit frontend/environment targets and extracted toolkit-class inputs; none grants release credit.</div>' +
+          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; Harness diagnostics separate portable models, explicit environment targets and extracted toolkit-class inputs; none grants release credit.</div>' +
         '</div>' +
       '</div>';
 

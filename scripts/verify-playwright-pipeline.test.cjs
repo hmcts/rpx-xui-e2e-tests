@@ -172,7 +172,7 @@ test('diagnostic boundaries fail closed for undeclared environment/toolkit input
   assert.equal(model.globalSetup, undefined);
   assert.deepEqual(model.testMatch, selections.model);
   assert.equal(model.retries, 0);
-  for (const selection of ['frontend', 'environment']) {
+  for (const selection of ['environment']) {
     assert.throws(() => buildConfig({ EXUI_DIAGNOSTIC_SELECTION: selection }), /TEST_URL_AND_TEST_ENV_REQUIRED/);
     assert.throws(() => buildConfig({ EXUI_DIAGNOSTIC_SELECTION: selection, TEST_URL: 'https://user:secret@example.invalid', TEST_ENV: 'aat' }), /HTTP_TARGET_REQUIRED/);
     assert.throws(() => buildConfig({ EXUI_DIAGNOSTIC_SELECTION: selection, TEST_URL: 'https://example.invalid', TEST_ENV: 'aat' }), /IDAM_WEB_URL_REQUIRED/);
@@ -184,7 +184,7 @@ test('diagnostic boundaries fail closed for undeclared environment/toolkit input
     assert.throws(() => buildConfig({ EXUI_DIAGNOSTIC_SELECTION: selection }), /EXPLICIT_TOOLKIT_ROOT_REQUIRED/);
     assert.throws(() => buildConfig({ EXUI_DIAGNOSTIC_SELECTION: selection, XUI_WEBAPP_ROOT: '/missing-synthetic-toolkit' }), /INSTALLED_TOOLKIT_REQUIRED/);
   }
-  for (const selection of ['candidate', 'model-browser', 'toolkit-browser'])
+  for (const selection of ['candidate', 'frontend', 'model-browser', 'toolkit-browser'])
     assert.throws(() => buildConfig({ EXUI_DIAGNOSTIC_SELECTION: selection }), /UNKNOWN_HARNESS_DIAGNOSTIC_SELECTION/);
   for (const files of Object.values(selections)) assert.equal(files.some((file) => /harness\/(wa|scope|ccd)\//.test(file)), false);
 });
@@ -202,7 +202,7 @@ test('bare Playwright discovery selects only the portable models without ambient
     for (const child of suite.suites ?? []) visit(child);
   }
   visit(JSON.parse(result.stdout));
-  assert.equal(count, 39);
+  assert.equal(count, 38);
   assert.deepEqual([...files].sort(), [...selections.model].sort());
 });
 

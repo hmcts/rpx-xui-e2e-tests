@@ -51,6 +51,8 @@ A fixed-pilot PASS grants no full EXUI release approval. The portable source cat
 yarn harness:candidate --scope exui-wa-family-pilot --candidate /absolute/candidate/candidate-artifact.json --browser /absolute/browser-cache --output /absolute/fresh-family-run
 yarn harness:candidate --scope exui-decentralised-routing-pilot --candidate /absolute/candidate/candidate-artifact.json --browser /absolute/browser-cache --output /absolute/fresh-routing-run
 yarn harness:candidate --scope exui-global-search-pilot --candidate /absolute/candidate/candidate-artifact.json --browser /absolute/browser-cache --output /absolute/fresh-global-search-run
+node scripts/prepare-harness-hearing-mutant.mjs /absolute/candidate/candidate-artifact.json /absolute/fresh-hearing-derived
+yarn harness:candidate --scope exui-hearing-publication-pilot --candidate /absolute/candidate/candidate-artifact.json --mutant /absolute/fresh-hearing-derived/candidate-artifact.json --browser /absolute/browser-cache --output /absolute/fresh-hearing-run
 yarn harness:ccd:start --output /absolute/fresh-ccd-runtime
 yarn harness:ccd:candidate --candidate /absolute/candidate/candidate-artifact.json --ccd-state /absolute/fresh-ccd-runtime/runtime.json --browser /absolute/browser-cache --output /absolute/fresh-ccd-run
 yarn harness:ccd:start --stop --output /absolute/fresh-ccd-runtime
@@ -59,6 +61,8 @@ yarn harness:ccd:start --stop --output /absolute/fresh-ccd-runtime
 The separate native routing pilot checks rendered Create/Start redirects, local fallbacks and per-case NoC session routing across three fixed loopback origins. It requires both baselines and the two intended configuration-omission failures. It is not part of the fixed CI sequence and cannot credit the aggregate routing catalogue obligation or a full release. The clean `9586cf4` local run passed both baselines and both intended omission witnesses; see the assurance gaps for its exact limits.
 
 The separate native Global Search pilot proves configuration composition through the actual Node services handler, rendered Services selector and submitted All-search request. It requires a valid nine-service baseline and a valid WA-seven submission followed by the intended scope failure. The clean `121f213` local run passed; synthetic reference labels, empty search results and the auxiliary jurisdiction response are declared seams. It grants no live-profile, search-result, access, cache-algorithm or full-release credit and is outside the fixed CI sequence.
+
+The separate Hearing publication pilot checks actual Node GET `/external/config/ui`: prod enables four families while amendments enable two. The preparer creates a fresh sealed derivative by replacing only the compiled amendment-data literal with the candidate enabled map; both artifacts retain the same effective configuration. The clean `c27aa87` local run passed the baseline and detected the valid four/four response only at the intended amendment-map assertion. Its accepted receipt is `sha256:a5a07e408c84d7e5e4d206c6af6eebc58eb4a19ff4c2d015a8cf5149feafaf1a`. This is publication-only evidence, outside the fixed CI sequence: no UI, axe, role, deployed-profile, catalogue112 or full-release credit. The former frontend diagnostics and their generic predicates are explicitly retired; this later cleanup does not change the tested source identity.
 
 The combined job owns its CCD startup/shutdown automatically. Manual CCD runs require the matching stop command and recorded ownership. SIGINT/SIGTERM invokes owned cleanup; daemon failure or SIGKILL requires recovery from the recorded owner labels. Do not delete unrelated containers.
 
@@ -90,13 +94,12 @@ Only complete native phases are supported. Whole-job orchestration, interrupted/
 | Command | Evidence boundary |
 |---|---|
 | `yarn harness:diagnostic` | Portable catalogue/model checks; no candidate or service execution credit |
-| `yarn harness:diagnostic:frontend` | Actual frontend routes with mocked providers and explicit session setup |
 | `yarn harness:diagnostic:environment` | Five configuration requests against an explicitly selected environment |
 | `yarn harness:diagnostic:toolkit` | Contract extracted from an explicitly selected installed toolkit class |
 
-Frontend/environment selections require explicit `TEST_URL`, `TEST_ENV` and `IDAM_WEB_URL`; they do not default to AAT. Environment probes use UI-session authentication and reject a conflicting explicit authentication mode. Provide only their retained personas through approved secret/session management. The toolkit selection requires an absolute `XUI_WEBAPP_ROOT` containing the installed package. Portable model and extracted-class checks are separate from real Angular/CCD execution; the generated WA/CYA browser illustrations have retired.
+Environment selection requires explicit `TEST_URL`, `TEST_ENV` and `IDAM_WEB_URL`; it does not default to AAT. Environment probes use UI-session authentication and reject a conflicting explicit authentication mode. Provide only their retained personas through approved secret/session management. The toolkit selection requires an absolute `XUI_WEBAPP_ROOT` containing the installed package. Portable model and extracted-class checks are separate from real Angular/CCD execution; the generated WA/CYA browser illustrations have retired.
 
-Local frontend diagnostics require an explicitly prepared loopback target. Candidate-bound native runs use their own fixed configuration and evidence, independent of these diagnostics. The remaining legacy source paths hold retained Harness diagnostics/support; their names do not establish a product suite or stronger evidence boundary.
+Local diagnostics run portable models followed by five environment probes against an explicitly prepared loopback target. No legacy frontend diagnostic remains. Candidate-bound native runs use their own fixed configuration and evidence. Retained session, authentication, reporter and toolkit support tests do not establish a product suite or stronger evidence boundary.
 
 ## Source coverage and receipts
 

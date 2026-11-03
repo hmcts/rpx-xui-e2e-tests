@@ -154,8 +154,11 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
     expect(nextHtml).toContain('Harness lane');
     expect(nextHtml).toContain('Harness service/jurisdiction slices');
     expect(nextHtml).toContain('Central config');
-    expect(nextHtml).toContain('PRIVATELAW / PRLAPPS');
-    expect(nextHtml).toContain('DIVORCE / DIVORCE');
+    expect(nextHtml).toContain('Historic PRL replay');
+    expect(nextHtml).not.toContain('PRIVATELAW / PRLAPPS');
+    expect(nextHtml).not.toContain('DIVORCE / DIVORCE');
+    expect(nextHtml).not.toContain('hearings-privatelaw-prlapps-manager');
+    expect(nextHtml).not.toContain('hearings-disabled-divorce');
     expect(nextHtml).toContain('data-dashboard-harness-lane');
     expect(nextHtml).toContain('dataTable.isDataTable');
     expect(nextHtml).toContain('Accessibility');
@@ -168,6 +171,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
   });
 
   test('waits for DataTables rows before building harness slice summaries', async ({ page }) => {
+    // Synthetic renderer metadata: Project=ui exercises lane classification, not an executed UI proof.
     const baseHtml = `
       <!DOCTYPE html>
       <html>
@@ -182,18 +186,18 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
           <div id="status-filter-row"></div>
           <table id="test-list-table">
             <tbody>
-              <tr class="test-row-result" data-bs-target="#prl-hearing-row-modal">
-                <td>supported Private Law hearings action view</td>
+              <tr class="test-row-result" data-bs-target="#historic-replay-row-modal">
+                <td>synthetic Historic PRL replay report row</td>
                 <td>passed</td>
                 <td>0h 0m 1s 0ms</td>
                 <td></td>
               </tr>
             </tbody>
           </table>
-          <div id="prl-hearing-row-modal">
+          <div id="historic-replay-row-modal">
             <table>
               <tr><th>Project</th><td>ui</td></tr>
-              <tr><th>Filename</th><td>src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts</td></tr>
+              <tr><th>Filename</th><td>src/tests/api/exui-historic-replay-packs.api.ts</td></tr>
             </table>
           </div>
           <div id="config-row-modal">
@@ -246,7 +250,7 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
 
     await expect(page.locator('#odhin-harness-filter-summary')).toContainText('Showing 2 of 2 tests in All');
     await expect(page.locator('#odhin-harness-slice-summary tbody tr')).toHaveCount(2);
-    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('PRIVATELAW / PRLAPPS');
+    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Historic PRL replay');
     await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Central config');
   });
 

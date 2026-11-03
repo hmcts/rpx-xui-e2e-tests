@@ -92,7 +92,24 @@ test('default diagnostics run only portable models with an explicit no-release-c
     const calls = readFileSync(join(directory, 'contacts.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     assert.equal(calls.some((call) => call.network || call.args?.includes('scripts/bootstrap-harness-local-sessions.mjs')), false);
     assert.equal(calls.filter((call) => call.command === './node_modules/.bin/playwright').length, 1);
+    assert.equal(calls.some((call) => call.args?.includes('scripts/verify-playwright-browsers.cjs')), false);
   });
+  runDiagnostic(['--selection=frontend'], (result, directory) => {
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /invalid diagnostic selection/);
+    assert.equal(existsSync(join(directory, 'contacts.jsonl')), false);
+  });
+  runDiagnostic(['--local'], (result, directory) => {
+    assert.equal(result.status, 0, result.stderr);
+    const calls = readFileSync(join(directory, 'contacts.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+    const playwrightCalls = calls.filter((call) => call.command === './node_modules/.bin/playwright');
+    assert.deepEqual(playwrightCalls.map((call) => call.args.find((arg) => arg.startsWith('--output='))), [
+      '--output=functional-output/tests/harness/private/diagnostics/model/test-results',
+      '--output=functional-output/tests/harness/private/diagnostics/environment/test-results'
+    ]);
+    assert.equal(calls.filter((call) => call.args?.includes('scripts/bootstrap-harness-local-sessions.mjs')).length, 1);
+    assert.equal(calls.some((call) => call.network || call.args?.includes('scripts/verify-playwright-browsers.cjs')), false);
+  }, () => {}, { TEST_ENV: 'local', TEST_URL: 'http://127.0.0.1:3455', IDAM_WEB_URL: 'http://127.0.0.1:5000' });
 });
 
 test('diagnostic startup replaces a stale PASS with a safe BLOCKED summary before any contact', () => {
