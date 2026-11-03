@@ -110,3 +110,491 @@ test('reuse CLI performs only Docker inspect when owner, image or network was ch
   }
  }finally{fs.rmSync(directory,{recursive:true,force:true});}
 });
+
+const fs = require("node:fs");
+const path = require("node:path");
+const os = require("node:os");
+const fixedRuntime = async () => {
+  const api = await runtime;
+  assert.deepEqual(
+    api.CCD_FIXTURE_SELECTIONS,
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant"],
+    "fixed source fixture selection must exist before transport use",
+  );
+  return api;
+};
+function observedEventFixture(fixture) {
+  const acl = (rows) =>
+    rows.map((row) => ({
+      role: row.UserRole,
+      create: row.CRUD.includes("C"),
+      read: row.CRUD.includes("R"),
+      update: row.CRUD.includes("U"),
+      delete: row.CRUD.includes("D"),
+    }));
+  const s = fixture.sheets;
+  return {
+    id: "HarnessNestedPRL",
+    version: { number: 17 },
+    acls: acl(s.AuthorisationCaseType),
+    states: s.State.map((row) => ({
+      id: row.ID,
+      acls: acl(
+        s.AuthorisationCaseState.filter((a) => a.CaseStateID === row.ID),
+      ),
+    })),
+    case_fields: s.CaseField.map((row) => ({
+      id: row.ID,
+      acls: acl(
+        s.AuthorisationCaseField.filter((a) => a.CaseFieldID === row.ID),
+      ),
+      complexACLs: [],
+      field_type:
+        row.ID === "sodAdditionalRecipientsList"
+          ? { collection_field_type: { id: "ServeOrgDetails" } }
+          : {},
+    })),
+    events: s.CaseEvent.map((row) => ({
+      id: row.ID,
+      name: row.Name,
+      pre_states: row["PreConditionState(s)"]?.split(";") || [],
+      post_states: [{ post_state_reference: row.PostConditionState }],
+      acls: acl(
+        s.AuthorisationCaseEvent.filter((a) => a.CaseEventID === row.ID),
+      ),
+      show_summary: row.ShowSummary === "Y",
+      case_fields: s.CaseEventToFields.filter(
+        (f) => f.CaseEventID === row.ID,
+      ).map((f) => ({
+        case_field_id: f.CaseFieldID,
+        display_context: f.DisplayContext,
+        show_condition: f.FieldShowCondition || null,
+        show_summary_change_option: f.ShowSummaryChangeOption === "Y",
+        case_fields_complex: s.EventToComplexTypes.filter(
+          (e) => e.CaseEventID === row.ID && e.CaseFieldID === f.CaseFieldID,
+        ).map((e) => ({
+          reference: e.ListElementCode,
+          displayContext: e.DisplayContext,
+          showCondition: e.FieldShowCondition || null,
+        })),
+      })),
+    })),
+  };
+}
+function eventRuntimeFixture(t, api, variant = "baseline") {
+  const output = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "ccd-source-import-"),
+  );
+  t.after(() => fs.rmSync(output, { recursive: true, force: true }));
+  const state = {
+    schemaVersion: 1,
+    ready: true,
+    owner: "harness-source-test",
+    output,
+    namespace: "a".repeat(64),
+    caseType: "HarnessNestedPRL",
+    jurisdiction: "HARNESS",
+    fixtureSelection: "event-capability-" + variant,
+    containers: Object.fromEntries(
+      Object.keys(api.CCD_IMAGES).map((service, i) => [
+        service,
+        String(i + 1).repeat(64),
+      ]),
+    ),
+    images: Object.fromEntries(
+      Object.entries(api.CCD_IMAGES).map(([service, id]) => [service, { id }]),
+    ),
+  };
+  state.containers.database = state.namespace;
+  const inspectContainer = (id) => {
+    const service = Object.keys(state.containers).find(
+      (s) => state.containers[s] === id,
+    );
+    return {
+      Image: api.CCD_IMAGES[service],
+      Config: {
+        Labels: {
+          "exui.harness.owner": state.owner,
+          "exui.harness.service": service,
+        },
+      },
+      HostConfig: {
+        NetworkMode:
+          service === "database" ? "none" : "container:" + state.namespace,
+        Binds: [],
+        PortBindings: {},
+      },
+      State: { Running: true },
+      Mounts: [],
+    };
+  };
+  const fixture = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          __dirname,
+          "fixtures/ccd/event-capability",
+          variant + ".json",
+        ),
+      ),
+    ),
+    observed = observedEventFixture(fixture),
+    calls = [];
+  const request = (_state, port, route, options = {}) => {
+    calls.push({ port, route, options });
+    if (route === "/testing-support/accounts")
+      return {
+        status: 201,
+        body: { id: "11111111-1111-4111-8111-111111111111" },
+      };
+    if (route === "/o/token")
+      return { status: 200, body: { access_token: "synthetic-test-access" } };
+    if (route === "/details")
+      return {
+        status: 200,
+        body: {
+          id: "11111111-1111-4111-8111-111111111111",
+          roles: [
+            "caseworker",
+            "caseworker-harness",
+            "caseworker-harness-observer",
+            "ccd-import",
+            "ccd-import-all",
+          ],
+        },
+      };
+    if (route === "/testing-support/lease")
+      return { status: 200, body: "synthetic-test-s2s" };
+    if (route === "/api/user-role") return { status: 201, body: {} };
+    if (route === "/import") return { status: 201, body: {} };
+    if (route === "/api/data/case-type/HarnessNestedPRL")
+      return { status: 200, body: observed };
+    assert.fail("Unexpected fake request " + port + route);
+  };
+  return { state, inspectContainer, request, observed, calls };
+}
+
+test("support only: fixed event imports retain exact selected prepared workbook and legacy default", async () => {
+  const api = await fixedRuntime();
+  assert.deepEqual(
+    api.prepareCcdImport().file,
+    fs.readFileSync(path.join(__dirname, "fixtures/ccd/nested-prl.xlsx")),
+  );
+  const binding = require("./fixtures/ccd/event-capability/binding.json");
+  for (const variant of ["baseline", "mutant"]) {
+    const prepared = api.prepareCcdImport(
+      undefined,
+      "event-capability-" + variant,
+    );
+    assert.equal(
+      prepared.binding.workbookDigest,
+      binding[variant].workbookDigest,
+    );
+    assert.equal(prepared.binding.sourceDigest, binding[variant].sourceDigest);
+    assert.equal(prepared.fixtureSelection, "event-capability-" + variant);
+  }
+  assert.throws(
+    () =>
+      api.prepareCcdImport(
+        fs.realpathSync(os.tmpdir()),
+        "event-capability-baseline",
+      ),
+    /CCD_EVENT_FIXED_FIXTURE_DIRECTORY_REQUIRED/,
+  );
+  assert.throws(
+    () => api.prepareCcdImport(undefined, "caller-authored-profile"),
+    /CCD_FIXTURE_SELECTION_REQUIRED/,
+  );
+});
+
+for (const variant of ["baseline", "mutant"])
+  test(
+    "support only: real import function with fake transport validates source ACLs for " +
+      variant,
+    async (t) => {
+      const api = await fixedRuntime(),
+        f = eventRuntimeFixture(t, api, variant);
+      api.importCcdDefinition(f.state, {
+        inspectContainer: f.inspectContainer,
+        request: f.request,
+      });
+      const receipt = JSON.parse(
+        fs.readFileSync(path.join(f.state.output, "definition-import.json")),
+      );
+      assert.equal(receipt.fixtureSelection, "event-capability-" + variant);
+      assert(
+        f.calls.some(
+          (c) =>
+            c.route === "/api/user-role" &&
+            c.options.body.role === "caseworker-privatelaw-courtadmin",
+        ),
+      );
+      assert(
+        f.calls.some(
+          (c) =>
+            c.route === "/api/user-role" &&
+            c.options.body.role === "caseworker-privatelaw-judge",
+        ),
+      );
+      assert.equal(
+        api.verifyCcdRuntimeIdentity(f.state, {
+          inspectContainer: f.inspectContainer,
+          request: f.request,
+        }).fixtureDigest,
+        receipt.fixtureDigest,
+      );
+      const judge = f.observed.events
+        .find((e) => e.id === "serviceOfDocuments")
+        .acls.find((a) => a.role === "caseworker-privatelaw-judge");
+      judge.create = !judge.create;
+      const crypto = require("node:crypto");
+      receipt.observedDefinitionDigest =
+        "sha256:" +
+        crypto
+          .createHash("sha256")
+          .update(JSON.stringify(f.observed))
+          .digest("hex");
+      fs.writeFileSync(
+        path.join(f.state.output, "definition-import.json"),
+        JSON.stringify(receipt),
+      );
+      assert.throws(
+        () =>
+          api.verifyCcdRuntimeIdentity(f.state, {
+            inspectContainer: f.inspectContainer,
+            request: f.request,
+          }),
+        /CCD_EVENT_ACL_MISMATCH/,
+      );
+    },
+  );
+
+test("support only: wrong selected state or unexpected source ACL rejects before successful import", async (t) => {
+  const api = await fixedRuntime(),
+    f = eventRuntimeFixture(t, api);
+  assert.throws(
+    () =>
+      api.importCcdDefinition(f.state, {
+        fixtureSelection: "event-capability-mutant",
+        inspectContainer: () =>
+          assert.fail("Inspection before selection check"),
+        request: () => assert.fail("Request before selection check"),
+      }),
+    /CCD_FIXTURE_SELECTION_MISMATCH/,
+  );
+  const undecided = { ...f.state };
+  delete undecided.fixtureSelection;
+  assert.throws(
+    () =>
+      api.importCcdDefinition(undecided, {
+        fixtureSelection: "event-capability-baseline",
+        inspectContainer: () =>
+          assert.fail("Inspection before selected fresh state"),
+        request: () => assert.fail("Request before selected fresh state"),
+      }),
+    /CCD_FIXTURE_SELECTION_MISMATCH/,
+  );
+  f.observed.acls.find((a) => a.role === "caseworker-privatelaw-judge").delete =
+    true;
+  assert.throws(
+    () =>
+      api.importCcdDefinition(f.state, {
+        inspectContainer: f.inspectContainer,
+        request: f.request,
+      }),
+    /CCD_EVENT_ACL_MISMATCH/,
+  );
+  assert.equal(f.state.definitionImported, undefined);
+});
+
+test("support only: source actors are provisioned and observed with exact three-role arrays", async () => {
+  const api = await fixedRuntime();
+  for (const persona of ["courtadmin", "judge"]) {
+    const roles = [
+        "caseworker",
+        "caseworker-harness",
+        "caseworker-privatelaw-" + persona,
+      ],
+      calls = [];
+    const request = (_state, port, route, options = {}) => {
+      calls.push({ port, route, options });
+      if (route === "/testing-support/accounts")
+        return { status: 201, body: {} };
+      if (route === "/o/token")
+        return { status: 200, body: { access_token: "synthetic" } };
+      if (route === "/details")
+        return {
+          status: 200,
+          body: { id: "11111111-1111-4111-8111-111111111111", roles },
+        };
+      if (route === "/testing-support/lease")
+        return { status: 200, body: "synthetic-s2s" };
+      assert.fail(route);
+    };
+    const credential = api.ccdCredentials(
+      { fixtureSelection: "event-capability-baseline" },
+      persona,
+      { request },
+    );
+    assert.deepEqual(credential.roles, roles);
+    assert.deepEqual(
+      calls.find((c) => c.route === "/testing-support/accounts").options.body
+        .roles,
+      roles.map((code) => ({ code })),
+    );
+    assert.equal(
+      credential.roles.includes("caseworker-harness-allowed"),
+      false,
+    );
+    assert.throws(
+      () =>
+        api.ccdCredentials({}, persona, {
+          request: () => assert.fail("Source actor contacted outside scope"),
+        }),
+      /CCD_SOURCE_ACTOR_SCOPE_REQUIRED/,
+    );
+    for (const extra of ["caseworker-harness-allowed", "ccd-import"])
+      assert.throws(
+        () =>
+          api.ccdCredentials(
+            { fixtureSelection: "event-capability-mutant" },
+            persona,
+            {
+              request: (state, port, route, options) =>
+                route === "/details"
+                  ? {
+                      status: 200,
+                      body: {
+                        id: "11111111-1111-4111-8111-111111111111",
+                        roles: [...roles, extra],
+                      },
+                    }
+                  : route === "/testing-support/lease"
+                    ? assert.fail("S2S before actor validation")
+                    : request(state, port, route, options),
+            },
+          ),
+        /CCD_SOURCE_ACTOR_ROLES_MISMATCH/,
+      );
+  }
+});
+
+test("support only: event startup persists fixed selection and unknown selection never contacts Docker", async (t) => {
+  const api = await fixedRuntime();
+  const parent = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "ccd-source-start-"),
+  );
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const bad = path.join(parent, "unknown");
+  await assert.rejects(
+    api.startCcdRuntime(bad, {
+      fixtureSelection: "caller-choice",
+      runDocker: () => assert.fail("Docker contacted"),
+    }),
+    /CCD_FIXTURE_SELECTION_REQUIRED/,
+  );
+  assert.equal(fs.existsSync(bad), false);
+  const output = path.join(parent, "selected");
+  const runDocker = (args) => {
+    if (args[0] === "image")
+      return JSON.stringify([
+        {
+          Id: args[2],
+          Architecture: "arm64",
+          RepoDigests: ["fixture@" + args[2]],
+        },
+      ]);
+    if (args[0] === "create") return "a".repeat(64);
+    if (args[0] === "start") throw Error("SOURCE_START_STOP");
+    assert.fail("unexpected fake Docker action");
+  };
+  await assert.rejects(
+    api.startCcdRuntime(output, {
+      fixtureSelection: "event-capability-mutant",
+      runDocker,
+    }),
+    /SOURCE_START_STOP/,
+  );
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(output, "runtime.json")))
+      .fixtureSelection,
+    "event-capability-mutant",
+  );
+});
+
+test("support only: selected import receipt status and source pin must match before observer requests", async (t) => {
+  const api = await fixedRuntime(),
+    f = eventRuntimeFixture(t, api);
+  api.importCcdDefinition(f.state, {
+    inspectContainer: f.inspectContainer,
+    request: f.request,
+  });
+  const file = path.join(f.state.output, "definition-import.json");
+  const original = JSON.parse(fs.readFileSync(file));
+  for (const [field, value, code] of [
+    ["status", 500, /CCD_IMPORT_RECEIPT_STATUS_REQUIRED/],
+    [
+      "sourceProjectionDigest",
+      "sha256:" + "0".repeat(64),
+      /CCD_EVENT_SOURCE_BINDING_MISMATCH/,
+    ],
+  ]) {
+    fs.writeFileSync(file, JSON.stringify({ ...original, [field]: value }));
+    assert.throws(
+      () =>
+        api.verifyCcdRuntimeIdentity(f.state, {
+          inspectContainer: f.inspectContainer,
+          request: () =>
+            assert.fail("Observer requested before receipt validation"),
+        }),
+      code,
+    );
+  }
+});
+
+test("support only: cancellation during database readiness stops probes and preserves partial recovery", async t => {
+  const { startCcdRuntime, CCD_IMAGES } = await runtime;
+  const parent = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "ccd-cancel-db-"));
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const output = path.join(parent, "runtime"), calls = [];
+  let cancelled = false, created = 0;
+  const runDocker = args => {
+    calls.push(args);
+    if (args[0] === "image") return JSON.stringify([{ Id: args[2], Architecture: "arm64", RepoDigests: ["fixture@" + args[2]] }]);
+    if (args[0] === "create") return String(++created).repeat(64);
+    if (args[0] === "start") return "";
+    if (args[0] === "exec" && args[2] === "node") return JSON.stringify([{ host: "synthetic", connected: false }]);
+    if (args[2] === "pg_isready") {
+      if (!cancelled) { cancelled = true; throw Error("database not ready"); }
+      return "ready";
+    }
+    assert.fail("Command after cancelled database readiness: " + args[0] + " " + args[2]);
+  };
+  await assert.rejects(startCcdRuntime(output, { runDocker, isCancelled: () => cancelled }), /CCD_START_CANCELLED/);
+  assert.equal(calls.filter(args => args[2] === "pg_isready").length, 1);
+  assert.equal(calls.filter(args => args[0] === "create").length, 2);
+  const state = JSON.parse(fs.readFileSync(path.join(output, "runtime.json")));
+  const recovery = JSON.parse(fs.readFileSync(path.join(output, "recovery.json")));
+  assert.equal(state.ready, false);
+  assert.deepEqual(state.containers, { database: "1".repeat(64), client: "2".repeat(64) });
+  assert.equal(recovery.owner, state.owner);
+  assert.deepEqual(Object.keys(recovery.resources).sort(), Object.keys(CCD_IMAGES).sort());
+  assert.equal(recovery.resources.database.name, state.owner + "-database");
+});
+
+test("support only: cancellation during service readiness prevents the next probe and never publishes ready", async t => {
+  const { spawnSync } = require("node:child_process");
+  const { pathToFileURL } = require("node:url");
+  const parent = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "ccd-cancel-health-"));
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const marker = path.join(parent, "cancelled"), probes = path.join(parent, "probes.jsonl"), output = path.join(parent, "runtime");
+  fs.writeFileSync(path.join(parent, "docker"), `#!${process.execPath}\nconst fs=require('node:fs');const input=JSON.parse(fs.readFileSync(0,'utf8'));fs.appendFileSync(${JSON.stringify(probes)},JSON.stringify({url:input.url})+'\\n');fs.writeFileSync(${JSON.stringify(marker)},'cancelled');console.log(JSON.stringify({status:503,body:'{}'}));\n`, { mode: 0o755 });
+  const runner = path.join(parent, "check.mjs");
+  fs.writeFileSync(runner, `import fs from 'node:fs';import assert from 'node:assert/strict';import {startCcdRuntime,CCD_IMAGES} from ${JSON.stringify(pathToFileURL(path.join(__dirname, "lib/exui-ccd-runtime.mjs")).href)};
+let created=0;const calls=[];const runDocker=args=>{calls.push(args);if(args[0]==='image')return JSON.stringify([{Id:args[2],Architecture:'arm64',RepoDigests:['fixture@'+args[2]]}]);if(args[0]==='create')return String(++created).repeat(64);if(args[0]==='start'||args[2]==='pg_isready'||args[2]==='psql')return '';if(args[0]==='exec'&&args[2]==='node')return JSON.stringify([{host:'synthetic',connected:false}]);assert.fail('unexpected action');};
+await assert.rejects(startCcdRuntime(${JSON.stringify(output)},{runDocker,isCancelled:()=>fs.existsSync(${JSON.stringify(marker)})}),/CCD_START_CANCELLED/);
+const state=JSON.parse(fs.readFileSync(${JSON.stringify(path.join(output, "runtime.json"))}));const recovery=JSON.parse(fs.readFileSync(${JSON.stringify(path.join(output, "recovery.json"))}));assert.equal(state.ready,false);assert.equal(recovery.owner,state.owner);assert.deepEqual(Object.keys(state.containers).sort(),Object.keys(CCD_IMAGES).sort());assert.equal(fs.readFileSync(${JSON.stringify(probes)},'utf8').trim().split('\\n').length,1);
+`);
+  const observed = spawnSync(process.execPath, [runner], { env: { PATH: parent }, encoding: "utf8", timeout: 3000 });
+  assert.equal(observed.status, 0, observed.stderr || observed.error?.message);
+  assert.equal(JSON.parse(fs.readFileSync(probes, "utf8").trim()).url, "http://127.0.0.1:5000/health");
+});

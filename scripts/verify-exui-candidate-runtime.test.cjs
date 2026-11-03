@@ -218,6 +218,44 @@ test("curated source snapshot imports complete runner closure and excludes works
     assert.equal(child.status, 2, child.stderr);
     assert.match(child.stderr, /CANDIDATE_ARTIFACT_REQUIRED/);
     assert.doesNotMatch(child.stderr, /ERR_MODULE_NOT_FOUND/);
+    const ccdChild = spawnSync(process.execPath, ["scripts/run-harness-ccd-candidate.mjs"], {
+      cwd: stage, encoding: "utf8", timeout: 5000, env: { PATH: process.env.PATH },
+    });
+    assert.equal(ccdChild.status, 2, ccdChild.stderr);
+    assert.match(ccdChild.stderr, /CANDIDATE_AND_OWNED_CCD_STATE_REQUIRED/);
+    assert.doesNotMatch(ccdChild.stderr, /ERR_MODULE_NOT_FOUND/);
+    assert.equal(fs.existsSync(path.join(stage, "node_modules")), false);
+    const inspectClosure = () => spawnSync(process.execPath, ["--input-type=module", "--eval", `
+      import assert from 'node:assert/strict';
+      import fs from 'node:fs';
+      await import('./scripts/run-harness-native-tools.mjs');
+      await import('./scripts/prepare-harness-event-capability.mjs');
+      const { prepareCcdImport } = await import('./scripts/lib/exui-ccd-runtime.mjs');
+      const baseline = prepareCcdImport(undefined, 'event-capability-baseline');
+      const mutant = prepareCcdImport(undefined, 'event-capability-mutant');
+      assert(baseline.file.length > 0 && mutant.file.length > 0);
+      assert.notEqual(baseline.binding.workbookDigest, mutant.binding.workbookDigest);
+      for (const file of [
+        'src/fixtures/harnessCcdEvent.ts',
+        'src/tests/harness/ccd/courtadmin-cell.spec.ts',
+        'src/tests/harness/ccd/event-capability.spec.ts',
+        'scripts/fixtures/ccd/workbook.py',
+      ]) assert(fs.statSync(file).isFile());
+    `], { cwd: stage, encoding: "utf8", timeout: 5000, env: { PATH: process.env.PATH } });
+    const complete = inspectClosure();
+    assert.equal(complete.status, 0, complete.stderr);
+    const modulePath = path.join(stage, "scripts/lib/exui-ccd-event-capability.mjs");
+    const moduleBytes = fs.readFileSync(modulePath);
+    fs.unlinkSync(modulePath);
+    const missingModule = inspectClosure();
+    assert.notEqual(missingModule.status, 0);
+    assert.match(missingModule.stderr, /ERR_MODULE_NOT_FOUND/);
+    fs.writeFileSync(modulePath, moduleBytes);
+    fs.unlinkSync(path.join(stage, "scripts/fixtures/ccd/event-capability/binding.json"));
+    const missingFixture = inspectClosure();
+    assert.notEqual(missingFixture.status, 0);
+    assert.match(missingFixture.stderr, /ENOENT/);
+    assert.match(missingFixture.stderr, /event-capability\/binding\.json/);
   } finally {
     fs.rmSync(stage, { recursive: true, force: true });
   }

@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
 import { CCD_IMAGES, stopCcdRuntime } from "./exui-ccd-runtime.mjs";
 import { installCancellationCleanup } from "./exui-oci-runtime.mjs";
-import { writeJsonAtomic } from "./exui-evidence-io.mjs";
+import { digestBytes, writeJsonAtomic } from "./exui-evidence-io.mjs";
+import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
+import { validateEventCapabilityTransitionRequest } from "./exui-ccd-event-transition.mjs";
 import { writeCiPublicSummary } from "./exui-candidate-ci-inputs.mjs";
 import { cleanupNativeOwnership } from "./exui-native-ci-ownership.mjs";
 import { captureCiOwnership } from "./exui-candidate-ci-evidence.mjs";
@@ -106,6 +108,7 @@ export async function executeCiProcess({
   args,
   output,
   onPrepared,
+  onEventTransition,
   onChild = () => {},
 }) {
   assert(!fs.existsSync(output), "FRESH_CI_PHASE_OUTPUT_REQUIRED");
@@ -132,10 +135,59 @@ export async function executeCiProcess({
       resolve();
     });
   });
-  let expected;
+  let expected, input, handoff, transition;
+  const requestFile = path.join(output, "event-transition-request.json");
+  const requestSnapshot = () => {
+    assert(fs.existsSync(requestFile), "CI_EVENT_TRANSITION_REQUEST_CHANGED");
+    const before = fs.lstatSync(requestFile, { bigint: true });
+    assert(
+      before.isFile() && fs.realpathSync(requestFile) === requestFile,
+      "CI_EVENT_TRANSITION_REGULAR_FILE_REQUIRED",
+    );
+    const bytes = fs.readFileSync(requestFile);
+    const after = fs.lstatSync(requestFile, { bigint: true });
+    const identity = (stat) => ({
+      path: requestFile,
+      dev: stat.dev,
+      ino: stat.ino,
+      size: stat.size,
+      mtime: stat.mtimeNs,
+      ctime: stat.ctimeNs,
+    });
+    assert.deepEqual(identity(after), identity(before), "CI_EVENT_TRANSITION_REQUEST_CHANGED");
+    return { stamp: { ...identity(after), digest: digestBytes(bytes) }, bytes };
+  };
+  const checkTransition = async () => {
+    if (!fs.lstatSync(requestFile, { throwIfNoEntry: false })) {
+      assert(!transition, "CI_EVENT_TRANSITION_REQUEST_CHANGED");
+      return;
+    }
+    assert(expected, "CI_EVENT_TRANSITION_BEFORE_PREPARATION");
+    assert.equal(input.releaseScopeId, EVENT_CAPABILITY_SCOPE, "CI_EVENT_TRANSITION_SCOPE");
+    assert.equal(typeof onEventTransition, "function", "CI_EVENT_TRANSITION_CALLBACK_REQUIRED");
+    const observed = requestSnapshot();
+    if (transition) {
+      assert.deepEqual(observed.stamp, transition, "CI_EVENT_TRANSITION_REQUEST_CHANGED");
+      return;
+    }
+    assert(!terminal, "CI_EVENT_TRANSITION_CHILD_TERMINATED");
+    const request = JSON.parse(observed.bytes);
+    validateEventCapabilityTransitionRequest(input, request);
+    transition = observed.stamp;
+    await onEventTransition(request, {
+      input,
+      handoff,
+      expected,
+      isTerminated: () => Boolean(terminal),
+    });
+    assert(!terminal, "CI_EVENT_TRANSITION_CHILD_TERMINATED");
+    assert.deepEqual(requestSnapshot().stamp, transition, "CI_EVENT_TRANSITION_REQUEST_CHANGED");
+  };
   try {
     while (!terminal) {
+      await checkTransition();
       if (
+        !expected &&
         fs.existsSync(path.join(output, "input.json")) &&
         fs.existsSync(path.join(output, "container-launch.json"))
       ) {
@@ -143,16 +195,16 @@ export async function executeCiProcess({
           !fs.existsSync(path.join(output, "gate.json")),
           "CI_EXPECTATIONS_MUST_PRECEDE_GATE",
         );
-        expected = onPrepared(
-          read(path.join(output, "input.json")),
-          read(path.join(output, "container-launch.json")),
-        );
+        input = read(path.join(output, "input.json"));
+        handoff = read(path.join(output, "container-launch.json"));
+        if (onEventTransition !== undefined)
+          assert.equal(input.releaseScopeId, EVENT_CAPABILITY_SCOPE, "CI_EVENT_TRANSITION_SCOPE");
+        expected = onPrepared(input, handoff);
         writeJsonAtomic(path.join(output, "independent-preexecution.json"), {
           ...expected,
           capturedBeforeGate: true,
           capturedAt: new Date().toISOString(),
         });
-        break;
       }
       await Promise.race([
         finished,
@@ -161,6 +213,7 @@ export async function executeCiProcess({
     }
     await finished;
     if (error) throw error;
+    await checkTransition();
     assert(expected, "CI_PHASE_LAUNCH_INPUTS_REQUIRED");
     return { terminal, expected };
   } finally {
@@ -324,7 +377,20 @@ export function cleanupCiCcd(
       Object.entries(observed).map(([service, info]) => [service, info.Id]),
     ),
   };
+  const checkedNames = Object.values(recovery.resources).map((item) => item.name);
+  const checkedContainerIds = [...new Set([
+    ...Object.values(state.containers),
+    ...Object.values(observed).map((info) => info.Id),
+    ...(state.namespace ? [state.namespace] : []),
+  ])].sort();
+  assert(
+    checkedContainerIds.every((id) => /^[a-f0-9]{64}$/.test(id)),
+    "CI_CCD_RECORDED_CID_REQUIRED",
+  );
   stop(recovered);
+  for (const identifier of [...checkedNames, ...checkedContainerIds])
+    assert.equal(inspect(identifier), null, "CI_CCD_REMOVAL_INCOMPLETE");
+  return { owner: recovery.owner, cleanupComplete: true, checkedNames, checkedContainerIds };
 }
 
 export function installCiCancellation({

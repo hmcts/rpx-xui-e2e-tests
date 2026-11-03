@@ -8,8 +8,13 @@ import {
 } from "./exui-routing-contract.mjs";
 
 import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration } from "./exui-global-search-contract.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./exui-ccd-event-capability.mjs";
 
 const slices = {
+  [EVENT_CAPABILITY_SCOPE]: [
+    { invocationId: "baseline", kind: "baseline", mutation: null },
+    { invocationId: EVENT_CAPABILITY_MUTATION, kind: "mutation", mutation: EVENT_CAPABILITY_MUTATION },
+  ],
   "exui-hearing-publication-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     {
@@ -112,7 +117,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   }
-  if (input.releaseScopeId !== "exui-ccd-pilot")
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId))
     return {
       config,
       identity: {
@@ -131,7 +136,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
         JSON.stringify({
           config,
           gatewayDigest: input.gatewayDigest,
-          mutation: invocation.mutation ?? null,
+          mutation: input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? null : invocation.mutation ?? null,
         }),
       ),
       definitionDigests: { HarnessNestedPRL: input.definition.fixtureDigest },
@@ -147,10 +152,17 @@ export function nativeIdentity(input, invocation, candidateRoot) {
     },
   };
 }
-export function seedAppCcdSessions(credentials, seed) {
+export function seedAppCcdSessions(credentials, seed, scope) {
+  const actors = scope === EVENT_CAPABILITY_SCOPE
+    ? ["allowed", "courtadmin", "judge"]
+    : ["allowed", "denied", ...(credentials.transitioning ? ["transitioning"] : [])];
   return Object.fromEntries(
-    ["allowed", "denied", ...(credentials.transitioning ? ["transitioning"] : [])].map((persona) => {
+    actors.map((persona) => {
       assert(credentials[persona], "CCD_APP_PERSONA_REQUIRED");
+      if (["courtadmin", "judge"].includes(persona))
+        assert.deepEqual(credentials[persona].roles?.slice().sort(), [
+          "caseworker", "caseworker-harness", `caseworker-privatelaw-${persona}`,
+        ], "CCD_SOURCE_ACTOR_ROLES_REQUIRED");
       return [persona, seed(persona, credentials[persona])];
     }),
   );

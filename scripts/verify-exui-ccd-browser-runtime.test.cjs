@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
 
-async function withGateway(t, check, mutation = null, respond = null, transitioning = null) {
+async function withGateway(t, check, mutation = null, respond = null, transitioning = null, scope = "exui-ccd-pilot") {
   const { startCcdGateway } =
     await import("./lib/exui-ccd-browser-runtime.mjs");
   const output = fs.mkdtempSync(path.join(os.tmpdir(), "ccd-route-proof-"));
@@ -21,6 +21,15 @@ async function withGateway(t, check, mutation = null, respond = null, transition
     ]),
   );
   if (transitioning) credentials.transitioning = transitioning;
+  if (scope === "exui-ccd-event-capability-pilot") {
+    delete credentials.denied;
+    for (const [name, digit] of [["courtadmin", "2"], ["judge", "3"]])
+      credentials[name] = {
+        userId: `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`,
+        roles: ["caseworker", "caseworker-harness", `caseworker-privatelaw-${name}`],
+        headers: { Authorization: `Bearer synthetic-${name}` },
+      };
+  }
   global.fetch = async (url, options) => {
     upstream.push({ url, options });
     if (respond) return respond(url, options);
@@ -29,7 +38,7 @@ async function withGateway(t, check, mutation = null, respond = null, transition
       headers: { "content-type": "application/vnd.ccd-proof+json" },
     });
   };
-  const server = await startCcdGateway(output, credentials, mutation);
+  const server = await startCcdGateway(output, credentials, mutation, scope);
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
     global.fetch = originalFetch;
@@ -504,4 +513,71 @@ test('malformed or wrong-actor transition handoff blocks before any CCD request'
       assert.equal(upstream.length, 0);
     }
   }, 'ccd-stale-revoked-bearer', null, initial);
+});
+
+
+test("event capability routes forward exact source event and actor without a gateway mutation", async t => {
+  await withGateway(t, async ({ request, upstream, output }) => {
+    // This separate scope must ignore the old revocation protocol entirely.
+    fs.writeFileSync(path.join(output, "role-transition.json"), "not a transition record");
+    const id = "33333333-3333-4333-8333-333333333333";
+    const routes = [
+      `/internal/cases/1793646213983629/event-triggers/serviceOfDocuments`,
+      `/caseworkers/${id}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases/1793646213983629/event-triggers/serviceOfDocuments/token`,
+    ];
+    for (const route of routes) for (const prefix of ["", "/data"]) {
+      const response = await request("GET", `${prefix}${route}?ignore-warning=false`, "judge");
+      assert.equal(response.status, 207);
+      assert.equal(response.body, '{"upstream":"unchanged"}');
+      assert.equal(upstream.at(-1).url, `http://127.0.0.1:4452${route}?ignore-warning=false`);
+      assert.equal(upstream.at(-1).options.headers.authorization, "Bearer synthetic-judge");
+    }
+    const body = { data: { sodAdditionalRecipients: ["additionalRecipients"] }, event: { id: "serviceOfDocuments" } };
+    assert.equal((await request("POST", "/data/cases/1793646213983629/events", "judge", body)).status, 207);
+    assert.equal(upstream.at(-1).options.body, JSON.stringify(body));
+    assert.equal(upstream.at(-1).options.headers.authorization, "Bearer synthetic-judge");
+    const count = upstream.length;
+    for (const route of [routes[0] + "/extra", routes[0].replace("serviceOfDocuments", "update"), routes[1].replace("serviceOfDocuments", "update"), routes[1].replace("serviceOfDocuments", "serviceOfDocumentsExtra")])
+      assert.equal((await request("GET", route, "judge")).status, 501);
+    assert.equal((await request("POST", routes[0], "judge")).status, 501);
+    assert.equal(upstream.length, count);
+    assert.equal(fs.existsSync(path.join(output, "fault-actions.jsonl")), false);
+    const forwarded = fs.readFileSync(path.join(output, "ccd-requests.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+    assert(forwarded.every(entry => entry.mutation === null));
+  }, null, null, null, "exui-ccd-event-capability-pilot");
+});
+
+test("old CCD gateway does not admit source serviceOfDocuments routes", async t => {
+  await withGateway(t, async ({ request, upstream }) => {
+    for (const route of [
+      "/internal/cases/1793646213983629/event-triggers/serviceOfDocuments",
+      "/caseworkers/11111111-1111-4111-8111-111111111111/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases/1793646213983629/event-triggers/serviceOfDocuments/token",
+    ]) for (const prefix of ["", "/data"]) assert.equal((await request("GET", prefix + route)).status, 501);
+    assert.equal(upstream.length, 0);
+  });
+});
+
+test("source actor sessions require exact observed roles and definition faults cannot run in the gateway", async t => {
+  const { seedCcdSession, startCcdGateway } = await import("./lib/exui-ccd-browser-runtime.mjs");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "source-actor-session-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const credential = { userId: "33333333-3333-4333-8333-333333333333", email: "judge@harness.example.com", headers: { Authorization: "Bearer synthetic-judge" } };
+  assert.throws(() => seedCcdSession("judge", credential, root), /CCD_SOURCE_ACTOR_ROLES_REQUIRED/);
+  for (const roles of [["caseworker", "caseworker-harness"], ["caseworker", "caseworker-harness", "caseworker-harness-allowed"], ["caseworker", "caseworker-harness", "caseworker-privatelaw-courtadmin"]])
+    assert.throws(() => seedCcdSession("judge", { ...credential, roles }, root), /CCD_SOURCE_ACTOR_ROLES_REQUIRED/);
+  const roles = ["caseworker", "caseworker-harness", "caseworker-privatelaw-judge"];
+  seedCcdSession("judge", { ...credential, roles }, root);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, "harness-ccd-judge.json"))).passport.user.userinfo.roles, roles);
+  assert.equal(fs.existsSync(path.join(root, "harness-ccd-observer.json")), false);
+  for (const [mutation, scope, message] of [
+    ["ccd-enable-judge-event", "exui-ccd-event-capability-pilot", /CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION/],
+    [null, "unknown-scope", /CCD_GATEWAY_SCOPE_REQUIRED/],
+  ]) {
+    let accidentallyStarted;
+    try {
+      await assert.rejects(async () => { accidentallyStarted = await startCcdGateway(root, {}, mutation, scope); }, message);
+    } finally {
+      if (accidentallyStarted) await new Promise(resolve => accidentallyStarted.close(resolve));
+    }
+  }
 });

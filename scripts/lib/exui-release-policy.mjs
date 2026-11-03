@@ -5,6 +5,23 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 
 // This reviewed pilot scope cannot authorize a full EXUI release.
 export function getReleasePolicy(scope) {
+  if (scope === 'exui-ccd-event-capability-pilot') {
+    const courtadminCell = 'configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313';
+    const policy = {
+      releaseScopeId: scope,
+      requiredObligationIds: [courtadminCell, 'ccd-source-event-capability'],
+      obligations: [
+        { id: courtadminCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-email-one'], requiredMutationIds: [] },
+        { id: 'ccd-source-event-capability', boundary: 'ccd', requiredProofIds: ['ccd-event-create-denied'], requiredMutationIds: ['ccd-enable-judge-event'] }
+      ],
+      mutationDefinitions: [{
+        mutationId: 'ccd-enable-judge-event', obligationId: 'ccd-source-event-capability',
+        definitionDigest: digest({ boundary: 'ccd', transformation: 'change-only-source-judge-serviceOfDocuments-event-CRUD-R-to-CR' }),
+        expectedFailureId: 'event-capability-isolation', baselineProofId: 'ccd-event-create-denied', mutantProofId: 'ccd-event-create-enabled'
+      }]
+    };
+    return { ...policy, policyDigest: digest(policy) };
+  }
   if (scope === 'exui-hearing-publication-pilot') {
     const policy = {
       releaseScopeId: scope,

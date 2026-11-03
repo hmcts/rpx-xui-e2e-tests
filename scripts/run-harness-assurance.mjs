@@ -14,6 +14,7 @@ const scopes = {
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
+  eventCapability: "exui-ccd-event-capability-pilot",
 };
 function read(file) {
   assert(
@@ -99,9 +100,46 @@ export function writeNativeDescriptor(job, captured, verdict) {
       "ASSURANCE_POLICY_CHANGED",
     );
     const promotion = read(path.join(dir, "promotion-expected.json")).value;
-    const { receiptArtifactDigest, evidenceManifestDigest, ...promoted } =
-      promotion;
+    const {
+      receiptArtifactDigest,
+      evidenceManifestDigest,
+      eventTransition,
+      ...promoted
+    } = promotion;
     assert.deepEqual(promoted, expected, "ASSURANCE_EXPECTATION_CHANGED");
+    if (phase.phase === "eventCapability") {
+      const transition = read(path.join(dir, "independent-transition.json"));
+      assert.equal(
+        transition.value.capturedBeforeFault,
+        true,
+        "ASSURANCE_TRANSITION_CAPTURE_REQUIRED",
+      );
+      const reference = {
+        path: "independent-transition.json",
+        digest: transition.digest,
+      };
+      assert.deepEqual(
+        eventTransition,
+        reference,
+        "ASSURANCE_TRANSITION_CHANGED",
+      );
+      assert.deepEqual(
+        phase.eventTransition,
+        reference,
+        "ASSURANCE_TRANSITION_CHANGED",
+      );
+    } else {
+      assert.equal(
+        eventTransition,
+        undefined,
+        "ASSURANCE_UNEXPECTED_TRANSITION",
+      );
+      assert.equal(
+        phase.eventTransition,
+        undefined,
+        "ASSURANCE_UNEXPECTED_TRANSITION",
+      );
+    }
     assert.equal(
       receiptArtifactDigest,
       phase.receiptArtifactDigest,

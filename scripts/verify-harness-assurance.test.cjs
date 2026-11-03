@@ -174,7 +174,10 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   assert.equal(terminal.status, 2);
   assert.equal(terminal.signal, null);
   assert.match(terminal.stderr, /\[harness-assurance\] BLOCKED/);
-  for (const file of ["public/odhin/index.html", "private/public-odhin-harness.json"])
+  for (const file of [
+    "public/odhin/index.html",
+    "private/public-odhin-harness.json",
+  ])
     assert.equal(
       fs.existsSync(path.join(root, "functional-output/tests/harness", file)),
       false,
@@ -191,10 +194,16 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, "private"));
   const digest = "sha256:" + "a".repeat(64),
     commit = "b".repeat(40);
-  const phases = ["family", "scope", "ccd"];
+  const phases = ["family", "scope", "ccd", "eventCapability"];
   const captured = { harnessCommit: commit, policies: {} };
-  const write = (file, value) =>
-    fs.writeFileSync(path.join(root, "private", file), JSON.stringify(value));
+  const write = (file, value) => {
+    const bytes = JSON.stringify(value);
+    fs.writeFileSync(path.join(root, "private", file), bytes);
+    return (
+      "sha256:" +
+      require("node:crypto").createHash("sha256").update(bytes).digest("hex")
+    );
+  };
   for (const phase of phases) {
     fs.mkdirSync(path.join(root, "private", phase));
     captured.policies[phase] = { policyDigest: digest };
@@ -208,7 +217,17 @@ function fixture(t) {
       capturedBeforeGate: true,
       capturedAt: "2026-11-03T12:00:00Z",
     });
+    const transition =
+      phase === "eventCapability"
+        ? {
+            path: "independent-transition.json",
+            digest: write(`${phase}/independent-transition.json`, {
+              capturedBeforeFault: true,
+            }),
+          }
+        : undefined;
     write(`${phase}/promotion-expected.json`, {
+      ...(transition ? { eventTransition: transition } : {}),
       ...pre,
       receiptArtifactDigest: digest,
       evidenceManifestDigest: digest,
@@ -229,6 +248,15 @@ function fixture(t) {
       status: phase === "ccd" ? "BLOCKED" : "PASS",
       exitCode: phase === "ccd" ? 2 : 0,
       receiptArtifactDigest: digest,
+      ...(phase === "eventCapability"
+        ? {
+            eventTransition: JSON.parse(
+              fs.readFileSync(
+                path.join(root, "private", phase, "promotion-expected.json"),
+              ),
+            ).eventTransition,
+          }
+        : {}),
     })),
   });
   return {
@@ -295,5 +323,45 @@ test("missing preexecution capture and incomplete cleanup cannot publish a descr
   assert.throws(
     () => writeNativeDescriptor(f.job, f.captured, f.verdict),
     /CLEANUP_REQUIRED/,
+  );
+});
+
+test("transition capture must match the separate parent pin and cannot relabel a three-phase job", async (t) => {
+  const { writeNativeDescriptor } = await api();
+  const f = fixture(t);
+  const file = path.join(
+    f.root,
+    "private/eventCapability/independent-transition.json",
+  );
+  fs.writeFileSync(file, JSON.stringify({ capturedBeforeFault: false }));
+  assert.throws(
+    () => writeNativeDescriptor(f.job, f.captured, f.verdict),
+    /TRANSITION/,
+  );
+  const g = fixture(t);
+  const ci = JSON.parse(
+    fs.readFileSync(path.join(g.root, "private/ci-result.json")),
+  );
+  ci.phaseResults.pop();
+  g.write("ci-result.json", ci);
+  assert.throws(
+    () => writeNativeDescriptor(g.job, g.captured, g.verdict),
+    /COMPLETE_NATIVE_RUN/,
+  );
+});
+
+test("promotion cannot substitute a transition pin from a different parent capture", async (t) => {
+  const { writeNativeDescriptor } = await api();
+  const f = fixture(t);
+  const file = path.join(
+    f.root,
+    "private/eventCapability/promotion-expected.json",
+  );
+  const promotion = JSON.parse(fs.readFileSync(file));
+  promotion.eventTransition.digest = "sha256:" + "0".repeat(64);
+  fs.writeFileSync(file, JSON.stringify(promotion));
+  assert.throws(
+    () => writeNativeDescriptor(f.job, f.captured, f.verdict),
+    /TRANSITION_CHANGED/,
   );
 });

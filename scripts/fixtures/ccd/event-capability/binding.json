@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "scope": "exui-ccd-event-capability-pilot",
+  "mutationId": "ccd-enable-judge-event",
+  "proofs": {
+    "courtadmin": "ccd-courtadmin-email-one",
+    "judge": "ccd-event-create-denied",
+    "mutant": "ccd-event-create-enabled"
+  },
+  "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
+  "sourceProjectionDigest": "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a",
+  "transformation": {
+    "sheet": "AuthorisationCaseEvent",
+    "role": "caseworker-privatelaw-judge",
+    "event": "serviceOfDocuments",
+    "field": "CRUD",
+    "before": "R",
+    "after": "CR"
+  },
+  "releaseCredit": false,
+  "baseline": {
+    "sourceDigest": "sha256:053cbd9a2c99aba28f4dc48313fad4b1dfcacc52e6bdae4d9e3eb0d56c53397a",
+    "workbookDigest": "sha256:c31fefc9db5690acb05a11c10e55238445f4dab492926933ab05c8736704102b"
+  },
+  "mutant": {
+    "sourceDigest": "sha256:698f10039605c73d6409f9c2ac34347a894208fd2a790e30c210c963e37ad95b",
+    "workbookDigest": "sha256:66547ce859c0ebf4ee94c4ee232130fffb8fe8f1e3f6d645b8ddc89d519153c6"
+  }
+}

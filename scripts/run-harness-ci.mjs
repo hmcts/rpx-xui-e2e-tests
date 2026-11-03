@@ -13,8 +13,17 @@ import {
   importCcdDefinition,
   verifyCcdRuntimeIdentity,
   ccdRequest,
+  ccdCredentials,
+  docker,
 } from "./lib/exui-ccd-runtime.mjs";
-import { digestBytes, writeJsonAtomic } from "./lib/exui-evidence-io.mjs";
+import { digestBytes, writeJsonAtomic, loadRunEvidence } from "./lib/exui-evidence-io.mjs";
+import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
+import { nativeIdentity } from "./lib/exui-native-contract.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./lib/exui-ccd-event-capability.mjs";
+import { selectEventCapabilityRuntime, publishEventCapabilityRuntime } from "./lib/exui-ccd-event-transition.mjs";
+import { readEventBaselineCheckpoint, isKnownPostalBlock } from "./lib/exui-native-proof-validation.mjs";
+import { assertEventBaselineRemoved } from "./lib/exui-native-ci-ownership.mjs";
+import { inspectHostContainer } from "./lib/exui-host-invocation.mjs";
 import {
   validateCiJob,
   createCiOutput,
@@ -25,6 +34,7 @@ import {
   validateCiPhase,
   captureCiPhaseExpectation,
   captureCiOwnership,
+  captureCiEventFaultOwnership,
 } from "./lib/exui-candidate-ci-evidence.mjs";
 import {
   executeCiProcess,
@@ -39,6 +49,7 @@ const scopes = {
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
+  eventCapability: EVENT_CAPABILITY_SCOPE,
 };
 export async function runFixedCiPilots(operations) {
   const results = [];
@@ -63,10 +74,21 @@ export async function runFixedCiPilots(operations) {
     await operations.start();
     checkCancellation();
     result = await phase("ccd");
-    return { ...result, results };
   } finally {
     await operations.stop();
   }
+  if (result.exitCode !== 0 && operations.canContinueAfterCcd?.() !== true)
+    return { ...result, results };
+  try {
+    checkCancellation();
+    await operations.startEvent();
+    checkCancellation();
+    await phase("eventCapability");
+  } finally {
+    await operations.stopEvent();
+  }
+  const exitCode = Math.max(...results.map((item) => item.exitCode));
+  return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results };
 }
 
 export async function runHarnessCi(jobPath) {
@@ -91,10 +113,60 @@ export async function runHarnessCi(jobPath) {
     cancelled = false;
   const privateRoot = path.join(job.output, "private");
   const remove = async (_id, resource) => {
-    if (resource.kind === "ccd") cleanupCiCcd(resource.directory);
-    else await cleanupCiPhase(resource, context);
+    let evidence;
+    if (resource.kind === "ccd") {
+      await resource.pendingStart?.catch(() => {});
+      evidence = cleanupCiCcd(resource.directory);
+      if (evidence)
+        writeJsonAtomic(path.join(resource.directory, "cleanup-verification.json"), evidence);
+    } else await cleanupCiPhase(resource, resource.context ?? context);
     resources.delete(_id);
+    return evidence;
   };
+  const startOwnedCcd = async (key, fixtureSelection, alive = () => true, phaseResource) => {
+    assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+    const directory = path.join(privateRoot, key);
+    assert(!fs.existsSync(directory), "CI_FRESH_CCD_DIRECTORY_REQUIRED");
+    const resource = { kind: "ccd", directory };
+    resources.set(key, resource);
+    if (phaseResource) {
+      resources.delete(phaseResource.name);
+      resources.set(phaseResource.name, phaseResource);
+    }
+    resource.pendingStart = Promise.resolve().then(() => startCcdRuntime(directory, {
+      fixtureSelection,
+      isCancelled: () => cancelled || !alive(),
+      runDocker: (args, input) => {
+        assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+        return docker(args, input);
+      },
+    }));
+    const ccd = await resource.pendingStart;
+    assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+    importCcdDefinition(ccd);
+    verifyCcdRuntimeIdentity(ccd);
+    assert(!cancelled && alive(), "CI_EVENT_IMPORT_CANCELLED");
+    return ccd;
+  };
+  const eventRuntimeData = (ccd) => {
+    const definitionFile = path.join(ccd.output, "definition-import.json");
+    const apiContracts = Object.fromEntries([["data", 4452], ["definition", 4451]].map(([service, port]) => {
+      const response = ccdRequest(ccd, port, "/v3/api-docs");
+      assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
+      return [service, digestBytes(JSON.stringify(response.body))];
+    }));
+    return {
+      ccd,
+      definition: read(definitionFile),
+      definitionImportDigest: digestBytes(fs.readFileSync(definitionFile)),
+      apiContracts,
+      credentials: Object.fromEntries(["allowed", "courtadmin", "judge", "observer"].map((actor) => [actor, ccdCredentials(ccd, actor)])),
+    };
+  };
+  const eventIdentity = (data) => nativeIdentity({
+    ...data, artifact: context.artifact, releaseScopeId: EVENT_CAPABILITY_SCOPE,
+    gatewayDigest: digestBytes(fs.readFileSync(path.join(ROOT, "scripts/lib/exui-ccd-browser-runtime.mjs"))),
+  }, { mutation: null }, context.artifact.candidateRoot).identity;
   const uninstall = installCiCancellation({
     resources,
     remove,
@@ -117,7 +189,8 @@ export async function runHarnessCi(jobPath) {
       phase: async (name) => {
         assert(!cancelled, "CI_JOB_CANCELLED");
         const directory = path.join(privateRoot, name),
-          resource = { kind: "phase", name, directory, child: null };
+          phaseContext = name === "eventCapability" ? { ...context, ...context.eventBaseline } : context,
+          resource = { kind: "phase", name, directory, child: null, context: phaseContext };
         resources.set(name, resource);
         const args = [
           "--candidate",
@@ -127,10 +200,11 @@ export async function runHarnessCi(jobPath) {
           "--output",
           directory,
         ];
-        if (name === "ccd")
+        if (["ccd", "eventCapability"].includes(name))
           args.push(
             "--ccd-state",
-            path.join(privateRoot, "ccd-runtime/runtime.json"),
+            path.join(privateRoot, name === "eventCapability" ? "event-baseline-runtime/runtime.json" : "ccd-runtime/runtime.json"),
+            "--scope", scopes[name],
           );
         else args.push("--scope", scopes[name]);
         if (name === "scope")
@@ -142,7 +216,7 @@ export async function runHarnessCi(jobPath) {
           const result = await executeCiProcess({
             script: path.join(
               ROOT,
-              name === "ccd"
+              ["ccd", "eventCapability"].includes(name)
                 ? "scripts/run-harness-ccd-candidate.mjs"
                 : "scripts/run-harness-candidate.mjs",
             ),
@@ -161,20 +235,61 @@ export async function runHarnessCi(jobPath) {
                 name,
                 input,
                 handoff,
-                context,
+                phaseContext,
                 directory,
               );
               resource.expectedContainer = captureCiOwnership(
                 input,
                 handoff,
-                context,
+                phaseContext,
                 directory,
                 name,
               );
               return expected;
             },
+            ...(name === "eventCapability" ? {
+              onEventTransition: async (request, handoff) => {
+                const alive = () => !handoff.isTerminated();
+                assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                const checkpoint = readEventBaselineCheckpoint(directory, handoff.expected);
+                const native = assertEventBaselineRemoved(resource.expectedContainer, { inspect: inspectHostContainer });
+                const ccd = await remove("event-baseline-runtime", resources.get("event-baseline-runtime"));
+                assert(ccd?.cleanupComplete === true, "CI_EVENT_BASELINE_CLEANUP_REQUIRED");
+                const removal = { schemaVersion: 1, runId: handoff.input.runId, native, ccd,
+                  baselineNamespace: handoff.input.ccd.namespace, baselineOwner: handoff.input.ccd.owner };
+                const removalFile = path.join(directory, "baseline-removal.json");
+                writeJsonAtomic(removalFile, removal);
+                assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                const fault = eventRuntimeData(await startOwnedCcd("event-mutant-runtime", "event-capability-mutant", alive, resource));
+                const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId: EVENT_CAPABILITY_MUTATION,
+                  requestDigest: digestBytes(JSON.stringify(request)), ...fault };
+                const selected = selectEventCapabilityRuntime(handoff.input, EVENT_CAPABILITY_MUTATION, record);
+                const identity = eventIdentity(fault);
+                const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory);
+                resource.expectedContainer.invocations.push(...faultOwnership.invocations);
+                const transition = {
+                  schemaVersion: 1, runId: handoff.input.runId, releaseScopeId: EVENT_CAPABILITY_SCOPE,
+                  harnessCommit: handoff.expected.harnessCommit, harnessSourceDigest: handoff.expected.harnessSourceDigest,
+                  capturedBeforeFault: true, capturedAt: new Date().toISOString(),
+                  baselineInputDigest: digestBytes(fs.readFileSync(path.join(directory, "input.json"))),
+                  requestDigest: record.requestDigest, baselineCheckpointDigest: checkpoint.checkpointDigest,
+                  baselineRemoval: { path: "baseline-removal.json", digest: digestBytes(fs.readFileSync(removalFile)) },
+                  runtimeRecord: { path: `${EVENT_CAPABILITY_MUTATION}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") },
+                  identity,
+                };
+                assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                const transitionFile = path.join(directory, "independent-transition.json");
+                assert(!fs.existsSync(transitionFile), "CI_EVENT_TRANSITION_ALREADY_CAPTURED");
+                writeJsonAtomic(transitionFile, transition);
+                resource.eventTransition = { path: "independent-transition.json", digest: digestBytes(fs.readFileSync(transitionFile)) };
+                assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                assert.deepEqual(publishEventCapabilityRuntime(directory, record), transition.runtimeRecord, "CI_EVENT_ACK_CHANGED");
+              },
+            } : {}),
           });
           assert(!cancelled, "CI_JOB_CANCELLED");
+          if (name === "eventCapability")
+            result.expected = { ...result.expected, eventTransition: resource.eventTransition };
           const validated = validateCiPhase(
             directory,
             result.expected,
@@ -190,6 +305,13 @@ export async function runHarnessCi(jobPath) {
                 receiptArtifactDigest: validated.receiptArtifactDigest,
               },
               terminal: result.terminal,
+            });
+          if (name === "ccd") context.ccdResult = { directory, expected: { ...result.expected, receiptArtifactDigest: validated.receiptArtifactDigest }, terminal: result.terminal };
+          if (name === "eventCapability")
+            writeConfigurationCoverage({
+              harnessRoot: ROOT, output: path.join(privateRoot, "configuration"),
+              phaseDirectory: context.ccdResult.directory, expected: context.ccdResult.expected, terminal: context.ccdResult.terminal,
+              eventPhase: { directory, expected: { ...result.expected, receiptArtifactDigest: validated.receiptArtifactDigest }, terminal: result.terminal },
             });
           phaseResults.push({ phase: name, ...validated });
           return validated;
@@ -255,6 +377,20 @@ export async function runHarnessCi(jobPath) {
         const resource = resources.get("ccd-runtime");
         if (resource) return remove("ccd-runtime", resource);
       },
+      canContinueAfterCcd: () => {
+        const loaded = loadRunEvidence(path.join(privateRoot, "ccd/run.json"), getReleasePolicy("exui-ccd-pilot"));
+        return isKnownPostalBlock(loaded.input, loaded.receipt.verdict);
+      },
+      startEvent: async () => {
+        const data = eventRuntimeData(await startOwnedCcd("event-baseline-runtime", "event-capability-baseline"));
+        context.eventBaseline = { ...data, ccdIdentity: eventIdentity(data) };
+      },
+      stopEvent: async () => {
+        for (const key of ["event-mutant-runtime", "event-baseline-runtime"]) {
+          const resource = resources.get(key);
+          if (resource) await remove(key, resource);
+        }
+      },
     };
     const result = await runFixedCiPilots(operations);
     verdict = { status: result.status, exitCode: result.exitCode };
@@ -285,7 +421,7 @@ export async function runHarnessCi(jobPath) {
     writeCiPublicSummary(
       job.output,
       verdict,
-      phaseResults.length === 3 &&
+      phaseResults.length === 4 &&
         phaseResults.every((result) => result.status === "PASS"),
     );
   }

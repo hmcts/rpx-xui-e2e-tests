@@ -24,6 +24,8 @@ import { getReleasePolicy } from "./exui-release-policy.mjs";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
 import { GLOBAL_SEARCH_SCOPE, globalSearchContract } from "./exui-global-search-contract.mjs";
 import { ROUTING_SCOPE } from "./exui-routing-contract.mjs";
+import { EVENT_CAPABILITY_SCOPE, validateEventCapabilityPair } from "./exui-ccd-event-capability.mjs";
+import { eventCapabilityTransitionRequest, waitForEventCapabilityRuntime } from "./exui-ccd-event-transition.mjs";
 import {
   digestBytes,
   writeJsonAtomic,
@@ -106,6 +108,19 @@ function derivations(input, output, policy, identities, artifactDerivation) {
                   "wa-drop-family",
                 ).config.waSupportedJurisdictions,
               }
+            : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
+              ? {
+                  target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD",
+                  transformationRecord: validateEventCapabilityPair(
+                    read(new URL("../fixtures/ccd/event-capability/baseline.json", import.meta.url)),
+                    read(new URL("../fixtures/ccd/event-capability/mutant.json", import.meta.url)),
+                  ),
+                  beforeDigest: baseline.identity.definitionDigests.HarnessNestedPRL,
+                  afterDigest: mutant.identity.definitionDigests.HarnessNestedPRL,
+                  baselineRuntimeMetadata: baseline.runtimeMetadata,
+                  mutantRuntimeMetadata: mutant.runtimeMetadata,
+                  runtimeRecord: ref(output, path.join(output, definition.mutationId, "runtime-input.json")),
+                }
             : {
                 target:
                   "declared CCD gateway fault; same actual Angular/Node/CCD artifact",
@@ -200,11 +215,14 @@ export async function runNativeHostPhase(output, stagedHarness) {
     writeJsonAtomic(path.join(output, "input.json"), input);
     writeJsonAtomic(path.join(output, "container-launch.json"), handoff);
     for (const invocation of invocations) {
+      const invocationInput = input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation
+        ? await waitForEventCapabilityRuntime(input, output, { isCancelled: () => Boolean(interrupted) })
+        : input;
       const directory = path.join(output, invocation.invocationId);
-      fs.mkdirSync(directory, { mode: 0o700 });
-      const artifact = selectedArtifact(input, invocation),
+      fs.mkdirSync(directory, { mode: 0o700, ...(input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation ? { recursive: true } : {}) });
+      const artifact = selectedArtifact(invocationInput, invocation),
         { identity, config } = nativeIdentity(
-          input,
+          invocationInput,
           invocation,
           artifact.candidateRoot,
         );
@@ -247,15 +265,15 @@ export async function runNativeHostPhase(output, stagedHarness) {
                 }),
               }
             : {}),
-          ...(input.ccd
+          ...(invocationInput.ccd
             ? {
-                gatewayDigest: input.gatewayDigest,
-                definitionImportDigest: input.definitionImportDigest,
+                gatewayDigest: invocationInput.gatewayDigest,
+                definitionImportDigest: invocationInput.definitionImportDigest,
                 observedDefinitionDigest:
-                  input.definition.observedDefinitionDigest,
-                definitionVersion: String(input.definition.definitionVersion),
-                ccdNamespace: input.ccd.namespace,
-                idamSimulatorImage: input.ccd.images.idam.id,
+                  invocationInput.definition.observedDefinitionDigest,
+                definitionVersion: String(invocationInput.definition.definitionVersion),
+                ccdNamespace: invocationInput.ccd.namespace,
+                idamSimulatorImage: invocationInput.ccd.images.idam.id,
               }
             : {}),
           excludedSeams:
@@ -265,6 +283,8 @@ export async function runNativeHostPhase(output, stagedHarness) {
               ? "synthetic-auth,reference-data,empty-search-response,auxiliary-read-jurisdictions,feature-flags,telemetry; no CCD search/access/cache algorithm/profile credit"
               : input.releaseScopeId === ROUTING_SCOPE
               ? "synthetic-auth,upstream-definition-metadata,central-NoC-response,PCS-NoC-response,PCS-destination-marker,feature-flags,telemetry; no PCS backend/CCD/access/persistence or aggregate80ee credit"
+              : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
+                ? "literal source role/event/field permission shape in normalized HARNESS case type; synthetic sessions and IDAM; omitted PRL callbacks; no deployed PRL, AM/ABAC, OIDC, CSRF-enforcement or owner-acceptance credit"
               : input.ccd
                 ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; real CCD RBAC only; role removal uses renewed synthetic session, not immediate stale-session invalidation or OIDC login; ABAC/provider excluded"
                 : "synthetic-auth,refdata,task-provider,feature-flags,telemetry",
@@ -281,7 +301,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
         harnessSourceState: input.harnessSourceState,
         harnessSourceDigest: input.harnessSourceDigest,
       });
-      const plan = nativeContainerPlan(input, handoff, invocation.invocationId);
+      const plan = nativeContainerPlan(invocationInput, handoff, invocation.invocationId);
       const { terminal } = await runHostInvocation(
         { ...plan, manifest: current, payloadDigest: artifact.payloadDigest },
         { resources, isCancelled: () => Boolean(interrupted) },
@@ -299,7 +319,13 @@ export async function runNativeHostPhase(output, stagedHarness) {
       });
       manifest ??= current;
       executions.push(ref(output, path.join(directory, "execution.json")));
-      identities.push({ invocationId: invocation.invocationId, identity });
+      identities.push({ invocationId: invocation.invocationId, identity,
+        ...(input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? {
+          runtimeMetadata: Object.fromEntries(["definitionImportDigest", "observedDefinitionDigest", "definitionVersion", "ccdNamespace"].map((key) => [key, current.runtimeMetadata[key]])),
+        } : {}),
+      });
+      if (input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === "baseline")
+        writeJsonAtomic(path.join(output, "event-transition-request.json"), eventCapabilityTransitionRequest(input));
     }
     const mutations = derivations(
       input,

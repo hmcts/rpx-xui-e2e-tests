@@ -91,7 +91,33 @@ const proofs = {
       "A validation failure blocks later navigation/persistence credit. No deployed PRL or full profile claim.",
   },
 };
+proofs["ccd-courtadmin-email-one"] = {
+  phase: "eventCapability",
+  slice: "Court administrator — one email recipient",
+  behaviour:
+    "Enter one email recipient, preserve it through Check your answers and Change, then submit and read it back from CCD.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD",
+  limits:
+    "Literal source role caseworker-privatelaw-courtadmin with synthetic identity; source-shaped serviceOfDocuments event in JUDICIAL_REVIEW. No deployed PRL, Access Management, ABAC, OIDC or CSRF credit.",
+};
+proofs["ccd-event-create-denied"] = {
+  phase: "eventCapability",
+  slice: "Readable case — event creation forbidden",
+  behaviour:
+    "Read the case as a judge, deny the serviceOfDocuments start/token requests, and independently observe unchanged data and history.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD",
+  limits:
+    "Literal source role caseworker-privatelaw-judge with event R permission. The deliberate fault changes only that event permission to CR in a separately imported fresh namespace. No production authorisation claim.",
+};
 const faults = {
+  "ccd-enable-judge-event":
+    "Grant the judge create permission for the readable case’s source event",
   "wa-drop-family": "Omit Immigration and Asylum from supported WA services",
   "wa-broaden-scope": "Broaden organisation choices with case-role assignments",
   "ccd-drop-child": "Drop a nested email address on submission",
@@ -106,6 +132,7 @@ const phaseLabels = {
   family: "WA families",
   scope: "WA organisation scope",
   ccd: "CCD data and access",
+  eventCapability: "Source role and event capability",
 };
 const badge = (text, passed) =>
   `<span class="harness-status ${passed ? "passed" : "failed"}">${escape(text)}</span>`;
@@ -152,9 +179,47 @@ function renderNativeEvidence(evidence) {
       coverage.creditedObligationIds.length ||
     coverage.selected - coverage.missing !==
       coverage.creditedObligationIds.length ||
-    (evidence.status !== "PASS" && coverage.creditedObligationIds.length !== 0)
+    !coverage.phaseReferences ||
+    coverage.creditedObligationIds.some((id) => {
+      const phase =
+        id ===
+        "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
+          ? "ccd"
+          : id ===
+              "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313"
+            ? "eventCapability"
+            : null;
+      const accepted = evidence.phases.find((item) => item.phase === phase);
+      const ref = coverage.phaseReferences[phase];
+      return (
+        !phase ||
+        accepted?.status !== "PASS" ||
+        !ref ||
+        ref.status !== "PASS" ||
+        ref.receiptArtifactDigest !== accepted.receiptArtifactDigest ||
+        ref.runId !== accepted.runId ||
+        ref.releaseScopeId !== accepted.releaseScopeId
+      );
+    })
   )
     throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
+  if (
+    JSON.stringify(evidence.phases.map((phase) => phase.phase)) !==
+    JSON.stringify(Object.keys(phaseLabels))
+  )
+    throw new Error("PUBLIC_ODHIN_COMPLETE_NATIVE_PHASES_REQUIRED");
+  const baselineIds = evidence.phases
+    .flatMap((phase) => phase.baselineProofs.map((proof) => proof.proofId))
+    .sort();
+  const mutationIds = evidence.phases
+    .flatMap((phase) => phase.faults.map((fault) => fault.mutationId))
+    .sort();
+  if (
+    JSON.stringify(baselineIds) !==
+      JSON.stringify(Object.keys(proofs).sort()) ||
+    JSON.stringify(mutationIds) !== JSON.stringify(Object.keys(faults).sort())
+  )
+    throw new Error("PUBLIC_ODHIN_COMPLETE_NATIVE_PROOFS_REQUIRED");
   const count = nativeCounts(evidence);
   const baselineRows = [],
     faultRows = [];

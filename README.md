@@ -17,7 +17,7 @@ Bare `yarn playwright test` also selects portable model diagnostics. Setup insta
 
 ## Candidate-bound fixed job
 
-The native runner starts the built Angular/Node candidate with isolated synthetic personas and declared downstream seams. Fixed policies cover WA family selection, organisation/case location scope, and real CCD nested persistence/access integrity. Every policy requires its baseline and intended failing mutations. The postal extension adds two-recipient validation/CYA/edit/readback plus loss of one optional child.
+The native runner starts the built Angular/Node candidate with isolated synthetic personas and declared downstream seams. Fixed policies cover WA family selection, organisation/case location scope, real CCD nested persistence/access integrity, and source-defined event permissions. Every policy requires its baseline and intended failing mutations. The postal extension adds two-recipient validation/CYA/edit/readback plus loss of one optional child.
 
 Prepare a clean committed Harness checkout, sealed candidate manifest, matching Linux/arm64 browser cache and cached pinned Docker images. The current native build uses Node 24.22.1 / Debian 12; the host controller verifies actual candidate, dependency, browser and source bytes. Missing inputs, wrong platforms, dirty source, retries, undeclared destinations, incomplete reports or cleanup block admission.
 
@@ -49,13 +49,17 @@ Each invocation needs a fresh native output directory in its job file. The combi
 
 The 112 catalogue requirements are coverage obligations, not an already implemented 112-test suite. This command executes the implemented native policies; it cannot grant coverage to missing service/profile proofs. Jenkins still needs the supported native agent, sealed candidate inputs and approved durable evidence storage before this command can become a required release gate.
 
-The job runs family baseline/fault, derives the scope mutant, runs IA/Civil scope, then starts fresh CCD for nested data, access, role removal, write integrity and postal baselines and faults. It owns cleanup and captures independent expectations before consuming receipts. The strict job input cannot supply a catalogue, proof status or selected subset.
+The default job has four fixed phases: WA family → IA/Civil scope → CCD nested/access/role-removal/postal → CCD source event capability. Its required inventory is nine baseline proofs and eight deliberate fault checks, not a claim that they passed. The strict job input cannot supply a catalogue, proof status or selected subset.
+
+The new `exui-ccd-event-capability-pilot` uses the pinned PRL courtadmin/judge permissions in the normalized `HARNESS/HarnessNestedPRL` definition. It requires a courtadmin to enter one email recipient through form → CYA → Change → submit/readback, while a judge can read the case but cannot start or submit the event with event permission `R`. Its sole definition fault changes that judge event permission from `R` to `CR`; the test must observe the enabled write before failing the denial assertion. This browser/application proof has not yet been run or accepted.
+
+The parent verifies baseline API/Tools and CCD removal, imports the fault into a fresh owned namespace, and captures its expected identity before acknowledging fault startup. An old CCD postal BLOCKED result permits the fourth phase only when raw evidence confirms the exact known `postal-required-fields` cause and all other required proofs/faults are valid. The overall job retains the worst phase status; continuation cannot turn that BLOCKED result into PASS.
 
 The native API runs separately from browser/providers/evidence writing. It receives read-only sealed application/guard files and writable synthetic sessions/diagnostics. Observer credentials, reports, controller source and Docker socket are absent from its mounts. Containers receive no Docker socket; the host owns lifecycle and recovery.
 
-The current c024fa3 postal run is BLOCKED at the mandatory-child check and receives zero catalogue execution credit. See [current assurance gaps](docs/harness-known-gaps.md) for the observed constraint and owner action.
+The historical c024fa3 postal run is BLOCKED at the mandatory-child check and receives zero catalogue execution credit. See [current assurance gaps](docs/harness-known-gaps.md) for the observed constraint and owner action.
 
-A fixed-pilot PASS grants no full EXUI release approval. The portable source catalogue contains 112 obligations, including an unproved PCS routing shape. Adding the two routing configuration keys replaces 13 profile IDs; the other 98 obligation objects remain unchanged. Only the exact postal sequence is eligible for the receipt-to-catalogue mapping; an accepted postal phase would leave 111 runtime obligations missing. Source classification, model tests and screenshots do not discharge those gaps. Effective deployed profiles, service-owner grouping acceptance, external owner gates and promotion wiring remain incomplete.
+A fixed-pilot PASS grants no full EXUI release approval. The portable source catalogue contains 112 obligations, including an unproved PCS routing shape. Adding the two routing configuration keys replaces 13 profile IDs; the other 98 obligation objects remain unchanged. The receipt-to-catalogue mapping admits only the exact postal sequence and the source courtadmin/email/one-recipient cell, each after its complete phase passes and source/import/identity bindings validate. The judge proof adds no catalogue cell. A passing event phase alongside the known postal block could account for 1 of 112 obligations while the job remains BLOCKED; this is intended accounting, not an observed result. Source classification, model tests and screenshots do not discharge those gaps. Effective deployed profiles, service-owner grouping acceptance, external owner gates and promotion wiring remain incomplete.
 
 ## Focused candidate and CCD execution
 
@@ -78,7 +82,7 @@ The separate Hearing publication pilot checks actual Node GET `/external/config/
 
 The combined job owns its CCD startup/shutdown automatically. Manual CCD runs require the matching stop command and recorded ownership. SIGINT/SIGTERM invokes owned cleanup; daemon failure or SIGKILL requires recovery from the recorded owner labels. Do not delete unrelated containers.
 
-CCD uses fresh isolated storage, source-backed synthetic definitions, real RBAC, synthetic identities and a separately authorised state/history observer. ABAC, identity-provider correctness and service business callbacks remain outside these pilots. The fixture retains original PRL revision/workbook provenance; synthetic Harness roles/case types are not credited as actual PRL authorization cells.
+CCD uses fresh isolated storage, source-backed synthetic definitions, real RBAC, synthetic identities and a separately authorised state/history observer. ABAC, identity-provider correctness and service business callbacks remain outside these pilots. The fixtures retain original PRL revision/workbook provenance. The new event scope uses literal source roles in a normalized case type; its bounded cell mapping does not prove deployed PRL authorization, service-owner acceptance or broad persona permissions.
 
 The OCI adapter runs an immutable image in its own Node/OS:
 

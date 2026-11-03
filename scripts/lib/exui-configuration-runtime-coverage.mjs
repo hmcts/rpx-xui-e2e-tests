@@ -10,6 +10,17 @@ import {
 import { getReleasePolicy } from "./exui-release-policy.mjs";
 import { validateCiPhase } from "./exui-candidate-ci-evidence.mjs";
 import {
+  validateCompleteNativeProofs,
+  validateNativeOutcome,
+} from "./exui-native-proof-validation.mjs";
+import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
+import { bindEventCoverage } from "./exui-event-coverage-binding.mjs";
+import {
+  EVENT_CAPABILITY_CELL,
+  EVENT_CAPABILITY_SCOPE,
+  EVENT_CAPABILITY_PROOFS,
+} from "./exui-ccd-event-capability.mjs";
+import {
   digestBytes,
   loadRunEvidence,
   readEvidenceArtifact,
@@ -22,8 +33,14 @@ const ROOT = path.resolve(
 );
 const regularBytes = (root, name) => {
   const file = path.join(fs.realpathSync(root), name);
+  const relative = path.relative(fs.realpathSync(root), file);
   assert(
-    fs.lstatSync(file).isFile() && fs.realpathSync(file) === file,
+    !path.isAbsolute(name) &&
+      relative &&
+      relative !== ".." &&
+      !relative.startsWith(".." + path.sep) &&
+      fs.lstatSync(file).isFile() &&
+      fs.realpathSync(file) === file,
     "CATALOGUE_INPUT_PATH_ESCAPE",
   );
   return fs.readFileSync(file);
@@ -169,11 +186,17 @@ function bindImportedDefinition(phaseDirectory, manifest, signature) {
 export function projectConfigurationCoverage(args) {
   assert(
     Object.keys(args).every((key) =>
-      ["harnessRoot", "phaseDirectory"].includes(key),
+      ["harnessRoot", "phaseDirectory", "eventPhaseDirectory"].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
   );
-  const { harnessRoot = ROOT, phaseDirectory } = args;
+  const { harnessRoot = ROOT, phaseDirectory, eventPhaseDirectory } = args;
+  assert(
+    !phaseDirectory ||
+      !eventPhaseDirectory ||
+      fs.realpathSync(phaseDirectory) !== fs.realpathSync(eventPhaseDirectory),
+    "COVERAGE_DUPLICATE_PHASE",
+  );
   let harnessCommit = null,
     receiptArtifactDigest = null,
     evidenceManifestDigest = null;
@@ -185,6 +208,8 @@ export function projectConfigurationCoverage(args) {
   const executedProofs = [],
     references = [],
     unacceptedExecutionFacts = [];
+  const phaseReferences = {};
+  let postalManifest;
   if (phaseDirectory) {
     const policy = getReleasePolicy("exui-ccd-pilot");
     const loaded = loadRunEvidence(
@@ -202,6 +227,14 @@ export function projectConfigurationCoverage(args) {
     receiptArtifactDigest = digestBytes(receiptBytes);
     evidenceManifestDigest = loaded.evidenceManifestDigest;
     harnessCommit = loaded.input.manifest.harnessCommit;
+    postalManifest = loaded.input.manifest;
+    phaseReferences.ccd = {
+      releaseScopeId: policy.releaseScopeId,
+      runId: postalManifest.runId,
+      receiptArtifactDigest,
+      evidenceManifestDigest,
+      status: loaded.receipt.verdict.status,
+    };
     const verdict = { ...loaded.receipt.verdict, receiptArtifactDigest };
     for (const sequence of input.catalogue.sequences) {
       const obligation = policy.obligations.find(
@@ -263,6 +296,128 @@ export function projectConfigurationCoverage(args) {
       },
     );
   }
+  if (eventPhaseDirectory) {
+    const policy = getReleasePolicy(EVENT_CAPABILITY_SCOPE);
+    const envelope = json(eventPhaseDirectory, "run.json");
+    for (const reference of envelope.executionArtifacts) {
+      const execution = json(eventPhaseDirectory, reference.path);
+      regularBytes(eventPhaseDirectory, execution.resultArtifact.path);
+    }
+    for (const witness of envelope.mutations)
+      regularBytes(eventPhaseDirectory, witness.derivationArtifact.path);
+    const loaded = loadRunEvidence(
+      path.join(eventPhaseDirectory, "run.json"),
+      policy,
+    );
+    const receiptBytes = regularBytes(eventPhaseDirectory, "gate.json");
+    assert.deepEqual(
+      JSON.parse(receiptBytes),
+      loaded.receipt,
+      "COVERAGE_RECEIPT_RECOMPUTATION_MISMATCH",
+    );
+    validateCompleteNativeProofs(loaded.input, policy);
+    validateNativeOutcome(loaded.input, loaded.receipt.verdict);
+    regularBytes(eventPhaseDirectory, "controller-terminal.json");
+    for (const execution of loaded.input.executions)
+      for (const name of [
+        "candidate-write-denial.json",
+        "candidate-lifecycle.json",
+      ])
+        regularBytes(eventPhaseDirectory, execution.invocationId + "/" + name);
+    validateNativePhaseFinalization(
+      eventPhaseDirectory,
+      loaded.input.executions,
+      { code: loaded.receipt.verdict.exitCode, signal: null },
+    );
+    const manifest = loaded.input.manifest;
+    for (const key of [
+      "harnessSourceDigest",
+      "harnessDependencyDigest",
+      "browserDigest",
+    ])
+      assert(
+        /^sha256:[a-f0-9]{64}$/.test(manifest.runtimeMetadata[key] ?? ""),
+        "COVERAGE_EVENT_SOURCE_IDENTITY_REQUIRED",
+      );
+    if (postalManifest) {
+      const comparable = (value) => {
+        const identity = structuredClone(value.identity);
+        delete identity.configurationDigest;
+        delete identity.definitionDigests;
+        return {
+          identity,
+          harnessCommit: value.harnessCommit,
+          runtime: Object.fromEntries(
+            [
+              "harnessSourceState",
+              "harnessSourceDigest",
+              "harnessDependencyDigest",
+              "browserDigest",
+            ].map((key) => [key, value.runtimeMetadata[key]]),
+          ),
+        };
+      };
+      assert.deepEqual(
+        comparable(manifest),
+        comparable(postalManifest),
+        "COVERAGE_CROSS_PHASE_IDENTITY_MISMATCH",
+      );
+    }
+    const imports = bindEventCoverage({
+      harnessRoot,
+      ...input,
+      directory: eventPhaseDirectory,
+      loaded,
+    });
+    const proof = loaded.input.results.find(
+      (item) => item.proofId === EVENT_CAPABILITY_PROOFS.courtadmin,
+    );
+    assert.equal(
+      proof.obligationId,
+      EVENT_CAPABILITY_CELL,
+      "COVERAGE_EVENT_PROOF_MISMATCH",
+    );
+    if (loaded.receipt.verdict.status === "PASS") {
+      assert.equal(proof.outcome, "passed", "COVERAGE_PASSED_PROOF_REQUIRED");
+      executedProofs.push({
+        obligationId: EVENT_CAPABILITY_CELL,
+        boundary: "ccd",
+        status: "passed",
+      });
+    } else
+      unacceptedExecutionFacts.push({
+        obligationId: EVENT_CAPABILITY_CELL,
+        gateStatus: loaded.receipt.verdict.status,
+        proofId: proof.proofId,
+        outcome: proof.outcome,
+        failureId: proof.failureId,
+      });
+    harnessCommit ??= manifest.harnessCommit;
+    phaseReferences.eventCapability = {
+      releaseScopeId: policy.releaseScopeId,
+      runId: manifest.runId,
+      receiptArtifactDigest: digestBytes(receiptBytes),
+      evidenceManifestDigest: loaded.evidenceManifestDigest,
+      status: loaded.receipt.verdict.status,
+      imports,
+    };
+    references.push(
+      {
+        path: path.join("eventCapability", "run.json"),
+        digest: digestBytes(regularBytes(eventPhaseDirectory, "run.json")),
+      },
+      {
+        path: path.join("eventCapability", "gate.json"),
+        digest: digestBytes(receiptBytes),
+      },
+      ...imports.map(({ path, digest }) => ({ path, digest })),
+    );
+  }
+  assert.equal(
+    new Set(executedProofs.map((item) => item.obligationId)).size,
+    executedProofs.length,
+    "COVERAGE_DUPLICATE_ATTRIBUTION",
+  );
   const report = validateConfigurationCatalogue({
     ...input,
     selectedIds: selection.obligationIds,
@@ -284,12 +439,14 @@ export function projectConfigurationCoverage(args) {
     validationReport: report,
     receiptArtifactDigest,
     evidenceManifestDigest,
+    phaseReferences,
     report: {
       ...report,
       executedProofs,
       evidenceReferences: references,
       unacceptedExecutionFacts,
       provenance,
+      phaseReferences,
     },
   };
 }
@@ -304,6 +461,7 @@ export function writeConfigurationCoverage(args) {
         "phaseDirectory",
         "expected",
         "terminal",
+        "eventPhase",
       ].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
@@ -314,6 +472,7 @@ export function writeConfigurationCoverage(args) {
     phaseDirectory,
     expected,
     terminal,
+    eventPhase,
   } = args;
   if (phaseDirectory) {
     assert(
@@ -332,9 +491,46 @@ export function writeConfigurationCoverage(args) {
     );
     validateCiPhase(phaseDirectory, expected, terminal);
   } else assert(!expected && !terminal, "COVERAGE_PHASE_REQUIRED");
+  if (eventPhase) {
+    assert.deepEqual(
+      Object.keys(eventPhase).sort(),
+      ["directory", "expected", "terminal"],
+      "COVERAGE_EVENT_PHASE_FIELDS",
+    );
+    const {
+      directory,
+      expected: eventExpected,
+      terminal: eventTerminal,
+    } = eventPhase;
+    assert(
+      eventExpected && eventTerminal && eventExpected.nativeAuthority === true,
+      "COVERAGE_OBSERVED_NATIVE_PHASE_REQUIRED",
+    );
+    for (const key of [
+      "harnessSourceDigest",
+      "harnessDependencyDigest",
+      "browserDigest",
+    ])
+      assert(
+        /^sha256:[a-f0-9]{64}$/.test(eventExpected[key] ?? ""),
+        "COVERAGE_EVENT_EXPECTED_IDENTITY_REQUIRED",
+      );
+    assert.equal(
+      eventExpected.releaseScopeId,
+      EVENT_CAPABILITY_SCOPE,
+      "COVERAGE_EVENT_SCOPE_MISMATCH",
+    );
+    assert.equal(
+      digestBytes(regularBytes(directory, "gate.json")),
+      eventExpected.receiptArtifactDigest,
+      "COVERAGE_RECEIPT_TRANSPORT_MISMATCH",
+    );
+    validateCiPhase(directory, eventExpected, eventTerminal);
+  }
   const projected = projectConfigurationCoverage({
     harnessRoot,
     phaseDirectory,
+    eventPhaseDirectory: eventPhase?.directory,
   });
   writeJsonAtomic(path.join(output, "catalogue.json"), projected.catalogue);
   writeJsonAtomic(path.join(output, "selection.json"), projected.selection);

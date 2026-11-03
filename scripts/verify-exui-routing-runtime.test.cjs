@@ -133,8 +133,10 @@ test("support only: non-CCD policies stay unchanged, CCD requires role removal, 
     derive: async () => {},
     start: async () => {},
     stop: async () => {},
+    startEvent: async () => {},
+    stopEvent: async () => {},
   });
-  assert.deepEqual(calls, ["family", "scope", "ccd"]);
+  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability"]);
 });
 
 test("support only: scoped real Node guard admits PCS NoC but denies UI/other origins and keeps old scopes unchanged", () => {

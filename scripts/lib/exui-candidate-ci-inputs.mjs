@@ -214,6 +214,7 @@ export async function prepareCiJob(job, output) {
       family: waSourceDigest,
       scope: waSourceDigest,
       ccd: sourceDigest(CCD_HARNESS_SOURCE_FILES),
+      eventCapability: sourceDigest(CCD_HARNESS_SOURCE_FILES),
     },
     job,
     nativeRuntime: observations.nativeRuntime,

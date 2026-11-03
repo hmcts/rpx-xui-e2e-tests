@@ -664,16 +664,34 @@ async function nativePresentationFixture(blocked = true) {
       catalogueDigest: `sha256:${objectDigest(catalogue.obligations)}`,
       selected: catalogue.obligations.length,
       candidate: 0,
-      ccd: blocked ? 0 : 1,
-      creditedObligationIds: blocked ? [] : [catalogue.sequences[0].id],
-      missing: catalogue.obligations.length - (blocked ? 0 : 1),
+      ccd: blocked ? 1 : 2,
+      creditedObligationIds: [
+        ...(blocked ? [] : [catalogue.sequences[0].id]),
+        "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+      ],
+      missing: catalogue.obligations.length - (blocked ? 1 : 2),
       sourceArtifactDigests,
+      phaseReferences: Object.fromEntries(
+        ["ccd", "eventCapability"].map((phase) => [
+          phase,
+          {
+            releaseScopeId:
+              phase === "ccd"
+                ? "exui-ccd-pilot"
+                : "exui-ccd-event-capability-pilot",
+            runId: "candidate-11111111-1111-4111-8111-111111111111",
+            receiptArtifactDigest: hash,
+            status: blocked && phase === "ccd" ? "BLOCKED" : "PASS",
+          },
+        ]),
+      ),
       releaseCredit: false,
     },
     phases: Object.entries({
       family: "exui-wa-family-pilot",
       scope: "exui-wa-scope-pilot",
       ccd: "exui-ccd-pilot",
+      eventCapability: "exui-ccd-event-capability-pilot",
     }).map(([phase, scope]) => {
       const policy = getReleasePolicy(scope);
       return {
@@ -722,7 +740,7 @@ async function nativePresentationFixture(blocked = true) {
   };
 }
 
-test("same Odhin document separates seven native baselines and seven faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
+test("same Odhin document separates nine native baselines and eight faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
   sandbox(t);
   const Reporter = api();
   const reporter = new Reporter({ selection: "local-aat" });
@@ -753,8 +771,8 @@ test("same Odhin document separates seven native baselines and seven faults from
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 7);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 7);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 9);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 8);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,
@@ -772,7 +790,7 @@ test("same Odhin document separates seven native baselines and seven faults from
   );
   assert.match(
     dom.querySelector("[data-runtime-obligations]").textContent,
-    /0 \/ 112/,
+    /1 \/ 112/,
   );
   assert.equal(Reporter.validatePublicReport().tests, 121);
   assert.equal(
@@ -798,7 +816,10 @@ test("native PASS does not manufacture postal failure and unknown proofs cannot 
     /data-native-status="FAIL"/,
   );
   value.phases[0].baselineProofs[0].proofId = canary;
-  assert.throws(() => renderNativeEvidence(value), /UNKNOWN_NATIVE_PROOF/);
+  assert.throws(
+    () => renderNativeEvidence(value),
+    /UNKNOWN_NATIVE_PROOF|COMPLETE_NATIVE_PROOFS_REQUIRED/,
+  );
 });
 
 test("catalogue coverage reflects only accepted exact requirements and rejects inconsistent accounting", async () => {
@@ -813,10 +834,10 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
     });
     assert.ok(
       html.includes(
-        `${blocked ? 0 : 1} / 112 catalogue requirements satisfied by accepted runtime evidence`,
+        `${blocked ? 1 : 2} / 112 catalogue requirements satisfied by accepted runtime evidence`,
       ),
     );
-    assert.ok(html.includes(`${blocked ? 112 : 111} remain unsatisfied`));
+    assert.ok(html.includes(`${blocked ? 111 : 110} remain unsatisfied`));
     assert.ok(!html.includes("candidate and CCD checks NOT RUN"));
   }
   for (const change of [
@@ -841,7 +862,9 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
       evidence.catalogueCoverage.releaseCredit = true;
     },
     (evidence) => {
-      evidence.status = "BLOCKED";
+      evidence.phases.find(
+        (phase) => phase.phase === "eventCapability",
+      ).status = "FAIL";
     },
   ]) {
     const nativeEvidence = await nativePresentationFixture(false);
@@ -1001,5 +1024,21 @@ test("HTML integrity binds the full native projection and diagnostic source, not
   assert.equal(
     Reporter.validatePublicReport().nativeEvidence.status,
     "BLOCKED",
+  );
+});
+
+test("four-phase presentation cannot relabel historical or partial native collections", async () => {
+  const { renderNativeEvidence } = require("./harness-native-report.cjs");
+  const value = await nativePresentationFixture();
+  value.phases.pop();
+  assert.throws(
+    () => renderNativeEvidence(value),
+    /NATIVE_CATALOGUE_MISMATCH|COMPLETE_NATIVE_PHASES_REQUIRED/,
+  );
+  const partial = await nativePresentationFixture();
+  partial.phases[3].baselineProofs.pop();
+  assert.throws(
+    () => renderNativeEvidence(partial),
+    /COMPLETE_NATIVE_PROOFS_REQUIRED/,
   );
 });

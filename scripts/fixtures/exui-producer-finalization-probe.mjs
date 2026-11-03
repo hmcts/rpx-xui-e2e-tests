@@ -80,6 +80,7 @@ export function hostDocker(args) {
     Os: 'linux', Architecture: 'arm64', RepoDigests: [reference] }]);
 }
 export function inspectHostContainer() { throw Error('PROBE_UNEXPECTED_INSPECTION'); }
+export function assertCandidateWriteDenial() { throw Error('PROBE_UNEXPECTED_WRITE_DENIAL'); }
 export async function runHostInvocation(spec, options) {
   const definition = getReleasePolicy('exui-wa-family-pilot').mutationDefinitions[0];
   const mutant = spec.invocationId !== 'baseline';
@@ -118,7 +119,7 @@ childProcess.spawnSync = (command, args) => {
 childProcess.spawn = () => { throw Error('PROBE_UNEXPECTED_PROCESS'); };
 syncBuiltinESMExports();
 const replacements = {
-  'exui-host-invocation.mjs': ['hostDocker', 'inspectHostContainer', 'runHostInvocation', 'removeHostResource'],
+  'exui-host-invocation.mjs': ['hostDocker', 'inspectHostContainer', 'runHostInvocation', 'removeHostResource', 'assertCandidateWriteDenial'],
   'exui-harness-dependencies.mjs': ['verifyHarnessDependencies'],
   'exui-oci-extraction.mjs': ['withOwnedImageExtraction'],
   'exui-configuration-catalogue.mjs': ['assertCandidateConfigurationSources'],

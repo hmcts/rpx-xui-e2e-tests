@@ -48,18 +48,19 @@ async function fixture(
   const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
   const { nativeInvocations } = await import("./lib/exui-native-contract.mjs");
   const { loadRunEvidence } = await import("./lib/exui-evidence-io.mjs");
-  const identity = {
-    webappCommit: "a".repeat(40),
-    artifactDigest: hash("a"),
-    dependencyLockDigest: hash("b"),
-    toolkitVersion: "7.4.21",
-    toolkitDigest: hash("c"),
-    configurationDigest: hash("d"),
-    definitionDigests: { Example: hash("e") },
-    dependencyIdentities: {
-      ccd: { artifactDigest: hash("f"), apiContractDigest: hash("1") },
-    },
-  };
+  const event =
+    await require("./fixtures/exui-event-transition-evidence.mock.cjs").createEventTransitionFixture(
+      t,
+      { root: path.join(directory, "private") },
+    );
+  const identity = structuredClone(event.expected.identity);
+  if (unknownFailure) {
+    event.baseline.report.status = "failed";
+    event.baseline.report.tests[0].status = "failed";
+    event.baseline.report.tests[0].failureId = canary;
+    event.baseline.execution.runnerExitCode = 1;
+    event.write();
+  }
   const expected = {
     jobRunId: "ci-" + randomUUID(),
     harnessCommit: "b".repeat(40),
@@ -70,10 +71,6 @@ async function fixture(
     path.join(__dirname, "fixtures/ccd/nested-prl.binding.json"),
   );
   identity.definitionDigests.HarnessNestedPRL = binding.workbookDigest;
-  identity.dependencyIdentities["ccd-definition"] = {
-    artifactDigest: hash("5"),
-    apiContractDigest: hash("6"),
-  };
   const observed = { id: "HarnessNestedPRL", version: { number: 1 } };
   const imported = {
     status: 201,
@@ -115,9 +112,9 @@ async function fixture(
       requiredObligationIds: policy.requiredObligationIds,
       runtimeMetadata: {
         harnessSourceState: "clean",
-        harnessSourceDigest: hash("2"),
-        harnessDependencyDigest: hash("3"),
-        browserDigest: hash("4"),
+        harnessSourceDigest: event.expected.harnessSourceDigest,
+        harnessDependencyDigest: event.expected.harnessDependencyDigest,
+        browserDigest: event.expected.browserDigest,
         isolation: "native-separate-api-owned-network-none",
         privateCanary: canary,
         ...(phase === "ccd"
@@ -157,17 +154,10 @@ async function fixture(
           ["ccd-postal-two-roundtrip", "ccd-postal-child-loss"].includes(
             proofId,
           );
-        const status =
-          definition ||
-          postal ||
-          (unknownFailure && proofId === "ccd-role-policy")
-            ? "failed"
-            : "passed";
+        const status = definition || postal || false ? "failed" : "passed";
         const failureId = postal
           ? "postal-required-fields"
-          : unknownFailure && proofId === "ccd-role-policy"
-            ? canary
-            : (definition?.expectedFailureId ?? null);
+          : (definition?.expectedFailureId ?? null);
         return {
           proofId,
           expectedStatus: "passed",
@@ -199,7 +189,7 @@ async function fixture(
           releaseScopeId,
           policyDigest: policy.policyDigest,
           harnessSourceState: "clean",
-          harnessSourceDigest: hash("2"),
+          harnessSourceDigest: event.expected.harnessSourceDigest,
         },
         complete: true,
         status,
@@ -256,9 +246,9 @@ async function fixture(
         releaseScopeId,
         policyDigest: policy.policyDigest,
         identity,
-        harnessSourceDigest: hash("2"),
-        harnessDependencyDigest: hash("3"),
-        browserDigest: hash("4"),
+        harnessSourceDigest: event.expected.harnessSourceDigest,
+        harnessDependencyDigest: event.expected.harnessDependencyDigest,
+        browserDigest: event.expected.browserDigest,
         nativeAuthority: true,
         evidenceManifestDigest: loaded.evidenceManifestDigest,
         receiptArtifactDigest,
@@ -271,7 +261,22 @@ async function fixture(
     });
     delete phaseResults.at(-1).reasons;
   }
-  const last = phaseResults.at(-1);
+  expected.phases.push({
+    phase: "eventCapability",
+    policy: event.policy,
+    terminal: { code: unknownFailure ? 1 : 0, signal: null },
+    expected: event.expected,
+  });
+  phaseResults.push({
+    phase: "eventCapability",
+    status: unknownFailure ? "FAIL" : "PASS",
+    exitCode: unknownFailure ? 1 : 0,
+    receiptArtifactDigest: event.expected.receiptArtifactDigest,
+    eventTransition: event.expected.eventTransition,
+  });
+  const last = phaseResults.reduce((worst, item) =>
+    item.exitCode > worst.exitCode ? item : worst,
+  );
   expected.ciResultDigest = write(
     path.join(directory, "private/ci-result.json"),
     {
@@ -289,6 +294,7 @@ async function fixture(
   return {
     root,
     directory,
+    event,
     descriptor,
     descriptorPath,
     save: () => write(descriptorPath, descriptor),
@@ -340,14 +346,18 @@ async function rewriteCcd(f, mutate) {
   });
   const resultFile = path.join(f.directory, "private/ci-result.json");
   const result = read(resultFile);
-  result.status = loaded.receipt.verdict.status;
-  result.exitCode = loaded.receipt.verdict.exitCode;
+  const changedStatus = loaded.receipt.verdict.status;
+  const changedExit = loaded.receipt.verdict.exitCode;
   result.phaseResults[2] = {
     phase: "ccd",
-    status: result.status,
-    exitCode: result.exitCode,
+    status: changedStatus,
+    exitCode: changedExit,
     receiptArtifactDigest: receiptDigest,
   };
+  result.exitCode = Math.max(
+    ...result.phaseResults.map((item) => item.exitCode),
+  );
+  result.status = ["PASS", "FAIL", "BLOCKED"][result.exitCode];
   f.descriptor.expected.ciResultDigest = write(resultFile, result);
   f.save();
   return loaded;
@@ -362,8 +372,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 7);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 7);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 9);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 8);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -411,10 +421,11 @@ test("unknown private failure identifiers never enter the safe projection", asyn
   const result = await (
     await load()
   ).readNativeReportEvidence(f.descriptorPath);
-  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.status, "FAIL");
   assert.equal(
-    result.phases[2].baselineProofs.find((p) => p.proofId === "ccd-role-policy")
-      .failureId,
+    result.phases[3].baselineProofs.find(
+      (p) => p.proofId === "ccd-courtadmin-email-one",
+    ).failureId,
     null,
   );
   assert.doesNotMatch(JSON.stringify(result), new RegExp(canary));
@@ -639,16 +650,16 @@ for (const postalFailure of [false, true])
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
     assert.equal(coverage.candidate, 0);
-    assert.equal(coverage.ccd, postalFailure ? 0 : 1);
-    assert.deepEqual(
-      coverage.creditedObligationIds,
-      postalFailure
+    assert.equal(coverage.ccd, postalFailure ? 1 : 2);
+    assert.deepEqual(coverage.creditedObligationIds, [
+      ...(postalFailure
         ? []
         : [
             "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
-          ],
-    );
-    assert.equal(coverage.missing, postalFailure ? 112 : 111);
+          ]),
+      "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+    ]);
+    assert.equal(coverage.missing, postalFailure ? 111 : 110);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(
@@ -671,5 +682,66 @@ test("native accounting cannot bypass imported source binding on a complete BLOC
   await assert.rejects(
     (await load()).readNativeReportEvidence(f.descriptorPath),
     /NATIVE_REPORT_INVALID_EVIDENCE/,
+  );
+});
+
+test("a later accepted phase cannot hide the postal blocker, and a failed new cell earns no credit", async (t) => {
+  const api = await load();
+  for (const postalFailure of [false, true]) {
+    const f = await fixture(t, { postalFailure, unknownFailure: true });
+    const result = await api.readNativeReportEvidence(f.descriptorPath);
+    assert.equal(result.status, postalFailure ? "BLOCKED" : "FAIL");
+    assert.equal(result.exitCode, postalFailure ? 2 : 1);
+    assert.equal(result.phases[3].status, "FAIL");
+    assert.equal(result.catalogueCoverage.ccd, postalFailure ? 0 : 1);
+    assert(
+      !result.catalogueCoverage.creditedObligationIds.some((id) =>
+        id.startsWith("configuration-cell:"),
+      ),
+    );
+  }
+});
+
+test("unrelated CCD failures cannot be treated as the known postal continuation", async (t) => {
+  const f = await fixture(t);
+  await rewriteCcd(f, ({ executions, reports }) => {
+    reports[0].status = "failed";
+    const proof = reports[0].tests.find(
+      (item) => item.proofId === "ccd-role-policy",
+    );
+    proof.status = "failed";
+    proof.failureId = "role-policy-denial";
+    executions[0].runnerExitCode = 1;
+  });
+  await assert.rejects(
+    (await load()).readNativeReportEvidence(f.descriptorPath),
+    /CCD_POSTAL_ONLY_BLOCK_REQUIRED/,
+  );
+});
+
+test("rehashed transition claims still require the independent before-fault capture", async (t) => {
+  const f = await fixture(t);
+  f.event.parent.capturedBeforeFault = false;
+  f.event.write();
+  const ciPath = path.join(f.directory, "private/ci-result.json");
+  const ci = read(ciPath);
+  ci.phaseResults[3].eventTransition = f.event.expected.eventTransition;
+  ci.phaseResults[3].receiptArtifactDigest =
+    f.event.expected.receiptArtifactDigest;
+  f.descriptor.expected.ciResultDigest = write(ciPath, ci);
+  f.save();
+  await assert.rejects(
+    (await load()).readNativeReportEvidence(f.descriptorPath),
+    /NATIVE_REPORT_INVALID_EVIDENCE/,
+  );
+});
+
+test("historical three-phase evidence cannot become a completed four-phase report", async (t) => {
+  const f = await fixture(t);
+  f.descriptor.expected.phases.pop();
+  f.save();
+  await assert.rejects(
+    (await load()).readNativeReportEvidence(f.descriptorPath),
+    /PHASE_SELECTION_REQUIRED/,
   );
 });

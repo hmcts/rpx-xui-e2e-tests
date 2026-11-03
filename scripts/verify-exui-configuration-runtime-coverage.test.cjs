@@ -30,18 +30,45 @@ test("support only: committed source projections load112 obligations without an 
     assert.equal(result.coverage.ccd, 0);
     assert.equal(result.coverage.missingCandidateOrCcd.length, 112);
     assert.equal(result.releaseCredit, false);
-    assert.equal(result.gaps.filter(x => x.startsWith("deployment-runtime-unproved:")).length, 45);
-    const coverage = JSON.parse(fs.readFileSync(path.join(output, "coverage.json")));
-    assert.deepEqual(coverage.provenance.deploymentSourceManifest, loaded.catalogue.deploymentSourceManifest);
+    assert.equal(
+      result.gaps.filter((x) => x.startsWith("deployment-runtime-unproved:"))
+        .length,
+      45,
+    );
+    const coverage = JSON.parse(
+      fs.readFileSync(path.join(output, "coverage.json")),
+    );
+    assert.deepEqual(
+      coverage.provenance.deploymentSourceManifest,
+      loaded.catalogue.deploymentSourceManifest,
+    );
     assert.equal(coverage.provenance.deploymentSourceManifest.length, 4);
-    assert.equal(coverage.provenance.definitionDiscovery.evidenceMode, "pinned-summary");
+    assert.equal(
+      coverage.provenance.definitionDiscovery.evidenceMode,
+      "pinned-summary",
+    );
     assert.equal(coverage.provenance.definitionDiscovery.graphAvailable, false);
-    assert(coverage.gaps.includes("definition-discovery-graph-unavailable:prl-ccd-definitions"));
-    assert.equal(coverage.gaps.filter(item => item.startsWith("unreviewed-deployment-family:")).length, 9);
-    const selection = JSON.parse(fs.readFileSync(path.join(output, "selection.json")));
+    assert(
+      coverage.gaps.includes(
+        "definition-discovery-graph-unavailable:prl-ccd-definitions",
+      ),
+    );
+    assert.equal(
+      coverage.gaps.filter((item) =>
+        item.startsWith("unreviewed-deployment-family:"),
+      ).length,
+      9,
+    );
+    const selection = JSON.parse(
+      fs.readFileSync(path.join(output, "selection.json")),
+    );
     assert.equal(selection.mode, "broad");
     assert.equal(selection.obligationIds.length, 112);
-    assert(coverage.gaps.includes("unreviewed-deployment-family:preview:JURISDICTIONS:PT"));
+    assert(
+      coverage.gaps.includes(
+        "unreviewed-deployment-family:preview:JURISDICTIONS:PT",
+      ),
+    );
     assert.throws(
       () =>
         api.writeConfigurationCoverage({
@@ -58,7 +85,11 @@ test("support only: committed source projections load112 obligations without an 
   }
 });
 
-async function completeCcdBundle(root) {
+async function completeCcdBundle(
+  root,
+  referenceManifest,
+  alterManifest = () => {},
+) {
   const { completeRun } = require("./fixtures/exui-release-evidence.mock.cjs");
   const { reportContext } = require("./fixtures/exui-evidence-bundle.mock.cjs");
   const { digestBytes, loadRunEvidence } =
@@ -73,6 +104,10 @@ async function completeCcdBundle(root) {
   const binding = JSON.parse(
     fs.readFileSync("scripts/fixtures/ccd/nested-prl.binding.json"),
   );
+  Object.assign(manifest.runtimeMetadata, {
+    harnessDependencyDigest: "sha256:" + "a".repeat(64),
+    browserDigest: "sha256:" + "b".repeat(64),
+  });
   manifest.releaseScopeId = policy.releaseScopeId;
   manifest.policyDigest = policy.policyDigest;
   manifest.requiredObligationIds = policy.requiredObligationIds;
@@ -89,6 +124,22 @@ async function completeCcdBundle(root) {
       apiContractDigest: "sha256:" + "4".repeat(64),
     },
   };
+  if (referenceManifest) {
+    manifest.harnessCommit = referenceManifest.harnessCommit;
+    manifest.identity = {
+      ...structuredClone(referenceManifest.identity),
+      configurationDigest: manifest.identity.configurationDigest,
+      definitionDigests: manifest.identity.definitionDigests,
+    };
+    for (const key of [
+      "harnessSourceState",
+      "harnessSourceDigest",
+      "harnessDependencyDigest",
+      "browserDigest",
+    ])
+      manifest.runtimeMetadata[key] = referenceManifest.runtimeMetadata[key];
+  }
+  alterManifest(manifest);
   const observed = { id: "HarnessNestedPRL", version: { number: 1 } };
   const imported = {
     binding,
@@ -257,7 +308,11 @@ test("support only: finalized exact CCD sequence credits only one of112 and pres
     assert.equal(result.coverage.model, 0);
     assert.equal(result.coverage.external, 0);
     assert.equal(result.coverage.missingCandidateOrCcd.length, 111);
-    assert(result.coverage.missingCandidateOrCcd.includes("configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861"));
+    assert(
+      result.coverage.missingCandidateOrCcd.includes(
+        "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861",
+      ),
+    );
     assert(!result.coverage.missingCandidateOrCcd.includes(id));
     const saved = JSON.parse(
       fs.readFileSync(path.join(output, "coverage.json")),
@@ -307,6 +362,7 @@ test("support only: actual CI accounting block bridges an independently captured
       "result",
       "name",
       "phaseResults",
+      "context",
       block,
     );
     const phases = [];
@@ -321,6 +377,7 @@ test("support only: actual CI accounting block bridges an independently captured
         result,
         "ccd",
         phases,
+        {},
       ).status,
       "PASS",
     );
@@ -617,7 +674,6 @@ for (const fault of [
     },
   );
 
-
 test("support only: native committed-summary loading needs no source checkout or parsing dependencies", () => {
   const { execFileSync } = require("node:child_process");
   const program = `
@@ -637,5 +693,638 @@ test("support only: native committed-summary loading needs no source checkout or
     const loaded = loadCommittedConfigurationCatalogue();
     if (loaded.catalogue.obligations.length !== 112 || loaded.validation.errors.length || loaded.catalogue.definitionDiscovery.graphAvailable !== false) process.exit(2);
   `;
-  execFileSync(process.execPath, ["--input-type=module", "-e", program], { cwd: path.resolve("."), stdio: "pipe" });
+  execFileSync(process.execPath, ["--input-type=module", "-e", program], {
+    cwd: path.resolve("."),
+    stdio: "pipe",
+  });
+});
+
+const eventCell =
+  "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313";
+async function completeEventBundle(root) {
+  const {
+    createEventTransitionFixture,
+  } = require("./fixtures/exui-event-transition-evidence.mock.cjs");
+  return createEventTransitionFixture(undefined, { root });
+}
+
+test("support only: complete event phase credits the exact courtadmin cell without changing112 obligations", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const { digestBytes } = await import("./lib/exui-evidence-io.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-event-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const event = await completeEventBundle(root);
+  const before =
+    api.loadCommittedConfigurationCatalogue().catalogue.obligations;
+  assert.equal(
+    digestBytes(JSON.stringify(before)),
+    "sha256:6a2953d46a5082360397549d790e35f11d59e46ef353cd49a588b0497822f377",
+  );
+  const projected = api.projectConfigurationCoverage({
+    eventPhaseDirectory: event.directory,
+  });
+  assert.deepEqual(projected.catalogue.obligations, before);
+  assert.deepEqual(projected.report.executedProofs, [
+    { obligationId: eventCell, boundary: "ccd", status: "passed" },
+  ]);
+  assert.equal(projected.report.coverage.ccd, 1);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 111);
+  assert.equal(projected.report.releaseCredit, false);
+  assert.equal(
+    projected.phaseReferences.eventCapability.receiptArtifactDigest,
+    event.expected.receiptArtifactDigest,
+  );
+  const result = api.writeConfigurationCoverage({
+    output: path.join(root, "coverage"),
+    eventPhase: {
+      directory: event.directory,
+      expected: event.expected,
+      terminal: event.terminal,
+    },
+  });
+  assert.equal(result.coverage.ccd, 1);
+});
+
+async function refreshEventBundle(bundle, edit) {
+  const { digestBytes, loadRunEvidence } =
+    await import("./lib/exui-evidence-io.mjs");
+  const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
+  const file = path.join(bundle.directory, "run.json"),
+    run = JSON.parse(fs.readFileSync(file));
+  for (const ref of run.executionArtifacts) {
+    const executionPath = path.join(bundle.directory, ref.path),
+      execution = JSON.parse(fs.readFileSync(executionPath));
+    const reportPath = path.join(
+        bundle.directory,
+        execution.resultArtifact.path,
+      ),
+      report = JSON.parse(fs.readFileSync(reportPath));
+    edit(report, execution, run);
+    execution.unexpectedGlobalErrors = report.globalErrors;
+    fs.writeFileSync(reportPath, JSON.stringify(report));
+    execution.resultArtifact.digest = digestBytes(fs.readFileSync(reportPath));
+    fs.writeFileSync(executionPath, JSON.stringify(execution));
+    ref.digest = digestBytes(fs.readFileSync(executionPath));
+  }
+  fs.writeFileSync(file, JSON.stringify(run));
+  const loaded = loadRunEvidence(
+    file,
+    getReleasePolicy(run.manifest.releaseScopeId),
+  );
+  fs.writeFileSync(
+    path.join(bundle.directory, "gate.json"),
+    JSON.stringify(loaded.receipt),
+  );
+  bundle.expected.receiptArtifactDigest = digestBytes(
+    fs.readFileSync(path.join(bundle.directory, "gate.json")),
+  );
+  bundle.terminal.code = loaded.receipt.verdict.exitCode;
+  fs.writeFileSync(
+    path.join(bundle.directory, "controller-terminal.json"),
+    JSON.stringify({
+      status: "completed",
+      exitCode: bundle.terminal.code,
+      cleanupComplete: true,
+    }),
+  );
+  return loaded.receipt;
+}
+
+for (const oldBlocked of [false, true])
+  test(
+    "support only: event union preserves postal " +
+      (oldBlocked
+        ? "BLOCKED without overall approval"
+        : "PASS as a separate accepted sequence"),
+    async (t) => {
+      const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+      const root = fs.mkdtempSync(
+        path.join(fs.realpathSync(os.tmpdir()), "coverage-union-"),
+      );
+      t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+      const event = await completeEventBundle(root),
+        postal = await completeCcdBundle(root, event.manifest);
+      if (oldBlocked)
+        postal.terminal = await refinalizeBlockedBundle(
+          postal,
+          (report, execution) => {
+            const test = report.tests.find(
+              (x) => x.proofId === "ccd-postal-two-roundtrip",
+            );
+            if (test) {
+              test.status = "failed";
+              test.failureId = "postal-required-fields";
+              report.status = "failed";
+              execution.runnerExitCode = 1;
+            }
+          },
+        );
+      const before = fs.readFileSync(path.join(postal.directory, "gate.json"));
+      const projected = api.projectConfigurationCoverage({
+        phaseDirectory: postal.directory,
+        eventPhaseDirectory: event.directory,
+      });
+      assert.equal(projected.report.coverage.ccd, oldBlocked ? 1 : 2);
+      assert.equal(
+        projected.report.coverage.missingCandidateOrCcd.length,
+        oldBlocked ? 111 : 110,
+      );
+      assert.equal(
+        projected.phaseReferences.ccd.status,
+        oldBlocked ? "BLOCKED" : "PASS",
+      );
+      assert.equal(projected.phaseReferences.eventCapability.status, "PASS");
+      assert.equal(projected.report.releaseCredit, false);
+      assert.deepEqual(
+        fs.readFileSync(path.join(postal.directory, "gate.json")),
+        before,
+      );
+      const result = api.writeConfigurationCoverage({
+        output: path.join(root, "coverage"),
+        phaseDirectory: postal.directory,
+        expected: postal.expected,
+        terminal: postal.terminal,
+        eventPhase: {
+          directory: event.directory,
+          expected: event.expected,
+          terminal: event.terminal,
+        },
+      });
+      assert.equal(result.coverage.ccd, oldBlocked ? 1 : 2);
+    },
+  );
+
+for (const fault of [
+  "judge-failed",
+  "courtadmin-failed",
+  "wrong-mutation-failure",
+])
+  test(
+    "support only: passed courtadmin cannot credit a coherently unsuccessful event phase " +
+      fault,
+    async (t) => {
+      const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+      const root = fs.mkdtempSync(
+        path.join(fs.realpathSync(os.tmpdir()), "coverage-event-outcome-"),
+      );
+      t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+      const b = await completeEventBundle(root);
+      const receipt = await refreshEventBundle(b, (report, execution) => {
+        const target =
+          fault === "judge-failed"
+            ? "ccd-event-create-denied"
+            : fault === "courtadmin-failed"
+              ? "ccd-courtadmin-email-one"
+              : "ccd-event-create-enabled";
+        const test = report.tests.find((x) => x.proofId === target);
+        if (test) {
+          test.status = "failed";
+          test.failureId = "different-assertion";
+          report.status = "failed";
+          execution.runnerExitCode = 1;
+        }
+      });
+      assert.notEqual(receipt.verdict.status, "PASS");
+      const p = api.projectConfigurationCoverage({
+        eventPhaseDirectory: b.directory,
+      });
+      assert.equal(p.report.coverage.ccd, 0);
+      assert.equal(p.report.coverage.missingCandidateOrCcd.length, 112);
+      assert.deepEqual(p.report.executedProofs, []);
+      assert.equal(
+        p.report.unacceptedExecutionFacts[0].gateStatus,
+        receipt.verdict.status,
+      );
+    },
+  );
+
+for (const fault of [
+  "retry",
+  "skipped",
+  "missing-proof",
+  "wrong-proof",
+  "interrupted",
+  "incomplete-cleanup",
+  "wrong-import",
+  "swapped-import",
+  "observed-acl",
+  "missing-import",
+  "aliased-import",
+  "namespace-reuse",
+  "role-alias",
+  "extra-derivation-change",
+  "wrong-receipt",
+  "wrong-expected",
+  "wrong-terminal",
+])
+  test("support only: exact event coverage rejects " + fault, async (t) => {
+    const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+    const root = fs.mkdtempSync(
+      path.join(fs.realpathSync(os.tmpdir()), "coverage-event-negative-"),
+    );
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const b = await completeEventBundle(root);
+    const change = (relative, edit) => {
+      const file = path.join(root, relative),
+        value = JSON.parse(fs.readFileSync(file));
+      edit(value);
+      fs.writeFileSync(file, JSON.stringify(value));
+    };
+    if (["retry", "skipped", "missing-proof", "wrong-proof"].includes(fault)) {
+      try {
+        await refreshEventBundle(b, (r, e) => {
+          if (e.kind !== "baseline") return;
+          if (fault === "retry") r.tests[0].retry = 1;
+          if (fault === "skipped") r.tests[0].status = "skipped";
+          if (fault === "missing-proof") r.tests.pop();
+          if (fault === "wrong-proof")
+            r.tests[0].proofId = "ccd-postal-two-roundtrip";
+        });
+      } catch (error) {
+        assert.match(
+          error.message,
+          /MISSING_OR_RETRIED_MUTATION_PROOF|UNKNOWN_OR_EXPECTED_FAILURE_PROOF/,
+        );
+      }
+    }
+    if (fault === "interrupted")
+      change("eventCapability/controller-terminal.json", (v) => {
+        v.status = "interrupted";
+      });
+    if (fault === "incomplete-cleanup")
+      change("eventCapability/controller-terminal.json", (v) => {
+        v.cleanupComplete = false;
+      });
+    if (fault === "wrong-import")
+      change("event-baseline-runtime/definition-import.json", (v) => {
+        v.binding.sourceDigest = "sha256:" + "0".repeat(64);
+      });
+    if (fault === "swapped-import")
+      fs.copyFileSync(
+        path.join(root, "event-mutant-runtime/definition-import.json"),
+        path.join(root, "event-baseline-runtime/definition-import.json"),
+      );
+    if (fault === "observed-acl")
+      change("event-mutant-runtime/observed-definition.json", (v) => {
+        v.events.find((x) => x.id === "serviceOfDocuments").acls[0].create =
+          false;
+      });
+    if (fault === "missing-import")
+      fs.unlinkSync(
+        path.join(root, "event-mutant-runtime/definition-import.json"),
+      );
+    if (fault === "aliased-import") {
+      const file = path.join(
+        root,
+        "event-mutant-runtime/definition-import.json",
+      );
+      fs.renameSync(file, file + ".original");
+      fs.symlinkSync(file + ".original", file);
+    }
+    if (fault === "namespace-reuse")
+      change(
+        "eventCapability/ccd-enable-judge-event/runtime-input.json",
+        (v) => {
+          v.ccd.namespace = b.input.ccd.namespace;
+        },
+      );
+    if (fault === "role-alias")
+      change("eventCapability/input.json", (v) => {
+        v.credentials.courtadmin.roles.push("caseworker-harness-allowed");
+      });
+    if (fault === "extra-derivation-change")
+      change("eventCapability/ccd-enable-judge-event/derivation.json", (v) => {
+        v.transformationRecord.after = "CRUD";
+      });
+    if (fault === "wrong-receipt")
+      change("eventCapability/gate.json", (v) => {
+        v.verdict.status = "BLOCKED";
+      });
+    if (fault === "wrong-expected")
+      b.expected.identity = {
+        ...b.expected.identity,
+        artifactDigest: "sha256:" + "0".repeat(64),
+      };
+    if (fault === "wrong-terminal") b.terminal.code = 2;
+    assert.throws(() =>
+      api.writeConfigurationCoverage({
+        output: path.join(root, "coverage"),
+        eventPhase: {
+          directory: b.directory,
+          expected: b.expected,
+          terminal: b.terminal,
+        },
+      }),
+    );
+    assert.equal(
+      fs.existsSync(path.join(root, "coverage/coverage.json")),
+      false,
+    );
+  });
+
+for (const field of [
+  "candidate",
+  "webapp",
+  "harness",
+  "source",
+  "dependencies",
+  "browser",
+  "ccd-image",
+  "ccd-api",
+])
+  test(
+    "support only: independently evaluated phases cannot aggregate a different " +
+      field,
+    async (t) => {
+      const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+      const root = fs.mkdtempSync(
+        path.join(fs.realpathSync(os.tmpdir()), "coverage-mixed-identity-"),
+      );
+      t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+      const event = await completeEventBundle(root);
+      const postal = await completeCcdBundle(
+        root,
+        event.manifest,
+        (manifest) => {
+          const d = "sha256:" + "0".repeat(64);
+          if (field === "candidate") manifest.identity.artifactDigest = d;
+          if (field === "webapp")
+            manifest.identity.webappCommit = "0".repeat(40);
+          if (field === "harness") manifest.harnessCommit = "0".repeat(40);
+          if (field === "source")
+            manifest.runtimeMetadata.harnessSourceDigest = d;
+          if (field === "dependencies")
+            manifest.runtimeMetadata.harnessDependencyDigest = d;
+          if (field === "browser") manifest.runtimeMetadata.browserDigest = d;
+          if (field === "ccd-image")
+            manifest.identity.dependencyIdentities.ccd.artifactDigest = d;
+          if (field === "ccd-api")
+            manifest.identity.dependencyIdentities.ccd.apiContractDigest = d;
+        },
+      );
+      assert.throws(
+        () =>
+          api.projectConfigurationCoverage({
+            phaseDirectory: postal.directory,
+            eventPhaseDirectory: event.directory,
+          }),
+        /COVERAGE_CROSS_PHASE_IDENTITY_MISMATCH/,
+      );
+    },
+  );
+
+test("support only: fixed event source overlap, exact cell and sequence reject substituted attributes", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const { bindEventCoverage } =
+    await import("./lib/exui-event-coverage-binding.mjs");
+  const { loadRunEvidence } = await import("./lib/exui-evidence-io.mjs");
+  const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-cell-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const b = await completeEventBundle(root),
+    committed = api.loadCommittedConfigurationCatalogue();
+  const loaded = loadRunEvidence(
+    path.join(b.directory, "run.json"),
+    getReleasePolicy(b.manifest.releaseScopeId),
+  );
+  for (const change of [
+    (c) => {
+      c.catalogue.pilotCells.find((x) => x.id === eventCell).role =
+        "caseworker-privatelaw-judge";
+    },
+    (c) => {
+      c.catalogue.pilotCells.find((x) => x.id === eventCell).channel = "post";
+    },
+    (c) => {
+      c.catalogue.pilotCells.find((x) => x.id === eventCell).recipientCount = 2;
+    },
+    (c) => {
+      c.catalogue.pilotCells.find((x) => x.id === eventCell).action = "read";
+    },
+    (c) => {
+      c.catalogue.obligations
+        .find((x) => x.id === eventCell)
+        .sequence.splice(2, 1);
+    },
+    (c) => {
+      c.snapshot.sources.find((x) =>
+        x.path.endsWith("CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json"),
+      ).fileDigest = "0".repeat(64);
+    },
+    (c) => {
+      c.snapshot.sources.find((x) =>
+        x.path.endsWith("CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json"),
+      ).document[0].PostConditionState = "OTHER";
+    },
+  ]) {
+    const changed = structuredClone(committed);
+    change(changed);
+    assert.throws(
+      () =>
+        bindEventCoverage({
+          harnessRoot: path.resolve("."),
+          ...changed,
+          directory: b.directory,
+          loaded,
+        }),
+      /COVERAGE_EVENT_(CELL|OBLIGATION|SOURCE)/,
+    );
+  }
+});
+
+test("support only: both coherently blocked phases earn zero and duplicate phase input rejects", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-no-credit-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const event = await completeEventBundle(root),
+    postal = await completeCcdBundle(root, event.manifest);
+  postal.terminal = await refinalizeBlockedBundle(postal, (r, e) => {
+    const p = r.tests.find((x) => x.proofId === "ccd-postal-two-roundtrip");
+    if (p) {
+      p.status = "failed";
+      p.failureId = "postal-required-fields";
+      r.status = "failed";
+      e.runnerExitCode = 1;
+    }
+  });
+  await refreshEventBundle(event, (r, e) => {
+    const p = r.tests.find((x) => x.proofId === "ccd-event-create-denied");
+    if (p) {
+      p.status = "failed";
+      p.failureId = "event-metadata";
+      r.status = "failed";
+      e.runnerExitCode = 1;
+    }
+  });
+  const p = api.projectConfigurationCoverage({
+    phaseDirectory: postal.directory,
+    eventPhaseDirectory: event.directory,
+  });
+  assert.equal(p.report.coverage.ccd, 0);
+  assert.equal(p.report.coverage.missingCandidateOrCcd.length, 112);
+  assert.equal(p.phaseReferences.ccd.status, "BLOCKED");
+  assert.equal(p.phaseReferences.eventCapability.status, "BLOCKED");
+  assert.throws(
+    () =>
+      api.projectConfigurationCoverage({
+        phaseDirectory: event.directory,
+        eventPhaseDirectory: event.directory,
+      }),
+    /COVERAGE_DUPLICATE_PHASE/,
+  );
+});
+
+for (const fault of ["namespace", "import-observation", "runtime-record"])
+  test(
+    "support only: coherent fault side-file rewrite cannot escape the sealed derivation " +
+      fault,
+    async (t) => {
+      const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+      const { digestBytes } = await import("./lib/exui-evidence-io.mjs");
+      const root = fs.mkdtempSync(
+        path.join(fs.realpathSync(os.tmpdir()), "coverage-sealed-transition-"),
+      );
+      t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+      const b = await completeEventBundle(root),
+        rtPath = path.join(
+          b.directory,
+          "ccd-enable-judge-event/runtime-input.json",
+        ),
+        manifestPath = path.join(
+          b.directory,
+          "ccd-enable-judge-event/manifest.json",
+        );
+      const rt = JSON.parse(fs.readFileSync(rtPath)),
+        manifest = JSON.parse(fs.readFileSync(manifestPath));
+      if (fault === "namespace") {
+        rt.ccd.namespace = "3".repeat(64);
+        manifest.runtimeMetadata.ccdNamespace = rt.ccd.namespace;
+      }
+      if (fault === "runtime-record")
+        rt.credentials.judge.headers.Authorization =
+          "Bearer different-synthetic-token";
+      if (fault === "import-observation") {
+        const observedPath = path.join(
+            root,
+            "event-mutant-runtime/observed-definition.json",
+          ),
+          importPath = path.join(
+            root,
+            "event-mutant-runtime/definition-import.json",
+          );
+        const observed = JSON.parse(fs.readFileSync(observedPath)),
+          imported = JSON.parse(fs.readFileSync(importPath));
+        observed.version.number = 18;
+        imported.definitionVersion = 18;
+        imported.observedDefinitionDigest = digestBytes(
+          JSON.stringify(observed),
+        );
+        fs.writeFileSync(observedPath, JSON.stringify(observed));
+        fs.writeFileSync(importPath, JSON.stringify(imported));
+        rt.definition.definitionVersion = 18;
+        rt.definition.observedDefinitionDigest =
+          imported.observedDefinitionDigest;
+        rt.definitionImportDigest = digestBytes(fs.readFileSync(importPath));
+        Object.assign(manifest.runtimeMetadata, {
+          definitionVersion: "18",
+          observedDefinitionDigest: imported.observedDefinitionDigest,
+          definitionImportDigest: rt.definitionImportDigest,
+        });
+      }
+      fs.writeFileSync(rtPath, JSON.stringify(rt));
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+      assert.throws(
+        () =>
+          api.projectConfigurationCoverage({
+            eventPhaseDirectory: b.directory,
+          }),
+        /COVERAGE_EVENT_DERIVATION_MISMATCH/,
+      );
+    },
+  );
+
+test("support only: writer requires independent tool/source pins and projection cannot mutate evidence", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const { digestBytes } = await import("./lib/exui-evidence-io.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-independent-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const b = await completeEventBundle(root);
+  const files = [];
+  function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const f = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(f);
+      else files.push(f);
+    }
+  }
+  walk(root);
+  const before = Object.fromEntries(
+    files.map((f) => [f, digestBytes(fs.readFileSync(f))]),
+  );
+  const projected = api.projectConfigurationCoverage({
+    eventPhaseDirectory: b.directory,
+  });
+  assert.equal(projected.report.coverage.ccd, 1);
+  assert.deepEqual(
+    Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),
+    before,
+  );
+  assert.equal(
+    fs.existsSync(path.join(b.directory, "promotion-expected.json")),
+    false,
+  );
+  for (const key of [
+    "harnessSourceDigest",
+    "harnessDependencyDigest",
+    "browserDigest",
+  ]) {
+    const expected = { ...b.expected };
+    delete expected[key];
+    assert.throws(
+      () =>
+        api.writeConfigurationCoverage({
+          output: path.join(root, "coverage"),
+          eventPhase: {
+            directory: b.directory,
+            expected,
+            terminal: b.terminal,
+          },
+        }),
+      /COVERAGE_EVENT_EXPECTED_IDENTITY_REQUIRED/,
+    );
+  }
+  const safe = JSON.stringify(projected.report);
+  for (const privateText of [
+    "Bearer",
+    "synthetic-judge",
+    "headers",
+    "credentials",
+    root,
+  ])
+    assert(!safe.includes(privateText));
+});
+
+test("support only: event raw report aliases are rejected even when in-root bytes and gate digest still match", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-raw-alias-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const b = await completeEventBundle(root),
+    file = path.join(b.directory, "baseline/report.json");
+  fs.renameSync(file, file + ".original");
+  fs.symlinkSync(file + ".original", file);
+  assert.throws(
+    () =>
+      api.projectConfigurationCoverage({ eventPhaseDirectory: b.directory }),
+    /CATALOGUE_INPUT_PATH_ESCAPE/,
+  );
 });

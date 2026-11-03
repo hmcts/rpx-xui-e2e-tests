@@ -3,12 +3,14 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { digestBytes, loadRunEvidence } from "./exui-evidence-io.mjs";
 import { getReleasePolicy } from "./exui-release-policy.mjs";
+import { validatePromotionReceipt } from "./exui-release-evidence.mjs";
 import {
-  validateIdentity,
-  validateProof,
-  validatePromotionReceipt,
-} from "./exui-release-evidence.mjs";
+  validateCompleteNativeProofs,
+  validateNativeOutcome,
+  isKnownPostalBlock,
+} from "./exui-native-proof-validation.mjs";
 import { projectConfigurationCoverage } from "./exui-configuration-runtime-coverage.mjs";
+import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs";
 import { nativeInvocations } from "./exui-native-contract.mjs";
 import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
 
@@ -16,6 +18,7 @@ const scopes = {
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
+  eventCapability: "exui-ccd-event-capability-pilot",
 };
 const hashPattern = /^sha256:[a-f0-9]{64}$/;
 const uuid =
@@ -80,134 +83,6 @@ function validateRawPaths(directory, run) {
   }
   for (const mutation of run.mutations)
     reference(directory, mutation.derivationArtifact);
-}
-function validateCompleteProofs(input, policy) {
-  equal(
-    [...input.manifest.requiredObligationIds].sort(),
-    [...policy.requiredObligationIds].sort(),
-    "POLICY_SELECTION_MISMATCH",
-  );
-  const invocations = nativeInvocations(policy.releaseScopeId);
-  equal(
-    input.executions.map(({ invocationId, kind }) => ({ invocationId, kind })),
-    invocations.map(({ invocationId, kind }) => ({ invocationId, kind })),
-    "INVOCATION_SELECTION_MISMATCH",
-  );
-  const baselineIds = policy.obligations
-    .flatMap((item) => item.requiredProofIds)
-    .sort();
-  equal(
-    input.results.map((item) => item.proofId).sort(),
-    baselineIds,
-    "BASELINE_SELECTION_MISMATCH",
-  );
-  equal(
-    input.mutations.map((item) => item.mutationId).sort(),
-    policy.mutationDefinitions.map((item) => item.mutationId).sort(),
-    "MUTATION_SELECTION_MISMATCH",
-  );
-  const results = [
-    ...input.results,
-    ...input.mutations.map((item) => item.mutantResult),
-  ];
-  const cells = new Map(
-    policy.obligations.flatMap((obligation) =>
-      obligation.requiredProofIds.map((proofId) => [proofId, obligation]),
-    ),
-  );
-  for (const definition of policy.mutationDefinitions)
-    cells.set(
-      definition.mutantProofId,
-      policy.obligations.find(
-        (obligation) => obligation.id === definition.obligationId,
-      ),
-    );
-  for (const result of results) {
-    validateProof(result);
-    const obligation = cells.get(result.proofId);
-    fact(obligation, "UNKNOWN_PROOF");
-    equal(result.obligationId, obligation.id, "PROOF_OBLIGATION_MISMATCH");
-    equal(result.boundary, obligation.boundary, "PROOF_BOUNDARY_MISMATCH");
-    fact(
-      result.complete === true &&
-        result.retryIndex === 0 &&
-        ["passed", "failed"].includes(result.outcome),
-      "INCOMPLETE_PROOF",
-    );
-    fact(
-      result.outcome === "passed"
-        ? result.failureId === null
-        : typeof result.failureId === "string" && result.failureId.length > 0,
-      "UNATTRIBUTED_PROOF",
-    );
-  }
-  for (const execution of input.executions) {
-    validateIdentity(execution.identity);
-    fact(
-      execution.terminalState === "completed" &&
-        execution.unexpectedGlobalErrors.length === 0,
-      "INCOMPLETE_EXECUTION",
-    );
-    const proofs = results.filter(
-      (item) => item.invocationId === execution.invocationId,
-    );
-    fact(proofs.length > 0, "UNREFERENCED_EXECUTION");
-    equal(
-      execution.runnerExitCode,
-      proofs.some((item) => item.outcome === "failed") ? 1 : 0,
-      "EXECUTION_EXIT_MISMATCH",
-    );
-    for (const proof of proofs) {
-      equal(proof.runId, input.manifest.runId, "PROOF_RUN_MISMATCH");
-      equal(proof.identity, execution.identity, "PROOF_IDENTITY_MISMATCH");
-    }
-  }
-  for (const result of input.results) {
-    equal(
-      result.identity,
-      input.manifest.identity,
-      "BASELINE_IDENTITY_MISMATCH",
-    );
-    equal(
-      input.executions.find((item) => item.invocationId === result.invocationId)
-        ?.kind,
-      "baseline",
-      "BASELINE_EXECUTION_MISMATCH",
-    );
-  }
-  for (const witness of input.mutations) {
-    const definition = policy.mutationDefinitions.find(
-      (item) => item.mutationId === witness.mutationId,
-    );
-    equal(witness.runId, input.manifest.runId, "MUTATION_RUN_MISMATCH");
-    equal(
-      witness.obligationId,
-      definition.obligationId,
-      "MUTATION_OBLIGATION_MISMATCH",
-    );
-    equal(
-      witness.mutationDefinitionDigest,
-      definition.definitionDigest,
-      "MUTATION_DEFINITION_MISMATCH",
-    );
-    validateIdentity(witness.baselineIdentity);
-    validateIdentity(witness.mutantIdentity);
-    equal(
-      witness.baselineIdentity,
-      input.manifest.identity,
-      "MUTATION_BASELINE_IDENTITY_MISMATCH",
-    );
-    equal(
-      witness.baselineResult,
-      input.results.find((item) => item.proofId === definition.baselineProofId),
-      "MUTATION_BASELINE_PROOF_MISMATCH",
-    );
-    equal(
-      witness.mutantResult.identity,
-      witness.mutantIdentity,
-      "MUTATION_IDENTITY_MISMATCH",
-    );
-  }
 }
 function phaseProjection(directory, selection, ciPhase, expected) {
   const { phase, policy, terminal } = selection;
@@ -301,28 +176,22 @@ function phaseProjection(directory, selection, ciPhase, expected) {
       status: gate.value.verdict.status,
       exitCode: gate.value.verdict.exitCode,
       receiptArtifactDigest: pin.receiptArtifactDigest,
+      ...(phase === "eventCapability"
+        ? { eventTransition: pin.eventTransition }
+        : {}),
     },
     ciPhase,
     "CI_PHASE_MISMATCH",
   );
-  validateCompleteProofs(loaded.input, policy);
-  // A complete but unsuccessful product/fault observation is reportable. A
-  // structurally rejected evidence set must never credit individual witnesses.
-  const outcomeReasons = new Set([
-    "MUTATION_BASELINE_UNAVAILABLE",
-    "EXPECTED_MUTATION_ASSERTION_MISSING",
-    "MUTANT_CONTENT_IDENTITY_UNCHANGED",
-    ...loaded.input.results
-      .filter((result) => result.outcome === "failed")
-      .map(
-        (result) =>
-          `OBSERVED_FAILED_RESULT:${result.proofId}:${result.failureId}`,
-      ),
-  ]);
-  fact(
-    gate.value.verdict.reasons.every((reason) => outcomeReasons.has(reason)),
-    "STRUCTURAL_EVIDENCE_REJECTED",
-  );
+  validateCompleteNativeProofs(loaded.input, policy);
+  validateNativeOutcome(loaded.input, gate.value.verdict);
+  if (phase === "ccd" && gate.value.verdict.status !== "PASS")
+    fact(
+      isKnownPostalBlock(loaded.input, gate.value.verdict),
+      "CCD_POSTAL_ONLY_BLOCK_REQUIRED",
+    );
+  if (phase === "eventCapability")
+    validateEventTransitionEvidence(directory, pin, loaded.input);
   canonical(path.join(directory, "controller-terminal.json"));
   for (const execution of loaded.input.executions) {
     for (const file of [
@@ -455,17 +324,19 @@ export async function readNativeReportEvidence(descriptorPath) {
     );
     fact(
       phases
-        .slice(0, -1)
+        .slice(0, 2)
         .every((item) => item.status === "PASS" && item.exitCode === 0),
       "FIXED_SEQUENCE_MISMATCH",
     );
+    const worstExit = Math.max(...phases.map((item) => item.exitCode));
     equal(
       { status: ci.status, exitCode: ci.exitCode },
-      { status: phases.at(-1).status, exitCode: phases.at(-1).exitCode },
+      { status: ["PASS", "FAIL", "BLOCKED"][worstExit], exitCode: worstExit },
       "CI_OUTCOME_MISMATCH",
     );
     const accounting = projectConfigurationCoverage({
       phaseDirectory: path.join(directory, "private/ccd"),
+      eventPhaseDirectory: path.join(directory, "private/eventCapability"),
     });
     const ccdPin = expected.phases.find(
       (item) => item.phase === "ccd",
@@ -480,6 +351,22 @@ export async function readNativeReportEvidence(descriptorPath) {
       ccdPin.evidenceManifestDigest,
       "COVERAGE_EVIDENCE_MISMATCH",
     );
+    for (const phase of ["ccd", "eventCapability"]) {
+      const selected = expected.phases.find((item) => item.phase === phase);
+      const ref = accounting.phaseReferences[phase];
+      for (const field of [
+        "releaseScopeId",
+        "runId",
+        "receiptArtifactDigest",
+        "evidenceManifestDigest",
+      ])
+        equal(ref[field], selected.expected[field], "COVERAGE_PHASE_MISMATCH");
+      equal(
+        ref.status,
+        phases.find((item) => item.phase === phase).status,
+        "COVERAGE_PHASE_MISMATCH",
+      );
+    }
     const creditedObligationIds = accounting.report.executedProofs
       .filter((item) => item.status === "passed")
       .map((item) => item.obligationId);
@@ -493,6 +380,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       creditedObligationIds,
       missing: accounting.report.coverage.missingCandidateOrCcd.length,
       sourceArtifactDigests: accounting.report.provenance.sourceArtifactDigests,
+      phaseReferences: accounting.phaseReferences,
       releaseCredit: false,
     };
     const first = expected.phases[0].expected;
@@ -502,9 +390,23 @@ export async function readNativeReportEvidence(descriptorPath) {
         first.harnessSourceDigest,
         "PHASE_SOURCE_MISMATCH",
       );
+      for (const field of ["harnessDependencyDigest", "browserDigest"])
+        equal(pin[field], first[field], "PHASE_TOOLCHAIN_MISMATCH");
       equal(
-        pin.identity.webappCommit,
-        first.identity.webappCommit,
+        {
+          webappCommit: pin.identity.webappCommit,
+          artifactDigest: pin.identity.artifactDigest,
+          dependencyLockDigest: pin.identity.dependencyLockDigest,
+          toolkitVersion: pin.identity.toolkitVersion,
+          toolkitDigest: pin.identity.toolkitDigest,
+        },
+        {
+          webappCommit: first.identity.webappCommit,
+          artifactDigest: first.identity.artifactDigest,
+          dependencyLockDigest: first.identity.dependencyLockDigest,
+          toolkitVersion: first.identity.toolkitVersion,
+          toolkitDigest: first.identity.toolkitDigest,
+        },
         "PHASE_CANDIDATE_MISMATCH",
       );
     }
