@@ -77,30 +77,6 @@ export function resolveSearchCaseUserIdentifier(
   return users[testInfo.workerIndex % users.length];
 }
 
-function resolveCapturedSessionUserIdentifier(candidateUsers: string[]): string {
-  for (const candidateUser of candidateUsers) {
-    try {
-      const session = loadSessionCookies(candidateUser);
-      if (session.cookies.length > 0) {
-        return candidateUser;
-      }
-    } catch {
-      // Fall through to the next candidate.
-    }
-  }
-
-  return candidateUsers[0];
-}
-
-export function resolveCapturedSearchCaseSessionUser(
-  preferredUserIdentifier: string,
-  env: NodeJS.ProcessEnv = process.env
-): string {
-  return resolveCapturedSessionUserIdentifier(
-    resolveSearchCaseSessionCandidateUsers(preferredUserIdentifier, env)
-  );
-}
-
 export async function ensureSearchCaseSessionAccessForUser(
   preferredUserIdentifier: string,
   env: NodeJS.ProcessEnv = process.env

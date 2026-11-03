@@ -6,7 +6,6 @@ export * from "./caseLinkingMockRoutes.helper.js";
 export * from "./eventBehaviourMockRoutes.helper.js";
 export * from "./caseworkerJurisdictionMockRoutes.helper.js";
 export * from "./caseSearchMockRoutes.helper.js";
-export * from "./caseSearchRouteHandlers.helper.js";
 export * from "./createCaseMockRoutes.helper.js";
 export * from "./hearingJourneySetup.helper.js";
 export * from "./hearingManagerUserPool.helper.js";

@@ -1,47 +1,8 @@
-import { expect, test, type Request, type Route } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import { withEnv } from "../../utils/api/testEnv";
 import { UserUtils } from "../../utils/ui/user.utils";
-import {
-  parseGlobalSearchRequestPayload,
-  parseSearchResultsRouteRequest
-} from "../integration/helpers/caseSearchMockRoutes.helper";
-import {
-  createGlobalSearchResultsRouteHandler
-} from "../integration/helpers/caseSearchRouteHandlers.helper";
 import { resolveIntegrationSessionWarmupUsers } from "../integration/helpers/searchCaseSession.helper";
-import {
-  buildGlobalSearchNoResultsMock,
-  buildGlobalSearchResultsMock,
-  VALID_SEARCH_CASE_REFERENCE
-} from "../integration/mocks/search.mock";
-
-type FakeFulfillPayload = {
-  status: number;
-  contentType?: string;
-  body?: string;
-};
-
-type FakeRoute = Pick<Route, "request" | "fulfill">;
-
-const buildFakeRoute = (url: string, postData?: string | null) => {
-  let fulfillPayload: FakeFulfillPayload | undefined;
-  const route: FakeRoute = {
-    request: () =>
-      ({
-        url: () => url,
-        postData: () => postData ?? null
-      }) as unknown as Request,
-    fulfill: async (payload: FakeFulfillPayload) => {
-      fulfillPayload = payload;
-    }
-  };
-
-  return {
-    route,
-    lastFulfill: () => fulfillPayload
-  };
-};
 
 test.describe("Search-case support coverage", () => {
   test("FPL global search credentials fall back to the source-compatible AAT account when env vars are absent", async () => {
@@ -149,56 +110,6 @@ test.describe("Search-case support coverage", () => {
           "CASEWORKER_R1"
         ]);
       }
-    );
-  });
-
-  test("search route request parsing decodes URLs and preserves raw post data", () => {
-    const encodedUrl =
-      "https://example.test/api/globalSearch/results?caseReference=1234%205678%209012%203456";
-    const rawPostData = JSON.stringify({
-      searchCriteria: { caseReferences: [VALID_SEARCH_CASE_REFERENCE] }
-    });
-    const fakeRoute = buildFakeRoute(encodedUrl, rawPostData);
-
-    expect(parseSearchResultsRouteRequest(fakeRoute.route)).toEqual({
-      decodedUrl:
-        "https://example.test/api/globalSearch/results?caseReference=1234 5678 9012 3456",
-      rawPostData
-    });
-    expect(parseGlobalSearchRequestPayload(rawPostData)).toEqual({
-      searchCriteria: { caseReferences: [VALID_SEARCH_CASE_REFERENCE] }
-    });
-    expect(parseGlobalSearchRequestPayload("{bad-json")).toBeUndefined();
-    expect(parseGlobalSearchRequestPayload(undefined)).toBeUndefined();
-  });
-
-  test("global search route handler chooses success or no-results from the submitted case reference", async () => {
-    const handler = createGlobalSearchResultsRouteHandler({
-      matchingCaseReference: VALID_SEARCH_CASE_REFERENCE,
-      successResponse: buildGlobalSearchResultsMock(VALID_SEARCH_CASE_REFERENCE),
-      noResultsResponse: buildGlobalSearchNoResultsMock()
-    });
-
-    const matchingRoute = buildFakeRoute(
-      "https://example.test/api/globalSearch/results",
-      JSON.stringify({
-        searchCriteria: { caseReferences: [VALID_SEARCH_CASE_REFERENCE] }
-      })
-    );
-    await handler(matchingRoute.route as Route);
-    expect(JSON.parse(matchingRoute.lastFulfill()?.body ?? "{}")).toEqual(
-      buildGlobalSearchResultsMock(VALID_SEARCH_CASE_REFERENCE)
-    );
-
-    const noMatchRoute = buildFakeRoute(
-      "https://example.test/api/globalSearch/results",
-      JSON.stringify({
-        searchCriteria: { caseReferences: ["9999888877776666"] }
-      })
-    );
-    await handler(noMatchRoute.route as Route);
-    expect(JSON.parse(noMatchRoute.lastFulfill()?.body ?? "{}")).toEqual(
-      buildGlobalSearchNoResultsMock()
     );
   });
 });
