@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+console.log("[harness-mutation] Supporting diagnostic only; no release credit.");
+
 const mutation = process.env.EXUI_ASSURANCE_MUTATION || "drop-prl-wa-family";
 const mutationProofs = {
   "drop-prl-wa-family": {
@@ -57,12 +59,12 @@ if (!mutationProof) {
 const focusedGrep = process.env.EXUI_ASSURANCE_MUTATION_GREP || mutationProof.grep;
 const focusedSpec = mutationProof.spec || "src/tests/api/exui-central-assurance.api.ts";
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const reportOutput =
-  process.env.PW_ODHIN_OUTPUT || "functional-output/tests/harness/mutation-proof/odhin-report";
-const reportIndex = process.env.PW_ODHIN_INDEX || "harness-mutation-proof.html";
+const reportOutput = "functional-output/tests/harness/private/diagnostics/model/odhin-report";
+const reportIndex = "harness-diagnostic.html";
 
 const commonEnv = {
   ...process.env,
+  EXUI_DIAGNOSTIC_SELECTION: "model",
   API_AUTH_MODE: process.env.API_AUTH_MODE || "ui",
   COREPACK_HOME: process.env.COREPACK_HOME || "/private/tmp/corepack-cache",
   PW_UI_STORAGE: process.env.PW_UI_STORAGE || "0",
@@ -77,7 +79,7 @@ if (!commonEnv.PW_CHROMIUM_PATH && fs.existsSync(chromePath)) {
 function runPlaywright(label, env) {
   const args = [
     "test",
-    "--project=api",
+    "--config=playwright.harness-diagnostic.config.ts",
     focusedSpec,
     "--grep",
     focusedGrep,
@@ -120,7 +122,7 @@ function runPlaywright(label, env) {
 const baseline = await runPlaywright("Step 1/2: control run without injected fault", {
   ...commonEnv,
   EXUI_ASSURANCE_MUTATION: "",
-  PLAYWRIGHT_REPORTERS: "list",
+  EXUI_DIAGNOSTIC_ODHIN: "0",
 });
 
 if (baseline.code !== 0) {
@@ -129,22 +131,10 @@ if (baseline.code !== 0) {
   process.exit();
 }
 
-const mutated = await runPlaywright(`Step 2/2: inject ${mutation} and expect the assurance gate to fail`, {
+const mutated = await runPlaywright(`Step 2/2: inject ${mutation} and expect the supporting contract to fail`, {
   ...commonEnv,
   EXUI_ASSURANCE_MUTATION: mutation,
-  PLAYWRIGHT_REPORTERS: process.env.PLAYWRIGHT_REPORTERS || "list,odhin",
-  PLAYWRIGHT_REPORT_FOLDER: reportOutput,
-  PLAYWRIGHT_REPORT_PROJECT: "EXUI Central Assurance Mutation Proof",
-  PW_ODHIN_API_LOGS: process.env.PW_ODHIN_API_LOGS || "summary",
-  PW_ODHIN_CONSOLE_TEST_OUTPUT: process.env.PW_ODHIN_CONSOLE_TEST_OUTPUT || "all",
-  PW_ODHIN_ENV: process.env.PW_ODHIN_ENV || "local-ccd",
-  PW_ODHIN_INDEX: reportIndex,
-  PW_ODHIN_LIGHTWEIGHT: process.env.PW_ODHIN_LIGHTWEIGHT || "false",
-  PW_ODHIN_OUTPUT: reportOutput,
-  PW_ODHIN_PROJECT: "EXUI Central Assurance Mutation Proof",
-  PW_ODHIN_RELEASE: process.env.PW_ODHIN_RELEASE || "test/srt-poc-local-ccd",
-  PW_ODHIN_TEST_FOLDER: "src/tests/api",
-  PW_ODHIN_TITLE: "EXUI Central Assurance Mutation Proof",
+  EXUI_DIAGNOSTIC_ODHIN: "1",
 });
 
 if (mutated.code === 0) {

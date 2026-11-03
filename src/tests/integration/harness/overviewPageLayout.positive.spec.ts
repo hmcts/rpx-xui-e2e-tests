@@ -1,4 +1,4 @@
-import { expect, test } from "../../../fixtures/ui";
+import { expect, test } from "../../../fixtures/harness-diagnostic";
 import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from "../../../utils/ui/test-evidence.utils.js";
 import {
   applySessionCookies,

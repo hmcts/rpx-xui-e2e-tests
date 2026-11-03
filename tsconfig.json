@@ -3,7 +3,10 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "types": ["node", "playwright"],
+    "types": [
+      "node",
+      "playwright"
+    ],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
@@ -15,8 +18,8 @@
   "include": [
     "playwright.config.ts",
     "playwright.harness.config.ts",
-    "playwright.integration.config.ts",
-    "playwright-nightly.config.ts",
+    "playwright.harness-diagnostic.config.ts",
+    "playwright.harness-support.config.ts",
     "src/**/*.ts"
   ]
 }

@@ -4,7 +4,7 @@ import {
   EXUI_SERVICE_LABELS,
   sortServiceFamilies,
 } from "../../../data/exui-central-assurance.js";
-import { expect, test } from "../../../fixtures/ui";
+import { expect, test } from "../../../fixtures/harness-diagnostic";
 import { attachUiScreenshotEvidence } from "../../../utils/ui/test-evidence.utils.js";
 import {
   applySearchCaseSessionCookies,

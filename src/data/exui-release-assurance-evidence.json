@@ -32,19 +32,22 @@
   "harnessProofLanes": [
     {
       "lane": "api",
-      "project": "api",
-      "requiredFor": "local-and-ci",
-      "proof": "Source/configuration HTTP checks and model/helper/catalogue replay diagnostics; no release decision or real CCD denied-write proof.",
+      "project": "model/environment/toolkit diagnostics",
+      "requiredFor": "supporting-diagnostics",
+      "proof": "Pure catalogue/model checks plus separately selected environment probes and extracted installed-class diagnostics; no release credit.",
       "testFiles": [
         "src/tests/api/exui-central-assurance.api.ts",
-        "src/tests/api/exui-historic-replay-packs.api.ts"
-      ]
+        "src/tests/api/exui-historic-replay-packs.api.ts",
+        "src/tests/harness/diagnostic/configuration.spec.ts",
+        "src/tests/harness/diagnostic/toolkit.spec.ts"
+      ],
+      "ciPolicy": "harness:diagnostic:ci runs only 40 portable model checks; environment and toolkit inputs are explicit."
     },
     {
       "lane": "ui",
-      "project": "ui",
-      "requiredFor": "local-and-ci",
-      "ciPolicy": "Included in harness:ci.",
+      "project": "model-browser diagnostic",
+      "requiredFor": "explicit-diagnostic",
+      "ciPolicy": "Selected explicitly by harness:diagnostic:model-browser; generated HTML only.",
       "proof": "Generated Manage Tasks HTML diagnostic; does not execute the candidate filter screen.",
       "testFiles": [
         "src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts"
@@ -52,10 +55,10 @@
     },
     {
       "lane": "integration",
-      "project": "integration",
-      "requiredFor": "local-and-ci",
-      "ciPolicy": "Included in harness:ci.",
-      "proof": "Generated EXUI-4493 CYA evidence page plus candidate routes with controlled responses for Overview, Global Search and Hearings; no CCD persistence proof.",
+      "project": "frontend/toolkit-browser diagnostics",
+      "requiredFor": "explicit-diagnostic",
+      "ciPolicy": "Frontend requires explicit TEST_URL/TEST_ENV; toolkit-browser requires XUI_WEBAPP_ROOT.",
+      "proof": "Real frontend routes with controlled responses plus a separately selected generated CYA illustration; no native receipt or CCD persistence credit.",
       "testFiles": [
         "src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts",
         "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
@@ -65,9 +68,9 @@
     },
     {
       "lane": "accessibility",
-      "project": "ui/integration",
-      "requiredFor": "local-and-ci",
-      "ciPolicy": "Included in harness:ci through the UI and integration harness specs.",
+      "project": "model-browser/frontend diagnostics",
+      "requiredFor": "explicit-diagnostic",
+      "ciPolicy": "Included only with the explicitly selected browser diagnostics; no candidate gate credit.",
       "proof": "Axe checks on generated Manage Tasks HTML and selected candidate routes with controlled responses; not comprehensive accessibility acceptance.",
       "testTitles": [
         "accessibility baseline: available tasks service filter has no new axe violations",

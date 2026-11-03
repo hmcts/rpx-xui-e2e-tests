@@ -3,7 +3,7 @@ import {
   buildExui4493ToolkitContractEvidence,
   type Exui4493ToolkitContractEvidence
 } from "../../../data/exui-toolkit-cya-contract.js";
-import { expect, test } from "../../../fixtures/ui";
+import { expect, test } from "../../../fixtures/harness-diagnostic";
 import { attachUiScreenshotEvidence } from "../../../utils/ui/test-evidence.utils.js";
 
 function escapeHtml(value: unknown): string {
@@ -173,9 +173,10 @@ function buildCyaEvidencePage(evidence: Exui4493ToolkitContractEvidence): string
     </html>`;
 }
 
-test.describe("EXUI-4493 harness CYA visual evidence", { tag: ["@integration", "@integration-harness"] }, () => {
+test.describe("EXUI-4493 generated CYA illustration from extracted toolkit-class evidence", { tag: ["@integration", "@integration-harness"] }, () => {
   test("EXUI-4493 CYA screen evidence renders nested complex FieldShowCondition rows", async ({ page }, testInfo) => {
     const evidence = buildExui4493ToolkitContractEvidence();
+    expect(evidence.toolkitAvailable).toBe(true);
 
     await page.setContent(buildCyaEvidencePage(evidence), { waitUntil: "domcontentloaded" });
     await attachUiScreenshotEvidence(testInfo, page, "exui-4493-cya-rendering-evidence.png");

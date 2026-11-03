@@ -2,7 +2,7 @@ import {
   EXUI_HEARINGS_CASE_TYPES_BY_SERVICE_FAMILY,
   EXUI_HEARINGS_SUPPORTED_SERVICE_FAMILIES,
 } from '../../../data/exui-central-assurance.js';
-import { expect, test } from '../../../fixtures/ui';
+import { expect, test } from '../../../fixtures/harness-diagnostic';
 import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from '../../../utils/ui/test-evidence.utils.js';
 import {
   applySessionCookies,

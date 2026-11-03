@@ -4,19 +4,21 @@ import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+console.log("[harness-mutation] Supporting diagnostic only; no release credit.");
+
 const mutation = process.env.EXUI_ASSURANCE_MUTATION || "drop-ccd-case-reference-search-input";
 const focusedSpec = "src/tests/api/exui-historic-replay-packs.api.ts";
 const focusedGrep = "CCD search/workbasket metadata replay keeps service-owned definition changes inside the EXUI contract";
 const chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const reportOutput =
-  process.env.PW_ODHIN_OUTPUT || "functional-output/tests/harness/ccd-mutation-proof/odhin-report";
-const reportIndex = process.env.PW_ODHIN_INDEX || "harness-ccd-mutation-proof.html";
+const reportOutput = "functional-output/tests/harness/private/diagnostics/model/odhin-report";
+const reportIndex = "harness-diagnostic.html";
 const prlDefinitionsRoot = path.resolve(
   process.env.PRL_CCD_DEFINITIONS_DIR ?? path.join(process.cwd(), "../prl-ccd-definitions")
 );
 
 const commonEnv = {
   ...process.env,
+  EXUI_DIAGNOSTIC_SELECTION: "model",
   COREPACK_HOME: process.env.COREPACK_HOME || "/private/tmp/corepack-cache",
   PW_UI_STORAGE: process.env.PW_UI_STORAGE || "0",
   TEST_ENV: process.env.TEST_ENV || "local",
@@ -30,7 +32,7 @@ if (!commonEnv.PW_CHROMIUM_PATH && fs.existsSync(chromePath)) {
 function runPlaywright(label, env) {
   const args = [
     "test",
-    "--project=api",
+    "--config=playwright.harness-diagnostic.config.ts",
     focusedSpec,
     "--grep",
     focusedGrep,
@@ -185,7 +187,7 @@ if (sourceMutationFailure) {
 const baseline = await runPlaywright("Step 3/4: control replay run with CCD definition metadata intact", {
   ...commonEnv,
   EXUI_ASSURANCE_MUTATION: "",
-  PLAYWRIGHT_REPORTERS: "list"
+  EXUI_DIAGNOSTIC_ODHIN: "0"
 });
 
 if (baseline.code !== 0) {
@@ -194,22 +196,10 @@ if (baseline.code !== 0) {
   process.exit();
 }
 
-const mutated = await runPlaywright(`Step 4/4: inject ${mutation} and expect the assurance gate to fail`, {
+const mutated = await runPlaywright(`Step 4/4: inject ${mutation} and expect the supporting contract to fail`, {
   ...commonEnv,
   EXUI_ASSURANCE_MUTATION: mutation,
-  PLAYWRIGHT_REPORTERS: process.env.PLAYWRIGHT_REPORTERS || "list,odhin",
-  PLAYWRIGHT_REPORT_FOLDER: reportOutput,
-  PLAYWRIGHT_REPORT_PROJECT: "EXUI CCD Definition Mutation Proof",
-  PW_ODHIN_API_LOGS: process.env.PW_ODHIN_API_LOGS || "summary",
-  PW_ODHIN_CONSOLE_TEST_OUTPUT: process.env.PW_ODHIN_CONSOLE_TEST_OUTPUT || "all",
-  PW_ODHIN_ENV: process.env.PW_ODHIN_ENV || "local-ccd",
-  PW_ODHIN_INDEX: reportIndex,
-  PW_ODHIN_LIGHTWEIGHT: process.env.PW_ODHIN_LIGHTWEIGHT || "false",
-  PW_ODHIN_OUTPUT: reportOutput,
-  PW_ODHIN_PROJECT: "EXUI CCD Definition Mutation Proof",
-  PW_ODHIN_RELEASE: process.env.PW_ODHIN_RELEASE || "master",
-  PW_ODHIN_TEST_FOLDER: "src/tests/api",
-  PW_ODHIN_TITLE: "EXUI CCD Definition Mutation Proof"
+  EXUI_DIAGNOSTIC_ODHIN: "1",
 });
 
 if (mutated.code === 0) {

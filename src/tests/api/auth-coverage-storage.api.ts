@@ -5,6 +5,7 @@
  */
 
 import { promises as fs } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { test, expect } from '@playwright/test';
@@ -22,13 +23,19 @@ type GetStoredCookieDeps = NonNullable<Parameters<typeof authTest.getStoredCooki
 
 test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' }, () => {
   let restoreCredentials: () => void;
+  let testDirectory: string;
 
-  test.beforeEach(() => {
+  test.beforeEach(async () => {
+    testDirectory = await fs.mkdtemp(path.join(tmpdir(), 'exui-auth-storage-'));
     restoreCredentials = setTestSolicitorCredentials();
   });
 
-  test.afterEach(() => {
-    restoreCredentials();
+  test.afterEach(async () => {
+    try {
+      restoreCredentials();
+    } finally {
+      await fs.rm(testDirectory, { recursive: true, force: true });
+    }
   });
 
   test('maps the generic API solicitor role to the configured divorce solicitor session', () => {
@@ -37,7 +44,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
   });
 
   test('tryReadState returns parsed state or undefined for invalid content', async () => {
-    const tmpDir = path.join(process.cwd(), 'test-results', 'tmp-auth-state');
+    const tmpDir = path.join(testDirectory, 'tmp-auth-state');
     await fs.mkdir(tmpDir, { recursive: true });
 
     const goodPath = path.join(tmpDir, 'good.json');
@@ -69,12 +76,12 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
     let createdPath = '';
     const validStates = new Map([['state-2', { cookies: [] }]]);
     const deps = {
-      storageRoot: path.join(process.cwd(), 'test-results', 'auth-lock-cache'),
+      storageRoot: path.join(testDirectory, 'auth-lock-cache'),
       acquireLock: async () => () => undefined,
       createStorageState: async () => {
         createCalls += 1;
         createdPath = authTest.getStorageStatePath(
-          path.join(process.cwd(), 'test-results', 'auth-lock-cache'),
+          path.join(testDirectory, 'auth-lock-cache'),
           'solicitor'
         );
         return createdPath;
@@ -103,7 +110,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
       { cookies: [{ name: 'XSRF-TOKEN', value: 'token' }] }
     ];
     const deps = {
-      storageRoot: path.join(process.cwd(), 'test-results', 'auth-cookie-cache'),
+      storageRoot: path.join(testDirectory, 'auth-cookie-cache'),
       acquireLock: async () => () => undefined,
       createStorageState: async () => {
         createCalls += 1;
@@ -121,7 +128,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
     expect(value).toBe('token');
 
     const emptyDeps = {
-      storageRoot: path.join(process.cwd(), 'test-results', 'auth-empty-cache'),
+      storageRoot: path.join(testDirectory, 'auth-empty-cache'),
       acquireLock: async () => () => undefined,
       createStorageState: async () => 'state-1',
       tryReadState: async () => undefined,
@@ -134,7 +141,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
   });
 
   test('createStorageStateWith honors token bootstrap and falls back to form login', async () => {
-    const storageRoot = path.join(process.cwd(), 'test-results', 'auth-storage');
+    const storageRoot = path.join(testDirectory, 'auth-storage');
     const workerEnv = { TEST_WORKER_INDEX: '3' } as NodeJS.ProcessEnv;
     const expectedStorageStateSuffix = 'api-';
     let formCalls = 0;
@@ -169,7 +176,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
   });
 
   test('createStorageStateWith can use UI session bootstrap for local EXUI auth', async () => {
-    const storageRoot = path.join(process.cwd(), 'test-results', 'auth-storage-ui');
+    const storageRoot = path.join(testDirectory, 'auth-storage-ui');
     const workerEnv = { TEST_WORKER_INDEX: '2' } as NodeJS.ProcessEnv;
     const expectedStorageStateSuffix = 'api-';
     let uiCalls = 0;

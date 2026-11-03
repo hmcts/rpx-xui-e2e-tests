@@ -915,7 +915,7 @@ function injectHarnessLaneScript(root) {
               '<tbody>' + rows + '</tbody>' +
             '</table>' +
           '</div>' +
-          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; harness:ci runs API, UI, integration, and embedded accessibility proofs.</div>' +
+          '<div class="px-2 pb-2 text-secondary-emphasis fst-italic">Rows are derived from explicit harness proof files and titles; Harness diagnostics separate portable models, generated HTML, explicit frontend/environment targets and extracted toolkit-class inputs; none grants release credit.</div>' +
         '</div>' +
       '</div>';
 

@@ -6,7 +6,7 @@ import {
   EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
   sortServiceFamilies,
 } from '../../../../data/exui-central-assurance.js';
-import { expect, test } from '../../../../fixtures/ui';
+import { expect, test } from '../../../../fixtures/harness-diagnostic';
 import type { TaskListPage } from '../../../../page-objects/pages/exui/taskList.po.js';
 import { attachAccessibilityEvidence, attachUiScreenshotEvidence } from '../../../../utils/ui/test-evidence.utils.js';
 import {
@@ -232,7 +232,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test.describe(`Available task service families as ${userIdentifier}`, () => {
+test.describe(`Generated HTML diagnostic: available task service families as ${userIdentifier}`, () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test('available tasks filter exposes only the centrally supported WA families', async ({ page, taskListPage }, testInfo) => {

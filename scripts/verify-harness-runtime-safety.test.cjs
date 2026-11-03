@@ -72,26 +72,26 @@ for (const args of [
   });
 }
 
-test('legacy CI diagnostics retain their test selection but keep raw test output outside shared diagnostics', () => {
+test('CI diagnostics select only portable models and keep raw output private', () => {
   runDiagnostic(['--ci'], (result, directory) => {
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /diagnostic.*no release credit/i);
     const calls = readFileSync(join(directory, 'contacts.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     const playwrightCalls = calls.filter((call) => call.command === './node_modules/.bin/playwright');
     assert.equal(playwrightCalls.length, 1);
-    assert.ok(playwrightCalls[0].args.includes('src/tests/api/exui-central-assurance.api.ts'));
-    assert.ok(playwrightCalls[0].args.includes('--project=ui'));
-    assert.ok(playwrightCalls[0].args.includes('--output=functional-output/tests/harness/private/test-results'));
+    assert.ok(playwrightCalls[0].args.includes('--config=playwright.harness-diagnostic.config.ts'));
+    assert.ok(playwrightCalls[0].args.includes('--output=functional-output/tests/harness/private/diagnostics/model/test-results'));
+    assert.equal(calls.some((call) => call.network), false);
   });
 });
 
-test('legacy local diagnostics still run with an explicit no-release-credit label', () => {
+test('default diagnostics run only portable models with an explicit no-release-credit label', () => {
   runDiagnostic([], (result, directory) => {
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /diagnostic.*no release credit/i);
     const calls = readFileSync(join(directory, 'contacts.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-    assert.ok(calls.some((call) => call.command === 'node' && call.args.includes('scripts/bootstrap-harness-local-sessions.mjs')));
-    assert.equal(calls.filter((call) => call.command === './node_modules/.bin/playwright').length, 5);
+    assert.equal(calls.some((call) => call.network || call.args?.includes('scripts/bootstrap-harness-local-sessions.mjs')), false);
+    assert.equal(calls.filter((call) => call.command === './node_modules/.bin/playwright').length, 1);
   });
 });
 
@@ -133,8 +133,8 @@ test('CI reporting overrides cannot send raw Harness artifacts to conventional p
     const reporting = calls.find((call) => call.command === './node_modules/.bin/playwright').reporting;
     assert.equal(reporting.PLAYWRIGHT_REPORTERS, 'list,odhin,junit');
     for (const key of outputKeys) assert.ok(reporting[key].startsWith('functional-output/tests/harness/private/'), `${key} stays private`);
-    assert.equal(reporting.PW_ODHIN_INDEX, 'harness-central-assurance.html');
-    assert.equal(reporting.PLAYWRIGHT_REPORT_INDEX_FILENAME, 'harness-central-assurance.html');
+    assert.equal(reporting.PW_ODHIN_INDEX, 'harness-diagnostic.html');
+    assert.equal(reporting.PLAYWRIGHT_REPORT_INDEX_FILENAME, 'harness-diagnostic.html');
     assert.equal(reporting.PW_ODHIN_START_SERVER, 'false');
     assert.equal(reporting.PW_TEST_REPORTER, '', 'Playwright cannot append an arbitrary inherited reporter');
     assert.doesNotMatch(JSON.stringify(reporting), /escape-sentinel|arbitrary-reporter/);
