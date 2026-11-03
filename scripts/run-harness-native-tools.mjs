@@ -164,9 +164,11 @@ async function proof(input, invocation, directory) {
   ];
   if (ccd && invocation.mutation)
     args.push(
-      invocation.mutation === "ccd-drop-child"
-        ? "nested-conditional.spec.ts"
-        : "case-event-policy.spec.ts",
+      invocation.mutation === "ccd-drop-postal-optional-child"
+        ? "postal-conditional.spec.ts"
+        : invocation.mutation === "ccd-drop-child"
+          ? "nested-conditional.spec.ts"
+          : "case-event-policy.spec.ts",
     );
   const child = spawn(process.execPath, args, {
     cwd: root,

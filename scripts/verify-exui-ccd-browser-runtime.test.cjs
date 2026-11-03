@@ -34,7 +34,12 @@ async function withGateway(t, check, mutation = null, respond = null) {
     global.fetch = originalFetch;
     fs.rmSync(output, { recursive: true, force: true });
   });
-  const request = (method, route, persona = "allowed") =>
+  const request = (
+    method,
+    route,
+    persona = "allowed",
+    payload = { data: { retained: "value" } },
+  ) =>
     new Promise((resolve, reject) => {
       const req = http.request(
         {
@@ -62,7 +67,7 @@ async function withGateway(t, check, mutation = null, respond = null) {
         },
       );
       req.on("error", reject);
-      req.end(method === "POST" ? '{"data":{"retained":"value"}}' : undefined);
+      req.end(method === "POST" ? JSON.stringify(payload) : undefined);
     });
   await check({ request, upstream, output });
 }
@@ -277,4 +282,185 @@ test("serialization fault drops only nested email children without mutating its 
     { postalName: "retained" },
   );
   assert.deepEqual(loseNestedChild({ data: {} }), { data: {} });
+});
+
+test("postal fault removes only optional AddressLine2 on the second recipient and preserves the caller payload", async () => {
+  const { losePostalOptionalChild } =
+    await import("./lib/exui-ccd-browser-runtime.mjs");
+  const body = {
+    data: {
+      sodAdditionalRecipientsList: [
+        {
+          id: "first",
+          value: {
+            serveByPostOrEmail: "post",
+            postalInformation: {
+              postalAddress: {
+                AddressLine1: "first",
+                AddressLine2: "keep",
+                PostCode: "AB1 2CD",
+              },
+            },
+          },
+        },
+        {
+          id: "second",
+          value: {
+            serveByPostOrEmail: "post",
+            postalInformation: {
+              postalAddress: {
+                AddressLine1: "second",
+                AddressLine2: "lose",
+                PostCode: "EF3 4GH",
+              },
+            },
+          },
+        },
+      ],
+      protectedValue: "unchanged",
+    },
+  };
+  const changed = losePostalOptionalChild(body);
+  assert.equal(
+    body.data.sodAdditionalRecipientsList[1].value.postalInformation
+      .postalAddress.AddressLine2,
+    "lose",
+  );
+  assert.equal(
+    changed.data.sodAdditionalRecipientsList[0].value.postalInformation
+      .postalAddress.AddressLine2,
+    "keep",
+  );
+  assert.equal(
+    changed.data.sodAdditionalRecipientsList[1].value.postalInformation
+      .postalAddress.AddressLine2,
+    undefined,
+  );
+  assert.equal(
+    changed.data.sodAdditionalRecipientsList[1].value.postalInformation
+      .postalAddress.AddressLine1,
+    "second",
+  );
+  assert.equal(changed.data.protectedValue, "unchanged");
+  const expected = structuredClone(body);
+  delete expected.data.sodAdditionalRecipientsList[1].value.postalInformation
+    .postalAddress.AddressLine2;
+  assert.deepEqual(changed, expected);
+  for (const other of [
+    { data: {} },
+    {
+      data: {
+        sodAdditionalRecipientsList: [body.data.sodAdditionalRecipientsList[0]],
+      },
+    },
+    {
+      data: {
+        sodAdditionalRecipientsList: [
+          {},
+          {
+            value: {
+              serveByPostOrEmail: "email",
+              postalInformation: {
+                postalAddress: { AddressLine2: "retained" },
+              },
+            },
+          },
+        ],
+      },
+    },
+  ])
+    assert.deepEqual(losePostalOptionalChild(other), other);
+});
+
+test("support only: postal fault forwards real submission once with one optional child removed, preserving validation, reads and upstream status", async (t) => {
+  await withGateway(
+    t,
+    async ({ request, upstream, output }) => {
+      const body = {
+        event: { id: "create" },
+        event_token: "synthetic-token",
+        data: {
+          protectedValue: "retained",
+          sodAdditionalRecipientsList: [
+            {
+              id: "first",
+              value: {
+                serveByPostOrEmail: "post",
+                postalInformation: {
+                  postalName: "first",
+                  postalAddress: {
+                    AddressLine1: "first street",
+                    AddressLine2: "first suite",
+                    PostCode: "SW1A 1AA",
+                  },
+                },
+              },
+            },
+            {
+              id: "second",
+              value: {
+                serveByPostOrEmail: "post",
+                postalInformation: {
+                  postalName: "second",
+                  postalAddress: {
+                    AddressLine1: "second street",
+                    AddressLine2: "second suite",
+                    PostCode: "M1 1AA",
+                  },
+                },
+              },
+            },
+          ],
+        },
+      };
+      const validation = await request(
+        "POST",
+        "/case-types/HarnessNestedPRL/validate",
+        "allowed",
+        body,
+      );
+      assert.equal(validation.status, 201);
+      assert.deepEqual(JSON.parse(upstream.at(-1).options.body), body);
+      const response = await request(
+        "POST",
+        "/case-types/HarnessNestedPRL/cases",
+        "allowed",
+        body,
+      );
+      assert.equal(response.status, 201);
+      assert.equal(response.body, '{"id":"1793646213983629"}');
+      const expected = structuredClone(body);
+      delete expected.data.sodAdditionalRecipientsList[1].value
+        .postalInformation.postalAddress.AddressLine2;
+      assert.deepEqual(JSON.parse(upstream.at(-1).options.body), expected);
+      assert.equal(
+        upstream.at(-1).options.headers.authorization,
+        "Bearer synthetic-allowed",
+      );
+      assert.equal(upstream.length, 2);
+      await request("GET", "/internal/cases/1793646213983629");
+      assert.equal(upstream.at(-1).options.body, undefined);
+      const journal = fs
+        .readFileSync(path.join(output, "ccd-requests.jsonl"), "utf8")
+        .trim()
+        .split("\n")
+        .map(JSON.parse);
+      assert.deepEqual(
+        journal.map((x) => x.status),
+        [201, 201, 201],
+      );
+      assert.equal(journal[1].mutation, "ccd-drop-postal-optional-child");
+      assert.equal(
+        body.data.sodAdditionalRecipientsList[1].value.postalInformation
+          .postalAddress.AddressLine2,
+        "second suite",
+      );
+    },
+    "ccd-drop-postal-optional-child",
+    async () =>
+      new Response('{"id":"1793646213983629"}', {
+        status: 201,
+        headers: { "content-type": "application/json" },
+      }),
+  );
 });

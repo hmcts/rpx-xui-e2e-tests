@@ -33,6 +33,7 @@ async function launch() {
       "ccd-drop-child",
       "ccd-broaden-access",
       "ccd-write-then-deny",
+      "ccd-drop-postal-optional-child",
     ].includes(arg("--only"))
   )
     throw new Error("UNKNOWN_CCD_INVOCATION");

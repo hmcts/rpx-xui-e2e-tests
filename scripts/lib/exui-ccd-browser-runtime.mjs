@@ -71,6 +71,17 @@ export function loseNestedChild(body) {
   return changed;
 }
 
+export function losePostalOptionalChild(body) {
+  const changed = structuredClone(body);
+  const recipient = changed.data?.sodAdditionalRecipientsList?.[1]?.value;
+  if (
+    recipient?.serveByPostOrEmail === "post" &&
+    recipient.postalInformation?.postalAddress
+  )
+    delete recipient.postalInformation.postalAddress.AddressLine2;
+  return changed;
+}
+
 const userId =
   "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
 const caseworker = `/caseworkers/${userId}/jurisdictions/HARNESS/case-types/HarnessNestedPRL`;
@@ -184,6 +195,8 @@ export async function startCcdGateway(output, credentials, mutation = null) {
         request.method === "POST" && /\/(?:cases|events)$/.test(url.pathname);
       if (mutation === "ccd-drop-child" && isWrite && body)
         body = JSON.stringify(loseNestedChild(JSON.parse(body)));
+      if (mutation === "ccd-drop-postal-optional-child" && isWrite && body)
+        body = JSON.stringify(losePostalOptionalChild(JSON.parse(body)));
       if (
         mutation === "ccd-broaden-access" &&
         denied &&

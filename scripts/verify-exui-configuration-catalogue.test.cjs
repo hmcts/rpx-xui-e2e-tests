@@ -312,3 +312,48 @@ test('checked-in Helm overrides stay explicit source inventory and do not approv
   assert.ok(result.gaps.includes('owner-grouping-acceptance-pending'));
   assert.equal(result.releaseCredit, false);
 });
+
+test('postal sequence is additive and retains the exact original110 obligations and16 role cells', () => {
+  const { createHash } = require('node:crypto');
+  const catalogue = build();
+  const id = 'configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed';
+  const original = catalogue.obligations.filter(item => item.id !== id).map(item => item.id).sort();
+  assert.equal(catalogue.obligations.length, 111);
+  assert.equal(createHash('sha256').update(JSON.stringify(original)).digest('hex'), 'f5671fcc666657de7ca663d3763754ad4698020dceca8e8659e8af7f90aa7207');
+  assert.equal(catalogue.pilotCells.length, 16);
+  const obligation = catalogue.obligations.find(item => item.id === id);
+  assert.equal(obligation.requiredBoundary, 'ccd');
+  assert.equal(obligation.signature.runtimeCaseType, 'HarnessNestedPRL');
+  assert.equal(obligation.signature.recipientCount, 2);
+  assert.equal(obligation.signature.channel, 'post');
+  assert.equal(api.validateConfigurationCatalogue({ snapshot, review, catalogue }).coverage.missingCandidateOrCcd.length, 111);
+});
+
+test('postal source sequence cannot disappear or collapse independently reviewed semantics', () => {
+  const id = 'configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed';
+  const catalogue = build();
+  catalogue.obligations = catalogue.obligations.filter(item => item.id !== id);
+  const missing = api.validateConfigurationCatalogue({ snapshot, review, catalogue });
+  assert.equal(missing.denominator.requiredObligations, 111);
+  assert(missing.errors.includes(`missing-valid-sequence:${id}`));
+  assert(missing.errors.includes(`missing-obligation:${id}`));
+  for (const change of [
+    copy => { const row = source(copy, 'AdditionalRecipients/CaseEventToComplexTypes').document.find(row => row.ListElementCode === 'postalInformation.postalAddress.PostCode' && row.CaseFieldID === 'sodAdditionalRecipientsList'); row.DisplayContext = 'OPTIONAL'; },
+    copy => { const row = source(copy, 'AdditionalRecipients/CaseEventToComplexTypes').document.find(row => row.ListElementCode === 'postalInformation' && row.CaseFieldID === 'sodAdditionalRecipientsList'); row.FieldShowCondition = 'sodAdditionalRecipientsList.serveByPostOrEmail="email"'; },
+  ]) {
+    const changed = structuredClone(snapshot); change(changed);
+    const result = api.validateConfigurationCatalogue({ snapshot: changed, review, catalogue: build(changed) });
+    assert(result.errors.some(error => error.startsWith('sequence-source-shape-drift:')));
+  }
+});
+
+test('postal sequence retains its source impact dependencies and unknown fixed-list changes broaden to111', () => {
+  const catalogue = build(), id = review.knownValidSequences[0].id;
+  for (const [repository, path] of [
+    ['rpx-xui-webapp', 'config/default.json'],
+    ['prl-ccd-definitions', 'definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json'],
+    ['prl-ccd-definitions', 'definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json'],
+  ]) assert(api.selectConfigurationObligations(catalogue, [{ repository, path }]).obligationIds.includes(id));
+  const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'prl-ccd-definitions', path: 'definitions/private-law/json/FixedLists.json' }]);
+  assert.equal(selection.mode, 'broad');assert.equal(selection.obligationIds.length, 111);
+});

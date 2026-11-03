@@ -184,11 +184,20 @@ export function buildConfigurationCatalogue(snapshot, review) {
       sourceKeys: unique(features.map((feature) => feature.sourceKey)) });
   }
   for (const id of sharedIds) obligations.push({ id, kind: 'shared-policy', requiredBoundary: id.endsWith('role-policy') ? 'ccd' : 'candidate', sourceKeys: [] });
+  const sequences = (review.sourceSequences ?? []).map((signature) => {
+    const support = signature.sourceShapeIds.map((id) => features.find((feature) => feature.id === id)).filter(Boolean);
+    const id = `configuration-sequence:${digest(signature)}`;
+    return { id, family: 'PRIVATELAW', kind: 'source-shape-sequence', requiredBoundary: signature.requiredBoundary,
+      signature, sourceKeys: unique([...support.map((feature) => feature.sourceKey),
+        'rpx-xui-webapp:config/default.json',
+        'prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json']) };
+  });
+  obligations.push(...sequences);
   if (new Set(obligations.map((item) => item.id)).size !== obligations.length) throw new Error('Duplicate configuration obligation');
   return { schemaVersion: 1, scope: review.scope, seed: review.seed, boundary: 'source-and-catalogue', releaseCredit: false,
     pilotAccessBoundary: 'Selected AuthorisationCaseEvent CRUD only; no case, field or state authorisation inferred.',
     sourceManifest: snapshot.sources.map((source) => ({ repository: source.repository, revision: source.revision, path: source.path, tracked: source.tracked, diagnosticOnly: diagnosticConfiguration(source), fileDigest: source.fileDigest, fragmentDigest: digest(source.document) })),
-    families: [...families.values()].sort((a, b) => a.id.localeCompare(b.id)), diagnosticFamilies: [...diagnosticFamilies.values()].sort((a, b) => a.id.localeCompare(b.id)), configurationProfiles, features, pilotCells, obligations };
+    families: [...families.values()].sort((a, b) => a.id.localeCompare(b.id)), diagnosticFamilies: [...diagnosticFamilies.values()].sort((a, b) => a.id.localeCompare(b.id)), configurationProfiles, features, pilotCells, sequences, obligations };
 }
 
 export function selectConfigurationObligations(catalogue, changedPaths) {
@@ -233,7 +242,24 @@ export function validateConfigurationCatalogue({ snapshot, review, catalogue, ex
   for (const example of review.knownInvalid) if (cells.has(cellKey(example))) errors.push(`included-invalid-cell:${cellKey(example)}`);
   const validKeys = new Set(review.knownValid.map(cellKey));
   for (const cell of catalogue.pilotCells) if (!validKeys.has(cellKey(cell))) gaps.push(`unreviewed-cell:${cellKey(cell)}`);
-  const requiredIds = buildConfigurationCatalogue(snapshot, review).obligations.map((item) => item.id);
+  const sequences = catalogue.obligations.filter((item) => item.kind === 'source-shape-sequence');
+  for (const example of review.knownValidSequences ?? []) {
+    const actual = sequences.find((item) => item.id === example.id);
+    if (!actual || Object.entries(example).some(([key, value]) => key !== 'id' && JSON.stringify(actual.signature[key]) !== JSON.stringify(value))) errors.push(`missing-valid-sequence:${example.id}`);
+  }
+  for (const example of review.knownInvalidSequences ?? []) if (sequences.some((item) =>
+    Object.entries(example).every(([key, value]) => key === 'reason' || item.signature[key] === value))) errors.push('included-invalid-sequence');
+  for (const sequence of sequences) {
+    if (sequence.id !== `configuration-sequence:${digest(sequence.signature)}`) errors.push(`sequence-signature-drift:${sequence.id}`);
+    for (const id of sequence.signature.sourceShapeIds) {
+      const feature = catalogue.features.find((item) => item.id === id);
+      const original = feature && snapshot.sources.find((item) => sourceKey(item) === feature.sourceKey);
+      if (!feature || original?.revision !== sequence.signature.sourceRevision ||
+          !review.definitionRowDigests?.[feature.sourceKey]?.includes(feature.rowDigest)) errors.push(`sequence-source-shape-drift:${id}`);
+    }
+  }
+  const requiredIds = unique([...buildConfigurationCatalogue(snapshot, review).obligations.map((item) => item.id),
+    ...(review.knownValidSequences ?? []).map((item) => item.id)]);
   const actualIds = catalogue.obligations.map((item) => item.id);
   for (const id of requiredIds) if (!actualIds.includes(id)) errors.push(`missing-obligation:${id}`);
   if (new Set(actualIds).size !== actualIds.length) errors.push('duplicate-obligation');
@@ -254,5 +280,5 @@ export function validateConfigurationCatalogue({ snapshot, review, catalogue, ex
   for (const boundary of boundaries) coverage[boundary] = unique(selected).filter((id) => requiredIds.includes(id) && passing(id, boundary)).length;
   coverage.missingCandidateOrCcd = unique(selected).filter((id) => !passing(id, catalogue.obligations.find((item) => item.id === id)?.requiredBoundary));
   return { schemaVersion: 1, boundary: 'source-and-catalogue', releaseCredit: false, errors: unique(errors), gaps: unique(gaps),
-    denominator: { validPilotCells: validKeys.size, cataloguedPilotCells: [...cells.keys()].filter((key) => validKeys.has(key)).length, discoveredShapes: catalogue.features.length, requiredObligations: requiredIds.length }, coverage };
+    denominator: { validPilotCells: validKeys.size, cataloguedPilotCells: [...cells.keys()].filter((key) => validKeys.has(key)).length, discoveredShapes: catalogue.features.length, validSequences: (review.knownValidSequences ?? []).length, cataloguedSequences: sequences.length, requiredObligations: requiredIds.length }, coverage };
 }

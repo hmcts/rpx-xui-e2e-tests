@@ -23,9 +23,16 @@ const slices = {
   ],
   "exui-ccd-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },
-    ...["ccd-drop-child", "ccd-broaden-access", "ccd-write-then-deny"].map(
-      (mutation) => ({ invocationId: mutation, kind: "mutation", mutation }),
-    ),
+    ...[
+      "ccd-drop-child",
+      "ccd-broaden-access",
+      "ccd-write-then-deny",
+      "ccd-drop-postal-optional-child",
+    ].map((mutation) => ({
+      invocationId: mutation,
+      kind: "mutation",
+      mutation,
+    })),
   ],
 };
 export function nativeInvocations(scope) {

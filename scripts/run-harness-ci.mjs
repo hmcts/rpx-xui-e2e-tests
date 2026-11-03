@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
+import { writeConfigurationCoverage } from "./lib/exui-configuration-runtime-coverage.mjs";
 import { effectiveCandidateConfiguration } from "./lib/exui-candidate-runtime.mjs";
 import { verifyCandidateArtifact } from "./lib/exui-candidate-artifact.mjs";
 import { deriveScopeMutant } from "./prepare-harness-scope-mutant.mjs";
@@ -106,6 +107,10 @@ export async function runHarnessCi(jobPath) {
   try {
     context = await prepareCiJob(job, job.output);
     assert(!cancelled, "CI_JOB_CANCELLED");
+    writeConfigurationCoverage({
+      harnessRoot: ROOT,
+      output: path.join(privateRoot, "configuration"),
+    });
     writeJsonAtomic(path.join(privateRoot, "job-input.json"), job);
     const operations = {
       isCancelled: () => cancelled,
@@ -175,6 +180,17 @@ export async function runHarnessCi(jobPath) {
             result.expected,
             result.terminal,
           );
+          if (name === "ccd")
+            writeConfigurationCoverage({
+              harnessRoot: ROOT,
+              output: path.join(privateRoot, "configuration"),
+              phaseDirectory: directory,
+              expected: {
+                ...result.expected,
+                receiptArtifactDigest: validated.receiptArtifactDigest,
+              },
+              terminal: result.terminal,
+            });
           phaseResults.push({ phase: name, ...validated });
           return validated;
         } finally {

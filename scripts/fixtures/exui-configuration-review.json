@@ -365,7 +365,9 @@
     },
     "profiles": {
       "base": {
-        "sources": ["charts/xui-webapp/values.yaml"],
+        "sources": [
+          "charts/xui-webapp/values.yaml"
+        ],
         "environment": {
           "NODE_ENV": "production",
           "NODE_CONFIG_ENV": "production",
@@ -466,5 +468,85 @@
       "JURISDICTIONS preview contains additional nonpilot families; no full catalogue approval inferred.",
       "Local synthetic runtime overrides service URLs/auth/flags explicitly; no live deployment assurance."
     ]
-  }
+  },
+  "sequenceSeed": "postal-two-v1",
+  "sourceSequences": [
+    {
+      "schemaVersion": 1,
+      "kind": "source-shape-sequence",
+      "sourceRepository": "hmcts/prl-ccd-definitions",
+      "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
+      "sourceShapeIds": [
+        "configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894",
+        "configuration-shape:19c563fe69729edfef6a79cc024fde59db914b7ab5d82bbffc14cd20fa63c667",
+        "configuration-shape:69bfc1eb277c1389d00d2f2dab9cb7e59585c0f3383d25432691084976cb5498",
+        "configuration-shape:6a86eae042eac6511964e58841ed43da4a204bc9db2032f1c33a2be88662d703",
+        "configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc",
+        "configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757",
+        "configuration-shape:a52b779cb48b8cce0ea385c282e7f0b073d629dcd8447a8e71bf6e7866414582"
+      ],
+      "runtimeCaseType": "HarnessNestedPRL",
+      "runtimeEvent": "create",
+      "runtimeRole": "caseworker-harness-allowed",
+      "channel": "post",
+      "recipientCount": 2,
+      "sequence": [
+        "form",
+        "mandatory-validation",
+        "cya",
+        "change",
+        "previous",
+        "submit",
+        "independent-readback"
+      ],
+      "requiredBoundary": "ccd",
+      "fixtureSourceDigest": "sha256:330a86542a2a04cdc2b1910d48428bc6337b1766fcc1356f8682c0bcd2a37684",
+      "fixtureWorkbookDigest": "sha256:674b87b7cdcf8aac7dea0e7a4f24dd234c925018f4a4aacf2ed5f32365c933e4"
+    }
+  ],
+  "knownValidSequences": [
+    {
+      "id": "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
+      "runtimeCaseType": "HarnessNestedPRL",
+      "runtimeEvent": "create",
+      "runtimeRole": "caseworker-harness-allowed",
+      "channel": "post",
+      "recipientCount": 2,
+      "requiredBoundary": "ccd",
+      "sequence": [
+        "form",
+        "mandatory-validation",
+        "cya",
+        "change",
+        "previous",
+        "submit",
+        "independent-readback"
+      ],
+      "fixtureSourceDigest": "sha256:330a86542a2a04cdc2b1910d48428bc6337b1766fcc1356f8682c0bcd2a37684",
+      "fixtureWorkbookDigest": "sha256:674b87b7cdcf8aac7dea0e7a4f24dd234c925018f4a4aacf2ed5f32365c933e4"
+    }
+  ],
+  "knownInvalidSequences": [
+    {
+      "runtimeCaseType": "PRLAPPS",
+      "runtimeRole": "caseworker-harness-allowed",
+      "channel": "post",
+      "recipientCount": 2,
+      "reason": "Exact PRL case/event/ACL equivalence is not established by the normalized Harness fixture."
+    },
+    {
+      "runtimeCaseType": "HarnessNestedPRL",
+      "runtimeRole": "caseworker-privatelaw-readonly",
+      "channel": "post",
+      "recipientCount": 2,
+      "reason": "Synthetic allowed-fixture persistence does not prove the source PRL readonly role."
+    },
+    {
+      "runtimeCaseType": "HarnessNestedPRL",
+      "runtimeRole": "caseworker-harness-allowed",
+      "channel": "post",
+      "recipientCount": 1,
+      "reason": "One recipient is outside this selected sibling-retention sequence; no runtime invalidity claim."
+    }
+  ]
 }

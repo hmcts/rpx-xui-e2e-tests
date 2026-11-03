@@ -23,6 +23,117 @@ const job = {
   output: "/outputs/fresh",
 };
 
+test("support only: actual CI phase accounting waits for controlled process completion and validated receipt transport", async () => {
+  const { executeCiProcess } = await load();
+  const directory = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "ci-coverage-wiring-"),
+  );
+  try {
+    const script = path.join(directory, "phase.cjs"),
+      output = path.join(directory, "ccd");
+    fs.writeFileSync(
+      script,
+      `const fs=require('fs'),p=process.argv[2];fs.mkdirSync(p);fs.writeFileSync(p+'/input.json',JSON.stringify({runId:'fresh-controlled-launch'}));fs.writeFileSync(p+'/container-launch.json','{}');const t=setInterval(()=>{if(fs.existsSync(p+'/independent-preexecution.json')){clearInterval(t);fs.writeFileSync(p+'/gate.json','controlled-finalized-receipt');}},5);`,
+    );
+    const result = await executeCiProcess({
+      script,
+      args: [output],
+      output,
+      onPrepared: (input) => ({
+        runId: input.runId,
+        releaseScopeId: "exui-ccd-pilot",
+        identity: { artifactDigest: digest("a") },
+        nativeAuthority: true,
+      }),
+    });
+    assert.deepEqual(result.terminal, { code: 0, signal: null });
+    assert.equal(
+      result.expected.receiptArtifactDigest,
+      undefined,
+      "pre-execution capture has no receipt digest",
+    );
+    const source = fs.readFileSync(
+      path.resolve("scripts/run-harness-ci.mjs"),
+      "utf8",
+    );
+    const block = source.match(
+      /const validated = validateCiPhase\([\s\S]*?return validated;/,
+    )?.[0];
+    assert(block, "actual phase finalization block exists");
+    const finalize = new Function(
+      "validateCiPhase",
+      "writeConfigurationCoverage",
+      "ROOT",
+      "path",
+      "privateRoot",
+      "directory",
+      "result",
+      "name",
+      "phaseResults",
+      block,
+    );
+    for (const name of ["ccd", "family"]) {
+      const calls = [],
+        phases = [];
+      const validated = {
+        status: "PASS",
+        exitCode: 0,
+        receiptArtifactDigest: digest("b"),
+      };
+      finalize(
+        (phase, expected, terminal) => {
+          calls.push("validate");
+          assert.equal(phase, output);
+          assert.equal(expected, result.expected);
+          assert.deepEqual(terminal, result.terminal);
+          return validated;
+        },
+        (args) => {
+          calls.push("account");
+          assert.equal(args.phaseDirectory, output);
+          assert.equal(args.output, path.join(directory, "configuration"));
+          assert.deepEqual(args.expected, {
+            ...result.expected,
+            receiptArtifactDigest: validated.receiptArtifactDigest,
+          });
+          assert.deepEqual(args.terminal, result.terminal);
+        },
+        path.resolve("."),
+        path,
+        directory,
+        output,
+        result,
+        name,
+        phases,
+      );
+      assert.deepEqual(
+        calls,
+        name === "ccd" ? ["validate", "account"] : ["validate"],
+      );
+      assert.deepEqual(phases, [{ phase: name, ...validated }]);
+    }
+    assert.throws(
+      () =>
+        finalize(
+          () => {
+            throw Error("FOREIGN_OR_MISSING_RECEIPT");
+          },
+          () => assert.fail("unvalidated evidence reached accounting"),
+          path.resolve("."),
+          path,
+          directory,
+          output,
+          result,
+          "ccd",
+          [],
+        ),
+      /FOREIGN_OR_MISSING_RECEIPT/,
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("support only: candidate CI requires an explicit strict native-artifact job contract", async () => {
   const { validateCiJob } = await load();
   assert.deepEqual(validateCiJob(job), job);

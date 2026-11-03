@@ -138,6 +138,7 @@ export function toolContainerArguments({
             "ccd-drop-child",
             "ccd-broaden-access",
             "ccd-write-then-deny",
+            "ccd-drop-postal-optional-child",
           ]
         : ["baseline", "wa-drop-family"]
     ).includes(invocationId)
@@ -206,6 +207,7 @@ export function candidateArchiveArguments({
       "ccd-drop-child",
       "ccd-broaden-access",
       "ccd-write-then-deny",
+      "ccd-drop-postal-optional-child",
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
