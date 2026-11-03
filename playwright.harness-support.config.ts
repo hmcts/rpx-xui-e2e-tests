@@ -12,6 +12,7 @@ export default defineConfig({
     "auth-coverage-storage.api.ts",
     "coverage-search-case.api.ts",
     "coverage-session-parity.api.ts",
+    "hearings-mock-builders.api.ts",
     "unit/dynamic-user.pure.unit.api.ts",
     "unit/auth-journey-guardrails.unit.api.ts",
     "unit/hearing-journey-setup.unit.api.ts",
