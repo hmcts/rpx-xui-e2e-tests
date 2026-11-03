@@ -150,6 +150,30 @@ test("known fixture login/header timeout is setup-blocked without leaking its pr
     "failure-unclassified",
   );
 });
+test("service-unavailable login bootstrap and cached rejection are setup-blocked; an endpoint failure is not", () => {
+  const { normalizePhase } = api();
+  for (const prefix of [
+    "Unable to capture UI session for DIVORCE_SOLICITOR.",
+    "Recent UI session capture failed for DIVORCE_SOLICITOR; refusing a repeated login attempt for now:",
+  ]) {
+    const entries = fixture.selections.environment;
+    const raw = document(entries),
+      result = raw.suites[1].suites[0].specs[0].tests[0];
+    result.status = "unexpected";
+    result.results[0].status = "failed";
+    result.results[0].error = {
+      message: `${prefix} UI bootstrap target returned a service-unavailable page (${canary})`,
+      stack: "at createStorageStateViaUi (/owned/src/fixtures/api-auth.ts:365:1)",
+    };
+    raw.stats.expected--;
+    raw.stats.unexpected++;
+    const normalized = normalizePhase(raw, entries, 1, process.cwd());
+    assert.equal(normalized.records[1].observed.aatOutcome, "login-setup-blocked");
+    assert(!JSON.stringify(normalized).includes(canary));
+    result.results[0].error.stack = "at request.get (/owned/src/tests/harness/diagnostic/configuration.spec.ts:30:1)";
+    assert.equal(normalizePhase(raw, entries, 1, process.cwd()).records[1].observed.aatOutcome, "failure-unclassified");
+  }
+});
 test("offline environment cannot receive credentials and AAT targets are fixed with owned UI storage", () => {
   const { phaseEnvironment, normalizePhase, AAT_ORIGIN, IDAM_ORIGIN } = api();
   const env = {
