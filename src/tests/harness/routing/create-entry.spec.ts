@@ -57,7 +57,7 @@ test(
     await selectRoutingEvent(page, "PCS", "routing-local");
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(
-      page.getByLabel("Routing marker", { exact: true }),
+      page.getByLabel("Routing marker (Optional)", { exact: true }),
     ).toHaveValue("synthetic");
     await expect(page).toHaveURL(
       /\/cases\/case-create\/PCS\/PCS\/routing-local(?:\/|$)/,
@@ -79,7 +79,7 @@ test(
     await selectRoutingEvent(page, "RoutingUnmapped", "ext:routing-create");
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(
-      page.getByLabel("Routing marker", { exact: true }),
+      page.getByLabel("Routing marker (Optional)", { exact: true }),
     ).toHaveValue("synthetic");
     await expect(page).toHaveURL(
       /\/cases\/case-create\/PCS\/RoutingUnmapped\/ext(?::|%3A)routing-create(?:\/|$)/,

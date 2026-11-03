@@ -113,7 +113,7 @@ export async function startRoutingProviders(
         url.pathname ===
           `/aggregated/caseworkers/${ROUTING_USER}/jurisdictions` &&
         url.searchParams.size === 1 &&
-        url.searchParams.get("access") === "create"
+        ["create", "read"].includes(url.searchParams.get("access"))
       ) {
         value = routingJurisdictions();
       } else if (

@@ -388,6 +388,27 @@ test("support only: three provider sockets independently journal destination por
       journal.map((e) => e.port),
       [3101, 3102],
     );
+    const jurisdictions =
+      "/aggregated/caseworkers/harness-supervisor/jurisdictions";
+    for (const access of ["create", "read"]) {
+      const metadata = await request(
+        3101,
+        "GET",
+        `${jurisdictions}?access=${access}`,
+      );
+      assert.equal(metadata.status, 200, `declared ${access} metadata`);
+      assert.equal(JSON.parse(metadata.body)[0].id, "PCS");
+    }
+    for (const query of [
+      "access=update",
+      "access=read&access=read",
+      "access=read&extra=true",
+    ])
+      assert.equal(
+        (await request(3101, "GET", `${jurisdictions}?${query}`)).status,
+        501,
+        `undeclared metadata query ${query}`,
+      );
     for (const [port, route, body] of [
       [
         3101,
@@ -422,7 +443,7 @@ test("support only: three provider sockets independently journal destination por
         .readFileSync(path.join(output, "provider-rejections.jsonl"), "utf8")
         .trim()
         .split("\n").length,
-      4,
+      7,
     );
   } finally {
     await new Promise((resolve, reject) =>
