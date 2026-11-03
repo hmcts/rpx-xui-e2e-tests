@@ -44,7 +44,18 @@ The repository is moving to central configuration, role, definition and data-int
 
 | bdc7c22 | 84 | One anonymous GET template expands82 canonically duplicated rows plus two obsolete inventory withdrawals; exclusive inventory/re-export removed. |
 
-Three hundred and twenty-nine runnable cases are retired. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
+| 9a92169 | 9 | Generic sharing/CORS/postcode product probes consolidated or withdrawn with route/origin/status differences explicit; eight helper checks preserved. |
+| 3fb4d72 | 3 | Default-AAT CCD profile/work-basket smoke withdrawn in favour of stronger product ownership; five helper checks preserved. Demo would expand six, not counted again. |
+| d23bade | 33 | Remaining ordinary My Cases, All Work, case-task/event-blocking and My Access outcomes retained canonically; volume/clock/persona/readiness distinctions withdrawn. |
+| 7001307 | 4 | Ordinary upload V1/V2 and case/party flags retained canonically; setup/document-null/notification-timing differences explicit. |
+| 6cbb215 | 1 | Ordinary Available-task action retained canonically; already-orphaned E2E task-list mock removed. |
+| f611ec1 | 4 | Identical dynamic-field fixture outputs and owning defaults/conditional/retention/validation outcomes; exact too-short numeric input withdrawn. |
+| 4ce60da | 2 | Live COURT_ADMIN tasks-or-empty smoke explicitly withdrawn without claiming an equivalent live counterpart; dead table readers pruned. |
+| 2ed143c | 1 | Dead Find page/registrations and absent-reference generator with sole self-test removed; six support checks remain. |
+| 143f8bc | 24 | Generic viewer/roles/linking/event outcomes retained canonically; synthetic role/callback/no-tabs/readiness distinctions explicitly withdrawn. |
+| a50ec33 | 8 | Generic live API schema probes consolidate under product ownership; five builder checks preserved. |
+
+Four hundred and eighteen runnable cases are retired. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -130,6 +141,10 @@ The old E2E create/list and smoke batches consolidate ordinary product outcomes:
 E2E search retires the extra FPL menu-link requirement (canonical permits fallback) and automatic initial Case information view (canonical explicitly selects Summary). Work-filter parity retires the local My cases types-of-work hidden predicate; canonical ignores it and the corresponding unit is disabled. These are deliberate product-scope withdrawals with no newly proved replacement, not useful configuration shapes to copy into Harness.
 
 The anonymous-route batch is one shallow template with84 endpoint rows, not84 business scenarios. It accepts200/401/403/500/502/504 and checks an Unauthorized body only for truthy401 payloads; it does not establish universal session rejection.82 rows share canonical requests/assertions/selection. Two literal-parameter GET paths have no current handlers and are withdrawn as obsolete; no equivalent new routes or successful business calls are claimed.
+
+Further ordinary Manage Tasks consolidation preserves record/value/date/link/menu, actor-filter, task-priority/Markdown, event-blocking and access-table outcomes in enabled canonical cases. A2000-static-row fixture, random/six-hour dates, mocked judicial-account mix and some response-readiness predicates are deliberately withdrawn; canonical uses deterministic clocks and changing page responses. Neither volume fixture establishes performance acceptance.
+
+Viewer/link/event consolidation retains conditional mandatory fields and payloads but withdraws differences in synthetic ACL role composition, mid-event callback enablement and no-tabs fallback observations. These generic examples do not establish imported service-definition assurance. The remaining generic live CCD/API schema probes likewise grant no definition/identity/release credit; canonical has different dedicated personas and stronger success contracts. The ledger uses default-AAT expansion for the dynamic work-basket loop.
 
 ## Useful central scenarios
 
