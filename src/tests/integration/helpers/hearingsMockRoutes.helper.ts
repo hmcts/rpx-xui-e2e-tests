@@ -58,7 +58,6 @@ interface HearingsApiOverride {
 export interface HearingsMockRoutesConfig {
   userRoles: string[];
   caseConfig?: HearingsCaseConfig;
-  caseDetailsBody?: CaseDetailsRouteBody;
   hearings?: HearingScenario[];
   summaryHearing?: HearingScenario;
   enabledCaseVariations?: HearingsCaseVariation[];
@@ -129,7 +128,7 @@ export async function setupHearingsMockRoutes(page: Page, config: HearingsMockRo
     enabledCaseVariations: config.enabledCaseVariations,
     amendmentCaseVariations: config.amendmentCaseVariations,
   });
-  const caseDetails: CaseDetailsRouteBody = config.caseDetailsBody ?? buildHearingsCaseDetailsMock(config.caseConfig);
+  const caseDetails: CaseDetailsRouteBody = buildHearingsCaseDetailsMock(config.caseConfig);
   const hearingsList = buildHearingsListMock(hearingScenarios, config.caseConfig);
   const hearingValues = buildServiceHearingValuesMock(config.caseConfig, summaryHearing);
   const hearingActuals = buildHearingActualsMock();

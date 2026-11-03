@@ -50,7 +50,6 @@
       "ciPolicy": "Frontend requires explicit TEST_URL/TEST_ENV and IDAM_WEB_URL.",
       "proof": "Real frontend routes with controlled responses; no native receipt or CCD persistence credit.",
       "testFiles": [
-        "src/tests/integration/harness/overviewPageLayout.positive.spec.ts",
         "src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts"
       ]
     },
@@ -61,7 +60,6 @@
       "ciPolicy": "Included only with the explicitly selected browser diagnostics; no candidate gate credit.",
       "proof": "Axe checks on selected frontend routes with controlled responses; not comprehensive accessibility acceptance.",
       "testTitles": [
-        "accessibility baseline: IA overview case details has no new axe violations",
         "accessibility baseline: supported Private Law hearings action view has no new axe violations",
         "accessibility baseline: unsupported Divorce case details state has no new axe violations"
       ]

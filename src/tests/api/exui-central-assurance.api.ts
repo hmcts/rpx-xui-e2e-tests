@@ -161,7 +161,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
           priority: 'must-run',
         }),
         expect.objectContaining({
-          executionMode: 'ui',
+          executionMode: 'planned',
           id: 'overview-page-layout-baseline-contract',
           lane: 'manage-case',
           priority: 'grouped',
@@ -334,10 +334,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'idam-passport-session-smoke',
         'sso-login-hint-entrypoint-state',
         'post-auth-role-mismatch-access-denied',
-        'overview-page-layout-regression-classification',
       ])
     );
-    expect(summary['learning-case']).toEqual([]);
+    expect(summary['learning-case']).toEqual(['overview-page-layout-regression-classification']);
     expect(summary.partial).toEqual([]);
     expect(summary['would-catch-with-replay-pack']).toEqual([]);
     expect(summary['out-of-scope']).toEqual(['media-viewer-redaction-coordinate']);
@@ -362,22 +361,19 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
 
     expect(supportingFailures.every((failure) => !failure.wouldHaveCaught)).toBe(true);
     expect(partialFailures).toEqual([]);
-    expect(supportingFailures).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'overview-page-layout-regression-classification',
-          harnessContract: expect.stringContaining('Mocked IA case-details journey'),
-          currentPocEvidence: expect.stringContaining('screenshot plus axe evidence'),
-          wouldHaveCaught: null,
-        }),
-      ])
-    );
-    expect(learningCases).toEqual([]);
+    expect(learningCases).toEqual([
+      expect.objectContaining({
+        id: 'overview-page-layout-regression-classification',
+        harnessContract: expect.stringContaining('explicitly retired'),
+        currentPocEvidence: expect.stringContaining('Retired browser diagnostic; no current IA overview rendering or accessibility proof'),
+        wouldHaveCaught: null,
+      }),
+    ]);
     expect(overviewFailure).toEqual(
       expect.objectContaining({
         id: 'overview-page-layout-regression-classification',
         agenticExpectedBoundary: expect.stringContaining('EXUI layout/styling'),
-        comparisonLearning: expect.stringContaining('central overview layout gate'),
+        comparisonLearning: expect.stringContaining('no native replacement is claimed'),
         humanFixConfidence: 'indirect',
         humanFixEvidence: expect.arrayContaining([
           expect.stringContaining('No direct EXUI-4756-linked PR or commit'),
@@ -450,11 +446,13 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.failReasons).toEqual([]);
     expect(verdict.warnReasons).toEqual([
       'release-blocking family without CCD-backed profile: PCS',
+      'historic learning case not executable yet: overview-page-layout-regression-classification',
       ...(evidence.releaseGate?.warnReasons ?? []),
     ]);
     const acceptedReasons = evidence.releaseGate?.acceptedWarnings?.map((warning) => warning.reason) ?? [];
     expect(acceptedReasons).toEqual(evidence.releaseGate?.warnReasons);
     expect(acceptedReasons).not.toContain('release-blocking family without CCD-backed profile: PCS');
+    expect(acceptedReasons).not.toContain('historic learning case not executable yet: overview-page-layout-regression-classification');
     expect(evidence.releaseGate?.acceptedWarnings).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -473,7 +471,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'historic out-of-scope class: media-viewer-redaction-coordinate',
       ])
     );
-    expect(verdict.knownGaps).not.toContain(
+    expect(verdict.knownGaps).toContain(
       'historic learning case not executable yet: overview-page-layout-regression-classification'
     );
     expect(verdict.knownGaps).not.toContain('release-blocking family without CCD-backed profile: ST_CIC');
@@ -494,9 +492,9 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(verdict.historicFailureCoverage['supporting-only']).toEqual(
       expect.arrayContaining([
         'nested-complex-fieldshowcondition-cya',
-        'overview-page-layout-regression-classification',
       ])
     );
+    expect(verdict.historicFailureCoverage['learning-case']).toEqual(['overview-page-layout-regression-classification']);
   });
 
   test('owner slice catalogue exposes the service-family action list', () => {
@@ -531,6 +529,7 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
     expect(summary.verdict.overallStatus).toBe('warn');
     expect(summary.verdict.warnReasons).toEqual([
       'release-blocking family without CCD-backed profile: PCS',
+      'historic learning case not executable yet: overview-page-layout-regression-classification',
       ...summary.acceptedWarnings.map((warning) => warning.reason),
     ]);
     expect(summary.acceptedWarnings.map((warning) => warning.reason)).not.toContain(
@@ -552,13 +551,11 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
 
     expect(proofLanes.integration?.testFiles).toEqual(
       expect.arrayContaining([
-        'src/tests/integration/harness/overviewPageLayout.positive.spec.ts',
         'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
       ])
     );
     expect(proofLanes.accessibility?.testTitles).toEqual(
       expect.arrayContaining([
-        'accessibility baseline: IA overview case details has no new axe violations',
         'accessibility baseline: supported Private Law hearings action view has no new axe violations',
         'accessibility baseline: unsupported Divorce case details state has no new axe violations',
       ])

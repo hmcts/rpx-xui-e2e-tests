@@ -1382,11 +1382,11 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     id: "overview-page-layout-baseline-contract",
     lane: "manage-case",
     priority: "grouped",
-    executionMode: "ui",
+    executionMode: "planned",
     serviceFamily: "IA",
     roleCluster: "caseworker, admin, home-office, judge",
     assertion:
-      "overview page keeps agreed headings, landmark structure, responsive layout, and accessibility baseline across representative role states",
+      "Historical generic IA overview layout concern; no current Harness browser implementation, role matrix or responsive-layout proof.",
     source: "EXUI overview route, GOV.UK/HMCTS styling, and representative service role personas",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,
@@ -1608,10 +1608,10 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     replayPack: "service-overview-layout",
     failureClass: "Service overview page layout changed unexpectedly for multiple roles in a specific environment",
     harnessContract:
-      "Mocked IA case-details journey opens the real EXUI overview route and asserts the stable heading, selected tab, key fields, screenshot evidence, and accessibility baseline.",
-    coverageStatus: "supporting-only",
+      "The generic mocked IA overview heading, selected-tab and Text-field diagnostic was explicitly retired from the Harness; product layout and accessibility remain product-owner concerns.",
+    coverageStatus: "learning-case",
     currentPocEvidence:
-      "Executable replay pack renders the mocked IA Asylum overview route, checks the agreed layout contract, and attaches screenshot plus axe evidence.",
+      "Retired browser diagnostic; no current IA overview rendering or accessibility proof. Historical EXUI-4756 classification and indirect human-fix evidence are retained for learning only.",
     wouldHaveCaught: null,
     nextScenarioId: "overview-page-layout-baseline-contract",
     agenticExpectedBoundary:
@@ -1623,7 +1623,7 @@ export const EXUI_HISTORIC_FAILURE_COVERAGE: readonly ExuiHistoricFailureCoverag
     ],
     humanFixConfidence: "indirect",
     comparisonLearning:
-      "Done status is irrelevant to coverage value: the ticket is useful because it let the team compare agentic classification against real remediation evidence and add a central overview layout gate."
+      "Historical classification suggested shared EXUI layout/styling. The old one-role-bundle Text-field diagnostic did not establish responsive or multi-role regression coverage and is explicitly withdrawn; no native replacement is claimed."
   },
   {
     id: "media-viewer-redaction-coordinate",
