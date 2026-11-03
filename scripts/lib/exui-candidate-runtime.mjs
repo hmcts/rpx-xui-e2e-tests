@@ -37,18 +37,36 @@ export function validateDestinations(
     throw new Error("INVALID_RUNTIME_CALLBACK");
 }
 // Only these fixed synthetic values reach the candidate; host settings and credentials are never inherited.
-export function candidateEnvironment(config, output) {
-  validateDestinations(config);
+export function candidateEnvironment(config, output, releaseScopeId) {
+  const routing = releaseScopeId === "exui-decentralised-routing-pilot";
+  validateDestinations(
+    config,
+    routing
+      ? [
+          CANDIDATE_URL,
+          PROVIDER_URL,
+          "http://127.0.0.1:3102",
+          "http://127.0.0.1:3103",
+        ]
+      : undefined,
+  );
   return {
     PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
     HOME: "/tmp",
     NODE_ENV: "production",
     NODE_CONFIG_ENV: "harness",
-    NODE_CONFIG_DIR: "/candidate/config",
+    NODE_CONFIG_DIR: routing ? "/tmp/exui-routing-config" : "/candidate/config",
     NODE_CONFIG: JSON.stringify(config),
     PORT: "3100",
     EXUI_NETWORK_REJECTIONS: path.join(output, "network-rejections.jsonl"),
     EXUI_PERSONA: "harness-supervisor",
+    ...(routing
+      ? {
+          EXUI_HARNESS_SCOPE: releaseScopeId,
+          EXUI_ROUTING_CONFIGURATION_MODE:
+            "complete-node-config-empty-private-directory",
+        }
+      : {}),
   };
 }
 export function effectiveCandidateConfiguration(

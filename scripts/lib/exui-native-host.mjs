@@ -21,6 +21,7 @@ import { verifyScopeMutant } from "../prepare-harness-scope-mutant.mjs";
 import { installCancellationCleanup } from "./exui-oci-runtime.mjs";
 import { getReleasePolicy } from "./exui-release-policy.mjs";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
+import { ROUTING_SCOPE } from "./exui-routing-contract.mjs";
 import {
   digestBytes,
   writeJsonAtomic,
@@ -74,22 +75,36 @@ function derivations(input, output, policy, identities, scopeDerivation) {
             beforeDigest: scopeDerivation.beforeDigest,
             afterDigest: scopeDerivation.afterDigest,
           }
-        : input.releaseScopeId === "exui-wa-family-pilot"
+        : input.releaseScopeId === ROUTING_SCOPE
           ? {
-              target: "NODE_CONFIG.waSupportedJurisdictions",
-              before: effectiveCandidateConfiguration(
+              target: `NODE_CONFIG.decentralisedCaseTypeConfig.PCS.${definition.mutationId === "routing-omit-web-url" ? "webUrl" : "nocBaseUrl"}`,
+              before: nativeIdentity(
+                input,
+                { mutation: null },
                 input.artifact.candidateRoot,
-              ).config.waSupportedJurisdictions,
-              after: effectiveCandidateConfiguration(
+              ).config.decentralisedCaseTypeConfig.PCS,
+              after: nativeIdentity(
+                input,
+                { mutation: definition.mutationId },
                 input.artifact.candidateRoot,
-                "wa-drop-family",
-              ).config.waSupportedJurisdictions,
+              ).config.decentralisedCaseTypeConfig.PCS,
             }
-          : {
-              target:
-                "declared CCD gateway fault; same actual Angular/Node/CCD artifact",
-              gatewayDigest: input.gatewayDigest,
-            }),
+          : input.releaseScopeId === "exui-wa-family-pilot"
+            ? {
+                target: "NODE_CONFIG.waSupportedJurisdictions",
+                before: effectiveCandidateConfiguration(
+                  input.artifact.candidateRoot,
+                ).config.waSupportedJurisdictions,
+                after: effectiveCandidateConfiguration(
+                  input.artifact.candidateRoot,
+                  "wa-drop-family",
+                ).config.waSupportedJurisdictions,
+              }
+            : {
+                target:
+                  "declared CCD gateway fault; same actual Angular/Node/CCD artifact",
+                gatewayDigest: input.gatewayDigest,
+              }),
     });
     mutations.push({
       mutationId: definition.mutationId,
@@ -180,7 +195,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
       const directory = path.join(output, invocation.invocationId);
       fs.mkdirSync(directory, { mode: 0o700 });
       const artifact = selectedArtifact(input, invocation),
-        { identity } = nativeIdentity(
+        { identity, config } = nativeIdentity(
           input,
           invocation,
           artifact.candidateRoot,
@@ -202,6 +217,18 @@ export async function runNativeHostPhase(output, stagedHarness) {
           playwrightVersion: input.harnessDependencies.playwrightVersion,
           candidateRuntimeReference: input.nativeRuntime.reference,
           candidateBuildNodeVersion: artifact.provenance.runtimeNodeVersion,
+          ...(input.releaseScopeId === ROUTING_SCOPE
+            ? {
+                routingInterpreter: JSON.stringify(input.routingInterpreter),
+                routingConfigurationMode:
+                  "complete NODE_CONFIG in a fresh API-owned tmpfs directory; no deployed overlay/merge coverage",
+                routingUiConfiguration: JSON.stringify({
+                  decentralisedCaseTypeConfig:
+                    config.decentralisedCaseTypeConfig,
+                  decentralisedServiceMap: config.decentralisedServiceMap,
+                }),
+              }
+            : {}),
           ...(input.ccd
             ? {
                 gatewayDigest: input.gatewayDigest,
@@ -212,9 +239,12 @@ export async function runNativeHostPhase(output, stagedHarness) {
                 ccdNamespace: input.ccd.namespace,
               }
             : {}),
-          excludedSeams: input.ccd
-            ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; real CCD RBAC only; ABAC/provider excluded"
-            : "synthetic-auth,refdata,task-provider,feature-flags,telemetry",
+          excludedSeams:
+            input.releaseScopeId === ROUTING_SCOPE
+              ? "synthetic-auth,upstream-definition-metadata,central-NoC-response,PCS-NoC-response,PCS-destination-marker,feature-flags,telemetry; no PCS backend/CCD/access/persistence or aggregate80ee credit"
+              : input.ccd
+                ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; real CCD RBAC only; ABAC/provider excluded"
+                : "synthetic-auth,refdata,task-provider,feature-flags,telemetry",
         },
       };
       writeJsonAtomic(path.join(directory, "manifest.json"), current);

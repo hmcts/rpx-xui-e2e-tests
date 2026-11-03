@@ -18,12 +18,15 @@ const config = buildHarnessConfig(
     : undefined,
 );
 const slice = process.env.EXUI_HARNESS_SLICE ?? "family";
-if (!["family", "scope"].includes(slice))
+if (!["family", "scope", "routing"].includes(slice))
   throw new Error("UNKNOWN_HARNESS_SLICE");
 export default defineConfig({
   ...config,
   ...(selection === "candidate" && slice === "scope"
     ? { testMatch: "**/scope/*.spec.ts" }
+    : {}),
+  ...(selection === "candidate" && slice === "routing"
+    ? { testMatch: "**/routing/*.spec.ts" }
     : {}),
   timeout: 60_000,
   use: {

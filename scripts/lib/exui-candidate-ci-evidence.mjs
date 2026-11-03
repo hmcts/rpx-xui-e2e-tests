@@ -15,6 +15,7 @@ import { captureNativeOwnership } from "./exui-native-ci-ownership.mjs";
 import { ARM64_BROWSER_RUNTIME } from "./exui-oci-runtime.mjs";
 import { HARNESS_SOURCE_FILES } from "./exui-candidate-runtime.mjs";
 import { CCD_HARNESS_SOURCE_FILES } from "./exui-ccd-browser-runtime.mjs";
+import { assertRoutingInterpreter } from "./exui-routing-contract.mjs";
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -22,6 +23,7 @@ const ROOT = path.resolve(
 const safePath = (value) =>
   typeof value === "string" && path.isAbsolute(value) && !/[\r\n,]/.test(value);
 const scopes = {
+  routing: "exui-decentralised-routing-pilot",
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
@@ -109,6 +111,21 @@ export function captureCiPhaseExpectation(
     context.artifact.identity,
     "CI_LAUNCH_ARTIFACT_MISMATCH",
   );
+  if (name === "routing")
+    assert.deepEqual(
+      input.routingInterpreter,
+      assertRoutingInterpreter(
+        context.artifact,
+        JSON.parse(
+          fs.readFileSync(
+            path.join(ROOT, "scripts/fixtures/exui-configuration-review.json"),
+            "utf8",
+          ),
+        ),
+        context.artifact.identity,
+      ),
+      "CI_ROUTING_IMPLEMENTATION_MISMATCH",
+    );
   assert.equal(
     input.harnessDependencies.digest,
     context.dependencies.digest,

@@ -10,6 +10,7 @@ import { writeJsonAtomic } from "./exui-evidence-io.mjs";
 
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const scopes = {
+  routing: "exui-decentralised-routing-pilot",
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
@@ -188,6 +189,9 @@ export async function cleanupNativeOwnership(expected, { inspect, remove }) {
           image: definition.image,
           namespace: service === "candidate" ? namespace : plan.namespace,
           mounts: definition.mounts,
+          ...(definition.launchProcess
+            ? { launchProcess: definition.launchProcess }
+            : {}),
         });
         if (service === "browser-provider" && !plan.namespace)
           assert(

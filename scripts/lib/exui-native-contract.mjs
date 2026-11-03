@@ -1,8 +1,27 @@
 import assert from "node:assert/strict";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
 import { digestBytes } from "./exui-evidence-io.mjs";
+import {
+  ROUTING_SCOPE,
+  ROUTING_CONFIGURATION_MODE,
+  routingConfiguration,
+} from "./exui-routing-contract.mjs";
 
 const slices = {
+  [ROUTING_SCOPE]: [
+    { invocationId: "baseline", kind: "baseline", mutation: null },
+    ...["routing-omit-web-url", "routing-omit-noc-base-url"].map(
+      (mutation) => ({
+        invocationId: mutation,
+        kind: "mutation",
+        mutation,
+        proofFile:
+          mutation === "routing-omit-web-url"
+            ? "create-entry.spec.ts"
+            : "noc-cache.spec.ts",
+      }),
+    ),
+  ],
   "exui-wa-family-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     {
@@ -57,6 +76,23 @@ export function nativeIdentity(input, invocation, candidateRoot) {
     candidateRoot,
     invocation.mutation === "wa-drop-family" ? "wa-drop-family" : null,
   );
+  if (input.releaseScopeId === ROUTING_SCOPE) {
+    const routed = routingConfiguration(config, invocation.mutation ?? null);
+    return {
+      config: routed,
+      identity: {
+        ...artifact.identity,
+        configurationDigest: digestBytes(
+          JSON.stringify({
+            config: routed,
+            loadMode: ROUTING_CONFIGURATION_MODE,
+          }),
+        ),
+        definitionDigests: {},
+        dependencyIdentities: {},
+      },
+    };
+  }
   if (input.releaseScopeId !== "exui-ccd-pilot")
     return {
       config,

@@ -2,35 +2,11 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { test as base, expect } from "@playwright/test";
-
-import {
-  assertRuntimeIdentity,
-  loadCandidateManifest,
-} from "../harness/candidate";
+import { test as base, expect } from "./harnessIdentity";
 
 export const test = base.extend<{ candidateIdentity: void }>({
   candidateIdentity: [
-    async ({ request, context }, use) => {
-      const manifest = loadCandidateManifest(
-        process.env.EXUI_CANDIDATE_RUN_MANIFEST!,
-      );
-      const observed = JSON.parse(
-        fs.readFileSync(process.env.EXUI_RUNTIME_IDENTITY!, "utf8"),
-      );
-      assertRuntimeIdentity(manifest.identity, observed.identity);
-      const response = await request.get("/external/config/ui");
-      expect(response.ok()).toBeTruthy();
-      const ui = await response.json();
-      for (const key of [
-        "ccdGatewayUrl",
-        "idamWeb",
-        "waWorkflowApi",
-        "judicialBookingApi",
-        "paymentReturnUrl",
-      ])
-        expect(new URL(ui[key]).origin).toBe("http://127.0.0.1:3101");
-      expect(ui.oAuthCallback).toBe("http://127.0.0.1:3100/oauth2/callback");
+    async ({ context }, use) => {
       const rejected: string[] = [];
       const assetChecks: Promise<void>[] = [];
       context.on("response", (assetResponse) => {

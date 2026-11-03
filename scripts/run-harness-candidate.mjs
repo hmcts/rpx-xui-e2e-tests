@@ -16,6 +16,10 @@ import { createFreshHarnessOutput } from "./lib/exui-output-boundary.mjs";
 import { runNativeHostPhase } from "./lib/exui-native-host.mjs";
 import { HARNESS_SOURCE_FILES } from "./lib/exui-candidate-runtime.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
+import {
+  ROUTING_SCOPE,
+  assertRoutingInterpreter,
+} from "./lib/exui-routing-contract.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
@@ -34,6 +38,10 @@ async function launch() {
     ),
   );
   await assertCandidateConfigurationSources(artifact.candidateRoot, review);
+  const routingInterpreter =
+    releaseScopeId === ROUTING_SCOPE
+      ? assertRoutingInterpreter(artifact, review, artifact.identity)
+      : null;
   const mutantPath = arg("--mutant");
   if (releaseScopeId === "exui-wa-scope-pilot" && !mutantPath)
     throw new Error("SCOPE_MUTANT_ARTIFACT_REQUIRED");
@@ -100,6 +108,7 @@ async function launch() {
     artifact,
     browserRoot,
     releaseScopeId,
+    ...(routingInterpreter ? { routingInterpreter } : {}),
     mutantArtifact,
     harnessSourceState,
     harnessDependencies,

@@ -200,6 +200,9 @@ export async function runHostInvocation(
       image: spec.candidate.image,
       namespace,
       mounts: spec.candidate.mounts,
+      ...(spec.candidate.launchProcess
+        ? { launchProcess: spec.candidate.launchProcess }
+        : {}),
     });
     register(candidate);
     candidate.id = docker(

@@ -581,6 +581,27 @@
     ],
     "expectedServiceMap": {},
     "effectiveEnvironmentValues": "unavailable",
-    "interpreterContext": "Pinned code references and hashes remain in the reviewed source design evidence; no interpreter source is freshly verified or executed by this catalogue."
+    "interpreterContext": "Pinned code references and hashes remain in the reviewed source design evidence; no interpreter source is freshly verified or executed by this catalogue.",
+    "interpreterPin": {
+      "repository": "hmcts/rpx-xui-webapp",
+      "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+      "sourceTree": "e8319cbc34ac8b7c0968bff0ecbddc7febfc93dc",
+      "sourceHashes": {
+        "common/decentralisation/decentralised-redirect.util.ts": "sha256:73c5881e18ab7cfb258a97c1a3cd31a9ca92940d3983e48c15d51162e76a4e7b",
+        "src/decentralisation/decentralised-redirect.service.ts": "sha256:f885d5107cf6fab99a25b80c7d9c6b55d45b2e4d195d60e68152338bd8500d80",
+        "src/cases/store/effects/case-create.effects.ts": "sha256:2563ebadf3715a0a4d46a2c22c5810b6be507cec42a979b187f9ceb87c4d4a8f",
+        "api/noc/index.ts": "sha256:069851f279124455287d29314932542d5953ea108fae66fa4254305521f5a6b7"
+      },
+      "apiBundle": {
+        "path": "dist/rpx-exui/api/server.bundle.js",
+        "digest": "sha256:02d60189d2b036534754ae355f7ab560fe476a281e6de523716b368611028231"
+      },
+      "browserChunk": {
+        "path": "dist/rpx-exui/browser/chunk-QIUZLG64.js",
+        "digest": "sha256:283ed094977f8e4ea44d3f475071252f9c0133fc1b086060a68c72b858451fc8"
+      },
+      "baselineArtifactDigest": "sha256:86df28b8788c846c4710f6a698f83865924496b831ab70722d142a5a08115729",
+      "executableReferenceBoundary": "Known baseline reference only; changed sealed implementations are admissible with independent expected identity and unchanged reviewed raw configuration."
+    }
   }
 }

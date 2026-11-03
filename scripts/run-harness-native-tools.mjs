@@ -26,6 +26,11 @@ import {
   seedCcdSession,
 } from "./lib/exui-ccd-browser-runtime.mjs";
 import { digestBytes, writeJsonAtomic } from "./lib/exui-evidence-io.mjs";
+import {
+  ROUTING_SCOPE,
+  assertRoutingInterpreter,
+} from "./lib/exui-routing-contract.mjs";
+import { startRoutingProviders } from "./lib/exui-routing-provider.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
@@ -66,7 +71,22 @@ async function providers(input, invocation, directory) {
     read(path.join(root, "scripts/fixtures/exui-configuration-review.json")),
   );
   let server, cookie;
-  if (input.releaseScopeId === "exui-ccd-pilot") {
+  if (input.releaseScopeId === ROUTING_SCOPE) {
+    const review = read(
+      path.join(root, "scripts/fixtures/exui-configuration-review.json"),
+    );
+    assert.deepEqual(
+      assertRoutingInterpreter(
+        observed,
+        review,
+        input.artifact.identity,
+        "/candidate",
+      ),
+      input.routingInterpreter,
+      "ROUTING_OBSERVED_INTERPRETER_MISMATCH",
+    );
+    ({ server, cookie } = await startRoutingProviders(directory));
+  } else if (input.releaseScopeId === "exui-ccd-pilot") {
     for (const [service, port] of [
       ["data", 4452],
       ["definition", 4451],
@@ -133,7 +153,11 @@ async function proof(input, invocation, directory) {
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === "exui-wa-scope-pilot" ? "scope" : "family",
+      input.releaseScopeId === ROUTING_SCOPE
+        ? "routing"
+        : input.releaseScopeId === "exui-wa-scope-pilot"
+          ? "scope"
+          : "family",
     EXUI_CANDIDATE_RUN_MANIFEST: path.join(directory, "manifest.json"),
     EXUI_CANDIDATE_URL: "http://127.0.0.1:3100",
     EXUI_RUNTIME_IDENTITY: path.join(directory, "runtime-identity.json"),
@@ -149,6 +173,12 @@ async function proof(input, invocation, directory) {
       ? { EXUI_HARNESS_MUTATION: invocation.mutation }
       : {}),
     ...(invocation.persona ? { EXUI_SCOPE_PERSONA: invocation.persona } : {}),
+    ...(input.releaseScopeId === ROUTING_SCOPE
+      ? {
+          EXUI_ROUTING_SESSIONS: path.join(directory, "routing-sessions.json"),
+          EXUI_ROUTING_EVIDENCE: directory,
+        }
+      : {}),
     ...(ccd
       ? {
           EXUI_CCD_PERSONAS: path.join(directory, "personas.json"),
@@ -170,6 +200,8 @@ async function proof(input, invocation, directory) {
           ? "nested-conditional.spec.ts"
           : "case-event-policy.spec.ts",
     );
+  if (input.releaseScopeId === ROUTING_SCOPE && invocation.proofFile)
+    args.push(invocation.proofFile);
   const child = spawn(process.execPath, args, {
     cwd: root,
     env,

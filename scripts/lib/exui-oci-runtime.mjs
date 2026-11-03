@@ -139,6 +139,8 @@ export function toolContainerArguments({
             "ccd-broaden-access",
             "ccd-write-then-deny",
             "ccd-drop-postal-optional-child",
+            "routing-omit-web-url",
+            "routing-omit-noc-base-url",
           ]
         : ["baseline", "wa-drop-family"]
     ).includes(invocationId)
@@ -182,6 +184,23 @@ export function toolContainerArguments({
   ];
 }
 
+export function candidateArchiveProcess(config, releaseScopeId) {
+  const env = candidateEnvironment(config, "/diagnostics", releaseScopeId);
+  return {
+    entrypoint: ["/usr/bin/env"],
+    command: [
+      "-i",
+      ...Object.entries(env).map(([key, value]) => `${key}=${value}`),
+      "/candidate/runtime/node",
+      "--require",
+      "/harness-network-guard.cjs",
+      "/candidate/dist/rpx-exui/api/server.bundle.js",
+    ],
+    ...(releaseScopeId === "exui-decentralised-routing-pilot"
+      ? { privateConfigurationDirectory: "/tmp/exui-routing-config" }
+      : {}),
+  };
+}
 export function candidateArchiveArguments({
   image,
   namespace,
@@ -192,6 +211,7 @@ export function candidateArchiveArguments({
   diagnostics,
   guard,
   config,
+  releaseScopeId,
   evidenceRoot,
   harnessRoot,
 }) {
@@ -208,17 +228,28 @@ export function candidateArchiveArguments({
       "ccd-broaden-access",
       "ccd-write-then-deny",
       "ccd-drop-postal-optional-child",
+      "routing-omit-web-url",
+      "routing-omit-noc-base-url",
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
+  if (
+    invocationId.startsWith("routing-") &&
+    releaseScopeId !== "exui-decentralised-routing-pilot"
+  )
+    throw Error("ROUTING_SCOPE_REQUIRED");
+  if (
+    releaseScopeId === "exui-decentralised-routing-pilot" &&
+    !["baseline", "routing-omit-web-url", "routing-omit-noc-base-url"].includes(
+      invocationId,
+    )
+  )
+    throw Error("UNSUPPORTED_ROUTING_INVOCATION");
   assertReadOnlyMountIsolation(
     [candidateRoot, guard, evidenceRoot, harnessRoot],
     [sessions, diagnostics],
   );
-  const env = {
-    ...candidateEnvironment(config, "/diagnostics"),
-    NODE_CONFIG_DIR: "/candidate/config",
-  };
+  const processConfig = candidateArchiveProcess(config, releaseScopeId);
   return [
     "create",
     "--name",
@@ -238,12 +269,7 @@ export function candidateArchiveArguments({
     "--entrypoint",
     "/usr/bin/env",
     image,
-    "-i",
-    ...Object.entries(env).map(([key, value]) => `${key}=${value}`),
-    "/candidate/runtime/node",
-    "--require",
-    "/harness-network-guard.cjs",
-    "/candidate/dist/rpx-exui/api/server.bundle.js",
+    ...processConfig.command,
   ];
 }
 
@@ -319,8 +345,26 @@ export function candidateImageArguments({
 
 export function assertOwnedContainerAuthority(
   info,
-  { image, namespace, owner, service, running, mounts },
+  { image, namespace, owner, service, running, mounts, launchProcess },
 ) {
+  if (launchProcess) {
+    assert.deepEqual(
+      info.Config.Entrypoint,
+      launchProcess.entrypoint,
+      "OCI_CONTAINER_ENTRYPOINT_MISMATCH",
+    );
+    assert.deepEqual(
+      info.Config.Cmd,
+      launchProcess.command,
+      "OCI_CONTAINER_COMMAND_MISMATCH",
+    );
+    if (launchProcess.privateConfigurationDirectory)
+      assert.equal(
+        info.HostConfig.Tmpfs?.["/tmp"],
+        "rw,nosuid,size=512m",
+        "ROUTING_API_PRIVATE_TMPFS_REQUIRED",
+      );
+  }
   assert.equal(info.Image, image, "OCI_CONTAINER_IMAGE_MISMATCH");
   assert.equal(
     info.Config.Labels?.["exui.harness.owner"],

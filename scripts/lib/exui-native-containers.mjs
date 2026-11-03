@@ -7,6 +7,7 @@ import {
   NATIVE_API_RUNTIME_REFERENCE,
   toolContainerArguments,
   candidateArchiveArguments,
+  candidateArchiveProcess,
   assertBrowserRuntime,
 } from "./exui-oci-runtime.mjs";
 import { hostDocker } from "./exui-host-invocation.mjs";
@@ -128,6 +129,14 @@ export function nativeContainerPlan(
       namespace: namespace ?? toolsNamespace,
       mounts: candidateMounts,
       expectedNodeVersion: artifact.provenance.runtimeNodeVersion,
+      ...(input.releaseScopeId === "exui-decentralised-routing-pilot"
+        ? {
+            launchProcess: candidateArchiveProcess(
+              config,
+              input.releaseScopeId,
+            ),
+          }
+        : {}),
       arguments: (actualNamespace) =>
         candidateArchiveArguments({
           image: input.nativeRuntime.imageId,
@@ -139,6 +148,7 @@ export function nativeContainerPlan(
           diagnostics,
           guard,
           config,
+          releaseScopeId: input.releaseScopeId,
           evidenceRoot: output,
           harnessRoot: handoff.stagedHarness,
         }),

@@ -107,8 +107,12 @@ export async function startProviderSeams(
 }
 
 // Authentication is an excluded seam: seed a synthetic session in the candidate's own file store.
-export function seedSyntheticSession(assignments = syntheticRoleAssignments()) {
-  const id = "harness-supervisor-session";
+export function seedSyntheticSession(
+  assignments = syntheticRoleAssignments(),
+  id = "harness-supervisor-session",
+) {
+  if (!/^[a-zA-Z0-9-]{1,100}$/.test(id))
+    throw new Error("INVALID_SYNTHETIC_SESSION_ID");
   const roles = [
     "caseworker",
     "caseworker-ia",

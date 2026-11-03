@@ -5,6 +5,17 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 
 // This reviewed pilot scope cannot authorize a full EXUI release.
 export function getReleasePolicy(scope) {
+  if (scope === 'exui-decentralised-routing-pilot') {
+    const policy = { releaseScopeId: scope, requiredObligationIds: ['routing-create-entry', 'routing-noc-cache'],
+      obligations: [
+        { id: 'routing-create-entry', boundary: 'candidate', requiredProofIds: ['routing-create-redirect-fallback'], requiredMutationIds: ['routing-omit-web-url'] },
+        { id: 'routing-noc-cache', boundary: 'candidate', requiredProofIds: ['routing-noc-session-cache'], requiredMutationIds: ['routing-omit-noc-base-url'] }
+      ], mutationDefinitions: [
+        { mutationId: 'routing-omit-web-url', obligationId: 'routing-create-entry', definitionDigest: digest({ boundary: 'candidate', transformation: 'omit-only-PCS-webUrl' }), expectedFailureId: 'event-redirect', baselineProofId: 'routing-create-redirect-fallback', mutantProofId: 'routing-web-url-omission' },
+        { mutationId: 'routing-omit-noc-base-url', obligationId: 'routing-noc-cache', definitionDigest: digest({ boundary: 'candidate', transformation: 'omit-only-PCS-nocBaseUrl' }), expectedFailureId: 'noc-session-routing', baselineProofId: 'routing-noc-session-cache', mutantProofId: 'routing-noc-url-omission' }
+      ] };
+    return { ...policy, policyDigest: digest(policy) };
+  }
   if (!['exui-wa-family-pilot', 'exui-wa-scope-pilot', 'exui-ccd-pilot'].includes(scope)) throw new Error('UNSUPPORTED_RELEASE_SCOPE');
   const policy = scope === 'exui-wa-family-pilot' ? {
     releaseScopeId: scope,
