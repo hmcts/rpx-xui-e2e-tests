@@ -5,7 +5,6 @@ import {
   buildGlobalSearchRequestBody,
   extractCaseReferencesFromHtml,
   resolveCaseReferenceFromGlobalSearch,
-  resolveNonExistentCaseReference,
   selectCaseReferenceFromResults
 } from "../e2e/utils/case-reference.utils.js";
 
@@ -192,21 +191,5 @@ test.describe("Case reference support coverage", () => {
         preferredStates: ["Case management", "Submitted"]
       })
     ).resolves.toBe("2234567890123456");
-  });
-
-  test("resolveNonExistentCaseReference returns a verified absent candidate", async () => {
-    const fake = buildFakePage({
-      postResponses: [{ status: 200, json: { results: [] } }]
-    });
-    const originalRandom = Math.random;
-    Math.random = () => 0.1;
-
-    try {
-      await expect(resolveNonExistentCaseReference(fake.page as never, {}, 1)).resolves.toBe(
-        "9111111111111111"
-      );
-    } finally {
-      Math.random = originalRandom;
-    }
   });
 });
