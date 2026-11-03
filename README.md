@@ -43,7 +43,7 @@ The native API runs separately from browser/providers/evidence writing. It recei
 
 The current c024fa3 postal run is BLOCKED at the mandatory-child check and receives zero catalogue execution credit. See [current assurance gaps](docs/harness-known-gaps.md) for the observed constraint and owner action.
 
-A fixed-pilot PASS grants no full EXUI release approval. The portable source catalogue contains 111 obligations; only the exact postal sequence is eligible for the new receipt-to-catalogue mapping. An accepted postal phase leaves the original 110 runtime obligations missing. Source classification, model tests and screenshots do not discharge those gaps. Effective deployed profiles, service-owner grouping acceptance, external owner gates and promotion wiring remain incomplete.
+A fixed-pilot PASS grants no full EXUI release approval. The portable source catalogue contains 112 obligations, including an unproved PCS routing shape. Adding the two routing configuration keys replaces 13 profile IDs; the other 98 obligation objects remain unchanged. Only the exact postal sequence is eligible for the receipt-to-catalogue mapping; an accepted postal phase would leave 111 runtime obligations missing. Source classification, model tests and screenshots do not discharge those gaps. Effective deployed profiles, service-owner grouping acceptance, external owner gates and promotion wiring remain incomplete.
 
 ## Focused candidate and CCD execution
 

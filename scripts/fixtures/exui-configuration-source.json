@@ -41,6 +41,14 @@
               "caseTypes": "SERVICES_HEARINGS_CASETYPES_ET"
             }
           }
+        },
+        "decentralisedCaseTypeConfig": {
+          "__name": "DECENTRALISED_CASE_TYPE_CONFIG",
+          "__format": "json"
+        },
+        "decentralisedServiceMap": {
+          "__name": "DECENTRALISED_SERVICE_MAP",
+          "__format": "json"
         }
       }
     },
@@ -167,7 +175,14 @@
               "caseTypes": "ET_EnglandWales,ET_Scotland,ET_EnglandWales_Multiple,ET_Scotland_Multiple"
             }
           }
-        }
+        },
+        "decentralisedCaseTypeConfig": {
+          "PCS": {
+            "webUrl": "https://pcs.platform.hmcts.net",
+            "nocBaseUrl": "http://pcs-api-prod.service.core-compute-prod.internal"
+          }
+        },
+        "decentralisedServiceMap": {}
       }
     },
     {

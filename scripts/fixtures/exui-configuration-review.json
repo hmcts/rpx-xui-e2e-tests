@@ -215,8 +215,8 @@
     }
   ],
   "sourceFragmentDigests": {
-    "rpx-xui-webapp:config/custom-environment-variables.json": "2abd6e6ecbf79191eae41284b237d6d9466cbd7bf37a60e621c4b19154180b9b",
-    "rpx-xui-webapp:config/default.json": "a5df6e518248b9705296912e75366251c044227d5603e7b26258d232faabf119",
+    "rpx-xui-webapp:config/custom-environment-variables.json": "21eb6c6a069c5654d34b99e69e5af6d0efd780fc2c03cb43648f5e9a26059bdc",
+    "rpx-xui-webapp:config/default.json": "32a1990fe094d06d992dadc20d875430cd621986e9567631c04da746e402e68a",
     "prl-ccd-definitions:definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json": "4dfa04d11acf86a8c3e7de6061df101b0c96fd05ca5a28811bbd42602cf2b3ff",
     "prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json": "9f54fd332e7a436b32a456faee128c202a6bc630b327e189e817f8fed95f8414",
     "prl-ccd-definitions:definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json": "18c9d59c81a33136a4877b38469d92d4e14edda205d0a578e9b9c9ecf73a618f",
@@ -548,5 +548,39 @@
       "recipientCount": 1,
       "reason": "One recipient is outside this selected sibling-retention sequence; no runtime invalidity claim."
     }
-  ]
+  ],
+  "decentralisedRouting": {
+    "boundary": "reviewed-source-context-only",
+    "knownValid": [
+      {
+        "id": "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861",
+        "signature": {
+          "schemaVersion": 1,
+          "profile": "config/default.json",
+          "sourceRevision": "76bf7a840fa71af466961de87294973023b2f0f3",
+          "caseTypePrefix": "PCS",
+          "webUrl": "https://pcs.platform.hmcts.net",
+          "nocBaseUrl": "http://pcs-api-prod.service.core-compute-prod.internal",
+          "caseTypeLookup": "longest-case-insensitive-prefix",
+          "suffixSubstitution": "first-%s-then-trim-trailing-slashes",
+          "eventRedirect": {
+            "eventPrefix": "ext:",
+            "caseSensitive": true,
+            "requires": "webUrl",
+            "fallback": "existing-local-dispatch"
+          },
+          "nocRouting": {
+            "initial": "central-case-assignment-questions",
+            "caseType": "session-cache-by-requested-case-id",
+            "destination": "cached-case-type-nocBaseUrl",
+            "fallback": "central-case-assignment"
+          },
+          "serviceMap": "separate-exact-service-id-map"
+        }
+      }
+    ],
+    "expectedServiceMap": {},
+    "effectiveEnvironmentValues": "unavailable",
+    "interpreterContext": "Pinned code references and hashes remain in the reviewed source design evidence; no interpreter source is freshly verified or executed by this catalogue."
+  }
 }

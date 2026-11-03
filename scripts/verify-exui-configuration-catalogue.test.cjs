@@ -10,6 +10,111 @@ before(async () => { api = await import('./lib/exui-configuration-catalogue.mjs'
 const source = (copy, fragment) => copy.sources.find((item) => item.path.includes(fragment));
 const build = (input = snapshot) => api.buildConfigurationCatalogue(input, review);
 
+test('pinned decentralised case-type destinations and empty service map remain distinct from environment JSON mappings', () => {
+  const defaults = source(snapshot, 'config/default.json');
+  assert.deepEqual(defaults.document.decentralisedCaseTypeConfig, { PCS: { webUrl: 'https://pcs.platform.hmcts.net', nocBaseUrl: 'http://pcs-api-prod.service.core-compute-prod.internal' } });
+  assert.deepEqual(defaults.document.decentralisedServiceMap, {});
+  const env = source(snapshot, 'config/custom-environment-variables.json').document;
+  assert.deepEqual(env.decentralisedCaseTypeConfig, { __name: 'DECENTRALISED_CASE_TYPE_CONFIG', __format: 'json' });
+  assert.deepEqual(env.decentralisedServiceMap, { __name: 'DECENTRALISED_SERVICE_MAP', __format: 'json' });
+  assert.equal(defaults.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
+  assert.equal(source(snapshot, 'config/custom-environment-variables.json').fileDigest, '59f4b48d697b832fe61e8b18a14b6e3ed7b2a7db7450af69cbbddeae68d34c42');
+  for (const item of snapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) assert.equal(item.revision, '76bf7a840fa71af466961de87294973023b2f0f3');
+  const catalogue = build();
+  const routes = catalogue.obligations.filter(item => item.kind === 'configuration-decentralisation');
+  assert.equal(routes.length, 1);
+  assert.equal(routes[0].signature.caseTypePrefix, 'PCS');
+  assert.equal(routes[0].requiredBoundary, 'candidate');
+  const result = api.validateConfigurationCatalogue({ snapshot, review, catalogue });
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.denominator.requiredObligations, 112);
+  assert.equal(result.coverage.candidate, 0);
+  assert(result.coverage.missingCandidateOrCcd.includes(routes[0].id));
+  const modelAndCcd = api.validateConfigurationCatalogue({ snapshot, review, catalogue, executedProofs: [
+    { obligationId: routes[0].id, boundary: 'model', status: 'passed' },
+    { obligationId: routes[0].id, boundary: 'ccd', status: 'passed' },
+  ] });
+  assert.equal(modelAndCcd.coverage.candidate, 0);
+  assert(modelAndCcd.coverage.missingCandidateOrCcd.includes(routes[0].id));
+  for (const path of ['config/custom-environment-variables.json', 'common/decentralisation/decentralised-redirect.util.ts', 'src/decentralisation/decentralised-redirect.service.ts', 'api/noc/index.ts']) {
+    const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'rpx-xui-webapp', path }]);
+    assert.equal(selection.mode, 'broad'); assert.equal(selection.obligationIds.length, 112);
+  }
+});
+
+test('missing PCS routing never silently removes the independently reviewed routing denominator', () => {
+  const changed = structuredClone(snapshot);
+  source(changed, 'config/default.json').document.decentralisedCaseTypeConfig = {};
+  const catalogue = build(changed);
+  const result = api.validateConfigurationCatalogue({ snapshot: changed, review, catalogue });
+  assert.equal(result.denominator.requiredObligations, 112);
+  assert(result.errors.some(item => item.startsWith('missing-reviewed-routing:')));
+  const present = build();
+  present.obligations = present.obligations.filter(item => item.kind !== 'configuration-decentralisation');
+  const excluded = api.validateConfigurationCatalogue({ snapshot, review, catalogue: present });
+  assert.equal(excluded.denominator.requiredObligations, 112);
+  assert(excluded.errors.some(item => item.startsWith('missing-reviewed-routing:')));
+});
+
+test('routing map structures reject malformed destinations and custom environment mappings without inventing an HTTPS requirement', () => {
+  for (const change of [
+    d => d.decentralisedCaseTypeConfig = null,
+    d => d.decentralisedServiceMap = [],
+    d => d.decentralisedCaseTypeConfig.PCS.webUrl = 12,
+    d => d.decentralisedCaseTypeConfig.PCS.nocBaseUrl = false,
+    d => d.decentralisedCaseTypeConfig.PCS = 'not-an-entry',
+    d => d.decentralisedServiceMap.other = {},
+  ]) {
+    const copy = structuredClone(snapshot); change(source(copy, 'config/default.json').document);
+    assert.throws(() => build(copy), /invalid-decentralised/);
+  }
+  for (const value of [{ PCS: { webUrl: 'http://local' } }, { __name: 'CONFIG', __format: 'yaml' }, 'CONFIG']) {
+    const copy = structuredClone(snapshot);
+    source(copy, 'config/custom-environment-variables.json').document.decentralisedCaseTypeConfig = value;
+    assert.throws(() => build(copy), /invalid-decentralised/);
+  }
+  const copy = structuredClone(snapshot);
+  source(copy, 'config/default.json').document.decentralisedCaseTypeConfig.PCS = {};
+  const route = build(copy).obligations.find(item => item.kind === 'configuration-decentralisation');
+  assert.equal(route.signature.webUrl, null);
+  assert.equal(route.signature.nocBaseUrl, null);
+  assert(api.validateConfigurationCatalogue({ snapshot: copy, review, catalogue: build(copy) }).errors.some(item => item.startsWith('missing-reviewed-routing:')));
+});
+
+test('unreviewed case-type and service-map entries are explicit source gaps, never PCS destination credit', () => {
+  const copy = structuredClone(snapshot);
+  const document = source(copy, 'config/default.json').document;
+  document.decentralisedCaseTypeConfig.OTHER = { webUrl: 'http://other.invalid' };
+  document.decentralisedCaseTypeConfig.PCS.unknownDestination = 'http://unknown.invalid';
+  document.decentralisedServiceMap.AAA3 = { baseUrl: 'http://header.invalid' };
+  const catalogue = build(copy), result = api.validateConfigurationCatalogue({ snapshot: copy, review, catalogue });
+  assert.equal(catalogue.obligations.filter(item => item.kind === 'configuration-decentralisation').length, 2);
+  assert.equal(result.denominator.requiredObligations, 113);
+  assert(result.gaps.includes('unreviewed-decentralised-case-type-entry:OTHER'));
+  assert(result.gaps.includes('unreviewed-decentralised-service-entry:AAA3'));
+  assert(result.gaps.includes('unreviewed-decentralised-case-type-property:PCS:unknownDestination'));
+  assert.equal(result.coverage.candidate, 0);
+  assert.equal(result.coverage.missingCandidateOrCcd.length, 113);
+  assert.equal(result.releaseCredit, false);
+});
+
+test('non-default routing-map overlays stay unsupported rather than using a shallow effective merge', () => {
+  for (const key of ['decentralisedCaseTypeConfig', 'decentralisedServiceMap']) {
+    const copy = structuredClone(snapshot), overlay = structuredClone(source(copy, 'config/default.json'));
+    overlay.path = 'config/preview.json'; overlay.document = { [key]: {} }; copy.sources.push(overlay);
+    assert.throws(() => build(copy), /unsupported-decentralised-routing-overlay:config\/preview.json/);
+  }
+});
+
+test('an absent service map remains distinct from the reviewed empty service map', () => {
+  const copy = structuredClone(snapshot);
+  delete source(copy, 'config/default.json').document.decentralisedServiceMap;
+  const catalogue = build(copy), result = api.validateConfigurationCatalogue({ snapshot: copy, review, catalogue });
+  assert(result.errors.includes('source-drift:rpx-xui-webapp:config/default.json'));
+  assert(result.gaps.includes('unreviewed-decentralised-service-map'));
+  assert.notEqual(catalogue.configurationProfiles[0].digest, build().configurationProfiles[0].digest);
+});
+
 test('candidate source validation requires reviewed config bytes before any runtime override', () => {
   const { createHash } = require('node:crypto');
   const directory = mkdtempSync(join(tmpdir(), 'exui-candidate-source-'));
@@ -170,6 +275,9 @@ test('source reader uses real paths, projects allowlisted keys and discovers new
     }
     writeFileSync(join(directory, 'rpx-xui-webapp/config/new-overlay.json'), '{"waSupportedJurisdictions":"NEWFAMILY","secret":"DO-NOT-COPY"}');
     const result = api.readConfigurationSources({ webappRoot: join(directory, 'rpx-xui-webapp'), definitionsRoot: join(directory, 'prl-ccd-definitions') });
+    for (const path of ['config/default.json', 'config/custom-environment-variables.json']) {
+      for (const key of ['decentralisedCaseTypeConfig', 'decentralisedServiceMap']) assert.deepEqual(source(result, path).document[key], source(snapshot, path).document[key]);
+    }
     assert.ok(result.sources.some((item) => item.path === 'config/new-overlay.json'));
     assert.ok(!JSON.stringify(result).includes('DO-NOT-COPY'));
     assert.ok(build(result).diagnosticFamilies.some((item) => item.id === 'NEWFAMILY'));
@@ -313,20 +421,36 @@ test('checked-in Helm overrides stay explicit source inventory and do not approv
   assert.equal(result.releaseCredit, false);
 });
 
-test('postal sequence is additive and retains the exact original110 obligations and16 role cells', () => {
+test('routing projection replaces13 profile IDs while retaining exact98 other objects and the historical110 ID fingerprint', () => {
   const { createHash } = require('node:crypto');
   const catalogue = build();
   const id = 'configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed';
-  const original = catalogue.obligations.filter(item => item.id !== id).map(item => item.id).sort();
-  assert.equal(catalogue.obligations.length, 111);
+  const oldSnapshot = structuredClone(snapshot);
+  for (const item of oldSnapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) {
+    delete item.document.decentralisedCaseTypeConfig; delete item.document.decentralisedServiceMap;
+  }
+  const previous = build(oldSnapshot);
+  const original = previous.obligations.filter(item => item.id !== id).map(item => item.id).sort();
+  assert.equal(previous.obligations.length, 111);
+  assert.equal(catalogue.obligations.length, 112);
   assert.equal(createHash('sha256').update(JSON.stringify(original)).digest('hex'), 'f5671fcc666657de7ca663d3763754ad4698020dceca8e8659e8af7f90aa7207');
+  const remaining = catalogue.obligations.filter(item => !['configuration-profile', 'configuration-decentralisation'].includes(item.kind));
+  assert.equal(remaining.length, 98);
+  assert.deepEqual(remaining, previous.obligations.filter(item => item.kind !== 'configuration-profile'));
+  assert.equal(createHash('sha256').update(JSON.stringify(remaining)).digest('hex'), '518b0a661b7b3fbf942754b0bd1560ba6fde1ee61896a58204b78d46f1b16551');
+  const profiles = catalogue.obligations.filter(item => item.kind === 'configuration-profile');
+  assert.equal(profiles.length, 13);
+  for (const old of previous.obligations.filter(item => item.kind === 'configuration-profile')) {
+    assert.notEqual(profiles.find(item => item.family === old.family).id, old.id);
+    assert(!catalogue.obligations.some(item => item.id === old.id), 'old IDs are not aliases');
+  }
   assert.equal(catalogue.pilotCells.length, 16);
   const obligation = catalogue.obligations.find(item => item.id === id);
   assert.equal(obligation.requiredBoundary, 'ccd');
   assert.equal(obligation.signature.runtimeCaseType, 'HarnessNestedPRL');
   assert.equal(obligation.signature.recipientCount, 2);
   assert.equal(obligation.signature.channel, 'post');
-  assert.equal(api.validateConfigurationCatalogue({ snapshot, review, catalogue }).coverage.missingCandidateOrCcd.length, 111);
+  assert.equal(api.validateConfigurationCatalogue({ snapshot, review, catalogue }).coverage.missingCandidateOrCcd.length, 112);
 });
 
 test('postal source sequence cannot disappear or collapse independently reviewed semantics', () => {
@@ -334,7 +458,7 @@ test('postal source sequence cannot disappear or collapse independently reviewed
   const catalogue = build();
   catalogue.obligations = catalogue.obligations.filter(item => item.id !== id);
   const missing = api.validateConfigurationCatalogue({ snapshot, review, catalogue });
-  assert.equal(missing.denominator.requiredObligations, 111);
+  assert.equal(missing.denominator.requiredObligations, 112);
   assert(missing.errors.includes(`missing-valid-sequence:${id}`));
   assert(missing.errors.includes(`missing-obligation:${id}`));
   for (const change of [
@@ -347,7 +471,7 @@ test('postal source sequence cannot disappear or collapse independently reviewed
   }
 });
 
-test('postal sequence retains its source impact dependencies and unknown fixed-list changes broaden to111', () => {
+test('postal sequence retains its source impact dependencies and unknown fixed-list changes broaden to112', () => {
   const catalogue = build(), id = review.knownValidSequences[0].id;
   for (const [repository, path] of [
     ['rpx-xui-webapp', 'config/default.json'],
@@ -355,5 +479,5 @@ test('postal sequence retains its source impact dependencies and unknown fixed-l
     ['prl-ccd-definitions', 'definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json'],
   ]) assert(api.selectConfigurationObligations(catalogue, [{ repository, path }]).obligationIds.includes(id));
   const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'prl-ccd-definitions', path: 'definitions/private-law/json/FixedLists.json' }]);
-  assert.equal(selection.mode, 'broad');assert.equal(selection.obligationIds.length, 111);
+  assert.equal(selection.mode, 'broad');assert.equal(selection.obligationIds.length, 112);
 });

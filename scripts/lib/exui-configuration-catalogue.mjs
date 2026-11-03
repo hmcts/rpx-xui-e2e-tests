@@ -3,7 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, basename, extname } from 'node:path';
 
-const configurationKeys = ['jurisdictions', 'globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping', 'wildcardSearchFields', 'wildcardSearchRoles'];
+const routingKeys = ['decentralisedCaseTypeConfig', 'decentralisedServiceMap'];
+const configurationKeys = ['jurisdictions', 'globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping', 'wildcardSearchFields', 'wildcardSearchRoles', ...routingKeys];
 const definitionPaths = [
   'CaseField/ServiceOfDocuments/CaseField.json',
   'ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json',
@@ -23,6 +24,33 @@ const digest = (value) => createHash('sha256').update(JSON.stringify(sorted(valu
 const fileDigest = (value) => createHash('sha256').update(value).digest('hex');
 const unique = (items) => [...new Set(items)];
 const cellKey = ({ caseType, role, action, channel, recipientCount }) => [caseType, role, action, channel, recipientCount].join('|');
+const objectMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+function validateRoutingConfiguration(source) {
+  for (const key of routingKeys.filter((key) => key in source.document)) {
+    const value = source.document[key];
+    if (!objectMap(value)) throw new Error(`invalid-decentralised-map:${source.path}:${key}`);
+    if (source.path === 'config/custom-environment-variables.json') {
+      if (typeof value.__name !== 'string' || !value.__name || value.__format !== 'json' || Object.keys(value).some((key) => !['__name', '__format'].includes(key))) throw new Error(`invalid-decentralised-json-mapping:${key}`);
+      continue;
+    }
+    if (source.path !== 'config/default.json') throw new Error(`unsupported-decentralised-routing-overlay:${source.path}`);
+    for (const [entryKey, entry] of Object.entries(value)) {
+      const properties = key === routingKeys[0] ? ['webUrl', 'nocBaseUrl'] : ['baseUrl'];
+      if (!entryKey || !objectMap(entry) || properties.some((property) => property in entry && typeof entry[property] !== 'string') ||
+          key === routingKeys[1] && typeof entry.baseUrl !== 'string') throw new Error(`invalid-decentralised-entry:${key}:${entryKey}`);
+    }
+  }
+}
+function routingSignature(source, caseTypePrefix, entry) {
+  return { schemaVersion: 1, profile: source.path, sourceRevision: source.revision, caseTypePrefix,
+    webUrl: entry.webUrl ?? null, nocBaseUrl: entry.nocBaseUrl ?? null,
+    caseTypeLookup: 'longest-case-insensitive-prefix', suffixSubstitution: 'first-%s-then-trim-trailing-slashes',
+    eventRedirect: { eventPrefix: 'ext:', caseSensitive: true, requires: 'webUrl', fallback: 'existing-local-dispatch' },
+    nocRouting: { initial: 'central-case-assignment-questions', caseType: 'session-cache-by-requested-case-id',
+      destination: 'cached-case-type-nocBaseUrl', fallback: 'central-case-assignment' },
+    serviceMap: 'separate-exact-service-id-map' };
+}
+const routingId = (signature) => `configuration-decentralisation:${digest(signature)}`;
 
 export function assertCandidateConfigurationSources(candidateRoot, review) {
   const prefix = 'rpx-xui-webapp:';
@@ -120,6 +148,7 @@ export function buildConfigurationCatalogue(snapshot, review) {
   if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.sources) || snapshot.sources.length === 0) throw new Error('Invalid configuration source snapshot');
   if (new Set(snapshot.sources.map(sourceKey)).size !== snapshot.sources.length) throw new Error('Duplicate configuration source');
   const configurations = snapshot.sources.filter((source) => source.repository === 'rpx-xui-webapp');
+  configurations.forEach(validateRoutingConfiguration);
   const defaults = configurations.find((source) => source.path === 'config/default.json');
   if (!defaults) throw new Error('Missing default configuration');
   const configurationProfiles = [];
@@ -193,6 +222,12 @@ export function buildConfigurationCatalogue(snapshot, review) {
         'prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json']) };
   });
   obligations.push(...sequences);
+  for (const [prefix, entry] of Object.entries(defaults.document.decentralisedCaseTypeConfig ?? {})) {
+    const signature = routingSignature(defaults, prefix, entry);
+    obligations.push({ id: routingId(signature), kind: 'configuration-decentralisation', requiredBoundary: 'candidate', signature,
+      // Environment mappings affect more than routing; leave that path unknown so changes still broaden to every obligation.
+      sourceKeys: [sourceKey(defaults)] });
+  }
   if (new Set(obligations.map((item) => item.id)).size !== obligations.length) throw new Error('Duplicate configuration obligation');
   return { schemaVersion: 1, scope: review.scope, seed: review.seed, boundary: 'source-and-catalogue', releaseCredit: false,
     pilotAccessBoundary: 'Selected AuthorisationCaseEvent CRUD only; no case, field or state authorisation inferred.',
@@ -259,7 +294,25 @@ export function validateConfigurationCatalogue({ snapshot, review, catalogue, ex
     }
   }
   const requiredIds = unique([...buildConfigurationCatalogue(snapshot, review).obligations.map((item) => item.id),
-    ...(review.knownValidSequences ?? []).map((item) => item.id)]);
+    ...(review.knownValidSequences ?? []).map((item) => item.id),
+    ...(review.decentralisedRouting?.knownValid ?? []).map((item) => item.id)]);
+  const routes = catalogue.obligations.filter((item) => item.kind === 'configuration-decentralisation');
+  for (const expected of review.decentralisedRouting?.knownValid ?? []) {
+    const actual = routes.find((item) => item.id === expected.id);
+    if (expected.id !== routingId(expected.signature) || !actual || digest(actual.signature) !== digest(expected.signature)) errors.push(`missing-reviewed-routing:${expected.id}`);
+    gaps.push(`candidate-event-redirect-not-demonstrated:${expected.id}`, `noc-session-routing-not-demonstrated:${expected.id}`);
+  }
+  for (const route of routes) {
+    if (route.id !== routingId(route.signature)) errors.push(`routing-signature-drift:${route.id}`);
+    if (!(review.decentralisedRouting?.knownValid ?? []).some((item) => item.id === route.id)) gaps.push(`unreviewed-decentralised-case-type-entry:${route.signature.caseTypePrefix}`);
+  }
+  const defaults = snapshot.sources.find((item) => item.repository === 'rpx-xui-webapp' && item.path === 'config/default.json');
+  for (const [prefix, entry] of Object.entries(defaults.document.decentralisedCaseTypeConfig ?? {})) {
+    for (const property of Object.keys(entry).filter((key) => !['webUrl', 'nocBaseUrl'].includes(key))) gaps.push(`unreviewed-decentralised-case-type-property:${prefix}:${property}`);
+  }
+  for (const serviceId of Object.keys(defaults.document.decentralisedServiceMap ?? {})) gaps.push(`unreviewed-decentralised-service-entry:${serviceId}`);
+  if (review.decentralisedRouting && digest(defaults.document.decentralisedServiceMap ?? null) !== digest(review.decentralisedRouting.expectedServiceMap)) gaps.push('unreviewed-decentralised-service-map');
+  if (routes.length) gaps.push('decentralised-interpretation-context-not-candidate-verified', 'pcs-definition-event-rbac-abac-and-provider-equivalence-not-demonstrated');
   const actualIds = catalogue.obligations.map((item) => item.id);
   for (const id of requiredIds) if (!actualIds.includes(id)) errors.push(`missing-obligation:${id}`);
   if (new Set(actualIds).size !== actualIds.length) errors.push('duplicate-obligation');

@@ -6,10 +6,10 @@ const os = require("node:os");
 const id =
   "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed";
 
-test("support only: committed source projections load111 obligations without an external checkout or caller execution status", async () => {
+test("support only: committed source projections load112 obligations without an external checkout or caller execution status", async () => {
   const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
   const loaded = api.loadCommittedConfigurationCatalogue(path.resolve("."));
-  assert.equal(loaded.catalogue.obligations.length, 111);
+  assert.equal(loaded.catalogue.obligations.length, 112);
   assert.equal(loaded.validation.errors.length, 0);
   assert.equal(
     loaded.catalogue.sourceManifest.find(
@@ -26,9 +26,9 @@ test("support only: committed source projections load111 obligations without an 
       harnessRoot: path.resolve("."),
       output,
     });
-    assert.equal(result.coverage.selected, 111);
+    assert.equal(result.coverage.selected, 112);
     assert.equal(result.coverage.ccd, 0);
-    assert.equal(result.coverage.missingCandidateOrCcd.length, 111);
+    assert.equal(result.coverage.missingCandidateOrCcd.length, 112);
     assert.equal(result.releaseCredit, false);
     assert.throws(
       () =>
@@ -226,7 +226,7 @@ async function completeCcdBundle(root) {
   };
 }
 
-test("support only: finalized exact CCD sequence credits only one of111 and preserves original profile/PRL gaps", async () => {
+test("support only: finalized exact CCD sequence credits only one of112 and preserves original profile/PRL gaps", async () => {
   const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "coverage-receipt-"));
   try {
@@ -239,12 +239,13 @@ test("support only: finalized exact CCD sequence credits only one of111 and pres
       expected: bundle.expected,
       terminal: bundle.terminal,
     });
-    assert.equal(result.coverage.selected, 111);
+    assert.equal(result.coverage.selected, 112);
     assert.equal(result.coverage.ccd, 1);
     assert.equal(result.coverage.candidate, 0);
     assert.equal(result.coverage.model, 0);
     assert.equal(result.coverage.external, 0);
-    assert.equal(result.coverage.missingCandidateOrCcd.length, 110);
+    assert.equal(result.coverage.missingCandidateOrCcd.length, 111);
+    assert(result.coverage.missingCandidateOrCcd.includes("configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861"));
     assert(!result.coverage.missingCandidateOrCcd.includes(id));
     const saved = JSON.parse(
       fs.readFileSync(path.join(output, "coverage.json")),
@@ -315,7 +316,7 @@ test("support only: actual CI accounting block bridges an independently captured
       fs.readFileSync(path.join(root, "configuration/coverage.json")),
     );
     assert.equal(report.coverage.ccd, 1);
-    assert.equal(report.coverage.missingCandidateOrCcd.length, 110);
+    assert.equal(report.coverage.missingCandidateOrCcd.length, 111);
     assert.equal(
       result.expected.receiptArtifactDigest,
       undefined,
@@ -415,7 +416,7 @@ for (const fault of [
         fs.readFileSync(path.join(output, "coverage.json")),
       );
       assert.equal(saved.coverage.ccd, 0);
-      assert.equal(saved.coverage.missingCandidateOrCcd.length, 111);
+      assert.equal(saved.coverage.missingCandidateOrCcd.length, 112);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -514,7 +515,7 @@ for (const fault of [
           terminal,
         });
         assert.equal(result.coverage.ccd, 0);
-        assert.equal(result.coverage.missingCandidateOrCcd.length, 111);
+        assert.equal(result.coverage.missingCandidateOrCcd.length, 112);
         const saved = JSON.parse(
           fs.readFileSync(path.join(output, "coverage.json")),
         );

@@ -14,11 +14,11 @@ The owner action is to confirm the explicit child-mandatory semantics and fix th
 
 ## Catalogue and environment coverage
 
-The original 110 profile/family/definition-row/role/shared obligations remain runtime gaps. The additive postal sequence is a separate normalized obligation; it cannot credit aggregate profiles or actual PRL authorization cells. Effective deployed environment overrides and service-owner representative grouping acceptance remain incomplete.
+All current profile/family/definition-row/role/shared obligations remain runtime gaps. The additive postal sequence is a separate normalized obligation; it cannot credit aggregate profiles or actual PRL authorization cells. Source-projection expansion replaces 13 profile IDs and retains the other 98 objects; historical receipts do not alias the replacement IDs. Effective deployed environment overrides and service-owner representative grouping acceptance remain incomplete.
 
 PCS is required in current global-search, WA and staff membership. Its Java SDK/decentralised source owner is pinned to pcs-api efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8, with CaseType/PCSCase/PCSCaseView/build inputs recorded. Base case type PCS is known; CASE_TYPE_SUFFIX and deployed identity remain unresolved. Definition generation/import and service runtime assurance are unproved. The profile remains config-backed with an unaccepted required gap.
 
-The portable catalogue currently omits `decentralisedCaseTypeConfig` and `decentralisedServiceMap` from its semantic projection. Pinned webapp source defines PCS-prefix UI/NoC routing and an empty default service-link map. Whole-file hashes still detect source-byte drift, but these routing distinctions have no dedicated obligation or execution credit. Extending the projection requires explicit profile-ID migration and reviewed routing obligations; the current 111-obligation result does not establish complete configuration discovery.
+The portable catalogue now includes `decentralisedCaseTypeConfig` and `decentralisedServiceMap`, with a separate unproved PCS routing obligation and 112 obligations in total. Pinned webapp source defines PCS-prefix UI/NoC routing and an empty default service-link map; an empty map earns no active-destination credit. Current pilots rewrite both destinations to a synthetic provider and do not exercise the routing contract. Candidate/interpreter identity binding, external-event navigation, case-specific cached NoC routing and effective deployed overrides remain unproved. Whole-file hashes still detect source-byte drift; source inventory does not establish complete configuration discovery or execution.
 
 ## External integration
 
