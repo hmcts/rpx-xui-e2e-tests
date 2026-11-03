@@ -89,7 +89,7 @@ RPX_XUI_WEBAPP_DIR=/absolute/rpx-xui-webapp PRL_CCD_DEFINITIONS_DIR=/absolute/pr
 yarn harness:defect-intake -- "defect title and bounded notes"
 ```
 
-External-checkout source inspection requires the actual selected source paths. The native fixed job uses committed reviewed projections and separate byte/revision/row pins; it does not silently refresh upstream sources. The legacy manifest reports source drift separately from required assurance gaps. PCS membership is required; its decentralised CCD source is discovered but not yet reviewed/imported/represented for runtime assurance, so that gap stays explicit and unaccepted.
+External-checkout source inspection requires the actual selected source paths. The native fixed job uses committed reviewed projections and separate byte/revision/row pins; it does not silently refresh upstream sources. The legacy manifest reports source drift separately from required assurance gaps. PCS membership is required. Its Java SDK/decentralised source owner and base case type are pinned, but definition generation/import, deployed suffix and runtime assurance remain unproved. The profile stays config-backed and its required gap remains unaccepted.
 
 The shared evaluator recomputes raw framework evidence and receipts. `harness:verify-gate` consumes a receipt with independently supplied expected identity and immutable receipt digest. Missing, mismatched, interrupted or unsupported evidence blocks. See [the evidence contract](docs/harness-evidence-contract.md) for exact identity, mutation and publication requirements.
 

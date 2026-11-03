@@ -16,7 +16,9 @@ The owner action is to confirm the explicit child-mandatory semantics and fix th
 
 The original 110 profile/family/definition-row/role/shared obligations remain runtime gaps. The additive postal sequence is a separate normalized obligation; it cannot credit aggregate profiles or actual PRL authorization cells. Effective deployed environment overrides and service-owner representative grouping acceptance remain incomplete.
 
-PCS is required in current global-search, WA and staff membership. Its Java-generated, decentralised CCD definition owner is identified in pcs-api; reviewed/imported source representation and service runtime assurance are not yet present in this catalogue. It remains an unaccepted required gap.
+PCS is required in current global-search, WA and staff membership. Its Java SDK/decentralised source owner is pinned to pcs-api efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8, with CaseType/PCSCase/PCSCaseView/build inputs recorded. Base case type PCS is known; CASE_TYPE_SUFFIX and deployed identity remain unresolved. Definition generation/import and service runtime assurance are unproved. The profile remains config-backed with an unaccepted required gap.
+
+The portable catalogue currently omits `decentralisedCaseTypeConfig` and `decentralisedServiceMap` from its semantic projection. Pinned webapp source defines PCS-prefix UI/NoC routing and an empty default service-link map. Whole-file hashes still detect source-byte drift, but these routing distinctions have no dedicated obligation or execution credit. Extending the projection requires explicit profile-ID migration and reviewed routing obligations; the current 111-obligation result does not establish complete configuration discovery.
 
 ## External integration
 

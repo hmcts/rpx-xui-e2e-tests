@@ -318,6 +318,7 @@ export interface ExuiServiceDefinitionRepoEvidence {
   visibility: "public" | "private";
   updatedAt: string;
   defaultBranch: string;
+  revision?: string;
   definitionRoot: string;
   jsonFiles: number;
   caseEventToFields: number;
@@ -822,11 +823,34 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
       "work-allocation",
       "staff-ref-data"
     ],
-    representativeCaseTypes: [],
+    representativeCaseTypes: ["PCS"],
     serviceCodes: ["AAA3"],
-    repos: [],
-    rationale: "PCS is configured for global search, Work Allocation and staff/ref-data with AAA3; discovered definition source is not yet reviewed or represented in this catalogue, so required source and service-assurance gaps remain.",
-    nextAction: "Review and represent the discovered PCS definition source and representative runtime shapes; keep the required assurance gap explicit until that review is complete."
+    repos: [
+      {
+        fullName: "hmcts/pcs-api",
+        url: "https://github.com/hmcts/pcs-api",
+        visibility: "public",
+        updatedAt: "2026-11-02T22:38:09Z",
+        defaultBranch: "master",
+        revision: "efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8",
+        definitionRoot: "src/main/java/uk/gov/hmcts/reform/pcs/ccd",
+        jsonFiles: 0,
+        caseEventToFields: 0,
+        caseEventToComplexTypes: 0,
+        authorisationCaseField: 0,
+        caseField: 0,
+        complexTypes: 0,
+        notes: "Java CCD SDK configuration inputs generate build/definitions; the decentralised runtime uses PCS-owned relational case persistence. Repository metadata was observed separately from the pinned source revision; no generation, import or runtime evidence is claimed.",
+        evidenceRefs: [
+          "src/main/java/uk/gov/hmcts/reform/pcs/ccd/CaseType.java",
+          "src/main/java/uk/gov/hmcts/reform/pcs/ccd/domain/PCSCase.java",
+          "src/main/java/uk/gov/hmcts/reform/pcs/ccd/PCSCaseView.java",
+          "build.gradle"
+        ]
+      }
+    ],
+    rationale: "PCS is configured for global search, Work Allocation and staff/ref-data with AAA3. Verified hmcts/pcs-api Java sources declare base case type PCS and decentralised CCD participation with service-owned persistence; CASE_TYPE_SUFFIX remains unresolved and deployed identity is unverified. This source-owner record does not fulfil the required CCD-backed assurance gap.",
+    nextAction: "Resolve the deployed identity and review representative PCS shapes and its decentralised persistence boundary; establish generation, import and runtime evidence before considering CCD-backed assurance."
   }
 ] as const satisfies readonly ExuiServiceDefinitionProfile[];
 
@@ -1391,7 +1415,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     priority: "must-run",
     executionMode: "api",
     serviceFamily: "PCS",
-    assertion: "PCS is configured for global search, WA and staff with AAA3; discovered source awaits catalogue review and its required service-assurance gap remains explicit",
+    assertion: "PCS is configured for global search, WA and staff with AAA3; its verified source owner does not fulfil the required CCD-backed assurance gap",
     source: "rpx-xui-webapp jurisdictions and serviceRefDataMapping",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,

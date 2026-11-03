@@ -127,7 +127,7 @@ test('source manifest rejects duplicate family profiles hidden by set comparison
   assert.match(result.stderr, /duplicate.*profile/i);
 });
 
-test('PCS keeps its configured service-code mapping without gaining release coverage', () => {
+test('PCS records its pinned Java definition source owner without gaining CCD-backed or release coverage', () => {
   // Owning webapp config/default.json at76bf7a840fa71af466961de87294973023b2f0f3.
   assert.deepEqual(catalogue.EXUI_SERVICE_REF_DATA_MAPPING.PCS, ['AAA3']);
   const source = JSON.parse(readFileSync(resolve('src/data/exui-central-assurance-source.json'), 'utf8'));
@@ -136,8 +136,29 @@ test('PCS keeps its configured service-code mapping without gaining release cove
   assert(!catalogue.EXUI_CANARY_SERVICE_FAMILIES.includes('PCS'));
   const profile = catalogue.EXUI_SERVICE_DEFINITION_PROFILES.find(item => item.serviceFamily === 'PCS');
   assert.equal(profile.proofLevel, 'config-backed');
-  assert.deepEqual(profile.repos, []);
-  assert.deepEqual(profile.representativeCaseTypes, []);
+  assert.deepEqual(profile.representativeCaseTypes, ['PCS']);
+  assert.equal(profile.repos.length, 1);
+  const repo = profile.repos[0];
+  assert.equal(repo.fullName, 'hmcts/pcs-api');
+  assert.equal(repo.url, 'https://github.com/hmcts/pcs-api');
+  assert.equal(repo.revision, 'efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8');
+  assert.equal(repo.visibility, 'public');
+  assert.equal(repo.defaultBranch, 'master');
+  assert.equal(repo.updatedAt, '2026-11-02T22:38:09Z');
+  assert.equal(repo.definitionRoot, 'src/main/java/uk/gov/hmcts/reform/pcs/ccd');
+  assert.deepEqual(repo.evidenceRefs, [
+    'src/main/java/uk/gov/hmcts/reform/pcs/ccd/CaseType.java',
+    'src/main/java/uk/gov/hmcts/reform/pcs/ccd/domain/PCSCase.java',
+    'src/main/java/uk/gov/hmcts/reform/pcs/ccd/PCSCaseView.java',
+    'build.gradle'
+  ]);
+  for (const metric of ['jsonFiles', 'caseEventToFields', 'caseEventToComplexTypes', 'authorisationCaseField', 'caseField', 'complexTypes'])
+    assert.equal(repo[metric], 0, metric);
+  assert.match(repo.notes, /decentralised.*PCS-owned.*persistence/i);
+  assert.match(repo.notes, /metadata.*separate.*pinned.*revision/i);
+  assert.match(profile.rationale, /CASE_TYPE_SUFFIX.*unresolved.*deployed identity.*unverified/);
+  assert.match(profile.nextAction, /generation.*import.*runtime/i);
+  assert.deepEqual(profile, source.serviceDefinitionProfiles.profiles.find(item => item.serviceFamily === 'PCS'));
   assert.deepEqual(catalogue.findReleaseBlockingFamiliesWithoutCcdBackedProfile(), ['PCS']);
   const verdict = catalogue.buildReleaseAssuranceVerdict();
   assert(verdict.knownGaps.includes('release-blocking family without CCD-backed profile: PCS'));
