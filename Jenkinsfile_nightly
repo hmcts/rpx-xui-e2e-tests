@@ -12,7 +12,22 @@ def runHarnessSupportingChecks = {
   stage('Harness supporting checks — no release credit') {
     sh 'rm -f functional-output/tests/harness/public/release-assurance-summary.json'
     try {
-      sh 'corepack yarn lint && corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && corepack yarn harness:support && corepack yarn harness:diagnostic:ci'
+      sh '''#!/usr/bin/env bash
+set -e
+export NVM_DIR='/home/jenkinsssh/.nvm'
+source /opt/nvm/nvm.sh
+nvm use
+export PATH="$HOME/.local/bin:$PATH"
+node -e 'const expected = require("node:fs").readFileSync(".nvmrc", "utf8").trim(); if (process.versions.node !== expected) { console.error("Node version does not match .nvmrc"); process.exit(1); } console.log("Harness Node: " + process.versions.node);'
+expected_yarn="$(node -p 'require("./package.json").packageManager')"
+actual_yarn="$(corepack yarn --version)"
+if [ "yarn@$actual_yarn" != "$expected_yarn" ]; then
+  echo 'Yarn version does not match packageManager' >&2
+  exit 1
+fi
+echo "Harness Yarn: $actual_yarn"
+corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && corepack yarn harness:support && corepack yarn harness:diagnostic:ci
+'''
     } finally {
       echo '[harness-report] Raw reports remain job-local; only a validated public summary may be archived.'
       if (fileExists('functional-output/tests/harness/public/release-assurance-summary.json')) {

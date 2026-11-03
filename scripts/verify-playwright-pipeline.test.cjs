@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, chmodSync, readdirSync } = require('node:fs');
+const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, readdirSync } = require('node:fs');
 const { tmpdir } = require('node:os');
 const { join, resolve, relative } = require('node:path');
 const { spawnSync } = require('node:child_process');
@@ -43,32 +43,100 @@ test('the Build lint command requires Harness support checks and preserves their
 
 
 for (const pipeline of ['Jenkinsfile_CNP', 'Jenkinsfile_nightly']) {
-  test(`${pipeline}: actual supporting-check shell preserves each failure and browser preflight`, () => {
+  test(`${pipeline}: actual supporting-check shell pins tools and stops at every setup or check failure`, () => {
     const source = readFileSync(pipeline, 'utf8');
-    const command = source.match(/sh '(corepack yarn lint[^']+)'/)[1];
+    const shell = source.match(/sh (?:'''([\s\S]*?)'''|'(corepack yarn[^']+)')/);
+    const command = shell[1] ?? shell[2];
     const directory = mkdtempSync(join(tmpdir(), 'harness-pipeline-'));
     try {
       mkdirSync(join(directory, 'scripts'));
       mkdirSync(join(directory, 'node_modules/@playwright/test'), { recursive: true });
+      writeFileSync(join(directory, '.nvmrc'), '24.21.0\n');
+      writeFileSync(join(directory, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.18.1' }));
       writeFileSync(join(directory, 'scripts/verify-playwright-browsers.cjs'), readFileSync('scripts/verify-playwright-browsers.cjs'));
       writeFileSync(join(directory, 'node_modules/@playwright/test/index.js'), `exports.chromium={executablePath:()=>process.env.MISSING_BROWSER==='1'?'/missing/browser':process.execPath,launch:async()=>({close:async()=>{}})};`);
       const calls = join(directory, 'calls');
-      writeFileSync(join(directory, 'corepack'), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$CALLS_FILE"\n[ "$2" != "$FAIL_COMMAND" ] || exit 23\n', { mode: 0o755 });
-      writeFileSync(join(directory, 'node'), `#!/bin/sh\nexec '${process.execPath}' "$@"\n`, { mode: 0o755 });
-      chmodSync(join(directory, 'node'), 0o755);
-      for (const fail of ['lint', 'test:setup:playwright-install-chromium', 'browser', 'harness:support', 'harness:diagnostic:ci', '']) {
+      const bootstrap = join(directory, 'bootstrap.sh');
+      const fakeNvm = join(directory, 'nvm.sh');
+      const actualScript = join(directory, 'supporting-checks.sh');
+      writeFileSync(actualScript, command);
+      // Shadow tools even before sourcing: a missing activation must never reach ambient HOME/.local/bin.
+      writeFileSync(bootstrap, `node() { return 97; }
+corepack() { return 97; }
+nvm() { return 97; }
+source() {
+  [[ "$#" == 1 && "$1" == /opt/nvm/nvm.sh ]] || return 96
+  builtin source "$FAKE_NVM"
+}
+`);
+      writeFileSync(fakeNvm, `printf '%s\\n' 'nvm:source' >> "$CALLS_FILE"
+[[ "$NVM_DIR" == /home/jenkinsssh/.nvm ]] || return 96
+[[ "$FAIL_COMMAND" != source ]] || return 23
+nvm() {
+  printf 'nvm:%s\\n' "$*" >> "$CALLS_FILE"
+  [[ "$*" == use ]] || return 96
+  [[ "$FAIL_COMMAND" != use ]] || return 23
+}
+node() {
+  if [[ "$1" == -e ]]; then
+    printf '%s\\n' 'node:version' >> "$CALLS_FILE"
+    [[ "$FAIL_COMMAND" != node-exit ]] || return 23
+    "$REAL_NODE" -e 'Object.defineProperty(process.versions, "node", { value: process.env.FAKE_NODE_VERSION }); eval(process.argv[1]);' "$2"
+  elif [[ "$1" == -p ]]; then
+    printf '%s\\n' 'node:package-manager' >> "$CALLS_FILE"
+    [[ "$FAIL_COMMAND" != package-manager ]] || return 23
+    "$REAL_NODE" "$@"
+  else
+    [[ "$*" == 'scripts/verify-playwright-browsers.cjs chromium' ]] || return 96
+    printf '%s\\n' 'browser:preflight' >> "$CALLS_FILE"
+    [[ "$PATH" == "$HOME/.local/bin:"* ]] || return 96
+    "$REAL_NODE" "$@"
+  fi
+}
+corepack() {
+  printf 'corepack:%s\\n' "$*" >> "$CALLS_FILE"
+  [[ "$1" == yarn ]] || return 96
+  [[ "$FAIL_COMMAND" != "$2" ]] || return 23
+  if [[ "$2" == --version ]]; then printf '%s\\n' "$FAKE_YARN_VERSION"; fi
+}
+`);
+      const expectedCalls = [
+        'nvm:source', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
+        'corepack:yarn test:setup:playwright-install-chromium', 'browser:preflight',
+        'corepack:yarn harness:support', 'corepack:yarn harness:diagnostic:ci'
+      ];
+      const cases = [
+        { fail: 'source', status: 23, through: 1 },
+        { fail: 'use', status: 23, through: 2 },
+        { fail: 'node-exit', status: 23, through: 3 },
+        { fail: 'node-version', status: 1, through: 3 },
+        { fail: 'package-manager', status: 23, through: 4 },
+        { fail: '--version', status: 23, through: 5 },
+        { fail: 'yarn-version', status: 1, through: 5 },
+        { fail: 'test:setup:playwright-install-chromium', status: 23, through: 6 },
+        { fail: 'browser', status: 1, through: 7 },
+        { fail: 'harness:support', status: 23, through: 8 },
+        { fail: 'harness:diagnostic:ci', status: 23, through: 9 },
+        { fail: '', status: 0, through: 9 }
+      ];
+      for (const { fail, status, through } of cases) {
         rmSync(calls, { force: true });
-        const result = spawnSync('/bin/sh', ['-c', command], {
+        const result = spawnSync('/bin/bash', ['-c', 'builtin source "$1"; builtin source "$2"', 'harness-shell-test', bootstrap, actualScript], {
           cwd: directory, encoding: 'utf8',
-          env: { PATH: directory, CALLS_FILE: calls, FAIL_COMMAND: fail, MISSING_BROWSER: fail === 'browser' ? '1' : '0' }
+          env: {
+            PATH: directory, HOME: process.env.HOME, FAKE_NVM: fakeNvm,
+            REAL_NODE: process.execPath, CALLS_FILE: calls, FAIL_COMMAND: fail,
+            FAKE_NODE_VERSION: fail === 'node-version' ? '22.0.0' : '24.21.0',
+            FAKE_YARN_VERSION: fail === 'yarn-version' ? '1.22.0' : '4.18.1',
+            MISSING_BROWSER: fail === 'browser' ? '1' : '0'
+          }
         });
-        assert.equal(result.status, fail === 'browser' ? 1 : fail ? 23 : 0, result.stderr);
+        assert.equal(result.status, status, `${fail || 'success'}: ${result.stderr}`);
         const invoked = readFileSync(calls, 'utf8').trim().split('\n');
-        if (fail === 'lint') assert.deepEqual(invoked, ['yarn lint']);
-        if (fail === 'browser') assert.equal(invoked.some((call) => call.includes('harness:support')), false);
-        if (fail === 'harness:support') assert.equal(invoked.some((call) => call.includes('harness:diagnostic:ci')), false);
-        if (!fail) assert.equal(invoked.at(-1), 'yarn harness:diagnostic:ci');
+        assert.deepEqual(invoked, expectedCalls.slice(0, through), fail || 'success');
       }
+      assert.ok(command.startsWith('#!/usr/bin/env bash\n'), 'Jenkins must see the Bash shebang at the first script character');
+      assert.equal(spawnSync('/bin/bash', ['-n'], { input: command, encoding: 'utf8' }).status, 0);
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 
