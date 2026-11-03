@@ -280,6 +280,7 @@ export function writeConfigurationCoverage(args) {
     harnessCommit: expected?.harnessCommit ?? null,
     sourceArtifactDigests: input.sourceArtifactDigests,
     sourceManifest: input.catalogue.sourceManifest,
+    deploymentSourceManifest: input.catalogue.deploymentSourceManifest,
     sourceMetadataLimit:
       "Committed reviewed projection; complete external source files were not freshly rehashed.",
   };

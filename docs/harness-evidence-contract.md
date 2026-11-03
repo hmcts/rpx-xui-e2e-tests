@@ -37,6 +37,12 @@ Catalogue execution credit is derived only after existing phase validation, raw-
 
 Previous same-container native receipts remain local diagnostic observations. Separate-container source review and boundary probes do not themselves prove the composed job or a full release; acceptance must retain that job's actual immutable evidence and source identity. Checked-in Jenkins supporting/model checks remain separate from this opt-in native job and cannot issue candidate or full-release approval.
 
+## Checked-in deployment profile inventory
+
+The source snapshot stores chart/values projections separately from configuration JSON and definition sources. Independent revision, complete-file and projected-fragment pins bind the four reviewed files. The source reader discovers additional values YAML as unreviewed input; unsupported values YML, duplicate YAML keys and nonscalar selected values block. Only15 selected nonsecret environment keys are projected, with explicit presence. Base/AAT/preview composition records the last declared source value; it does not render Helm templates, apply Helm null-removal semantics, coerce process environment strings or infer defaults for absent declarations.
+
+The catalogue and coverage provenance retain a separate deployment source manifest. Removing a profile, key or source distinction fails validation. Each profile/key retains a runtime-unproved gap; unreviewed families retain their capability key. Even passing results for every existing obligation cannot discharge these profile gaps. All112 existing obligation objects/IDs and their required runtime boundaries are unchanged. Actual rendered/deployed values and owner grouping acceptance remain unavailable; source-consistent diagnostics have releaseCredit:false. Changes to Helm sources keep broad impact selection.
+
 ## Separate native routing pilot
 
 `harness:candidate --scope exui-decentralised-routing-pilot` uses the same sealed candidate, isolated API/Tools authority, fixed policy and evidence evaluator. The API can reach central metadata on3101 and PCS NoC on3102; only the browser can reach synthetic PCS UI on3103. Socket-origin journals independently identify the destination. Real rendered Create/Start entry must redirect externally and retain ordinary/unmatched local editor fallbacks. NoC must select central or PCS routes using per-case session state, with real CSRF and a distinct fresh session.

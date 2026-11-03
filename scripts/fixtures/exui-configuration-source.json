@@ -1059,5 +1059,213 @@
         }
       ]
     }
-  ]
+  ],
+  "deploymentSources": {
+    "schemaVersion": 1,
+    "sources": [
+      {
+        "repository": "rpx-xui-webapp",
+        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "tracked": true,
+        "path": "charts/xui-webapp/Chart.yaml",
+        "fileDigest": "16a66a0aab713ca5ca979b16636e6c4e3a3ce4fb5cbffb09655b0d11bfe02139",
+        "document": {
+          "name": "xui-webapp",
+          "version": "1.0.56",
+          "dependencies": [
+            {
+              "name": "nodejs",
+              "version": "3.3.1"
+            },
+            {
+              "name": "redis",
+              "version": "20.11.3",
+              "condition": "redis.enabled"
+            }
+          ]
+        }
+      },
+      {
+        "repository": "rpx-xui-webapp",
+        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "tracked": true,
+        "path": "charts/xui-webapp/values.yaml",
+        "fileDigest": "8728f0fe4869cacaf1b4f926b25f5146ceef2daea364eff7737b96ef1d80d66d",
+        "document": {
+          "environment": {
+            "NODE_ENV": {
+              "present": true,
+              "value": "production"
+            },
+            "NODE_CONFIG_ENV": {
+              "present": true,
+              "value": "production"
+            },
+            "WA_SUPPORTED_JURISDICTIONS": {
+              "present": false
+            },
+            "GLOBAL_SEARCH_SERVICES": {
+              "present": false
+            },
+            "STAFF_SUPPORTED_JURISDICTIONS": {
+              "present": false
+            },
+            "SERVICE_REF_DATA_MAPPING": {
+              "present": false
+            },
+            "JURISDICTIONS": {
+              "present": false
+            },
+            "FEATURE_WORKALLOCATION_ENABLED": {
+              "present": true,
+              "value": false
+            },
+            "FEATURE_ACCESS_MANAGEMENT_ENABLED": {
+              "present": true,
+              "value": false
+            },
+            "FEATURE_REDIS_ENABLED": {
+              "present": true,
+              "value": true
+            },
+            "FEATURE_OIDC_ENABLED": {
+              "present": true,
+              "value": false
+            },
+            "FEATURE_APP_INSIGHTS_ENABLED": {
+              "present": true,
+              "value": true
+            },
+            "APPINSIGHTS_SAMPLING_PERCENTAGE": {
+              "present": true,
+              "value": 1
+            },
+            "DECENTRALISED_CASE_TYPE_CONFIG": {
+              "present": false
+            },
+            "DECENTRALISED_SERVICE_MAP": {
+              "present": false
+            }
+          }
+        }
+      },
+      {
+        "repository": "rpx-xui-webapp",
+        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "tracked": true,
+        "path": "charts/xui-webapp/values.aat.template.yaml",
+        "fileDigest": "8f25dcc0f64c64b348dc31e764b06d1a80f5e8a59a1275670b38ef9feb43509b",
+        "document": {
+          "environment": {
+            "NODE_ENV": {
+              "present": false
+            },
+            "NODE_CONFIG_ENV": {
+              "present": false
+            },
+            "WA_SUPPORTED_JURISDICTIONS": {
+              "present": false
+            },
+            "GLOBAL_SEARCH_SERVICES": {
+              "present": false
+            },
+            "STAFF_SUPPORTED_JURISDICTIONS": {
+              "present": false
+            },
+            "SERVICE_REF_DATA_MAPPING": {
+              "present": false
+            },
+            "JURISDICTIONS": {
+              "present": false
+            },
+            "FEATURE_WORKALLOCATION_ENABLED": {
+              "present": false
+            },
+            "FEATURE_ACCESS_MANAGEMENT_ENABLED": {
+              "present": false
+            },
+            "FEATURE_REDIS_ENABLED": {
+              "present": false
+            },
+            "FEATURE_OIDC_ENABLED": {
+              "present": true,
+              "value": true
+            },
+            "FEATURE_APP_INSIGHTS_ENABLED": {
+              "present": false
+            },
+            "APPINSIGHTS_SAMPLING_PERCENTAGE": {
+              "present": false
+            },
+            "DECENTRALISED_CASE_TYPE_CONFIG": {
+              "present": false
+            },
+            "DECENTRALISED_SERVICE_MAP": {
+              "present": false
+            }
+          }
+        }
+      },
+      {
+        "repository": "rpx-xui-webapp",
+        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "tracked": true,
+        "path": "charts/xui-webapp/values.preview.template.yaml",
+        "fileDigest": "159c2358bde072c38817848011ea084cd89b0fd51e387f070f44db2b9f97e4e3",
+        "document": {
+          "environment": {
+            "NODE_ENV": {
+              "present": false
+            },
+            "NODE_CONFIG_ENV": {
+              "present": false
+            },
+            "WA_SUPPORTED_JURISDICTIONS": {
+              "present": false
+            },
+            "GLOBAL_SEARCH_SERVICES": {
+              "present": false
+            },
+            "STAFF_SUPPORTED_JURISDICTIONS": {
+              "present": false
+            },
+            "SERVICE_REF_DATA_MAPPING": {
+              "present": false
+            },
+            "JURISDICTIONS": {
+              "present": true,
+              "value": "DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,CIVIL,CMC,HRS,PRIVATELAW,WA,PRL,BEFTA_JURISDICTION_1,BEFTA_JURISDICTION_2,BEFTA_JURISDICTION_3,ADOPTION,BEFTA_MASTER,DISPOSER_MASTER,ST_CIC,PCS,PT"
+            },
+            "FEATURE_WORKALLOCATION_ENABLED": {
+              "present": true,
+              "value": true
+            },
+            "FEATURE_ACCESS_MANAGEMENT_ENABLED": {
+              "present": true,
+              "value": true
+            },
+            "FEATURE_REDIS_ENABLED": {
+              "present": false
+            },
+            "FEATURE_OIDC_ENABLED": {
+              "present": true,
+              "value": true
+            },
+            "FEATURE_APP_INSIGHTS_ENABLED": {
+              "present": false
+            },
+            "APPINSIGHTS_SAMPLING_PERCENTAGE": {
+              "present": false
+            },
+            "DECENTRALISED_CASE_TYPE_CONFIG": {
+              "present": false
+            },
+            "DECENTRALISED_SERVICE_MAP": {
+              "present": false
+            }
+          }
+        }
+      }
+    ]
+  }
 }

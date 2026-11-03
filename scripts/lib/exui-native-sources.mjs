@@ -40,6 +40,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-candidate-runtime.mjs",
   "scripts/lib/exui-candidate-child.mjs",
   "scripts/lib/exui-configuration-catalogue.mjs",
+  "scripts/lib/exui-deployment-profiles.mjs",
   "scripts/lib/exui-provider-seams.mjs",
   "scripts/lib/exui-runtime-network-guard.cjs",
   "scripts/lib/exui-candidate-artifact.mjs",

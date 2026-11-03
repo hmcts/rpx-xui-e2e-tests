@@ -369,31 +369,60 @@
           "charts/xui-webapp/values.yaml"
         ],
         "environment": {
-          "NODE_ENV": "production",
-          "NODE_CONFIG_ENV": "production",
-          "WA_SUPPORTED_JURISDICTIONS": null,
-          "GLOBAL_SEARCH_SERVICES": null,
-          "STAFF_SUPPORTED_JURISDICTIONS": null,
-          "SERVICE_REF_DATA_MAPPING": null,
-          "JURISDICTIONS": null,
-          "FEATURE_WORKALLOCATION_ENABLED": false,
-          "FEATURE_ACCESS_MANAGEMENT_ENABLED": false,
-          "FEATURE_REDIS_ENABLED": true,
-          "FEATURE_OIDC_ENABLED": false,
-          "FEATURE_APP_INSIGHTS_ENABLED": true,
-          "APPINSIGHTS_SAMPLING_PERCENTAGE": 1,
-          "DECENTRALISED_CASE_TYPE_CONFIG": null,
-          "DECENTRALISED_SERVICE_MAP": null
+          "NODE_ENV": {
+            "present": true,
+            "value": "production"
+          },
+          "NODE_CONFIG_ENV": {
+            "present": true,
+            "value": "production"
+          },
+          "WA_SUPPORTED_JURISDICTIONS": {
+            "present": false
+          },
+          "GLOBAL_SEARCH_SERVICES": {
+            "present": false
+          },
+          "STAFF_SUPPORTED_JURISDICTIONS": {
+            "present": false
+          },
+          "SERVICE_REF_DATA_MAPPING": {
+            "present": false
+          },
+          "JURISDICTIONS": {
+            "present": false
+          },
+          "FEATURE_WORKALLOCATION_ENABLED": {
+            "present": true,
+            "value": false
+          },
+          "FEATURE_ACCESS_MANAGEMENT_ENABLED": {
+            "present": true,
+            "value": false
+          },
+          "FEATURE_REDIS_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "FEATURE_OIDC_ENABLED": {
+            "present": true,
+            "value": false
+          },
+          "FEATURE_APP_INSIGHTS_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "APPINSIGHTS_SAMPLING_PERCENTAGE": {
+            "present": true,
+            "value": 1
+          },
+          "DECENTRALISED_CASE_TYPE_CONFIG": {
+            "present": false
+          },
+          "DECENTRALISED_SERVICE_MAP": {
+            "present": false
+          }
         },
-        "sourceDerivedWaFamilies": [
-          "IA",
-          "CIVIL",
-          "PRIVATELAW",
-          "PUBLICLAW",
-          "EMPLOYMENT",
-          "ST_CIC",
-          "PCS"
-        ],
         "renderedOrDeployedEnvironment": "unavailable"
       },
       "aat": {
@@ -402,31 +431,60 @@
           "charts/xui-webapp/values.aat.template.yaml"
         ],
         "environment": {
-          "NODE_ENV": "production",
-          "NODE_CONFIG_ENV": "production",
-          "WA_SUPPORTED_JURISDICTIONS": null,
-          "GLOBAL_SEARCH_SERVICES": null,
-          "STAFF_SUPPORTED_JURISDICTIONS": null,
-          "SERVICE_REF_DATA_MAPPING": null,
-          "JURISDICTIONS": null,
-          "FEATURE_WORKALLOCATION_ENABLED": false,
-          "FEATURE_ACCESS_MANAGEMENT_ENABLED": false,
-          "FEATURE_REDIS_ENABLED": true,
-          "FEATURE_OIDC_ENABLED": true,
-          "FEATURE_APP_INSIGHTS_ENABLED": true,
-          "APPINSIGHTS_SAMPLING_PERCENTAGE": 1,
-          "DECENTRALISED_CASE_TYPE_CONFIG": null,
-          "DECENTRALISED_SERVICE_MAP": null
+          "NODE_ENV": {
+            "present": true,
+            "value": "production"
+          },
+          "NODE_CONFIG_ENV": {
+            "present": true,
+            "value": "production"
+          },
+          "WA_SUPPORTED_JURISDICTIONS": {
+            "present": false
+          },
+          "GLOBAL_SEARCH_SERVICES": {
+            "present": false
+          },
+          "STAFF_SUPPORTED_JURISDICTIONS": {
+            "present": false
+          },
+          "SERVICE_REF_DATA_MAPPING": {
+            "present": false
+          },
+          "JURISDICTIONS": {
+            "present": false
+          },
+          "FEATURE_WORKALLOCATION_ENABLED": {
+            "present": true,
+            "value": false
+          },
+          "FEATURE_ACCESS_MANAGEMENT_ENABLED": {
+            "present": true,
+            "value": false
+          },
+          "FEATURE_REDIS_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "FEATURE_OIDC_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "FEATURE_APP_INSIGHTS_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "APPINSIGHTS_SAMPLING_PERCENTAGE": {
+            "present": true,
+            "value": 1
+          },
+          "DECENTRALISED_CASE_TYPE_CONFIG": {
+            "present": false
+          },
+          "DECENTRALISED_SERVICE_MAP": {
+            "present": false
+          }
         },
-        "sourceDerivedWaFamilies": [
-          "IA",
-          "CIVIL",
-          "PRIVATELAW",
-          "PUBLICLAW",
-          "EMPLOYMENT",
-          "ST_CIC",
-          "PCS"
-        ],
         "renderedOrDeployedEnvironment": "unavailable"
       },
       "preview": {
@@ -435,39 +493,93 @@
           "charts/xui-webapp/values.preview.template.yaml"
         ],
         "environment": {
-          "NODE_ENV": "production",
-          "NODE_CONFIG_ENV": "production",
-          "WA_SUPPORTED_JURISDICTIONS": null,
-          "GLOBAL_SEARCH_SERVICES": null,
-          "STAFF_SUPPORTED_JURISDICTIONS": null,
-          "SERVICE_REF_DATA_MAPPING": null,
-          "JURISDICTIONS": "DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,CIVIL,CMC,HRS,PRIVATELAW,WA,PRL,BEFTA_JURISDICTION_1,BEFTA_JURISDICTION_2,BEFTA_JURISDICTION_3,ADOPTION,BEFTA_MASTER,DISPOSER_MASTER,ST_CIC,PCS,PT",
-          "FEATURE_WORKALLOCATION_ENABLED": true,
-          "FEATURE_ACCESS_MANAGEMENT_ENABLED": true,
-          "FEATURE_REDIS_ENABLED": true,
-          "FEATURE_OIDC_ENABLED": true,
-          "FEATURE_APP_INSIGHTS_ENABLED": true,
-          "APPINSIGHTS_SAMPLING_PERCENTAGE": 1,
-          "DECENTRALISED_CASE_TYPE_CONFIG": null,
-          "DECENTRALISED_SERVICE_MAP": null
+          "NODE_ENV": {
+            "present": true,
+            "value": "production"
+          },
+          "NODE_CONFIG_ENV": {
+            "present": true,
+            "value": "production"
+          },
+          "WA_SUPPORTED_JURISDICTIONS": {
+            "present": false
+          },
+          "GLOBAL_SEARCH_SERVICES": {
+            "present": false
+          },
+          "STAFF_SUPPORTED_JURISDICTIONS": {
+            "present": false
+          },
+          "SERVICE_REF_DATA_MAPPING": {
+            "present": false
+          },
+          "JURISDICTIONS": {
+            "present": true,
+            "value": "DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,CIVIL,CMC,HRS,PRIVATELAW,WA,PRL,BEFTA_JURISDICTION_1,BEFTA_JURISDICTION_2,BEFTA_JURISDICTION_3,ADOPTION,BEFTA_MASTER,DISPOSER_MASTER,ST_CIC,PCS,PT"
+          },
+          "FEATURE_WORKALLOCATION_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "FEATURE_ACCESS_MANAGEMENT_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "FEATURE_REDIS_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "FEATURE_OIDC_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "FEATURE_APP_INSIGHTS_ENABLED": {
+            "present": true,
+            "value": true
+          },
+          "APPINSIGHTS_SAMPLING_PERCENTAGE": {
+            "present": true,
+            "value": 1
+          },
+          "DECENTRALISED_CASE_TYPE_CONFIG": {
+            "present": false
+          },
+          "DECENTRALISED_SERVICE_MAP": {
+            "present": false
+          }
         },
-        "sourceDerivedWaFamilies": [
-          "IA",
-          "CIVIL",
-          "PRIVATELAW",
-          "PUBLICLAW",
-          "EMPLOYMENT",
-          "ST_CIC",
-          "PCS"
-        ],
         "renderedOrDeployedEnvironment": "unavailable"
       }
     },
     "limits": [
-      "Checked-in Helm maps merged by source only; no deployed environment, external flux values or Helm dependency templates inspected.",
-      "JURISDICTIONS preview contains additional nonpilot families; no full catalogue approval inferred.",
-      "Local synthetic runtime overrides service URLs/auth/flags explicitly; no live deployment assurance."
-    ]
+      "Ordered selected scalar declarations from checked-in sources only; no Helm dependency templates, rendered/deployed values or external flux inputs.",
+      "Absent environment keys remain absent; explicit null does not imply fallback, deletion or effective node-config behavior.",
+      "Preview jurisdiction values outside reviewed default families remain per-capability source gaps; no grouping or runtime credit.",
+      "Synthetic local runtimes use separately declared service/auth/flag overrides; no deployment assurance."
+    ],
+    "selectedEnvironmentKeys": [
+      "NODE_ENV",
+      "NODE_CONFIG_ENV",
+      "WA_SUPPORTED_JURISDICTIONS",
+      "GLOBAL_SEARCH_SERVICES",
+      "STAFF_SUPPORTED_JURISDICTIONS",
+      "SERVICE_REF_DATA_MAPPING",
+      "JURISDICTIONS",
+      "FEATURE_WORKALLOCATION_ENABLED",
+      "FEATURE_ACCESS_MANAGEMENT_ENABLED",
+      "FEATURE_REDIS_ENABLED",
+      "FEATURE_OIDC_ENABLED",
+      "FEATURE_APP_INSIGHTS_ENABLED",
+      "APPINSIGHTS_SAMPLING_PERCENTAGE",
+      "DECENTRALISED_CASE_TYPE_CONFIG",
+      "DECENTRALISED_SERVICE_MAP"
+    ],
+    "sourceFragmentDigests": {
+      "charts/xui-webapp/Chart.yaml": "095cfbdbfe9dca2d34e7342d9a7f30cdfd5f3d8146531b8d579ef5cd046d6dc2",
+      "charts/xui-webapp/values.yaml": "47236786b8dfdbbc6fe7cfd0fe1d8d54f407fae6c2cd46f9994989ee4ea31d2d",
+      "charts/xui-webapp/values.aat.template.yaml": "cfdad5aed4a89c36aac78a3bcba46479c7db4686536f5861b67cb3199d797e2b",
+      "charts/xui-webapp/values.preview.template.yaml": "7cbcbbd09fee013a90ae8022ed471122a6810accdde321b623dcde38f5fc6ac3"
+    }
   },
   "sequenceSeed": "postal-two-v1",
   "sourceSequences": [

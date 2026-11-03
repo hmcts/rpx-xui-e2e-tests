@@ -273,6 +273,13 @@ test('source reader uses real paths, projects allowlisted keys and discovers new
       if (item.repository === 'rpx-xui-webapp') document.secretSentinel = 'DO-NOT-COPY';
       writeFileSync(path, JSON.stringify(document));
     }
+    for (const item of snapshot.deploymentSources.sources) {
+      const path = join(directory, item.repository, item.path);
+      mkdirSync(require('node:path').dirname(path), { recursive: true });
+      const document = item.path.endsWith('Chart.yaml') ? item.document : { nodejs: { environment: Object.fromEntries(
+        Object.entries(item.document.environment).filter(([, entry]) => entry.present).map(([key, entry]) => [key, entry.value])) } };
+      writeFileSync(path, require('js-yaml').dump(document));
+    }
     writeFileSync(join(directory, 'rpx-xui-webapp/config/new-overlay.json'), '{"waSupportedJurisdictions":"NEWFAMILY","secret":"DO-NOT-COPY"}');
     const result = api.readConfigurationSources({ webappRoot: join(directory, 'rpx-xui-webapp'), definitionsRoot: join(directory, 'prl-ccd-definitions') });
     for (const path of ['config/default.json', 'config/custom-environment-variables.json']) {
@@ -406,14 +413,14 @@ test('checked-in Helm overrides stay explicit source inventory and do not approv
   assert.equal(review.ownerAcceptance, 'pending');
   assert.deepEqual(Object.keys(profiles.profiles).sort(), ['aat', 'base', 'preview']);
   for (const profile of Object.values(profiles.profiles)) {
-    assert.equal(profile.environment.WA_SUPPORTED_JURISDICTIONS, null);
-    assert.deepEqual(profile.sourceDerivedWaFamilies.slice().sort(), ['CIVIL', 'EMPLOYMENT', 'IA', 'PCS', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC']);
+    assert.deepEqual(profile.environment.WA_SUPPORTED_JURISDICTIONS, { present: false });
+    assert.ok(!Object.hasOwn(profile, 'sourceDerivedWaFamilies'));
     assert.equal(profile.renderedOrDeployedEnvironment, 'unavailable');
   }
-  assert.equal(profiles.profiles.base.environment.FEATURE_WORKALLOCATION_ENABLED, false);
-  assert.equal(profiles.profiles.aat.environment.FEATURE_WORKALLOCATION_ENABLED, false);
-  assert.equal(profiles.profiles.preview.environment.FEATURE_WORKALLOCATION_ENABLED, true);
-  assert.ok(profiles.profiles.preview.environment.JURISDICTIONS.split(',').includes('PT'));
+  assert.deepEqual(profiles.profiles.base.environment.FEATURE_WORKALLOCATION_ENABLED, { present: true, value: false });
+  assert.deepEqual(profiles.profiles.aat.environment.FEATURE_WORKALLOCATION_ENABLED, { present: true, value: false });
+  assert.deepEqual(profiles.profiles.preview.environment.FEATURE_WORKALLOCATION_ENABLED, { present: true, value: true });
+  assert.ok(profiles.profiles.preview.environment.JURISDICTIONS.value.split(',').includes('PT'));
   assert.ok(!review.families.includes('PT'));
   const result = api.validateConfigurationCatalogue({ snapshot, review, catalogue: build() });
   assert.ok(result.gaps.includes('effective-environment-values-unavailable'));

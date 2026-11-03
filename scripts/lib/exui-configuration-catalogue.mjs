@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, basename, extname } from 'node:path';
+import { readDeploymentSources, deploymentProfileAccounting } from './exui-deployment-profiles.mjs';
 
 const routingKeys = ['decentralisedCaseTypeConfig', 'decentralisedServiceMap'];
 const configurationKeys = ['jurisdictions', 'globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping', 'wildcardSearchFields', 'wildcardSearchRoles', ...routingKeys];
@@ -107,7 +108,7 @@ export function readConfigurationSources({ webappRoot, definitionsRoot }) {
       sources.push({ repository, ...gitMetadata(root, path), path, fileDigest: fileDigest(bytes), document });
     }
   }
-  return { schemaVersion: 1, sources };
+  return { schemaVersion: 1, sources, deploymentSources: readDeploymentSources(webappRoot, path => gitMetadata(webappRoot, path)) };
 }
 
 function familiesInConfiguration(config) {
@@ -229,9 +230,11 @@ export function buildConfigurationCatalogue(snapshot, review) {
       sourceKeys: [sourceKey(defaults)] });
   }
   if (new Set(obligations.map((item) => item.id)).size !== obligations.length) throw new Error('Duplicate configuration obligation');
+  const deployment = deploymentProfileAccounting(snapshot.deploymentSources, review);
   return { schemaVersion: 1, scope: review.scope, seed: review.seed, boundary: 'source-and-catalogue', releaseCredit: false,
     pilotAccessBoundary: 'Selected AuthorisationCaseEvent CRUD only; no case, field or state authorisation inferred.',
     sourceManifest: snapshot.sources.map((source) => ({ repository: source.repository, revision: source.revision, path: source.path, tracked: source.tracked, diagnosticOnly: diagnosticConfiguration(source), fileDigest: source.fileDigest, fragmentDigest: digest(source.document) })),
+    deploymentProfiles: deployment.profiles, deploymentSourceManifest: deployment.sourceManifest,
     families: [...families.values()].sort((a, b) => a.id.localeCompare(b.id)), diagnosticFamilies: [...diagnosticFamilies.values()].sort((a, b) => a.id.localeCompare(b.id)), configurationProfiles, features, pilotCells, sequences, obligations };
 }
 
@@ -248,6 +251,11 @@ export function selectConfigurationObligations(catalogue, changedPaths) {
 export function validateConfigurationCatalogue({ snapshot, review, catalogue, expectedSnapshot, selectedIds, executedProofs = [] }) {
   const errors = [];
   const gaps = ['effective-environment-values-unavailable', 'definition-discovery-bounded', 'runtime-proof-not-established'];
+  const deployment = deploymentProfileAccounting(snapshot.deploymentSources, review);
+  errors.push(...deployment.errors);
+  gaps.push(...deployment.gaps);
+  if (digest(catalogue.deploymentProfiles ?? null) !== digest(deployment.profiles) ||
+      digest(catalogue.deploymentSourceManifest ?? null) !== digest(deployment.sourceManifest)) errors.push('deployment-profile-metadata-drift');
   if (review.ownerAcceptance !== 'accepted') gaps.push('owner-grouping-acceptance-pending');
   for (const family of catalogue.families) if (!review.families.includes(family.id)) errors.push(`unknown-family:${family.id}`);
   const expectedFragments = expectedSnapshot ? Object.fromEntries(expectedSnapshot.sources.filter((source) => !diagnosticConfiguration(source)).map((source) => [sourceKey(source), digest(source.document)])) : review.sourceFragmentDigests;

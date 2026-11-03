@@ -30,6 +30,11 @@ test("support only: committed source projections load112 obligations without an 
     assert.equal(result.coverage.ccd, 0);
     assert.equal(result.coverage.missingCandidateOrCcd.length, 112);
     assert.equal(result.releaseCredit, false);
+    assert.equal(result.gaps.filter(x => x.startsWith("deployment-runtime-unproved:")).length, 45);
+    const coverage = JSON.parse(fs.readFileSync(path.join(output, "coverage.json")));
+    assert.deepEqual(coverage.provenance.deploymentSourceManifest, loaded.catalogue.deploymentSourceManifest);
+    assert.equal(coverage.provenance.deploymentSourceManifest.length, 4);
+    assert(coverage.gaps.includes("unreviewed-deployment-family:preview:JURISDICTIONS:PT"));
     assert.throws(
       () =>
         api.writeConfigurationCoverage({
