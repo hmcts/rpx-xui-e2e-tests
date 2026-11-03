@@ -118,10 +118,11 @@ function normalizePhase(document, expected, exitCode, root, bounds) {
           observed.status === "failed" &&
           stack.includes("createStorageStateViaUi") &&
           stack.includes("/src/fixtures/api-auth.ts:") &&
-          message.includes("exui-header") &&
-          message.includes("locator.waitFor") &&
-          (/Timeout/i.test(message) ||
-            message.includes("Recent UI session capture failed"));
+          ((message.includes("exui-header") &&
+            message.includes("locator.waitFor") &&
+            (/Timeout/i.test(message) ||
+              message.includes("Recent UI session capture failed"))) ||
+            message.includes("UI bootstrap target returned a service-unavailable page"));
         safe.aatOutcome =
           observed.status === "passed"
             ? "response-passed"
