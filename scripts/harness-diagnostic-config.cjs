@@ -10,8 +10,7 @@ const selections = Object.freeze({
   'model-browser': ['src/tests/e2e/integration/manageTasks/serviceFamilies.positive.spec.ts'],
   frontend: [
     'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
-    'src/tests/integration/harness/overviewPageLayout.positive.spec.ts',
-    'src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts'
+    'src/tests/integration/harness/overviewPageLayout.positive.spec.ts'
   ],
   environment: ['src/tests/harness/diagnostic/configuration.spec.ts'],
   toolkit: ['src/tests/harness/diagnostic/toolkit.spec.ts'],

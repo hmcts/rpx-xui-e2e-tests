@@ -13,7 +13,6 @@ export default defineConfig({
     "auth-coverage-bootstrap.api.ts",
     "auth-coverage-storage.api.ts",
     "coverage-search-case.api.ts",
-    "coverage-session-parity.api.ts",
     "hearings-mock-builders.api.ts",
     "unit/dynamic-user.pure.unit.api.ts",
     "unit/session-management.unit.api.ts",
@@ -25,7 +24,6 @@ export default defineConfig({
     "unit/hearing-journey-setup.unit.api.ts",
     "unit/hearing-manager-user-pool.unit.api.ts",
     "unit/ordered-session-fallback.unit.api.ts",
-    "unit/search-case-session.unit.api.ts",
     "unit/odhin-adaptive-reporter.unit.api.ts",
     "unit/odhin-report-enhancer.unit.api.ts"
   ],

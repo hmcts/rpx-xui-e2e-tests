@@ -573,7 +573,6 @@ test.describe('EXUI assurance harness central assurance POC', { tag: ['@svc-node
         'src/tests/integration/harness/exui4493CyaRendering.visual.spec.ts',
         'src/tests/integration/harness/overviewPageLayout.positive.spec.ts',
         'src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts',
-        'src/tests/integration/searchCase/globalSearchServiceFamilies.positive.spec.ts',
       ])
     );
     expect(proofLanes.accessibility?.testTitles).toEqual(

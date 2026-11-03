@@ -1,7 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 
 import { CaseDetailsPage } from "../page-objects/pages/exui/caseDetails.po.js";
-import { GlobalSearchPage } from "../page-objects/pages/exui/globalSearch.po.js";
 import { HearingsTabPage } from "../page-objects/pages/exui/hearingsTab.po.js";
 import { HearingViewSummaryPage } from "../page-objects/pages/exui/hearingViewSummary.po.js";
 import { TaskListPage } from "../page-objects/pages/exui/taskList.po.js";
@@ -9,7 +8,6 @@ import { acceptAnalyticsCookiesOnPage, installAnalyticsAutoAccept } from "../uti
 
 type DiagnosticFixtures = {
   caseDetailsPage: CaseDetailsPage;
-  globalSearchPage: GlobalSearchPage;
   hearingsTabPage: HearingsTabPage;
   hearingViewSummaryPage: HearingViewSummaryPage;
   taskListPage: TaskListPage;
@@ -20,7 +18,6 @@ type DiagnosticFixtures = {
 // automatic authenticated user-context requests for generated HTML/model pages.
 export const test = base.extend<DiagnosticFixtures>({
   caseDetailsPage: async ({ page }, use) => { await use(new CaseDetailsPage(page)); },
-  globalSearchPage: async ({ page }, use) => { await use(new GlobalSearchPage(page)); },
   hearingsTabPage: async ({ page }, use) => { await use(new HearingsTabPage(page)); },
   hearingViewSummaryPage: async ({ page }, use) => { await use(new HearingViewSummaryPage(page)); },
   taskListPage: async ({ page }, use) => { await use(new TaskListPage(page)); },

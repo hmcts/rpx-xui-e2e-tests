@@ -1,6 +1,6 @@
 # Harness evidence contract
 
-The existing POC remains a diagnostic runner. Dedicated candidate producers support `exui-wa-family-pilot`, `exui-wa-scope-pilot`, `exui-ccd-pilot` and the separate native-only `exui-decentralised-routing-pilot`; each requires its own complete baseline and mutation evidence. Unsupported scopes, including full EXUI release, block. Artifact identity, isolation and applied mutation provenance come from the trusted runners; the parser cannot independently attest to a deployed runtime.
+The existing POC remains a diagnostic runner. Dedicated candidate producers support `exui-wa-family-pilot`, `exui-wa-scope-pilot`, `exui-ccd-pilot` plus the separate native-only `exui-decentralised-routing-pilot` and `exui-global-search-pilot`; each requires its own complete baseline and mutation evidence. Unsupported scopes, including full EXUI release, block. Artifact identity, isolation and applied mutation provenance come from the trusted runners; the parser cannot independently attest to a deployed runtime.
 
 ## Commands
 
@@ -95,3 +95,11 @@ Started CI diagnostics replace stale public output with BLOCKED before contact, 
 ## Validation evidence
 
 Offline Node tests exercise the real evaluator, loader, CLIs and CI shell boundaries. A no-browser Playwright probe demonstrates passing assertions followed by global teardown failure, hard termination before report finalization, setup-hook rejection, intended body assertion failure, unrelated cleanup failure and retry preservation. Synthetic bundle fixtures demonstrate receipt identity and digest rejection; they are not candidate browser/CCD proofs.
+
+## Separate native Global Search pilot
+
+`harness:candidate --scope exui-global-search-pilot` runs exactly a baseline and `global-search-wa-capability`. A fresh signed synthetic session uses actual authenticated Node GET `/api/globalSearch/services`, real reference-data retrieval and Angular's Services selector. The real browser POST `/api/globalsearch/results` reaches upstream `/globalSearch`. Literal independent ID/label expectations require nine configured services in the DOM and submitted scope. The single-property mutation binds `globalSearchServices` to WA's seven services, with all other candidate bytes and effective configuration unchanged.
+
+Both invocations must complete an exactly admitted nine/seven-ID request and the auxiliary read-jurisdiction request. The mutant's literal WA-seven transport precondition runs before the named `global-search-capability-scope` assertion, so a DOM-only mismatch cannot earn mutation credit. Real CSRF remains enabled; the actual browser header is observed as presence/hash, never injected. All consumed same-origin JavaScript, including lazy chunks, is checked against the sealed candidate. Unknown provider/browser destinations and unrelated errors block credit.
+
+The clean `121f213` local run passed this pilot only. Reference-data labels, empty search results, auxiliary jurisdiction metadata, authentication, flags and telemetry are declared synthetic/excluded seams. The receipt is not an alias for the 112 source catalogue obligations, actual service authorization, deployed profiles, production label algorithms, cache behavior or full release approval. Fixed CI order and OCI family-only support remain unchanged. The retired mock diagnostic's injected display dictionary and screenshot are explicit product-scope withdrawals, not exact parity claims.

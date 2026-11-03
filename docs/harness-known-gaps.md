@@ -28,6 +28,12 @@ Clean Harness `9586cf4` against the same sealed webapp76bf/toolkit7.4.21 complet
 
 This is local evidence for the two named pilot obligations only. It does not resolve the postal failure, aggregate112 catalogue gaps, real service authorization or live Jenkins acceptance. Later documentation commits do not relabel the runtime source identity.
 
+## Bounded Global Search evidence
+
+Clean Harness `121f213` against the same sealed webapp76bf/toolkit7.4.21 passed the separate Global Search composition pilot. The baseline rendered and submitted nine services; the controlled effective-configuration fault completed a valid seven-service submission before failing only `global-search-capability-scope`. Both invocations used distinct fresh synthetic sessions and observed the actual CSRF header. There were zero retries, unattributed errors or provider rejections. Independent checks sealed 32 served JavaScript responses and 58 staged source files, replayed receipt `sha256:eb7b95db4e58b4ab48dafc6bfa4d5c121ceca8b161e888a5a81c8f6108dbd271`, accepted matching expectations and rejected a wrong artifact. All four containers were observed live and independently confirmed removed.
+
+This proves the named configuration-composition obligation only. Synthetic labels and a legal-operations/caseworker session do not establish the former diagnostic's injected production-looking dictionary, screenshot or live solicitor-persona equivalence. Empty results and auxiliary jurisdiction metadata are transport seams. Generic label mapping, real results, authorization, cache algorithms, deployed overrides and all 112 catalogue obligations remain unproved by this pilot. Later retirement/documentation commits do not change its tested source identity.
+
 ## External integration
 
 Native execution is currently Linux/arm64 with cached pinned toolchains; actual Jenkins native provisioning/acceptance is unverified. The shared Jenkins library deletes the workspace after a job, and this configuration archives only the validated public summary. Durable private raw-evidence retention remains unconfigured; job-local paths alone do not establish it. OCI supports the family adapter only. Upstream candidate metadata publication, actual external owner gates and production promotion consumption remain external integration dependencies. The repository changes grant no merge or deployment approval.

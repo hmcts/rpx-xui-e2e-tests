@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 
 import { withEnv } from "../../utils/api/testEnv";
 import { UserUtils } from "../../utils/ui/user.utils";
-import { resolveIntegrationSessionWarmupUsers } from "../integration/helpers/searchCaseSession.helper";
 
 test.describe("Search-case support coverage", () => {
   test("FPL global search credentials fall back to the source-compatible AAT account when env vars are absent", async () => {
@@ -92,23 +91,6 @@ test.describe("Search-case support coverage", () => {
           email: "flags-user@example.com",
           password: "flags-password"
         });
-      }
-    );
-  });
-
-  test("integration session warmup users match the source baseline and include configured search users", async () => {
-    await withEnv(
-      {
-        PW_INTEGRATION_SESSION_WARMUP_USERS: undefined,
-        PW_SEARCH_CASE_SESSION_USERS: "FPL_GLOBAL_SEARCH,CASEWORKER_R1"
-      },
-      () => {
-        expect(resolveIntegrationSessionWarmupUsers()).toEqual([
-          "FPL_GLOBAL_SEARCH",
-          "SOLICITOR",
-          "STAFF_ADMIN",
-          "CASEWORKER_R1"
-        ]);
       }
     );
   });
