@@ -1,4 +1,8 @@
 const {
+  renderNativeEvidence,
+  objectDigest,
+} = require("./harness-native-report.cjs");
+const {
   metadataFor,
   renderCoverage,
 } = require("./harness-report-coverage.cjs");
@@ -95,7 +99,11 @@ const escape = (text) =>
       ],
   );
 
-async function renderOverview(records, profile = "harness") {
+async function renderOverview(
+  records,
+  profile = "harness",
+  { nativeEvidence = null, diagnosticSource = null } = {},
+) {
   if (!Object.hasOwn(profiles, profile))
     throw new Error("PUBLIC_ODHIN_PROFILE_REQUIRED");
   const { buildConfigurationCatalogue, validateConfigurationCatalogue } =
@@ -118,6 +126,30 @@ async function renderOverview(records, profile = "harness") {
     catalogue.releaseCredit !== false
   )
     throw new Error("PUBLIC_ODHIN_SOURCE_DRIFT");
+  const runtimeCoverage = nativeEvidence?.catalogueCoverage;
+  if (
+    nativeEvidence &&
+    (!runtimeCoverage ||
+      runtimeCoverage.catalogueDigest !==
+        `sha256:${objectDigest(catalogue.obligations)}` ||
+      runtimeCoverage.selected !== catalogue.obligations.length ||
+      !Array.isArray(runtimeCoverage.creditedObligationIds) ||
+      runtimeCoverage.creditedObligationIds.some(
+        (id) => !catalogue.obligations.some((item) => item.id === id),
+      ) ||
+      ["candidate", "ccd"].some(
+        (boundary) =>
+          runtimeCoverage[boundary] !==
+          catalogue.obligations.filter(
+            (item) =>
+              item.requiredBoundary === boundary &&
+              runtimeCoverage.creditedObligationIds.includes(item.id),
+          ).length,
+      ))
+  )
+    throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
+  const satisfiedRuntimeRequirements =
+    runtimeCoverage?.creditedObligationIds.length ?? 0;
   const validatedDefault = snapshot.sources.find(
     (source) =>
       source.repository === "rpx-xui-webapp" &&
@@ -201,7 +233,7 @@ async function renderOverview(records, profile = "harness") {
           )?.observed.aatOutcome;
           return `${label}: ${observed === "response-passed" ? "response check passed" : observed === "login-setup-blocked" ? "login/setup blocked; response not confirmed" : observed ? "not confirmed" : "not run"}`;
         });
-      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>NOT RUN</td></tr>`;
+      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>${nativeEvidence ? "See bounded native proofs above; no per-family profile claim" : "NOT RUN"}</td></tr>`;
     })
     .join("");
   const runtimeGaps = deployment.gaps.filter((gap) =>
@@ -226,14 +258,16 @@ async function renderOverview(records, profile = "harness") {
     throw new Error("PUBLIC_ODHIN_SOURCE_REVISION_REQUIRED");
   return `<section id="harness-overview" class="p-4">
 <h1 class="h3">What this run checked</h1>
-<p>${profile === "local-aat" ? `${records.length - aatRecords.length} local Harness/model checks + ${aatRecords.length} live AAT probes = ${records.length} checks. AAT: ${responsePassed}/${aatRecords.length} response checks passed; ${groups.aat.failed} failed callbacks (${loginBlocked} blocked by login/setup). ${confirmedResponses} endpoint responses confirmed. Deployed version unknown.` : `This run recorded ${records.length} checks on Harness logic and reviewed configuration models. It did not run a candidate EXUI application or CCD.`}</p>
+<p>${profile === "local-aat" ? `${records.length - aatRecords.length} local Harness/model checks + ${aatRecords.length} live AAT probes = ${records.length} checks. AAT: ${responsePassed}/${aatRecords.length} response checks passed; ${groups.aat.failed} failed callbacks (${loginBlocked} blocked by login/setup). ${confirmedResponses} endpoint responses confirmed. Deployed version unknown.` : `This run recorded ${records.length} checks on Harness logic and reviewed configuration models. ${nativeEvidence ? "The separately validated native execution is shown below." : "It did not run a candidate EXUI application or CCD."}`}</p>
 ${profile === "local-aat" ? "<p>Authenticated probes share one configured solicitor session; the public UI-configuration probe is anonymous. Other roles and persona combinations are not covered.</p>" : ""}
 ${mismatches.length ? `<div class="alert alert-danger" data-aat-contract-mismatch><strong>Required service-family contract differs.</strong> ${escape(mismatchNotice)} Source expectations remain unchanged; this is not a login/setup failure. The deployed configuration, build and session-specific cause is unknown.</div>` : ""}
-${renderCoverage(records)}
+${diagnosticSource ? `<p class="harness-diagnostic-source" data-diagnostic-source-sha256="${objectDigest(diagnosticSource)}">Diagnostic source captured before execution: <code>${escape(diagnosticSource.commit || "commit unavailable")}</code> (${escape(diagnosticSource.state)}), ${escape(diagnosticSource.capturedAt)}. This stamp is not an immutable candidate seal.</p>` : ""}
+${renderNativeEvidence(nativeEvidence)}
+${renderCoverage(records, { nativeAttached: Boolean(nativeEvidence) })}
 <details class="odhin-thin-border p-3 mt-3" data-runtime-obligations="${catalogue.obligations.length}"><summary><strong>Application coverage and remaining gaps</strong></summary>
-<p><strong>0 / ${catalogue.obligations.length} candidate-bound catalogued requirements have execution evidence — candidate and CCD checks NOT RUN.</strong> Passing model or framework checks do not prove a service works in EXUI. Release approval remains unavailable.</p>
+<p><strong>${satisfiedRuntimeRequirements} / ${catalogue.obligations.length} catalogue requirements satisfied by accepted runtime evidence — ${nativeEvidence ? `${runtimeCoverage.missing} remain unsatisfied. See the separate native proof outcomes above, including failed or blocked executions.` : "candidate and CCD checks NOT RUN."}</strong> Passing model or framework checks do not prove a service works in EXUI. Release approval remains unavailable.</p>
 <p>The ${catalogue.obligations.length} source-catalogue obligations are a bounded inventory, not a complete universe of EXUI behaviour. ${runtimeGaps} deployment-profile/key runtime gaps and ${previewGaps} unreviewed preview-family cells remain outside those objects. Service-owner grouping, deployed profiles and discovery of unknown configuration changes remain open.</p></details>
-<details class="odhin-thin-border p-3 mt-3"><summary><strong>Services and capabilities represented in the reviewed source models</strong></summary><p>These capability declarations span reviewed source profiles. They are not a claim that each service was individually exercised or enabled in this deployment. The shared catalogue-model checks above inspect this inventory; actual per-service UI and CCD behaviour is NOT RUN. ${profile === "local-aat" ? "The five AAT endpoint outcomes are shown separately below; they do not verify every family individually." : ""}</p>
+<details class="odhin-thin-border p-3 mt-3"><summary><strong>Services and capabilities represented in the reviewed source models</strong></summary><p>These capability declarations span reviewed source profiles. They are not a claim that each service was individually exercised or enabled in this deployment. The shared catalogue-model checks above inspect this inventory; ${nativeEvidence ? "the separate native proofs above identify their actual fixture and service scope, without per-service profile credit." : "actual per-service UI and CCD behaviour is NOT RUN."} ${profile === "local-aat" ? "The five AAT endpoint outcomes are shown separately below; they do not verify every family individually." : ""}</p>
 <div class="table-responsive"><table class="table"><thead><tr><th>Service family</th><th>Declared capabilities</th><th>This build's evidence</th><th>Live AAT configuration reads</th><th>UI journey / CCD</th></tr></thead><tbody>${families}</tbody></table></div></details>
 ${
   profile === "local-aat"
@@ -248,8 +282,8 @@ ${
         )}</ul><p>AAT family assertions require exact declared membership, including rejection of extras/duplicates; response agreement does not prove deployed build/profile identity. No blanket service, workflow, browser or CCD result is inferred from these endpoint checks.</p></details>`
     : ""
 }
-<details class="odhin-thin-border p-3 mt-3"><summary><strong>Evidence basis and required gaps</strong></summary><p>Reviewed committed source projections: EXUI ${source.revision.slice(0, 8)}, Private Law definitions ${prl.revision.slice(0, 8)}. Test identities come from the reviewed declaration registry. Outcomes and durations come from this runner, not historical receipts.</p><p>Required gaps include candidate/browser interpretation, CCD permissions and persistence, deployed configuration and owner acceptance. PCS has a discovered source owner but no accepted CCD-backed assurance here. The known postal postcode constraint remains blocked; this model run does not fix or clear it. No retired mock UI, accessibility, screenshot or historical native result is credited to this build.</p><p>The separate Build phase checks Node contracts, pipeline contracts, TypeScript and lint. Their individual results are not test rows in this Playwright report. Rich diagnostics remain private.</p></details>
-<p class="mt-3">Open the Tests tab for the actual checked contracts and outcomes. Supporting evidence only — no release credit.</p></section>`;
+<details class="odhin-thin-border p-3 mt-3"><summary><strong>Evidence basis and required gaps</strong></summary><p>Reviewed committed source projections: EXUI ${source.revision.slice(0, 8)}, Private Law definitions ${prl.revision.slice(0, 8)}. Test identities come from the reviewed declaration registry. Diagnostic outcomes and durations come from this runner. ${nativeEvidence ? "Native outcomes come only from the explicitly supplied, independently validated execution descriptor and receipts." : "No historical native receipts are attached."}</p><p>${nativeEvidence ? "The native section covers only its named application/CCD proofs; all other candidate interpretation, deployed configuration and owner acceptance gaps remain." : "Required gaps include candidate/browser interpretation, CCD permissions and persistence, deployed configuration and owner acceptance."} PCS has a discovered source owner but no accepted CCD-backed assurance here. Postal status, when attached, is reported from that native execution; diagnostic models do not establish postal runtime behaviour. No retired mock UI, accessibility or screenshot result is credited to this build.</p><p>The separate Build phase checks Node contracts, pipeline contracts, TypeScript and lint. Their individual results are not test rows in this Playwright report. Rich diagnostics remain private.</p></details>
+<p class="mt-3">The Odhín result charts and Tests tab count diagnostic tests only. Native baseline proofs and deliberate fault checks are counted in their own tables above when attached. Supporting evidence only — no release credit.</p></section>`;
 }
 module.exports = {
   entries,

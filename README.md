@@ -37,7 +37,19 @@ Create a fresh job JSON using exactly these keys:
 yarn harness:candidate:ci --input /absolute/job.json
 ```
 
-The job runs family baseline/fault, derives the scope mutant, runs IA/Civil scope, then starts fresh CCD for nested/access/integrity/postal baselines and faults. It owns cleanup and captures independent expectations before consuming receipts. The strict job input cannot supply a catalogue, proof status or selected subset.
+To execute these application checks together with Harness diagnostics and publish one Odhín report:
+
+```bash
+yarn harness:assurance --input /absolute/job.json
+# Include the five live AAT configuration probes:
+yarn harness:assurance --input /absolute/job.json --aat
+```
+
+Each invocation needs a fresh native output directory in its job file. The combined command runs the native job first, validates its captured identities, raw reports, receipts and cleanup, then collects 116 local checks (121 with AAT). It writes the single report to `functional-output/tests/harness/public/odhin/index.html`. Native baselines and deliberate fault checks have separate counts and source identities; a blocked native result remains exit code 2 even when diagnostics pass. Incomplete native evidence stops collection instead of publishing a passing report. AAT requires the existing approved local credentials; the default command does not.
+
+The 112 catalogue requirements are coverage obligations, not an already implemented 112-test suite. This command executes the implemented native policies; it cannot grant coverage to missing service/profile proofs. Jenkins still needs the supported native agent, sealed candidate inputs and approved durable evidence storage before this command can become a required release gate.
+
+The job runs family baseline/fault, derives the scope mutant, runs IA/Civil scope, then starts fresh CCD for nested data, access, role removal, write integrity and postal baselines and faults. It owns cleanup and captures independent expectations before consuming receipts. The strict job input cannot supply a catalogue, proof status or selected subset.
 
 The native API runs separately from browser/providers/evidence writing. It receives read-only sealed application/guard files and writable synthetic sessions/diagnostics. Observer credentials, reports, controller source and Docker socket are absent from its mounts. Containers receive no Docker socket; the host owns lifecycle and recovery.
 

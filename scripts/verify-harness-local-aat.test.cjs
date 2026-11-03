@@ -116,8 +116,11 @@ test("live-AAT profile adds exactly five reviewed probes without claiming candid
   assert.match(html, /Live environment API diagnostics/);
   assert.match(html, /<td>5<\/td>/);
   assert.match(html, /deployed version.*unknown/i);
-  assert.match(html, /0 \/ 112/);
-  assert.match(html, /candidate-bound/i);
+  assert.match(
+    html,
+    /0 \/ 112 catalogue requirements satisfied by accepted runtime evidence/,
+  );
+  assert.match(html, /candidate and CCD checks NOT RUN/);
   assert.doesNotMatch(html, /It did not run.*EXUI application/);
 });
 
@@ -504,4 +507,100 @@ test("local-AAT overview refuses AAT source drift even when all121 callbacks pas
   } finally {
     source.environment.GLOBAL_SEARCH_SERVICES.value = original;
   }
+});
+
+test("credential-free collection runs only116 offline tests and preserves every native exit status", async (t) => {
+  const os = require("node:os"),
+    { EventEmitter } = require("node:events"),
+    cp = require("node:child_process");
+  const previous = process.cwd(),
+    root = fs.mkdtempSync(
+      path.join(fs.realpathSync(os.tmpdir()), "offline-collection-"),
+    );
+  process.chdir(root);
+  const Reporter = require("./harness-public-odhin-reporter.cjs");
+  const oldSpawn = cp.spawn,
+    oldPrepare = Reporter.prototype.prepareNativeEvidence,
+    oldEnd = Reporter.prototype.onEnd;
+  t.after(() => {
+    cp.spawn = oldSpawn;
+    Reporter.prototype.prepareNativeEvidence = oldPrepare;
+    Reporter.prototype.onEnd = oldEnd;
+    delete require.cache[modulePath];
+    process.chdir(previous);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const calls = [];
+  let nativeStatus = "BLOCKED",
+    nativeExitCode = 2;
+  Reporter.prototype.prepareNativeEvidence = async function (descriptor) {
+    assert.equal(descriptor, "/explicit/descriptor.json");
+    calls.push("validate-native");
+    this.nativeEvidence = {
+      status: nativeStatus,
+      exitCode: nativeExitCode,
+      descriptorDigest: "sha256:" + "a".repeat(64),
+    };
+  };
+  Reporter.prototype.onEnd = async function () {
+    calls.push("render");
+    assert.equal(this.results.size, 116);
+    assert.equal(this.diagnosticSource.state, "unavailable");
+  };
+  cp.spawn = (_command, _args, options) => {
+    calls.push("offline");
+    assert.equal(options.env.SOLICITOR_PASSWORD, undefined);
+    assert.equal(options.env.EXUI_DIAGNOSTIC_SELECTION, undefined);
+    assert.equal(options.cwd, root);
+    const raw = document(require("./harness-public-overview.cjs").entries);
+    raw.stats.startTime = new Date().toISOString();
+    raw.stats.duration = 0;
+    for (const suite of raw.suites)
+      for (const nested of suite.suites)
+        for (const spec of nested.specs)
+          spec.tests[0].results[0].startTime = raw.stats.startTime;
+    fs.writeFileSync(
+      options.env.PLAYWRIGHT_JSON_OUTPUT_FILE,
+      JSON.stringify(raw),
+    );
+    const child = new EventEmitter();
+    child.kill = () => {};
+    setImmediate(() => child.emit("close", 0, null));
+    return child;
+  };
+  delete require.cache[modulePath];
+  const { runHarnessCollection } = require(modulePath);
+  for (const [status, code] of [
+    ["BLOCKED", 2],
+    ["FAIL", 1],
+    ["PASS", 0],
+  ]) {
+    nativeStatus = status;
+    nativeExitCode = code;
+    const result = await runHarnessCollection(
+      { PATH: "/bin", SOLICITOR_PASSWORD: canary },
+      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json" },
+    );
+    assert.deepEqual(result, {
+      status: "passed",
+      nativeStatus: status,
+      exitCode: code,
+    });
+  }
+  assert.deepEqual(
+    calls,
+    Array(3).fill(["validate-native", "offline", "render"]).flat(),
+  );
+  Reporter.prototype.prepareNativeEvidence = async () => {
+    throw new Error("NATIVE_REPORT_IDENTITY_MISMATCH");
+  };
+  await assert.rejects(
+    runHarnessCollection({}, { nativeEvidencePath: "/invalid" }),
+    /IDENTITY_MISMATCH/,
+  );
+  assert.equal(
+    calls.length,
+    9,
+    "invalid evidence must not launch diagnostics or publish",
+  );
 });

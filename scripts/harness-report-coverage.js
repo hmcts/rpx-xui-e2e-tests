@@ -56,6 +56,27 @@ if (window.jQuery)
       document.getElementById("harness-filter-count").textContent =
         `${tests} matching tests across ${slices} slices`;
     };
+    const nativeFilters = [...root.querySelectorAll("[data-native-filter]")];
+    nativeFilters.forEach((select) =>
+      select.addEventListener("change", () => {
+        const values = Object.fromEntries(
+          nativeFilters.map((item) => [item.dataset.nativeFilter, item.value]),
+        );
+        const counts = { baseline: 0, fault: 0 };
+        root.querySelectorAll("[data-native-row]").forEach((row) => {
+          row.hidden = Boolean(
+            (values.phase && row.dataset.nativePhase !== values.phase) ||
+            (values.kind && row.dataset.nativeKind !== values.kind),
+          );
+          if (!row.hidden) counts[row.dataset.nativeKind]++;
+        });
+        root.querySelectorAll("[data-native-table]").forEach((table) => {
+          table.hidden = !counts[table.dataset.nativeTable];
+        });
+        root.querySelector("[data-native-count]").textContent =
+          `${counts.baseline} matching baseline results and ${counts.fault} deliberate fault checks`;
+      }),
+    );
     selects.forEach((select) => select.addEventListener("change", filter));
     root.querySelector("[data-harness-clear]").addEventListener("click", () => {
       selects.forEach((select) => (select.value = ""));
@@ -71,9 +92,12 @@ if (window.jQuery)
                 : ""),
         );
         filter();
-        document
-          .getElementById("harness-slices-heading")
-          .scrollIntoView({ block: "start" });
+        const heading = document.getElementById("harness-slices-heading");
+        const headerHeight =
+          document.querySelector(".sticky-top")?.getBoundingClientRect()
+            .height || 0;
+        heading.style.scrollMarginTop = `${headerHeight + 16}px`;
+        heading.scrollIntoView({ block: "start" });
         selects[0].focus({ preventScroll: true });
       }),
     );

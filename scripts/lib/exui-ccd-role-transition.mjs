@@ -126,11 +126,11 @@ export async function provisionRoleTransitionActor({
   );
   const created = await account(email, TRANSITION_GRANTED_ROLES, fetchImpl);
   const observed = await observeAccount(email, fetchImpl);
-  assertUser(observed, created.uid, TRANSITION_GRANTED_ROLES);
+  assertUser(observed, created.uuid, TRANSITION_GRANTED_ROLES);
   return (
     await authenticate(
       email,
-      created.uid,
+      created.uuid,
       TRANSITION_GRANTED_ROLES,
       serviceAuthorization,
       fetchImpl,
@@ -152,7 +152,7 @@ export async function revokeRoleTransitionActor(
     TRANSITION_REVOKED_ROLES,
     fetchImpl,
   );
-  assert(changed.uid === initial.userId, "CCD_TRANSITION_IDENTITY_MISMATCH");
+  assert(changed.uuid === initial.userId, "CCD_TRANSITION_IDENTITY_MISMATCH");
   const afterAccount = await observeAccount(initial.email, fetchImpl);
   assertUser(afterAccount, initial.userId, TRANSITION_REVOKED_ROLES);
   // Authenticate the existing replaced account. Never call provisioning here: that would restore the grant.

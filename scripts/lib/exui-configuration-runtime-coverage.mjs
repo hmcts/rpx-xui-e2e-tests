@@ -164,53 +164,45 @@ function bindImportedDefinition(phaseDirectory, manifest, signature) {
     );
 }
 
-// Measurement only: the existing phase consumer/evaluator remains the outcome authority.
-export function writeConfigurationCoverage(args) {
+// Read-only measurement after independent phase validation; never a promotion decision.
+// Outcomes are reloaded from the owned evaluator, not accepted from caller flags.
+export function projectConfigurationCoverage(args) {
   assert(
     Object.keys(args).every((key) =>
-      [
-        "harnessRoot",
-        "output",
-        "phaseDirectory",
-        "expected",
-        "terminal",
-      ].includes(key),
+      ["harnessRoot", "phaseDirectory"].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
   );
-  const {
-    harnessRoot = ROOT,
-    output,
-    phaseDirectory,
-    expected,
-    terminal,
-  } = args;
+  const { harnessRoot = ROOT, phaseDirectory } = args;
+  let harnessCommit = null,
+    receiptArtifactDigest = null,
+    evidenceManifestDigest = null;
   const input = loadCommittedConfigurationCatalogue(harnessRoot);
-  const selection = selectConfigurationObligations(input.catalogue, [], { snapshot: input.snapshot, review: input.review });
+  const selection = selectConfigurationObligations(input.catalogue, [], {
+    snapshot: input.snapshot,
+    review: input.review,
+  });
   const executedProofs = [],
     references = [],
     unacceptedExecutionFacts = [];
   if (phaseDirectory) {
-    assert(
-      expected && terminal && expected.nativeAuthority === true,
-      "COVERAGE_OBSERVED_NATIVE_PHASE_REQUIRED",
-    );
-    assert.equal(
-      digestBytes(fs.readFileSync(path.join(phaseDirectory, "gate.json"))),
-      expected.receiptArtifactDigest,
-      "COVERAGE_RECEIPT_TRANSPORT_MISMATCH",
-    );
-    const verdict = validateCiPhase(phaseDirectory, expected, terminal);
-    const policy = getReleasePolicy(expected.releaseScopeId);
-    assert.equal(
-      policy.releaseScopeId,
-      "exui-ccd-pilot",
-      "COVERAGE_CCD_SCOPE_REQUIRED",
-    );
+    const policy = getReleasePolicy("exui-ccd-pilot");
     const loaded = loadRunEvidence(
       path.join(phaseDirectory, "run.json"),
       policy,
     );
+    const receiptBytes = fs.readFileSync(
+      path.join(phaseDirectory, "gate.json"),
+    );
+    assert.deepEqual(
+      JSON.parse(receiptBytes),
+      loaded.receipt,
+      "COVERAGE_RECEIPT_RECOMPUTATION_MISMATCH",
+    );
+    receiptArtifactDigest = digestBytes(receiptBytes);
+    evidenceManifestDigest = loaded.evidenceManifestDigest;
+    harnessCommit = loaded.input.manifest.harnessCommit;
+    const verdict = { ...loaded.receipt.verdict, receiptArtifactDigest };
     for (const sequence of input.catalogue.sequences) {
       const obligation = policy.obligations.find(
         (item) => item.id === sequence.id,
@@ -270,14 +262,14 @@ export function writeConfigurationCoverage(args) {
         digest: verdict.receiptArtifactDigest,
       },
     );
-  } else assert(!expected && !terminal, "COVERAGE_PHASE_REQUIRED");
+  }
   const report = validateConfigurationCatalogue({
     ...input,
     selectedIds: selection.obligationIds,
     executedProofs,
   });
   const provenance = {
-    harnessCommit: expected?.harnessCommit ?? null,
+    harnessCommit,
     sourceArtifactDigests: input.sourceArtifactDigests,
     sourceManifest: input.catalogue.sourceManifest,
     deploymentSourceManifest: input.catalogue.deploymentSourceManifest,
@@ -285,18 +277,71 @@ export function writeConfigurationCoverage(args) {
     sourceMetadataLimit:
       "Committed reviewed projection and discovery pins only; the full external inventory and reference graph are unavailable and cannot narrow selection.",
   };
-  writeJsonAtomic(path.join(output, "catalogue.json"), input.catalogue);
-  writeJsonAtomic(path.join(output, "selection.json"), selection);
+  return {
+    catalogue: input.catalogue,
+    selection,
+    sourceValidation: input.validation,
+    validationReport: report,
+    receiptArtifactDigest,
+    evidenceManifestDigest,
+    report: {
+      ...report,
+      executedProofs,
+      evidenceReferences: references,
+      unacceptedExecutionFacts,
+      provenance,
+    },
+  };
+}
+
+// Independent phase validation remains mandatory before publishing measurement.
+export function writeConfigurationCoverage(args) {
+  assert(
+    Object.keys(args).every((key) =>
+      [
+        "harnessRoot",
+        "output",
+        "phaseDirectory",
+        "expected",
+        "terminal",
+      ].includes(key),
+    ),
+    "UNSUPPORTED_COVERAGE_INPUT",
+  );
+  const {
+    harnessRoot = ROOT,
+    output,
+    phaseDirectory,
+    expected,
+    terminal,
+  } = args;
+  if (phaseDirectory) {
+    assert(
+      expected && terminal && expected.nativeAuthority === true,
+      "COVERAGE_OBSERVED_NATIVE_PHASE_REQUIRED",
+    );
+    assert.equal(
+      digestBytes(fs.readFileSync(path.join(phaseDirectory, "gate.json"))),
+      expected.receiptArtifactDigest,
+      "COVERAGE_RECEIPT_TRANSPORT_MISMATCH",
+    );
+    assert.equal(
+      expected.releaseScopeId,
+      "exui-ccd-pilot",
+      "COVERAGE_CCD_SCOPE_REQUIRED",
+    );
+    validateCiPhase(phaseDirectory, expected, terminal);
+  } else assert(!expected && !terminal, "COVERAGE_PHASE_REQUIRED");
+  const projected = projectConfigurationCoverage({
+    harnessRoot,
+    phaseDirectory,
+  });
+  writeJsonAtomic(path.join(output, "catalogue.json"), projected.catalogue);
+  writeJsonAtomic(path.join(output, "selection.json"), projected.selection);
   writeJsonAtomic(
     path.join(output, "source-validation.json"),
-    input.validation,
+    projected.sourceValidation,
   );
-  writeJsonAtomic(path.join(output, "coverage.json"), {
-    ...report,
-    executedProofs,
-    evidenceReferences: references,
-    unacceptedExecutionFacts,
-    provenance,
-  });
-  return report;
+  writeJsonAtomic(path.join(output, "coverage.json"), projected.report);
+  return projected.validationReport;
 }

@@ -39,7 +39,7 @@ function simulator({
       assert.equal(body.email, email);
       roles = body.roles.map((role) => role.code);
       if (retainRole && token > 0) roles.push("caseworker-harness-allowed");
-      return Response.json({ uid: userId });
+      return Response.json({ uuid: userId });
     }
     if (
       url.includes("/testing-support/accounts?email=") ||
@@ -77,6 +77,45 @@ test("identity provisioning rejects malformed synthetic UUID before contacting I
     /CCD_TRANSITION_SYNTHETIC_IDENTITY_REQUIRED/,
   );
   assert.equal(calls, 0);
+});
+
+test("account creation and role replacement reject missing or mismatched response UUID", async () => {
+  const { provisionRoleTransitionActor, revokeRoleTransitionActor } =
+    await implementation();
+  for (const phase of ["create", "revoke"]) {
+    for (const response of [
+      {},
+      { uid: userId },
+      { uuid: "33333333-3333-4333-8333-333333333333" },
+    ]) {
+      const sim = simulator();
+      const initial =
+        phase === "revoke"
+          ? await provisionRoleTransitionActor({
+              email,
+              serviceAuthorization: "synthetic-service",
+              fetchImpl: sim.fetchImpl,
+            })
+          : null;
+      const fetchImpl = async (url, options) => {
+        const observed = await sim.fetchImpl(url, options);
+        return url.endsWith("/testing-support/accounts") &&
+          options.method === "POST"
+          ? Response.json(response)
+          : observed;
+      };
+      await assert.rejects(
+        phase === "create"
+          ? provisionRoleTransitionActor({
+              email,
+              serviceAuthorization: "synthetic-service",
+              fetchImpl,
+            })
+          : revokeRoleTransitionActor(initial, { fetchImpl }),
+        /CCD_TRANSITION_IDENTITY_MISMATCH/,
+      );
+    }
+  }
 });
 
 test("role replacement preserves same actor and acquires a distinct token without restoring the grant", async () => {

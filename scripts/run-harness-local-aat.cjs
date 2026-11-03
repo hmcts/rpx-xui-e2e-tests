@@ -225,18 +225,29 @@ function phaseEnvironment(env, runRoot) {
     },
   };
 }
-async function runLocalAat(env = process.env) {
+async function runHarnessCollection(
+  env = process.env,
+  { profile = "harness", nativeEvidencePath } = {},
+) {
+  if (!["harness", "local-aat"].includes(profile)) throw fail();
   const root = process.cwd();
   const privateRoot = path.join(
     root,
     "functional-output/tests/harness/private",
   );
+  const diagnosticSource = Reporter.captureDiagnosticSource();
+  const reporter = new Reporter({ selection: profile, diagnosticSource });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
+  if (nativeEvidencePath !== undefined)
+    await reporter.prepareNativeEvidence(nativeEvidencePath);
   fs.mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
   const runRoot = fs.mkdtempSync(path.join(privateRoot, ".local-aat-"));
   fs.chmodSync(runRoot, 0o700);
-  const environments = phaseEnvironment(env, runRoot);
+  const environments =
+    profile === "local-aat"
+      ? phaseEnvironment(env, runRoot)
+      : { offline: { ...selectedEnv(env, offlineKeys), CI: "true" } };
   let child,
     interrupted = false;
   let forceTimer;
@@ -258,12 +269,16 @@ async function runLocalAat(env = process.env) {
         env: environments.offline,
         entries: overview.entries,
       },
-      {
-        name: "aat",
-        config: "playwright.harness-diagnostic.config.ts",
-        env: environments.aat,
-        entries: fixture.selections.environment,
-      },
+      ...(profile === "local-aat"
+        ? [
+            {
+              name: "aat",
+              config: "playwright.harness-diagnostic.config.ts",
+              env: environments.aat,
+              entries: fixture.selections.environment,
+            },
+          ]
+        : []),
     ]) {
       if (interrupted) throw fail();
       const output = path.join(runRoot, phase.name);
@@ -337,8 +352,7 @@ async function runLocalAat(env = process.env) {
     }
     if (interrupted) throw fail();
     const records = phases.flatMap((phase) => phase.records);
-    if (records.length !== 121) throw fail();
-    const reporter = new Reporter({ selection: "local-aat" });
+    if (records.length !== overview.profiles[profile].length) throw fail();
     const tests = records.map((record) => ({
       location: { file: path.join(root, record.entry.file) },
       titlePath: () => record.entry.titlePath,
@@ -362,8 +376,12 @@ async function runLocalAat(env = process.env) {
       path.join(runRoot, "collection.json"),
       JSON.stringify({
         schemaVersion: 1,
-        profile: "local-aat",
-        origin: "manage-case.aat.platform.hmcts.net",
+        profile,
+        diagnosticSource,
+        nativeDescriptorDigest:
+          reporter.nativeEvidence?.descriptorDigest || null,
+        origin:
+          profile === "local-aat" ? "manage-case.aat.platform.hmcts.net" : null,
         phases: phases.map((phase) => ({
           name: phase.name,
           workingDirectory:
@@ -381,17 +399,29 @@ async function runLocalAat(env = process.env) {
       duration: end - start,
     });
     if (interrupted) {
-      Reporter.resetPublicReport("local-aat");
+      Reporter.resetPublicReport(profile);
       throw fail();
     }
-    return { status, exitCode: status === "passed" ? 0 : 1 };
+    const nativeStatus = reporter.nativeEvidence?.status || null;
+    return {
+      status,
+      nativeStatus,
+      exitCode: Math.max(
+        reporter.nativeEvidence?.exitCode || 0,
+        status === "passed" ? 0 : 1,
+      ),
+    };
   } finally {
     clearTimeout(forceTimer);
     process.removeListener("SIGINT", cancel);
     process.removeListener("SIGTERM", cancel);
   }
 }
+function runLocalAat(env = process.env, options = {}) {
+  return runHarnessCollection(env, { ...options, profile: "local-aat" });
+}
 module.exports = {
+  runHarnessCollection,
   normalizePhase,
   phaseEnvironment,
   runLocalAat,

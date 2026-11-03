@@ -172,3 +172,33 @@
     max-width: 100%;
   }
 }
+
+#harness-overview h2,
+#harness-native-evidence {
+  scroll-margin-top: 100px;
+}
+#harness-native-evidence {
+  border: 2px solid #526d7a;
+  border-radius: 4px;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+#harness-native-evidence h3 {
+  font-size: 1.1rem;
+  margin-top: 1rem;
+}
+.harness-native-table {
+  min-width: 950px;
+}
+.harness-native-table th:first-child {
+  width: 30%;
+}
+.harness-native-table th p {
+  font-weight: normal;
+  margin-top: 0.4rem;
+}
+.harness-native-table details,
+.harness-native-identity,
+.harness-diagnostic-source {
+  overflow-wrap: anywhere;
+}
