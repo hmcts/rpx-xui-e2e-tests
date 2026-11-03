@@ -1,6 +1,6 @@
 # Harness evidence contract
 
-The existing POC remains a diagnostic runner. Dedicated candidate producers support `exui-wa-family-pilot`, `exui-wa-scope-pilot` and `exui-ccd-pilot`; each requires its own complete baseline and mutation evidence. Unsupported scopes, including full EXUI release, block. Artifact identity, isolation and applied mutation provenance come from the trusted runners; the parser cannot independently attest to a deployed runtime.
+The existing POC remains a diagnostic runner. Dedicated candidate producers support `exui-wa-family-pilot`, `exui-wa-scope-pilot`, `exui-ccd-pilot` and the separate native-only `exui-decentralised-routing-pilot`; each requires its own complete baseline and mutation evidence. Unsupported scopes, including full EXUI release, block. Artifact identity, isolation and applied mutation provenance come from the trusted runners; the parser cannot independently attest to a deployed runtime.
 
 ## Commands
 
@@ -36,6 +36,14 @@ The portable configuration projection/review is loaded from the clean committed 
 Catalogue execution credit is derived only after existing phase validation, raw-evidence recomputation and native finalization. The adapter receives the immutable receipt digest returned by that validator and rechecks candidate/source/policy/transport, imported workbook/source, observed definition/version and CCD image identity. Only the exact canonical sequence ID can gain a CCD fact; whole-profile/family/PRL-role IDs are not aliases. The current source catalogue has112 obligations: adding the two decentralized configuration keys replaces13 profile IDs, preserves98 other objects including the postal sequence and16 PRL cells, and adds one unproved PCS routing obligation. An accepted postal phase would report112 selected/1 CCD/111 missing; that is theoretical support accounting, not a new native result. The historical c024fa3 run retains its original111 selected/0 CCD/111 missing. Existing family/scope/CCD pilots do not exercise PCS redirects or NoC routing and cannot credit that obligation. Interpreter-source changes remain unknown impacts that broaden selection. Initial/missing/mismatched/blocked evidence gains no passing credit. These measurements remain source-and-catalogue diagnostics with releaseCredit:false and releaseApproval:false.
 
 Previous same-container native receipts remain local diagnostic observations. Separate-container source review and boundary probes do not themselves prove the composed job or a full release; acceptance must retain that job's actual immutable evidence and source identity. Checked-in Jenkins supporting/model checks remain separate from this opt-in native job and cannot issue candidate or full-release approval.
+
+## Separate native routing pilot
+
+`harness:candidate --scope exui-decentralised-routing-pilot` uses the same sealed candidate, isolated API/Tools authority, fixed policy and evidence evaluator. The API can reach central metadata on3101 and PCS NoC on3102; only the browser can reach synthetic PCS UI on3103. Socket-origin journals independently identify the destination. Real rendered Create/Start entry must redirect externally and retain ordinary/unmatched local editor fallbacks. NoC must select central or PCS routes using per-case session state, with real CSRF and a distinct fresh session.
+
+The routing API receives complete reviewed configuration under a private empty configuration directory; candidate defaults cannot silently restore an omitted destination through node-config merging. `routing-omit-web-url` must fail at `event-redirect`; `routing-omit-noc-base-url` must fail at `noc-session-routing`. Both baselines and both exact witnesses are mandatory. The reviewed source pins define the expected contract; the tested implementation binds to its own independently expected identity and sealed bytes, allowing later candidate builds.
+
+This manual pilot does not change the fixed CI phase order or receipt-to-catalogue bridge. Its two pilot-only obligations cannot discharge the aggregate routing shape. Loopback origins do not establish live PCS/CCD identity, DNS/TLS, authorization, business callbacks or deployed overlay equivalence. Existing-event forwarding and broader routing interpretation remain gaps.
 
 ## Producer input
 
