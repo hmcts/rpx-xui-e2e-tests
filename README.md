@@ -95,7 +95,11 @@ The shared evaluator recomputes raw framework evidence and receipts. `harness:ve
 
 ## CI and reports
 
+The pinned Jenkins library runs lint during Build. The later Harness stage reactivates NVM and checks actual Node against `.nvmrc` and actual Yarn against `packageManager` before browser preflight and supporting checks.
+
 Checked-in Jenkins jobs run Harness supporting checks and portable diagnostics. They provide no native candidate/release approval. The fixed native job requires its explicit artifact/digest/browser/output inputs and a supported provisioned Docker platform; actual Jenkins native provisioning and live acceptance remain unverified.
+
+The shared Jenkins library deletes its workspace at job completion. Job-local raw reports are not durable evidence retention; an approved private store is still required for native CI acceptance.
 
 Raw native evidence stays beneath the job's private output. Diagnostic/support reports remain under `functional-output/tests/harness/private/`. Only the validated fixed-schema `public/release-assurance-summary.json` is eligible for general publication. Missing reports, placeholders or passing model checks cannot be presented as candidate PASS. Human review is required before merge or deployment.
 

@@ -22,6 +22,6 @@ The portable catalogue now includes `decentralisedCaseTypeConfig` and `decentral
 
 ## External integration
 
-Native execution is currently Linux/arm64 with cached pinned toolchains; actual Jenkins native provisioning/acceptance is unverified. OCI supports the family adapter only. Upstream candidate metadata publication, actual external owner gates and production promotion consumption remain external integration dependencies. The repository changes grant no merge or deployment approval.
+Native execution is currently Linux/arm64 with cached pinned toolchains; actual Jenkins native provisioning/acceptance is unverified. The shared Jenkins library deletes the workspace after a job, and this configuration archives only the validated public summary. Durable private raw-evidence retention remains unconfigured; job-local paths alone do not establish it. OCI supports the family adapter only. Upstream candidate metadata publication, actual external owner gates and production promotion consumption remain external integration dependencies. The repository changes grant no merge or deployment approval.
 
 Raw evidence and source-bound review scripts remain in the private workspace audit bundle. Only validated fixed-schema public summaries may be generally published. AI-assisted; audit reference:harness-plan-execution-20261102.
