@@ -4,7 +4,7 @@ Central assurance for EXUI configuration, role, definition and data-integrity be
 
 ## Install and check the Harness
 
-Use the Node/Yarn versions declared in package.json.
+For development and validation, use the Node version pinned in `.nvmrc` and the Yarn version declared by `packageManager` in package.json.
 
 ```bash
 yarn setup

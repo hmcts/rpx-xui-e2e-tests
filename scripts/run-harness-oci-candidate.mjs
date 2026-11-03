@@ -463,7 +463,7 @@ async function launch() {
   const executions = [],
     mutations = [],
     identities = [];
-  let manifest;
+  let manifest, pendingReceipt, failure;
   try {
     for (const invocation of ["baseline", "wa-drop-family"]) {
       const result = await runInvocation(
@@ -497,38 +497,34 @@ async function launch() {
       mutantInvocationId: "wa-drop-family",
       derivationArtifact: ref(output, `${output}/derivation.json`),
     });
-  } finally {
-    try {
-      if (manifest) {
-        writeJsonAtomic(`${output}/run.json`, {
-          schemaVersion: 1,
-          manifest,
-          executionArtifacts: executions,
-          mutations,
-        });
-        const { receipt } = loadRunEvidence(`${output}/run.json`, policy);
-        writeJsonAtomic(`${output}/gate.json`, receipt);
-        writePublicSummary(
-          `${output}/public/release-assurance-summary.json`,
-          receipt.verdict,
-          true,
-        );
-        process.exitCode = receipt.verdict.exitCode;
-      }
-    } finally {
-      try {
-        fs.rmSync(staged, { recursive: true, force: true });
-      } catch (error) {
-        if (!["EACCES", "EPERM"].includes(error.code)) throw error;
-        writeJsonAtomic(`${output}/source-snapshot.json`, {
-          retained: true,
-          path: staged,
-          digest: input.harnessSourceDigest,
-        });
-      }
-    }
+  } catch (error) {
+    failure = error;
   }
-  console.log(`OCI candidate evidence: ${output}`);
+  try {
+    if (manifest) {
+      writeJsonAtomic(`${output}/run.json`, {
+        schemaVersion: 1,
+        manifest,
+        executionArtifacts: executions,
+        mutations,
+      });
+      pendingReceipt = loadRunEvidence(`${output}/run.json`, policy).receipt;
+    }
+  } catch (error) { failure ??= error; }
+  try {
+    try {
+      fs.rmSync(staged, { recursive: true, force: true });
+    } catch (error) {
+      if (!["EACCES", "EPERM"].includes(error.code)) throw error;
+      writeJsonAtomic(`${output}/source-snapshot.json`, {
+        retained: true,
+        path: staged,
+        digest: input.harnessSourceDigest,
+      });
+    }
+  } catch (error) { failure ??= error; }
+  if (failure) throw failure;
+  return pendingReceipt;
 }
 
 try {
@@ -564,15 +560,25 @@ try {
         );
       },
     });
-    try {
-      await launch();
-    } finally {
-      dispose();
-      for (const directory of privatePayloads)
-        fs.rmSync(directory, { recursive: true, force: true });
+    let pendingReceipt, failure;
+    try { pendingReceipt = await launch(); } catch (error) { failure = error; }
+    try { dispose(); } catch (error) { failure ??= error; }
+    for (const directory of privatePayloads) {
+      try { fs.rmSync(directory, { recursive: true, force: true }); }
+      catch (error) { failure ??= error; }
     }
+    if (failure) throw failure;
+    if (interrupted || !pendingReceipt) throw Error("OCI_FINALIZATION_INCOMPLETE");
+    writePublicSummary(`${activeOutput}/public/release-assurance-summary.json`, pendingReceipt.verdict, true);
+    writeJsonAtomic(`${activeOutput}/gate.json`, pendingReceipt);
+    process.exitCode = pendingReceipt.verdict.exitCode;
+    console.log(`OCI candidate evidence: ${activeOutput}`);
   }
 } catch (error) {
+  if (activeOutput) {
+    try { fs.rmSync(`${activeOutput}/gate.json`, { force: true }); } catch { /* Producer completion remains failed if withdrawal is unavailable. */ }
+    try { writePublicSummary(`${activeOutput}/public/release-assurance-summary.json`, { status: "BLOCKED" }); } catch { /* Best effort; never override the nonzero producer result. */ }
+  }
   console.error(`BLOCKED: ${error.message}`);
   process.exitCode = 2;
 }

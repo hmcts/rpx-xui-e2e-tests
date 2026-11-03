@@ -122,6 +122,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
     cleanupErrors = [];
   let interrupted,
     manifest,
+    pendingReceipt,
     executions = [],
     identities = [],
     verdict = { status: "BLOCKED", exitCode: 2 };
@@ -138,8 +139,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
     removeListener: (...args) => process.removeListener(...args),
     stderr: process.stderr,
     exit: (code) => {
-      invalidate(output, interrupted, cleanupErrors.length === 0);
-      process.exit(code);
+      try { invalidate(output, interrupted, cleanupErrors.length === 0); } finally { process.exit(code); }
     },
   };
   const uninstall = installCancellationCleanup({
@@ -294,7 +294,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
     const loaded = loadRunEvidence(path.join(output, "run.json"), policy);
     verdict = loaded.receipt.verdict;
     if (interrupted) throw Error("NATIVE_CONTROLLER_INTERRUPTED");
-    writeJsonAtomic(path.join(output, "gate.json"), loaded.receipt);
+    pendingReceipt = loaded.receipt;
   } finally {
     for (const key of [...resources.keys()].reverse())
       try {
@@ -303,34 +303,44 @@ export async function runNativeHostPhase(output, stagedHarness) {
         verdict = { status: "BLOCKED", exitCode: 2 };
       }
     uninstall();
-    if (interrupted)
-      invalidate(output, interrupted, cleanupErrors.length === 0);
-    else {
-      if (cleanupErrors.length) {
+    try {
+      if (interrupted) {
+        verdict = { status: "BLOCKED", exitCode: 2 };
+        invalidate(output, interrupted, cleanupErrors.length === 0);
+      } else if (cleanupErrors.length) {
         verdict = { status: "BLOCKED", exitCode: 2 };
         for (const name of ["run.json", "gate.json"])
           if (fs.existsSync(path.join(output, name)))
-            fs.renameSync(
-              path.join(output, name),
-              path.join(output, `incomplete-cleanup-${name}`),
-            );
+            fs.renameSync(path.join(output, name), path.join(output, `incomplete-cleanup-${name}`));
       }
-      writeJsonAtomic(path.join(output, "controller-terminal.json"), {
-        status: "completed",
-        exitCode: verdict.exitCode,
-        cleanupComplete: cleanupErrors.length === 0,
+      writeJsonAtomic(path.join(output, "source-snapshot.json"), {
+        retained: true,
+        path: stagedHarness,
+        digest: input.harnessSourceDigest,
       });
-      writeHarnessPublicSummary(
-        output,
-        verdict,
-        fs.existsSync(path.join(output, "gate.json")),
-      );
+      if (!interrupted) {
+        writeJsonAtomic(path.join(output, "controller-terminal.json"), {
+          status: "completed",
+          exitCode: verdict.exitCode,
+          cleanupComplete: cleanupErrors.length === 0,
+        });
+        writeHarnessPublicSummary(output, verdict, Boolean(pendingReceipt) && cleanupErrors.length === 0);
+        // All mandatory cleanup and output work precedes the machine receipt.
+        if (pendingReceipt && cleanupErrors.length === 0)
+          writeJsonAtomic(path.join(output, "gate.json"), pendingReceipt);
+      }
+    } catch (error) {
+      verdict = { status: "BLOCKED", exitCode: 2 };
+      try { fs.rmSync(path.join(output, "gate.json"), { force: true }); } catch { /* Producer completion remains failed if withdrawal is unavailable. */ }
+      try {
+        writeJsonAtomic(path.join(output, "controller-terminal.json"), {
+          ...(interrupted ? { status: "interrupted", signal: interrupted } : { status: "completed", exitCode: 2 }),
+          cleanupComplete: cleanupErrors.length === 0,
+        });
+      } catch { /* Preserve the original finalization error and attempt the other safe output. */ }
+      try { writeHarnessPublicSummary(output, verdict); } catch { /* Best effort; the producer still rejects. */ }
+      throw error;
     }
-    writeJsonAtomic(path.join(output, "source-snapshot.json"), {
-      retained: true,
-      path: stagedHarness,
-      digest: input.harnessSourceDigest,
-    });
   }
   return verdict;
 }
