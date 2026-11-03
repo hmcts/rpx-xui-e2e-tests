@@ -58,7 +58,11 @@ The repository is moving to central configuration, role, definition and data-int
 | 83c29a3 | 11 | Welsh rendering and supported booking outcomes consolidate; live translation-provider smoke and unsupported legacy-menu fallback explicitly withdrawn. |
 | b436695 | 18 | Restricted-case role-composition/error outcomes consolidate; unmatched live EXUI-3895 default-tab observer explicitly withdrawn, exclusive mock helper removed. |
 
-Four hundred and forty-seven runnable cases are retired. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
+| a1d1419 | 55 | Generic WA product catalogues/search/actions/cancellation probes consolidate; broad XSRF/fallback/status guards explicitly withdrawn,21 helpers preserved. |
+| 64eda71 | 15 | Generic documents/annotations/bookmarks consolidate with status/setup differences explicit;11 helper checks preserved. |
+| 207d596 | 2 | Dead search route/parser/session adapters and their two exclusive self-tests removed; six session-support checks preserved. |
+
+Five hundred and nineteen runnable cases are retired. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -153,7 +157,7 @@ Viewer/link/event consolidation retains conditional mandatory fields and payload
 
 The actual-candidate scope slice now verifies scoped service/location requests, the exact rendered suggestion list and selection/add behavior. Its IA/Civil browser baselines passed and its broadened-organisation-scope fault was detected. A separate diagnostic returned no venue suggestions with HTTP200 and unchanged valid queries; both personas failed exactly at location-search-results. That altered-source diagnostic remained BLOCKED and receives no production mutation credit. The generic work-filter file was retired after the documented outcome comparison; ownerless injected-storage compatibility is the explicit limit described above. Generated/model diagnostics receive no candidate or real-CCD release credit.
 
-All ordinary product integration/E2E specs have now retired. Five retained browser files contain central Harness diagnostic/configuration scenarios and still use legacy paths/configuration. Their explicit Harness execution and the remaining WA API retirement/support/command/CI cleanup are in progress. This does not establish current production identity-provider/translation/booking acceptance.
+All ordinary product integration/E2E specs have now retired. Five retained browser files contain central Harness diagnostic/configuration scenarios and still use legacy paths/configuration. WA and evidence-manager product APIs have also retired. Explicit Harness execution and support/command/CI cleanup are in progress; environment configuration diagnostics remain separately bounded. This does not establish current production identity-provider/translation/booking acceptance.
 
 ## Rollback and remaining work
 
