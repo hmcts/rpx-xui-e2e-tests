@@ -489,3 +489,19 @@ test('postal sequence retains its source impact dependencies and unknown fixed-l
   const selection = api.selectConfigurationObligations(catalogue, [{ repository: 'prl-ccd-definitions', path: 'definitions/private-law/json/FixedLists.json' }], { snapshot, review });
   assert.equal(selection.mode, 'broad');assert.equal(selection.obligationIds.length, 112);
 });
+
+for (const [crud, expectedAccess] of [['CR', 'allowed'], ['RU', 'denied']]) {
+  test(`event submission requires event C permission, independently of U (${crud})`, () => {
+    const changed = structuredClone(snapshot);
+    const event = source(changed, 'AuthorisationCaseEvent/ServiceOfDocuments/').document.find(row => row.CaseEventID === 'serviceOfDocuments');
+    const role = review.pilotRoles[0];
+    event.AccessControl.find(entry => entry.UserRoles.includes(role)).CRUD = crud;
+    const catalogue = build(changed);
+    const cells = catalogue.pilotCells.filter(cell => cell.role === role && cell.action === 'update');
+    assert.equal(cells.length, 4);
+    assert(cells.every(cell => cell.expectedAccess === expectedAccess));
+    // Synthetic counterexamples exercise interpretation; they cannot approve changed source pins.
+    assert(api.validateConfigurationCatalogue({ snapshot: changed, review, catalogue }).errors.some(error => error.startsWith('source-drift:')));
+    assert.equal(catalogue.releaseCredit, false);
+  });
+}

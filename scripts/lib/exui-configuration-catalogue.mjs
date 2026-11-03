@@ -193,8 +193,9 @@ export function buildConfigurationCatalogue(snapshot, review) {
   for (const role of review.pilotRoles) for (const action of ['read', 'update']) for (const channel of channels) for (const recipientCount of [1, 2]) {
     const access = authorisation.accessControl.find((entry) => entry.UserRoles.includes(role));
     if (!access) continue;
+    // CCD creates an event to update a case; event C and case U are separate permissions.
     const cell = { caseType: authorisation.caseType, role, action, channel, recipientCount,
-      expectedAccess: access.CRUD.includes(action === 'read' ? 'R' : 'U') ? 'allowed' : 'denied' };
+      expectedAccess: access.CRUD.includes(action === 'read' ? 'R' : 'C') ? 'allowed' : 'denied' };
     cell.id = `configuration-cell:${digest(cell)}`;
     pilotCells.push(cell);
     obligations.push({ id: cell.id, family: 'PRIVATELAW', kind: 'pilot-cell', requiredBoundary: 'ccd',
