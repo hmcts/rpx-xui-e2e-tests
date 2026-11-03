@@ -14,7 +14,6 @@ export * from "./hearingsMockRoutes.helper.js";
 export * from "./manageTasksMockRoutes.helper.js";
 export * from "./myWorkFiltersMockRoutes.helper.js";
 export * from "./ngIntegrationMockRoutes.helper.js";
-export * from "./restrictedAccessMockRoutes.helper.js";
 export * from "./rolesAndAccessMockRoutes.helper.js";
 export * from "./searchCaseSession.helper.js";
 export * from "./sessionUser.helper.js";
