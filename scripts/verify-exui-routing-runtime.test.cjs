@@ -831,3 +831,18 @@ test("support only: repeated API preload reuses only its owned empty0700 config 
     else assert.match(observed.message, /DIRECTORY_UNSAFE/);
   }
 });
+
+test("support only: all three synthetic creation events satisfy the sealed toolkit create-access input contract", async () => {
+  const { routingJurisdictions, routingProfile } =
+    await import("./lib/exui-routing-contract.mjs");
+  const events = routingJurisdictions().flatMap((jurisdiction) =>
+    jurisdiction.caseTypes.flatMap((caseType) => caseType.events),
+  );
+  assert.equal(events.length, 3);
+  assert(routingProfile().user.idam.roles.includes("caseworker"));
+  for (const event of events) {
+    // Toolkit7.4.21 CreateCaseFiltersComponent retains only no-pre-state events with a matching create ACL.
+    assert.deepEqual(event.pre_states, []);
+    assert.deepEqual(event.acls, [{ role: "caseworker", create: true }]);
+  }
+});

@@ -142,6 +142,7 @@ const event = (id, name, order) => ({
   description: "Synthetic routing event",
   order,
   pre_states: [],
+  acls: [{ role: "caseworker", create: true }],
   post_state: "Draft",
   case_fields: [],
 });
