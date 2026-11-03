@@ -123,6 +123,13 @@ Checked-in Jenkins jobs run Harness supporting checks and portable diagnostics. 
 
 The shared Jenkins library deletes its workspace at job completion. Job-local raw reports are not durable evidence retention; an approved private store is still required for native CI acceptance.
 
-Raw native evidence stays beneath the job's private output. Diagnostic/support reports remain under `functional-output/tests/harness/private/`. Only the validated fixed-schema `public/release-assurance-summary.json` is eligible for general publication. Missing reports, placeholders or passing model checks cannot be presented as candidate PASS. Human review is required before merge or deployment.
+Raw native evidence and detailed diagnostic failures stay under `functional-output/tests/harness/private/`. Both Jenkins jobs are configured to publish two build-page links: **Harness support — Odhín (no release credit)** and **Harness models — Odhín (no release credit)**. Each uses the webapp fluid presentation from pinned master `b978cf7` (responsive cards, resizing/reordering, compact view, filters and improved test details) over the installed Odhín renderer, containing reviewed test names and actual outcomes/durations; errors, logs, steps and attachments stay private. Exact validated HTML files are also archived:
+
+- `functional-output/tests/harness/public/odhin-support/index.html`
+- `functional-output/tests/harness/public/odhin-model/index.html`
+
+The job clears prior reports first, validates each report before publication and publishes a model report only if models ran. A support failure stops models; absence means unavailable, not passed. The existing fixed-schema `public/release-assurance-summary.json` remains BLOCKED for these supporting checks. Live Jenkins report rendering/CSP still needs acceptance; download the HTML artifact if the Jenkins wrapper prevents interactive scripts. No global Jenkins security settings are changed.
+
+For the same local reports, run `CI=true yarn harness:support` and `yarn harness:diagnostic:ci`. These commands neither execute a native candidate nor grant release approval. Human review is required before merge or deployment.
 
 AI-assisted implementation; audit reference: harness-plan-execution-20261102.

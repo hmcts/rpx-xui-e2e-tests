@@ -23,7 +23,9 @@ export default defineConfig({
     "unit/odhin-report-enhancer.unit.api.ts"
   ],
   retries: 0, workers: 1, fullyParallel: false, forbidOnly: true,
-  reporter: [[process.env.CI ? "dot" : "list"]],
+  reporter: process.env.CI
+    ? [["dot"], ["./scripts/harness-public-odhin-reporter.cjs", { selection: "support" }]]
+    : [["list"]],
   outputDir: "functional-output/tests/harness/private/support",
   use: { baseURL: "http://127.0.0.1:1", trace: "off", video: "off", screenshot: "off" }
 });

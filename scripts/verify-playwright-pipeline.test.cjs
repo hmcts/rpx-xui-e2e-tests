@@ -86,6 +86,10 @@ node() {
     printf '%s\\n' 'node:package-manager' >> "$CALLS_FILE"
     [[ "$FAIL_COMMAND" != package-manager ]] || return 23
     "$REAL_NODE" "$@"
+  elif [[ "$1" == scripts/manage-harness-public-reports.cjs ]]; then
+    [[ "$#" == 3 && "$2" == --validate && ( "$3" == support || "$3" == model ) ]] || return 96
+    printf 'report:validate:%s\\n' "$3" >> "$CALLS_FILE"
+    [[ "$FAIL_COMMAND" != "validate-$3" ]] || return 23
   else
     [[ "$*" == 'scripts/verify-playwright-browsers.cjs chromium' ]] || return 96
     printf '%s\\n' 'browser:preflight' >> "$CALLS_FILE"
@@ -103,7 +107,8 @@ corepack() {
       const expectedCalls = [
         'nvm:source', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
         'corepack:yarn test:setup:playwright-install-chromium', 'browser:preflight',
-        'corepack:yarn harness:support', 'corepack:yarn harness:diagnostic:ci'
+        'corepack:yarn harness:support', 'report:validate:support',
+        'corepack:yarn harness:diagnostic:ci', 'report:validate:model'
       ];
       const cases = [
         { fail: 'source', status: 23, through: 1 },
@@ -116,8 +121,10 @@ corepack() {
         { fail: 'test:setup:playwright-install-chromium', status: 23, through: 6 },
         { fail: 'browser', status: 1, through: 7 },
         { fail: 'harness:support', status: 23, through: 8 },
-        { fail: 'harness:diagnostic:ci', status: 23, through: 9 },
-        { fail: '', status: 0, through: 9 }
+        { fail: 'validate-support', status: 23, through: 9 },
+        { fail: 'harness:diagnostic:ci', status: 23, through: 10 },
+        { fail: 'validate-model', status: 23, through: 11 },
+        { fail: '', status: 0, through: 11 }
       ];
       for (const { fail, status, through } of cases) {
         rmSync(calls, { force: true });
@@ -135,18 +142,34 @@ corepack() {
         const invoked = readFileSync(calls, 'utf8').trim().split('\n');
         assert.deepEqual(invoked, expectedCalls.slice(0, through), fail || 'success');
       }
+      assert.match(command, /export CI=true/, 'both reporter selections must be explicit in Jenkins');
       assert.ok(command.startsWith('#!/usr/bin/env bash\n'), 'Jenkins must see the Bash shebang at the first script character');
       assert.equal(spawnSync('/bin/bash', ['-n'], { input: command, encoding: 'utf8' }).status, 0);
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 
-  test(`${pipeline}: only validated public summary can be published; no legacy secrets or swallowed failure`, () => {
+  test(`${pipeline}: only validated summary and scoped Odhín HTML can be published; no raw artifacts or swallowed failure`, () => {
     const source = readFileSync(pipeline, 'utf8');
     const archived = [...source.matchAll(/archiveArtifacts[^\n]*artifacts:\s*'([^']+)'/g)].map((match) => match[1]);
-    assert.deepEqual(archived, ['functional-output/tests/harness/public/release-assurance-summary.json']);
-    assert.doesNotMatch(source, /loadVaultSecrets|publishHTML|junit\(|unstable\(|catch\s*\(|test:(?:api|ui|integration|crossbrowser)/);
+    assert.deepEqual(archived, [
+      'functional-output/tests/harness/public/release-assurance-summary.json',
+      'functional-output/tests/harness/public/odhin-support/index.html',
+      'functional-output/tests/harness/public/odhin-model/index.html'
+    ]);
+    assert.ok(source.indexOf('manage-harness-public-reports.cjs --reset') < source.indexOf('try {'));
+    for (const selection of ['support', 'model']) {
+      const validation = source.indexOf(`manage-harness-public-reports.cjs --validate ${selection}`, source.indexOf('finally {'));
+      const publication = source.indexOf(`reportDir: 'functional-output/tests/harness/public/odhin-${selection}'`);
+      assert.ok(validation >= 0 && validation < publication, `${selection}: validate before HTML publication`);
+      assert.match(source, new RegExp(`fileExists\\('functional-output/tests/harness/public/odhin-${selection}/index.html'\\)`));
+    }
+    assert.equal((source.match(/publishHTML\(/g) ?? []).length, 2);
+    assert.equal((source.match(/includes: 'index.html'/g) ?? []).length, 2);
+    assert.equal((source.match(/allowMissing: false/g) ?? []).length, 2);
+    assert.doesNotMatch(source, /loadVaultSecrets|junit\(|unstable\(|catch\s*\(|test:(?:api|ui|integration|crossbrowser)/);
     assert.ok(source.indexOf('--validate-public-summary') < source.indexOf('archiveArtifacts'));
     assert.match(source, /finally\s*\{/);
+    assert.doesNotMatch(source, /sh 'node scripts\//, 'report management must reactivate the pinned toolchain');
     assert.match(source, /no release credit/);
     const directory = mkdtempSync(join(tmpdir(), 'harness-publication-'));
     try {
@@ -249,4 +272,40 @@ test('every remaining API test file is explicitly selected as Harness support or
     .filter(file => file.endsWith('.api.ts')).map(file => `src/tests/api/${file.replaceAll('\\', '/')}`);
   assert.deepEqual(sources.filter(file => !selected.has(file)).sort(), [],
     'select useful Harness regressions or retire obsolete tests; do not leave silent unselected suites');
+});
+
+
+test('Jenkins report-management wrapper pins Node before reset or validation', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'harness-report-node-'));
+  try {
+    writeFileSync(join(directory, '.nvmrc'), process.versions.node + '\n');
+    const bootstrap = join(directory, 'bootstrap.sh');
+    const actual = resolve('scripts/harness-jenkins-node.sh');
+    writeFileSync(bootstrap, `source() {
+      [[ "$#" == 1 && "$1" == /opt/nvm/nvm.sh ]] || return 96
+      [[ "$FAIL_AT" != source ]] || return 23
+    }
+    nvm() { [[ "$*" == use && "$NVM_DIR" == /home/jenkinsssh/.nvm ]] || return 96; [[ "$FAIL_AT" != use ]] || return 23; }
+    node() {
+      if [[ "$1" == -e ]]; then
+        "$REAL_NODE" -e 'if(process.env.FAIL_AT === "version") Object.defineProperty(process.versions,"node",{value:"0.0.0"}); eval(process.argv[1]);' "$2"
+      else
+        [[ "$FAIL_AT" != command ]] || return 23
+        printf '%s\\n' "$*" > "$CALLS_FILE"
+      fi
+    }
+    `);
+    for (const command of ['scripts/manage-harness-public-reports.cjs --reset', 'scripts/manage-harness-public-reports.cjs --validate support', 'scripts/manage-harness-public-reports.cjs --validate model']) {
+      for (const [failAt, expected] of [['source',23],['use',23],['version',1],['command',23],['',0]]) {
+        const calls = join(directory, 'calls');
+        rmSync(calls, { force: true });
+        const result = spawnSync('/bin/bash', ['-c', 'builtin source "$1"; shift; builtin source "$1" "${@:2}"', 'report-wrapper', bootstrap, actual, ...command.split(' ')], {
+          cwd: directory, encoding: 'utf8', env: { PATH: directory, REAL_NODE: process.execPath, FAIL_AT: failAt, CALLS_FILE: calls }
+        });
+        assert.equal(result.status, expected, `${command}/${failAt}: ${result.stderr}`);
+        assert.equal(existsSync(calls), expected === 0);
+        if (expected === 0) assert.equal(readFileSync(calls,'utf8').trim(), command);
+      }
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

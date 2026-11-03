@@ -11,9 +11,11 @@ properties([
 def runHarnessSupportingChecks = {
   stage('Harness supporting checks — no release credit') {
     sh 'rm -f functional-output/tests/harness/public/release-assurance-summary.json'
+    sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --reset'
     try {
       sh '''#!/usr/bin/env bash
 set -e
+export CI=true
 export NVM_DIR='/home/jenkinsssh/.nvm'
 source /opt/nvm/nvm.sh
 nvm use
@@ -26,13 +28,27 @@ if [ "yarn@$actual_yarn" != "$expected_yarn" ]; then
   exit 1
 fi
 echo "Harness Yarn: $actual_yarn"
-corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && corepack yarn harness:support && corepack yarn harness:diagnostic:ci
+corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && corepack yarn harness:support && node scripts/manage-harness-public-reports.cjs --validate support && corepack yarn harness:diagnostic:ci && node scripts/manage-harness-public-reports.cjs --validate model
 '''
     } finally {
-      echo '[harness-report] Raw reports remain job-local; only a validated public summary may be archived.'
+      echo '[harness-report] Raw reports remain job-local; only validated summaries and safe Odhín reports may be published.'
       if (fileExists('functional-output/tests/harness/public/release-assurance-summary.json')) {
-        sh 'node scripts/write-exui-release-assurance-summary.mjs --validate-public-summary functional-output/tests/harness/public/release-assurance-summary.json'
+        sh 'bash scripts/harness-jenkins-node.sh scripts/write-exui-release-assurance-summary.mjs --validate-public-summary functional-output/tests/harness/public/release-assurance-summary.json'
         archiveArtifacts allowEmptyArchive: false, artifacts: 'functional-output/tests/harness/public/release-assurance-summary.json'
+      }
+      if (fileExists('functional-output/tests/harness/public/odhin-support/index.html')) {
+        sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --validate support'
+        archiveArtifacts allowEmptyArchive: false, artifacts: 'functional-output/tests/harness/public/odhin-support/index.html'
+        publishHTML(target: [reportName: 'Harness support — Odhín (no release credit)',
+          reportDir: 'functional-output/tests/harness/public/odhin-support', reportFiles: 'index.html',
+          includes: 'index.html', keepAll: true, alwaysLinkToLastBuild: false, allowMissing: false])
+      }
+      if (fileExists('functional-output/tests/harness/public/odhin-model/index.html')) {
+        sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --validate model'
+        archiveArtifacts allowEmptyArchive: false, artifacts: 'functional-output/tests/harness/public/odhin-model/index.html'
+        publishHTML(target: [reportName: 'Harness models — Odhín (no release credit)',
+          reportDir: 'functional-output/tests/harness/public/odhin-model', reportFiles: 'index.html',
+          includes: 'index.html', keepAll: true, alwaysLinkToLastBuild: false, allowMissing: false])
       }
     }
   }

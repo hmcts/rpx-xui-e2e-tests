@@ -88,7 +88,7 @@ The consumer validates receipt bytes before comparing identity and status. Deriv
 
 ## Publication boundary
 
-Only `functional-output/tests/harness/public/release-assurance-summary.json` is eligible for general Harness publication. The writer projects a fixed schema with enumerated status/reason values and `releaseApproval: false`; it does not copy arbitrary IDs, errors, credentials or metadata. Jenkins validates exact bytes/schema before archive. `gate.json` and raw diagnostics are not included in that public allowlist.
+`functional-output/tests/harness/public/release-assurance-summary.json` is the only public release-assurance summary; the separate supporting Odhín HTML allowlist is described below. The writer projects a fixed schema with enumerated status/reason values and `releaseApproval: false`; it does not copy arbitrary IDs, errors, credentials or metadata. Jenkins validates exact bytes/schema before archive. `gate.json` and raw diagnostics are not included in that public allowlist.
 
 Started CI diagnostics replace stale public output with BLOCKED before contact, pin reporter destinations under Harness private output, and preserve conventional-suite diagnostics. This is publication quarantine, not a shared sanitizer repair. Dedicated candidate runs use a network-isolated runtime and curated read-only source/dependency mounts; legacy POC diagnostics retain their separate execution boundary.
 
@@ -119,3 +119,7 @@ Verification requires a separately trusted external expectation and manifest dig
 Export/verify exit 0 means copy/verification integrity, including when the preserved original verdict is FAIL 1 or BLOCKED 2. Output contains only operation metadata, manifest digest, `originalStatus` and `releaseApproval:false`; raw errors/session data remain private. The existing release-gate consumer retains its original 0/1/2 outcome. Do not use the export command as a promotion decision.
 
 Local canary at exporter `f3cd7ab` copied all 54 phase files from the accepted Global Search runtime `121f213`, preserved the exact receipt and independently declared expectations, and verified after relocation with original phase/candidate/browser reads blocked by a private probe. Wrong manifest/identity checks rejected and original files remained unchanged. This is filesystem preservation evidence, not a new application run, whole-job retention, approved storage, live Jenkins or full-release acceptance. The 14 focused CLI/filesystem checks are included in the 376 Harness Node checks; counts overlap.
+
+## Supporting Odhín publication
+
+The support/model CI reports are separately rendered from reviewed declaration identities and actual validated outcomes/durations. They contain no raw error, stdout/stderr, step, annotation, tag or attachment data. They remain supporting diagnostics, not candidate receipts or full-release evidence. The public directory contains only each selection's self-contained HTML; a private digest record is checked before exact-file archive/HTML publication. Previous reports are reset before the run. Unknown declarations, incomplete outcomes, output aliases, unexpected sidecars or integrity failures prevent publication. Full native evidence and private-store requirements above remain unchanged.
