@@ -487,7 +487,7 @@ class HarnessPublicOdhinReporter {
       const renderer = new Generate({
         outputFolder: renderDir,
         indexFilename: "index.html",
-        title: "EXUI Assurance Harness — supporting evidence",
+        title: "EXUI Assurance Harness",
         project: `Harness ${this.selection}`,
         testEnvironment: this.selection,
         release: "",

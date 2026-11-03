@@ -107,13 +107,13 @@ proofs["ccd-event-create-denied"] = {
   phase: "eventCapability",
   slice: "Readable case — event creation forbidden",
   behaviour:
-    "Read the case as a judge, deny the serviceOfDocuments start/token requests, and independently observe unchanged data and history.",
+    "Read the case as a judge, deny serviceOfDocuments start and submission, and independently observe unchanged data and history.",
   services: "Private Law source-shaped fixture",
   jurisdiction: "HARNESS (actual synthetic jurisdiction)",
   caseType: "HarnessNestedPRL (actual synthetic case type)",
   lane: "Actual EXUI + isolated CCD",
   limits:
-    "Literal source role caseworker-privatelaw-judge with event R permission. The deliberate fault changes only that event permission to CR in a separately imported fresh namespace. No production authorisation claim.",
+    "Literal source role caseworker-privatelaw-judge with event R permission. The legacy token read remains allowed. The deliberate fault changes only that event permission to CR in a separately imported fresh namespace. No production authorisation claim.",
 };
 const faults = {
   "ccd-enable-judge-event":

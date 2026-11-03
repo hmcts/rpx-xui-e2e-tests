@@ -215,6 +215,19 @@ test("offline environment cannot receive credentials and AAT targets are fixed w
   );
 });
 
+test("AAT overview accounts for timed-out probes separately from failed callbacks", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  let live = 0;
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: overview.groupFor(entry.file) === "aat"
+      ? { status: live++ === 1 ? "timedOut" : "failed", aatOutcome: "failure-unclassified" }
+      : { status: "passed" },
+  }));
+  const html = await overview.renderOverview(records, "local-aat");
+  assert.match(html, /0\/5 response checks passed; 4 failed callbacks \(0 blocked by login\/setup\); 1 timed out/);
+});
+
 test("real renderer combines121 records, labels login setup honestly, and resets across profiles", async (t) => {
   const os = require("node:os");
   const { normalizePhase } = api();

@@ -778,6 +778,8 @@ test("same Odhin document separates nine native baselines and eight faults from1
     /required postcode blank/,
   );
   const nativeText = dom.querySelector("#harness-native-evidence").textContent;
+  assert.match(nativeText, /deny serviceOfDocuments start and submission/);
+  assert.doesNotMatch(nativeText, /deny the serviceOfDocuments start\/token/);
   assert.match(nativeText, /HarnessNestedPRL \(actual synthetic case type\)/);
   assert.match(nativeText, /BLOCKED — invalid witness/);
   assert.match(nativeText, /Required failure: postal-persistence/);
