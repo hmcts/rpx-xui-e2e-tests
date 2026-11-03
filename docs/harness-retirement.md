@@ -1,8 +1,10 @@
 # Harness migration: retired product duplication
 
-The repository is moving to central configuration, role, definition and data-integrity assurance. Product regressions belong in rpx-xui-webapp. Harness support tests remain while their implementations are used. This migration is incomplete; conventional suite commands and CI stages still have remaining consumers.
+The repository now focuses on central configuration, role, definition and data-integrity assurance. Ordinary product regression belongs in rpx-xui-webapp; conventional product commands and CI stages are retired. Meaningful Harness/support tests remain. Full runtime coverage and release integration are incomplete.
 
-| Retirement commit | Removed runnable cases | Preserved coverage |
+Each comparison below describes its recorded batch and source pin. Later reviewed closures can retire previously retained support; the final state and remaining gaps are described at the end.
+
+| Retirement commit | Removed Playwright cases | Preserved coverage |
 |---|---:|---|
 | c07c078 | 1 | Identical external-config request/assertion survives in the same API file and scope. Empty comment-only spec also removed. |
 | 0bbef87 | 2 | Unused cookie wrappers and their sole fake-call-count checks removed. Actual expired-session checks and all surviving helper checks remain. |
@@ -62,7 +64,9 @@ The repository is moving to central configuration, role, definition and data-int
 | 64eda71 | 15 | Generic documents/annotations/bookmarks consolidate with status/setup differences explicit;11 helper checks preserved. |
 | 207d596 | 2 | Dead search route/parser/session adapters and their two exclusive self-tests removed; six session-support checks preserved. |
 
-Five hundred and nineteen runnable cases are retired. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
+| ce360bf | 220 | Atomic Harness default/config/CI switch:83 dead fixture/provisioning self-tests,105 dead API-support self-tests,31 obsolete product-config checks and one generic health callback removed; actual Harness/auth/report support preserved. |
+
+Seven hundred and thirty-nine Playwright cases are retired. Node evaluator/pipeline check refactoring is counted separately in validation, not added to this total. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
 
 ## Canonical product coverage
 
@@ -157,10 +161,10 @@ Viewer/link/event consolidation retains conditional mandatory fields and payload
 
 The actual-candidate scope slice now verifies scoped service/location requests, the exact rendered suggestion list and selection/add behavior. Its IA/Civil browser baselines passed and its broadened-organisation-scope fault was detected. A separate diagnostic returned no venue suggestions with HTTP200 and unchanged valid queries; both personas failed exactly at location-search-results. That altered-source diagnostic remained BLOCKED and receives no production mutation credit. The generic work-filter file was retired after the documented outcome comparison; ownerless injected-storage compatibility is the explicit limit described above. Generated/model diagnostics receive no candidate or real-CCD release credit.
 
-All ordinary product integration/E2E specs have now retired. Five retained browser files contain central Harness diagnostic/configuration scenarios and still use legacy paths/configuration. WA and evidence-manager product APIs have also retired. Explicit Harness execution and support/command/CI cleanup are in progress; environment configuration diagnostics remain separately bounded. This does not establish current production identity-provider/translation/booking acceptance.
+All ordinary product integration/E2E specs have now retired. Five retained browser files contain central Harness diagnostic/configuration scenarios and retain historical source paths and use explicit Harness configuration. WA and evidence-manager product APIs have also retired. Explicit Harness execution and the command/config/CI cutover are implemented.17 conventional suite commands and six product CI stages are removed; environment/toolkit/frontend diagnostics remain explicitly selected and separately bounded. This does not establish current production identity-provider/translation/booking acceptance.
 
 ## Rollback and remaining work
 
-Each batch has its own retirement commit; revert only the affected batch to restore its tests and fixture. Keep useful unique configuration assertions until ported. Remove commands, stages and shared support only when their remaining consumers have retired or moved. Full-release promotion, effective environment coverage, external owners and live CI acceptance remain open.
+Each batch has its own retirement commit; revert only the affected batch to restore its tests and fixture. Keep useful unique configuration assertions until ported. Remove commands, stages and shared support only when their remaining consumers have retired or moved. The native postal guard currently blocks on a missing mandatory postcode; see the known-gaps document. Full-release promotion, effective environment coverage, external owners and live CI acceptance remain open.
 
 AI-assisted implementation; human review pending. Audit reference:harness-plan-execution-20261102. Detailed synthetic comparison scripts/results are retained in the workspace retirement evidence bundle.
