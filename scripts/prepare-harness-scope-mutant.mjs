@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -6,6 +7,8 @@ import {
   describeCandidateArtifact,
   digestCandidateTree,
   copyCandidateArtifact,
+  assertCandidateDerivationTarget,
+  assertFreshCandidateDerivationOutput,
 } from "./lib/exui-candidate-artifact.mjs";
 import { writeJsonAtomic, digestBytes } from "./lib/exui-evidence-io.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
@@ -67,17 +70,22 @@ export async function verifyScopeMutant(baseline, mutant) {
   };
 }
 export async function deriveScopeMutant(baselinePath, output) {
-  const baseline = await verifyCandidateArtifact(path.resolve(baselinePath));
-  const candidateRoot = path.join(path.resolve(output), "artifact");
-  await fs.mkdir(path.resolve(output), { recursive: true });
-  try {
-    await fs.lstat(candidateRoot);
-    throw new Error("FRESH_MUTANT_DIRECTORY_REQUIRED");
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
+  const manifest = path.resolve(baselinePath),
+    beforeManifest = await fs.readFile(manifest),
+    baseline = await verifyCandidateArtifact(manifest),
+    destination = await assertFreshCandidateDerivationOutput({
+      baseline,
+      manifestPath: manifest,
+      output,
+    });
   const { target, source } = await transformationTarget(baseline.candidateRoot);
+  await assertCandidateDerivationTarget(
+    path.join(baseline.candidateRoot, target),
+  );
+  await fs.mkdir(destination, { mode: 0o700 });
+  const candidateRoot = path.join(destination, "artifact");
   await copyCandidateArtifact(baseline.candidateRoot, candidateRoot);
+  await assertCandidateDerivationTarget(path.join(candidateRoot, target));
   await fs.writeFile(
     path.join(candidateRoot, target),
     transformOrganisationGuard(source),
@@ -87,8 +95,17 @@ export async function deriveScopeMutant(baselinePath, output) {
     baseline.provenance,
   );
   const derivation = await verifyScopeMutant(baseline, mutant);
-  writeJsonAtomic(path.join(output, "candidate-artifact.json"), mutant);
-  writeJsonAtomic(path.join(output, "derivation.json"), derivation);
+  assert.deepEqual(
+    await verifyCandidateArtifact(manifest),
+    baseline,
+    "SCOPE_BASE_CHANGED",
+  );
+  assert(
+    (await fs.readFile(manifest)).equals(beforeManifest),
+    "SCOPE_BASE_MANIFEST_CHANGED",
+  );
+  writeJsonAtomic(path.join(destination, "candidate-artifact.json"), mutant);
+  writeJsonAtomic(path.join(destination, "derivation.json"), derivation);
   return { mutant, derivation };
 }
 if (

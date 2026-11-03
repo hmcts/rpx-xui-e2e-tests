@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import assert from 'node:assert/strict';
 import { lstat, readFile, readdir, readlink, realpath, cp, lchmod } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import path from 'node:path';
@@ -80,4 +81,48 @@ async function preserveSymlinkModes(source, destination) {
 export async function copyCandidateArtifact(source, destination) {
   await cp(source, destination, { recursive: true, verbatimSymlinks: true, mode: constants.COPYFILE_FICLONE });
   await preserveSymlinkModes(source, destination);
+}
+
+// Derivations write only to regular canonical files in a fresh disjoint output.
+// These guards assume a quiescent caller-owned filesystem, not a privileged concurrent writer.
+export async function assertCandidateDerivationTarget(file) {
+  assert(
+    (await lstat(file)).isFile(),
+    'CANDIDATE_DERIVATION_TARGET_REGULAR_FILE_REQUIRED',
+  );
+  assert.equal(await realpath(file), file, 'CANDIDATE_DERIVATION_TARGET_ALIAS');
+}
+export async function assertFreshCandidateDerivationOutput({
+  baseline,
+  manifestPath,
+  output,
+}) {
+  const destination = path.resolve(output);
+  assert.equal(
+    await realpath(path.dirname(destination)),
+    path.dirname(destination),
+    'CANDIDATE_DERIVATION_OUTPUT_ALIAS',
+  );
+  const within = (root, file) => {
+    const relative = path.relative(root, file);
+    return (
+      relative === '' ||
+      (!path.isAbsolute(relative) &&
+        relative !== '..' &&
+        !relative.startsWith('..' + path.sep))
+    );
+  };
+  assert(
+    !within(baseline.candidateRoot, destination) &&
+      !within(destination, baseline.candidateRoot) &&
+      !within(destination, manifestPath),
+    'CANDIDATE_DERIVATION_OUTPUT_INPUT_OVERLAP',
+  );
+  try {
+    await lstat(destination);
+    throw Error('FRESH_CANDIDATE_DERIVATION_OUTPUT_REQUIRED');
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  return destination;
 }

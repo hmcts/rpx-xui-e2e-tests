@@ -71,7 +71,7 @@ Each comparison below describes its recorded batch and source pin. Later reviewe
 | 6ea3416 | 10 | Accepted native Global Search configuration composition replaces one mock-backed selector diagnostic; nine sole-consumer helper checks and ten unreachable files removed. Exact old labels/screenshot and live-persona parity explicitly withdrawn. |
 | ae743ae | 7 | Retire generated WA/CYA browser illustrations, three sole-consumer task-list validator checks and one fake-route bootstrap model check; retain installed-toolkit class and real frontend/native consumers. |
 | 8c4a7a4 | 2 | Explicit withdrawal of generic IA overview layout and broad page-axe diagnostics; historical EXUI-4756 remains an unexecuted learning case and warning, without a waiver. |
-| Current change | 19 | Retire three generic Hearing frontend diagnostics,15 exclusive builder/journey/fallback/analytics checks and one self-built-map model check after accepted native publication evidence; preserve shared auth/session, pool, reporter and IA/Civil source assertions. |
+| 7230349 | 19 | Retire three generic Hearing frontend diagnostics,15 exclusive builder/journey/fallback/analytics checks and one self-built-map model check after accepted native publication evidence; preserve shared auth/session, pool, reporter and IA/Civil source assertions. |
 
 Nine hundred and ten recorded Playwright registrations are retired. Node evaluator/pipeline check refactoring is counted separately in validation, not added to this total. The total includes verified duplicates, explicit generic-product scope withdrawals and dead support checks; it is not a claim of exact canonical replacement for every predicate. Test declarations, parameterized cases and assertion counts are different measures.
 

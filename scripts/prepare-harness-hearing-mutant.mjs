@@ -6,60 +6,34 @@ import {
   verifyCandidateArtifact,
   describeCandidateArtifact,
   copyCandidateArtifact,
+  assertCandidateDerivationTarget,
+  assertFreshCandidateDerivationOutput,
 } from "./lib/exui-candidate-artifact.mjs";
 import {
   transformHearingPublication,
   verifyHearingPublicationMutant,
 } from "./lib/exui-hearing-publication-mutation.mjs";
 import { writeJsonAtomic } from "./lib/exui-evidence-io.mjs";
-const within = (root, file) => {
-  const relative = path.relative(root, file);
-  return (
-    relative === "" ||
-    (!path.isAbsolute(relative) &&
-      relative !== ".." &&
-      !relative.startsWith(".." + path.sep))
-  );
-};
-async function requireRegularTarget(file) {
-  assert(
-    (await fs.lstat(file)).isFile(),
-    "HEARING_TARGET_REGULAR_FILE_REQUIRED",
-  );
-  assert.equal(await fs.realpath(file), file, "HEARING_TARGET_ALIAS");
-}
 export async function deriveHearingPublicationMutant(baselinePath, output) {
   const manifest = path.resolve(baselinePath),
     beforeManifest = await fs.readFile(manifest),
     baseline = await verifyCandidateArtifact(manifest),
-    destination = path.resolve(output);
-  // Never create a directory in either sealed input or through an alias before validating ownership.
-  assert.equal(
-    await fs.realpath(path.dirname(destination)),
-    path.dirname(destination),
-    "HEARING_OUTPUT_ALIAS",
-  );
-  assert(
-    !within(baseline.candidateRoot, destination) &&
-      !within(destination, baseline.candidateRoot) &&
-      !within(destination, manifest),
-    "HEARING_OUTPUT_INPUT_OVERLAP",
-  );
-  try {
-    await fs.lstat(destination);
-    throw Error("FRESH_HEARING_MUTANT_OUTPUT_REQUIRED");
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
+    destination = await assertFreshCandidateDerivationOutput({
+      baseline,
+      manifestPath: manifest,
+      output,
+    });
   const target = "dist/rpx-exui/api/server.bundle.js";
-  await requireRegularTarget(path.join(baseline.candidateRoot, target));
+  await assertCandidateDerivationTarget(
+    path.join(baseline.candidateRoot, target),
+  );
   const transformed = transformHearingPublication(
     await fs.readFile(path.join(baseline.candidateRoot, target)),
   );
   await fs.mkdir(destination, { mode: 0o700 });
   const candidateRoot = path.join(destination, "artifact");
   await copyCandidateArtifact(baseline.candidateRoot, candidateRoot);
-  await requireRegularTarget(path.join(candidateRoot, target));
+  await assertCandidateDerivationTarget(path.join(candidateRoot, target));
   await fs.writeFile(path.join(candidateRoot, target), transformed.bytes);
   const mutant = await describeCandidateArtifact(
       candidateRoot,

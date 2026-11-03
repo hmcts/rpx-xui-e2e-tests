@@ -364,7 +364,7 @@ test("scope derivation preserves symlink modes under private umask and still rej
     await import("./lib/exui-candidate-artifact.mjs");
   const { deriveScopeMutant, verifyScopeMutant } =
     await import("./prepare-harness-scope-mutant.mjs");
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "scope-copy-mode-"));
+  const directory = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "scope-copy-mode-")));
   const root = path.join(directory, "baseline");
   const files = {
     "dist/rpx-exui/browser/index.html": "<app-root></app-root>",
@@ -500,5 +500,100 @@ test("phase supervisor forwards cancellation to its exact Docker client and obse
       await once(child, "exit");
     }
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("scope derivation rejects aliased targets, overlap and stale output before modifying immutable inputs", async () => {
+  const { describeCandidateArtifact, verifyCandidateArtifact } =
+    await import("./lib/exui-candidate-artifact.mjs");
+  const { deriveScopeMutant } =
+    await import("./prepare-harness-scope-mutant.mjs");
+  for (const kind of ["file-link", "parent-link", "overlap", "stale"]) {
+    const directory = fs.mkdtempSync(
+      path.join(fs.realpathSync(os.tmpdir()), "scope-safe-input-"),
+    );
+    try {
+      const root = path.join(directory, "baseline");
+      const target = "dist/rpx-exui/browser/guard.js";
+      const files = {
+        "dist/rpx-exui/browser/index.html": "<app-root/>",
+        [target]:
+          'a.filter(h=>h.roleType&&h.roleType==="ORGANISATION").map(h=>h.jurisdiction)',
+        "dist/rpx-exui/api/server.bundle.js": "server-fixture",
+        "api/package.json": "{}",
+        "config/default.json": "{}",
+        "runtime/node": "node-fixture",
+        "package.json":
+          '{"dependencies":{"@hmcts/ccd-case-ui-toolkit":"7.4.21"}}',
+        "yarn.lock": "lock",
+        "node_modules/@hmcts/ccd-case-ui-toolkit/package.json":
+          '{"version":"7.4.21"}',
+      };
+      for (const [file, bytes] of Object.entries(files)) {
+        fs.mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+        fs.writeFileSync(path.join(root, file), bytes);
+      }
+      let backing = path.join(root, target);
+      if (kind === "file-link") {
+        backing = path.join(root, "api/backing.js");
+        fs.renameSync(path.join(root, target), backing);
+        fs.symlinkSync(backing, path.join(root, target));
+      }
+      if (kind === "parent-link") {
+        const from = path.dirname(path.join(root, target)),
+          to = from + "-original";
+        fs.renameSync(from, to);
+        fs.symlinkSync(to, from);
+        backing = path.join(to, "guard.js");
+      }
+      const baseline = await describeCandidateArtifact(root, {
+        sourceMethod: "git-archive",
+        webappCommit: "a".repeat(40),
+        sourceTree: "b".repeat(40),
+        platform: "linux/arm64",
+        buildImage: "sha256:" + "c".repeat(64),
+        install: "immutable-offline",
+      });
+      const manifest = path.join(directory, "baseline.json");
+      fs.writeFileSync(manifest, JSON.stringify(baseline));
+      const manifestBefore = fs.readFileSync(manifest),
+        backingBefore = fs.readFileSync(backing);
+      const output =
+        kind === "overlap"
+          ? path.join(root, "new-output")
+          : path.join(directory, "derived");
+      if (kind === "stale") fs.mkdirSync(output);
+      const expectedGuard = {
+        "file-link": "CANDIDATE_DERIVATION_TARGET_REGULAR_FILE_REQUIRED",
+        "parent-link": "CANDIDATE_DERIVATION_TARGET_ALIAS",
+        overlap: "CANDIDATE_DERIVATION_OUTPUT_INPUT_OVERLAP",
+        stale: "FRESH_CANDIDATE_DERIVATION_OUTPUT_REQUIRED",
+      }[kind];
+      await assert.rejects(deriveScopeMutant(manifest, output), (error) =>
+        error.message.split("\n")[0] === expectedGuard,
+      );
+      assert(
+        fs.readFileSync(backing).equals(backingBefore),
+        kind + " backing unchanged",
+      );
+      assert(
+        fs.readFileSync(manifest).equals(manifestBefore),
+        kind + " manifest unchanged",
+      );
+      assert.deepEqual(
+        await verifyCandidateArtifact(manifest),
+        baseline,
+        kind + " complete base seal unchanged",
+      );
+      if (kind === "stale") assert.deepEqual(fs.readdirSync(output), []);
+      else
+        assert.equal(
+          fs.existsSync(output),
+          false,
+          kind + " rejects before mkdir",
+        );
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
   }
 });

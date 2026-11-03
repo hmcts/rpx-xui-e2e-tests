@@ -262,7 +262,7 @@ test("support only: seal-valid API file or parent symlink cannot mutate its base
         await import("./prepare-harness-hearing-mutant.mjs");
       await assert.rejects(
         deriveHearingPublicationMutant(manifest, path.join(root, "derived")),
-        /HEARING_TARGET_/,
+        /CANDIDATE_DERIVATION_TARGET_/,
       );
       assert(
         (await fs.readFile(backing)).equals(backingBefore),
