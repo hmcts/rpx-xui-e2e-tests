@@ -1,5 +1,4 @@
 export * from "./allWorkCasesRequest.helper.js";
-export * from "./caseViewerMockRoutes.helper.js";
 export * from "./eventBehaviourMockRoutes.helper.js";
 export * from "./caseworkerJurisdictionMockRoutes.helper.js";
 export * from "./caseSearchMockRoutes.helper.js";
@@ -9,11 +8,9 @@ export * from "./hearingsMockRoutes.helper.js";
 export * from "./manageTasksMockRoutes.helper.js";
 export * from "./myWorkFiltersMockRoutes.helper.js";
 export * from "./ngIntegrationMockRoutes.helper.js";
-export * from "./rolesAndAccessMockRoutes.helper.js";
 export * from "./searchCaseSession.helper.js";
 export * from "./sessionUser.helper.js";
 export * from "./taskActionApiMocks.helper.js";
 export * from "./taskListMockRoutes.helper.js";
 export * from "./uiSessionAccess.helper.js";
-export * from "./workAllocationAccessScenarios.helper.js";
 export * from "./workAllocationMockValidation.helper.js";

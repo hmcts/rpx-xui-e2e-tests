@@ -6,10 +6,7 @@ import {
   setupCaseworkerJurisdictionsRoute,
   type SupportedJurisdictionDetail,
 } from './caseworkerJurisdictionMockRoutes.helper';
-import {
-  assertValidWorkAllocationCaseTaskMock,
-  assertValidWorkAllocationTaskListMock,
-} from './workAllocationMockValidation.helper';
+import { assertValidWorkAllocationTaskListMock } from './workAllocationMockValidation.helper';
 
 export const taskListRoutePattern = /\/workallocation\/task(?:\?.*)?$/;
 export const waSupportedJurisdictionsGetRoutePattern = '**/api/wa-supported-jurisdiction/get*';
@@ -49,8 +46,6 @@ export type TaskListBootstrapUserOptions = {
   skipUserDetailsMock?: boolean;
   userId?: string;
 };
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const serviceLabelByJurisdiction: Record<string, string> = {
   CIVIL: 'Civil',
@@ -335,29 +330,6 @@ export async function setupTaskListMockRoutes(
       status: options.status ?? 200,
       contentType: 'application/json',
       body: JSON.stringify(taskListResponse),
-    });
-  });
-}
-
-export function buildCaseTaskListRoutePattern(caseId: string): RegExp {
-  return new RegExp(`/workallocation/case/task/${escapeRegex(caseId)}(?:\\?.*)?$`);
-}
-
-export async function setupCaseTaskListMockRoute(
-  page: Page,
-  caseId: string,
-  caseTaskResponse: unknown,
-  options: TaskMockRouteOptions = {}
-): Promise<void> {
-  if (!options.skipValidation) {
-    assertValidWorkAllocationCaseTaskMock(caseTaskResponse);
-  }
-
-  await page.route(buildCaseTaskListRoutePattern(caseId), async (route) => {
-    await route.fulfill({
-      status: options.status ?? 200,
-      contentType: 'application/json',
-      body: JSON.stringify(caseTaskResponse),
     });
   });
 }

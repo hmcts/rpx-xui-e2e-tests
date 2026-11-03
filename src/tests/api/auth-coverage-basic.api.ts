@@ -8,7 +8,6 @@ import { test, expect } from '@playwright/test';
 
 import { config as apiConfig } from '../../config/api';
 import { __test__ as authTest } from '../../utils/api/auth';
-import { config } from '../common/apiTestConfig';
 
 import { setTestSolicitorCredentials } from './apiTestCredentials';
 
@@ -35,9 +34,9 @@ test.describe('Auth helper coverage - basic utilities', { tag: '@svc-auth' }, ()
   });
 
   test('getCacheKey is identity-aware and does not vary by worker', () => {
-    const first = authTest.getCacheKeyForIdentity(config.testEnv, 'solicitor', 'Solicitor.One@hmcts.net');
-    const sameIdentity = authTest.getCacheKeyForIdentity(config.testEnv, 'solicitor', ' solicitor.one@hmcts.net ');
-    const second = authTest.getCacheKeyForIdentity(config.testEnv, 'solicitor', 'solicitor.two@hmcts.net');
+    const first = authTest.getCacheKeyForIdentity(apiConfig.testEnv, 'solicitor', 'Solicitor.One@hmcts.net');
+    const sameIdentity = authTest.getCacheKeyForIdentity(apiConfig.testEnv, 'solicitor', ' solicitor.one@hmcts.net ');
+    const second = authTest.getCacheKeyForIdentity(apiConfig.testEnv, 'solicitor', 'solicitor.two@hmcts.net');
 
     expect(first).toBe(sameIdentity);
     expect(first).not.toBe(second);

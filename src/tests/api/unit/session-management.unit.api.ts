@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-import { __test__ as sessionCaptureTest } from '../../common/sessionCapture.js';
 import { __test__ as integrationSessionTest } from '../../e2e/integration/utils/session.utils.js';
 import { __test__ as sessionStorageTest } from '../../e2e/utils/session-storage.utils.js';
 import { resolveUiStoragePathForUser, writeUiStorageMetadata } from '../../e2e/utils/storage-state.utils.js';
@@ -35,39 +34,6 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
       submitButton,
     };
   };
-
-  test('confirmAuthenticatedLogin accepts auth-cookie based success for fallback IDAM login', async () => {
-    const infoCalls: Array<Record<string, unknown>> = [];
-
-    await expect(
-      sessionCaptureTest.confirmAuthenticatedLogin({} as never, 'DYNAMIC_SOLICITOR', 'dynamic@example.test', '/login', 1, {
-        acceptCookies: async () => undefined,
-        waitForShell: async () => null,
-        waitForAuthCookies: async () => true,
-        info: (_message, meta) => {
-          infoCalls.push(meta);
-        },
-      })
-    ).resolves.toBeUndefined();
-
-    expect(infoCalls).toEqual([
-      expect.objectContaining({
-        userIdentifier: 'DYNAMIC_SOLICITOR',
-        marker: 'auth-cookies',
-      }),
-    ]);
-  });
-
-  test('confirmAuthenticatedLogin rejects when login establishes neither shell nor auth cookies', async () => {
-    await expect(
-      sessionCaptureTest.confirmAuthenticatedLogin({} as never, 'DYNAMIC_SOLICITOR', 'dynamic@example.test', '/login', 1, {
-        acceptCookies: async () => undefined,
-        waitForShell: async () => null,
-        waitForAuthCookies: async () => false,
-        info: () => undefined,
-      })
-    ).rejects.toThrow(/did not establish authenticated session/i);
-  });
 
   test('non-strict UI storage warm-up failure warns without aborting global setup', () => {
     const warnings: string[] = [];
@@ -290,60 +256,6 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
 
       expect(shouldRefresh).toBe(true);
     } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  test('session capture force bypasses reusable cached state for dynamic user recapture', async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-capture-force-unit-'));
-    const originalCwd = process.cwd();
-    const launchCalls: string[] = [];
-    const lockCalls: string[] = [];
-
-    const deps = {
-      chromiumLauncher: {
-        launch: async () => {
-          launchCalls.push('launch');
-          return {
-            newContext: async () => ({
-              newPage: async () => ({
-                goto: async () => undefined,
-              }),
-              cookies: async () => [{ name: 'Idam.Session', value: 'session-cookie', domain: 'example.test', path: '/' }],
-            }),
-            close: async () => undefined,
-          };
-        },
-      },
-      config: { urls: { exuiDefaultUrl: 'https://example.test' } },
-      idamPageFactory: () => ({
-        login: async () => undefined,
-      }),
-      isSessionFresh: () => true,
-      lockfile: {
-        lock: async () => {
-          lockCalls.push('lock');
-          return async () => undefined;
-        },
-      },
-      persistSession: async () => undefined,
-      userUtils: {
-        getUserCredentials: () => ({ email: 'staff-admin@example.test', password: 'secret' }),
-      },
-    };
-
-    try {
-      process.chdir(tempDir);
-
-      await sessionCaptureTest.sessionCaptureWith(['STAFF_ADMIN'], deps as never);
-      expect(launchCalls).toEqual([]);
-      expect(lockCalls).toEqual([]);
-
-      await sessionCaptureTest.sessionCaptureWith(['STAFF_ADMIN'], { ...deps, force: true } as never);
-      expect(launchCalls).toEqual(['launch']);
-      expect(lockCalls).toEqual(['lock']);
-    } finally {
-      process.chdir(originalCwd);
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
   });

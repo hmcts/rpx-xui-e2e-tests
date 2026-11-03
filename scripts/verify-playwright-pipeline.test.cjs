@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
-const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, chmodSync } = require('node:fs');
+const { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync, chmodSync, readdirSync } = require('node:fs');
 const { tmpdir } = require('node:os');
-const { join, resolve } = require('node:path');
+const { join, resolve, relative } = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
 const { buildConfig, selections } = require('./harness-diagnostic-config.cjs');
@@ -159,4 +159,25 @@ test('mutation and toolkit wrappers opt into the real private diagnostic reporte
       assert.match(source, /no release credit/);
     } finally { rmSync(directory, { recursive: true, force: true }); }
   }
+});
+
+
+test('every remaining API test file is explicitly selected as Harness support or a model', () => {
+  const result = spawnSync(process.execPath, [resolve('node_modules/@playwright/test/cli.js'), 'test',
+    '--config', 'playwright.harness-support.config.ts', '--list', '--reporter=json'], {
+    cwd: process.cwd(), encoding: 'utf8', timeout: 10000,
+    env: { PATH: process.env.PATH, HOME: process.env.HOME }
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const selected = new Set(selections.model);
+  const report = JSON.parse(result.stdout);
+  function visit(suite) {
+    for (const spec of suite.specs ?? []) selected.add(relative(process.cwd(), resolve(report.config.rootDir, spec.file)).replaceAll('\\', '/'));
+    for (const child of suite.suites ?? []) visit(child);
+  }
+  visit(report);
+  const sources = readdirSync('src/tests/api', { recursive: true })
+    .filter(file => file.endsWith('.api.ts')).map(file => `src/tests/api/${file.replaceAll('\\', '/')}`);
+  assert.deepEqual(sources.filter(file => !selected.has(file)).sort(), [],
+    'select useful Harness regressions or retire obsolete tests; do not leave silent unselected suites');
 });

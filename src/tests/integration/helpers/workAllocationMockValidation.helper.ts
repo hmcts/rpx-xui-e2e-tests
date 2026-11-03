@@ -170,19 +170,3 @@ export function assertValidWorkAllocationTaskListMock(taskListResponse: unknown)
     throw buildValidationError('task list response', errors);
   }
 }
-
-export function getWorkAllocationCaseTaskValidationErrors(caseTaskResponse: unknown): ValidationError[] {
-  if (!Array.isArray(caseTaskResponse)) {
-    return ['case task response must be an array of task objects.'];
-  }
-
-  return caseTaskResponse.flatMap((task, index) => collectTaskErrors(task, `caseTasks[${index}]`));
-}
-
-export function assertValidWorkAllocationCaseTaskMock(caseTaskResponse: unknown): void {
-  const errors = getWorkAllocationCaseTaskValidationErrors(caseTaskResponse);
-
-  if (errors.length > 0) {
-    throw buildValidationError('case task response', errors);
-  }
-}
