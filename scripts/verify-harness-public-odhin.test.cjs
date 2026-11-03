@@ -141,7 +141,7 @@ test("real Odhin preserves failed/passed/skipped/timedOut outcomes and strips ri
   assert.match(html, /data-duration-ms="12"/);
   assert.match(
     html,
-    /<td data-report-metadata>Retained Harness framework checks<\/td>/,
+    /<td data-report-metadata>Authentication parsing and bootstrap helpers<\/td>/,
   );
   assert.match(html, /no release credit/);
   assert.match(html, /extractCsrf parses token/);
@@ -539,12 +539,12 @@ test("one report explains actual groups and preserves all runtime/owner gaps ind
   );
   assert.match(html, /EXUI Assurance Harness/);
   for (const [id, checks] of [
-    ["catalogue", 26],
+    ["model", 26],
     ["replay", 12],
     ["framework", 78],
   ]) {
-    const group = root.querySelector(`[data-harness-group="${id}"]`);
-    assert.equal(group.getAttribute("data-checks"), String(checks));
+    const group = root.querySelector(`[data-lane="${id}"]`);
+    assert.equal(group.querySelectorAll("td")[1].textContent, String(checks));
   }
   assert.equal(
     root
@@ -569,6 +569,55 @@ test("one report explains actual groups and preserves all runtime/owner gaps ind
   assert.equal(Reporter.validatePublicReport("harness").tests, 116);
   const publicRoot = path.dirname(path.dirname(output()));
   assert.deepEqual(fs.readdirSync(publicRoot), ["odhin"]);
+});
+
+test("coverage tables map every exact test once to a lane and slice with scope and drill-down", async (t) => {
+  sandbox(t);
+  await complete();
+  const dom = require("node-html-parser").parse(
+    fs.readFileSync(output(), "utf8"),
+  );
+  const lanes = dom.querySelectorAll("#harness-lanes tbody tr[data-lane]");
+  assert.equal(lanes.length, 4);
+  const rows = dom.querySelectorAll("[data-harness-check]");
+  assert.equal(rows.length, 116);
+  assert.equal(
+    new Set(rows.map((row) => row.getAttribute("data-harness-check"))).size,
+    116,
+  );
+  for (const row of rows) {
+    assert.ok(row.querySelector("[data-harness-open-test]"));
+    assert.ok(row.getAttribute("data-slice"));
+    assert.ok(row.getAttribute("data-services"));
+    assert.ok(row.getAttribute("data-case-types"));
+  }
+  assert.ok(dom.querySelector("#harness-slices"));
+  assert.ok(dom.querySelector("select[data-harness-filter=services]"));
+  assert.ok(dom.querySelector("select[data-harness-filter=caseTypes]"));
+  const overview = require("./harness-public-overview.cjs");
+  assert.throws(
+    () => overview.metadataFor({ file: "unreviewed", titlePath: [] }),
+    /UNREVIEWED/,
+  );
+});
+
+test("coverage rejects duplicate definitions and malformed scope", () => {
+  const fixture = require("./fixtures/harness-public-report-titles.json");
+  const { metadataFor } = require("./harness-report-coverage.cjs");
+  const entry = fixture.selections.support[0];
+  fixture.lanes.push({ ...fixture.lanes[0] });
+  try {
+    assert.throws(() => metadataFor(entry), /UNREVIEWED/);
+  } finally {
+    fixture.lanes.pop();
+  }
+  const original = entry.metadata.services;
+  entry.metadata.services = [null];
+  try {
+    assert.throws(() => metadataFor(entry), /UNREVIEWED/);
+  } finally {
+    entry.metadata.services = original;
+  }
 });
 
 test("overview rejects source-model drift even when every runner check passes", async (t) => {

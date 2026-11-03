@@ -255,6 +255,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
                   input.definition.observedDefinitionDigest,
                 definitionVersion: String(input.definition.definitionVersion),
                 ccdNamespace: input.ccd.namespace,
+                idamSimulatorImage: input.ccd.images.idam.id,
               }
             : {}),
           excludedSeams:
@@ -265,7 +266,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
               : input.releaseScopeId === ROUTING_SCOPE
               ? "synthetic-auth,upstream-definition-metadata,central-NoC-response,PCS-NoC-response,PCS-destination-marker,feature-flags,telemetry; no PCS backend/CCD/access/persistence or aggregate80ee credit"
               : input.ccd
-                ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; real CCD RBAC only; ABAC/provider excluded"
+                ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; real CCD RBAC only; role removal uses renewed synthetic session, not immediate stale-session invalidation or OIDC login; ABAC/provider excluded"
                 : "synthetic-auth,refdata,task-provider,feature-flags,telemetry",
         },
       };

@@ -21,6 +21,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "src/tests/harness/scope/organisation-case.spec.ts",
   "src/tests/harness/ccd/nested-conditional.spec.ts",
   "src/tests/harness/ccd/case-event-policy.spec.ts",
+  "src/tests/harness/ccd/role-revocation.spec.ts",
   "src/tests/harness/ccd/postal-conditional.spec.ts",
   "scripts/run-harness-candidate.mjs",
   "scripts/run-harness-ccd-candidate.mjs",
@@ -62,6 +63,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-release-evidence.mjs",
   "scripts/lib/exui-release-policy.mjs",
   "scripts/lib/exui-oci-runtime.mjs",
+  "scripts/lib/exui-ccd-role-transition.mjs",
   "scripts/lib/exui-ccd-runtime.mjs",
   "scripts/lib/exui-ccd-browser-runtime.mjs",
 ]);

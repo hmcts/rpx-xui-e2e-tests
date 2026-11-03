@@ -59,9 +59,10 @@ export function getReleasePolicy(scope) {
       expectedFailureId: 'organisation-scope', baselineProofId: 'wa-org-scope-ia', mutantProofId: 'wa-scope-broadened' }]
   } : {
     releaseScopeId: scope,
-    requiredObligationIds: ['ccd-nested-preservation', 'ccd-access-integrity', postalSequenceId],
+    requiredObligationIds: ['ccd-nested-preservation', 'ccd-access-integrity', 'ccd-role-revocation', postalSequenceId],
     obligations: [
       { id: 'ccd-nested-preservation', boundary: 'ccd', requiredProofIds: ['ccd-nested-roundtrip'], requiredMutationIds: ['ccd-drop-child'] },
+      { id: 'ccd-role-revocation', boundary: 'ccd', requiredProofIds: ['ccd-role-revocation'], requiredMutationIds: ['ccd-stale-revoked-bearer'] },
       { id: 'ccd-access-integrity', boundary: 'ccd', requiredProofIds: ['ccd-role-policy'], requiredMutationIds: ['ccd-broaden-access', 'ccd-write-then-deny'] },
       { id: postalSequenceId, boundary: 'ccd', requiredProofIds: ['ccd-postal-two-roundtrip'], requiredMutationIds: ['ccd-drop-postal-optional-child'] }
     ],
@@ -69,6 +70,9 @@ export function getReleasePolicy(scope) {
       { mutationId: 'ccd-drop-child', obligationId: 'ccd-nested-preservation',
         definitionDigest: digest({ boundary: 'ccd', transformation: 'drop-nested-email-address-on-submit' }),
         expectedFailureId: 'nested-persistence', baselineProofId: 'ccd-nested-roundtrip', mutantProofId: 'ccd-child-loss' },
+      { mutationId: 'ccd-stale-revoked-bearer', obligationId: 'ccd-role-revocation',
+        definitionDigest: digest({ boundary: 'ccd', transformation: 'substitute-same-revoked-actor-original-warmed-bearer-on-exact-case-read' }),
+        expectedFailureId: 'revoked-data-isolation', baselineProofId: 'ccd-role-revocation', mutantProofId: 'ccd-stale-revoked-bearer' },
       { mutationId: 'ccd-broaden-access', obligationId: 'ccd-access-integrity',
         definitionDigest: digest({ boundary: 'ccd', transformation: 'grant-denied-persona-protected-case-read' }),
         expectedFailureId: 'denied-data-isolation', baselineProofId: 'ccd-role-policy', mutantProofId: 'ccd-access-broadened' },

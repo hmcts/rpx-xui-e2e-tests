@@ -1,13 +1,17 @@
 import fs from "node:fs";
 import http from "node:http";
 import { createHmac } from "node:crypto";
+import { validateRoleTransition } from "./exui-ccd-role-transition.mjs";
 
-export function seedCcdSession(persona, credential) {
+export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.sessions") {
+  if (!/^[a-z-]+$/.test(persona)) throw new Error("CCD_SESSION_PERSONA_INVALID");
+  if (persona.startsWith("transitioning") && !Array.isArray(credential.roles))
+    throw new Error("CCD_OBSERVED_ROLES_REQUIRED");
   const id = `harness-ccd-${persona}`;
   const token = credential.headers.Authorization.replace(/^Bearer /, "");
-  fs.mkdirSync("/tmp/.sessions", { recursive: true });
+  fs.mkdirSync(sessionRoot, { recursive: true });
   fs.writeFileSync(
-    `/tmp/.sessions/${id}.json`,
+    `${sessionRoot}/${id}.json`,
     JSON.stringify({
       cookie: {
         originalMaxAge: null,
@@ -24,7 +28,7 @@ export function seedCcdSession(persona, credential) {
             email: credential.email,
             forename: "Synthetic",
             surname: persona,
-            roles: [
+            roles: credential.roles ?? [
               "caseworker",
               "caseworker-harness",
               `caseworker-harness-${persona}`,
@@ -127,7 +131,14 @@ export async function startCcdGateway(output, credentials, mutation = null) {
       let body = Buffer.concat(chunks).toString();
       const url = new URL(request.url, "http://127.0.0.1:3101");
       const receivedPath = request.url.split("?")[0];
-      const actor = Object.values(credentials).find(
+      const transitionPath = `${output}/role-transition.json`;
+      const transition = fs.existsSync(transitionPath)
+        ? JSON.parse(fs.readFileSync(transitionPath, "utf8"))
+        : null;
+      const renewed = transition
+        ? validateRoleTransition(transition, credentials.transitioning)
+        : null;
+      const actor = [...Object.values(credentials), ...(renewed ? [renewed] : [])].find(
         (credential) =>
           credential.headers.Authorization === request.headers.authorization,
       );
@@ -189,6 +200,14 @@ export async function startCcdGateway(output, credentials, mutation = null) {
         response.end('{"code":"UNDECLARED_CCD_GATEWAY_REQUEST"}');
         return;
       }
+      const revokedCaseRead = transition && request.method === "GET" &&
+        ccdRoute?.upstreamPath === `/internal/cases/${transition.caseId}`;
+      if (revokedCaseRead && !actor)
+        throw new Error("CCD_TRANSITION_ACTOR_REQUIRED");
+      const staleGrant = mutation === "ccd-stale-revoked-bearer" &&
+        revokedCaseRead && headers.authorization === renewed.headers.Authorization;
+      if (staleGrant)
+        headers.authorization = credentials.transitioning.headers.Authorization;
       const denied =
         headers.authorization === credentials.denied.headers.Authorization;
       const isWrite =
@@ -247,6 +266,12 @@ export async function startCcdGateway(output, credentials, mutation = null) {
         redirect: "error",
       });
       const bytes = Buffer.from(await upstream.arrayBuffer());
+      if (staleGrant)
+        fs.appendFileSync(`${output}/fault-actions.jsonl`, JSON.stringify({
+          mutation, actorId: renewed.userId, caseId: transition.caseId,
+          oldTokenDigest: transition.oldTokenDigest, status: upstream.status,
+          method: request.method, upstreamPath: ccdRoute.upstreamPath,
+        }) + "\n");
       fs.appendFileSync(
         `${output}/ccd-requests.jsonl`,
         JSON.stringify({

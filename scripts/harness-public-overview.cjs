@@ -1,6 +1,11 @@
+const {
+  metadataFor,
+  renderCoverage,
+} = require("./harness-report-coverage.cjs");
 const fixture = require("./fixtures/harness-public-report-titles.json");
 const snapshot = require("./fixtures/exui-configuration-source.json");
 const review = require("./fixtures/exui-configuration-review.json");
+const { readAatProfile } = require("./lib/exui-aat-profile.cjs");
 
 const definitions = {
   aat: {
@@ -128,6 +133,8 @@ async function renderOverview(records, profile = "harness") {
       validatedDefault[key].split(",").map((value) => value.trim()),
     ]),
   );
+  const aatProfile = profile === "local-aat" ? readAatProfile() : undefined;
+  const liveFamilies = aatProfile?.families ?? central;
   const groups = Object.fromEntries(
     Object.keys(definitions).map((id) => [
       id,
@@ -141,13 +148,6 @@ async function renderOverview(records, profile = "harness") {
     group.total++;
     group[observed.status]++;
   }
-  const cards = Object.entries(definitions)
-    .filter(([id]) => groups[id].total > 0)
-    .map(([id, definition]) => {
-      const count = groups[id];
-      return `<article class="${profile === "local-aat" ? "col-md-6 col-xl-3" : "col-lg-4"}" data-harness-group="${id}" data-checks="${count.total}"><div class="odhin-thin-border p-3 h-100"><h2 class="h5">${definition.title}</h2><p><strong>${count.total} checks recorded</strong> · ${count.passed} passed · ${count.failed} failed · ${count.skipped} skipped · ${count.timedOut} timed out</p><p>${definition.purpose}</p><p><strong>Evidence:</strong> ${definition.boundary}</p></div></article>`;
-    })
-    .join("");
   const aatRecords = records.filter(
     (record) => groupFor(record.entry.file) === "aat",
   );
@@ -155,21 +155,26 @@ async function renderOverview(records, profile = "harness") {
     (record) => record.observed.aatOutcome === "response-passed",
   ).length;
   const confirmedResponses = aatRecords.filter((record) =>
-    ["response-passed", "service-family-contract-mismatch"].includes(
-      record.observed.aatOutcome,
-    ),
+    [
+      "response-passed",
+      "service-family-contract-mismatch",
+      "aat-profile-contract-mismatch",
+    ].includes(record.observed.aatOutcome),
   ).length;
   const loginBlocked = aatRecords.filter(
     (record) => record.observed.aatOutcome === "login-setup-blocked",
   ).length;
-  const mismatches = aatRecords.filter(
-    (record) =>
-      record.observed.aatOutcome === "service-family-contract-mismatch",
+  const mismatches = aatRecords.filter((record) =>
+    [
+      "service-family-contract-mismatch",
+      "aat-profile-contract-mismatch",
+    ].includes(record.observed.aatOutcome),
   );
   const mismatchNotice = mismatches
-    .map(
-      (record) =>
-        `Global search is missing ${record.observed.aatMissingFamilies.map((code) => `${familyNames[code]} (${code})`).join(", ")}.`,
+    .map((record) =>
+      record.observed.aatOutcome === "aat-profile-contract-mismatch"
+        ? "A declared AAT service-family endpoint differs from the reviewed profile."
+        : `Global search is missing ${record.observed.aatMissingFamilies.map((code) => `${familyNames[code]} (${code})`).join(", ")}.`,
     )
     .join(" ");
   const families = catalogue.families
@@ -186,7 +191,7 @@ async function renderOverview(records, profile = "harness") {
         ["waSupportedJurisdictions", 3, "WA family list"],
         ["staffSupportedJurisdictions", 4, "Staff family list"],
       ]
-        .filter(([key]) => central[key].includes(family.id))
+        .filter(([key]) => liveFamilies[key].includes(family.id))
         .map(([, index, label]) => {
           const expected = fixture.selections.environment[index];
           const observed = aatRecords.find(
@@ -221,18 +226,18 @@ async function renderOverview(records, profile = "harness") {
     throw new Error("PUBLIC_ODHIN_SOURCE_REVISION_REQUIRED");
   return `<section id="harness-overview" class="p-4">
 <h1 class="h3">What this run checked</h1>
-<p class="lead">${profile === "local-aat" ? `${records.length - aatRecords.length} local Harness/model checks + ${aatRecords.length} live AAT probes = ${records.length} checks. AAT: ${responsePassed}/${aatRecords.length} response checks passed; ${groups.aat.failed} failed callbacks (${loginBlocked} blocked by login/setup). ${confirmedResponses} endpoint responses confirmed. Deployed version unknown.` : `This run recorded ${records.length} checks on Harness logic and reviewed configuration models. It did not run a candidate EXUI application or CCD.`}</p>
+<p>${profile === "local-aat" ? `${records.length - aatRecords.length} local Harness/model checks + ${aatRecords.length} live AAT probes = ${records.length} checks. AAT: ${responsePassed}/${aatRecords.length} response checks passed; ${groups.aat.failed} failed callbacks (${loginBlocked} blocked by login/setup). ${confirmedResponses} endpoint responses confirmed. Deployed version unknown.` : `This run recorded ${records.length} checks on Harness logic and reviewed configuration models. It did not run a candidate EXUI application or CCD.`}</p>
 ${profile === "local-aat" ? "<p>Authenticated probes share one configured solicitor session; the public UI-configuration probe is anonymous. Other roles and persona combinations are not covered.</p>" : ""}
 ${mismatches.length ? `<div class="alert alert-danger" data-aat-contract-mismatch><strong>Required service-family contract differs.</strong> ${escape(mismatchNotice)} Source expectations remain unchanged; this is not a login/setup failure. The deployed configuration, build and session-specific cause is unknown.</div>` : ""}
-<div class="row g-3 mb-3">${cards}</div>
-<div class="odhin-thin-border p-3" data-runtime-obligations="${catalogue.obligations.length}"><h2 class="h5">${profile === "local-aat" ? "Live configuration checks; candidate-bound coverage still missing" : "Application coverage: not run in this build"}</h2>
+${renderCoverage(records)}
+<details class="odhin-thin-border p-3 mt-3" data-runtime-obligations="${catalogue.obligations.length}"><summary><strong>Application coverage and remaining gaps</strong></summary>
 <p><strong>0 / ${catalogue.obligations.length} candidate-bound catalogued requirements have execution evidence — candidate and CCD checks NOT RUN.</strong> Passing model or framework checks do not prove a service works in EXUI. Release approval remains unavailable.</p>
-<p>The ${catalogue.obligations.length} source-catalogue obligations are a bounded inventory, not a complete universe of EXUI behaviour. ${runtimeGaps} deployment-profile/key runtime gaps and ${previewGaps} unreviewed preview-family cells remain outside those objects. Service-owner grouping, deployed profiles and discovery of unknown configuration changes remain open.</p></div>
+<p>The ${catalogue.obligations.length} source-catalogue obligations are a bounded inventory, not a complete universe of EXUI behaviour. ${runtimeGaps} deployment-profile/key runtime gaps and ${previewGaps} unreviewed preview-family cells remain outside those objects. Service-owner grouping, deployed profiles and discovery of unknown configuration changes remain open.</p></details>
 <details class="odhin-thin-border p-3 mt-3"><summary><strong>Services and capabilities represented in the reviewed source models</strong></summary><p>These capability declarations span reviewed source profiles. They are not a claim that each service was individually exercised or enabled in this deployment. The shared catalogue-model checks above inspect this inventory; actual per-service UI and CCD behaviour is NOT RUN. ${profile === "local-aat" ? "The five AAT endpoint outcomes are shown separately below; they do not verify every family individually." : ""}</p>
 <div class="table-responsive"><table class="table"><thead><tr><th>Service family</th><th>Declared capabilities</th><th>This build's evidence</th><th>Live AAT configuration reads</th><th>UI journey / CCD</th></tr></thead><tbody>${families}</tbody></table></div></details>
 ${
   profile === "local-aat"
-    ? `<details class="odhin-thin-border p-3 mt-3"><summary><strong>Live AAT endpoint outcomes</strong></summary><p>Host: manage-case.aat.platform.hmcts.net. GET response expectations use the reviewed EXUI source contract; deployed version is unknown.</p><ul>${records
+    ? `<details class="odhin-thin-border p-3 mt-3"><summary><strong>Live AAT endpoint outcomes</strong></summary><p>Host: manage-case.aat.platform.hmcts.net. Family expectations use declared AAT profile ${aatProfile.source.repository}@${aatProfile.source.revision} ${aatProfile.source.path}; the deployed build remains unknown. AAT global/WA explicitly include SSCS, separately from default-model lists. Exact family membership is checked; source declaration is not proof of deployed identity.</p><ul>${records
         .filter((record) => groupFor(record.entry.file) === "aat")
         .map(
           (record) =>
@@ -240,7 +245,7 @@ ${
         )
         .join(
           "",
-        )}</ul><p>Family assertions require the reviewed source subset; passing checks allow extra families and do not prove deployed-profile equivalence. No blanket service, workflow, browser or CCD result is inferred from these endpoint checks.</p></details>`
+        )}</ul><p>AAT family assertions require exact declared membership, including rejection of extras/duplicates; response agreement does not prove deployed build/profile identity. No blanket service, workflow, browser or CCD result is inferred from these endpoint checks.</p></details>`
     : ""
 }
 <details class="odhin-thin-border p-3 mt-3"><summary><strong>Evidence basis and required gaps</strong></summary><p>Reviewed committed source projections: EXUI ${source.revision.slice(0, 8)}, Private Law definitions ${prl.revision.slice(0, 8)}. Test identities come from the reviewed declaration registry. Outcomes and durations come from this runner, not historical receipts.</p><p>Required gaps include candidate/browser interpretation, CCD permissions and persistence, deployed configuration and owner acceptance. PCS has a discovered source owner but no accepted CCD-backed assurance here. The known postal postcode constraint remains blocked; this model run does not fix or clear it. No retired mock UI, accessibility, screenshot or historical native result is credited to this build.</p><p>The separate Build phase checks Node contracts, pipeline contracts, TypeScript and lint. Their individual results are not test rows in this Playwright report. Rich diagnostics remain private.</p></details>
@@ -249,6 +254,7 @@ ${
 module.exports = {
   entries,
   profiles,
+  metadataFor,
   normalize,
   groupFor,
   definitions,

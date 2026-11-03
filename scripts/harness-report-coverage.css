@@ -1,0 +1,174 @@
+#harness-overview {
+  max-width: 1600px;
+  margin: auto;
+  line-height: 1.5;
+}
+#harness-overview h1 {
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+#harness-overview h2 {
+  font-size: 1.25rem;
+  margin: 1.5rem 0 0.5rem;
+}
+#harness-overview .table {
+  font-size: 0.9rem;
+  margin-bottom: 0;
+}
+#harness-overview .table th,
+#harness-overview .table td {
+  padding: 0.65rem 0.75rem;
+  vertical-align: top;
+  white-space: normal;
+}
+#harness-overview .table thead th {
+  background: #173b4c;
+  color: #fff;
+}
+#harness-overview .table tbody tr:nth-child(even) {
+  background: rgba(120, 140, 150, 0.05);
+}
+.harness-status {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 3px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin: 0.1rem;
+}
+.harness-status.passed {
+  background: #e3f3e8;
+  color: #145c2f;
+}
+.harness-status.failed,
+.harness-status.timedOut {
+  background: #fce8e8;
+  color: #922020;
+}
+.harness-status.skipped,
+.harness-status.not-run {
+  background: #eceff2;
+  color: #435363;
+}
+.harness-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #155e92;
+  text-decoration: underline;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.harness-link:focus-visible,
+#harness-overview summary:focus-visible {
+  outline: 3px solid #ffdd00;
+  outline-offset: 3px;
+}
+.harness-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+.harness-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.harness-filters select,
+.harness-filters button {
+  min-height: 40px;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #8798a4;
+  border-radius: 4px;
+  background: var(--bs-body-bg, #fff);
+  color: var(--bs-body-color, #173b4c);
+}
+#harness-slices {
+  table-layout: fixed;
+  min-width: 900px;
+}
+#harness-slices th:nth-child(1) {
+  width: 30%;
+}
+#harness-slices th:nth-child(2) {
+  width: 25%;
+}
+#harness-slices th:nth-child(3) {
+  width: 21%;
+}
+#harness-slices th:nth-child(4) {
+  width: 14%;
+}
+#harness-slices th:nth-child(5) {
+  width: 10%;
+}
+#harness-slices > tbody > tr > td {
+  padding: 0;
+}
+.harness-slice > summary {
+  display: grid;
+  grid-template-columns: 30% 25% 21% 14% 10%;
+  cursor: pointer;
+  list-style: none;
+}
+.harness-slice > summary > span {
+  padding: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.harness-slice > summary > span:first-child:before {
+  content: "▸";
+  margin-right: 0.4rem;
+}
+.harness-slice[open] > summary > span:first-child:before {
+  content: "▾";
+}
+.harness-slice summary small {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin-top: 0.3rem;
+}
+.harness-slice > p {
+  padding: 0.75rem;
+  margin: 0;
+  background: rgba(80, 140, 180, 0.08);
+}
+.harness-test-source {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}
+.harness-test-source p {
+  margin: 0.5rem 0;
+}
+.harness-checks {
+  table-layout: auto;
+}
+.harness-checks th:first-child {
+  width: 44%;
+}
+#harness-filter-count {
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+#harness-overview [hidden] {
+  display: none !important;
+}
+@media (max-width: 600px) {
+  #harness-overview {
+    padding: 1rem !important;
+  }
+  .harness-filters {
+    gap: 0.5rem;
+  }
+  .harness-filters label {
+    max-width: 100%;
+  }
+  .harness-filters select {
+    max-width: 100%;
+  }
+}

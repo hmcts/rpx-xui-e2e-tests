@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
 
-async function withGateway(t, check, mutation = null, respond = null) {
+async function withGateway(t, check, mutation = null, respond = null, transitioning = null) {
   const { startCcdGateway } =
     await import("./lib/exui-ccd-browser-runtime.mjs");
   const output = fs.mkdtempSync(path.join(os.tmpdir(), "ccd-route-proof-"));
@@ -20,6 +20,7 @@ async function withGateway(t, check, mutation = null, respond = null) {
       },
     ]),
   );
+  if (transitioning) credentials.transitioning = transitioning;
   global.fetch = async (url, options) => {
     upstream.push({ url, options });
     if (respond) return respond(url, options);
@@ -463,4 +464,44 @@ test("support only: postal fault forwards real submission once with one optional
         headers: { "content-type": "application/json" },
       }),
   );
+});
+
+test('stale grant fault substitutes only the same revoked actor exact-case read and preserves writes and other actors', async (t) => {
+  const { roleTransitionRecord } = await import('./lib/exui-ccd-role-transition.mjs');
+  const initial = { userId: '11111111-1111-4111-8111-111111111111', email: 'transitioning-11111111-1111-4111-8111-111111111111@harness.example.com', roles: ['caseworker', 'caseworker-harness', 'caseworker-harness-allowed'], headers: { Authorization: 'Bearer synthetic-transitioning', ServiceAuthorization: 'synthetic-service' } };
+  const renewed = { ...initial, roles: ['caseworker', 'caseworker-harness'], headers: { ...initial.headers, Authorization: 'Bearer synthetic-renewed' } };
+  await withGateway(t, async ({ request, upstream, output }) => {
+    fs.writeFileSync(`${output}/role-transition.json`, JSON.stringify(roleTransitionRecord(initial, renewed, '1793646213983629')), { mode: 0o600 });
+    for (const [method, route, persona, expected] of [
+      ['GET', '/internal/cases/1793646213983629', 'renewed', 'transitioning'],
+      ['GET', '/data/internal/cases/1793646213983629', 'renewed', 'transitioning'],
+      ['GET', '/internal/cases/1793646213983630', 'renewed', 'renewed'],
+      ['GET', '/internal/cases/1793646213983629', 'allowed', 'allowed'],
+      ['POST', '/cases/1793646213983629/events', 'renewed', 'renewed'],
+      ['GET', '/internal/profile', 'renewed', 'renewed'],
+    ]) {
+      assert.equal((await request(method, route, persona)).status, 207);
+      assert.equal(upstream.at(-1).options.headers.authorization, `Bearer synthetic-${expected}`);
+    }
+    const callsBeforeUnknown = upstream.length;
+    assert.equal((await request('GET', '/internal/cases/1793646213983629', 'unknown')).status, 502);
+    assert.equal(upstream.length, callsBeforeUnknown);
+    const faults = fs.readFileSync(`${output}/fault-actions.jsonl`, 'utf8').trim().split('\n').map(JSON.parse);
+    assert.equal(faults.length, 2);
+    assert.ok(faults.every(value => value.caseId === '1793646213983629' && value.status === 207 && value.actorId === initial.userId));
+    assert.ok(!JSON.stringify(faults).includes('Bearer'));
+  }, 'ccd-stale-revoked-bearer', null, initial);
+});
+
+test('malformed or wrong-actor transition handoff blocks before any CCD request', async (t) => {
+  const { roleTransitionRecord } = await import('./lib/exui-ccd-role-transition.mjs');
+  const initial = { userId: '11111111-1111-4111-8111-111111111111', email: 'transitioning-11111111-1111-4111-8111-111111111111@harness.example.com', roles: ['caseworker', 'caseworker-harness', 'caseworker-harness-allowed'], headers: { Authorization: 'Bearer synthetic-transitioning', ServiceAuthorization: 'synthetic-service' } };
+  const renewed = { ...initial, roles: ['caseworker', 'caseworker-harness'], headers: { ...initial.headers, Authorization: 'Bearer synthetic-renewed' } };
+  await withGateway(t, async ({ request, upstream, output }) => {
+    for (const record of [{}, { ...roleTransitionRecord(initial, renewed, '1793646213983629'), credential: { ...renewed, userId: '22222222-2222-4222-8222-222222222222' } }]) {
+      fs.writeFileSync(`${output}/role-transition.json`, JSON.stringify(record), { mode: 0o600 });
+      assert.equal((await request('GET', '/internal/cases/1793646213983629', 'renewed')).status, 502);
+      assert.equal(upstream.length, 0);
+    }
+  }, 'ccd-stale-revoked-bearer', null, initial);
 });

@@ -113,8 +113,8 @@ test("live-AAT profile adds exactly five reviewed probes without claiming candid
     observed: { status: "passed", aatOutcome: "response-passed" },
   }));
   const html = await overview.renderOverview(records, "local-aat");
-  assert.match(html, /Live AAT configuration probes/);
-  assert.match(html, /5 checks recorded/);
+  assert.match(html, /Live environment API diagnostics/);
+  assert.match(html, /<td>5<\/td>/);
   assert.match(html, /deployed version.*unknown/i);
   assert.match(html, /0 \/ 112/);
   assert.match(html, /candidate-bound/i);
@@ -306,12 +306,13 @@ test("global-search family mismatch exposes only reviewed codes, never arbitrary
   assert.match(html, /AAT: 4\/5 response checks passed/);
   assert.match(html, /one configured solicitor session/);
   const dom = require("node-html-parser").parse(html);
-  for (const card of dom.querySelectorAll("[data-harness-group]")) {
-    assert.equal(card.getAttribute("class"), "col-md-6 col-xl-3");
-  }
+  assert.equal(
+    dom.querySelectorAll("#harness-lanes tbody tr[data-lane]").length,
+    4,
+  );
   assert.ok(
     html.indexOf("data-aat-contract-mismatch") <
-      html.indexOf("data-harness-group"),
+      html.indexOf('id="harness-lanes"'),
   );
 
   assert.ok(!html.includes(canary));
@@ -437,5 +438,70 @@ test("live family labels do not trust the separate legacy central arrays", async
     );
   } finally {
     legacy.globalSearchServices = previous;
+  }
+});
+
+test("three exact AAT profile comparisons use a fixed safe mismatch enum and source provenance", async () => {
+  const { normalizePhase } = api();
+  const overview = require("./harness-public-overview.cjs");
+  const endpoints = [
+    "api/globalSearch/services",
+    "api/wa-supported-jurisdiction/get",
+    "api/staff-supported-jurisdiction/get",
+  ];
+  for (let index = 2; index < 5; index++) {
+    const raw = document(fixture.selections.environment),
+      t = raw.suites[index].suites[0].specs[0].tests[0];
+    t.status = "unexpected";
+    t.results[0].status = "failed";
+    t.results[0].error = {
+      message: `${endpoints[index - 2]} differs from reviewed AAT service-family profile ${canary}`,
+      stack:
+        "at test (/owned/src/tests/harness/diagnostic/configuration.spec.ts:95:1)",
+    };
+    raw.stats.expected--;
+    raw.stats.unexpected++;
+    const phase = normalizePhase(
+      raw,
+      fixture.selections.environment,
+      1,
+      process.cwd(),
+    );
+    assert.equal(
+      phase.records[index].observed.aatOutcome,
+      "aat-profile-contract-mismatch",
+    );
+    const records = [
+      ...overview.entries.map((entry) => ({
+        entry,
+        observed: { status: "passed" },
+      })),
+      ...phase.records,
+    ];
+    const html = await overview.renderOverview(records, "local-aat");
+    assert.match(
+      html,
+      /cnp-flux-config@a88143b0bcb815056f7abdb41d1911ccb3144b5d/,
+    );
+    assert.match(html, /AAT global\/WA explicitly include SSCS/);
+    assert.ok(!html.includes(canary));
+  }
+});
+test("local-AAT overview refuses AAT source drift even when all121 callbacks passed", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  const source = require("./fixtures/exui-aat-profile-source.json");
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: { status: "passed", aatOutcome: "response-passed" },
+  }));
+  const original = source.environment.GLOBAL_SEARCH_SERVICES.value;
+  try {
+    source.environment.GLOBAL_SEARCH_SERVICES.value = "IA";
+    await assert.rejects(
+      () => overview.renderOverview(records, "local-aat"),
+      /AAT_PROFILE_SOURCE_DRIFT/,
+    );
+  } finally {
+    source.environment.GLOBAL_SEARCH_SERVICES.value = original;
   }
 });

@@ -135,7 +135,8 @@ export function toolContainerArguments({
             "scope-ia",
             "scope-civil",
             "wa-scope-broadened",
-            "ccd-drop-child",
+            "ccd-stale-revoked-bearer",
+      "ccd-drop-child",
             "ccd-broaden-access",
             "ccd-write-then-deny",
             "ccd-drop-postal-optional-child",
@@ -226,6 +227,7 @@ export function candidateArchiveArguments({
       "scope-ia",
       "scope-civil",
       "wa-scope-broadened",
+      "ccd-stale-revoked-bearer",
       "ccd-drop-child",
       "ccd-broaden-access",
       "ccd-write-then-deny",
@@ -237,6 +239,8 @@ export function candidateArchiveArguments({
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
+  if (invocationId === "ccd-stale-revoked-bearer" && releaseScopeId !== "exui-ccd-pilot")
+    throw Error("CCD_REVOCATION_SCOPE_REQUIRED");
   if (
     invocationId.startsWith("routing-") &&
     releaseScopeId !== "exui-decentralised-routing-pilot"

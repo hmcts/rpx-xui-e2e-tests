@@ -318,6 +318,7 @@ class HarnessPublicOdhinReporter {
         "login-setup-blocked",
         "failure-unclassified",
         "service-family-contract-mismatch",
+        "aat-profile-contract-mismatch",
         "skipped",
       ].includes(result.aatOutcome) ||
         (result.status === "passed" &&
@@ -337,6 +338,16 @@ class HarnessPublicOdhinReporter {
         result.aatMissingFamilies.some(
           (code) => !Object.hasOwn(overview.familyNames, code),
         ))
+    )
+      this.reject();
+    if (
+      isAat &&
+      result.aatOutcome === "aat-profile-contract-mismatch" &&
+      ![
+        "api/globalSearch/services contains the central must-run service-family set",
+        "api/wa-supported-jurisdiction/get contains the central WA must-run family set",
+        "api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set",
+      ].includes(this.expected.get(identity).titlePath.at(-1))
     )
       this.reject();
     this.results.set(identity, {
@@ -514,8 +525,12 @@ class HarnessPublicOdhinReporter {
         presentation,
         [...this.expected].map(([identity, entry], index) => ({
           target: `#harness-${index}-0`,
-          feature: overview.definitions[overview.groupFor(entry.file)].title,
-          tags: [],
+          feature: overview.metadataFor(entry).slice.label,
+          tags: [
+            overview.metadataFor(entry).lane.label,
+            ...overview.metadataFor(entry).jurisdictions,
+            ...overview.metadataFor(entry).caseTypes,
+          ],
           retry: 0,
           durationMs: this.results.get(identity).duration,
         })),
@@ -530,6 +545,18 @@ class HarnessPublicOdhinReporter {
           this.selection,
         ),
       );
+      presentation
+        .querySelector("head")
+        .insertAdjacentHTML(
+          "beforeend",
+          `<style id="harness-coverage-theme">${fs.readFileSync(path.join(__dirname, "harness-report-coverage.css"), "utf8")}</style>`,
+        );
+      presentation
+        .querySelector("body")
+        .insertAdjacentHTML(
+          "beforeend",
+          `<script id="harness-coverage-ui">${fs.readFileSync(path.join(__dirname, "harness-report-coverage.js"), "utf8")}</script>`,
+        );
       html = presentation.toString();
       validateHtml(html, record);
       record.sha256 = digest(html);

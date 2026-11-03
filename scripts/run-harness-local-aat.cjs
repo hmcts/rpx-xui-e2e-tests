@@ -130,6 +130,21 @@ function normalizePhase(document, expected, exitCode, root, bounds) {
               : loginBlocked
                 ? "login-setup-blocked"
                 : "failure-unclassified";
+        const profileMismatch = [
+          "api/globalSearch/services",
+          "api/wa-supported-jurisdiction/get",
+          "api/staff-supported-jurisdiction/get",
+        ].some((endpoint) =>
+          message.includes(
+            `${endpoint} differs from reviewed AAT service-family profile`,
+          ),
+        );
+        if (
+          observed.status === "failed" &&
+          profileMismatch &&
+          stack.includes("/configuration.spec.ts:")
+        )
+          safe.aatOutcome = "aat-profile-contract-mismatch";
         const missing = message.match(
           /(?:^|\n)(?:Error: )?api\/globalSearch\/services is missing central must-run service families: ([A-Z_]+(?:, [A-Z_]+)*)(?:\r?\n|$)/,
         );

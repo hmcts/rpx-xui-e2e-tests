@@ -30,6 +30,7 @@ async function launch() {
     arg("--only") &&
     ![
       "baseline",
+      "ccd-stale-revoked-bearer",
       "ccd-drop-child",
       "ccd-broaden-access",
       "ccd-write-then-deny",

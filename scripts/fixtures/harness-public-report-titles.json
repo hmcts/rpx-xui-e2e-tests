@@ -1,5 +1,137 @@
 {
   "schemaVersion": 1,
+  "lanes": [
+    {
+      "id": "model",
+      "label": "Configuration models",
+      "description": "Local configuration constants and catalogue decisions; no running application."
+    },
+    {
+      "id": "replay",
+      "label": "Historical fixture replays",
+      "description": "Historical fixture projections; no browser workflow or real CCD."
+    },
+    {
+      "id": "framework",
+      "label": "Harness framework checks",
+      "description": "Harness helpers, fakes and generated report content; no service execution."
+    },
+    {
+      "id": "liveAPI",
+      "label": "Live environment API diagnostics",
+      "description": "GET diagnostics against the selected AAT environment; no sealed-candidate release credit."
+    }
+  ],
+  "slices": [
+    {
+      "id": "model-catalogue",
+      "lane": "model",
+      "label": "Source catalogue and service classification",
+      "description": "Source snapshots, profile classification, labels and traceability."
+    },
+    {
+      "id": "model-assurance",
+      "lane": "model",
+      "label": "Assurance decisions, gaps and defect intake",
+      "description": "Coverage gaps, verdict boundaries, owner actions and defect routing."
+    },
+    {
+      "id": "model-service-packs",
+      "lane": "model",
+      "label": "Service codes and hearing case-type mappings",
+      "description": "Local Employment, IA, Civil, ST_CIC and Probate mapping assertions."
+    },
+    {
+      "id": "model-capabilities",
+      "lane": "model",
+      "label": "Capability membership and availability classification",
+      "description": "Local WA/staff membership and fake availability outcomes."
+    },
+    {
+      "id": "replay-case-data",
+      "lane": "replay",
+      "label": "PRL and Civil case-data reconstruction",
+      "description": "PRL nested/CYA projections and Civil CREATE_CLAIM fixture fields."
+    },
+    {
+      "id": "replay-wa-search",
+      "lane": "replay",
+      "label": "Work allocation and CCD search metadata",
+      "description": "PRL role/task fixtures and search/workbasket field requirements."
+    },
+    {
+      "id": "replay-access",
+      "lane": "replay",
+      "label": "Access, event history and sign-in decisions",
+      "description": "Synthetic protected responses, event-history roles and sign-in outcomes."
+    },
+    {
+      "id": "replay-boundaries",
+      "lane": "replay",
+      "label": "Session/spinner fixtures and honest replay status",
+      "description": "Supplied session/spinner values and explicit replay evidence limits."
+    },
+    {
+      "id": "support-auth",
+      "lane": "framework",
+      "label": "Authentication parsing and bootstrap helpers",
+      "description": "CSRF parsing, credential guards and fake authentication bootstrap branches."
+    },
+    {
+      "id": "support-session",
+      "lane": "framework",
+      "label": "Session storage, locks and refresh decisions",
+      "description": "Saved-state reuse, locks, refresh, navigation and retry classification."
+    },
+    {
+      "id": "support-fixtures",
+      "lane": "framework",
+      "label": "Environment restoration and API fixture recovery",
+      "description": "Scoped environment restoration, API headers and stale-state recovery."
+    },
+    {
+      "id": "support-identities",
+      "lane": "framework",
+      "label": "User aliases and pooled identity selection",
+      "description": "Alias resolution and PRL, hearing-manager and staff-admin pools."
+    },
+    {
+      "id": "support-auth-replay",
+      "lane": "framework",
+      "label": "Authentication replay helper controls",
+      "description": "Classification and negative controls for authentication replay helpers."
+    },
+    {
+      "id": "support-toolkit",
+      "lane": "framework",
+      "label": "Toolkit CYA diagnostic helper controls",
+      "description": "Synthetic toolkit-marker and CYA-row evidence validation."
+    },
+    {
+      "id": "support-reporting",
+      "lane": "framework",
+      "label": "Report lifecycle and readable result presentation",
+      "description": "Reporter timeouts, attachments, grouped statistics and generated presentation."
+    },
+    {
+      "id": "live-config",
+      "lane": "liveAPI",
+      "label": "Live UI configuration and feature-flag diagnostics",
+      "description": "Live configuration response keys and terms-and-conditions value type."
+    },
+    {
+      "id": "live-search",
+      "lane": "liveAPI",
+      "label": "Live Global Search service publication",
+      "description": "One Global Search response compared with the reviewed eight-family AAT profile."
+    },
+    {
+      "id": "live-capabilities",
+      "lane": "liveAPI",
+      "label": "Live WA and staff family publication",
+      "description": "WA eight-family and staff twelve-family AAT response comparisons."
+    }
+  ],
   "selections": {
     "support": [
       {
@@ -10,7 +142,21 @@
           "auth-coverage-basic.api.ts",
           "Auth helper coverage - basic utilities",
           "extractCsrf parses token and returns undefined when missing"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Parse a CSRF token and handle an absent token.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-basic.api.ts",
@@ -20,7 +166,21 @@
           "auth-coverage-basic.api.ts",
           "Auth helper coverage - basic utilities",
           "stripTrailingSlash removes trailing slashes"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Normalize a URL by removing trailing slashes.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-basic.api.ts",
@@ -30,7 +190,21 @@
           "auth-coverage-basic.api.ts",
           "Auth helper coverage - basic utilities",
           "getCacheKey is identity-aware and does not vary by worker"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Key authentication cache entries by identity rather than worker number.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-basic.api.ts",
@@ -40,7 +214,21 @@
           "auth-coverage-basic.api.ts",
           "Auth helper coverage - basic utilities",
           "getCredentials returns test-owned configured users and errors on unknown roles"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Resolve test-owned role credentials and reject unknown roles.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-basic.api.ts",
@@ -50,7 +238,21 @@
           "auth-coverage-basic.api.ts",
           "Auth helper coverage - basic utilities",
           "getCredentials fails closed when solicitor credentials are absent"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Reject missing solicitor credentials.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
@@ -60,7 +262,21 @@
           "auth-coverage-bootstrap.api.ts",
           "Auth helper coverage - token bootstrap",
           "isTokenBootstrapEnabled respects env overrides"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Respect explicit token-bootstrap environment switches.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
@@ -70,7 +286,21 @@
           "auth-coverage-bootstrap.api.ts",
           "Auth helper coverage - token bootstrap",
           "isUiSessionBootstrapEnabled respects explicit browser auth modes"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Respect explicit browser-auth bootstrap modes.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
@@ -80,7 +310,21 @@
           "auth-coverage-bootstrap.api.ts",
           "Auth helper coverage - token bootstrap",
           "createStorageStateViaForm handles csrf and login errors"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Handle CSRF and login-error branches using fake responses.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
@@ -90,7 +334,21 @@
           "auth-coverage-bootstrap.api.ts",
           "Auth helper coverage - token bootstrap",
           "tryTokenBootstrap covers env and response branches"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Handle enabled, disabled and unsuccessful token-bootstrap branches.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-bootstrap.api.ts",
@@ -100,7 +358,21 @@
           "auth-coverage-bootstrap.api.ts",
           "Auth helper coverage - token bootstrap",
           "tryTokenBootstrap logs and returns false on request failures"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Return failure and log a fake token-request exception.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-storage.api.ts",
@@ -110,7 +382,21 @@
           "auth-coverage-storage.api.ts",
           "Auth helper coverage - storage operations",
           "maps the generic API solicitor role to the configured divorce solicitor session"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Resolve the generic API solicitor alias to the configured Divorce session.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-storage.api.ts",
@@ -120,7 +406,21 @@
           "auth-coverage-storage.api.ts",
           "Auth helper coverage - storage operations",
           "tryReadState returns parsed state or undefined for invalid content"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Read valid saved session JSON and reject invalid content.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-storage.api.ts",
@@ -130,7 +430,21 @@
           "auth-coverage-storage.api.ts",
           "Auth helper coverage - storage operations",
           "API storage lock waits for the whole configured UI capture window"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Budget the storage lock for the full configured capture window.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-storage.api.ts",
@@ -140,7 +454,21 @@
           "auth-coverage-storage.api.ts",
           "Auth helper coverage - storage operations",
           "ensureStorageStateWith reuses an authenticated state under the filesystem lock"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Reuse authenticated saved state while holding the filesystem lock.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-storage.api.ts",
@@ -150,7 +478,21 @@
           "auth-coverage-storage.api.ts",
           "Auth helper coverage - storage operations",
           "getStoredCookieWith rebuilds corrupted state and throws when still missing"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Rebuild corrupt saved state and reject a still-missing cookie.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-storage.api.ts",
@@ -160,7 +502,21 @@
           "auth-coverage-storage.api.ts",
           "Auth helper coverage - storage operations",
           "createStorageStateWith honors token bootstrap and falls back to form login"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Prefer token bootstrap and fall back to form-login helper when needed.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/auth-coverage-storage.api.ts",
@@ -170,7 +526,21 @@
           "auth-coverage-storage.api.ts",
           "Auth helper coverage - storage operations",
           "createStorageStateWith can use UI session bootstrap for local EXUI auth"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Allow explicit local UI-session bootstrap.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-config.api.ts",
@@ -180,7 +550,21 @@
           "coverage-config.api.ts",
           "Configuration resolution coverage",
           "withEnv restores pre-existing variables"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-fixtures",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Restore environment variables after a scoped override.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-helpers.api.ts",
@@ -190,7 +574,21 @@
           "coverage-helpers.api.ts",
           "Helper utilities and retry logic",
           "fixture helpers cover default headers and request recovery"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-fixtures",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Apply API fixture headers and recover from fake request failures.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-helpers.api.ts",
@@ -200,7 +598,21 @@
           "coverage-helpers.api.ts",
           "Helper utilities and retry logic",
           "fixture helpers rebuild stale authenticated API storage before use"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-fixtures",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Rebuild stale authenticated storage before creating the API client.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-search-case.api.ts",
@@ -210,7 +622,21 @@
           "coverage-search-case.api.ts",
           "Search-case support coverage",
           "FPL global search credentials fall back to the source-compatible AAT account when env vars are absent"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Resolve FPL search credentials to the source-compatible baseline without overrides.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-search-case.api.ts",
@@ -220,7 +646,21 @@
           "coverage-search-case.api.ts",
           "Search-case support coverage",
           "FPL global search credentials keep the source-compatible baseline even when env vars are present"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Keep the FPL baseline when unrelated overrides are supplied.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-search-case.api.ts",
@@ -230,7 +670,21 @@
           "coverage-search-case.api.ts",
           "Search-case support coverage",
           "search-case alias users keep the source-compatible baseline even when env vars are present"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Keep search-user aliases on their source-compatible baseline.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-search-case.api.ts",
@@ -240,7 +694,21 @@
           "coverage-search-case.api.ts",
           "Search-case support coverage",
           "SOLICITOR resolves from the source-compatible default account when env vars are absent"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Resolve the default solicitor account without overrides.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-search-case.api.ts",
@@ -250,7 +718,21 @@
           "coverage-search-case.api.ts",
           "Search-case support coverage",
           "USER_WITH_FLAGS uses configured credentials when they are available"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Use explicit USER_WITH_FLAGS credentials when configured.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/coverage-session.api.ts",
@@ -260,7 +742,21 @@
           "coverage-session.api.ts",
           "Session and cookie utilities coverage",
           "UserUtils returns credentials for known users and errors on unknown"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Resolve known user identifiers and reject unknown identifiers.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/auth-journey-guardrails.unit.api.ts",
@@ -270,7 +766,21 @@
           "unit/auth-journey-guardrails.unit.api.ts",
           "auth journey guardrail replay",
           "classifies SSO entrypoint and post-auth role mismatch as separate central contracts"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth-replay",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Separate SSO-entry and post-auth role-mismatch replay categories.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/auth-journey-guardrails.unit.api.ts",
@@ -280,7 +790,21 @@
           "unit/auth-journey-guardrails.unit.api.ts",
           "auth journey guardrail replay",
           "resolves the historic broken outcomes and the fixed central outcomes"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth-replay",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Resolve historic and corrected authentication fixture outcomes.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/auth-journey-guardrails.unit.api.ts",
@@ -290,7 +814,21 @@
           "unit/auth-journey-guardrails.unit.api.ts",
           "auth journey guardrail replay",
           "fails if any replay scenario resolves to the wrong target outcome"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-auth-replay",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Reject a deliberately incorrect expected authentication replay outcome.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/dynamic-user.pure.unit.api.ts",
@@ -300,7 +838,21 @@
           "unit/dynamic-user.pure.unit.api.ts",
           "Dynamic user support unit tests: pure modules",
           "runtime user credentials registry normalizes identifiers"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Normalize runtime user aliases in the credential registry.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/dynamic-user.pure.unit.api.ts",
@@ -310,7 +862,21 @@
           "unit/dynamic-user.pure.unit.api.ts",
           "Dynamic user support unit tests: pure modules",
           "runtime user credential env publication mirrors dynamic aliases and restores previous env values"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Publish dynamic credential aliases to environment and restore prior values.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
@@ -320,7 +886,21 @@
           "unit/exui-toolkit-cya-contract.unit.api.ts",
           "EXUI-4493 toolkit CYA contract assertion",
           "passes when the installed toolkit exposes the required source markers and visible CYA rows"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-toolkit",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Accept fake toolkit markers and supplied CYA-row evidence.",
+          "limits": "Supplied marker/CYA-row evidence objects only; no installed toolkit, DOM or real case is exercised."
+        }
       },
       {
         "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
@@ -330,7 +910,21 @@
           "unit/exui-toolkit-cya-contract.unit.api.ts",
           "EXUI-4493 toolkit CYA contract assertion",
           "passes when the installed toolkit package is unavailable in the current workspace"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-toolkit",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Handle a missing installed toolkit package without claiming product execution.",
+          "limits": "Supplied marker/CYA-row evidence objects only; no installed toolkit, DOM or real case is exercised."
+        }
       },
       {
         "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
@@ -340,7 +934,21 @@
           "unit/exui-toolkit-cya-contract.unit.api.ts",
           "EXUI-4493 toolkit CYA contract assertion",
           "fails clearly when the installed toolkit bundle does not contain the EXUI-4493 context fix markers"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-toolkit",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Reject fake toolkit bytes missing required fix markers.",
+          "limits": "Supplied marker/CYA-row evidence objects only; no installed toolkit, DOM or real case is exercised."
+        }
       },
       {
         "file": "src/tests/api/unit/exui-toolkit-cya-contract.unit.api.ts",
@@ -350,7 +958,21 @@
           "unit/exui-toolkit-cya-contract.unit.api.ts",
           "EXUI-4493 toolkit CYA contract assertion",
           "fails clearly when nested complex CYA rows are not rendered"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-toolkit",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Reject supplied CYA-row evidence missing the required nested rows.",
+          "limits": "Supplied marker/CYA-row evidence objects only; no installed toolkit, DOM or real case is exercised."
+        }
       },
       {
         "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
@@ -360,7 +982,21 @@
           "unit/hearing-manager-user-pool.unit.api.ts",
           "Hearing manager user pool unit tests",
           "falls back to the legacy hearing manager users when no pooled users are configured"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Fall back to legacy hearing-manager aliases without a configured pool.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
@@ -370,7 +1006,21 @@
           "unit/hearing-manager-user-pool.unit.api.ts",
           "Hearing manager user pool unit tests",
           "returns only fully configured pooled users for the requested CR84 mode"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Use only complete pooled hearing-manager credentials for the chosen CR84 mode.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
@@ -380,7 +1030,21 @@
           "unit/hearing-manager-user-pool.unit.api.ts",
           "Hearing manager user pool unit tests",
           "selects configured CR84 ON pooled users by Playwright parallel index"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Choose the CR84-on identity by parallel index.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
@@ -390,7 +1054,21 @@
           "unit/hearing-manager-user-pool.unit.api.ts",
           "Hearing manager user pool unit tests",
           "honours an explicit zero parallel index over the environment fallback"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Honor explicit parallel index zero.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
@@ -400,7 +1078,21 @@
           "unit/hearing-manager-user-pool.unit.api.ts",
           "Hearing manager user pool unit tests",
           "tries the selected hearing manager before the remaining configured identities"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Try the selected hearing-manager identity before fallback pool entries.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
@@ -410,7 +1102,21 @@
           "unit/hearing-manager-user-pool.unit.api.ts",
           "Hearing manager user pool unit tests",
           "selects configured CR84 OFF pooled users by Playwright worker env when no source is passed"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Choose the CR84-off identity using worker environment.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/hearing-manager-user-pool.unit.api.ts",
@@ -420,7 +1126,21 @@
           "unit/hearing-manager-user-pool.unit.api.ts",
           "Hearing manager user pool unit tests",
           "keeps an already pooled user identifier unchanged"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Preserve an already resolved pooled identity.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -429,8 +1149,22 @@
           "",
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
-          "always keeps Odh\u00edn attachments external, even when embedding is requested"
-        ]
+          "always keeps Odhín attachments external, even when embedding is requested"
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Keep report attachments external.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -440,7 +1174,21 @@
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
           "normalizes test output mode inputs"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Normalize report output-mode settings.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -450,7 +1198,21 @@
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
           "normalizes runtime hook timeout inputs"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Normalize report hook timeout settings.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -460,7 +1222,21 @@
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
           "normalizes final status and final-attempt detection for grouped feature stats"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Classify final statuses and final attempts for grouped counts.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -470,7 +1246,21 @@
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
           "trims passed-test output and heavy artifacts in lightweight mode"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Trim passed-test output in lightweight mode.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -480,7 +1270,21 @@
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
           "keeps failure artifacts when only-on-failure mode is used"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Keep failure artifacts in failure-only mode.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -490,7 +1294,21 @@
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
           "times out stalled runtime hook promises"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Bound a stalled reporter hook promise.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-adaptive-reporter.unit.api.ts",
@@ -500,7 +1318,21 @@
           "unit/odhin-adaptive-reporter.unit.api.ts",
           "odhin adaptive reporter",
           "adaptive reporter bounds stalled runtime hooks and still reaches onEnd"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Complete reporter finalization despite a stalled runtime hook.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -510,7 +1342,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "derives feature names from Playwright file paths"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Derive feature labels from synthetic report file paths.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -520,7 +1366,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "normalizes and sorts grouped feature stats"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Normalize and sort grouped result statistics.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -530,7 +1390,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "replaces raw file summary blocks with inline grouped feature blocks"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Replace synthetic raw file summaries with grouped feature summaries.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -540,7 +1414,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "waits for DataTables rows before building harness slice summaries"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Wait for generated result rows before calculating slice summaries.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -550,7 +1438,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "renders compact feature summary cards when only one feature is present"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Render compact summaries for a single generated feature.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -560,7 +1462,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "feature overview block keeps feature distribution and outcome columns together"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Keep feature distribution and outcomes together in generated markup.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -570,7 +1486,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "feature overview uses balanced layout for medium feature counts"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Balance generated layout for a medium number of features.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/odhin-report-enhancer.unit.api.ts",
@@ -580,7 +1510,21 @@
           "unit/odhin-report-enhancer.unit.api.ts",
           "odhin report enhancer",
           "adds a Perfetto Results tab with the artifact link"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-reporting",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Add a Perfetto artifact link to generated report markup.",
+          "limits": "Reporter helpers and synthetic report content only; no application rendering or accessibility proof."
+        }
       },
       {
         "file": "src/tests/api/unit/prl-solicitor-user-pool.unit.api.ts",
@@ -590,7 +1534,21 @@
           "unit/prl-solicitor-user-pool.unit.api.ts",
           "PRL solicitor user pool unit tests",
           "returns configured PRL users in stable identifier order"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "List configured PRL pooled identities in stable order.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/prl-solicitor-user-pool.unit.api.ts",
@@ -600,7 +1558,21 @@
           "unit/prl-solicitor-user-pool.unit.api.ts",
           "PRL solicitor user pool unit tests",
           "selects configured PRL users by parallel index and preserves fallback"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Choose a PRL pooled identity by parallel index and preserve fallback.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -610,7 +1582,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "non-strict UI storage warm-up failure warns without aborting global setup"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Warn on an optional fake storage warm-up failure.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -620,7 +1606,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "strict UI storage warm-up failure still aborts required session setup"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Abort required setup after a strict fake storage warm-up failure.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -630,7 +1630,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "IDAM credential flow propagates navigation failures after submitting credentials"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Propagate a fake IDAM post-submit navigation failure.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -640,7 +1654,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "IDAM credential flow completes when navigation reaches DOMContentLoaded"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Accept the expected fake DOMContentLoaded navigation.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -650,7 +1678,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "session capture failure markers use the webapp cooldown and are cleared explicitly"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Write and clear session-capture cooldown markers.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -660,7 +1702,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "strict storage reuse refreshes when the cached state is no longer authenticated server-side"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Refresh cached storage when a fake server-auth check rejects it.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -670,7 +1726,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "storage path is keyed by the resolved runtime email, not just the alias"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Key storage paths by resolved email.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -680,7 +1750,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "integration session lookup falls back to latest metadata match for a user identifier"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Find the latest matching saved session metadata for an alias.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -690,7 +1774,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "local UI login targets do not fall back to AAT IDAM by default"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Avoid silently redirecting local login to AAT IDAM.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -700,7 +1798,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "transient browser and XUI-shell failures are classified for one fresh capture retry only"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Classify transient shell/browser errors for one fresh-capture retry.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/session-management.unit.api.ts",
@@ -710,7 +1822,21 @@
           "unit/session-management.unit.api.ts",
           "Session management hardening unit tests",
           "storage reuse refreshes when cached metadata belongs to a different resolved email for the same alias"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-session",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Refresh saved state when the alias now resolves to another email.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
@@ -720,7 +1846,21 @@
           "unit/staff-admin-user-pool.unit.api.ts",
           "Staff admin user pool unit tests",
           "falls back to the legacy staff admin user when no pooled users are configured"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Fall back to the legacy staff-admin identity without a pool.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
@@ -730,7 +1870,21 @@
           "unit/staff-admin-user-pool.unit.api.ts",
           "Staff admin user pool unit tests",
           "returns only fully configured pooled users"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Use only fully configured staff-admin pool entries.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
@@ -740,7 +1894,21 @@
           "unit/staff-admin-user-pool.unit.api.ts",
           "Staff admin user pool unit tests",
           "keeps the legacy staff admin user unless the pool is explicitly enabled"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Keep the legacy identity unless pooling is explicitly enabled.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
@@ -750,7 +1918,21 @@
           "unit/staff-admin-user-pool.unit.api.ts",
           "Staff admin user pool unit tests",
           "selects configured pooled users by Playwright parallel index"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Select a staff-admin identity by parallel index.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
@@ -760,7 +1942,21 @@
           "unit/staff-admin-user-pool.unit.api.ts",
           "Staff admin user pool unit tests",
           "keeps non-staff-admin user identifiers unchanged"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Preserve non-staff-admin identifiers.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
@@ -770,7 +1966,21 @@
           "unit/staff-admin-user-pool.unit.api.ts",
           "Staff admin user pool unit tests",
           "creates an explicit legacy staff admin session identity that bypasses pool resolution"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Build an explicit legacy session identity that bypasses pool resolution.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       },
       {
         "file": "src/tests/api/unit/staff-admin-user-pool.unit.api.ts",
@@ -780,7 +1990,21 @@
           "unit/staff-admin-user-pool.unit.api.ts",
           "Staff admin user pool unit tests",
           "routes legacy STAFF_ADMIN session identity through the configured pool"
-        ]
+        ],
+        "metadata": {
+          "slice": "support-identities",
+          "services": [
+            "Shared Harness"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Resolve the legacy STAFF_ADMIN alias through the configured pool.",
+          "limits": "Harness helper check with test-owned inputs; no live service, case or authentication proof."
+        }
       }
     ],
     "model": [
@@ -792,7 +2016,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "scenario manifest keeps must-run lanes, planned lanes, and canaries explicit"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-catalogue",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Check that the scenario catalogue explicitly separates required, planned and canary work.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -802,7 +2064,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "source-truth snapshot matches the executable assurance harness manifest constants"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-catalogue",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Compare retained Harness constants with the checked-in source snapshot.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -812,7 +2112,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "service-definition source profiles classify configured families and preserve required gaps"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-catalogue",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Check source-profile classification and preserve the unresolved PCS definition gap.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -822,7 +2160,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "coverage decisions classify every configured family and fail for synthetic unknown service families"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-catalogue",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Require every configured family to have a documented decision; reject an unknown family.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -832,7 +2208,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "historic SRT failure classes distinguish supporting diagnostics from product proof"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Keep historical incident classifications separate from current product proof.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -842,7 +2232,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "defect intake rules route new EXUI findings to the right harness work type"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Route example defect descriptions to the appropriate follow-up work.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -852,7 +2256,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "catalogue diagnostic preserves source metadata without release approval"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Preserve catalogue metadata and warnings without approving a candidate release.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -862,7 +2280,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "owner slice catalogue exposes the service-family action list"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Build an owner action list from service-family metadata.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -872,7 +2328,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "release evidence summary joins verdict, owner slices, and intake routes"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Join catalogue verdicts, owner actions and defect-intake routes into a summary.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -882,7 +2352,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "release evidence proof lanes do not allow explicit skip calls or serial coupling"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Check that declared proof source files contain no explicit skips or serial coupling.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -892,7 +2376,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "release assurance verdict fails when a configured family is not classified or profiled"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Reject catalogue verdicts with an unclassified or unprofiled family.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -902,7 +2424,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "complete catalogue metadata cannot approve a current candidate release"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-assurance",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Prevent complete catalogue metadata from granting candidate release approval.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -912,7 +2472,22 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "employment service pack has executable service-code and ref-data contracts"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "EMPLOYMENT"
+          ],
+          "jurisdictions": [
+            "EMPLOYMENT"
+          ],
+          "caseTypes": [
+            "ET_EnglandWales",
+            "ET_Scotland"
+          ],
+          "behaviour": "Check Employment BHA1 service code and England/Wales and Scotland case-type metadata.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -922,7 +2497,22 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "ia hearings routing pack has executable Asylum and Bail contracts"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "IA"
+          ],
+          "jurisdictions": [
+            "IA"
+          ],
+          "caseTypes": [
+            "Asylum",
+            "Bail"
+          ],
+          "behaviour": "Check IA BFA1 service code and Asylum/Bail hearing case-type metadata.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -932,7 +2522,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "civil release service pack has executable hearings and service-code contracts"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "CIVIL"
+          ],
+          "jurisdictions": [
+            "CIVIL"
+          ],
+          "caseTypes": [
+            "CIVIL"
+          ],
+          "behaviour": "Check Civil AAA6/AAA7 service codes, CIVIL hearings and CREATE_CLAIM event metadata.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -942,7 +2546,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "st cic release service pack has executable WA and service-code contracts"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "CriminalInjuriesCompensation"
+          ],
+          "behaviour": "Check ST_CIC BBA2 service code and membership in search, WA and staff metadata.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -952,7 +2570,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "probate grouped service pack has executable staff and service-code contracts"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "PROBATE"
+          ],
+          "jurisdictions": [
+            "PROBATE"
+          ],
+          "caseTypes": [
+            "GrantOfRepresentation"
+          ],
+          "behaviour": "Check Probate ABA6 service code, staff/search inclusion and WA exclusion.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -962,7 +2594,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "scenario manifest is wiki-ready and traceable to source repositories"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-catalogue",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Check unique scenario IDs and nonempty source-repository references.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -972,7 +2642,45 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "service-family sets are normalised, labelled, and non-overlapping with canaries"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-catalogue",
+          "services": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "jurisdictions": [
+            "CIVIL",
+            "CMC",
+            "DIVORCE",
+            "EMPLOYMENT",
+            "FR",
+            "HRS",
+            "IA",
+            "PCS",
+            "PRIVATELAW",
+            "PROBATE",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Check family normalization, labels and exclusion of canary families.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -982,7 +2690,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "UI availability probe identifies service-unavailable statuses without hiding 500s"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-capabilities",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Classify fake 200/500/502/503/504 and socket-failure results without hiding a 500.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -992,7 +2714,33 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "static WA-supported family mutation proof catches a shared WA family regression"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-capabilities",
+          "services": [
+            "IA",
+            "CIVIL",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "EMPLOYMENT",
+            "ST_CIC",
+            "PCS"
+          ],
+          "jurisdictions": [
+            "IA",
+            "CIVIL",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "EMPLOYMENT",
+            "ST_CIC",
+            "PCS"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Compare a local WA-family array with the expected set; an enabled demo mutation removes membership.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed. Mutation detection requires the separately enabled demo fault."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -1002,7 +2750,43 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "static staff-supported family mutation proof catches a Probate staff family regression"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-capabilities",
+          "services": [
+            "ST_CIC",
+            "CIVIL",
+            "EMPLOYMENT",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "IA",
+            "SSCS",
+            "DIVORCE",
+            "FR",
+            "PROBATE",
+            "HRS",
+            "PCS"
+          ],
+          "jurisdictions": [
+            "ST_CIC",
+            "CIVIL",
+            "EMPLOYMENT",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "IA",
+            "SSCS",
+            "DIVORCE",
+            "FR",
+            "PROBATE",
+            "HRS",
+            "PCS"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Compare a local staff-family array with the expected set; an enabled demo mutation removes Probate.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed. Mutation detection requires the separately enabled demo fault."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -1012,7 +2796,43 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "staff-supported contract permits deployment additions but rejects missing central families"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-capabilities",
+          "services": [
+            "ST_CIC",
+            "CIVIL",
+            "EMPLOYMENT",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "IA",
+            "SSCS",
+            "DIVORCE",
+            "FR",
+            "PROBATE",
+            "HRS",
+            "PCS"
+          ],
+          "jurisdictions": [
+            "ST_CIC",
+            "CIVIL",
+            "EMPLOYMENT",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "IA",
+            "SSCS",
+            "DIVORCE",
+            "FR",
+            "PROBATE",
+            "HRS",
+            "PCS"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Allow extra deployment staff families but reject each missing required central family.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -1022,7 +2842,22 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "employment service-code mutation proof catches a missing BHA1 mapping"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "EMPLOYMENT"
+          ],
+          "jurisdictions": [
+            "EMPLOYMENT"
+          ],
+          "caseTypes": [
+            "ET_EnglandWales",
+            "ET_Scotland"
+          ],
+          "behaviour": "Check the local Employment BHA1 mapping, including the optional demo omission.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed. Mutation detection requires the separately enabled demo fault."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -1032,7 +2867,22 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "ia hearings routing mutation proof catches a missing Bail case type"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "IA"
+          ],
+          "jurisdictions": [
+            "IA"
+          ],
+          "caseTypes": [
+            "Asylum",
+            "Bail"
+          ],
+          "behaviour": "Check the local IA Asylum/Bail mapping, including the optional demo Bail omission.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed. Mutation detection requires the separately enabled demo fault."
+        }
       },
       {
         "file": "src/tests/api/exui-central-assurance.api.ts",
@@ -1042,7 +2892,21 @@
           "src/tests/api/exui-central-assurance.api.ts",
           "EXUI assurance harness central assurance POC",
           "civil hearings service pack mutation proof catches a missing Civil case type"
-        ]
+        ],
+        "metadata": {
+          "slice": "model-service-packs",
+          "services": [
+            "CIVIL"
+          ],
+          "jurisdictions": [
+            "CIVIL"
+          ],
+          "caseTypes": [
+            "CIVIL"
+          ],
+          "behaviour": "Check the local Civil hearing mapping, including the optional demo CIVIL omission.",
+          "limits": "Local source/catalogue metadata only; listed services and case types are not executed. Mutation detection requires the separately enabled demo fault."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1052,7 +2916,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "Private Law replay pack is anchored to current central-assurance config"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-case-data",
+          "services": [
+            "PRIVATELAW"
+          ],
+          "jurisdictions": [
+            "PRIVATELAW"
+          ],
+          "caseTypes": [
+            "PRLAPPS"
+          ],
+          "behaviour": "Check that the PRL replay fixture remains anchored to PRLAPPS and ABA5 metadata.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1062,7 +2940,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "Civil CREATE_CLAIM replay preserves source-backed event data integrity"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-case-data",
+          "services": [
+            "CIVIL"
+          ],
+          "jurisdictions": [
+            "CIVIL"
+          ],
+          "caseTypes": [
+            "CIVIL"
+          ],
+          "behaviour": "Check a local Civil CREATE_CLAIM fixture and its required fields/state.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1072,7 +2964,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "Civil CREATE_CLAIM mutation proof catches a dropped required event field"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-case-data",
+          "services": [
+            "CIVIL"
+          ],
+          "jurisdictions": [
+            "CIVIL"
+          ],
+          "caseTypes": [
+            "CIVIL"
+          ],
+          "behaviour": "When explicitly selected, reject a local Civil fixture with courtLocation removed.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations. Callback returns without its mutation assertion unless EXUI_ASSURANCE_MUTATION=drop-civil-create-claim-field; default PASS is not a negative witness."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1082,7 +2988,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "manage-case data-integrity replay keeps hidden complex data and drops stale hidden-page data"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-case-data",
+          "services": [
+            "PRIVATELAW"
+          ],
+          "jurisdictions": [
+            "PRIVATELAW"
+          ],
+          "caseTypes": [
+            "PRLAPPS"
+          ],
+          "behaviour": "Build local submit/CYA projections retaining hidden complex values and removing stale hidden-page data.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1092,7 +3012,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "EXUI-4493 config-driven replay keeps nested complex FieldShowCondition values on CYA"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-case-data",
+          "services": [
+            "PRIVATELAW"
+          ],
+          "jurisdictions": [
+            "PRIVATELAW"
+          ],
+          "caseTypes": [
+            "PRLAPPS"
+          ],
+          "behaviour": "Project source-shaped PRL nested email values into local CYA rows.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1102,7 +3036,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "work-allocation replay covers null-service roles, persona tabs, locations, and task correlation"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-wa-search",
+          "services": [
+            "PRIVATELAW"
+          ],
+          "jurisdictions": [
+            "PRIVATELAW"
+          ],
+          "caseTypes": [
+            "PRLAPPS"
+          ],
+          "behaviour": "Resolve local role assignments, tabs, locations and task/event correlation from fixtures.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations. Null-service fixture resolution also references the seven configured WA families; count remains one callback."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1112,7 +3060,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "CCD search/workbasket metadata replay keeps service-owned definition changes inside the EXUI contract"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-wa-search",
+          "services": [
+            "PRIVATELAW"
+          ],
+          "jurisdictions": [
+            "PRIVATELAW"
+          ],
+          "caseTypes": [
+            "PRLAPPS"
+          ],
+          "behaviour": "Check local PRL search/workbasket metadata retains the required case-reference search input.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1122,7 +3084,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "protected endpoint replay rejects anonymous staff-data exposure"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-access",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Check synthetic anonymous endpoint response examples do not expose sensitive staff fields.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1132,7 +3108,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "event-history replay gates external users and keeps embedded component layout usable"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-access",
+          "services": [
+            "PRIVATELAW"
+          ],
+          "jurisdictions": [
+            "PRIVATELAW"
+          ],
+          "caseTypes": [
+            "PRLAPPS"
+          ],
+          "behaviour": "Check local event-history role decisions and numerical embedded-layout bounds.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1142,7 +3132,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "auth journey replay covers SSO login-hint and post-auth role-mismatch guardrails"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-access",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Compare fixture-based historic and corrected SSO-entry/role-mismatch outcomes.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1152,7 +3156,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "event-start spinner and IDAM/passport smoke contracts are executable"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-boundaries",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Check supplied spinner timing numbers and session-status/cookie fixture values.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       },
       {
         "file": "src/tests/api/exui-historic-replay-packs.api.ts",
@@ -1162,7 +3180,21 @@
           "src/tests/api/exui-historic-replay-packs.api.ts",
           "EXUI historic SRT replay packs",
           "historic replay status describes supporting checks without product coverage credit"
-        ]
+        ],
+        "metadata": {
+          "slice": "replay-boundaries",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "Prevent historical replay classifications from claiming current product coverage.",
+          "limits": "Historical fixture projection only; listed cases, roles and timing values are not actual application/CCD observations."
+        }
       }
     ],
     "environment": [
@@ -1174,7 +3206,21 @@
           "src/tests/harness/diagnostic/configuration.spec.ts",
           "Harness environment configuration diagnostics",
           "external UI configuration exposes the expected EXUI keys"
-        ]
+        ],
+        "metadata": {
+          "slice": "live-config",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "GET /external/config/ui returns 200 and exposes eight required configuration keys.",
+          "limits": "Live AAT GET diagnostic only, using the reviewed AAT profile; no per-service workflow, case or immutable-candidate release proof."
+        }
       },
       {
         "file": "src/tests/harness/diagnostic/configuration.spec.ts",
@@ -1184,7 +3230,21 @@
           "src/tests/harness/diagnostic/configuration.spec.ts",
           "Harness environment configuration diagnostics",
           "api/configuration exposes selected feature flag values"
-        ]
+        ],
+        "metadata": {
+          "slice": "live-config",
+          "services": [
+            "Shared EXUI"
+          ],
+          "jurisdictions": [
+            "Not case-specific"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "GET /api/configuration returns 200 and a boolean/string terms-and-conditions setting.",
+          "limits": "Live AAT GET diagnostic only, using the reviewed AAT profile; no per-service workflow, case or immutable-candidate release proof."
+        }
       },
       {
         "file": "src/tests/harness/diagnostic/configuration.spec.ts",
@@ -1194,7 +3254,35 @@
           "src/tests/harness/diagnostic/configuration.spec.ts",
           "Harness environment configuration diagnostics",
           "api/globalSearch/services contains the central must-run service-family set"
-        ]
+        ],
+        "metadata": {
+          "slice": "live-search",
+          "services": [
+            "IA",
+            "CIVIL",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC",
+            "EMPLOYMENT",
+            "PCS"
+          ],
+          "jurisdictions": [
+            "IA",
+            "CIVIL",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "SSCS",
+            "ST_CIC",
+            "EMPLOYMENT",
+            "PCS"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "GET /api/globalSearch/services returns 200, nonempty service labels and the reviewed eight-family AAT set.",
+          "limits": "Live AAT GET diagnostic only, using the reviewed AAT profile; no per-service workflow, case or immutable-candidate release proof."
+        }
       },
       {
         "file": "src/tests/harness/diagnostic/configuration.spec.ts",
@@ -1204,7 +3292,35 @@
           "src/tests/harness/diagnostic/configuration.spec.ts",
           "Harness environment configuration diagnostics",
           "api/wa-supported-jurisdiction/get contains the central WA must-run family set"
-        ]
+        ],
+        "metadata": {
+          "slice": "live-capabilities",
+          "services": [
+            "IA",
+            "CIVIL",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "EMPLOYMENT",
+            "SSCS",
+            "ST_CIC",
+            "PCS"
+          ],
+          "jurisdictions": [
+            "IA",
+            "CIVIL",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "EMPLOYMENT",
+            "SSCS",
+            "ST_CIC",
+            "PCS"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "GET /api/wa-supported-jurisdiction/get returns 200 and the reviewed eight-family AAT set.",
+          "limits": "Live AAT GET diagnostic only, using the reviewed AAT profile; no per-service workflow, case or immutable-candidate release proof."
+        }
       },
       {
         "file": "src/tests/harness/diagnostic/configuration.spec.ts",
@@ -1214,7 +3330,43 @@
           "src/tests/harness/diagnostic/configuration.spec.ts",
           "Harness environment configuration diagnostics",
           "api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set"
-        ]
+        ],
+        "metadata": {
+          "slice": "live-capabilities",
+          "services": [
+            "ST_CIC",
+            "CIVIL",
+            "EMPLOYMENT",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "IA",
+            "SSCS",
+            "DIVORCE",
+            "FR",
+            "PROBATE",
+            "HRS",
+            "PCS"
+          ],
+          "jurisdictions": [
+            "ST_CIC",
+            "CIVIL",
+            "EMPLOYMENT",
+            "PRIVATELAW",
+            "PUBLICLAW",
+            "IA",
+            "SSCS",
+            "DIVORCE",
+            "FR",
+            "PROBATE",
+            "HRS",
+            "PCS"
+          ],
+          "caseTypes": [
+            "Not case-specific"
+          ],
+          "behaviour": "GET /api/staff-supported-jurisdiction/get returns 200 and the reviewed twelve-family AAT set.",
+          "limits": "Live AAT GET diagnostic only, using the reviewed AAT profile; no per-service workflow, case or immutable-candidate release proof."
+        }
       }
     ]
   }

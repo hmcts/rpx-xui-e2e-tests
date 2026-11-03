@@ -1,3 +1,4 @@
+import { provisionRoleTransitionActor } from "./lib/exui-ccd-role-transition.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -115,15 +116,20 @@ async function providers(input, invocation, directory) {
       input.definition.observedDefinitionDigest,
       "CCD_IMPORTED_DEFINITION_DRIFT",
     );
-    const sessions = seedAppCcdSessions(input.credentials, seedCcdSession);
+    const credentials = { ...input.credentials };
+    if (!invocation.mutation || invocation.mutation === "ccd-stale-revoked-bearer")
+      credentials.transitioning = await provisionRoleTransitionActor({
+        serviceAuthorization: input.credentials.allowed.headers.ServiceAuthorization,
+      });
+    const sessions = seedAppCcdSessions(credentials, seedCcdSession);
     cookie = sessions.allowed;
     writeJsonAtomic(path.join(directory, "personas.json"), {
-      credentials: input.credentials,
+      credentials,
       sessions,
     });
     server = await startCcdGateway(
       directory,
-      input.credentials,
+      credentials,
       invocation.mutation ?? null,
     );
   } else {
@@ -203,7 +209,9 @@ async function proof(input, invocation, directory) {
   ];
   if (ccd && invocation.mutation)
     args.push(
-      invocation.mutation === "ccd-drop-postal-optional-child"
+      invocation.mutation === "ccd-stale-revoked-bearer"
+        ? "role-revocation.spec.ts"
+        : invocation.mutation === "ccd-drop-postal-optional-child"
         ? "postal-conditional.spec.ts"
         : invocation.mutation === "ccd-drop-child"
           ? "nested-conditional.spec.ts"

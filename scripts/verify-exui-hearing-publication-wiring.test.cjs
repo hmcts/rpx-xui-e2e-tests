@@ -20,7 +20,7 @@ const SOURCE_FILES = [
   'src/tests/harness/routing/create-entry.spec.ts', 'src/tests/harness/routing/noc-cache.spec.ts',
   'src/fixtures/harnessCcd.ts', 'src/tests/harness/wa/family-scope.spec.ts',
   'src/tests/harness/scope/organisation-case.spec.ts', 'src/tests/harness/ccd/nested-conditional.spec.ts',
-  'src/tests/harness/ccd/case-event-policy.spec.ts', 'src/tests/harness/ccd/postal-conditional.spec.ts',
+  'src/tests/harness/ccd/case-event-policy.spec.ts', 'src/tests/harness/ccd/role-revocation.spec.ts', 'src/tests/harness/ccd/postal-conditional.spec.ts',
   'scripts/run-harness-candidate.mjs', 'scripts/run-harness-ccd-candidate.mjs',
   'scripts/run-harness-native-tools.mjs', 'scripts/prepare-harness-scope-mutant.mjs',
   'scripts/prepare-harness-hearing-mutant.mjs', 'scripts/lib/exui-hearing-publication-mutation.mjs',
@@ -41,7 +41,7 @@ const SOURCE_FILES = [
   'scripts/lib/exui-harness-dependencies.mjs', 'scripts/lib/exui-external-evidence.mjs',
   'scripts/lib/exui-playwright-evidence-reporter.mjs', 'scripts/lib/exui-release-evidence.mjs',
   'scripts/lib/exui-release-policy.mjs', 'scripts/lib/exui-oci-runtime.mjs',
-  'scripts/lib/exui-ccd-runtime.mjs', 'scripts/lib/exui-ccd-browser-runtime.mjs',
+  'scripts/lib/exui-ccd-role-transition.mjs', 'scripts/lib/exui-ccd-runtime.mjs', 'scripts/lib/exui-ccd-browser-runtime.mjs',
 ];
 
 function temporary(t, prefix) {
@@ -137,7 +137,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 64);
+  assert.equal(SOURCE_FILES.length, 66);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

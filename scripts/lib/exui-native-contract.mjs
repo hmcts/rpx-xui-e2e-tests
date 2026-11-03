@@ -57,6 +57,7 @@ const slices = {
   "exui-ccd-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     ...[
+      "ccd-stale-revoked-bearer",
       "ccd-drop-child",
       "ccd-broaden-access",
       "ccd-write-then-deny",
@@ -148,7 +149,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
 }
 export function seedAppCcdSessions(credentials, seed) {
   return Object.fromEntries(
-    ["allowed", "denied"].map((persona) => {
+    ["allowed", "denied", ...(credentials.transitioning ? ["transitioning"] : [])].map((persona) => {
       assert(credentials[persona], "CCD_APP_PERSONA_REQUIRED");
       return [persona, seed(persona, credentials[persona])];
     }),

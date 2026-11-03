@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   test as base,
   expect,
   type APIRequestContext,
   type Page,
+  type PlaywrightWorkerArgs,
 } from "@playwright/test";
 
 import {
@@ -14,17 +16,94 @@ import {
   loadCandidateManifest,
 } from "../harness/candidate";
 
-interface Credential {
+export interface Credential {
   userId: string;
   email: string;
+  roles?: string[];
   headers: Record<string, string>;
 }
 export interface CcdPersonas {
-  credentials: Record<"allowed" | "denied" | "observer", Credential>;
+  credentials: Record<"allowed" | "denied" | "observer", Credential> & {
+    transitioning?: Credential;
+  };
   sessions: Record<string, string>;
 }
 export const ccdPersonas = (): CcdPersonas =>
   JSON.parse(fs.readFileSync(process.env.EXUI_CCD_PERSONAS!, "utf8"));
+export async function ccdSessionRequest(
+  playwright: PlaywrightWorkerArgs["playwright"],
+  cookie: string,
+) {
+  if (!cookie) throw new Error("CCD_SESSION_REQUIRED");
+  return playwright.request.newContext({
+    baseURL: "http://127.0.0.1:3100",
+    extraHTTPHeaders: {
+      "content-type": "application/json",
+      accept: "application/json",
+    },
+    storageState: {
+      cookies: [
+        {
+          name: "xui-webapp",
+          value: cookie,
+          domain: "127.0.0.1",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: false,
+          sameSite: "Lax",
+        },
+      ],
+      origins: [],
+    },
+  });
+}
+export async function renewRevokedCcdActor(caseId: string) {
+  const initial = ccdPersonas().credentials.transitioning;
+  if (!initial) throw new Error("CCD_TRANSITION_INITIAL_ACTOR_REQUIRED");
+  // Tools-only modules are in the curated Harness closure. No identity-admin route is exposed by the gateway.
+  const runtime = await import(
+    pathToFileURL(path.resolve("scripts/lib/exui-ccd-browser-runtime.mjs")).href
+  );
+  const identity = await import(
+    pathToFileURL(path.resolve("scripts/lib/exui-ccd-role-transition.mjs")).href
+  );
+  const { credential, observations } =
+    await identity.revokeRoleTransitionActor(initial);
+  const record = identity.roleTransitionRecord(initial, credential, caseId);
+  const evidence = await import(
+    pathToFileURL(path.resolve("scripts/lib/exui-evidence-io.mjs")).href
+  );
+  const transitionPath = `${process.env.EXUI_CCD_EVIDENCE}/role-transition.json`;
+  if (fs.existsSync(transitionPath))
+    throw new Error("CCD_TRANSITION_ALREADY_RECORDED");
+  evidence.writeJsonAtomic(transitionPath, record);
+  const cookie = runtime.seedCcdSession("transitioning-renewed", credential);
+  return {
+    credential: credential as Credential,
+    observations,
+    cookie: cookie as string,
+  };
+}
+export async function observeActorCcdRead(
+  caseId: string,
+  credential: Credential,
+) {
+  if (!/^\d{16}$/.test(caseId)) throw new Error("SYNTHETIC_CASE_ID_REQUIRED");
+  const response = await fetch(
+    `http://127.0.0.1:4452/internal/cases/${caseId}`,
+    {
+      headers: {
+        ...credential.headers,
+        accept:
+          "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-case-view.v2+json",
+        experimental: "true",
+      },
+      redirect: "error",
+    },
+  );
+  return { status: response.status, body: await response.text() };
+}
 export async function submitCcdCreate(page: Page) {
   const submitted = page.waitForResponse(
     (response) =>

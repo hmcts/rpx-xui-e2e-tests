@@ -2,6 +2,14 @@
 
 Full EXUI release approval remains unavailable. Supporting checks and a passing bounded pilot cannot substitute for the source/runtime/owner obligations below.
 
+## Follow-up after PR #254
+
+PR #254 established the Harness foundation. This follow-up changes the single Odhín diagnostic report to map 121 checks to four evidence lanes and 18 slices, including exact test behaviours, jurisdictions and case types. A fresh local collection passed 116 support/model checks and all five AAT GET probes. The AAT oracle uses the pinned deployment declaration's exact eight Global Search, eight WA and twelve staff families; the previous default-profile mismatch remains preserved in its original failed evidence. AAT agreement does not identify the deployed build.
+
+The completed native run from `16fc440` passed the family and organisation/case scope policies and remained BLOCKED at `postal-required-fields`. All 27 owned containers were removed, receipt replay matched, wrong candidate identities were rejected and input seals were unchanged. These outcomes retain that source revision and its policy; they are not results for the later role-removal addition.
+
+Runtime acceptance must execute the new required role-removal baseline and stale-bearer fault against CCD, then incorporate validated native outcomes into the same report with their own source/run identities. Support controls alone do not prove role removal, immediate stale-session revocation, real OIDC login or production authorization. Postal repair, native Jenkins acceptance, durable private evidence storage and promotion integration remain open below. Merge requires passing CI for the final commit and human review; it does not approve an EXUI release.
+
 ## Postal mandatory-child constraint
 
 The clean Harness `c024fa3` run against sealed webapp `76bf7a840fa71af466961de87294973023b2f0f3` / toolkit `7.4.21` ended BLOCKED. Family and organisation/case scope policies passed; the postal baseline failed at `postal-required-fields`.

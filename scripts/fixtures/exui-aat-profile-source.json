@@ -1,0 +1,24 @@
+{
+  "repository": "hmcts/cnp-flux-config",
+  "revision": "a88143b0bcb815056f7abdb41d1911ccb3144b5d",
+  "path": "apps/xui/xui-webapp/aat.yaml",
+  "gitBlob": "18576e25916490f75fd8c5fa95863e78cd53a472",
+  "fileDigest": "99e6fa615a8c4b67579eb51375f60dd1fb251cb4412eb14305fa99f3679707c5",
+  "environment": {
+    "GLOBAL_SEARCH_SERVICES": {
+      "present": true,
+      "line": 32,
+      "value": "IA,CIVIL,PRIVATELAW,PUBLICLAW,SSCS,ST_CIC,EMPLOYMENT,PCS"
+    },
+    "WA_SUPPORTED_JURISDICTIONS": {
+      "present": true,
+      "line": 26,
+      "value": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,SSCS,ST_CIC,PCS"
+    },
+    "STAFF_SUPPORTED_JURISDICTIONS": {
+      "present": true,
+      "line": 22,
+      "value": "ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS"
+    }
+  }
+}
