@@ -93,6 +93,108 @@ test('artifact loading verifies digests and refuses traversal and resolved symli
 const { writeRunBundle } = require('./fixtures/exui-evidence-bundle.mock.cjs');
 const policy = async () => (await import(moduleUrl('exui-release-policy.mjs'))).getReleasePolicy('exui-wa-family-pilot');
 
+async function summaryBundle(directory, status = 'PASS') {
+  const { getReleasePolicy } = await import(moduleUrl('exui-release-policy.mjs'));
+  const releasePolicy = getReleasePolicy(status === 'FAIL' ? 'exui-wa-scope-pilot' : 'exui-wa-family-pilot');
+  let bundle;
+  if (status === 'FAIL') {
+    const source = writeRunBundle(directory, releasePolicy);
+    const report = structuredClone(source.baselineReport);
+    report.status = 'failed';
+    report.tests.push({ ...report.tests[0], proofId: 'wa-org-scope-civil', status: 'failed', failureId: 'organisation-scope' });
+    bundle = writeRunBundle(directory, releasePolicy, { baselineReport: report, baselineExit: 1 });
+  } else bundle = writeRunBundle(directory, releasePolicy, status === 'BLOCKED' ? { runtimeMetadata: { harnessSourceState: 'dirty-diagnostic' } } : {});
+  const evaluated = (await evidence()).loadRunEvidence(bundle.runPath, releasePolicy).receipt;
+  assert.equal(evaluated.verdict.status, status, 'the raw bundle must reach the intended evaluator outcome');
+  return { ...bundle, receipt: evaluated };
+}
+
+function summaryChild(directory, runPath, fault = null) {
+  directory = fs.realpathSync(directory);
+  runPath = fs.realpathSync(runPath);
+  const publicPath = path.join(directory, 'functional-output/tests/harness/public/release-assurance-summary.json');
+  const gatePath = path.join(path.dirname(runPath), 'gate.json');
+  const events = path.join(directory, 'publication-events.jsonl');
+  const preload = path.join(directory, 'publication-probe.cjs');
+  fs.writeFileSync(preload, `const fs=require('node:fs');const path=require('node:path');const rename=fs.renameSync;fs.renameSync=function(from,to){const destination=path.resolve(String(to));const publicFile=${JSON.stringify(publicPath)};const gateFile=${JSON.stringify(gatePath)};if(destination!==publicFile&&destination!==gateFile)return rename.call(this,from,to);const value=JSON.parse(fs.readFileSync(from,'utf8'));const kind=destination===publicFile?'public':'gate';const status=kind==='public'?value.status:value.verdict.status;fs.appendFileSync(${JSON.stringify(events)},JSON.stringify({kind,status})+'\\n');if(${JSON.stringify(fault)}==='public-pass'&&kind==='public'&&status==='PASS')throw Error('synthetic-publication-secret-canary');const result=rename.call(this,from,to);if(${JSON.stringify(fault)}==='gate-after-rename'&&kind==='gate')throw Error('synthetic-publication-secret-canary');return result;};`);
+  const child = spawnSync(process.execPath, ['--require', preload, cli, '--run', runPath], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH } });
+  assert.equal(child.error, undefined);
+  assert.doesNotMatch(child.stdout + child.stderr, /synthetic-publication-secret-canary/);
+  return { child, gatePath, publicPath, events: fs.existsSync(events) ? fs.readFileSync(events, 'utf8').trim().split('\n').map(JSON.parse) : [] };
+}
+
+test('summary publication failure cannot leave a new gate PASS or stale public PASS', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-summary-public-fault-'));
+  try {
+    const bundle = await summaryBundle(directory);
+    const io = await evidence();
+    io.writeJsonAtomic(path.join(directory, 'gate.json'), bundle.receipt);
+    io.writePublicSummary(path.join(directory, 'functional-output/tests/harness/public/release-assurance-summary.json'), bundle.receipt.verdict, true);
+    const result = summaryChild(directory, bundle.runPath, 'public-pass');
+    assert.equal(result.child.status, 2, result.child.stderr);
+    assert.equal(fs.existsSync(result.gatePath), false, 'failed publication must withdraw every PASS receipt');
+    assert.equal(io.validatePublicSummary(result.publicPath).status, 'BLOCKED');
+    assert.equal(io.validatePublicSummary(result.publicPath).receiptAvailable, false);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+for (const status of ['PASS', 'FAIL', 'BLOCKED']) test('summary CLI finalizes evaluator/public/machine parity for ' + status + ' with the machine receipt last', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-summary-parity-'));
+  try {
+    const bundle = await summaryBundle(directory, status);
+    const result = summaryChild(directory, bundle.runPath);
+    assert.equal(result.child.status, bundle.receipt.verdict.exitCode, result.child.stderr);
+    assert.deepEqual(JSON.parse(fs.readFileSync(result.gatePath)), bundle.receipt);
+    const summary = (await evidence()).validatePublicSummary(result.publicPath);
+    assert.equal(summary.status, status);
+    assert.equal(summary.receiptAvailable, true);
+    assert.deepEqual(result.events, [{ kind: 'public', status: 'BLOCKED' }, { kind: 'public', status }, { kind: 'gate', status }]);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('late receipt write failure retracts an already renamed PASS and restores safe public BLOCKED', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-summary-gate-fault-'));
+  try {
+    const bundle = await summaryBundle(directory);
+    const result = summaryChild(directory, bundle.runPath, 'gate-after-rename');
+    assert.equal(result.child.status, 2);
+    assert.equal(fs.existsSync(result.gatePath), false);
+    const summary = (await evidence()).validatePublicSummary(result.publicPath);
+    assert.equal(summary.status, 'BLOCKED');
+    assert.equal(summary.receiptAvailable, false);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('invalid rerun withdraws a prior PASS receipt and public artifact before evidence parsing', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-summary-stale-'));
+  try {
+    const bundle = await summaryBundle(directory);
+    assert.equal(summaryChild(directory, bundle.runPath).child.status, 0);
+    fs.writeFileSync(bundle.runPath, '{"private":"synthetic-publication-secret-canary"');
+    const result = summaryChild(directory, bundle.runPath);
+    assert.equal(result.child.status, 2);
+    assert.equal(fs.existsSync(result.gatePath), false);
+    const summary = (await evidence()).validatePublicSummary(result.publicPath);
+    assert.equal(summary.status, 'BLOCKED');
+    assert.equal(summary.receiptAvailable, false);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('unsupported argument sets cannot claim ownership of a supplied receipt path', async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-summary-arguments-'));
+  try {
+    const bundle = await summaryBundle(directory);
+    const io = await evidence();
+    const gatePath = path.join(directory, 'gate.json');
+    io.writeJsonAtomic(gatePath, bundle.receipt);
+    const original = fs.readFileSync(gatePath);
+    const child = spawnSync(process.execPath, [cli, '--run', bundle.runPath, '--unsupported'], { cwd: directory, encoding: 'utf8', env: { PATH: process.env.PATH } });
+    assert.equal(child.status, 2);
+    assert.deepEqual(fs.readFileSync(gatePath), original);
+    assert.equal(io.validatePublicSummary(path.join(directory, 'functional-output/tests/harness/public/release-assurance-summary.json')).status, 'BLOCKED');
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('summary recomputation cannot turn dirty source evidence into approval or relabel its raw provenance', async () => {
   const { loadRunEvidence } = await evidence();
   const releasePolicy = await policy();
