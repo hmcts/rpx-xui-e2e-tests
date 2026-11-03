@@ -72,6 +72,19 @@ yarn harness:candidate:oci --candidate /absolute/image-candidate.json --browser 
 
 It requires registry digest, source/producer identity and sealed `/opt/app/harness-build.json` metadata. Linux/amd64 additionally needs an inspected matching `--browser-runtime-image sha256:<image-id>`. This adapter currently supports the family policy only; OCI scope/CCD and upstream producer/promotion integration remain gaps.
 
+## Private phase evidence
+
+The opt-in exporter preserves a finalized native phase, including raw reports, journals and lifecycle records. Its destination parent must already exist, belong to the invoking user and have no group/other permissions. Each export uses a fresh directory; it never uploads evidence or changes Jenkins archives.
+
+```bash
+yarn node scripts/export-exui-private-evidence.mjs export --phase /absolute/finalized-phase --expected /absolute/independent-expectations.json --terminal /absolute/observed-terminal.json --destination /approved-private/fresh-phase-bundle
+yarn node scripts/export-exui-private-evidence.mjs verify --bundle /approved-private/fresh-phase-bundle --expected /absolute/independent-expectations.json --manifest-digest 'sha256:<independently-delivered-manifest-digest>'
+```
+
+Supply trusted supervisor observations and independent identity/receipt expectations, not values inferred from the checked bundle. Preserve the returned manifest digest through a separate trusted handoff. Export/verify exit 0 means packet integrity; the original PASS/FAIL/BLOCKED status is reported separately. Use the existing release-gate consumer for its original outcome. See the [packet contract](docs/harness-evidence-contract.md#private-native-phase-evidence-packets).
+
+Only complete native phases are supported. Whole-job orchestration, interrupted/malformed forensic capture, OCI and durable private storage remain gaps; the exporter does not establish CI retention or release approval.
+
 ## Supporting diagnostics
 
 | Command | Evidence boundary |
