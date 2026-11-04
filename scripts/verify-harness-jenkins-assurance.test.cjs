@@ -202,7 +202,7 @@ test('shared Jenkins generated files do not dirty source while tracked code and 
  fs.writeFileSync(path.join(root,'yarn-audit-known-issues'),'{}');
  git(['init','--quiet']);git(['add','.gitignore','source.mjs','yarn-audit-known-issues']);
  git(['-c','user.name=fixture','-c','user.email=fixture@harness.invalid','commit','--quiet','-m','fixture']);
- const generated=['version','security.sh','prettyPrintAudit.sh','transform-v4-to-v3-audit.cjs','yarn-audit-with-suppressions.sh','yarn-audit-result','yarn-audit-result-formatted','yarn-audit-known-issues-formatted','yarn-audit-known-issues-result','yarn-audit-issues-result','yarn-audit-issues-result-summary','yarn-audit-issues-advisories','sorted-yarn-audit-issues','sorted-yarn-audit-known-issues','unneeded_suppressions','new_vulnerabilities','active_suppressions'];
+ const generated=['.yarn_dependencies_installed','version','security.sh','prettyPrintAudit.sh','transform-v4-to-v3-audit.cjs','yarn-audit-with-suppressions.sh','yarn-audit-result','yarn-audit-result-formatted','yarn-audit-known-issues-formatted','yarn-audit-known-issues-result','yarn-audit-issues-result','yarn-audit-issues-result-summary','yarn-audit-issues-advisories','sorted-yarn-audit-issues','sorted-yarn-audit-known-issues','unneeded_suppressions','new_vulnerabilities','active_suppressions'];
  for(const file of generated)fs.writeFileSync(path.join(root,file),'fixture');
  assert.equal(git(['status','--porcelain']),'');
  fs.writeFileSync(path.join(root,'source.mjs'),'changed');
