@@ -191,7 +191,7 @@ test("support only: native recovery plans bind declared artifacts/runtime and re
     const artifact = {
       candidateRoot: path.join(root, "candidate"),
       identity: { artifactDigest: sha("a") },
-      provenance: { runtimeNodeVersion: "v24.22.1" },
+      provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.1" },
     };
     const nativeRuntime = { imageId: sha("b"), platform: "linux/arm64" };
     const input = {
@@ -224,6 +224,18 @@ test("support only: native recovery plans bind declared artifacts/runtime and re
     );
     assert.equal(captured.invocations.length, 2);
     assert.equal(captured.invocations[0].plan.candidate.mounts.length, 4);
+    const amdArtifact = { ...artifact, provenance: { ...artifact.provenance, platform: "linux/amd64" } };
+    const amdRuntime = { ...nativeRuntime, platform: "linux/amd64" };
+    const amdCaptured = captureNativeOwnership({ ...input, artifact: amdArtifact, nativeRuntime: amdRuntime }, handoff, { ...context, artifact: amdArtifact, nativeRuntime: amdRuntime }, handoff.output, "family");
+    for (const { plan } of amdCaptured.invocations) {
+      assert.equal(plan.platform, "linux/amd64");
+      assert.equal(plan.tools.args[plan.tools.args.indexOf("--platform") + 1], "linux/amd64");
+      const args = plan.candidate.arguments("b".repeat(64));
+      assert.equal(args[args.indexOf("--platform") + 1], "linux/amd64");
+      assert(args.includes("--read-only"));
+    }
+    assert.throws(() => captureNativeOwnership(input, handoff, { ...context, artifact: amdArtifact }, handoff.output, "family"), /ARTIFACT_ROOT_MISMATCH/);
+
     assert.throws(
       () =>
         captureNativeOwnership(
@@ -602,7 +614,7 @@ async function eventOwnershipFixture(t) {
       fs.mkdirSync(path.join(state, id, kind), { recursive: true });
   fs.writeFileSync(path.join(root, "candidate/config/default.json"), JSON.stringify({ services: { idam: {} }, feature: {} }));
   fs.writeFileSync(path.join(root, "stage/scripts/lib/exui-runtime-network-guard.cjs"), "guard");
-  const artifact = { candidateRoot: path.join(root, "candidate"), identity: { artifactDigest: sha("a") }, provenance: { runtimeNodeVersion: "v24.22.1" } };
+  const artifact = { candidateRoot: path.join(root, "candidate"), identity: { artifactDigest: sha("a") }, provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.1" } };
   const input = {
     releaseScopeId: "exui-ccd-event-capability-pilot",
     runId: "ccd-11111111-1111-4111-8111-111111111111",
@@ -729,4 +741,19 @@ test("support only: event fault candidate arguments cannot be selected under an 
   assert(candidateArchiveArguments(args).includes("/candidate/runtime/node"));
   assert.throws(() => candidateArchiveArguments({ ...args, releaseScopeId: "exui-ccd-pilot" }), /CCD_EVENT_SCOPE_REQUIRED/);
   assert.throws(() => candidateArchiveArguments({ ...args, invocationId: "ccd-drop-child" }), /UNSUPPORTED_CCD_EVENT_INVOCATION/);
+});
+
+test("native AMD64 image admission binds platform, manifest and config identity", async () => {
+  const { nativeRuntimeImages, assertNativeRuntimeImage } = await import("./lib/exui-native-containers.mjs");
+  const images = nativeRuntimeImages("linux/amd64");
+  assert.equal(images.api.reference, "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02");
+  assert.match(images.browser.reference, /^mcr.microsoft.com\/playwright@sha256:/);
+  for (const pin of Object.values(images)) {
+    const info = { Id: pin.manifestDigest, Os: "linux", Architecture: "amd64", RepoDigests: [pin.reference] };
+    assertNativeRuntimeImage(info, pin, "linux/amd64");
+    assertNativeRuntimeImage({ ...info, Id: pin.configDigest }, pin, "linux/amd64");
+    for (const patch of [{ Id: sha("f") }, { Architecture: "arm64" }, { Os: "windows" }, { RepoDigests: [] }, { RepoDigests: [pin.reference.replace(/.$/, "f")] }])
+      assert.throws(() => assertNativeRuntimeImage({ ...info, ...patch }, pin, "linux/amd64"), /NATIVE_RUNTIME_/);
+  }
+  assert.throws(() => nativeRuntimeImages("linux/ppc64le"), /UNSUPPORTED_NATIVE_PLATFORM/);
 });

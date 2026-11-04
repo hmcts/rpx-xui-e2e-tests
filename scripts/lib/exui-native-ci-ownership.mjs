@@ -47,7 +47,8 @@ function captureOwnership(
   );
   assert(
     /^sha256:[a-f0-9]{64}$/.test(context.nativeRuntime?.imageId ?? "") &&
-      context.nativeRuntime.platform === "linux/arm64",
+      ["linux/arm64", "linux/amd64"].includes(context.nativeRuntime.platform) &&
+      context.nativeRuntime.platform === context.artifact.provenance.platform,
     "CI_NATIVE_PINNED_RUNTIME_REQUIRED",
   );
   assert.deepEqual(

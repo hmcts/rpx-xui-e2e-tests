@@ -207,6 +207,7 @@ export function candidateArchiveProcess(config, releaseScopeId) {
 }
 export function candidateArchiveArguments({
   image,
+  platform = "linux/arm64",
   namespace,
   owner,
   invocationId,
@@ -219,6 +220,7 @@ export function candidateArchiveArguments({
   evidenceRoot,
   harnessRoot,
 }) {
+  assert(["linux/arm64", "linux/amd64"].includes(platform), "UNSUPPORTED_NATIVE_PLATFORM");
   if (!digest(image) || !/^[a-f0-9]{64}$/.test(namespace))
     throw Error("PINNED_NATIVE_RUNTIME_AND_NAMESPACE_REQUIRED");
   if (
@@ -285,7 +287,7 @@ export function candidateArchiveArguments({
     "--network",
     `container:${namespace}`,
     "--platform",
-    "linux/arm64",
+    platform,
     ...hardened,
     ...ownerFlags(owner, "candidate"),
     ...mount(candidateRoot, "/candidate", true),

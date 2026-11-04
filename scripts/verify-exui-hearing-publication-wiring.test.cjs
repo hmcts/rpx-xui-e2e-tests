@@ -68,7 +68,7 @@ function artifacts(root) {
     const candidateRoot = path.join(root, name);
     fs.mkdirSync(path.join(candidateRoot, 'config'), { recursive: true });
     fs.writeFileSync(path.join(candidateRoot, 'config/default.json'), JSON.stringify(config));
-    return { candidateRoot, identity: { ...baseline, artifactDigest }, provenance: { runtimeNodeVersion: 'v24.22.1' } };
+    return { candidateRoot, identity: { ...baseline, artifactDigest }, provenance: { platform: "linux/arm64", runtimeNodeVersion: 'v24.22.1' } };
   };
   return { artifact: make('baseline', digest('a')), mutantArtifact: make('derived', digest('f')) };
 }

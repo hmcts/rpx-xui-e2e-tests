@@ -176,8 +176,8 @@ export async function runNativeHostPhase(output, stagedHarness) {
     },
   });
   try {
-    input.nativeRuntime = inspectNativeApiRuntime();
-    input.browserRuntimeImage = inspectNativeBrowserRuntime();
+    input.nativeRuntime = inspectNativeApiRuntime(input.artifact.provenance.platform);
+    input.browserRuntimeImage = inspectNativeBrowserRuntime(input.artifact.provenance.platform);
     const stateRoot = fs.mkdtempSync(
       path.join(fs.realpathSync(os.tmpdir()), "harness-native-state-"),
     );

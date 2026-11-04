@@ -21,6 +21,7 @@ import {
   assertRoutingInterpreter,
 } from "./lib/exui-routing-contract.mjs";
 import { verifyHearingPublicationMutant } from "./lib/exui-hearing-publication-mutation.mjs";
+import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
@@ -82,9 +83,9 @@ async function launch() {
   const revision = browsers.browsers.find(
     (item) => item.name === "chromium-headless-shell",
   ).revision;
-  const browserRelative = `chromium_headless_shell-${revision}/chrome-headless-shell-linux-arm64/chrome-headless-shell`;
+  const browserRelative = browserExecutable(browsers, artifact.provenance.platform);
   if (!fs.existsSync(path.join(browserRoot, browserRelative)))
-    throw new Error("MATCHING_ARM64_BROWSER_REQUIRED");
+    throw new Error("MATCHING_CANDIDATE_BROWSER_REQUIRED");
   const browserDigest = await digestCandidateTree(browserRoot);
   const harnessDependencies = await verifyHarnessDependencies(
     path.join(root, "node_modules"),
@@ -123,7 +124,7 @@ async function launch() {
     runId,
     browserExecutable: `/browser/${browserRelative}`,
     browserDigest,
-    browserVersion: `playwright-1.64.1-chromium-${revision}-linux-arm64`,
+    browserVersion: `playwright-1.64.1-chromium-${revision}-${artifact.provenance.platform.replace("/", "-")}`,
   });
   const stagedHarness = fs.mkdtempSync(
     path.join(fs.realpathSync(os.tmpdir()), "exui-harness-sources-"),
