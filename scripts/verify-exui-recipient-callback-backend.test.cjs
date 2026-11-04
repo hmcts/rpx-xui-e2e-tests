@@ -108,3 +108,14 @@ test('support only: callback UI checks its distinct receipt and actual descripto
  assert.equal(callbackUiFailureCode(Error('CALLBACK_PAGE_URL')),'CALLBACK_PAGE_URL');
  assert.equal(callbackUiFailureCode(Error('CALLBACK_UI_PRIVATE_SECRET')),'CALLBACK_UI_PHASE_FAILED');
 });
+test('support only: callback native staging and sessions cannot alias writable output or candidate evidence',async t=>{
+ const {createCallbackNativeWorkspace,callbackUiFailureCode}=await import('./run-harness-recipient-callback-ui.mjs');
+ const {assertReadOnlyMountIsolation}=await import('./lib/exui-oci-runtime.mjs');
+ const {workspace,stagedHarness,stateRoot}=createCallbackNativeWorkspace();t.after(()=>fs.rmSync(workspace,{recursive:true,force:true}));
+ const output=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-native-output-'));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));
+ assert.equal(fs.statSync(workspace).mode&0o777,0o700);
+ assertReadOnlyMountIsolation([stagedHarness],[output,stateRoot+'/baseline/sessions']);
+ assertReadOnlyMountIsolation([output,stagedHarness],[stateRoot+'/baseline/sessions',stateRoot+'/baseline/diagnostics']);
+ fs.mkdirSync(output+'/sources');assert.throws(()=>assertReadOnlyMountIsolation([output+'/sources'],[output]),/OCI_READONLY_MOUNT_WRITABLE_ALIAS/);
+ assert.equal(callbackUiFailureCode(Error('OCI_READONLY_MOUNT_WRITABLE_ALIAS\nprivate details')),'OCI_READONLY_MOUNT_WRITABLE_ALIAS');
+});
