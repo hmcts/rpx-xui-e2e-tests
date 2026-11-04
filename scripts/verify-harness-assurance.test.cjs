@@ -58,23 +58,33 @@ test("blocked native policy remains blocked despite a passing diagnostic collect
     releaseApproval: false,
   });
 });
-test("missing validated native evidence cannot proceed to a green report", async () => {
+test("nonpassing native execution without complete evidence still publishes diagnostics without native credit", async () => {
   const { runAssuranceSequence } = await api();
-  let collected = false;
-  await assert.rejects(
-    () =>
-      runAssuranceSequence({
-        native: async () => ({ status: "BLOCKED", exitCode: 2 }),
-        descriptor: async () => {
-          throw Error("INCOMPLETE");
-        },
-        collect: async () => {
-          collected = true;
-        },
-      }),
-    /INCOMPLETE/,
-  );
-  assert.equal(collected, false);
+  for (const [status, exitCode] of [["BLOCKED", 2], ["FAIL", 1]]) {
+    const result = await runAssuranceSequence({
+      native: async () => ({ status, exitCode }),
+      descriptor: async () => { throw Error("INCOMPLETE"); },
+      collect: async (file) => {
+        assert.equal(file, undefined, "incomplete native evidence must receive no report credit");
+        return { status: "passed", exitCode: 0 };
+      },
+    });
+    assert.deepEqual(result, {
+      nativeStatus: status,
+      diagnosticStatus: "passed",
+      exitCode,
+      releaseApproval: false,
+    });
+  }
+});
+
+test("passing native outcome with incomplete evidence cannot publish a green report", async () => {
+  const { runAssuranceSequence } = await api();
+  await assert.rejects(() => runAssuranceSequence({
+    native: async () => ({ status: "PASS", exitCode: 0 }),
+    descriptor: async () => { throw Error("INCOMPLETE"); },
+    collect: async () => ({ status: "passed", exitCode: 0 }),
+  }), /INCOMPLETE/);
 });
 test("diagnostic failure also prevents a passing combined command", async () => {
   const { runAssuranceSequence } = await api();

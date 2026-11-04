@@ -24,12 +24,13 @@ test('worker observation admits only selected platform fields and fixed read-onl
       assert.equal(command, 'docker');
       if (args[0] === 'version') return { status: 0, stdout: JSON.stringify({ Os: 'linux', Arch: 'amd64', Name: 'PRIVATE-CANARY' }) };
       assert.deepEqual(args.slice(0, 2), ['image', 'inspect']);
-      const pin = args[2].slice(args[2].indexOf('sha256:'));
-      return { status: 0, stdout: JSON.stringify([{ Id: pin, Os: 'linux', Architecture: 'arm64', RepoDigests: ['private.invalid/repo@' + pin], Config: { Env: ['PRIVATE-CANARY'] } }]) };
+      const reference = args[2], pin = reference.slice(reference.indexOf('sha256:'));
+      const repository = reference.includes('@') ? reference.slice(0, reference.indexOf('@')) : 'private.invalid/repo';
+      return { status: 0, stdout: JSON.stringify([{ Id: pin, Os: 'linux', Architecture: 'arm64', RepoDigests: [repository + '@' + pin], Config: { Env: ['PRIVATE-CANARY'] } }]) };
     } });
   assert.deepEqual(report.host, { os: 'linux', architecture: 'amd64' });
   assert.deepEqual(report.docker, { status: 'observed', os: 'linux', architecture: 'amd64' });
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 11);
   assert(report.images.every(image => image.status === 'present' && image.pinnedIdentityMatched));
   assert.equal(report.nativeReady, false);
   assert.equal(report.releaseApproval, false);
@@ -93,7 +94,7 @@ test('publication accepts only the fixed sanitized schema, resets stale output a
   assert.throws(() => m.writeCapabilityReport(report, root), /WORKER_CAPABILITY_OUTPUT_ALIAS/);
 });
 
-test('Tools provenance follows its actual nonempty RepoDigests rule without relaxing the CCD pins', async () => {
+test('Tools provenance remains distinct while API, build and CCD images require their pinned digests', async () => {
   const m = await load();
   for (const repoDigests of [['synthetic.invalid/tools@sha256:' + 'f'.repeat(64)], []]) {
     const report = m.collectWorkerCapabilities({ run: (_command, args) => {
@@ -102,7 +103,25 @@ test('Tools provenance follows its actual nonempty RepoDigests rule without rela
       return { status: 0, stdout: JSON.stringify([{ Id: pin, Os: 'linux', Architecture: 'arm64', RepoDigests: repoDigests }]) };
     } });
     assert.equal(report.images.find(image => image.service === 'tools').pinnedIdentityMatched, repoDigests.length > 0);
+    assert.equal(report.images.find(image => image.service === 'build').pinnedIdentityMatched, false);
     assert(report.images.filter(image => !['api', 'tools'].includes(image.service)).every(image => image.pinnedIdentityMatched === false));
     assert.equal(report.nativeReady, false);
   }
+});
+
+test('candidate build image absence blocks native worker readiness', async () => {
+  const m = await load();
+  const { CANDIDATE_BUILD_IMAGE } = await import('./lib/exui-candidate-build.mjs');
+  const report = m.collectWorkerCapabilities({ run: (_command, args) => {
+    if (args[0] === 'version') return { status: 0, stdout: JSON.stringify({ Os: 'linux', Arch: 'arm64' }) };
+    if (args[2] === CANDIDATE_BUILD_IMAGE) return { status: 1, stdout: '' };
+    const pin = args[2].slice(args[2].indexOf('sha256:'));
+    const reference = args[2];
+    const repository = reference.includes('@') ? reference.slice(0, reference.indexOf('@')) : 'synthetic.invalid/repo';
+    return { status: 0, stdout: JSON.stringify([{ Id: pin, Os: 'linux', Architecture: 'arm64', RepoDigests: [repository + '@' + pin] }]) };
+  } });
+  assert.deepEqual(report.docker, { status: 'observed', os: 'linux', architecture: 'arm64' });
+  assert.equal(report.images.find(image => image.service === 'build').status, 'unavailable');
+  assert(report.reasons.includes('PINNED_IMAGES_NOT_VERIFIED'));
+  assert.equal(report.nativeReady, false);
 });

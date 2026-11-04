@@ -6,10 +6,10 @@ properties([
 
 @Library('Infrastructure@2.8.0') _
 
-// Product regression suites live with their product owner. This job runs only
-// Harness supporting checks; it cannot issue native candidate/release approval.
+// Product regression suites live with their product owner. This job runs
+// Harness checks and bounded native candidate/CCD pilots; full release approval remains unavailable.
 def runHarnessSupportingChecks = {
-  stage('Harness supporting checks — no release credit') {
+  stage('Harness assurance pilots — no full release approval') {
     sh 'rm -f functional-output/tests/harness/public/release-assurance-summary.json'
     sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --reset'
     sh 'bash scripts/harness-jenkins-node.sh scripts/observe-harness-worker.mjs --reset'
@@ -30,7 +30,7 @@ if [ "yarn@$actual_yarn" != "$expected_yarn" ]; then
 fi
 echo "Harness Yarn: $actual_yarn"
 node scripts/observe-harness-worker.mjs
-corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && corepack yarn harness:ci && node scripts/manage-harness-public-reports.cjs --validate
+corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && node scripts/run-harness-jenkins-assurance.mjs && node scripts/manage-harness-public-reports.cjs --validate
 '''
     } finally {
       echo '[harness-report] Raw reports remain job-local; only validated summaries and safe Odhín reports may be published.'

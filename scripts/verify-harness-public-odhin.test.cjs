@@ -794,7 +794,7 @@ test("same Odhín document separates eleven native baselines and ten faults from
   assert.ok(
     !dom
       .querySelector("#harness-overview")
-      .textContent.includes("candidate and CCD checks NOT RUN"),
+      .textContent.includes("No accepted candidate/CCD runtime evidence is attached."),
   );
   assert.match(
     dom.querySelector("[data-runtime-obligations]").textContent,
@@ -846,7 +846,7 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
       ),
     );
     assert.ok(html.includes(`${blocked ? 110 : 109} remain unsatisfied`));
-    assert.ok(!html.includes("candidate and CCD checks NOT RUN"));
+    assert.ok(!html.includes("No accepted candidate/CCD runtime evidence is attached."));
   }
   for (const change of [
     (evidence) => delete evidence.catalogueCoverage,

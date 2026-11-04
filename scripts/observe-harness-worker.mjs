@@ -5,12 +5,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { CCD_IMAGES } from "./lib/exui-ccd-runtime.mjs";
+import { CANDIDATE_BUILD_IMAGE } from "./lib/exui-candidate-build.mjs";
 import { ARM64_BROWSER_RUNTIME, NATIVE_API_RUNTIME_REFERENCE } from "./lib/exui-oci-runtime.mjs";
 import { validateCiJob } from "./lib/exui-candidate-ci-inputs.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const relativeOutput = "functional-output/tests/harness/public/native-ci-capabilities.json";
-const pins = { api: NATIVE_API_RUNTIME_REFERENCE, tools: ARM64_BROWSER_RUNTIME, ...CCD_IMAGES };
+const pins = { api: NATIVE_API_RUNTIME_REFERENCE, tools: ARM64_BROWSER_RUNTIME, build: CANDIDATE_BUILD_IMAGE, ...CCD_IMAGES };
 const operatingSystems = ["linux", "darwin", "windows", "unknown"];
 const architectures = ["amd64", "arm64", "unknown"];
 const osName = value => operatingSystems.includes(value) ? value : value === "win32" ? "windows" : "unknown";
@@ -60,14 +61,12 @@ export function collectWorkerCapabilities({ run = spawnSync, inputPath, host = {
       const info = observed ? dockerJson(["image", "inspect", reference]) : null;
       const item = Array.isArray(info) && info.length === 1 ? info[0] : null;
       const pin = reference.slice(reference.indexOf("sha256:"));
-      // Mirror existing admission provenance: Tools needs any registry digest;
-      // CCD and the API reference require the specific pinned manifest digest.
-      const provenance = Array.isArray(item?.RepoDigests) && (service === "tools"
-        ? item.RepoDigests.length > 0
-        : item.RepoDigests.some(digest => typeof digest === "string" && digest.endsWith("@" + pin)));
+      const digests = Array.isArray(item?.RepoDigests) ? item.RepoDigests : [];
+      const pinnedDigest = digests.some(digest => typeof digest === "string" && digest.endsWith("@" + pin));
+      const provenance = service === "tools" ? digests.length > 0 : pinnedDigest;
       return { service, status: !observed ? "not-checked" : item ? "present" : "unavailable",
         os: osName(item?.Os), architecture: architecture(item?.Architecture),
-        pinnedIdentityMatched: Boolean(item && (service === "api" || item.Id === reference) && provenance) };
+        pinnedIdentityMatched: Boolean(item && ((service === "api" || service === "build") || item.Id === reference) && provenance) };
     }),
     inputs: inputPresence(inputPath),
   };

@@ -120,8 +120,8 @@ test("live-AAT profile adds exactly five reviewed probes without claiming candid
     html,
     /0 \/ 112 catalogue requirements satisfied by accepted runtime evidence/,
   );
-  assert.match(html, /candidate and CCD checks NOT RUN/);
-  assert.doesNotMatch(html, /It did not run.*EXUI application/);
+  assert.match(html, /No accepted candidate\/CCD runtime evidence is attached/);
+  assert.doesNotMatch(html, /No validated native candidate application or CCD run is attached/);
 });
 
 test("known fixture login/header timeout is setup-blocked without leaking its private message", () => {

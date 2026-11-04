@@ -94,6 +94,10 @@ node() {
     [[ "$#" == 2 && "$2" == --validate ]] || return 96
     printf '%s\\n' 'report:validate' >> "$CALLS_FILE"
     [[ "$FAIL_COMMAND" != validate ]] || return 23
+      elif [[ "$1" == scripts/run-harness-jenkins-assurance.mjs ]]; then
+        [[ "$#" == 1 ]] || return 96
+        printf '%s\n' 'native-assurance:run' >> "$CALLS_FILE"
+        [[ "$FAIL_COMMAND" != native-assurance ]] || return 23
   else
     [[ "$*" == 'scripts/verify-playwright-browsers.cjs chromium' ]] || return 96
     printf '%s\\n' 'browser:preflight' >> "$CALLS_FILE"
@@ -111,7 +115,7 @@ corepack() {
       const expectedCalls = [
         'nvm:source', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
         'worker:observe', 'corepack:yarn test:setup:playwright-install-chromium', 'browser:preflight',
-        'corepack:yarn harness:ci', 'report:validate'
+        'native-assurance:run', 'report:validate'
       ];
       const cases = [
         { fail: 'source', status: 23, through: 1 },
@@ -124,7 +128,7 @@ corepack() {
         { fail: 'worker', status: 23, through: 6 },
         { fail: 'test:setup:playwright-install-chromium', status: 23, through: 7 },
         { fail: 'browser', status: 1, through: 8 },
-        { fail: 'harness:ci', status: 23, through: 9 },
+        { fail: 'native-assurance', status: 23, through: 9 },
         { fail: 'validate', status: 23, through: 10 },
         { fail: '', status: 0, through: 10 }
       ];
@@ -148,6 +152,18 @@ corepack() {
       assert.ok(command.startsWith('#!/usr/bin/env bash\n'), 'Jenkins must see the Bash shebang at the first script character');
       assert.equal(spawnSync('/bin/bash', ['-n'], { input: command, encoding: 'utf8' }).status, 0);
     } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+
+  test(`${pipeline}: native candidate and CCD assurance follows browser preflight`, () => {
+    const source = readFileSync(pipeline, 'utf8');
+    const browserCheck = source.indexOf('scripts/verify-playwright-browsers.cjs chromium');
+    const assurance = source.indexOf('node scripts/run-harness-jenkins-assurance.mjs');
+    const validation = source.indexOf('scripts/manage-harness-public-reports.cjs --validate');
+    assert.ok(browserCheck >= 0 && assurance > browserCheck && validation > assurance);
+    assert.doesNotMatch(source, /corepack yarn harness:ci/,
+      'the combined run must execute diagnostics once, after native evidence');
+    assert.doesNotMatch(source, /corepack yarn harness:(?:candidate|assurance)/,
+      'native execution must use the guarded job-local orchestration entry point');
   });
 
   test(`${pipeline}: only validated summary and scoped Odhín HTML can be published; no raw artifacts or swallowed failure`, () => {
@@ -176,7 +192,7 @@ corepack() {
     assert.ok(source.indexOf('--validate-public-summary') < source.indexOf('archiveArtifacts'));
     assert.match(source, /finally\s*\{/);
     assert.doesNotMatch(source, /sh 'node scripts\//, 'report management must reactivate the pinned toolchain');
-    assert.match(source, /no release credit/);
+    assert.match(source, /no full release approval/);
     const directory = mkdtempSync(join(tmpdir(), 'harness-publication-'));
     try {
       const file = join(directory, 'summary.json');
@@ -194,6 +210,23 @@ corepack() {
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 }
+
+test('Jenkins native assurance builds exact webapp master in a private, script-disabled job', () => {
+  const source = readFileSync('scripts/run-harness-jenkins-assurance.mjs', 'utf8');
+  assert.match(source, /hmcts\/rpx-xui-webapp\.git/);
+  assert.match(source, /"--branch", "master"/);
+  assert.match(source, /rev-parse", "HEAD"/);
+  assert.match(source, /YARN_ENABLE_NETWORK: "1", YARN_ENABLE_SCRIPTS: "0"/);
+  assert.match(source, /"install", "--immutable", "--mode=skip-builds"/);
+  assert.match(source, /scripts\/prepare-harness-candidate\.mjs/);
+  assert.match(source, /scripts\/run-harness-assurance\.mjs/);
+  assert.match(source, /process\.umask\(0o077\)/);
+  assert.match(source, /mode: 0o600/);
+  assert.match(source, /validatePublicSummary\(source\)/);
+  assert.match(source, /removePrivateDirectory\(privateRoot, temporaryRoot\)/);
+  assert.match(source, /scripts\/run-harness-local-poc\.mjs/, 'failed native setup retains one diagnostics-only report');
+  assert.doesNotMatch(source, /--aat|(?:NPM|NODE_AUTH|IDAM|AAT)_TOKEN/);
+});
 
 test('diagnostic boundaries fail closed for undeclared environment/toolkit inputs and cannot select native tests', () => {
   const model = buildConfig({ TEST_URL: 'https://ambient.invalid', TEST_ENV: 'aat' });

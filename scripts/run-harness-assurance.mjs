@@ -32,7 +32,12 @@ export async function runAssuranceSequence({ native, descriptor, collect }) {
       { PASS: 0, FAIL: 1, BLOCKED: 2 }[verdict.status] === verdict.exitCode,
     "ASSURANCE_NATIVE_VERDICT_REQUIRED",
   );
-  const nativeEvidencePath = await descriptor(verdict);
+  let nativeEvidencePath;
+  try {
+    nativeEvidencePath = await descriptor(verdict);
+  } catch (error) {
+    if (verdict.status === "PASS") throw error;
+  }
   const diagnostics = await collect(nativeEvidencePath);
   assert(
     ["passed", "failed"].includes(diagnostics.status) &&
