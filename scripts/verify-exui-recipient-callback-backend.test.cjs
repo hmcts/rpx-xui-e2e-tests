@@ -9,9 +9,10 @@ async function execute(mode,defect){
   if(route.endsWith('/cases')&&options.method==='POST'){assert.equal(actor.userId,'allowed');current={case_data:structuredClone(options.body.data),version:1,state:'JUDICIAL_REVIEW'};return {status:201,body:{id:1234567890123456}};}
   if(route.includes('/validate?')){
    assert.equal(actor.userId,'courtadmin');assert.equal(options.body.event_token,'courtadmin-token');assert.equal(options.body.case_reference,'1234567890123456');assert(options.headers.accept.includes('case-data-validate.v2'));assert.equal(route,'/case-types/HarnessNestedPRL/validate?pageId=serviceOfDocuments2');
-   const data=structuredClone(options.body.data);
+   assert.deepEqual(options.body.event_data,options.body.data);assert.deepEqual(Object.keys(options.body.event_data).sort(),['sodAdditionalRecipients','sodAdditionalRecipientsList']);
+   const data={...structuredClone(current.case_data),...structuredClone(options.body.event_data)};
    if(defect==='persist-validation')current.version++;
-   if(mode==='reject')return {status:422,body:{errors:['HARNESS_CALLBACK_BUSINESS_REJECTION']}};
+   if(mode==='reject'){assert.equal(data.sodAdditionalRecipientsList[0].value.emailInformation.emailName,'HARNESS_CALLBACK_REJECT');return {status:422,body:{errors:['HARNESS_CALLBACK_BUSINESS_REJECTION']}};}
    data.sodAdditionalRecipientsList[0].value.emailInformation.emailName='HARNESS_CALLBACK_NORMALIZED';
    if(defect==='lose-sibling')data.sodAdditionalRecipientsList.pop();
    return {status:200,body:{data}};
@@ -63,4 +64,15 @@ test('support only: missing module identity is restricted to the exact staged al
  for(const [operand,expected] of [['/tmp/recipient-probe/'+files[0],files[0]],['/private/credential',undefined],['/tmp/recipient-probe/'+files[0]+'/secret',undefined]]){
   assert.throws(()=>parseCallbackWorkerTerminal({text:'',stderr:`Error: Cannot find module '${operand}'\nMODULE_NOT_FOUND\nprivate-credential`},files),error=>error.message==='CALLBACK_PROBE_MODULE_MISSING'&&error.moduleIdentity===expected&&!error.message.includes('credential'));
  }
+});
+test('support only: failed-worker observation recovery copies only bounded regular allowlisted files privately',async t=>{
+ const {collectCallbackProbeObservations}=await import('./run-harness-recipient-callback-backend.mjs');
+ const temp=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-observe-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));let inspections=0,copies=[];
+ const inventory=[{name:'recipient-callback.jsonl',file:true,size:12},{name:'validation.json',file:true,size:24},{name:'submission.json',missing:true}];
+ const runDocker=args=>{if(args[0]==='exec')return JSON.stringify(inventory);copies.push(args);fs.writeFileSync(args.at(-1),'synthetic');return '';};
+ const result=collectCallbackProbeObservations({containers:{client:'owned-client'}},temp,{runDocker,inspect:()=>inspections++});
+ assert.deepEqual(result,{status:'collected',files:['recipient-callback.jsonl','validation.json']});assert.equal(inspections,3);assert.equal(copies.length,2);for(const name of result.files)assert.equal(fs.statSync(path.join(temp,'observations',name)).mode&0o777,0o600);
+ inventory[0].file=false;assert.throws(()=>collectCallbackProbeObservations({containers:{client:'owned-client'}},temp,{runDocker,inspect:()=>{}}),/CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED/);
+ inventory[0].file=true;inventory[0].size=1048577;assert.throws(()=>collectCallbackProbeObservations({containers:{client:'owned-client'}},temp,{runDocker,inspect:()=>{}}),/CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED/);
+ assert.equal(copies.length,2);
 });

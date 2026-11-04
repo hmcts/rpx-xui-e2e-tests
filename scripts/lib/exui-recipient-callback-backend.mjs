@@ -22,7 +22,10 @@ export async function probeRecipientCallbackBackend({mode,credentials,request,re
   assert.equal(typeof eventToken.body.token,"string","CALLBACK_PROBE_EVENT_TOKEN_SCHEMA");
   const eventData=structuredClone(before.state.case_data);
   if(mode==="reject")eventData.sodAdditionalRecipientsList[0].value.emailInformation.emailName="HARNESS_CALLBACK_REJECT";
-  const validation=await request('/case-types/HarnessNestedPRL/validate?pageId=serviceOfDocuments2',courtadmin,{method:"POST",headers:{accept:validateMedia,experimental:"true"},body:{data:eventData,event:{id:"serviceOfDocuments"},event_token:eventToken.body.token,case_reference:caseId,ignore_warning:false}});
+  // Toolkit buildCaseEventData sends full edited form separately as event_data;
+  // CCD CaseService overlays that property onto persisted state before mid-event callbacks.
+  const formData={sodAdditionalRecipients:eventData.sodAdditionalRecipients,sodAdditionalRecipientsList:eventData.sodAdditionalRecipientsList};
+  const validation=await request('/case-types/HarnessNestedPRL/validate?pageId=serviceOfDocuments2',courtadmin,{method:"POST",headers:{accept:validateMedia,experimental:"true"},body:{data:formData,event_data:formData,event:{id:"serviceOfDocuments"},event_token:eventToken.body.token,case_reference:caseId,ignore_warning:false}});
   const afterValidation=await observe();
   record("validation",{caseId,status:validation.status,body:validation.body,before,afterValidation});
   assert.deepEqual(afterValidation,before,"CALLBACK_PROBE_VALIDATION_PERSISTED");

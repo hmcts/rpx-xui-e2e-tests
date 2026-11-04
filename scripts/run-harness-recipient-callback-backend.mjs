@@ -28,6 +28,18 @@ export function stageCallbackProbe(destination,sourceRoot=root){
  }
  fs.writeFileSync(path.join(destination,'source-seals.json'),JSON.stringify(seals,null,2)+'\n',{flag:'wx',mode:0o444});return seals;
 }
+export function collectCallbackProbeObservations(state, output, {runDocker=docker, inspect=verifyCcdContainerIdentity}={}) {
+ const names=['recipient-callback.jsonl','validation.json','submission.json'];
+ inspect(state);
+ const inventory=JSON.parse(runDocker(['exec',state.containers.client,'node','-e',`const fs=require('fs');console.log(JSON.stringify(${JSON.stringify(names)}.map(name=>{try{const stat=fs.lstatSync('/tmp/recipient-output/'+name);return{name,size:stat.size,file:stat.isFile()}}catch(e){if(e.code==='ENOENT')return{name,missing:true};throw e;}})))`]));
+ assert(Array.isArray(inventory)&&inventory.length===names.length,'CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED');
+ for(const [index,item] of inventory.entries())assert(item.name===names[index]&&(item.missing===true||(item.file===true&&Number.isSafeInteger(item.size)&&item.size>=0&&item.size<=1048576)),'CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED');
+ const found=inventory.filter(item=>item.missing!==true);
+ if(!found.length)return {status:'absent',files:[]};
+ const destination=path.join(output,'observations');fs.mkdirSync(destination,{mode:0o700});
+ for(const item of found){inspect(state);runDocker(['cp',state.containers.client+':/tmp/recipient-output/'+item.name,path.join(destination,item.name)]);fs.chmodSync(path.join(destination,item.name),0o600);}
+ return {status:'collected',files:found.map(item=>item.name)};
+}
 export async function runRecipientCallbackProbe({output,mode='normalize',platform='linux/arm64'}){
  assert(path.isAbsolute(output)&&['normalize','reject'].includes(mode),'CALLBACK_PROBE_ARGUMENTS');
  assert(!fs.existsSync(output),'CALLBACK_PROBE_FRESH_OUTPUT_REQUIRED');fs.mkdirSync(output,{mode:0o700});output=fs.realpathSync(output);
@@ -56,10 +68,13 @@ export async function runRecipientCallbackProbe({output,mode='normalize',platfor
   const result=await Promise.race([terminal,new Promise((_,reject)=>{const timer=setTimeout(()=>{child.kill('SIGTERM');reject(Error('CALLBACK_PROBE_EXEC_TIMEOUT'));},120000);timer.unref();terminal.finally(()=>clearTimeout(timer)).catch(()=>{});})]);
   assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
   const worker=parseCallbackWorkerTerminal(result,callbackProbeFiles);
-  if(worker.status==='failed') { receipt.workerFailure={code:worker.code,phase:worker.phase};save();throw Error(worker.code); }
-  // Terminal failure is retained before optional observation collection can mask it.
-  try { verifyCcdContainerIdentity(state);docker(['cp',state.containers.client+':/tmp/recipient-output',path.join(output,'observations')]); }
-  catch { throw Error('CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED'); }
+  if(worker.status==='failed') { receipt.workerFailure={code:worker.code,phase:worker.phase};save(); }
+  // Preserve primary worker failure even if private observation recovery also fails.
+  try { receipt.observations=collectCallbackProbeObservations(state,output); }
+  catch { receipt.observations={status:'collection-failed',code:'CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED'}; }
+  save();
+  if(worker.status==='failed')throw Error(worker.code);
+  assert.equal(receipt.observations.status,'collected','CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED');
   receipt.result=worker.result;receipt.status='backend-feasibility-observed';save();
  }catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackFailureCode(error);if(callbackProbeFiles.includes(error.moduleIdentity))receipt.missingModule=error.moduleIdentity;save();}
  finally{
