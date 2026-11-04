@@ -144,6 +144,7 @@ def jar_layer(file, expected, parents):
     seen, jars = set(), 0
     with tarfile.open(file, 'r:') as tar:
         for entry in tar:
+            require(not entry.pax_headers, 'LOCAL_OCI_LAYER_EXTENDED_ATTRIBUTES')
             name = entry.name.rstrip('/')
             require(name not in seen, 'LOCAL_OCI_LAYER_DUPLICATE')
             seen.add(name)

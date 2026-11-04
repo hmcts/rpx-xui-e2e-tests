@@ -66,6 +66,20 @@ class Verifier(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'BASE_INDEX_IDENTITY'):
                 with v.layout(file):pass
         finally:v.BASE_INDEX,v.BASE_MANIFEST=old
+    def test_added_layer_rejects_extended_attributes(self):
+        for name in ['opt/app/core-case-data.jar','opt','opt/app']:
+            for attribute in ['SCHILY.xattr.security.capability','SCHILY.acl.access','SCHILY.xattr.trusted.overlay.opaque']:
+                with self.subTest(name=name,attribute=attribute):
+                    stream=io.BytesIO()
+                    with tarfile.open(fileobj=stream,mode='w',format=tarfile.PAX_FORMAT) as archive:
+                        entry=tarfile.TarInfo(name);entry.mode=0o644;entry.pax_headers={attribute:'unexpected'}
+                        if name.endswith('.jar'):
+                            entry.size=len(self.jar);archive.addfile(entry,io.BytesIO(self.jar))
+                        else:
+                            entry.type=tarfile.DIRTYPE;archive.addfile(entry)
+                    layer=stream.getvalue()
+                    config={**self.derived_config,'rootfs':{'type':'layers','diff_ids':[sha(self.base_layer),sha(layer)]}}
+                    with self.assertRaisesRegex(ValueError,'EXTENDED_ATTRIBUTES'):self.verify(config,layer)
     def test_positive(self):
         result=self.verify();self.assertFalse(result['runtimeAcceptance']);self.assertFalse(result['catalogueCredit']);self.assertEqual(result['jarDigest'],sha(self.jar))
     def test_changed_entrypoint(self):
