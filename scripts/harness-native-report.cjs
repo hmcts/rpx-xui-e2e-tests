@@ -82,7 +82,7 @@ const proofs = {
     phase: "ccd",
     slice: "Two postal recipients",
     behaviour:
-      "Require the second recipient's postcode, then preserve both addresses through Check your answers and CCD submission/readback.",
+      "Require postcode entry in lookup mode, then preserve both manual postal addresses through Check your answers and CCD submission/readback.",
     services: "Private Law source-shaped fixture",
     jurisdiction: "HARNESS (actual synthetic jurisdiction)",
     caseType: "HarnessNestedPRL (actual synthetic case type)",
