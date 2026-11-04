@@ -24,6 +24,7 @@ import { selectEventCapabilityRuntime, publishEventCapabilityRuntime } from "./l
 import { readEventBaselineCheckpoint, isKnownPostalBlock } from "./lib/exui-native-proof-validation.mjs";
 import { assertEventBaselineRemoved } from "./lib/exui-native-ci-ownership.mjs";
 import { inspectHostContainer } from "./lib/exui-host-invocation.mjs";
+import { nativeFailure, annotateNativeFailure } from "./lib/exui-native-failure.mjs";
 import {
   validateCiJob,
   createCiOutput,
@@ -73,7 +74,27 @@ export async function reportNativeProgress(label, operation) {
 }
 
 export async function runFixedCiPilots(operations) {
-  const progress = operations.progress ?? ((_label, operation) => operation());
+  const report = operations.progress ?? ((_label, operation) => operation());
+  let firstFailure;
+  const contexts = {
+    'WA family': { phase: 'family', category: 'execution' },
+    'WA organisation scope': { phase: 'scope', category: 'execution' },
+    'CCD configuration and access': { phase: 'ccd', category: 'execution' },
+    'CCD source event permissions': { phase: 'eventCapability', category: 'execution' },
+    'Application routing': { phase: 'routing', category: 'execution' },
+    'Scope fault candidate preparation': { phase: 'scope', category: 'preflight' },
+    'CCD runtime startup': { phase: 'ccd', category: 'startup' },
+    'CCD runtime cleanup': { phase: 'ccd', category: 'cleanup' },
+    'Source event CCD runtime startup': { phase: 'eventCapability', category: 'startup' },
+    'Source event CCD runtime cleanup': { phase: 'eventCapability', category: 'cleanup' },
+  };
+  const progress = async (label, operation) => {
+    try { return await report(label, operation); }
+    catch (error) {
+      firstFailure ??= nativeFailure(error, contexts[label]);
+      throw annotateNativeFailure(error, contexts[label], firstFailure);
+    }
+  };
   const results = [];
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
@@ -141,6 +162,7 @@ export async function runHarnessCi(jobPath) {
     verdict = blocked(),
     cleanupComplete = true,
     cancelled = false;
+  let failure;
   const privateRoot = path.join(job.output, "private");
   const remove = async (_id, resource) => {
     let evidence;
@@ -208,7 +230,8 @@ export async function runHarnessCi(jobPath) {
     },
   });
   try {
-    context = await prepareCiJob(job, job.output);
+    try { context = await prepareCiJob(job, job.output); }
+    catch (error) { throw annotateNativeFailure(error, { phase: 'preflight', category: 'preflight' }); }
     assert(!cancelled, "CI_JOB_CANCELLED");
     writeConfigurationCoverage({
       harnessRoot: ROOT,
@@ -244,6 +267,7 @@ export async function runHarnessCi(jobPath) {
             "--mutant",
             path.join(privateRoot, "scope-mutant/candidate-artifact.json"),
           );
+        let phaseFailure;
         try {
           const result = await executeCiProcess({
             script: path.join(
@@ -281,6 +305,8 @@ export async function runHarnessCi(jobPath) {
             },
             ...(name === "eventCapability" ? {
               onEventTransition: async (request, handoff) => {
+                const transitionContext = { phase: 'eventCapability', invocation: 'baseline', category: 'transition' };
+                try {
                 const alive = () => !handoff.isTerminated();
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const checkpoint = readEventBaselineCheckpoint(directory, handoff.expected);
@@ -294,6 +320,7 @@ export async function runHarnessCi(jobPath) {
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const records = [], faults = [], states = [handoff.input.ccd];
                 for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION]) {
+                  transitionContext.invocation = invocationId;
                   assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                   const variant = eventCapabilityFaultVariant(invocationId);
                   const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
@@ -328,9 +355,11 @@ export async function runHarnessCi(jobPath) {
                 resource.eventTransition = { path: "independent-transition.json", digest: digestBytes(fs.readFileSync(transitionFile)) };
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 for (const [index, record] of records.entries()) {
+                  transitionContext.invocation = record.invocationId;
                   assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                   assert.deepEqual(publishEventCapabilityRuntime(directory, record), transition.faults[index].runtimeRecord, "CI_EVENT_ACK_CHANGED");
                 }
+                } catch (error) { throw annotateNativeFailure(error, transitionContext); }
               },
             } : {}),
           });
@@ -391,8 +420,12 @@ export async function runHarnessCi(jobPath) {
             });
           phaseResults.push({ phase: name, ...validated });
           return validated;
+        } catch (error) {
+          phaseFailure = nativeFailure(error, { phase: name, category: 'execution' });
+          throw annotateNativeFailure(error, {}, phaseFailure);
         } finally {
-          await remove(name, resource);
+          try { await remove(name, resource); }
+          catch (error) { throw annotateNativeFailure(error, { phase: name, category: 'cleanup' }, phaseFailure); }
         }
       },
       derive: async () => {
@@ -471,7 +504,9 @@ export async function runHarnessCi(jobPath) {
     const result = await runFixedCiPilots(operations);
     verdict = { status: result.status, exitCode: result.exitCode };
   } catch (error) {
+    failure = nativeFailure(error, { phase: 'unknown', category: 'orchestration' });
     writeJsonAtomic(path.join(privateRoot, "orchestration-error.json"), {
+      failure,
       message:
         error instanceof Error ? error.message : "CI_ORCHESTRATION_FAILED",
     });
@@ -480,7 +515,8 @@ export async function runHarnessCi(jobPath) {
     for (const [id, resource] of [...resources].reverse())
       try {
         await remove(id, resource);
-      } catch {
+      } catch (error) {
+        failure ??= nativeFailure(error, { category: 'cleanup' });
         cleanupComplete = false;
         verdict = blocked();
       }
@@ -493,10 +529,11 @@ export async function runHarnessCi(jobPath) {
       exitCode: verdict.exitCode,
       cleanupComplete,
       phaseResults,
+      ...(failure ? { failure } : {}),
     });
     writeCiPublicSummary(
       job.output,
-      verdict,
+      { ...verdict, ...(failure ? { failure } : {}) },
       phaseResults.length === 5 &&
         phaseResults.every((result) => result.status === "PASS"),
     );

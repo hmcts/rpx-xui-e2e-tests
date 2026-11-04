@@ -42,9 +42,11 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
   const job = path.join(privateRoot, jobs[0]);
   assert.equal(fs.statSync(job).mode & 0o777, 0o700);
   assert.equal(fs.readFileSync(path.join(job, "preparation-evidence.txt"), "utf8"), "child failed");
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(job, "preparation-error.json"))), { stage: "webapp master fetch", reason: "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED" });
+  const failure = { schemaVersion: 1, phase: 'preflight', invocation: null, category: 'preflight', code: 'HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED', firstCausalCode: 'HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED' };
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(job, "preparation-error.json"))), { stage: "webapp master fetch", reason: "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED", failure });
   const summary = JSON.parse(fs.readFileSync(path.join(root, "functional-output/tests/harness/public/release-assurance-summary.json"), "utf8"));
   assert.equal(summary.status, "BLOCKED");
+  assert.deepEqual(summary.failure, failure);
 });
 
 test("job-local native evidence uses distinct private directories and preserves prior runs", async (t) => {

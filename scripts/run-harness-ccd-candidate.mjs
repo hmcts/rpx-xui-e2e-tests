@@ -22,6 +22,7 @@ import {
 import { CCD_HARNESS_SOURCE_FILES } from "./lib/exui-ccd-browser-runtime.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./lib/exui-ccd-event-capability.mjs";
 import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
+import { nativeFailurePhase, reportNativeFailure } from "./lib/exui-native-failure.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
@@ -182,12 +183,13 @@ async function launch() {
     fs.copyFileSync(path.join(root, file), target);
   }
   const verdict = await runNativeHostPhase(output, stagedHarness);
+  if (verdict.failure) reportNativeFailure({ nativeFailure: verdict.failure });
   process.exitCode = verdict.exitCode;
   console.log(`Candidate evidence: ${output}`);
 }
 try {
   await launch();
 } catch (error) {
-  console.error(`BLOCKED: ${error.message}`);
+  reportNativeFailure(error, { phase: nativeFailurePhase(arg('--scope') ?? 'exui-ccd-pilot'), category: 'preflight' });
   process.exitCode = 2;
 }

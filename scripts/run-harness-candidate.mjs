@@ -22,6 +22,7 @@ import {
 } from "./lib/exui-routing-contract.mjs";
 import { verifyHearingPublicationMutant } from "./lib/exui-hearing-publication-mutation.mjs";
 import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
+import { nativeFailurePhase, reportNativeFailure } from "./lib/exui-native-failure.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
@@ -137,12 +138,13 @@ async function launch() {
   }
   fs.mkdirSync(path.join(stagedHarness, "node_modules"));
   const verdict = await runNativeHostPhase(output, stagedHarness);
+  if (verdict.failure) reportNativeFailure({ nativeFailure: verdict.failure });
   process.exitCode = verdict.exitCode;
   console.log(`Candidate evidence: ${output}`);
 }
 try {
   await launch();
 } catch (error) {
-  console.error(`BLOCKED: ${error.message}`);
+  reportNativeFailure(error, { phase: nativeFailurePhase(arg('--scope') ?? 'exui-wa-family-pilot'), category: 'preflight' });
   process.exitCode = 2;
 }

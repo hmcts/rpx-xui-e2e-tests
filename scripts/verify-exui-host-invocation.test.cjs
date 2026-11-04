@@ -216,6 +216,28 @@ test("support only: real shared engine observes separate API lifetime and final 
     f.dispose();
   }
 });
+test("support only: cleanup failure retains the original proof failure as its first cause", async () => {
+  const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
+  const { nativeFailure } = await import("./lib/exui-native-failure.mjs");
+  const f = fixture("cleanup-failure");
+  const original = new Error("HOST_UNDECLARED_DESTINATION: private request details");
+  try {
+    await assert.rejects(
+      runHostInvocation(f.spec, { ...f, runProof: async () => { throw original; } }),
+      error => {
+        assert(error instanceof AggregateError);
+        assert.equal(error.errors[0], original);
+        assert(error.errors.length > 1);
+        assert.equal(nativeFailure(error).code, "HOST_OWNED_RESOURCE_CLEANUP_FAILED");
+        assert.equal(nativeFailure(error).firstCausalCode, "HOST_UNDECLARED_DESTINATION");
+        return true;
+      },
+    );
+    assert(f.containers.size > 0, "unremoved resources remain explicit");
+  } finally {
+    f.dispose();
+  }
+});
 for (const fault of [
   "create-timeout",
   "write-capability",

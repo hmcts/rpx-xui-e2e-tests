@@ -13,6 +13,8 @@ import { writeCiPublicSummary } from "./exui-candidate-ci-inputs.mjs";
 import { cleanupNativeOwnership } from "./exui-native-ci-ownership.mjs";
 import { captureCiOwnership } from "./exui-candidate-ci-evidence.mjs";
 import { terminateOwnedChild } from "./exui-candidate-runtime.mjs";
+import { isNativeFailure, annotateNativeFailure, nativeFailurePhase } from "./exui-native-failure.mjs";
+import { nativeInvocations } from "./exui-native-contract.mjs";
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -120,7 +122,22 @@ export async function executeCiProcess({
   const child = spawn(process.execPath, [script, ...args], {
     cwd: ROOT,
     env: { ...transportEnv(), TMPDIR: fs.realpathSync(os.tmpdir()) },
-    stdio: ["ignore", log, log],
+    stdio: ["ignore", log, log, "ipc"],
+  });
+  const scopeIndex = args.indexOf('--scope');
+  const scope = scopeIndex >= 0 ? args[scopeIndex + 1] : undefined;
+  const phase = nativeFailurePhase(scope);
+  const onlyIndex = args.indexOf('--only');
+  const only = onlyIndex >= 0 ? args[onlyIndex + 1] : undefined;
+  let allowedInvocations = [];
+  if (phase !== 'unknown') allowedInvocations = nativeInvocations(scope).map(item => item.invocationId).filter(id => !only || id === only);
+  let childFailure;
+  child.on('message', (message) => {
+    if (!childFailure && message?.type === 'harness-native-failure' && Object.keys(message).length === 2 &&
+        isNativeFailure(message.failure) && phase !== 'unknown' && message.failure.phase === phase &&
+        (message.failure.invocation === null || allowedInvocations.includes(message.failure.invocation)) &&
+        (message.failure.category !== 'preflight' || message.failure.invocation === null))
+      childFailure = message.failure;
   });
   onChild(child);
   let terminal, error;
@@ -213,8 +230,11 @@ export async function executeCiProcess({
     }
     await finished;
     if (error) throw error;
+    if (childFailure) throw annotateNativeFailure(new Error(childFailure.code), {}, childFailure);
     await checkTransition();
-    assert(expected, "CI_PHASE_LAUNCH_INPUTS_REQUIRED");
+    if (!expected) throw annotateNativeFailure(new Error('CI_PHASE_LAUNCH_INPUTS_REQUIRED'), {}, {
+      phase, invocation: null, category: 'preflight', code: 'CI_PHASE_LAUNCH_INPUTS_REQUIRED', firstCausalCode: 'NATIVE_FAILURE_UNCLASSIFIED',
+    });
     return { terminal, expected };
   } finally {
     fs.closeSync(log);

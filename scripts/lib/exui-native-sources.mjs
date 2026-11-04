@@ -56,6 +56,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-candidate-ci-evidence.mjs",
   "scripts/lib/exui-native-ci-ownership.mjs",
   "scripts/lib/exui-native-sources.mjs",
+  "scripts/lib/exui-native-failure.mjs",
   "scripts/lib/exui-native-contract.mjs",
   "scripts/lib/exui-native-proof-validation.mjs",
   "scripts/lib/exui-routing-contract.mjs",
