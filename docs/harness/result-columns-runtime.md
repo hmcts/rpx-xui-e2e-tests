@@ -1,9 +1,11 @@
 # Source-derived result tables: next native increment
 
-Status: fixture validation only. No application, search, catalogue or release credit.
+Status: deterministic import workbook prepared and serialization validated. Real import is unverified. No application, search, catalogue or release credit.
 
 The committed result-columns fixture binds fourteen PRL source rows to their exact
-labels, order and field dependencies. It is not yet an executable application slice.
+labels, order and field dependencies. An import artifact is retained at `scripts/fixtures/ccd/result-columns-import/definition.xlsx`. It is not yet an executable application slice.
+
+Regenerate into a fresh directory with `node scripts/prepare-harness-result-columns.mjs --output /absolute/fresh/output`. The companion JSON labels every synthetic scaffold sheet, and binding.json seals both JSON and workbook. Only CaseTypeID changes in the source-derived sheets. The existing observer role `caseworker-harness` has synthetic create/read access; no source authorisation claim follows.
 
 ## Transport and dependencies
 
@@ -89,6 +91,6 @@ latency, global search or deployment configuration.
    effective applicable fault; one successful navigation cannot satisfy fourteen rows.
    Keep unproved row facets (including security/searchability) explicitly excluded.
 
-Current gaps: no result workbook/import path, ES lifecycle, persisted-row seed,
+Current gaps: no runtime import wiring or successful import evidence, ES lifecycle, persisted-row seed,
 search gateway routes, actual metadata descriptor, candidate browser proof, fault
 execution or source-to-runtime image binding. None of these prerequisites have run.
