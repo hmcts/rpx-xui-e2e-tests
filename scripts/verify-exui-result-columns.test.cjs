@@ -86,3 +86,38 @@ test('support only: result columns bind exact current catalogue source rows and 
     assert.throws(() => api.buildResultColumnFixture(changed), /RESULT_COLUMN_SOURCE_DRIFT/);
   }
 });
+
+test('result column facet contract exhausts every source attribute and keeps all rows unproved', async () => {
+  const { buildResultColumnFacetContract, buildResultColumnFixture } = await import('./lib/exui-result-columns.mjs');
+  const fixture = buildResultColumnFixture();
+  const contract = buildResultColumnFacetContract();
+  assert.equal(contract.rows.length, 14);
+  assert.equal(contract.runtimeAcceptance, false);
+  assert.equal(contract.catalogueCredit, false);
+  assert.equal(contract.releaseCredit, false);
+  for (const item of contract.rows) {
+    const sheet = item.sourcePath.endsWith('/SearchResultFields.json') ? 'SearchResultFields' : 'WorkBasketResultFields';
+    const binding = fixture.bindings.find(b => b.obligationId === item.obligationId);
+    const row = fixture.sheets[sheet].find(r => r.CaseFieldID === binding.field);
+    assert.deepEqual(item.sourceFacets.map(f => f.attribute), Object.keys(row));
+    assert(item.sourceFacets.every(f => f.proof && f.boundary));
+    assert.equal(item.status, 'unproved');
+    assert.equal(item.sourceFacets.find(f => f.attribute === 'CaseTypeID').sourceValue, 'PRLAPPS');
+    const field = fixture.sheets.CaseField.find(f => f.ID === binding.field);
+    if (field) assert.deepEqual(item.dependency.facets.map(f => f.attribute), Object.keys(field));
+    else assert.equal(item.dependency.fieldType, null);
+  }
+  assert.equal(contract.rows.filter(r => r.dependency.kind === 'unresolved-ccd-metadata').length, 2);
+  const timestamp = contract.rows.find(r => r.sourceFacets.some(f => f.attribute === 'ResultsOrdering'));
+  assert.equal(timestamp.sourceFacets.find(f => f.attribute === 'ResultsOrdering').sourceValue, '1:DESC');
+  assert(timestamp.dependency.facets.some(f => f.attribute === 'Searchable'));
+  for (const tamper of [
+    f => { delete f.sheets.SearchResultFields[0].LiveFrom; },
+    f => { f.sheets.SearchResultFields[0].UnknownBehavior = true; },
+    f => { delete f.sheets.CaseField[7].Searchable; },
+    f => { f.runtimeAcceptance = true; },
+  ]) {
+    const changed = structuredClone(fixture); tamper(changed);
+    assert.throws(() => buildResultColumnFacetContract(changed), /RESULT_COLUMN_FIXTURE_DRIFT/);
+  }
+});

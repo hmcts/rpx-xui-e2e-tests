@@ -89,8 +89,29 @@ latency, global search or deployment configuration.
    effective fault. A broken backend or timeout is not the intended fault witness.
 6. Bind each source row's credit to its own observed column and value assertion plus
    effective applicable fault; one successful navigation cannot satisfy fourteen rows.
-   Keep unproved row facets (including security/searchability) explicitly excluded.
+   Keep any row with an unproved material facet unsatisfied. Excluding a material facet from the claim never permits partial-row credit.
 
 Current gaps: no runtime import wiring or successful import evidence, ES lifecycle, persisted-row seed,
 search gateway routes, actual metadata descriptor, candidate browser proof, fault
 execution or source-to-runtime image binding. None of these prerequisites have run.
+
+## Whole-row facet contract
+
+`buildResultColumnFacetContract()` in `scripts/lib/exui-result-columns.mjs` derives
+all fourteen per-row proof specifications from the sealed source fixture. It is not
+an evidence adapter and exposes no API for marking facet IDs observed or accepted.
+Every row stays unproved and all credit flags remain false. New source attributes
+must be explicitly classified; unknown attributes fail closed.
+
+The result rows themselves require LiveFrom activation, normalized CaseTypeID, exact
+CaseFieldID, Label and DisplayOrder; one also requires ResultsOrdering. Therefore
+labels/order/value formatting alone cannot establish all fourteen rows. Real CCD
+metadata descriptors remain unresolved for CREATED_DATE and STATE. Ordinary field
+dependencies additionally require actual imported type/security/live-date attributes
+and observable searchable/mapping behavior where declared. Preservation in the
+workbook is provenance evidence, not proof of those behaviors.
+
+Full row credit remains unavailable until a trusted runtime adapter binds all of
+these observations and effective faults to the candidate/import/source identities.
+Input hint rendering and index synchronization are separate claims; that boundary
+does not waive a material table facet. No generic catalogue acceptance is changed.
