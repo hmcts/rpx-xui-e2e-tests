@@ -8,7 +8,7 @@ export const digestBytes = (bytes) => 'sha256:' + createHash('sha256').update(by
 const requireFact = (condition, code) => { if (!condition) throw new Error(code); };
 const isWithin = (root, file) => file.startsWith(root + path.sep);
 
-export function readEvidenceArtifact(root, reference) {
+export function readEvidenceArtifactBytes(root, reference) {
   requireFact(reference && typeof reference.path === 'string' && /^sha256:[a-f0-9]{64}$/.test(reference.digest), 'INVALID_ARTIFACT_REFERENCE');
   const evidenceRoot = fs.realpathSync(root);
   const requested = path.resolve(evidenceRoot, reference.path);
@@ -17,6 +17,10 @@ export function readEvidenceArtifact(root, reference) {
   requireFact(isWithin(evidenceRoot, resolved) && fs.statSync(resolved).isFile(), 'ARTIFACT_OUTSIDE_RUN');
   const bytes = fs.readFileSync(resolved);
   requireFact(digestBytes(bytes) === reference.digest, 'ARTIFACT_DIGEST_MISMATCH');
+  return { bytes, reference };
+}
+export function readEvidenceArtifact(root, reference) {
+  const { bytes } = readEvidenceArtifactBytes(root, reference);
   return { value: JSON.parse(bytes), reference };
 }
 
@@ -35,6 +39,15 @@ export function readExecutionEvidence(root, reference, manifest, policy) {
   references.push(reference);
   const { value: report } = readEvidenceArtifact(root, execution.resultArtifact);
   references.push(execution.resultArtifact);
+  if (Object.hasOwn(execution, 'sharedRoleArtifacts')) {
+    requireFact(manifest.releaseScopeId === 'exui-ccd-pilot' && Array.isArray(execution.sharedRoleArtifacts), 'INVALID_SHARED_ROLE_ARTIFACTS');
+    const paths = execution.sharedRoleArtifacts.map(item => item.path);
+    requireFact(new Set(paths).size === paths.length && paths.every(name => typeof name === 'string' && name.startsWith(execution.invocationId + '/') && /^(manifest|context|personas|policy-observation|role-revocation-observation)\.json$|^(ccd-requests|fault-actions)\.jsonl$/.test(name.slice(execution.invocationId.length + 1))), 'INVALID_SHARED_ROLE_ARTIFACT_SELECTION');
+    for (const ref of execution.sharedRoleArtifacts) {
+      readEvidenceArtifactBytes(root, ref);
+      references.push(ref);
+    }
+  }
   requireFact(report.schemaVersion === 1 && report.complete === true && Array.isArray(report.tests) && Array.isArray(report.globalErrors), 'INVALID_FRAMEWORK_REPORT');
   requireFact(['passed', 'failed', 'timedout', 'interrupted'].includes(report.status), 'INVALID_FRAMEWORK_STATUS');
   requireFact(isDeepStrictEqual(execution.unexpectedGlobalErrors, report.globalErrors), 'GLOBAL_ERROR_MISMATCH');

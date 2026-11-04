@@ -35,6 +35,7 @@ import {
   loadRunEvidence,
 } from "./exui-evidence-io.mjs";
 import { writeHarnessPublicSummary } from "./exui-output-boundary.mjs";
+import { captureSharedRoleArtifacts } from "./exui-shared-role-artifacts.mjs";
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const ref = (output, file) => ({
   path: path.relative(output, file),
@@ -335,6 +336,9 @@ export async function runNativeHostPhase(output, stagedHarness) {
         runnerExitCode: terminal.code,
         unexpectedGlobalErrors: report.globalErrors,
         resultArtifact: ref(output, path.join(directory, "report.json")),
+        ...(input.releaseScopeId === "exui-ccd-pilot" ? {
+          sharedRoleArtifacts: captureSharedRoleArtifacts(output, invocation.invocationId),
+        } : {}),
       });
       manifest ??= current;
       executions.push(ref(output, path.join(directory, "execution.json")));
