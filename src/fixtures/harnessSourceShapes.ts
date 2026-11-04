@@ -18,6 +18,18 @@ export async function assertSourceShapeHiddenControls(...controls: Locator[]) {
   for (const control of controls) await expect(control).toBeHidden();
 }
 
+export const postalSiblingValues = {
+  AddressLine3: 'Synthetic third line', PostTown: 'Synthetic town',
+  County: 'Synthetic county', Country: 'United Kingdom',
+};
+
+export async function fillSourceShapePostalSiblings(page: Page) {
+  // Deliberately populated siblings make preservation independent of empty/null serialization.
+  for (const [field, value] of Object.entries(postalSiblingValues)) {
+    await page.locator(`input[id$="${field}"]`).fill(value);
+  }
+}
+
 async function assertControlOrder(controls: Locator[]) {
   for (let index = 1; index < controls.length; index++) {
     await expect(controls[index]).toHaveAttribute('id', /.+/);
@@ -128,6 +140,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       await page.locator('input[id$="_postalName"]').fill(emailName);
       await page.locator('input[id$="AddressLine1"]').fill('Synthetic shape street');
       await page.locator('input[id$="PostCode"]').fill('SW1A 1AA');
+      await fillSourceShapePostalSiblings(page);
       await expect(line2).toBeVisible();
       await expect(line2).toHaveAccessibleName(/Address Line 2/);
       await assertControlOrder([page.locator('input[id$="AddressLine1"]'),line2,page.locator('input[id$="PostCode"]')]);
@@ -160,7 +173,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     }
     if (expectedChannel === 'post') {
       expect(recipients[0].value.postalInformation).toMatchObject({postalName:emailName,
-        postalAddress:{AddressLine1:'Synthetic shape street',PostCode:'SW1A 1AA'}});
+        postalAddress:{AddressLine1:'Synthetic shape street',PostCode:'SW1A 1AA',...postalSiblingValues}});
       expect(recipients[0].value.postalInformation.postalAddress.AddressLine2 || null).toBe(expectedLine2);
       if (faultEmailPresent) {
         expect(recipients[0].value.emailInformation).toMatchObject({emailName:'Synthetic fault email recipient',emailAddress:'fault-recipient@harness.example.com'});
