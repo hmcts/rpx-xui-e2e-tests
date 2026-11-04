@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import {callbackFailureCode} from './lib/exui-recipient-callback-diagnostics.mjs';
+import {callbackFailureCode,parseCallbackWorkerTerminal} from './lib/exui-recipient-callback-diagnostics.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -45,17 +45,18 @@ export async function runRecipientCallbackProbe({output,mode='normalize',platfor
   verifyCcdContainerIdentity(state);assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
   phase='execute-worker';terminal=new Promise((resolve,reject)=>{
    child=spawn('docker',['exec','-i',state.containers.client,'node','/tmp/recipient-probe/scripts/recipient-callback-backend-worker.mjs'],{stdio:['pipe','pipe','pipe']});
-   let text='',tooLarge=false;child.stdout.on('data',bytes=>{if(text.length+bytes.length>65536){tooLarge=true;child.kill('SIGTERM');}else text+=bytes.toString();});child.stderr.resume();
-   child.once('error',()=>reject(Error('CALLBACK_PROBE_EXEC_START_FAILED')));child.once('close',code=>resolve({code,text,tooLarge}));
+   let text='',stderr='',tooLarge=false;child.stdout.on('data',bytes=>{if(text.length+bytes.length>65536){tooLarge=true;child.kill('SIGTERM');}else text+=bytes.toString();});child.stderr.on('data',bytes=>{if(Buffer.byteLength(stderr)+bytes.length<=65536)stderr+=bytes.toString();else{tooLarge=true;child.kill('SIGTERM');}});
+   child.once('error',()=>reject(Error('CALLBACK_PROBE_EXEC_START_FAILED')));child.once('close',code=>resolve({code,text,stderr,tooLarge}));
    child.stdin.on('error',()=>{});child.stdin.end(JSON.stringify({mode,credentials}));
   });
   const result=await Promise.race([terminal,new Promise((_,reject)=>{const timer=setTimeout(()=>{child.kill('SIGTERM');reject(Error('CALLBACK_PROBE_EXEC_TIMEOUT'));},120000);timer.unref();terminal.finally(()=>clearTimeout(timer)).catch(()=>{});})]);
   assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
-  verifyCcdContainerIdentity(state);docker(['cp',state.containers.client+':/tmp/recipient-output',path.join(output,'observations')]);
-  assert(!result.tooLarge,'CALLBACK_PROBE_WORKER_FAILED');
-  const worker=JSON.parse(result.text);
-  if(worker.status==='failed') { receipt.workerFailure={code:callbackFailureCode({message:worker.code}),phase:['verify-source','read-input','start-gateway','backend-flow'].includes(worker.phase)?worker.phase:'unknown'};save(); }
-  assert.equal(result.code,0,'CALLBACK_PROBE_WORKER_FAILED');assert.equal(worker.status,'completed','CALLBACK_PROBE_WORKER_RESULT');receipt.result=worker.result;receipt.status='backend-feasibility-observed';save();
+  const worker=parseCallbackWorkerTerminal(result);
+  if(worker.status==='failed') { receipt.workerFailure={code:worker.code,phase:worker.phase};save();throw Error(worker.code); }
+  // Terminal failure is retained before optional observation collection can mask it.
+  try { verifyCcdContainerIdentity(state);docker(['cp',state.containers.client+':/tmp/recipient-output',path.join(output,'observations')]); }
+  catch { throw Error('CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED'); }
+  receipt.result=worker.result;receipt.status='backend-feasibility-observed';save();
  }catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackFailureCode(error);save();}
  finally{
   // Recovery uses independently retained fixed names/CIDs, including partial startup.
