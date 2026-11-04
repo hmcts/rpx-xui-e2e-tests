@@ -86,10 +86,19 @@ test(
       const projected = recipientFields[0]?.value ?? null;
       const visible = [];
       for (const recipient of expectedRecipients) {
-        const marker = recipient.emailInformation?.emailAddress ?? recipient.postalInformation!.postalName;
-        const locator = page.getByText(marker, { exact: true });
-        await expect(locator).toBeVisible({ visible: !mutation });
-        visible.push(await locator.isVisible());
+        const markers = [
+          recipient.emailInformation?.emailAddress,
+          recipient.postalInformation?.postalName,
+          recipient.postalInformation?.postalAddress.AddressLine1,
+          recipient.postalInformation?.postalAddress.PostCode,
+        ].filter((value): value is string => typeof value === "string");
+        const markerVisibility = [];
+        for (const marker of markers) {
+          const locator = page.getByText(marker, { exact: true });
+          await expect(locator).toBeVisible({ visible: !mutation });
+          markerVisibility.push(await locator.isVisible());
+        }
+        visible.push(markerVisibility.every(Boolean));
       }
       const after = await observeCcd(caseId);
       expect(after).toEqual(before);

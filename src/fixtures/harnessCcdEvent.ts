@@ -152,7 +152,7 @@ export const courtadminReadScenarios = ["email", "post"].flatMap(channel =>
           postalAddress: {
             AddressLine1: `Synthetic read street ${index + 1}`,
             AddressLine2: null, AddressLine3: null, PostTown: null,
-            County: null, PostCode: "SW1A 1AA", Country: null,
+            County: null, PostCode: ["SW1A 1AA", "M1 1AA"][index], Country: null,
           },
         },
       },
