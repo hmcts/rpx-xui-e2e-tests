@@ -88,7 +88,7 @@ export function proveResultCcdSearch(state, { request = ccdRequest, readRows = r
       receipt.observations[useCase].validated = validateResultCcdSearch(response.body, imported.observations[name].body, imported.observations.definition.body, rows, useCase); persist();
     }
     receipt.status='both-use-cases-observed';persist();return receipt;
-  } catch {
-    receipt.status='failed';receipt.failure='RESULT_CCD_SEARCH_FEASIBILITY_FAILED';persist();throw new Error('RESULT_CCD_SEARCH_FEASIBILITY_FAILED');
+  } catch (error) {
+    receipt.status='failed';receipt.failure='RESULT_CCD_SEARCH_FEASIBILITY_FAILED';persist();throw error;
   }
 }
