@@ -1,0 +1,14 @@
+{
+  "linux/arm64": {
+    "platform": "linux/arm64",
+    "manifestDigest": "sha256:456f75dfb9d64d21471535960155e2b206363e6fbe17d3c8dc9dfde55b0bae22",
+    "configDigest": "sha256:acc21d367dc945eb5f7050e2ceb3ff9f433243f44bb1f2da509954bb8c86cd04",
+    "reference": "docker.elastic.co/elasticsearch/elasticsearch@sha256:456f75dfb9d64d21471535960155e2b206363e6fbe17d3c8dc9dfde55b0bae22"
+  },
+  "linux/amd64": {
+    "platform": "linux/amd64",
+    "manifestDigest": "sha256:4f588d1001c207d6217e61747df8752c5d2a04c41e3a235c621bfa3a57e352f5",
+    "configDigest": "sha256:6fe993d6e7ed5e00a18f9b146d867b77559bf9948e6596bbf880ddbefeec46f7",
+    "reference": "docker.elastic.co/elasticsearch/elasticsearch@sha256:4f588d1001c207d6217e61747df8752c5d2a04c41e3a235c621bfa3a57e352f5"
+  }
+}

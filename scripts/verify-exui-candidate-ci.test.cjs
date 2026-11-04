@@ -673,11 +673,14 @@ test("support only: mutable handoff cannot substitute another private source sna
       undefined,
       "CID may not yet exist when immutable expectations are captured",
     );
-    fs.writeFileSync(path.join(stage, HARNESS_SOURCE_FILES[0]), "tampered");
-    assert.throws(
-      () => captureCiOwnership(input, handoff, context, output, "family"),
-      /SNAPSHOT_DIGEST/,
-    );
+    for (const file of [HARNESS_SOURCE_FILES[0], 'scripts/fixtures/ccd/elasticsearch-images.json']) {
+      fs.writeFileSync(path.join(stage, file), "tampered");
+      assert.throws(
+        () => captureCiOwnership(input, handoff, context, output, "family"),
+        /SNAPSHOT_DIGEST/,
+      );
+      fs.copyFileSync(path.resolve(file), path.join(stage, file));
+    }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }

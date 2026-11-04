@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
-import { CCD_IMAGES, ccdImagePins, stopCcdRuntime } from "./exui-ccd-runtime.mjs";
+import { ccdImagePins, stopCcdRuntime } from "./exui-ccd-runtime.mjs";
 import { installCancellationCleanup } from "./exui-oci-runtime.mjs";
 import { digestBytes, writeJsonAtomic } from "./exui-evidence-io.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
@@ -315,22 +315,24 @@ export function cleanupCiCcd(
     "CI_CCD_RECOVERY_OWNER_REQUIRED",
   );
   assert.equal(recovery.output, directory, "CI_CCD_RECOVERY_PATH_MISMATCH");
+  const elasticsearch = recovery.elasticsearch ?? false;
+  const pins = ccdImagePins(recovery.platform ?? "linux/arm64", { elasticsearch });
   assert.deepEqual(
     Object.keys(recovery.resources).sort(),
-    Object.keys(CCD_IMAGES).sort(),
+    Object.keys(pins).sort(),
     "CI_CCD_RECOVERY_SERVICE_INVENTORY",
   );
-  const pins = ccdImagePins(recovery.platform ?? "linux/arm64");
   const statePath = path.join(directory, "runtime.json");
   const state = fs.existsSync(statePath)
     ? read(statePath)
-    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}) };
+    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}), ...(elasticsearch ? { elasticsearch } : {}) };
+  assert.equal(state.elasticsearch ?? false, elasticsearch, "CI_CCD_RECOVERY_ELASTICSEARCH_MISMATCH");
   assert.equal(state.platform ?? "linux/arm64", recovery.platform ?? "linux/arm64", "CI_CCD_RECOVERY_PLATFORM_MISMATCH");
   assert.equal(state.owner, recovery.owner, "CI_CCD_RECOVERY_OWNER_MISMATCH");
   assert.equal(state.output, directory, "CI_CCD_RECOVERY_PATH_MISMATCH");
   assert(
     Object.keys(state.containers).every((service) =>
-      Object.hasOwn(CCD_IMAGES, service),
+      Object.hasOwn(pins, service),
     ),
     "CI_CCD_RECORDED_SERVICE_MISMATCH",
   );

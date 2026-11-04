@@ -32,12 +32,27 @@ metadata resolves these immutable manifests:
 | linux/arm64 | sha256:456f75dfb9d64d21471535960155e2b206363e6fbe17d3c8dc9dfde55b0bae22 |
 
 These are registry pins, not proof of compatibility with the retained CCD images.
-Add one owned ES container to the isolated runtime namespace, without a published
-port. Enable definition-store `ELASTIC_SEARCH_ENABLED`, `ELASTIC_SEARCH_HOST`,
+The native runtime now accepts `startCcdRuntime(output, { platform, elasticsearch: true })`
+or the existing startup CLI's `--elasticsearch` flag. This adds one owned ES container
+to the isolated runtime namespace, without a published port or shared volume. The
+default remains seven services with search disabled. The CLI still imports the
+existing nested fixture; it does not import or prove the result-columns slice.
+
+`scripts/fixtures/ccd/elasticsearch-images.json` records both manifest and config
+digests, verified against immutable public registry manifests. Startup requires the
+matching image already present; image retrieval is separate from the isolated run.
+ES uses an owned cluster name, loopback binding, one node and disposable tmpfs data.
+Readiness requires its own cluster to report yellow or green, one node and no timeout
+before CCD services start. Reuse verifies the optional inventory and image identity;
+recovery includes ES and removes the namespace only after all sidecars. An explicitly
+requested CLI mode must match the reused runtime.
+
+Opt-in startup enables definition-store `ELASTIC_SEARCH_ENABLED`, `ELASTIC_SEARCH_HOST`,
 `ELASTIC_SEARCH_FAIL_ON_IMPORT`, and datastore `ELASTIC_SEARCH_ENABLED`,
 `ELASTIC_SEARCH_HOSTS`, `ELASTIC_SEARCH_DATA_NODES_HOSTS` against loopback.
-Identity, readiness and teardown must include this container. Do not alter the
-existing seven-service runtime for unrelated slices.
+Offline lifecycle tests cover both platforms, defaults, identity rejection,
+readiness, cancellation and cleanup failure. No live CCD/ES compatibility follows
+from these checks; runtime import and real search are still unverified.
 
 Use definition-store's own import-generated mappings. Reference source
 `c37c9b84e556f22086f1eed7b94468302870eb9e`,
@@ -91,7 +106,7 @@ latency, global search or deployment configuration.
    effective applicable fault; one successful navigation cannot satisfy fourteen rows.
    Keep any row with an unproved material facet unsatisfied. Excluding a material facet from the claim never permits partial-row credit.
 
-Current gaps: no runtime import wiring or successful import evidence, ES lifecycle, persisted-row seed,
+Current gaps: no runtime import wiring or successful import evidence, live ES compatibility, persisted-row seed,
 search gateway routes, actual metadata descriptor, candidate browser proof, fault
 execution or source-to-runtime image binding. None of these prerequisites have run.
 

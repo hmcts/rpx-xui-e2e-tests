@@ -10,5 +10,5 @@ const output=path.resolve(outputIndex<0?'test-results/harness-ccd':process.argv[
 let state;
 try {
  if(process.argv.includes('--stop')){state=JSON.parse(fs.readFileSync(path.join(output,'runtime.json')));stopCcdRuntime(state);console.log('Owned CCD runtime removed');}
- else {state=process.argv.includes('--reuse')?loadCcdRuntimeForReuse(output):await startCcdRuntime(output,{platform});importCcdDefinition(state);const proof=proveCcdPolicy(state);console.log(JSON.stringify({namespace:state.namespace,output,caseId:proof.caseId,policy:proof.policy}));}
+ else {state=process.argv.includes('--reuse')?loadCcdRuntimeForReuse(output,undefined,{elasticsearch:process.argv.includes('--elasticsearch')}):await startCcdRuntime(output,{platform,elasticsearch:process.argv.includes('--elasticsearch')});importCcdDefinition(state);const proof=proveCcdPolicy(state);console.log(JSON.stringify({namespace:state.namespace,output,caseId:proof.caseId,policy:proof.policy}));}
 }catch(error){console.error(error.message);process.exitCode=1;}
