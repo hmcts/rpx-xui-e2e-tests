@@ -181,3 +181,33 @@ test('browser cache copy uses controller identity without preserving image owner
  assert.equal(browser,path.join(root,'browser-cache'));assert.equal(fs.statSync(browser).mode&0o777,0o755);
  assert.equal(fs.statSync(root).mode&0o777,0o700);
 });
+
+test('native completion exposes assertion codes while withholding multiline private differences',async t=>{
+ const {logNativeCompletion}=await load();
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'native-safe-code-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ fs.mkdirSync(path.join(root,'private'));
+ fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'BLOCKED',phaseResults:[],cleanupComplete:true}));
+ fs.writeFileSync(path.join(root,'private/orchestration-error.json'),JSON.stringify({message:'CI_CLEAN_HARNESS_REQUIRED\n+ PRIVATE-CANARY credentials\n- expected'}));
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));
+ logNativeCompletion(root);
+ assert.equal(messages.length,1);assert.match(messages[0],/stop reason CI_CLEAN_HARNESS_REQUIRED/);
+ assert.doesNotMatch(messages[0],/PRIVATE-CANARY|credentials|expected/);
+});
+
+test('shared Jenkins generated files do not dirty source while tracked code and audit policy still do',t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'jenkins-generated-source-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const git=args=>{const r=spawnSync('git',args,{cwd:root,encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout;};
+ fs.copyFileSync(path.resolve(__dirname,'../.gitignore'),path.join(root,'.gitignore'));
+ fs.writeFileSync(path.join(root,'source.mjs'),'export const value=1;');
+ fs.writeFileSync(path.join(root,'yarn-audit-known-issues'),'{}');
+ git(['init','--quiet']);git(['add','.gitignore','source.mjs','yarn-audit-known-issues']);
+ git(['-c','user.name=fixture','-c','user.email=fixture@harness.invalid','commit','--quiet','-m','fixture']);
+ const generated=['version','security.sh','prettyPrintAudit.sh','transform-v4-to-v3-audit.cjs','yarn-audit-with-suppressions.sh','yarn-audit-result','yarn-audit-result-formatted','yarn-audit-known-issues-formatted','yarn-audit-known-issues-result','yarn-audit-issues-result','yarn-audit-issues-result-summary','yarn-audit-issues-advisories','sorted-yarn-audit-issues','sorted-yarn-audit-known-issues','unneeded_suppressions','new_vulnerabilities','active_suppressions'];
+ for(const file of generated)fs.writeFileSync(path.join(root,file),'fixture');
+ assert.equal(git(['status','--porcelain']),'');
+ fs.writeFileSync(path.join(root,'source.mjs'),'changed');
+ fs.writeFileSync(path.join(root,'yarn-audit-known-issues'),'changed');
+ fs.mkdirSync(path.join(root,'scripts'));fs.writeFileSync(path.join(root,'scripts/transform-v4-to-v3-audit.cjs'),'new code');
+ const status=git(['status','--porcelain']);
+ assert.match(status,/ M source\.mjs/);assert.match(status,/ M yarn-audit-known-issues/);assert.match(status,/\?\? scripts\//);
+});

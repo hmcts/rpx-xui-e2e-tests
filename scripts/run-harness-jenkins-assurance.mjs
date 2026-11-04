@@ -417,7 +417,12 @@ function reportIsValid() {
   return !result.error && result.status === 0;
 }
 
-function logNativeCompletion(output) {
+function controlledFailureCode(message, fallback) {
+  const firstLine = typeof message === "string" ? message.split("\n", 1)[0] : "";
+  return /^[A-Z][A-Z0-9_]{0,199}$/.test(firstLine) ? firstLine : fallback;
+}
+
+export function logNativeCompletion(output) {
   try {
     const result = JSON.parse(
       fs.readFileSync(path.join(output, "private/ci-result.json"), "utf8"),
@@ -439,9 +444,7 @@ function logNativeCompletion(output) {
       const failure = JSON.parse(
         fs.readFileSync(path.join(output, "private/orchestration-error.json"), "utf8"),
       );
-      stopReason = /^[A-Z][A-Z0-9_]*$/.test(failure.message)
-        ? `; stop reason ${failure.message}`
-        : "; stop reason NATIVE_PREFLIGHT_FAILED";
+      stopReason = `; stop reason ${controlledFailureCode(failure.message, "NATIVE_PREFLIGHT_FAILED")}`;
     } catch {
       // No orchestration failure was recorded.
     }
@@ -488,7 +491,7 @@ async function main() {
       exitCode = Math.max(exitCode, 2);
     }
   } catch (error) {
-    const reason = /^[A-Z][A-Z0-9_]{0,199}$/.test(error.message ?? "") ? error.message : "HARNESS_NATIVE_PREPARATION_FAILED";
+    const reason = controlledFailureCode(error.message, "HARNESS_NATIVE_PREPARATION_FAILED");
     if (privateRoot) {
       assertPrivateDirectory(privateRoot);
       writePrivateJob(path.join(privateRoot, "preparation-error.json"), { stage, reason });
