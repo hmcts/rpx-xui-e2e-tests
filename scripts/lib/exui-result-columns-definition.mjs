@@ -7,6 +7,9 @@ export function buildResultColumnDefinition(fixture = buildResultColumnFixture()
   const role = "caseworker-harness";
   const common = { LiveFrom: "01/01/2020", CaseTypeID: ct };
   const synthetic = {
+    ComplexTypes: [], FixedLists: [], EventToComplexTypes: [], AuthorisationComplexType: [],
+    SearchInputFields: [], WorkBasketInputFields: [],
+    CaseTypeTab: [{ ...common, TabID: "results", TabLabel: "Synthetic results data", TabDisplayOrder: 1, CaseFieldID: "applicantCaseName", TabFieldDisplayOrder: 1 }],
     Jurisdiction: [{ LiveFrom: common.LiveFrom, ID: "HARNESS", Name: "Disposable Harness", Description: "Synthetic isolated CCD" }],
     CaseType: [{ LiveFrom: common.LiveFrom, ID: ct, Name: "Harness result columns", Description: "Synthetic source-derived result tables; no deployed PRL identity", JurisdictionID: "HARNESS", SecurityClassification: "Public" }],
     State: [{ ...common, ID: "ResultsReady", Name: "Synthetic results ready" }],

@@ -20,6 +20,13 @@
   },
   "syntheticScaffolding": {
     "sheets": [
+      "ComplexTypes",
+      "FixedLists",
+      "EventToComplexTypes",
+      "AuthorisationComplexType",
+      "SearchInputFields",
+      "WorkBasketInputFields",
+      "CaseTypeTab",
       "Jurisdiction",
       "CaseType",
       "State",
@@ -38,6 +45,23 @@
     "claim": "Disposable import/create/read scaffolding; not source PRL authorisation or workflow coverage"
   },
   "sheets": {
+    "ComplexTypes": [],
+    "FixedLists": [],
+    "EventToComplexTypes": [],
+    "AuthorisationComplexType": [],
+    "SearchInputFields": [],
+    "WorkBasketInputFields": [],
+    "CaseTypeTab": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "TabID": "results",
+        "TabLabel": "Synthetic results data",
+        "TabDisplayOrder": 1,
+        "CaseFieldID": "applicantCaseName",
+        "TabFieldDisplayOrder": 1
+      }
+    ],
     "Jurisdiction": [
       {
         "LiveFrom": "01/01/2020",

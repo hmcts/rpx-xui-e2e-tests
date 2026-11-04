@@ -13,6 +13,8 @@ test('support only: result import retains every source attribute and labels scaf
   const definition = buildResultColumnDefinition();
   for (const [name, rows] of Object.entries(fixture.sheets)) assert.deepEqual(definition.sheets[name], rows);
   assert.equal(definition.sheets.CaseField.length, 8);
+  for (const name of ['ComplexTypes','FixedLists','EventToComplexTypes','AuthorisationComplexType','SearchInputFields','WorkBasketInputFields']) assert.deepEqual(definition.sheets[name], []);
+  assert.equal(definition.sheets.CaseTypeTab[0].CaseFieldID, 'applicantCaseName');
   assert.equal(definition.sheets.SearchResultFields.length, 7);
   assert.equal(definition.sheets.WorkBasketResultFields.length, 7);
   assert.deepEqual(definition.sheets.CaseField.map(row => row.FieldType), ['Text','Text','Text','Text','Text','Text','Date','DateTime']);
@@ -70,6 +72,10 @@ assert names==list(expected)
 for index,name in enumerate(names,1):
  rows=E.fromstring(z.read('xl/worksheets/sheet%d.xml'%index)).findall('.//x:row',ns)
  headers=[c.find('x:v',ns).text for c in rows[2]]
+ if not expected[name]:
+  assert len(rows)==3, name
+  assert 'LiveFrom' in headers, name
+  assert ('ID' if name in ['ComplexTypes','FixedLists'] else 'CaseTypeID') in headers, name
  decoded=[]
  for row in rows[3:]:
   entry={}
