@@ -1,3 +1,4 @@
+import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
 import { digestBytes } from "./exui-evidence-io.mjs";
@@ -18,6 +19,7 @@ const slices = {
     { invocationId: READONLY_READ_MUTATION, kind: "mutation", mutation: READONLY_READ_MUTATION },
     { invocationId: READONLY_UPDATE_MUTATION, kind: "mutation", mutation: READONLY_UPDATE_MUTATION },
     { invocationId: COURTADMIN_UPDATE_MUTATION, kind: "mutation", mutation: COURTADMIN_UPDATE_MUTATION },
+    ...SOURCE_SHAPE_MUTATIONS.map(mutation => ({invocationId:mutation, kind:"mutation", mutation})),
   ],
   "exui-hearing-publication-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },

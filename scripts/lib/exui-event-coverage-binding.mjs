@@ -1,3 +1,4 @@
+import { SOURCE_SHAPE_ROWS, validateSourceShapeFault } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -170,7 +171,7 @@ export function bindEventCoverage({
   }
   assert.equal(overlapRows, 38, "COVERAGE_EVENT_SOURCE_OVERLAP_MISMATCH");
   const pair = Object.fromEntries(
-    ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"].map((variant) => [
+    ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)].map((variant) => [
       variant,
       read(
         harnessRoot,
@@ -187,13 +188,14 @@ export function bindEventCoverage({
     pair.mutant,
     source,
   );
+  const shapeTransformations = Object.fromEntries(SOURCE_SHAPE_ROWS.map(row => [`shape-${row.id}-transformation`,validateSourceShapeFault(row.id,pair.baseline,pair[`shape-${row.id}-mutant`],source)]));
   const readTransformation = validateCourtadminReadPair(pair.baseline, pair["read-mutant"], source);
   const courtadminUpdateTransformation = validateCourtadminUpdatePair(pair.baseline, pair["courtadmin-update-mutant"], source);
   const readonlyUpdateTransformation = validateReadonlyUpdatePair(pair.baseline, pair["readonly-update-mutant"], source);
   const readonlyReadTransformation = validateReadonlyReadPair(pair.baseline, pair["readonly-read-mutant"], source);
   // prepareCcdImport independently validates the canonical pair and workbook seals.
   const prepared = Object.fromEntries(
-    ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"].map((variant) => {
+    ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)].map((variant) => {
       const value = prepareCcdImport(undefined, "event-capability-" + variant);
       assert.deepEqual(
         value.source,
@@ -260,7 +262,8 @@ export function bindEventCoverage({
     read(directory, READONLY_UPDATE_MUTATION + "/runtime-input.json"));
   const readonlyReadMutant = selectEventCapabilityRuntime(baseline, READONLY_READ_MUTATION,
     read(directory, READONLY_READ_MUTATION + "/runtime-input.json"));
-  for (const [index, variant] of ["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"].entries()) {
+  const shapeRuntimes = SOURCE_SHAPE_ROWS.map(row => [`shape-${row.id}-mutant`, `ccd-shape-${row.id}`, selectEventCapabilityRuntime(baseline,`ccd-shape-${row.id}`,read(directory,`ccd-shape-${row.id}/runtime-input.json`))]);
+  for (const [index, variant] of ["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)].entries()) {
     assert.deepEqual(
       loaded.input.mutations[index].mutantIdentity,
       {
@@ -281,6 +284,7 @@ export function bindEventCoverage({
     ["readonly-read-mutant", readonlyReadMutant],
     ["readonly-update-mutant", readonlyUpdateMutant],
     ["courtadmin-update-mutant", courtadminUpdateMutant],
+    ...shapeRuntimes.map(([variant,,runtime]) => [variant,runtime]),
   ]) {
     seedAppCcdSessions(
       runtime.credentials,
@@ -288,7 +292,7 @@ export function bindEventCoverage({
       EVENT_CAPABILITY_SCOPE,
     );
     const invocation =
-      variant === "baseline" ? "baseline" : { mutant: EVENT_CAPABILITY_MUTATION, "read-mutant": COURTADMIN_READ_MUTATION, "readonly-read-mutant": READONLY_READ_MUTATION, "readonly-update-mutant": READONLY_UPDATE_MUTATION, "courtadmin-update-mutant": COURTADMIN_UPDATE_MUTATION }[variant];
+      variant === "baseline" ? "baseline" : { mutant: EVENT_CAPABILITY_MUTATION, "read-mutant": COURTADMIN_READ_MUTATION, "readonly-read-mutant": READONLY_READ_MUTATION, "readonly-update-mutant": READONLY_UPDATE_MUTATION, "courtadmin-update-mutant": COURTADMIN_UPDATE_MUTATION, ...Object.fromEntries(shapeRuntimes.map(([variant,id]) => [variant,id])) }[variant];
     const manifest = read(directory, invocation + "/manifest.json");
     if (variant === "baseline")
       assert.deepEqual(
@@ -453,6 +457,7 @@ export function bindEventCoverage({
     ["readonly-read-mutant", READONLY_READ_MUTATION, readonlyReadMutant],
     ["readonly-update-mutant", READONLY_UPDATE_MUTATION, readonlyUpdateMutant],
     ["courtadmin-update-mutant", COURTADMIN_UPDATE_MUTATION, courtadminUpdateMutant],
+    ...shapeRuntimes,
   ].entries()) {
     const ref = run.mutations[index].derivationArtifact;
     bytes(directory, ref.path);
@@ -473,7 +478,7 @@ export function bindEventCoverage({
         mutantIdentity: loaded.input.mutations[index].mutantIdentity,
         transformation: mutationId,
         target: eventCapabilityFaultContract(mutationId).target,
-        transformationRecord: { transformation, readTransformation, readonlyReadTransformation, readonlyUpdateTransformation, courtadminUpdateTransformation }[eventCapabilityFaultContract(mutationId).transformationKey],
+        transformationRecord: { transformation, readTransformation, readonlyReadTransformation, readonlyUpdateTransformation, courtadminUpdateTransformation, ...shapeTransformations }[eventCapabilityFaultContract(mutationId).transformationKey],
         beforeDigest: prepared.baseline.binding.workbookDigest,
         afterDigest: prepared[variant].binding.workbookDigest,
         baselineRuntimeMetadata: runtimeMetadata(baseline),

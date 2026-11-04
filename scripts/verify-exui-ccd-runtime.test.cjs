@@ -118,7 +118,7 @@ const fixedRuntime = async () => {
   const api = await runtime;
   assert.deepEqual(
     api.CCD_FIXTURE_SELECTIONS,
-    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant"],
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant", "event-capability-shape-required-delivery-radio-mutant", "event-capability-shape-conditional-email-complex-mutant", "event-capability-shape-optional-postal-line-two-mutant"],
     "fixed source fixture selection must exist before transport use",
   );
   return api;
@@ -175,6 +175,8 @@ function observedEventFixture(fixture) {
         ).map((e) => ({
           reference: e.ListElementCode,
           displayContext: e.DisplayContext,
+          label: e.EventElementLabel?.trim() ?? null,
+          order: Number(e.FieldDisplayOrder),
           showCondition: e.FieldShowCondition || null,
         })),
       })),

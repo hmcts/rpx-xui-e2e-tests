@@ -1,3 +1,5 @@
+import { SOURCE_SHAPE_MUTATIONS, sourceShapeIdForMutation, validateSourceShapeFault } from './exui-source-shape-contract.mjs';
+export { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
@@ -9,7 +11,12 @@ export const COURTADMIN_READ_MUTATION = "ccd-remove-courtadmin-recipient-read";
 export const READONLY_READ_MUTATION = "ccd-remove-readonly-recipient-read";
 export const READONLY_UPDATE_MUTATION = "ccd-enable-readonly-recipient-update";
 export function eventCapabilityFaultContract(invocationId) {
-  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
+  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
+  if (SOURCE_SHAPE_MUTATIONS.includes(invocationId)) {
+    const id = sourceShapeIdForMutation(invocationId);
+    return {variant:`shape-${id}-mutant`, target:`EventToComplexTypes:ServeOrgDetails:${id}`, transformationKey:`shape-${id}-transformation`,
+      validatePair:(baseline,mutant,source) => validateSourceShapeFault(id,baseline,mutant,source)};
+  }
   const contract = {
     [EVENT_CAPABILITY_MUTATION]: { variant: "mutant", target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD", transformationKey: "transformation", validatePair: validateEventCapabilityPair },
     [COURTADMIN_READ_MUTATION]: { variant: "read-mutant", target: "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD", transformationKey: "readTransformation", validatePair: validateCourtadminReadPair },

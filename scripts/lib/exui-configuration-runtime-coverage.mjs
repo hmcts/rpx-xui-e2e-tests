@@ -1,3 +1,4 @@
+import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -379,12 +380,14 @@ export function projectConfigurationCoverage(args) {
       directory: eventPhaseDirectory,
       loaded,
     });
-    for (const [cell, proofId, obligationId] of [
+    for (const [cell, proofId, obligationId, boundary = "ccd"] of [
+      ...SOURCE_SHAPE_ROWS.map(row => [row.obligationId, `ccd-source-shape-${row.id}`, `ccd-source-shape-${row.id}`, "candidate"]),
       ...COURTADMIN_UPDATE_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadmin, COURTADMIN_UPDATE_OBLIGATION]),
       ...COURTADMIN_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadminRead, COURTADMIN_READ_OBLIGATION]),
       ...READONLY_UPDATE_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.readonlyUpdate, READONLY_UPDATE_OBLIGATION]),
       ...READONLY_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.readonlyRead, READONLY_READ_OBLIGATION]),
     ]) {
+      assert.equal(input.catalogue.obligations.find(item => item.id === cell)?.requiredBoundary, boundary, "COVERAGE_EVENT_SOURCE_BOUNDARY_MISMATCH");
       const proof = loaded.input.results.find(
         (item) => item.proofId === proofId,
       );
@@ -397,7 +400,7 @@ export function projectConfigurationCoverage(args) {
         assert.equal(proof.outcome, "passed", "COVERAGE_PASSED_PROOF_REQUIRED");
         executedProofs.push({
           obligationId: cell,
-          boundary: "ccd",
+          boundary,
           status: "passed",
         });
       } else

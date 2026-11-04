@@ -32,7 +32,7 @@ async function fixture(t) {
       ...Object.fromEntries(['runId', 'harnessCommit', 'releaseScopeId', 'policyDigest', 'identity'].map(key => [key, structuredClone(manifest[key])])),
       invocationId: 'baseline', harnessSourceState: 'clean', harnessSourceDigest: expected.harnessSourceDigest,
     },
-    tests: ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
+    tests: ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied', 'ccd-source-shape-conditional-email-complex', 'ccd-source-shape-optional-postal-line-two', 'ccd-source-shape-required-delivery-radio'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
   };
   const execution = { runId: manifest.runId, invocationId: 'baseline', kind: 'baseline', identity: structuredClone(manifest.identity), terminalState: 'completed', runnerExitCode: 0, unexpectedGlobalErrors: [] };
   const terminal = { code: 0, signal: null };
@@ -52,9 +52,9 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
   const before = fs.readdirSync(path.join(f.root, 'baseline')).sort().map(name => [name, sha(fs.readFileSync(path.join(f.root, 'baseline', name)))]);
   const observed = readEventBaselineCheckpoint(f.root, f.expected);
   assert.deepEqual(observed.input.policy, f.policy);
-  assert.equal(observed.input.policy.mutationDefinitions.length, 5);
+  assert.equal(observed.input.policy.mutationDefinitions.length, 8);
   assert.deepEqual(observed.input.mutations, []);
-  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied']);
+  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied', 'ccd-source-shape-conditional-email-complex', 'ccd-source-shape-optional-postal-line-two', 'ccd-source-shape-required-delivery-radio']);
   assert.deepEqual(observed.terminal, f.terminal);
   assert.deepEqual(observed.references.map(item => item.path), ['baseline/manifest.json', 'baseline/execution.json', 'baseline/report.json', 'baseline/framework-terminal.json']);
   assert.equal(observed.checkpointDigest, sha(JSON.stringify(observed.references)));

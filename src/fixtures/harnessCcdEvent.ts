@@ -127,7 +127,7 @@ export async function submitServiceOfDocuments(page: Page, caseId: string) {
 }
 
 export function saveCcdEventObservation(
-  name: "courtadmin-cell" | "event-capability" | "courtadmin-read" | "readonly-read" | "readonly-update",
+  name: "courtadmin-cell" | "event-capability" | "courtadmin-read" | "readonly-read" | "readonly-update" | "source-shape-required-delivery-radio" | "source-shape-conditional-email-complex" | "source-shape-optional-postal-line-two",
   value: unknown,
 ) {
   fs.writeFileSync(

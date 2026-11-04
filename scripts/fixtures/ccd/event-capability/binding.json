@@ -1,4 +1,28 @@
 {
+  "shape-required-delivery-radio-transformation": {
+    "schemaVersion": 1,
+    "shape": "required-delivery-radio",
+    "reference": "serveByPostOrEmail",
+    "column": "DisplayContext",
+    "before": "MANDATORY",
+    "after": "OPTIONAL"
+  },
+  "shape-conditional-email-complex-transformation": {
+    "schemaVersion": 1,
+    "shape": "conditional-email-complex",
+    "reference": "emailInformation",
+    "column": "FieldShowCondition",
+    "before": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+    "after": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\""
+  },
+  "shape-optional-postal-line-two-transformation": {
+    "schemaVersion": 1,
+    "shape": "optional-postal-line-two",
+    "reference": "postalInformation.postalAddress.AddressLine2",
+    "column": "DisplayContext",
+    "before": "OPTIONAL",
+    "after": "MANDATORY"
+  },
   "schemaVersion": 1,
   "scope": "exui-ccd-event-capability-pilot",
   "mutationId": "ccd-enable-judge-event",
@@ -109,5 +133,17 @@
   "courtadmin-update-mutant": {
     "sourceDigest": "sha256:739bdf940b364516c151ae3fe4073ecbd5591b3e56f167596b08ccfc2696d4f7",
     "workbookDigest": "sha256:919b3d990290feef3cc294058bf2ccd3b1ad18e49c7165fca5e82ec0a66241bf"
+  },
+  "shape-required-delivery-radio-mutant": {
+    "sourceDigest": "sha256:ad5fde8abc949b379bfda747f0163d0cd026f7380fd47b47e2fd7e27b5f05516",
+    "workbookDigest": "sha256:7bac9dbf259935016f85abdb080b53ce61b166c2654f664903f736fb28c978f6"
+  },
+  "shape-conditional-email-complex-mutant": {
+    "sourceDigest": "sha256:334834cd0f72c143f9d877430cfab8b6554808c27413f84f424727adc990f800",
+    "workbookDigest": "sha256:1ccf0fb316bc6c97f2c262a550289b20c5dca759abd296f12f26a23d051bc609"
+  },
+  "shape-optional-postal-line-two-mutant": {
+    "sourceDigest": "sha256:f04608394664470d2032266f0a63a9de5abef002743f5d5b7f5fc5c6c418901f",
+    "workbookDigest": "sha256:7495f8b64fa5a2c170b099c332029f3e82ef0d1390598243ad62bfde32da73f1"
   }
 }

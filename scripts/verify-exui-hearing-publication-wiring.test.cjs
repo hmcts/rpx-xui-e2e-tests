@@ -12,6 +12,16 @@ const MUTATION = 'hearing-amendments-use-enabled-map';
 const PHASE = 'hearingPublication';
 const INVOCATIONS = ['baseline', MUTATION];
 const SOURCE_FILES = [
+  "src/tests/harness/ccd/source-shapes.spec.ts",
+  "src/fixtures/harnessSourceShapes.ts",
+  "scripts/lib/exui-source-shape-contract.mjs",
+  "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.xlsx",
+
   'package.json', 'yarn.lock', 'tsconfig.json', 'playwright.harness.config.ts',
   'src/harness/candidate.ts', 'src/fixtures/harness.ts', 'src/fixtures/harnessIdentity.ts',
   'src/fixtures/harnessRouting.ts', 'src/harness/routing.ts', 'src/harness/globalSearch.ts',
@@ -157,7 +167,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 96);
+  assert.equal(SOURCE_FILES.length, 105);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

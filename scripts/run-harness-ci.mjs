@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SOURCE_SHAPE_MUTATIONS } from './lib/exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -293,7 +294,7 @@ export async function runHarnessCi(jobPath) {
                 writeJsonAtomic(removalFile, removal);
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const records = [], faults = [], states = [handoff.input.ccd];
-                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION]) {
+                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS]) {
                   assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                   const variant = eventCapabilityFaultVariant(invocationId);
                   const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
@@ -462,7 +463,7 @@ export async function runHarnessCi(jobPath) {
         context.eventBaseline = { ...data, ccdIdentity: eventIdentity(data) };
       },
       stopEvent: async () => {
-        for (const key of ["event-courtadmin-update-mutant-runtime", "event-readonly-update-mutant-runtime", "event-readonly-read-mutant-runtime", "event-read-mutant-runtime", "event-mutant-runtime", "event-baseline-runtime"]) {
+        for (const key of [...SOURCE_SHAPE_MUTATIONS.map(id => `event-shape-${id.slice("ccd-shape-".length)}-mutant-runtime`).reverse(), "event-courtadmin-update-mutant-runtime", "event-readonly-update-mutant-runtime", "event-readonly-read-mutant-runtime", "event-read-mutant-runtime", "event-mutant-runtime", "event-baseline-runtime"]) {
           const resource = resources.get(key);
           if (resource) await remove(key, resource);
         }

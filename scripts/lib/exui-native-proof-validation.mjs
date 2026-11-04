@@ -1,3 +1,4 @@
+import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
@@ -356,7 +357,7 @@ export function readEventBaselineCheckpoint(directory, expected) {
       "RUNTIME_IDENTITY_MISMATCH",
     );
   }
-  const baselineIds = ["ccd-courtadmin-read-recipient-shapes", "ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied"];
+  const baselineIds = ["ccd-courtadmin-read-recipient-shapes", "ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", ...SOURCE_SHAPE_ROWS.map(row => `ccd-source-shape-${row.id}`)].sort();
   checkpointEqual(
     policy.obligations.flatMap((item) => item.requiredProofIds).sort(),
     baselineIds,

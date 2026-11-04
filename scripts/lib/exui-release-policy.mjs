@@ -1,3 +1,4 @@
+import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
 import { createHash } from 'node:crypto';
 
 const postalSequenceId = 'configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed';
@@ -42,6 +43,13 @@ export function getReleasePolicy(scope) {
         expectedFailureId: 'courtadmin-update-persistence', baselineProofId: 'ccd-courtadmin-update-recipient-shapes', mutantProofId: 'ccd-courtadmin-update-recipient-shapes-denied'
       }]
     };
+    for (const row of SOURCE_SHAPE_ROWS) {
+      const obligationId = `ccd-source-shape-${row.id}`, mutationId = `ccd-shape-${row.id}`;
+      policy.requiredObligationIds.push(obligationId);
+      policy.obligations.push({id:obligationId,boundary:'ccd',requiredProofIds:[obligationId],requiredMutationIds:[mutationId]});
+      policy.mutationDefinitions.push({mutationId,obligationId,definitionDigest:digest({reference:row.reference,column:row.faultColumn,value:row.faultValue}),
+        expectedFailureId:`source-shape-${row.id}`,baselineProofId:obligationId,mutantProofId:`${obligationId}-fault`});
+    }
     return { ...policy, policyDigest: digest(policy) };
   }
   if (scope === 'exui-hearing-publication-pilot') {

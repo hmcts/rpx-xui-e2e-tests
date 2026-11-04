@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SOURCE_SHAPE_ROWS, deriveSourceShapeFault, validateSourceShapeFault } from './lib/exui-source-shape-contract.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +51,9 @@ export async function prepareEventCapabilityFixtures(output) {
   fs.mkdirSync(destination, { mode: 0o700 });
   fs.chmodSync(destination, 0o700);
   pair["courtadmin-update-mutant"] = deriveCourtadminUpdateFault(pair.baseline, source);
+  for (const row of SOURCE_SHAPE_ROWS) pair[`shape-${row.id}-mutant`] = deriveSourceShapeFault(row.id,pair.baseline,source);
   const binding = {
+    ...Object.fromEntries(SOURCE_SHAPE_ROWS.map(row => [`shape-${row.id}-transformation`,validateSourceShapeFault(row.id,pair.baseline,pair[`shape-${row.id}-mutant`],source)])),
     schemaVersion: 1,
     scope: EVENT_CAPABILITY_SCOPE,
     mutationId: EVENT_CAPABILITY_MUTATION,
@@ -68,7 +71,7 @@ export async function prepareEventCapabilityFixtures(output) {
     transformation,
     releaseCredit: false,
   };
-  for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"]) {
+  for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)]) {
     const file = path.join(destination, name + ".json");
     fs.writeFileSync(file, JSON.stringify(pair[name], null, 2) + "\n", {
       flag: "wx",

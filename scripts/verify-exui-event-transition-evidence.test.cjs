@@ -15,7 +15,7 @@ test("offline transition replay requires the parent-bound baseline/removal/impor
   assert.equal(typeof validateEventTransitionEvidence, "function");
   const f = await fixture(t), expectedBefore = JSON.stringify(f.expected);
   const result = validateEventTransitionEvidence(f.directory, f.expected, await f.loaded());
-  assert.deepEqual(result, { transition: f.expected.eventTransition, identities: [{ invocationId: "ccd-enable-judge-event", identity: f.faultIdentity }, { invocationId: "ccd-remove-courtadmin-recipient-read", identity: f.readFaultIdentity }, { invocationId: "ccd-remove-readonly-recipient-read", identity: f.readonlyFaultIdentity }, { invocationId: "ccd-enable-readonly-recipient-update", identity: f.readonlyUpdateFaultIdentity }, { invocationId: "ccd-remove-courtadmin-event-create", identity: f.courtadminUpdateFaultIdentity }] });
+  assert.deepEqual(result, { transition: f.expected.eventTransition, identities: [{ invocationId: "ccd-enable-judge-event", identity: f.faultIdentity }, { invocationId: "ccd-remove-courtadmin-recipient-read", identity: f.readFaultIdentity }, { invocationId: "ccd-remove-readonly-recipient-read", identity: f.readonlyFaultIdentity }, { invocationId: "ccd-enable-readonly-recipient-update", identity: f.readonlyUpdateFaultIdentity }, { invocationId: "ccd-remove-courtadmin-event-create", identity: f.courtadminUpdateFaultIdentity }, ...f.shapeFaults.map(item => ({invocationId:item.id,identity:item.identity}))] });
   assert.equal(JSON.stringify(f.expected), expectedBefore);
   assert(!JSON.stringify(result).includes("PRIVATE-CANARY"));
   assert(!JSON.stringify(result).includes(f.root));
@@ -128,7 +128,7 @@ test("relocation cannot combine import records from unrelated original runtime p
 });
 
 
-test("all five independently captured faults are mandatory and cannot share imported runtime resources", async t => {
+test("all eight independently captured faults are mandatory and cannot share imported runtime resources", async t => {
   const { validateEventTransitionEvidence: validate } = await load();
   for (const [change, code] of [
     [f => { f.parent.faults = f.parent.faults.slice(0, 4); }, "EVENT_TRANSITION_FAULT_SELECTION"],

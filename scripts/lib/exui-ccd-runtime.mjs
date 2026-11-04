@@ -1,3 +1,4 @@
+import { SOURCE_SHAPE_ROWS, validateSourceShapeFault, assertObservedSourceShape } from './exui-source-shape-contract.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -113,6 +114,7 @@ export const CCD_FIXTURE_SELECTIONS = Object.freeze([
   "event-capability-readonly-read-mutant",
   "event-capability-readonly-update-mutant",
   "event-capability-courtadmin-update-mutant",
+  ...SOURCE_SHAPE_ROWS.map(row => `event-capability-shape-${row.id}-mutant`),
 ]);
 const sourceActors = Object.freeze({
   courtadmin: "caseworker-privatelaw-courtadmin",
@@ -363,6 +365,12 @@ export function assertObservedEventCapabilityDefinition(observed, source) {
       }
     }
   }
+  for (const contract of SOURCE_SHAPE_ROWS) {
+    const row = sheets.EventToComplexTypes.find(item => item.CaseEventID === 'serviceOfDocuments' && item.CaseFieldID === 'sodAdditionalRecipientsList' && item.ListElementCode === contract.reference);
+    assert(row, 'CCD_SHAPE_SOURCE_CONTEXT_REQUIRED');
+    assertObservedSourceShape(observed,contract.id,row[contract.faultColumn] === contract.faultValue);
+  }
+
 }
 export function verifyCcdContainerIdentity(state,inspectContainer=(id)=>JSON.parse(docker(['inspect',id]))[0]) {
  const images=ccdRuntimeImageIds(state);
@@ -560,7 +568,7 @@ export function prepareCcdImport(
     );
     const root = path.join(fixtureRoot, "event-capability");
     const pair = Object.fromEntries(
-      ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"].map((name) => [
+      ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)].map((name) => [
         name,
         JSON.parse(fs.readFileSync(path.join(root, name + ".json"))),
       ]),
@@ -572,6 +580,7 @@ export function prepareCcdImport(
     const binding = JSON.parse(
       fs.readFileSync(path.join(root, "binding.json")),
     );
+    for (const row of SOURCE_SHAPE_ROWS) assert.deepEqual(binding[`shape-${row.id}-transformation`],validateSourceShapeFault(row.id,pair.baseline,pair[`shape-${row.id}-mutant`]),'CCD_SHAPE_TRANSFORMATION_MISMATCH');
     assert.equal(binding.courtadminUpdateMutationId, COURTADMIN_UPDATE_MUTATION, "CCD_COURTADMIN_UPDATE_MUTATION_BINDING_MISMATCH");
     assert.deepEqual(binding.courtadminUpdateTransformation, validateCourtadminUpdatePair(pair.baseline, pair["courtadmin-update-mutant"]), "CCD_COURTADMIN_UPDATE_BINDING_TRANSFORMATION_MISMATCH");
     assert.equal(binding.readonlyUpdateMutationId, READONLY_UPDATE_MUTATION, "CCD_READONLY_UPDATE_MUTATION_BINDING_MISMATCH");
@@ -615,7 +624,7 @@ export function prepareCcdImport(
       EVENT_CAPABILITY_SOURCE_DIGEST,
       "CCD_EVENT_SOURCE_BINDING_MISMATCH",
     );
-    for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"]) {
+    for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)]) {
       assert.equal(
         digest(fs.readFileSync(path.join(root, name + ".json"))),
         binding[name].sourceDigest,
