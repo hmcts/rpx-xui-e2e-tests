@@ -18,7 +18,7 @@ async function setup(t, alter = () => {}) {
     return { Image:images[service], Config:{ Labels:{'exui.harness.owner':state.owner,'exui.harness.service':service}}, HostConfig:{NetworkMode:service==='database'?'none':`container:${state.namespace}`}, State:{Running:true} };
   };
   const descriptor = { id:'HarnessResultsPRL', version:{number:1}, case_fields:definition.sheets.CaseField.map(row=>({id:row.ID,field_type:{id:row.FieldType}})) };
-  const layout = sheet => ({case_type_id:'HarnessResultsPRL',fields:definition.sheets[sheet].map(row=>({case_field_id:row.CaseFieldID,label:row.Label,order:row.DisplayOrder,metadata:row.CaseFieldID.startsWith('['),sort_order:row.ResultsOrdering?{direction:'DESC',priority:1}:null}))});
+  const layout = sheet => ({case_type_id:'HarnessResultsPRL',fields:definition.sheets[sheet].map(row=>({case_field_id:row.CaseFieldID,label:row.CaseFieldID==='[CREATED_DATE]'?'Case created date':row.Label,order:row.DisplayOrder,metadata:row.CaseFieldID.startsWith('['),sort_order:row.ResultsOrdering?{direction:'DESC',priority:1}:null}))});
   const values = { definition:descriptor, search:layout('SearchResultFields'), workbasket:layout('WorkBasketResultFields') };
   alter(values);
   const calls=[];
@@ -46,6 +46,8 @@ test('support only: importer uses distinct result routes/receipt, retains observ
  const receipt=await importResultColumns(run.state,run);
  assert.equal(receipt.status,'import-and-readback-observed');
  assert.equal(receipt.caseType,'HarnessResultsPRL');
+ assert.deepEqual(receipt.descriptorNormalizations.map(item=>[item.sourceValue,item.descriptorValue]),[['Case created date ','Case created date']]);
+ assert.equal(JSON.parse(fs.readFileSync('scripts/fixtures/ccd/result-columns-import/definition.json')).sheets.SearchResultFields[2].Label,'Case created date ');
  assert.deepEqual(run.state,before);
  assert.equal(receipt.runtimeAcceptance,false);assert.equal(receipt.catalogueCredit,false);
  assert(run.calls.some(c=>c.port===9200&&c.route==='/harnessresultsprl_cases/_mapping'));
@@ -56,6 +58,8 @@ for(const [name,alter,code] of [
  ['import rejection',v=>{v.importStatus=400},'RESULT_IMPORT_REJECTED'],
  ['wrong case type',v=>{v.definition.id='Other'},'RESULT_IMPORT_CASE_TYPE'],
  ['altered column label',v=>{v.search.fields[0].label='wrong'},'RESULT_IMPORT_COLUMN_LABEL'],
+ ['meaningful metadata label change',v=>{v.search.fields[2].label='Case date'},'RESULT_IMPORT_COLUMN_LABEL'],
+ ['non-ASCII whitespace is not Java trim',v=>{v.search.fields[2].label='Case created date\u00a0'},'RESULT_IMPORT_COLUMN_LABEL'],
  ['missing metadata flag',v=>{delete v.search.fields[2].metadata},'RESULT_IMPORT_COLUMN_METADATA'],
  ['changed type',v=>{v.definition.case_fields[6].field_type.id='Text'},'RESULT_IMPORT_FIELD_TYPE'],
  ['unknown layout schema',v=>{v.workbasket={columns:[]}},'RESULT_IMPORT_LAYOUT_CASE_TYPE'],

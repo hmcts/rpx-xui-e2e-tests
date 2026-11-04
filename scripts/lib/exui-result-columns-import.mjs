@@ -13,6 +13,11 @@ const caseType = "HarnessResultsPRL", alias = "harnessresultsprl_cases";
 // c37c9b84e556f22086f1eed7b94468302870eb9e, DisplayApiController,
 // SearchResultDefinition/SearchResultsField, WorkBasketResult/WorkBasketResultField.
 // This reference is not bound to the retained image; unknown schema fails explicitly.
+// DefinitionDataItem.getString at the same source reference calls Apache
+// StringUtils.trim -> Java String.trim (only leading/trailing codepoints <= U+0020).
+// Real import ONZW8P independently observed the CREATED_DATE trailing-space removal.
+// Normalize the expected descriptor only; retained source/workbook bytes stay exact.
+const importedLabel = value => value.replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, "");
 export function validateResultDescriptors(definition, observed) {
   assert.equal(observed.definition?.id, caseType, "RESULT_IMPORT_CASE_TYPE");
   assert(Number.isInteger(observed.definition?.version?.number), "RESULT_IMPORT_VERSION_SCHEMA");
@@ -31,7 +36,7 @@ export function validateResultDescriptors(definition, observed) {
       const matches = value.fields.filter(field => field.case_field_id === row.CaseFieldID);
       assert.equal(matches.length, 1, "RESULT_IMPORT_COLUMN_BINDING");
       const field = matches[0];
-      assert.equal(field.label, row.Label, "RESULT_IMPORT_COLUMN_LABEL");
+      assert.equal(field.label, importedLabel(row.Label), "RESULT_IMPORT_COLUMN_LABEL");
       assert.equal(field.order, row.DisplayOrder, "RESULT_IMPORT_COLUMN_ORDER");
       assert.equal(field.metadata, row.CaseFieldID.startsWith("["), "RESULT_IMPORT_COLUMN_METADATA");
       if (row.ResultsOrdering) assert.deepEqual(field.sort_order, { direction: "DESC", priority: 1 }, "RESULT_IMPORT_COLUMN_SORT");
@@ -60,6 +65,9 @@ export async function importResultColumns(state, { fixtureDirectory = fixtureRoo
   fs.mkdirSync(output, { mode: 0o700 }); // Refuse replay/overwrite before any import side effect.
   const receipt = { schemaVersion: 1, kind: "result-columns-import-feasibility", caseType, alias,
     binding, owner: state.owner, namespace: state.namespace, images: state.images,
+    descriptorNormalizations: ["SearchResultFields", "WorkBasketResultFields"].flatMap(sheet => definition.sheets[sheet]
+      .filter(row => importedLabel(row.Label) !== row.Label)
+      .map(row => ({ sheet, field: row.CaseFieldID, attribute: "Label", sourceValue: row.Label, descriptorValue: importedLabel(row.Label), rule: "CCD DefinitionDataItem.getString / StringUtils.trim (U+0000 through U+0020 edges)" }))),
     runtimeAcceptance: false, catalogueCredit: false, releaseCredit: false, status: "in-progress", observations: {} };
   const persist = () => fs.writeFileSync(path.join(output, "receipt.json"), JSON.stringify(receipt, null, 2) + "\n", { mode: 0o600 });
   persist();
