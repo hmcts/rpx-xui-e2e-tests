@@ -51,13 +51,13 @@ export async function runRecipientCallbackProbe({output,mode='normalize',platfor
   });
   const result=await Promise.race([terminal,new Promise((_,reject)=>{const timer=setTimeout(()=>{child.kill('SIGTERM');reject(Error('CALLBACK_PROBE_EXEC_TIMEOUT'));},120000);timer.unref();terminal.finally(()=>clearTimeout(timer)).catch(()=>{});})]);
   assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
-  const worker=parseCallbackWorkerTerminal(result);
+  const worker=parseCallbackWorkerTerminal(result,callbackProbeFiles);
   if(worker.status==='failed') { receipt.workerFailure={code:worker.code,phase:worker.phase};save();throw Error(worker.code); }
   // Terminal failure is retained before optional observation collection can mask it.
   try { verifyCcdContainerIdentity(state);docker(['cp',state.containers.client+':/tmp/recipient-output',path.join(output,'observations')]); }
   catch { throw Error('CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED'); }
   receipt.result=worker.result;receipt.status='backend-feasibility-observed';save();
- }catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackFailureCode(error);save();}
+ }catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackFailureCode(error);if(callbackProbeFiles.includes(error.moduleIdentity))receipt.missingModule=error.moduleIdentity;save();}
  finally{
   // Recovery uses independently retained fixed names/CIDs, including partial startup.
   try{receipt.cleanup=cleanupCiCcd(runtimePath);if(state)assert.equal(receipt.cleanup?.cleanupComplete,true,'CALLBACK_PROBE_CLEANUP_REQUIRED');}

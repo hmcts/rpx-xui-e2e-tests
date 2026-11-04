@@ -56,3 +56,9 @@ test('support only: worker terminal preserves structured failure before observat
  for(const [stderr,code] of [['ERR_MODULE_NOT_FOUND private/token','CALLBACK_PROBE_MODULE_MISSING'],['SyntaxError: private/token','CALLBACK_PROBE_STARTUP_SYNTAX'],['EACCES private/token','CALLBACK_PROBE_STARTUP_PERMISSION'],['private/token','CALLBACK_PROBE_TERMINAL_INVALID']])assert.throws(()=>parseCallbackWorkerTerminal({code:1,text:'',stderr}),error=>error.message===code);
  assert.throws(()=>parseCallbackWorkerTerminal({code:1,text:'{"status":"completed"}'}),/CALLBACK_PROBE_WORKER_FAILED/);
 });
+test('support only: missing module identity is restricted to the exact staged allowlist operand',async()=>{
+ const {parseCallbackWorkerTerminal}=await import('./lib/exui-recipient-callback-diagnostics.mjs');const files=['scripts/recipient-callback-backend-worker.mjs'];
+ for(const [operand,expected] of [['/tmp/recipient-probe/'+files[0],files[0]],['/private/credential',undefined],['/tmp/recipient-probe/'+files[0]+'/secret',undefined]]){
+  assert.throws(()=>parseCallbackWorkerTerminal({text:'',stderr:`Error: Cannot find module '${operand}'\nMODULE_NOT_FOUND\nprivate-credential`},files),error=>error.message==='CALLBACK_PROBE_MODULE_MISSING'&&error.moduleIdentity===expected&&!error.message.includes('credential'));
+ }
+});

@@ -11,9 +11,15 @@ export function callbackStartupCode(stderr) {
  if (/EACCES|permission denied/i.test(stderr)) return 'CALLBACK_PROBE_STARTUP_PERMISSION';
  return 'CALLBACK_PROBE_TERMINAL_INVALID';
 }
-export function parseCallbackWorkerTerminal(result) {
+export function callbackMissingModuleIdentity(stderr, files = []) {
+ // Match only Node's quoted missing-module operand, then exact approved paths.
+ const match = /Cannot find (?:module|package) ['"]([^'"\r\n]+)['"]/.exec(stderr);
+ if (!match) return undefined;
+ return files.find(name => match[1] === '/tmp/recipient-probe/' + name || match[1] === 'file:///tmp/recipient-probe/' + name);
+}
+export function parseCallbackWorkerTerminal(result, files = []) {
  if (result.tooLarge) throw Error('CALLBACK_PROBE_TERMINAL_INVALID');
- let worker;try { worker=JSON.parse(result.text); } catch { throw Error(callbackStartupCode(result.stderr || '')); }
+ let worker;try { worker=JSON.parse(result.text); } catch { const error=Error(callbackStartupCode(result.stderr || ''));const identity=callbackMissingModuleIdentity(result.stderr || '',files);if(identity)error.moduleIdentity=identity;throw error; }
  if (!worker || !['failed','completed'].includes(worker.status)) throw Error('CALLBACK_PROBE_TERMINAL_INVALID');
  if (worker.status==='failed') return {status:'failed',code:callbackFailureCode({message:worker.code}),phase:['verify-source','load-modules','read-input','start-gateway','backend-flow'].includes(worker.phase)?worker.phase:'unknown'};
  if (result.code!==0) throw Error('CALLBACK_PROBE_WORKER_FAILED');
