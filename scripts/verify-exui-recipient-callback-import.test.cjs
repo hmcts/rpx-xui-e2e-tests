@@ -76,3 +76,43 @@ test('support only: descriptor set iteration order is immaterial while declared 
  for(const mutate of [p=>p.wizard_pages[0].wizard_page_fields[0].order=9,p=>p.wizard_pages[0].wizard_page_fields[0].complex_field_overrides[0].display_context='OPTIONAL',p=>p.wizard_pages[0].callback_url_mid_event=null]){const changed=structuredClone(pages);mutate(changed);assert.notDeepEqual(canonicalRecipientCallbackPages(pages),canonicalRecipientCallbackPages(changed));}
  for(const mutate of [p=>delete p.wizard_pages[0].wizard_page_fields[0].order,p=>p.wizard_pages[0].wizard_page_fields[0].order=7,p=>p.wizard_pages[0].wizard_page_fields[0].case_field_id='sodAdditionalRecipients']){const changed=structuredClone(pages);mutate(changed);assert.throws(()=>canonicalRecipientCallbackPages(changed),/CALLBACK_PAGE_FIELD_/);}
 });
+test('support only: row facets add exactly one labelled synthetic predecessor and remain opt-in sealed',async t=>{
+ const {prepareRecipientCallbackImport,importRecipientCallback}=await import('./lib/exui-recipient-callback-import.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-facets-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ await prepareRecipientCallbackImport(root+'/plain');const seal=await prepareRecipientCallbackImport(root+'/facets',{rowFacets:true});
+ const plain=JSON.parse(fs.readFileSync(root+'/plain/definition.json')),facets=JSON.parse(fs.readFileSync(root+'/facets/definition.json'));
+ assert.deepEqual(facets.sheets.CaseEventToFields.pop(),{LiveFrom:'01/01/2020',CaseTypeID:'HarnessNestedPRL',CaseEventID:'serviceOfDocuments',CaseFieldID:'protectedValue',DisplayContext:'READONLY',PageID:'harnessBefore',PageDisplayOrder:1,PageFieldDisplayOrder:1,ShowSummaryChangeOption:'N'});assert.deepEqual(facets,plain);assert.equal(seal.rowFacets,true);assert.equal(seal.catalogueCredit,false);
+ await prepareRecipientCallbackImport(root+'/omitted',{rowFacets:true,variant:'binding-omitted'});
+ const omitted=JSON.parse(fs.readFileSync(root+'/omitted/definition.json')),expected=JSON.parse(fs.readFileSync(root+'/facets/definition.json'));
+ delete expected.sheets.CaseEventToFields.find(row=>row.CaseFieldID===seal.binding.fieldId).CallBackURLMidEvent;
+ assert.deepEqual(omitted,expected);
+ await assert.rejects(importRecipientCallback({}, {fixtureDirectory:root+'/facets'}),/CALLBACK_IMPORT_SEAL_MISMATCH/);
+ await assert.rejects(prepareRecipientCallbackImport(root+'/invalid',{rowFacets:'yes'}),/CALLBACK_FACETS_OPTION_REQUIRED/);
+});
+const facetDescriptors=()=>({definition:{events:[{id:'serviceOfDocuments',case_fields:[{case_field_id:'sodAdditionalRecipientsList',display_context:'COMPLEX',show_condition:'sodAdditionalRecipients="additionalRecipients"',show_summary_change_option:true},{case_field_id:'protectedValue',display_context:'READONLY'}]}],case_fields:[{id:'sodAdditionalRecipientsList',label:'Recipient',field_type:{type:'Collection',collection_field_type:{id:'ServeOrgDetails'}}}]},pages:{wizard_pages:[{id:'serviceOfDocumentsharnessBefore',order:1,wizard_page_fields:[{case_field_id:'protectedValue',order:1}]},{id:'serviceOfDocuments2',order:2,wizard_page_fields:[{case_field_id:'sodAdditionalRecipientsList',order:8},{case_field_id:'sodAdditionalRecipients',order:7}]}]}});
+test('support only: source row descriptor facets reject material drift and ambiguous identities',async()=>{
+ const {validateCallbackRowDescriptors}=await import('./lib/exui-recipient-callback-facets.mjs');
+ const valid=facetDescriptors();assert.equal(validateCallbackRowDescriptors(valid.definition,valid.pages).catalogueCredit,false);
+ for(const change of [v=>v.definition.events[0].case_fields[0].display_context='OPTIONAL',v=>v.definition.events[0].case_fields[0].show_condition='',v=>v.definition.events[0].case_fields[0].show_summary_change_option=false,v=>v.definition.case_fields[0].label='Other',v=>v.definition.case_fields[0].field_type.collection_field_type.id='Other',v=>v.pages.wizard_pages[1].order=1,v=>v.pages.wizard_pages[1].wizard_page_fields[0].order=7,v=>v.pages.wizard_pages[0].order=3,v=>v.definition.events[0].case_fields.push(v.definition.events[0].case_fields[0]),v=>v.pages.wizard_pages.push(v.pages.wizard_pages[1])]){const altered=structuredClone(valid);change(altered);assert.throws(()=>validateCallbackRowDescriptors(altered.definition,altered.pages),/CALLBACK_FACET_/);}
+});
+const storedDateRow=()=>({case_type:'HarnessNestedPRL',version:1,event:'serviceOfDocuments',page:'serviceOfDocuments2',field:'sodAdditionalRecipientsList',live_from:'2024-09-01',sql_type:'date'});
+test('support only: typed date preservation requires one exact source-identified current-version row',async()=>{
+ const {validateCallbackStoredDate}=await import('./lib/exui-recipient-callback-facets.mjs');
+ const row=storedDateRow(),proof=validateCallbackStoredDate([row],1);assert.equal(proof.activationClaim,false);assert.equal(proof.catalogueCredit,false);
+ for(const rows of [[],[row,row],...Object.entries({case_type:'PRLAPPS',version:2,event:'create',page:'other',field:'protectedValue',live_from:'2024-01-09',sql_type:'text'}).map(([key,value])=>[{...row,[key]:value}])])assert.throws(()=>validateCallbackStoredDate(rows,1),/CALLBACK_FACET_DATE_ROW/);
+ assert.throws(()=>validateCallbackStoredDate([row],'1; DROP TABLE case_type'),/CALLBACK_FACET_VERSION/);
+});
+test('support only: owned date readback uses fixed read-only SQL and retains failed material observations',async t=>{
+ const {readCallbackStoredDate}=await import('./lib/exui-recipient-callback-facets.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-date-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(root+'/recipient-callback-import');
+ const state={output:root,namespace:'a'.repeat(64)};let inspections=0,commands=0;
+ const inspect=s=>{assert.equal(s,state);inspections++;};
+ const runDocker=(args,sql)=>{commands++;assert.deepEqual(args,['exec','-i',state.namespace,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','ccd_definition']);assert.match(sql,/^BEGIN READ ONLY;/);assert.match(sql,/ct.version=1 /);assert.match(sql,/pg_typeof\(dgcf.live_from\)/);return JSON.stringify([storedDateRow()]);};
+ readCallbackStoredDate(state,1,{inspect,runDocker});assert.equal(inspections,2);assert.equal(commands,1);
+ assert.throws(()=>readCallbackStoredDate(state,'1; DROP',{inspect,runDocker}),/CALLBACK_FACET_VERSION/);assert.equal(commands,1);
+ assert.throws(()=>readCallbackStoredDate(state,1,{inspect:()=>{throw Error('ownership');},runDocker}),/ownership/);assert.equal(commands,1);
+ assert.throws(()=>readCallbackStoredDate(state,1,{inspect,runDocker:()=>JSON.stringify([{...storedDateRow(),live_from:'2020-01-01'}])}),/CALLBACK_FACET_DATE_ROW/);
+ assert.throws(()=>readCallbackStoredDate(state,1,{inspect,runDocker:()=>{throw Error('private transport detail');}}),/^Error: CALLBACK_FACET_DATE_QUERY_FAILED$/);
+ assert.throws(()=>readCallbackStoredDate(state,1,{inspect,runDocker:()=>'{invalid'}),/CALLBACK_FACET_DATE_RESPONSE/);
+ const retained=JSON.parse(fs.readFileSync(root+'/recipient-callback-import/stored-row-date.json'));assert.equal(retained.rows[0].live_from,'2020-01-01');assert.equal(retained.catalogueCredit,false);
+});

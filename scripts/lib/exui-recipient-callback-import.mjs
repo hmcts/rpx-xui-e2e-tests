@@ -10,7 +10,7 @@ import { assertFreshCandidateDerivationOutput } from "./exui-candidate-artifact.
 import { digestBytes } from "./exui-evidence-io.mjs";
 import { ccdCredentials, ccdRequest, verifyCcdContainerIdentity, validateCcdDefinition } from "./exui-ccd-runtime.mjs";
 const fixtureRoot = fileURLToPath(new URL("../fixtures/ccd/", import.meta.url));
-export async function prepareRecipientCallbackImport(output,{variant="baseline"}={}) {
+export async function prepareRecipientCallbackImport(output,{variant="baseline",rowFacets=false}={}) {
   assert(["baseline","binding-omitted"].includes(variant),"CALLBACK_IMPORT_VARIANT_REQUIRED");
   const derivative = deriveRecipientCallbackFixture();
   validateRecipientCallbackFixture(derivative);
@@ -18,13 +18,15 @@ export async function prepareRecipientCallbackImport(output,{variant="baseline"}
     const rows=derivative.fixture.sheets.CaseEventToFields.filter(row=>row.CaseFieldID===derivative.binding.fieldId&&row.CaseEventID===derivative.binding.eventId);
     assert.equal(rows.length,1,"CALLBACK_PAGE_REQUIRED");delete rows[0].CallBackURLMidEvent;
   }
+  assert.equal(typeof rowFacets,"boolean","CALLBACK_FACETS_OPTION_REQUIRED");
+  if(rowFacets)derivative.fixture.sheets.CaseEventToFields.push({LiveFrom:"01/01/2020",CaseTypeID:"HarnessNestedPRL",CaseEventID:derivative.binding.eventId,CaseFieldID:"protectedValue",DisplayContext:"READONLY",PageID:"harnessBefore",PageDisplayOrder:1,PageFieldDisplayOrder:1,ShowSummaryChangeOption:"N"});
   const destination = await assertFreshCandidateDerivationOutput({ baseline: { candidateRoot: fixtureRoot }, manifestPath: path.join(fixtureRoot,"event-capability.source.json"), output });
   fs.mkdirSync(destination, {mode:0o700});
   const definition = path.join(destination,"definition.json"), workbook = path.join(destination,"definition.xlsx");
   fs.writeFileSync(definition,JSON.stringify(derivative.fixture,null,2)+"\n",{flag:"wx",mode:0o600});
   const result=spawnSync("python3",[path.join(fixtureRoot,"workbook.py"),definition,workbook],{encoding:"utf8",timeout:30000,maxBuffer:1024*1024});
   assert(!result.error&&result.status===0,"CALLBACK_WORKBOOK_FAILED");fs.chmodSync(workbook,0o600);
-  const seal={schemaVersion:1,kind:"recipient-callback-import",...(variant==="binding-omitted"?{variant,mutation:"omit-page2-mid-event-binding"}:{}),binding:derivative.binding,definitionDigest:digestBytes(fs.readFileSync(definition)),workbookDigest:digestBytes(fs.readFileSync(workbook)),runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
+  const seal={schemaVersion:1,kind:"recipient-callback-import",...(rowFacets?{rowFacets:true,syntheticPredecessor:"protectedValue:READONLY:serviceOfDocumentsharnessBefore:order1"}:{}),...(variant==="binding-omitted"?{variant,mutation:"omit-page2-mid-event-binding"}:{}),binding:derivative.binding,definitionDigest:digestBytes(fs.readFileSync(definition)),workbookDigest:digestBytes(fs.readFileSync(workbook)),runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
   fs.writeFileSync(path.join(destination,"binding.json"),JSON.stringify(seal,null,2)+"\n",{flag:"wx",mode:0o600});
   return seal;
 }
@@ -51,12 +53,12 @@ export function validateObservedRecipientCallback(definition, pages, binding, va
   for(const event of definition.events) for(const [key,value] of Object.entries(event))
     if(/callback/i.test(key)) assert(value==null||value==="","CALLBACK_UNEXPECTED_EVENT_STAGE");
 }
-export async function importRecipientCallback(state,{fixtureDirectory,request=ccdRequest,inspectContainer,variant="baseline"}={}) {
+export async function importRecipientCallback(state,{fixtureDirectory,request=ccdRequest,inspectContainer,variant="baseline",rowFacets=false}={}) {
   assert(typeof fixtureDirectory==="string","CALLBACK_IMPORT_DIRECTORY_REQUIRED");
   const temp=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),"callback-import-canonical-"));
   let seal,workbook;
   try {
-    const canonical=path.join(temp,"definition"); await prepareRecipientCallbackImport(canonical,{variant});
+    const canonical=path.join(temp,"definition"); await prepareRecipientCallbackImport(canonical,{variant,rowFacets});
     for(const file of ["definition.json","definition.xlsx","binding.json"])
       assert.deepEqual(fs.readFileSync(path.join(fixtureDirectory,file)),fs.readFileSync(path.join(canonical,file)),"CALLBACK_IMPORT_SEAL_MISMATCH");
     seal=JSON.parse(fs.readFileSync(path.join(canonical,"binding.json")));workbook=fs.readFileSync(path.join(canonical,"definition.xlsx"));

@@ -17,12 +17,13 @@ import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {prepareRecipientCallbackImport,importRecipientCallback,validateObservedRecipientCallback} from './lib/exui-recipient-callback-import.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {validateCallbackRowDescriptors,readCallbackStoredDate} from './lib/exui-recipient-callback-facets.mjs';
 import {canonicalRecipientCallbackPages} from './lib/exui-recipient-callback-fixture.mjs';
 import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
 import {callbackFailureCode} from './lib/exui-recipient-callback-diagnostics.mjs';
 import {browserExecutable} from './lib/exui-oci-runtime.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
-export const CALLBACK_UI_SOURCES=Object.freeze([...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/run-harness-recipient-callback-ui.mjs','scripts/lib/exui-recipient-callback-import.mjs','src/fixtures/harnessCallback.ts','playwright.callback-feasibility.config.mjs','scripts/recipient-callback-ui-tools.mjs','src/tests/harness/callback-feasibility/recipient-callback.spec.ts'])]);
+export const CALLBACK_UI_SOURCES=Object.freeze([...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/lib/exui-recipient-callback-facets.mjs','scripts/run-harness-recipient-callback-ui.mjs','scripts/lib/exui-recipient-callback-import.mjs','src/fixtures/harnessCallback.ts','playwright.callback-feasibility.config.mjs','scripts/recipient-callback-ui-tools.mjs','src/tests/harness/callback-feasibility/recipient-callback.spec.ts'])]);
 export function callbackUiFailureCode(error) {
  const known=new Set(['CALLBACK_UI_BROWSER_ASSERTION_FAILED','OWNED_OCI_CONTAINER_REQUIRED','OCI_READONLY_MOUNT_WRITABLE_ALIAS','NATIVE_CANDIDATE_PLATFORM_MISMATCH','NATIVE_SEALED_NODE_VERSION_REQUIRED','PINNED_BROWSER_RUNTIME_REQUIRED','OWNED_TOOLS_NAMESPACE_REQUIRED','UNSUPPORTED_OCI_INVOCATION','CALLBACK_UI_TOOLS_ENTRYPOINT','CALLBACK_UI_CANCELLED','CALLBACK_UI_VARIANT','CALLBACK_UI_FRESH_OUTPUT','CALLBACK_UI_IMPORT_RECEIPT_MISMATCH','CALLBACK_UI_IMPORT_IDENTITY_MISMATCH','CALLBACK_UI_IMPORT_STATUS','CALLBACK_UI_IMPORT_READBACK_FAILED','CALLBACK_UI_IMPORT_DRIFT','HOST_INVOCATION_CANCELLED','HOST_NAMESPACE_EGRESS_AVAILABLE','HOST_CANDIDATE_RUNTIME_OS','HOST_CANDIDATE_RUNTIME_ARCH','HOST_CANDIDATE_SEALED_NODE_VERSION','HOST_PROVIDER_SHUTDOWN_FAILED','HOST_UNDECLARED_DESTINATION','HOST_FRAMEWORK_TERMINATION_MISMATCH','CCD_RUNTIME_OWNER_MISMATCH','CCD_RUNTIME_NAMESPACE_MISMATCH']);
  const first=typeof error?.message==='string'?error.message.split('\n',1)[0]:'';
@@ -83,8 +84,9 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   assertCandidateConfigurationSources(artifact.candidateRoot,read(root+'/scripts/fixtures/exui-configuration-review.json'));
   const browserDigest=await digestCandidateTree(browserRoot);
   phase='start-runtime';const ccd=await startCcdRuntime(runtime,{fixtureSelection:'event-capability-baseline',platform:artifact.provenance.platform,isCancelled:()=>cancelled});
-  phase='import-callback';await prepareRecipientCallbackImport(output+'/fixture',{variant});
-  const imported=await importRecipientCallback(ccd,{fixtureDirectory:output+'/fixture',variant});receipt.import=imported;save();const callbackObservedDigests=verifyCallbackUiRuntime(ccd,imported);
+  phase='import-callback';await prepareRecipientCallbackImport(output+'/fixture',{variant,rowFacets:true});
+  const imported=await importRecipientCallback(ccd,{fixtureDirectory:output+'/fixture',variant,rowFacets:true});receipt.import=imported;save();const callbackObservedDigests=verifyCallbackUiRuntime(ccd,imported);
+  phase='verify-row-facets';receipt.facets={descriptor:validateCallbackRowDescriptors(imported.observations.definition.body,imported.observations.pages.body),date:readCallbackStoredDate(ccd,imported.observations.definition.body.version.number)};save();
   assert(!cancelled,'CALLBACK_UI_CANCELLED');
   phase='prepare-actors';const credentials=Object.fromEntries(['allowed','courtadmin','judge','readonly','observer'].map(actor=>[actor,ccdCredentials(ccd,actor)]));
   phase='prepare-api-contracts';const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(ccd,port,'/v3/api-docs');assert.equal(response.status,200);return[name,digestBytes(JSON.stringify(response.body))];}));
@@ -101,7 +103,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   const toolIndex=plan.tools.args.indexOf('scripts/run-harness-native-tools.mjs');assert(toolIndex>=0,'CALLBACK_UI_TOOLS_ENTRYPOINT');plan.tools.args[toolIndex]='scripts/recipient-callback-ui-tools.mjs';
   plan.proofArguments=['scripts/recipient-callback-ui-tools.mjs','--inside-proof'];
   const {identity}=nativeIdentity(input,{invocationId:'baseline',mutation:null},artifact.candidateRoot);
-  const manifest={schemaVersion:1,kind:receipt.kind,identity,runId,variant,catalogueCredit:false,releaseCredit:false,runtimeMetadata:{callbackImportDigest:digestBytes(fs.readFileSync(runtime+'/recipient-callback-import/receipt.json')),harnessSourceDigest,browserDigest}};
+  const manifest={schemaVersion:1,kind:receipt.kind,identity,runId,variant,catalogueCredit:false,releaseCredit:false,runtimeMetadata:{rowFacetDigest:digestBytes(JSON.stringify(receipt.facets)),callbackImportDigest:digestBytes(fs.readFileSync(runtime+'/recipient-callback-import/receipt.json')),harnessSourceDigest,browserDigest}};
   phase='execute-candidate';const result=await runHostInvocation({...plan,manifest,payloadDigest:artifact.payloadDigest},{resources,isCancelled:()=>cancelled});receipt.runnerExitCode=result.terminal.code;
   phase='evaluate-browser-proof';const report=read(directory+'/report.json');
   assert.equal(result.terminal.code,variant==='baseline'?0:1,'CALLBACK_UI_BROWSER_ASSERTION_FAILED');
