@@ -802,6 +802,10 @@ test("support only: complete event phase credits the exact courtadmin edit and r
   assert.deepEqual(projected.catalogue.obligations, before);
   assert.deepEqual(projected.report.executedProofs, [
     { obligationId: eventCell, boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65", boundary: "ccd", status: "passed" },
+
     { obligationId: "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", boundary: "ccd", status: "passed" },
@@ -815,8 +819,8 @@ test("support only: complete event phase credits the exact courtadmin edit and r
     { obligationId: "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337", boundary: "ccd", status: "passed" },
   ]);
-  assert.equal(projected.report.coverage.ccd, 13);
-  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 99);
+  assert.equal(projected.report.coverage.ccd, 16);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 96);
   assert.equal(projected.report.releaseCredit, false);
   assert.equal(
     projected.phaseReferences.eventCapability.receiptArtifactDigest,
@@ -830,7 +834,7 @@ test("support only: complete event phase credits the exact courtadmin edit and r
       terminal: event.terminal,
     },
   });
-  assert.equal(result.coverage.ccd, 13);
+  assert.equal(result.coverage.ccd, 16);
 });
 
 async function refreshEventBundle(bundle, edit) {
@@ -912,10 +916,10 @@ for (const oldBlocked of [false, true])
         phaseDirectory: postal.directory,
         eventPhaseDirectory: event.directory,
       });
-      assert.equal(projected.report.coverage.ccd, oldBlocked ? 13 : 14);
+      assert.equal(projected.report.coverage.ccd, oldBlocked ? 16 : 17);
       assert.equal(
         projected.report.coverage.missingCandidateOrCcd.length,
-        oldBlocked ? 99 : 98,
+        oldBlocked ? 96 : 95,
       );
       assert.equal(
         projected.phaseReferences.ccd.status,
@@ -938,13 +942,14 @@ for (const oldBlocked of [false, true])
           terminal: event.terminal,
         },
       });
-      assert.equal(result.coverage.ccd, oldBlocked ? 13 : 14);
+      assert.equal(result.coverage.ccd, oldBlocked ? 16 : 17);
     },
   );
 
 for (const fault of [
   "judge-failed",
   "courtadmin-failed",
+  "wrong-courtadmin-update-mutation-failure",
   "read-failed",
   "readonly-failed",
   "readonly-update-failed",
@@ -964,14 +969,15 @@ for (const fault of [
       t.after(() => fs.rmSync(root, { recursive: true, force: true }));
       const b = await completeEventBundle(root);
       const receipt = await refreshEventBundle(b, (report, execution) => {
-        const target = fault === "readonly-update-failed" ? "ccd-readonly-update-recipient-shapes-denied"
+        const target = fault === "wrong-courtadmin-update-mutation-failure" ? "ccd-courtadmin-update-recipient-shapes-denied"
+          : fault === "readonly-update-failed" ? "ccd-readonly-update-recipient-shapes-denied"
           : fault === "wrong-readonly-update-mutation-failure" ? "ccd-readonly-update-recipient-shapes-enabled"
           : fault === "readonly-failed" ? "ccd-readonly-read-recipient-shapes"
           : fault === "wrong-readonly-mutation-failure" ? "ccd-readonly-read-shapes-hidden"
           : fault === "judge-failed"
             ? "ccd-event-create-denied"
             : fault === "courtadmin-failed"
-              ? "ccd-courtadmin-email-one"
+              ? "ccd-courtadmin-update-recipient-shapes"
               : fault === "read-failed"
                 ? "ccd-courtadmin-read-recipient-shapes"
                 : fault === "wrong-read-mutation-failure"
@@ -1191,6 +1197,11 @@ test("support only: fixed event source overlap, exact cell and sequence reject s
     getReleasePolicy(b.manifest.releaseScopeId),
   );
   for (const change of [
+    ...["1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66", "6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3", "2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65"].flatMap(id => [
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).expectedAccess = "denied"; },
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).action = "read"; },
+      c => { c.catalogue.obligations.find(x => x.id === "configuration-cell:" + id).sequence = ["readback"]; },
+    ]),
     ...["2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea", "8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59", "32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de", "f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb"].flatMap(id => [
       c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).expectedAccess = "allowed"; },
       c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).action = "read"; },
@@ -1384,7 +1395,7 @@ test("support only: writer requires independent tool/source pins and projection 
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: b.directory,
   });
-  assert.equal(projected.report.coverage.ccd, 13);
+  assert.equal(projected.report.coverage.ccd, 16);
   assert.deepEqual(
     Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),
     before,

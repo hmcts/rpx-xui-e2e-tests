@@ -91,11 +91,11 @@ const proofs = {
       "A validation failure blocks later navigation/persistence credit. No deployed PRL or full profile claim.",
   },
 };
-proofs["ccd-courtadmin-email-one"] = {
+proofs["ccd-courtadmin-update-recipient-shapes"] = {
   phase: "eventCapability",
-  slice: "Court administrator — one email recipient",
+  slice: "Court administrator — email/post, one/two recipients",
   behaviour:
-    "Enter one email recipient, preserve it through Check your answers and Change, then submit and read it back from CCD.",
+    "Enter all four recipient shapes, preserve their values through Check your answers and Change, then submit and independently read exact values and history from CCD.",
   services: "Private Law source-shaped fixture",
   jurisdiction: "HARNESS (actual synthetic jurisdiction)",
   caseType: "HarnessNestedPRL (actual synthetic case type)",
@@ -170,6 +170,7 @@ proofs["routing-noc-session-cache"] = {
     "Uses synthetic case and provider responses. It does not prove deployed PCS profiles, environment overlays, or other decentralised service entries.",
 };
 const faults = {
+  "ccd-remove-courtadmin-event-create": "Remove only source courtadmin event creation permission; preserve readable controls and deny writes",
   "ccd-enable-readonly-recipient-update": "Enable only the four readonly ACL permissions required for recipient updates",
   "ccd-remove-readonly-recipient-read": "Remove only the source read-only role’s recipient-field read permission",
   "ccd-remove-courtadmin-recipient-read": "Remove only the court administrator’s recipient-field read permission",
@@ -246,6 +247,9 @@ function renderNativeEvidence(evidence) {
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
           : ["configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+              "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66",
+              "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3",
+              "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65",
               "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
               "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
               "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",

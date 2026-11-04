@@ -329,15 +329,15 @@ test("support only: independently recognized postal blockage permits the event s
   }
 });
 
-test("support only: actual event parent captures all four fault runtimes before ACK and rejects partial preparation", async (t) => {
+test("support only: actual event parent captures all five fault runtimes before ACK and rejects partial preparation", async (t) => {
   const { annotateNativeFailure } = await import('./lib/exui-native-failure.mjs');
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
-  const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION } = await import("./lib/exui-ccd-event-capability.mjs");
+  const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION } = await import("./lib/exui-ccd-event-capability.mjs");
   const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
   const callback = source.match(/onEventTransition: (async \(request, handoff\) => \{[\s\S]*?)\n\s*\},\n\s*\} : \{\}\)/)?.[1];
   assert(callback, "actual parent transition callback exists");
-  for (const stoppedAt of [null, "checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "cancel-after-read", "reused-owner", "reused-cid"]) {
+  for (const stoppedAt of [null, "checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "start-courtadmin-update-mutant", "owned-courtadmin-update-mutant", "cancel-after-read", "reused-owner", "reused-cid"]) {
     const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "parent-event-"));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
@@ -349,7 +349,7 @@ test("support only: actual event parent captures all four fault runtimes before 
     const handoff = { input, expected: { harnessCommit: "commit", harnessSourceDigest: digest("a") }, handoff: {}, isTerminated: () => cancelled };
     const deps = {
       assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, annotateNativeFailure, context: {}, cancelled: false,
-      EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, eventCapabilityFaultVariant,
+      EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, eventCapabilityFaultVariant,
       resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
       readEventBaselineCheckpoint: () => { step("checkpoint"); return { checkpointDigest: digest("b") }; },
@@ -360,7 +360,7 @@ test("support only: actual event parent captures all four fault runtimes before 
       },
       startOwnedCcd: async (name, fixture, alive, owner) => {
         const variant = fixture.slice("event-capability-".length);
-        assert(["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"].includes(variant));
+        assert(["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"].includes(variant));
         assert.equal(name, `event-${variant}-runtime`);
         assert.equal(owner, resource); assert.equal(alive(), true);
         step("start-" + variant);
@@ -382,13 +382,13 @@ test("support only: actual event parent captures all four fault runtimes before 
       publishEventCapabilityRuntime: (output, record) => {
         step("ack-" + eventCapabilityFaultVariant(record.invocationId));
         const captured = JSON.parse(fs.readFileSync(path.join(output, "independent-transition.json")));
-        assert.deepEqual(resource.expectedContainer.invocations, ["baseline", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION]);
+        assert.deepEqual(resource.expectedContainer.invocations, ["baseline", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION]);
         assert.equal(resource.eventTransition.digest, digestBytes(fs.readFileSync(path.join(output, "independent-transition.json"))));
         assert.equal(captured.schemaVersion, 2);
         assert.equal(captured.capturedBeforeFault, true);
         assert.equal(captured.baselineInputDigest, digestBytes("immutable baseline input\n"));
         assert.equal(captured.baselineRemoval.digest, digestBytes(fs.readFileSync(path.join(output, "baseline-removal.json"))));
-        assert.deepEqual(captured.faults.map(item => item.invocationId), [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION]);
+        assert.deepEqual(captured.faults.map(item => item.invocationId), [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION]);
         const fault = captured.faults.find(item => item.invocationId === record.invocationId);
         assert.equal(fault.runtimeRecord.digest, digestBytes(JSON.stringify(record, null, 2) + "\n"));
         return publishEventCapabilityRuntime(output, record);
@@ -402,9 +402,9 @@ test("support only: actual event parent captures all four fault runtimes before 
       return true;
     });
     else await run(request, handoff);
-    for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION])
+    for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant", "ack-readonly-update-mutant"];
+    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "start-courtadmin-update-mutant", "owned-courtadmin-update-mutant", "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant", "ack-readonly-update-mutant", "ack-courtadmin-update-mutant"];
     const count = stoppedAt === "cancel-after-read" ? 7 : stoppedAt?.startsWith("reused-") ? 6 : order.indexOf(stoppedAt) + 1;
     assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0, count));
   }

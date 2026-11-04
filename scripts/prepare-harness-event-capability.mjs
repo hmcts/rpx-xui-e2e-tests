@@ -13,6 +13,9 @@ import {
   validateReadonlyReadPair,
   READONLY_READ_MUTATION,
   READONLY_UPDATE_MUTATION,
+  COURTADMIN_UPDATE_MUTATION,
+  deriveCourtadminUpdateFault,
+  validateCourtadminUpdatePair,
   deriveReadonlyUpdateFault,
   validateReadonlyUpdatePair,
   validateCourtadminReadPair,
@@ -46,6 +49,7 @@ export async function prepareEventCapabilityFixtures(output) {
   });
   fs.mkdirSync(destination, { mode: 0o700 });
   fs.chmodSync(destination, 0o700);
+  pair["courtadmin-update-mutant"] = deriveCourtadminUpdateFault(pair.baseline, source);
   const binding = {
     schemaVersion: 1,
     scope: EVENT_CAPABILITY_SCOPE,
@@ -54,6 +58,8 @@ export async function prepareEventCapabilityFixtures(output) {
     readTransformation,
     readonlyReadMutationId: READONLY_READ_MUTATION,
     readonlyReadTransformation,
+    courtadminUpdateMutationId: COURTADMIN_UPDATE_MUTATION,
+    courtadminUpdateTransformation: validateCourtadminUpdatePair(pair.baseline, pair["courtadmin-update-mutant"], source),
     readonlyUpdateMutationId: READONLY_UPDATE_MUTATION,
     readonlyUpdateTransformation,
     proofs: EVENT_CAPABILITY_PROOFS,
@@ -62,7 +68,7 @@ export async function prepareEventCapabilityFixtures(output) {
     transformation,
     releaseCredit: false,
   };
-  for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"]) {
+  for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"]) {
     const file = path.join(destination, name + ".json");
     fs.writeFileSync(file, JSON.stringify(pair[name], null, 2) + "\n", {
       flag: "wx",

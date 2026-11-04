@@ -435,3 +435,20 @@ test("support only: readonly update fault broadens only the four required source
   mutant.sheets.AuthorisationCaseType.find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRUD";
   assert.throws(() => api.validateReadonlyUpdatePair(baseline, mutant, source()), /READONLY_UPDATE_FAULT_MISMATCH/);
 });
+
+test("support only: courtadmin update fault removes only event C and preserves every other source permission", async () => {
+  const api = await import("./lib/exui-ccd-event-capability.mjs");
+  const baseline = api.buildEventCapabilityFixtures().baseline;
+  const mutant = api.deriveCourtadminUpdateFault(baseline);
+  const record = api.validateCourtadminUpdatePair(baseline, mutant);
+  assert.deepEqual(record, { sheet: "AuthorisationCaseEvent", role: "caseworker-privatelaw-courtadmin", caseEvent: "serviceOfDocuments", field: "CRUD", before: "CRU", after: "RU" });
+  const row = mutant.sheets.AuthorisationCaseEvent.find(item => item.UserRole === record.role && item.CaseEventID === record.caseEvent);
+  row.CRUD = "CRU";
+  assert.deepEqual(mutant, baseline);
+  assert.throws(() => api.validateCourtadminUpdatePair(baseline, mutant), /COURTADMIN_UPDATE_FAULT_MISMATCH/);
+  row.CRUD = "R";
+  assert.throws(() => api.validateCourtadminUpdatePair(baseline, mutant), /COURTADMIN_UPDATE_FAULT_MISMATCH/);
+  const extra = api.deriveCourtadminUpdateFault(baseline);
+  extra.sheets.AuthorisationCaseType.find(item => item.UserRole === record.role).CRUD = "R";
+  assert.throws(() => api.validateCourtadminUpdatePair(baseline, extra), /COURTADMIN_UPDATE_FAULT_MISMATCH/);
+});

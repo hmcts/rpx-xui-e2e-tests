@@ -20,7 +20,8 @@ import {
   ROUTING_SCOPE,
 } from "./exui-routing-contract.mjs";
 import {
-  EVENT_CAPABILITY_CELL,
+  COURTADMIN_UPDATE_CELLS,
+  COURTADMIN_UPDATE_OBLIGATION,
   COURTADMIN_READ_CELLS,
   COURTADMIN_READ_OBLIGATION,
   READONLY_READ_CELLS,
@@ -379,7 +380,7 @@ export function projectConfigurationCoverage(args) {
       loaded,
     });
     for (const [cell, proofId, obligationId] of [
-      [EVENT_CAPABILITY_CELL, EVENT_CAPABILITY_PROOFS.courtadmin, EVENT_CAPABILITY_CELL],
+      ...COURTADMIN_UPDATE_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadmin, COURTADMIN_UPDATE_OBLIGATION]),
       ...COURTADMIN_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadminRead, COURTADMIN_READ_OBLIGATION]),
       ...READONLY_UPDATE_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.readonlyUpdate, READONLY_UPDATE_OBLIGATION]),
       ...READONLY_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.readonlyRead, READONLY_READ_OBLIGATION]),

@@ -264,13 +264,13 @@ async function fixture(
   expected.phases.push({
     phase: "eventCapability",
     policy: event.policy,
-    terminal: { code: unknownFailure ? 1 : 0, signal: null },
+    terminal: { code: unknownFailure ? 2 : 0, signal: null },
     expected: event.expected,
   });
   phaseResults.push({
     phase: "eventCapability",
-    status: unknownFailure ? "FAIL" : "PASS",
-    exitCode: unknownFailure ? 1 : 0,
+    status: unknownFailure ? "BLOCKED" : "PASS",
+    exitCode: unknownFailure ? 2 : 0,
     receiptArtifactDigest: event.expected.receiptArtifactDigest,
     eventTransition: event.expected.eventTransition,
   });
@@ -391,7 +391,7 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
   assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 14);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 13);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 14);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -439,10 +439,10 @@ test("unknown private failure identifiers never enter the safe projection", asyn
   const result = await (
     await load()
   ).readNativeReportEvidence(f.descriptorPath);
-  assert.equal(result.status, "FAIL");
+  assert.equal(result.status, "BLOCKED");
   assert.equal(
     result.phases[3].baselineProofs.find(
-      (p) => p.proofId === "ccd-courtadmin-email-one",
+      (p) => p.proofId === "ccd-courtadmin-update-recipient-shapes",
     ).failureId,
     null,
   );
@@ -668,7 +668,7 @@ for (const postalFailure of [false, true])
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
     assert.equal(coverage.candidate, 1);
-    assert.equal(coverage.ccd, postalFailure ? 13 : 14);
+    assert.equal(coverage.ccd, postalFailure ? 16 : 17);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
         ? []
@@ -676,6 +676,10 @@ for (const postalFailure of [false, true])
             "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
           ]),
       "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+      "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66",
+      "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3",
+      "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65",
+
       "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
       "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
       "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",
@@ -690,7 +694,7 @@ for (const postalFailure of [false, true])
       "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 98 : 97);
+    assert.equal(coverage.missing, postalFailure ? 95 : 94);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(
@@ -721,9 +725,9 @@ test("a later accepted phase cannot hide the postal blocker, and a failed new ce
   for (const postalFailure of [false, true]) {
     const f = await fixture(t, { postalFailure, unknownFailure: true });
     const result = await api.readNativeReportEvidence(f.descriptorPath);
-    assert.equal(result.status, postalFailure ? "BLOCKED" : "FAIL");
-    assert.equal(result.exitCode, postalFailure ? 2 : 1);
-    assert.equal(result.phases[3].status, "FAIL");
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.phases[3].status, "BLOCKED");
     assert.equal(result.catalogueCoverage.ccd, postalFailure ? 0 : 1);
     assert.equal(result.catalogueCoverage.candidate, 1);
     assert.equal(result.catalogueCoverage.missing, postalFailure ? 111 : 110);
