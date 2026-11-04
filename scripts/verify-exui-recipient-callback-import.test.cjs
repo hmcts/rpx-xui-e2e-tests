@@ -124,3 +124,57 @@ test('native callback policy is closed to one existing source row and exact11 ma
  for(const variant of ['baseline','binding-omitted']){const expected=callbackCanonicalImport(variant),dir=root+'/'+variant;const seal=await prepareRecipientCallbackImport(dir,{variant,rowFacets:true});assert.deepEqual(seal,expected.seal);assert.deepEqual(fs.readFileSync(dir+'/definition.xlsx'),expected.workbook);assert.deepEqual(fs.readFileSync(dir+'/definition.json'),expected.definition);}
  assert.notEqual(callbackMutationContract().beforeDigest,callbackMutationContract().afterDigest);assert.throws(()=>callbackVariant('ccd-shape-unknown'),/CALLBACK_NATIVE_INVOCATION/);
 });
+test('native callback import binds actual descriptor and typed storage without accepting feasibility credit',async t=>{
+ const {callbackCanonicalImport}=await import('./lib/exui-recipient-callback-contract.mjs');
+ const {callbackNativeImportRecord,readNativeCallbackImport}=await import('./lib/exui-recipient-callback-native-import.mjs');
+ const {validateCallbackStoredDate}=await import('./lib/exui-recipient-callback-facets.mjs');
+ const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-native-import-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ fs.mkdirSync(root+'/recipient-callback-import');
+ const state={owner:'synthetic-owned-runtime',namespace:'a'.repeat(64),images:{database:{id:'synthetic-image'}}};
+ const canonical=callbackCanonicalImport(),descriptors=facetDescriptors();
+ Object.assign(descriptors.definition,{id:'HarnessNestedPRL',version:{number:1}});
+ Object.assign(descriptors.pages,{case_type_id:'HarnessNestedPRL',event_id:'serviceOfDocuments'});
+ descriptors.pages.wizard_pages[1].callback_url_mid_event=canonical.binding.normalizedUrl;
+ const support={schemaVersion:1,kind:'recipient-callback-import-feasibility',status:'import-and-callback-descriptor-observed',...state,seal:canonical.seal,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false,observations:{import:{status:201},definition:{status:200,body:descriptors.definition},pages:{status:200,body:descriptors.pages}}};
+ const date=validateCallbackStoredDate([storedDateRow()],1);
+ const supportBytes=Buffer.from(JSON.stringify(support)),dateBytes=Buffer.from(JSON.stringify(date));
+ const build=(s=support,d=date,r=state)=>callbackNativeImportRecord(s,d,r,'baseline',digestBytes(supportBytes),digestBytes(dateBytes));
+ const receipt=build();assert.equal(receipt.kind,'native-recipient-callback-definition');assert.equal(receipt.materialAttributes.length,11);assert.equal(receipt.runtimeAcceptance,undefined);assert.equal(receipt.datePreservation.activationClaim,false);
+ fs.writeFileSync(root+'/recipient-callback-import/receipt.json',supportBytes);fs.writeFileSync(root+'/recipient-callback-import/stored-row-date.json',dateBytes);fs.writeFileSync(root+'/recipient-callback-native-import.json',JSON.stringify(receipt));
+ assert.deepEqual(readNativeCallbackImport(root,state,'baseline'),receipt);
+ for(const mutate of [s=>s.kind='native-recipient-callback-definition',s=>s.catalogueCredit=true,s=>s.owner='foreign',s=>s.namespace='b'.repeat(64),s=>s.seal.binding.sourceRowDigest='sha256:'+'0'.repeat(64),s=>s.observations.import.status=400,s=>s.observations.pages.status=500,s=>s.observations.definition.body.events[0].case_fields[0].display_context='OPTIONAL',s=>s.observations.pages.body.wizard_pages[1].order=3]){const altered=structuredClone(support);mutate(altered);assert.throws(()=>build(altered),/CALLBACK_/);}
+ for(const mutate of [d=>d.rows[0].version=2,d=>d.rows[0].live_from='2020-01-01',d=>d.rows[0].sql_type='text',d=>d.sourceRevision='foreign',d=>d.rows.push(d.rows[0])]){const altered=structuredClone(date);mutate(altered);assert.throws(()=>build(support,altered),/CALLBACK_/);}
+ fs.writeFileSync(root+'/recipient-callback-native-import.json',JSON.stringify(support));assert.throws(()=>readNativeCallbackImport(root,state,'baseline'),/CALLBACK_NATIVE_IMPORT_REQUIRED/);
+ fs.writeFileSync(root+'/recipient-callback-native-import.json',JSON.stringify(receipt));fs.appendFileSync(root+'/recipient-callback-import/stored-row-date.json',' ');assert.throws(()=>readNativeCallbackImport(root,state,'baseline'),/CALLBACK_NATIVE_IMPORT_BINDING/);
+});
+test('native callback producer imports and rechecks its distinct receipt, including fresh typed storage',async t=>{
+ const runtime=await import('./lib/exui-ccd-runtime.mjs');
+ const {importNativeCallbackDefinition,verifyNativeCallbackRuntime}=await import('./lib/exui-recipient-callback-native-import.mjs');
+ const {deriveRecipientCallbackFixture}=await import('./lib/exui-recipient-callback-fixture.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-native-producer-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const state={output:root,owner:'harness-callback-test',namespace:'a'.repeat(64),images:Object.fromEntries(Object.entries(runtime.CCD_IMAGES).map(([name,id])=>[name,{id}])),containers:Object.fromEntries(Object.keys(runtime.CCD_IMAGES).map(name=>[name,name==='database'?'a'.repeat(64):name]))};
+ const inspectContainer=id=>{const service=Object.keys(state.containers).find(key=>state.containers[key]===id);return {Image:runtime.CCD_IMAGES[service],Config:{Labels:{'exui.harness.owner':state.owner,'exui.harness.service':service}},HostConfig:{NetworkMode:service==='database'?'none':`container:${state.namespace}`},State:{Running:true}};};
+ const descriptors=facetDescriptors();Object.assign(descriptors.definition,{id:'HarnessNestedPRL',version:{number:1}});Object.assign(descriptors.pages,{case_type_id:'HarnessNestedPRL',event_id:'serviceOfDocuments'});descriptors.pages.wizard_pages[1].callback_url_mid_event=deriveRecipientCallbackFixture().binding.normalizedUrl;
+ let date=storedDateRow(),dateReads=0;
+ const dateTransport={inspect:s=>runtime.verifyCcdContainerIdentity(s,inspectContainer),runDocker:()=>{dateReads++;return JSON.stringify([date]);}};
+ const request=(_state,_port,route)=>{
+  if(route==='/testing-support/accounts')return {status:201,body:{}};
+  if(route==='/o/token')return {status:200,body:{access_token:'synthetic-private-token'}};
+  if(route==='/details')return {status:200,body:{id:'observer-id'}};
+  if(route==='/testing-support/lease')return {status:200,body:'synthetic-service-token'};
+  if(route==='/api/user-role')return {status:201,body:{}};
+  if(route==='/import')return {status:201,body:{}};
+  if(route==='/api/data/case-type/HarnessNestedPRL')return {status:200,body:descriptors.definition};
+  if(route.includes('/wizard-page-structure/'))return {status:200,body:descriptors.pages};
+  throw Error('unexpected fixed route');
+ };
+ const options={request,inspectContainer,dateTransport};
+ const receipt=await importNativeCallbackDefinition(state,'baseline',options);
+ assert.equal(fs.existsSync(root+'/definition-import.json'),false);
+ assert.deepEqual(verifyNativeCallbackRuntime(state,'baseline',options),receipt);assert.equal(dateReads,2);
+ await assert.rejects(importNativeCallbackDefinition(state,'baseline',options),/CALLBACK_NATIVE_FRESH_IMPORT_REQUIRED/);
+ date={...date,live_from:'2020-01-01'};assert.throws(()=>verifyNativeCallbackRuntime(state,'baseline',options),/CALLBACK_FACET_DATE_ROW/);assert.equal(dateReads,3);
+ const failed=JSON.parse(fs.readFileSync(root+'/recipient-callback-import/stored-row-date.json'));assert.equal(failed.rows[0].live_from,'2020-01-01');
+ assert.doesNotMatch(fs.readFileSync(root+'/recipient-callback-native-import.json','utf8'),/synthetic-private-token|synthetic-service-token/);
+});

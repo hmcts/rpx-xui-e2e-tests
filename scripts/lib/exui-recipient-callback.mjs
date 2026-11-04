@@ -6,6 +6,7 @@ import {
 
 const invocations = Object.freeze({
   "recipient-callback-ui": "validate-normalize",
+  "recipient-callback-native": "validate-normalize",
   "recipient-callback-reject": "reject",
   "recipient-callback-normalize": "normalize",
   "recipient-callback-http-error": "http-error",
@@ -163,6 +164,7 @@ export function createRecipientCallbackResponder({
       payload = { code: "HARNESS_CALLBACK_INVALID_REQUEST" },
       requestDigest = null,
       recipientCount = 0;
+    let authenticatedService=null,rawRequest=null;
     try {
       const browser = Object.keys(request.headers).some(
         (key) => key === "origin" || key.startsWith("sec-fetch-"),
@@ -180,6 +182,7 @@ export function createRecipientCallbackResponder({
           service = null;
         }
       }
+      authenticatedService=service;
       if (browser || service !== "ccd_data") {
         status = 403;
         outcome = "unauthorized";
@@ -230,6 +233,7 @@ export function createRecipientCallbackResponder({
               (["normalize", "validate-normalize"].includes(mode) && marker === "HARNESS_CALLBACK_NORMALIZED")
             ) {
               requestDigest = digest(raw);
+              if(invocationId === "recipient-callback-native") rawRequest=raw.toString("utf8");
               recipientCount = data.sodAdditionalRecipientsList.length;
               if (mode === "http-error") {
                 status = 503;
@@ -297,6 +301,7 @@ export function createRecipientCallbackResponder({
           recipientCount,
           requestDigest,
           responseDigest: digest(bytes),
+          ...(invocationId === "recipient-callback-native" ? {authenticatedService,rawRequest,rawResponse:bytes,path:RECIPIENT_CALLBACK_PATH,method:request.method} : {}),
         }),
       );
     } catch {

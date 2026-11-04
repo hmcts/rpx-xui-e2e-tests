@@ -509,3 +509,14 @@ test('UI invocation rejects then normalizes corrected data without changing exis
  const repeat=body();repeat.case_details.case_data=normalized.body.data;assert.deepEqual((await server.send(repeat)).body.data,normalized.body.data);
  assert.deepEqual(server.evidence.map(item=>item.outcome),['business-rejected','normalized','normalization-unchanged']);
 });
+test('native private journal retains authenticated callback bytes without credentials, old journals remain digest only',async t=>{
+ const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const server=await serve(t,'recipient-callback-native'),value=body();
+ const response=await server.send(value);const record=server.evidence[0];
+ assert.equal(record.authenticatedService,'ccd_data');assert.equal(record.rawRequest,JSON.stringify(value));assert.deepEqual(JSON.parse(record.rawResponse),response.body);
+ assert.equal(record.requestDigest,digestBytes(record.rawRequest));assert.equal(record.responseDigest,digestBytes(record.rawResponse));assert.equal(record.path,callbackPath);assert.equal(record.method,'POST');
+ assert.doesNotMatch(JSON.stringify(record),/synthetic-private|authorization|headers/);
+ await server.send('PRIVATE_INVALID_JSON{');assert.equal(server.evidence[1].rawRequest,null);assert.doesNotMatch(JSON.stringify(server.evidence[1]),/PRIVATE_INVALID_JSON/);
+ await server.send(value,{headers:{serviceauthorization:userToken}});assert.equal(server.evidence[2].rawRequest,null);assert.equal(server.evidence[2].authenticatedService,null);
+ const historical=await serve(t,'recipient-callback-ui');await historical.send(value);assert.equal(historical.evidence[0].rawRequest,undefined);assert.equal(historical.evidence[0].rawResponse,undefined);
+});
