@@ -52,7 +52,7 @@ const scopes = {
   eventCapability: EVENT_CAPABILITY_SCOPE,
   routing: "exui-decentralised-routing-pilot",
 };
-async function reportProgress(label, operation) {
+export async function reportNativeProgress(label, operation) {
   const started = performance.now();
   const log = (state) => console.log(
     `[harness-native] ${label}: ${state} (${Math.floor((performance.now() - started) / 1000)}s elapsed).`,
@@ -73,13 +73,14 @@ async function reportProgress(label, operation) {
 }
 
 export async function runFixedCiPilots(operations) {
+  const progress = operations.progress ?? ((_label, operation) => operation());
   const results = [];
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
   const phase = async (name) => {
     checkCancellation();
     const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing" };
-    const result = await reportProgress(labels[name], () => operations.phase(name));
+    const result = await progress(labels[name], () => operations.phase(name));
     checkCancellation();
     results.push({ phase: name, ...result });
     return result;
@@ -91,28 +92,28 @@ export async function runFixedCiPilots(operations) {
   let result = await phase("family");
   if (result.exitCode !== 0) return { ...result, results };
   checkCancellation();
-  await reportProgress("Scope fault candidate preparation", () => operations.derive());
+  await progress("Scope fault candidate preparation", () => operations.derive());
   checkCancellation();
   result = await phase("scope");
   if (result.exitCode !== 0) return { ...result, results };
   try {
     checkCancellation();
-    await reportProgress("CCD runtime startup", () => operations.start());
+    await progress("CCD runtime startup", () => operations.start());
     checkCancellation();
     result = await phase("ccd");
   } finally {
-    await reportProgress("CCD runtime cleanup", () => operations.stop());
+    await progress("CCD runtime cleanup", () => operations.stop());
   }
   if (result.exitCode !== 0 && operations.canContinueAfterCcd?.() !== true)
     return { ...result, results };
   let eventResult;
   try {
     checkCancellation();
-    await reportProgress("Source event CCD runtime startup", () => operations.startEvent());
+    await progress("Source event CCD runtime startup", () => operations.startEvent());
     checkCancellation();
     eventResult = await phase("eventCapability");
   } finally {
-    await reportProgress("Source event CCD runtime cleanup", () => operations.stopEvent());
+    await progress("Source event CCD runtime cleanup", () => operations.stopEvent());
   }
   if (eventResult.exitCode !== 0) return outcome();
   checkCancellation();
@@ -215,6 +216,7 @@ export async function runHarnessCi(jobPath) {
     });
     writeJsonAtomic(path.join(privateRoot, "job-input.json"), job);
     const operations = {
+      progress: reportNativeProgress,
       isCancelled: () => cancelled,
       phase: async (name) => {
         assert(!cancelled, "CI_JOB_CANCELLED");
