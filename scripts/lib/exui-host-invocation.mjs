@@ -162,6 +162,7 @@ export async function runHostInvocation(
     mounts: spec.tools.mounts,
   });
   let candidate;
+  let firstFailure;
   const started = Date.now();
   const register = (value) => {
     resources.set(value.name, value);
@@ -366,6 +367,9 @@ export async function runHostInvocation(
       perContainerLimits: { memoryBytes: 4294967296, cpus: 2, pids: 256 },
     });
     return { terminal, runtime, lifecycle };
+  } catch (error) {
+    firstFailure = error;
+    throw error;
   } finally {
     const errors = [];
     for (const value of [candidate, tools])
@@ -392,6 +396,6 @@ export async function runHostInvocation(
         }
       }
     if (errors.length)
-      throw new AggregateError(errors, "HOST_OWNED_RESOURCE_CLEANUP_FAILED");
+      throw new AggregateError(firstFailure ? [firstFailure, ...errors] : errors, "HOST_OWNED_RESOURCE_CLEANUP_FAILED");
   }
 }

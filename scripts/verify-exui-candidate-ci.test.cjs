@@ -330,6 +330,7 @@ test("support only: independently recognized postal blockage permits the event s
 });
 
 test("support only: actual event parent captures all four fault runtimes before ACK and rejects partial preparation", async (t) => {
+  const { annotateNativeFailure } = await import('./lib/exui-native-failure.mjs');
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
   const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION } = await import("./lib/exui-ccd-event-capability.mjs");
@@ -347,7 +348,7 @@ test("support only: actual event parent captures all four fault runtimes before 
     const input = { runId: request.runId, ccd: { namespace: "old", owner: "old-owner", containers: { database: "old", data: "old-data" } } };
     const handoff = { input, expected: { harnessCommit: "commit", harnessSourceDigest: digest("a") }, handoff: {}, isTerminated: () => cancelled };
     const deps = {
-      assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {}, cancelled: false,
+      assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, annotateNativeFailure, context: {}, cancelled: false,
       EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, eventCapabilityFaultVariant,
       resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
@@ -394,7 +395,12 @@ test("support only: actual event parent captures all four fault runtimes before 
       },
     };
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
-    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
+    if (stoppedAt) await assert.rejects(run(request, handoff), error => {
+      assert.match(error.message, /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
+      assert.equal(error.nativeFailure.phase, 'eventCapability');
+      assert.equal(error.nativeFailure.category, 'transition');
+      return true;
+    });
     else await run(request, handoff);
     for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);

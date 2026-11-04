@@ -41,7 +41,7 @@ const SOURCE_FILES = [
   'scripts/lib/exui-configuration-runtime-coverage.mjs',
   'scripts/lib/exui-event-coverage-binding.mjs', 'scripts/lib/exui-native-proof-validation.mjs',
   'scripts/lib/exui-candidate-ci-evidence.mjs', 'scripts/lib/exui-native-ci-ownership.mjs',
-  'scripts/lib/exui-native-sources.mjs', 'scripts/lib/exui-native-contract.mjs',
+  'scripts/lib/exui-native-failure.mjs', 'scripts/lib/exui-native-sources.mjs', 'scripts/lib/exui-native-contract.mjs',
   'scripts/lib/exui-routing-contract.mjs', 'scripts/lib/exui-global-search-contract.mjs',
   'scripts/lib/exui-global-search-provider.mjs', 'scripts/lib/exui-routing-provider.mjs',
   'scripts/lib/exui-native-host.mjs', 'scripts/lib/exui-native-containers.mjs',
@@ -153,7 +153,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 90);
+  assert.equal(SOURCE_FILES.length, 91);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

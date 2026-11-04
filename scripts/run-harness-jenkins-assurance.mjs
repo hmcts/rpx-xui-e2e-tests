@@ -16,6 +16,7 @@ import {
   writePublicSummary,
 } from "./lib/exui-evidence-io.mjs";
 import { collectWorkerCapabilities, validateCapabilityReport } from "./observe-harness-worker.mjs";
+import { nativeFailure, isNativeFailure } from "./lib/exui-native-failure.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WEBAPP = "https://github.com/hmcts/rpx-xui-webapp.git";
@@ -394,17 +395,17 @@ async function prepareJob(privateRoot, platform) {
   return { jobPath, output };
 }
 
-function publishSummary(privateOutput) {
+export function publishSummary(privateOutput, destination = PUBLIC) {
   const source = path.join(privateOutput, "public/release-assurance-summary.json");
   const info = fs.lstatSync(source);
   assert(info.isFile() && !info.isSymbolicLink() && fs.realpathSync(source) === source);
   const summary = validatePublicSummary(source);
   writePublicSummary(
-    PUBLIC,
-    { status: summary.status, exitCode: { PASS: 0, FAIL: 1, BLOCKED: 2 }[summary.status] },
+    destination,
+    { status: summary.status, exitCode: { PASS: 0, FAIL: 1, BLOCKED: 2 }[summary.status], ...(summary.failure ? { failure: summary.failure } : {}) },
     summary.receiptAvailable,
   );
-  assert.equal(validatePublicSummary(PUBLIC).status, summary.status);
+  assert.equal(validatePublicSummary(destination).status, summary.status);
   return summary.status;
 }
 
@@ -415,11 +416,6 @@ function reportIsValid() {
     { cwd: ROOT, env: safeEnvironment(), stdio: "ignore" },
   );
   return !result.error && result.status === 0;
-}
-
-function controlledFailureCode(message, fallback) {
-  const firstLine = typeof message === "string" ? message.split("\n", 1)[0] : "";
-  return /^[A-Z][A-Z0-9_]{0,199}$/.test(firstLine) ? firstLine : fallback;
 }
 
 export function logNativeCompletion(output) {
@@ -439,15 +435,16 @@ export function logNativeCompletion(output) {
     const completed = result.phaseResults
       .map((phase) => `${phase.phase} ${phase.status}`)
       .join(", ") || "none";
-    let stopReason = "";
+    let diagnostic = isNativeFailure(result.failure) ? result.failure : undefined;
     try {
       const failure = JSON.parse(
         fs.readFileSync(path.join(output, "private/orchestration-error.json"), "utf8"),
       );
-      stopReason = `; stop reason ${controlledFailureCode(failure.message, "NATIVE_PREFLIGHT_FAILED")}`;
+      diagnostic ??= isNativeFailure(failure.failure) ? failure.failure : nativeFailure({ message: failure.message });
     } catch {
       // No orchestration failure was recorded.
     }
+    const stopReason = diagnostic ? `; stop reason ${diagnostic.code}; first causal ${diagnostic.firstCausalCode}; phase ${diagnostic.phase}; invocation ${diagnostic.invocation ?? 'unknown'}; category ${diagnostic.category}` : '';
     console.log(
       `[harness-assurance] Native ${result.status}; completed proofs: ${completed}${stopReason}; cleanup ${result.cleanupComplete ? "complete" : "incomplete"}.`,
     );
@@ -465,6 +462,7 @@ async function main() {
   writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
 
   let privateRoot;
+  let diagnostic;
   let exitCode = 2;
   try {
     stage = "native worker platform";
@@ -484,6 +482,7 @@ async function main() {
     stage = "validated summary publication";
     try {
       const summaryStatus = publishSummary(output);
+      diagnostic = validatePublicSummary(PUBLIC).failure;
       if (exitCode === 0 && summaryStatus !== "PASS") exitCode = 2;
     } catch {
       console.error("[harness-assurance] No validated native summary was available; release approval remains blocked.");
@@ -491,19 +490,22 @@ async function main() {
       exitCode = Math.max(exitCode, 2);
     }
   } catch (error) {
-    const reason = controlledFailureCode(error.message, "HARNESS_NATIVE_PREPARATION_FAILED");
+    const category = stage === 'native candidate and CCD pilots' ? 'orchestration' : stage === 'validated summary publication' ? 'evidence' : 'preflight';
+    diagnostic = nativeFailure(error, { phase: category === 'preflight' ? 'preflight' : 'unknown', category });
+    const reason = diagnostic.code;
     if (privateRoot) {
       assertPrivateDirectory(privateRoot);
-      writePrivateJob(path.join(privateRoot, "preparation-error.json"), { stage, reason });
+      writePrivateJob(path.join(privateRoot, "preparation-error.json"), { stage, reason, failure: diagnostic });
     }
     console.error(`[harness-assurance] BLOCKED during ${stage}; reason ${reason}; release approval remains unavailable.`);
+    writePublicSummary(PUBLIC, { status: 'BLOCKED', exitCode: 2, failure: diagnostic });
     exitCode = 2;
   } finally {
     try {
       if (privateRoot) assertPrivateDirectory(privateRoot);
     } catch {
       console.error("[harness-assurance] BLOCKED: private job evidence permissions could not be verified.");
-      writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
+      writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2, ...(diagnostic ? { failure: diagnostic } : {}) });
       exitCode = 2;
     }
   }
@@ -518,7 +520,7 @@ async function main() {
       console.error("[harness-assurance] No validated Odhín report could be generated.");
       exitCode = 2;
     } else {
-      writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
+      writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2, ...(diagnostic ? { failure: diagnostic } : {}) });
       exitCode = 2;
     }
   }

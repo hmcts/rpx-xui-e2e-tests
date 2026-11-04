@@ -32,6 +32,7 @@ import {
   loadRunEvidence,
 } from "./exui-evidence-io.mjs";
 import { writeHarnessPublicSummary } from "./exui-output-boundary.mjs";
+import { nativeFailure, annotateNativeFailure, nativeFailurePhase } from "./exui-native-failure.mjs";
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const ref = (output, file) => ({
   path: path.relative(output, file),
@@ -147,6 +148,8 @@ export async function runNativeHostPhase(output, stagedHarness) {
     executions = [],
     identities = [],
     verdict = { status: "BLOCKED", exitCode: 2 };
+  let failure;
+  const failureContext = { phase: nativeFailurePhase(input.releaseScopeId), category: 'preflight' };
   const remove = async (key) => {
     try {
       await removeHostResource(resources, key, output);
@@ -215,10 +218,13 @@ export async function runNativeHostPhase(output, stagedHarness) {
     writeJsonAtomic(path.join(output, "input.json"), input);
     writeJsonAtomic(path.join(output, "container-launch.json"), handoff);
     for (const invocation of invocations) {
+      failureContext.invocation = invocation.invocationId;
+      failureContext.category = invocation.mutation && input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? 'transition' : 'execution';
       const invocationInput = input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation
         ? await waitForEventCapabilityRuntime(input, output, { invocationId: invocation.invocationId, isCancelled: () => Boolean(interrupted) })
         : input;
       const directory = path.join(output, invocation.invocationId);
+      failureContext.category = 'execution';
       fs.mkdirSync(directory, { mode: 0o700, ...(input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation ? { recursive: true } : {}) });
       const artifact = selectedArtifact(invocationInput, invocation),
         { identity, config } = nativeIdentity(
@@ -327,6 +333,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
       if (input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === "baseline")
         writeJsonAtomic(path.join(output, "event-transition-request.json"), eventCapabilityTransitionRequest(input));
     }
+    failureContext.category = 'evidence';
     const mutations = derivations(
       input,
       output,
@@ -344,11 +351,15 @@ export async function runNativeHostPhase(output, stagedHarness) {
     verdict = loaded.receipt.verdict;
     if (interrupted) throw Error("NATIVE_CONTROLLER_INTERRUPTED");
     pendingReceipt = loaded.receipt;
+  } catch (error) {
+    failure = nativeFailure(error, failureContext);
+    throw annotateNativeFailure(error, failureContext, failure);
   } finally {
     for (const key of [...resources.keys()].reverse())
       try {
         await remove(key);
-      } catch {
+      } catch (error) {
+        failure ??= nativeFailure(error, { ...failureContext, category: 'cleanup' });
         verdict = { status: "BLOCKED", exitCode: 2 };
       }
     uninstall();
@@ -373,7 +384,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
           exitCode: verdict.exitCode,
           cleanupComplete: cleanupErrors.length === 0,
         });
-        writeHarnessPublicSummary(output, verdict, Boolean(pendingReceipt) && cleanupErrors.length === 0);
+        writeHarnessPublicSummary(output, { ...verdict, ...(failure ? { failure } : {}) }, Boolean(pendingReceipt) && cleanupErrors.length === 0);
         // All mandatory cleanup and output work precedes the machine receipt.
         if (pendingReceipt && cleanupErrors.length === 0)
           writeJsonAtomic(path.join(output, "gate.json"), pendingReceipt);
@@ -388,8 +399,8 @@ export async function runNativeHostPhase(output, stagedHarness) {
         });
       } catch { /* Preserve the original finalization error and attempt the other safe output. */ }
       try { writeHarnessPublicSummary(output, verdict); } catch { /* Best effort; the producer still rejects. */ }
-      throw error;
+      throw annotateNativeFailure(error, { ...failureContext, category: 'evidence' }, failure);
     }
   }
-  return verdict;
+  return { ...verdict, ...(failure ? { failure } : {}) };
 }

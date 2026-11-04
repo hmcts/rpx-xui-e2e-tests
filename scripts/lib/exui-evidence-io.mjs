@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
+import { sanitizeNativeFailure, isNativeFailure } from './exui-native-failure.mjs';
 import { validateRunManifest, evaluateReleaseEvidence, createGateReceipt } from './exui-release-evidence.mjs';
 
 export const digestBytes = (bytes) => 'sha256:' + createHash('sha256').update(bytes).digest('hex');
@@ -131,7 +132,8 @@ export function writePublicSummary(file, verdict, receiptAvailable = false) {
     schemaVersion: 1, kind: 'pilot-evidence-summary', status: verdict.status,
     releaseApproval: false, fullReleaseScopeAvailable: false,
     receiptAvailable: receiptAvailable === true,
-    reasonCodes: verdict.status === 'PASS' ? [] : ['EVIDENCE_REJECTED']
+    reasonCodes: verdict.status === 'PASS' ? [] : ['EVIDENCE_REJECTED'],
+    ...(verdict.status !== 'PASS' && verdict.failure ? { failure: sanitizeNativeFailure(verdict.failure) } : {})
   });
 }
 
@@ -139,11 +141,13 @@ export function validatePublicSummary(file) {
   const bytes = fs.readFileSync(file);
   const summary = JSON.parse(bytes);
   requireFact(summary && ['PASS', 'FAIL', 'BLOCKED'].includes(summary.status) && typeof summary.receiptAvailable === 'boolean', 'INVALID_PUBLIC_SUMMARY');
+  requireFact(!Object.hasOwn(summary, 'failure') || (summary.status !== 'PASS' && isNativeFailure(summary.failure)), 'UNSAFE_PUBLIC_SUMMARY');
   requireFact(isDeepStrictEqual(summary, {
     schemaVersion: 1, kind: 'pilot-evidence-summary', status: summary.status,
     releaseApproval: false, fullReleaseScopeAvailable: false,
     receiptAvailable: summary.receiptAvailable,
-    reasonCodes: summary.status === 'PASS' ? [] : ['EVIDENCE_REJECTED']
+    reasonCodes: summary.status === 'PASS' ? [] : ['EVIDENCE_REJECTED'],
+    ...(summary.failure ? { failure: summary.failure } : {})
   }), 'UNSAFE_PUBLIC_SUMMARY');
   requireFact(bytes.equals(Buffer.from(JSON.stringify(summary, null, 2) + '\n')), 'UNSAFE_PUBLIC_BYTES');
   return summary;
