@@ -118,3 +118,15 @@ for(const [name,change] of [['missing',r=>delete r.storedSourceShapeDates],['wro
   assert.throws(()=>validateEventTransitionEvidence(f.directory,f.expected,loaded),/SHAPE_STORED_DATE/);
   assert.throws(()=>projectConfigurationCoverage({eventPhaseDirectory:f.directory}),/SHAPE_STORED_DATE/);
  });
+
+test('postal fault changes only the consumed event label and rejects the old ineffective mandatory fault',async()=>{
+ const {deriveSourceShapeFault,validateSourceShapeFault,assertObservedSourceShape}=await api();
+ const base=await baseline(),mutant=deriveSourceShapeFault('optional-postal-line-two',base);
+ const row=mutant.sheets.EventToComplexTypes.find(r=>r.CaseEventID==='serviceOfDocuments'&&r.ListElementCode==='postalInformation.postalAddress.AddressLine2');
+ assert.equal(row.DisplayContext,'OPTIONAL');assert.equal(row.EventElementLabel,'Harness changed postal line two');
+ const observed={id:'HarnessNestedPRL',events:[{id:'serviceOfDocuments',case_fields:[{case_field_id:'sodAdditionalRecipientsList',case_fields_complex:[{reference:row.ListElementCode,label:row.EventElementLabel,order:9,displayContext:'OPTIONAL',showCondition:row.FieldShowCondition}]}]}]};
+ assertObservedSourceShape(observed,'optional-postal-line-two',true);
+ assert.throws(()=>assertObservedSourceShape(observed,'optional-postal-line-two',false),/SHAPE_LABEL_MISMATCH/);
+ row.EventElementLabel=' ';row.DisplayContext='MANDATORY';
+ assert.throws(()=>validateSourceShapeFault('optional-postal-line-two',base,mutant),/SHAPE_SINGLE_FACET_FAULT_REQUIRED/);
+});

@@ -22,6 +22,11 @@ export async function assertSourceShapeRadioLabel(page: Page, optional: boolean)
   await expect(page.getByText(optional ? 'Served by (Optional)' : 'Served by', {exact:true})).toBeVisible();
 }
 
+export async function assertSourceShapePostalLabel(control: Locator, changed: boolean) {
+  await expect(control).toHaveAccessibleName(changed ? 'Harness changed postal line two (Optional)' : 'Address Line 2 (Optional)');
+  return control.evaluate(element => Array.from((element as HTMLInputElement).labels ?? []).map(label => label.textContent ?? '').join(' ').replace(/\s+/g,' ').trim());
+}
+
 export const postalSiblingValues = {
   AddressLine3: 'Synthetic third line', PostTown: 'Synthetic town',
   County: 'Synthetic county', Country: 'United Kingdom',
@@ -81,7 +86,8 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     const cya = page.getByText('Check your answers',{exact:false});
     let contractSatisfied = false;
     let expectedChannel: string | null = null;
-    let expectedLine2: string | null = null;
+    const expectedLine2: string | null = null;
+    let postalLabel: string | undefined;
     let faultEmailPresent = false;
 
     if (shape === 'required-delivery-radio') {
@@ -146,18 +152,12 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       await page.locator('input[id$="PostCode"]').fill('SW1A 1AA');
       await fillSourceShapePostalSiblings(page);
       await expect(line2).toBeVisible();
-      await expect(line2).toHaveAccessibleName(/Address Line 2/);
+      postalLabel=await assertSourceShapePostalLabel(line2,shape === 'optional-postal-line-two' && Boolean(mutation));
       await assertControlOrder([page.locator('input[id$="AddressLine1"]'),line2,page.locator('input[id$="PostCode"]')]);
       await line2.fill('');
       await continueButton.click();
-      if (shape === 'optional-postal-line-two' && mutation) {
-        await expect(cya).toHaveCount(0);
-        await expect(page.locator('.error-summary, .govuk-error-summary')).toBeVisible();
-        await line2.fill(optionalValue);
-        expectedLine2 = optionalValue;
-        await continueButton.click();
-      } else if (shape === 'optional-postal-line-two') {
-        contractSatisfied = true;
+      if (shape === 'optional-postal-line-two') {
+        contractSatisfied = postalLabel === 'Address Line 2 (Optional)';
       }
     } else if (shape === 'conditional-email-complex') {
       await continueButton.click();
@@ -189,10 +189,11 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     expect(after.history.filter((event: {id: string}) => event.id !== "serviceOfDocuments")).toEqual(before.history);
 
     let filledObservation;
-    if (shape === 'optional-postal-line-two' && !mutation) {
+    if (shape === 'optional-postal-line-two') {
       expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
       expect((await openServiceOfDocuments(page,caseId)).status()).toBe(200);
       await expect(line2).toBeVisible();
+      await assertSourceShapePostalLabel(line2,Boolean(mutation));
       await line2.fill(optionalValue);
       await continueButton.click();
       await expect(cya).toBeVisible();
@@ -203,13 +204,17 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       expect(filledRecipients[0].id).toBe(recipients[0].id);
       expect(filledRecipients[0].value).toEqual({...recipients[0].value,postalInformation:{
         ...recipients[0].value.postalInformation,postalAddress:{...recipients[0].value.postalInformation.postalAddress,AddressLine2:optionalValue}}});
+      const expectedFilledData=structuredClone(after.state.case_data);
+      expectedFilledData.sodAdditionalRecipientsList[0].value.postalInformation.postalAddress.AddressLine2=optionalValue;
+      expect(filledObservation.state.case_data).toEqual(expectedFilledData);
+      expect(filledObservation.state.state).toBe(after.state.state);
       expect(filledObservation.state.case_data.protectedValue).toBe(control);
       expect(filledObservation.state.version).toBe(after.state.version + 1);
       expect(filledObservation.history).toHaveLength(after.history.length + 1);
       expect(filledObservation.history.filter((event: {id:string}) => event.id === 'serviceOfDocuments')).toHaveLength(2);
     }
 
-    saveCcdEventObservation(`source-shape-${shape}`,{shape,actor,caseId,before,after,filledObservation,contractSatisfied});
+    saveCcdEventObservation(`source-shape-${shape}`,{shape,actor,caseId,before,after,filledObservation,postalLabel,contractSatisfied});
 
     await test.step(`harness-assertion:source-shape-${shape}`,async () => {
       expect(contractSatisfied).toBe(true);

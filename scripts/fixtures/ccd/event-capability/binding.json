@@ -19,9 +19,9 @@
     "schemaVersion": 1,
     "shape": "optional-postal-line-two",
     "reference": "postalInformation.postalAddress.AddressLine2",
-    "column": "DisplayContext",
-    "before": "OPTIONAL",
-    "after": "MANDATORY"
+    "column": "EventElementLabel",
+    "before": " ",
+    "after": "Harness changed postal line two"
   },
   "schemaVersion": 1,
   "scope": "exui-ccd-event-capability-pilot",
@@ -143,7 +143,7 @@
     "workbookDigest": "sha256:1ccf0fb316bc6c97f2c262a550289b20c5dca759abd296f12f26a23d051bc609"
   },
   "shape-optional-postal-line-two-mutant": {
-    "sourceDigest": "sha256:f04608394664470d2032266f0a63a9de5abef002743f5d5b7f5fc5c6c418901f",
-    "workbookDigest": "sha256:7495f8b64fa5a2c170b099c332029f3e82ef0d1390598243ad62bfde32da73f1"
+    "sourceDigest": "sha256:d834e8e7a694dc8579167485d3c2c6a7e05abda7f9175cca7a1ca55b6e190e39",
+    "workbookDigest": "sha256:b92405f43cfacfafa27665a8e3f5b8118f297ccfaf34c65e3859b4a8782ccb34"
   }
 }

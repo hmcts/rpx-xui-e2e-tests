@@ -796,9 +796,9 @@
         "CaseFieldID": "sodAdditionalRecipientsList",
         "ListElementCode": "postalInformation.postalAddress.AddressLine2",
         "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
-        "EventElementLabel": " ",
+        "EventElementLabel": "Harness changed postal line two",
         "FieldDisplayOrder": "9",
-        "DisplayContext": "MANDATORY"
+        "DisplayContext": "OPTIONAL"
       },
       {
         "LiveFrom": "01/09/2024",

@@ -13,10 +13,13 @@ export const SOURCE_SHAPE_ROWS = Object.freeze([
     label: '', order: 2, context: 'COMPLEX',
     condition: 'sodAdditionalRecipientsList.serveByPostOrEmail="email"',
     faultColumn: 'FieldShowCondition', faultValue: 'sodAdditionalRecipientsList.serveByPostOrEmail="post"' }),
+  // Toolkit 7.4.22 and 7.4.25 map nonempty event labels onto this nested leaf.
+  // Their AddressUK validator only requires AddressLine1/TextMax150; changing
+  // Line2 to MANDATORY is not a proven UI fault. Blank + filled CCD writes remain required.
   Object.freeze({ id: 'optional-postal-line-two', obligationId: 'configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757', reference: 'postalInformation.postalAddress.AddressLine2',
     label: '', order: 9, context: 'OPTIONAL',
     condition: 'sodAdditionalRecipientsList.serveByPostOrEmail="post"',
-    faultColumn: 'DisplayContext', faultValue: 'MANDATORY' }),
+    faultColumn: 'EventElementLabel', faultValue: 'Harness changed postal line two' }),
 ]);
 export const SOURCE_SHAPE_MUTATIONS = Object.freeze(SOURCE_SHAPE_ROWS.map(row => `ccd-shape-${row.id}`));
 export const sourceShapeIdForMutation = mutation => {
@@ -71,7 +74,7 @@ export function assertObservedSourceShape(observed, id, fault = false) {
   const rows = fields[0].case_fields_complex.filter(row => row.reference === contract.reference);
   assert.equal(rows.length, 1, 'SHAPE_RUNTIME_ROW_REQUIRED');
   const row = rows[0];
-  assert.equal(row.label, contract.label, 'SHAPE_LABEL_MISMATCH');
+  assert.equal(row.label, fault && contract.faultColumn === 'EventElementLabel' ? contract.faultValue : contract.label, 'SHAPE_LABEL_MISMATCH');
   assert.equal(row.order, contract.order, 'SHAPE_ORDER_MISMATCH');
   assert.equal(row.displayContext, fault && contract.faultColumn === 'DisplayContext' ? contract.faultValue : contract.context,
     'SHAPE_CONTEXT_MISMATCH');

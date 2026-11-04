@@ -62,3 +62,16 @@ test('radio label binds the exact baseline or optional-mutant display context', 
   await assert.rejects(()=>fixture.exports.assertSourceShapeRadioLabel(page,true));
  } finally {await browser.close();}
 });
+
+test('postal label witness reads the actual label and rejects unrelated or unchanged mutant labels',async()=>{
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage();
+  await page.setContent('<label for="line2">Address Line 2 (Optional)</label><input id="line2">');
+  assert.equal(await fixture.exports.assertSourceShapePostalLabel(page.locator('#line2'),false),'Address Line 2 (Optional)');
+  await assert.rejects(()=>fixture.exports.assertSourceShapePostalLabel(page.locator('#line2'),true));
+  await page.locator('label').evaluate(el=>el.textContent='Harness changed postal line two (Optional)');
+  assert.equal(await fixture.exports.assertSourceShapePostalLabel(page.locator('#line2'),true),'Harness changed postal line two (Optional)');
+  await assert.rejects(()=>fixture.exports.assertSourceShapePostalLabel(page.locator('#line2'),false));
+ } finally {await browser.close();}
+});
