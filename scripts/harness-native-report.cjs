@@ -103,6 +103,16 @@ proofs["ccd-courtadmin-email-one"] = {
   limits:
     "Literal source role caseworker-privatelaw-courtadmin with synthetic identity; source-shaped serviceOfDocuments event in JUDICIAL_REVIEW. No deployed PRL, Access Management, ABAC, OIDC or CSRF credit.",
 };
+proofs["ccd-courtadmin-read-email-one"] = {
+  phase: "eventCapability",
+  slice: "Court administrator — read one email recipient",
+  behaviour: "Read a seeded email recipient through the candidate case view; verify the visible value and independently confirm unchanged CCD data and history.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD",
+  limits: "Literal source courtadmin role. The deliberate fault removes only recipient-field read permission in a fresh CCD import. No deployed PRL or production authorisation claim.",
+};
 proofs["ccd-event-create-denied"] = {
   phase: "eventCapability",
   slice: "Readable case — event creation forbidden",
@@ -140,6 +150,7 @@ proofs["routing-noc-session-cache"] = {
     "Uses synthetic case and provider responses. It does not prove deployed PCS profiles, environment overlays, or other decentralised service entries.",
 };
 const faults = {
+  "ccd-remove-courtadmin-recipient-read": "Remove only the court administrator’s recipient-field read permission",
   "ccd-enable-judge-event":
     "Grant the judge create permission for the readable case’s source event",
   "wa-drop-family": "Omit Immigration and Asylum from supported WA services",
@@ -212,8 +223,8 @@ function renderNativeEvidence(evidence) {
         id ===
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
-          : id ===
-              "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313"
+          : ["configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+              "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a"].includes(id)
             ? "eventCapability"
             : id ===
                 "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c"

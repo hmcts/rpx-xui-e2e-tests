@@ -390,8 +390,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 11);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 10);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 12);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 11);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -668,7 +668,7 @@ for (const postalFailure of [false, true])
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
     assert.equal(coverage.candidate, 1);
-    assert.equal(coverage.ccd, postalFailure ? 1 : 2);
+    assert.equal(coverage.ccd, postalFailure ? 2 : 3);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
         ? []
@@ -676,9 +676,10 @@ for (const postalFailure of [false, true])
             "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
           ]),
       "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+      "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 110 : 109);
+    assert.equal(coverage.missing, postalFailure ? 109 : 108);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(

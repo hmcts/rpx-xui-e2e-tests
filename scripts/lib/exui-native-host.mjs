@@ -24,7 +24,7 @@ import { getReleasePolicy } from "./exui-release-policy.mjs";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
 import { GLOBAL_SEARCH_SCOPE, globalSearchContract } from "./exui-global-search-contract.mjs";
 import { ROUTING_SCOPE } from "./exui-routing-contract.mjs";
-import { EVENT_CAPABILITY_SCOPE, validateEventCapabilityPair } from "./exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE, COURTADMIN_READ_MUTATION, eventCapabilityFaultVariant, validateEventCapabilityPair, validateCourtadminReadPair } from "./exui-ccd-event-capability.mjs";
 import { eventCapabilityTransitionRequest, waitForEventCapabilityRuntime } from "./exui-ccd-event-transition.mjs";
 import {
   digestBytes,
@@ -110,10 +110,12 @@ function derivations(input, output, policy, identities, artifactDerivation) {
               }
             : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
               ? {
-                  target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD",
-                  transformationRecord: validateEventCapabilityPair(
+                  target: definition.mutationId === COURTADMIN_READ_MUTATION
+                    ? "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD"
+                    : "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD",
+                  transformationRecord: (definition.mutationId === COURTADMIN_READ_MUTATION ? validateCourtadminReadPair : validateEventCapabilityPair)(
                     read(new URL("../fixtures/ccd/event-capability/baseline.json", import.meta.url)),
-                    read(new URL("../fixtures/ccd/event-capability/mutant.json", import.meta.url)),
+                    read(new URL(`../fixtures/ccd/event-capability/${eventCapabilityFaultVariant(definition.mutationId)}.json`, import.meta.url)),
                   ),
                   beforeDigest: baseline.identity.definitionDigests.HarnessNestedPRL,
                   afterDigest: mutant.identity.definitionDigests.HarnessNestedPRL,

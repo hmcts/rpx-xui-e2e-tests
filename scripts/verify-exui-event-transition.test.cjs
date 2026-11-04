@@ -166,17 +166,19 @@ test("support only: runtime ACK is private, atomic, immutable and consumed only 
   assert.deepEqual(fs.readFileSync(file), bytes);
 });
 
-test("support only: event scope has fixed two-proof baseline and definition fault without granting source actors a Harness alias", async () => {
+test("support only: event scope has fixed three-proof baseline and two definition faults without granting source actors a Harness alias", async () => {
   const { nativeInvocations, seedAppCcdSessions } = await import("./lib/exui-native-contract.mjs");
   const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
   const scope = "exui-ccd-event-capability-pilot";
   assert.deepEqual(nativeInvocations(scope), [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     { invocationId: "ccd-enable-judge-event", kind: "mutation", mutation: "ccd-enable-judge-event" },
+    { invocationId: "ccd-remove-courtadmin-recipient-read", kind: "mutation", mutation: "ccd-remove-courtadmin-recipient-read" },
   ]);
   const policy = getReleasePolicy(scope);
-  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-email-one", "ccd-event-create-denied"]);
+  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-email-one", "ccd-event-create-denied", "ccd-courtadmin-read-email-one"]);
   assert.equal(policy.mutationDefinitions[0].expectedFailureId, "event-capability-isolation");
+  assert.equal(policy.mutationDefinitions[1].expectedFailureId, "courtadmin-recipient-read-projection");
   const credentials = { allowed: {}, observer: {}, courtadmin: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-courtadmin"] }, judge: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-judge"] } };
   assert.deepEqual(Object.keys(seedAppCcdSessions(credentials, (name) => name, scope)), ["allowed", "courtadmin", "judge"]);
   credentials.judge.roles.push("caseworker-harness-allowed");

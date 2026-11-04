@@ -19,7 +19,7 @@ import {
 import { digestBytes, writeJsonAtomic, loadRunEvidence } from "./lib/exui-evidence-io.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
 import { nativeIdentity } from "./lib/exui-native-contract.mjs";
-import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./lib/exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, eventCapabilityFaultVariant } from "./lib/exui-ccd-event-capability.mjs";
 import { selectEventCapabilityRuntime, publishEventCapabilityRuntime } from "./lib/exui-ccd-event-transition.mjs";
 import { readEventBaselineCheckpoint, isKnownPostalBlock } from "./lib/exui-native-proof-validation.mjs";
 import { assertEventBaselineRemoved } from "./lib/exui-native-ci-ownership.mjs";
@@ -292,22 +292,34 @@ export async function runHarnessCi(jobPath) {
                 const removalFile = path.join(directory, "baseline-removal.json");
                 writeJsonAtomic(removalFile, removal);
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
-                const fault = eventRuntimeData(await startOwnedCcd("event-mutant-runtime", "event-capability-mutant", alive, resource));
-                const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId: EVENT_CAPABILITY_MUTATION,
-                  requestDigest: digestBytes(JSON.stringify(request)), ...fault };
-                const selected = selectEventCapabilityRuntime(handoff.input, EVENT_CAPABILITY_MUTATION, record);
-                const identity = eventIdentity(fault);
-                const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory);
-                resource.expectedContainer.invocations.push(...faultOwnership.invocations);
+                const records = [], faults = [], states = [handoff.input.ccd];
+                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION]) {
+                  assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                  const variant = eventCapabilityFaultVariant(invocationId);
+                  const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
+                  const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId,
+                    requestDigest: digestBytes(JSON.stringify(request)), ...fault };
+                  const selected = selectEventCapabilityRuntime(handoff.input, invocationId, record);
+                  for (const state of states) {
+                    assert.notEqual(fault.ccd.owner, state.owner, "CI_EVENT_FAULT_OWNER_REUSE");
+                    assert.notEqual(fault.ccd.namespace, state.namespace, "CI_EVENT_FAULT_NAMESPACE_REUSE");
+                    assert(Object.values(fault.ccd.containers).every(id => !Object.values(state.containers).includes(id)), "CI_EVENT_FAULT_CID_REUSE");
+                  }
+                  states.push(fault.ccd);
+                  const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory, invocationId);
+                  resource.expectedContainer.invocations.push(...faultOwnership.invocations);
+                  records.push(record);
+                  faults.push({ invocationId, identity: eventIdentity(fault),
+                    runtimeRecord: { path: `${invocationId}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") } });
+                }
                 const transition = {
-                  schemaVersion: 1, runId: handoff.input.runId, releaseScopeId: EVENT_CAPABILITY_SCOPE,
+                  schemaVersion: 2, runId: handoff.input.runId, releaseScopeId: EVENT_CAPABILITY_SCOPE,
                   harnessCommit: handoff.expected.harnessCommit, harnessSourceDigest: handoff.expected.harnessSourceDigest,
                   capturedBeforeFault: true, capturedAt: new Date().toISOString(),
                   baselineInputDigest: digestBytes(fs.readFileSync(path.join(directory, "input.json"))),
-                  requestDigest: record.requestDigest, baselineCheckpointDigest: checkpoint.checkpointDigest,
+                  requestDigest: digestBytes(JSON.stringify(request)), baselineCheckpointDigest: checkpoint.checkpointDigest,
                   baselineRemoval: { path: "baseline-removal.json", digest: digestBytes(fs.readFileSync(removalFile)) },
-                  runtimeRecord: { path: `${EVENT_CAPABILITY_MUTATION}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") },
-                  identity,
+                  faults,
                 };
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const transitionFile = path.join(directory, "independent-transition.json");
@@ -315,7 +327,10 @@ export async function runHarnessCi(jobPath) {
                 writeJsonAtomic(transitionFile, transition);
                 resource.eventTransition = { path: "independent-transition.json", digest: digestBytes(fs.readFileSync(transitionFile)) };
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
-                assert.deepEqual(publishEventCapabilityRuntime(directory, record), transition.runtimeRecord, "CI_EVENT_ACK_CHANGED");
+                for (const [index, record] of records.entries()) {
+                  assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                  assert.deepEqual(publishEventCapabilityRuntime(directory, record), transition.faults[index].runtimeRecord, "CI_EVENT_ACK_CHANGED");
+                }
               },
             } : {}),
           });
@@ -447,7 +462,7 @@ export async function runHarnessCi(jobPath) {
         context.eventBaseline = { ...data, ccdIdentity: eventIdentity(data) };
       },
       stopEvent: async () => {
-        for (const key of ["event-mutant-runtime", "event-baseline-runtime"]) {
+        for (const key of ["event-read-mutant-runtime", "event-mutant-runtime", "event-baseline-runtime"]) {
           const resource = resources.get(key);
           if (resource) await remove(key, resource);
         }

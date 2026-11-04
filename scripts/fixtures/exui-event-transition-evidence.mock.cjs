@@ -7,6 +7,7 @@ const hash = value => "sha256:" + createHash("sha256").update(value).digest("hex
 const digest = letter => "sha256:" + letter.repeat(64);
 const scope = "exui-ccd-event-capability-pilot";
 const mutation = "ccd-enable-judge-event";
+const readMutation = "ccd-remove-courtadmin-recipient-read";
 
 // Synthetic transport shape only. Real importer/role behavior is owned by the runtime proof.
 function observedDefinition(source) {
@@ -55,11 +56,11 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
   const artifact = { candidateRoot, identity: completeRun().manifest.identity };
   const images = Object.fromEntries(Object.entries(runtime.CCD_IMAGES).map(([name, id]) => [name, { id, architecture: "arm64", repoDigests: [`fixture@${id}`] }]));
   const variants = {};
-  for (const [index, variant] of ["baseline", "mutant"].entries()) {
+  for (const [index, variant] of ["baseline", "mutant", "read-mutant"].entries()) {
     const prepared = runtime.prepareCcdImport(undefined, "event-capability-" + variant);
     const observed = observedDefinition(prepared.source);
     const output = path.join(root, `event-${variant}-runtime`);
-    const containers = Object.fromEntries(Object.keys(images).map((name, i) => [name, (index ? "b" : "a") + String(i + 1).repeat(63)]));
+    const containers = Object.fromEntries(Object.keys(images).map((name, i) => [name, ["a", "b", "f"][index] + String(i + 1).repeat(63)]));
     const state = { schemaVersion: 1, ready: true, definitionImported: true, owner: "harness-" + String(index + 1).repeat(16),
       output, containers, namespace: containers.database, images, fixtureSelection: "event-capability-" + variant };
     const imported = { binding: prepared.binding, status: 201, fixtureDigest: hash(prepared.file), images,
@@ -84,9 +85,13 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
   const runtimeRecord = { schemaVersion: 1, runId: input.runId, invocationId: mutation, requestDigest: hash(JSON.stringify(request)),
     ccd: variants.mutant.state, definition: variants.mutant.imported, definitionImportDigest: variants.mutant.importedRef.digest,
     credentials, apiContracts: input.apiContracts };
+  const readRuntimeRecord = { ...runtimeRecord, invocationId: readMutation,
+    ccd: variants["read-mutant"].state, definition: variants["read-mutant"].imported,
+    definitionImportDigest: variants["read-mutant"].importedRef.digest };
   const baselineIdentity = nativeIdentity(input, { mutation: null }, candidateRoot).identity;
   const faultInput = { ...input, ccd: runtimeRecord.ccd, definition: runtimeRecord.definition, definitionImportDigest: runtimeRecord.definitionImportDigest };
   const faultIdentity = nativeIdentity(faultInput, { mutation }, candidateRoot).identity;
+  const readFaultIdentity = nativeIdentity({ ...input, ...readRuntimeRecord }, { mutation: readMutation }, candidateRoot).identity;
   const expected = { nativeAuthority: true, runId: input.runId, releaseScopeId: scope, harnessCommit: input.harnessCommit,
     policyDigest: policy.policyDigest, identity: baselineIdentity, harnessSourceDigest: input.harnessSourceDigest,
     harnessDependencyDigest: digest("a"), browserDigest: digest("b") };
@@ -95,22 +100,25 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
     runtimeMetadata: { isolation: "native-separate-api-owned-network-none", harnessSourceState: "clean",
       harnessSourceDigest: expected.harnessSourceDigest, harnessDependencyDigest: expected.harnessDependencyDigest,
       browserDigest: expected.browserDigest, gatewayDigest: input.gatewayDigest } });
-  const baselineManifest = manifest(baselineIdentity), mutantManifest = manifest(faultIdentity);
+  const baselineManifest = manifest(baselineIdentity), mutantManifest = manifest(faultIdentity), readMutantManifest = manifest(readFaultIdentity);
   Object.assign(baselineManifest.runtimeMetadata, { ccdNamespace: input.ccd.namespace, definitionImportDigest: input.definitionImportDigest,
     observedDefinitionDigest: input.definition.observedDefinitionDigest, definitionVersion: "1", idamSimulatorImage: images.idam.id });
   Object.assign(mutantManifest.runtimeMetadata, { ccdNamespace: runtimeRecord.ccd.namespace, definitionImportDigest: runtimeRecord.definitionImportDigest,
     observedDefinitionDigest: runtimeRecord.definition.observedDefinitionDigest, definitionVersion: "1", idamSimulatorImage: images.idam.id });
+  Object.assign(readMutantManifest.runtimeMetadata, { ccdNamespace: readRuntimeRecord.ccd.namespace, definitionImportDigest: readRuntimeRecord.definitionImportDigest,
+    observedDefinitionDigest: readRuntimeRecord.definition.observedDefinitionDigest, definitionVersion: "1", idamSimulatorImage: images.idam.id });
   const makeExecution = (invocationId, current, proofs, failed) => {
     const context = { runId: input.runId, invocationId, identity: current.identity, harnessCommit: input.harnessCommit,
       releaseScopeId: scope, policyDigest: policy.policyDigest, harnessSourceState: "clean", harnessSourceDigest: input.harnessSourceDigest };
     const report = { schemaVersion: 1, complete: true, status: failed ? "failed" : "passed", globalErrors: [], context,
       tests: proofs.map(proofId => ({ proofId, expectedStatus: "passed", status: failed ? "failed" : "passed", retry: 0,
-        unattributedErrors: 0, failureId: failed ? "event-capability-isolation" : null })) };
+        unattributedErrors: 0, failureId: failed ? (invocationId === readMutation ? "courtadmin-recipient-read-projection" : "event-capability-isolation") : null })) };
     return { current, report, execution: { runId: input.runId, invocationId, kind: failed ? "mutation" : "baseline",
       identity: current.identity, terminalState: "completed", runnerExitCode: failed ? 1 : 0, unexpectedGlobalErrors: [] } };
   };
-  const baseline = makeExecution("baseline", baselineManifest, ["ccd-courtadmin-email-one", "ccd-event-create-denied"], false);
+  const baseline = makeExecution("baseline", baselineManifest, ["ccd-courtadmin-email-one", "ccd-courtadmin-read-email-one", "ccd-event-create-denied"], false);
   const fault = makeExecution(mutation, mutantManifest, ["ccd-event-create-enabled"], true);
+  const readFault = makeExecution(readMutation, readMutantManifest, ["ccd-courtadmin-read-hidden"], true);
   const registry = [
     { name: `${input.runId}-baseline-candidate`, id: "c".repeat(64), owner: input.runId, service: "candidate", image: input.nativeRuntime.imageId, namespace: input.ccd.namespace, removed: true },
     { name: `${input.runId}-baseline-tools`, id: "d".repeat(64), owner: input.runId, service: "browser-provider", image: input.browserRuntimeImage, namespace: input.ccd.namespace, removed: true },
@@ -126,15 +134,20 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
   const derivation = { mutationDefinitionDigest: policy.mutationDefinitions[0].definitionDigest, baselineIdentity, mutantIdentity: faultIdentity,
     transformation: mutation, target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD",
     transformationRecord: fixtureBinding.transformation, beforeDigest: fixtureBinding.baseline.workbookDigest, afterDigest: fixtureBinding.mutant.workbookDigest };
-  const parent = { schemaVersion: 1, runId: input.runId, releaseScopeId: scope, harnessCommit: input.harnessCommit,
-    harnessSourceDigest: input.harnessSourceDigest, capturedBeforeFault: true, capturedAt: "2026-11-03T12:00:00.000Z", identity: faultIdentity };
+  const readDerivation = { mutationDefinitionDigest: policy.mutationDefinitions[1].definitionDigest, baselineIdentity, mutantIdentity: readFaultIdentity,
+    transformation: readMutation, target: "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD",
+    transformationRecord: fixtureBinding.readTransformation, beforeDigest: fixtureBinding.baseline.workbookDigest, afterDigest: fixtureBinding["read-mutant"].workbookDigest };
+  const captures = [{ invocationId: mutation, identity: faultIdentity }, { invocationId: readMutation, identity: readFaultIdentity }];
+  const parent = { schemaVersion: 2, runId: input.runId, releaseScopeId: scope, harnessCommit: input.harnessCommit,
+    harnessSourceDigest: input.harnessSourceDigest, capturedBeforeFault: true, capturedAt: "2026-11-03T12:00:00.000Z", faults: captures };
   const write = () => {
     parent.baselineInputDigest = put("input.json", input).digest;
     put("event-transition-request.json", request);
     fs.writeFileSync(path.join(directory, "event-transition-request.json"), JSON.stringify(request, null, 2) + "\n");
     parent.requestDigest = hash(JSON.stringify(request));
-    parent.runtimeRecord = put(`${mutation}/runtime-input.json`, runtimeRecord);
-    const executionArtifacts = [baseline, fault].map(item => {
+    captures[0].runtimeRecord = put(`${mutation}/runtime-input.json`, runtimeRecord);
+    captures[1].runtimeRecord = put(`${readMutation}/runtime-input.json`, readRuntimeRecord);
+    const executionArtifacts = [baseline, fault, readFault].map(item => {
       const id = item.execution.invocationId;
       put(`${id}/manifest.json`, item.current);
       item.execution.resultArtifact = put(`${id}/report.json`, item.report);
@@ -144,18 +157,26 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
     parent.baselineCheckpointDigest = readEventBaselineCheckpoint(directory, expected).checkpointDigest;
     removal.native.bindings = [put("baseline/candidate-write-denial.json", denial), put("baseline/candidate-lifecycle.json", lifecycle), put("baseline-owned-resources.json", registry)];
     parent.baselineRemoval = put("baseline-removal.json", removal);
-    derivation.runtimeRecord = parent.runtimeRecord;
+    derivation.runtimeRecord = captures[0].runtimeRecord;
+    readDerivation.runtimeRecord = captures[1].runtimeRecord;
     const metadata = item => Object.fromEntries(["definitionImportDigest", "observedDefinitionDigest", "definitionVersion", "ccdNamespace"].map(key => [key, item.current.runtimeMetadata[key]]));
     derivation.baselineRuntimeMetadata ??= metadata(baseline);
     derivation.mutantRuntimeMetadata ??= metadata(fault);
+    readDerivation.baselineRuntimeMetadata ??= metadata(baseline);
+    readDerivation.mutantRuntimeMetadata ??= metadata(readFault);
+    const readDerivationArtifact = put(`${readMutation}/derivation.json`, readDerivation);
     const derivationArtifact = put(`${mutation}/derivation.json`, derivation);
     put("run.json", { schemaVersion: 1, manifest: baselineManifest, executionArtifacts,
-      mutations: [{ mutationId: mutation, baselineInvocationId: "baseline", mutantInvocationId: mutation, derivationArtifact }] });
+      mutations: [{ mutationId: mutation, baselineInvocationId: "baseline", mutantInvocationId: mutation, derivationArtifact }, { mutationId: readMutation, baselineInvocationId: "baseline", mutantInvocationId: readMutation, derivationArtifact: readDerivationArtifact }] });
     expected.eventTransition = put("independent-transition.json", parent);
     put(`${mutation}/candidate-write-denial.json`, { ...denial, candidateId: "e".repeat(64) });
     put(`${mutation}/candidate-lifecycle.json`, { ...lifecycle,
       before: { ...lifecycle.before, Id: "e".repeat(64), Name: `/${input.runId}-${mutation}-candidate` },
       after: { ...lifecycle.after, Id: "e".repeat(64), Name: `/${input.runId}-${mutation}-candidate` } });
+    put(`${readMutation}/candidate-write-denial.json`, { ...denial, candidateId: "7".repeat(64) });
+    put(`${readMutation}/candidate-lifecycle.json`, { ...lifecycle,
+      before: { ...lifecycle.before, Id: "7".repeat(64), Name: `/${input.runId}-${readMutation}-candidate` },
+      after: { ...lifecycle.after, Id: "7".repeat(64), Name: `/${input.runId}-${readMutation}-candidate` } });
     const loaded = loadRunEvidence(path.join(directory, "run.json"), policy);
     expected.evidenceManifestDigest = loaded.evidenceManifestDigest;
     expected.receiptArtifactDigest = put("gate.json", loaded.receipt).digest;
@@ -165,7 +186,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
   };
   const finalized = write();
   return { policy, terminal: { code: finalized.receipt.verdict.exitCode, signal: null }, manifest: baselineManifest, root, directory, expected, input, request, runtimeRecord, variants, baseline, fault, registry, denial, lifecycle,
-    removal, derivation, parent, put, read, write, faultIdentity,
+    removal, derivation, parent, put, read, write, faultIdentity, readFault, readRuntimeRecord, readFaultIdentity, readDerivation, captures,
     loaded: async () => (await import("../lib/exui-evidence-io.mjs")).loadRunEvidence(path.join(directory, "run.json"), policy).input };
 }
 

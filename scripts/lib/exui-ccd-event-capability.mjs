@@ -5,10 +5,18 @@ import { createHash } from "node:crypto";
 export const EVENT_CAPABILITY_SCOPE = "exui-ccd-event-capability-pilot";
 export const EVENT_CAPABILITY_MUTATION = "ccd-enable-judge-event";
 export const COURTADMIN_READ_MUTATION = "ccd-remove-courtadmin-recipient-read";
+export function eventCapabilityFaultVariant(invocationId) {
+  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
+  return invocationId === COURTADMIN_READ_MUTATION ? "read-mutant" : "mutant";
+}
+export const COURTADMIN_READ_CELL =
+  "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a";
 export const EVENT_CAPABILITY_PROOFS = Object.freeze({
   courtadmin: "ccd-courtadmin-email-one",
   judge: "ccd-event-create-denied",
   mutant: "ccd-event-create-enabled",
+  courtadminRead: "ccd-courtadmin-read-email-one",
+  courtadminReadMutant: "ccd-courtadmin-read-hidden",
 });
 export const EVENT_CAPABILITY_SOURCE_DIGEST =
   "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a";

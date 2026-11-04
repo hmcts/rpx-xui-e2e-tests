@@ -329,29 +329,26 @@ test("support only: independently recognized postal blockage permits the event s
   }
 });
 
-test("support only: actual event parent seals baseline removal and fresh runtime ownership before publishing the fault ACK", async (t) => {
+test("support only: actual event parent captures both fault runtimes before ACK and rejects partial preparation", async (t) => {
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
+  const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION } = await import("./lib/exui-ccd-event-capability.mjs");
   const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
   const callback = source.match(/onEventTransition: (async \(request, handoff\) => \{[\s\S]*?)\n\s*\},\n\s*\} : \{\}\)/)?.[1];
   assert(callback, "actual parent transition callback exists");
-  for (const stoppedAt of [null, "checkpoint", "native-removed", "ccd-removed", "start-fault", "fault-owned", "cancel-after-start"]) {
+  for (const stoppedAt of [null, "checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "cancel-after-read", "reused-owner", "reused-cid"]) {
     const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "parent-event-"));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
     const calls = [], resource = { expectedContainer: { invocations: ["baseline"] } };
     let cancelled = false;
-    const step = (name) => {
-      calls.push(name);
-      if (stoppedAt === name) throw Error("controlled-" + name);
-    };
+    const step = name => { calls.push(name); if (stoppedAt === name) throw Error("controlled-" + name); };
     const request = { runId: "synthetic-run", baselineNamespace: "old" };
-    const input = { runId: request.runId, ccd: { namespace: "old", owner: "old-owner" } };
+    const input = { runId: request.runId, ccd: { namespace: "old", owner: "old-owner", containers: { database: "old", data: "old-data" } } };
     const handoff = { input, expected: { harnessCommit: "commit", harnessSourceDigest: digest("a") }, handoff: {}, isTerminated: () => cancelled };
     const deps = {
-      assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {},
-      cancelled: false,
-      EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION: "ccd-enable-judge-event",
+      assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {}, cancelled: false,
+      EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, eventCapabilityFaultVariant,
       resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
       readEventBaselineCheckpoint: () => { step("checkpoint"); return { checkpointDigest: digest("b") }; },
@@ -360,43 +357,50 @@ test("support only: actual event parent seals baseline removal and fresh runtime
         assert.equal(name, "event-baseline-runtime"); assert.equal(owned, "owned-baseline");
         step("ccd-removed"); return { cleanupComplete: true };
       },
-      startOwnedCcd: async (name, variant, alive, owner) => {
-        assert.equal(name, "event-mutant-runtime"); assert.equal(variant, "event-capability-mutant");
+      startOwnedCcd: async (name, fixture, alive, owner) => {
+        const variant = fixture.slice("event-capability-".length);
+        assert(["mutant", "read-mutant"].includes(variant));
+        assert.equal(name, `event-${variant}-runtime`);
         assert.equal(owner, resource); assert.equal(alive(), true);
-        step("start-fault");
-        if (stoppedAt === "cancel-after-start") cancelled = true;
-        return { namespace: "fresh" };
+        step("start-" + variant);
+        if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
+        return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
+          containers: { database: variant, data: variant === "read-mutant" && stoppedAt === "reused-cid" ? "mutant-data" : variant + "-data" } };
       },
-      eventRuntimeData: (ccd) => ({ ccd, definition: { fixtureDigest: digest("c") } }),
+      eventRuntimeData: ccd => ({ ccd, definition: { fixtureDigest: digest("c") } }),
       selectEventCapabilityRuntime: (baseline, invocation, record) => {
-        assert.equal(baseline, input); assert.equal(invocation, "ccd-enable-judge-event");
+        assert.equal(baseline, input); assert.equal(record.invocationId, invocation);
         assert.equal(record.requestDigest, digestBytes(JSON.stringify(request)));
         return { ...baseline, ccd: record.ccd };
       },
-      eventIdentity: () => ({ artifactDigest: digest("d") }),
-      captureCiEventFaultOwnership: (selected) => {
-        assert.equal(selected.ccd.namespace, "fresh"); step("fault-owned");
-        return { invocations: ["fault"] };
+      eventIdentity: fault => ({ definitionDigests: { HarnessNestedPRL: fault.ccd.namespace } }),
+      captureCiEventFaultOwnership: (selected, _handoff, _context, _directory, invocation) => {
+        assert.equal(selected.ccd.namespace, eventCapabilityFaultVariant(invocation));
+        step("owned-" + selected.ccd.namespace); return { invocations: [invocation] };
       },
       publishEventCapabilityRuntime: (output, record) => {
-        step("ack");
+        step("ack-" + eventCapabilityFaultVariant(record.invocationId));
         const captured = JSON.parse(fs.readFileSync(path.join(output, "independent-transition.json")));
-        assert.deepEqual(resource.expectedContainer.invocations, ["baseline", "fault"]);
+        assert.deepEqual(resource.expectedContainer.invocations, ["baseline", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION]);
         assert.equal(resource.eventTransition.digest, digestBytes(fs.readFileSync(path.join(output, "independent-transition.json"))));
+        assert.equal(captured.schemaVersion, 2);
         assert.equal(captured.capturedBeforeFault, true);
         assert.equal(captured.baselineInputDigest, digestBytes("immutable baseline input\n"));
         assert.equal(captured.baselineRemoval.digest, digestBytes(fs.readFileSync(path.join(output, "baseline-removal.json"))));
-        assert.equal(captured.runtimeRecord.digest, digestBytes(JSON.stringify(record, null, 2) + "\n"));
+        assert.deepEqual(captured.faults.map(item => item.invocationId), [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION]);
+        const fault = captured.faults.find(item => item.invocationId === record.invocationId);
+        assert.equal(fault.runtimeRecord.digest, digestBytes(JSON.stringify(record, null, 2) + "\n"));
         return publishEventCapabilityRuntime(output, record);
       },
     };
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
-    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED/);
+    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
     else await run(request, handoff);
-    assert.equal(fs.existsSync(path.join(directory, "ccd-enable-judge-event/runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed", "start-fault", "fault-owned", "ack"];
-    assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0,
-      stoppedAt === "cancel-after-start" ? 5 : order.indexOf(stoppedAt) + 1));
+    for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION])
+      assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
+    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "ack-mutant", "ack-read-mutant"];
+    const count = stoppedAt === "cancel-after-read" ? 7 : stoppedAt?.startsWith("reused-") ? 6 : order.indexOf(stoppedAt) + 1;
+    assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0, count));
   }
 });
 

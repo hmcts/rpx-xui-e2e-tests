@@ -639,7 +639,7 @@ test("main dashboard shows the catalogue evidence gap and coverage map before na
   const applicationCoverage = dom.querySelector("#harness-application-coverage");
   assert.ok(applicationCoverage);
   assert.equal(applicationCoverage.tagName.toLowerCase(), "section");
-  assert.match(applicationCoverage.textContent, /3\s*\/\s*112/);
+  assert.match(applicationCoverage.textContent, /4\s*\/\s*112/);
   assert.match(applicationCoverage.textContent, /Release approval remains unavailable/);
 });
 
@@ -736,13 +736,14 @@ async function nativePresentationFixture(blocked = true) {
       catalogueDigest: `sha256:${objectDigest(catalogue.obligations)}`,
       selected: catalogue.obligations.length,
       candidate: 1,
-      ccd: blocked ? 1 : 2,
+      ccd: blocked ? 2 : 3,
       creditedObligationIds: [
         ...(blocked ? [] : [catalogue.sequences[0].id]),
         "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+        "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
         "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
       ],
-      missing: catalogue.obligations.length - (blocked ? 2 : 3),
+      missing: catalogue.obligations.length - (blocked ? 3 : 4),
       sourceArtifactDigests,
       phaseReferences: Object.fromEntries(
         ["ccd", "eventCapability", "routing"].map((phase) => [
@@ -816,7 +817,7 @@ async function nativePresentationFixture(blocked = true) {
   };
 }
 
-test("same Odhín document separates eleven native baselines and ten faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
+test("same Odhín document separates twelve native baselines and eleven faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
   sandbox(t);
   const Reporter = api();
   const reporter = new Reporter({ selection: "local-aat" });
@@ -847,8 +848,8 @@ test("same Odhín document separates eleven native baselines and ten faults from
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 11);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 10);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 12);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 11);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,
@@ -870,7 +871,7 @@ test("same Odhín document separates eleven native baselines and ten faults from
   );
   assert.match(
     dom.querySelector("[data-runtime-obligations]").textContent,
-        /2 \/ 112/,
+        /3 \/ 112/,
   );
   assert.equal(Reporter.validatePublicReport().tests, 121);
   assert.equal(
@@ -914,15 +915,15 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
     });
     assert.ok(
       html.includes(
-        `${blocked ? 2 : 3} / 112 catalogue requirements satisfied by accepted runtime evidence`,
+        `${blocked ? 3 : 4} / 112 catalogue requirements satisfied by accepted runtime evidence`,
       ),
     );
-    assert.ok(html.includes(`${blocked ? 110 : 109} remain unsatisfied`));
+    assert.ok(html.includes(`${blocked ? 109 : 108} remain unsatisfied`));
     const summary = require("node-html-parser").parse(html);
     const rows = summary.querySelectorAll("[data-catalogue-kind]");
     assert.equal(rows.length, 6);
     assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-total")), 0), 112);
-    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-accepted")), 0), blocked ? 2 : 3);
+    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-accepted")), 0), blocked ? 3 : 4);
     assert.equal(summary.querySelector('[data-catalogue-kind="definition-shape"]').getAttribute("data-catalogue-total"), "79");
     assert.equal(summary.querySelector('[data-catalogue-kind="configuration-profile"]').getAttribute("data-catalogue-total"), "13");
     assert.match(summary.textContent, /not a count of failed tests/);

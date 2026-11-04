@@ -782,7 +782,7 @@ async function completeEventBundle(root) {
   return createEventTransitionFixture(undefined, { root });
 }
 
-test("support only: complete event phase credits the exact courtadmin cell without changing112 obligations", async (t) => {
+test("support only: complete event phase credits the exact courtadmin edit and read cells without changing112 obligations", async (t) => {
   const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
   const { digestBytes } = await import("./lib/exui-evidence-io.mjs");
   const root = fs.mkdtempSync(
@@ -802,9 +802,10 @@ test("support only: complete event phase credits the exact courtadmin cell witho
   assert.deepEqual(projected.catalogue.obligations, before);
   assert.deepEqual(projected.report.executedProofs, [
     { obligationId: eventCell, boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a", boundary: "ccd", status: "passed" },
   ]);
-  assert.equal(projected.report.coverage.ccd, 1);
-  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 111);
+  assert.equal(projected.report.coverage.ccd, 2);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 110);
   assert.equal(projected.report.releaseCredit, false);
   assert.equal(
     projected.phaseReferences.eventCapability.receiptArtifactDigest,
@@ -818,7 +819,7 @@ test("support only: complete event phase credits the exact courtadmin cell witho
       terminal: event.terminal,
     },
   });
-  assert.equal(result.coverage.ccd, 1);
+  assert.equal(result.coverage.ccd, 2);
 });
 
 async function refreshEventBundle(bundle, edit) {
@@ -900,10 +901,10 @@ for (const oldBlocked of [false, true])
         phaseDirectory: postal.directory,
         eventPhaseDirectory: event.directory,
       });
-      assert.equal(projected.report.coverage.ccd, oldBlocked ? 1 : 2);
+      assert.equal(projected.report.coverage.ccd, oldBlocked ? 2 : 3);
       assert.equal(
         projected.report.coverage.missingCandidateOrCcd.length,
-        oldBlocked ? 111 : 110,
+        oldBlocked ? 110 : 109,
       );
       assert.equal(
         projected.phaseReferences.ccd.status,
@@ -926,13 +927,15 @@ for (const oldBlocked of [false, true])
           terminal: event.terminal,
         },
       });
-      assert.equal(result.coverage.ccd, oldBlocked ? 1 : 2);
+      assert.equal(result.coverage.ccd, oldBlocked ? 2 : 3);
     },
   );
 
 for (const fault of [
   "judge-failed",
   "courtadmin-failed",
+  "read-failed",
+  "wrong-read-mutation-failure",
   "wrong-mutation-failure",
 ])
   test(
@@ -951,7 +954,11 @@ for (const fault of [
             ? "ccd-event-create-denied"
             : fault === "courtadmin-failed"
               ? "ccd-courtadmin-email-one"
-              : "ccd-event-create-enabled";
+              : fault === "read-failed"
+                ? "ccd-courtadmin-read-email-one"
+                : fault === "wrong-read-mutation-failure"
+                  ? "ccd-courtadmin-read-hidden"
+                  : "ccd-event-create-enabled";
         const test = report.tests.find((x) => x.proofId === target);
         if (test) {
           test.status = "failed";
@@ -1166,6 +1173,8 @@ test("support only: fixed event source overlap, exact cell and sequence reject s
     getReleasePolicy(b.manifest.releaseScopeId),
   );
   for (const change of [
+    (c) => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a").action = "update"; },
+    (c) => { c.catalogue.obligations.find(x => x.id === "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a").sequence = ["readback"]; },
     (c) => {
       c.catalogue.pilotCells.find((x) => x.id === eventCell).role =
         "caseworker-privatelaw-judge";
@@ -1346,7 +1355,7 @@ test("support only: writer requires independent tool/source pins and projection 
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: b.directory,
   });
-  assert.equal(projected.report.coverage.ccd, 1);
+  assert.equal(projected.report.coverage.ccd, 2);
   assert.deepEqual(
     Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),
     before,

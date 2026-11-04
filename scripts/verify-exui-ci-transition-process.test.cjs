@@ -19,8 +19,8 @@ function controlledChild(t, mode = "valid", releaseScopeId = scope) {
     definitionImportDigest: "sha256:" + "b".repeat(64),
   };
   const request = {
-    schemaVersion: 1, runId: input.runId, releaseScopeId: scope,
-    invocationId: "ccd-enable-judge-event", baselineNamespace: input.ccd.namespace,
+    schemaVersion: 2, runId: input.runId, releaseScopeId: scope,
+    invocationIds: ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read"], baselineNamespace: input.ccd.namespace,
     baselineDefinitionImportDigest: input.definitionImportDigest,
   };
   const handoff = { mode: "native-separate-api", owner: input.runId };

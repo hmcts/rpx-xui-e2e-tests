@@ -1,5 +1,5 @@
 import { provisionRoleTransitionActor } from "./lib/exui-ccd-role-transition.mjs";
-import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./lib/exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE } from "./lib/exui-ccd-event-capability.mjs";
 import { selectEventCapabilityRuntime } from "./lib/exui-ccd-event-transition.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -248,7 +248,7 @@ if (
     const baselineInput = read("/output/input.json"),
       invocation = nativeInvocation(baselineInput, arg("--invocation")),
       directory = path.join("/output", invocation.invocationId);
-    const input = baselineInput.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === EVENT_CAPABILITY_MUTATION
+    const input = baselineInput.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.kind === "mutation"
       ? selectEventCapabilityRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))
       : baselineInput;
     if (process.argv.includes("--inside-providers"))

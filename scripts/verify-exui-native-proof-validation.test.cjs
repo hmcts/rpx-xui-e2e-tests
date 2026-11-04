@@ -32,7 +32,7 @@ async function fixture(t) {
       ...Object.fromEntries(['runId', 'harnessCommit', 'releaseScopeId', 'policyDigest', 'identity'].map(key => [key, structuredClone(manifest[key])])),
       invocationId: 'baseline', harnessSourceState: 'clean', harnessSourceDigest: expected.harnessSourceDigest,
     },
-    tests: ['ccd-courtadmin-email-one', 'ccd-event-create-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
+    tests: ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-email-one', 'ccd-event-create-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
   };
   const execution = { runId: manifest.runId, invocationId: 'baseline', kind: 'baseline', identity: structuredClone(manifest.identity), terminalState: 'completed', runnerExitCode: 0, unexpectedGlobalErrors: [] };
   const terminal = { code: 0, signal: null };
@@ -52,9 +52,9 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
   const before = fs.readdirSync(path.join(f.root, 'baseline')).sort().map(name => [name, sha(fs.readFileSync(path.join(f.root, 'baseline', name)))]);
   const observed = readEventBaselineCheckpoint(f.root, f.expected);
   assert.deepEqual(observed.input.policy, f.policy);
-  assert.equal(observed.input.policy.mutationDefinitions.length, 1);
+  assert.equal(observed.input.policy.mutationDefinitions.length, 2);
   assert.deepEqual(observed.input.mutations, []);
-  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-email-one', 'ccd-event-create-denied']);
+  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-email-one', 'ccd-event-create-denied']);
   assert.deepEqual(observed.terminal, f.terminal);
   assert.deepEqual(observed.references.map(item => item.path), ['baseline/manifest.json', 'baseline/execution.json', 'baseline/report.json', 'baseline/framework-terminal.json']);
   assert.equal(observed.checkpointDigest, sha(JSON.stringify(observed.references)));
@@ -131,10 +131,14 @@ test('checkpoint accepts only fixed canonical baseline artifacts and digest-veri
 test('shared complete native validation retains mutation identity checks and structural-outcome rejection', async t => {
   const f = await fixture(t), api = await load();
   const baseline = api.readEventBaselineCheckpoint(f.root, f.expected).input;
-  const definition = f.policy.mutationDefinitions[0];
-  const mutantIdentity = structuredClone(f.manifest.identity); mutantIdentity.configurationDigest = hash('8');
-  const mutant = { ...structuredClone(baseline.results[1]), proofId: definition.mutantProofId, invocationId: definition.mutationId, identity: mutantIdentity, outcome: 'failed', failureId: definition.expectedFailureId };
-  const input = { ...baseline, executions: [...baseline.executions, { ...structuredClone(baseline.executions[0]), invocationId: definition.mutationId, kind: 'mutation', identity: mutantIdentity, runnerExitCode: 1 }], mutations: [{ mutationId: definition.mutationId, obligationId: definition.obligationId, runId: f.manifest.runId, mutationDefinitionDigest: definition.definitionDigest, baselineIdentity: f.manifest.identity, mutantIdentity, baselineResult: baseline.results[1], mutantResult: mutant }] };
+  const input = { ...baseline, executions: [...baseline.executions], mutations: [] };
+  for (const definition of f.policy.mutationDefinitions) {
+    const baselineResult = baseline.results.find(item => item.proofId === definition.baselineProofId);
+    const mutantIdentity = structuredClone(f.manifest.identity); mutantIdentity.configurationDigest = sha(definition.mutationId);
+    const mutant = { ...structuredClone(baselineResult), proofId: definition.mutantProofId, invocationId: definition.mutationId, identity: mutantIdentity, outcome: 'failed', failureId: definition.expectedFailureId };
+    input.executions.push({ ...structuredClone(baseline.executions[0]), invocationId: definition.mutationId, kind: 'mutation', identity: mutantIdentity, runnerExitCode: 1 });
+    input.mutations.push({ mutationId: definition.mutationId, obligationId: definition.obligationId, runId: f.manifest.runId, mutationDefinitionDigest: definition.definitionDigest, baselineIdentity: f.manifest.identity, mutantIdentity, baselineResult, mutantResult: mutant });
+  }
   api.validateCompleteNativeProofs(input, f.policy);
   api.validateNativeOutcome(input, { status: 'PASS', exitCode: 0, reasons: [] });
   api.validateNativeOutcome(input, { status: 'BLOCKED', exitCode: 2, reasons: ['MUTATION_BASELINE_UNAVAILABLE'] });

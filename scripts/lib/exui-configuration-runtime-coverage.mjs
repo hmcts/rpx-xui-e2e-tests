@@ -21,6 +21,7 @@ import {
 } from "./exui-routing-contract.mjs";
 import {
   EVENT_CAPABILITY_CELL,
+  COURTADMIN_READ_CELL,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_PROOFS,
 } from "./exui-ccd-event-capability.mjs";
@@ -372,29 +373,31 @@ export function projectConfigurationCoverage(args) {
       directory: eventPhaseDirectory,
       loaded,
     });
-    const proof = loaded.input.results.find(
-      (item) => item.proofId === EVENT_CAPABILITY_PROOFS.courtadmin,
-    );
-    assert.equal(
-      proof.obligationId,
-      EVENT_CAPABILITY_CELL,
-      "COVERAGE_EVENT_PROOF_MISMATCH",
-    );
-    if (loaded.receipt.verdict.status === "PASS") {
-      assert.equal(proof.outcome, "passed", "COVERAGE_PASSED_PROOF_REQUIRED");
-      executedProofs.push({
-        obligationId: EVENT_CAPABILITY_CELL,
-        boundary: "ccd",
-        status: "passed",
-      });
-    } else
-      unacceptedExecutionFacts.push({
-        obligationId: EVENT_CAPABILITY_CELL,
-        gateStatus: loaded.receipt.verdict.status,
-        proofId: proof.proofId,
-        outcome: proof.outcome,
-        failureId: proof.failureId,
-      });
+    for (const [cell, proofId] of [[EVENT_CAPABILITY_CELL, EVENT_CAPABILITY_PROOFS.courtadmin], [COURTADMIN_READ_CELL, EVENT_CAPABILITY_PROOFS.courtadminRead]]) {
+      const proof = loaded.input.results.find(
+        (item) => item.proofId === proofId,
+      );
+      assert.equal(
+        proof.obligationId,
+        cell,
+        "COVERAGE_EVENT_PROOF_MISMATCH",
+      );
+      if (loaded.receipt.verdict.status === "PASS") {
+        assert.equal(proof.outcome, "passed", "COVERAGE_PASSED_PROOF_REQUIRED");
+        executedProofs.push({
+          obligationId: cell,
+          boundary: "ccd",
+          status: "passed",
+        });
+      } else
+        unacceptedExecutionFacts.push({
+          obligationId: cell,
+          gateStatus: loaded.receipt.verdict.status,
+          proofId: proof.proofId,
+          outcome: proof.outcome,
+          failureId: proof.failureId,
+        });
+    }
     harnessCommit ??= manifest.harnessCommit;
     phaseReferences.eventCapability = {
       releaseScopeId: policy.releaseScopeId,

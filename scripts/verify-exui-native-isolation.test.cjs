@@ -611,7 +611,7 @@ async function eventOwnershipFixture(t) {
   });
   for (const name of ["candidate/config", "stage/scripts/lib", "output/baseline", "browser"])
     fs.mkdirSync(path.join(root, name), { recursive: true });
-  for (const id of ["baseline", "ccd-enable-judge-event"])
+  for (const id of ["baseline", "ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read"])
     for (const kind of ["sessions", "diagnostics"])
       fs.mkdirSync(path.join(state, id, kind), { recursive: true });
   fs.writeFileSync(path.join(root, "candidate/config/default.json"), JSON.stringify({ services: { idam: {} }, feature: {} }));
@@ -666,6 +666,24 @@ test("support only: event ownership captures baseline and fresh fault plans sepa
   assert.throws(() => f.api.captureEventFaultOwnership(f.input, f.handoff, f.context, f.handoff.output), /EVENT_VARIANT_MISMATCH/);
   assert.throws(() => f.api.captureEventFaultOwnership(faultInput, f.handoff, f.context, f.handoff.output), /CCD_NAMESPACE_MISMATCH/);
   assert.throws(() => f.api.assertEventBaselineRemoved(fault, { inspect: () => null }), /BASELINE_OWNERSHIP_REQUIRED/);
+});
+
+test("support only: read-fault ownership uses its exact namespace, invocation and private process mounts", async t => {
+  const f = await eventOwnershipFixture(t);
+  const captureEventFaultOwnership = f.api.captureEventFaultOwnership;
+  const mutation = "ccd-remove-courtadmin-recipient-read";
+  const input = { ...f.input, ccd: { ...f.input.ccd, namespace: "5".repeat(64), owner: "read-fault-owner", fixtureSelection: "event-capability-read-mutant" } };
+  const context = { ...f.context, ccd: input.ccd };
+  const owned = captureEventFaultOwnership(input, f.handoff, context, f.handoff.output, mutation);
+  assert.deepEqual(owned.invocations.map(item => item.invocationId), [mutation]);
+  const { plan } = owned.invocations[0];
+  assert.equal(plan.namespace, input.ccd.namespace);
+  for (const service of ["candidate", "tools"]) {
+    assert(plan[service].name.includes(mutation));
+    assert.equal(plan[service].namespace, input.ccd.namespace);
+  }
+  assert.throws(() => captureEventFaultOwnership(input, f.handoff, context, f.handoff.output, "ccd-enable-judge-event"), /EVENT_VARIANT_MISMATCH/);
+  assert.throws(() => captureEventFaultOwnership(input, f.handoff, context, f.handoff.output, "../escape"), /EVENT_TRANSITION_INVOCATION/);
 });
 
 test("support only: event handoff refuses either baseline child still present by its name or CID", async t => {
@@ -740,8 +758,13 @@ test("support only: event fault candidate arguments cannot be selected under an 
     config: {}, evidenceRoot: f.handoff.output, harnessRoot: f.handoff.stagedHarness,
     releaseScopeId: "exui-ccd-event-capability-pilot",
   };
-  assert(candidateArchiveArguments(args).includes("/candidate/runtime/node"));
-  assert.throws(() => candidateArchiveArguments({ ...args, releaseScopeId: "exui-ccd-pilot" }), /CCD_EVENT_SCOPE_REQUIRED/);
+  for (const invocationId of ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read"]) {
+    const selected = { ...args, invocationId,
+      sessions: path.join(f.handoff.stateRoot, invocationId, "sessions"),
+      diagnostics: path.join(f.handoff.stateRoot, invocationId, "diagnostics") };
+    assert(candidateArchiveArguments(selected).includes("/candidate/runtime/node"));
+    assert.throws(() => candidateArchiveArguments({ ...selected, releaseScopeId: "exui-ccd-pilot" }), /CCD_EVENT_SCOPE_REQUIRED/);
+  }
   assert.throws(() => candidateArchiveArguments({ ...args, invocationId: "ccd-drop-child" }), /UNSUPPORTED_CCD_EVENT_INVOCATION/);
 });
 

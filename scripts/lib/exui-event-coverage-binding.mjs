@@ -4,10 +4,13 @@ import path from "node:path";
 import { digestBytes, readEvidenceArtifact } from "./exui-evidence-io.mjs";
 import {
   EVENT_CAPABILITY_CELL,
+  COURTADMIN_READ_CELL,
+  COURTADMIN_READ_MUTATION,
   EVENT_CAPABILITY_MUTATION,
   EVENT_CAPABILITY_SCOPE,
   validateEventCapabilitySource,
   validateEventCapabilityPair,
+  validateCourtadminReadPair,
 } from "./exui-ccd-event-capability.mjs";
 import {
   prepareCcdImport,
@@ -76,35 +79,37 @@ export function bindEventCoverage({
     "eventCapability",
     "COVERAGE_EVENT_DIRECTORY_REQUIRED",
   );
-  assert.deepEqual(
-    catalogue.pilotCells.filter((item) => item.id === EVENT_CAPABILITY_CELL),
-    [
-      {
-        caseType: "PRLAPPS",
-        role: "caseworker-privatelaw-courtadmin",
-        action: "update",
-        channel: "email",
-        recipientCount: 1,
-        expectedAccess: "allowed",
-        id: EVENT_CAPABILITY_CELL,
-      },
-    ],
-    "COVERAGE_EVENT_CELL_MISMATCH",
-  );
-  assert.deepEqual(
-    catalogue.obligations.filter((item) => item.id === EVENT_CAPABILITY_CELL),
-    [
-      {
-        id: EVENT_CAPABILITY_CELL,
-        family: "PRIVATELAW",
-        kind: "pilot-cell",
-        requiredBoundary: "ccd",
-        sequence: ["form", "cya", "change", "submit", "readback"],
-        sourceKeys: sourcePaths.map((name) => "prl-ccd-definitions:" + name),
-      },
-    ],
-    "COVERAGE_EVENT_OBLIGATION_MISMATCH",
-  );
+  for (const [cell, action] of [[EVENT_CAPABILITY_CELL, "update"], [COURTADMIN_READ_CELL, "read"]]) {
+    assert.deepEqual(
+      catalogue.pilotCells.filter((item) => item.id === cell),
+      [
+        {
+          caseType: "PRLAPPS",
+          role: "caseworker-privatelaw-courtadmin",
+          action,
+          channel: "email",
+          recipientCount: 1,
+          expectedAccess: "allowed",
+          id: cell,
+        },
+      ],
+      "COVERAGE_EVENT_CELL_MISMATCH",
+    );
+    assert.deepEqual(
+      catalogue.obligations.filter((item) => item.id === cell),
+      [
+        {
+          id: cell,
+          family: "PRIVATELAW",
+          kind: "pilot-cell",
+          requiredBoundary: "ccd",
+          sequence: action === "read" ? ["read", "assert-visible-projection"] : ["form", "cya", "change", "submit", "readback"],
+          sourceKeys: sourcePaths.map((name) => "prl-ccd-definitions:" + name),
+        },
+      ],
+      "COVERAGE_EVENT_OBLIGATION_MISMATCH",
+    );
+  }
   const source = read(
     harnessRoot,
     "scripts/fixtures/ccd/event-capability.source.json",
@@ -151,7 +156,7 @@ export function bindEventCoverage({
   }
   assert.equal(overlapRows, 38, "COVERAGE_EVENT_SOURCE_OVERLAP_MISMATCH");
   const pair = Object.fromEntries(
-    ["baseline", "mutant"].map((variant) => [
+    ["baseline", "mutant", "read-mutant"].map((variant) => [
       variant,
       read(
         harnessRoot,
@@ -168,9 +173,10 @@ export function bindEventCoverage({
     pair.mutant,
     source,
   );
+  const readTransformation = validateCourtadminReadPair(pair.baseline, pair["read-mutant"], source);
   // prepareCcdImport independently validates the canonical pair and workbook seals.
   const prepared = Object.fromEntries(
-    ["baseline", "mutant"].map((variant) => {
+    ["baseline", "mutant", "read-mutant"].map((variant) => {
       const value = prepareCcdImport(undefined, "event-capability-" + variant);
       assert.deepEqual(
         value.source,
@@ -229,21 +235,26 @@ export function bindEventCoverage({
     EVENT_CAPABILITY_MUTATION,
     read(directory, EVENT_CAPABILITY_MUTATION + "/runtime-input.json"),
   );
-  assert.deepEqual(
-    loaded.input.mutations[0].mutantIdentity,
-    {
-      ...loaded.input.manifest.identity,
-      definitionDigests: {
-        HarnessNestedPRL: prepared.mutant.binding.workbookDigest,
+  const readMutant = selectEventCapabilityRuntime(baseline, COURTADMIN_READ_MUTATION,
+    read(directory, COURTADMIN_READ_MUTATION + "/runtime-input.json"));
+  for (const [index, variant] of ["mutant", "read-mutant"].entries()) {
+    assert.deepEqual(
+      loaded.input.mutations[index].mutantIdentity,
+      {
+        ...loaded.input.manifest.identity,
+        definitionDigests: {
+          HarnessNestedPRL: prepared[variant].binding.workbookDigest,
+        },
       },
-    },
-    "COVERAGE_EVENT_MUTANT_IDENTITY_MISMATCH",
-  );
+      "COVERAGE_EVENT_MUTANT_IDENTITY_MISMATCH",
+    );
+  }
   const root = path.dirname(directory),
     imports = [];
   for (const [variant, runtime] of [
     ["baseline", baseline],
     ["mutant", mutant],
+    ["read-mutant", readMutant],
   ]) {
     seedAppCcdSessions(
       runtime.credentials,
@@ -251,7 +262,7 @@ export function bindEventCoverage({
       EVENT_CAPABILITY_SCOPE,
     );
     const invocation =
-      variant === "baseline" ? "baseline" : EVENT_CAPABILITY_MUTATION;
+      variant === "baseline" ? "baseline" : variant === "read-mutant" ? COURTADMIN_READ_MUTATION : EVENT_CAPABILITY_MUTATION;
     const manifest = read(directory, invocation + "/manifest.json");
     if (variant === "baseline")
       assert.deepEqual(
@@ -410,37 +421,43 @@ export function bindEventCoverage({
     });
   }
   const run = read(directory, "run.json");
-  const ref = run.mutations[0].derivationArtifact;
-  bytes(directory, ref.path);
-  const derivation = readEvidenceArtifact(directory, ref).value;
-  const runtimeMetadata = (runtime) => ({
-    definitionImportDigest: runtime.definitionImportDigest,
-    observedDefinitionDigest: runtime.definition.observedDefinitionDigest,
-    definitionVersion: String(runtime.definition.definitionVersion),
-    ccdNamespace: runtime.ccd.namespace,
-  });
-  const runtimePath = EVENT_CAPABILITY_MUTATION + "/runtime-input.json";
-  assert.deepEqual(
-    derivation,
-    {
-      mutationDefinitionDigest:
-        loaded.input.policy.mutationDefinitions[0].definitionDigest,
-      baselineIdentity: loaded.input.manifest.identity,
-      mutantIdentity: loaded.input.mutations[0].mutantIdentity,
-      transformation: EVENT_CAPABILITY_MUTATION,
-      target:
-        "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD",
-      transformationRecord: transformation,
-      beforeDigest: prepared.baseline.binding.workbookDigest,
-      afterDigest: prepared.mutant.binding.workbookDigest,
-      baselineRuntimeMetadata: runtimeMetadata(baseline),
-      mutantRuntimeMetadata: runtimeMetadata(mutant),
-      runtimeRecord: {
-        path: runtimePath,
-        digest: digestBytes(bytes(directory, runtimePath)),
+  for (const [index, [variant, mutationId, runtime]] of [
+    ["mutant", EVENT_CAPABILITY_MUTATION, mutant],
+    ["read-mutant", COURTADMIN_READ_MUTATION, readMutant],
+  ].entries()) {
+    const ref = run.mutations[index].derivationArtifact;
+    bytes(directory, ref.path);
+    const derivation = readEvidenceArtifact(directory, ref).value;
+    const runtimeMetadata = (runtime) => ({
+      definitionImportDigest: runtime.definitionImportDigest,
+      observedDefinitionDigest: runtime.definition.observedDefinitionDigest,
+      definitionVersion: String(runtime.definition.definitionVersion),
+      ccdNamespace: runtime.ccd.namespace,
+    });
+    const runtimePath = mutationId + "/runtime-input.json";
+    assert.deepEqual(
+      derivation,
+      {
+        mutationDefinitionDigest:
+          loaded.input.policy.mutationDefinitions[index].definitionDigest,
+        baselineIdentity: loaded.input.manifest.identity,
+        mutantIdentity: loaded.input.mutations[index].mutantIdentity,
+        transformation: mutationId,
+        target: variant === "read-mutant"
+          ? "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD"
+          : "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD",
+        transformationRecord: variant === "read-mutant" ? readTransformation : transformation,
+        beforeDigest: prepared.baseline.binding.workbookDigest,
+        afterDigest: prepared[variant].binding.workbookDigest,
+        baselineRuntimeMetadata: runtimeMetadata(baseline),
+        mutantRuntimeMetadata: runtimeMetadata(runtime),
+        runtimeRecord: {
+          path: runtimePath,
+          digest: digestBytes(bytes(directory, runtimePath)),
+        },
       },
-    },
-    "COVERAGE_EVENT_DERIVATION_MISMATCH",
-  );
+      "COVERAGE_EVENT_DERIVATION_MISMATCH",
+    );
+  }
   return imports;
 }

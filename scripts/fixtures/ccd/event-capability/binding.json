@@ -14,7 +14,9 @@
   "proofs": {
     "courtadmin": "ccd-courtadmin-email-one",
     "judge": "ccd-event-create-denied",
-    "mutant": "ccd-event-create-enabled"
+    "mutant": "ccd-event-create-enabled",
+    "courtadminRead": "ccd-courtadmin-read-email-one",
+    "courtadminReadMutant": "ccd-courtadmin-read-hidden"
   },
   "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
   "sourceProjectionDigest": "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a",

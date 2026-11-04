@@ -301,7 +301,7 @@ export function captureCiOwnership(input, handoff, context, directory, name) {
   return captureOwnership(input, handoff, context, directory, name, captureNativeOwnership);
 }
 
-export function captureCiEventFaultOwnership(input, handoff, context, directory) {
+export function captureCiEventFaultOwnership(input, handoff, context, directory, invocationId) {
   assert.equal(handoff.mode, "native-separate-api", "CI_EVENT_NATIVE_AUTHORITY_REQUIRED");
-  return captureOwnership(input, handoff, context, directory, "eventCapability", captureEventFaultOwnership);
+  return captureOwnership(input, handoff, context, directory, "eventCapability", (input, handoff, context, directory) => captureEventFaultOwnership(input, handoff, context, directory, invocationId));
 }
