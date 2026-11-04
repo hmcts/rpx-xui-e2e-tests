@@ -668,7 +668,7 @@ for (const postalFailure of [false, true])
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
     assert.equal(coverage.candidate, 1);
-    assert.equal(coverage.ccd, postalFailure ? 2 : 3);
+    assert.equal(coverage.ccd, postalFailure ? 5 : 6);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
         ? []
@@ -677,9 +677,12 @@ for (const postalFailure of [false, true])
           ]),
       "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
       "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
+      "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
+      "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",
+      "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 109 : 108);
+    assert.equal(coverage.missing, postalFailure ? 106 : 105);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(

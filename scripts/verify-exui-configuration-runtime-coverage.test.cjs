@@ -803,9 +803,12 @@ test("support only: complete event phase credits the exact courtadmin edit and r
   assert.deepEqual(projected.report.executedProofs, [
     { obligationId: eventCell, boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397", boundary: "ccd", status: "passed" },
   ]);
-  assert.equal(projected.report.coverage.ccd, 2);
-  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 110);
+  assert.equal(projected.report.coverage.ccd, 5);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 107);
   assert.equal(projected.report.releaseCredit, false);
   assert.equal(
     projected.phaseReferences.eventCapability.receiptArtifactDigest,
@@ -819,7 +822,7 @@ test("support only: complete event phase credits the exact courtadmin edit and r
       terminal: event.terminal,
     },
   });
-  assert.equal(result.coverage.ccd, 2);
+  assert.equal(result.coverage.ccd, 5);
 });
 
 async function refreshEventBundle(bundle, edit) {
@@ -901,10 +904,10 @@ for (const oldBlocked of [false, true])
         phaseDirectory: postal.directory,
         eventPhaseDirectory: event.directory,
       });
-      assert.equal(projected.report.coverage.ccd, oldBlocked ? 2 : 3);
+      assert.equal(projected.report.coverage.ccd, oldBlocked ? 5 : 6);
       assert.equal(
         projected.report.coverage.missingCandidateOrCcd.length,
-        oldBlocked ? 110 : 109,
+        oldBlocked ? 107 : 106,
       );
       assert.equal(
         projected.phaseReferences.ccd.status,
@@ -927,7 +930,7 @@ for (const oldBlocked of [false, true])
           terminal: event.terminal,
         },
       });
-      assert.equal(result.coverage.ccd, oldBlocked ? 2 : 3);
+      assert.equal(result.coverage.ccd, oldBlocked ? 5 : 6);
     },
   );
 
@@ -955,9 +958,9 @@ for (const fault of [
             : fault === "courtadmin-failed"
               ? "ccd-courtadmin-email-one"
               : fault === "read-failed"
-                ? "ccd-courtadmin-read-email-one"
+                ? "ccd-courtadmin-read-recipient-shapes"
                 : fault === "wrong-read-mutation-failure"
-                  ? "ccd-courtadmin-read-hidden"
+                  ? "ccd-courtadmin-read-shapes-hidden"
                   : "ccd-event-create-enabled";
         const test = report.tests.find((x) => x.proofId === target);
         if (test) {
@@ -1173,6 +1176,9 @@ test("support only: fixed event source overlap, exact cell and sequence reject s
     getReleasePolicy(b.manifest.releaseScopeId),
   );
   for (const change of [
+    ...["a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", "5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", "d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397"].map(id => c => {
+      c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).recipientCount = 3;
+    }),
     (c) => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a").action = "update"; },
     (c) => { c.catalogue.obligations.find(x => x.id === "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a").sequence = ["readback"]; },
     (c) => {
@@ -1355,7 +1361,7 @@ test("support only: writer requires independent tool/source pins and projection 
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: b.directory,
   });
-  assert.equal(projected.report.coverage.ccd, 2);
+  assert.equal(projected.report.coverage.ccd, 5);
   assert.deepEqual(
     Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),
     before,

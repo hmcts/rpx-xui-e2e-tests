@@ -21,7 +21,8 @@ import {
 } from "./exui-routing-contract.mjs";
 import {
   EVENT_CAPABILITY_CELL,
-  COURTADMIN_READ_CELL,
+  COURTADMIN_READ_CELLS,
+  COURTADMIN_READ_OBLIGATION,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_PROOFS,
 } from "./exui-ccd-event-capability.mjs";
@@ -373,13 +374,16 @@ export function projectConfigurationCoverage(args) {
       directory: eventPhaseDirectory,
       loaded,
     });
-    for (const [cell, proofId] of [[EVENT_CAPABILITY_CELL, EVENT_CAPABILITY_PROOFS.courtadmin], [COURTADMIN_READ_CELL, EVENT_CAPABILITY_PROOFS.courtadminRead]]) {
+    for (const [cell, proofId, obligationId] of [
+      [EVENT_CAPABILITY_CELL, EVENT_CAPABILITY_PROOFS.courtadmin, EVENT_CAPABILITY_CELL],
+      ...COURTADMIN_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadminRead, COURTADMIN_READ_OBLIGATION]),
+    ]) {
       const proof = loaded.input.results.find(
         (item) => item.proofId === proofId,
       );
       assert.equal(
         proof.obligationId,
-        cell,
+        obligationId,
         "COVERAGE_EVENT_PROOF_MISMATCH",
       );
       if (loaded.receipt.verdict.status === "PASS") {

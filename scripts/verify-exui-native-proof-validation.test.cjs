@@ -32,7 +32,7 @@ async function fixture(t) {
       ...Object.fromEntries(['runId', 'harnessCommit', 'releaseScopeId', 'policyDigest', 'identity'].map(key => [key, structuredClone(manifest[key])])),
       invocationId: 'baseline', harnessSourceState: 'clean', harnessSourceDigest: expected.harnessSourceDigest,
     },
-    tests: ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-email-one', 'ccd-event-create-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
+    tests: ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-recipient-shapes', 'ccd-event-create-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
   };
   const execution = { runId: manifest.runId, invocationId: 'baseline', kind: 'baseline', identity: structuredClone(manifest.identity), terminalState: 'completed', runnerExitCode: 0, unexpectedGlobalErrors: [] };
   const terminal = { code: 0, signal: null };
@@ -54,7 +54,7 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
   assert.deepEqual(observed.input.policy, f.policy);
   assert.equal(observed.input.policy.mutationDefinitions.length, 2);
   assert.deepEqual(observed.input.mutations, []);
-  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-email-one', 'ccd-event-create-denied']);
+  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-recipient-shapes', 'ccd-event-create-denied']);
   assert.deepEqual(observed.terminal, f.terminal);
   assert.deepEqual(observed.references.map(item => item.path), ['baseline/manifest.json', 'baseline/execution.json', 'baseline/report.json', 'baseline/framework-terminal.json']);
   assert.equal(observed.checkpointDigest, sha(JSON.stringify(observed.references)));
@@ -79,6 +79,7 @@ test('checkpoint rejects partial selection, retries, skips, global and unattribu
   const { readEventBaselineCheckpoint } = await load();
   for (const change of [
     f => f.report.tests.pop(),
+    f => { f.report.tests[1].proofId = "ccd-courtadmin-read-email-one"; },
     f => f.report.tests.push(structuredClone(f.report.tests[0])),
     f => { f.report.tests[0].proofId = 'ccd-event-create-enabled'; },
     f => { f.report.tests[0].retry = 1; },

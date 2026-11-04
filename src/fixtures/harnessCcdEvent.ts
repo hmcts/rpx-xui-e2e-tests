@@ -133,3 +133,29 @@ export function saveCcdEventObservation(
     { mode: 0o600, flag: "wx" },
   );
 }
+
+export const courtadminReadScenarios = ["email", "post"].flatMap(channel =>
+  [1, 2].map(count => ({
+    name: `${channel}-${count}`,
+    recipients: Array.from({ length: count }, (_, index) => ({
+      id: `46e2ff95-4689-42ea-b38c-d3b9204572b${index}`,
+      value: channel === "email" ? {
+        serveByPostOrEmail: "email",
+        emailInformation: {
+          emailName: `Synthetic read recipient ${index + 1}`,
+          emailAddress: `read-recipient-${index + 1}@harness.example.com`,
+        },
+      } : {
+        serveByPostOrEmail: "post",
+        postalInformation: {
+          postalName: `Synthetic postal read ${index + 1}`,
+          postalAddress: {
+            AddressLine1: `Synthetic read street ${index + 1}`,
+            AddressLine2: null, AddressLine3: null, PostTown: null,
+            County: null, PostCode: "SW1A 1AA", Country: null,
+          },
+        },
+      },
+    })),
+  })),
+);

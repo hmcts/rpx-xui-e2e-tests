@@ -176,7 +176,7 @@ test("support only: event scope has fixed three-proof baseline and two definitio
     { invocationId: "ccd-remove-courtadmin-recipient-read", kind: "mutation", mutation: "ccd-remove-courtadmin-recipient-read" },
   ]);
   const policy = getReleasePolicy(scope);
-  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-email-one", "ccd-event-create-denied", "ccd-courtadmin-read-email-one"]);
+  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-email-one", "ccd-event-create-denied", "ccd-courtadmin-read-recipient-shapes"]);
   assert.equal(policy.mutationDefinitions[0].expectedFailureId, "event-capability-isolation");
   assert.equal(policy.mutationDefinitions[1].expectedFailureId, "courtadmin-recipient-read-projection");
   const credentials = { allowed: {}, observer: {}, courtadmin: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-courtadmin"] }, judge: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-judge"] } };

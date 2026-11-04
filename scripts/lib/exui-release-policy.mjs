@@ -7,14 +7,14 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 export function getReleasePolicy(scope) {
   if (scope === 'exui-ccd-event-capability-pilot') {
     const courtadminCell = 'configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313';
-    const courtadminReadCell = 'configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a';
+    const courtadminReadCell = 'ccd-source-courtadmin-read-shapes';
     const policy = {
       releaseScopeId: scope,
       requiredObligationIds: [courtadminCell, 'ccd-source-event-capability', courtadminReadCell],
       obligations: [
         { id: courtadminCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-email-one'], requiredMutationIds: [] },
         { id: 'ccd-source-event-capability', boundary: 'ccd', requiredProofIds: ['ccd-event-create-denied'], requiredMutationIds: ['ccd-enable-judge-event'] },
-        { id: courtadminReadCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-read-email-one'], requiredMutationIds: ['ccd-remove-courtadmin-recipient-read'] }
+        { id: courtadminReadCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-read-recipient-shapes'], requiredMutationIds: ['ccd-remove-courtadmin-recipient-read'] }
       ],
       mutationDefinitions: [{
         mutationId: 'ccd-enable-judge-event', obligationId: 'ccd-source-event-capability',
@@ -23,7 +23,7 @@ export function getReleasePolicy(scope) {
       }, {
         mutationId: 'ccd-remove-courtadmin-recipient-read', obligationId: courtadminReadCell,
         definitionDigest: digest({ boundary: 'ccd', transformation: 'change-only-source-courtadmin-sodAdditionalRecipientsList-field-CRUD-to-CUD' }),
-        expectedFailureId: 'courtadmin-recipient-read-projection', baselineProofId: 'ccd-courtadmin-read-email-one', mutantProofId: 'ccd-courtadmin-read-hidden'
+        expectedFailureId: 'courtadmin-recipient-read-projection', baselineProofId: 'ccd-courtadmin-read-recipient-shapes', mutantProofId: 'ccd-courtadmin-read-shapes-hidden'
       }]
     };
     return { ...policy, policyDigest: digest(policy) };

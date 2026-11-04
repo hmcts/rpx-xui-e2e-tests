@@ -103,10 +103,10 @@ proofs["ccd-courtadmin-email-one"] = {
   limits:
     "Literal source role caseworker-privatelaw-courtadmin with synthetic identity; source-shaped serviceOfDocuments event in JUDICIAL_REVIEW. No deployed PRL, Access Management, ABAC, OIDC or CSRF credit.",
 };
-proofs["ccd-courtadmin-read-email-one"] = {
+proofs["ccd-courtadmin-read-recipient-shapes"] = {
   phase: "eventCapability",
-  slice: "Court administrator — read one email recipient",
-  behaviour: "Read a seeded email recipient through the candidate case view; verify the visible value and independently confirm unchanged CCD data and history.",
+  slice: "Court administrator — read email/post, one/two recipients",
+  behaviour: "Read all four seeded email/post and one/two-recipient shapes through the candidate case view; verify every recipient and independently confirm unchanged CCD data and history.",
   services: "Private Law source-shaped fixture",
   jurisdiction: "HARNESS (actual synthetic jurisdiction)",
   caseType: "HarnessNestedPRL (actual synthetic case type)",
@@ -224,7 +224,10 @@ function renderNativeEvidence(evidence) {
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
           : ["configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
-              "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a"].includes(id)
+              "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
+              "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
+              "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",
+              "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397"].includes(id)
             ? "eventCapability"
             : id ===
                 "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c"

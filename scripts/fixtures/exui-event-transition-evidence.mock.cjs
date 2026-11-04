@@ -116,9 +116,9 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
     return { current, report, execution: { runId: input.runId, invocationId, kind: failed ? "mutation" : "baseline",
       identity: current.identity, terminalState: "completed", runnerExitCode: failed ? 1 : 0, unexpectedGlobalErrors: [] } };
   };
-  const baseline = makeExecution("baseline", baselineManifest, ["ccd-courtadmin-email-one", "ccd-courtadmin-read-email-one", "ccd-event-create-denied"], false);
+  const baseline = makeExecution("baseline", baselineManifest, ["ccd-courtadmin-email-one", "ccd-courtadmin-read-recipient-shapes", "ccd-event-create-denied"], false);
   const fault = makeExecution(mutation, mutantManifest, ["ccd-event-create-enabled"], true);
-  const readFault = makeExecution(readMutation, readMutantManifest, ["ccd-courtadmin-read-hidden"], true);
+  const readFault = makeExecution(readMutation, readMutantManifest, ["ccd-courtadmin-read-shapes-hidden"], true);
   const registry = [
     { name: `${input.runId}-baseline-candidate`, id: "c".repeat(64), owner: input.runId, service: "candidate", image: input.nativeRuntime.imageId, namespace: input.ccd.namespace, removed: true },
     { name: `${input.runId}-baseline-tools`, id: "d".repeat(64), owner: input.runId, service: "browser-provider", image: input.browserRuntimeImage, namespace: input.ccd.namespace, removed: true },

@@ -4,7 +4,7 @@ import path from "node:path";
 import { digestBytes, readEvidenceArtifact } from "./exui-evidence-io.mjs";
 import {
   EVENT_CAPABILITY_CELL,
-  COURTADMIN_READ_CELL,
+  COURTADMIN_READ_CELLS,
   COURTADMIN_READ_MUTATION,
   EVENT_CAPABILITY_MUTATION,
   EVENT_CAPABILITY_SCOPE,
@@ -79,7 +79,10 @@ export function bindEventCoverage({
     "eventCapability",
     "COVERAGE_EVENT_DIRECTORY_REQUIRED",
   );
-  for (const [cell, action] of [[EVENT_CAPABILITY_CELL, "update"], [COURTADMIN_READ_CELL, "read"]]) {
+  for (const { id: cell, action, channel, recipientCount } of [
+    { id: EVENT_CAPABILITY_CELL, action: "update", channel: "email", recipientCount: 1 },
+    ...COURTADMIN_READ_CELLS.map(cell => ({ ...cell, action: "read" })),
+  ]) {
     assert.deepEqual(
       catalogue.pilotCells.filter((item) => item.id === cell),
       [
@@ -87,8 +90,8 @@ export function bindEventCoverage({
           caseType: "PRLAPPS",
           role: "caseworker-privatelaw-courtadmin",
           action,
-          channel: "email",
-          recipientCount: 1,
+          channel,
+          recipientCount,
           expectedAccess: "allowed",
           id: cell,
         },

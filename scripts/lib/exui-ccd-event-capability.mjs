@@ -9,14 +9,19 @@ export function eventCapabilityFaultVariant(invocationId) {
   assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
   return invocationId === COURTADMIN_READ_MUTATION ? "read-mutant" : "mutant";
 }
-export const COURTADMIN_READ_CELL =
-  "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a";
+export const COURTADMIN_READ_OBLIGATION = "ccd-source-courtadmin-read-shapes";
+export const COURTADMIN_READ_CELLS = Object.freeze([
+  { id: "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a", channel: "email", recipientCount: 1 },
+  { id: "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", channel: "email", recipientCount: 2 },
+  { id: "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", channel: "post", recipientCount: 1 },
+  { id: "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397", channel: "post", recipientCount: 2 },
+]);
 export const EVENT_CAPABILITY_PROOFS = Object.freeze({
   courtadmin: "ccd-courtadmin-email-one",
   judge: "ccd-event-create-denied",
   mutant: "ccd-event-create-enabled",
-  courtadminRead: "ccd-courtadmin-read-email-one",
-  courtadminReadMutant: "ccd-courtadmin-read-hidden",
+  courtadminRead: "ccd-courtadmin-read-recipient-shapes",
+  courtadminReadMutant: "ccd-courtadmin-read-shapes-hidden",
 });
 export const EVENT_CAPABILITY_SOURCE_DIGEST =
   "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a";
