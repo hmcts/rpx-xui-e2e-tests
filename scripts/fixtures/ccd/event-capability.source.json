@@ -1,0 +1,869 @@
+{
+  "schemaVersion": 1,
+  "repository": "hmcts/prl-ccd-definitions",
+  "revision": "694b9951e94369f1394380506960c4f04f25755d",
+  "rowDigestFormat": "sha256 of UTF8 compact JSON with recursively sorted keys",
+  "sources": [
+    {
+      "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-prod.json",
+      "fileDigest": "sha256:eeca831c3e65e66a8ff889d50c31f9d44d6ebe5fc18e682c86f378a51630a041",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:4d081261572b3cfdba615af1779fb21a78432d79a43174cdc5941e3c80198718",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-courtadmin",
+            "CRUD": "CRU"
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:ed1d480773d8264062894aff1d0856e5df98b711fd0c9090d2fa6fcd7a483674",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-judge",
+            "CRUD": "RU"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-nonprod.json",
+      "fileDigest": "sha256:14432c0c56ba6d1c0ecf5a53e4f303bd50e45c932c14aeb4935afd656c4eb764",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:4d081261572b3cfdba615af1779fb21a78432d79a43174cdc5941e3c80198718",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-courtadmin",
+            "CRUD": "CRU"
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:ed1d480773d8264062894aff1d0856e5df98b711fd0c9090d2fa6fcd7a483674",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-judge",
+            "CRUD": "RU"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/AuthorisationCaseState.json",
+      "fileDigest": "sha256:a3652892c10b9011a0849ae061384d1136aa8d59685ced7ed85a5520d5984044",
+      "rows": [
+        {
+          "index": 6,
+          "rowDigest": "sha256:343b3efa4bae6ebd109ad194fb831e3a3cba4c8cbda6b19fb4c80bf2a61e91b6",
+          "row": {
+            "CaseTypeID": "PRLAPPS",
+            "CaseStateID": "JUDICIAL_REVIEW",
+            "AccessControl": [
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-solicitor",
+                  "citizen",
+                  "caseworker-privatelaw-systemupdate"
+                ],
+                "CRUD": "CRUD"
+              },
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-courtadmin",
+                  "caseworker-privatelaw-la",
+                  "caseworker-privatelaw-judge",
+                  "caseworker-caa",
+                  "caseworker-approver",
+                  "hearing-centre-team-leader",
+                  "[LASOLICITOR]"
+                ],
+                "CRUD": "CRUD"
+              },
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-superuser",
+                  "caseworker-wa-task-configuration",
+                  "caseworker-ras-validation",
+                  "GS_profile",
+                  "caseworker-privatelaw-readonly"
+                ],
+                "CRUD": "R"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/AuthorisationCaseField/ServiceOfDocuments/AuthorisationCaseField.json",
+      "fileDigest": "sha256:2243327b3ea01dbd72775ec201b8edb27f3cef8792e14f57b0aebd73271f49fb",
+      "rows": [
+        {
+          "index": 2,
+          "rowDigest": "sha256:48045a69a6df62e87f4cc0029465cd2057a95a27c61e915fe1d8d5409b36d380",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "sodAdditionalRecipients",
+            "AccessControl": [
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-courtadmin",
+                  "caseworker-privatelaw-systemupdate",
+                  "caseworker-privatelaw-la",
+                  "caseworker-privatelaw-judge"
+                ],
+                "CRUD": "CRU"
+              },
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-superuser",
+                  "caseworker-privatelaw-readonly"
+                ],
+                "CRUD": "R"
+              }
+            ]
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:d73c4646055bbf034a819f5cfefbed443289b806a325554129f4ae90a39a24a0",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "AccessControl": [
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-courtadmin",
+                  "caseworker-privatelaw-systemupdate",
+                  "caseworker-privatelaw-la",
+                  "caseworker-privatelaw-judge"
+                ],
+                "CRUD": "CRUD"
+              },
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-superuser",
+                  "caseworker-privatelaw-readonly"
+                ],
+                "CRUD": "R"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json",
+      "fileDigest": "sha256:4e1c87b9fe4c0757b89e93ee0b8d55566126c3dc6eacb2224056b99ff695efef",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:ec3359e9ef002ac8a692039f4d07d264f67e1ee1aa298b6c8c771fc204d452a0",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "CaseEventID": "serviceOfDocuments",
+            "AccessControl": [
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-courtadmin",
+                  "caseworker-privatelaw-systemupdate"
+                ],
+                "CRUD": "CRU"
+              },
+              {
+                "UserRoles": [
+                  "caseworker-privatelaw-judge",
+                  "caseworker-privatelaw-la",
+                  "caseworker-privatelaw-readonly"
+                ],
+                "CRUD": "R"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-prod.json",
+      "fileDigest": "sha256:dc3e4dbdd2f13ae7fe18c274cb7aec8f995497866ebf246a606995d19f0ce3ac",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:5d5157744ee30e87e8054de55e5629c7fa6050f42b040d5e42770cc3bc59e091",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "serviceOfDocuments",
+            "Name": "Service of documents",
+            "Description": "Event to serve the documents to the parties",
+            "DisplayOrder": 50,
+            "PreConditionState(s)": "JUDICIAL_REVIEW;PREPARE_FOR_HEARING_CONDUCT_HEARING;DECISION_OUTCOME",
+            "PostConditionState": "*",
+            "SecurityClassification": "Public",
+            "ShowSummary": "Y",
+            "ShowEventNotes": "N",
+            "CallBackURLAboutToStartEvent": "${CCD_DEF_COS_URL}/service-of-documents/about-to-start",
+            "CallBackURLAboutToSubmitEvent": "${CCD_DEF_COS_URL}/service-of-documents/about-to-submit",
+            "CallBackURLSubmittedEvent": "${CCD_DEF_COS_URL}/service-of-documents/submitted",
+            "EndButtonLabel": "Save and continue",
+            "Publish": "True"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+      "fileDigest": "sha256:afe3f95198712736e5da00f056c80021315ec1d5809e79b619dbf3edc8aa46be",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:5d5157744ee30e87e8054de55e5629c7fa6050f42b040d5e42770cc3bc59e091",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "serviceOfDocuments",
+            "Name": "Service of documents",
+            "Description": "Event to serve the documents to the parties",
+            "DisplayOrder": 50,
+            "PreConditionState(s)": "JUDICIAL_REVIEW;PREPARE_FOR_HEARING_CONDUCT_HEARING;DECISION_OUTCOME",
+            "PostConditionState": "*",
+            "SecurityClassification": "Public",
+            "ShowSummary": "Y",
+            "ShowEventNotes": "N",
+            "CallBackURLAboutToStartEvent": "${CCD_DEF_COS_URL}/service-of-documents/about-to-start",
+            "CallBackURLAboutToSubmitEvent": "${CCD_DEF_COS_URL}/service-of-documents/about-to-submit",
+            "CallBackURLSubmittedEvent": "${CCD_DEF_COS_URL}/service-of-documents/submitted",
+            "EndButtonLabel": "Save and continue",
+            "Publish": "True"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json",
+      "fileDigest": "sha256:685707c79e49ee0b51883c5d06187e38a584ce3e4cd526124f72b3fbfe4a9748",
+      "rows": [
+        {
+          "index": 4,
+          "rowDigest": "sha256:6702ff5626dd0b6505da172ba203678ac24f040c6f41c5cacc9e7a7bb051707e",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "sodAdditionalRecipients",
+            "Label": "Select additional recipients who needs to be served",
+            "FieldType": "MultiSelectList",
+            "HintText": "For example, Cafcass, Local authority and Other organization",
+            "FieldTypeParameter": "AdditionalRecipients",
+            "SecurityClassification": "Public",
+            "Searchable": "N"
+          }
+        },
+        {
+          "index": 5,
+          "rowDigest": "sha256:a8b20372e81dcca6b53c1b3a4b06ee4431e9a35fdd5618d499af34606339f425",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "sodAdditionalRecipientsList",
+            "Label": "Recipient",
+            "FieldType": "Collection",
+            "FieldTypeParameter": "ServeOrgDetails",
+            "SecurityClassification": "Public",
+            "Searchable": "N"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json",
+      "fileDigest": "sha256:c169af98fa7ea2b08bb97b63d75ad7411513c28982f54aeba84740cbe859e5f6",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:826665869f1348347993eba5a6d4336e89f0f9edf6827a844c892120b8ee891f",
+          "row": {
+            "LiveFrom": "01/12/2022",
+            "ID": "EmailInformation",
+            "ListElementCode": "emailName",
+            "FieldType": "Text",
+            "ElementLabel": "Name",
+            "SecurityClassification": "Public",
+            "Searchable": "N"
+          }
+        },
+        {
+          "index": 1,
+          "rowDigest": "sha256:411c03f388498bbbb8328d3180f32805bd14c0bb22167ecd4727d83f011c8fcf",
+          "row": {
+            "LiveFrom": "01/12/2022",
+            "ID": "EmailInformation",
+            "ListElementCode": "emailAddress",
+            "FieldType": "Text",
+            "ElementLabel": "Email address",
+            "SecurityClassification": "Public",
+            "Searchable": "N"
+          }
+        },
+        {
+          "index": 2,
+          "rowDigest": "sha256:646328dc17202d8e8207ea1c7df85173d38ca84f454606599b4e4851761b671e",
+          "row": {
+            "LiveFrom": "01/12/2022",
+            "ID": "PostalInformation",
+            "ListElementCode": "postalName",
+            "FieldType": "Text",
+            "ElementLabel": "Name",
+            "SecurityClassification": "Public",
+            "Searchable": "N"
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:3705f480f3a744dd61e6aeae00dc862427346cbe3a36f09095e51a7108a72884",
+          "row": {
+            "LiveFrom": "01/12/2022",
+            "ID": "PostalInformation",
+            "ListElementCode": "postalAddress",
+            "FieldType": "AddressUK",
+            "ElementLabel": " ",
+            "SecurityClassification": "Public",
+            "Searchable": "N"
+          }
+        },
+        {
+          "index": 70,
+          "rowDigest": "sha256:c50322794d354839889f8aae17dec32094240f3b045e87fcd3a02ed399a76c74",
+          "row": {
+            "LiveFrom": "01/08/2023",
+            "ID": "ServeOrgDetails",
+            "ListElementCode": "serveByPostOrEmail",
+            "FieldType": "FixedRadioList",
+            "FieldTypeParameter": "DeliveryByEnum",
+            "ElementLabel": " ",
+            "Searchable": "N",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 71,
+          "rowDigest": "sha256:98878659be7b2d981d08d85957d2424238f71c5b8ff4c06354965bab1a2f37a7",
+          "row": {
+            "LiveFrom": "01/08/2023",
+            "ID": "ServeOrgDetails",
+            "ListElementCode": "emailInformation",
+            "FieldType": "EmailInformation",
+            "ElementLabel": " ",
+            "Searchable": "N",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 72,
+          "rowDigest": "sha256:72394fe77e2ffd8e7e9a858adeeff8d3b22b5ddbb9b7c1c48e4c4a14955f5bee",
+          "row": {
+            "LiveFrom": "01/08/2023",
+            "ID": "ServeOrgDetails",
+            "ListElementCode": "postalInformation",
+            "FieldType": "PostalInformation",
+            "ElementLabel": " ",
+            "Searchable": "N",
+            "SecurityClassification": "Public"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/FixedLists.json",
+      "fileDigest": "sha256:d44be4605dc71a17096e0aee4ae6fbedf4b0a7a522cb793e9b43bb76c4f371c6",
+      "rows": [
+        {
+          "index": 635,
+          "rowDigest": "sha256:a32aeb54289de326ca1027683f7549b0ee39be6db6902cb6c09827b1d2e2f795",
+          "row": {
+            "LiveFrom": "01/12/2022",
+            "ID": "DeliveryByEnum",
+            "ListElementCode": "post",
+            "ListElement": "Post",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 636,
+          "rowDigest": "sha256:21a2aa1641a2f80ef212ecce0b5d654b01f6ca5b96dc89e48f7b3bff800b54eb",
+          "row": {
+            "LiveFrom": "01/12/2022",
+            "ID": "DeliveryByEnum",
+            "ListElementCode": "email",
+            "ListElement": "Email",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 1132,
+          "rowDigest": "sha256:f2b248b59fb2c104bb9f04bde97210c991b721ae6988a562908c28e6f84d26b8",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "ID": "AdditionalRecipients",
+            "ListElementCode": "additionalRecipients",
+            "ListElement": "Additional recipients (optional)",
+            "DisplayOrder": 1
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+      "fileDigest": "sha256:246b111d163ec15d3e9303c807b9ede7c987133de336bc541a483b0f3bbb90c1",
+      "rows": [
+        {
+          "index": 6,
+          "rowDigest": "sha256:784681d796ae33bb0c2d5948ac07c948895d303cd39e7c0acd3562e9e518cd9d",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipients",
+            "DisplayContext": "OPTIONAL",
+            "PageID": 2,
+            "PageDisplayOrder": 2,
+            "PageFieldDisplayOrder": 7,
+            "ShowSummaryChangeOption": "Y"
+          }
+        },
+        {
+          "index": 7,
+          "rowDigest": "sha256:867df74fb320620da2249eb754aea68faecfb8cc2de18ab5298c2239179b6196",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "DisplayContext": "COMPLEX",
+            "PageID": 2,
+            "PageDisplayOrder": 2,
+            "PageFieldDisplayOrder": 8,
+            "ShowSummaryChangeOption": "Y",
+            "FieldShowCondition": "sodAdditionalRecipients=\"additionalRecipients\"",
+            "CallBackURLMidEvent": "${CCD_DEF_COS_URL}/service-of-documents/validate-additional-recipients"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+      "fileDigest": "sha256:74d798a7a4898843685274d5b92b35e74bdda339a1bb478d81b17a006bd55f59",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:344f52f4131426320b68979d93fbe260b271c5faab18661e95364ca913b6474b",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "EmailInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "emailInformation",
+            "ListElementCode": "emailName",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "1",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 1,
+          "rowDigest": "sha256:aacced8675e420cc590b60df04b9d680689d89b92522d104e305ccf37b9d6ba0",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "EmailInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "emailInformation",
+            "ListElementCode": "emailAddress",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "2",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 2,
+          "rowDigest": "sha256:e1bba84d6facdd60ed4acc99044122bed70eabfadbf5ef5af0ceada0567e4ea8",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalName",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "1",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:48ddb93ed72424f20eed9421693481c336d2d814a89b4315c65eea1a06df0206",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "2",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 4,
+          "rowDigest": "sha256:587af20733f6ef38bd1b7a2591bf9b2235e8d9c03b6772f0bc2f9e5bd0dbf928",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress.AddressLine1",
+            "FieldDisplayOrder": "3",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 5,
+          "rowDigest": "sha256:59455076f62e8072aae67d3918571a0e38afe043f1b7bd89239f725a8f6d3c7a",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress.AddressLine2",
+            "FieldDisplayOrder": "9",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 6,
+          "rowDigest": "sha256:41c70c0395911a9b6c175ba06e4c58cffadd89c5573d4aae41a0123a565b29cc",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress.AddressLine3",
+            "FieldDisplayOrder": "10",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 7,
+          "rowDigest": "sha256:7d39b5c46a9ff050fa259a7dbba903093386060198b403646474e3a7f839e7e7",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress.PostTown",
+            "FieldDisplayOrder": "11",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 8,
+          "rowDigest": "sha256:1cd4943c39852fbf9492c50f30e135cd4a525c79d8b0fb81e622e8e2163a2537",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress.County",
+            "FieldDisplayOrder": "12",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 9,
+          "rowDigest": "sha256:5dd3a7c2fcc92b3a3c3355864f12b8825cbad81af78a7c6c081c750e850cfd8d",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress.PostCode",
+            "FieldDisplayOrder": "13",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 10,
+          "rowDigest": "sha256:e3db96248b2499af012f0a05dceab76c1892310359708973b298874b2ba76688",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "PostalInformation",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "postalInformation",
+            "ListElementCode": "postalAddress.Country",
+            "FieldDisplayOrder": "14",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 11,
+          "rowDigest": "sha256:5dbf8cc0a7f5d15ca4b9d19b14118f4903715bf5be05f54ef9cd3b90537a6a53",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "serveByPostOrEmail",
+            "EventElementLabel": "Served by",
+            "FieldDisplayOrder": "1",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 12,
+          "rowDigest": "sha256:74b96c23805b964435f4f2f88aa7ae9214abd2f6fcb3baf387bfee2d7cb48940",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "emailInformation",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "2",
+            "DisplayContext": "COMPLEX"
+          }
+        },
+        {
+          "index": 13,
+          "rowDigest": "sha256:84fc6347ddd5f5250fa841380bf5329337ce5b70c864926e2c3d11515cfcec3d",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "emailInformation.emailAddress",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "4",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 14,
+          "rowDigest": "sha256:15be218a2ec9b5e16174ad6b350558a2f777ff9f2776ce6541cc5889624bd4b4",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "emailInformation.emailName",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "3",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 15,
+          "rowDigest": "sha256:73ed005eee2a055f7707ba49980547f20e1658e07df94bf95beab1ba72125177",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "ListElementCode": "postalInformation",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "5",
+            "DisplayContext": "COMPLEX"
+          }
+        },
+        {
+          "index": 16,
+          "rowDigest": "sha256:0f851363adacce91d3e12049906811cc5808dfeab282b1bb12fd0c59b9b1b368",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalName",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "6",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 17,
+          "rowDigest": "sha256:3443c49246be1d5fde45c743b0bc440273c4d4e53c9cde39c4d0f3624ba35248",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "7",
+            "DisplayContext": "COMPLEX"
+          }
+        },
+        {
+          "index": 18,
+          "rowDigest": "sha256:d3f95c2d07d7d68da4e1dcbc83806a6bfbe59ed10c4201f7ed61ed011e0ba146",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress.AddressLine1",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "8",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 19,
+          "rowDigest": "sha256:bfd412a1eec56167c62643c6c451b5cf818f842f41a81ed34c7544f98ada4c6e",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress.AddressLine2",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "9",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 20,
+          "rowDigest": "sha256:f758abe7821c49a5e828665b2a1a1485426d2a45559b6f7b88292df2bfa8a369",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress.AddressLine3",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "10",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 21,
+          "rowDigest": "sha256:24257edd9ef12e7f32ddd851e971419e1c0eb63159524f83b4549cb3ec3c5b75",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress.PostTown",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "11",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 22,
+          "rowDigest": "sha256:3d4e8183911ba15a457ee8eb0f069ea5cf4081d5f78a26ee0421454c9da3d611",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress.County",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "12",
+            "DisplayContext": "OPTIONAL"
+          }
+        },
+        {
+          "index": 23,
+          "rowDigest": "sha256:6f72e2442933c0218370ed36158be93f0640938dfc064c54642733e70804849f",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress.PostCode",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "13",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 24,
+          "rowDigest": "sha256:3ac1e3afc2fee9dc2dd05f2fbfd4f491caf11e76a859860b57d25c15c98e989f",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "postalInformation.postalAddress.Country",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "14",
+            "DisplayContext": "OPTIONAL"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseType.json",
+      "fileDigest": "sha256:f6b368e37f7367394ab67773d15b7b5ee739c79c9f833ff2aa17f813fb1c9043",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:55931d79f54f64e63a4c56697e77127446af375e078211d313bcd68bf092dc1d",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "ID": "PRLAPPS",
+            "Name": "C100 & FL401 Applications",
+            "Description": "Application for a court order to make arrangements for a child",
+            "JurisdictionID": "PRIVATELAW",
+            "SecurityClassification": "Public"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,296 @@
+#harness-overview {
+  max-width: none;
+  margin: 1.5rem 1rem;
+  padding: 0 !important;
+  color: var(--report-ink);
+  line-height: 1.5;
+}
+#harness-overview > section,
+#harness-overview > details,
+.harness-intro {
+  background: var(--report-surface);
+  border: 1px solid var(--report-line);
+  border-radius: var(--odhin-border-radius, 12px);
+  padding: clamp(1rem, 2vw, 1.5rem);
+  margin: 1rem 0;
+  box-shadow: 0 4px 16px rgb(25 36 59 / 3%);
+}
+#harness-overview > details > summary {
+  cursor: pointer;
+  padding: 0.25rem 0;
+}
+#harness-overview > details[open] > summary {
+  margin-bottom: 1rem;
+}
+#harness-overview h1 {
+  font-size: 1.4rem;
+  margin-bottom: 0.5rem;
+}
+#harness-overview h2 {
+  font-size: 1.25rem;
+  margin: 0 0 0.75rem;
+}
+#harness-overview .table {
+  font-size: 0.9rem;
+  margin-bottom: 0;
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--report-ink);
+  color: var(--report-ink);
+  border-color: var(--report-line);
+}
+#harness-overview .table th,
+#harness-overview .table td {
+  padding: 0.65rem 0.75rem;
+  vertical-align: top;
+  white-space: normal;
+}
+#harness-overview .table thead th {
+  background: var(--report-soft);
+  color: var(--report-muted);
+}
+#harness-coverage-at-a-glance {
+  margin: 1rem 0;
+}
+.harness-coverage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.harness-coverage-dimension {
+  min-width: 0;
+  border: 1px solid var(--report-line);
+  border-radius: 10px;
+  padding: 1rem;
+  background: var(--report-soft);
+}
+.harness-coverage-dimension h3 {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+}
+.harness-coverage-dimension > p {
+  color: var(--report-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+.harness-coverage-dimension .table {
+  font-size: 0.8rem;
+}
+.harness-coverage-dimension .table th,
+.harness-coverage-dimension .table td {
+  padding: 0.35rem;
+}
+.harness-coverage-dimension .table th:first-child {
+  width: 56%;
+}
+#harness-overview > .harness-application-coverage {
+  border-inline-start: 4px solid var(--odhin-timedOut-status-color);
+  background: var(--odhin-light-timedOut-status-color);
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+}
+.harness-application-coverage h2 {
+  margin-top: 0 !important;
+}
+.harness-application-coverage p:last-child {
+  margin-bottom: 0;
+}
+#harness-overview .table tbody tr:nth-child(even) {
+  background: var(--report-soft);
+}
+.harness-status {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 3px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin: 0.1rem;
+}
+.harness-status.passed {
+  background: var(--odhin-light-passed-status-color);
+  color: var(--odhin-passed-status-color);
+}
+.harness-status.failed,
+.harness-status.timedOut {
+  background: var(--odhin-light-failed-status-color);
+  color: var(--odhin-failed-status-color);
+}
+.harness-status.skipped,
+.harness-status.not-run {
+  background: var(--report-soft);
+  color: var(--report-muted);
+}
+.harness-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--report-accent);
+  text-decoration: underline;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+.harness-link:focus-visible,
+#harness-overview summary:focus-visible {
+  outline: 3px solid #ffdd00;
+  outline-offset: 3px;
+}
+.harness-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+.harness-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.harness-filters select,
+.harness-filters button {
+  min-height: 40px;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--report-line);
+  border-radius: 4px;
+  background: var(--report-surface);
+  color: var(--report-ink);
+}
+#harness-slices {
+  table-layout: fixed;
+  min-width: 900px;
+}
+#harness-slices th:nth-child(1) {
+  width: 30%;
+}
+#harness-slices th:nth-child(2) {
+  width: 25%;
+}
+#harness-slices th:nth-child(3) {
+  width: 21%;
+}
+#harness-slices th:nth-child(4) {
+  width: 14%;
+}
+#harness-slices th:nth-child(5) {
+  width: 10%;
+}
+#harness-slices > tbody > tr > td {
+  padding: 0;
+}
+.harness-slice > summary {
+  display: grid;
+  grid-template-columns: 30% 25% 21% 14% 10%;
+  cursor: pointer;
+  list-style: none;
+}
+.harness-slice > summary > span {
+  padding: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.harness-slice > summary > span:first-child:before {
+  content: "▸";
+  margin-right: 0.4rem;
+}
+.harness-slice[open] > summary > span:first-child:before {
+  content: "▾";
+}
+.harness-slice summary small {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 400;
+  margin-top: 0.3rem;
+}
+.harness-slice > p {
+  padding: 0.75rem;
+  margin: 0;
+  background: var(--report-soft);
+}
+.harness-test-source {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}
+.harness-test-source p {
+  margin: 0.5rem 0;
+}
+.harness-checks {
+  table-layout: auto;
+}
+.harness-checks th:first-child {
+  width: 44%;
+}
+#harness-filter-count {
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+#harness-overview [hidden] {
+  display: none !important;
+}
+@media (max-width: 1000px) {
+  .harness-coverage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .harness-coverage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #harness-overview {
+    margin: 1rem 0.5rem;
+  }
+  .harness-filters {
+    gap: 0.5rem;
+  }
+  .harness-filters label {
+    max-width: 100%;
+  }
+  .harness-filters select {
+    max-width: 100%;
+  }
+}
+
+#harness-overview h2,
+#harness-native-evidence {
+  scroll-margin-top: 100px;
+}
+#harness-native-evidence {
+  border: 1px solid var(--report-line);
+  border-radius: var(--odhin-border-radius, 12px);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+#harness-native-evidence h3 {
+  font-size: 1.1rem;
+  margin-top: 1rem;
+}
+.harness-native-table {
+  min-width: 950px;
+}
+.harness-native-table th:first-child {
+  width: 30%;
+}
+.harness-native-table th p {
+  font-weight: normal;
+  margin-top: 0.4rem;
+}
+.harness-native-table details,
+.harness-native-identity,
+.harness-diagnostic-source {
+  overflow-wrap: anywhere;
+}
+
+#harness-overview .table-responsive {
+  border: 1px solid var(--report-line);
+  border-radius: 8px;
+}
+#harness-overview p {
+  max-width: 110ch;
+}
+#harness-overview .harness-diagnostic-source {
+  color: var(--report-muted);
+  font-size: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--report-line);
+}

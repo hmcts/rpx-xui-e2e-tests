@@ -6,8 +6,9 @@ import { writePublicSummary } from "./lib/exui-evidence-io.mjs";
 
 const args = process.argv.slice(2).filter((arg) => arg !== "--");
 const switches = new Set(["--aat", "--lint", "--manifest", "--ci", "--odhin", "--local"]);
+const native = args.filter((arg) => arg.startsWith("--native-evidence="));
 const selected = args.filter((arg) => arg.startsWith("--selection="));
-if (selected.length > 1 || args.some((arg) => !switches.has(arg) && !arg.startsWith("--selection="))) {
+if (native.length > 1 || native.some(arg => !arg.slice("--native-evidence=".length)) || selected.length > 1 || args.some((arg) => !switches.has(arg) && !arg.startsWith("--selection=") && !arg.startsWith("--native-evidence="))) {
   console.error("[harness-diagnostic] BLOCKED: diagnostic POC only; candidate/release execution requires an isolated candidate runner.");
   process.exit(2);
 }
@@ -15,7 +16,7 @@ const selection = selected[0]?.slice("--selection=".length) || "model";
 const runCi = args.includes("--ci");
 const local = args.includes("--local");
 const aat = args.includes("--aat");
-if ((aat && args.some(arg => arg !== "--aat")) || !Object.hasOwn(diagnosticConfig.selections, selection) || (local && (runCi || selected.length)) || (runCi && selection !== "model")) {
+if ((native.length && !aat) || (aat && args.some(arg => arg !== "--aat" && !arg.startsWith("--native-evidence="))) || !Object.hasOwn(diagnosticConfig.selections, selection) || (local && (runCi || selected.length)) || (runCi && selection !== "model")) {
   console.error("[harness-diagnostic] BLOCKED: invalid diagnostic selection.");
   process.exit(2);
 }
@@ -30,8 +31,8 @@ try {
 if (aat) {
   try {
     const { runLocalAat } = (await import("./run-harness-local-aat.cjs")).default;
-    const result = await runLocalAat(process.env);
-    console.log(`[harness-aat] Combined report: ${result.status}; no release approval.`);
+    const result = await runLocalAat(process.env, { nativeEvidencePath: native[0]?.slice("--native-evidence=".length) });
+    console.log(`[harness-aat] Diagnostics ${result.status}${result.nativeStatus ? ` / Native ${result.nativeStatus}` : ""}; no release approval.`);
     process.exit(result.exitCode);
   } catch {
     console.error("[harness-aat] Collection incomplete or invalid; see private diagnostics.");

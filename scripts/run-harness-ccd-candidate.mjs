@@ -20,16 +20,24 @@ import {
   verifyCcdRuntimeIdentity,
 } from "./lib/exui-ccd-runtime.mjs";
 import { CCD_HARNESS_SOURCE_FILES } from "./lib/exui-ccd-browser-runtime.mjs";
+import { EVENT_CAPABILITY_SCOPE } from "./lib/exui-ccd-event-capability.mjs";
+import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
   return index < 0 ? undefined : process.argv[index + 1];
 };
 async function launch() {
+  const releaseScopeId = arg("--scope") ?? "exui-ccd-pilot";
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(releaseScopeId))
+    throw new Error("UNKNOWN_CCD_SCOPE");
+  if (releaseScopeId === EVENT_CAPABILITY_SCOPE && arg("--only"))
+    throw new Error("COMPLETE_EVENT_CAPABILITY_SCOPE_REQUIRED");
   if (
     arg("--only") &&
     ![
       "baseline",
+      "ccd-stale-revoked-bearer",
       "ccd-drop-child",
       "ccd-broaden-access",
       "ccd-write-then-deny",
@@ -57,12 +65,17 @@ async function launch() {
     ),
   );
   const ccd = JSON.parse(fs.readFileSync(statePath, "utf8"));
+  if (releaseScopeId === EVENT_CAPABILITY_SCOPE && ccd.fixtureSelection !== "event-capability-baseline")
+    throw new Error("EVENT_CAPABILITY_BASELINE_RUNTIME_REQUIRED");
+  if (releaseScopeId === "exui-ccd-pilot" && ![undefined, "nested-prl"].includes(ccd.fixtureSelection))
+    throw new Error("CCD_NESTED_RUNTIME_REQUIRED");
   if (
     !ccd.ready ||
     !ccd.definitionImported ||
     !/^[a-f0-9]{64}$/.test(ccd.namespace)
   )
     throw new Error("CCD_READY_IMPORT_REQUIRED");
+  if ((ccd.platform ?? "linux/arm64") !== artifact.provenance.platform) throw new Error("CCD_CANDIDATE_PLATFORM_MISMATCH");
   verifyCcdRuntimeIdentity(ccd);
   const inspection = spawnSync("docker", ["inspect", ccd.namespace], {
     encoding: "utf8",
@@ -96,9 +109,11 @@ async function launch() {
       path.join(root, "node_modules/playwright-core/browsers.json"),
       "utf8",
     ),
-  ).browsers.find((item) => item.name === "chromium");
+  ).browsers.find((item) => item.name === "chromium-headless-shell");
   const credentials = Object.fromEntries(
-    ["allowed", "denied", "observer"].map((name) => [
+    (releaseScopeId === EVENT_CAPABILITY_SCOPE
+      ? ["allowed", "courtadmin", "judge", "observer"]
+      : ["allowed", "denied", "observer"]).map((name) => [
       name,
       ccdCredentials(ccd, name),
     ]),
@@ -134,7 +149,7 @@ async function launch() {
   writeJsonAtomic(`${output}/input.json`, {
     artifact,
     browserRoot,
-    releaseScopeId: "exui-ccd-pilot",
+    releaseScopeId,
     ccd,
     credentials,
     definition,
@@ -147,7 +162,7 @@ async function launch() {
       ),
     ),
     browserDigest,
-    browserExecutable: `/browser/chromium_headless_shell-${browser.revision}/chrome-headless-shell-linux-arm64/chrome-headless-shell`,
+    browserExecutable: `/browser/${browserExecutable({ browsers: [browser] }, artifact.provenance.platform)}`,
     harnessCommit: commit.stdout.trim(),
     harnessSourceState: dirty.stdout.trim() ? "dirty" : "clean",
     harnessSources,

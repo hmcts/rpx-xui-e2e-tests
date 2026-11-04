@@ -116,6 +116,41 @@ function inventory(p) {
 }
 function validateHtml(html, record) {
   if (
+    Boolean(record.nativeEvidence) !==
+      html.includes('id="harness-native-evidence"') ||
+    Boolean(record.diagnosticSource) !==
+      html.includes('class="harness-diagnostic-source"')
+  )
+    throw failure();
+  if (record.diagnosticSource) {
+    validateDiagnosticSource(record.diagnosticSource);
+    if (
+      !html.includes(
+        `data-diagnostic-source-sha256="${digest(JSON.stringify(record.diagnosticSource))}"`,
+      ) ||
+      !html.includes(record.diagnosticSource.capturedAt) ||
+      (record.diagnosticSource.commit &&
+        !html.includes(record.diagnosticSource.commit))
+    )
+      throw failure();
+  }
+  if (record.nativeEvidence) {
+    require("./harness-native-report.cjs").renderNativeEvidence(
+      record.nativeEvidence,
+    );
+    if (
+      !html.includes(`data-native-status="${record.nativeEvidence.status}"`) ||
+      !html.includes(
+        `data-native-evidence-sha256="${digest(JSON.stringify(record.nativeEvidence))}"`,
+      ) ||
+      !html.includes(record.nativeEvidence.descriptorDigest) ||
+      !html.includes(
+        `Diagnostics ${record.status} / Native ${record.nativeEvidence.status}`,
+      )
+    )
+      throw failure();
+  }
+  if (
     !html.startsWith("<!DOCTYPE html>") ||
     !html.includes("Final Outcomes") ||
     html.includes("{{.") ||
@@ -239,8 +274,45 @@ function withdraw(owned) {
   }
 }
 
+function captureDiagnosticSource() {
+  const capturedAt = new Date().toISOString();
+  try {
+    const { execFileSync } = require("node:child_process");
+    const options = {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 5000,
+    };
+    const commit = execFileSync("git", ["rev-parse", "HEAD"], options).trim();
+    const state = execFileSync(
+      "git",
+      ["status", "--porcelain", "--untracked-files=normal"],
+      options,
+    ).trim()
+      ? "modified"
+      : "clean";
+    if (!/^[a-f0-9]{40}$/.test(commit)) throw failure();
+    return { commit, state, capturedAt };
+  } catch {
+    return { commit: null, state: "unavailable", capturedAt };
+  }
+}
+function validateDiagnosticSource(source) {
+  if (
+    !source ||
+    !["clean", "modified", "unavailable"].includes(source.state) ||
+    (source.state === "unavailable"
+      ? source.commit !== null
+      : !/^[a-f0-9]{40}$/.test(source.commit)) ||
+    new Date(source.capturedAt).toISOString() !== source.capturedAt
+  )
+    throw failure();
+}
 class HarnessPublicOdhinReporter {
-  constructor({ selection } = {}) {
+  constructor({ selection, diagnosticSource } = {}) {
+    this.diagnosticSource = diagnosticSource;
+    this.nativeEvidence = null;
     this.selection = selection;
     this.paths = paths(selection);
     this.expected = new Map(
@@ -253,12 +325,24 @@ class HarnessPublicOdhinReporter {
     this.begun = false;
     this.ended = false;
   }
+  async prepareNativeEvidence(descriptorPath) {
+    if (this.begun || this.nativeEvidence) this.reject();
+    const { readNativeReportEvidence } =
+      await import("./lib/exui-native-report-evidence.mjs");
+    this.nativeEvidence = await readNativeReportEvidence(descriptorPath);
+    // Validate all display labels before starting collection, never silently omit an unknown proof.
+    require("./harness-native-report.cjs").renderNativeEvidence(
+      this.nativeEvidence,
+    );
+  }
   reject() {
     this.invalid = true;
     throw failure();
   }
   onBegin(_config, suite) {
     try {
+      this.diagnosticSource ||= captureDiagnosticSource();
+      validateDiagnosticSource(this.diagnosticSource);
       resetPublicReport(this.selection);
       if (this.begun) this.reject();
       const tests = suite.allTests();
@@ -318,6 +402,7 @@ class HarnessPublicOdhinReporter {
         "login-setup-blocked",
         "failure-unclassified",
         "service-family-contract-mismatch",
+        "aat-profile-contract-mismatch",
         "skipped",
       ].includes(result.aatOutcome) ||
         (result.status === "passed" &&
@@ -337,6 +422,16 @@ class HarnessPublicOdhinReporter {
         result.aatMissingFamilies.some(
           (code) => !Object.hasOwn(overview.familyNames, code),
         ))
+    )
+      this.reject();
+    if (
+      isAat &&
+      result.aatOutcome === "aat-profile-contract-mismatch" &&
+      ![
+        "api/globalSearch/services contains the central must-run service-family set",
+        "api/wa-supported-jurisdiction/get contains the central WA must-run family set",
+        "api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set",
+      ].includes(this.expected.get(identity).titlePath.at(-1))
     )
       this.reject();
     this.results.set(identity, {
@@ -392,7 +487,7 @@ class HarnessPublicOdhinReporter {
       const renderer = new Generate({
         outputFolder: renderDir,
         indexFilename: "index.html",
-        title: "EXUI Assurance Harness — supporting evidence",
+        title: "EXUI Assurance Harness",
         project: `Harness ${this.selection}`,
         testEnvironment: this.selection,
         release: "",
@@ -501,10 +596,12 @@ class HarnessPublicOdhinReporter {
         counts,
         status: result.status,
         globalErrors: this.globalErrors,
+        diagnosticSource: this.diagnosticSource,
+        nativeEvidence: this.nativeEvidence,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Checks: ${record.status}.</strong> Supporting diagnostics only; no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
@@ -514,22 +611,42 @@ class HarnessPublicOdhinReporter {
         presentation,
         [...this.expected].map(([identity, entry], index) => ({
           target: `#harness-${index}-0`,
-          feature: overview.definitions[overview.groupFor(entry.file)].title,
-          tags: [],
+          feature: overview.metadataFor(entry).slice.label,
+          tags: [
+            overview.metadataFor(entry).lane.label,
+            ...overview.metadataFor(entry).jurisdictions,
+            ...overview.metadataFor(entry).caseTypes,
+          ],
           retry: 0,
           durationMs: this.results.get(identity).duration,
         })),
       );
       presentation.querySelector("#TabDashboard").insertAdjacentHTML(
-        "afterbegin",
+        "beforeend",
         await overview.renderOverview(
           [...this.expected].map(([identity, entry]) => ({
             entry,
             observed: this.results.get(identity),
           })),
           this.selection,
+          {
+            nativeEvidence: this.nativeEvidence,
+            diagnosticSource: this.diagnosticSource,
+          },
         ),
       );
+      presentation
+        .querySelector("head")
+        .insertAdjacentHTML(
+          "beforeend",
+          `<style id="harness-coverage-theme">${fs.readFileSync(path.join(__dirname, "harness-report-coverage.css"), "utf8")}</style>`,
+        );
+      presentation
+        .querySelector("body")
+        .insertAdjacentHTML(
+          "beforeend",
+          `<script id="harness-coverage-ui">${fs.readFileSync(path.join(__dirname, "harness-report-coverage.js"), "utf8")}</script>`,
+        );
       html = presentation.toString();
       validateHtml(html, record);
       record.sha256 = digest(html);
@@ -547,6 +664,7 @@ class HarnessPublicOdhinReporter {
     }
   }
 }
+HarnessPublicOdhinReporter.captureDiagnosticSource = captureDiagnosticSource;
 HarnessPublicOdhinReporter.validatePublicReport = validatePublicReport;
 HarnessPublicOdhinReporter.resetPublicReport = resetPublicReport;
 module.exports = HarnessPublicOdhinReporter;

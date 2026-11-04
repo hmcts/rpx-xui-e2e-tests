@@ -17,9 +17,11 @@ Bare `yarn playwright test` also selects portable model diagnostics. Setup insta
 
 ## Candidate-bound fixed job
 
-The native runner starts the built Angular/Node candidate with isolated synthetic personas and declared downstream seams. Fixed policies cover WA family selection, organisation/case location scope, and real CCD nested persistence/access integrity. Every policy requires its baseline and intended failing mutations. The postal extension adds two-recipient validation/CYA/edit/readback plus loss of one optional child.
+The native runner starts the built Angular/Node candidate with isolated synthetic personas and declared downstream seams. Fixed policies cover WA family selection, organisation/case location scope, real CCD nested persistence/access integrity, and source-defined event permissions. Every policy requires its baseline and intended failing mutations. The postal extension adds two-recipient validation/CYA/edit/readback plus loss of one optional child.
 
-Prepare a clean committed Harness checkout, sealed candidate manifest, matching Linux/arm64 browser cache and cached pinned Docker images. The current native build uses Node 24.22.1 / Debian 12; the host controller verifies actual candidate, dependency, browser and source bytes. Missing inputs, wrong platforms, dirty source, retries, undeclared destinations, incomplete reports or cleanup block admission.
+Prepare a clean committed Harness checkout, sealed candidate manifest, matching Linux/arm64 or Linux/amd64 browser cache and cached pinned Docker images. The fixed CI job requires the candidate platform to match the observed Docker server. The current native build uses Node 24.22.1 / Debian 12; the host controller verifies actual candidate, dependency, browser and source bytes. Missing inputs, wrong platforms, dirty source, retries, undeclared destinations, incomplete reports or cleanup block admission.
+
+The AMD64 CCD image profile is pinned in `scripts/fixtures/ccd/linux-amd64-images.json`; it uses separately published service builds, an official PostgreSQL image and eight synthetic CCD databases. Its simulator and CCD accept one exact loopback JWT issuer. ARM64 keeps its existing profile. A pass on either profile gives no execution credit to the other. The full AMD64 Jenkins job still needs live acceptance.
 
 Create a fresh job JSON using exactly these keys:
 
@@ -37,13 +39,31 @@ Create a fresh job JSON using exactly these keys:
 yarn harness:candidate:ci --input /absolute/job.json
 ```
 
-The job runs family baseline/fault, derives the scope mutant, runs IA/Civil scope, then starts fresh CCD for nested/access/integrity/postal baselines and faults. It owns cleanup and captures independent expectations before consuming receipts. The strict job input cannot supply a catalogue, proof status or selected subset.
+To execute these application checks together with Harness diagnostics and publish one Odhín report:
+
+```bash
+yarn harness:assurance --input /absolute/job.json
+# Include the five live AAT configuration probes:
+yarn harness:assurance --input /absolute/job.json --aat
+```
+
+Each invocation needs a fresh native output directory in its job file. The combined command runs the native job first, validates its captured identities, raw reports, receipts and cleanup, then collects 116 local checks (121 with AAT). It writes the single report to `functional-output/tests/harness/public/odhin/index.html`. Native baselines and deliberate fault checks have separate counts and source identities; a blocked native result remains exit code 2 even when diagnostics pass. Incomplete native evidence stops collection instead of publishing a passing report. AAT requires the existing approved local credentials; the default command does not.
+
+The 112 catalogue requirements are coverage obligations, not an already implemented 112-test suite. This command executes the implemented native policies; it cannot grant coverage to missing service/profile proofs. Jenkins still needs the supported native agent, sealed candidate inputs and approved durable evidence storage before this command can become a required release gate.
+
+The default job has five fixed phases: WA family → IA/Civil scope → CCD nested/access/role-removal/postal → CCD source event capability → PCS routing. Its required inventory is eleven baseline proofs and ten deliberate fault checks, not a claim that they passed. The strict job input cannot supply a catalogue, proof status or selected subset.
+
+The new `exui-ccd-event-capability-pilot` uses the pinned PRL courtadmin/judge permissions in the normalized `HARNESS/HarnessNestedPRL` definition. It requires a courtadmin to enter one email recipient through form → CYA → Change → submit/readback, while a judge can read the case but cannot start or submit the event with event permission `R`. Its sole definition fault changes that judge event permission from `R` to `CR`; the test must observe the enabled write before failing the denial assertion. The accepted clean `6895660` run passed both baselines and detected the intended `R` → `CR` fault at `event-capability-isolation`, after observing the real persisted judge write. Independent observer checks confirmed exactly one edited courtadmin recipient and unchanged case state/history after the baseline judge denial.
+
+The parent verifies baseline API/Tools and CCD removal, imports the fault into a fresh owned namespace, and captures its expected identity before acknowledging fault startup. An old CCD postal BLOCKED result permits the fourth phase only when raw evidence confirms the exact known `postal-required-fields` cause and all other required proofs/faults are valid. The overall job retains the worst phase status; continuation cannot turn that BLOCKED result into PASS.
 
 The native API runs separately from browser/providers/evidence writing. It receives read-only sealed application/guard files and writable synthetic sessions/diagnostics. Observer credentials, reports, controller source and Docker socket are absent from its mounts. Containers receive no Docker socket; the host owns lifecycle and recovery.
 
-The current c024fa3 postal run is BLOCKED at the mandatory-child check and receives zero catalogue execution credit. See [current assurance gaps](docs/harness-known-gaps.md) for the observed constraint and owner action.
+The historical c024fa3 postal run is BLOCKED at the mandatory-child check and receives zero catalogue execution credit. See [current assurance gaps](docs/harness-known-gaps.md) for the observed constraint and owner action.
 
-A fixed-pilot PASS grants no full EXUI release approval. The portable source catalogue contains 112 obligations, including an unproved PCS routing shape. Adding the two routing configuration keys replaces 13 profile IDs; the other 98 obligation objects remain unchanged. Only the exact postal sequence is eligible for the receipt-to-catalogue mapping; an accepted postal phase would leave 111 runtime obligations missing. Source classification, model tests and screenshots do not discharge those gaps. Effective deployed profiles, service-owner grouping acceptance, external owner gates and promotion wiring remain incomplete.
+A fixed-pilot PASS grants no full EXUI release approval. The portable source catalogue contains 112 obligations. Adding the two routing configuration keys replaces 13 profile IDs; the other 98 obligation objects remain unchanged. The receipt-to-catalogue mapping admits the exact postal sequence and source courtadmin/email/one-recipient cell, plus the reviewed PCS routing obligation only after all four route proofs and the sealed-interpreter/source bindings validate. The judge proof adds no catalogue cell.
+
+The accepted `6895660` job accounts for **1 of 112 obligations**: only the exact courtadmin cell `a6d5e842…e313`, with 111 still missing. Its overall result remains **BLOCKED (exit 2)** at `postal-required-fields`; the postal fault earns no credit. All 47 owned containers were independently confirmed removed. The [evidence contract](docs/harness-evidence-contract.md#source-event-capability-phase) records the source and event receipt binding. Source classification, model tests and screenshots do not discharge those gaps. Effective deployed profiles, service-owner grouping acceptance, external owner gates and promotion wiring remain incomplete.
 
 ## Focused candidate and CCD execution
 
@@ -66,7 +86,7 @@ The separate Hearing publication pilot checks actual Node GET `/external/config/
 
 The combined job owns its CCD startup/shutdown automatically. Manual CCD runs require the matching stop command and recorded ownership. SIGINT/SIGTERM invokes owned cleanup; daemon failure or SIGKILL requires recovery from the recorded owner labels. Do not delete unrelated containers.
 
-CCD uses fresh isolated storage, source-backed synthetic definitions, real RBAC, synthetic identities and a separately authorised state/history observer. ABAC, identity-provider correctness and service business callbacks remain outside these pilots. The fixture retains original PRL revision/workbook provenance; synthetic Harness roles/case types are not credited as actual PRL authorization cells.
+CCD uses fresh isolated storage, source-backed synthetic definitions, real RBAC, synthetic identities and a separately authorised state/history observer. ABAC, identity-provider correctness and service business callbacks remain outside these pilots. The fixtures retain original PRL revision/workbook provenance. The event scope uses literal source roles in a normalized case type; its bounded cell mapping does not prove production PRL authorization, AM/ABAC, OIDC login, CSRF enforcement, service-owner acceptance or broad persona permissions. This acceptance adds no test retirements.
 
 The OCI adapter runs an immutable image in its own Node/OS:
 
@@ -123,20 +143,29 @@ The shared evaluator recomputes raw framework evidence and receipts. `harness:ve
 
 The pinned Jenkins library runs lint during Build. The later Harness stage reactivates NVM and checks actual Node against `.nvmrc` and actual Yarn against `packageManager` before browser preflight and supporting checks.
 
-Checked-in Jenkins jobs run Harness supporting checks and portable diagnostics. They provide no native candidate/release approval. The fixed native job requires its explicit artifact/digest/browser/output inputs and a supported provisioned Docker platform; actual Jenkins native provisioning and live acceptance remain unverified.
+Checked-in Jenkins jobs attempt the bounded native candidate/CCD pilots on the existing worker, then collect supporting diagnostics in the same report. Native preparation requires an observed Linux ARM64 or AMD64 Docker server before webapp fetch or candidate build. AMD64 provisioning pulls immutable Node, Playwright and CCD image references, reusing the current worker’s existing Azure context for private registry access. Registry credentials stay in a temporary private Docker configuration and are removed after preparation. No agent or Azure subscription is changed. These observations grant no runtime or release credit; Jenkins native acceptance remains unverified.
 
 The shared Jenkins library deletes its workspace at job completion. Job-local raw reports are not durable evidence retention; an approved private store is still required for native CI acceptance.
 
+The native Jenkins wrapper preserves each job directory under `functional-output/tests/harness/private/native-ci/harness-native-ci-*`, including failed preparation and execution evidence. Private roots and job directories must be owned by the invoking user with mode0700; aliases and broader existing permissions block execution. These files are excluded from public artifact publication. They remain available during the job for private inspection or an approved export; workspace cleanup still removes them, so this is not durable retention.
+
+Native execution prints fixed phase start/completion messages and a heartbeat every minute while awaiting a phase, derived candidate or CCD startup/cleanup. A heartbeat proves only that the coordinator is still waiting; application coverage requires the validated gate result. Detailed subprocess logs remain private.
+
 Raw native evidence and detailed diagnostic failures stay under `functional-output/tests/harness/private/`. Both Jenkins jobs publish one **EXUI Assurance Harness** Odhín report at `functional-output/tests/harness/public/odhin/index.html`.
 
-Run `yarn harness:ci` for the same combined report locally. One Playwright runner executes the retained framework checks and portable models once. The first screen explains what ran, why it matters, and what remains untested: configuration/service catalogue models, cross-service historical defect replays, and Harness framework checks. Group counts and outcomes come from actual records; Build-time Node/pipeline/TypeScript/lint checks are explained separately, not invented as Playwright rows.
+Run `yarn harness:ci` for a diagnostic-only report locally, or `yarn harness:assurance --input /absolute/job.json` to include independently validated native evidence. One Playwright runner executes the retained framework checks and portable models once. The first screen explains what ran, why it matters, and what remains untested: configuration/service catalogue models, cross-service historical defect replays, and Harness framework checks. Group counts and outcomes come from actual records; Build-time Node/pipeline/TypeScript/lint checks are explained separately, not invented as Playwright rows.
 
-The service/capability view uses reviewed source metadata. It is model-only evidence, not per-service application coverage: candidate and CCD checks are **NOT RUN**, so this job observes **0 of 112 required runtime obligations**. The 112 are a bounded inventory; deployment-profile/key gaps, unreviewed preview-family cells, discovery and owner acceptance remain additional gaps. Historical native receipts and retired mock UI are not results of this build.
+In a diagnostic-only collection, the service/capability view uses reviewed source metadata and has no accepted candidate/CCD evidence, so it credits **0 of 112 required runtime obligations**. The combined native collection reports its separately validated execution and catalogue credit alongside these diagnostics, retaining distinct source/run identities. The 112 are a bounded inventory; deployment-profile/key gaps, unreviewed preview-family cells, discovery and owner acceptance remain additional gaps. Historical native receipts and retired mock UI are not results of this build.
 
-The report uses the pinned webapp fluid presentation (`b978cf7`) over genuine Odhín, with responsive cards, filters and improved modal details. Reviewed test names and actual outcomes/durations are public; errors, logs, raw steps and attachments remain private. The job resets previous output, validates its private digest record and archives/publishes only the one self-contained HTML file. Incomplete or unreviewed records prevent publication. `public/release-assurance-summary.json` remains BLOCKED: supporting checks grant no release approval.
+The dashboard groups unique tests by evidence lane, named feature/slice, service or shared component, declared jurisdiction label and case type. Expand a slice to see each check, scope, result and evidence link. A test can belong to several labels, so dimension totals are non-additive. Current jurisdiction labels mirror service-family codes in reviewed test metadata; they do not establish deployed jurisdiction coverage. Native/CCD proofs and catalogue gaps stay separately counted and visible.
+
+The report uses the pinned webapp fluid presentation (`b978cf7`) over genuine Odhín, with responsive cards, filters and improved modal details. Reviewed test names and actual outcomes/durations are public; errors, logs, raw steps and attachments remain private. The job resets previous output, validates its private digest record and archives/publishes only the one self-contained HTML file. Incomplete or unreviewed records prevent publication. A diagnostic-only `public/release-assurance-summary.json` remains BLOCKED. A native PASS is a bounded pilot verdict; release approval remains unavailable.
 
 For the explicitly authorized live AAT configuration slice, `yarn harness:aat` runs offline116 in a credential-free child, then the five retained read-only environment probes in a separate AAT/auth child. Supply the approved AAT/IDAM origins and configured solicitor credentials through the local environment; never commit or publish them. This produces one121-record report, with endpoint response passes distinguished from login/setup blocks and unclassified failures. The deployed AAT version is unknown, and these response probes do not discharge the112 candidate-bound obligations or prove UI/CCD behaviour. Each collection uses fresh private JSON/output/session paths; raw data stays private. CI remains offline116 and does not run AAT.
 
 Focused `yarn harness:support` and `yarn harness:diagnostic` commands remain available locally. Live Jenkins rendering/CSP still requires acceptance; download the HTML if the wrapper blocks its scripts. No global Jenkins security setting changes. Human review is required before merge or deployment.
 
-AI-assisted implementation; audit reference: harness-plan-execution-20261102.
+
+### Existing Jenkins worker observation
+
+The current PR and nightly jobs still run supporting checks with `harness:ci`. Before those checks, `scripts/observe-harness-worker.mjs` records sanitized host/Docker platforms, pinned-image availability and declared native-input presence in `functional-output/tests/harness/public/native-ci-capabilities.json`, using the existing Jenkins artifact destination. Missing Docker or inputs are reported without blocking the supporting checks. This observation never grants native readiness or release approval; it does not launch containers or verify candidate/browser integrity. If already provisioned, `HARNESS_ASSURANCE_INPUT` identifies the existing five-field native job JSON. No raw paths, credentials or Docker errors are published.

@@ -17,9 +17,13 @@ test('pinned decentralised case-type destinations and empty service map remain d
   const env = source(snapshot, 'config/custom-environment-variables.json').document;
   assert.deepEqual(env.decentralisedCaseTypeConfig, { __name: 'DECENTRALISED_CASE_TYPE_CONFIG', __format: 'json' });
   assert.deepEqual(env.decentralisedServiceMap, { __name: 'DECENTRALISED_SERVICE_MAP', __format: 'json' });
+  assert.deepEqual(env.services.hearings.pcs, {
+    caseTypes: 'SERVICES_HEARINGS_CASETYPES_PCS',
+    serviceApiEnvironment: 'SERVICES_HEARINGS_COMPONENT_API_PCS',
+  });
   assert.equal(defaults.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
-  assert.equal(source(snapshot, 'config/custom-environment-variables.json').fileDigest, '59f4b48d697b832fe61e8b18a14b6e3ed7b2a7db7450af69cbbddeae68d34c42');
-  for (const item of snapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) assert.equal(item.revision, '76bf7a840fa71af466961de87294973023b2f0f3');
+  assert.equal(source(snapshot, 'config/custom-environment-variables.json').fileDigest, '094eb0b44b3161095b0b8ec484ae3d047ad5d8a880d08d199d7aae4d2e2e4b9d');
+  for (const item of snapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) assert.equal(item.revision, '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0');
   const catalogue = build();
   const routes = catalogue.obligations.filter(item => item.kind === 'configuration-decentralisation');
   assert.equal(routes.length, 1);
@@ -384,7 +388,7 @@ test('current pinned seven-family source is accepted while the previous six-fami
   const expected = ['CIVIL', 'EMPLOYMENT', 'IA', 'PCS', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'];
   const current = source(snapshot, 'config/default.json');
   assert.deepEqual(current.document.waSupportedJurisdictions.split(',').sort(), expected);
-  assert.equal(current.revision, '76bf7a840fa71af466961de87294973023b2f0f3');
+  assert.equal(current.revision, '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0');
   assert.equal(current.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
   assert.deepEqual(current.document.serviceRefDataMapping.find((row) => row.service === 'PCS').serviceCodes, ['AAA3']);
   assert.deepEqual(api.validateConfigurationCatalogue({ snapshot, review, catalogue: build() }).errors, []);

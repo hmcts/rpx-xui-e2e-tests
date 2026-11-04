@@ -36,7 +36,7 @@ function sameIds(left, right) {
   return isDeepStrictEqual([...left].sort(), [...right].sort());
 }
 
-function validateIdentity(value) {
+export function validateIdentity(value) {
   requireValue(record(value), 'INVALID_IDENTITY');
   requireValue(typeof value.webappCommit === 'string' && commitPattern.test(value.webappCommit), 'INVALID_IDENTITY:SOURCE');
   for (const field of ['artifactDigest', 'dependencyLockDigest', 'toolkitDigest', 'configurationDigest']) {
@@ -108,7 +108,7 @@ function validatePolicy(policy) {
   return { obligations, mutations };
 }
 
-function validateProof(proof) {
+export function validateProof(proof) {
   requireValue(record(proof) && ['proofId', 'obligationId', 'runId', 'invocationId'].every((key) => id(proof[key])), 'INVALID_PROOF');
   validateIdentity(proof.identity);
   requireValue(boundaries.includes(proof.boundary) && ['passed', 'failed', 'skipped', 'blocked'].includes(proof.outcome), 'INVALID_PROOF_OUTCOME');

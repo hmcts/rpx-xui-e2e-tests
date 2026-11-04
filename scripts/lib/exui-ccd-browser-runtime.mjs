@@ -1,13 +1,23 @@
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
 import { createHmac } from "node:crypto";
+import { validateRoleTransition } from "./exui-ccd-role-transition.mjs";
+import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
 
-export function seedCcdSession(persona, credential) {
+export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.sessions") {
+  if (!/^[a-z-]+$/.test(persona)) throw new Error("CCD_SESSION_PERSONA_INVALID");
+  if (persona.startsWith("transitioning") && !Array.isArray(credential.roles))
+    throw new Error("CCD_OBSERVED_ROLES_REQUIRED");
+  if (["courtadmin", "judge"].includes(persona))
+    assert.deepEqual(credential.roles?.slice().sort(), [
+      "caseworker", "caseworker-harness", `caseworker-privatelaw-${persona}`,
+    ], "CCD_SOURCE_ACTOR_ROLES_REQUIRED");
   const id = `harness-ccd-${persona}`;
   const token = credential.headers.Authorization.replace(/^Bearer /, "");
-  fs.mkdirSync("/tmp/.sessions", { recursive: true });
+  fs.mkdirSync(sessionRoot, { recursive: true });
   fs.writeFileSync(
-    `/tmp/.sessions/${id}.json`,
+    `${sessionRoot}/${id}.json`,
     JSON.stringify({
       cookie: {
         originalMaxAge: null,
@@ -24,7 +34,7 @@ export function seedCcdSession(persona, credential) {
             email: credential.email,
             forename: "Synthetic",
             surname: persona,
-            roles: [
+            roles: credential.roles ?? [
               "caseworker",
               "caseworker-harness",
               `caseworker-harness-${persona}`,
@@ -89,7 +99,6 @@ const ccdRoutes = {
   GET: [
     /^\/internal\/profile$/,
     new RegExp(`^${caseworker}/event-triggers/create/token$`),
-    new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`),
     /^\/internal\/case-types\/HarnessNestedPRL\/event-triggers\/create$/,
     /^\/internal\/cases\/[0-9]{16}$/,
   ],
@@ -101,12 +110,21 @@ const ccdRoutes = {
   ],
 };
 
-function ccdTransportRoute(method, pathname) {
+const eventRoutes = {
+  "exui-ccd-pilot": [new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`)],
+  [EVENT_CAPABILITY_SCOPE]: [
+    new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/serviceOfDocuments/token$`),
+    /^\/internal\/cases\/[0-9]{16}\/event-triggers\/serviceOfDocuments$/,
+  ],
+};
+
+function ccdTransportRoute(method, pathname, scope) {
   // Current EXUI removes /data at its proxy mount; older bundles retain it.
   const upstreamPath = pathname.startsWith("/data/")
     ? pathname.slice(5)
     : pathname;
-  if (ccdRoutes[method]?.some((route) => route.test(upstreamPath)))
+  const routes = [...(ccdRoutes[method] ?? []), ...(method === "GET" ? eventRoutes[scope] : [])];
+  if (routes.some((route) => route.test(upstreamPath)))
     return { path: `/data${upstreamPath}`, upstreamPath };
   if (
     method === "GET" &&
@@ -119,7 +137,10 @@ function ccdTransportRoute(method, pathname) {
 }
 
 // This gateway implements path/auth transport only. CCD owns every baseline case/event response.
-export async function startCcdGateway(output, credentials, mutation = null) {
+export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot") {
+  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  if (scope === EVENT_CAPABILITY_SCOPE)
+    assert.equal(mutation, null, "CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
   const server = http.createServer(async (request, response) => {
     try {
       const chunks = [];
@@ -127,7 +148,14 @@ export async function startCcdGateway(output, credentials, mutation = null) {
       let body = Buffer.concat(chunks).toString();
       const url = new URL(request.url, "http://127.0.0.1:3101");
       const receivedPath = request.url.split("?")[0];
-      const actor = Object.values(credentials).find(
+      const transitionPath = `${output}/role-transition.json`;
+      const transition = scope === "exui-ccd-pilot" && fs.existsSync(transitionPath)
+        ? JSON.parse(fs.readFileSync(transitionPath, "utf8"))
+        : null;
+      const renewed = transition
+        ? validateRoleTransition(transition, credentials.transitioning)
+        : null;
+      const actor = [...Object.values(credentials), ...(renewed ? [renewed] : [])].find(
         (credential) =>
           credential.headers.Authorization === request.headers.authorization,
       );
@@ -150,7 +178,7 @@ export async function startCcdGateway(output, credentials, mutation = null) {
       }
       const ccdRoute =
         receivedPath === url.pathname
-          ? ccdTransportRoute(request.method, transportedPath)
+          ? ccdTransportRoute(request.method, transportedPath, scope)
           : null;
       const journal = {
         path: ccdRoute?.path ?? receivedPath,
@@ -189,7 +217,15 @@ export async function startCcdGateway(output, credentials, mutation = null) {
         response.end('{"code":"UNDECLARED_CCD_GATEWAY_REQUEST"}');
         return;
       }
-      const denied =
+      const revokedCaseRead = transition && request.method === "GET" &&
+        ccdRoute?.upstreamPath === `/internal/cases/${transition.caseId}`;
+      if (revokedCaseRead && !actor)
+        throw new Error("CCD_TRANSITION_ACTOR_REQUIRED");
+      const staleGrant = mutation === "ccd-stale-revoked-bearer" &&
+        revokedCaseRead && headers.authorization === renewed.headers.Authorization;
+      if (staleGrant)
+        headers.authorization = credentials.transitioning.headers.Authorization;
+      const denied = scope === "exui-ccd-pilot" &&
         headers.authorization === credentials.denied.headers.Authorization;
       const isWrite =
         request.method === "POST" && /\/(?:cases|events)$/.test(url.pathname);
@@ -247,6 +283,12 @@ export async function startCcdGateway(output, credentials, mutation = null) {
         redirect: "error",
       });
       const bytes = Buffer.from(await upstream.arrayBuffer());
+      if (staleGrant)
+        fs.appendFileSync(`${output}/fault-actions.jsonl`, JSON.stringify({
+          mutation, actorId: renewed.userId, caseId: transition.caseId,
+          oldTokenDigest: transition.oldTokenDigest, status: upstream.status,
+          method: request.method, upstreamPath: ccdRoute.upstreamPath,
+        }) + "\n");
       fs.appendFileSync(
         `${output}/ccd-requests.jsonl`,
         JSON.stringify({

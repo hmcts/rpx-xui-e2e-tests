@@ -13,7 +13,8 @@ const ignored = {
     "scripts/**",
     "test-results",
     "coverage",
-    "reports"
+    "reports",
+    "functional-output"
   ]
 };
 

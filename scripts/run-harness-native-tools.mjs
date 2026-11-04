@@ -1,3 +1,6 @@
+import { provisionRoleTransitionActor } from "./lib/exui-ccd-role-transition.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./lib/exui-ccd-event-capability.mjs";
+import { selectEventCapabilityRuntime } from "./lib/exui-ccd-event-transition.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -90,7 +93,7 @@ async function providers(input, invocation, directory) {
       "ROUTING_OBSERVED_INTERPRETER_MISMATCH",
     );
     ({ server, cookie } = await startRoutingProviders(directory));
-  } else if (input.releaseScopeId === "exui-ccd-pilot") {
+  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId)) {
     for (const [service, port] of [
       ["data", 4452],
       ["definition", 4451],
@@ -115,16 +118,22 @@ async function providers(input, invocation, directory) {
       input.definition.observedDefinitionDigest,
       "CCD_IMPORTED_DEFINITION_DRIFT",
     );
-    const sessions = seedAppCcdSessions(input.credentials, seedCcdSession);
+    const credentials = { ...input.credentials };
+    if (input.releaseScopeId === "exui-ccd-pilot" && (!invocation.mutation || invocation.mutation === "ccd-stale-revoked-bearer"))
+      credentials.transitioning = await provisionRoleTransitionActor({
+        serviceAuthorization: input.credentials.allowed.headers.ServiceAuthorization,
+      });
+    const sessions = seedAppCcdSessions(credentials, seedCcdSession, input.releaseScopeId);
     cookie = sessions.allowed;
     writeJsonAtomic(path.join(directory, "personas.json"), {
-      credentials: input.credentials,
+      credentials,
       sessions,
     });
     server = await startCcdGateway(
       directory,
-      input.credentials,
-      invocation.mutation ?? null,
+      credentials,
+      input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? null : invocation.mutation ?? null,
+      input.releaseScopeId,
     );
   } else {
     const assignments = invocation.persona
@@ -150,14 +159,16 @@ async function providers(input, invocation, directory) {
     });
   });
 }
-async function proof(input, invocation, directory) {
-  const ccd = input.releaseScopeId === "exui-ccd-pilot";
+export function nativeProofConfiguration(input, invocation, directory) {
+  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId);
   const env = {
     PATH: "/usr/local/bin:/usr/bin:/bin",
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === "exui-hearing-publication-pilot"
+      input.releaseScopeId === EVENT_CAPABILITY_SCOPE
+        ? "ccd-event-capability"
+        : input.releaseScopeId === "exui-hearing-publication-pilot"
         ? "hearing-publication"
         : input.releaseScopeId === GLOBAL_SEARCH_SCOPE
         ? "global-search"
@@ -201,9 +212,11 @@ async function proof(input, invocation, directory) {
     "--config",
     "/harness/playwright.harness.config.ts",
   ];
-  if (ccd && invocation.mutation)
+  if (input.releaseScopeId === "exui-ccd-pilot" && invocation.mutation)
     args.push(
-      invocation.mutation === "ccd-drop-postal-optional-child"
+      invocation.mutation === "ccd-stale-revoked-bearer"
+        ? "role-revocation.spec.ts"
+        : invocation.mutation === "ccd-drop-postal-optional-child"
         ? "postal-conditional.spec.ts"
         : invocation.mutation === "ccd-drop-child"
           ? "nested-conditional.spec.ts"
@@ -211,6 +224,10 @@ async function proof(input, invocation, directory) {
     );
   if (input.releaseScopeId === ROUTING_SCOPE && invocation.proofFile)
     args.push(invocation.proofFile);
+  return { args, env };
+}
+async function proof(input, invocation, directory) {
+  const { args, env } = nativeProofConfiguration(input, invocation, directory);
   const child = spawn(process.execPath, args, {
     cwd: root,
     env,
@@ -228,9 +245,12 @@ if (
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   try {
-    const input = read("/output/input.json"),
-      invocation = nativeInvocation(input, arg("--invocation")),
+    const baselineInput = read("/output/input.json"),
+      invocation = nativeInvocation(baselineInput, arg("--invocation")),
       directory = path.join("/output", invocation.invocationId);
+    const input = baselineInput.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === EVENT_CAPABILITY_MUTATION
+      ? selectEventCapabilityRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))
+      : baselineInput;
     if (process.argv.includes("--inside-providers"))
       await providers(input, invocation, directory);
     else if (process.argv.includes("--inside-proof"))

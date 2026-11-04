@@ -8,11 +8,14 @@ import {
 const selection = (process.env.EXUI_HARNESS_SELECTION ??
   "support") as HarnessSelection;
 const manifest = process.env.EXUI_CANDIDATE_RUN_MANIFEST;
+const candidateManifest = manifest
+  ? loadCandidateManifest(manifest)
+  : undefined;
 const config = buildHarnessConfig(
   selection,
-  manifest
+  candidateManifest
     ? {
-        manifest: loadCandidateManifest(manifest),
+        manifest: candidateManifest,
         baseURL: process.env.EXUI_CANDIDATE_URL ?? "",
       }
     : undefined,
@@ -25,11 +28,40 @@ if (
     "routing",
     "global-search",
     "hearing-publication",
+    "ccd-event-capability",
   ].includes(slice)
 )
   throw new Error("UNKNOWN_HARNESS_SLICE");
+const eventCapabilityScope =
+  candidateManifest?.releaseScopeId === "exui-ccd-event-capability-pilot";
+if (slice === "ccd-event-capability" && !eventCapabilityScope)
+  throw new Error("CCD_EVENT_CAPABILITY_SCOPE_REQUIRED");
+if (
+  eventCapabilityScope &&
+  (selection !== "ccd" || slice !== "ccd-event-capability")
+)
+  throw new Error("CCD_EVENT_CAPABILITY_SELECTION_REQUIRED");
+if (
+  eventCapabilityScope &&
+  process.env.EXUI_HARNESS_MUTATION &&
+  process.env.EXUI_HARNESS_MUTATION !== "ccd-enable-judge-event"
+)
+  throw new Error("CCD_EVENT_CAPABILITY_MUTATION_REQUIRED");
+const ccdFiles = eventCapabilityScope
+  ? process.env.EXUI_HARNESS_MUTATION === "ccd-enable-judge-event"
+    ? ["event-capability"]
+    : ["courtadmin-cell", "event-capability"]
+  : [
+      "case-event-policy",
+      "nested-conditional",
+      "postal-conditional",
+      "role-revocation",
+    ];
 export default defineConfig({
   ...config,
+  ...(selection === "ccd"
+    ? { testMatch: ccdFiles.map((file) => `**/ccd/${file}.spec.ts`) }
+    : {}),
   ...(selection === "candidate" && slice === "scope"
     ? { testMatch: "**/scope/*.spec.ts" }
     : {}),

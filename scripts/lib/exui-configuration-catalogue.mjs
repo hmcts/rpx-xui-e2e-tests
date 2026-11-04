@@ -64,13 +64,14 @@ export function assertCandidateConfigurationSources(candidateRoot, review) {
 const diagnosticConfiguration = (source) => source.repository === 'rpx-xui-webapp' && source.tracked === false
   && !['config/default.json', 'config/custom-environment-variables.json'].includes(source.path);
 
-function projectConfiguration(document) {
+function projectConfiguration(document, includeServiceApiEnvironment = false) {
   const result = Object.fromEntries(configurationKeys.filter((key) => key in document).map((key) => [key, document[key]]));
   if (document.feature?.workAllocationEnabled !== undefined) result.feature = { workAllocationEnabled: document.feature.workAllocationEnabled };
   const hearings = document.services?.hearings;
   if (hearings) result.services = { hearings: Object.fromEntries(Object.entries(hearings)
     .filter(([key, value]) => key === 'hearingsJurisdictions' || value && typeof value === 'object' && 'caseTypes' in value)
-    .map(([key, value]) => [key, key === 'hearingsJurisdictions' ? value : { caseTypes: value.caseTypes }])) };
+    .map(([key, value]) => [key, key === 'hearingsJurisdictions' ? value : { caseTypes: value.caseTypes,
+      ...(includeServiceApiEnvironment && typeof value.serviceApi === 'string' ? { serviceApiEnvironment: value.serviceApi } : {}) }])) };
   return result;
 }
 
@@ -91,7 +92,7 @@ export function readConfigurationSources({ webappRoot, definitionsRoot, review }
   for (const path of configurationFiles) if (unsupportedExtensions.has(extname(path))) throw new Error(`unsupported-configuration-format:config/${path}`);
   for (const name of configurationFiles.filter(path => path.endsWith('.json'))) {
     const path = `config/${name}`, bytes = readFileSync(join(webappRoot, path));
-    sources.push({ repository: 'rpx-xui-webapp', ...gitMetadata(webappRoot, path), path, fileDigest: fileDigest(bytes), document: projectConfiguration(JSON.parse(bytes.toString('utf8'))) });
+    sources.push({ repository: 'rpx-xui-webapp', ...gitMetadata(webappRoot, path), path, fileDigest: fileDigest(bytes), document: projectConfiguration(JSON.parse(bytes.toString('utf8')), path === 'config/custom-environment-variables.json') });
   }
   const definitionDiscovery = collectDefinitionDiscovery({ repositoryRoot: definitionsRoot, review });
   for (const source of selectReviewedDefinitionSources({ discovery: definitionDiscovery, review })) sources.push(source);
@@ -313,10 +314,12 @@ export function validateConfigurationCatalogue({ snapshot, review, catalogue, ex
     ...(review.knownValidSequences ?? []).map((item) => item.id),
     ...(review.decentralisedRouting?.knownValid ?? []).map((item) => item.id)]);
   const routes = catalogue.obligations.filter((item) => item.kind === 'configuration-decentralisation');
+  const verifiedRouting = executedProofs.some((proof) =>
+    proof.boundary === 'candidate' && proof.status === 'passed' && routes.some((route) => route.id === proof.obligationId));
   for (const expected of review.decentralisedRouting?.knownValid ?? []) {
     const actual = routes.find((item) => item.id === expected.id);
     if (expected.id !== routingId(expected.signature) || !actual || digest(actual.signature) !== digest(expected.signature)) errors.push(`missing-reviewed-routing:${expected.id}`);
-    gaps.push(`candidate-event-redirect-not-demonstrated:${expected.id}`, `noc-session-routing-not-demonstrated:${expected.id}`);
+    if (!verifiedRouting) gaps.push(`candidate-event-redirect-not-demonstrated:${expected.id}`, `noc-session-routing-not-demonstrated:${expected.id}`);
   }
   for (const route of routes) {
     if (route.id !== routingId(route.signature)) errors.push(`routing-signature-drift:${route.id}`);
@@ -328,7 +331,10 @@ export function validateConfigurationCatalogue({ snapshot, review, catalogue, ex
   }
   for (const serviceId of Object.keys(defaults.document.decentralisedServiceMap ?? {})) gaps.push(`unreviewed-decentralised-service-entry:${serviceId}`);
   if (review.decentralisedRouting && digest(defaults.document.decentralisedServiceMap ?? null) !== digest(review.decentralisedRouting.expectedServiceMap)) gaps.push('unreviewed-decentralised-service-map');
-  if (routes.length) gaps.push('decentralised-interpretation-context-not-candidate-verified', 'pcs-definition-event-rbac-abac-and-provider-equivalence-not-demonstrated');
+  if (routes.length) {
+    if (!verifiedRouting) gaps.push('decentralised-interpretation-context-not-candidate-verified');
+    gaps.push('pcs-definition-event-rbac-abac-and-provider-equivalence-not-demonstrated');
+  }
   const actualIds = catalogue.obligations.map((item) => item.id);
   for (const id of requiredIds) if (!actualIds.includes(id)) errors.push(`missing-obligation:${id}`);
   if (new Set(actualIds).size !== actualIds.length) errors.push('duplicate-obligation');

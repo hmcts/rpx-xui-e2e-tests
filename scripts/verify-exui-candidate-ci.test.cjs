@@ -70,6 +70,7 @@ test("support only: actual CI phase accounting waits for controlled process comp
       "result",
       "name",
       "phaseResults",
+      "context",
       block,
     );
     for (const name of ["ccd", "family"]) {
@@ -105,6 +106,7 @@ test("support only: actual CI phase accounting waits for controlled process comp
         result,
         name,
         phases,
+        {},
       );
       assert.deepEqual(
         calls,
@@ -126,6 +128,7 @@ test("support only: actual CI phase accounting waits for controlled process comp
           result,
           "ccd",
           [],
+          {},
         ),
       /FOREIGN_OR_MISSING_RECEIPT/,
     );
@@ -222,7 +225,7 @@ test("support only: cleanup verifies CID, owner, image, network and every writab
 
 test("support only: fixed pilot order stops on a validated failure and always cleans owned CCD", async () => {
   const { runFixedCiPilots } = await load();
-  for (const failed of [null, "family", "scope", "ccd", "startup"]) {
+  for (const failed of [null, "family", "scope", "ccd", "startup", "eventCapability", "eventStartup"]) {
     const calls = [];
     const operations = {
       phase: async (name) => {
@@ -242,8 +245,13 @@ test("support only: fixed pilot order stops on a validated failure and always cl
       stop: async () => {
         calls.push("stop");
       },
+      startEvent: async () => {
+        calls.push("startEvent");
+        if (failed === "eventStartup") throw Error("startup");
+      },
+      stopEvent: async () => calls.push("stopEvent"),
     };
-    if (failed === "startup")
+    if (["startup", "eventStartup"].includes(failed))
       await assert.rejects(runFixedCiPilots(operations), /startup/);
     else {
       const result = await runFixedCiPilots(operations);
@@ -257,7 +265,20 @@ test("support only: fixed pilot order stops on a validated failure and always cl
           ? ["family", "derive", "scope"]
           : failed === "startup"
             ? ["family", "derive", "scope", "start", "stop"]
-            : ["family", "derive", "scope", "start", "ccd", "stop"],
+            : failed === "ccd"
+              ? ["family", "derive", "scope", "start", "ccd", "stop"]
+              : [
+                  "family",
+                  "derive",
+                  "scope",
+                  "start",
+                  "ccd",
+                  "stop",
+                  "startEvent",
+                  ...(failed === "eventStartup"
+                    ? ["stopEvent"]
+                    : ["eventCapability", "stopEvent", ...(failed ? [] : ["routing"])]),
+                ],
     );
   }
 });
@@ -274,6 +295,108 @@ test("support only: stale output is rejected without replacing historical eviden
     );
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("support only: independently recognized postal blockage permits the event slice while preserving the worst verdict", async () => {
+  const { runFixedCiPilots } = await load();
+  for (const continued of [true, false, undefined, { status: "PASS" }]) {
+    for (const eventExit of [0, 1, 2]) {
+      const calls = [];
+      const result = await runFixedCiPilots({
+        phase: async (name) => {
+          calls.push(name);
+          const exitCode = name === "ccd" ? 2 : name === "eventCapability" ? eventExit : 0;
+          return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode };
+        },
+        derive: async () => {}, start: async () => {},
+        stop: async () => calls.push("old-removed"),
+        canContinueAfterCcd: () => { calls.push("validate-postal"); return continued; },
+        startEvent: async () => calls.push("new-started"),
+        stopEvent: async () => calls.push("new-removed"),
+      });
+      assert.equal(result.status, "BLOCKED");
+      assert.equal(result.exitCode, 2);
+      assert.deepEqual(calls, ["family", "scope", "ccd", "old-removed", "validate-postal",
+        ...(continued === true ? ["new-started", "eventCapability", "new-removed", ...(eventExit === 0 ? ["routing"] : [])] : [])]);
+      assert.equal(
+        result.results.length,
+        continued !== true ? 3 : eventExit === 0 ? 5 : 4,
+      );
+      if (continued === true && eventExit === 0)
+        assert.equal(result.results[4].phase, "routing");
+    }
+  }
+});
+
+test("support only: actual event parent seals baseline removal and fresh runtime ownership before publishing the fault ACK", async (t) => {
+  const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
+  const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
+  const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
+  const callback = source.match(/onEventTransition: (async \(request, handoff\) => \{[\s\S]*?)\n\s*\},\n\s*\} : \{\}\)/)?.[1];
+  assert(callback, "actual parent transition callback exists");
+  for (const stoppedAt of [null, "checkpoint", "native-removed", "ccd-removed", "start-fault", "fault-owned", "cancel-after-start"]) {
+    const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "parent-event-"));
+    t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
+    const calls = [], resource = { expectedContainer: { invocations: ["baseline"] } };
+    let cancelled = false;
+    const step = (name) => {
+      calls.push(name);
+      if (stoppedAt === name) throw Error("controlled-" + name);
+    };
+    const request = { runId: "synthetic-run", baselineNamespace: "old" };
+    const input = { runId: request.runId, ccd: { namespace: "old", owner: "old-owner" } };
+    const handoff = { input, expected: { harnessCommit: "commit", harnessSourceDigest: digest("a") }, handoff: {}, isTerminated: () => cancelled };
+    const deps = {
+      assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {},
+      cancelled: false,
+      EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION: "ccd-enable-judge-event",
+      resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
+      inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
+      readEventBaselineCheckpoint: () => { step("checkpoint"); return { checkpointDigest: digest("b") }; },
+      assertEventBaselineRemoved: () => { step("native-removed"); return { removed: ["native"] }; },
+      remove: async (name, owned) => {
+        assert.equal(name, "event-baseline-runtime"); assert.equal(owned, "owned-baseline");
+        step("ccd-removed"); return { cleanupComplete: true };
+      },
+      startOwnedCcd: async (name, variant, alive, owner) => {
+        assert.equal(name, "event-mutant-runtime"); assert.equal(variant, "event-capability-mutant");
+        assert.equal(owner, resource); assert.equal(alive(), true);
+        step("start-fault");
+        if (stoppedAt === "cancel-after-start") cancelled = true;
+        return { namespace: "fresh" };
+      },
+      eventRuntimeData: (ccd) => ({ ccd, definition: { fixtureDigest: digest("c") } }),
+      selectEventCapabilityRuntime: (baseline, invocation, record) => {
+        assert.equal(baseline, input); assert.equal(invocation, "ccd-enable-judge-event");
+        assert.equal(record.requestDigest, digestBytes(JSON.stringify(request)));
+        return { ...baseline, ccd: record.ccd };
+      },
+      eventIdentity: () => ({ artifactDigest: digest("d") }),
+      captureCiEventFaultOwnership: (selected) => {
+        assert.equal(selected.ccd.namespace, "fresh"); step("fault-owned");
+        return { invocations: ["fault"] };
+      },
+      publishEventCapabilityRuntime: (output, record) => {
+        step("ack");
+        const captured = JSON.parse(fs.readFileSync(path.join(output, "independent-transition.json")));
+        assert.deepEqual(resource.expectedContainer.invocations, ["baseline", "fault"]);
+        assert.equal(resource.eventTransition.digest, digestBytes(fs.readFileSync(path.join(output, "independent-transition.json"))));
+        assert.equal(captured.capturedBeforeFault, true);
+        assert.equal(captured.baselineInputDigest, digestBytes("immutable baseline input\n"));
+        assert.equal(captured.baselineRemoval.digest, digestBytes(fs.readFileSync(path.join(output, "baseline-removal.json"))));
+        assert.equal(captured.runtimeRecord.digest, digestBytes(JSON.stringify(record, null, 2) + "\n"));
+        return publishEventCapabilityRuntime(output, record);
+      },
+    };
+    const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
+    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED/);
+    else await run(request, handoff);
+    assert.equal(fs.existsSync(path.join(directory, "ccd-enable-judge-event/runtime-input.json")), stoppedAt === null);
+    const order = ["checkpoint", "native-removed", "ccd-removed", "start-fault", "fault-owned", "ack"];
+    assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0,
+      stoppedAt === "cancel-after-start" ? 5 : order.indexOf(stoppedAt) + 1));
   }
 });
 
@@ -438,9 +561,11 @@ test("support only: foreign container cannot reach destructive cleanup; matched 
 
 test("support only: observed daemon architecture and pinned image inventory control CI support", async () => {
   const { observeCiToolchain } = await load();
-  const { CCD_IMAGES } = await import("./lib/exui-ccd-runtime.mjs");
+  const { CCD_IMAGES, ccdImagePins } = await import("./lib/exui-ccd-runtime.mjs");
   const { ARM64_BROWSER_RUNTIME } = await import("./lib/exui-oci-runtime.mjs");
+  const { nativeRuntimeImages } = await import("./lib/exui-native-containers.mjs");
   let architecture = "arm64",
+    wrongImageArchitecture = false,
     missing = false;
   const run = (_command, args) => {
     if (args[0] === "version")
@@ -451,6 +576,11 @@ test("support only: observed daemon architecture and pinned image inventory cont
       });
     const image = args[2];
     if (missing) throw Error("missing-cache");
+    if (architecture === "amd64") {
+      const pin = [...Object.values(nativeRuntimeImages("linux/amd64")), ...Object.values(ccdImagePins("linux/amd64"))].find(pin => pin.reference === image);
+      assert(pin, "unrecognised image inspected");
+      return JSON.stringify([{ Id: pin.configDigest, Os: "linux", Architecture: wrongImageArchitecture ? "arm64" : "amd64", RepoDigests: [pin.reference] }]);
+    }
     return JSON.stringify([
       {
         Id: image,
@@ -471,7 +601,14 @@ test("support only: observed daemon architecture and pinned image inventory cont
     Object.keys(CCD_IMAGES).length,
   );
   architecture = "amd64";
-  assert.throws(() => observeCiToolchain({ run }), /ARM64_DOCKER/);
+  const amd = observeCiToolchain({ run });
+  assert.equal(amd.nativeRuntime.platform, "linux/amd64");
+  assert.equal(amd.browserRuntime.image, nativeRuntimeImages("linux/amd64").browser.configDigest);
+  assert.equal(amd.ccdImages.data.image, ccdImagePins("linux/amd64").data.configDigest);
+  wrongImageArchitecture = true;
+  assert.throws(() => observeCiToolchain({ run }), /PLATFORM_MISMATCH/);
+  architecture = "s390x";
+  assert.throws(() => observeCiToolchain({ run }), /CI_DOCKER_ARCH_REQUIRED/);
   architecture = "arm64";
   missing = true;
   assert.throws(() => observeCiToolchain({ run }), /missing-cache/);
@@ -872,29 +1009,31 @@ test("support only: coherent product FAIL propagates one and a forged PASS canno
 
 test("support only: partial CCD startup recovers unrecorded server-created containers and tolerates removed services", async () => {
   const { cleanupCiCcd } = await load();
-  const { CCD_IMAGES } = await import("./lib/exui-ccd-runtime.mjs");
+  const { CCD_IMAGES, ccdImagePins } = await import("./lib/exui-ccd-runtime.mjs");
+  for (const platform of ["linux/arm64", "linux/amd64"]) {
+  const images = platform === "linux/arm64" ? CCD_IMAGES : Object.fromEntries(Object.entries(ccdImagePins(platform)).map(([name,pin])=>[name,pin.configDigest]));
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ci-ccd-recovery-"));
   try {
     const owner = "harness-0123456789abcdef",
       resources = Object.fromEntries(
-        Object.entries(CCD_IMAGES).map(([service, image]) => [
+        Object.entries(images).map(([service, image]) => [
           service,
           { name: `${owner}-${service}`, image },
         ]),
       );
     fs.writeFileSync(
       path.join(directory, "recovery.json"),
-      JSON.stringify({ owner, output: directory, resources }),
+      JSON.stringify({ owner, output: directory, resources, platform }),
     );
     fs.writeFileSync(
       path.join(directory, "runtime.json"),
-      JSON.stringify({ owner, output: directory, containers: {} }),
+      JSON.stringify({ owner, output: directory, containers: {}, platform }),
     );
     const id = "a".repeat(64),
       existing = {
         Id: id,
         Name: `/${resources.database.name}`,
-        Image: CCD_IMAGES.database,
+        Image: images.database,
         Config: {
           Labels: {
             "exui.harness.owner": owner,
@@ -903,11 +1042,12 @@ test("support only: partial CCD startup recovers unrecorded server-created conta
         },
         HostConfig: { NetworkMode: "none" },
       };
-    let stopped;
+    let stopped, removed = false;
     cleanupCiCcd(directory, {
-      inspect: (name) => (name === resources.database.name ? existing : null),
+      inspect: (name) => (!removed && (name === resources.database.name || name === id) ? existing : null),
       stop: (state) => {
         stopped = state;
+        removed = true;
       },
     });
     assert.deepEqual(stopped.containers, { database: id });
@@ -933,6 +1073,7 @@ test("support only: partial CCD startup recovers unrecorded server-created conta
     }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
+  }
   }
 });
 
@@ -1181,9 +1322,9 @@ test("support only: actual CI stop callback returns owned cleanup completion and
   );
 });
 
-test("support only: fixed job cancellation at phase, derivation or CCD startup prevents subsequent work and still stops owned CCD", async () => {
+test("support only: fixed job cancellation at any phase, derivation or CCD startup prevents subsequent work and still stops owned CCD", async () => {
   const { runFixedCiPilots } = await load();
-  for (const point of ["family", "derive", "scope", "start", "ccd"]) {
+  for (const point of ["family", "derive", "scope", "start", "ccd", "startEvent", "eventCapability", "routing"]) {
     const calls = [];
     let cancelled = false;
     await assert.rejects(
@@ -1203,14 +1344,21 @@ test("support only: fixed job cancellation at phase, derivation or CCD startup p
           if (point === "start") cancelled = true;
         },
         stop: async () => calls.push("stop"),
+        startEvent: async () => {
+          calls.push("startEvent");
+          if (point === "startEvent") cancelled = true;
+        },
+        stopEvent: async () => calls.push("stopEvent"),
       }),
       /CI_JOB_CANCELLED/,
     );
-    const expected = ["family", "derive", "scope", "start", "ccd"].slice(
+    const order = ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", "eventCapability", "stopEvent", "routing"];
+    const expected = order.slice(
       0,
-      ["family", "derive", "scope", "start", "ccd"].indexOf(point) + 1,
+      order.indexOf(point) + 1,
     );
     if (["start", "ccd"].includes(point)) expected.push("stop");
+    if (["startEvent", "eventCapability"].includes(point)) expected.push("stopEvent");
     assert.deepEqual(calls, expected);
   }
 });
@@ -1274,4 +1422,39 @@ test("support only: an asynchronous cancellation cleanup cannot allow a complete
     uninstall();
     fs.rmSync(output, { recursive: true, force: true });
   }
+});
+
+
+test('native progress reports waiting and terminal verdict without exposing operation data',async t=>{
+ const {runFixedCiPilots}=await load();
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));
+ t.mock.timers.enable({apis:['setInterval']});
+ let release;const pending=new Promise(resolve=>{release=resolve;});
+ const run=runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:()=>pending});
+ assert.match(messages[0],/WA family: started/);
+ t.mock.timers.tick(60_000);
+ assert.match(messages[1],/WA family: still running/);
+ assert.equal(messages.length,2);
+ release({status:'FAIL',exitCode:1,private:'PRIVATE-CANARY'});
+ assert.equal((await run).exitCode,1);
+ assert.match(messages.at(-1),/WA family: FAIL/);
+ const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
+ assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
+});
+
+test('native progress stops heartbeat after a rejected operation and keeps the error private',async t=>{
+ const {runFixedCiPilots}=await load();const messages=[];
+ t.mock.method(console,'log',message=>messages.push(message));t.mock.timers.enable({apis:['setInterval']});
+ await assert.rejects(runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:async()=>{throw Error('PRIVATE-CANARY');}}),/PRIVATE-CANARY/);
+ assert.match(messages.at(-1),/WA family: stopped/);
+ const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
+ assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
+});
+
+
+test('simulated fixed pilot operations do not print native execution milestones by default',async t=>{
+ const {runFixedCiPilots}=await load();const messages=[];
+ t.mock.method(console,'log',message=>messages.push(message));
+ await runFixedCiPilots({phase:async()=>({status:'FAIL',exitCode:1})});
+ assert.deepEqual(messages,[]);
 });

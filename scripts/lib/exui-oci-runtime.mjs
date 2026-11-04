@@ -18,7 +18,7 @@ export const OCI_SOURCE_FILES = [
 export const NATIVE_API_RUNTIME_REFERENCE =
   "node@sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea";
 export const ARM64_BROWSER_RUNTIME =
-  "sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27";
+  "sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f";
 const digest = (value) => /^sha256:[a-f0-9]{64}$/.test(value ?? "");
 const mount = (source, target, readonly = false) => {
   if (
@@ -135,10 +135,12 @@ export function toolContainerArguments({
             "scope-ia",
             "scope-civil",
             "wa-scope-broadened",
-            "ccd-drop-child",
+            "ccd-stale-revoked-bearer",
+      "ccd-drop-child",
             "ccd-broaden-access",
             "ccd-write-then-deny",
             "ccd-drop-postal-optional-child",
+            "ccd-enable-judge-event",
             "routing-omit-web-url",
             "routing-omit-noc-base-url",
             "global-search-wa-capability",
@@ -154,6 +156,8 @@ export function toolContainerArguments({
   );
   return [
     "create",
+    "--user",
+    `${process.getuid()}:${process.getgid()}`,
     "--network",
     namespace ? `container:${namespace}` : "none",
     "--platform",
@@ -205,6 +209,7 @@ export function candidateArchiveProcess(config, releaseScopeId) {
 }
 export function candidateArchiveArguments({
   image,
+  platform = "linux/arm64",
   namespace,
   owner,
   invocationId,
@@ -217,6 +222,7 @@ export function candidateArchiveArguments({
   evidenceRoot,
   harnessRoot,
 }) {
+  assert(["linux/arm64", "linux/amd64"].includes(platform), "UNSUPPORTED_NATIVE_PLATFORM");
   if (!digest(image) || !/^[a-f0-9]{64}$/.test(namespace))
     throw Error("PINNED_NATIVE_RUNTIME_AND_NAMESPACE_REQUIRED");
   if (
@@ -226,10 +232,12 @@ export function candidateArchiveArguments({
       "scope-ia",
       "scope-civil",
       "wa-scope-broadened",
+      "ccd-stale-revoked-bearer",
       "ccd-drop-child",
       "ccd-broaden-access",
       "ccd-write-then-deny",
       "ccd-drop-postal-optional-child",
+      "ccd-enable-judge-event",
       "routing-omit-web-url",
       "routing-omit-noc-base-url",
       "global-search-wa-capability",
@@ -237,6 +245,12 @@ export function candidateArchiveArguments({
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
+  if (invocationId === "ccd-stale-revoked-bearer" && releaseScopeId !== "exui-ccd-pilot")
+    throw Error("CCD_REVOCATION_SCOPE_REQUIRED");
+  if (invocationId === "ccd-enable-judge-event" && releaseScopeId !== "exui-ccd-event-capability-pilot")
+    throw Error("CCD_EVENT_SCOPE_REQUIRED");
+  if (releaseScopeId === "exui-ccd-event-capability-pilot" && !["baseline", "ccd-enable-judge-event"].includes(invocationId))
+    throw Error("UNSUPPORTED_CCD_EVENT_INVOCATION");
   if (
     invocationId.startsWith("routing-") &&
     releaseScopeId !== "exui-decentralised-routing-pilot"
@@ -270,12 +284,14 @@ export function candidateArchiveArguments({
   const processConfig = candidateArchiveProcess(config, releaseScopeId);
   return [
     "create",
+    "--user",
+    `${process.getuid()}:${process.getgid()}`,
     "--name",
     `${owner}-${invocationId}-candidate`,
     "--network",
     `container:${namespace}`,
     "--platform",
-    "linux/arm64",
+    platform,
     ...hardened,
     ...ownerFlags(owner, "candidate"),
     ...mount(candidateRoot, "/candidate", true),

@@ -96,7 +96,7 @@ test("support only: other scopes reject routing origins while routing config can
   );
 });
 
-test("support only: existing policy identities are unchanged and routing stays outside fixed CI phase order", async () => {
+test("support only: routing is the fifth required CI phase and existing policies stay unchanged", async () => {
   const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
   const expected = {
     "exui-wa-family-pilot":
@@ -104,10 +104,25 @@ test("support only: existing policy identities are unchanged and routing stays o
     "exui-wa-scope-pilot":
       "sha256:7f870c55aff532dbba8196503505bfbcbf48274785eefe67a2c6798aacdedfd0",
     "exui-ccd-pilot":
-      "sha256:683bd693fb79c4e4821fccd934b0b81a199f5aa98f28c218c7c3249711719d55",
+      "sha256:5f656ce25290f9c275aa895348a8961c7026e3b4544caba53fbc11a6db6e59b2",
   };
   for (const [scope, digest] of Object.entries(expected))
     assert.equal(getReleasePolicy(scope).policyDigest, digest);
+  const ccd = getReleasePolicy("exui-ccd-pilot");
+  assert.deepEqual(
+    ccd.obligations.flatMap((obligation) => obligation.requiredProofIds).sort(),
+    [
+      "ccd-nested-roundtrip",
+      "ccd-postal-two-roundtrip",
+      "ccd-role-policy",
+      "ccd-role-revocation",
+    ],
+  );
+  assert.deepEqual(
+    ccd.obligations.find((obligation) => obligation.id === "ccd-role-revocation")
+      .requiredMutationIds,
+    ["ccd-stale-revoked-bearer"],
+  );
   const { runFixedCiPilots } = await import("./run-harness-ci.mjs");
   const calls = [];
   await runFixedCiPilots({
@@ -118,8 +133,10 @@ test("support only: existing policy identities are unchanged and routing stays o
     derive: async () => {},
     start: async () => {},
     stop: async () => {},
+    startEvent: async () => {},
+    stopEvent: async () => {},
   });
-  assert.deepEqual(calls, ["family", "scope", "ccd"]);
+  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability", "routing"]);
 });
 
 test("support only: scoped real Node guard admits PCS NoC but denies UI/other origins and keeps old scopes unchanged", () => {

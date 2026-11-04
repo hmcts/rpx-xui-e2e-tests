@@ -7,12 +7,13 @@ properties([
 
 @Library('Infrastructure@2.8.0') _
 
-// Product regression suites live with their product owner. This job runs only
-// Harness supporting checks; it cannot issue native candidate/release approval.
+// Product regression suites live with their product owner. This job runs
+// Harness checks and bounded native candidate/CCD pilots; full release approval remains unavailable.
 def runHarnessSupportingChecks = {
-  stage('Harness supporting checks — no release credit') {
+  stage('Harness assurance pilots — no full release approval') {
     sh 'rm -f functional-output/tests/harness/public/release-assurance-summary.json'
     sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --reset'
+    sh 'bash scripts/harness-jenkins-node.sh scripts/observe-harness-worker.mjs --reset'
     try {
       sh '''#!/usr/bin/env bash
 set -e
@@ -29,13 +30,22 @@ if [ "yarn@$actual_yarn" != "$expected_yarn" ]; then
   exit 1
 fi
 echo "Harness Yarn: $actual_yarn"
-corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && corepack yarn harness:ci && node scripts/manage-harness-public-reports.cjs --validate
+# Reuse the identity already selected by withNightlyPipeline on this agent.
+if [ -z "${AZURE_CONFIG_DIR:-}" ] && [[ "${SUBSCRIPTION_NAME:-}" =~ ^[a-z0-9-]+$ ]] && [ -d "/opt/jenkins/.azure-${SUBSCRIPTION_NAME}" ]; then
+  export AZURE_CONFIG_DIR="/opt/jenkins/.azure-${SUBSCRIPTION_NAME}"
+fi
+node scripts/observe-harness-worker.mjs
+corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && node scripts/run-harness-jenkins-assurance.mjs && node scripts/manage-harness-public-reports.cjs --validate
 '''
     } finally {
       echo '[harness-report] Raw reports remain job-local; only validated summaries and safe Odhín reports may be published.'
       if (fileExists('functional-output/tests/harness/public/release-assurance-summary.json')) {
         sh 'bash scripts/harness-jenkins-node.sh scripts/write-exui-release-assurance-summary.mjs --validate-public-summary functional-output/tests/harness/public/release-assurance-summary.json'
         archiveArtifacts allowEmptyArchive: false, artifacts: 'functional-output/tests/harness/public/release-assurance-summary.json'
+      }
+      if (fileExists('functional-output/tests/harness/public/native-ci-capabilities.json')) {
+        sh 'bash scripts/harness-jenkins-node.sh scripts/observe-harness-worker.mjs --validate'
+        archiveArtifacts allowEmptyArchive: false, artifacts: 'functional-output/tests/harness/public/native-ci-capabilities.json'
       }
       if (fileExists('functional-output/tests/harness/public/odhin/index.html')) {
         sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --validate'

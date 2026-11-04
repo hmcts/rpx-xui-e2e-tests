@@ -113,12 +113,15 @@ test("live-AAT profile adds exactly five reviewed probes without claiming candid
     observed: { status: "passed", aatOutcome: "response-passed" },
   }));
   const html = await overview.renderOverview(records, "local-aat");
-  assert.match(html, /Live AAT configuration probes/);
-  assert.match(html, /5 checks recorded/);
+  assert.match(html, /Live environment API diagnostics/);
+  assert.match(html, /<td>5<\/td>/);
   assert.match(html, /deployed version.*unknown/i);
-  assert.match(html, /0 \/ 112/);
-  assert.match(html, /candidate-bound/i);
-  assert.doesNotMatch(html, /It did not run.*EXUI application/);
+  assert.match(
+    html,
+    /0 \/ 112 catalogue requirements satisfied by accepted runtime evidence/,
+  );
+  assert.match(html, /No accepted candidate\/CCD runtime evidence is attached/);
+  assert.doesNotMatch(html, /No validated native candidate application or CCD run is attached/);
 });
 
 test("known fixture login/header timeout is setup-blocked without leaking its private message", () => {
@@ -146,6 +149,30 @@ test("known fixture login/header timeout is setup-blocked without leaking its pr
       .aatOutcome,
     "failure-unclassified",
   );
+});
+test("service-unavailable login bootstrap and cached rejection are setup-blocked; an endpoint failure is not", () => {
+  const { normalizePhase } = api();
+  for (const prefix of [
+    "Unable to capture UI session for DIVORCE_SOLICITOR.",
+    "Recent UI session capture failed for DIVORCE_SOLICITOR; refusing a repeated login attempt for now:",
+  ]) {
+    const entries = fixture.selections.environment;
+    const raw = document(entries),
+      result = raw.suites[1].suites[0].specs[0].tests[0];
+    result.status = "unexpected";
+    result.results[0].status = "failed";
+    result.results[0].error = {
+      message: `${prefix} UI bootstrap target returned a service-unavailable page (${canary})`,
+      stack: "at createStorageStateViaUi (/owned/src/fixtures/api-auth.ts:365:1)",
+    };
+    raw.stats.expected--;
+    raw.stats.unexpected++;
+    const normalized = normalizePhase(raw, entries, 1, process.cwd());
+    assert.equal(normalized.records[1].observed.aatOutcome, "login-setup-blocked");
+    assert(!JSON.stringify(normalized).includes(canary));
+    result.results[0].error.stack = "at request.get (/owned/src/tests/harness/diagnostic/configuration.spec.ts:30:1)";
+    assert.equal(normalizePhase(raw, entries, 1, process.cwd()).records[1].observed.aatOutcome, "failure-unclassified");
+  }
 });
 test("offline environment cannot receive credentials and AAT targets are fixed with owned UI storage", () => {
   const { phaseEnvironment, normalizePhase, AAT_ORIGIN, IDAM_ORIGIN } = api();
@@ -186,6 +213,19 @@ test("offline environment cannot receive credentials and AAT targets are fixed w
       ),
     /LOCAL_AAT/,
   );
+});
+
+test("AAT overview accounts for timed-out probes separately from failed callbacks", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  let live = 0;
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: overview.groupFor(entry.file) === "aat"
+      ? { status: live++ === 1 ? "timedOut" : "failed", aatOutcome: "failure-unclassified" }
+      : { status: "passed" },
+  }));
+  const html = await overview.renderOverview(records, "local-aat");
+  assert.match(html, /0\/5 response checks passed; 4 failed callbacks \(0 blocked by login\/setup\); 1 timed out/);
 });
 
 test("real renderer combines121 records, labels login setup honestly, and resets across profiles", async (t) => {
@@ -306,12 +346,13 @@ test("global-search family mismatch exposes only reviewed codes, never arbitrary
   assert.match(html, /AAT: 4\/5 response checks passed/);
   assert.match(html, /one configured solicitor session/);
   const dom = require("node-html-parser").parse(html);
-  for (const card of dom.querySelectorAll("[data-harness-group]")) {
-    assert.equal(card.getAttribute("class"), "col-md-6 col-xl-3");
-  }
+  assert.equal(
+    dom.querySelectorAll("#harness-lanes tbody tr[data-lane]").length,
+    4,
+  );
   assert.ok(
     html.indexOf("data-aat-contract-mismatch") <
-      html.indexOf("data-harness-group"),
+      html.indexOf('id="harness-lanes"'),
   );
 
   assert.ok(!html.includes(canary));
@@ -438,4 +479,165 @@ test("live family labels do not trust the separate legacy central arrays", async
   } finally {
     legacy.globalSearchServices = previous;
   }
+});
+
+test("three exact AAT profile comparisons use a fixed safe mismatch enum and source provenance", async () => {
+  const { normalizePhase } = api();
+  const overview = require("./harness-public-overview.cjs");
+  const endpoints = [
+    "api/globalSearch/services",
+    "api/wa-supported-jurisdiction/get",
+    "api/staff-supported-jurisdiction/get",
+  ];
+  for (let index = 2; index < 5; index++) {
+    const raw = document(fixture.selections.environment),
+      t = raw.suites[index].suites[0].specs[0].tests[0];
+    t.status = "unexpected";
+    t.results[0].status = "failed";
+    t.results[0].error = {
+      message: `${endpoints[index - 2]} differs from reviewed AAT service-family profile ${canary}`,
+      stack:
+        "at test (/owned/src/tests/harness/diagnostic/configuration.spec.ts:95:1)",
+    };
+    raw.stats.expected--;
+    raw.stats.unexpected++;
+    const phase = normalizePhase(
+      raw,
+      fixture.selections.environment,
+      1,
+      process.cwd(),
+    );
+    assert.equal(
+      phase.records[index].observed.aatOutcome,
+      "aat-profile-contract-mismatch",
+    );
+    const records = [
+      ...overview.entries.map((entry) => ({
+        entry,
+        observed: { status: "passed" },
+      })),
+      ...phase.records,
+    ];
+    const html = await overview.renderOverview(records, "local-aat");
+    assert.match(
+      html,
+      /cnp-flux-config@a88143b0bcb815056f7abdb41d1911ccb3144b5d/,
+    );
+    assert.match(html, /AAT global\/WA explicitly include SSCS/);
+    assert.ok(!html.includes(canary));
+  }
+});
+test("local-AAT overview refuses AAT source drift even when all121 callbacks passed", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  const source = require("./fixtures/exui-aat-profile-source.json");
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: { status: "passed", aatOutcome: "response-passed" },
+  }));
+  const original = source.environment.GLOBAL_SEARCH_SERVICES.value;
+  try {
+    source.environment.GLOBAL_SEARCH_SERVICES.value = "IA";
+    await assert.rejects(
+      () => overview.renderOverview(records, "local-aat"),
+      /AAT_PROFILE_SOURCE_DRIFT/,
+    );
+  } finally {
+    source.environment.GLOBAL_SEARCH_SERVICES.value = original;
+  }
+});
+
+test("credential-free collection runs only116 offline tests and preserves every native exit status", async (t) => {
+  const os = require("node:os"),
+    { EventEmitter } = require("node:events"),
+    cp = require("node:child_process");
+  const previous = process.cwd(),
+    root = fs.mkdtempSync(
+      path.join(fs.realpathSync(os.tmpdir()), "offline-collection-"),
+    );
+  process.chdir(root);
+  const Reporter = require("./harness-public-odhin-reporter.cjs");
+  const oldSpawn = cp.spawn,
+    oldPrepare = Reporter.prototype.prepareNativeEvidence,
+    oldEnd = Reporter.prototype.onEnd;
+  t.after(() => {
+    cp.spawn = oldSpawn;
+    Reporter.prototype.prepareNativeEvidence = oldPrepare;
+    Reporter.prototype.onEnd = oldEnd;
+    delete require.cache[modulePath];
+    process.chdir(previous);
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const calls = [];
+  let nativeStatus = "BLOCKED",
+    nativeExitCode = 2;
+  Reporter.prototype.prepareNativeEvidence = async function (descriptor) {
+    assert.equal(descriptor, "/explicit/descriptor.json");
+    calls.push("validate-native");
+    this.nativeEvidence = {
+      status: nativeStatus,
+      exitCode: nativeExitCode,
+      descriptorDigest: "sha256:" + "a".repeat(64),
+    };
+  };
+  Reporter.prototype.onEnd = async function () {
+    calls.push("render");
+    assert.equal(this.results.size, 116);
+    assert.equal(this.diagnosticSource.state, "unavailable");
+  };
+  cp.spawn = (_command, _args, options) => {
+    calls.push("offline");
+    assert.equal(options.env.SOLICITOR_PASSWORD, undefined);
+    assert.equal(options.env.EXUI_DIAGNOSTIC_SELECTION, undefined);
+    assert.equal(options.cwd, root);
+    const raw = document(require("./harness-public-overview.cjs").entries);
+    raw.stats.startTime = new Date().toISOString();
+    raw.stats.duration = 0;
+    for (const suite of raw.suites)
+      for (const nested of suite.suites)
+        for (const spec of nested.specs)
+          spec.tests[0].results[0].startTime = raw.stats.startTime;
+    fs.writeFileSync(
+      options.env.PLAYWRIGHT_JSON_OUTPUT_FILE,
+      JSON.stringify(raw),
+    );
+    const child = new EventEmitter();
+    child.kill = () => {};
+    setImmediate(() => child.emit("close", 0, null));
+    return child;
+  };
+  delete require.cache[modulePath];
+  const { runHarnessCollection } = require(modulePath);
+  for (const [status, code] of [
+    ["BLOCKED", 2],
+    ["FAIL", 1],
+    ["PASS", 0],
+  ]) {
+    nativeStatus = status;
+    nativeExitCode = code;
+    const result = await runHarnessCollection(
+      { PATH: "/bin", SOLICITOR_PASSWORD: canary },
+      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json" },
+    );
+    assert.deepEqual(result, {
+      status: "passed",
+      nativeStatus: status,
+      exitCode: code,
+    });
+  }
+  assert.deepEqual(
+    calls,
+    Array(3).fill(["validate-native", "offline", "render"]).flat(),
+  );
+  Reporter.prototype.prepareNativeEvidence = async () => {
+    throw new Error("NATIVE_REPORT_IDENTITY_MISMATCH");
+  };
+  await assert.rejects(
+    runHarnessCollection({}, { nativeEvidencePath: "/invalid" }),
+    /IDENTITY_MISMATCH/,
+  );
+  assert.equal(
+    calls.length,
+    9,
+    "invalid evidence must not launch diagnostics or publish",
+  );
 });

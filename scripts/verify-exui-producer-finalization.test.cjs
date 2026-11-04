@@ -17,7 +17,7 @@ function probe(kind, fault) {
   const revision = JSON.parse(fs.readFileSync('node_modules/playwright-core/browsers.json')).browsers.find(x => x.name === 'chromium-headless-shell').revision;
   const binary = path.join(browser, `chromium_headless_shell-${revision}/chrome-headless-shell-linux-arm64/chrome-headless-shell`);
   fs.mkdirSync(path.dirname(binary), { recursive: true }); const bytes = Buffer.alloc(20); bytes.write('ELF', 1); bytes[0] = 0x7f; bytes.writeUInt16LE(183, 18); fs.writeFileSync(binary, bytes);
-  const artifact = { candidateRoot: candidate, identity: completeRun().manifest.identity, payloadDigest: digest('a'), provenance: { runtimeNodeVersion: 'v24.22.1', buildRuntime: { nodeVersion: 'v24.22.1' } } };
+  const artifact = { candidateRoot: candidate, identity: completeRun().manifest.identity, payloadDigest: digest('a'), provenance: { platform: "linux/arm64", runtimeNodeVersion: 'v24.22.1', buildRuntime: { nodeVersion: 'v24.22.1' } } };
   const descriptor = { schemaVersion: 1, registry: 'synthetic.invalid', repository: 'fixture/candidate', digest: digest('a'), imageReference: 'synthetic.invalid/fixture/candidate@' + digest('a'), sourceCommit: 'a'.repeat(40), sourceTree: 'c'.repeat(40), producerJob: 'synthetic/job', producerBuild: '1', invocationId: '11111111-1111-4111-8111-111111111111', buildTag: 'synthetic', platform: 'linux/arm64', observedImageId: digest('d') };
   const config = { output, fault, kind, artifact, descriptor, expected: path.join(root, 'expected.json'), events: path.join(root, 'events.jsonl') };
   const configPath = path.join(root, 'probe.json'); fs.writeFileSync(configPath, JSON.stringify(config));

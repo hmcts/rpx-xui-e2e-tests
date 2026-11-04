@@ -55,6 +55,7 @@ test("support only: native API gets sealed application and narrow state, with no
     assert(
       !mounts.some((value) => value.includes(path.join(directory, "evidence"))),
     );
+    assert.equal(args[args.indexOf("--user") + 1], `${process.getuid()}:${process.getgid()}`);
     assert(args.includes("--read-only"));
     assert(args.includes("--init"));
     assert(args.includes("/candidate/runtime/node"));
@@ -191,7 +192,7 @@ test("support only: native recovery plans bind declared artifacts/runtime and re
     const artifact = {
       candidateRoot: path.join(root, "candidate"),
       identity: { artifactDigest: sha("a") },
-      provenance: { runtimeNodeVersion: "v24.22.1" },
+      provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.1" },
     };
     const nativeRuntime = { imageId: sha("b"), platform: "linux/arm64" };
     const input = {
@@ -224,6 +225,19 @@ test("support only: native recovery plans bind declared artifacts/runtime and re
     );
     assert.equal(captured.invocations.length, 2);
     assert.equal(captured.invocations[0].plan.candidate.mounts.length, 4);
+    const amdArtifact = { ...artifact, provenance: { ...artifact.provenance, platform: "linux/amd64" } };
+    const amdRuntime = { ...nativeRuntime, platform: "linux/amd64" };
+    const amdCaptured = captureNativeOwnership({ ...input, artifact: amdArtifact, nativeRuntime: amdRuntime }, handoff, { ...context, artifact: amdArtifact, nativeRuntime: amdRuntime }, handoff.output, "family");
+    for (const { plan } of amdCaptured.invocations) {
+      assert.equal(plan.platform, "linux/amd64");
+      assert.equal(plan.tools.args[plan.tools.args.indexOf("--platform") + 1], "linux/amd64");
+      assert.equal(plan.tools.args[plan.tools.args.indexOf("--user") + 1], `${process.getuid()}:${process.getgid()}`);
+      const args = plan.candidate.arguments("b".repeat(64));
+      assert.equal(args[args.indexOf("--platform") + 1], "linux/amd64");
+      assert(args.includes("--read-only"));
+    }
+    assert.throws(() => captureNativeOwnership(input, handoff, { ...context, artifact: amdArtifact }, handoff.output, "family"), /ARTIFACT_ROOT_MISMATCH/);
+
     assert.throws(
       () =>
         captureNativeOwnership(
@@ -584,4 +598,164 @@ test("support only: parent recovery preserves Tools after candidate removal fail
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+async function eventOwnershipFixture(t) {
+  const api = await import("./lib/exui-native-ci-ownership.mjs");
+  const tmp = fs.realpathSync(os.tmpdir());
+  const root = fs.mkdtempSync(path.join(tmp, "native-event-ownership-"));
+  const state = fs.mkdtempSync(path.join(tmp, "harness-native-state-"));
+  t.after(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+    fs.rmSync(state, { recursive: true, force: true });
+  });
+  for (const name of ["candidate/config", "stage/scripts/lib", "output/baseline", "browser"])
+    fs.mkdirSync(path.join(root, name), { recursive: true });
+  for (const id of ["baseline", "ccd-enable-judge-event"])
+    for (const kind of ["sessions", "diagnostics"])
+      fs.mkdirSync(path.join(state, id, kind), { recursive: true });
+  fs.writeFileSync(path.join(root, "candidate/config/default.json"), JSON.stringify({ services: { idam: {} }, feature: {} }));
+  fs.writeFileSync(path.join(root, "stage/scripts/lib/exui-runtime-network-guard.cjs"), "guard");
+  const artifact = { candidateRoot: path.join(root, "candidate"), identity: { artifactDigest: sha("a") }, provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.1" } };
+  const input = {
+    releaseScopeId: "exui-ccd-event-capability-pilot",
+    runId: "ccd-11111111-1111-4111-8111-111111111111",
+    artifact,
+    nativeRuntime: { imageId: sha("b"), platform: "linux/arm64" },
+    browserRuntimeImage: sha("c"), browserRoot: path.join(root, "browser"),
+    ccd: { namespace: "1".repeat(64), owner: "baseline-ccd-owner", fixtureSelection: "event-capability-baseline", images: { data: { id: sha("d") }, definition: { id: sha("e") } } },
+    definition: { fixtureDigest: sha("f") }, apiContracts: { data: sha("8"), definition: sha("9") }, gatewayDigest: sha("7"),
+  };
+  const context = { artifact, nativeRuntime: input.nativeRuntime, browserRuntimeImage: input.browserRuntimeImage, browserRoot: input.browserRoot, ccd: input.ccd };
+  const handoff = { mode: "native-separate-api", owner: input.runId, output: path.join(root, "output"), stagedHarness: path.join(root, "stage"), stateRoot: state };
+  const expected = api.captureNativeOwnership(input, handoff, context, handoff.output, "eventCapability");
+  const { plan } = expected.invocations[0];
+  const registry = [["candidate", plan.candidate, "2".repeat(64)], ["browser-provider", plan.tools, "3".repeat(64)]].map(([service, resource, id]) => ({ kind: "container", name: resource.name, id, owner: expected.owner, service, image: resource.image, namespace: plan.namespace, mounts: resource.mounts, removed: true }));
+  const candidate = registry[0];
+  const before = {
+    Id: candidate.id, Name: "/" + candidate.name, Image: candidate.image,
+    Config: { Labels: { "exui.harness.owner": expected.owner, "exui.harness.service": "candidate" } },
+    HostConfig: { NetworkMode: "container:" + plan.namespace, ReadonlyRootfs: true, Init: true, Privileged: false, PidMode: "", CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges"], PidsLimit: 256, Memory: 4294967296, NanoCpus: 2000000000, PortBindings: {} },
+    Mounts: candidate.mounts.map(item => ({ Type: "bind", Source: item.source, Destination: item.target, RW: item.writable })),
+    State: { Running: true, ExitCode: 0, OOMKilled: false },
+  };
+  const lifecycle = { requestedStop: true, before, after: { ...structuredClone(before), State: { Running: false, ExitCode: 143, OOMKilled: false } } };
+  const denial = { candidateId: candidate.id, attempts: [{ path: "/output/report.json", denied: true }, { path: "/harness/controller.mjs", denied: true }], controllerSourceVisible: false };
+  const put = (name, value) => fs.writeFileSync(path.join(handoff.output, name), JSON.stringify(value));
+  const write = () => { put("owned-resources.json", registry); put("baseline/candidate-write-denial.json", denial); put("baseline/candidate-lifecycle.json", lifecycle); };
+  write();
+  return { api, input, context, handoff, expected, registry, denial, lifecycle, put, write };
+}
+
+test("support only: event ownership captures baseline and fresh fault plans separately with exact fixture selection", async t => {
+  const f = await eventOwnershipFixture(t);
+  assert.deepEqual(f.expected.invocations.map(item => item.invocationId), ["baseline"]);
+  const faultInput = { ...f.input, ccd: { ...f.input.ccd, namespace: "4".repeat(64), owner: "fault-ccd-owner", fixtureSelection: "event-capability-mutant" } };
+  const faultContext = { ...f.context, ccd: faultInput.ccd };
+  const fault = f.api.captureEventFaultOwnership(faultInput, f.handoff, faultContext, f.handoff.output);
+  assert.deepEqual(fault.invocations.map(item => item.invocationId), ["ccd-enable-judge-event"]);
+  const baselinePlan = f.expected.invocations[0].plan, faultPlan = fault.invocations[0].plan;
+  assert.equal(baselinePlan.namespace, f.input.ccd.namespace);
+  assert.equal(faultPlan.namespace, faultInput.ccd.namespace);
+  assert.notEqual(baselinePlan.namespace, faultPlan.namespace);
+  for (const service of ["candidate", "tools"]) {
+    assert.notEqual(baselinePlan[service].name, faultPlan[service].name);
+    assert.equal(faultPlan[service].namespace, faultInput.ccd.namespace);
+  }
+  assert.throws(() => f.api.captureNativeOwnership(faultInput, f.handoff, faultContext, f.handoff.output, "eventCapability"), /EVENT_VARIANT_MISMATCH/);
+  assert.throws(() => f.api.captureEventFaultOwnership(f.input, f.handoff, f.context, f.handoff.output), /EVENT_VARIANT_MISMATCH/);
+  assert.throws(() => f.api.captureEventFaultOwnership(faultInput, f.handoff, f.context, f.handoff.output), /CCD_NAMESPACE_MISMATCH/);
+  assert.throws(() => f.api.assertEventBaselineRemoved(fault, { inspect: () => null }), /BASELINE_OWNERSHIP_REQUIRED/);
+});
+
+test("support only: event handoff refuses either baseline child still present by its name or CID", async t => {
+  const f = await eventOwnershipFixture(t);
+  for (const resource of f.registry) {
+    for (const key of [resource.name, resource.id]) {
+      const inspected = [];
+      assert.throws(() => f.api.assertEventBaselineRemoved(f.expected, { inspect: actual => { inspected.push(actual); return actual === key ? { Id: resource.id } : null; } }), /EVENT_BASELINE_(NAME|CID)_STILL_PRESENT/);
+      assert(inspected.includes(key));
+      assert.equal(fs.existsSync(path.join(f.handoff.output, "baseline-owned-resources.json")), false);
+    }
+  }
+  assert.throws(() => f.api.assertEventBaselineRemoved(f.expected, { inspect: () => { throw Error("inspection unavailable"); } }), /inspection unavailable/);
+  assert.equal(fs.existsSync(path.join(f.handoff.output, "baseline-owned-resources.json")), false);
+});
+
+test("support only: event handoff rejects substituted lifecycle, write-probe CID and candidate authority", async t => {
+  for (const [change, error] of [
+    [f => { f.denial.candidateId = "f".repeat(64); }, /WRITE_PROBE_CID/],
+    [f => { f.lifecycle.before.Id = "f".repeat(64); }, /LIFECYCLE_CID/],
+    [f => { f.lifecycle.after.Id = "f".repeat(64); }, /LIFECYCLE_CID/],
+    [f => { f.lifecycle.before.Mounts[0].Source = "/different-candidate"; }, /MOUNT_MISMATCH/],
+    [f => { f.lifecycle.after.Mounts[0].RW = true; }, /MOUNT_MISMATCH/],
+    [f => { f.registry[0].mounts = []; }, /MOUNTS_MISMATCH/],
+    [f => { f.lifecycle.before.HostConfig.NetworkMode = "host"; }, /NETWORK_MISMATCH/],
+    [f => { f.lifecycle.after.Config.Labels["exui.harness.owner"] = "foreign"; }, /OWNER_MISMATCH/],
+    [f => { f.lifecycle.requestedStop = false; }, /STOP_NOT_OBSERVED/],
+    [f => { f.lifecycle.after.State.OOMKilled = true; }, /BASELINE_OOM/],
+    [f => { f.denial.attempts[0].denied = false; }, /EVIDENCE_AUTHORITY/],
+  ]) {
+    const f = await eventOwnershipFixture(t); change(f); f.write();
+    assert.throws(() => f.api.assertEventBaselineRemoved(f.expected, { inspect: () => null }), error);
+    assert.equal(fs.existsSync(path.join(f.handoff.output, "baseline-owned-resources.json")), false);
+  }
+});
+
+test("support only: event removal creates one immutable baseline registry snapshot with exact evidence bindings", async t => {
+  const f = await eventOwnershipFixture(t);
+  const { digestBytes } = await import("./lib/exui-evidence-io.mjs");
+  const registryPath = path.join(f.handoff.output, "owned-resources.json");
+  const originalRegistry = fs.readFileSync(registryPath);
+  const inspected = [];
+  const check = () => f.api.assertEventBaselineRemoved(f.expected, { inspect: key => { inspected.push(key); return null; } });
+  const result = check();
+  assert.deepEqual(inspected, f.registry.flatMap(item => [item.name, item.id]));
+  assert.deepEqual(result.removed, f.registry.map(({ name, id }) => ({ name, id })));
+  assert.deepEqual(result.bindings.map(item => item.path), ["baseline/candidate-write-denial.json", "baseline/candidate-lifecycle.json", "baseline-owned-resources.json"]);
+  for (const binding of result.bindings)
+    assert.equal(binding.digest, digestBytes(fs.readFileSync(path.join(f.handoff.output, binding.path))));
+  const snapshot = path.join(f.handoff.output, "baseline-owned-resources.json");
+  const frozen = fs.readFileSync(snapshot);
+  assert.equal(fs.statSync(snapshot).mode & 0o777, 0o600);
+  assert.deepEqual(JSON.parse(frozen), f.registry);
+  assert.deepEqual(fs.readFileSync(registryPath), originalRegistry);
+  assert.throws(check, /EEXIST/);
+  assert.deepEqual(fs.readFileSync(snapshot), frozen);
+  f.put("owned-resources.json", [{ name: "later-fault-resource", id: "f".repeat(64) }]);
+  assert.deepEqual(fs.readFileSync(snapshot), frozen);
+  assert(!result.bindings.some(item => item.path === "owned-resources.json"));
+});
+
+test("support only: event fault candidate arguments cannot be selected under an unrelated release scope", async t => {
+  const f = await eventOwnershipFixture(t);
+  const { candidateArchiveArguments } = await import("./lib/exui-oci-runtime.mjs");
+  const args = {
+    image: f.input.nativeRuntime.imageId, namespace: f.input.ccd.namespace,
+    owner: f.input.runId, invocationId: "ccd-enable-judge-event",
+    candidateRoot: f.input.artifact.candidateRoot,
+    sessions: path.join(f.handoff.stateRoot, "ccd-enable-judge-event/sessions"),
+    diagnostics: path.join(f.handoff.stateRoot, "ccd-enable-judge-event/diagnostics"),
+    guard: path.join(f.handoff.stagedHarness, "scripts/lib/exui-runtime-network-guard.cjs"),
+    config: {}, evidenceRoot: f.handoff.output, harnessRoot: f.handoff.stagedHarness,
+    releaseScopeId: "exui-ccd-event-capability-pilot",
+  };
+  assert(candidateArchiveArguments(args).includes("/candidate/runtime/node"));
+  assert.throws(() => candidateArchiveArguments({ ...args, releaseScopeId: "exui-ccd-pilot" }), /CCD_EVENT_SCOPE_REQUIRED/);
+  assert.throws(() => candidateArchiveArguments({ ...args, invocationId: "ccd-drop-child" }), /UNSUPPORTED_CCD_EVENT_INVOCATION/);
+});
+
+test("native AMD64 image admission binds platform, manifest and config identity", async () => {
+  const { nativeRuntimeImages, assertNativeRuntimeImage } = await import("./lib/exui-native-containers.mjs");
+  const images = nativeRuntimeImages("linux/amd64");
+  assert.equal(images.api.reference, "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02");
+  assert.match(images.browser.reference, /^mcr.microsoft.com\/playwright@sha256:/);
+  for (const pin of Object.values(images)) {
+    const info = { Id: pin.manifestDigest, Os: "linux", Architecture: "amd64", RepoDigests: [pin.reference] };
+    assertNativeRuntimeImage(info, pin, "linux/amd64");
+    assertNativeRuntimeImage({ ...info, Id: pin.configDigest }, pin, "linux/amd64");
+    for (const patch of [{ Id: sha("f") }, { Architecture: "arm64" }, { Os: "windows" }, { RepoDigests: [] }, { RepoDigests: [pin.reference.replace(/.$/, "f")] }])
+      assert.throws(() => assertNativeRuntimeImage({ ...info, ...patch }, pin, "linux/amd64"), /NATIVE_RUNTIME_/);
+  }
+  assert.throws(() => nativeRuntimeImages("linux/ppc64le"), /UNSUPPORTED_NATIVE_PLATFORM/);
 });

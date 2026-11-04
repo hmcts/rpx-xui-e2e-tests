@@ -1,0 +1,172 @@
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { createHash } = require("node:crypto");
+const { completeRun } = require("./exui-release-evidence.mock.cjs");
+const hash = value => "sha256:" + createHash("sha256").update(value).digest("hex");
+const digest = letter => "sha256:" + letter.repeat(64);
+const scope = "exui-ccd-event-capability-pilot";
+const mutation = "ccd-enable-judge-event";
+
+// Synthetic transport shape only. Real importer/role behavior is owned by the runtime proof.
+function observedDefinition(source) {
+  const s = source.sheets;
+  const acls = rows => rows.map(row => ({ role: row.UserRole,
+    ...Object.fromEntries([["create", "C"], ["read", "R"], ["update", "U"], ["delete", "D"]].map(([key, letter]) => [key, row.CRUD.includes(letter)])),
+  }));
+  return {
+    id: "HarnessNestedPRL", version: { number: 1 }, acls: acls(s.AuthorisationCaseType),
+    states: [{ id: "JUDICIAL_REVIEW", acls: acls(s.AuthorisationCaseState) }],
+    case_fields: s.CaseField.map(row => ({ id: row.ID, acls: acls(s.AuthorisationCaseField.filter(a => a.CaseFieldID === row.ID)) })),
+    events: s.CaseEvent.map(row => ({ id: row.ID, name: row.Name,
+      pre_states: row["PreConditionState(s)"]?.split(";") ?? [], post_states: [{ post_state_reference: row.PostConditionState }],
+      acls: acls(s.AuthorisationCaseEvent.filter(a => a.CaseEventID === row.ID)), show_summary: true,
+      case_fields: s.CaseEventToFields.filter(f => f.CaseEventID === row.ID).map(f => ({
+        case_field_id: f.CaseFieldID, display_context: f.DisplayContext, show_condition: f.FieldShowCondition ?? null,
+        show_summary_change_option: f.ShowSummaryChangeOption === "Y",
+        case_fields_complex: s.EventToComplexTypes.filter(e => e.CaseEventID === row.ID && e.CaseFieldID === f.CaseFieldID)
+          .map(e => ({ reference: e.ListElementCode, displayContext: e.DisplayContext, showCondition: e.FieldShowCondition ?? null })),
+      })),
+    })),
+  };
+}
+
+async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
+  const root = suppliedRoot ?? fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-transition-evidence-"));
+  if (!suppliedRoot) t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(root, { recursive: true });
+  const directory = path.join(root, "eventCapability");
+  fs.mkdirSync(directory);
+  const put = (name, value, base = directory) => {
+    const target = path.join(base, name), bytes = JSON.stringify(value);
+    fs.mkdirSync(path.dirname(target), { recursive: true }); fs.writeFileSync(target, bytes);
+    return { path: name, digest: hash(bytes) };
+  };
+  const read = name => JSON.parse(fs.readFileSync(path.join(directory, name)));
+  const runtime = await import("../lib/exui-ccd-runtime.mjs");
+  const { nativeIdentity } = await import("../lib/exui-native-contract.mjs");
+  const { getReleasePolicy } = await import("../lib/exui-release-policy.mjs");
+  const { loadRunEvidence } = await import("../lib/exui-evidence-io.mjs");
+  const { readEventBaselineCheckpoint } = await import("../lib/exui-native-proof-validation.mjs");
+  const { eventCapabilityTransitionRequest } = await import("../lib/exui-ccd-event-transition.mjs");
+  const policy = getReleasePolicy(scope), fixtureBinding = JSON.parse(fs.readFileSync(path.join(__dirname, "ccd/event-capability/binding.json")));
+  const candidateRoot = path.join(root, "candidate");
+  put("config/default.json", { services: { idam: {} }, feature: {} }, candidateRoot);
+  const artifact = { candidateRoot, identity: completeRun().manifest.identity };
+  const images = Object.fromEntries(Object.entries(runtime.CCD_IMAGES).map(([name, id]) => [name, { id, architecture: "arm64", repoDigests: [`fixture@${id}`] }]));
+  const variants = {};
+  for (const [index, variant] of ["baseline", "mutant"].entries()) {
+    const prepared = runtime.prepareCcdImport(undefined, "event-capability-" + variant);
+    const observed = observedDefinition(prepared.source);
+    const output = path.join(root, `event-${variant}-runtime`);
+    const containers = Object.fromEntries(Object.keys(images).map((name, i) => [name, (index ? "b" : "a") + String(i + 1).repeat(63)]));
+    const state = { schemaVersion: 1, ready: true, definitionImported: true, owner: "harness-" + String(index + 1).repeat(16),
+      output, containers, namespace: containers.database, images, fixtureSelection: "event-capability-" + variant };
+    const imported = { binding: prepared.binding, status: 201, fixtureDigest: hash(prepared.file), images,
+      sourceRevision: fixtureBinding.sourceRevision, sourceProjectionDigest: fixtureBinding.sourceProjectionDigest,
+      fixtureSelection: state.fixtureSelection, observedDefinitionDigest: hash(JSON.stringify(observed)), definitionVersion: 1 };
+    put("observed-definition.json", observed, output);
+    const importedRef = put("definition-import.json", imported, output);
+    variants[variant] = { state, observed, imported, importedRef };
+  }
+  const credentials = Object.fromEntries(["allowed", "courtadmin", "judge", "observer"].map((name, i) => [name, {
+    userId: `${i + 1}1111111-1111-4111-8111-111111111111`,
+    headers: { Authorization: `Bearer PRIVATE-CANARY-${name}` },
+    roles: ["caseworker", "caseworker-harness", `caseworker-privatelaw-${name}`],
+  }]));
+  const input = { runId: "ccd-11111111-1111-4111-8111-111111111111", releaseScopeId: scope,
+    harnessCommit: "b".repeat(40), harnessSourceDigest: digest("4"), artifact,
+    ccd: variants.baseline.state, definition: variants.baseline.imported, definitionImportDigest: variants.baseline.importedRef.digest,
+    credentials, apiContracts: { data: digest("5"), definition: digest("6") }, gatewayDigest: digest("7"),
+    nativeRuntime: { imageId: digest("8") }, browserRuntimeImage: digest("9"),
+  };
+  const request = eventCapabilityTransitionRequest(input);
+  const runtimeRecord = { schemaVersion: 1, runId: input.runId, invocationId: mutation, requestDigest: hash(JSON.stringify(request)),
+    ccd: variants.mutant.state, definition: variants.mutant.imported, definitionImportDigest: variants.mutant.importedRef.digest,
+    credentials, apiContracts: input.apiContracts };
+  const baselineIdentity = nativeIdentity(input, { mutation: null }, candidateRoot).identity;
+  const faultInput = { ...input, ccd: runtimeRecord.ccd, definition: runtimeRecord.definition, definitionImportDigest: runtimeRecord.definitionImportDigest };
+  const faultIdentity = nativeIdentity(faultInput, { mutation }, candidateRoot).identity;
+  const expected = { nativeAuthority: true, runId: input.runId, releaseScopeId: scope, harnessCommit: input.harnessCommit,
+    policyDigest: policy.policyDigest, identity: baselineIdentity, harnessSourceDigest: input.harnessSourceDigest,
+    harnessDependencyDigest: digest("a"), browserDigest: digest("b") };
+  const manifest = identity => ({ schemaVersion: 1, runId: input.runId, releaseScopeId: scope, harnessCommit: input.harnessCommit,
+    policyDigest: policy.policyDigest, requiredObligationIds: policy.requiredObligationIds, identity,
+    runtimeMetadata: { isolation: "native-separate-api-owned-network-none", harnessSourceState: "clean",
+      harnessSourceDigest: expected.harnessSourceDigest, harnessDependencyDigest: expected.harnessDependencyDigest,
+      browserDigest: expected.browserDigest, gatewayDigest: input.gatewayDigest } });
+  const baselineManifest = manifest(baselineIdentity), mutantManifest = manifest(faultIdentity);
+  Object.assign(baselineManifest.runtimeMetadata, { ccdNamespace: input.ccd.namespace, definitionImportDigest: input.definitionImportDigest,
+    observedDefinitionDigest: input.definition.observedDefinitionDigest, definitionVersion: "1", idamSimulatorImage: images.idam.id });
+  Object.assign(mutantManifest.runtimeMetadata, { ccdNamespace: runtimeRecord.ccd.namespace, definitionImportDigest: runtimeRecord.definitionImportDigest,
+    observedDefinitionDigest: runtimeRecord.definition.observedDefinitionDigest, definitionVersion: "1", idamSimulatorImage: images.idam.id });
+  const makeExecution = (invocationId, current, proofs, failed) => {
+    const context = { runId: input.runId, invocationId, identity: current.identity, harnessCommit: input.harnessCommit,
+      releaseScopeId: scope, policyDigest: policy.policyDigest, harnessSourceState: "clean", harnessSourceDigest: input.harnessSourceDigest };
+    const report = { schemaVersion: 1, complete: true, status: failed ? "failed" : "passed", globalErrors: [], context,
+      tests: proofs.map(proofId => ({ proofId, expectedStatus: "passed", status: failed ? "failed" : "passed", retry: 0,
+        unattributedErrors: 0, failureId: failed ? "event-capability-isolation" : null })) };
+    return { current, report, execution: { runId: input.runId, invocationId, kind: failed ? "mutation" : "baseline",
+      identity: current.identity, terminalState: "completed", runnerExitCode: failed ? 1 : 0, unexpectedGlobalErrors: [] } };
+  };
+  const baseline = makeExecution("baseline", baselineManifest, ["ccd-courtadmin-email-one", "ccd-event-create-denied"], false);
+  const fault = makeExecution(mutation, mutantManifest, ["ccd-event-create-enabled"], true);
+  const registry = [
+    { name: `${input.runId}-baseline-candidate`, id: "c".repeat(64), owner: input.runId, service: "candidate", image: input.nativeRuntime.imageId, namespace: input.ccd.namespace, removed: true },
+    { name: `${input.runId}-baseline-tools`, id: "d".repeat(64), owner: input.runId, service: "browser-provider", image: input.browserRuntimeImage, namespace: input.ccd.namespace, removed: true },
+  ];
+  const denial = { candidateId: registry[0].id, controllerSourceVisible: false,
+    attempts: ["/output/report.json", "/harness/controller.mjs"].map(p => ({ path: p, denied: true })) };
+  const lifecycle = { requestedStop: true, before: { Id: registry[0].id, Name: `/${registry[0].name}`, State: { Running: true } },
+    after: { Id: registry[0].id, Name: `/${registry[0].name}`, State: { Running: false, ExitCode: 143, OOMKilled: false } } };
+  const removal = { schemaVersion: 1, runId: input.runId, baselineNamespace: input.ccd.namespace, baselineOwner: input.ccd.owner,
+    native: { removed: registry.map(({ name, id }) => ({ name, id })), bindings: [] },
+    ccd: { owner: input.ccd.owner, cleanupComplete: true,
+      checkedNames: Object.keys(images).map(name => `${input.ccd.owner}-${name}`), checkedContainerIds: Object.values(input.ccd.containers).sort() } };
+  const derivation = { mutationDefinitionDigest: policy.mutationDefinitions[0].definitionDigest, baselineIdentity, mutantIdentity: faultIdentity,
+    transformation: mutation, target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD",
+    transformationRecord: fixtureBinding.transformation, beforeDigest: fixtureBinding.baseline.workbookDigest, afterDigest: fixtureBinding.mutant.workbookDigest };
+  const parent = { schemaVersion: 1, runId: input.runId, releaseScopeId: scope, harnessCommit: input.harnessCommit,
+    harnessSourceDigest: input.harnessSourceDigest, capturedBeforeFault: true, capturedAt: "2026-11-03T12:00:00.000Z", identity: faultIdentity };
+  const write = () => {
+    parent.baselineInputDigest = put("input.json", input).digest;
+    put("event-transition-request.json", request);
+    fs.writeFileSync(path.join(directory, "event-transition-request.json"), JSON.stringify(request, null, 2) + "\n");
+    parent.requestDigest = hash(JSON.stringify(request));
+    parent.runtimeRecord = put(`${mutation}/runtime-input.json`, runtimeRecord);
+    const executionArtifacts = [baseline, fault].map(item => {
+      const id = item.execution.invocationId;
+      put(`${id}/manifest.json`, item.current);
+      item.execution.resultArtifact = put(`${id}/report.json`, item.report);
+      put(`${id}/framework-terminal.json`, { code: item.execution.runnerExitCode, signal: null });
+      return put(`${id}/execution.json`, item.execution);
+    });
+    parent.baselineCheckpointDigest = readEventBaselineCheckpoint(directory, expected).checkpointDigest;
+    removal.native.bindings = [put("baseline/candidate-write-denial.json", denial), put("baseline/candidate-lifecycle.json", lifecycle), put("baseline-owned-resources.json", registry)];
+    parent.baselineRemoval = put("baseline-removal.json", removal);
+    derivation.runtimeRecord = parent.runtimeRecord;
+    const metadata = item => Object.fromEntries(["definitionImportDigest", "observedDefinitionDigest", "definitionVersion", "ccdNamespace"].map(key => [key, item.current.runtimeMetadata[key]]));
+    derivation.baselineRuntimeMetadata ??= metadata(baseline);
+    derivation.mutantRuntimeMetadata ??= metadata(fault);
+    const derivationArtifact = put(`${mutation}/derivation.json`, derivation);
+    put("run.json", { schemaVersion: 1, manifest: baselineManifest, executionArtifacts,
+      mutations: [{ mutationId: mutation, baselineInvocationId: "baseline", mutantInvocationId: mutation, derivationArtifact }] });
+    expected.eventTransition = put("independent-transition.json", parent);
+    put(`${mutation}/candidate-write-denial.json`, { ...denial, candidateId: "e".repeat(64) });
+    put(`${mutation}/candidate-lifecycle.json`, { ...lifecycle,
+      before: { ...lifecycle.before, Id: "e".repeat(64), Name: `/${input.runId}-${mutation}-candidate` },
+      after: { ...lifecycle.after, Id: "e".repeat(64), Name: `/${input.runId}-${mutation}-candidate` } });
+    const loaded = loadRunEvidence(path.join(directory, "run.json"), policy);
+    expected.evidenceManifestDigest = loaded.evidenceManifestDigest;
+    expected.receiptArtifactDigest = put("gate.json", loaded.receipt).digest;
+    put("controller-terminal.json", { status: "completed", exitCode: loaded.receipt.verdict.exitCode, cleanupComplete: true });
+    return loaded;
+
+  };
+  const finalized = write();
+  return { policy, terminal: { code: finalized.receipt.verdict.exitCode, signal: null }, manifest: baselineManifest, root, directory, expected, input, request, runtimeRecord, variants, baseline, fault, registry, denial, lifecycle,
+    removal, derivation, parent, put, read, write, faultIdentity,
+    loaded: async () => (await import("../lib/exui-evidence-io.mjs")).loadRunEvidence(path.join(directory, "run.json"), policy).input };
+}
+
+module.exports = { createEventTransitionFixture };

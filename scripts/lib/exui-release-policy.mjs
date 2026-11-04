@@ -5,6 +5,23 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 
 // This reviewed pilot scope cannot authorize a full EXUI release.
 export function getReleasePolicy(scope) {
+  if (scope === 'exui-ccd-event-capability-pilot') {
+    const courtadminCell = 'configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313';
+    const policy = {
+      releaseScopeId: scope,
+      requiredObligationIds: [courtadminCell, 'ccd-source-event-capability'],
+      obligations: [
+        { id: courtadminCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-email-one'], requiredMutationIds: [] },
+        { id: 'ccd-source-event-capability', boundary: 'ccd', requiredProofIds: ['ccd-event-create-denied'], requiredMutationIds: ['ccd-enable-judge-event'] }
+      ],
+      mutationDefinitions: [{
+        mutationId: 'ccd-enable-judge-event', obligationId: 'ccd-source-event-capability',
+        definitionDigest: digest({ boundary: 'ccd', transformation: 'change-only-source-judge-serviceOfDocuments-event-CRUD-R-to-CR' }),
+        expectedFailureId: 'event-capability-isolation', baselineProofId: 'ccd-event-create-denied', mutantProofId: 'ccd-event-create-enabled'
+      }]
+    };
+    return { ...policy, policyDigest: digest(policy) };
+  }
   if (scope === 'exui-hearing-publication-pilot') {
     const policy = {
       releaseScopeId: scope,
@@ -59,9 +76,10 @@ export function getReleasePolicy(scope) {
       expectedFailureId: 'organisation-scope', baselineProofId: 'wa-org-scope-ia', mutantProofId: 'wa-scope-broadened' }]
   } : {
     releaseScopeId: scope,
-    requiredObligationIds: ['ccd-nested-preservation', 'ccd-access-integrity', postalSequenceId],
+    requiredObligationIds: ['ccd-nested-preservation', 'ccd-access-integrity', 'ccd-role-revocation', postalSequenceId],
     obligations: [
       { id: 'ccd-nested-preservation', boundary: 'ccd', requiredProofIds: ['ccd-nested-roundtrip'], requiredMutationIds: ['ccd-drop-child'] },
+      { id: 'ccd-role-revocation', boundary: 'ccd', requiredProofIds: ['ccd-role-revocation'], requiredMutationIds: ['ccd-stale-revoked-bearer'] },
       { id: 'ccd-access-integrity', boundary: 'ccd', requiredProofIds: ['ccd-role-policy'], requiredMutationIds: ['ccd-broaden-access', 'ccd-write-then-deny'] },
       { id: postalSequenceId, boundary: 'ccd', requiredProofIds: ['ccd-postal-two-roundtrip'], requiredMutationIds: ['ccd-drop-postal-optional-child'] }
     ],
@@ -69,6 +87,9 @@ export function getReleasePolicy(scope) {
       { mutationId: 'ccd-drop-child', obligationId: 'ccd-nested-preservation',
         definitionDigest: digest({ boundary: 'ccd', transformation: 'drop-nested-email-address-on-submit' }),
         expectedFailureId: 'nested-persistence', baselineProofId: 'ccd-nested-roundtrip', mutantProofId: 'ccd-child-loss' },
+      { mutationId: 'ccd-stale-revoked-bearer', obligationId: 'ccd-role-revocation',
+        definitionDigest: digest({ boundary: 'ccd', transformation: 'substitute-same-revoked-actor-original-warmed-bearer-on-exact-case-read' }),
+        expectedFailureId: 'revoked-data-isolation', baselineProofId: 'ccd-role-revocation', mutantProofId: 'ccd-stale-revoked-bearer' },
       { mutationId: 'ccd-broaden-access', obligationId: 'ccd-access-integrity',
         definitionDigest: digest({ boundary: 'ccd', transformation: 'grant-denied-persona-protected-case-read' }),
         expectedFailureId: 'denied-data-isolation', baselineProofId: 'ccd-role-policy', mutantProofId: 'ccd-access-broadened' },

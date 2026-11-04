@@ -20,6 +20,50 @@ export function readEvidenceArtifact(root, reference) {
   return { value: JSON.parse(bytes), reference };
 }
 
+// Parse one raw execution using the same evidence rules as the complete run loader.
+export function readExecutionEvidence(root, reference, manifest, policy) {
+  const references = [];
+  const results = [];
+  const cells = new Map();
+  for (const obligation of policy.obligations) {
+    if (obligation.boundary !== 'external') for (const proofId of obligation.requiredProofIds) cells.set(proofId, obligation);
+  }
+  for (const mutation of policy.mutationDefinitions) {
+    cells.set(mutation.mutantProofId, policy.obligations.find((item) => item.id === mutation.obligationId));
+  }
+  const { value: execution } = readEvidenceArtifact(root, reference);
+  references.push(reference);
+  const { value: report } = readEvidenceArtifact(root, execution.resultArtifact);
+  references.push(execution.resultArtifact);
+  requireFact(report.schemaVersion === 1 && report.complete === true && Array.isArray(report.tests) && Array.isArray(report.globalErrors), 'INVALID_FRAMEWORK_REPORT');
+  requireFact(['passed', 'failed', 'timedout', 'interrupted'].includes(report.status), 'INVALID_FRAMEWORK_STATUS');
+  requireFact(isDeepStrictEqual(execution.unexpectedGlobalErrors, report.globalErrors), 'GLOBAL_ERROR_MISMATCH');
+  requireFact(isDeepStrictEqual(report.context, {
+    runId: execution.runId, invocationId: execution.invocationId, identity: execution.identity,
+    harnessCommit: manifest.harnessCommit, releaseScopeId: manifest.releaseScopeId, policyDigest: manifest.policyDigest,
+    harnessSourceState: manifest.runtimeMetadata.harnessSourceState, harnessSourceDigest: manifest.runtimeMetadata.harnessSourceDigest
+  }), 'REPORT_CONTEXT_MISMATCH');
+  const observedErrors = [...report.globalErrors];
+  for (const test of report.tests) {
+    const obligation = cells.get(test.proofId);
+    requireFact(obligation && test.expectedStatus === 'passed', 'UNKNOWN_OR_EXPECTED_FAILURE_PROOF');
+    requireFact(Number.isInteger(test.unattributedErrors) && test.unattributedErrors >= 0, 'INVALID_ERROR_COUNT');
+    if (test.unattributedErrors > 0) observedErrors.push('UNATTRIBUTED_TEST_FAILURE');
+    const outcomes = { passed: 'passed', failed: 'failed', skipped: 'skipped', timedOut: 'blocked', interrupted: 'blocked' };
+    requireFact(Object.hasOwn(outcomes, test.status), 'INVALID_TEST_STATUS');
+    results.push({
+      proofId: test.proofId, obligationId: obligation.id, runId: execution.runId,
+      invocationId: execution.invocationId, identity: execution.identity, boundary: obligation.boundary,
+      outcome: outcomes[test.status], retryIndex: test.retry,
+      complete: !['timedOut', 'interrupted'].includes(test.status), failureId: test.failureId,
+      artifacts: [execution.resultArtifact.path]
+    });
+  }
+  if (report.status === 'interrupted' || report.status === 'timedout') observedErrors.push('INCOMPLETE_FRAMEWORK_EXECUTION');
+  if ((report.status === 'passed') !== (execution.runnerExitCode === 0)) observedErrors.push('FRAMEWORK_EXIT_MISMATCH');
+  return { execution: { ...execution, unexpectedGlobalErrors: observedErrors }, results, references };
+}
+
 export function loadRunEvidence(runPath, policy) {
   const root = path.dirname(fs.realpathSync(runPath));
   const runBytes = fs.readFileSync(runPath);
@@ -30,45 +74,11 @@ export function loadRunEvidence(runPath, policy) {
   const references = [{ path: path.basename(runPath), digest: digestBytes(runBytes) }];
   const executions = [];
   const allResults = [];
-  const cells = new Map();
-  for (const obligation of policy.obligations) {
-    if (obligation.boundary !== 'external') for (const proofId of obligation.requiredProofIds) cells.set(proofId, obligation);
-  }
-  for (const mutation of policy.mutationDefinitions) {
-    cells.set(mutation.mutantProofId, policy.obligations.find((item) => item.id === mutation.obligationId));
-  }
   for (const reference of run.executionArtifacts) {
-    const { value: execution } = readEvidenceArtifact(root, reference);
-    references.push(reference);
-    const { value: report } = readEvidenceArtifact(root, execution.resultArtifact);
-    references.push(execution.resultArtifact);
-    requireFact(report.schemaVersion === 1 && report.complete === true && Array.isArray(report.tests) && Array.isArray(report.globalErrors), 'INVALID_FRAMEWORK_REPORT');
-    requireFact(['passed', 'failed', 'timedout', 'interrupted'].includes(report.status), 'INVALID_FRAMEWORK_STATUS');
-    requireFact(isDeepStrictEqual(execution.unexpectedGlobalErrors, report.globalErrors), 'GLOBAL_ERROR_MISMATCH');
-    requireFact(isDeepStrictEqual(report.context, {
-      runId: execution.runId, invocationId: execution.invocationId, identity: execution.identity,
-      harnessCommit: manifest.harnessCommit, releaseScopeId: manifest.releaseScopeId, policyDigest: manifest.policyDigest,
-      harnessSourceState: manifest.runtimeMetadata.harnessSourceState, harnessSourceDigest: manifest.runtimeMetadata.harnessSourceDigest
-    }), 'REPORT_CONTEXT_MISMATCH');
-    const observedErrors = [...report.globalErrors];
-    for (const test of report.tests) {
-      const obligation = cells.get(test.proofId);
-      requireFact(obligation && test.expectedStatus === 'passed', 'UNKNOWN_OR_EXPECTED_FAILURE_PROOF');
-      requireFact(Number.isInteger(test.unattributedErrors) && test.unattributedErrors >= 0, 'INVALID_ERROR_COUNT');
-      if (test.unattributedErrors > 0) observedErrors.push('UNATTRIBUTED_TEST_FAILURE');
-      const outcomes = { passed: 'passed', failed: 'failed', skipped: 'skipped', timedOut: 'blocked', interrupted: 'blocked' };
-      requireFact(Object.hasOwn(outcomes, test.status), 'INVALID_TEST_STATUS');
-      allResults.push({
-        proofId: test.proofId, obligationId: obligation.id, runId: execution.runId,
-        invocationId: execution.invocationId, identity: execution.identity, boundary: obligation.boundary,
-        outcome: outcomes[test.status], retryIndex: test.retry,
-        complete: !['timedOut', 'interrupted'].includes(test.status), failureId: test.failureId,
-        artifacts: [execution.resultArtifact.path]
-      });
-    }
-    if (report.status === 'interrupted' || report.status === 'timedout') observedErrors.push('INCOMPLETE_FRAMEWORK_EXECUTION');
-    if ((report.status === 'passed') !== (execution.runnerExitCode === 0)) observedErrors.push('FRAMEWORK_EXIT_MISMATCH');
-    executions.push({ ...execution, unexpectedGlobalErrors: observedErrors });
+    const parsed = readExecutionEvidence(root, reference, manifest, policy);
+    references.push(...parsed.references);
+    executions.push(parsed.execution);
+    allResults.push(...parsed.results);
   }
   const mutations = run.mutations.map((witness) => {
     const definition = policy.mutationDefinitions.find((item) => item.mutationId === witness.mutationId);

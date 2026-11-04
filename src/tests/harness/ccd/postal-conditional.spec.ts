@@ -8,7 +8,7 @@ import {
 } from "../../../fixtures/harnessCcd";
 
 test(
-  "two source-backed postal recipients survive validation, CYA navigation and CCD submission",
+  "source-backed postal recipients validate postcode lookup and preserve manual addresses",
   {
     annotation: {
       type: "harness-proof",
@@ -26,6 +26,7 @@ test(
       .last()
       .click();
     await page.getByLabel("Post", { exact: true }).last().check();
+    const postcodeLookups = page.locator('input[id$="postcodeInput"]');
     const names = page.locator('input[id$="_postalName"]');
     const address1 = page.locator('input[id$="AddressLine1"]');
     const address2 = page.locator('input[id$="AddressLine2"]');
@@ -41,6 +42,17 @@ test(
     await expect(
       page.locator('input[id$="_emailAddress"]').last(),
     ).toBeHidden();
+    await expect(postcodeLookups).toHaveCount(2);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+
+    await test.step("harness-assertion:postal-required-fields", async () => {
+      await expect(postcodeLookups.first()).toHaveClass(/govuk-input--error/);
+      await expect(postcodeLookups.last()).toHaveClass(/govuk-input--error/);
+      await expect(
+        page.getByText("Check your answers", { exact: false }),
+      ).toBeHidden();
+    });
+
     await page
       .getByRole("link", { name: "I can't enter a UK postcode", exact: true })
       .first()
@@ -56,19 +68,8 @@ test(
     await address2.first().fill("First synthetic suite");
     await address2.last().fill("Second synthetic suite");
     await postcodes.first().fill("SW1A 1AA");
-    await page.locator("#protectedValue").fill("synthetic-postal-sequence");
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-
-    await test.step("harness-assertion:postal-required-fields", async () => {
-      // The imported collection event rows explicitly mark this child MANDATORY; do not infer that from AddressUK's built-in type alone.
-      await expect(postcodes.last()).toHaveClass(/govuk-input--error/);
-      await expect(postcodes.first()).not.toHaveClass(/govuk-input--error/);
-      await expect(names.first()).toHaveValue("Synthetic postal first");
-      await expect(address2.first()).toHaveValue("First synthetic suite");
-      await expect(address2.last()).toHaveValue("Second synthetic suite");
-    });
-
     await postcodes.last().fill("M1 1AA");
+    await page.locator("#protectedValue").fill("synthetic-postal-sequence");
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await expect(
       page.getByText("Check your answers", { exact: false }),

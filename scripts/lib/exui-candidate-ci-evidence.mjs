@@ -11,11 +11,18 @@ import {
   writeJsonAtomic,
 } from "./exui-evidence-io.mjs";
 import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
-import { captureNativeOwnership } from "./exui-native-ci-ownership.mjs";
+import { captureNativeOwnership, captureEventFaultOwnership } from "./exui-native-ci-ownership.mjs";
+import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
+import { validateCompleteNativeProofs, validateNativeOutcome } from "./exui-native-proof-validation.mjs";
+import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs";
 import { ARM64_BROWSER_RUNTIME } from "./exui-oci-runtime.mjs";
 import { HARNESS_SOURCE_FILES } from "./exui-candidate-runtime.mjs";
 import { CCD_HARNESS_SOURCE_FILES } from "./exui-ccd-browser-runtime.mjs";
-import { assertRoutingInterpreter } from "./exui-routing-contract.mjs";
+import {
+  assertRoutingInterpreter,
+  ROUTING_SCOPE,
+} from "./exui-routing-contract.mjs";
+import { nativeIdentity } from "./exui-native-contract.mjs";
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -29,6 +36,7 @@ const scopes = {
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
+  eventCapability: EVENT_CAPABILITY_SCOPE,
 };
 export function validateCiPhase(directory, expected, terminal) {
   assert.equal(terminal.signal, null, "CI_PHASE_TERMINAL_SIGNAL");
@@ -42,12 +50,30 @@ export function validateCiPhase(directory, expected, terminal) {
     loaded.receipt,
     "CI_PHASE_RECEIPT_RECOMPUTATION_MISMATCH",
   );
-  if (expected.nativeAuthority)
+  if (expected.nativeAuthority) {
     validateNativePhaseFinalization(
       directory,
       loaded.input.executions,
       terminal,
     );
+  }
+  if (expected.releaseScopeId === ROUTING_SCOPE) {
+    const input = JSON.parse(fs.readFileSync(path.join(directory, "input.json"), "utf8"));
+    const review = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json"), "utf8"));
+    const interpreter = assertRoutingInterpreter(input.artifact, review, input.artifact.identity);
+    const run = JSON.parse(fs.readFileSync(path.join(directory, "run.json"), "utf8"));
+    assert.equal(input.releaseScopeId, ROUTING_SCOPE, "CI_ROUTING_SCOPE_REQUIRED");
+    assert.deepEqual(input.routingInterpreter, interpreter, "CI_ROUTING_IMPLEMENTATION_MISMATCH");
+    assert.deepEqual(expected.routingInterpreter, interpreter, "CI_ROUTING_EXPECTATION_MISMATCH");
+    assert.equal(input.artifact.identity.artifactDigest, expected.identity.artifactDigest, "CI_ROUTING_CANDIDATE_MISMATCH");
+    assert.equal(run.manifest.runtimeMetadata.routingInterpreter, JSON.stringify(interpreter), "CI_ROUTING_RUNTIME_IDENTITY_MISMATCH");
+  }
+  if (expected.releaseScopeId === EVENT_CAPABILITY_SCOPE) {
+    assert.equal(expected.nativeAuthority, true, "CI_EVENT_NATIVE_AUTHORITY_REQUIRED");
+    validateCompleteNativeProofs(loaded.input, policy);
+    validateNativeOutcome(loaded.input, loaded.receipt.verdict);
+    validateEventTransitionEvidence(directory, expected, loaded.input);
+  }
   const promotion = {
     ...expected,
     evidenceManifestDigest: loaded.evidenceManifestDigest,
@@ -86,6 +112,7 @@ export function validateCiPhase(directory, expected, terminal) {
     status: verdict.status,
     exitCode: verdict.exitCode,
     receiptArtifactDigest: promotion.receiptArtifactDigest,
+    ...(expected.releaseScopeId === EVENT_CAPABILITY_SCOPE ? { eventTransition: expected.eventTransition } : {}),
   };
 }
 
@@ -99,7 +126,7 @@ export function captureCiPhaseExpectation(
   const policy = getReleasePolicy(scopes[name]);
   assert.deepEqual(
     input.harnessSources,
-    name === "ccd" ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
+    ["ccd", "eventCapability"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
     "CI_LAUNCH_SOURCE_INVENTORY_MISMATCH",
   );
   assert.equal(
@@ -173,7 +200,11 @@ export function captureCiPhaseExpectation(
         .startsWith(fs.realpathSync(os.tmpdir()) + path.sep),
     "CI_PRIVATE_SOURCE_HANDOFF_REQUIRED",
   );
-  const identity = name === "ccd" ? context.ccdIdentity : context.identity;
+  const identity = ["ccd", "eventCapability"].includes(name)
+    ? context.ccdIdentity
+    : name === "routing"
+      ? nativeIdentity(input, { mutation: null }, context.artifact.candidateRoot).identity
+      : context.identity;
   return {
     runId: input.runId,
     harnessCommit: context.commit,
@@ -186,12 +217,13 @@ export function captureCiPhaseExpectation(
     ...(handoff.mode === "native-separate-api"
       ? { nativeAuthority: true }
       : {}),
+    ...(name === "routing" ? { routingInterpreter: input.routingInterpreter } : {}),
   };
 }
-export function captureCiOwnership(input, handoff, context, directory, name) {
+function captureOwnership(input, handoff, context, directory, name, capture) {
   assert.deepEqual(
     input.harnessSources,
-    name === "ccd" ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
+    ["ccd", "eventCapability"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
     "CI_LAUNCH_SOURCE_INVENTORY_MISMATCH",
   );
   assert.equal(
@@ -235,7 +267,7 @@ export function captureCiOwnership(input, handoff, context, directory, name) {
     "CI_SOURCE_SNAPSHOT_DIGEST_MISMATCH",
   );
   if (handoff.mode === "native-separate-api")
-    return captureNativeOwnership(input, handoff, context, directory, name);
+    return capture(input, handoff, context, directory, name);
   const mounts = [
     { source: stage, target: "/harness", writable: false },
     {
@@ -263,4 +295,13 @@ export function captureCiOwnership(input, handoff, context, directory, name) {
     network: name === "ccd" ? `container:${context.ccd.namespace}` : "none",
     mounts,
   };
+}
+
+export function captureCiOwnership(input, handoff, context, directory, name) {
+  return captureOwnership(input, handoff, context, directory, name, captureNativeOwnership);
+}
+
+export function captureCiEventFaultOwnership(input, handoff, context, directory) {
+  assert.equal(handoff.mode, "native-separate-api", "CI_EVENT_NATIVE_AUTHORITY_REQUIRED");
+  return captureOwnership(input, handoff, context, directory, "eventCapability", captureEventFaultOwnership);
 }

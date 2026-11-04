@@ -11,7 +11,10 @@ import {
 } from "./lib/exui-configuration-catalogue.mjs";
 import { writeJsonAtomic, digestBytes } from "./lib/exui-evidence-io.mjs";
 import { createPrivateSourceDiagnosticOutput } from "./lib/exui-output-boundary.mjs";
-import { validateDefinitionDiscovery } from "./lib/exui-definition-discovery.mjs";
+import {
+  buildDefinitionRootInventory,
+  validateDefinitionDiscovery,
+} from "./lib/exui-definition-discovery.mjs";
 
 try {
   const { values } = parseArgs({
@@ -67,6 +70,16 @@ try {
   const discoveryValidation = validateDefinitionDiscovery({
     discovery,
     review,
+  });
+  const sourceTruth = JSON.parse(
+    fs.readFileSync(
+      path.join(harnessRoot, "src/data/exui-central-assurance-source.json"),
+      "utf8",
+    ),
+  );
+  report.definitionRootInventory = buildDefinitionRootInventory({
+    profiles: sourceTruth.serviceDefinitionProfiles?.profiles,
+    discoveryValidation,
   });
   const inventoryFile = path.join(output, "definition-file-inventory.json");
   const graphFile = path.join(output, "definition-reference-graph.json");

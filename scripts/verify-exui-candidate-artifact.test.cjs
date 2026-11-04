@@ -23,6 +23,20 @@ async function fixture(t) {
 }
 const provenance = { sourceMethod: 'git-archive', webappCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), platform: 'linux/arm64', buildImage: `sha256:${'c'.repeat(64)}`, install: 'immutable-offline' };
 
+test('AMD64 artifact provenance is sealed and cannot be relabelled as ARM64', async (t) => {
+  const { describeCandidateArtifact, verifyCandidateArtifact } = await import('./lib/exui-candidate-artifact.mjs');
+  const root = await fixture(t);
+  const file = path.join(root, '../' + path.basename(root) + '-amd64.json');
+  t.after(() => rm(file, { force: true }));
+  const value = await describeCandidateArtifact(root, { ...provenance, platform: 'linux/amd64' });
+  await writeFile(file, JSON.stringify(value));
+  assert.deepEqual(await verifyCandidateArtifact(file), value);
+  value.provenance.platform = 'linux/arm64';
+  await writeFile(file, JSON.stringify(value));
+  await assert.rejects(verifyCandidateArtifact(file), /identity mismatch/);
+  await assert.rejects(describeCandidateArtifact(root, { ...provenance, platform: 'linux/ppc64le' }), /pinned Linux/);
+});
+
 test('candidate seal verifies a complete identified payload and rejects UI, dependency, config and provenance tampering', async (t) => {
   const { describeCandidateArtifact, verifyCandidateArtifact } = await import('./lib/exui-candidate-artifact.mjs');
   for (const changed of ['dist/rpx-exui/browser/index.html', 'node_modules/@hmcts/ccd-case-ui-toolkit/package.json', 'config/default.json', 'yarn.lock']) {
@@ -69,4 +83,18 @@ test('manifest provenance tampering and missing runtime inputs cannot receive a 
   await assert.rejects(verifyCandidateArtifact(manifestPath), /identity mismatch/);
   await rm(path.join(root, 'runtime/node'));
   await assert.rejects(describeCandidateArtifact(root, provenance), /ENOENT/);
+});
+
+test('private transport parents can keep stable payload-root execute bits without ignoring file integrity', async t => {
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const {digestCandidateTree}=await import('./lib/exui-candidate-artifact.mjs');
+ const parent=fs.mkdtempSync(path.join(os.tmpdir(),'artifact-mount-mode-'));t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ const root=path.join(parent,'payload');fs.mkdirSync(root,0o700);const file=path.join(root,'browser');fs.writeFileSync(file,'fixture',{mode:0o700});
+ const privateRootDigest=await digestCandidateTree(root);
+ fs.chmodSync(root,0o755);const portable=await digestCandidateTree(root);
+ assert.notEqual(privateRootDigest,portable);
+ fs.chmodSync(root,0o777);assert.equal(await digestCandidateTree(root),portable);
+ fs.chmodSync(root,0o755);fs.chmodSync(file,0o600);assert.notEqual(await digestCandidateTree(root),portable);
+ fs.chmodSync(file,0o700);fs.writeFileSync(file,'changed');assert.notEqual(await digestCandidateTree(root),portable);
+ assert.equal(fs.statSync(parent).mode&0o777,0o700);
 });
