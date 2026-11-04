@@ -35,7 +35,8 @@ test('worker observation admits only selected platform fields and fixed read-onl
   assert.equal(report.nativeReady, false);
   assert.equal(report.releaseApproval, false);
   assert.equal(report.nativeExecution, 'not-run');
-  assert(report.reasons.includes('DOCKER_PLATFORM_UNSUPPORTED'));
+  assert(!report.reasons.includes('DOCKER_PLATFORM_UNSUPPORTED'));
+  assert(report.reasons.includes('PINNED_IMAGES_NOT_VERIFIED'));
   assert(report.reasons.includes('NATIVE_INPUT_UNCONFIGURED'));
   assert(!JSON.stringify(report).includes('PRIVATE-CANARY'));
   assert(!JSON.stringify(report).includes('private.invalid'));
@@ -124,4 +125,20 @@ test('candidate build image absence blocks native worker readiness', async () =>
   assert.equal(report.images.find(image => image.service === 'build').status, 'unavailable');
   assert(report.reasons.includes('PINNED_IMAGES_NOT_VERIFIED'));
   assert.equal(report.nativeReady, false);
+});
+
+test('verified AMD64 cached images remove platform gaps but grant no native execution credit',async()=>{
+ const m=await load();
+ const {nativeRuntimeImages}=await import('./lib/exui-native-containers.mjs');
+ const {ccdImagePins}=await import('./lib/exui-ccd-runtime.mjs');
+ const native=nativeRuntimeImages('linux/amd64'),pins={api:native.api,tools:native.browser,build:native.api,...ccdImagePins('linux/amd64')};
+ const report=m.collectWorkerCapabilities({run:(_command,args)=>{
+  if(args[0]==='version')return {status:0,stdout:JSON.stringify({Os:'linux',Arch:'amd64'})};
+  const pin=Object.values(pins).find(pin=>pin.reference===args[2]);assert(pin);
+  return {status:0,stdout:JSON.stringify([{Id:pin.configDigest,Os:'linux',Architecture:'amd64',RepoDigests:[pin.reference]}])};
+ }});
+ assert(report.images.every(image=>image.pinnedIdentityMatched));
+ assert(!report.reasons.includes('DOCKER_PLATFORM_UNSUPPORTED'));
+ assert(!report.reasons.includes('PINNED_IMAGES_NOT_VERIFIED'));
+ assert.equal(report.nativeExecution,'not-run');assert.equal(report.nativeReady,false);assert.equal(report.releaseApproval,false);
 });

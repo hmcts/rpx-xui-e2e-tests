@@ -21,7 +21,7 @@ The native runner starts the built Angular/Node candidate with isolated syntheti
 
 Prepare a clean committed Harness checkout, sealed candidate manifest, matching Linux/arm64 or Linux/amd64 browser cache and cached pinned Docker images. The fixed CI job requires the candidate platform to match the observed Docker server. The current native build uses Node 24.22.1 / Debian 12; the host controller verifies actual candidate, dependency, browser and source bytes. Missing inputs, wrong platforms, dirty source, retries, undeclared destinations, incomplete reports or cleanup block admission.
 
-The AMD64 CCD image profile is pinned in `scripts/fixtures/ccd/linux-amd64-images.json`; it uses separately published service builds, an official PostgreSQL image and eight synthetic CCD databases. Its simulator and CCD accept one exact loopback JWT issuer. ARM64 keeps its existing profile. A pass on either profile gives no execution credit to the other. Jenkins provisioning remains gated until the complete AMD64 job has been accepted.
+The AMD64 CCD image profile is pinned in `scripts/fixtures/ccd/linux-amd64-images.json`; it uses separately published service builds, an official PostgreSQL image and eight synthetic CCD databases. Its simulator and CCD accept one exact loopback JWT issuer. ARM64 keeps its existing profile. A pass on either profile gives no execution credit to the other. The full AMD64 Jenkins job still needs live acceptance.
 
 Create a fresh job JSON using exactly these keys:
 
@@ -143,7 +143,7 @@ The shared evaluator recomputes raw framework evidence and receipts. `harness:ve
 
 The pinned Jenkins library runs lint during Build. The later Harness stage reactivates NVM and checks actual Node against `.nvmrc` and actual Yarn against `packageManager` before browser preflight and supporting checks.
 
-Checked-in Jenkins jobs attempt the bounded native candidate/CCD pilots on the existing worker, then collect supporting diagnostics in the same report. Native preparation requires an observed Linux ARM64 Docker server before webapp fetch or candidate build. This platform check grants no runtime or release credit; actual Jenkins native provisioning and live acceptance remain unverified.
+Checked-in Jenkins jobs attempt the bounded native candidate/CCD pilots on the existing worker, then collect supporting diagnostics in the same report. Native preparation requires an observed Linux ARM64 or AMD64 Docker server before webapp fetch or candidate build. AMD64 provisioning pulls immutable Node, Playwright and CCD image references, reusing the current worker’s existing Azure context for private registry access. Registry credentials stay in a temporary private Docker configuration and are removed after preparation. No agent or Azure subscription is changed. These observations grant no runtime or release credit; Jenkins native acceptance remains unverified.
 
 The shared Jenkins library deletes its workspace at job completion. Job-local raw reports are not durable evidence retention; an approved private store is still required for native CI acceptance.
 

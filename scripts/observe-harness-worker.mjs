@@ -4,11 +4,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { CCD_IMAGES } from "./lib/exui-ccd-runtime.mjs";
+import { CCD_IMAGES, ccdImagePins } from "./lib/exui-ccd-runtime.mjs";
 import { CANDIDATE_BUILD_IMAGE } from "./lib/exui-candidate-build.mjs";
 import { ARM64_BROWSER_RUNTIME, NATIVE_API_RUNTIME_REFERENCE } from "./lib/exui-oci-runtime.mjs";
 import { validateCiJob } from "./lib/exui-candidate-ci-inputs.mjs";
 
+import { nativeRuntimeImages } from "./lib/exui-native-containers.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const relativeOutput = "functional-output/tests/harness/public/native-ci-capabilities.json";
 const pins = { api: NATIVE_API_RUNTIME_REFERENCE, tools: ARM64_BROWSER_RUNTIME, build: CANDIDATE_BUILD_IMAGE, ...CCD_IMAGES };
@@ -21,8 +22,8 @@ const valid = condition => assert(condition, "INVALID_WORKER_CAPABILITIES");
 function reasons(report) {
   const result = ["NATIVE_EXECUTION_NOT_RUN", "MOUNT_AND_LIFECYCLE_NOT_VERIFIED"];
   if (report.docker.status !== "observed") result.push("DOCKER_UNAVAILABLE");
-  else if (report.docker.os !== "linux" || report.docker.architecture !== "arm64") result.push("DOCKER_PLATFORM_UNSUPPORTED");
-  if (report.images.some(image => image.status !== "present" || !image.pinnedIdentityMatched || image.os !== "linux" || image.architecture !== "arm64")) result.push("PINNED_IMAGES_NOT_VERIFIED");
+  else if (report.docker.os !== "linux" || !["arm64", "amd64"].includes(report.docker.architecture)) result.push("DOCKER_PLATFORM_UNSUPPORTED");
+  if (report.images.some(image => image.status !== "present" || !image.pinnedIdentityMatched || image.os !== "linux" || image.architecture !== report.docker.architecture)) result.push("PINNED_IMAGES_NOT_VERIFIED");
   if (report.inputs.job === "unconfigured") result.push("NATIVE_INPUT_UNCONFIGURED");
   else if (report.inputs.job !== "present" || report.inputs.candidateManifest !== "present" || report.inputs.browserCache !== "present") result.push("NATIVE_INPUT_UNAVAILABLE_OR_INVALID");
   result.push("CANDIDATE_AND_BROWSER_INTEGRITY_NOT_VERIFIED");
@@ -53,20 +54,25 @@ export function collectWorkerCapabilities({ run = spawnSync, inputPath, host = {
   };
   const server = dockerJson(["version", "--format", "{{json .Server}}"]);
   const observed = server && typeof server.Os === "string" && typeof server.Arch === "string";
+  const amdNative = server?.Os === "linux" && server.Arch === "amd64" ? nativeRuntimeImages("linux/amd64") : null;
+  const amdPins = amdNative ? { api: amdNative.api, tools: amdNative.browser, build: amdNative.api, ...ccdImagePins("linux/amd64") } : null;
   const report = {
     schemaVersion: 1, kind: "worker-capability-observation", nativeExecution: "not-run", nativeReady: false, releaseApproval: false,
     host: { os: osName(host.os), architecture: architecture(host.architecture) },
     docker: { status: observed ? "observed" : "unavailable", os: osName(server?.Os), architecture: architecture(server?.Arch) },
     images: Object.entries(pins).map(([service, reference]) => {
+      reference = amdPins?.[service].reference ?? reference;
       const info = observed ? dockerJson(["image", "inspect", reference]) : null;
       const item = Array.isArray(info) && info.length === 1 ? info[0] : null;
       const pin = reference.slice(reference.indexOf("sha256:"));
       const digests = Array.isArray(item?.RepoDigests) ? item.RepoDigests : [];
       const pinnedDigest = digests.some(digest => typeof digest === "string" && digest.endsWith("@" + pin));
       const provenance = service === "tools" ? digests.length > 0 : pinnedDigest;
+      const amdPin = amdPins?.[service];
+      const identityMatched = amdPin ? Boolean(item && [amdPin.manifestDigest, amdPin.configDigest].includes(item.Id) && pinnedDigest) : Boolean(item && ((service === "api" || service === "build") || item.Id === reference) && provenance);
       return { service, status: !observed ? "not-checked" : item ? "present" : "unavailable",
         os: osName(item?.Os), architecture: architecture(item?.Architecture),
-        pinnedIdentityMatched: Boolean(item && ((service === "api" || service === "build") || item.Id === reference) && provenance) };
+        pinnedIdentityMatched: identityMatched };
     }),
     inputs: inputPresence(inputPath),
   };

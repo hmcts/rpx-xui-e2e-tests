@@ -227,7 +227,7 @@ test('Jenkins native assurance builds exact webapp master in a private, script-d
   assert.match(source, /YARN_ENABLE_NETWORK: "1", YARN_ENABLE_SCRIPTS: "0"/);
   assert.match(source, /"config",\s*"set",\s*"supportedArchitectures",\s*"--json"/);
   assert.match(source, /os: \["linux"\]/);
-  assert.match(source, /cpu: \["arm64"\]/);
+  assert.match(source, /cpu: \[platform === "linux\/amd64" \? "x64" : "arm64"\]/);
   assert.match(source, /libc: \["glibc"\]/);
   assert.match(source, /"install", "--immutable", "--mode=skip-build"/);
   assert.match(source, /fs\.writeFileSync\(yarnConfigurationPath, yarnConfiguration/);

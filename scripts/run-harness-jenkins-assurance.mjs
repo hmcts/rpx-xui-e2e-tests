@@ -3,9 +3,12 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ARM64_BROWSER_RUNTIME } from "./lib/exui-oci-runtime.mjs";
+import { nativeRuntimeImages, assertNativeRuntimeImage } from "./lib/exui-native-containers.mjs";
+import { ccdImagePins, assertCcdImageIdentity } from "./lib/exui-ccd-runtime.mjs";
 import { readCandidateBuildContract } from "./lib/exui-candidate-build.mjs";
 import { verifyCandidateArtifact } from "./lib/exui-candidate-artifact.mjs";
 import {
@@ -27,9 +30,10 @@ export function assertNativeWorkerPlatform(report = collectWorkerCapabilities())
   assert(
     report.docker.status === "observed" &&
       report.docker.os === "linux" &&
-      report.docker.architecture === "arm64",
-    "HARNESS_NATIVE_DOCKER_ARM64_REQUIRED",
+      ["arm64", "amd64"].includes(report.docker.architecture),
+    "HARNESS_NATIVE_DOCKER_SUPPORTED_PLATFORM_REQUIRED",
   );
+  return `linux/${report.docker.architecture}`;
 }
 
 function safeEnvironment(extra = {}) {
@@ -57,11 +61,150 @@ function run(command, args, { cwd = ROOT, env = safeEnvironment(), ...options } 
     maxBuffer: 8 * 1024 * 1024,
     ...options,
   });
-  if (result.error || result.status !== 0)
-    throw new Error("HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED");
+  if (result.error || result.status !== 0) {
+    const code = command === "az" ? "NATIVE_REGISTRY_ACCESS_UNAVAILABLE" : command === "docker" && args[0] === "pull" ? "NATIVE_PINNED_IMAGE_PULL_FAILED" : command === "docker" && args[0] === "login" ? "NATIVE_REGISTRY_LOGIN_FAILED" : "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED";
+    throw new Error(code);
+  }
   return result.stdout?.trim() ?? "";
 }
 
+export function provisionNativeImages(platform, { runCommand = run } = {}) {
+  const native = nativeRuntimeImages(platform);
+  const targets = [
+    ...Object.values(native).map((pin) => ({
+      ...pin,
+      verify: (info) => assertNativeRuntimeImage(info, pin, platform),
+    })),
+    ...Object.values(ccdImagePins(platform)).map((pin) => ({
+      ...pin,
+      verify: (info) => assertCcdImageIdentity(info, pin, platform),
+    })),
+  ];
+  let registryDirectory;
+  const cleanup = () => {
+    if (!registryDirectory) return;
+    fs.rmSync(registryDirectory, { recursive: true, force: true });
+    assert(
+      !fs.existsSync(registryDirectory),
+      "NATIVE_REGISTRY_CREDENTIAL_CLEANUP_REQUIRED",
+    );
+  };
+  const onSignal = () => {
+    try {
+      cleanup();
+    } finally {
+      process.exit(2);
+    }
+  };
+  try {
+    for (const pin of new Map(
+      targets.map((pin) => [pin.reference, pin]),
+    ).values()) {
+      let cached;
+      try {
+        cached = JSON.parse(
+          runCommand("docker", ["image", "inspect", pin.reference]),
+        );
+      } catch {
+        /* Missing images are provisioned by immutable reference. */
+      }
+      if (cached) {
+        assert.equal(cached.length, 1);
+        pin.verify(cached[0]);
+        continue;
+      }
+      assert.equal(
+        platform,
+        "linux/amd64",
+        "HARNESS_ARM64_PINNED_CACHE_REQUIRED",
+      );
+      if (
+        pin.reference.startsWith("hmctsprod.azurecr.io/") &&
+        !registryDirectory
+      ) {
+        if (process.env.CI === "true") {
+          const context = process.env.AZURE_CONFIG_DIR;
+          assert(
+            typeof context === "string" &&
+              path.isAbsolute(context) &&
+              fs.realpathSync(context) === context &&
+              fs.statSync(context).isDirectory(),
+            "NATIVE_EXISTING_AZURE_CONTEXT_REQUIRED",
+          );
+        }
+        const access = JSON.parse(
+          runCommand(
+            "az",
+            [
+              "acr",
+              "login",
+              "--name",
+              "hmctsprod",
+              "--expose-token",
+              "--output",
+              "json",
+              "--only-show-errors",
+            ],
+            {
+              env: safeEnvironment(
+                process.env.AZURE_CONFIG_DIR
+                  ? { AZURE_CONFIG_DIR: process.env.AZURE_CONFIG_DIR }
+                  : {},
+              ),
+              timeout: 120_000,
+            },
+          ),
+        );
+        assert(
+          access.loginServer === "hmctsprod.azurecr.io" &&
+            typeof access.accessToken === "string" &&
+            access.accessToken.length > 0,
+          "NATIVE_REGISTRY_ACCESS_REQUIRED",
+        );
+        registryDirectory = fs.mkdtempSync(
+          path.join(fs.realpathSync(os.tmpdir()), "harness-registry-"),
+        );
+        assertPrivateDirectory(registryDirectory);
+        process.once("SIGTERM", onSignal);
+        process.once("SIGINT", onSignal);
+        runCommand(
+          "docker",
+          [
+            "login",
+            "hmctsprod.azurecr.io",
+            "--username",
+            "00000000-0000-0000-0000-000000000000",
+            "--password-stdin",
+          ],
+          {
+            env: safeEnvironment({ DOCKER_CONFIG: registryDirectory }),
+            input: access.accessToken,
+            timeout: 120_000,
+          },
+        );
+      }
+      runCommand("docker", ["pull", "--platform", platform, pin.reference], {
+        env: safeEnvironment(
+          registryDirectory ? { DOCKER_CONFIG: registryDirectory } : {},
+        ),
+        stdio: "ignore",
+        timeout: 900_000,
+      });
+      const inspected = JSON.parse(
+        runCommand("docker", ["image", "inspect", pin.reference]),
+      );
+      assert.equal(inspected.length, 1);
+      pin.verify(inspected[0]);
+    }
+  } finally {
+    try {
+      cleanup();
+    } finally {
+      process.removeListener("SIGTERM", onSignal);
+      process.removeListener("SIGINT", onSignal);
+    }
+  }
+}
 export function assertPrivateDirectory(directory) {
   const resolved = path.resolve(directory);
   const info = fs.lstatSync(resolved);
@@ -104,7 +247,7 @@ export function writePrivateJob(file, value) {
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 }
 
-function prepareBrowserCache(privateRoot) {
+function prepareBrowserCache(privateRoot, platform) {
   const browserCache = path.join(privateRoot, "browser-cache");
   fs.mkdirSync(browserCache, { mode: 0o700 });
   run(
@@ -117,7 +260,7 @@ function prepareBrowserCache(privateRoot) {
       "--network",
       "none",
       "--platform",
-      "linux/arm64",
+      platform,
       "--read-only",
       "--cap-drop",
       "ALL",
@@ -134,16 +277,16 @@ function prepareBrowserCache(privateRoot) {
       `type=bind,src=${browserCache},dst=/browser`,
       "--entrypoint",
       "/bin/sh",
-      ARM64_BROWSER_RUNTIME,
+      platform === "linux/arm64" ? ARM64_BROWSER_RUNTIME : nativeRuntimeImages(platform).browser.reference,
       "-c",
       "cp -a /ms-playwright/. /browser/",
     ],
   );
-  assert(fs.readdirSync(browserCache).length > 0, "ARM64_BROWSER_CACHE_REQUIRED");
+  assert(fs.readdirSync(browserCache).length > 0, "NATIVE_BROWSER_CACHE_REQUIRED");
   return browserCache;
 }
 
-async function prepareJob(privateRoot) {
+async function prepareJob(privateRoot, platform) {
   const source = path.join(privateRoot, "webapp-source");
   const candidate = path.join(privateRoot, "candidate");
   const output = path.join(privateRoot, "native-output");
@@ -181,7 +324,7 @@ async function prepareJob(privateRoot) {
         "--json",
         JSON.stringify({
           os: ["linux"],
-          cpu: ["arm64"],
+          cpu: [platform === "linux/amd64" ? "x64" : "arm64"],
           libc: ["glibc"],
         }),
       ],
@@ -192,7 +335,7 @@ async function prepareJob(privateRoot) {
       [yarnPath, "install", "--immutable", "--mode=skip-build"],
       {
         cwd: source,
-        env: safeEnvironment({ YARN_ENABLE_NETWORK: "1", YARN_ENABLE_SCRIPTS: "0" }),
+        env: safeEnvironment({ YARN_ENABLE_NETWORK: "1", YARN_ENABLE_SCRIPTS: "0", YARN_GLOBAL_FOLDER: path.join(privateRoot, "yarn-global") }),
         stdio: "ignore",
         timeout: 1_800_000,
       },
@@ -216,6 +359,8 @@ async function prepareJob(privateRoot) {
       candidate,
       "--cache",
       cache,
+      "--platform",
+      platform,
     ],
     { stdio: "inherit", timeout: 1_800_000 },
   );
@@ -223,7 +368,7 @@ async function prepareJob(privateRoot) {
   const artifact = await verifyCandidateArtifact(candidateManifest);
   assert.equal(artifact.identity.webappCommit, commit, "WEBAPP_CANDIDATE_COMMIT_MISMATCH");
 
-  const browserCache = prepareBrowserCache(privateRoot);
+  const browserCache = prepareBrowserCache(privateRoot, platform);
   const job = {
     schemaVersion: 1,
     candidateManifest,
@@ -312,9 +457,11 @@ async function main() {
   let exitCode = 2;
   try {
     stage = "native worker platform";
-    assertNativeWorkerPlatform();
+    const platform = assertNativeWorkerPlatform();
     privateRoot = createPrivateJobDirectory();
-    const { jobPath, output } = await prepareJob(privateRoot);
+    stage = "pinned runtime provisioning";
+    provisionNativeImages(platform);
+    const { jobPath, output } = await prepareJob(privateRoot, platform);
     stage = "native candidate and CCD pilots";
     const result = spawnSync(
       process.execPath,
@@ -332,8 +479,13 @@ async function main() {
       writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
       exitCode = Math.max(exitCode, 2);
     }
-  } catch {
-    console.error(`[harness-assurance] BLOCKED during ${stage}; release approval remains unavailable.`);
+  } catch (error) {
+    const reason = /^[A-Z][A-Z0-9_]{0,199}$/.test(error.message ?? "") ? error.message : "HARNESS_NATIVE_PREPARATION_FAILED";
+    if (privateRoot) {
+      assertPrivateDirectory(privateRoot);
+      writePrivateJob(path.join(privateRoot, "preparation-error.json"), { stage, reason });
+    }
+    console.error(`[harness-assurance] BLOCKED during ${stage}; reason ${reason}; release approval remains unavailable.`);
     exitCode = 2;
   } finally {
     try {

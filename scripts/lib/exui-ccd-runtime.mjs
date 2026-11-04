@@ -165,7 +165,7 @@ export async function startCcdRuntime(output,{runDocker=docker,fixtureSelection:
   state.images[service]={id:info.Id,architecture:info.Architecture,repoDigests:info.RepoDigests};
  }
  fs.writeFileSync(path.join(state.output,'recovery.json'),JSON.stringify({owner:state.owner,output:state.output,...(state.platform?{platform}:{}),resources},null,2)+'\n');
- state.namespace=runDocker(['create','--name',`${state.owner}-database`,'--label',`exui.harness.owner=${state.owner}`,'--label','exui.harness.service=database','--network','none','--tmpfs','/var/lib/postgresql/data:rw,nosuid,size=512m,uid=999,gid=999,mode=0700','-e','POSTGRES_HOST_AUTH_METHOD=trust','-e',`DB_USERNAME=ccd`,'-e',`DB_PASSWORD=${password}`,images.database,'postgres','-c','listen_addresses=127.0.0.1']);
+ state.namespace=runDocker(['create',...(platform==='linux/amd64'?['--user','999:999']:[]),'--name',`${state.owner}-database`,'--label',`exui.harness.owner=${state.owner}`,'--label','exui.harness.service=database','--network','none','--tmpfs','/var/lib/postgresql/data:rw,nosuid,size=512m,uid=999,gid=999,mode=0700','-e','POSTGRES_HOST_AUTH_METHOD=trust','-e',`DB_USERNAME=ccd`,'-e',`DB_PASSWORD=${password}`,images.database,'postgres','-c','listen_addresses=127.0.0.1']);
  state.containers.database=state.namespace; save(state);runDocker(['start',state.namespace]);
  function run(service,env,args=[]) { const command=sidecarArguments({owner:state.owner,namespace:state.namespace,image:images[service],service,env});command.splice(0,2,'create');state.containers[service]=runDocker([...command,...args]);save(state);runDocker(['start',state.containers[service]]); }
  run('client',{},['node','-e','setInterval(()=>{},2147483647)']);
@@ -337,6 +337,7 @@ export function verifyCcdContainerIdentity(state,inspectContainer=(id)=>JSON.par
  for(const [service,id] of Object.entries(state.containers)) {
   const info=inspectContainer(id);
   assert.equal(info.Image,images[service],'CCD_RUNTIME_IMAGE_MISMATCH');
+  if(state.platform==='linux/amd64'&&service==='database')assert.equal(info.Config.User,'999:999','CCD_DATABASE_USER_MISMATCH');
   assert.equal(info.Config.Labels?.['exui.harness.owner'],state.owner,'CCD_RUNTIME_OWNER_MISMATCH');
   assert.equal(info.Config.Labels?.['exui.harness.service'],service,'CCD_RUNTIME_SERVICE_MISMATCH');
   assert.equal(info.HostConfig.Privileged||false,false,'CCD_RUNTIME_PRIVILEGED');

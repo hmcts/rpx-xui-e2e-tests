@@ -20,6 +20,10 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
     require('node:child_process').spawnSync = (command, args) => {
       if (command === 'docker' && args[0] === 'version')
         return {status: 0, stdout: JSON.stringify({Os: 'linux', Arch: 'arm64'})};
+      if (command === 'docker' && args[0] === 'image') {
+        const reference = args[2], digest = reference.slice(reference.indexOf('sha256:'));
+        return {status: 0, stdout: JSON.stringify([{Id: digest, Os: 'linux', Architecture: 'arm64', RepoDigests: [reference.includes('@') ? reference : 'registry/image@' + digest]}])};
+      }
       if (command === 'git' && args[0] === 'clone') {
         fs.writeFileSync(path.join(path.dirname(args.at(-1)), 'preparation-evidence.txt'), 'child failed');
       }
@@ -38,6 +42,7 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
   const job = path.join(privateRoot, jobs[0]);
   assert.equal(fs.statSync(job).mode & 0o777, 0o700);
   assert.equal(fs.readFileSync(path.join(job, "preparation-evidence.txt"), "utf8"), "child failed");
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(job, "preparation-error.json"))), { stage: "webapp master fetch", reason: "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED" });
   const summary = JSON.parse(fs.readFileSync(path.join(root, "functional-output/tests/harness/public/release-assurance-summary.json"), "utf8"));
   assert.equal(summary.status, "BLOCKED");
 });
@@ -83,10 +88,10 @@ test("native preparation rejects unavailable or unsupported Docker without grant
         stdout: JSON.stringify(server),
       }),
     });
-    if (server?.Os === "linux" && server.Arch === "arm64")
+    if (server?.Os === "linux" && ["arm64", "amd64"].includes(server.Arch))
       assert.doesNotThrow(() => assertNativeWorkerPlatform(report));
     else
-      assert.throws(() => assertNativeWorkerPlatform(report), /HARNESS_NATIVE_DOCKER_ARM64_REQUIRED/);
+      assert.throws(() => assertNativeWorkerPlatform(report), /HARNESS_NATIVE_DOCKER_SUPPORTED_PLATFORM_REQUIRED/);
     assert.equal(report.nativeReady, false);
     assert.equal(report.releaseApproval, false);
   }
@@ -115,4 +120,48 @@ test("native job input stays private and only a real owned private directory is 
 
   fs.chmodSync(root, 0o755);
   assert.throws(() => assertPrivateDirectory(root), /PRIVATE_JOB_DIRECTORY_REQUIRED/);
+});
+
+test('AMD64 provisioning pulls immutable images and removes temporary registry credentials on success and failure', async t => {
+  const context=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'registry-existing-context-')));
+  const previous=process.env.AZURE_CONFIG_DIR;process.env.AZURE_CONFIG_DIR=context;
+  t.after(()=>{if(previous===undefined)delete process.env.AZURE_CONFIG_DIR;else process.env.AZURE_CONFIG_DIR=previous;fs.rmSync(context,{recursive:true,force:true});});
+  const { provisionNativeImages } = await load();
+  const { nativeRuntimeImages } = await import('./lib/exui-native-containers.mjs');
+  const { ccdImagePins } = await import('./lib/exui-ccd-runtime.mjs');
+  const pins=[...Object.values(nativeRuntimeImages('linux/amd64')),...Object.values(ccdImagePins('linux/amd64'))];
+  for(const fail of [false,true]) {
+    const present=new Set(),calls=[];let authDirectory;
+    const runCommand=(command,args,options={})=>{
+      calls.push({command,args,options});
+      if(command==='az')return JSON.stringify({loginServer:'hmctsprod.azurecr.io',accessToken:'synthetic-private-registry-token'});
+      if(args[0]==='image') {
+        if(!present.has(args[2]))throw Error('not cached');
+        const pin=pins.find(pin=>pin.reference===args[2]);
+        return JSON.stringify([{Id:pin.configDigest,Os:'linux',Architecture:'amd64',RepoDigests:[pin.reference]}]);
+      }
+      if(args[0]==='login') {
+        assert.equal(options.input,'synthetic-private-registry-token');
+        authDirectory=options.env.DOCKER_CONFIG;
+        assert.equal(fs.statSync(authDirectory).mode&0o777,0o700);
+        fs.writeFileSync(path.join(authDirectory,'config.json'),'synthetic credential');
+        return '';
+      }
+      if(args[0]==='pull') {
+        assert.equal(args[args.indexOf('--platform')+1],'linux/amd64');
+        assert.match(args.at(-1),/@sha256:[a-f0-9]{64}$/);
+        if(fail&&args.at(-1).startsWith('hmctsprod.azurecr.io/'))throw Error('pull failed');
+        present.add(args.at(-1));return '';
+      }
+      assert.fail('unexpected provisioning command');
+    };
+    if(fail)assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}),/pull failed/);
+    else provisionNativeImages('linux/amd64',{runCommand});
+    assert(authDirectory);
+    assert.equal(fs.existsSync(authDirectory),false);
+    assert(calls.every(call=>!JSON.stringify(call.args).includes('synthetic-private-registry-token')));
+    const az=calls.find(call=>call.command==='az');
+    assert(az.args.includes('--expose-token'));
+    assert(!calls.some(call=>call.command==='az'&&call.args[0]==='login'));
+  }
 });

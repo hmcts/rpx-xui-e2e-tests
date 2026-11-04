@@ -641,6 +641,8 @@ test('AMD64 startup uses TCP readiness, synthetic databases and one exact local 
  assert.equal((initialize.input.match(/CREATE DATABASE/g)||[]).length,8);
  assert.match(initialize.input,/CREATE USER ccd WITH PASSWORD/);
  const launches=calls.filter(c=>c.args[0]==='create');
+ const database=launches.find(c=>c.args.includes(pins.database.configDigest)).args;
+ assert.equal(database[database.indexOf('--user')+1],'999:999');
  assert(launches.find(c=>c.args.includes(pins.idam.configDigest)).args.includes('SIMULATOR_JWT_ISSUER=http://127.0.0.1:5000/o'));
  assert(launches.find(c=>c.args.includes(pins.data.configDigest)).args.includes('OIDC_ALLOWED_ISSUERS=http://127.0.0.1:5000/o'));
  const recovery=JSON.parse(fs.readFileSync(path.join(output,'recovery.json')));

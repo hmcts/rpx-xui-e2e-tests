@@ -29,6 +29,10 @@ if [ "yarn@$actual_yarn" != "$expected_yarn" ]; then
   exit 1
 fi
 echo "Harness Yarn: $actual_yarn"
+# Reuse the identity already selected by withNightlyPipeline on this agent.
+if [ -z "${AZURE_CONFIG_DIR:-}" ] && [[ "${SUBSCRIPTION_NAME:-}" =~ ^[a-z0-9-]+$ ]] && [ -d "/opt/jenkins/.azure-${SUBSCRIPTION_NAME}" ]; then
+  export AZURE_CONFIG_DIR="/opt/jenkins/.azure-${SUBSCRIPTION_NAME}"
+fi
 node scripts/observe-harness-worker.mjs
 corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && node scripts/run-harness-jenkins-assurance.mjs && node scripts/manage-harness-public-reports.cjs --validate
 '''
