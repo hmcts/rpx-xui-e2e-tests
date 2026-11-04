@@ -390,8 +390,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 13);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 12);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 14);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 13);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -668,7 +668,7 @@ for (const postalFailure of [false, true])
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
     assert.equal(coverage.candidate, 1);
-    assert.equal(coverage.ccd, postalFailure ? 9 : 10);
+    assert.equal(coverage.ccd, postalFailure ? 13 : 14);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
         ? []
@@ -680,13 +680,17 @@ for (const postalFailure of [false, true])
       "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
       "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",
       "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397",
+      "configuration-cell:2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea",
+      "configuration-cell:8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59",
+      "configuration-cell:32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de",
+      "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb",
       "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a",
       "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec",
       "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf",
       "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 102 : 101);
+    assert.equal(coverage.missing, postalFailure ? 98 : 97);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(

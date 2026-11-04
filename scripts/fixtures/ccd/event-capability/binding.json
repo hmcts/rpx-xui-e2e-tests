@@ -20,6 +20,40 @@
     "before": "R",
     "after": "U"
   },
+  "readonlyUpdateMutationId": "ccd-enable-readonly-recipient-update",
+  "readonlyUpdateTransformation": {
+    "role": "caseworker-privatelaw-readonly",
+    "changes": [
+      {
+        "sheet": "AuthorisationCaseType",
+        "key": "CaseTypeID",
+        "value": "HarnessNestedPRL",
+        "before": "R",
+        "after": "RU"
+      },
+      {
+        "sheet": "AuthorisationCaseState",
+        "key": "CaseStateID",
+        "value": "JUDICIAL_REVIEW",
+        "before": "R",
+        "after": "RU"
+      },
+      {
+        "sheet": "AuthorisationCaseEvent",
+        "key": "CaseEventID",
+        "value": "serviceOfDocuments",
+        "before": "R",
+        "after": "CR"
+      },
+      {
+        "sheet": "AuthorisationCaseField",
+        "key": "CaseFieldID",
+        "value": "sodAdditionalRecipientsList",
+        "before": "R",
+        "after": "RU"
+      }
+    ]
+  },
   "proofs": {
     "courtadmin": "ccd-courtadmin-email-one",
     "judge": "ccd-event-create-denied",
@@ -27,7 +61,9 @@
     "courtadminRead": "ccd-courtadmin-read-recipient-shapes",
     "courtadminReadMutant": "ccd-courtadmin-read-shapes-hidden",
     "readonlyRead": "ccd-readonly-read-recipient-shapes",
-    "readonlyReadMutant": "ccd-readonly-read-shapes-hidden"
+    "readonlyReadMutant": "ccd-readonly-read-shapes-hidden",
+    "readonlyUpdate": "ccd-readonly-update-recipient-shapes-denied",
+    "readonlyUpdateMutant": "ccd-readonly-update-recipient-shapes-enabled"
   },
   "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
   "sourceProjectionDigest": "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e",
@@ -55,5 +91,9 @@
   "readonly-read-mutant": {
     "sourceDigest": "sha256:8763ad78e941aa7c1c3aaf208ee927b62f03fd79c918bd202d233ca5d4399deb",
     "workbookDigest": "sha256:68d378e7c3e9a7f27abf461406492b115218fe30b3cf53cca8209c2e38ed811e"
+  },
+  "readonly-update-mutant": {
+    "sourceDigest": "sha256:f42f61238a59267e13ee6b496f08f335d25466b35dad37eff33f0182aa7e8e5c",
+    "workbookDigest": "sha256:391b3efbc8c274b70c5c39bfe4259e0a07ace7704f6a272ae655fc9bb74dbb7b"
   }
 }

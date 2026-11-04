@@ -6,6 +6,9 @@ import {
   EVENT_CAPABILITY_CELL,
   COURTADMIN_READ_CELLS,
   READONLY_READ_CELLS,
+  READONLY_UPDATE_CELLS,
+  READONLY_UPDATE_MUTATION,
+  validateReadonlyUpdatePair,
   READONLY_READ_MUTATION,
   validateReadonlyReadPair,
   eventCapabilityFaultContract,
@@ -86,6 +89,7 @@ export function bindEventCoverage({
   for (const { id: cell, action, channel, recipientCount, role } of [
     { id: EVENT_CAPABILITY_CELL, action: "update", channel: "email", recipientCount: 1, role: "caseworker-privatelaw-courtadmin" },
     ...COURTADMIN_READ_CELLS.map(cell => ({ ...cell, action: "read", role: "caseworker-privatelaw-courtadmin" })),
+    ...READONLY_UPDATE_CELLS.map(cell => ({ ...cell, action: "update", role: "caseworker-privatelaw-readonly" })),
     ...READONLY_READ_CELLS.map(cell => ({ ...cell, action: "read", role: "caseworker-privatelaw-readonly" })),
   ]) {
     assert.deepEqual(
@@ -97,7 +101,7 @@ export function bindEventCoverage({
           action,
           channel,
           recipientCount,
-          expectedAccess: "allowed",
+          expectedAccess: role === "caseworker-privatelaw-readonly" && action === "update" ? "denied" : "allowed",
           id: cell,
         },
       ],
@@ -111,7 +115,7 @@ export function bindEventCoverage({
           family: "PRIVATELAW",
           kind: "pilot-cell",
           requiredBoundary: "ccd",
-          sequence: action === "read" ? ["read", "assert-visible-projection"] : ["form", "cya", "change", "submit", "readback"],
+          sequence: role === "caseworker-privatelaw-readonly" && action === "update" ? ["observe-state-before", "attempt-update", "assert-denied", "observe-state-and-history-after"] : action === "read" ? ["read", "assert-visible-projection"] : ["form", "cya", "change", "submit", "readback"],
           sourceKeys: sourcePaths.map((name) => "prl-ccd-definitions:" + name),
         },
       ],
@@ -164,7 +168,7 @@ export function bindEventCoverage({
   }
   assert.equal(overlapRows, 38, "COVERAGE_EVENT_SOURCE_OVERLAP_MISMATCH");
   const pair = Object.fromEntries(
-    ["baseline", "mutant", "read-mutant", "readonly-read-mutant"].map((variant) => [
+    ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"].map((variant) => [
       variant,
       read(
         harnessRoot,
@@ -182,10 +186,11 @@ export function bindEventCoverage({
     source,
   );
   const readTransformation = validateCourtadminReadPair(pair.baseline, pair["read-mutant"], source);
+  const readonlyUpdateTransformation = validateReadonlyUpdatePair(pair.baseline, pair["readonly-update-mutant"], source);
   const readonlyReadTransformation = validateReadonlyReadPair(pair.baseline, pair["readonly-read-mutant"], source);
   // prepareCcdImport independently validates the canonical pair and workbook seals.
   const prepared = Object.fromEntries(
-    ["baseline", "mutant", "read-mutant", "readonly-read-mutant"].map((variant) => {
+    ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"].map((variant) => {
       const value = prepareCcdImport(undefined, "event-capability-" + variant);
       assert.deepEqual(
         value.source,
@@ -246,9 +251,11 @@ export function bindEventCoverage({
   );
   const readMutant = selectEventCapabilityRuntime(baseline, COURTADMIN_READ_MUTATION,
     read(directory, COURTADMIN_READ_MUTATION + "/runtime-input.json"));
+  const readonlyUpdateMutant = selectEventCapabilityRuntime(baseline, READONLY_UPDATE_MUTATION,
+    read(directory, READONLY_UPDATE_MUTATION + "/runtime-input.json"));
   const readonlyReadMutant = selectEventCapabilityRuntime(baseline, READONLY_READ_MUTATION,
     read(directory, READONLY_READ_MUTATION + "/runtime-input.json"));
-  for (const [index, variant] of ["mutant", "read-mutant", "readonly-read-mutant"].entries()) {
+  for (const [index, variant] of ["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"].entries()) {
     assert.deepEqual(
       loaded.input.mutations[index].mutantIdentity,
       {
@@ -267,6 +274,7 @@ export function bindEventCoverage({
     ["mutant", mutant],
     ["read-mutant", readMutant],
     ["readonly-read-mutant", readonlyReadMutant],
+    ["readonly-update-mutant", readonlyUpdateMutant],
   ]) {
     seedAppCcdSessions(
       runtime.credentials,
@@ -274,7 +282,7 @@ export function bindEventCoverage({
       EVENT_CAPABILITY_SCOPE,
     );
     const invocation =
-      variant === "baseline" ? "baseline" : { mutant: EVENT_CAPABILITY_MUTATION, "read-mutant": COURTADMIN_READ_MUTATION, "readonly-read-mutant": READONLY_READ_MUTATION }[variant];
+      variant === "baseline" ? "baseline" : { mutant: EVENT_CAPABILITY_MUTATION, "read-mutant": COURTADMIN_READ_MUTATION, "readonly-read-mutant": READONLY_READ_MUTATION, "readonly-update-mutant": READONLY_UPDATE_MUTATION }[variant];
     const manifest = read(directory, invocation + "/manifest.json");
     if (variant === "baseline")
       assert.deepEqual(
@@ -437,6 +445,7 @@ export function bindEventCoverage({
     ["mutant", EVENT_CAPABILITY_MUTATION, mutant],
     ["read-mutant", COURTADMIN_READ_MUTATION, readMutant],
     ["readonly-read-mutant", READONLY_READ_MUTATION, readonlyReadMutant],
+    ["readonly-update-mutant", READONLY_UPDATE_MUTATION, readonlyUpdateMutant],
   ].entries()) {
     const ref = run.mutations[index].derivationArtifact;
     bytes(directory, ref.path);
@@ -457,7 +466,7 @@ export function bindEventCoverage({
         mutantIdentity: loaded.input.mutations[index].mutantIdentity,
         transformation: mutationId,
         target: eventCapabilityFaultContract(mutationId).target,
-        transformationRecord: { transformation, readTransformation, readonlyReadTransformation }[eventCapabilityFaultContract(mutationId).transformationKey],
+        transformationRecord: { transformation, readTransformation, readonlyReadTransformation, readonlyUpdateTransformation }[eventCapabilityFaultContract(mutationId).transformationKey],
         beforeDigest: prepared.baseline.binding.workbookDigest,
         afterDigest: prepared[variant].binding.workbookDigest,
         baselineRuntimeMetadata: runtimeMetadata(baseline),

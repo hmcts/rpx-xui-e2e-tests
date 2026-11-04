@@ -806,13 +806,17 @@ test("support only: complete event phase credits the exact courtadmin edit and r
     { obligationId: "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337", boundary: "ccd", status: "passed" },
   ]);
-  assert.equal(projected.report.coverage.ccd, 9);
-  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 103);
+  assert.equal(projected.report.coverage.ccd, 13);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 99);
   assert.equal(projected.report.releaseCredit, false);
   assert.equal(
     projected.phaseReferences.eventCapability.receiptArtifactDigest,
@@ -826,7 +830,7 @@ test("support only: complete event phase credits the exact courtadmin edit and r
       terminal: event.terminal,
     },
   });
-  assert.equal(result.coverage.ccd, 9);
+  assert.equal(result.coverage.ccd, 13);
 });
 
 async function refreshEventBundle(bundle, edit) {
@@ -908,10 +912,10 @@ for (const oldBlocked of [false, true])
         phaseDirectory: postal.directory,
         eventPhaseDirectory: event.directory,
       });
-      assert.equal(projected.report.coverage.ccd, oldBlocked ? 9 : 10);
+      assert.equal(projected.report.coverage.ccd, oldBlocked ? 13 : 14);
       assert.equal(
         projected.report.coverage.missingCandidateOrCcd.length,
-        oldBlocked ? 103 : 102,
+        oldBlocked ? 99 : 98,
       );
       assert.equal(
         projected.phaseReferences.ccd.status,
@@ -934,7 +938,7 @@ for (const oldBlocked of [false, true])
           terminal: event.terminal,
         },
       });
-      assert.equal(result.coverage.ccd, oldBlocked ? 9 : 10);
+      assert.equal(result.coverage.ccd, oldBlocked ? 13 : 14);
     },
   );
 
@@ -943,6 +947,8 @@ for (const fault of [
   "courtadmin-failed",
   "read-failed",
   "readonly-failed",
+  "readonly-update-failed",
+  "wrong-readonly-update-mutation-failure",
   "wrong-readonly-mutation-failure",
   "wrong-read-mutation-failure",
   "wrong-mutation-failure",
@@ -958,7 +964,9 @@ for (const fault of [
       t.after(() => fs.rmSync(root, { recursive: true, force: true }));
       const b = await completeEventBundle(root);
       const receipt = await refreshEventBundle(b, (report, execution) => {
-        const target = fault === "readonly-failed" ? "ccd-readonly-read-recipient-shapes"
+        const target = fault === "readonly-update-failed" ? "ccd-readonly-update-recipient-shapes-denied"
+          : fault === "wrong-readonly-update-mutation-failure" ? "ccd-readonly-update-recipient-shapes-enabled"
+          : fault === "readonly-failed" ? "ccd-readonly-read-recipient-shapes"
           : fault === "wrong-readonly-mutation-failure" ? "ccd-readonly-read-shapes-hidden"
           : fault === "judge-failed"
             ? "ccd-event-create-denied"
@@ -1183,6 +1191,11 @@ test("support only: fixed event source overlap, exact cell and sequence reject s
     getReleasePolicy(b.manifest.releaseScopeId),
   );
   for (const change of [
+    ...["2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea", "8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59", "32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de", "f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb"].flatMap(id => [
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).expectedAccess = "allowed"; },
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).action = "read"; },
+      c => { c.catalogue.obligations.find(x => x.id === "configuration-cell:" + id).sequence = ["read", "assert-visible-projection"]; },
+    ]),
     ...["8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a", "fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec", "b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", "8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337"].map(id => c => {
       c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).role = "caseworker-privatelaw-courtadmin";
     }),
@@ -1371,7 +1384,7 @@ test("support only: writer requires independent tool/source pins and projection 
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: b.directory,
   });
-  assert.equal(projected.report.coverage.ccd, 9);
+  assert.equal(projected.report.coverage.ccd, 13);
   assert.deepEqual(
     Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),
     before,

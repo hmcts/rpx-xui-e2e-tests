@@ -143,6 +143,7 @@ export function toolContainerArguments({
             "ccd-enable-judge-event",
             "ccd-remove-courtadmin-recipient-read",
             "ccd-remove-readonly-recipient-read",
+      "ccd-enable-readonly-recipient-update",
             "routing-omit-web-url",
             "routing-omit-noc-base-url",
             "global-search-wa-capability",
@@ -242,6 +243,7 @@ export function candidateArchiveArguments({
       "ccd-enable-judge-event",
       "ccd-remove-courtadmin-recipient-read",
       "ccd-remove-readonly-recipient-read",
+      "ccd-enable-readonly-recipient-update",
       "routing-omit-web-url",
       "routing-omit-noc-base-url",
       "global-search-wa-capability",
@@ -251,9 +253,9 @@ export function candidateArchiveArguments({
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
   if (invocationId === "ccd-stale-revoked-bearer" && releaseScopeId !== "exui-ccd-pilot")
     throw Error("CCD_REVOCATION_SCOPE_REQUIRED");
-  if (["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(invocationId) && releaseScopeId !== "exui-ccd-event-capability-pilot")
+  if (["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update"].includes(invocationId) && releaseScopeId !== "exui-ccd-event-capability-pilot")
     throw Error("CCD_EVENT_SCOPE_REQUIRED");
-  if (releaseScopeId === "exui-ccd-event-capability-pilot" && !["baseline", "ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(invocationId))
+  if (releaseScopeId === "exui-ccd-event-capability-pilot" && !["baseline", "ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update"].includes(invocationId))
     throw Error("UNSUPPORTED_CCD_EVENT_INVOCATION");
   if (
     invocationId.startsWith("routing-") &&

@@ -12,6 +12,9 @@ import {
   deriveReadonlyReadFault,
   validateReadonlyReadPair,
   READONLY_READ_MUTATION,
+  READONLY_UPDATE_MUTATION,
+  deriveReadonlyUpdateFault,
+  validateReadonlyUpdatePair,
   validateCourtadminReadPair,
   COURTADMIN_READ_MUTATION,
   EVENT_CAPABILITY_SCOPE,
@@ -27,6 +30,8 @@ export async function prepareEventCapabilityFixtures(output) {
   const pair = buildEventCapabilityFixtures(source);
   pair["read-mutant"] = deriveCourtadminReadFault(pair.baseline, source);
   pair["readonly-read-mutant"] = deriveReadonlyReadFault(pair.baseline, source);
+  pair["readonly-update-mutant"] = deriveReadonlyUpdateFault(pair.baseline, source);
+  const readonlyUpdateTransformation = validateReadonlyUpdatePair(pair.baseline, pair["readonly-update-mutant"], source);
   const readonlyReadTransformation = validateReadonlyReadPair(pair.baseline, pair["readonly-read-mutant"], source);
   const readTransformation = validateCourtadminReadPair(pair.baseline, pair["read-mutant"], source);
   const transformation = validateEventCapabilityPair(
@@ -49,13 +54,15 @@ export async function prepareEventCapabilityFixtures(output) {
     readTransformation,
     readonlyReadMutationId: READONLY_READ_MUTATION,
     readonlyReadTransformation,
+    readonlyUpdateMutationId: READONLY_UPDATE_MUTATION,
+    readonlyUpdateTransformation,
     proofs: EVENT_CAPABILITY_PROOFS,
     sourceRevision: source.revision,
     sourceProjectionDigest: EVENT_CAPABILITY_SOURCE_DIGEST,
     transformation,
     releaseCredit: false,
   };
-  for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant"]) {
+  for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"]) {
     const file = path.join(destination, name + ".json");
     fs.writeFileSync(file, JSON.stringify(pair[name], null, 2) + "\n", {
       flag: "wx",

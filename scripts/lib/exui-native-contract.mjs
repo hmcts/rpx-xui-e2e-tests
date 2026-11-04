@@ -8,7 +8,7 @@ import {
 } from "./exui-routing-contract.mjs";
 
 import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration } from "./exui-global-search-contract.mjs";
-import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION } from "./exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION } from "./exui-ccd-event-capability.mjs";
 
 const slices = {
   [EVENT_CAPABILITY_SCOPE]: [
@@ -16,6 +16,7 @@ const slices = {
     { invocationId: EVENT_CAPABILITY_MUTATION, kind: "mutation", mutation: EVENT_CAPABILITY_MUTATION },
     { invocationId: COURTADMIN_READ_MUTATION, kind: "mutation", mutation: COURTADMIN_READ_MUTATION },
     { invocationId: READONLY_READ_MUTATION, kind: "mutation", mutation: READONLY_READ_MUTATION },
+    { invocationId: READONLY_UPDATE_MUTATION, kind: "mutation", mutation: READONLY_UPDATE_MUTATION },
   ],
   "exui-hearing-publication-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },

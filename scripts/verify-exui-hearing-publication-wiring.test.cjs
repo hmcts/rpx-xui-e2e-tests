@@ -19,7 +19,7 @@ const SOURCE_FILES = [
   'src/fixtures/harnessGlobalSearch.ts', 'src/tests/harness/global-search/capability-composition.spec.ts',
   'src/tests/harness/routing/create-entry.spec.ts', 'src/tests/harness/routing/noc-cache.spec.ts',
   'src/fixtures/harnessCcd.ts', 'src/fixtures/harnessCcdEvent.ts',
-  'src/tests/harness/ccd/courtadmin-read.spec.ts',
+  'src/tests/harness/ccd/courtadmin-read.spec.ts', 'src/tests/harness/ccd/readonly-update.spec.ts',
   'src/tests/harness/ccd/courtadmin-cell.spec.ts', 'src/tests/harness/ccd/event-capability.spec.ts',
   'src/tests/harness/wa/family-scope.spec.ts',
   'src/tests/harness/scope/organisation-case.spec.ts', 'src/tests/harness/ccd/nested-conditional.spec.ts',
@@ -36,6 +36,7 @@ const SOURCE_FILES = [
   'scripts/fixtures/ccd/event-capability/mutant.json', 'scripts/fixtures/ccd/event-capability/mutant.xlsx',
   'scripts/fixtures/ccd/event-capability/read-mutant.json', 'scripts/fixtures/ccd/event-capability/read-mutant.xlsx',
   'scripts/fixtures/ccd/event-capability/readonly-read-mutant.json', 'scripts/fixtures/ccd/event-capability/readonly-read-mutant.xlsx',
+  'scripts/fixtures/ccd/event-capability/readonly-update-mutant.json', 'scripts/fixtures/ccd/event-capability/readonly-update-mutant.xlsx',
   'scripts/fixtures/ccd/event-capability/binding.json', 'scripts/fixtures/ccd/workbook.py',
   'scripts/lib/exui-configuration-runtime-coverage.mjs',
   'scripts/lib/exui-event-coverage-binding.mjs', 'scripts/lib/exui-native-proof-validation.mjs',
@@ -152,7 +153,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 87);
+  assert.equal(SOURCE_FILES.length, 90);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

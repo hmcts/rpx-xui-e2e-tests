@@ -49,8 +49,8 @@ test('support only: old CCD selection excludes both new event-capability proofs'
 test('support only: new scope selects courtadmin plus judge baseline and only judge fault', async t => {
   const baseline = await collection(t, SCOPE, { EXUI_HARNESS_SLICE: 'ccd-event-capability' });
   assert.equal(baseline.result.status, 0, baseline.result.stderr + baseline.result.stdout);
-  assert.deepEqual(baseline.specs.map(spec => path.basename(spec.file)).sort(), ['courtadmin-cell.spec.ts', 'courtadmin-read.spec.ts', 'courtadmin-read.spec.ts', 'event-capability.spec.ts']);
-  assert.deepEqual(baseline.specs.flatMap(spec => spec.tests.flatMap(item => item.annotations.filter(annotation => annotation.type === 'harness-proof').map(annotation => annotation.description))).sort(), ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes']);
+  assert.deepEqual(baseline.specs.map(spec => path.basename(spec.file)).sort(), ['courtadmin-cell.spec.ts', 'courtadmin-read.spec.ts', 'courtadmin-read.spec.ts', 'event-capability.spec.ts', 'readonly-update.spec.ts']);
+  assert.deepEqual(baseline.specs.flatMap(spec => spec.tests.flatMap(item => item.annotations.filter(annotation => annotation.type === 'harness-proof').map(annotation => annotation.description))).sort(), ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied']);
   const mutant = await collection(t, SCOPE, { EXUI_HARNESS_SLICE: 'ccd-event-capability', EXUI_HARNESS_MUTATION: MUTATION });
   assert.equal(mutant.result.status, 0, mutant.result.stderr + mutant.result.stdout);
   assert.deepEqual(mutant.specs.map(spec => path.basename(spec.file)), ['event-capability.spec.ts']);
@@ -59,6 +59,10 @@ test('support only: new scope selects courtadmin plus judge baseline and only ju
   assert.equal(readFault.result.status, 0, readFault.result.stderr + readFault.result.stdout);
   assert.deepEqual(readFault.specs.map(spec => path.basename(spec.file)), ['courtadmin-read.spec.ts']);
   assert.deepEqual(readFault.specs[0].tests[0].annotations.filter(annotation => annotation.type === 'harness-proof').map(({ description }) => description), ['ccd-courtadmin-read-shapes-hidden']);
+  const updateFault = await collection(t, SCOPE, { EXUI_HARNESS_SLICE: 'ccd-event-capability', EXUI_HARNESS_MUTATION: 'ccd-enable-readonly-recipient-update' });
+  assert.equal(updateFault.result.status, 0, updateFault.result.stderr + updateFault.result.stdout);
+  assert.deepEqual(updateFault.specs.map(spec => path.basename(spec.file)), ['readonly-update.spec.ts']);
+  assert.deepEqual(updateFault.specs.flatMap(spec => spec.tests.flatMap(item => item.annotations.filter(annotation => annotation.type === 'harness-proof').map(annotation => annotation.description))), ['ccd-readonly-update-recipient-shapes-enabled']);
   const readonlyFault = await collection(t, SCOPE, { EXUI_HARNESS_SLICE: 'ccd-event-capability', EXUI_HARNESS_MUTATION: 'ccd-remove-readonly-recipient-read' });
   assert.equal(readonlyFault.result.status, 0, readonlyFault.result.stderr + readonlyFault.result.stdout);
   assert.deepEqual(readonlyFault.specs.flatMap(spec => spec.tests.flatMap(item => item.annotations.filter(annotation => annotation.type === 'harness-proof').map(annotation => annotation.description))), ['ccd-readonly-read-shapes-hidden']);
