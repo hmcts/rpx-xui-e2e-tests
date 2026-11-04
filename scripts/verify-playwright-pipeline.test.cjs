@@ -214,10 +214,22 @@ corepack() {
 test('Jenkins native assurance builds exact webapp master in a private, script-disabled job', () => {
   const source = readFileSync('scripts/run-harness-jenkins-assurance.mjs', 'utf8');
   assert.match(source, /hmcts\/rpx-xui-webapp\.git/);
+  assert.match(source, /ARM64_BROWSER_RUNTIME/);
+  assert.match(source, /cp -a \/ms-playwright\/\. \/browser\//);
+  assert.doesNotMatch(source, /chromium\.executablePath/);
   assert.match(source, /"--branch", "master"/);
   assert.match(source, /rev-parse", "HEAD"/);
   assert.match(source, /YARN_ENABLE_NETWORK: "1", YARN_ENABLE_SCRIPTS: "0"/);
-  assert.match(source, /"install", "--immutable", "--mode=skip-builds"/);
+  assert.match(source, /"config",\s*"set",\s*"supportedArchitectures",\s*"--json"/);
+  assert.match(source, /os: \["linux"\]/);
+  assert.match(source, /cpu: \["arm64"\]/);
+  assert.match(source, /libc: \["glibc"\]/);
+  assert.match(source, /"install", "--immutable", "--mode=skip-build"/);
+  assert.match(source, /fs\.writeFileSync\(yarnConfigurationPath, yarnConfiguration/);
+  assert.ok(
+    source.indexOf('fs.writeFileSync(yarnConfigurationPath, yarnConfiguration') <
+      source.indexOf('scripts/prepare-harness-candidate.mjs'),
+  );
   assert.match(source, /scripts\/prepare-harness-candidate\.mjs/);
   assert.match(source, /scripts\/run-harness-assurance\.mjs/);
   assert.match(source, /process\.umask\(0o077\)/);

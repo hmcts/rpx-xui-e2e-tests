@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { ARM64_BROWSER_RUNTIME } from "./lib/exui-oci-runtime.mjs";
 import { readCandidateBuildContract } from "./lib/exui-candidate-build.mjs";
 import { verifyCandidateArtifact } from "./lib/exui-candidate-artifact.mjs";
 import {
@@ -19,7 +20,6 @@ const PUBLIC = path.join(
   ROOT,
   "functional-output/tests/harness/public/release-assurance-summary.json",
 );
-const require = createRequire(import.meta.url);
 let stage = "private setup";
 
 function safeEnvironment(extra = {}) {
@@ -93,6 +93,45 @@ export function writePrivateJob(file, value) {
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 }
 
+function prepareBrowserCache(privateRoot) {
+  const browserCache = path.join(privateRoot, "browser-cache");
+  fs.mkdirSync(browserCache, { mode: 0o700 });
+  run(
+    "docker",
+    [
+      "run",
+      "--rm",
+      "--name",
+      `harness-native-ci-browser-${randomUUID()}`,
+      "--network",
+      "none",
+      "--platform",
+      "linux/arm64",
+      "--read-only",
+      "--cap-drop",
+      "ALL",
+      "--security-opt",
+      "no-new-privileges",
+      "--pids-limit",
+      "128",
+      "--memory",
+      "2g",
+      "--cpus",
+      "1",
+      "--init",
+      "--mount",
+      `type=bind,src=${browserCache},dst=/browser`,
+      "--entrypoint",
+      "/bin/sh",
+      ARM64_BROWSER_RUNTIME,
+      "-c",
+      "cp -a /ms-playwright/. /browser/",
+    ],
+  );
+  assert(fs.readdirSync(browserCache).length > 0, "ARM64_BROWSER_CACHE_REQUIRED");
+  return browserCache;
+}
+
 async function prepareJob(privateRoot) {
   const source = path.join(privateRoot, "webapp-source");
   const candidate = path.join(privateRoot, "candidate");
@@ -109,7 +148,8 @@ async function prepareJob(privateRoot) {
   assert(/^[a-f0-9]{40}$/.test(commit), "WEBAPP_MASTER_COMMIT_REQUIRED");
 
   const manifest = JSON.parse(fs.readFileSync(path.join(source, "package.json"), "utf8"));
-  const yarnConfiguration = fs.readFileSync(path.join(source, ".yarnrc.yml"), "utf8");
+  const yarnConfigurationPath = path.join(source, ".yarnrc.yml");
+  const yarnConfiguration = fs.readFileSync(yarnConfigurationPath, "utf8");
   const contract = readCandidateBuildContract(manifest, yarnConfiguration);
   const yarnEntry = run("git", ["-C", source, "ls-tree", commit, "--", contract.yarnPath]);
   assert(/^100(?:644|755) blob /.test(yarnEntry), "COMMITTED_YARN_RELEASE_REQUIRED");
@@ -119,16 +159,36 @@ async function prepareJob(privateRoot) {
 
   // Only fetch locked package archives here. The candidate build itself is offline and has scripts disabled.
   stage = "locked dependency cache";
-  run(
-    process.execPath,
-    [yarnPath, "install", "--immutable", "--mode=skip-builds"],
-    {
-      cwd: source,
-      env: safeEnvironment({ YARN_ENABLE_NETWORK: "1", YARN_ENABLE_SCRIPTS: "0" }),
-      stdio: "ignore",
-      timeout: 1_800_000,
-    },
-  );
+  try {
+    run(
+      process.execPath,
+      [
+        yarnPath,
+        "config",
+        "set",
+        "supportedArchitectures",
+        "--json",
+        JSON.stringify({
+          os: ["linux"],
+          cpu: ["arm64"],
+          libc: ["glibc"],
+        }),
+      ],
+      { cwd: source, stdio: "ignore" },
+    );
+    run(
+      process.execPath,
+      [yarnPath, "install", "--immutable", "--mode=skip-build"],
+      {
+        cwd: source,
+        env: safeEnvironment({ YARN_ENABLE_NETWORK: "1", YARN_ENABLE_SCRIPTS: "0" }),
+        stdio: "ignore",
+        timeout: 1_800_000,
+      },
+    );
+  } finally {
+    fs.writeFileSync(yarnConfigurationPath, yarnConfiguration);
+  }
   const cache = path.join(source, ".yarn/cache");
   assert(fs.statSync(cache).isDirectory() && fs.readdirSync(cache).length > 0, "WEBAPP_LOCKED_CACHE_REQUIRED");
 
@@ -152,12 +212,7 @@ async function prepareJob(privateRoot) {
   const artifact = await verifyCandidateArtifact(candidateManifest);
   assert.equal(artifact.identity.webappCommit, commit, "WEBAPP_CANDIDATE_COMMIT_MISMATCH");
 
-  const { chromium } = require("@playwright/test");
-  const executable = chromium.executablePath();
-  assert(fs.existsSync(executable), "ARM64_PLAYWRIGHT_BROWSER_REQUIRED");
-  const browserCache = fs.realpathSync(
-    path.dirname(path.dirname(path.dirname(executable))),
-  );
+  const browserCache = prepareBrowserCache(privateRoot);
   const job = {
     schemaVersion: 1,
     candidateManifest,
