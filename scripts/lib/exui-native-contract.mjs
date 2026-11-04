@@ -1,3 +1,4 @@
+import { CALLBACK_SCOPE, CALLBACK_MUTATION } from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
@@ -12,6 +13,7 @@ import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration 
 import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION } from "./exui-ccd-event-capability.mjs";
 
 const slices = {
+  [CALLBACK_SCOPE]: [{invocationId:"baseline",kind:"baseline"},{invocationId:CALLBACK_MUTATION,kind:"mutation",mutation:CALLBACK_MUTATION}],
   [EVENT_CAPABILITY_SCOPE]: [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     { invocationId: EVENT_CAPABILITY_MUTATION, kind: "mutation", mutation: EVENT_CAPABILITY_MUTATION },

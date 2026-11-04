@@ -5,21 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { deriveRecipientCallbackFixture, validateRecipientCallbackFixture } from "./exui-recipient-callback-fixture.mjs";
+import { deriveRecipientCallbackImport } from "./exui-recipient-callback-fixture.mjs";
 import { assertFreshCandidateDerivationOutput } from "./exui-candidate-artifact.mjs";
 import { digestBytes } from "./exui-evidence-io.mjs";
 import { ccdCredentials, ccdRequest, verifyCcdContainerIdentity, validateCcdDefinition } from "./exui-ccd-runtime.mjs";
 const fixtureRoot = fileURLToPath(new URL("../fixtures/ccd/", import.meta.url));
 export async function prepareRecipientCallbackImport(output,{variant="baseline",rowFacets=false}={}) {
   assert(["baseline","binding-omitted"].includes(variant),"CALLBACK_IMPORT_VARIANT_REQUIRED");
-  const derivative = deriveRecipientCallbackFixture();
-  validateRecipientCallbackFixture(derivative);
-  if(variant==="binding-omitted") {
-    const rows=derivative.fixture.sheets.CaseEventToFields.filter(row=>row.CaseFieldID===derivative.binding.fieldId&&row.CaseEventID===derivative.binding.eventId);
-    assert.equal(rows.length,1,"CALLBACK_PAGE_REQUIRED");delete rows[0].CallBackURLMidEvent;
-  }
-  assert.equal(typeof rowFacets,"boolean","CALLBACK_FACETS_OPTION_REQUIRED");
-  if(rowFacets)derivative.fixture.sheets.CaseEventToFields.push({LiveFrom:"01/01/2020",CaseTypeID:"HarnessNestedPRL",CaseEventID:derivative.binding.eventId,CaseFieldID:"protectedValue",DisplayContext:"READONLY",PageID:"harnessBefore",PageDisplayOrder:1,PageFieldDisplayOrder:1,ShowSummaryChangeOption:"N"});
+  const derivative = deriveRecipientCallbackImport(variant,rowFacets);
   const destination = await assertFreshCandidateDerivationOutput({ baseline: { candidateRoot: fixtureRoot }, manifestPath: path.join(fixtureRoot,"event-capability.source.json"), output });
   fs.mkdirSync(destination, {mode:0o700});
   const definition = path.join(destination,"definition.json"), workbook = path.join(destination,"definition.xlsx");

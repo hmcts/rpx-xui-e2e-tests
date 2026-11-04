@@ -112,3 +112,17 @@ export function canonicalRecipientCallbackPages(pages) {
   }
   return canonical;
 }
+
+// The two fixed workbook variants shared by feasibility and native acceptance.
+export function deriveRecipientCallbackImport(variant = 'baseline', rowFacets = false) {
+  assert(['baseline','binding-omitted'].includes(variant),'CALLBACK_IMPORT_VARIANT_REQUIRED');
+  assert.equal(typeof rowFacets,'boolean','CALLBACK_FACETS_OPTION_REQUIRED');
+  const derivative=deriveRecipientCallbackFixture();
+  validateRecipientCallbackFixture(derivative);
+  if(variant==='binding-omitted') {
+    const rows=derivative.fixture.sheets.CaseEventToFields.filter(row=>row.CaseFieldID===derivative.binding.fieldId&&row.CaseEventID===derivative.binding.eventId);
+    assert.equal(rows.length,1,'CALLBACK_PAGE_REQUIRED');delete rows[0].CallBackURLMidEvent;
+  }
+  if(rowFacets) derivative.fixture.sheets.CaseEventToFields.push({LiveFrom:'01/01/2020',CaseTypeID:'HarnessNestedPRL',CaseEventID:derivative.binding.eventId,CaseFieldID:'protectedValue',DisplayContext:'READONLY',PageID:'harnessBefore',PageDisplayOrder:1,PageFieldDisplayOrder:1,ShowSummaryChangeOption:'N'});
+  return derivative;
+}

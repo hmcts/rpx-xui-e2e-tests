@@ -25,6 +25,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "src/fixtures/harnessSourceShapes.ts",
   "scripts/lib/exui-source-shape-contract.mjs",
   "scripts/lib/exui-source-shape-dates.mjs",
+  "scripts/lib/exui-recipient-callback-contract.mjs",
   "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.json",

@@ -116,3 +116,11 @@ test('support only: owned date readback uses fixed read-only SQL and retains fai
  assert.throws(()=>readCallbackStoredDate(state,1,{inspect,runDocker:()=>'{invalid'}),/CALLBACK_FACET_DATE_RESPONSE/);
  const retained=JSON.parse(fs.readFileSync(root+'/recipient-callback-import/stored-row-date.json'));assert.equal(retained.rows[0].live_from,'2020-01-01');assert.equal(retained.catalogueCredit,false);
 });
+test('native callback policy is closed to one existing source row and exact11 material attributes',async t=>{
+ const {CALLBACK_SCOPE,CALLBACK_OBLIGATION,CALLBACK_PROOF,CALLBACK_MUTATION,CALLBACK_MUTANT_PROOF,CALLBACK_ATTRIBUTES,callbackCanonicalImport,callbackMutationContract,callbackVariant}=await import('./lib/exui-recipient-callback-contract.mjs');
+ const {getReleasePolicy}=await import('./lib/exui-release-policy.mjs');const {nativeInvocations}=await import('./lib/exui-native-contract.mjs');
+ const policy=getReleasePolicy(CALLBACK_SCOPE);assert.deepEqual(policy.requiredObligationIds,[CALLBACK_OBLIGATION]);assert.equal(policy.obligations[0].boundary,'candidate');assert.deepEqual(policy.obligations[0].requiredProofIds,[CALLBACK_PROOF]);assert.equal(policy.mutationDefinitions[0].mutantProofId,CALLBACK_MUTANT_PROOF);assert.deepEqual(nativeInvocations(CALLBACK_SCOPE).map(row=>row.invocationId),['baseline',CALLBACK_MUTATION]);assert.equal(CALLBACK_ATTRIBUTES.length,11);
+ const {prepareRecipientCallbackImport}=await import('./lib/exui-recipient-callback-import.mjs');const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-native-contract-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ for(const variant of ['baseline','binding-omitted']){const expected=callbackCanonicalImport(variant),dir=root+'/'+variant;const seal=await prepareRecipientCallbackImport(dir,{variant,rowFacets:true});assert.deepEqual(seal,expected.seal);assert.deepEqual(fs.readFileSync(dir+'/definition.xlsx'),expected.workbook);assert.deepEqual(fs.readFileSync(dir+'/definition.json'),expected.definition);}
+ assert.notEqual(callbackMutationContract().beforeDigest,callbackMutationContract().afterDigest);assert.throws(()=>callbackVariant('ccd-shape-unknown'),/CALLBACK_NATIVE_INVOCATION/);
+});
