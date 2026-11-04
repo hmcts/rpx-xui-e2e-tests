@@ -24,7 +24,7 @@ export function assertLocalCcdLoadedIdentity(info,receipt) {
  assert.equal(receipt.runtimeAcceptance,false,'LOCAL_CCD_NO_ACCEPTANCE');
  assert.equal(receipt.catalogueCredit,false,'LOCAL_CCD_NO_ACCEPTANCE');
  assert.equal(receipt.releaseCredit,false,'LOCAL_CCD_NO_ACCEPTANCE');
- assert.equal(info?.Id,receipt.configDigest,'LOCAL_CCD_CONFIG_ID');
+ assert([receipt.configDigest,receipt.manifestDigest,receipt.indexDocumentDigest].filter(Boolean).includes(info?.Id),'LOCAL_CCD_CONFIG_ID');
  assert.equal(`${info.Os}/${info.Architecture}`,'linux/arm64','LOCAL_CCD_PLATFORM');
  assert.deepEqual(info.RootFS?.Layers,receipt.rootfsDiffIds,'LOCAL_CCD_ROOTFS');
  const keys=['User','Entrypoint','Cmd','Env','WorkingDir','ExposedPorts','Volumes','Healthcheck','Labels','StopSignal','OnBuild','Shell','ArgsEscaped'];
@@ -60,8 +60,12 @@ export function loadLocalCcdDerivative({baseArchive,derivedArchive,artifactRoot,
  assert.equal(archiveDigest,receipt.archiveDigest,'LOCAL_CCD_ARCHIVE_CHANGED');
  docker(['load','--input',path.resolve(derivedArchive)],{timeout:300000});
  assert.equal(digestBytes(fs.readFileSync(derivedArchive)),receipt.archiveDigest,'LOCAL_CCD_ARCHIVE_CHANGED');
- const info=JSON.parse(docker(['image','inspect',receipt.configDigest]))[0];
+ let info;
+ for(const identity of [receipt.manifestDigest,receipt.configDigest,receipt.indexDocumentDigest].filter(Boolean)) {
+  try { info=JSON.parse(docker(['image','inspect',identity]))[0]; break; } catch { /* An untagged image may be addressed by its manifest or config identity. */ }
+ }
+ assert(info,'LOCAL_CCD_LOADED_IDENTITY_UNAVAILABLE');
  assertLocalCcdLoadedIdentity(info,receipt);
- const profile={...receipt,status:'loaded-and-verified',imageId:receipt.configDigest,baseArchive:path.resolve(baseArchive),derivedArchive:path.resolve(derivedArchive),artifactRoot:path.resolve(artifactRoot)};
+ const profile={...receipt,status:'loaded-and-verified',imageId:info.Id,baseArchive:path.resolve(baseArchive),derivedArchive:path.resolve(derivedArchive),artifactRoot:path.resolve(artifactRoot)};
  writeJsonAtomic(path.join(output,'local-ccd-profile.json'),profile);return profile;
 }

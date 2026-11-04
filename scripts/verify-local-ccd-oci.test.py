@@ -41,6 +41,31 @@ class Verifier(unittest.TestCase):
         (self.root/'base.tar').write_bytes(base);(self.root/'derived.tar').write_bytes(derived)
         with v.layout(self.root/'base.tar') as b,v.layout(self.root/'derived.tar') as d:
             return v.verify_derivative(b,d,baseid,sha(self.jar))
+    def test_original_docker_index_chain(self):
+        base,baseid=image([self.base_layer],self.base_config,compressed=True)
+        with tarfile.open(fileobj=io.BytesIO(base)) as archive:
+            entries={item.name:archive.extractfile(item).read() for item in archive}
+        manifest=json.loads(entries['index.json'])['manifests'][0]
+        manifest['platform']={'architecture':'arm64','os':'linux'}
+        upstream=encoded({'schemaVersion':2,'mediaType':v.DOCKER_INDEX,'manifests':[manifest]})
+        indexid=sha(upstream)
+        entries['blobs/sha256/'+indexid[7:]]=upstream
+        entries['index.json']=encoded({'schemaVersion':2,'manifests':[{'mediaType':v.DOCKER_INDEX,'digest':indexid,'size':len(upstream)}]})
+        file=self.root/'nested.tar';file.write_bytes(tar([(name,data,'file') for name,data in entries.items()]))
+        old=(v.BASE_INDEX,v.BASE_MANIFEST)
+        try:
+            v.BASE_INDEX=indexid;v.BASE_MANIFEST=manifest['digest']
+            with v.layout(file) as result:
+                self.assertEqual(result['configDigest'],baseid)
+                self.assertEqual(result['indexDigest'],indexid)
+                with self.assertRaisesRegex(ValueError,'BASE_IDENTITY'):v.verify_derivative(result,result,sha(b'wrong-config'))
+            v.BASE_MANIFEST=sha(b'foreign-child')
+            with self.assertRaisesRegex(ValueError,'BASE_MANIFEST_IDENTITY'):
+                with v.layout(file):pass
+            v.BASE_INDEX=sha(b'foreign-index')
+            with self.assertRaisesRegex(ValueError,'BASE_INDEX_IDENTITY'):
+                with v.layout(file):pass
+        finally:v.BASE_INDEX,v.BASE_MANIFEST=old
     def test_positive(self):
         result=self.verify();self.assertFalse(result['runtimeAcceptance']);self.assertFalse(result['catalogueCredit']);self.assertEqual(result['jarDigest'],sha(self.jar))
     def test_changed_entrypoint(self):

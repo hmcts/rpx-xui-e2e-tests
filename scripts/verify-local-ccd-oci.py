@@ -11,7 +11,9 @@ import shutil
 import tarfile
 import tempfile
 
-BASE = 'sha256:230af88ec4791950396e7a78f2dc330018d1a259242e317f4374ec5a384d30c0'
+BASE_INDEX = 'sha256:230af88ec4791950396e7a78f2dc330018d1a259242e317f4374ec5a384d30c0'
+BASE_MANIFEST = 'sha256:2b1b4208520244122d1ebfdc4fbdf7d1120fc0a1bacecb9bba06583762571e9b'
+BASE = 'sha256:58a53f7013ff354a312ff4e35a5b2af81d3094600ff30622262c5100554f57da'
 JAR = 'sha256:5ddd26e313cbd37dc50651155fbe7e37d1b9bc1f751c5a9185c0e26359e9c90a'
 PATCH = 'sha256:41ab60a783ac59754a090cc051ffd7fb738c7d3dd087a42d69730145028088a5'
 SOURCE = 'sha256:0ec9d46c267cbf9c4d8525545abe88797b93fd8b1b864dd2a64f73dde9fd9658'
@@ -21,7 +23,10 @@ MAX_EXPANDED = 2 * MAX_BLOB
 MAX_TOTAL = 8 * MAX_BLOB
 MANIFEST = 'application/vnd.oci.image.manifest.v1+json'
 CONFIG = 'application/vnd.oci.image.config.v1+json'
-LAYERS = {'application/vnd.oci.image.layer.v1.tar', 'application/vnd.oci.image.layer.v1.tar+gzip'}
+DOCKER_INDEX = 'application/vnd.docker.distribution.manifest.list.v2+json'
+DOCKER_MANIFEST = 'application/vnd.docker.distribution.manifest.v2+json'
+DOCKER_CONFIG = 'application/vnd.docker.container.image.v1+json'
+LAYERS = {'application/vnd.oci.image.layer.v1.tar', 'application/vnd.oci.image.layer.v1.tar+gzip', 'application/vnd.docker.image.rootfs.diff.tar.gzip'}
 
 def require(value, code):
     if not value:
@@ -101,10 +106,19 @@ def layout(archive):
             used.add('blobs/sha256/' + digest[7:])
             return file
         selected = index['manifests'][0]
-        manifest_file = descriptor(selected, {MANIFEST})
+        index_digest = None
+        if selected.get('mediaType') == DOCKER_INDEX:
+            index_digest = selected.get('digest')
+            require(index_digest == BASE_INDEX, 'LOCAL_OCI_BASE_INDEX_IDENTITY')
+            upstream = load_json(descriptor(selected, {DOCKER_INDEX}))
+            require(upstream.get('schemaVersion') == 2 and upstream.get('mediaType') == DOCKER_INDEX, 'LOCAL_OCI_INDEX_SCHEMA')
+            matches = [item for item in upstream.get('manifests', []) if item.get('platform') == {'architecture':'arm64','os':'linux'}]
+            require(len(matches) == 1 and matches[0].get('digest') == BASE_MANIFEST, 'LOCAL_OCI_BASE_MANIFEST_IDENTITY')
+            selected = matches[0]
+        manifest_file = descriptor(selected, {MANIFEST, DOCKER_MANIFEST})
         manifest = load_json(manifest_file)
-        require(manifest.get('schemaVersion') == 2 and manifest.get('mediaType') == MANIFEST, 'LOCAL_OCI_MANIFEST_SCHEMA')
-        config_file = descriptor(manifest['config'], {CONFIG})
+        require(manifest.get('schemaVersion') == 2 and manifest.get('mediaType') in {MANIFEST, DOCKER_MANIFEST}, 'LOCAL_OCI_MANIFEST_SCHEMA')
+        config_file = descriptor(manifest['config'], {CONFIG, DOCKER_CONFIG})
         config = load_json(config_file)
         require(config.get('os') == 'linux' and config.get('architecture') == 'arm64', 'LOCAL_OCI_PLATFORM')
         layers = manifest.get('layers')
@@ -117,14 +131,14 @@ def layout(archive):
         for n, desc in enumerate(layers):
             layer_file = descriptor(desc, LAYERS)
             target = root / ('expanded-' + str(n))
-            opener = gzip.open if desc['mediaType'].endswith('+gzip') else open
+            opener = gzip.open if desc['mediaType'].endswith(('+gzip', '.gzip')) else open
             with opener(layer_file, 'rb') as source, open(target, 'xb') as destination:
                 expanded_total += copy_bounded(source, destination, MAX_EXPANDED)
                 require(expanded_total <= MAX_TOTAL, 'LOCAL_OCI_TOTAL_EXPANSION_LIMIT')
             require(hash_file(target) == diffs[n], 'LOCAL_OCI_DIFF_ID')
             expanded.append(target)
         require({name for name in seen if name.startswith('blobs/sha256/') and name != 'blobs/sha256/'} == used, 'LOCAL_OCI_UNREFERENCED_BLOB')
-        yield {'root': root, 'archiveDigest': hash_file(archive), 'manifestDigest': selected['digest'], 'manifest': manifest, 'configDigest': manifest['config']['digest'], 'config': config, 'expanded': expanded}
+        yield {'root': root, 'indexDigest': index_digest, 'indexDocumentDigest': hash_file(root / 'index.json'), 'archiveDigest': hash_file(archive), 'manifestDigest': selected['digest'], 'manifest': manifest, 'configDigest': manifest['config']['digest'], 'config': config, 'expanded': expanded}
 
 def jar_layer(file, expected, parents):
     seen, jars = set(), 0
@@ -167,7 +181,7 @@ def verify_derivative(base, derived, base_digest=BASE, jar_digest=JAR):
                     require(entry.isdir(),'LOCAL_OCI_BASE_PARENT_TYPE')
                     parents[name]=(entry.mode,entry.uid,entry.gid)
     jar_layer(derived['expanded'][-1], jar_digest, parents)
-    return {'schemaVersion':1,'profile':'ccd-results-internal-id-fix-feasibility','kind':'verified-local-oci-ccd-derivative','platform':'linux/arm64','baseArchiveDigest':base['archiveDigest'],'baseManifestDigest':base['manifestDigest'],'baseConfigDigest':base['configDigest'],'archiveDigest':derived['archiveDigest'],'manifestDigest':derived['manifestDigest'],'configDigest':derived['configDigest'],'rootfsDiffIds':d['rootfs']['diff_ids'],'executionConfig':d.get('config',{}),'jarDigest':jar_digest,'runtimeAcceptance':False,'catalogueCredit':False,'releaseCredit':False}
+    return {'schemaVersion':1,'profile':'ccd-results-internal-id-fix-feasibility','kind':'verified-local-oci-ccd-derivative','platform':'linux/arm64','baseArchiveDigest':base['archiveDigest'],'baseManifestDigest':base['manifestDigest'],'baseConfigDigest':base['configDigest'],'archiveDigest':derived['archiveDigest'],'manifestDigest':derived['manifestDigest'],'indexDocumentDigest':derived['indexDocumentDigest'],'configDigest':derived['configDigest'],'rootfsDiffIds':d['rootfs']['diff_ids'],'executionConfig':d.get('config',{}),'jarDigest':jar_digest,'runtimeAcceptance':False,'catalogueCredit':False,'releaseCredit':False}
 
 def verify_artifact(root):
     root = Path(root)
@@ -186,7 +200,7 @@ def main():
     args=parser.parse_args()
     provenance=verify_artifact(args.artifact_root)
     with layout(args.base) as base:
-        require(base['configDigest']==BASE,'LOCAL_OCI_BASE_IDENTITY')
+        require(base['configDigest']==BASE and base['indexDigest']==BASE_INDEX and base['manifestDigest']==BASE_MANIFEST,'LOCAL_OCI_BASE_IDENTITY')
         if args.materialize_base:
             target=Path(args.materialize_base);target.mkdir(mode=0o700)
             for name in ['oci-layout','index.json','blobs']:
@@ -194,7 +208,7 @@ def main():
                 else:shutil.copyfile(base['root']/name,target/name)
         if args.derived:
             with layout(args.derived) as derived:receipt=verify_derivative(base,derived)
-        else:receipt={'baseArchiveDigest':base['archiveDigest'],'baseManifestDigest':base['manifestDigest'],'baseConfigDigest':base['configDigest']}
+        else:receipt={'baseArchiveDigest':base['archiveDigest'],'baseIndexDigest':base['indexDigest'],'baseManifestDigest':base['manifestDigest'],'baseConfigDigest':base['configDigest']}
     receipt['artifactProvenanceDigest']=provenance
     print(json.dumps(receipt,separators=(',',':')))
 

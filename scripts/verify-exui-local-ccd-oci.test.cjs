@@ -18,6 +18,7 @@ async function setup(t){
 }
 test('local identity uses verified config/rootfs without forging repository digests',async t=>{
  const r=await setup(t);assert.doesNotThrow(()=>r.lib.assertLocalCcdLoadedIdentity(r.inspect,r.receipt));
+ for(const key of ['manifestDigest','indexDocumentDigest']) { const receipt={...r.receipt,[key]:digest(key)};assert.doesNotThrow(()=>r.lib.assertLocalCcdLoadedIdentity({...r.inspect,Id:receipt[key]},receipt)); }
  for(const altered of [{...r.inspect,Id:digest('other')},{...r.inspect,Architecture:'amd64'},{...r.inspect,RootFS:{Layers:[]}},{...r.inspect,Config:{...r.inspect.Config,User:'root'}}])assert.throws(()=>r.lib.assertLocalCcdLoadedIdentity(altered,r.receipt));
 });
 test('load re-verifies archive before Docker then inspects immutable config ID',async t=>{
