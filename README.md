@@ -141,9 +141,11 @@ The shared evaluator recomputes raw framework evidence and receipts. `harness:ve
 
 The pinned Jenkins library runs lint during Build. The later Harness stage reactivates NVM and checks actual Node against `.nvmrc` and actual Yarn against `packageManager` before browser preflight and supporting checks.
 
-Checked-in Jenkins jobs run Harness supporting checks and portable diagnostics. They provide no native candidate/release approval. The fixed native job requires its explicit artifact/digest/browser/output inputs and a supported provisioned Docker platform; actual Jenkins native provisioning and live acceptance remain unverified.
+Checked-in Jenkins jobs attempt the bounded native candidate/CCD pilots on the existing worker, then collect supporting diagnostics in the same report. Native preparation requires an observed Linux ARM64 Docker server before webapp fetch or candidate build. This platform check grants no runtime or release credit; actual Jenkins native provisioning and live acceptance remain unverified.
 
 The shared Jenkins library deletes its workspace at job completion. Job-local raw reports are not durable evidence retention; an approved private store is still required for native CI acceptance.
+
+The native Jenkins wrapper preserves each job directory under `functional-output/tests/harness/private/native-ci/harness-native-ci-*`, including failed preparation and execution evidence. Private roots and job directories must be owned by the invoking user with mode0700; aliases and broader existing permissions block execution. These files are excluded from public artifact publication. They remain available during the job for private inspection or an approved export; workspace cleanup still removes them, so this is not durable retention.
 
 Raw native evidence and detailed diagnostic failures stay under `functional-output/tests/harness/private/`. Both Jenkins jobs publish one **EXUI Assurance Harness** Odhín report at `functional-output/tests/harness/public/odhin/index.html`.
 

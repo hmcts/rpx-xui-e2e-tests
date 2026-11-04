@@ -237,7 +237,7 @@ test('Jenkins native assurance builds exact webapp master in a private, script-d
   assert.match(source, /process\.umask\(0o077\)/);
   assert.match(source, /mode: 0o600/);
   assert.match(source, /validatePublicSummary\(source\)/);
-  assert.match(source, /removePrivateDirectory\(privateRoot, temporaryRoot\)/);
+  assert.match(source, /privateRoot = createPrivateJobDirectory\(\)/);
   assert.match(source, /scripts\/run-harness-local-poc\.mjs/, 'failed native setup retains one diagnostics-only report');
   assert.doesNotMatch(source, /--aat|(?:NPM|NODE_AUTH|IDAM|AAT)_TOKEN/);
 });

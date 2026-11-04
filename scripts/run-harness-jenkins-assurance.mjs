@@ -2,7 +2,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -13,6 +12,7 @@ import {
   validatePublicSummary,
   writePublicSummary,
 } from "./lib/exui-evidence-io.mjs";
+import { collectWorkerCapabilities, validateCapabilityReport } from "./observe-harness-worker.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WEBAPP = "https://github.com/hmcts/rpx-xui-webapp.git";
@@ -21,6 +21,16 @@ const PUBLIC = path.join(
   "functional-output/tests/harness/public/release-assurance-summary.json",
 );
 let stage = "private setup";
+
+export function assertNativeWorkerPlatform(report = collectWorkerCapabilities()) {
+  validateCapabilityReport(report);
+  assert(
+    report.docker.status === "observed" &&
+      report.docker.os === "linux" &&
+      report.docker.architecture === "arm64",
+    "HARNESS_NATIVE_DOCKER_ARM64_REQUIRED",
+  );
+}
 
 function safeEnvironment(extra = {}) {
   const environment = {};
@@ -66,22 +76,23 @@ export function assertPrivateDirectory(directory) {
   return resolved;
 }
 
-function removePrivateDirectory(directory, parent) {
-  const resolved = path.resolve(directory);
-  assert(
-    path.dirname(resolved) === parent &&
-      path.basename(resolved).startsWith("harness-native-ci-"),
-    "HARNESS_PRIVATE_CLEANUP_TARGET_REQUIRED",
-  );
-  const info = fs.lstatSync(resolved);
-  assert(
-    info.isDirectory() &&
-      !info.isSymbolicLink() &&
-      fs.realpathSync(resolved) === resolved &&
-      info.uid === process.getuid(),
-    "HARNESS_PRIVATE_CLEANUP_OWNERSHIP_REQUIRED",
-  );
-  fs.rmSync(resolved, { recursive: true, force: true });
+export function createPrivateJobDirectory(root = ROOT) {
+  assert.equal(fs.realpathSync(root), root, "HARNESS_PRIVATE_JOB_ROOT_ALIAS");
+  let directory = root;
+  for (const component of ["functional-output", "tests", "harness", "private", "native-ci"]) {
+    directory = path.join(directory, component);
+    try {
+      const info = fs.lstatSync(directory);
+      assert(info.isDirectory() && !info.isSymbolicLink(), "HARNESS_PRIVATE_JOB_ROOT_ALIAS");
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+      fs.mkdirSync(directory, { mode: 0o700 });
+    }
+    assert.equal(fs.realpathSync(directory), directory, "HARNESS_PRIVATE_JOB_ROOT_ALIAS");
+    if (component === "private" || component === "native-ci") assertPrivateDirectory(directory);
+  }
+  const job = fs.mkdtempSync(path.join(directory, "harness-native-ci-"));
+  return assertPrivateDirectory(job);
 }
 
 export function writePrivateJob(file, value) {
@@ -297,12 +308,12 @@ async function main() {
   assert.equal(fs.realpathSync(publicDirectory), publicDirectory, "HARNESS_PUBLIC_DIRECTORY_REQUIRED");
   writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
 
-  const temporaryRoot = fs.realpathSync(os.tmpdir());
   let privateRoot;
   let exitCode = 2;
   try {
-    privateRoot = fs.mkdtempSync(path.join(temporaryRoot, "harness-native-ci-"));
-    assertPrivateDirectory(privateRoot);
+    stage = "native worker platform";
+    assertNativeWorkerPlatform();
+    privateRoot = createPrivateJobDirectory();
     const { jobPath, output } = await prepareJob(privateRoot);
     stage = "native candidate and CCD pilots";
     const result = spawnSync(
@@ -326,9 +337,10 @@ async function main() {
     exitCode = 2;
   } finally {
     try {
-      if (privateRoot) removePrivateDirectory(privateRoot, temporaryRoot);
+      if (privateRoot) assertPrivateDirectory(privateRoot);
     } catch {
-      console.error("[harness-assurance] BLOCKED: private job cleanup could not be verified.");
+      console.error("[harness-assurance] BLOCKED: private job evidence permissions could not be verified.");
+      writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
       exitCode = 2;
     }
   }
