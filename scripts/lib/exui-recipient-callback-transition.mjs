@@ -1,3 +1,4 @@
+import {validateCallbackNativeObservations} from './exui-recipient-callback-observations.mjs';
 import {validateIdentity} from './exui-release-evidence.mjs';
 import {readCallbackBaselineCheckpoint} from './exui-native-proof-validation.mjs';
 import {validateNativeInvocationFinalization} from './exui-native-ci-ownership.mjs';
@@ -236,6 +237,7 @@ export function validateCallbackTransitionEvidence(directory, expected, loadedIn
     assert.deepEqual(derivation.baselineRuntimeMetadata, baselineMetadata, "CALLBACK_TRANSITION_DERIVATION_RUNTIME");
     assert.deepEqual(derivation.mutantRuntimeMetadata, mutantMetadata, "CALLBACK_TRANSITION_DERIVATION_RUNTIME");
     assert.deepEqual(derivation.runtimeRecord, fault.runtimeRecord, "CALLBACK_TRANSITION_DERIVATION_RECORD");
+    validateCallbackNativeObservations(directory,input,faultInput,derivation.callbackObservations);
     identities.push({ invocationId, identity: faultIdentity });
   }
   return { transition: structuredClone(expected.callbackTransition), identities };

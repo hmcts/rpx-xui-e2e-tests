@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import {CALLBACK_SCOPE} from './lib/exui-recipient-callback-contract.mjs';
+import {verifyNativeCallbackRuntime} from './lib/exui-recipient-callback-native-import.mjs';
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -29,8 +31,9 @@ const arg = (key) => {
 };
 async function launch() {
   const releaseScopeId = arg("--scope") ?? "exui-ccd-pilot";
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(releaseScopeId))
     throw new Error("UNKNOWN_CCD_SCOPE");
+  if (releaseScopeId === CALLBACK_SCOPE && arg("--only")) throw new Error("COMPLETE_CALLBACK_SCOPE_REQUIRED");
   if (releaseScopeId === EVENT_CAPABILITY_SCOPE && arg("--only"))
     throw new Error("COMPLETE_EVENT_CAPABILITY_SCOPE_REQUIRED");
   if (
@@ -71,12 +74,13 @@ async function launch() {
     throw new Error("CCD_NESTED_RUNTIME_REQUIRED");
   if (
     !ccd.ready ||
-    !ccd.definitionImported ||
+    (releaseScopeId !== CALLBACK_SCOPE && !ccd.definitionImported) ||
     !/^[a-f0-9]{64}$/.test(ccd.namespace)
   )
     throw new Error("CCD_READY_IMPORT_REQUIRED");
   if ((ccd.platform ?? "linux/arm64") !== artifact.provenance.platform) throw new Error("CCD_CANDIDATE_PLATFORM_MISMATCH");
-  verifyCcdRuntimeIdentity(ccd);
+  if (releaseScopeId === CALLBACK_SCOPE) verifyNativeCallbackRuntime(ccd,"baseline");
+  else verifyCcdRuntimeIdentity(ccd);
   const inspection = spawnSync("docker", ["inspect", ccd.namespace], {
     encoding: "utf8",
   });
@@ -100,7 +104,7 @@ async function launch() {
   ]);
   const definitionFile = path.join(
     path.dirname(statePath),
-    "definition-import.json",
+    releaseScopeId === CALLBACK_SCOPE ? "recipient-callback-native-import.json" : "definition-import.json",
   );
   const definition = JSON.parse(fs.readFileSync(definitionFile, "utf8"));
   const browserDigest = await digestCandidateTree(browserRoot);
@@ -111,7 +115,7 @@ async function launch() {
     ),
   ).browsers.find((item) => item.name === "chromium-headless-shell");
   const credentials = Object.fromEntries(
-    (releaseScopeId === EVENT_CAPABILITY_SCOPE
+    ([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(releaseScopeId)
       ? ["allowed", "courtadmin", "judge", "observer", "readonly"]
       : ["allowed", "denied", "observer"]).map((name) => [
       name,

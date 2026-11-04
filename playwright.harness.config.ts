@@ -29,6 +29,7 @@ if (
     "global-search",
     "hearing-publication",
     "ccd-event-capability",
+    "ccd-recipient-callback",
   ].includes(slice)
 )
   throw new Error("UNKNOWN_HARNESS_SLICE");
@@ -47,7 +48,11 @@ if (
   !["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-optional-postal-line-two"].includes(process.env.EXUI_HARNESS_MUTATION)
 )
   throw new Error("CCD_EVENT_CAPABILITY_MUTATION_REQUIRED");
-const ccdFiles = eventCapabilityScope
+const callbackScope = candidateManifest?.releaseScopeId === "exui-ccd-recipient-callback-pilot";
+if (slice === "ccd-recipient-callback" && !callbackScope) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
+if (callbackScope && (selection !== "ccd" || slice !== "ccd-recipient-callback")) throw new Error("CCD_CALLBACK_SELECTION_REQUIRED");
+if (callbackScope && process.env.EXUI_HARNESS_MUTATION && process.env.EXUI_HARNESS_MUTATION !== "ccd-omit-recipient-mid-event") throw new Error("CCD_CALLBACK_MUTATION_REQUIRED");
+const ccdFiles = callbackScope ? ["recipient-callback"] : eventCapabilityScope
   ? process.env.EXUI_HARNESS_MUTATION === "ccd-enable-judge-event"
     ? ["event-capability"]
     : ["ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")
@@ -82,7 +87,7 @@ export default defineConfig({
   ...(selection === "candidate" && slice === "hearing-publication"
     ? { testMatch: "**/hearing-publication/*.spec.ts" }
     : {}),
-  timeout: 60_000,
+  timeout: callbackScope ? 90_000 : 60_000,
   use: {
     ...config.use,
     storageState: process.env.EXUI_SESSION_COOKIE

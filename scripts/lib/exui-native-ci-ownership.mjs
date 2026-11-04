@@ -1,3 +1,4 @@
+import {CALLBACK_SCOPE,CALLBACK_MUTATION,callbackVariant} from './exui-recipient-callback-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -18,6 +19,7 @@ const scopes = {
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
   eventCapability: EVENT_CAPABILITY_SCOPE,
+  recipientCallback: CALLBACK_SCOPE,
 };
 function captureOwnership(
   input,
@@ -68,7 +70,7 @@ function captureOwnership(
       "CI_NATIVE_MUTANT_MISMATCH",
     );
   else assert(!input.mutantArtifact, "CI_NATIVE_UNEXPECTED_MUTANT");
-  if (["ccd", "eventCapability"].includes(name)) {
+  if (["ccd", "eventCapability", "recipientCallback"].includes(name)) {
     assert.equal(
       input.ccd.namespace,
       context.ccd.namespace,
@@ -79,6 +81,11 @@ function captureOwnership(
       context.ccd.owner,
       "CI_NATIVE_CCD_OWNER_MISMATCH",
     );
+    if (name === "recipientCallback") {
+      assert.equal(input.definition?.kind,"native-recipient-callback-definition","CI_NATIVE_CALLBACK_IMPORT_REQUIRED");
+      assert.equal(input.definition.variant,callbackVariant(eventFault ?? "baseline"),"CI_NATIVE_CALLBACK_VARIANT_MISMATCH");
+      assert.equal(input.definition.namespace,input.ccd.namespace,"CI_NATIVE_CALLBACK_IMPORT_NAMESPACE");
+    }
     if (name === "eventCapability")
       assert.equal(input.ccd.fixtureSelection, eventFault ? `event-capability-${eventCapabilityFaultVariant(eventFault)}` : "event-capability-baseline", "CI_NATIVE_EVENT_VARIANT_MISMATCH");
   } else assert(!input.ccd, "CI_NATIVE_UNEXPECTED_NAMESPACE");
@@ -99,7 +106,7 @@ function captureOwnership(
   );
   // Plans are rebuilt from the declared candidate, toolchain and fixed invocation inventory.
   const invocations = nativeInvocations(scopes[name]).filter((invocation) =>
-    name !== "eventCapability" || invocation.invocationId === (eventFault ?? "baseline"),
+    !["eventCapability","recipientCallback"].includes(name) || invocation.invocationId === (eventFault ?? "baseline"),
   ).map(
     ({ invocationId }) => ({
       invocationId,
@@ -111,6 +118,11 @@ function captureOwnership(
 
 export function captureNativeOwnership(input, handoff, context, directory, name) {
   return captureOwnership(input, handoff, context, directory, name);
+}
+
+export function captureCallbackFaultOwnership(input,handoff,context,directory,invocationId=CALLBACK_MUTATION) {
+  assert.equal(invocationId,CALLBACK_MUTATION,"CI_NATIVE_CALLBACK_INVOCATION");
+  return captureOwnership(input,handoff,context,directory,"recipientCallback",invocationId);
 }
 
 export function captureEventFaultOwnership(input, handoff, context, directory, invocationId = EVENT_CAPABILITY_MUTATION) {

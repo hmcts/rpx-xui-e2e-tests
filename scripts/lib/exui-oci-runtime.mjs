@@ -1,3 +1,4 @@
+import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -148,6 +149,7 @@ export function toolContainerArguments({
       "ccd-enable-readonly-recipient-update",
       "ccd-remove-courtadmin-event-create",
       ...SOURCE_SHAPE_MUTATIONS,
+      CALLBACK_MUTATION,
             "routing-omit-web-url",
             "routing-omit-noc-base-url",
             "global-search-wa-capability",
@@ -157,6 +159,8 @@ export function toolContainerArguments({
     ).includes(invocationId)
   )
     throw new Error("UNSUPPORTED_OCI_INVOCATION");
+  if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
+  if (releaseScopeId === CALLBACK_SCOPE && !["baseline",CALLBACK_MUTATION].includes(invocationId)) throw new Error("UNSUPPORTED_CCD_CALLBACK_INVOCATION");
   if (SOURCE_SHAPE_MUTATIONS.includes(invocationId) && releaseScopeId !== "exui-ccd-event-capability-pilot")
     throw new Error("CCD_EVENT_SCOPE_REQUIRED");
   assertReadOnlyMountIsolation(
@@ -252,6 +256,7 @@ export function candidateArchiveArguments({
       "ccd-enable-readonly-recipient-update",
       "ccd-remove-courtadmin-event-create",
       ...SOURCE_SHAPE_MUTATIONS,
+      CALLBACK_MUTATION,
       "routing-omit-web-url",
       "routing-omit-noc-base-url",
       "global-search-wa-capability",
@@ -259,6 +264,8 @@ export function candidateArchiveArguments({
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
+  if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
+  if (releaseScopeId === CALLBACK_SCOPE && !["baseline",CALLBACK_MUTATION].includes(invocationId)) throw new Error("UNSUPPORTED_CCD_CALLBACK_INVOCATION");
   if (invocationId === "ccd-stale-revoked-bearer" && releaseScopeId !== "exui-ccd-pilot")
     throw Error("CCD_REVOCATION_SCOPE_REQUIRED");
   if (["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", ...SOURCE_SHAPE_MUTATIONS].includes(invocationId) && releaseScopeId !== "exui-ccd-event-capability-pilot")

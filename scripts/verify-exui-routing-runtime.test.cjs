@@ -135,8 +135,9 @@ test("support only: routing is the fifth required CI phase and existing policies
     stop: async () => {},
     startEvent: async () => {},
     stopEvent: async () => {},
+    startCallback: async () => {}, stopCallback: async () => {},
   });
-  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability", "routing"]);
+  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback"]);
 });
 
 test("support only: scoped real Node guard admits PCS NoC but denies UI/other origins and keeps old scopes unchanged", () => {

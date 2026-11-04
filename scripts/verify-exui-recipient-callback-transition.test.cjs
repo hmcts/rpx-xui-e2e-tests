@@ -72,3 +72,31 @@ for(const facet of ['label','date'])test('callback replay rejects materially alt
  f.baseline.current.runtimeMetadata.observedDefinitionDigest=v.imported.observedDefinitionDigest;
  f.write();assert.throws(()=>validateCallbackTransitionEvidence(f.directory,f.expected,f.loaded()),facet==='label'?/CALLBACK_FACET_LABEL/:/CALLBACK_FACET_DATE_ROW/);
 });
+for(const [name,change,code] of [
+ ['old UI feasibility',o=>o.baseline.kind='callback-ui-feasibility',/CALLBACK_OBSERVATION_NATIVE_REQUIRED/],
+ ['wrong rendered label',o=>o.baseline.ui.recipientLabel='Other',/CALLBACK_OBSERVATION_LABEL/],
+ ['wrong page order',o=>o.baseline.ui.predecessor.navigation.reverse(),/CALLBACK_OBSERVATION_PAGE_SEQUENCE/],
+ ['visible deselected recipient',o=>o.baseline.ui.hiddenWhenDeselected=false,/CALLBACK_OBSERVATION_CONDITION_ORDER/],
+ ['wrong CYA Change target',o=>o.baseline.ui.cya.changeAccessibleName='Change Protected value',/CALLBACK_OBSERVATION_CYA_CHANGE/],
+ ['lost sibling after Change',o=>o.baseline.ui.cya.changedRecipientNames.pop(),/CALLBACK_OBSERVATION_CYA_VALUES/],
+ ['rejection persisted data',o=>o.baseline.afterRejected.state.version++,/CALLBACK_OBSERVATION_REJECTION_PERSISTED/],
+ ['premature submit',o=>o.baseline.beforeSubmit.state.version++,/CALLBACK_OBSERVATION_PREMATURE_PERSISTENCE/],
+ ['lost recipient ID',o=>o.baseline.after.state.case_data.sodAdditionalRecipientsList[0].id='33333333-3333-4333-8333-333333333333',/CALLBACK_OBSERVATION_PERSISTED_DATA/],
+ ['wrong final event',o=>o.baseline.after.history[0].id='create',/CALLBACK_OBSERVATION_AUDIT_EVENT/],
+ ['wrong final actor',o=>o.baseline.after.history[0].user_id='foreign',/CALLBACK_OBSERVATION_AUDIT_EVENT/],
+ ['unverified service',o=>o.baseline.journal[0].authenticatedService='xui_webapp',/CALLBACK_JOURNAL_SERVICE/],
+ ['wrong callback path',o=>o.baseline.journal[0].path='/other',/CALLBACK_JOURNAL_PATH/],
+ ['lost normalization callback',o=>o.baseline.journal.pop(),/CALLBACK_OBSERVATION_CALLBACK_COUNT/],
+ ['fault has no CYA',o=>o['ccd-omit-recipient-mid-event'].ui.faultCyaHeading='Validation failed',/CALLBACK_OBSERVATION_FAULT_CYA/],
+ ['fault unexpectedly invoked callback',o=>o['ccd-omit-recipient-mid-event'].journal.push(o.baseline.journal[0]),/CALLBACK_OBSERVATION_FAULT_CALLBACK/],
+])test('callback raw replay rejects rehashed '+name,async t=>{
+ const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+ const {validateCallbackTransitionEvidence}=await import('./lib/exui-recipient-callback-transition.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-ui-replay-negative-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const f=await createCallbackPhaseFixture({root});change(f.observations);f.write();assert.throws(()=>validateCallbackTransitionEvidence(f.directory,f.expected,f.loaded()),code);
+});
+test('callback response cannot silently alter sibling data even with fresh byte and artifact hashes',async t=>{
+ const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+ const {validateCallbackTransitionEvidence}=await import('./lib/exui-recipient-callback-transition.mjs');
+ const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-response-negative-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const f=await createCallbackPhaseFixture({root});const record=f.observations.baseline.journal[1],response=JSON.parse(record.rawResponse);response.data.sodAdditionalRecipientsList[1].value.emailInformation.emailName='Changed sibling';record.rawResponse=JSON.stringify(response);record.responseDigest=digestBytes(record.rawResponse);f.write();assert.throws(()=>validateCallbackTransitionEvidence(f.directory,f.expected,f.loaded()),/CALLBACK_JOURNAL_RESPONSE_DATA/);
+});

@@ -109,3 +109,13 @@ test('support only: actual native proof command selects the scoped configuration
   assert.equal(original.args.at(-1), 'nested-conditional.spec.ts');
   assert.equal(original.env.EXUI_HARNESS_SLICE, 'family');
 });
+test('callback exact scope collects one baseline or omission proof, without entering old event or CCD inventory',async t=>{
+ const scope='exui-ccd-recipient-callback-pilot';
+ for(const mutation of [undefined,'ccd-omit-recipient-mid-event']){
+  const selected=await collection(t,scope,{EXUI_HARNESS_SLICE:'ccd-recipient-callback',...(mutation?{EXUI_HARNESS_MUTATION:mutation}:{})});
+  assert.equal(selected.result.status,0,selected.result.stderr+selected.result.stdout);assert.equal(selected.specs.length,1);assert.equal(path.basename(selected.specs[0].file),'recipient-callback.spec.ts');
+  assert.deepEqual(selected.specs[0].tests[0].annotations.filter(a=>a.type==='harness-proof').map(a=>a.description),[mutation?'callback-recipient-binding-omitted':'callback-recipient-row']);
+ }
+ for(const [selectedScope,env] of [[scope,{EXUI_HARNESS_SLICE:'family'}],[scope,{EXUI_HARNESS_SLICE:'ccd-recipient-callback',EXUI_HARNESS_MUTATION:'ccd-enable-judge-event'}],['exui-ccd-pilot',{EXUI_HARNESS_SLICE:'ccd-recipient-callback'}],[SCOPE,{EXUI_HARNESS_SLICE:'ccd-event-capability',EXUI_HARNESS_MUTATION:'ccd-omit-recipient-mid-event'}]])assert.notEqual((await collection(t,selectedScope,env)).result.status,0);
+ assert.notEqual((await collection(t,'exui-ccd-pilot',{},['recipient-callback.spec.ts'])).result.status,0);
+});

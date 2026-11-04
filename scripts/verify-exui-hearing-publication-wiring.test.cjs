@@ -17,6 +17,9 @@ const SOURCE_FILES = [
   "scripts/lib/exui-source-shape-contract.mjs",
   "scripts/lib/exui-source-shape-dates.mjs",
   "scripts/lib/exui-recipient-callback-contract.mjs",
+  "scripts/lib/exui-recipient-callback-observations.mjs",
+  "src/fixtures/harnessCallbackJourney.ts",
+  "src/tests/harness/ccd/recipient-callback.spec.ts",
   "scripts/lib/exui-recipient-callback-native-import.mjs",
   "scripts/lib/exui-recipient-callback-transition.mjs",
   "scripts/lib/exui-recipient-callback-facets.mjs",
@@ -130,9 +133,9 @@ test('support only: Hearing policy binds exact publication proof and fault witho
   await (await import('./run-harness-ci.mjs')).runFixedCiPilots({
     phase: async name => { calls.push(name); return { status: 'PASS', exitCode: 0 }; },
     derive: async () => {}, start: async () => {}, stop: async () => {},
-    startEvent: async () => {}, stopEvent: async () => {},
+    startEvent: async () => {}, stopEvent: async () => {}, startCallback: async () => {}, stopCallback: async () => {},
   });
-  assert.deepEqual(calls, ['family', 'scope', 'ccd', 'eventCapability', 'routing']);
+  assert.deepEqual(calls, ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback']);
 });
 
 test('support only: Hearing selects the derived artifact while retaining identical effective configuration', async t => {
@@ -181,7 +184,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 118);
+  assert.equal(SOURCE_FILES.length, 121);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

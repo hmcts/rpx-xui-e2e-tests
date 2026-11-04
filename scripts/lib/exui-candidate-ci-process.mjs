@@ -1,3 +1,5 @@
+import {CALLBACK_SCOPE} from './exui-recipient-callback-contract.mjs';
+import {validateCallbackTransitionRequest} from './exui-recipient-callback-transition.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -109,8 +111,10 @@ export async function executeCiProcess({
   output,
   onPrepared,
   onEventTransition,
+  onCallbackTransition,
   onChild = () => {},
 }) {
+  assert(!(onEventTransition !== undefined && onCallbackTransition !== undefined), "CI_TRANSITION_SCOPE_AMBIGUOUS");
   assert(!fs.existsSync(output), "FRESH_CI_PHASE_OUTPUT_REQUIRED");
   const log = fs.openSync(
     path.join(path.dirname(output), path.basename(output) + "-supervisor.log"),
@@ -136,7 +140,12 @@ export async function executeCiProcess({
     });
   });
   let expected, input, handoff, transition;
-  const requestFile = path.join(output, "event-transition-request.json");
+  const callbackMode = onCallbackTransition !== undefined;
+  const transitionScope = callbackMode ? CALLBACK_SCOPE : EVENT_CAPABILITY_SCOPE;
+  const onTransition = callbackMode ? onCallbackTransition : onEventTransition;
+  const validateRequest = callbackMode ? validateCallbackTransitionRequest : validateEventCapabilityTransitionRequest;
+  const requestFile = path.join(output, callbackMode ? "callback-transition-request.json" : "event-transition-request.json");
+  const foreignRequestFile = path.join(output, callbackMode ? "event-transition-request.json" : "callback-transition-request.json");
   const requestSnapshot = () => {
     assert(fs.existsSync(requestFile), "CI_EVENT_TRANSITION_REQUEST_CHANGED");
     const before = fs.lstatSync(requestFile, { bigint: true });
@@ -158,13 +167,14 @@ export async function executeCiProcess({
     return { stamp: { ...identity(after), digest: digestBytes(bytes) }, bytes };
   };
   const checkTransition = async () => {
+    assert(!fs.lstatSync(foreignRequestFile, {throwIfNoEntry:false}), "CI_TRANSITION_FOREIGN_SCOPE_REQUEST");
     if (!fs.lstatSync(requestFile, { throwIfNoEntry: false })) {
       assert(!transition, "CI_EVENT_TRANSITION_REQUEST_CHANGED");
       return;
     }
     assert(expected, "CI_EVENT_TRANSITION_BEFORE_PREPARATION");
-    assert.equal(input.releaseScopeId, EVENT_CAPABILITY_SCOPE, "CI_EVENT_TRANSITION_SCOPE");
-    assert.equal(typeof onEventTransition, "function", "CI_EVENT_TRANSITION_CALLBACK_REQUIRED");
+    assert.equal(input.releaseScopeId, transitionScope, "CI_EVENT_TRANSITION_SCOPE");
+    assert.equal(typeof onTransition, "function", "CI_EVENT_TRANSITION_CALLBACK_REQUIRED");
     const observed = requestSnapshot();
     if (transition) {
       assert.deepEqual(observed.stamp, transition, "CI_EVENT_TRANSITION_REQUEST_CHANGED");
@@ -172,9 +182,9 @@ export async function executeCiProcess({
     }
     assert(!terminal, "CI_EVENT_TRANSITION_CHILD_TERMINATED");
     const request = JSON.parse(observed.bytes);
-    validateEventCapabilityTransitionRequest(input, request);
+    validateRequest(input, request);
     transition = observed.stamp;
-    await onEventTransition(request, {
+    await onTransition(request, {
       input,
       handoff,
       expected,
@@ -197,8 +207,8 @@ export async function executeCiProcess({
         );
         input = read(path.join(output, "input.json"));
         handoff = read(path.join(output, "container-launch.json"));
-        if (onEventTransition !== undefined)
-          assert.equal(input.releaseScopeId, EVENT_CAPABILITY_SCOPE, "CI_EVENT_TRANSITION_SCOPE");
+        if (onTransition !== undefined)
+          assert.equal(input.releaseScopeId, transitionScope, "CI_EVENT_TRANSITION_SCOPE");
         expected = onPrepared(input, handoff);
         writeJsonAtomic(path.join(output, "independent-preexecution.json"), {
           ...expected,

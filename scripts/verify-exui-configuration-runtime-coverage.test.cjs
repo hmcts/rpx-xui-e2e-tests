@@ -1466,3 +1466,13 @@ test("support only: event raw report aliases are rejected even when in-root byte
     /CATALOGUE_INPUT_PATH_ESCAPE/,
   );
 });
+test('support only: exact callback native packet attributes one candidate row, never CCD count or full release',async t=>{
+ const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+ const {projectConfigurationCoverage,writeConfigurationCoverage}=await import('./lib/exui-configuration-runtime-coverage.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-coverage-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const f=await createCallbackPhaseFixture({root});
+ const projected=projectConfigurationCoverage({harnessRoot:path.resolve('.'),callbackPhaseDirectory:f.directory});
+ assert.equal(projected.report.coverage.candidate,1);assert.equal(projected.report.coverage.ccd,0);assert.equal(projected.report.coverage.missingCandidateOrCcd.length,111);assert.equal(projected.report.releaseCredit,false);assert.equal(projected.catalogue.obligations.length,112);
+ assert.deepEqual(projected.report.executedProofs,[{obligationId:'configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94',boundary:'candidate',status:'passed'}]);
+ assert.equal(writeConfigurationCoverage({harnessRoot:path.resolve('.'),output:path.join(root,'coverage'),callbackPhase:{directory:f.directory,expected:f.expected,terminal:f.terminal}}).coverage.candidate,1);
+ f.observations.baseline.ui.cya.changeAccessibleName='Change Another';f.write();assert.throws(()=>projectConfigurationCoverage({harnessRoot:path.resolve('.'),callbackPhaseDirectory:f.directory}),/CALLBACK_OBSERVATION_CYA_CHANGE/);
+});

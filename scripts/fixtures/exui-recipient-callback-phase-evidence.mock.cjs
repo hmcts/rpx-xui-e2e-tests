@@ -9,6 +9,7 @@ async function createCallbackPhaseFixture({root,harnessCommit='b'.repeat(40),sou
  const {callbackNativeImportRecord}=await import('../lib/exui-recipient-callback-native-import.mjs');
  const {validateCallbackStoredDate}=await import('../lib/exui-recipient-callback-facets.mjs');
  const {callbackTransitionRequest}=await import('../lib/exui-recipient-callback-transition.mjs');
+ const {callbackSeedData,callbackObservationReferences}=await import('../lib/exui-recipient-callback-observations.mjs');
  const {CCD_IMAGES}=await import('../lib/exui-ccd-runtime.mjs');
  const {nativeIdentity}=await import('../lib/exui-native-contract.mjs');
  const {getReleasePolicy}=await import('../lib/exui-release-policy.mjs');
@@ -52,6 +53,28 @@ async function createCallbackPhaseFixture({root,harnessCommit='b'.repeat(40),sou
  const removal={schemaVersion:1,runId:input.runId,baselineNamespace:input.ccd.namespace,baselineOwner:input.ccd.owner,native:{removed:registry.map(({name,id})=>({name,id})),bindings:[]},ccd:{owner:input.ccd.owner,cleanupComplete:true,checkedNames:Object.keys(images).map(name=>`${input.ccd.owner}-${name}`),checkedContainerIds:Object.values(input.ccd.containers).sort()}};
  const contract=c.callbackMutationContract(),derivation={mutationDefinitionDigest:policy.mutationDefinitions[0].definitionDigest,baselineIdentity,mutantIdentity:faultIdentity,transformation:c.CALLBACK_MUTATION,target:contract.target,transformationRecord:contract,beforeDigest:contract.beforeDigest,afterDigest:contract.afterDigest,baselineRuntimeMetadata:metadata(input),mutantRuntimeMetadata:metadata(runtimeRecord)};
  const parent={schemaVersion:1,runId:input.runId,releaseScopeId:c.CALLBACK_SCOPE,harnessCommit,harnessSourceDigest:sourceDigest,capturedBeforeFault:true,capturedAt:'2026-11-04T12:00:00.000Z',faults:[{invocationId:c.CALLBACK_MUTATION,identity:faultIdentity}]};
+ const observations={};
+ for(const [id,selected,isFault] of [['baseline',input,false],[c.CALLBACK_MUTATION,runtimeRecord,true]]){
+  const caseId=isFault?'2234567890123456':'1234567890123456',data=callbackSeedData();
+  const before={state:{id:Number(caseId),case_type_id:'HarnessNestedPRL',jurisdiction:'HARNESS',state:'JUDICIAL_REVIEW',version:1,last_modified:'2026-11-04T12:00:00.000',case_data:data},history:[{id:'create',created_date:'2026-11-04T12:00:00.000'}]};
+  const names=['HARNESS_CALLBACK_NORMALIZED','Synthetic sibling'];
+  const basePath=`/cases/case-details/${caseId}/trigger/serviceOfDocuments/`;
+  const ui={predecessor:{label:'Protected value',editableControlCount:0,navigation:['serviceOfDocumentsharnessBefore','serviceOfDocuments2','serviceOfDocumentsharnessBefore','serviceOfDocuments2'].map(page=>basePath+page)},recipientLabel:'Recipient',selectorPrecedesRecipient:true,selectorInitiallyChecked:true,hiddenWhenDeselected:true,visibleWhenReselected:true};
+  const journal=[];let observation={schemaVersion:1,kind:'native-recipient-callback-observation',invocationId:id,caseId,before,afterRejected:structuredClone(before),ui,journal};
+  if(isFault)Object.assign(observation,{completed:false,faultEffective:true,witness:'valid-CYA-without-callback',validation:[{pageId:'serviceOfDocuments2',status:200}]}, {ui:{...ui,faultCyaHeading:'Check your answers',faultCyaPathname:basePath+'check-your-answers'}});
+  else{
+   const intended=structuredClone(data);intended.sodAdditionalRecipientsList[0].value.emailInformation.emailName=names[0];
+   const after={state:{...structuredClone(before.state),version:2,last_modified:'2026-11-04T12:01:00.000',case_data:intended},history:[{id:'serviceOfDocuments',created_date:'2026-11-04T12:01:00.000',case_type_id:'HarnessNestedPRL',state_id:'JUDICIAL_REVIEW',user_id:selected.credentials.courtadmin.userId},...structuredClone(before.history)]};
+   for(let i=0;i<3;i++){
+    const current=structuredClone(i===2?intended:data);if(i===0)current.sodAdditionalRecipientsList[0].value.emailInformation.emailName='HARNESS_CALLBACK_REJECT';
+    const details=case_data=>({id:Number(caseId),case_type_id:'HarnessNestedPRL',jurisdiction:'HARNESS',state:'JUDICIAL_REVIEW',case_data});
+    const rawRequest=JSON.stringify({event_id:'serviceOfDocuments',ignore_warning:false,case_details:details(current),case_details_before:details(data)}),rawResponse=JSON.stringify({data:i===0?current:intended,errors:i===0?['HARNESS_CALLBACK_BUSINESS_REJECTION']:[],warnings:[]});
+    journal.push({schemaVersion:1,sequence:i+1,invocationId:'recipient-callback-native',authenticatedService:'ccd_data',path:'/service-of-documents/validate-additional-recipients',method:'POST',bindingDigest:hash(JSON.stringify(c.callbackCanonicalImport().binding)),recipientCount:2,status:200,outcome:['business-rejected','normalized','normalization-unchanged'][i],rawRequest,rawResponse,requestDigest:hash(rawRequest),responseDigest:hash(rawResponse)});
+   }
+   Object.assign(observation,{completed:true,beforeSubmit:structuredClone(before),after,validation:[{pageId:'serviceOfDocuments2',status:422},{pageId:'serviceOfDocuments2',status:200},{pageId:'serviceOfDocuments2',status:200}]});ui.cya={recipientLabel:'Recipient',changeAccessibleName:'Change Recipient',summaryRecipientNames:names,changedRecipientNames:[...names]};
+  }
+  observations[id]=observation;
+ }
  const write=()=>{
   parent.baselineInputDigest=put('input.json',input).digest;put('callback-transition-request.json',request);parent.requestDigest=hash(JSON.stringify(request));
   parent.faults[0].runtimeRecord=put(c.CALLBACK_MUTATION+'/runtime-input.json',runtimeRecord);
@@ -59,12 +82,14 @@ async function createCallbackPhaseFixture({root,harnessCommit='b'.repeat(40),sou
   parent.baselineCheckpointDigest=readCallbackBaselineCheckpoint(directory,expected).checkpointDigest;
   removal.native.bindings=[put('baseline/candidate-write-denial.json',denial),put('baseline/candidate-lifecycle.json',lifecycle),put('baseline-owned-resources.json',registry)];parent.baselineRemoval=put('baseline-removal.json',removal);
   derivation.runtimeRecord=parent.faults[0].runtimeRecord;
+  for(const [id,observation] of Object.entries(observations)){put(id+'/callback-ui-observation.json',observation);fs.writeFileSync(path.join(directory,id,'recipient-callback.jsonl'),observation.journal.map(row=>JSON.stringify(row)+'\n').join(''));}
+  derivation.callbackObservations=callbackObservationReferences(directory);
   put('run.json',{schemaVersion:1,manifest:baseline.current,executionArtifacts,mutations:[{mutationId:c.CALLBACK_MUTATION,baselineInvocationId:'baseline',mutantInvocationId:c.CALLBACK_MUTATION,derivationArtifact:put(c.CALLBACK_MUTATION+'/derivation.json',derivation)}]});
   expected.callbackTransition=put('independent-callback-transition.json',parent);
   put(c.CALLBACK_MUTATION+'/candidate-write-denial.json',{...denial,candidateId:'e'.repeat(64)});put(c.CALLBACK_MUTATION+'/candidate-lifecycle.json',{...lifecycle,before:{...lifecycle.before,Id:'e'.repeat(64),Name:`/${input.runId}-${c.CALLBACK_MUTATION}-candidate`},after:{...lifecycle.after,Id:'e'.repeat(64),Name:`/${input.runId}-${c.CALLBACK_MUTATION}-candidate`}});
   const loaded=loadRunEvidence(path.join(directory,'run.json'),policy);expected.evidenceManifestDigest=loaded.evidenceManifestDigest;expected.receiptArtifactDigest=put('gate.json',loaded.receipt).digest;put('controller-terminal.json',{status:'completed',exitCode:loaded.receipt.verdict.exitCode,cleanupComplete:true});return loaded;
  };
  const loaded=write();
- return {directory,policy,expected,input,request,runtimeRecord,variants,baseline,fault,registry,denial,lifecycle,removal,derivation,parent,put,write,faultIdentity,manifest:baseline.current,terminal:{code:loaded.receipt.verdict.exitCode,signal:null},result:{phase:'recipientCallback',status:loaded.receipt.verdict.status,exitCode:loaded.receipt.verdict.exitCode,receiptArtifactDigest:expected.receiptArtifactDigest,callbackTransition:expected.callbackTransition},loaded:()=>loadRunEvidence(path.join(directory,'run.json'),policy).input};
+ return {observations,directory,policy,expected,input,request,runtimeRecord,variants,baseline,fault,registry,denial,lifecycle,removal,derivation,parent,put,write,faultIdentity,manifest:baseline.current,terminal:{code:loaded.receipt.verdict.exitCode,signal:null},result:{phase:'recipientCallback',status:loaded.receipt.verdict.status,exitCode:loaded.receipt.verdict.exitCode,receiptArtifactDigest:expected.receiptArtifactDigest,callbackTransition:expected.callbackTransition},loaded:()=>loadRunEvidence(path.join(directory,'run.json'),policy).input};
 }
 module.exports={createCallbackPhaseFixture};
