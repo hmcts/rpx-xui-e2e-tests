@@ -13,6 +13,11 @@ const emailName = 'Synthetic shape recipient';
 const emailAddress = 'shape-recipient@harness.example.com';
 const optionalValue = 'Synthetic second line';
 
+export async function assertSourceShapeHiddenControls(...controls: Locator[]) {
+  // CCD retains inactive complex fields as hidden inputs. Visibility is the contract.
+  for (const control of controls) await expect(control).toBeHidden();
+}
+
 async function assertControlOrder(controls: Locator[]) {
   for (let index = 1; index < controls.length; index++) {
     await expect(controls[index]).toHaveAttribute('id', /.+/);
@@ -84,8 +89,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     } else if (shape === 'conditional-email-complex') {
       await email.check();
       if (mutation) {
-        await expect(name).toHaveCount(0);
-        await expect(address).toHaveCount(0);
+        await assertSourceShapeHiddenControls(name, address);
         await post.check();
         const visibleFaultNames = page.locator('input[id$="_emailName"]:visible');
         const visibleFaultAddresses = page.locator('input[id$="_emailAddress"]:visible');
@@ -104,8 +108,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
         await expect(complex).toHaveCount(1);
         expect((await complex.locator(':scope > fieldset > legend').allTextContents()).join('').trim()).toBe('');
         await post.check();
-        await expect(name).toHaveCount(0);
-        await expect(address).toHaveCount(0);
+        await assertSourceShapeHiddenControls(name, address);
         await email.check();
         await expect(name).toHaveAccessibleName(/Name/);
         await assertControlOrder([email,name,address]);
@@ -116,7 +119,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       }
     } else {
       await email.check();
-      await expect(line2).toHaveCount(0);
+      await assertSourceShapeHiddenControls(line2);
       await post.check();
       expectedChannel = 'post';
     }
