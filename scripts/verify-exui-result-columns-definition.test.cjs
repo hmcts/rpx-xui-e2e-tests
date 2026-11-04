@@ -13,8 +13,15 @@ test('support only: result import retains every source attribute and labels scaf
   const definition = buildResultColumnDefinition();
   for (const [name, rows] of Object.entries(fixture.sheets)) assert.deepEqual(definition.sheets[name], rows);
   assert.equal(definition.sheets.CaseField.length, 8);
-  for (const name of ['ComplexTypes','FixedLists','EventToComplexTypes','AuthorisationComplexType','SearchInputFields','WorkBasketInputFields']) assert.deepEqual(definition.sheets[name], []);
+  for (const name of ['ComplexTypes','FixedLists','EventToComplexTypes','AuthorisationComplexType']) assert.deepEqual(definition.sheets[name], []);
   assert.equal(definition.sheets.CaseTypeTab[0].CaseFieldID, 'applicantCaseName');
+  for (const name of ['SearchInputFields','WorkBasketInputFields']) {
+    assert.equal(definition.sheets[name].length, 1);
+    assert.equal(definition.sheets[name][0].CaseFieldID, 'applicantCaseName');
+    assert.equal(definition.sheets.CaseField.find(field => field.ID === definition.sheets[name][0].CaseFieldID).FieldType, 'Text');
+    assert.equal(definition.sheets[name][0].Label, 'Synthetic case name filter');
+    assert(definition.syntheticScaffolding.sheets.includes(name));
+  }
   assert.equal(definition.sheets.SearchResultFields.length, 7);
   assert.equal(definition.sheets.WorkBasketResultFields.length, 7);
   assert.deepEqual(definition.sheets.CaseField.map(row => row.FieldType), ['Text','Text','Text','Text','Text','Text','Date','DateTime']);
