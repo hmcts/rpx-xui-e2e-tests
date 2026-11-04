@@ -32,7 +32,7 @@ async function fixture(t) {
       ...Object.fromEntries(['runId', 'harnessCommit', 'releaseScopeId', 'policyDigest', 'identity'].map(key => [key, structuredClone(manifest[key])])),
       invocationId: 'baseline', harnessSourceState: 'clean', harnessSourceDigest: expected.harnessSourceDigest,
     },
-    tests: ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
+    tests: ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
   };
   const execution = { runId: manifest.runId, invocationId: 'baseline', kind: 'baseline', identity: structuredClone(manifest.identity), terminalState: 'completed', runnerExitCode: 0, unexpectedGlobalErrors: [] };
   const terminal = { code: 0, signal: null };
@@ -52,9 +52,9 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
   const before = fs.readdirSync(path.join(f.root, 'baseline')).sort().map(name => [name, sha(fs.readFileSync(path.join(f.root, 'baseline', name)))]);
   const observed = readEventBaselineCheckpoint(f.root, f.expected);
   assert.deepEqual(observed.input.policy, f.policy);
-  assert.equal(observed.input.policy.mutationDefinitions.length, 4);
+  assert.equal(observed.input.policy.mutationDefinitions.length, 5);
   assert.deepEqual(observed.input.mutations, []);
-  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-email-one', 'ccd-courtadmin-read-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied']);
+  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied']);
   assert.deepEqual(observed.terminal, f.terminal);
   assert.deepEqual(observed.references.map(item => item.path), ['baseline/manifest.json', 'baseline/execution.json', 'baseline/report.json', 'baseline/framework-terminal.json']);
   assert.equal(observed.checkpointDigest, sha(JSON.stringify(observed.references)));
@@ -66,7 +66,7 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
 
 test('checkpoint retains an attributed product failure and requires coherent framework and execution terminal', async t => {
   const f = await fixture(t), { readEventBaselineCheckpoint } = await load();
-  f.report.tests[0].status = 'failed'; f.report.tests[0].failureId = 'courtadmin-email-one';
+  f.report.tests[0].status = 'failed'; f.report.tests[0].failureId = 'courtadmin-update-persistence';
   f.report.status = 'failed'; f.execution.runnerExitCode = 1; f.terminal.code = 1; f.write();
   assert.equal(readEventBaselineCheckpoint(f.root, f.expected).input.results[0].outcome, 'failed');
   f.terminal.code = 0; f.write();
@@ -79,6 +79,7 @@ test('checkpoint rejects partial selection, retries, skips, global and unattribu
   const { readEventBaselineCheckpoint } = await load();
   for (const change of [
     f => f.report.tests.pop(),
+    f => { f.report.tests.find(test => test.proofId === "ccd-courtadmin-update-recipient-shapes").proofId = "ccd-courtadmin-email-one"; },
     f => { f.report.tests[1].proofId = "ccd-courtadmin-read-email-one"; },
     f => f.report.tests.push(structuredClone(f.report.tests[0])),
     f => { f.report.tests[0].proofId = 'ccd-event-create-enabled'; },

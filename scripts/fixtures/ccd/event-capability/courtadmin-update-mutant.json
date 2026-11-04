@@ -1,0 +1,1447 @@
+{
+  "provenance": {
+    "schemaVersion": 1,
+    "sourceRepository": "hmcts/prl-ccd-definitions",
+    "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
+    "sourceProjectionDigest": "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e",
+    "sourceManifest": [
+      {
+        "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-prod.json",
+        "fileDigest": "sha256:eeca831c3e65e66a8ff889d50c31f9d44d6ebe5fc18e682c86f378a51630a041",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:4d081261572b3cfdba615af1779fb21a78432d79a43174cdc5941e3c80198718"
+          },
+          {
+            "index": 3,
+            "rowDigest": "sha256:ed1d480773d8264062894aff1d0856e5df98b711fd0c9090d2fa6fcd7a483674"
+          },
+          {
+            "index": 14,
+            "rowDigest": "sha256:d36626a89a2add98f4b8f40f15ad144b7145ace1aaf2dbc41d72b2119f624035"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-nonprod.json",
+        "fileDigest": "sha256:14432c0c56ba6d1c0ecf5a53e4f303bd50e45c932c14aeb4935afd656c4eb764",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:4d081261572b3cfdba615af1779fb21a78432d79a43174cdc5941e3c80198718"
+          },
+          {
+            "index": 3,
+            "rowDigest": "sha256:ed1d480773d8264062894aff1d0856e5df98b711fd0c9090d2fa6fcd7a483674"
+          },
+          {
+            "index": 14,
+            "rowDigest": "sha256:d36626a89a2add98f4b8f40f15ad144b7145ace1aaf2dbc41d72b2119f624035"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/AuthorisationCaseState.json",
+        "fileDigest": "sha256:a3652892c10b9011a0849ae061384d1136aa8d59685ced7ed85a5520d5984044",
+        "rows": [
+          {
+            "index": 6,
+            "rowDigest": "sha256:343b3efa4bae6ebd109ad194fb831e3a3cba4c8cbda6b19fb4c80bf2a61e91b6"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/AuthorisationCaseField/ServiceOfDocuments/AuthorisationCaseField.json",
+        "fileDigest": "sha256:2243327b3ea01dbd72775ec201b8edb27f3cef8792e14f57b0aebd73271f49fb",
+        "rows": [
+          {
+            "index": 2,
+            "rowDigest": "sha256:48045a69a6df62e87f4cc0029465cd2057a95a27c61e915fe1d8d5409b36d380"
+          },
+          {
+            "index": 3,
+            "rowDigest": "sha256:d73c4646055bbf034a819f5cfefbed443289b806a325554129f4ae90a39a24a0"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json",
+        "fileDigest": "sha256:4e1c87b9fe4c0757b89e93ee0b8d55566126c3dc6eacb2224056b99ff695efef",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:ec3359e9ef002ac8a692039f4d07d264f67e1ee1aa298b6c8c771fc204d452a0"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-prod.json",
+        "fileDigest": "sha256:dc3e4dbdd2f13ae7fe18c274cb7aec8f995497866ebf246a606995d19f0ce3ac",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:5d5157744ee30e87e8054de55e5629c7fa6050f42b040d5e42770cc3bc59e091"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+        "fileDigest": "sha256:afe3f95198712736e5da00f056c80021315ec1d5809e79b619dbf3edc8aa46be",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:5d5157744ee30e87e8054de55e5629c7fa6050f42b040d5e42770cc3bc59e091"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json",
+        "fileDigest": "sha256:685707c79e49ee0b51883c5d06187e38a584ce3e4cd526124f72b3fbfe4a9748",
+        "rows": [
+          {
+            "index": 4,
+            "rowDigest": "sha256:6702ff5626dd0b6505da172ba203678ac24f040c6f41c5cacc9e7a7bb051707e"
+          },
+          {
+            "index": 5,
+            "rowDigest": "sha256:a8b20372e81dcca6b53c1b3a4b06ee4431e9a35fdd5618d499af34606339f425"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json",
+        "fileDigest": "sha256:c169af98fa7ea2b08bb97b63d75ad7411513c28982f54aeba84740cbe859e5f6",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:826665869f1348347993eba5a6d4336e89f0f9edf6827a844c892120b8ee891f"
+          },
+          {
+            "index": 1,
+            "rowDigest": "sha256:411c03f388498bbbb8328d3180f32805bd14c0bb22167ecd4727d83f011c8fcf"
+          },
+          {
+            "index": 2,
+            "rowDigest": "sha256:646328dc17202d8e8207ea1c7df85173d38ca84f454606599b4e4851761b671e"
+          },
+          {
+            "index": 3,
+            "rowDigest": "sha256:3705f480f3a744dd61e6aeae00dc862427346cbe3a36f09095e51a7108a72884"
+          },
+          {
+            "index": 70,
+            "rowDigest": "sha256:c50322794d354839889f8aae17dec32094240f3b045e87fcd3a02ed399a76c74"
+          },
+          {
+            "index": 71,
+            "rowDigest": "sha256:98878659be7b2d981d08d85957d2424238f71c5b8ff4c06354965bab1a2f37a7"
+          },
+          {
+            "index": 72,
+            "rowDigest": "sha256:72394fe77e2ffd8e7e9a858adeeff8d3b22b5ddbb9b7c1c48e4c4a14955f5bee"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/FixedLists.json",
+        "fileDigest": "sha256:d44be4605dc71a17096e0aee4ae6fbedf4b0a7a522cb793e9b43bb76c4f371c6",
+        "rows": [
+          {
+            "index": 635,
+            "rowDigest": "sha256:a32aeb54289de326ca1027683f7549b0ee39be6db6902cb6c09827b1d2e2f795"
+          },
+          {
+            "index": 636,
+            "rowDigest": "sha256:21a2aa1641a2f80ef212ecce0b5d654b01f6ca5b96dc89e48f7b3bff800b54eb"
+          },
+          {
+            "index": 1132,
+            "rowDigest": "sha256:f2b248b59fb2c104bb9f04bde97210c991b721ae6988a562908c28e6f84d26b8"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+        "fileDigest": "sha256:246b111d163ec15d3e9303c807b9ede7c987133de336bc541a483b0f3bbb90c1",
+        "rows": [
+          {
+            "index": 6,
+            "rowDigest": "sha256:784681d796ae33bb0c2d5948ac07c948895d303cd39e7c0acd3562e9e518cd9d"
+          },
+          {
+            "index": 7,
+            "rowDigest": "sha256:867df74fb320620da2249eb754aea68faecfb8cc2de18ab5298c2239179b6196"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+        "fileDigest": "sha256:74d798a7a4898843685274d5b92b35e74bdda339a1bb478d81b17a006bd55f59",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:344f52f4131426320b68979d93fbe260b271c5faab18661e95364ca913b6474b"
+          },
+          {
+            "index": 1,
+            "rowDigest": "sha256:aacced8675e420cc590b60df04b9d680689d89b92522d104e305ccf37b9d6ba0"
+          },
+          {
+            "index": 2,
+            "rowDigest": "sha256:e1bba84d6facdd60ed4acc99044122bed70eabfadbf5ef5af0ceada0567e4ea8"
+          },
+          {
+            "index": 3,
+            "rowDigest": "sha256:48ddb93ed72424f20eed9421693481c336d2d814a89b4315c65eea1a06df0206"
+          },
+          {
+            "index": 4,
+            "rowDigest": "sha256:587af20733f6ef38bd1b7a2591bf9b2235e8d9c03b6772f0bc2f9e5bd0dbf928"
+          },
+          {
+            "index": 5,
+            "rowDigest": "sha256:59455076f62e8072aae67d3918571a0e38afe043f1b7bd89239f725a8f6d3c7a"
+          },
+          {
+            "index": 6,
+            "rowDigest": "sha256:41c70c0395911a9b6c175ba06e4c58cffadd89c5573d4aae41a0123a565b29cc"
+          },
+          {
+            "index": 7,
+            "rowDigest": "sha256:7d39b5c46a9ff050fa259a7dbba903093386060198b403646474e3a7f839e7e7"
+          },
+          {
+            "index": 8,
+            "rowDigest": "sha256:1cd4943c39852fbf9492c50f30e135cd4a525c79d8b0fb81e622e8e2163a2537"
+          },
+          {
+            "index": 9,
+            "rowDigest": "sha256:5dd3a7c2fcc92b3a3c3355864f12b8825cbad81af78a7c6c081c750e850cfd8d"
+          },
+          {
+            "index": 10,
+            "rowDigest": "sha256:e3db96248b2499af012f0a05dceab76c1892310359708973b298874b2ba76688"
+          },
+          {
+            "index": 11,
+            "rowDigest": "sha256:5dbf8cc0a7f5d15ca4b9d19b14118f4903715bf5be05f54ef9cd3b90537a6a53"
+          },
+          {
+            "index": 12,
+            "rowDigest": "sha256:74b96c23805b964435f4f2f88aa7ae9214abd2f6fcb3baf387bfee2d7cb48940"
+          },
+          {
+            "index": 13,
+            "rowDigest": "sha256:84fc6347ddd5f5250fa841380bf5329337ce5b70c864926e2c3d11515cfcec3d"
+          },
+          {
+            "index": 14,
+            "rowDigest": "sha256:15be218a2ec9b5e16174ad6b350558a2f777ff9f2776ce6541cc5889624bd4b4"
+          },
+          {
+            "index": 15,
+            "rowDigest": "sha256:73ed005eee2a055f7707ba49980547f20e1658e07df94bf95beab1ba72125177"
+          },
+          {
+            "index": 16,
+            "rowDigest": "sha256:0f851363adacce91d3e12049906811cc5808dfeab282b1bb12fd0c59b9b1b368"
+          },
+          {
+            "index": 17,
+            "rowDigest": "sha256:3443c49246be1d5fde45c743b0bc440273c4d4e53c9cde39c4d0f3624ba35248"
+          },
+          {
+            "index": 18,
+            "rowDigest": "sha256:d3f95c2d07d7d68da4e1dcbc83806a6bfbe59ed10c4201f7ed61ed011e0ba146"
+          },
+          {
+            "index": 19,
+            "rowDigest": "sha256:bfd412a1eec56167c62643c6c451b5cf818f842f41a81ed34c7544f98ada4c6e"
+          },
+          {
+            "index": 20,
+            "rowDigest": "sha256:f758abe7821c49a5e828665b2a1a1485426d2a45559b6f7b88292df2bfa8a369"
+          },
+          {
+            "index": 21,
+            "rowDigest": "sha256:24257edd9ef12e7f32ddd851e971419e1c0eb63159524f83b4549cb3ec3c5b75"
+          },
+          {
+            "index": 22,
+            "rowDigest": "sha256:3d4e8183911ba15a457ee8eb0f069ea5cf4081d5f78a26ee0421454c9da3d611"
+          },
+          {
+            "index": 23,
+            "rowDigest": "sha256:6f72e2442933c0218370ed36158be93f0640938dfc064c54642733e70804849f"
+          },
+          {
+            "index": 24,
+            "rowDigest": "sha256:3ac1e3afc2fee9dc2dd05f2fbfd4f491caf11e76a859860b57d25c15c98e989f"
+          }
+        ]
+      },
+      {
+        "path": "definitions/private-law/json/CaseType.json",
+        "fileDigest": "sha256:f6b368e37f7367394ab67773d15b7b5ee739c79c9f833ff2aa17f813fb1c9043",
+        "rows": [
+          {
+            "index": 0,
+            "rowDigest": "sha256:55931d79f54f64e63a4c56697e77127446af375e078211d313bcd68bf092dc1d"
+          }
+        ]
+      }
+    ],
+    "targetCatalogueCell": "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+    "releaseCredit": false,
+    "runtime": {
+      "jurisdiction": "HARNESS",
+      "caseType": "HarnessNestedPRL",
+      "state": "JUDICIAL_REVIEW",
+      "event": "serviceOfDocuments",
+      "roles": {
+        "courtadmin": "caseworker-privatelaw-courtadmin",
+        "judge": "caseworker-privatelaw-judge",
+        "readonly": "caseworker-privatelaw-readonly",
+        "observer": "caseworker-harness-observer",
+        "bootstrap": "caseworker-harness-allowed"
+      }
+    },
+    "adaptations": [
+      "PRLAPPS normalized to HarnessNestedPRL in disposable HARNESS jurisdiction",
+      "Selected source ACLs flattened into per-role CCD rows with synthetic 01/01/2020 activation; source permission values retained",
+      "Only JUDICIAL_REVIEW selected from the three source precondition states; source event ID and PostConditionState retained",
+      "Source role suffixes assigned directly by synthetic IDAM; no AM, ABAC or RoleToAccessProfiles resolution claim",
+      "Synthetic create event, protectedValue, observer ACLs, tabs/search metadata and default observer profile are bootstrap/observation scaffolding",
+      "caseworker-harness-allowed has bootstrap type/state/field/create ACLs only and no serviceOfDocuments ACL; source courtadmin/judge actors must never carry that role",
+      "Only selected recipient/controller fields and their email/postal complex/list dependencies included; source visibility and mandatory annotations retained",
+      "No explicit child ACL rows invented; effective imported child metadata must be observed before runtime acceptance",
+      "Required AuthorisationComplexType worksheet is header-only with zero data/permission rows",
+      "Business callbacks omitted; no PRL callback or deployed-service equivalence claim"
+    ],
+    "omittedCallbacks": [
+      {
+        "sourcePath": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+        "sourceRowDigest": "sha256:5d5157744ee30e87e8054de55e5629c7fa6050f42b040d5e42770cc3bc59e091",
+        "key": "CallBackURLAboutToStartEvent",
+        "value": "${CCD_DEF_COS_URL}/service-of-documents/about-to-start"
+      },
+      {
+        "sourcePath": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+        "sourceRowDigest": "sha256:5d5157744ee30e87e8054de55e5629c7fa6050f42b040d5e42770cc3bc59e091",
+        "key": "CallBackURLAboutToSubmitEvent",
+        "value": "${CCD_DEF_COS_URL}/service-of-documents/about-to-submit"
+      },
+      {
+        "sourcePath": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+        "sourceRowDigest": "sha256:5d5157744ee30e87e8054de55e5629c7fa6050f42b040d5e42770cc3bc59e091",
+        "key": "CallBackURLSubmittedEvent",
+        "value": "${CCD_DEF_COS_URL}/service-of-documents/submitted"
+      },
+      {
+        "sourcePath": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+        "sourceRowDigest": "sha256:867df74fb320620da2249eb754aea68faecfb8cc2de18ab5298c2239179b6196",
+        "key": "CallBackURLMidEvent",
+        "value": "${CCD_DEF_COS_URL}/service-of-documents/validate-additional-recipients"
+      }
+    ]
+  },
+  "sheets": {
+    "Jurisdiction": [
+      {
+        "LiveFrom": "01/01/2020",
+        "ID": "HARNESS",
+        "Name": "Disposable Harness",
+        "Description": "Synthetic isolated CCD"
+      }
+    ],
+    "CaseType": [
+      {
+        "LiveFrom": "01/01/2020",
+        "ID": "HarnessNestedPRL",
+        "Name": "Harness event capability",
+        "Description": "Normalized source permission shape; no deployed PRL identity",
+        "JurisdictionID": "HARNESS",
+        "SecurityClassification": "Public"
+      }
+    ],
+    "CaseField": [
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "sodAdditionalRecipients",
+        "Label": "Select additional recipients who needs to be served",
+        "FieldType": "MultiSelectList",
+        "HintText": "For example, Cafcass, Local authority and Other organization",
+        "FieldTypeParameter": "AdditionalRecipients",
+        "SecurityClassification": "Public",
+        "Searchable": "N"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "sodAdditionalRecipientsList",
+        "Label": "Recipient",
+        "FieldType": "Collection",
+        "FieldTypeParameter": "ServeOrgDetails",
+        "SecurityClassification": "Public",
+        "Searchable": "N"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "protectedValue",
+        "Label": "Protected value",
+        "FieldType": "Text",
+        "SecurityClassification": "Public"
+      }
+    ],
+    "ComplexTypes": [
+      {
+        "LiveFrom": "01/12/2022",
+        "ID": "EmailInformation",
+        "ListElementCode": "emailName",
+        "FieldType": "Text",
+        "ElementLabel": "Name",
+        "SecurityClassification": "Public",
+        "Searchable": "N"
+      },
+      {
+        "LiveFrom": "01/12/2022",
+        "ID": "EmailInformation",
+        "ListElementCode": "emailAddress",
+        "FieldType": "Text",
+        "ElementLabel": "Email address",
+        "SecurityClassification": "Public",
+        "Searchable": "N"
+      },
+      {
+        "LiveFrom": "01/12/2022",
+        "ID": "PostalInformation",
+        "ListElementCode": "postalName",
+        "FieldType": "Text",
+        "ElementLabel": "Name",
+        "SecurityClassification": "Public",
+        "Searchable": "N"
+      },
+      {
+        "LiveFrom": "01/12/2022",
+        "ID": "PostalInformation",
+        "ListElementCode": "postalAddress",
+        "FieldType": "AddressUK",
+        "ElementLabel": " ",
+        "SecurityClassification": "Public",
+        "Searchable": "N"
+      },
+      {
+        "LiveFrom": "01/08/2023",
+        "ID": "ServeOrgDetails",
+        "ListElementCode": "serveByPostOrEmail",
+        "FieldType": "FixedRadioList",
+        "FieldTypeParameter": "DeliveryByEnum",
+        "ElementLabel": " ",
+        "Searchable": "N",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "01/08/2023",
+        "ID": "ServeOrgDetails",
+        "ListElementCode": "emailInformation",
+        "FieldType": "EmailInformation",
+        "ElementLabel": " ",
+        "Searchable": "N",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "01/08/2023",
+        "ID": "ServeOrgDetails",
+        "ListElementCode": "postalInformation",
+        "FieldType": "PostalInformation",
+        "ElementLabel": " ",
+        "Searchable": "N",
+        "SecurityClassification": "Public"
+      }
+    ],
+    "FixedLists": [
+      {
+        "LiveFrom": "01/12/2022",
+        "ID": "DeliveryByEnum",
+        "ListElementCode": "post",
+        "ListElement": "Post",
+        "DisplayOrder": 1
+      },
+      {
+        "LiveFrom": "01/12/2022",
+        "ID": "DeliveryByEnum",
+        "ListElementCode": "email",
+        "ListElement": "Email",
+        "DisplayOrder": 2
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "ID": "AdditionalRecipients",
+        "ListElementCode": "additionalRecipients",
+        "ListElement": "Additional recipients (optional)",
+        "DisplayOrder": 1
+      }
+    ],
+    "State": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "JUDICIAL_REVIEW",
+        "Name": "Judicial review (Harness)"
+      }
+    ],
+    "CaseEvent": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "create",
+        "Name": "Create synthetic case",
+        "PostConditionState": "JUDICIAL_REVIEW",
+        "SecurityClassification": "Public",
+        "ShowSummary": "Y"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "serviceOfDocuments",
+        "Name": "Service of documents",
+        "Description": "Event to serve the documents to the parties",
+        "DisplayOrder": 50,
+        "PreConditionState(s)": "JUDICIAL_REVIEW",
+        "PostConditionState": "*",
+        "SecurityClassification": "Public",
+        "ShowSummary": "Y",
+        "ShowEventNotes": "N",
+        "EndButtonLabel": "Save and continue",
+        "Publish": "True"
+      }
+    ],
+    "CaseEventToFields": [
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "DisplayContext": "OPTIONAL",
+        "PageID": 2,
+        "PageDisplayOrder": 2,
+        "PageFieldDisplayOrder": 7,
+        "ShowSummaryChangeOption": "Y"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "DisplayContext": "COMPLEX",
+        "PageID": 2,
+        "PageDisplayOrder": 2,
+        "PageFieldDisplayOrder": 8,
+        "ShowSummaryChangeOption": "Y",
+        "FieldShowCondition": "sodAdditionalRecipients=\"additionalRecipients\""
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "DisplayContext": "OPTIONAL",
+        "PageID": 2,
+        "PageDisplayOrder": 2,
+        "PageFieldDisplayOrder": 7,
+        "ShowSummaryChangeOption": "Y"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "DisplayContext": "COMPLEX",
+        "PageID": 2,
+        "PageDisplayOrder": 2,
+        "PageFieldDisplayOrder": 8,
+        "ShowSummaryChangeOption": "Y",
+        "FieldShowCondition": "sodAdditionalRecipients=\"additionalRecipients\""
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "protectedValue",
+        "DisplayContext": "OPTIONAL",
+        "PageID": 2,
+        "PageDisplayOrder": 2,
+        "PageFieldDisplayOrder": 9,
+        "ShowSummaryChangeOption": "Y"
+      }
+    ],
+    "EventToComplexTypes": [
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "EmailInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "emailInformation",
+        "ListElementCode": "emailName",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "1",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "EmailInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "emailInformation",
+        "ListElementCode": "emailAddress",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "2",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalName",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "1",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "2",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.AddressLine1",
+        "FieldDisplayOrder": "3",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.AddressLine2",
+        "FieldDisplayOrder": "9",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.AddressLine3",
+        "FieldDisplayOrder": "10",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.PostTown",
+        "FieldDisplayOrder": "11",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.County",
+        "FieldDisplayOrder": "12",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.PostCode",
+        "FieldDisplayOrder": "13",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.Country",
+        "FieldDisplayOrder": "14",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "serveByPostOrEmail",
+        "EventElementLabel": "Served by",
+        "FieldDisplayOrder": "1",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "emailInformation",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "2",
+        "DisplayContext": "COMPLEX"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "emailInformation.emailAddress",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "4",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "emailInformation.emailName",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "3",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "ListElementCode": "postalInformation",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "5",
+        "DisplayContext": "COMPLEX"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalName",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "6",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "7",
+        "DisplayContext": "COMPLEX"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.AddressLine1",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "8",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.AddressLine2",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "9",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.AddressLine3",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "10",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.PostTown",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "11",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.County",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "12",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.PostCode",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "13",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "serviceOfDocuments",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.Country",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "14",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "EmailInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "emailInformation",
+        "ListElementCode": "emailName",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "1",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "EmailInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "emailInformation",
+        "ListElementCode": "emailAddress",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "2",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalName",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "1",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "2",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.AddressLine1",
+        "FieldDisplayOrder": "3",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.AddressLine2",
+        "FieldDisplayOrder": "9",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.AddressLine3",
+        "FieldDisplayOrder": "10",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.PostTown",
+        "FieldDisplayOrder": "11",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.County",
+        "FieldDisplayOrder": "12",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.PostCode",
+        "FieldDisplayOrder": "13",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "PostalInformation",
+        "CaseEventID": "create",
+        "CaseFieldID": "postalInformation",
+        "ListElementCode": "postalAddress.Country",
+        "FieldDisplayOrder": "14",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "serveByPostOrEmail",
+        "EventElementLabel": "Served by",
+        "FieldDisplayOrder": "1",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "emailInformation",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "2",
+        "DisplayContext": "COMPLEX"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "emailInformation.emailAddress",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "4",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "emailInformation.emailName",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "3",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "ListElementCode": "postalInformation",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "5",
+        "DisplayContext": "COMPLEX"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalName",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "6",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "7",
+        "DisplayContext": "COMPLEX"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.AddressLine1",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "8",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.AddressLine2",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "9",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.AddressLine3",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "10",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.PostTown",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "11",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.County",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "12",
+        "DisplayContext": "OPTIONAL"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.PostCode",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "13",
+        "DisplayContext": "MANDATORY"
+      },
+      {
+        "LiveFrom": "01/09/2024",
+        "CaseTypeID": "HarnessNestedPRL",
+        "ID": "ServeOrgDetails",
+        "CaseEventID": "create",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "ListElementCode": "postalInformation.postalAddress.Country",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+        "EventElementLabel": " ",
+        "FieldDisplayOrder": "14",
+        "DisplayContext": "OPTIONAL"
+      }
+    ],
+    "AuthorisationCaseType": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "UserRole": "caseworker-privatelaw-courtadmin",
+        "CRUD": "CRU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "UserRole": "caseworker-privatelaw-judge",
+        "CRUD": "RU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "UserRole": "caseworker-harness-observer",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "UserRole": "caseworker-harness-allowed",
+        "CRUD": "CRU"
+      }
+    ],
+    "AuthorisationCaseState": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseStateID": "JUDICIAL_REVIEW",
+        "UserRole": "caseworker-privatelaw-courtadmin",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseStateID": "JUDICIAL_REVIEW",
+        "UserRole": "caseworker-privatelaw-judge",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseStateID": "JUDICIAL_REVIEW",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseStateID": "JUDICIAL_REVIEW",
+        "UserRole": "caseworker-harness-observer",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseStateID": "JUDICIAL_REVIEW",
+        "UserRole": "caseworker-harness-allowed",
+        "CRUD": "CRUD"
+      }
+    ],
+    "AuthorisationCaseEvent": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "serviceOfDocuments",
+        "UserRole": "caseworker-privatelaw-courtadmin",
+        "CRUD": "RU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "serviceOfDocuments",
+        "UserRole": "caseworker-privatelaw-judge",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "serviceOfDocuments",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "serviceOfDocuments",
+        "UserRole": "caseworker-harness-observer",
+        "CRUD": "CRU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "create",
+        "UserRole": "caseworker-privatelaw-courtadmin",
+        "CRUD": "CRU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "create",
+        "UserRole": "caseworker-harness-observer",
+        "CRUD": "CRU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "create",
+        "UserRole": "caseworker-harness-allowed",
+        "CRUD": "CRU"
+      }
+    ],
+    "AuthorisationCaseField": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "UserRole": "caseworker-privatelaw-courtadmin",
+        "CRUD": "CRU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "UserRole": "caseworker-privatelaw-judge",
+        "CRUD": "CRU"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "UserRole": "caseworker-privatelaw-courtadmin",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "UserRole": "caseworker-privatelaw-judge",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "UserRole": "caseworker-harness-observer",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "UserRole": "caseworker-harness-observer",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "UserRole": "caseworker-harness-observer",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "UserRole": "caseworker-harness-allowed",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "UserRole": "caseworker-harness-allowed",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "UserRole": "caseworker-harness-allowed",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "UserRole": "caseworker-privatelaw-courtadmin",
+        "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "UserRole": "caseworker-privatelaw-judge",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      }
+    ],
+    "AuthorisationComplexType": [],
+    "CaseTypeTab": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "TabID": "details",
+        "TabLabel": "Details",
+        "TabDisplayOrder": 1,
+        "CaseFieldID": "sodAdditionalRecipients",
+        "TabFieldDisplayOrder": 1
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "TabID": "details",
+        "TabLabel": "Details",
+        "TabDisplayOrder": 1,
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "TabFieldDisplayOrder": 2
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "TabID": "details",
+        "TabLabel": "Details",
+        "TabDisplayOrder": 1,
+        "CaseFieldID": "protectedValue",
+        "TabFieldDisplayOrder": 3
+      }
+    ],
+    "UserProfile": [
+      {
+        "UserIDAMId": "observer@harness.example.com",
+        "WorkBasketDefaultJurisdiction": "HARNESS",
+        "WorkBasketDefaultCaseType": "HarnessNestedPRL",
+        "WorkBasketDefaultState": "JUDICIAL_REVIEW"
+      }
+    ],
+    "SearchInputFields": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "Label": "Protected value",
+        "DisplayOrder": 1
+      }
+    ],
+    "SearchResultFields": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "Label": "Protected value",
+        "DisplayOrder": 1
+      }
+    ],
+    "WorkBasketInputFields": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "Label": "Protected value",
+        "DisplayOrder": 1
+      }
+    ],
+    "WorkBasketResultFields": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "Label": "Protected value",
+        "DisplayOrder": 1
+      }
+    ]
+  }
+}

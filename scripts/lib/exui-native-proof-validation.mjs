@@ -356,7 +356,7 @@ export function readEventBaselineCheckpoint(directory, expected) {
       "RUNTIME_IDENTITY_MISMATCH",
     );
   }
-  const baselineIds = ["ccd-courtadmin-email-one", "ccd-courtadmin-read-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied"];
+  const baselineIds = ["ccd-courtadmin-read-recipient-shapes", "ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied"];
   checkpointEqual(
     policy.obligations.flatMap((item) => item.requiredProofIds).sort(),
     baselineIds,

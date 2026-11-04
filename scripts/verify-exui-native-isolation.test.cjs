@@ -611,7 +611,7 @@ async function eventOwnershipFixture(t) {
   });
   for (const name of ["candidate/config", "stage/scripts/lib", "output/baseline", "browser"])
     fs.mkdirSync(path.join(root, name), { recursive: true });
-  for (const id of ["baseline", "ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update"])
+  for (const id of ["baseline", "ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create"])
     for (const kind of ["sessions", "diagnostics"])
       fs.mkdirSync(path.join(state, id, kind), { recursive: true });
   fs.writeFileSync(path.join(root, "candidate/config/default.json"), JSON.stringify({ services: { idam: {} }, feature: {} }));
@@ -668,7 +668,7 @@ test("support only: event ownership captures baseline and fresh fault plans sepa
   assert.throws(() => f.api.assertEventBaselineRemoved(fault, { inspect: () => null }), /BASELINE_OWNERSHIP_REQUIRED/);
 });
 
-for (const [mutation, variant] of [["ccd-remove-courtadmin-recipient-read", "read-mutant"], ["ccd-remove-readonly-recipient-read", "readonly-read-mutant"], ["ccd-enable-readonly-recipient-update", "readonly-update-mutant"]])
+for (const [mutation, variant] of [["ccd-remove-courtadmin-recipient-read", "read-mutant"], ["ccd-remove-readonly-recipient-read", "readonly-read-mutant"], ["ccd-enable-readonly-recipient-update", "readonly-update-mutant"], ["ccd-remove-courtadmin-event-create", "courtadmin-update-mutant"]])
 test("support only: read-fault ownership uses its exact namespace, invocation and private process mounts: " + mutation, async t => {
   const f = await eventOwnershipFixture(t);
   const captureEventFaultOwnership = f.api.captureEventFaultOwnership;
@@ -758,7 +758,7 @@ test("support only: event fault candidate arguments cannot be selected under an 
     config: {}, evidenceRoot: f.handoff.output, harnessRoot: f.handoff.stagedHarness,
     releaseScopeId: "exui-ccd-event-capability-pilot",
   };
-  for (const invocationId of ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update"]) {
+  for (const invocationId of ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create"]) {
     const selected = { ...args, invocationId,
       sessions: path.join(f.handoff.stateRoot, invocationId, "sessions"),
       diagnostics: path.join(f.handoff.stateRoot, invocationId, "diagnostics") };

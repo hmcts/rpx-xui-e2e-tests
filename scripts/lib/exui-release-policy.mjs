@@ -6,7 +6,7 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 // This reviewed pilot scope cannot authorize a full EXUI release.
 export function getReleasePolicy(scope) {
   if (scope === 'exui-ccd-event-capability-pilot') {
-    const courtadminCell = 'configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313';
+    const courtadminCell = 'ccd-source-courtadmin-update-shapes';
     const courtadminReadCell = 'ccd-source-courtadmin-read-shapes';
     const readonlyUpdateCell = 'ccd-source-readonly-update-shapes';
     const readonlyReadCell = 'ccd-source-readonly-read-shapes';
@@ -14,7 +14,7 @@ export function getReleasePolicy(scope) {
       releaseScopeId: scope,
       requiredObligationIds: [courtadminCell, 'ccd-source-event-capability', courtadminReadCell, readonlyReadCell, readonlyUpdateCell],
       obligations: [
-        { id: courtadminCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-email-one'], requiredMutationIds: [] },
+        { id: courtadminCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-update-recipient-shapes'], requiredMutationIds: ['ccd-remove-courtadmin-event-create'] },
         { id: 'ccd-source-event-capability', boundary: 'ccd', requiredProofIds: ['ccd-event-create-denied'], requiredMutationIds: ['ccd-enable-judge-event'] },
         { id: courtadminReadCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-read-recipient-shapes'], requiredMutationIds: ['ccd-remove-courtadmin-recipient-read'] },
         { id: readonlyReadCell, boundary: 'ccd', requiredProofIds: ['ccd-readonly-read-recipient-shapes'], requiredMutationIds: ['ccd-remove-readonly-recipient-read'] },
@@ -36,6 +36,10 @@ export function getReleasePolicy(scope) {
         mutationId: 'ccd-enable-readonly-recipient-update', obligationId: readonlyUpdateCell,
         definitionDigest: digest({ boundary: 'ccd', transformation: 'change-only-source-readonly-type-state-recipient-field-R-to-RU-and-serviceOfDocuments-event-R-to-CR' }),
         expectedFailureId: 'readonly-update-isolation', baselineProofId: 'ccd-readonly-update-recipient-shapes-denied', mutantProofId: 'ccd-readonly-update-recipient-shapes-enabled'
+      }, {
+        mutationId: 'ccd-remove-courtadmin-event-create', obligationId: courtadminCell,
+        definitionDigest: digest({ boundary: 'ccd', transformation: 'change-only-source-courtadmin-serviceOfDocuments-event-CRUD-CRU-to-RU' }),
+        expectedFailureId: 'courtadmin-update-persistence', baselineProofId: 'ccd-courtadmin-update-recipient-shapes', mutantProofId: 'ccd-courtadmin-update-recipient-shapes-denied'
       }]
     };
     return { ...policy, policyDigest: digest(policy) };

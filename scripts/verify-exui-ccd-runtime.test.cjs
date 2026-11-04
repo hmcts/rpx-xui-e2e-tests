@@ -118,7 +118,7 @@ const fixedRuntime = async () => {
   const api = await runtime;
   assert.deepEqual(
     api.CCD_FIXTURE_SELECTIONS,
-    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant"],
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant"],
     "fixed source fixture selection must exist before transport use",
   );
   return api;
@@ -280,7 +280,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
     fs.readFileSync(path.join(__dirname, "fixtures/ccd/nested-prl.xlsx")),
   );
   const binding = require("./fixtures/ccd/event-capability/binding.json");
-  for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"]) {
+  for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"]) {
     const prepared = api.prepareCcdImport(
       undefined,
       "event-capability-" + variant,
@@ -306,7 +306,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
   );
 });
 
-for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant"])
+for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"])
   test(
     "support only: real import function with fake transport validates source ACLs for " +
       variant,
@@ -349,6 +349,9 @@ for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutan
       assert.equal(recipientAcl.create, true);
       assert.equal(recipientAcl.update, true);
       assert.equal(recipientAcl.delete, true);
+      assert.deepEqual(f.observed.events.find(e => e.id === "serviceOfDocuments").acls.find(a => a.role === "caseworker-privatelaw-courtadmin"), {
+        role: "caseworker-privatelaw-courtadmin", create: variant !== "courtadmin-update-mutant", read: true, update: true, delete: false,
+      });
       const readonlyAcl = f.observed.case_fields.find(field => field.id === "sodAdditionalRecipientsList")
         .acls.find(acl => acl.role === "caseworker-privatelaw-readonly");
       assert.equal(readonlyAcl.read, variant !== "readonly-read-mutant");

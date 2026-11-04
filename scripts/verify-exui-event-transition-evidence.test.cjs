@@ -15,7 +15,7 @@ test("offline transition replay requires the parent-bound baseline/removal/impor
   assert.equal(typeof validateEventTransitionEvidence, "function");
   const f = await fixture(t), expectedBefore = JSON.stringify(f.expected);
   const result = validateEventTransitionEvidence(f.directory, f.expected, await f.loaded());
-  assert.deepEqual(result, { transition: f.expected.eventTransition, identities: [{ invocationId: "ccd-enable-judge-event", identity: f.faultIdentity }, { invocationId: "ccd-remove-courtadmin-recipient-read", identity: f.readFaultIdentity }, { invocationId: "ccd-remove-readonly-recipient-read", identity: f.readonlyFaultIdentity }, { invocationId: "ccd-enable-readonly-recipient-update", identity: f.readonlyUpdateFaultIdentity }] });
+  assert.deepEqual(result, { transition: f.expected.eventTransition, identities: [{ invocationId: "ccd-enable-judge-event", identity: f.faultIdentity }, { invocationId: "ccd-remove-courtadmin-recipient-read", identity: f.readFaultIdentity }, { invocationId: "ccd-remove-readonly-recipient-read", identity: f.readonlyFaultIdentity }, { invocationId: "ccd-enable-readonly-recipient-update", identity: f.readonlyUpdateFaultIdentity }, { invocationId: "ccd-remove-courtadmin-event-create", identity: f.courtadminUpdateFaultIdentity }] });
   assert.equal(JSON.stringify(f.expected), expectedBefore);
   assert(!JSON.stringify(result).includes("PRIVATE-CANARY"));
   assert(!JSON.stringify(result).includes(f.root));
@@ -128,9 +128,14 @@ test("relocation cannot combine import records from unrelated original runtime p
 });
 
 
-test("all four independently captured faults are mandatory and cannot share imported runtime resources", async t => {
+test("all five independently captured faults are mandatory and cannot share imported runtime resources", async t => {
   const { validateEventTransitionEvidence: validate } = await load();
   for (const [change, code] of [
+    [f => { f.parent.faults = f.parent.faults.slice(0, 4); }, "EVENT_TRANSITION_FAULT_SELECTION"],
+    [f => { f.courtadminUpdateRuntimeRecord.ccd.owner = f.readonlyUpdateRuntimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],
+    [f => { f.courtadminUpdateRuntimeRecord.ccd.containers.data = f.runtimeRecord.ccd.containers.data; }, "EVENT_TRANSITION_CCD_CID_REUSE"],
+    [f => { f.courtadminUpdateRuntimeRecord.definition.fixtureDigest = f.readonlyUpdateRuntimeRecord.definition.fixtureDigest; }, "EVENT_TRANSITION_FAULT_DEFINITION"],
+    [f => { f.courtadminUpdateDerivation.transformationRecord.after = "R"; }, "EVENT_TRANSITION_DERIVATION_CELL"],
     [f => { f.parent.faults = f.parent.faults.slice(0, 3); }, "EVENT_TRANSITION_FAULT_SELECTION"],
     [f => { f.parent.faults = f.parent.faults.slice(0, 2); }, "EVENT_TRANSITION_FAULT_SELECTION"],
     [f => { f.readonlyUpdateRuntimeRecord.ccd.owner = f.readonlyRuntimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],

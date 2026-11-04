@@ -20,6 +20,15 @@
     "before": "R",
     "after": "U"
   },
+  "courtadminUpdateMutationId": "ccd-remove-courtadmin-event-create",
+  "courtadminUpdateTransformation": {
+    "sheet": "AuthorisationCaseEvent",
+    "role": "caseworker-privatelaw-courtadmin",
+    "caseEvent": "serviceOfDocuments",
+    "field": "CRUD",
+    "before": "CRU",
+    "after": "RU"
+  },
   "readonlyUpdateMutationId": "ccd-enable-readonly-recipient-update",
   "readonlyUpdateTransformation": {
     "role": "caseworker-privatelaw-readonly",
@@ -55,7 +64,8 @@
     ]
   },
   "proofs": {
-    "courtadmin": "ccd-courtadmin-email-one",
+    "courtadmin": "ccd-courtadmin-update-recipient-shapes",
+    "courtadminUpdateMutant": "ccd-courtadmin-update-recipient-shapes-denied",
     "judge": "ccd-event-create-denied",
     "mutant": "ccd-event-create-enabled",
     "courtadminRead": "ccd-courtadmin-read-recipient-shapes",
@@ -95,5 +105,9 @@
   "readonly-update-mutant": {
     "sourceDigest": "sha256:f42f61238a59267e13ee6b496f08f335d25466b35dad37eff33f0182aa7e8e5c",
     "workbookDigest": "sha256:391b3efbc8c274b70c5c39bfe4259e0a07ace7704f6a272ae655fc9bb74dbb7b"
+  },
+  "courtadmin-update-mutant": {
+    "sourceDigest": "sha256:739bdf940b364516c151ae3fe4073ecbd5591b3e56f167596b08ccfc2696d4f7",
+    "workbookDigest": "sha256:919b3d990290feef3cc294058bf2ccd3b1ad18e49c7165fca5e82ec0a66241bf"
   }
 }
