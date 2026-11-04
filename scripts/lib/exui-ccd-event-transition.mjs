@@ -11,6 +11,8 @@ import {
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_MUTATION,
   COURTADMIN_READ_MUTATION,
+  READONLY_READ_MUTATION,
+  eventCapabilityFaultContract,
   eventCapabilityFaultVariant,
 } from "./exui-ccd-event-capability.mjs";
 
@@ -136,7 +138,7 @@ export function validateEventTransitionEvidence(directory, expected, loadedInput
   assert.deepEqual(loadedInput.manifest, checkpoint.input.manifest, "EVENT_TRANSITION_LOADED_BASELINE");
   for (const [field, value] of Object.entries({ ...baselineMetadata, gatewayDigest: input.gatewayDigest, idamSimulatorImage: input.ccd.images.idam.id }))
     assert.deepEqual(checkpoint.input.manifest.runtimeMetadata[field], value, "EVENT_TRANSITION_BASELINE_METADATA");
-  const mutationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION];
+  const mutationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION];
   assert.deepEqual(record.faults?.map(item => item.invocationId), mutationIds, "EVENT_TRANSITION_FAULT_SELECTION");
   const run = readFixed(directory, "run.json").value;
   assert.deepEqual(run.mutations.map(item => item.mutationId), mutationIds, "EVENT_TRANSITION_MUTATION_SELECTION");
@@ -186,10 +188,9 @@ export function validateEventTransitionEvidence(directory, expected, loadedInput
     assert.deepEqual(derivation.baselineIdentity, baselineIdentity, "EVENT_TRANSITION_DERIVATION_IDENTITY");
     assert.deepEqual(derivation.mutantIdentity, faultIdentity, "EVENT_TRANSITION_DERIVATION_IDENTITY");
     assert.equal(derivation.transformation, invocationId, "EVENT_TRANSITION_DERIVATION_MUTATION");
-    assert.equal(derivation.target, invocationId === COURTADMIN_READ_MUTATION
-      ? "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD"
-      : "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD", "EVENT_TRANSITION_DERIVATION_TARGET");
-    assert.deepEqual(derivation.transformationRecord, invocationId === COURTADMIN_READ_MUTATION ? contract.readTransformation : contract.transformation, "EVENT_TRANSITION_DERIVATION_CELL");
+    const faultContract = eventCapabilityFaultContract(invocationId);
+    assert.equal(derivation.target, faultContract.target, "EVENT_TRANSITION_DERIVATION_TARGET");
+    assert.deepEqual(derivation.transformationRecord, contract[faultContract.transformationKey], "EVENT_TRANSITION_DERIVATION_CELL");
     assert.equal(derivation.beforeDigest, contract.baseline.workbookDigest, "EVENT_TRANSITION_DERIVATION_WORKBOOK");
     assert.equal(derivation.afterDigest, contract[variant].workbookDigest, "EVENT_TRANSITION_DERIVATION_WORKBOOK");
     assert.deepEqual(derivation.baselineRuntimeMetadata, baselineMetadata, "EVENT_TRANSITION_DERIVATION_RUNTIME");
@@ -213,7 +214,7 @@ export function eventCapabilityTransitionRequest(input) {
     schemaVersion: 2,
     runId: input.runId,
     releaseScopeId: EVENT_CAPABILITY_SCOPE,
-    invocationIds: [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION],
+    invocationIds: [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION],
     baselineNamespace: input.ccd.namespace,
     baselineDefinitionImportDigest: input.definitionImportDigest,
   };
@@ -282,13 +283,13 @@ export function selectEventCapabilityRuntime(input, invocationId, record) {
   assert(Number.isInteger(record.definition.definitionVersion) && record.definition.definitionVersion > 0, "EVENT_TRANSITION_DEFINITION_VERSION");
   assert(digest(record.definitionImportDigest), "EVENT_TRANSITION_IMPORT_DIGEST");
   assert.notEqual(record.definitionImportDigest, input.definitionImportDigest, "EVENT_TRANSITION_IMPORT_REUSE");
-  assert.deepEqual(Object.keys(record.credentials).sort(), ["allowed", "courtadmin", "judge", "observer"], "EVENT_TRANSITION_ACTORS");
+  assert.deepEqual(Object.keys(record.credentials).sort(), ["allowed", "courtadmin", "judge", "observer", "readonly"], "EVENT_TRANSITION_ACTORS");
   const actors = Object.values(record.credentials);
   assert(actors.every((actor) => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(actor.userId)), "EVENT_TRANSITION_ACTOR_ID");
-  assert.equal(new Set(actors.map((actor) => actor.userId)).size, 4, "EVENT_TRANSITION_ACTOR_COLLISION");
+  assert.equal(new Set(actors.map((actor) => actor.userId)).size, 5, "EVENT_TRANSITION_ACTOR_COLLISION");
   assert(actors.every((actor) => /^Bearer \S+$/.test(actor.headers?.Authorization ?? "")), "EVENT_TRANSITION_ACTOR_BEARER");
-  assert.equal(new Set(actors.map((actor) => actor.headers.Authorization)).size, 4, "EVENT_TRANSITION_BEARER_COLLISION");
-  for (const persona of ["courtadmin", "judge"])
+  assert.equal(new Set(actors.map((actor) => actor.headers.Authorization)).size, 5, "EVENT_TRANSITION_BEARER_COLLISION");
+  for (const persona of ["courtadmin", "judge", "readonly"])
     assert.deepEqual(record.credentials[persona].roles?.slice().sort(), [
       "caseworker", "caseworker-harness", `caseworker-privatelaw-${persona}`,
     ], "EVENT_TRANSITION_SOURCE_ROLES");

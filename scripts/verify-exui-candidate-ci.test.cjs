@@ -329,14 +329,14 @@ test("support only: independently recognized postal blockage permits the event s
   }
 });
 
-test("support only: actual event parent captures both fault runtimes before ACK and rejects partial preparation", async (t) => {
+test("support only: actual event parent captures all three fault runtimes before ACK and rejects partial preparation", async (t) => {
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
-  const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION } = await import("./lib/exui-ccd-event-capability.mjs");
+  const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION } = await import("./lib/exui-ccd-event-capability.mjs");
   const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
   const callback = source.match(/onEventTransition: (async \(request, handoff\) => \{[\s\S]*?)\n\s*\},\n\s*\} : \{\}\)/)?.[1];
   assert(callback, "actual parent transition callback exists");
-  for (const stoppedAt of [null, "checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "cancel-after-read", "reused-owner", "reused-cid"]) {
+  for (const stoppedAt of [null, "checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "cancel-after-read", "reused-owner", "reused-cid"]) {
     const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "parent-event-"));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
@@ -348,7 +348,7 @@ test("support only: actual event parent captures both fault runtimes before ACK 
     const handoff = { input, expected: { harnessCommit: "commit", harnessSourceDigest: digest("a") }, handoff: {}, isTerminated: () => cancelled };
     const deps = {
       assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {}, cancelled: false,
-      EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, eventCapabilityFaultVariant,
+      EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, eventCapabilityFaultVariant,
       resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
       readEventBaselineCheckpoint: () => { step("checkpoint"); return { checkpointDigest: digest("b") }; },
@@ -359,7 +359,7 @@ test("support only: actual event parent captures both fault runtimes before ACK 
       },
       startOwnedCcd: async (name, fixture, alive, owner) => {
         const variant = fixture.slice("event-capability-".length);
-        assert(["mutant", "read-mutant"].includes(variant));
+        assert(["mutant", "read-mutant", "readonly-read-mutant"].includes(variant));
         assert.equal(name, `event-${variant}-runtime`);
         assert.equal(owner, resource); assert.equal(alive(), true);
         step("start-" + variant);
@@ -381,13 +381,13 @@ test("support only: actual event parent captures both fault runtimes before ACK 
       publishEventCapabilityRuntime: (output, record) => {
         step("ack-" + eventCapabilityFaultVariant(record.invocationId));
         const captured = JSON.parse(fs.readFileSync(path.join(output, "independent-transition.json")));
-        assert.deepEqual(resource.expectedContainer.invocations, ["baseline", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION]);
+        assert.deepEqual(resource.expectedContainer.invocations, ["baseline", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION]);
         assert.equal(resource.eventTransition.digest, digestBytes(fs.readFileSync(path.join(output, "independent-transition.json"))));
         assert.equal(captured.schemaVersion, 2);
         assert.equal(captured.capturedBeforeFault, true);
         assert.equal(captured.baselineInputDigest, digestBytes("immutable baseline input\n"));
         assert.equal(captured.baselineRemoval.digest, digestBytes(fs.readFileSync(path.join(output, "baseline-removal.json"))));
-        assert.deepEqual(captured.faults.map(item => item.invocationId), [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION]);
+        assert.deepEqual(captured.faults.map(item => item.invocationId), [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION]);
         const fault = captured.faults.find(item => item.invocationId === record.invocationId);
         assert.equal(fault.runtimeRecord.digest, digestBytes(JSON.stringify(record, null, 2) + "\n"));
         return publishEventCapabilityRuntime(output, record);
@@ -396,9 +396,9 @@ test("support only: actual event parent captures both fault runtimes before ACK 
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
     if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
     else await run(request, handoff);
-    for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION])
+    for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "ack-mutant", "ack-read-mutant"];
+    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant"];
     const count = stoppedAt === "cancel-after-read" ? 7 : stoppedAt?.startsWith("reused-") ? 6 : order.indexOf(stoppedAt) + 1;
     assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0, count));
   }

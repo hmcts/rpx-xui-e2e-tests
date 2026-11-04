@@ -27,6 +27,16 @@
             "UserRole": "caseworker-privatelaw-judge",
             "CRUD": "RU"
           }
+        },
+        {
+          "index": 14,
+          "rowDigest": "sha256:d36626a89a2add98f4b8f40f15ad144b7145ace1aaf2dbc41d72b2119f624035",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-readonly",
+            "CRUD": "R"
+          }
         }
       ]
     },
@@ -52,6 +62,16 @@
             "CaseTypeID": "PRLAPPS",
             "UserRole": "caseworker-privatelaw-judge",
             "CRUD": "RU"
+          }
+        },
+        {
+          "index": 14,
+          "rowDigest": "sha256:d36626a89a2add98f4b8f40f15ad144b7145ace1aaf2dbc41d72b2119f624035",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-readonly",
+            "CRUD": "R"
           }
         }
       ]

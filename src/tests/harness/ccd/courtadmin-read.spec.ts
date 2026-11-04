@@ -11,12 +11,13 @@ import {
   EVENT_SCOPE,
   EVENT_STATE,
   COURTADMIN_READ_MUTATION,
+  READONLY_READ_MUTATION,
   courtadminReadScenarios,
 } from "../../../fixtures/harnessCcdEvent";
 
 const mutation = process.env.EXUI_HARNESS_MUTATION;
 type CaseViewField = { id: string; value?: unknown };
-const assertFaultApplicability = mutation === COURTADMIN_READ_MUTATION
+const assertFaultApplicability = [COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION].includes(mutation ?? "")
   ? (fields: CaseViewField[], visible: boolean) => {
       expect(fields).toEqual([]);
       expect(visible).toBe(false);
@@ -26,14 +27,15 @@ const assertFaultApplicability = mutation === COURTADMIN_READ_MUTATION
 
 test.describe.configure({ retries: 0 });
 
-test(
-  "source courtadmin reads all email and postal one/two-recipient shapes without modifying CCD",
+for (const [persona, fault] of [["courtadmin", COURTADMIN_READ_MUTATION], ["readonly", READONLY_READ_MUTATION]] as const) {
+  if (mutation && mutation !== fault) continue;
+
+  test(
+  `source ${persona} reads all email and postal one/two-recipient shapes without modifying CCD`,
   {
     annotation: {
       type: "harness-proof",
-      description: mutation === COURTADMIN_READ_MUTATION
-        ? "ccd-courtadmin-read-shapes-hidden"
-        : "ccd-courtadmin-read-recipient-shapes",
+      description: mutation ? `ccd-${persona}-read-shapes-hidden` : `ccd-${persona}-read-recipient-shapes`,
     },
   },
   async ({ page, request }) => {
@@ -41,13 +43,13 @@ test(
     expect(manifest.releaseScopeId).toBe(EVENT_SCOPE);
     expect(context.releaseScopeId).toBe(EVENT_SCOPE);
     expect(context.runId).toBe(manifest.runId);
-    expect([undefined, COURTADMIN_READ_MUTATION]).toContain(mutation);
+    expect([undefined, fault]).toContain(mutation);
     expect(context.invocationId).toBe(mutation ?? "baseline");
     const personas = ccdEventPersonas();
-    const roles = ["caseworker", "caseworker-harness", "caseworker-privatelaw-courtadmin"];
-    expect(personas.credentials.courtadmin.roles?.slice().sort()).toEqual(roles);
-    expect(personas.credentials.courtadmin.userId).not.toBe(personas.credentials.allowed.userId);
-    expect(personas.credentials.courtadmin.userId).not.toBe(personas.credentials.observer.userId);
+    const roles = ["caseworker", "caseworker-harness", `caseworker-privatelaw-${persona}`];
+    expect(personas.credentials[persona].roles?.slice().sort()).toEqual(roles);
+    expect(personas.credentials[persona].userId).not.toBe(personas.credentials.allowed.userId);
+    expect(personas.credentials[persona].userId).not.toBe(personas.credentials.observer.userId);
     const observations: Array<{
       scenario: string; caseId: string; actor: unknown; caseViewStatus: number;
       recipientFields: CaseViewField[]; projected: unknown; expectedRecipients: unknown[];
@@ -69,11 +71,11 @@ test(
       expect(before.state.case_data.sodAdditionalRecipientsList.map(
         (item: { value: unknown }) => item.value,
       )).toEqual(expectedRecipients);
-      await switchCcdEventActor(page, "courtadmin");
+      await switchCcdEventActor(page, persona);
       const details = await page.request.get("/api/user/details", { maxRedirects: 0, maxRetries: 0 });
       expect(details.status()).toBe(200);
       const actor = (await details.json()).userInfo;
-      expect(actor.id ?? actor.uid).toBe(personas.credentials.courtadmin.userId);
+      expect(actor.id ?? actor.uid).toBe(personas.credentials[persona].userId);
       expect([...actor.roles].sort()).toEqual(roles);
       const read = await openCcdEventCase(page, caseId);
       expect(read.status()).toBe(200);
@@ -106,10 +108,10 @@ test(
       observations.push({ scenario: scenario.name, caseId, actor, caseViewStatus: read.status(),
         recipientFields, projected, expectedRecipients, visible, before, after });
     }
-    saveCcdEventObservation("courtadmin-read", observations);
+    saveCcdEventObservation(`${persona}-read`, observations);
 
     // Check every fault shape before the intentional failure can terminate the proof.
-    await test.step("harness-assertion:courtadmin-recipient-read-projection", async () => {
+    await test.step(`harness-assertion:${persona}-recipient-read-projection`, async () => {
       expect(observations.map(item => item.scenario)).toEqual(["email-1", "email-2", "post-1", "post-2"]);
       for (const observation of observations) {
         expect(observation.recipientFields, observation.scenario).toHaveLength(1);
@@ -121,3 +123,4 @@ test(
     });
   },
 );
+}

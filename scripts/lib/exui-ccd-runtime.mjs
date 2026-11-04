@@ -8,6 +8,8 @@ import {
   validateEventCapabilityPair,
   validateCourtadminReadPair,
   COURTADMIN_READ_MUTATION,
+  READONLY_READ_MUTATION,
+  validateReadonlyReadPair,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_MUTATION,
   EVENT_CAPABILITY_SOURCE_DIGEST,
@@ -100,10 +102,12 @@ export const CCD_FIXTURE_SELECTIONS = Object.freeze([
   "event-capability-baseline",
   "event-capability-mutant",
   "event-capability-read-mutant",
+  "event-capability-readonly-read-mutant",
 ]);
 const sourceActors = Object.freeze({
   courtadmin: "caseworker-privatelaw-courtadmin",
   judge: "caseworker-privatelaw-judge",
+  readonly: "caseworker-privatelaw-readonly",
 });
 function fixtureSelection(
   state,
@@ -525,7 +529,7 @@ export function prepareCcdImport(
     );
     const root = path.join(fixtureRoot, "event-capability");
     const pair = Object.fromEntries(
-      ["baseline", "mutant", "read-mutant"].map((name) => [
+      ["baseline", "mutant", "read-mutant", "readonly-read-mutant"].map((name) => [
         name,
         JSON.parse(fs.readFileSync(path.join(root, name + ".json"))),
       ]),
@@ -537,6 +541,8 @@ export function prepareCcdImport(
     const binding = JSON.parse(
       fs.readFileSync(path.join(root, "binding.json")),
     );
+    assert.equal(binding.readonlyReadMutationId, READONLY_READ_MUTATION, "CCD_READONLY_MUTATION_BINDING_MISMATCH");
+    assert.deepEqual(binding.readonlyReadTransformation, validateReadonlyReadPair(pair.baseline, pair["readonly-read-mutant"]), "CCD_READONLY_BINDING_TRANSFORMATION_MISMATCH");
     assert.equal(binding.readMutationId, COURTADMIN_READ_MUTATION, "CCD_READ_MUTATION_BINDING_MISMATCH");
     assert.deepEqual(
       binding.readTransformation,
@@ -574,7 +580,7 @@ export function prepareCcdImport(
       EVENT_CAPABILITY_SOURCE_DIGEST,
       "CCD_EVENT_SOURCE_BINDING_MISMATCH",
     );
-    for (const name of ["baseline", "mutant", "read-mutant"]) {
+    for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant"]) {
       assert.equal(
         digest(fs.readFileSync(path.join(root, name + ".json"))),
         binding[name].sourceDigest,

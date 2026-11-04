@@ -44,13 +44,13 @@ if (
 if (
   eventCapabilityScope &&
   process.env.EXUI_HARNESS_MUTATION &&
-  !["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION)
+  !["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION)
 )
   throw new Error("CCD_EVENT_CAPABILITY_MUTATION_REQUIRED");
 const ccdFiles = eventCapabilityScope
   ? process.env.EXUI_HARNESS_MUTATION === "ccd-enable-judge-event"
     ? ["event-capability"]
-    : process.env.EXUI_HARNESS_MUTATION === "ccd-remove-courtadmin-recipient-read"
+    : ["ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")
       ? ["courtadmin-read"]
       : ["courtadmin-cell", "courtadmin-read", "event-capability"]
   : [

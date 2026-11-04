@@ -112,7 +112,7 @@ async function launch() {
   ).browsers.find((item) => item.name === "chromium-headless-shell");
   const credentials = Object.fromEntries(
     (releaseScopeId === EVENT_CAPABILITY_SCOPE
-      ? ["allowed", "courtadmin", "judge", "observer"]
+      ? ["allowed", "courtadmin", "judge", "observer", "readonly"]
       : ["allowed", "denied", "observer"]).map((name) => [
       name,
       ccdCredentials(ccd, name),

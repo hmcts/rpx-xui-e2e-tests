@@ -23,6 +23,8 @@ import {
   EVENT_CAPABILITY_CELL,
   COURTADMIN_READ_CELLS,
   COURTADMIN_READ_OBLIGATION,
+  READONLY_READ_CELLS,
+  READONLY_READ_OBLIGATION,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_PROOFS,
 } from "./exui-ccd-event-capability.mjs";
@@ -377,6 +379,7 @@ export function projectConfigurationCoverage(args) {
     for (const [cell, proofId, obligationId] of [
       [EVENT_CAPABILITY_CELL, EVENT_CAPABILITY_PROOFS.courtadmin, EVENT_CAPABILITY_CELL],
       ...COURTADMIN_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadminRead, COURTADMIN_READ_OBLIGATION]),
+      ...READONLY_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.readonlyRead, READONLY_READ_OBLIGATION]),
     ]) {
       const proof = loaded.input.results.find(
         (item) => item.proofId === proofId,

@@ -9,7 +9,7 @@ export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.session
   if (!/^[a-z-]+$/.test(persona)) throw new Error("CCD_SESSION_PERSONA_INVALID");
   if (persona.startsWith("transitioning") && !Array.isArray(credential.roles))
     throw new Error("CCD_OBSERVED_ROLES_REQUIRED");
-  if (["courtadmin", "judge"].includes(persona))
+  if (["courtadmin", "judge", "readonly"].includes(persona))
     assert.deepEqual(credential.roles?.slice().sort(), [
       "caseworker", "caseworker-harness", `caseworker-privatelaw-${persona}`,
     ], "CCD_SOURCE_ACTOR_ROLES_REQUIRED");

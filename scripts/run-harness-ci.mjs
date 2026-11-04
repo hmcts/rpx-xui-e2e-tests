@@ -19,7 +19,7 @@ import {
 import { digestBytes, writeJsonAtomic, loadRunEvidence } from "./lib/exui-evidence-io.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
 import { nativeIdentity } from "./lib/exui-native-contract.mjs";
-import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, eventCapabilityFaultVariant } from "./lib/exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, eventCapabilityFaultVariant } from "./lib/exui-ccd-event-capability.mjs";
 import { selectEventCapabilityRuntime, publishEventCapabilityRuntime } from "./lib/exui-ccd-event-transition.mjs";
 import { readEventBaselineCheckpoint, isKnownPostalBlock } from "./lib/exui-native-proof-validation.mjs";
 import { assertEventBaselineRemoved } from "./lib/exui-native-ci-ownership.mjs";
@@ -191,7 +191,7 @@ export async function runHarnessCi(jobPath) {
       definition: read(definitionFile),
       definitionImportDigest: digestBytes(fs.readFileSync(definitionFile)),
       apiContracts,
-      credentials: Object.fromEntries(["allowed", "courtadmin", "judge", "observer"].map((actor) => [actor, ccdCredentials(ccd, actor)])),
+      credentials: Object.fromEntries(["allowed", "courtadmin", "judge", "observer", "readonly"].map((actor) => [actor, ccdCredentials(ccd, actor)])),
     };
   };
   const eventIdentity = (data) => nativeIdentity({
@@ -293,7 +293,7 @@ export async function runHarnessCi(jobPath) {
                 writeJsonAtomic(removalFile, removal);
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const records = [], faults = [], states = [handoff.input.ccd];
-                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION]) {
+                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION]) {
                   assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                   const variant = eventCapabilityFaultVariant(invocationId);
                   const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
@@ -462,7 +462,7 @@ export async function runHarnessCi(jobPath) {
         context.eventBaseline = { ...data, ccdIdentity: eventIdentity(data) };
       },
       stopEvent: async () => {
-        for (const key of ["event-read-mutant-runtime", "event-mutant-runtime", "event-baseline-runtime"]) {
+        for (const key of ["event-readonly-read-mutant-runtime", "event-read-mutant-runtime", "event-mutant-runtime", "event-baseline-runtime"]) {
           const resource = resources.get(key);
           if (resource) await remove(key, resource);
         }

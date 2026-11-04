@@ -568,6 +568,12 @@ test("source actor sessions require exact observed roles and definition faults c
   const roles = ["caseworker", "caseworker-harness", "caseworker-privatelaw-judge"];
   seedCcdSession("judge", { ...credential, roles }, root);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, "harness-ccd-judge.json"))).passport.user.userinfo.roles, roles);
+  const readonlyRoles = ["caseworker", "caseworker-harness", "caseworker-privatelaw-readonly"];
+  assert.throws(() => seedCcdSession("readonly", credential, root), /CCD_SOURCE_ACTOR_ROLES_REQUIRED/);
+  assert.throws(() => seedCcdSession("readonly", { ...credential, roles }, root), /CCD_SOURCE_ACTOR_ROLES_REQUIRED/);
+  assert.throws(() => seedCcdSession("readonly", { ...credential, roles: [...readonlyRoles, "caseworker-harness-allowed"] }, root), /CCD_SOURCE_ACTOR_ROLES_REQUIRED/);
+  seedCcdSession("readonly", { ...credential, roles: readonlyRoles }, root);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, "harness-ccd-readonly.json"))).passport.user.userinfo.roles, readonlyRoles);
   assert.equal(fs.existsSync(path.join(root, "harness-ccd-observer.json")), false);
   for (const [mutation, scope, message] of [
     ["ccd-enable-judge-event", "exui-ccd-event-capability-pilot", /CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION/],
