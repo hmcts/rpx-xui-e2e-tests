@@ -18,6 +18,10 @@ export async function assertSourceShapeHiddenControls(...controls: Locator[]) {
   for (const control of controls) await expect(control).toBeHidden();
 }
 
+export async function assertSourceShapeRadioLabel(page: Page, optional: boolean) {
+  await expect(page.getByText(optional ? 'Served by (Optional)' : 'Served by', {exact:true})).toBeVisible();
+}
+
 export const postalSiblingValues = {
   AddressLine3: 'Synthetic third line', PostTown: 'Synthetic town',
   County: 'Synthetic county', Country: 'United Kingdom',
@@ -81,7 +85,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     let faultEmailPresent = false;
 
     if (shape === 'required-delivery-radio') {
-      await expect(page.getByText('Served by',{exact:true})).toBeVisible();
+      await assertSourceShapeRadioLabel(page, Boolean(mutation));
       await continueButton.click();
       if (mutation) {
         // The missing required selection must genuinely reach CYA and persist.

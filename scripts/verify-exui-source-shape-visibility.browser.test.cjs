@@ -48,3 +48,17 @@ test('postal fixture populates every unrelated optional sibling and preserves th
     assert.equal(await page.locator('input[id$="PostCode"]').inputValue(), 'SW1A 1AA');
   } finally { await browser.close(); }
 });
+
+// Optional is a real candidate label suffix; neither variant may accept the other.
+test('radio label binds the exact baseline or optional-mutant display context', async()=>{
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage();
+  await page.setContent('<fieldset><legend>Served by (Optional)</legend><input type="radio"></fieldset>');
+  await fixture.exports.assertSourceShapeRadioLabel(page,true);
+  await assert.rejects(()=>fixture.exports.assertSourceShapeRadioLabel(page,false));
+  await page.setContent('<fieldset><legend>Served by</legend><input type="radio"></fieldset>');
+  await fixture.exports.assertSourceShapeRadioLabel(page,false);
+  await assert.rejects(()=>fixture.exports.assertSourceShapeRadioLabel(page,true));
+ } finally {await browser.close();}
+});
