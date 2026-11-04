@@ -61,10 +61,7 @@ const SOURCE_FILES = [
   'scripts/fixtures/ccd/nested-prl.xlsx',
   'scripts/fixtures/ccd/event-capability.source.json',
   'scripts/fixtures/ccd/shared-policy-sources.json',
-<<<<<<< HEAD
   'scripts/fixtures/ccd/shared-role-write-collection.source.txt',
-=======
->>>>>>> 53e3a5e (feat: bind shared policy obligations to explicit source contracts)
   'scripts/fixtures/ccd/event-capability/baseline.json', 'scripts/fixtures/ccd/event-capability/baseline.xlsx',
   'scripts/fixtures/ccd/event-capability/mutant.json', 'scripts/fixtures/ccd/event-capability/mutant.xlsx',
   'scripts/fixtures/ccd/event-capability/read-mutant.json', 'scripts/fixtures/ccd/event-capability/read-mutant.xlsx',
@@ -82,12 +79,9 @@ const SOURCE_FILES = [
   'scripts/lib/exui-host-invocation.mjs', 'scripts/lib/exui-output-boundary.mjs',
   'scripts/lib/exui-candidate-runtime.mjs', 'scripts/lib/exui-candidate-child.mjs',
   'scripts/lib/exui-configuration-catalogue.mjs', 'scripts/lib/exui-shared-policy-contracts.mjs', 'scripts/lib/exui-definition-discovery.mjs',
-<<<<<<< HEAD
   'scripts/lib/exui-shared-role-observations.mjs', 'scripts/lib/exui-shared-role-observations.d.mts',
   'scripts/lib/exui-shared-role-artifacts.mjs', 'scripts/lib/exui-shared-role-toolkit.mjs',
   'scripts/lib/exui-shared-role-native-binding.mjs', 'scripts/replay-harness-shared-role.mjs',
-=======
->>>>>>> 53e3a5e (feat: bind shared policy obligations to explicit source contracts)
   'scripts/lib/exui-definition-references.mjs', 'scripts/lib/exui-deployment-profiles.mjs',
   'scripts/lib/exui-provider-seams.mjs', 'scripts/lib/exui-runtime-network-guard.cjs',
   'scripts/lib/exui-candidate-artifact.mjs', 'scripts/lib/exui-evidence-io.mjs',
@@ -195,11 +189,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-<<<<<<< HEAD
   assert.equal(SOURCE_FILES.length, 130);
-=======
-  assert.equal(SOURCE_FILES.length, 98);
->>>>>>> 53e3a5e (feat: bind shared policy obligations to explicit source contracts)
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();
