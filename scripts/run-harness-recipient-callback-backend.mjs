@@ -21,12 +21,12 @@ export const callbackProbeFiles=Object.freeze([
  'scripts/recipient-callback-backend-worker.mjs',
 ]);
 export function stageCallbackProbe(destination,sourceRoot=root){
- fs.mkdirSync(destination,{mode:0o700});const seals={};
+ fs.mkdirSync(destination,{mode:0o755});const seals={};
  for(const name of callbackProbeFiles){
   const source=path.join(sourceRoot,name);assert.equal(fs.realpathSync(source),source,'CALLBACK_PROBE_SOURCE_ALIAS');assert(fs.lstatSync(source).isFile(),'CALLBACK_PROBE_SOURCE_TYPE');
-  const target=path.join(destination,name);fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o700});const bytes=fs.readFileSync(source);fs.writeFileSync(target,bytes,{flag:'wx',mode:0o600});seals[name]='sha256:'+createHash('sha256').update(bytes).digest('hex');
+  const target=path.join(destination,name);fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});const bytes=fs.readFileSync(source);fs.writeFileSync(target,bytes,{flag:'wx',mode:0o444});seals[name]='sha256:'+createHash('sha256').update(bytes).digest('hex');
  }
- fs.writeFileSync(path.join(destination,'source-seals.json'),JSON.stringify(seals,null,2)+'\n',{flag:'wx',mode:0o600});return seals;
+ fs.writeFileSync(path.join(destination,'source-seals.json'),JSON.stringify(seals,null,2)+'\n',{flag:'wx',mode:0o444});return seals;
 }
 export async function runRecipientCallbackProbe({output,mode='normalize',platform='linux/arm64'}){
  assert(path.isAbsolute(output)&&['normalize','reject'].includes(mode),'CALLBACK_PROBE_ARGUMENTS');
@@ -41,8 +41,12 @@ export async function runRecipientCallbackProbe({output,mode='normalize',platfor
   phase='import-callback';receipt.import=await importRecipientCallback(state,{fixtureDirectory:fixtures});save();
   phase='create-actors';const credentials=Object.fromEntries(['allowed','courtadmin','observer'].map(actor=>[actor,ccdCredentials(state,actor)]));
   phase='stage-worker';const staged=path.join(output,'sources');receipt.sourceSeals=stageCallbackProbe(staged);save();
-  verifyCcdContainerIdentity(state);docker(['cp',staged+'/.',state.containers.client+':/tmp/recipient-probe']);
-  verifyCcdContainerIdentity(state);assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
+  verifyCcdContainerIdentity(state);docker(['exec',state.containers.client,'node','-e',"require('fs').mkdirSync('/tmp/recipient-probe',{mode:0o700})"]);
+  verifyCcdContainerIdentity(state);docker(['cp',staged+'/.',state.containers.client+':/tmp/recipient-probe/']);
+  verifyCcdContainerIdentity(state);
+  try { docker(['exec',state.containers.client,'node','-e',`const fs=require('fs'),crypto=require('crypto'),root='/tmp/recipient-probe';const seals=JSON.parse(fs.readFileSync(root+'/source-seals.json'));for(const [name,digest] of Object.entries(seals)){if('sha256:'+crypto.createHash('sha256').update(fs.readFileSync(root+'/'+name)).digest('hex')!==digest)process.exit(2);}`]); }
+  catch { throw Error('CALLBACK_PROBE_STAGED_FILES_INVALID'); }
+  assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
   phase='execute-worker';terminal=new Promise((resolve,reject)=>{
    child=spawn('docker',['exec','-i',state.containers.client,'node','/tmp/recipient-probe/scripts/recipient-callback-backend-worker.mjs'],{stdio:['pipe','pipe','pipe']});
    let text='',stderr='',tooLarge=false;child.stdout.on('data',bytes=>{if(text.length+bytes.length>65536){tooLarge=true;child.kill('SIGTERM');}else text+=bytes.toString();});child.stderr.on('data',bytes=>{if(Buffer.byteLength(stderr)+bytes.length<=65536)stderr+=bytes.toString();else{tooLarge=true;child.kill('SIGTERM');}});

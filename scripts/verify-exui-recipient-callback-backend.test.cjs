@@ -29,7 +29,9 @@ test('support only: source staging copies exact allowlist and rejects aliases, n
  const {stageCallbackProbe,callbackProbeFiles}=await import('./run-harness-recipient-callback-backend.mjs');
  const temp=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-stage-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
  const seals=stageCallbackProbe(path.join(temp,'valid'));
- assert.deepEqual(Object.keys(seals),callbackProbeFiles);assert(callbackProbeFiles.every(name=>!name.includes('.env')&&!name.includes('node_modules')));
+ assert.deepEqual(Object.keys(seals),callbackProbeFiles);
+ for(const name of [...callbackProbeFiles,'source-seals.json'])assert.equal(fs.statSync(path.join(temp,'valid',name)).mode&0o777,0o444);
+ for(const directory of ['', 'scripts', 'scripts/lib', 'scripts/fixtures/ccd'])assert.equal(fs.statSync(path.join(temp,'valid',directory)).mode&0o777,0o755);assert(callbackProbeFiles.every(name=>!name.includes('.env')&&!name.includes('node_modules')));
  const source=path.join(temp,'source');fs.mkdirSync(source);fs.symlinkSync(path.resolve('scripts'),path.join(source,'scripts'));
  assert.throws(()=>stageCallbackProbe(path.join(temp,'aliased'),source),/CALLBACK_PROBE_SOURCE_ALIAS/);
 });
@@ -47,7 +49,7 @@ test('support only: staged worker loads its complete module graph outside checko
  const run=()=>require('node:child_process').spawnSync(process.execPath,[path.join(staged,'scripts/recipient-callback-backend-worker.mjs')],{cwd:temp,input:'not-json-private-credential',encoding:'utf8',timeout:5000,maxBuffer:65536});
  const result=run();assert.equal(result.status,2);assert.equal(result.stderr,'');assert.deepEqual(JSON.parse(result.stdout),{status:'failed',phase:'read-input',code:'CALLBACK_PROBE_INPUT_INVALID'});assert(!result.stdout.includes('private-credential'));
  // Simulate an omitted transitive file without failing the earlier seal check.
- const sealsPath=path.join(staged,'source-seals.json'),seals=JSON.parse(fs.readFileSync(sealsPath));const missing='scripts/lib/exui-ccd-role-transition.mjs';delete seals[missing];fs.writeFileSync(sealsPath,JSON.stringify(seals));fs.unlinkSync(path.join(staged,missing));
+ const sealsPath=path.join(staged,'source-seals.json'),seals=JSON.parse(fs.readFileSync(sealsPath));const missing='scripts/lib/exui-ccd-role-transition.mjs';delete seals[missing];fs.unlinkSync(sealsPath);fs.writeFileSync(sealsPath,JSON.stringify(seals),{mode:0o444});fs.unlinkSync(path.join(staged,missing));
  const absent=run();assert.equal(absent.status,2);assert.equal(absent.stderr,'');assert.deepEqual(JSON.parse(absent.stdout),{status:'failed',phase:'load-modules',code:'CALLBACK_PROBE_MODULE_MISSING'});
 });
 test('support only: worker terminal preserves structured failure before observation copying and sanitizes startup errors',async()=>{
