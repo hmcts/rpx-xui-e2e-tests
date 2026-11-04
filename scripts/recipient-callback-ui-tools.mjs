@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {spawn} from 'node:child_process';
 import {startCcdGateway,seedCcdSession} from './lib/exui-ccd-browser-runtime.mjs';
+import {canonicalRecipientCallbackPages} from './lib/exui-recipient-callback-fixture.mjs';
 import {seedAppCcdSessions} from './lib/exui-native-contract.mjs';
 import {verifyHarnessDependencies} from './lib/exui-harness-dependencies.mjs';
 import {describeCandidateArtifact,digestCandidateTree} from './lib/exui-candidate-artifact.mjs';
@@ -21,7 +22,7 @@ if(process.argv.includes('--inside-providers')) {
   const response=await fetch(`http://127.0.0.1:${port}/v3/api-docs`,{redirect:'error'});assert(response.ok);assert.equal(digestBytes(JSON.stringify(await response.json())),input.apiContracts[name]);
  }
  for(const [name,route] of [['definition','/api/data/case-type/HarnessNestedPRL'],['pages','/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments']]){
-  const response=await fetch('http://127.0.0.1:4451'+route,{headers:input.credentials.observer.headers,redirect:'error'});assert(response.ok);assert.equal(digestBytes(JSON.stringify(await response.json())),input.callbackObservedDigests[name],'CALLBACK_DESCRIPTOR_DRIFT');
+  const response=await fetch('http://127.0.0.1:4451'+route,{headers:input.credentials.observer.headers,redirect:'error'});assert(response.ok);const body=await response.json();assert.equal(digestBytes(JSON.stringify(name==='pages'?canonicalRecipientCallbackPages(body):body)),input.callbackObservedDigests[name],'CALLBACK_DESCRIPTOR_DRIFT');
  }
  const sessions=seedAppCcdSessions(input.credentials,seedCcdSession,'exui-ccd-event-capability-pilot');
  writeJsonAtomic(directory+'/personas.json',{credentials:input.credentials,sessions});fs.chmodSync(directory+'/personas.json',0o600);

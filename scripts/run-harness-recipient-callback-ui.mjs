@@ -17,6 +17,7 @@ import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {prepareRecipientCallbackImport,importRecipientCallback,validateObservedRecipientCallback} from './lib/exui-recipient-callback-import.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {canonicalRecipientCallbackPages} from './lib/exui-recipient-callback-fixture.mjs';
 import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
 import {callbackFailureCode} from './lib/exui-recipient-callback-diagnostics.mjs';
 import {browserExecutable} from './lib/exui-oci-runtime.mjs';
@@ -47,8 +48,9 @@ export function verifyCallbackUiRuntime(state, imported, {request=ccdRequest, in
  for(const [name,route] of [['definition','/api/data/case-type/HarnessNestedPRL'],['pages','/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments']]){
   const response=request(state,4451,route,{headers:observer.headers});verification.observations[name]=response;saveVerification();
   if(response.status!==200){verification.status='readback-failed';verification.failedDescriptor=name;saveVerification();throw Error('CALLBACK_UI_IMPORT_READBACK_FAILED');}
-  if(!isDeepStrictEqual(response.body,imported.observations[name].body)){verification.status='descriptor-drift';verification.failedDescriptor=name;saveVerification();throw Error('CALLBACK_UI_IMPORT_DRIFT');}
-  observed[name]=response.body;
+  const current=name==='pages'?canonicalRecipientCallbackPages(response.body):response.body,expected=name==='pages'?canonicalRecipientCallbackPages(imported.observations[name].body):imported.observations[name].body;
+  if(!isDeepStrictEqual(current,expected)){verification.status='descriptor-drift';verification.failedDescriptor=name;saveVerification();throw Error('CALLBACK_UI_IMPORT_DRIFT');}
+  observed[name]=current;
  }
  validateObservedRecipientCallback(observed.definition,observed.pages,imported.seal.binding,imported.seal.variant??'baseline');
  verification.status='verified';saveVerification();

@@ -94,3 +94,21 @@ export function validateRecipientCallbackFixture(value, source = readSource()) {
   );
   return structuredClone(value.binding);
 }
+
+// Definition-store c37c9b84 DisplayGroupAdapterService85-89 collects these
+// fields through Collectors.toSet(); presentation order is the retained order
+// property assigned at100, not the JSON array's iteration order. Preserve every
+// field value and all other arrays, including complex_field_overrides.
+export function canonicalRecipientCallbackPages(pages) {
+  assert(Array.isArray(pages?.wizard_pages), "CALLBACK_PAGE_SCHEMA");
+  const canonical = structuredClone(pages);
+  for (const page of canonical.wizard_pages) {
+    assert(Array.isArray(page.wizard_page_fields), "CALLBACK_PAGE_SCHEMA");
+    const fields = page.wizard_page_fields;
+    assert(fields.every(field => typeof field.case_field_id === "string" && field.case_field_id.length > 0 && Number.isInteger(field.order)), "CALLBACK_PAGE_FIELD_ORDER_SCHEMA");
+    assert.equal(new Set(fields.map(field => field.case_field_id)).size, fields.length, "CALLBACK_PAGE_FIELD_ID_DUPLICATE");
+    assert.equal(new Set(fields.map(field => field.order)).size, fields.length, "CALLBACK_PAGE_FIELD_ORDER_DUPLICATE");
+    fields.sort((left, right) => left.order - right.order);
+  }
+  return canonical;
+}

@@ -91,7 +91,7 @@ test('support only: callback UI checks its distinct receipt and actual descripto
  const {deriveRecipientCallbackFixture}=await import('./lib/exui-recipient-callback-fixture.mjs');const {binding}=deriveRecipientCallbackFixture();
  const output=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-ui-receipt-'));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(output+'/recipient-callback-import');
  const state={output,owner:'harness-callback-test',namespace:'owned-namespace',images:{data:{id:'image'}}};
- const definition={id:'HarnessNestedPRL',version:{number:2},events:[{id:binding.eventId}]},pages={case_type_id:'HarnessNestedPRL',event_id:binding.eventId,wizard_pages:[{id:'serviceOfDocuments2',wizard_page_fields:[{case_field_id:binding.fieldId}],callback_url_mid_event:binding.normalizedUrl}]};
+ const definition={id:'HarnessNestedPRL',version:{number:2},events:[{id:binding.eventId}]},pages={case_type_id:'HarnessNestedPRL',event_id:binding.eventId,wizard_pages:[{id:'serviceOfDocuments2',wizard_page_fields:[{case_field_id:binding.fieldId,order:8}],callback_url_mid_event:binding.normalizedUrl}]};
  const imported={kind:'recipient-callback-import-feasibility',status:'import-and-callback-descriptor-observed',owner:state.owner,namespace:state.namespace,images:state.images,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false,seal:{binding},observations:{definition:{status:200,body:definition},pages:{status:200,body:pages}}};
  const receiptPath=output+'/recipient-callback-import/receipt.json';fs.writeFileSync(receiptPath,JSON.stringify(imported));let inspected=0;
  const request=(_state,_port,route)=>{
