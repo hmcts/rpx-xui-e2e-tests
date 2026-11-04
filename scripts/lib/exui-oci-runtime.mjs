@@ -156,6 +156,8 @@ export function toolContainerArguments({
   );
   return [
     "create",
+    "--user",
+    `${process.getuid()}:${process.getgid()}`,
     "--network",
     namespace ? `container:${namespace}` : "none",
     "--platform",
@@ -282,6 +284,8 @@ export function candidateArchiveArguments({
   const processConfig = candidateArchiveProcess(config, releaseScopeId);
   return [
     "create",
+    "--user",
+    `${process.getuid()}:${process.getgid()}`,
     "--name",
     `${owner}-${invocationId}-candidate`,
     "--network",

@@ -247,14 +247,17 @@ export function writePrivateJob(file, value) {
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 }
 
-function prepareBrowserCache(privateRoot, platform) {
+export function prepareBrowserCache(privateRoot, platform, { runCommand = run } = {}) {
+  assertPrivateDirectory(privateRoot);
   const browserCache = path.join(privateRoot, "browser-cache");
   fs.mkdirSync(browserCache, { mode: 0o700 });
-  run(
+  runCommand(
     "docker",
     [
       "run",
       "--rm",
+      "--user",
+      `${process.getuid()}:${process.getgid()}`,
       "--name",
       `harness-native-ci-browser-${randomUUID()}`,
       "--network",
@@ -279,9 +282,11 @@ function prepareBrowserCache(privateRoot, platform) {
       "/bin/sh",
       platform === "linux/arm64" ? ARM64_BROWSER_RUNTIME : nativeRuntimeImages(platform).browser.reference,
       "-c",
-      "cp -a /ms-playwright/. /browser/",
+      "cp -a --no-preserve=ownership /ms-playwright/. /browser/",
     ],
   );
+  fs.chmodSync(browserCache, 0o700);
+  assertPrivateDirectory(browserCache);
   assert(fs.readdirSync(browserCache).length > 0, "NATIVE_BROWSER_CACHE_REQUIRED");
   return browserCache;
 }
@@ -368,6 +373,7 @@ async function prepareJob(privateRoot, platform) {
   const artifact = await verifyCandidateArtifact(candidateManifest);
   assert.equal(artifact.identity.webappCommit, commit, "WEBAPP_CANDIDATE_COMMIT_MISMATCH");
 
+  stage = "matching browser cache";
   const browserCache = prepareBrowserCache(privateRoot, platform);
   const job = {
     schemaVersion: 1,

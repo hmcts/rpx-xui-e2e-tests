@@ -165,3 +165,18 @@ test('AMD64 provisioning pulls immutable images and removes temporary registry c
     assert(!calls.some(call=>call.command==='az'&&call.args[0]==='login'));
   }
 });
+
+test('browser cache copy uses controller identity without preserving image ownership or widening its private root',async t=>{
+ const {prepareBrowserCache}=await load();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'browser-copy-owner-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ let observed;
+ const browser=prepareBrowserCache(root,'linux/amd64',{runCommand:(command,args)=>{
+  assert.equal(command,'docker');observed=args;
+  const output=path.join(root,'browser-cache');fs.writeFileSync(path.join(output,'synthetic-browser'),'fixture');fs.chmodSync(output,0o755);
+ }});
+ assert.equal(observed[observed.indexOf('--user')+1],`${process.getuid()}:${process.getgid()}`);
+ assert.equal(observed[observed.indexOf('--network')+1],'none');
+ assert(observed.includes('--read-only'));assert(observed.includes('no-new-privileges'));
+ assert.match(observed.at(-1),/cp -a --no-preserve=ownership/);
+ assert.equal(browser,path.join(root,'browser-cache'));assert.equal(fs.statSync(browser).mode&0o777,0o700);
+});

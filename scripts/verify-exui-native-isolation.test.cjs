@@ -55,6 +55,7 @@ test("support only: native API gets sealed application and narrow state, with no
     assert(
       !mounts.some((value) => value.includes(path.join(directory, "evidence"))),
     );
+    assert.equal(args[args.indexOf("--user") + 1], `${process.getuid()}:${process.getgid()}`);
     assert(args.includes("--read-only"));
     assert(args.includes("--init"));
     assert(args.includes("/candidate/runtime/node"));
@@ -230,6 +231,7 @@ test("support only: native recovery plans bind declared artifacts/runtime and re
     for (const { plan } of amdCaptured.invocations) {
       assert.equal(plan.platform, "linux/amd64");
       assert.equal(plan.tools.args[plan.tools.args.indexOf("--platform") + 1], "linux/amd64");
+      assert.equal(plan.tools.args[plan.tools.args.indexOf("--user") + 1], `${process.getuid()}:${process.getgid()}`);
       const args = plan.candidate.arguments("b".repeat(64));
       assert.equal(args[args.indexOf("--platform") + 1], "linux/amd64");
       assert(args.includes("--read-only"));
