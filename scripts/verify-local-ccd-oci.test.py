@@ -80,6 +80,34 @@ class Verifier(unittest.TestCase):
                     layer=stream.getvalue()
                     config={**self.derived_config,'rootfs':{'type':'layers','diff_ids':[sha(self.base_layer),sha(layer)]}}
                     with self.assertRaisesRegex(ValueError,'EXTENDED_ATTRIBUTES'):self.verify(config,layer)
+    def test_descriptor_equivalence_is_only_gzip_media_type(self):
+        docker={'mediaType':'application/vnd.docker.image.rootfs.diff.tar.gzip','digest':sha(b'bytes'),'size':5}
+        oci={**docker,'mediaType':'application/vnd.oci.image.layer.v1.tar+gzip'}
+        self.assertEqual(v.canonical_layer_descriptor(docker),v.canonical_layer_descriptor(oci))
+        for changed in [{**oci,'digest':sha(b'other')},{**oci,'size':6},{**oci,'mediaType':'application/vnd.oci.image.layer.v1.tar'},{**oci,'annotations':{}},{**oci,'urls':['https://foreign.invalid']}]:
+            self.assertNotEqual(v.canonical_layer_descriptor(docker),v.canonical_layer_descriptor(changed))
+        first=v.canonical_layer_descriptor(docker);second={**first,'digest':sha(b'second')}
+        self.assertNotEqual([first,second],[second,first])
+    def test_legacy_config_omissions_are_one_way_and_default_only(self):
+        base={**self.base_config,'container':'old','docker_version':'old','container_config':{'Cmd':['old-build']},'config':{**self.base_config['config'],'Tty':False,'Hostname':'','Image':'old-parent'}}
+        self.assertEqual(v.verify_execution_config(base,self.base_config),['config.Hostname','config.Image','config.Tty','container','container_config','docker_version'])
+        for key,value in [('Tty',True),('Hostname','foreign-host'),('Volumes',{'/foreign':{}}),('OnBuild',['RUN foreign'])]:
+            bad={**base,'config':{**base['config'],key:value}}
+            with self.assertRaisesRegex(ValueError,'NONDEFAULT_CONFIG_OMITTED'):v.verify_execution_config(bad,self.base_config)
+        for key,value in [('Image','foreign-parent'),('Tty',True),('Hostname','foreign-host')]:
+            bad={**self.base_config,'config':{**self.base_config['config'],key:value}}
+            with self.assertRaisesRegex(ValueError,'EXECUTION_CONFIG_CHANGED'):v.verify_execution_config(base,bad)
+        with self.assertRaisesRegex(ValueError,'EXECUTION_CONFIG_CHANGED'):v.verify_execution_config(self.base_config,base)
+    def test_parent_permissions_include_special_bits(self):
+        for mode, accepted in [(0o40755,True),(0o755,True),(0o777,False),(0o4755,False)]:
+            stream=io.BytesIO()
+            with tarfile.open(fileobj=stream,mode='w') as archive:
+                parent=tarfile.TarInfo('opt');parent.type=tarfile.DIRTYPE;parent.mode=mode;parent.uid=1000;parent.gid=1000;archive.addfile(parent)
+                jar=tarfile.TarInfo('opt/app/core-case-data.jar');jar.mode=0o644;jar.size=len(self.jar);archive.addfile(jar,io.BytesIO(self.jar))
+            file=self.root/'parents.tar';file.write_bytes(stream.getvalue())
+            if accepted:v.jar_layer(file,sha(self.jar),{'opt':(0o755,1000,1000)})
+            else:
+                with self.assertRaisesRegex(ValueError,'PARENT_METADATA_CHANGED'):v.jar_layer(file,sha(self.jar),{'opt':(0o755,1000,1000)})
     def test_positive(self):
         result=self.verify();self.assertFalse(result['runtimeAcceptance']);self.assertFalse(result['catalogueCredit']);self.assertEqual(result['jarDigest'],sha(self.jar))
     def test_changed_entrypoint(self):

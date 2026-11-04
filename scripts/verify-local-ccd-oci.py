@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import tarfile
 import tempfile
 
@@ -151,7 +152,7 @@ def jar_layer(file, expected, parents):
             require(name in ['opt', 'opt/app', 'opt/app/core-case-data.jar'], 'LOCAL_OCI_LAYER_EXTRA_PATH')
             if name != 'opt/app/core-case-data.jar':
                 require(entry.isdir(), 'LOCAL_OCI_LAYER_PARENT_TYPE')
-                require(parents.get(name) == (entry.mode,entry.uid,entry.gid), 'LOCAL_OCI_PARENT_METADATA_CHANGED')
+                require(parents.get(name) == (stat.S_IMODE(entry.mode),entry.uid,entry.gid), 'LOCAL_OCI_PARENT_METADATA_CHANGED')
                 continue
             require(entry.isfile() and entry.mode == 0o644 and entry.uid == 0 and entry.gid == 0, 'LOCAL_OCI_JAR_TYPE_MODE')
             require(entry.size <= MAX_BLOB, 'LOCAL_OCI_JAR_SIZE')
@@ -163,13 +164,40 @@ def jar_layer(file, expected, parents):
             jars += 1
     require(jars == 1, 'LOCAL_OCI_JAR_MISSING')
 
+def canonical_layer_descriptor(descriptor):
+    # Buildx exports the same gzip bytes with the equivalent OCI media type.
+    result = dict(descriptor)
+    if result.get('mediaType') == 'application/vnd.docker.image.rootfs.diff.tar.gzip':
+        result['mediaType'] = 'application/vnd.oci.image.layer.v1.tar+gzip'
+    return result
+
+def verify_execution_config(base, derived):
+    b = {k:v for k,v in base.items() if k not in ['rootfs','history','created']}
+    d = {k:v for k,v in derived.items() if k not in ['rootfs','history','created']}
+    omitted = []
+    for key in ['container','container_config','docker_version']:
+        if key in b and key not in d:
+            del b[key];omitted.append(key)
+    bc, dc = dict(b.get('config', {})), dict(d.get('config', {}))
+    defaults = {'AttachStdin':False,'AttachStdout':False,'AttachStderr':False,'Tty':False,'OpenStdin':False,'StdinOnce':False,'Hostname':'','Domainname':'','Volumes':None,'OnBuild':None}
+    for key, expected in defaults.items():
+        if key in bc and key not in dc:
+            require(type(bc[key]) is type(expected) and bc[key] == expected, 'LOCAL_OCI_NONDEFAULT_CONFIG_OMITTED')
+            del bc[key];omitted.append('config.'+key)
+    if 'Image' in bc and 'Image' not in dc:
+        # Docker legacy parent-image bookkeeping; pinned base fixes its exact value.
+        del bc['Image'];omitted.append('config.Image')
+    b['config'], d['config'] = bc, dc
+    require(b == d, 'LOCAL_OCI_EXECUTION_CONFIG_CHANGED')
+    return sorted(omitted)
+
 def verify_derivative(base, derived, base_digest=BASE, jar_digest=JAR):
     require(base['configDigest'] == base_digest, 'LOCAL_OCI_BASE_IDENTITY')
     b, d = base['config'], derived['config']
     require(len(derived['manifest']['layers']) == len(base['manifest']['layers']) + 1, 'LOCAL_OCI_DERIVATIVE_LAYER_COUNT')
-    require(derived['manifest']['layers'][:-1] == base['manifest']['layers'], 'LOCAL_OCI_BASE_LAYER_PREFIX')
+    require([canonical_layer_descriptor(item) for item in derived['manifest']['layers'][:-1]] == [canonical_layer_descriptor(item) for item in base['manifest']['layers']], 'LOCAL_OCI_BASE_LAYER_PREFIX')
     require(d['rootfs']['diff_ids'][:-1] == b['rootfs']['diff_ids'], 'LOCAL_OCI_BASE_DIFF_PREFIX')
-    require({k:v for k,v in d.items() if k not in ['rootfs','history','created']} == {k:v for k,v in b.items() if k not in ['rootfs','history','created']}, 'LOCAL_OCI_EXECUTION_CONFIG_CHANGED')
+    omitted = verify_execution_config(b, d)
     bh, dh = b.get('history', []), d.get('history', [])
     require(dh[:len(bh)] == bh and len(dh) == len(bh) + 1 and not dh[-1].get('empty_layer', False), 'LOCAL_OCI_HISTORY_CHANGED')
     require('COPY' in dh[-1].get('created_by', '') and 'core-case-data.jar' in dh[-1].get('created_by', ''), 'LOCAL_OCI_COPY_HISTORY')
@@ -180,9 +208,9 @@ def verify_derivative(base, derived, base_digest=BASE, jar_digest=JAR):
                 name=entry.name.removeprefix('./').rstrip('/')
                 if name in ['opt','opt/app']:
                     require(entry.isdir(),'LOCAL_OCI_BASE_PARENT_TYPE')
-                    parents[name]=(entry.mode,entry.uid,entry.gid)
+                    parents[name]=(stat.S_IMODE(entry.mode),entry.uid,entry.gid)
     jar_layer(derived['expanded'][-1], jar_digest, parents)
-    return {'schemaVersion':1,'profile':'ccd-results-internal-id-fix-feasibility','kind':'verified-local-oci-ccd-derivative','platform':'linux/arm64','baseArchiveDigest':base['archiveDigest'],'baseManifestDigest':base['manifestDigest'],'baseConfigDigest':base['configDigest'],'archiveDigest':derived['archiveDigest'],'manifestDigest':derived['manifestDigest'],'indexDocumentDigest':derived['indexDocumentDigest'],'configDigest':derived['configDigest'],'rootfsDiffIds':d['rootfs']['diff_ids'],'executionConfig':d.get('config',{}),'jarDigest':jar_digest,'runtimeAcceptance':False,'catalogueCredit':False,'releaseCredit':False}
+    return {'schemaVersion':1,'profile':'ccd-results-internal-id-fix-feasibility','kind':'verified-local-oci-ccd-derivative','platform':'linux/arm64','baseArchiveDigest':base['archiveDigest'],'baseManifestDigest':base['manifestDigest'],'baseConfigDigest':base['configDigest'],'archiveDigest':derived['archiveDigest'],'manifestDigest':derived['manifestDigest'],'indexDocumentDigest':derived['indexDocumentDigest'],'configDigest':derived['configDigest'],'rootfsDiffIds':d['rootfs']['diff_ids'],'executionConfig':d.get('config',{}),'jarDigest':jar_digest,'omittedLegacyConfigFields':omitted,'gzipMediaTypeNormalizedLayerIndexes':[i for i,(left,right) in enumerate(zip(base['manifest']['layers'],derived['manifest']['layers'])) if left['mediaType'] != right['mediaType']],'runtimeAcceptance':False,'catalogueCredit':False,'releaseCredit':False}
 
 def verify_artifact(root):
     root = Path(root)

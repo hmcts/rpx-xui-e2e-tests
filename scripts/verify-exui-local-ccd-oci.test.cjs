@@ -33,3 +33,15 @@ test('failed verification never loads, modified archive never loads, no baseline
  const runtime=await import('./lib/exui-ccd-runtime.mjs');assert.throws(()=>runtime.assertCcdImageIdentity(r.inspect,{manifestDigest:r.receipt.configDigest},'linux/arm64'),/CCD_IMAGE_IDENTITY_MISMATCH/);
 });
 test('Python verifier failure cannot be replaced with caller metadata',async()=>{const {verifyLocalCcdDerivative}=await import('./lib/exui-local-ccd-oci.mjs');assert.throws(()=>verifyLocalCcdDerivative({baseArchive:'/tmp/base',derivedArchive:'/tmp/derived',artifactRoot:'/tmp/artifact'},{run:()=>({status:1,stdout:'{"verified":true}'})}),/VERIFICATION_FAILED/);});
+
+test('only fixed verifier codes survive process and command diagnostics',async()=>{
+ const lib=await import('./lib/exui-local-ccd-oci.mjs');
+ for(const code of ['LOCAL_OCI_BASE_LAYER_PREFIX','LOCAL_OCI_LAYER_EXTENDED_ATTRIBUTES']) {
+  assert.throws(()=>lib.verifyLocalCcdDerivative({baseArchive:'base',artifactRoot:'artifact'},{run:()=>({status:1,stdout:JSON.stringify({error:code})})}),{message:code});
+  assert.equal(lib.safeLocalCcdFailure(new Error(code)),code);
+ }
+ for(const text of ['LOCAL_OCI_SECRET_TOKEN_ABC','password=private','LOCAL_OCI_BASE_LAYER_PREFIX\nsecret']) {
+  assert.throws(()=>lib.verifyLocalCcdDerivative({baseArchive:'base',artifactRoot:'artifact'},{run:()=>({status:1,stdout:JSON.stringify({error:text})})}),{message:'LOCAL_CCD_OCI_VERIFICATION_FAILED'});
+  assert.equal(lib.safeLocalCcdFailure(new Error(text)),'LOCAL_CCD_OCI_COMMAND_FAILED');
+ }
+});
