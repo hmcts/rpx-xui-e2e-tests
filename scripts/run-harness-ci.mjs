@@ -52,13 +52,34 @@ const scopes = {
   eventCapability: EVENT_CAPABILITY_SCOPE,
   routing: "exui-decentralised-routing-pilot",
 };
+async function reportProgress(label, operation) {
+  const started = performance.now();
+  const log = (state) => console.log(
+    `[harness-native] ${label}: ${state} (${Math.floor((performance.now() - started) / 1000)}s elapsed).`,
+  );
+  log("started");
+  const heartbeat = setInterval(() => log("still running; awaiting operation completion"), 60_000);
+  heartbeat.unref();
+  try {
+    const result = await operation();
+    log(["PASS", "FAIL", "BLOCKED"].includes(result?.status) ? result.status : "completed");
+    return result;
+  } catch (error) {
+    log("stopped; details remain private");
+    throw error;
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
 export async function runFixedCiPilots(operations) {
   const results = [];
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
   const phase = async (name) => {
     checkCancellation();
-    const result = await operations.phase(name);
+    const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing" };
+    const result = await reportProgress(labels[name], () => operations.phase(name));
     checkCancellation();
     results.push({ phase: name, ...result });
     return result;
@@ -70,28 +91,28 @@ export async function runFixedCiPilots(operations) {
   let result = await phase("family");
   if (result.exitCode !== 0) return { ...result, results };
   checkCancellation();
-  await operations.derive();
+  await reportProgress("Scope fault candidate preparation", () => operations.derive());
   checkCancellation();
   result = await phase("scope");
   if (result.exitCode !== 0) return { ...result, results };
   try {
     checkCancellation();
-    await operations.start();
+    await reportProgress("CCD runtime startup", () => operations.start());
     checkCancellation();
     result = await phase("ccd");
   } finally {
-    await operations.stop();
+    await reportProgress("CCD runtime cleanup", () => operations.stop());
   }
   if (result.exitCode !== 0 && operations.canContinueAfterCcd?.() !== true)
     return { ...result, results };
   let eventResult;
   try {
     checkCancellation();
-    await operations.startEvent();
+    await reportProgress("Source event CCD runtime startup", () => operations.startEvent());
     checkCancellation();
     eventResult = await phase("eventCapability");
   } finally {
-    await operations.stopEvent();
+    await reportProgress("Source event CCD runtime cleanup", () => operations.stopEvent());
   }
   if (eventResult.exitCode !== 0) return outcome();
   checkCancellation();

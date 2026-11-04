@@ -1423,3 +1423,30 @@ test("support only: an asynchronous cancellation cleanup cannot allow a complete
     fs.rmSync(output, { recursive: true, force: true });
   }
 });
+
+
+test('native progress reports waiting and terminal verdict without exposing operation data',async t=>{
+ const {runFixedCiPilots}=await load();
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));
+ t.mock.timers.enable({apis:['setInterval']});
+ let release;const pending=new Promise(resolve=>{release=resolve;});
+ const run=runFixedCiPilots({phase:()=>pending});
+ assert.match(messages[0],/WA family: started/);
+ t.mock.timers.tick(60_000);
+ assert.match(messages[1],/WA family: still running/);
+ assert.equal(messages.length,2);
+ release({status:'FAIL',exitCode:1,private:'PRIVATE-CANARY'});
+ assert.equal((await run).exitCode,1);
+ assert.match(messages.at(-1),/WA family: FAIL/);
+ const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
+ assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
+});
+
+test('native progress stops heartbeat after a rejected operation and keeps the error private',async t=>{
+ const {runFixedCiPilots}=await load();const messages=[];
+ t.mock.method(console,'log',message=>messages.push(message));t.mock.timers.enable({apis:['setInterval']});
+ await assert.rejects(runFixedCiPilots({phase:async()=>{throw Error('PRIVATE-CANARY');}}),/PRIVATE-CANARY/);
+ assert.match(messages.at(-1),/WA family: stopped/);
+ const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
+ assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
+});
