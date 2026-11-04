@@ -433,7 +433,7 @@ test('checked-in Helm overrides stay explicit source inventory and do not approv
   assert.equal(result.releaseCredit, false);
 });
 
-test('routing projection replaces13 profile IDs while retaining exact98 other objects and the historical110 ID fingerprint', () => {
+test('routing projection preserves historical IDs and non-profile objects apart from explicit shared source provenance', () => {
   const { createHash } = require('node:crypto');
   const catalogue = build();
   const id = 'configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed';
@@ -449,7 +449,11 @@ test('routing projection replaces13 profile IDs while retaining exact98 other ob
   const remaining = catalogue.obligations.filter(item => !['configuration-profile', 'configuration-decentralisation'].includes(item.kind));
   assert.equal(remaining.length, 98);
   assert.deepEqual(remaining, previous.obligations.filter(item => item.kind !== 'configuration-profile'));
-  assert.equal(createHash('sha256').update(JSON.stringify(remaining)).digest('hex'), '518b0a661b7b3fbf942754b0bd1560ba6fde1ee61896a58204b78d46f1b16551');
+  const historicalRemaining = remaining.map(item => item.kind === 'shared-policy' ? { ...item, sourceKeys: [] } : item);
+  assert.equal(createHash('sha256').update(JSON.stringify(historicalRemaining)).digest('hex'), '518b0a661b7b3fbf942754b0bd1560ba6fde1ee61896a58204b78d46f1b16551');
+  const shared = remaining.filter(item => item.kind === 'shared-policy');
+  assert.equal(shared.length, 2);
+  assert(shared.every(item => item.sourceKeys.length >= 4 && item.sourceKeys.every(key => Object.hasOwn(review.sourceFileDigests, key))));
   const profiles = catalogue.obligations.filter(item => item.kind === 'configuration-profile');
   assert.equal(profiles.length, 13);
   for (const old of previous.obligations.filter(item => item.kind === 'configuration-profile')) {

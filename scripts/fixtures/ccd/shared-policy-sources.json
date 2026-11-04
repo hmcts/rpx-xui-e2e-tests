@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 1,
+  "caseType": "PRLAPPS",
+  "runtimeCaseType": "HarnessNestedPRL",
+  "sourceReferences": [
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json",
+      "digest": "sha256:685707c79e49ee0b51883c5d06187e38a584ce3e4cd526124f72b3fbfe4a9748",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json",
+      "digest": "sha256:c169af98fa7ea2b08bb97b63d75ad7411513c28982f54aeba84740cbe859e5f6",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+      "digest": "sha256:246b111d163ec15d3e9303c807b9ede7c987133de336bc541a483b0f3bbb90c1",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+      "digest": "sha256:74d798a7a4898843685274d5b92b35e74bdda339a1bb478d81b17a006bd55f59",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/AuthorisationCaseEvent/ServiceOfDocuments/AuthorisationCaseEvent.json",
+      "digest": "sha256:4e1c87b9fe4c0757b89e93ee0b8d55566126c3dc6eacb2224056b99ff695efef",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-prod.json",
+      "digest": "sha256:eeca831c3e65e66a8ff889d50c31f9d44d6ebe5fc18e682c86f378a51630a041",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-nonprod.json",
+      "digest": "sha256:14432c0c56ba6d1c0ecf5a53e4f303bd50e45c932c14aeb4935afd656c4eb764",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/AuthorisationCaseState.json",
+      "digest": "sha256:a3652892c10b9011a0849ae061384d1136aa8d59685ced7ed85a5520d5984044",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/AuthorisationCaseField/ServiceOfDocuments/AuthorisationCaseField.json",
+      "digest": "sha256:2243327b3ea01dbd72775ec201b8edb27f3cef8792e14f57b0aebd73271f49fb",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-prod.json",
+      "digest": "sha256:dc3e4dbdd2f13ae7fe18c274cb7aec8f995497866ebf246a606995d19f0ce3ac",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseEvent/ServiceOfDocuments/CaseEvent-nonprod.json",
+      "digest": "sha256:afe3f95198712736e5da00f056c80021315ec1d5809e79b619dbf3edc8aa46be",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/FixedLists.json",
+      "digest": "sha256:d44be4605dc71a17096e0aee4ae6fbedf4b0a7a522cb793e9b43bb76c4f371c6",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/prl-ccd-definitions",
+      "revision": "694b9951e94369f1394380506960c4f04f25755d",
+      "path": "definitions/private-law/json/CaseType.json",
+      "digest": "sha256:f6b368e37f7367394ab67773d15b7b5ee739c79c9f833ff2aa17f813fb1c9043",
+      "boundary": "definition"
+    },
+    {
+      "repository": "hmcts/ccd-case-ui-toolkit",
+      "revision": "d3ab22454a82040ab0c7e9e1161f562dd1390a5e",
+      "path": "projects/ccd-case-ui-toolkit/src/lib/shared/components/palette/complex/write-complex-field.component.ts",
+      "digest": "sha256:3d2dcf48f8777dc1defbdf5bdec707cb8363a2a52c939d96da942ca0ad3f63c2",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-case-ui-toolkit",
+      "revision": "d3ab22454a82040ab0c7e9e1161f562dd1390a5e",
+      "path": "projects/ccd-case-ui-toolkit/src/lib/shared/components/palette/complex/read-complex-field.component.ts",
+      "digest": "sha256:2c3eef95ace50741d936b3e1610f45df8ec8159ff1a94fc35a184b1186aa5b0c",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-case-ui-toolkit",
+      "revision": "d3ab22454a82040ab0c7e9e1161f562dd1390a5e",
+      "path": "projects/ccd-case-ui-toolkit/src/lib/shared/components/palette/collection/write-collection-field.component.ts",
+      "digest": "sha256:794471e5930359506ee809df0a02b4ada436884c6929fcb6a3474e6dfddbd098",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-case-ui-toolkit",
+      "revision": "d3ab22454a82040ab0c7e9e1161f562dd1390a5e",
+      "path": "projects/ccd-case-ui-toolkit/src/lib/shared/components/palette/collection/read-collection-field.component.ts",
+      "digest": "sha256:55af0beb64dc8cb4213a7b37a5e6d55954d560aec681ab8e4fd1a778cf13a30e",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-case-ui-toolkit",
+      "revision": "d3ab22454a82040ab0c7e9e1161f562dd1390a5e",
+      "path": "projects/ccd-case-ui-toolkit/src/lib/shared/components/case-editor/services/cases.service.ts",
+      "digest": "sha256:3efb1e78aa41bc915f05f78e7f328266c3de57003145a9b18a823c09845ca704",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-data-store-api",
+      "revision": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+      "path": "src/main/java/uk/gov/hmcts/ccd/domain/service/casedataaccesscontrol/RoleBasedCaseDataAccessControl.java",
+      "digest": "sha256:924bfc7e7a3cb1fc7fd2e2cc0f0b367e9fe74bfa1c56b4d9579d873aeb93bc84",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-data-store-api",
+      "revision": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+      "path": "src/main/java/uk/gov/hmcts/ccd/domain/service/getcase/AuthorisedGetCaseOperation.java",
+      "digest": "sha256:aa1ccfe12139f25e4bdc70356f62f2de669c8214987a6f78e8d666d4e309d363",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-data-store-api",
+      "revision": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+      "path": "src/main/java/uk/gov/hmcts/ccd/domain/service/createevent/AuthorisedCreateEventOperation.java",
+      "digest": "sha256:42f64793bd2b54e3c620bd0deb395e69c17e6f56882af6468fb78cbd8f48ce1b",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-data-store-api",
+      "revision": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+      "path": "src/main/java/uk/gov/hmcts/ccd/domain/service/startevent/AuthorisedStartEventOperation.java",
+      "digest": "sha256:713464a1fcbcdc42d69871d08d1d3e74bdb471fa8466d63fd3e50694b9e4844d",
+      "boundary": "interpreter-source-reference"
+    }
+  ],
+  "runtimeBindingRequired": true
+}

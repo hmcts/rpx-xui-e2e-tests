@@ -1,4 +1,5 @@
 import process from 'node:process';
+import { sharedPolicySourceKeys } from './exui-shared-policy-contracts.mjs';
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -205,7 +206,7 @@ export function buildConfigurationCatalogue(snapshot, review) {
         : ['observe-state-before', 'attempt-update', 'assert-denied', 'observe-state-and-history-after'],
       sourceKeys: unique(features.map((feature) => feature.sourceKey)) });
   }
-  for (const id of sharedIds) obligations.push({ id, kind: 'shared-policy', requiredBoundary: id.endsWith('role-policy') ? 'ccd' : 'candidate', sourceKeys: [] });
+  for (const id of sharedIds) obligations.push({ id, kind: 'shared-policy', requiredBoundary: id.endsWith('role-policy') ? 'ccd' : 'candidate', sourceKeys: sharedPolicySourceKeys(id) });
   const sequences = (review.sourceSequences ?? []).map((signature) => {
     const support = signature.sourceShapeIds.map((id) => features.find((feature) => feature.id === id)).filter(Boolean);
     const id = `configuration-sequence:${digest(signature)}`;
