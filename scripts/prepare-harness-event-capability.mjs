@@ -8,6 +8,9 @@ import { assertFreshCandidateDerivationOutput } from "./lib/exui-candidate-artif
 import {
   buildEventCapabilityFixtures,
   validateEventCapabilityPair,
+  deriveCourtadminReadFault,
+  validateCourtadminReadPair,
+  COURTADMIN_READ_MUTATION,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_MUTATION,
   EVENT_CAPABILITY_PROOFS,
@@ -19,6 +22,8 @@ export async function prepareEventCapabilityFixtures(output) {
   const sourcePath = path.join(fixtureRoot, "event-capability.source.json");
   const source = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
   const pair = buildEventCapabilityFixtures(source);
+  pair["read-mutant"] = deriveCourtadminReadFault(pair.baseline, source);
+  const readTransformation = validateCourtadminReadPair(pair.baseline, pair["read-mutant"], source);
   const transformation = validateEventCapabilityPair(
     pair.baseline,
     pair.mutant,
@@ -35,13 +40,15 @@ export async function prepareEventCapabilityFixtures(output) {
     schemaVersion: 1,
     scope: EVENT_CAPABILITY_SCOPE,
     mutationId: EVENT_CAPABILITY_MUTATION,
+    readMutationId: COURTADMIN_READ_MUTATION,
+    readTransformation,
     proofs: EVENT_CAPABILITY_PROOFS,
     sourceRevision: source.revision,
     sourceProjectionDigest: EVENT_CAPABILITY_SOURCE_DIGEST,
     transformation,
     releaseCredit: false,
   };
-  for (const name of ["baseline", "mutant"]) {
+  for (const name of ["baseline", "mutant", "read-mutant"]) {
     const file = path.join(destination, name + ".json");
     fs.writeFileSync(file, JSON.stringify(pair[name], null, 2) + "\n", {
       flag: "wx",

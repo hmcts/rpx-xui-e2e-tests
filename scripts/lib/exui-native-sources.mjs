@@ -44,6 +44,8 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/fixtures/ccd/event-capability/baseline.xlsx",
   "scripts/fixtures/ccd/event-capability/mutant.json",
   "scripts/fixtures/ccd/event-capability/mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/read-mutant.json",
+  "scripts/fixtures/ccd/event-capability/read-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/binding.json",
   "scripts/fixtures/ccd/workbook.py",
   "scripts/lib/exui-configuration-runtime-coverage.mjs",

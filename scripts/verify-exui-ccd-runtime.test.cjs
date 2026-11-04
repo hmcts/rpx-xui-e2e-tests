@@ -118,7 +118,7 @@ const fixedRuntime = async () => {
   const api = await runtime;
   assert.deepEqual(
     api.CCD_FIXTURE_SELECTIONS,
-    ["nested-prl", "event-capability-baseline", "event-capability-mutant"],
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant"],
     "fixed source fixture selection must exist before transport use",
   );
   return api;
@@ -280,7 +280,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
     fs.readFileSync(path.join(__dirname, "fixtures/ccd/nested-prl.xlsx")),
   );
   const binding = require("./fixtures/ccd/event-capability/binding.json");
-  for (const variant of ["baseline", "mutant"]) {
+  for (const variant of ["baseline", "mutant", "read-mutant"]) {
     const prepared = api.prepareCcdImport(
       undefined,
       "event-capability-" + variant,
@@ -306,7 +306,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
   );
 });
 
-for (const variant of ["baseline", "mutant"])
+for (const variant of ["baseline", "mutant", "read-mutant"])
   test(
     "support only: real import function with fake transport validates source ACLs for " +
       variant,
@@ -342,6 +342,13 @@ for (const variant of ["baseline", "mutant"])
         }).fixtureDigest,
         receipt.fixtureDigest,
       );
+      const recipientAcl = f.observed.case_fields
+        .find(field => field.id === "sodAdditionalRecipientsList")
+        .acls.find(acl => acl.role === "caseworker-privatelaw-courtadmin");
+      assert.equal(recipientAcl.read, variant !== "read-mutant");
+      assert.equal(recipientAcl.create, true);
+      assert.equal(recipientAcl.update, true);
+      assert.equal(recipientAcl.delete, true);
       const judge = f.observed.events
         .find((e) => e.id === "serviceOfDocuments")
         .acls.find((a) => a.role === "caseworker-privatelaw-judge");

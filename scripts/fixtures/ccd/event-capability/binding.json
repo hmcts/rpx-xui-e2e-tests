@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "scope": "exui-ccd-event-capability-pilot",
   "mutationId": "ccd-enable-judge-event",
+  "readMutationId": "ccd-remove-courtadmin-recipient-read",
+  "readTransformation": {
+    "sheet": "AuthorisationCaseField",
+    "role": "caseworker-privatelaw-courtadmin",
+    "caseField": "sodAdditionalRecipientsList",
+    "field": "CRUD",
+    "before": "CRUD",
+    "after": "CUD"
+  },
   "proofs": {
     "courtadmin": "ccd-courtadmin-email-one",
     "judge": "ccd-event-create-denied",
@@ -25,5 +34,9 @@
   "mutant": {
     "sourceDigest": "sha256:698f10039605c73d6409f9c2ac34347a894208fd2a790e30c210c963e37ad95b",
     "workbookDigest": "sha256:66547ce859c0ebf4ee94c4ee232130fffb8fe8f1e3f6d645b8ddc89d519153c6"
+  },
+  "read-mutant": {
+    "sourceDigest": "sha256:9ac6345c9f425130adf5895edc42ca2e7ccdac92208cd7aeb2f880f0e41fdbbf",
+    "workbookDigest": "sha256:929dcc211cddbc0c3a2cce0e0bc8386064c1ef09c06f76674647c89a0afbe7e8"
   }
 }

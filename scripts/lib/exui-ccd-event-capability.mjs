@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 
 export const EVENT_CAPABILITY_SCOPE = "exui-ccd-event-capability-pilot";
 export const EVENT_CAPABILITY_MUTATION = "ccd-enable-judge-event";
+export const COURTADMIN_READ_MUTATION = "ccd-remove-courtadmin-recipient-read";
 export const EVENT_CAPABILITY_PROOFS = Object.freeze({
   courtadmin: "ccd-courtadmin-email-one",
   judge: "ccd-event-create-denied",
@@ -372,5 +373,34 @@ export function validateEventCapabilityPair(
     field: "CRUD",
     before: "R",
     after: "CR",
+  };
+}
+
+export function deriveCourtadminReadFault(baseline, source = readSource()) {
+  assert.deepEqual(
+    baseline,
+    buildEventCapabilityFixtures(source).baseline,
+    "COURTADMIN_READ_BASE_MISMATCH",
+  );
+  const mutant = structuredClone(baseline);
+  mutant.sheets.AuthorisationCaseField.find(
+    (row) => row.UserRole === courtadmin && row.CaseFieldID === "sodAdditionalRecipientsList",
+  ).CRUD = "CUD";
+  return mutant;
+}
+
+export function validateCourtadminReadPair(baseline, mutant, source = readSource()) {
+  assert.deepEqual(
+    mutant,
+    deriveCourtadminReadFault(baseline, source),
+    "COURTADMIN_READ_FAULT_MISMATCH",
+  );
+  return {
+    sheet: "AuthorisationCaseField",
+    role: courtadmin,
+    caseField: "sodAdditionalRecipientsList",
+    field: "CRUD",
+    before: "CRUD",
+    after: "CUD",
   };
 }

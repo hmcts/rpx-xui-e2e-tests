@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import {
   validateEventCapabilityPair,
+  validateCourtadminReadPair,
+  COURTADMIN_READ_MUTATION,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_MUTATION,
   EVENT_CAPABILITY_SOURCE_DIGEST,
@@ -97,6 +99,7 @@ export const CCD_FIXTURE_SELECTIONS = Object.freeze([
   "nested-prl",
   "event-capability-baseline",
   "event-capability-mutant",
+  "event-capability-read-mutant",
 ]);
 const sourceActors = Object.freeze({
   courtadmin: "caseworker-privatelaw-courtadmin",
@@ -522,7 +525,7 @@ export function prepareCcdImport(
     );
     const root = path.join(fixtureRoot, "event-capability");
     const pair = Object.fromEntries(
-      ["baseline", "mutant"].map((name) => [
+      ["baseline", "mutant", "read-mutant"].map((name) => [
         name,
         JSON.parse(fs.readFileSync(path.join(root, name + ".json"))),
       ]),
@@ -533,6 +536,12 @@ export function prepareCcdImport(
     );
     const binding = JSON.parse(
       fs.readFileSync(path.join(root, "binding.json")),
+    );
+    assert.equal(binding.readMutationId, COURTADMIN_READ_MUTATION, "CCD_READ_MUTATION_BINDING_MISMATCH");
+    assert.deepEqual(
+      binding.readTransformation,
+      validateCourtadminReadPair(pair.baseline, pair["read-mutant"]),
+      "CCD_READ_BINDING_TRANSFORMATION_MISMATCH",
     );
     assert.deepEqual(
       binding.transformation,
@@ -565,7 +574,7 @@ export function prepareCcdImport(
       EVENT_CAPABILITY_SOURCE_DIGEST,
       "CCD_EVENT_SOURCE_BINDING_MISMATCH",
     );
-    for (const name of ["baseline", "mutant"]) {
+    for (const name of ["baseline", "mutant", "read-mutant"]) {
       assert.equal(
         digest(fs.readFileSync(path.join(root, name + ".json"))),
         binding[name].sourceDigest,
@@ -579,7 +588,7 @@ export function prepareCcdImport(
       validateCcdDefinition(pair[name].sheets);
     }
     const variant =
-      selection === "event-capability-baseline" ? "baseline" : "mutant";
+      selection.slice("event-capability-".length);
     return {
       file: fs.readFileSync(path.join(root, variant + ".xlsx")),
       binding: {
