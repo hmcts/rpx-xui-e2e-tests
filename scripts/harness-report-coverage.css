@@ -25,6 +25,53 @@
   background: #173b4c;
   color: #fff;
 }
+#harness-coverage-at-a-glance {
+  margin: 1rem 0;
+}
+.harness-coverage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+.harness-coverage-dimension {
+  min-width: 0;
+  border: 1px solid #8798a4;
+  border-radius: 4px;
+  padding: 0.75rem;
+}
+.harness-coverage-dimension h3 {
+  font-size: 1rem;
+  margin: 0 0 0.25rem;
+}
+.harness-coverage-dimension > p {
+  color: #435363;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+.harness-coverage-dimension .table {
+  font-size: 0.8rem;
+}
+.harness-coverage-dimension .table th,
+.harness-coverage-dimension .table td {
+  padding: 0.35rem;
+}
+.harness-coverage-dimension .table th:first-child {
+  width: 56%;
+}
+.harness-application-coverage {
+  border-left: 6px solid #a26700;
+  background: #fff8e1;
+  border-radius: 3px;
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+}
+.harness-application-coverage h2 {
+  margin-top: 0 !important;
+}
+.harness-application-coverage p:last-child {
+  margin-bottom: 0;
+}
 #harness-overview .table tbody tr:nth-child(even) {
   background: rgba(120, 140, 150, 0.05);
 }
@@ -159,6 +206,9 @@
   display: none !important;
 }
 @media (max-width: 600px) {
+  .harness-coverage-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
   #harness-overview {
     padding: 1rem !important;
   }

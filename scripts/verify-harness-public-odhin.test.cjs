@@ -571,6 +571,73 @@ test("one report explains actual groups and preserves all runtime/owner gaps ind
   assert.deepEqual(fs.readdirSync(publicRoot), ["odhin"]);
 });
 
+test("coverage map breaks out each unique AAT diagnostic by lane, slice, service, jurisdiction and case type", () => {
+  const overview = require("./harness-public-overview.cjs");
+  const { renderCoverage } = require("./harness-report-coverage.cjs");
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: { status: "passed" },
+  }));
+  const dom = require("node-html-parser").parse(
+    renderCoverage(records, { nativeAttached: true }),
+  );
+  assert.ok(dom.querySelector("#harness-coverage-at-a-glance"));
+  for (const [dimension, count] of [
+    ["slices", 18],
+    ["services", 15],
+    ["jurisdictions", 14],
+    ["caseTypes", 9],
+  ]) {
+    const rows = dom.querySelectorAll(
+      `[data-coverage-dimension="${dimension}"] tbody tr[data-coverage-area]`,
+    );
+    assert.equal(rows.length, count, `${dimension} areas`);
+  }
+  const countFor = (dimension, area) => {
+    const row = dom.querySelector(
+      `[data-coverage-dimension="${dimension}"] [data-coverage-area="${area}"]`,
+    );
+    assert.ok(row, `${dimension} ${area}`);
+    return Number(row.getAttribute("data-test-count"));
+  };
+  assert.equal(countFor("services", "Shared Harness"), 78);
+  assert.equal(countFor("jurisdictions", "Not case-specific"), 90);
+  assert.equal(countFor("caseTypes", "Not case-specific"), 105);
+  assert.match(dom.querySelector("#harness-coverage-at-a-glance").textContent, /non-additive/i);
+  assert.match(
+    dom.querySelector("#harness-coverage-at-a-glance").textContent,
+    /jurisdiction labels currently mirror service-family codes/i,
+  );
+  assert.match(
+    dom.querySelector('[data-coverage-dimension="caseTypes"] [data-coverage-area="ET_EnglandWales"]').textContent,
+    /Employment Tribunal \(England and Wales\)/,
+  );
+  assert.match(
+    dom.querySelector('[data-coverage-dimension="caseTypes"] [data-coverage-area="CriminalInjuriesCompensation"]').textContent,
+    /Criminal Injuries Compensation/,
+  );
+});
+
+test("main dashboard shows the catalogue evidence gap and coverage map before native proof detail", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  const records = overview.profiles["local-aat"].map((entry) => ({
+    entry,
+    observed: { status: "passed", aatOutcome: "response-passed" },
+  }));
+  const html = await overview.renderOverview(records, "local-aat", {
+    nativeEvidence: await nativePresentationFixture(false),
+  });
+  const coverageAt = html.indexOf('id="harness-coverage-at-a-glance"');
+  const nativeAt = html.indexOf('id="harness-native-evidence"');
+  assert.ok(coverageAt >= 0 && coverageAt < nativeAt);
+  const dom = require("node-html-parser").parse(html);
+  const applicationCoverage = dom.querySelector("#harness-application-coverage");
+  assert.ok(applicationCoverage);
+  assert.equal(applicationCoverage.tagName.toLowerCase(), "section");
+  assert.match(applicationCoverage.textContent, /3\s*\/\s*112/);
+  assert.match(applicationCoverage.textContent, /Release approval remains unavailable/);
+});
+
 test("coverage tables map every exact test once to a lane and slice with scope and drill-down", async (t) => {
   sandbox(t);
   await complete();

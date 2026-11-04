@@ -68,7 +68,38 @@ function outcomes(records) {
 }
 const unique = (values) => [...new Set(values)].sort();
 const scope = (values) => unique(values).map(escape).join(", ");
-function renderCoverage(records, { nativeAttached = false } = {}) {
+const caseTypeLabels = {
+  CriminalInjuriesCompensation: "Criminal Injuries Compensation",
+  ET_EnglandWales: "Employment Tribunal (England and Wales)",
+  ET_Scotland: "Employment Tribunal (Scotland)",
+  GrantOfRepresentation: "Grant of Representation",
+};
+const caseTypeLabel = (value) => caseTypeLabels[value] || value;
+const caseTypeScope = (values) => unique(values).map(caseTypeLabel).map(escape).join(", ");
+function coverageGroups(checked, dimension) {
+  const groups = new Map();
+  for (const record of checked) {
+    const values =
+      dimension === "slices"
+        ? [record.metadata.slice.id]
+        : record.metadata[dimension];
+    for (const value of unique(values)) {
+      if (!groups.has(value)) groups.set(value, []);
+      groups.get(value).push(record);
+    }
+  }
+  return [...groups].sort(([left], [right]) => left.localeCompare(right));
+}
+function renderDimension(dimension, title, groups, labels) {
+  const rows = groups
+    .map(
+      ([area, records]) =>
+        `<tr data-coverage-area="${escape(area)}" data-test-count="${records.length}"><th scope="row">${escape(labels[area] ? `${labels[area]} (${area})` : dimension === "caseTypes" ? caseTypeLabel(area) : area)}</th><td>${records.length}</td><td>${outcomes(records)}</td></tr>`,
+    )
+    .join("");
+  return `<section class="harness-coverage-dimension" aria-labelledby="harness-coverage-${escape(dimension)}"><h3 id="harness-coverage-${escape(dimension)}">${escape(title)}</h3><p>${groups.length} labels</p><div class="table-responsive"><table class="table" data-coverage-dimension="${escape(dimension)}"><thead><tr><th>${escape(title)}</th><th>Tests associated</th><th>Results</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+}
+function renderCoverage(records, { nativeAttached = false, labels = {} } = {}) {
   const checked = records.map((record, index) => ({
     ...record,
     metadata: metadataFor(record.entry),
@@ -84,7 +115,7 @@ function renderCoverage(records, { nativeAttached = false } = {}) {
       const selected = checked.filter(
         (record) => record.metadata.lane.id === lane.id,
       );
-      return `<tr data-lane="${escape(lane.id)}"><th scope="row"><button type="button" class="harness-link" data-harness-lane="${escape(lane.id)}">${escape(lane.label)}</button></th><td>${escape(lane.description)}</td><td>${selected.length}</td><td>${outcomes(selected)}</td></tr>`;
+      return `<tr data-lane="${escape(lane.id)}" data-coverage-area="${escape(lane.id)}" data-test-count="${selected.length}"><th scope="row"><button type="button" class="harness-link" data-harness-lane="${escape(lane.id)}">${escape(lane.label)}</button></th><td>${escape(lane.description)}</td><td>${selected.length}</td><td>${outcomes(selected)}</td></tr>`;
     })
     .join("");
   const filters = [
@@ -95,7 +126,7 @@ function renderCoverage(records, { nativeAttached = false } = {}) {
     ],
     [
       "services",
-      "Service / jurisdiction",
+      "Service / jurisdiction label",
       unique(checked.flatMap((record) => record.metadata.services)).map(
         (value) => [value, value],
       ),
@@ -104,13 +135,28 @@ function renderCoverage(records, { nativeAttached = false } = {}) {
       "caseTypes",
       "Case type",
       unique(checked.flatMap((record) => record.metadata.caseTypes)).map(
-        (value) => [value, value],
+        (value) => [value, caseTypeLabel(value)],
       ),
     ],
   ]
     .map(
       ([key, label, options]) =>
         `<label>${label}<select data-harness-filter="${key}"><option value="">All</option>${options.map(([value, text]) => `<option value="${escape(value)}">${escape(text)}</option>`).join("")}</select></label>`,
+    )
+    .join("");
+  const sliceGroups = coverageGroups(checked, "slices");
+  const dimensions = [
+    ["services", "Services and shared components"],
+    ["jurisdictions", "Jurisdiction labels in test metadata"],
+    ["caseTypes", "Case types associated with tests"],
+  ]
+    .map(([dimension, title]) =>
+      renderDimension(
+        dimension,
+        title,
+        coverageGroups(checked, dimension),
+        labels,
+      ),
     )
     .join("");
   const slices = fixture.slices
@@ -123,12 +169,12 @@ function renderCoverage(records, { nativeAttached = false } = {}) {
       const tests = selected
         .map((record) => {
           const m = record.metadata;
-          return `<tr data-harness-check="${record.index}" data-status="${escape(record.observed.status)}" data-slice="${escape(slice.id)}" data-lane="${escape(lane.id)}" data-services="${escape(JSON.stringify(m.services))}" data-case-types="${escape(JSON.stringify(m.caseTypes))}"><td><strong>${escape(m.behaviour)}</strong><details class="harness-test-source"><summary>Test name and evidence limits</summary><p>${escape(record.entry.titlePath.at(-1))}</p><code>${escape(record.entry.file)}</code><p>${escape(Array.isArray(m.limits) ? m.limits.join(" ") : m.limits)}</p></details></td><td>${scope(m.jurisdictions)}</td><td>${scope(m.caseTypes)}</td><td>${outcomes([record])}</td><td><button type="button" class="harness-link" data-harness-open-test="harness-${record.index}-0">Test detail</button></td></tr>`;
+          return `<tr data-harness-check="${record.index}" data-status="${escape(record.observed.status)}" data-slice="${escape(slice.id)}" data-lane="${escape(lane.id)}" data-services="${escape(JSON.stringify(m.services))}" data-case-types="${escape(JSON.stringify(m.caseTypes))}"><td><strong>${escape(m.behaviour)}</strong><details class="harness-test-source"><summary>Test name and evidence limits</summary><p>${escape(record.entry.titlePath.at(-1))}</p><code>${escape(record.entry.file)}</code><p>${escape(Array.isArray(m.limits) ? m.limits.join(" ") : m.limits)}</p></details></td><td>${scope(m.jurisdictions)}</td><td>${caseTypeScope(m.caseTypes)}</td><td>${outcomes([record])}</td><td><button type="button" class="harness-link" data-harness-open-test="harness-${record.index}-0">Test detail</button></td></tr>`;
         })
         .join("");
-      return `<tr data-harness-slice="${escape(slice.id)}"><td colspan="5"><details class="harness-slice"><summary><span><strong>${escape(slice.label)}</strong><small>${escape(lane.label)}</small></span><span data-slice-services>${scope(selected.flatMap((record) => record.metadata.services))}</span><span data-slice-cases>${scope(selected.flatMap((record) => record.metadata.caseTypes))}</span><span data-slice-outcomes>${outcomes(selected)}</span><span class="harness-match-count">${selected.length} tests</span></summary><p>${escape(slice.description)}</p><div class="table-responsive"><table class="table harness-checks"><thead><tr><th>What this test checks</th><th>Jurisdiction</th><th>Case type</th><th>Result</th><th>Evidence</th></tr></thead><tbody>${tests}</tbody></table></div></details></td></tr>`;
+      return `<tr data-harness-slice="${escape(slice.id)}" data-coverage-area="${escape(slice.id)}" data-test-count="${selected.length}"><td colspan="5"><details class="harness-slice"><summary><span><strong>${escape(slice.label)}</strong><small>${escape(lane.label)}</small></span><span data-slice-services>${scope(selected.flatMap((record) => record.metadata.services))}</span><span data-slice-cases>${caseTypeScope(selected.flatMap((record) => record.metadata.caseTypes))}</span><span data-slice-outcomes>${outcomes(selected)}</span><span class="harness-match-count">${selected.length} tests</span></summary><p>${escape(slice.description)}</p><div class="table-responsive"><table class="table harness-checks"><thead><tr><th>What this test checks</th><th>Jurisdiction label</th><th>Case type</th><th>Result</th><th>Evidence</th></tr></thead><tbody>${tests}</tbody></table></div></details></td></tr>`;
     })
     .join("");
-  return `<section aria-labelledby="harness-lanes-heading"><h2 id="harness-lanes-heading">Test lanes</h2><p>A lane describes how a check runs. Counts below are unique tests, not a percentage of EXUI covered.</p><div class="table-responsive"><table id="harness-lanes" class="table"><thead><tr><th>Lane</th><th>What the evidence means</th><th>Tests</th><th>Results</th></tr></thead><tbody>${lanes}<tr><th>Application journeys / CCD / accessibility</th><td>${nativeAttached ? "See separately counted actual native proofs above, including their selected accessibility scope. No contribution to diagnostic totals." : "These require their own application run; not executed by this diagnostic collection."}</td><td>0 diagnostic tests</td><td>${nativeAttached ? "Separate native section" : outcomes([])}</td></tr></tbody></table></div></section><section aria-labelledby="harness-slices-heading"><h2 id="harness-slices-heading">Test slices and coverage</h2><p>Expand a slice to see every test, its exact scope and result. Service lists describe the checked configuration or fixture; they do not multiply the test count.</p><div class="harness-filters">${filters}<button type="button" data-harness-clear>Clear filters</button></div><p id="harness-filter-count" role="status">${checked.length} tests across ${fixture.slices.filter((slice) => checked.some((record) => record.metadata.slice.id === slice.id)).length} slices</p><div class="table-responsive"><table id="harness-slices" class="table"><thead><tr><th>Slice / lane</th><th>Service / jurisdiction</th><th>Case types represented</th><th>Results</th><th>Tests</th></tr></thead><tbody>${slices}</tbody></table></div></section>`;
+  return `<section id="harness-coverage-at-a-glance" aria-labelledby="harness-coverage-at-a-glance-heading"><h2 id="harness-coverage-at-a-glance-heading">Coverage at a glance</h2><p>Counts are unique diagnostic tests associated with each label. One test can map to several services, jurisdictions or case types, so totals across these tables are non-additive. The jurisdiction labels currently mirror service-family codes in the reviewed test metadata; they are declared associations, not independently verified deployed jurisdiction coverage. Model, replay and Harness checks do not prove product behaviour for every listed area. The feature and slice breakdown follows below.</p><div class="harness-coverage-grid">${dimensions}</div></section><section aria-labelledby="harness-lanes-heading"><h2 id="harness-lanes-heading">Test lanes</h2><p>A lane describes how a check runs. Counts below are unique tests, not a percentage of EXUI covered.</p><div class="table-responsive"><table id="harness-lanes" class="table" data-coverage-dimension="lanes"><thead><tr><th>Lane</th><th>What the evidence means</th><th>Tests</th><th>Results</th></tr></thead><tbody>${lanes}<tr><th>Application journeys / CCD / accessibility</th><td>${nativeAttached ? "See separately counted actual native proofs below, including their selected accessibility scope. No contribution to diagnostic totals." : "These require their own application run; not executed by this diagnostic collection."}</td><td>0 diagnostic tests</td><td>${nativeAttached ? "Separate native section" : outcomes([])}</td></tr></tbody></table></div></section><section aria-labelledby="harness-slices-heading"><h2 id="harness-slices-heading">Test slices and coverage</h2><p>Each row is a named feature or Harness slice. Expand it to see every test, its exact scope and result. Service-family and jurisdiction labels come from reviewed test metadata and do not multiply test counts.</p><div class="harness-filters">${filters}<button type="button" data-harness-clear>Clear filters</button></div><p id="harness-filter-count" role="status">${checked.length} tests across ${sliceGroups.length} slices</p><div class="table-responsive"><table id="harness-slices" class="table" data-coverage-dimension="slices"><thead><tr><th>Slice / lane</th><th>Service family / jurisdiction label</th><th>Case types represented</th><th>Results</th><th>Tests</th></tr></thead><tbody>${slices}</tbody></table></div></section>`;
 }
 module.exports = { metadataFor, renderCoverage, escape };

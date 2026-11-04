@@ -6,6 +6,11 @@ const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
 const { buildConfig, selections } = require('./harness-diagnostic-config.cjs');
 
+test('ESLint excludes generated Harness candidate artifacts', () => {
+  const config = readFileSync('eslint.config.mjs', 'utf8');
+  assert.match(config, /"functional-output"/);
+});
+
 test('the Build lint command requires Harness support checks and preserves their failure before downstream checks', () => {
   const lint = JSON.parse(readFileSync('package.json', 'utf8')).scripts.lint;
   const directory = mkdtempSync(join(tmpdir(), 'harness-build-lint-'));
