@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
+import {isDeepStrictEqual} from 'node:util';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {verifyCandidateArtifact,digestCandidateTree} from './lib/exui-candidate-artifact.mjs';
@@ -40,11 +41,17 @@ export function verifyCallbackUiRuntime(state, imported, {request=ccdRequest, in
  assert.deepEqual([imported.owner,imported.namespace,imported.images],[state.owner,state.namespace,state.images],'CALLBACK_UI_IMPORT_IDENTITY_MISMATCH');
  assert.deepEqual([imported.runtimeAcceptance,imported.catalogueCredit,imported.releaseCredit],[false,false,false],'CALLBACK_UI_IMPORT_STATUS');
  const observer=ccdCredentials(state,'observer',{request});const observed={};
+ const verification={kind:'recipient-callback-runtime-verification',status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,observations:{}};
+ const verificationPath=path.join(state.output,'recipient-callback-import/runtime-verification.json');
+ const saveVerification=()=>fs.writeFileSync(verificationPath,JSON.stringify(verification,null,2)+'\n',{mode:0o600});
  for(const [name,route] of [['definition','/api/data/case-type/HarnessNestedPRL'],['pages','/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments']]){
-  const response=request(state,4451,route,{headers:observer.headers});assert.equal(response.status,200,'CALLBACK_UI_IMPORT_READBACK_FAILED');
-  assert.deepEqual(response.body,imported.observations[name].body,'CALLBACK_UI_IMPORT_DRIFT');observed[name]=response.body;
+  const response=request(state,4451,route,{headers:observer.headers});verification.observations[name]=response;saveVerification();
+  if(response.status!==200){verification.status='readback-failed';verification.failedDescriptor=name;saveVerification();throw Error('CALLBACK_UI_IMPORT_READBACK_FAILED');}
+  if(!isDeepStrictEqual(response.body,imported.observations[name].body)){verification.status='descriptor-drift';verification.failedDescriptor=name;saveVerification();throw Error('CALLBACK_UI_IMPORT_DRIFT');}
+  observed[name]=response.body;
  }
  validateObservedRecipientCallback(observed.definition,observed.pages,imported.seal.binding,imported.seal.variant??'baseline');
+ verification.status='verified';saveVerification();
  return Object.fromEntries(Object.entries(observed).map(([name,body])=>[name,digestBytes(JSON.stringify(body))]));
 }
 export function assertCallbackUiOutcome(variant, terminal, observed, report) {

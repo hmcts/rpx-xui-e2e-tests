@@ -104,6 +104,7 @@ test('support only: callback UI checks its distinct receipt and actual descripto
  const result=verifyCallbackUiRuntime(state,imported,{request,inspect:()=>inspected++});assert.equal(inspected,1);assert.match(result.definition,/^sha256:/);assert(!fs.existsSync(output+'/definition-import.json'));
  pages.wizard_pages[0].callback_url_mid_event=null;
  assert.throws(()=>verifyCallbackUiRuntime(state,JSON.parse(fs.readFileSync(receiptPath)),{request,inspect:()=>{}}),/CALLBACK_UI_IMPORT_DRIFT/);
+ const retainedVerification=JSON.parse(fs.readFileSync(output+'/recipient-callback-import/runtime-verification.json'));assert.equal(retainedVerification.status,'descriptor-drift');assert.equal(retainedVerification.failedDescriptor,'pages');assert.equal(retainedVerification.observations.pages.body.wizard_pages[0].callback_url_mid_event,null);assert.equal(fs.statSync(output+'/recipient-callback-import/runtime-verification.json').mode&0o777,0o600);assert(!JSON.stringify(retainedVerification).includes('synthetic-private'));
  assert.equal(callbackUiFailureCode(Error('CALLBACK_UI_IMPORT_DRIFT\nprivate details')),'CALLBACK_UI_IMPORT_DRIFT');
  assert.equal(callbackUiFailureCode(Error('CALLBACK_PAGE_URL')),'CALLBACK_PAGE_URL');
  assert.equal(callbackUiFailureCode(Error('CALLBACK_UI_PRIVATE_SECRET')),'CALLBACK_UI_PHASE_FAILED');
