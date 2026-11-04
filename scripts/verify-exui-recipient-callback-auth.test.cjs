@@ -23,7 +23,7 @@ test('support only: malformed bearer and thrown private diagnostics deny without
 test('support only: opt-in gateway dispatch precedes body consumption and retains only responder evidence',()=>{
  const source=fs.readFileSync('scripts/lib/exui-ccd-browser-runtime.mjs','utf8');
  assert(source.indexOf('await callback(request, response)')<source.indexOf('for await (const chunk of request)'));
- assert(source.includes('scope, EVENT_CAPABILITY_SCOPE, "CCD_CALLBACK_EVENT_SCOPE_REQUIRED"'));
+ assert(source.includes('[EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_CALLBACK_EVENT_SCOPE_REQUIRED"'));
  assert(source.includes('verifyServiceAuthorization: createOwnedCallbackServiceVerifier()'));
  assert(source.includes('JSON.stringify(evidence)'));
 });
@@ -44,4 +44,13 @@ test('support only: gateway refuses a previous callback evidence journal before 
  const file=path.join(output,'recipient-callback.jsonl');fs.writeFileSync(file,'prior-observation');
  await assert.rejects(startCcdGateway(output,{},null,'exui-ccd-event-capability-pilot',{recipientCallback:{invocationId:'recipient-callback-reject'}}),/EEXIST/);
  assert.equal(fs.readFileSync(file,'utf8'),'prior-observation');
+});
+
+test('native callback responder is required only in dedicated scope and cannot enter historical event scope',async()=>{
+ const {startCcdGateway}=await import('./lib/exui-ccd-browser-runtime.mjs');
+ const {CALLBACK_SCOPE}=await import('./lib/exui-recipient-callback-contract.mjs');
+ await assert.rejects(startCcdGateway('/unused',{},null,CALLBACK_SCOPE),/CCD_NATIVE_CALLBACK_REQUIRED/);
+ await assert.rejects(startCcdGateway('/unused',{},'ccd-omit-recipient-mid-event',CALLBACK_SCOPE),/CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION/);
+ await assert.rejects(startCcdGateway('/unused',{},null,CALLBACK_SCOPE,{recipientCallback:{invocationId:'recipient-callback-ui'}}),/CCD_NATIVE_CALLBACK_INVOCATION_REQUIRED/);
+ await assert.rejects(startCcdGateway('/unused',{},null,'exui-ccd-event-capability-pilot',{recipientCallback:{invocationId:'recipient-callback-native'}}),/CCD_NATIVE_CALLBACK_SCOPE_REQUIRED/);
 });

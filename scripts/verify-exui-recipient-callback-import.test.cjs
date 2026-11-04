@@ -178,3 +178,10 @@ test('native callback producer imports and rechecks its distinct receipt, includ
  const failed=JSON.parse(fs.readFileSync(root+'/recipient-callback-import/stored-row-date.json'));assert.equal(failed.rows[0].live_from,'2020-01-01');
  assert.doesNotMatch(fs.readFileSync(root+'/recipient-callback-native-import.json','utf8'),/synthetic-private-token|synthetic-service-token/);
 });
+test('native canonical callback fixture needs no Python or subprocess and all sealed artifacts enter source closure',async()=>{
+ const {spawnSync}=require('node:child_process');
+ const result=spawnSync(process.execPath,['--input-type=module','-e',"import {callbackCanonicalImport} from './scripts/lib/exui-recipient-callback-contract.mjs';for(const variant of ['baseline','binding-omitted']) {const value=callbackCanonicalImport(variant);if(!value.workbook.length)process.exit(2);}"],{cwd:process.cwd(),env:{...process.env,PATH:'/nonexistent-harness-path'},encoding:'utf8',timeout:10000});
+ assert.equal(result.status,0,'pure JS canonical fixture must load without external commands');
+ const {NATIVE_HARNESS_SOURCE_FILES}=await import('./lib/exui-native-sources.mjs');
+ for(const variant of ['baseline','binding-omitted'])for(const name of ['definition.json','definition.xlsx','binding.json'])assert(NATIVE_HARNESS_SOURCE_FILES.includes(`scripts/fixtures/ccd/recipient-callback-native/${variant}/${name}`));
+});

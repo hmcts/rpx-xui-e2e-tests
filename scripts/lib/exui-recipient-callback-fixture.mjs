@@ -6,6 +6,7 @@ import {
   EVENT_CAPABILITY_SOURCE_DIGEST,
 } from "./exui-ccd-event-capability.mjs";
 
+export const CALLBACK_SCOPE = "exui-ccd-recipient-callback-pilot";
 export const RECIPIENT_CALLBACK_PATH =
   "/service-of-documents/validate-additional-recipients";
 const sourcePath =

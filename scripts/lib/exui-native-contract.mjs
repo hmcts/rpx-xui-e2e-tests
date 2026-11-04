@@ -125,7 +125,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   }
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId))
     return {
       config,
       identity: {
@@ -144,7 +144,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
         JSON.stringify({
           config,
           gatewayDigest: input.gatewayDigest,
-          mutation: input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? null : invocation.mutation ?? null,
+          mutation: [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
         }),
       ),
       definitionDigests: { HarnessNestedPRL: input.definition.fixtureDigest },
@@ -161,7 +161,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
   };
 }
 export function seedAppCcdSessions(credentials, seed, scope) {
-  const actors = scope === EVENT_CAPABILITY_SCOPE
+  const actors = [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope)
     ? ["allowed", "courtadmin", "judge", "readonly"]
     : ["allowed", "denied", ...(credentials.transitioning ? ["transitioning"] : [])];
   return Object.fromEntries(

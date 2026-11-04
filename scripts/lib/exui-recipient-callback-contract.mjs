@@ -1,12 +1,10 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {spawnSync} from 'node:child_process';
 import {digestBytes} from './exui-evidence-io.mjs';
 import {deriveRecipientCallbackImport} from './exui-recipient-callback-fixture.mjs';
-export const CALLBACK_SCOPE='exui-ccd-recipient-callback-pilot';
+export {CALLBACK_SCOPE} from './exui-recipient-callback-fixture.mjs';
 export const CALLBACK_PHASE='recipientCallback';
 export const CALLBACK_OBLIGATION='configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94';
 export const CALLBACK_PROOF='callback-recipient-row';
@@ -22,16 +20,13 @@ export function callbackCanonicalImport(variant='baseline') {
   assert.deepEqual(Object.keys(row[0]).sort(),CALLBACK_ATTRIBUTES,'CALLBACK_NATIVE_UNCLASSIFIED_FACET');
   const {fixture,binding}=deriveRecipientCallbackImport(variant,true);
   const definition=Buffer.from(JSON.stringify(fixture,null,2)+'\n');
-  const temporary=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-native-workbook-'));
-  try {
-    const source=path.join(temporary,'definition.json'),output=path.join(temporary,'definition.xlsx');
-    fs.writeFileSync(source,definition,{mode:0o600});
-    const result=spawnSync('python3',[fileURLToPath(new URL('../fixtures/ccd/workbook.py',import.meta.url)),source,output],{encoding:'utf8',timeout:30000,maxBuffer:1048576});
-    assert(!result.error&&result.status===0,'CALLBACK_NATIVE_WORKBOOK');
-    const workbook=fs.readFileSync(output);
-    const seal={schemaVersion:1,kind:'recipient-callback-import',rowFacets:true,syntheticPredecessor:'protectedValue:READONLY:serviceOfDocumentsharnessBefore:order1',...(variant==='binding-omitted'?{variant,mutation:'omit-page2-mid-event-binding'}:{}),binding,definitionDigest:digestBytes(definition),workbookDigest:digestBytes(workbook),runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
-    return {fixture,binding,definition,workbook,seal};
-  } finally {fs.rmSync(temporary,{recursive:true,force:true});}
+  const root=fileURLToPath(new URL(`../fixtures/ccd/recipient-callback-native/${variant}/`,import.meta.url));
+  const read=name=>{const file=path.join(root,name);assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,'CALLBACK_NATIVE_FIXTURE_ALIAS');return fs.readFileSync(file);};
+  assert.deepEqual(read('definition.json'),definition,'CALLBACK_NATIVE_SOURCE_DEFINITION');
+  const workbook=read('definition.xlsx');
+  const seal={schemaVersion:1,kind:'recipient-callback-import',rowFacets:true,syntheticPredecessor:'protectedValue:READONLY:serviceOfDocumentsharnessBefore:order1',...(variant==='binding-omitted'?{variant,mutation:'omit-page2-mid-event-binding'}:{}),binding,definitionDigest:digestBytes(definition),workbookDigest:digestBytes(workbook),runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
+  assert.deepEqual(read('binding.json'),Buffer.from(JSON.stringify(seal,null,2)+'\n'),'CALLBACK_NATIVE_SOURCE_SEAL');
+  return {fixture,binding,definition,workbook,seal};
 }
 export function callbackMutationContract() {
   const before=callbackCanonicalImport(),after=callbackCanonicalImport('binding-omitted');

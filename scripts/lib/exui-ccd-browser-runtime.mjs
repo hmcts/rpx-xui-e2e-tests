@@ -4,7 +4,7 @@ import http from "node:http";
 import { createHmac } from "node:crypto";
 import { validateRoleTransition } from "./exui-ccd-role-transition.mjs";
 import { createRecipientCallbackResponder } from "./exui-recipient-callback.mjs";
-import { RECIPIENT_CALLBACK_PATH } from "./exui-recipient-callback-fixture.mjs";
+import { CALLBACK_SCOPE, RECIPIENT_CALLBACK_PATH } from "./exui-recipient-callback-fixture.mjs";
 import { createOwnedCallbackServiceVerifier } from "./exui-recipient-callback-auth.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
 
@@ -113,12 +113,14 @@ const ccdRoutes = {
   ],
 };
 
-const eventRoutes = {
-  "exui-ccd-pilot": [new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`)],
-  [EVENT_CAPABILITY_SCOPE]: [
+const recipientEventRoutes = [
     new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/serviceOfDocuments/token$`),
     /^\/internal\/cases\/[0-9]{16}\/event-triggers\/serviceOfDocuments$/,
-  ],
+];
+const eventRoutes = {
+  "exui-ccd-pilot": [new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`)],
+  [EVENT_CAPABILITY_SCOPE]: recipientEventRoutes,
+  [CALLBACK_SCOPE]: recipientEventRoutes,
 };
 
 function ccdTransportRoute(method, pathname, scope) {
@@ -144,14 +146,17 @@ function ccdTransportRoute(method, pathname, scope) {
 export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
   assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => key === "recipientCallback"), "CCD_GATEWAY_OPTIONS_INVALID");
   const { recipientCallback } = options;
-  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
-  if (scope === EVENT_CAPABILITY_SCOPE)
+  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  if ([EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope))
     assert.equal(mutation, null, "CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
+  if (scope === CALLBACK_SCOPE) assert(recipientCallback !== undefined, "CCD_NATIVE_CALLBACK_REQUIRED");
   let callback;
   if (recipientCallback !== undefined) {
-    assert.equal(scope, EVENT_CAPABILITY_SCOPE, "CCD_CALLBACK_EVENT_SCOPE_REQUIRED");
+    assert([EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_CALLBACK_EVENT_SCOPE_REQUIRED");
     assert(recipientCallback && typeof recipientCallback === "object" && !Array.isArray(recipientCallback), "CCD_CALLBACK_OPTIONS_INVALID");
     assert.deepEqual(Object.keys(recipientCallback), ["invocationId"], "CCD_CALLBACK_OPTIONS_INVALID");
+    if (scope === CALLBACK_SCOPE) assert.equal(recipientCallback.invocationId, "recipient-callback-native", "CCD_NATIVE_CALLBACK_INVOCATION_REQUIRED");
+    else assert.notEqual(recipientCallback.invocationId, "recipient-callback-native", "CCD_NATIVE_CALLBACK_SCOPE_REQUIRED");
     const callbackEvidenceFile = `${output}/recipient-callback.jsonl`;
     callback = createRecipientCallbackResponder({
       invocationId: recipientCallback.invocationId,
