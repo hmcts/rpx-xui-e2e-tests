@@ -285,8 +285,10 @@ export function prepareBrowserCache(privateRoot, platform, { runCommand = run } 
       "cp -a --no-preserve=ownership /ms-playwright/. /browser/",
     ],
   );
-  fs.chmodSync(browserCache, 0o700);
-  assertPrivateDirectory(browserCache);
+  // The enclosing job stays private; stable root execute bits survive Docker Desktop bind mounts.
+  fs.chmodSync(browserCache, 0o755);
+  assert(fs.realpathSync(browserCache) === browserCache && fs.statSync(browserCache).uid === process.getuid(), "NATIVE_BROWSER_CACHE_OWNER_REQUIRED");
+  assertPrivateDirectory(privateRoot);
   assert(fs.readdirSync(browserCache).length > 0, "NATIVE_BROWSER_CACHE_REQUIRED");
   return browserCache;
 }

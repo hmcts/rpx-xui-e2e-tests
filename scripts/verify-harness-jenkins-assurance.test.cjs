@@ -178,5 +178,6 @@ test('browser cache copy uses controller identity without preserving image owner
  assert.equal(observed[observed.indexOf('--network')+1],'none');
  assert(observed.includes('--read-only'));assert(observed.includes('no-new-privileges'));
  assert.match(observed.at(-1),/cp -a --no-preserve=ownership/);
- assert.equal(browser,path.join(root,'browser-cache'));assert.equal(fs.statSync(browser).mode&0o777,0o700);
+ assert.equal(browser,path.join(root,'browser-cache'));assert.equal(fs.statSync(browser).mode&0o777,0o755);
+ assert.equal(fs.statSync(root).mode&0o777,0o700);
 });

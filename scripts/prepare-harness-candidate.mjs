@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn, spawnSync } from 'node:child_process';
-import { cp, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rename, rm, writeFile, chmod } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
@@ -87,6 +87,8 @@ const runtimeNodeVersion = run('docker', ['run', '--rm', '--network', 'none', '-
 if (runtimeNodeVersion !== buildRuntime.nodeVersion) throw new Error('Sealed runtime Node version differs from observed build Node');
 const candidateRoot = path.join(output, 'artifact');
 await mkdir(candidateRoot);
+// The output parent controls privacy; stable root execute bits preserve seals across bind mounts.
+await chmod(candidateRoot, 0o755);
 for (const entry of ['dist', 'api', 'config', 'node_modules', 'package.json', 'yarn.lock', 'runtime']) await rename(path.join(build, entry), path.join(candidateRoot, entry));
 const provenance = { sourceMethod: 'git-archive', webappCommit: options.commit, sourceTree, platform: target.platform, buildImage, buildImageReference, nodeVersion: buildRuntime.nodeVersion, runtimeNodeVersion, sourceNodeEngine: contract.nodeEngine, yarnVersion, yarnPath: contract.yarnPath, install: 'immutable-offline', commands: ['yarn install --immutable --immutable-cache', 'yarn build', 'yarn workspaces focus --all --production', 'cp /usr/local/bin/node runtime/node'], scriptsEnabled: false };
 const manifestPath = path.join(output, 'candidate-artifact.json');

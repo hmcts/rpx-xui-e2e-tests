@@ -84,3 +84,17 @@ test('manifest provenance tampering and missing runtime inputs cannot receive a 
   await rm(path.join(root, 'runtime/node'));
   await assert.rejects(describeCandidateArtifact(root, provenance), /ENOENT/);
 });
+
+test('private transport parents can keep stable payload-root execute bits without ignoring file integrity', async t => {
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const {digestCandidateTree}=await import('./lib/exui-candidate-artifact.mjs');
+ const parent=fs.mkdtempSync(path.join(os.tmpdir(),'artifact-mount-mode-'));t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ const root=path.join(parent,'payload');fs.mkdirSync(root,0o700);const file=path.join(root,'browser');fs.writeFileSync(file,'fixture',{mode:0o700});
+ const privateRootDigest=await digestCandidateTree(root);
+ fs.chmodSync(root,0o755);const portable=await digestCandidateTree(root);
+ assert.notEqual(privateRootDigest,portable);
+ fs.chmodSync(root,0o777);assert.equal(await digestCandidateTree(root),portable);
+ fs.chmodSync(root,0o755);fs.chmodSync(file,0o600);assert.notEqual(await digestCandidateTree(root),portable);
+ fs.chmodSync(file,0o700);fs.writeFileSync(file,'changed');assert.notEqual(await digestCandidateTree(root),portable);
+ assert.equal(fs.statSync(parent).mode&0o777,0o700);
+});
