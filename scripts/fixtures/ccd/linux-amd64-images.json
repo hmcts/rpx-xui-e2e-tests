@@ -1,0 +1,51 @@
+{
+  "data": {
+    "indexDigest": "sha256:8ed43b43250193b4d128e718b85358ebef4320d30122ae1db5defb26363cefc0",
+    "manifestDigest": "sha256:6614f22b00ce82e4cb74f9829cbb80cc1bd4e02da01e480e6428c940d6419a96",
+    "configDigest": "sha256:4652c7a4e3c1e805750c9a81940ab6bf83638b898bc2fc92b146947facb9af66",
+    "platform": "linux/amd64",
+    "reference": "hmctsprod.azurecr.io/ccd/data-store-api@sha256:6614f22b00ce82e4cb74f9829cbb80cc1bd4e02da01e480e6428c940d6419a96"
+  },
+  "definition": {
+    "indexDigest": "sha256:65ed911ad0b3eb88c13ffa960e18a0c583097d02fd0e3d3c07085a8510ce18c2",
+    "manifestDigest": "sha256:9ddd709903093bdb18d62fd12e62da4d54d914221410fa275ee79028dc48b144",
+    "configDigest": "sha256:1147ed7aed0619fc70e89c608056f3a512c73b34081aa95113c53a271997c4fd",
+    "platform": "linux/amd64",
+    "reference": "hmctsprod.azurecr.io/ccd/definition-store-api@sha256:9ddd709903093bdb18d62fd12e62da4d54d914221410fa275ee79028dc48b144"
+  },
+  "profile": {
+    "indexDigest": "sha256:33af443a586e31407f2f042cc6554e645987f9c9b9488c26bf09b184bfb63834",
+    "manifestDigest": "sha256:498e446e1d4b52e2ffab15cb2197404fda7f5875169b0cdbf6a877571f30865b",
+    "configDigest": "sha256:dfce85215a5f2c9cae07844c3b169c43633f9154fb51f9b6eb4254f38deb2381",
+    "platform": "linux/amd64",
+    "reference": "hmctsprod.azurecr.io/ccd/user-profile-api@sha256:498e446e1d4b52e2ffab15cb2197404fda7f5875169b0cdbf6a877571f30865b"
+  },
+  "s2s": {
+    "indexDigest": "sha256:d7f2c7bb2d7b25f6cf6188aeb5fe89fd34a911bad50d4bffcb9ea9d9469349b5",
+    "manifestDigest": "sha256:f5bee834b3c05cc75ef7048bac921ee77ac91587b1c5a772088d5dd706b325d6",
+    "configDigest": "sha256:9f348e0bb39206379048f1dc57c923f10b45a4f5cab3d2c5baaae053b2769733",
+    "platform": "linux/amd64",
+    "reference": "hmctsprod.azurecr.io/rpe/service-auth-provider@sha256:f5bee834b3c05cc75ef7048bac921ee77ac91587b1c5a772088d5dd706b325d6"
+  },
+  "idam": {
+    "indexDigest": "sha256:e28200a6b41a275851d0225443c0c84febdd1426fe381ec8b66c8a91d834df01",
+    "manifestDigest": "sha256:c1b704a6e10fdc605923be114d605abe08b72edbdd4896e1a652d7b8bfe93b37",
+    "configDigest": "sha256:3ddcef24af603cc108e70ccfe8cfc8876d04d4469a43813d337950f69eb9e024",
+    "platform": "linux/amd64",
+    "reference": "hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator@sha256:c1b704a6e10fdc605923be114d605abe08b72edbdd4896e1a652d7b8bfe93b37"
+  },
+  "database": {
+    "reference": "postgres@sha256:7da5d534f1ffcdb2f69efa6e466a7a29ff89eefd611c7b50c4d69aa77fd4a822",
+    "manifestDigest": "sha256:7da5d534f1ffcdb2f69efa6e466a7a29ff89eefd611c7b50c4d69aa77fd4a822",
+    "configDigest": "sha256:245fc027b7f3755bbd21b4375c2a0ebc7fa5d16c4573da497be9850a823973c8",
+    "platform": "linux/amd64",
+    "indexDigest": "sha256:40e8c839f86c404f9bd1c456bb83f11b205f2cd95d753b34c2d074e89ecee786"
+  },
+  "client": {
+    "reference": "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02",
+    "manifestDigest": "sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02",
+    "configDigest": "sha256:8279a176db0ac2d89d4d3ef16063c1990ee00ea98d81e0937ed38117feab7fed",
+    "platform": "linux/amd64",
+    "indexDigest": "sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea"
+  }
+}

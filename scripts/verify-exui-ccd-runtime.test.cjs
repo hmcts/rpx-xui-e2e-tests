@@ -598,3 +598,52 @@ const state=JSON.parse(fs.readFileSync(${JSON.stringify(path.join(output, "runti
   assert.equal(observed.status, 0, observed.stderr || observed.error?.message);
   assert.equal(JSON.parse(fs.readFileSync(probes, "utf8").trim()).url, "http://127.0.0.1:5000/health");
 });
+
+test('AMD64 CCD image records bind each immutable manifest and reject relabelled state',async()=>{
+ const {ccdImagePins,assertCcdImageIdentity,ccdRuntimeImageIds,CCD_IMAGES}=await runtime;
+ const pins=ccdImagePins('linux/amd64');
+ assert.deepEqual(Object.keys(pins).sort(),Object.keys(CCD_IMAGES).sort());
+ const state={platform:'linux/amd64',images:{}};
+ for(const [service,pin] of Object.entries(pins)) {
+  const info={Id:pin.manifestDigest,Os:'linux',Architecture:'amd64',RepoDigests:[pin.reference]};
+  assertCcdImageIdentity(info,pin,'linux/amd64');
+  assertCcdImageIdentity({...info,Id:pin.configDigest},pin,'linux/amd64');
+  for(const patch of [{Id:'sha256:'+'f'.repeat(64)},{Architecture:'arm64'},{Os:'windows'},{RepoDigests:[]}])
+   assert.throws(()=>assertCcdImageIdentity({...info,...patch},pin,'linux/amd64'),/CCD_IMAGE_IDENTITY/);
+  state.images[service]={id:info.Id,architecture:info.Architecture,repoDigests:info.RepoDigests};
+ }
+ assert.deepEqual(ccdRuntimeImageIds(state),Object.fromEntries(Object.entries(pins).map(([name,pin])=>[name,pin.manifestDigest])));
+ assert.throws(()=>ccdRuntimeImageIds({...state,platform:'linux/arm64'}),/CCD_IMAGE_IDENTITY/);
+ assert.throws(()=>ccdRuntimeImageIds({...state,images:{}}),/CCD_IMAGE_IDENTITY/);
+ assert.throws(()=>ccdImagePins('linux/s390x'),/UNSUPPORTED_CCD_PLATFORM/);
+});
+
+test('AMD64 startup uses TCP readiness, synthetic databases and one exact local token issuer',async t=>{
+ const api=await runtime,fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'ccd-amd64-start-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const calls=[],pins=api.ccdImagePins('linux/amd64');let cancelled=false;
+ const runDocker=(args,input)=>{
+  calls.push({args,input});
+  if(args[0]==='image') {
+   const pin=Object.values(pins).find(pin=>pin.reference===args[2]);assert(pin);
+   return JSON.stringify([{Id:pin.configDigest,Os:'linux',Architecture:'amd64',RepoDigests:[pin.reference]}]);
+  }
+  if(args[0]==='create')return 'a'.repeat(64);
+  if(args[0]==='exec'&&args.includes('node'))return '[]';
+  if(args[0]==='start'&&calls.filter(c=>c.args[0]==='create').length===7)cancelled=true;
+  return '';
+ };
+ const output=path.join(root,'runtime');
+ await assert.rejects(api.startCcdRuntime(output,{platform:'linux/amd64',runDocker,isCancelled:()=>cancelled}),/CCD_START_CANCELLED/);
+ const ready=calls.find(c=>c.args.includes('pg_isready')).args;
+ assert.equal(ready[ready.indexOf('-h')+1],'127.0.0.1');
+ const initialize=calls.find(c=>c.input?.includes('CREATE DATABASE'));
+ assert.equal((initialize.input.match(/CREATE DATABASE/g)||[]).length,8);
+ assert.match(initialize.input,/CREATE USER ccd WITH PASSWORD/);
+ const launches=calls.filter(c=>c.args[0]==='create');
+ assert(launches.find(c=>c.args.includes(pins.idam.configDigest)).args.includes('SIMULATOR_JWT_ISSUER=http://127.0.0.1:5000/o'));
+ assert(launches.find(c=>c.args.includes(pins.data.configDigest)).args.includes('OIDC_ALLOWED_ISSUERS=http://127.0.0.1:5000/o'));
+ const recovery=JSON.parse(fs.readFileSync(path.join(output,'recovery.json')));
+ assert.equal(recovery.platform,'linux/amd64');
+ for(const [name,pin] of Object.entries(pins))assert.equal(recovery.resources[name].image,pin.configDigest);
+});

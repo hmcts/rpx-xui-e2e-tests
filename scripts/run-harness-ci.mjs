@@ -143,6 +143,7 @@ export async function runHarnessCi(jobPath) {
     }
     resource.pendingStart = Promise.resolve().then(() => startCcdRuntime(directory, {
       fixtureSelection,
+      platform: context.artifact.provenance.platform,
       isCancelled: () => cancelled || !alive(),
       runDocker: (args, input) => {
         assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
@@ -368,7 +369,7 @@ export async function runHarnessCi(jobPath) {
       start: async () => {
         const directory = path.join(privateRoot, "ccd-runtime");
         resources.set("ccd-runtime", { kind: "ccd", directory });
-        context.ccd = await startCcdRuntime(directory);
+        context.ccd = await startCcdRuntime(directory, { platform: context.artifact.provenance.platform });
         importCcdDefinition(context.ccd);
         const observed = verifyCcdRuntimeIdentity(context.ccd),
           config = effectiveCandidateConfiguration(

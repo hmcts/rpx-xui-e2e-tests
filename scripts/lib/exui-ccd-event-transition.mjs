@@ -6,7 +6,7 @@ import { digestBytes, writeJsonAtomic } from "./exui-evidence-io.mjs";
 import { validateIdentity } from "./exui-release-evidence.mjs";
 import { readEventBaselineCheckpoint } from "./exui-native-proof-validation.mjs";
 import { validateNativeInvocationFinalization } from "./exui-native-ci-ownership.mjs";
-import { CCD_IMAGES, prepareCcdImport, assertObservedCcdDefinition, assertObservedEventCapabilityDefinition } from "./exui-ccd-runtime.mjs";
+import { CCD_IMAGES, ccdRuntimeImageIds, prepareCcdImport, assertObservedCcdDefinition, assertObservedEventCapabilityDefinition } from "./exui-ccd-runtime.mjs";
 import {
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_MUTATION,
@@ -68,7 +68,8 @@ export function validateEventTransitionEvidence(directory, expected, loadedInput
     assert.equal(new Set(Object.values(state.containers)).size, services.length, "EVENT_TRANSITION_CCD_CID_COLLISION");
     assert(Object.values(state.containers).every(id => /^[a-f0-9]{64}$/.test(id)), "EVENT_TRANSITION_CCD_CID");
     assert.equal(state.namespace, state.containers.database, "EVENT_TRANSITION_CCD_NAMESPACE");
-    for (const service of services) assert.equal(state.images[service].id, CCD_IMAGES[service], "EVENT_TRANSITION_CCD_IMAGE");
+    assert.equal(state.platform ?? "linux/arm64", input.ccd.platform ?? "linux/arm64", "EVENT_TRANSITION_CCD_PLATFORM");
+    ccdRuntimeImageIds(state);
   };
   validateState(input.ccd);
   assert.equal(removal.ccd.owner, input.ccd.owner, "EVENT_TRANSITION_REMOVAL_OWNER");

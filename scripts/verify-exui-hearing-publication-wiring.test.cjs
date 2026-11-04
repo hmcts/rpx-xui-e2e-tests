@@ -28,7 +28,7 @@ const SOURCE_FILES = [
   'scripts/prepare-harness-hearing-mutant.mjs', 'scripts/prepare-harness-event-capability.mjs',
   'scripts/lib/exui-hearing-publication-mutation.mjs',
   'scripts/fixtures/exui-configuration-review.json', 'scripts/fixtures/exui-configuration-source.json',
-  'scripts/fixtures/ccd/nested-prl.json', 'scripts/fixtures/ccd/nested-prl.binding.json',
+  'scripts/fixtures/ccd/linux-amd64-images.json', 'scripts/fixtures/ccd/nested-prl.json', 'scripts/fixtures/ccd/nested-prl.binding.json',
   'scripts/fixtures/ccd/nested-prl.xlsx',
   'scripts/fixtures/ccd/event-capability.source.json',
   'scripts/fixtures/ccd/event-capability/baseline.json', 'scripts/fixtures/ccd/event-capability/baseline.xlsx',
@@ -149,7 +149,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 81);
+  assert.equal(SOURCE_FILES.length, 82);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

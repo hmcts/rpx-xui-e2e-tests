@@ -561,9 +561,11 @@ test("support only: foreign container cannot reach destructive cleanup; matched 
 
 test("support only: observed daemon architecture and pinned image inventory control CI support", async () => {
   const { observeCiToolchain } = await load();
-  const { CCD_IMAGES } = await import("./lib/exui-ccd-runtime.mjs");
+  const { CCD_IMAGES, ccdImagePins } = await import("./lib/exui-ccd-runtime.mjs");
   const { ARM64_BROWSER_RUNTIME } = await import("./lib/exui-oci-runtime.mjs");
+  const { nativeRuntimeImages } = await import("./lib/exui-native-containers.mjs");
   let architecture = "arm64",
+    wrongImageArchitecture = false,
     missing = false;
   const run = (_command, args) => {
     if (args[0] === "version")
@@ -574,6 +576,11 @@ test("support only: observed daemon architecture and pinned image inventory cont
       });
     const image = args[2];
     if (missing) throw Error("missing-cache");
+    if (architecture === "amd64") {
+      const pin = [...Object.values(nativeRuntimeImages("linux/amd64")), ...Object.values(ccdImagePins("linux/amd64"))].find(pin => pin.reference === image);
+      assert(pin, "unrecognised image inspected");
+      return JSON.stringify([{ Id: pin.configDigest, Os: "linux", Architecture: wrongImageArchitecture ? "arm64" : "amd64", RepoDigests: [pin.reference] }]);
+    }
     return JSON.stringify([
       {
         Id: image,
@@ -594,7 +601,14 @@ test("support only: observed daemon architecture and pinned image inventory cont
     Object.keys(CCD_IMAGES).length,
   );
   architecture = "amd64";
-  assert.throws(() => observeCiToolchain({ run }), /ARM64_DOCKER/);
+  const amd = observeCiToolchain({ run });
+  assert.equal(amd.nativeRuntime.platform, "linux/amd64");
+  assert.equal(amd.browserRuntime.image, nativeRuntimeImages("linux/amd64").browser.configDigest);
+  assert.equal(amd.ccdImages.data.image, ccdImagePins("linux/amd64").data.configDigest);
+  wrongImageArchitecture = true;
+  assert.throws(() => observeCiToolchain({ run }), /PLATFORM_MISMATCH/);
+  architecture = "s390x";
+  assert.throws(() => observeCiToolchain({ run }), /CI_DOCKER_ARCH_REQUIRED/);
   architecture = "arm64";
   missing = true;
   assert.throws(() => observeCiToolchain({ run }), /missing-cache/);
@@ -995,29 +1009,31 @@ test("support only: coherent product FAIL propagates one and a forged PASS canno
 
 test("support only: partial CCD startup recovers unrecorded server-created containers and tolerates removed services", async () => {
   const { cleanupCiCcd } = await load();
-  const { CCD_IMAGES } = await import("./lib/exui-ccd-runtime.mjs");
+  const { CCD_IMAGES, ccdImagePins } = await import("./lib/exui-ccd-runtime.mjs");
+  for (const platform of ["linux/arm64", "linux/amd64"]) {
+  const images = platform === "linux/arm64" ? CCD_IMAGES : Object.fromEntries(Object.entries(ccdImagePins(platform)).map(([name,pin])=>[name,pin.configDigest]));
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ci-ccd-recovery-"));
   try {
     const owner = "harness-0123456789abcdef",
       resources = Object.fromEntries(
-        Object.entries(CCD_IMAGES).map(([service, image]) => [
+        Object.entries(images).map(([service, image]) => [
           service,
           { name: `${owner}-${service}`, image },
         ]),
       );
     fs.writeFileSync(
       path.join(directory, "recovery.json"),
-      JSON.stringify({ owner, output: directory, resources }),
+      JSON.stringify({ owner, output: directory, resources, platform }),
     );
     fs.writeFileSync(
       path.join(directory, "runtime.json"),
-      JSON.stringify({ owner, output: directory, containers: {} }),
+      JSON.stringify({ owner, output: directory, containers: {}, platform }),
     );
     const id = "a".repeat(64),
       existing = {
         Id: id,
         Name: `/${resources.database.name}`,
-        Image: CCD_IMAGES.database,
+        Image: images.database,
         Config: {
           Labels: {
             "exui.harness.owner": owner,
@@ -1057,6 +1073,7 @@ test("support only: partial CCD startup recovers unrecorded server-created conta
     }
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
+  }
   }
 });
 

@@ -36,6 +36,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/fixtures/exui-configuration-review.json",
   "scripts/fixtures/exui-configuration-source.json",
   "scripts/fixtures/ccd/nested-prl.json",
+  "scripts/fixtures/ccd/linux-amd64-images.json",
   "scripts/fixtures/ccd/nested-prl.binding.json",
   "scripts/fixtures/ccd/nested-prl.xlsx",
   "scripts/fixtures/ccd/event-capability.source.json",

@@ -19,18 +19,19 @@ import {
 import { CCD_HARNESS_SOURCE_FILES } from "./exui-ccd-browser-runtime.mjs";
 import { verifyHarnessDependencies } from "./exui-harness-dependencies.mjs";
 import { assertCandidateConfigurationSources } from "./exui-configuration-catalogue.mjs";
-import { CCD_IMAGES } from "./exui-ccd-runtime.mjs";
+import { ccdImagePins, assertCcdImageIdentity } from "./exui-ccd-runtime.mjs";
 import {
   ARM64_BROWSER_RUNTIME,
-  NATIVE_API_RUNTIME_REFERENCE,
   assertBrowserRuntime,
   assertReadOnlyMountIsolation,
+  browserExecutable,
 } from "./exui-oci-runtime.mjs";
 import {
   digestBytes,
   writeJsonAtomic,
   writePublicSummary,
 } from "./exui-evidence-io.mjs";
+import { nativeRuntimeImages, assertNativeRuntimeImage } from "./exui-native-containers.mjs";
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -80,7 +81,8 @@ export function observeCiToolchain({
     run("docker", ["version", "--format", "{{json .Server}}"]),
   );
   assert.equal(server.Os, "linux", "CI_LINUX_DOCKER_REQUIRED");
-  assert.equal(server.Arch, "arm64", "CI_ARM64_DOCKER_REQUIRED");
+  assert(["arm64", "amd64"].includes(server.Arch), "CI_DOCKER_ARCH_REQUIRED");
+  const platform = `linux/${server.Arch}`, pins = nativeRuntimeImages(platform);
   assert(
     ["linux", "darwin"].includes(controller.os),
     "CI_UNSUPPORTED_CONTROLLER_OS",
@@ -93,32 +95,32 @@ export function observeCiToolchain({
     "CI_NODE_ENGINE_MISMATCH",
   );
   const runtime = JSON.parse(
-    run("docker", ["image", "inspect", ARM64_BROWSER_RUNTIME]),
+    run("docker", ["image", "inspect", platform === "linux/arm64" ? ARM64_BROWSER_RUNTIME : pins.browser.reference]),
   )[0];
-  assertBrowserRuntime(runtime, ARM64_BROWSER_RUNTIME, "linux/arm64");
+  if (platform === "linux/arm64") assertBrowserRuntime(runtime, ARM64_BROWSER_RUNTIME, platform);
+  else assertNativeRuntimeImage(runtime, pins.browser, platform);
   const native = JSON.parse(
-    run("docker", ["image", "inspect", NATIVE_API_RUNTIME_REFERENCE]),
+    run("docker", ["image", "inspect", pins.api.reference]),
   )[0];
   assert.equal(native.Os, "linux", "CI_NATIVE_RUNTIME_OS");
-  assert.equal(native.Architecture, "arm64", "CI_NATIVE_RUNTIME_ARCH");
+  assert.equal(native.Architecture, server.Arch, "CI_NATIVE_RUNTIME_ARCH");
+  if (platform === "linux/amd64") assertNativeRuntimeImage(native, pins.api, platform);
   assert(
     native.RepoDigests?.some((ref) =>
       ref.endsWith(
-        NATIVE_API_RUNTIME_REFERENCE.slice(
-          NATIVE_API_RUNTIME_REFERENCE.indexOf("@"),
-        ),
+        `@${pins.api.manifestDigest}`,
       ),
     ),
     "CI_NATIVE_RUNTIME_PROVENANCE",
   );
   const ccdImages = {};
-  for (const [service, image] of Object.entries(CCD_IMAGES)) {
-    const info = JSON.parse(run("docker", ["image", "inspect", image]))[0];
-    assert.equal(info.Id, image, "CI_CCD_IMAGE_IDENTITY_MISMATCH");
+  for (const [service, pin] of Object.entries(ccdImagePins(platform))) {
+    const info = JSON.parse(run("docker", ["image", "inspect", pin.reference]))[0];
+    assertCcdImageIdentity(info, pin, platform);
     assert.equal(info.Os, "linux", "CI_CCD_IMAGE_OS_MISMATCH");
-    assert.equal(info.Architecture, "arm64", "CI_CCD_IMAGE_PLATFORM_MISMATCH");
+    assert.equal(info.Architecture, server.Arch, "CI_CCD_IMAGE_PLATFORM_MISMATCH");
     assert(
-      info.RepoDigests?.some((ref) => ref.endsWith("@" + image)),
+      info.RepoDigests?.some((ref) => ref.endsWith("@" + pin.manifestDigest)),
       "CI_CCD_IMAGE_PROVENANCE_REQUIRED",
     );
     ccdImages[service] = {
@@ -140,9 +142,9 @@ export function observeCiToolchain({
       architecture: runtime.Architecture,
     },
     nativeRuntime: {
-      reference: NATIVE_API_RUNTIME_REFERENCE,
+      reference: pins.api.reference,
       imageId: native.Id,
-      platform: "linux/arm64",
+      platform,
     },
     ccdImages,
   };
@@ -155,32 +157,25 @@ export async function prepareCiJob(job, output) {
     job.expectedArtifactDigest,
     "DECLARED_ARTIFACT_DIGEST_MISMATCH",
   );
-  assert.equal(
-    artifact.provenance.platform,
-    "linux/arm64",
-    "CI_NATIVE_ARM64_ARTIFACT_REQUIRED",
-  );
   assertCandidateConfigurationSources(
     artifact.candidateRoot,
     read(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json")),
   );
   const observations = observeCiToolchain();
+  assert.equal(artifact.provenance.platform, observations.nativeRuntime.platform, "CI_NATIVE_ARTIFACT_PLATFORM_MISMATCH");
   const browserRoot = fs.realpathSync(job.browserCache);
   const browsers = read(
     path.join(ROOT, "node_modules/playwright-core/browsers.json"),
   );
-  const revision = browsers.browsers.find(
-    (b) => b.name === "chromium-headless-shell",
-  ).revision;
   const binary = fs.readFileSync(
     path.join(
       browserRoot,
-      `chromium_headless_shell-${revision}/chrome-headless-shell-linux-arm64/chrome-headless-shell`,
+      browserExecutable(browsers, artifact.provenance.platform),
     ),
   );
   assert(
     binary.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])) &&
-      binary.readUInt16LE(18) === 183,
+      binary.readUInt16LE(18) === (artifact.provenance.platform === "linux/arm64" ? 183 : 62),
     "CI_BROWSER_PLATFORM_MISMATCH",
   );
   const dependencies = await verifyHarnessDependencies(

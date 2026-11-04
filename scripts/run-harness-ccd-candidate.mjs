@@ -21,6 +21,7 @@ import {
 } from "./lib/exui-ccd-runtime.mjs";
 import { CCD_HARNESS_SOURCE_FILES } from "./lib/exui-ccd-browser-runtime.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./lib/exui-ccd-event-capability.mjs";
+import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
@@ -74,6 +75,7 @@ async function launch() {
     !/^[a-f0-9]{64}$/.test(ccd.namespace)
   )
     throw new Error("CCD_READY_IMPORT_REQUIRED");
+  if ((ccd.platform ?? "linux/arm64") !== artifact.provenance.platform) throw new Error("CCD_CANDIDATE_PLATFORM_MISMATCH");
   verifyCcdRuntimeIdentity(ccd);
   const inspection = spawnSync("docker", ["inspect", ccd.namespace], {
     encoding: "utf8",
@@ -107,7 +109,7 @@ async function launch() {
       path.join(root, "node_modules/playwright-core/browsers.json"),
       "utf8",
     ),
-  ).browsers.find((item) => item.name === "chromium");
+  ).browsers.find((item) => item.name === "chromium-headless-shell");
   const credentials = Object.fromEntries(
     (releaseScopeId === EVENT_CAPABILITY_SCOPE
       ? ["allowed", "courtadmin", "judge", "observer"]
@@ -160,7 +162,7 @@ async function launch() {
       ),
     ),
     browserDigest,
-    browserExecutable: `/browser/chromium_headless_shell-${browser.revision}/chrome-headless-shell-linux-arm64/chrome-headless-shell`,
+    browserExecutable: `/browser/${browserExecutable({ browsers: [browser] }, artifact.provenance.platform)}`,
     harnessCommit: commit.stdout.trim(),
     harnessSourceState: dirty.stdout.trim() ? "dirty" : "clean",
     harnessSources,
