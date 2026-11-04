@@ -18,7 +18,7 @@ export const OCI_SOURCE_FILES = [
 export const NATIVE_API_RUNTIME_REFERENCE =
   "node@sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea";
 export const ARM64_BROWSER_RUNTIME =
-  "sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27";
+  "sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f";
 const digest = (value) => /^sha256:[a-f0-9]{64}$/.test(value ?? "");
 const mount = (source, target, readonly = false) => {
   if (
