@@ -193,6 +193,43 @@ describe('definition file discovery', () => {
     assert.deepEqual(observed.baseline.diffs, []);
     assert(api.validateDefinitionDiscovery({ discovery: observed, review: fixture.review }).gaps.some(g => g.includes('baseline-comparison-unavailable')));
   });
+
+  test('declared repository roots remain distinct and only the pinned PRL root is discovered', (t) => {
+    const fixture = sourceRepository(t), observed = reviewed(fixture);
+    const discoveryValidation = api.validateDefinitionDiscovery({ discovery: observed, review: fixture.review });
+    const profiles = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'src/data/exui-central-assurance-source.json'), 'utf8')).serviceDefinitionProfiles.profiles;
+    const inventory = api.buildDefinitionRootInventory({ profiles, discoveryValidation });
+
+    assert.equal(inventory.counts.declaredRoots, 15);
+    assert.equal(inventory.counts.discoveredRoots, 1);
+    assert.equal(inventory.counts.unreviewedRoots, 14);
+    assert.equal(inventory.counts.unavailableFamilies, 1);
+    assert.equal(inventory.roots.length, 16);
+    assert.equal(inventory.roots.filter(item => item.status === 'discovered-and-byte-pinned').length, 1);
+    assert.deepEqual(inventory.roots.filter(item => item.status === 'discovered-and-byte-pinned').map(({ repository, root }) => ({ repository, root })), [
+      { repository: 'hmcts/prl-ccd-definitions', root: 'definitions/private-law/json' },
+    ]);
+    assert.equal(inventory.roots.filter(item => item.serviceFamily === 'CIVIL').length, 2);
+    assert.equal(inventory.roots.find(item => item.repository === 'hmcts/pcs-api').declaredRevision, 'efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8');
+    assert.equal(inventory.roots.find(item => item.repository === 'hmcts/pcs-api').declaredRevisionBasis, 'source-catalogue-metadata-only');
+    assert.equal(inventory.roots.find(item => item.repository === 'hmcts/pcs-api').status, 'unreviewed');
+    assert(inventory.gaps.includes('definition-root-unavailable:HRS:no-repository-declared'));
+
+    const expandedProfiles = JSON.parse(JSON.stringify(profiles));
+    expandedProfiles.find(item => item.serviceFamily === 'CIVIL').repos.push({ fullName: 'hmcts/civil-extra-definitions', definitionRoot: 'extra' });
+    const expanded = api.buildDefinitionRootInventory({ profiles: expandedProfiles, discoveryValidation });
+    assert(expanded.roots.some(item => item.repository === 'hmcts/civil-extra-definitions' && item.root === 'extra' && item.status === 'unreviewed'));
+    assert(expanded.gaps.includes('definition-root-unreviewed:hmcts/civil-extra-definitions:extra'));
+
+    const unavailable = api.buildDefinitionRootInventory({ profiles, discoveryValidation: null });
+    assert.equal(unavailable.counts.discoveredRoots, 0);
+    assert.equal(unavailable.roots.find(item => item.repository === 'hmcts/prl-ccd-definitions').status, 'unreviewed');
+
+    const wrongFamilyProfiles = JSON.parse(JSON.stringify(profiles));
+    wrongFamilyProfiles.push({ serviceFamily: 'OTHER', repos: [{ fullName: 'hmcts/prl-ccd-definitions', definitionRoot: 'definitions/private-law/json' }] });
+    const wrongFamily = api.buildDefinitionRootInventory({ profiles: wrongFamilyProfiles, discoveryValidation });
+    assert.equal(wrongFamily.roots.find(item => item.serviceFamily === 'OTHER').status, 'unreviewed');
+  });
 });
 
 describe('definition reference graph', () => {

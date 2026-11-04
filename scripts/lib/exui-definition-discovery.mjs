@@ -151,6 +151,51 @@ export function summarizeDefinitionDiscovery(discovery) {
       edges: discovery.graph.edges.length, graphGaps: discovery.graph.gaps.length } };
 }
 
+export function buildDefinitionRootInventory({ profiles, discoveryValidation }) {
+  assert(Array.isArray(profiles) && profiles.length, 'SERVICE_DEFINITION_PROFILES_REQUIRED');
+  const live = discoveryValidation?.inventory;
+  const pinned = Boolean(discoveryValidation?.errors?.length === 0 && live?.baseline?.status === 'available' &&
+    Array.isArray(live.baseline.diffs) && live.baseline.diffs.length === 0 && live.observedHead === live.revision && live.summary?.revision === live.revision &&
+    live.summary?.repository === live.repository && live.summary?.root === live.root && live.summary?.gitTree === live.gitTree &&
+    live.summary?.pins);
+  const discoveredRepository = pinned ? `hmcts/${live.repository}` : null;
+  const roots = [], gaps = [], families = new Set();
+  for (const profile of profiles) {
+    assert(typeof profile.serviceFamily === 'string' && !families.has(profile.serviceFamily), 'INVALID_SERVICE_DEFINITION_FAMILY');
+    families.add(profile.serviceFamily);
+    assert(profile.repos === undefined || Array.isArray(profile.repos), `INVALID_SERVICE_DEFINITION_REPOSITORIES:${profile.serviceFamily}`);
+    const repositories = profile.repos ?? [];
+    if (!repositories.length) {
+      roots.push({ serviceFamily: profile.serviceFamily, repository: null, root: null, declaredRevision: null,
+        status: 'unavailable', reason: 'no-repository-declared' });
+      gaps.push(`definition-root-unavailable:${profile.serviceFamily}:no-repository-declared`);
+      continue;
+    }
+    for (const repository of repositories) {
+      assert(typeof repository.fullName === 'string' && relative(repository.definitionRoot),
+        `INVALID_SERVICE_DEFINITION_ROOT:${profile.serviceFamily}`);
+      const discovered = profile.serviceFamily === 'PRIVATELAW' && pinned &&
+        repository.fullName === discoveredRepository && repository.definitionRoot === live.root;
+      const root = { serviceFamily: profile.serviceFamily, repository: repository.fullName, root: repository.definitionRoot,
+        declaredRevision: repository.revision ?? null,
+        declaredRevisionBasis: repository.revision ? 'source-catalogue-metadata-only' : 'not-declared',
+        status: discovered ? 'discovered-and-byte-pinned' : 'unreviewed' };
+      if (discovered) {
+        root.discoveryRevision = live.revision;
+        root.discoveryGitTree = live.gitTree;
+        root.referenceGaps = discoveryValidation.graph?.gaps?.length ?? null;
+      } else gaps.push(`definition-root-unreviewed:${repository.fullName}:${repository.definitionRoot}`);
+      roots.push(root);
+    }
+  }
+  const discoveredRoots = roots.filter(item => item.status === 'discovered-and-byte-pinned').length;
+  return { schemaVersion: 1, source: 'src/data/exui-central-assurance-source.json#serviceDefinitionProfiles',
+    evidenceMode: 'declared-metadata-with-reviewed-root-match',
+    counts: { declaredProfiles: profiles.length, declaredRoots: roots.filter(item => item.repository).length,
+      discoveredRoots, unreviewedRoots: roots.filter(item => item.status === 'unreviewed').length,
+      unavailableFamilies: roots.filter(item => item.status === 'unavailable').length }, roots, gaps };
+}
+
 export function validateDefinitionDiscovery({ discovery, review }) {
   const errors = [], gaps = [];
   let reviewed;
