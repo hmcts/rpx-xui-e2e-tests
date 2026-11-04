@@ -24,7 +24,7 @@ import {browserExecutable} from './lib/exui-oci-runtime.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 export const CALLBACK_UI_SOURCES=Object.freeze([...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/run-harness-recipient-callback-ui.mjs','scripts/lib/exui-recipient-callback-import.mjs','src/fixtures/harnessCallback.ts','playwright.callback-feasibility.config.mjs','scripts/recipient-callback-ui-tools.mjs','src/tests/harness/callback-feasibility/recipient-callback.spec.ts'])]);
 export function callbackUiFailureCode(error) {
- const known=new Set(['OWNED_OCI_CONTAINER_REQUIRED','OCI_READONLY_MOUNT_WRITABLE_ALIAS','NATIVE_CANDIDATE_PLATFORM_MISMATCH','NATIVE_SEALED_NODE_VERSION_REQUIRED','PINNED_BROWSER_RUNTIME_REQUIRED','OWNED_TOOLS_NAMESPACE_REQUIRED','UNSUPPORTED_OCI_INVOCATION','CALLBACK_UI_TOOLS_ENTRYPOINT','CALLBACK_UI_CANCELLED','CALLBACK_UI_VARIANT','CALLBACK_UI_FRESH_OUTPUT','CALLBACK_UI_IMPORT_RECEIPT_MISMATCH','CALLBACK_UI_IMPORT_IDENTITY_MISMATCH','CALLBACK_UI_IMPORT_STATUS','CALLBACK_UI_IMPORT_READBACK_FAILED','CALLBACK_UI_IMPORT_DRIFT','HOST_INVOCATION_CANCELLED','HOST_NAMESPACE_EGRESS_AVAILABLE','HOST_CANDIDATE_RUNTIME_OS','HOST_CANDIDATE_RUNTIME_ARCH','HOST_CANDIDATE_SEALED_NODE_VERSION','HOST_PROVIDER_SHUTDOWN_FAILED','HOST_UNDECLARED_DESTINATION','HOST_FRAMEWORK_TERMINATION_MISMATCH','CCD_RUNTIME_OWNER_MISMATCH','CCD_RUNTIME_NAMESPACE_MISMATCH']);
+ const known=new Set(['CALLBACK_UI_BROWSER_ASSERTION_FAILED','OWNED_OCI_CONTAINER_REQUIRED','OCI_READONLY_MOUNT_WRITABLE_ALIAS','NATIVE_CANDIDATE_PLATFORM_MISMATCH','NATIVE_SEALED_NODE_VERSION_REQUIRED','PINNED_BROWSER_RUNTIME_REQUIRED','OWNED_TOOLS_NAMESPACE_REQUIRED','UNSUPPORTED_OCI_INVOCATION','CALLBACK_UI_TOOLS_ENTRYPOINT','CALLBACK_UI_CANCELLED','CALLBACK_UI_VARIANT','CALLBACK_UI_FRESH_OUTPUT','CALLBACK_UI_IMPORT_RECEIPT_MISMATCH','CALLBACK_UI_IMPORT_IDENTITY_MISMATCH','CALLBACK_UI_IMPORT_STATUS','CALLBACK_UI_IMPORT_READBACK_FAILED','CALLBACK_UI_IMPORT_DRIFT','HOST_INVOCATION_CANCELLED','HOST_NAMESPACE_EGRESS_AVAILABLE','HOST_CANDIDATE_RUNTIME_OS','HOST_CANDIDATE_RUNTIME_ARCH','HOST_CANDIDATE_SEALED_NODE_VERSION','HOST_PROVIDER_SHUTDOWN_FAILED','HOST_UNDECLARED_DESTINATION','HOST_FRAMEWORK_TERMINATION_MISMATCH','CCD_RUNTIME_OWNER_MISMATCH','CCD_RUNTIME_NAMESPACE_MISMATCH']);
  const first=typeof error?.message==='string'?error.message.split('\n',1)[0]:'';
  if(known.has(first))return first;
  const callback=callbackFailureCode(error);if(callback!=='CALLBACK_PROBE_UNCLASSIFIED_FAILURE')return callback;
@@ -61,7 +61,7 @@ export function assertCallbackUiOutcome(variant, terminal, observed, report) {
  const specs=[];const visit=suite=>{specs.push(...(suite.specs??[]));for(const child of suite.suites??[])visit(child);};for(const suite of report.suites??[])visit(suite);
  assert.equal(specs.length,1);const tests=specs[0].tests;assert.equal(tests.length,1);assert.equal(tests[0].results.length,1);const result=tests[0].results[0];
  assert.equal(terminal.signal,null);assert.equal(report.stats.skipped,0);
- if(variant==='baseline'){assert.equal(terminal.code,0);assert.equal(result.status,'passed');assert.equal(report.stats.expected,1);assert.equal(report.stats.unexpected,0);return 'candidate-ui-feasibility-observed';}
+ if(variant==='baseline'){assert.equal(observed.completed,true);assert.equal(terminal.code,0);assert.equal(result.status,'passed');assert.equal(report.stats.expected,1);assert.equal(report.stats.unexpected,0);return 'candidate-ui-feasibility-observed';}
  assert.equal(variant,'binding-omitted');assert.equal(terminal.code,1);assert.equal(result.status,'failed');assert.equal(report.stats.unexpected,1);assert.equal(observed.faultEffective,true);assert.equal(observed.witness,'valid-CYA-without-callback');assert(result.error?.message?.includes('CALLBACK_BINDING_OMISSION_DETECTED'));return 'callback-binding-omission-detected';
 }
 export function createCallbackNativeWorkspace() {
@@ -103,7 +103,9 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   const {identity}=nativeIdentity(input,{invocationId:'baseline',mutation:null},artifact.candidateRoot);
   const manifest={schemaVersion:1,kind:receipt.kind,identity,runId,variant,catalogueCredit:false,releaseCredit:false,runtimeMetadata:{callbackImportDigest:digestBytes(fs.readFileSync(runtime+'/recipient-callback-import/receipt.json')),harnessSourceDigest,browserDigest}};
   phase='execute-candidate';const result=await runHostInvocation({...plan,manifest,payloadDigest:artifact.payloadDigest},{resources,isCancelled:()=>cancelled});receipt.runnerExitCode=result.terminal.code;
-  const observed=read(directory+'/callback-ui-observation.json'),report=read(directory+'/report.json');
+  phase='evaluate-browser-proof';const report=read(directory+'/report.json');
+  assert.equal(result.terminal.code,variant==='baseline'?0:1,'CALLBACK_UI_BROWSER_ASSERTION_FAILED');
+  const observed=read(directory+'/callback-ui-observation.json');
   receipt.status=assertCallbackUiOutcome(variant,result.terminal,observed,report);
  } catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackUiFailureCode(error);}
  finally {

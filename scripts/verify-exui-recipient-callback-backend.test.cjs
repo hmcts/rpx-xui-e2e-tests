@@ -120,3 +120,10 @@ test('support only: callback native staging and sessions cannot alias writable o
  fs.mkdirSync(output+'/sources');assert.throws(()=>assertReadOnlyMountIsolation([output+'/sources'],[output]),/OCI_READONLY_MOUNT_WRITABLE_ALIAS/);
  assert.equal(callbackUiFailureCode(Error('OCI_READONLY_MOUNT_WRITABLE_ALIAS\nprivate details')),'OCI_READONLY_MOUNT_WRITABLE_ALIAS');
 });
+test('support only: retained intermediate UI observations cannot be reported as completed feasibility',async()=>{
+ const {assertCallbackUiOutcome}=await import('./run-harness-recipient-callback-ui.mjs');
+ const report={errors:[],stats:{skipped:0,unexpected:0,expected:1},suites:[{specs:[{tests:[{results:[{status:'passed'}]}]}]}]};
+ const intermediate={catalogueCredit:false,phase:'after-submission'};
+ assert.throws(()=>assertCallbackUiOutcome('baseline',{code:0,signal:null},intermediate,report));
+ assert.equal(assertCallbackUiOutcome('baseline',{code:0,signal:null},{...intermediate,completed:true},report),'candidate-ui-feasibility-observed');
+});
