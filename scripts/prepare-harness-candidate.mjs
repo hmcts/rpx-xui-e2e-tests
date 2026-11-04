@@ -70,13 +70,14 @@ function removeBuild(id, expectedOwner) {
 const recordBuild = (result) => writeFileSync(path.join(output, 'build-execution.json'), JSON.stringify({ owner, containerId, buildImage, buildImageReference, sourceCommit: options.commit, ...result }, null, 2) + '\n', { mode: 0o600 });
 const uninstallCancellation = installCancellationCleanup({ resources, remove: removeBuild, onCancel: (signal) => recordBuild({ terminalState: 'interrupted', requestedSignal: signal, exitCode: null }) });
 try {
-  containerId = run('docker', candidateBuildContainerArguments({ owner, build, image: buildImage, script, platform: target.platform }));
+  containerId = run('docker', candidateBuildContainerArguments({ owner, build, image: buildImage, script, platform: target.platform, uid: process.getuid(), gid: process.getgid() }));
   resources.set(containerId, owner);
   recordBuild({ terminalState: 'created', exitCode: null, limits: { memoryBytes: 8589934592, cpus: 4, pids: 512, init: true } });
   const client = spawn('docker', ['start', '--attach', containerId], { env, stdio: 'inherit' });
   const terminal = await new Promise((resolve, reject) => { client.once('error', reject); client.once('exit', (code, signal) => resolve({ code, signal })); });
   const info = inspectBuild();
-  recordBuild({ terminalState: 'completed', clientExit: terminal, exitCode: info.State.ExitCode, state: info.State, limits: { memoryBytes: info.HostConfig.Memory, nanoCpus: info.HostConfig.NanoCpus, pids: info.HostConfig.PidsLimit, init: info.HostConfig.Init } });
+  recordBuild({ terminalState: 'completed', clientExit: terminal, exitCode: info.State.ExitCode, state: info.State, user: info.Config.User, limits: { memoryBytes: info.HostConfig.Memory, nanoCpus: info.HostConfig.NanoCpus, pids: info.HostConfig.PidsLimit, init: info.HostConfig.Init } });
+  if (info.Config.User !== `${process.getuid()}:${process.getgid()}`) throw new Error('BUILD_CONTROLLER_IDENTITY_MISMATCH');
   if (terminal.code !== 0 || terminal.signal || info.State.Running || info.State.Status !== 'exited' || info.State.ExitCode !== 0 || info.State.OOMKilled || info.State.Error) throw new Error('ARCHIVE_BUILD_FAILED');
 } finally {
   try { if (containerId) removeBuild(containerId, owner); } finally { uninstallCancellation(); }

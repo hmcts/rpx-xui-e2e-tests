@@ -53,7 +53,7 @@ test("AMD64 build target requires observed x64 Node and selects the pinned index
   api.assertCandidateBuildRuntime(contract, { platform: target.platform }, { ...runtime, architecture: "x64" });
   assert.throws(() => api.assertCandidateBuildRuntime(contract, { platform: target.platform }, runtime), /BUILD_PLATFORM_MISMATCH/);
   assert.throws(() => api.candidateBuildPlatform("linux/ppc64le"), /UNSUPPORTED_CANDIDATE_BUILD_PLATFORM/);
-  const args = api.candidateBuildContainerArguments({ owner: "harness-archive-abcd-1234", build: "/private/tmp/build", image: "sha256:" + "a".repeat(64), script: "true", platform: target.platform });
+  const args = api.candidateBuildContainerArguments({ owner: "harness-archive-abcd-1234", build: "/private/tmp/build", image: "sha256:" + "a".repeat(64), script: "true", uid: 1001, gid: 1002, platform: target.platform });
   assert.equal(args[args.indexOf("--platform") + 1], "linux/amd64");
   assert.equal(args[args.indexOf("--network") + 1], "none");
 });
@@ -130,9 +130,11 @@ test("compile container is owned, offline, initialized and bounded without autom
     build: "/private/tmp/build",
     image: "sha256:" + "a".repeat(64),
     script: "true",
+    uid: 1001, gid: 1002,
   });
   assert.equal(args[0], "create");
   for (const [flag, value] of [
+    ["--user", "1001:1002"],
     ["--network", "none"],
     ["--memory", "8g"],
     ["--cpus", "4"],
@@ -153,3 +155,10 @@ test("compile container is owned, offline, initialized and bounded without autom
     /INVALID_OWNED_BUILD_CONTAINER/,
   );
 });
+
+ test("build identity must be an explicit numeric controller UID and GID", async () => {
+  const api = await load();
+  const input = { owner: "harness-archive-abcd-1234", build: "/private/tmp/build", image: "sha256:" + "a".repeat(64), script: "true", uid: 1001, gid: 1002 };
+  for (const patch of [{uid: undefined}, {gid: undefined}, {uid: -1}, {gid: 1.5}, {uid: "0:0"}, {gid: 2**32}])
+    assert.throws(() => api.candidateBuildContainerArguments({...input,...patch}), /INVALID_OWNED_BUILD_CONTAINER/);
+ });

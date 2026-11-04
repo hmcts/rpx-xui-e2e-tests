@@ -56,10 +56,13 @@ export function candidateBuildContainerArguments({
   build,
   image,
   script,
+  uid,
+  gid,
   platform = "linux/arm64",
 }) {
   const target = candidateBuildPlatform(platform);
   if (
+    ![uid, gid].every(value => Number.isInteger(value) && value >= 0 && value < 0xffffffff) ||
     !/^harness-archive-[a-f0-9-]+$/.test(owner) ||
     !/^sha256:[a-f0-9]{64}$/.test(image) ||
     !build.startsWith("/") ||
@@ -68,6 +71,8 @@ export function candidateBuildContainerArguments({
     throw new Error("INVALID_OWNED_BUILD_CONTAINER");
   return [
     "create",
+    "--user",
+    `${uid}:${gid}`,
     "--name",
     owner,
     "--label",
