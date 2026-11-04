@@ -103,15 +103,25 @@ an evidence adapter and exposes no API for marking facet IDs observed or accepte
 Every row stays unproved and all credit flags remain false. New source attributes
 must be explicitly classified; unknown attributes fail closed.
 
-The result rows themselves require LiveFrom activation, normalized CaseTypeID, exact
+The result rows themselves include LiveFrom, normalized CaseTypeID, exact
 CaseFieldID, Label and DisplayOrder; one also requires ResultsOrdering. Therefore
 labels/order/value formatting alone cannot establish all fourteen rows. Real CCD
 metadata descriptors remain unresolved for CREATED_DATE and STATE. Ordinary field
 dependencies additionally require actual imported type/security/live-date attributes
-and observable searchable/mapping behavior where declared. Preservation in the
+and verification of the supported live-date/searchable consumer semantics. Those
+semantics remain unresolved; neither future-date column removal nor a particular
+searchable mapping/query effect is assumed. Preservation in the
 workbook is provenance evidence, not proof of those behaviors.
 
 Full row credit remains unavailable until a trusted runtime adapter binds all of
 these observations and effective faults to the candidate/import/source identities.
 Input hint rendering and index synchronization are separate claims; that boundary
 does not waive a material table facet. No generic catalogue acceptance is changed.
+
+Source inspection at definition-store reference
+`c37c9b84e556f22086f1eed7b94468302870eb9e` confirms
+`GenericLayoutParser.java:229` and `CaseFieldParser.java:83` parse LiveFrom,
+and `CaseFieldParser.java:85` parses Searchable (default true). These assignments
+do not establish activation/version-selection behavior or a specific ES query
+effect. This reference is not bound to the retained CCD image. The contract leaves
+consumer semantics unresolved pending that binding or a controlled import probe.

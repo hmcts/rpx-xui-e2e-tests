@@ -61,7 +61,7 @@ export function validateResultColumnFixture(fixture, source = readSource()) {
 export function buildResultColumnFacetContract(fixture = buildResultColumnFixture()) {
   validateResultColumnFixture(fixture);
   const attributeProofs = {
-    LiveFrom: { boundary: "ccd", proof: "Imported live date and effective column activation; a future-date fault must remove the column." },
+    LiveFrom: { boundary: "ccd", semantics: "unresolved-consumer", proof: "Verify the actual imported live date and establish its supported import/version/runtime consumer from image-bound implementation or controlled import observations before choosing an effect oracle. No future-date removal behavior is assumed." },
     CaseTypeID: { boundary: "ccd", proof: "Imported descriptor and real search response belong to HarnessResultsPRL with the retained PRLAPPS normalization binding." },
     CaseFieldID: { boundary: "candidate+ccd", proof: "Exact real descriptor field binding and unique persisted value in the corresponding candidate column; a binding fault must be detected." },
     Label: { boundary: "candidate+ccd", proof: "Exact source label including whitespace in imported descriptor, plus intended rendered heading; a label fault must be detected." },
@@ -69,14 +69,14 @@ export function buildResultColumnFacetContract(fixture = buildResultColumnFixtur
     ResultsOrdering: { boundary: "candidate+ccd", proof: "Real search results and candidate rows follow submitted timestamp descending order across three cases created in a different order; reversed ordering must be detected." },
   };
   const fieldAttributeProofs = {
-    LiveFrom: "Imported field live date and effective availability are observed.",
+    LiveFrom: "Verify the actual imported field live date; its import/version/runtime consumer semantics remain unresolved until image-bound implementation or controlled observations establish them.",
     CaseTypeID: "Resolved field belongs to the normalized case type.",
     ID: "Resolved field ID matches the result-column binding.",
     Label: "Imported field label remains source-exact; result heading uses the result-row label.",
     HintText: "Imported field hint remains source-exact; no input-hint rendering claim is made by this table slice.",
     FieldType: "Actual CCD descriptor resolves the pinned type and candidate uses its real renderer; Date and DateTime values are checked with an explicit timezone/locale contract.",
     SecurityClassification: "Actual imported classification and authorized real search projection are observed; a classification/access fault cannot silently expose the value.",
-    Searchable: "Actual imported searchable setting and generated ES mapping/query behavior are observed; preservation in JSON alone is insufficient.",
+    Searchable: "Verify the actual imported searchable setting, then establish its supported consumer from image-bound implementation and actual generated mapping/query observations. No mapping inclusion, exclusion or queryability effect is assumed from the flag alone.",
   };
   const rows = fixture.bindings.map(binding => {
     const sheet = binding.sourcePath.endsWith("/SearchResultFields.json") ? "SearchResultFields" : "WorkBasketResultFields";

@@ -102,6 +102,7 @@ test('result column facet contract exhausts every source attribute and keeps all
     assert.deepEqual(item.sourceFacets.map(f => f.attribute), Object.keys(row));
     assert(item.sourceFacets.every(f => f.proof && f.boundary));
     assert.equal(item.status, 'unproved');
+    assert.equal(item.sourceFacets.find(f => f.attribute === 'LiveFrom').semantics, 'unresolved-consumer');
     assert.equal(item.sourceFacets.find(f => f.attribute === 'CaseTypeID').sourceValue, 'PRLAPPS');
     const field = fixture.sheets.CaseField.find(f => f.ID === binding.field);
     if (field) assert.deepEqual(item.dependency.facets.map(f => f.attribute), Object.keys(field));
