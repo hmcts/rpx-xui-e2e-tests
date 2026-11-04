@@ -59,6 +59,8 @@ const SOURCE_FILES = [
   'scripts/lib/exui-ccd-role-transition.mjs', 'scripts/lib/exui-ccd-runtime.mjs',
   'scripts/lib/exui-ccd-event-capability.mjs', 'scripts/lib/exui-ccd-event-transition.mjs',
   'scripts/lib/exui-ccd-browser-runtime.mjs',
+  'scripts/lib/exui-recipient-callback.mjs', 'scripts/lib/exui-recipient-callback-fixture.mjs',
+  'scripts/lib/exui-recipient-callback-auth.mjs',
 ];
 
 function temporary(t, prefix) {
@@ -155,7 +157,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 93);
+  assert.equal(SOURCE_FILES.length, 96);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

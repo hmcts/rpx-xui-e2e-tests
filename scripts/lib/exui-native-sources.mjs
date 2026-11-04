@@ -93,4 +93,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-ccd-event-capability.mjs",
   "scripts/lib/exui-ccd-event-transition.mjs",
   "scripts/lib/exui-ccd-browser-runtime.mjs",
+  "scripts/lib/exui-recipient-callback.mjs",
+  "scripts/lib/exui-recipient-callback-fixture.mjs",
+  "scripts/lib/exui-recipient-callback-auth.mjs",
 ]);

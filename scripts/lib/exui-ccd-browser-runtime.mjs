@@ -3,6 +3,9 @@ import fs from "node:fs";
 import http from "node:http";
 import { createHmac } from "node:crypto";
 import { validateRoleTransition } from "./exui-ccd-role-transition.mjs";
+import { createRecipientCallbackResponder } from "./exui-recipient-callback.mjs";
+import { RECIPIENT_CALLBACK_PATH } from "./exui-recipient-callback-fixture.mjs";
+import { createOwnedCallbackServiceVerifier } from "./exui-recipient-callback-auth.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
 
 export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.sessions") {
@@ -136,13 +139,34 @@ function ccdTransportRoute(method, pathname, scope) {
   return null;
 }
 
-// This gateway implements path/auth transport only. CCD owns every baseline case/event response.
-export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot") {
+// CCD owns every baseline case/event response. The explicit callback opt-in adds
+// only the bounded synthetic recipient transport responder, never production PRL logic.
+export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
+  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => key === "recipientCallback"), "CCD_GATEWAY_OPTIONS_INVALID");
+  const { recipientCallback } = options;
   assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
   if (scope === EVENT_CAPABILITY_SCOPE)
     assert.equal(mutation, null, "CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
+  let callback;
+  if (recipientCallback !== undefined) {
+    assert.equal(scope, EVENT_CAPABILITY_SCOPE, "CCD_CALLBACK_EVENT_SCOPE_REQUIRED");
+    assert(recipientCallback && typeof recipientCallback === "object" && !Array.isArray(recipientCallback), "CCD_CALLBACK_OPTIONS_INVALID");
+    assert.deepEqual(Object.keys(recipientCallback), ["invocationId"], "CCD_CALLBACK_OPTIONS_INVALID");
+    const callbackEvidenceFile = `${output}/recipient-callback.jsonl`;
+    callback = createRecipientCallbackResponder({
+      invocationId: recipientCallback.invocationId,
+      verifyServiceAuthorization: createOwnedCallbackServiceVerifier(),
+      recordEvidence: evidence => fs.appendFileSync(callbackEvidenceFile, JSON.stringify(evidence) + "\n", { mode: 0o600 }),
+    });
+    // One fresh evidence journal per owned gateway invocation; never mix a reused run.
+    fs.writeFileSync(callbackEvidenceFile, "", { flag: "wx", mode: 0o600 });
+  }
   const server = http.createServer(async (request, response) => {
     try {
+      if (callback && request.url.split("?")[0] === RECIPIENT_CALLBACK_PATH) {
+        await callback(request, response);
+        return;
+      }
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       let body = Buffer.concat(chunks).toString();
