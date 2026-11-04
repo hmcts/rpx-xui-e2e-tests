@@ -35,7 +35,7 @@ export async function describeCandidateArtifact(candidateRoot, provenance) {
   if (!provenance || provenance.sourceMethod !== 'git-archive' || !/^[a-f0-9]{40}$/.test(provenance.webappCommit ?? '') || !/^[a-f0-9]{40}$/.test(provenance.sourceTree ?? '')) {
     throw new Error('Candidate requires an identified immutable git archive source');
   }
-  if (provenance.platform !== 'linux/arm64' || !/^sha256:[a-f0-9]{64}$/.test(provenance.buildImage ?? '') || provenance.install !== 'immutable-offline') throw new Error('Candidate requires pinned Linux/arm64 build and immutable offline install');
+  if (!['linux/arm64', 'linux/amd64'].includes(provenance.platform) || !/^sha256:[a-f0-9]{64}$/.test(provenance.buildImage ?? '') || provenance.install !== 'immutable-offline') throw new Error('Candidate requires pinned Linux/arm64 or Linux/amd64 build and immutable offline install');
   const root = await realpath(candidateRoot);
   // Validate the complete tree before reading named inputs through possible symlinks.
   const payloadDigest = await digestCandidateTree(root);

@@ -45,6 +45,19 @@ test("observed Node below the committed source engine cannot build", async () =>
   });
 });
 
+test("AMD64 build target requires observed x64 Node and selects the pinned index child", async () => {
+  const api = await load();
+  const contract = api.readCandidateBuildContract(manifest, yarnrc);
+  const target = api.candidateBuildPlatform("linux/amd64");
+  assert.equal(target.imageReference, "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02");
+  api.assertCandidateBuildRuntime(contract, { platform: target.platform }, { ...runtime, architecture: "x64" });
+  assert.throws(() => api.assertCandidateBuildRuntime(contract, { platform: target.platform }, runtime), /BUILD_PLATFORM_MISMATCH/);
+  assert.throws(() => api.candidateBuildPlatform("linux/ppc64le"), /UNSUPPORTED_CANDIDATE_BUILD_PLATFORM/);
+  const args = api.candidateBuildContainerArguments({ owner: "harness-archive-abcd-1234", build: "/private/tmp/build", image: "sha256:" + "a".repeat(64), script: "true", platform: target.platform });
+  assert.equal(args[args.indexOf("--platform") + 1], "linux/amd64");
+  assert.equal(args[args.indexOf("--network") + 1], "none");
+});
+
 test("wrong image or runtime platform and an Alpine substitute are rejected", async () => {
   const api = await load();
   const contract = api.readCandidateBuildContract(manifest, yarnrc);
@@ -55,7 +68,7 @@ test("wrong image or runtime platform and an Alpine substitute are rejected", as
         { platform: "linux/amd64" },
         runtime,
       ),
-    /LINUX_ARM64/,
+    /BUILD_PLATFORM_MISMATCH/,
   );
   assert.throws(
     () =>
@@ -63,7 +76,7 @@ test("wrong image or runtime platform and an Alpine substitute are rejected", as
         ...runtime,
         architecture: "x64",
       }),
-    /LINUX_ARM64/,
+    /BUILD_PLATFORM_MISMATCH/,
   );
   assert.throws(
     () =>
