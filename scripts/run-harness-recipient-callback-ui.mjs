@@ -10,14 +10,41 @@ import {assertCandidateConfigurationSources} from './lib/exui-configuration-cata
 import {nativeContainerPlan,inspectNativeApiRuntime,inspectNativeBrowserRuntime} from './lib/exui-native-containers.mjs';
 import {nativeIdentity} from './lib/exui-native-contract.mjs';
 import {runHostInvocation,removeHostResource} from './lib/exui-host-invocation.mjs';
-import {startCcdRuntime,ccdCredentials,ccdRequest,verifyCcdRuntimeIdentity} from './lib/exui-ccd-runtime.mjs';
+import {startCcdRuntime,ccdCredentials,ccdRequest,verifyCcdContainerIdentity} from './lib/exui-ccd-runtime.mjs';
 import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
-import {prepareRecipientCallbackImport,importRecipientCallback} from './lib/exui-recipient-callback-import.mjs';
+import {prepareRecipientCallbackImport,importRecipientCallback,validateObservedRecipientCallback} from './lib/exui-recipient-callback-import.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {callbackFailureCode} from './lib/exui-recipient-callback-diagnostics.mjs';
 import {browserExecutable} from './lib/exui-oci-runtime.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 export const CALLBACK_UI_SOURCES=Object.freeze([...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/run-harness-recipient-callback-ui.mjs','scripts/lib/exui-recipient-callback-import.mjs','src/fixtures/harnessCallback.ts','playwright.callback-feasibility.config.mjs','scripts/recipient-callback-ui-tools.mjs','src/tests/harness/callback-feasibility/recipient-callback.spec.ts'])]);
+export function callbackUiFailureCode(error) {
+ const known=new Set(['CALLBACK_UI_CANCELLED','CALLBACK_UI_VARIANT','CALLBACK_UI_FRESH_OUTPUT','CALLBACK_UI_IMPORT_RECEIPT_MISMATCH','CALLBACK_UI_IMPORT_IDENTITY_MISMATCH','CALLBACK_UI_IMPORT_STATUS','CALLBACK_UI_IMPORT_READBACK_FAILED','CALLBACK_UI_IMPORT_DRIFT','HOST_INVOCATION_CANCELLED','HOST_NAMESPACE_EGRESS_AVAILABLE','HOST_CANDIDATE_RUNTIME_OS','HOST_CANDIDATE_RUNTIME_ARCH','HOST_CANDIDATE_SEALED_NODE_VERSION','HOST_PROVIDER_SHUTDOWN_FAILED','HOST_UNDECLARED_DESTINATION','HOST_FRAMEWORK_TERMINATION_MISMATCH','CCD_RUNTIME_OWNER_MISMATCH','CCD_RUNTIME_NAMESPACE_MISMATCH']);
+ const first=typeof error?.message==='string'?error.message.split('\n',1)[0]:'';
+ if(known.has(first))return first;
+ const callback=callbackFailureCode(error);if(callback!=='CALLBACK_PROBE_UNCLASSIFIED_FAILURE')return callback;
+ if(error?.code==='ENOENT')return 'CALLBACK_UI_REQUIRED_FILE_MISSING';
+ if(error?.code==='EACCES')return 'CALLBACK_UI_FILE_PERMISSION';
+ return 'CALLBACK_UI_PHASE_FAILED';
+}
+export function verifyCallbackUiRuntime(state, imported, {request=ccdRequest, inspect=verifyCcdContainerIdentity}={}) {
+ inspect(state);
+ // The callback derivative has its own sealed receipt; never read baseline definition-import.json.
+ const retained=read(path.join(state.output,'recipient-callback-import/receipt.json'));
+ assert.deepEqual(retained,imported,'CALLBACK_UI_IMPORT_RECEIPT_MISMATCH');
+ assert.equal(imported.status,'import-and-callback-descriptor-observed','CALLBACK_UI_IMPORT_STATUS');
+ assert.equal(imported.kind,'recipient-callback-import-feasibility','CALLBACK_UI_IMPORT_STATUS');
+ assert.deepEqual([imported.owner,imported.namespace,imported.images],[state.owner,state.namespace,state.images],'CALLBACK_UI_IMPORT_IDENTITY_MISMATCH');
+ assert.deepEqual([imported.runtimeAcceptance,imported.catalogueCredit,imported.releaseCredit],[false,false,false],'CALLBACK_UI_IMPORT_STATUS');
+ const observer=ccdCredentials(state,'observer',{request});const observed={};
+ for(const [name,route] of [['definition','/api/data/case-type/HarnessNestedPRL'],['pages','/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments']]){
+  const response=request(state,4451,route,{headers:observer.headers});assert.equal(response.status,200,'CALLBACK_UI_IMPORT_READBACK_FAILED');
+  assert.deepEqual(response.body,imported.observations[name].body,'CALLBACK_UI_IMPORT_DRIFT');observed[name]=response.body;
+ }
+ validateObservedRecipientCallback(observed.definition,observed.pages,imported.seal.binding,imported.seal.variant??'baseline');
+ return Object.fromEntries(Object.entries(observed).map(([name,body])=>[name,digestBytes(JSON.stringify(body))]));
+}
 export function assertCallbackUiOutcome(variant, terminal, observed, report) {
  assert.equal(observed.catalogueCredit,false);assert.equal(report.errors?.length??0,0);
  const specs=[];const visit=suite=>{specs.push(...(suite.specs??[]));for(const child of suite.suites??[])visit(child);};for(const suite of report.suites??[])visit(suite);
@@ -40,7 +67,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   const browserRoot=fs.realpathSync(browser),browserDigest=await digestCandidateTree(browserRoot);
   phase='start-runtime';const ccd=await startCcdRuntime(runtime,{fixtureSelection:'event-capability-baseline',platform:artifact.provenance.platform,isCancelled:()=>cancelled});
   phase='import-callback';await prepareRecipientCallbackImport(output+'/fixture',{variant});
-  const imported=await importRecipientCallback(ccd,{fixtureDirectory:output+'/fixture',variant});receipt.import=imported;save();verifyCcdRuntimeIdentity(ccd);
+  const imported=await importRecipientCallback(ccd,{fixtureDirectory:output+'/fixture',variant});receipt.import=imported;save();const callbackObservedDigests=verifyCallbackUiRuntime(ccd,imported);
   assert(!cancelled,'CALLBACK_UI_CANCELLED');
   phase='prepare-native';const credentials=Object.fromEntries(['allowed','courtadmin','judge','readonly','observer'].map(actor=>[actor,ccdCredentials(ccd,actor)]));
   const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(ccd,port,'/v3/api-docs');assert.equal(response.status,200);return[name,digestBytes(JSON.stringify(response.body))];}));
@@ -49,7 +76,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   for(const file of CALLBACK_UI_SOURCES){const source=path.join(root,file);assert.equal(fs.realpathSync(source),source);assert(fs.lstatSync(source).isFile());const target=path.join(stagedHarness,file);fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});fs.copyFileSync(source,target);fs.chmodSync(target,0o444);}
   const harnessSourceDigest=digestBytes(JSON.stringify(CALLBACK_UI_SOURCES.map(file=>[file,digestBytes(fs.readFileSync(path.join(stagedHarness,file)))])));
   const chromium=read(root+'/node_modules/playwright-core/browsers.json').browsers.find(item=>item.name==='chromium-headless-shell');
-  const input={kind:receipt.kind,variant,runId,artifact,releaseScopeId:'exui-ccd-event-capability-pilot',ccd,credentials,definition,apiContracts,browserRoot,browserDigest,browserExecutable:'/browser/'+browserExecutable({browsers:[chromium]},artifact.provenance.platform),harnessDependencies,harnessSources:CALLBACK_UI_SOURCES,harnessSourceDigest,gatewayDigest:digestBytes(fs.readFileSync(root+'/scripts/lib/exui-ccd-browser-runtime.mjs')),callbackObservedDigests:Object.fromEntries(['definition','pages'].map(name=>[name,digestBytes(JSON.stringify(imported.observations[name].body))])),nativeRuntime:inspectNativeApiRuntime(artifact.provenance.platform),browserRuntimeImage:inspectNativeBrowserRuntime(artifact.provenance.platform)};
+  const input={kind:receipt.kind,variant,runId,artifact,releaseScopeId:'exui-ccd-event-capability-pilot',ccd,credentials,definition,apiContracts,browserRoot,browserDigest,browserExecutable:'/browser/'+browserExecutable({browsers:[chromium]},artifact.provenance.platform),harnessDependencies,harnessSources:CALLBACK_UI_SOURCES,harnessSourceDigest,gatewayDigest:digestBytes(fs.readFileSync(root+'/scripts/lib/exui-ccd-browser-runtime.mjs')),callbackObservedDigests,nativeRuntime:inspectNativeApiRuntime(artifact.provenance.platform),browserRuntimeImage:inspectNativeBrowserRuntime(artifact.provenance.platform)};
   writeJsonAtomic(output+'/input.json',input);fs.chmodSync(output+'/input.json',0o600);
   const directory=output+'/baseline';fs.mkdirSync(directory,{mode:0o700});const stateRoot=output+'/state';
   for(const kind of ['sessions','diagnostics']){const dir=stateRoot+'/baseline/'+kind;fs.mkdirSync(dir,{recursive:true,mode:0o777});fs.chmodSync(dir,0o777);}
@@ -62,7 +89,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   phase='execute-candidate';const result=await runHostInvocation({...plan,manifest,payloadDigest:artifact.payloadDigest},{resources,isCancelled:()=>cancelled});receipt.runnerExitCode=result.terminal.code;
   const observed=read(directory+'/callback-ui-observation.json'),report=read(directory+'/report.json');
   receipt.status=assertCallbackUiOutcome(variant,result.terminal,observed,report);
- } catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=['CALLBACK_UI_CANCELLED','CALLBACK_UI_VARIANT','CALLBACK_UI_FRESH_OUTPUT'].includes(error.message)?error.message:'CALLBACK_UI_PHASE_FAILED';}
+ } catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackUiFailureCode(error);}
  finally {
   const cleanup=[];for(const key of [...resources.keys()].reverse()){try{await removeHostResource(resources,key,output);}catch{cleanup.push(key);}}
   try{receipt.cleanup=fs.existsSync(runtime+'/recovery.json')?cleanupCiCcd(runtime):{cleanupComplete:true};}catch{receipt.cleanup={cleanupComplete:false};}

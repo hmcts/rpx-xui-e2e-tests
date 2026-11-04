@@ -86,3 +86,25 @@ test('support only: omission feasibility requires a completed named assertion af
  assert.throws(()=>assertCallbackUiOutcome('binding-omitted',{code:1,signal:null},{...observed,faultEffective:false},report));
  assert.throws(()=>assertCallbackUiOutcome('binding-omitted',{code:1,signal:'SIGTERM'},observed,report));
 });
+test('support only: callback UI checks its distinct receipt and actual descriptor without baseline import receipt',async t=>{
+ const {verifyCallbackUiRuntime,callbackUiFailureCode}=await import('./run-harness-recipient-callback-ui.mjs');
+ const {deriveRecipientCallbackFixture}=await import('./lib/exui-recipient-callback-fixture.mjs');const {binding}=deriveRecipientCallbackFixture();
+ const output=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-ui-receipt-'));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(output+'/recipient-callback-import');
+ const state={output,owner:'harness-callback-test',namespace:'owned-namespace',images:{data:{id:'image'}}};
+ const definition={id:'HarnessNestedPRL',version:{number:2},events:[{id:binding.eventId}]},pages={case_type_id:'HarnessNestedPRL',event_id:binding.eventId,wizard_pages:[{id:'serviceOfDocuments2',wizard_page_fields:[{case_field_id:binding.fieldId}],callback_url_mid_event:binding.normalizedUrl}]};
+ const imported={kind:'recipient-callback-import-feasibility',status:'import-and-callback-descriptor-observed',owner:state.owner,namespace:state.namespace,images:state.images,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false,seal:{binding},observations:{definition:{status:200,body:definition},pages:{status:200,body:pages}}};
+ const receiptPath=output+'/recipient-callback-import/receipt.json';fs.writeFileSync(receiptPath,JSON.stringify(imported));let inspected=0;
+ const request=(_state,_port,route)=>{
+  if(route==='/testing-support/accounts')return {status:201,body:{}};
+  if(route==='/o/token')return {status:200,body:{access_token:'synthetic-private'}};
+  if(route==='/details')return {status:200,body:{id:'observer-id'}};
+  if(route==='/testing-support/lease')return {status:200,body:'synthetic-service'};
+  return {status:200,body:route.includes('/wizard-page-structure/')?pages:definition};
+ };
+ const result=verifyCallbackUiRuntime(state,imported,{request,inspect:()=>inspected++});assert.equal(inspected,1);assert.match(result.definition,/^sha256:/);assert(!fs.existsSync(output+'/definition-import.json'));
+ pages.wizard_pages[0].callback_url_mid_event=null;
+ assert.throws(()=>verifyCallbackUiRuntime(state,JSON.parse(fs.readFileSync(receiptPath)),{request,inspect:()=>{}}),/CALLBACK_UI_IMPORT_DRIFT/);
+ assert.equal(callbackUiFailureCode(Error('CALLBACK_UI_IMPORT_DRIFT\nprivate details')),'CALLBACK_UI_IMPORT_DRIFT');
+ assert.equal(callbackUiFailureCode(Error('CALLBACK_PAGE_URL')),'CALLBACK_PAGE_URL');
+ assert.equal(callbackUiFailureCode(Error('CALLBACK_UI_PRIVATE_SECRET')),'CALLBACK_UI_PHASE_FAILED');
+});
