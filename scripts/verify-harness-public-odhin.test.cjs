@@ -663,22 +663,25 @@ async function nativePresentationFixture(blocked = true) {
     catalogueCoverage: {
       catalogueDigest: `sha256:${objectDigest(catalogue.obligations)}`,
       selected: catalogue.obligations.length,
-      candidate: 0,
+      candidate: 1,
       ccd: blocked ? 1 : 2,
       creditedObligationIds: [
         ...(blocked ? [] : [catalogue.sequences[0].id]),
         "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+        "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861",
       ],
-      missing: catalogue.obligations.length - (blocked ? 1 : 2),
+      missing: catalogue.obligations.length - (blocked ? 2 : 3),
       sourceArtifactDigests,
       phaseReferences: Object.fromEntries(
-        ["ccd", "eventCapability"].map((phase) => [
+        ["ccd", "eventCapability", "routing"].map((phase) => [
           phase,
           {
             releaseScopeId:
               phase === "ccd"
                 ? "exui-ccd-pilot"
-                : "exui-ccd-event-capability-pilot",
+                : phase === "eventCapability"
+                  ? "exui-ccd-event-capability-pilot"
+                  : "exui-decentralised-routing-pilot",
             runId: "candidate-11111111-1111-4111-8111-111111111111",
             receiptArtifactDigest: hash,
             status: blocked && phase === "ccd" ? "BLOCKED" : "PASS",
@@ -692,6 +695,7 @@ async function nativePresentationFixture(blocked = true) {
       scope: "exui-wa-scope-pilot",
       ccd: "exui-ccd-pilot",
       eventCapability: "exui-ccd-event-capability-pilot",
+      routing: "exui-decentralised-routing-pilot",
     }).map(([phase, scope]) => {
       const policy = getReleasePolicy(scope);
       return {
@@ -740,7 +744,7 @@ async function nativePresentationFixture(blocked = true) {
   };
 }
 
-test("same Odhin document separates nine native baselines and eight faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
+test("same Odhín document separates eleven native baselines and ten faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
   sandbox(t);
   const Reporter = api();
   const reporter = new Reporter({ selection: "local-aat" });
@@ -771,8 +775,8 @@ test("same Odhin document separates nine native baselines and eight faults from1
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 9);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 8);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 11);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 10);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,
@@ -785,6 +789,8 @@ test("same Odhin document separates nine native baselines and eight faults from1
   assert.match(nativeText, /Required failure: postal-persistence/);
   assert.match(nativeText, /Observed failure: postal-required-fields/);
   assert.match(nativeText, /Expected failure observed/);
+  assert.match(nativeText, /PCS external create and local fallback/);
+  assert.match(nativeText, /PCS NoC route by requested case/);
   assert.ok(
     !dom
       .querySelector("#harness-overview")
@@ -792,7 +798,7 @@ test("same Odhin document separates nine native baselines and eight faults from1
   );
   assert.match(
     dom.querySelector("[data-runtime-obligations]").textContent,
-    /1 \/ 112/,
+        /2 \/ 112/,
   );
   assert.equal(Reporter.validatePublicReport().tests, 121);
   assert.equal(
@@ -836,10 +842,10 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
     });
     assert.ok(
       html.includes(
-        `${blocked ? 1 : 2} / 112 catalogue requirements satisfied by accepted runtime evidence`,
+        `${blocked ? 2 : 3} / 112 catalogue requirements satisfied by accepted runtime evidence`,
       ),
     );
-    assert.ok(html.includes(`${blocked ? 111 : 110} remain unsatisfied`));
+    assert.ok(html.includes(`${blocked ? 110 : 109} remain unsatisfied`));
     assert.ok(!html.includes("candidate and CCD checks NOT RUN"));
   }
   for (const change of [
@@ -1029,7 +1035,7 @@ test("HTML integrity binds the full native projection and diagnostic source, not
   );
 });
 
-test("four-phase presentation cannot relabel historical or partial native collections", async () => {
+test("five-phase presentation cannot relabel historical or partial native collections", async () => {
   const { renderNativeEvidence } = require("./harness-native-report.cjs");
   const value = await nativePresentationFixture();
   value.phases.pop();

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { digestBytes, loadRunEvidence } from "./exui-evidence-io.mjs";
 import { getReleasePolicy } from "./exui-release-policy.mjs";
@@ -13,12 +14,15 @@ import { projectConfigurationCoverage } from "./exui-configuration-runtime-cover
 import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs";
 import { nativeInvocations } from "./exui-native-contract.mjs";
 import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
+import { assertRoutingInterpreter, ROUTING_SCOPE } from "./exui-routing-contract.mjs";
 
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const scopes = {
   family: "exui-wa-family-pilot",
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
   eventCapability: "exui-ccd-event-capability-pilot",
+  routing: ROUTING_SCOPE,
 };
 const hashPattern = /^sha256:[a-f0-9]{64}$/;
 const uuid =
@@ -192,6 +196,22 @@ function phaseProjection(directory, selection, ciPhase, expected) {
     );
   if (phase === "eventCapability")
     validateEventTransitionEvidence(directory, pin, loaded.input);
+  if (phase === "routing") {
+    const routeInput = read(path.join(directory, "input.json")).value;
+    const review = read(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json")).value;
+    const interpreter = assertRoutingInterpreter(
+      routeInput.artifact,
+      review,
+      routeInput.artifact.identity,
+    );
+    equal(routeInput.releaseScopeId, ROUTING_SCOPE, "ROUTING_SCOPE_MISMATCH");
+    equal(routeInput.routingInterpreter, interpreter, "ROUTING_IMPLEMENTATION_MISMATCH");
+    equal(pin.routingInterpreter, interpreter, "ROUTING_EXPECTATION_MISMATCH");
+    equal(runtime.routingInterpreter, JSON.stringify(interpreter), "ROUTING_RUNTIME_IDENTITY_MISMATCH");
+    equal(routeInput.artifact.identity.artifactDigest, pin.identity.artifactDigest, "ROUTING_CANDIDATE_MISMATCH");
+    for (const field of ["webappCommit", "dependencyLockDigest", "toolkitVersion", "toolkitDigest"])
+      equal(routeInput.artifact.identity[field], pin.identity[field], "ROUTING_CANDIDATE_MISMATCH");
+  }
   canonical(path.join(directory, "controller-terminal.json"));
   for (const execution of loaded.input.executions) {
     for (const file of [
@@ -337,6 +357,7 @@ export async function readNativeReportEvidence(descriptorPath) {
     const accounting = projectConfigurationCoverage({
       phaseDirectory: path.join(directory, "private/ccd"),
       eventPhaseDirectory: path.join(directory, "private/eventCapability"),
+      routingPhaseDirectory: path.join(directory, "private/routing"),
     });
     const ccdPin = expected.phases.find(
       (item) => item.phase === "ccd",
@@ -351,7 +372,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       ccdPin.evidenceManifestDigest,
       "COVERAGE_EVIDENCE_MISMATCH",
     );
-    for (const phase of ["ccd", "eventCapability"]) {
+    for (const phase of ["ccd", "eventCapability", "routing"]) {
       const selected = expected.phases.find((item) => item.phase === phase);
       const ref = accounting.phaseReferences[phase];
       for (const field of [

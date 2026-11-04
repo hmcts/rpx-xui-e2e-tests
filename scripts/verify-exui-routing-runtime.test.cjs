@@ -96,7 +96,7 @@ test("support only: other scopes reject routing origins while routing config can
   );
 });
 
-test("support only: non-CCD policies stay unchanged, CCD requires role removal, and routing stays outside fixed CI order", async () => {
+test("support only: routing is the fifth required CI phase and existing policies stay unchanged", async () => {
   const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
   const expected = {
     "exui-wa-family-pilot":
@@ -136,7 +136,7 @@ test("support only: non-CCD policies stay unchanged, CCD requires role removal, 
     startEvent: async () => {},
     stopEvent: async () => {},
   });
-  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability"]);
+  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability", "routing"]);
 });
 
 test("support only: scoped real Node guard admits PCS NoC but denies UI/other origins and keeps old scopes unchanged", () => {

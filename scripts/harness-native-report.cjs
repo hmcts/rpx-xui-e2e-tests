@@ -115,6 +115,30 @@ proofs["ccd-event-create-denied"] = {
   limits:
     "Literal source role caseworker-privatelaw-judge with event R permission. The legacy token read remains allowed. The deliberate fault changes only that event permission to CR in a separately imported fresh namespace. No production authorisation claim.",
 };
+proofs["routing-create-redirect-fallback"] = {
+  phase: "routing",
+  slice: "PCS external create and local fallback",
+  behaviour:
+    "Route an external PCS create event to its configured destination; preserve local dispatch when the external destination is absent or the event is local.",
+  services: "Private Law (synthetic PCS routing fixture)",
+  jurisdiction: "PCS",
+  caseType: "PCS (synthetic case type)",
+  lane: "Actual EXUI Node + Angular with synthetic CCD providers",
+  limits:
+    "Uses synthetic case and provider responses. It does not prove deployed PCS profiles, environment overlays, or other decentralised service entries.",
+};
+proofs["routing-noc-session-cache"] = {
+  phase: "routing",
+  slice: "PCS NoC route by requested case",
+  behaviour:
+    "Resolve the NoC destination for each requested case ID and use the matching case type cached in that session; retain central fallback for unmapped cases.",
+  services: "Private Law (synthetic PCS routing fixture)",
+  jurisdiction: "PCS",
+  caseType: "PCS and unmapped synthetic cases",
+  lane: "Actual EXUI Node + Angular with synthetic CCD providers",
+  limits:
+    "Uses synthetic case and provider responses. It does not prove deployed PCS profiles, environment overlays, or other decentralised service entries.",
+};
 const faults = {
   "ccd-enable-judge-event":
     "Grant the judge create permission for the readable case’s source event",
@@ -127,12 +151,15 @@ const faults = {
     "Substitute the actor's old warmed bearer after role removal",
   "ccd-drop-postal-optional-child":
     "Drop the second postal recipient's optional address line",
+  "routing-omit-web-url": "Omit the PCS external web destination",
+  "routing-omit-noc-base-url": "Omit the PCS NoC destination",
 };
 const phaseLabels = {
   family: "WA families",
   scope: "WA organisation scope",
   ccd: "CCD data and access",
   eventCapability: "Source role and event capability",
+  routing: "PCS decentralised routing",
 };
 const badge = (text, passed) =>
   `<span class="harness-status ${passed ? "passed" : "failed"}">${escape(text)}</span>`;
@@ -188,6 +215,9 @@ function renderNativeEvidence(evidence) {
           : id ===
               "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313"
             ? "eventCapability"
+            : id ===
+                "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861"
+              ? "routing"
             : null;
       const accepted = evidence.phases.find((item) => item.phase === phase);
       const ref = coverage.phaseReferences[phase];

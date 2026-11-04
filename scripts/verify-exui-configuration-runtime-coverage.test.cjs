@@ -701,6 +701,80 @@ test("support only: native committed-summary loading needs no source checkout or
 
 const eventCell =
   "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313";
+const routingCell =
+  "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861";
+async function completeRoutingBundle(root, values = {}) {
+  const { createRoutingPhaseFixture } = require(
+    "./fixtures/exui-routing-phase-evidence.mock.cjs",
+  );
+  return createRoutingPhaseFixture({ root, ...values });
+}
+
+test("support only: complete routing phase credits its single reviewed PCS source obligation", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-routing-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const routing = await completeRoutingBundle(root);
+  const projected = api.projectConfigurationCoverage({
+    routingPhaseDirectory: routing.directory,
+  });
+  assert.equal(projected.report.coverage.selected, 112);
+  assert.equal(projected.report.coverage.candidate, 1);
+  assert.equal(projected.report.coverage.ccd, 0);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 111);
+  assert.deepEqual(projected.report.executedProofs, [
+    { obligationId: routingCell, boundary: "candidate", status: "passed" },
+  ]);
+  assert.equal(projected.phaseReferences.routing.status, "PASS");
+  assert.equal(projected.phaseReferences.routing.runId, routing.expected.runId);
+  assert.equal(projected.report.releaseCredit, false);
+  assert(
+    !projected.report.gaps.some((gap) =>
+      /candidate-event-redirect-not-demonstrated|noc-session-routing-not-demonstrated|decentralised-interpretation-context-not-candidate-verified/.test(gap),
+    ),
+  );
+});
+
+test("support only: unsuccessful PCS routing evidence earns no candidate coverage", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-routing-failed-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const routing = await completeRoutingBundle(root, {
+    failedProofId: "routing-noc-session-cache",
+  });
+  const projected = api.projectConfigurationCoverage({
+    routingPhaseDirectory: routing.directory,
+  });
+  assert.equal(projected.phaseReferences.routing.status, "BLOCKED");
+  assert.equal(projected.report.coverage.candidate, 0);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 112);
+  assert.deepEqual(projected.report.executedProofs, []);
+});
+
+test("support only: routing coverage rejects an altered sealed interpreter pin", async (t) => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const root = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "coverage-routing-pin-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const routing = await completeRoutingBundle(root);
+  const inputPath = path.join(routing.directory, "input.json");
+  const input = JSON.parse(fs.readFileSync(inputPath));
+  input.routingInterpreter.implementation.apiBundle.digest = "sha256:" + "0".repeat(64);
+  fs.writeFileSync(inputPath, JSON.stringify(input));
+  assert.throws(
+    () =>
+      api.projectConfigurationCoverage({
+        routingPhaseDirectory: routing.directory,
+      }),
+    /COVERAGE_ROUTING_INTERPRETER_MISMATCH/,
+  );
+});
+
 async function completeEventBundle(root) {
   const {
     createEventTransitionFixture,

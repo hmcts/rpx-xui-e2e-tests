@@ -274,6 +274,23 @@ async function fixture(
     receiptArtifactDigest: event.expected.receiptArtifactDigest,
     eventTransition: event.expected.eventTransition,
   });
+  const { createRoutingPhaseFixture } = require(
+    "./fixtures/exui-routing-phase-evidence.mock.cjs",
+  );
+  const routing = await createRoutingPhaseFixture({
+    root: path.join(directory, "private"),
+    harnessCommit: expected.harnessCommit,
+    sourceDigest: event.expected.harnessSourceDigest,
+    dependencyDigest: event.expected.harnessDependencyDigest,
+    browserDigest: event.expected.browserDigest,
+  });
+  expected.phases.push({
+    phase: "routing",
+    policy: routing.policy,
+    terminal: routing.terminal,
+    expected: routing.expected,
+  });
+  phaseResults.push(routing.result);
   const last = phaseResults.reduce((worst, item) =>
     item.exitCode > worst.exitCode ? item : worst,
   );
@@ -295,6 +312,7 @@ async function fixture(
     root,
     directory,
     event,
+    routing,
     descriptor,
     descriptorPath,
     save: () => write(descriptorPath, descriptor),
@@ -372,8 +390,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 9);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 8);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 11);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 10);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -649,7 +667,7 @@ for (const postalFailure of [false, true])
     const coverage = result.catalogueCoverage;
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
-    assert.equal(coverage.candidate, 0);
+    assert.equal(coverage.candidate, 1);
     assert.equal(coverage.ccd, postalFailure ? 1 : 2);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
@@ -658,8 +676,9 @@ for (const postalFailure of [false, true])
             "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
           ]),
       "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+      "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 111 : 110);
+    assert.equal(coverage.missing, postalFailure ? 110 : 109);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(
@@ -694,6 +713,8 @@ test("a later accepted phase cannot hide the postal blocker, and a failed new ce
     assert.equal(result.exitCode, postalFailure ? 2 : 1);
     assert.equal(result.phases[3].status, "FAIL");
     assert.equal(result.catalogueCoverage.ccd, postalFailure ? 0 : 1);
+    assert.equal(result.catalogueCoverage.candidate, 1);
+    assert.equal(result.catalogueCoverage.missing, postalFailure ? 111 : 110);
     assert(
       !result.catalogueCoverage.creditedObligationIds.some((id) =>
         id.startsWith("configuration-cell:"),
@@ -736,7 +757,7 @@ test("rehashed transition claims still require the independent before-fault capt
   );
 });
 
-test("historical three-phase evidence cannot become a completed four-phase report", async (t) => {
+test("historical four-phase evidence cannot become a completed five-phase report", async (t) => {
   const f = await fixture(t);
   f.descriptor.expected.phases.pop();
   f.save();

@@ -194,7 +194,7 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, "private"));
   const digest = "sha256:" + "a".repeat(64),
     commit = "b".repeat(40);
-  const phases = ["family", "scope", "ccd", "eventCapability"];
+  const phases = ["family", "scope", "ccd", "eventCapability", "routing"];
   const captured = { harnessCommit: commit, policies: {} };
   const write = (file, value) => {
     const bytes = JSON.stringify(value);
@@ -207,10 +207,15 @@ function fixture(t) {
   for (const phase of phases) {
     fs.mkdirSync(path.join(root, "private", phase));
     captured.policies[phase] = { policyDigest: digest };
+    const routingInterpreter =
+      phase === "routing"
+        ? { contract: { pinDigest: digest }, implementation: { apiBundle: { digest } } }
+        : undefined;
     const pre = {
       harnessCommit: commit,
       identity: { artifactDigest: digest },
       policyDigest: digest,
+      ...(routingInterpreter ? { routingInterpreter } : {}),
     };
     write(`${phase}/independent-preexecution.json`, {
       ...pre,
@@ -326,7 +331,7 @@ test("missing preexecution capture and incomplete cleanup cannot publish a descr
   );
 });
 
-test("transition capture must match the separate parent pin and cannot relabel a three-phase job", async (t) => {
+test("transition capture must match the separate parent pin and cannot relabel a four-phase job", async (t) => {
   const { writeNativeDescriptor } = await api();
   const f = fixture(t);
   const file = path.join(

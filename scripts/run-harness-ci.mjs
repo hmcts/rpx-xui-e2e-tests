@@ -50,6 +50,7 @@ const scopes = {
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
   eventCapability: EVENT_CAPABILITY_SCOPE,
+  routing: "exui-decentralised-routing-pilot",
 };
 export async function runFixedCiPilots(operations) {
   const results = [];
@@ -61,6 +62,10 @@ export async function runFixedCiPilots(operations) {
     checkCancellation();
     results.push({ phase: name, ...result });
     return result;
+  };
+  const outcome = () => {
+    const exitCode = Math.max(...results.map((item) => item.exitCode));
+    return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results };
   };
   let result = await phase("family");
   if (result.exitCode !== 0) return { ...result, results };
@@ -79,16 +84,19 @@ export async function runFixedCiPilots(operations) {
   }
   if (result.exitCode !== 0 && operations.canContinueAfterCcd?.() !== true)
     return { ...result, results };
+  let eventResult;
   try {
     checkCancellation();
     await operations.startEvent();
     checkCancellation();
-    await phase("eventCapability");
+    eventResult = await phase("eventCapability");
   } finally {
     await operations.stopEvent();
   }
-  const exitCode = Math.max(...results.map((item) => item.exitCode));
-  return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results };
+  if (eventResult.exitCode !== 0) return outcome();
+  checkCancellation();
+  await phase("routing");
+  return outcome();
 }
 
 export async function runHarnessCi(jobPath) {
@@ -307,11 +315,40 @@ export async function runHarnessCi(jobPath) {
               terminal: result.terminal,
             });
           if (name === "ccd") context.ccdResult = { directory, expected: { ...result.expected, receiptArtifactDigest: validated.receiptArtifactDigest }, terminal: result.terminal };
-          if (name === "eventCapability")
+          if (name === "eventCapability") {
+            context.eventResult = {
+              directory,
+              expected: {
+                ...result.expected,
+                receiptArtifactDigest: validated.receiptArtifactDigest,
+              },
+              terminal: result.terminal,
+            };
             writeConfigurationCoverage({
-              harnessRoot: ROOT, output: path.join(privateRoot, "configuration"),
-              phaseDirectory: context.ccdResult.directory, expected: context.ccdResult.expected, terminal: context.ccdResult.terminal,
-              eventPhase: { directory, expected: { ...result.expected, receiptArtifactDigest: validated.receiptArtifactDigest }, terminal: result.terminal },
+              harnessRoot: ROOT,
+              output: path.join(privateRoot, "configuration"),
+              phaseDirectory: context.ccdResult.directory,
+              expected: context.ccdResult.expected,
+              terminal: context.ccdResult.terminal,
+              eventPhase: context.eventResult,
+            });
+          }
+          if (name === "routing")
+            writeConfigurationCoverage({
+              harnessRoot: ROOT,
+              output: path.join(privateRoot, "configuration"),
+              phaseDirectory: context.ccdResult.directory,
+              expected: context.ccdResult.expected,
+              terminal: context.ccdResult.terminal,
+              eventPhase: context.eventResult,
+              routingPhase: {
+                directory,
+                expected: {
+                  ...result.expected,
+                  receiptArtifactDigest: validated.receiptArtifactDigest,
+                },
+                terminal: result.terminal,
+              },
             });
           phaseResults.push({ phase: name, ...validated });
           return validated;
@@ -421,7 +458,7 @@ export async function runHarnessCi(jobPath) {
     writeCiPublicSummary(
       job.output,
       verdict,
-      phaseResults.length === 4 &&
+      phaseResults.length === 5 &&
         phaseResults.every((result) => result.status === "PASS"),
     );
   }

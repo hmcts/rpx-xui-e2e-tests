@@ -15,6 +15,7 @@ const scopes = {
   scope: "exui-wa-scope-pilot",
   ccd: "exui-ccd-pilot",
   eventCapability: "exui-ccd-event-capability-pilot",
+  routing: "exui-decentralised-routing-pilot",
 };
 function read(file) {
   assert(

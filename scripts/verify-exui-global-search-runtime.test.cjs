@@ -21,7 +21,7 @@ test("support only: Global Search has one composition obligation and two fixed n
   const expected={"exui-wa-family-pilot":"sha256:a9c6dd75394cace607ae4bf13dc1c9091565c64fc73d95d32a4426e3cfb7b43f","exui-wa-scope-pilot":"sha256:7f870c55aff532dbba8196503505bfbcbf48274785eefe67a2c6798aacdedfd0","exui-ccd-pilot":"sha256:5f656ce25290f9c275aa895348a8961c7026e3b4544caba53fbc11a6db6e59b2","exui-decentralised-routing-pilot":"sha256:a0710040edd2b505a2bfcbe8c0b97c94de36420c1d9843a864d69fa6083c65c5"};
   for(const [name,digest]of Object.entries(expected))assert.equal(getReleasePolicy(name).policyDigest,digest);
   const calls=[];await(await import("./run-harness-ci.mjs")).runFixedCiPilots({phase:async name=>{calls.push(name);return{status:"PASS",exitCode:0}},derive:async()=>{},start:async()=>{},stop:async()=>{},startEvent:async()=>{},stopEvent:async()=>{}});
-  assert.deepEqual(calls,["family","scope","ccd","eventCapability"]);
+  assert.deepEqual(calls,["family","scope","ccd","eventCapability","routing"]);
 });
 
 test("support only: wrong-capability mutation changes only globalSearchServices and its effective identity", async()=>{

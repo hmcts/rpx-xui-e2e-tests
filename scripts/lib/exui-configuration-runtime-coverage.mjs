@@ -16,6 +16,10 @@ import {
 import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
 import { bindEventCoverage } from "./exui-event-coverage-binding.mjs";
 import {
+  assertRoutingInterpreter,
+  ROUTING_SCOPE,
+} from "./exui-routing-contract.mjs";
+import {
   EVENT_CAPABILITY_CELL,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_PROOFS,
@@ -186,15 +190,14 @@ function bindImportedDefinition(phaseDirectory, manifest, signature) {
 export function projectConfigurationCoverage(args) {
   assert(
     Object.keys(args).every((key) =>
-      ["harnessRoot", "phaseDirectory", "eventPhaseDirectory"].includes(key),
+      ["harnessRoot", "phaseDirectory", "eventPhaseDirectory", "routingPhaseDirectory"].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
   );
-  const { harnessRoot = ROOT, phaseDirectory, eventPhaseDirectory } = args;
+  const { harnessRoot = ROOT, phaseDirectory, eventPhaseDirectory, routingPhaseDirectory } = args;
   assert(
-    !phaseDirectory ||
-      !eventPhaseDirectory ||
-      fs.realpathSync(phaseDirectory) !== fs.realpathSync(eventPhaseDirectory),
+    new Set([phaseDirectory, eventPhaseDirectory, routingPhaseDirectory].filter(Boolean).map((directory) => fs.realpathSync(directory))).size ===
+      [phaseDirectory, eventPhaseDirectory, routingPhaseDirectory].filter(Boolean).length,
     "COVERAGE_DUPLICATE_PHASE",
   );
   let harnessCommit = null,
@@ -413,6 +416,80 @@ export function projectConfigurationCoverage(args) {
       ...imports.map(({ path, digest }) => ({ path, digest })),
     );
   }
+  if (routingPhaseDirectory) {
+    const policy = getReleasePolicy(ROUTING_SCOPE);
+    const loaded = loadRunEvidence(
+      path.join(routingPhaseDirectory, "run.json"),
+      policy,
+    );
+    const receiptBytes = regularBytes(routingPhaseDirectory, "gate.json");
+    assert.deepEqual(
+      JSON.parse(receiptBytes),
+      loaded.receipt,
+      "COVERAGE_RECEIPT_RECOMPUTATION_MISMATCH",
+    );
+    validateCompleteNativeProofs(loaded.input, policy);
+    validateNativeOutcome(loaded.input, loaded.receipt.verdict);
+    const manifest = loaded.input.manifest;
+    const routingInput = json(routingPhaseDirectory, "input.json");
+    assert.equal(routingInput.releaseScopeId, ROUTING_SCOPE, "COVERAGE_ROUTING_SCOPE_REQUIRED");
+    assert.equal(routingInput.artifact.identity.artifactDigest, manifest.identity.artifactDigest, "COVERAGE_ROUTING_CANDIDATE_MISMATCH");
+    for (const field of ["webappCommit", "dependencyLockDigest", "toolkitVersion", "toolkitDigest"])
+      assert.equal(routingInput.artifact.identity[field], manifest.identity[field], "COVERAGE_ROUTING_CANDIDATE_MISMATCH");
+    const interpreter = assertRoutingInterpreter(
+      routingInput.artifact,
+      input.review,
+      routingInput.artifact.identity,
+    );
+    assert.deepEqual(routingInput.routingInterpreter, interpreter, "COVERAGE_ROUTING_INTERPRETER_MISMATCH");
+    assert.equal(manifest.runtimeMetadata.routingInterpreter, JSON.stringify(interpreter), "COVERAGE_ROUTING_RUNTIME_IDENTITY_MISMATCH");
+    assert.equal(manifest.runtimeMetadata.harnessSourceState, "clean", "COVERAGE_ROUTING_SOURCE_NOT_CLEAN");
+    for (const key of ["harnessSourceDigest", "harnessDependencyDigest", "browserDigest"])
+      assert(/^sha256:[a-f0-9]{64}$/.test(manifest.runtimeMetadata[key] ?? ""), "COVERAGE_ROUTING_SOURCE_IDENTITY_REQUIRED");
+    regularBytes(routingPhaseDirectory, "controller-terminal.json");
+    for (const execution of loaded.input.executions)
+      for (const name of ["candidate-write-denial.json", "candidate-lifecycle.json"])
+        regularBytes(routingPhaseDirectory, execution.invocationId + "/" + name);
+    validateNativePhaseFinalization(
+      routingPhaseDirectory,
+      loaded.input.executions,
+      { code: loaded.receipt.verdict.exitCode, signal: null },
+    );
+    const sourceRouting = input.catalogue.obligations.filter(
+      (item) => item.kind === "configuration-decentralisation",
+    );
+    const reviewedRouting = input.review.decentralisedRouting.knownValid;
+    assert.equal(sourceRouting.length, reviewedRouting.length, "COVERAGE_ROUTING_SOURCE_SELECTION_MISMATCH");
+    for (const expected of reviewedRouting) {
+      const obligation = sourceRouting.find((item) => item.id === expected.id);
+      assert(obligation && obligation.requiredBoundary === "candidate", "COVERAGE_ROUTING_SOURCE_MISMATCH");
+      assert.deepEqual(obligation.signature, expected.signature, "COVERAGE_ROUTING_SIGNATURE_MISMATCH");
+    }
+    const reference = {
+      releaseScopeId: policy.releaseScopeId,
+      runId: manifest.runId,
+      receiptArtifactDigest: digestBytes(receiptBytes),
+      evidenceManifestDigest: loaded.evidenceManifestDigest,
+      status: loaded.receipt.verdict.status,
+      routingInterpreter: interpreter,
+    };
+    phaseReferences.routing = reference;
+    const routeId = reviewedRouting[0].id;
+    if (reference.status === "PASS")
+      executedProofs.push({ obligationId: routeId, boundary: "candidate", status: "passed" });
+    else
+      unacceptedExecutionFacts.push({
+        obligationId: routeId,
+        gateStatus: reference.status,
+        proofs: loaded.input.results.map(({ proofId, outcome }) => ({ proofId, outcome })),
+      });
+    harnessCommit ??= manifest.harnessCommit;
+    references.push(
+      { path: path.join("routing", "run.json"), digest: digestBytes(regularBytes(routingPhaseDirectory, "run.json")) },
+      { path: path.join("routing", "gate.json"), digest: reference.receiptArtifactDigest },
+      { path: path.join("routing", "input.json"), digest: digestBytes(regularBytes(routingPhaseDirectory, "input.json")) },
+    );
+  }
   assert.equal(
     new Set(executedProofs.map((item) => item.obligationId)).size,
     executedProofs.length,
@@ -462,6 +539,7 @@ export function writeConfigurationCoverage(args) {
         "expected",
         "terminal",
         "eventPhase",
+        "routingPhase",
       ].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
@@ -473,6 +551,7 @@ export function writeConfigurationCoverage(args) {
     expected,
     terminal,
     eventPhase,
+    routingPhase,
   } = args;
   if (phaseDirectory) {
     assert(
@@ -527,10 +606,23 @@ export function writeConfigurationCoverage(args) {
     );
     validateCiPhase(directory, eventExpected, eventTerminal);
   }
+  if (routingPhase) {
+    assert.deepEqual(
+      Object.keys(routingPhase).sort(),
+      ["directory", "expected", "terminal"],
+      "COVERAGE_ROUTING_PHASE_FIELDS",
+    );
+    const { directory, expected: routingExpected, terminal: routingTerminal } = routingPhase;
+    assert(routingExpected && routingTerminal && routingExpected.nativeAuthority === true, "COVERAGE_OBSERVED_NATIVE_PHASE_REQUIRED");
+    assert.equal(routingExpected.releaseScopeId, ROUTING_SCOPE, "COVERAGE_ROUTING_SCOPE_MISMATCH");
+    assert.equal(digestBytes(regularBytes(directory, "gate.json")), routingExpected.receiptArtifactDigest, "COVERAGE_RECEIPT_TRANSPORT_MISMATCH");
+    validateCiPhase(directory, routingExpected, routingTerminal);
+  }
   const projected = projectConfigurationCoverage({
     harnessRoot,
     phaseDirectory,
     eventPhaseDirectory: eventPhase?.directory,
+    routingPhaseDirectory: routingPhase?.directory,
   });
   writeJsonAtomic(path.join(output, "catalogue.json"), projected.catalogue);
   writeJsonAtomic(path.join(output, "selection.json"), projected.selection);

@@ -18,7 +18,11 @@ import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs
 import { ARM64_BROWSER_RUNTIME } from "./exui-oci-runtime.mjs";
 import { HARNESS_SOURCE_FILES } from "./exui-candidate-runtime.mjs";
 import { CCD_HARNESS_SOURCE_FILES } from "./exui-ccd-browser-runtime.mjs";
-import { assertRoutingInterpreter } from "./exui-routing-contract.mjs";
+import {
+  assertRoutingInterpreter,
+  ROUTING_SCOPE,
+} from "./exui-routing-contract.mjs";
+import { nativeIdentity } from "./exui-native-contract.mjs";
 const ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -52,6 +56,17 @@ export function validateCiPhase(directory, expected, terminal) {
       loaded.input.executions,
       terminal,
     );
+  }
+  if (expected.releaseScopeId === ROUTING_SCOPE) {
+    const input = JSON.parse(fs.readFileSync(path.join(directory, "input.json"), "utf8"));
+    const review = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json"), "utf8"));
+    const interpreter = assertRoutingInterpreter(input.artifact, review, input.artifact.identity);
+    const run = JSON.parse(fs.readFileSync(path.join(directory, "run.json"), "utf8"));
+    assert.equal(input.releaseScopeId, ROUTING_SCOPE, "CI_ROUTING_SCOPE_REQUIRED");
+    assert.deepEqual(input.routingInterpreter, interpreter, "CI_ROUTING_IMPLEMENTATION_MISMATCH");
+    assert.deepEqual(expected.routingInterpreter, interpreter, "CI_ROUTING_EXPECTATION_MISMATCH");
+    assert.equal(input.artifact.identity.artifactDigest, expected.identity.artifactDigest, "CI_ROUTING_CANDIDATE_MISMATCH");
+    assert.equal(run.manifest.runtimeMetadata.routingInterpreter, JSON.stringify(interpreter), "CI_ROUTING_RUNTIME_IDENTITY_MISMATCH");
   }
   if (expected.releaseScopeId === EVENT_CAPABILITY_SCOPE) {
     assert.equal(expected.nativeAuthority, true, "CI_EVENT_NATIVE_AUTHORITY_REQUIRED");
@@ -185,7 +200,11 @@ export function captureCiPhaseExpectation(
         .startsWith(fs.realpathSync(os.tmpdir()) + path.sep),
     "CI_PRIVATE_SOURCE_HANDOFF_REQUIRED",
   );
-  const identity = ["ccd", "eventCapability"].includes(name) ? context.ccdIdentity : context.identity;
+  const identity = ["ccd", "eventCapability"].includes(name)
+    ? context.ccdIdentity
+    : name === "routing"
+      ? nativeIdentity(input, { mutation: null }, context.artifact.candidateRoot).identity
+      : context.identity;
   return {
     runId: input.runId,
     harnessCommit: context.commit,
@@ -198,6 +217,7 @@ export function captureCiPhaseExpectation(
     ...(handoff.mode === "native-separate-api"
       ? { nativeAuthority: true }
       : {}),
+    ...(name === "routing" ? { routingInterpreter: input.routingInterpreter } : {}),
   };
 }
 function captureOwnership(input, handoff, context, directory, name, capture) {

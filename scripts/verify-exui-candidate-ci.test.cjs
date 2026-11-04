@@ -267,7 +267,18 @@ test("support only: fixed pilot order stops on a validated failure and always cl
             ? ["family", "derive", "scope", "start", "stop"]
             : failed === "ccd"
               ? ["family", "derive", "scope", "start", "ccd", "stop"]
-              : ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", ...(failed === "eventStartup" ? [] : ["eventCapability"]), "stopEvent"],
+              : [
+                  "family",
+                  "derive",
+                  "scope",
+                  "start",
+                  "ccd",
+                  "stop",
+                  "startEvent",
+                  ...(failed === "eventStartup"
+                    ? ["stopEvent"]
+                    : ["eventCapability", "stopEvent", ...(failed ? [] : ["routing"])]),
+                ],
     );
   }
 });
@@ -307,8 +318,13 @@ test("support only: independently recognized postal blockage permits the event s
       assert.equal(result.status, "BLOCKED");
       assert.equal(result.exitCode, 2);
       assert.deepEqual(calls, ["family", "scope", "ccd", "old-removed", "validate-postal",
-        ...(continued === true ? ["new-started", "eventCapability", "new-removed"] : [])]);
-      assert.equal(result.results.length, continued === true ? 4 : 3);
+        ...(continued === true ? ["new-started", "eventCapability", "new-removed", ...(eventExit === 0 ? ["routing"] : [])] : [])]);
+      assert.equal(
+        result.results.length,
+        continued !== true ? 3 : eventExit === 0 ? 5 : 4,
+      );
+      if (continued === true && eventExit === 0)
+        assert.equal(result.results[4].phase, "routing");
     }
   }
 });
@@ -1289,9 +1305,9 @@ test("support only: actual CI stop callback returns owned cleanup completion and
   );
 });
 
-test("support only: fixed job cancellation at phase, derivation or CCD startup prevents subsequent work and still stops owned CCD", async () => {
+test("support only: fixed job cancellation at any phase, derivation or CCD startup prevents subsequent work and still stops owned CCD", async () => {
   const { runFixedCiPilots } = await load();
-  for (const point of ["family", "derive", "scope", "start", "ccd", "startEvent", "eventCapability"]) {
+  for (const point of ["family", "derive", "scope", "start", "ccd", "startEvent", "eventCapability", "routing"]) {
     const calls = [];
     let cancelled = false;
     await assert.rejects(
@@ -1319,7 +1335,7 @@ test("support only: fixed job cancellation at phase, derivation or CCD startup p
       }),
       /CI_JOB_CANCELLED/,
     );
-    const order = ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", "eventCapability"];
+    const order = ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", "eventCapability", "stopEvent", "routing"];
     const expected = order.slice(
       0,
       order.indexOf(point) + 1,
