@@ -156,6 +156,20 @@
       "path": "src/main/java/uk/gov/hmcts/ccd/domain/service/startevent/AuthorisedStartEventOperation.java",
       "digest": "sha256:713464a1fcbcdc42d69871d08d1d3e74bdb471fa8466d63fd3e50694b9e4844d",
       "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-data-store-api",
+      "revision": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+      "path": "src/main/java/uk/gov/hmcts/ccd/security/idam/IdamRepository.java",
+      "digest": "sha256:040239d94928028c0b328466e5be995428cef25eba68f652e647be5048c93e7f",
+      "boundary": "interpreter-source-reference"
+    },
+    {
+      "repository": "hmcts/ccd-data-store-api",
+      "revision": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+      "path": "src/main/java/uk/gov/hmcts/ccd/security/JwtGrantedAuthoritiesConverter.java",
+      "digest": "sha256:0dd4f2700bab9195c1cbd853b37c05238b5c7225e1518dfff7600fb38191d421",
+      "boundary": "interpreter-source-reference"
     }
   ],
   "runtimeBindingRequired": true

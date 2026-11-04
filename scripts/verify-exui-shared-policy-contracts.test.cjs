@@ -37,3 +37,32 @@ test('returned contracts cannot mutate canonical pins or artifact requirements',
 for(const [name,change] of [
  ['empty inventory',s=>s.sourceReferences=[]],['missing source',s=>s.sourceReferences.pop()],['foreign repo',s=>s.sourceReferences[0].repository='other/repository'],['foreign revision',s=>s.sourceReferences[0].revision='f'.repeat(40)],['coherently forged source hash',s=>s.sourceReferences[0].digest=digest('forged-source')],['duplicate source',s=>s.sourceReferences[1]=s.sourceReferences[0]],
 ])test(`independent source seal rejects ${name}`,async()=>{const lib=await import('./lib/exui-shared-policy-contracts.mjs');const source=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/ccd/shared-policy-sources.json')));change(source);assert.throws(()=>lib.validateSharedPolicySources(source));});
+
+test('role removal requires renewed-session denial without claiming immediate warmed-bearer invalidation',async()=>{
+ const {buildSharedPolicyContracts}=await import('./lib/exui-shared-policy-contracts.mjs');
+ const role=buildSharedPolicyContracts()[1],sequence=role.additionalSequences.find(item=>item.id==='revoked-warmed-session');
+ assert.deepEqual(sequence.boundary,{actor:'same-synthetic-idam-actor',renewal:'distinct-bearer-and-explicitly-renewed-EXUI-session',originalWarmedBearer:'observed-HTTP-200-with-protected-data-cache-applicability-only',immediateInvalidationClaim:false,productionOidcClaim:false,cacheExpiryClaim:false});
+ assert(!sequence.assertions.includes('original-warmed-bearer-rejected'));
+ for(const assertion of ['renewed-session-uses-distinct-bearer-with-observed-removed-roles','fresh-bearer-and-renewed-session-deny-protected-data','denied-renewed-write-preserves-data-state-version-history','original-warmed-bearer-retained-grant-observed-as-cache-applicability'])assert(sequence.assertions.includes(assertion));
+ const fault=role.faults.find(item=>item.id==='ccd-stale-revoked-bearer');
+ assert(fault.assertions.includes('same-actor-original-bearer-substituted-only-on-renewed-case-read'));
+ assert(fault.assertions.includes('healthy-original-bearer-control-precedes-renewed-session-denial-failure'));
+ for(const path of ['src/main/java/uk/gov/hmcts/ccd/security/idam/IdamRepository.java','src/main/java/uk/gov/hmcts/ccd/security/JwtGrantedAuthoritiesConverter.java'])assert(role.sourceReferences.some(ref=>ref.repository==='hmcts/ccd-data-store-api'&&ref.revision==='5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3'&&ref.path===path));
+});
+
+for(const [name,change] of [
+ ['invented immediate invalidation',sequence=>sequence.boundary.immediateInvalidationClaim=true],
+ ['old bearer silently treated as denied',sequence=>sequence.boundary.originalWarmedBearer='rejected'],
+ ['fresh-session denial removed',sequence=>sequence.assertions=sequence.assertions.filter(value=>value!=='fresh-bearer-and-renewed-session-deny-protected-data')],
+ ['denied-write integrity removed',sequence=>sequence.assertions=sequence.assertions.filter(value=>value!=='denied-renewed-write-preserves-data-state-version-history')],
+])test(`corrected transition contract rejects ${name}`,async()=>{
+ const lib=await import('./lib/exui-shared-policy-contracts.mjs'),contract=lib.buildSharedPolicyContracts()[1];
+ change(contract.additionalSequences.find(item=>item.id==='revoked-warmed-session'));
+ assert.throws(()=>lib.validateSharedPolicyContract(contract),/SHARED_POLICY_CONTRACT_DRIFT/);
+});
+
+test('role cell evidence cannot replace the denied and renewed-session sequences',async t=>{
+ const run=await setup(t,1);
+ run.envelope.records=run.envelope.records.filter(record=>!['denied-data-and-write-integrity','revoked-warmed-session'].includes(record.id));
+ assert.throws(run.validate,/SHARED_POLICY_INCOMPLETE_FACETS/);
+});
