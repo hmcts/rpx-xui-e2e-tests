@@ -83,3 +83,38 @@ with zipfile.ZipFile(sys.argv[1]) as z:
     ['serveByPostOrEmail','n','1',45536],['emailInformation','n','1',45536],['postalInformation.postalAddress.AddressLine2','n','1',45536],
   ]);
 });
+
+const storedDateRows=()=>['emailInformation','postalInformation.postalAddress.AddressLine2','serveByPostOrEmail'].map(reference=>({case_type:'HarnessNestedPRL',version:7,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'}));
+test('stored shape dates bind exact typed rows, source identities, version and owned namespace',async()=>{
+ const {sourceShapeDateRecord,assertStoredSourceShapeDates}=await import('./lib/exui-source-shape-dates.mjs');
+ const state={owner:'harness-synthetic',namespace:'a'.repeat(64)},record=sourceShapeDateRecord(storedDateRows(),state,7);
+ assert.equal(record.activationClaim,false);assert.equal(record.sourceRows.length,3);assertStoredSourceShapeDates(record,state,7);
+ assert.throws(()=>assertStoredSourceShapeDates(undefined,state,7),/SHAPE_STORED_DATES_REQUIRED/);
+ for(const alter of [r=>r.rows.pop(),r=>r.rows.push(r.rows[0]),r=>r.rows[0].live_from='2024-01-09',r=>r.rows[0].sql_type='text',r=>r.rows[0].version=8,r=>r.rows[0].event='create',r=>r.rows[0].field='other',r=>r.rows[0].reference='anotherReference',r=>r.rows[0].case_type='PRLAPPS',r=>r.namespace='b'.repeat(64),r=>r.owner='different',r=>r.definitionVersion=8,r=>r.sourceRows[0].rowDigest='sha256:'+'0'.repeat(64),r=>r.sourceRevision='other',r=>r.sourceProjectionDigest='sha256:'+'0'.repeat(64),r=>r.sourcePath='other',r=>r.activationClaim=true]){
+  const changed=structuredClone(record);alter(changed);assert.throws(()=>assertStoredSourceShapeDates(changed,state,7),/SHAPE_STORED_DATE/);
+ }
+});
+test('stored shape date transport is fixed read-only SQL between owned identity checks',async()=>{
+ const {readStoredSourceShapeDates}=await import('./lib/exui-source-shape-dates.mjs');
+ const state={owner:'harness-synthetic',namespace:'a'.repeat(64)},calls=[];
+ const inspect=s=>{assert.equal(s,state);calls.push('inspect');};
+ const runDocker=(args,sql)=>{calls.push('query');assert.deepEqual(args,['exec','-i',state.namespace,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','ccd_definition']);assert.match(sql,/^BEGIN READ ONLY;/);assert.match(sql,/ct.version=7\n/);assert.match(sql,/pg_typeof\(ec.live_from\)/);return JSON.stringify(storedDateRows());};
+ readStoredSourceShapeDates(state,7,{inspect,runDocker});assert.deepEqual(calls,['inspect','query','inspect']);
+ assert.throws(()=>readStoredSourceShapeDates(state,'7; DROP',{inspect,runDocker}),/SHAPE_DATE_VERSION_REQUIRED/);assert.equal(calls.length,3);
+ assert.throws(()=>readStoredSourceShapeDates(state,7,{inspect:()=>{throw Error('ownership');},runDocker}),/ownership/);assert.equal(calls.length,3);
+ assert.throws(()=>readStoredSourceShapeDates(state,7,{inspect,runDocker:()=>'{invalid'}),/SHAPE_DATE_RESPONSE_INVALID/);
+ assert.throws(()=>readStoredSourceShapeDates(state,7,{inspect,runDocker:()=>{throw Error('private diagnostic');}}),/^Error: SHAPE_DATE_QUERY_FAILED$/);
+ assert.throws(()=>readStoredSourceShapeDates(state,7,{inspect,runDocker:()=>JSON.stringify(storedDateRows().slice(1))}),/SHAPE_STORED_DATE_ROWS_MISMATCH/);
+});
+for(const [name,change] of [['missing',r=>delete r.storedSourceShapeDates],['wrong-date',r=>r.storedSourceShapeDates.rows[0].live_from='2020-01-01'],['wrong-namespace',r=>r.storedSourceShapeDates.namespace='f'.repeat(64)],['wrong-source',r=>r.storedSourceShapeDates.sourceRows[0].rowDigest='sha256:'+'0'.repeat(64)]])
+ test(`rehashed ${name} stored date evidence cannot replay or credit source rows`,async t=>{
+  const {createEventTransitionFixture}=require('./fixtures/exui-event-transition-evidence.mock.cjs');
+  const {validateEventTransitionEvidence}=await import('./lib/exui-ccd-event-transition.mjs');
+  const {projectConfigurationCoverage}=await import('./lib/exui-configuration-runtime-coverage.mjs');
+  const f=await createEventTransitionFixture(t),loaded=await f.loaded();change(f.variants.mutant.imported);
+  f.runtimeRecord.definitionImportDigest=f.put('definition-import.json',f.variants.mutant.imported,f.variants.mutant.state.output).digest;
+  f.fault.current.runtimeMetadata.definitionImportDigest=f.runtimeRecord.definitionImportDigest;
+  f.write();
+  assert.throws(()=>validateEventTransitionEvidence(f.directory,f.expected,loaded),/SHAPE_STORED_DATE/);
+  assert.throws(()=>projectConfigurationCoverage({eventPhaseDirectory:f.directory}),/SHAPE_STORED_DATE/);
+ });

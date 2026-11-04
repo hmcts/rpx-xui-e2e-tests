@@ -1,3 +1,4 @@
+import { assertStoredSourceShapeDates } from './exui-source-shape-dates.mjs';
 import { SOURCE_SHAPE_ROWS, validateSourceShapeFault } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -423,6 +424,7 @@ export function bindEventCoverage({
       "COVERAGE_EVENT_VERSION_MISMATCH",
     );
     assertObservedEventCapabilityDefinition(observed, prepared[variant].source);
+    assertStoredSourceShapeDates(imported.storedSourceShapeDates,runtime.ccd,imported.definitionVersion);
     for (const [service, dependency] of [
       ["data", "ccd"],
       ["definition", "ccd-definition"],

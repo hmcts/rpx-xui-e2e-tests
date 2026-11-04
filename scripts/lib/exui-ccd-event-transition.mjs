@@ -1,3 +1,4 @@
+import { assertStoredSourceShapeDates } from './exui-source-shape-dates.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -123,6 +124,7 @@ export function validateEventTransitionEvidence(directory, expected, loadedInput
       assert.deepEqual(receipt.value[field], selected.definition[field], "EVENT_TRANSITION_IMPORT_IDENTITY");
     assertObservedCcdDefinition(receipt.value, observed.value);
     assertObservedEventCapabilityDefinition(observed.value, prepared.source);
+    assertStoredSourceShapeDates(receipt.value.storedSourceShapeDates,selected.ccd,receipt.value.definitionVersion);
     return { definitionImportDigest: receipt.digest, observedDefinitionDigest: receipt.value.observedDefinitionDigest,
       definitionVersion: String(receipt.value.definitionVersion), ccdNamespace: selected.ccd.namespace };
   };

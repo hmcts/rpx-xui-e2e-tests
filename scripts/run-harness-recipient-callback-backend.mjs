@@ -13,6 +13,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 export const callbackProbeFiles=Object.freeze([
  'scripts/lib/exui-ccd-browser-runtime.mjs','scripts/lib/exui-ccd-role-transition.mjs',
  'scripts/lib/exui-ccd-event-capability.mjs','scripts/lib/exui-native-sources.mjs',
+ 'scripts/lib/exui-source-shape-contract.mjs',
  'scripts/lib/exui-recipient-callback.mjs','scripts/lib/exui-recipient-callback-fixture.mjs',
  'scripts/lib/exui-recipient-callback-diagnostics.mjs',
  'scripts/lib/exui-recipient-callback-auth.mjs','scripts/lib/exui-recipient-callback-backend.mjs',

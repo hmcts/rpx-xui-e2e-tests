@@ -1,3 +1,4 @@
+import { readStoredSourceShapeDates, assertStoredSourceShapeDates } from './exui-source-shape-dates.mjs';
 import { SOURCE_SHAPE_ROWS, validateSourceShapeFault, assertObservedSourceShape } from './exui-source-shape-contract.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -400,7 +401,7 @@ export function loadCcdRuntimeForReuse(output,inspectContainer,{elasticsearch}={
 }
 export function verifyCcdRuntimeIdentity(
   state,
-  { fixtureSelection: requested, inspectContainer, request = ccdRequest } = {},
+  { fixtureSelection: requested, inspectContainer, request = ccdRequest, runDocker = docker } = {},
 ) {
   const selection = fixtureSelection(state, requested);
   const prepared = prepareCcdImport(fixtureRoot, selection);
@@ -449,8 +450,11 @@ export function verifyCcdRuntimeIdentity(
   validateCcdDefinition(observed.body);
   assert.equal(observed.status, 200, "CCD_DEFINITION_UNAVAILABLE");
   assertObservedCcdDefinition(receipt, observed.body);
-  if (selection !== "nested-prl")
+  if (selection !== "nested-prl") {
     assertObservedEventCapabilityDefinition(observed.body, prepared.source);
+    assertStoredSourceShapeDates(receipt.storedSourceShapeDates,state,receipt.definitionVersion);
+    assert.deepEqual(readStoredSourceShapeDates(state,receipt.definitionVersion,{runDocker,inspect:current=>verifyCcdContainerIdentity(current,inspectContainer)}),receipt.storedSourceShapeDates,'SHAPE_STORED_DATE_LIVE_DRIFT');
+  }
   return {
     fixtureDigest: receipt.fixtureDigest,
     observedDefinitionDigest: receipt.observedDefinitionDigest,
@@ -677,6 +681,7 @@ export function importCcdDefinition(
     fixtureSelection: requested,
     inspectContainer,
     request = ccdRequest,
+    runDocker = docker,
   } = {},
 ) {
   const selection = fixtureSelection(state, requested);
@@ -762,6 +767,7 @@ export function importCcdDefinition(
     observedDefinitionDigest: digest(observed.body),
     definitionVersion: observed.body.version.number,
   });
+  if (selection !== "nested-prl") receipt.storedSourceShapeDates=readStoredSourceShapeDates(state,receipt.definitionVersion,{runDocker,inspect:current=>verifyCcdContainerIdentity(current,inspectContainer)});
   fs.writeFileSync(receiptFile, JSON.stringify(receipt, null, 2) + "\n");
   fs.writeFileSync(
     path.join(state.output, "observed-definition.json"),

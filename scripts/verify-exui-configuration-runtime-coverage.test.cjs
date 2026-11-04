@@ -1334,6 +1334,12 @@ for (const fault of ["namespace", "import-observation", "runtime-record"])
       if (fault === "namespace") {
         rt.ccd.namespace = "3".repeat(64);
         manifest.runtimeMetadata.ccdNamespace = rt.ccd.namespace;
+        const importPath=path.join(root,"event-mutant-runtime/definition-import.json");
+        const imported=JSON.parse(fs.readFileSync(importPath));
+        imported.storedSourceShapeDates.namespace=rt.ccd.namespace;
+        fs.writeFileSync(importPath,JSON.stringify(imported));
+        rt.definitionImportDigest=digestBytes(fs.readFileSync(importPath));
+        manifest.runtimeMetadata.definitionImportDigest=rt.definitionImportDigest;
       }
       if (fault === "runtime-record")
         rt.credentials.judge.headers.Authorization =
@@ -1351,6 +1357,8 @@ for (const fault of ["namespace", "import-observation", "runtime-record"])
           imported = JSON.parse(fs.readFileSync(importPath));
         observed.version.number = 18;
         imported.definitionVersion = 18;
+        imported.storedSourceShapeDates.definitionVersion=18;
+        imported.storedSourceShapeDates.rows.forEach(row=>{row.version=18;});
         imported.observedDefinitionDigest = digestBytes(
           JSON.stringify(observed),
         );

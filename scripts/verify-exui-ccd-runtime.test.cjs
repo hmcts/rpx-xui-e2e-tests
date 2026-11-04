@@ -272,7 +272,12 @@ function eventRuntimeFixture(t, api, variant = "baseline") {
       return { status: 200, body: observed };
     assert.fail("Unexpected fake request " + port + route);
   };
-  return { state, inspectContainer, request, observed, calls };
+  const runDocker = (args,sql) => {
+    assert.deepEqual(args,['exec','-i',state.namespace,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','ccd_definition']);
+    assert.match(sql,/^BEGIN READ ONLY;/);assert(sql.includes(`ct.version=${observed.version.number}\n`));
+    return JSON.stringify(['emailInformation','postalInformation.postalAddress.AddressLine2','serveByPostOrEmail'].map(reference=>({case_type:'HarnessNestedPRL',version:observed.version.number,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'})));
+  };
+  return { state, inspectContainer, request, observed, calls, runDocker };
 }
 
 test("support only: fixed event imports retain exact selected prepared workbook and legacy default", async () => {
@@ -318,6 +323,7 @@ for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutan
       api.importCcdDefinition(f.state, {
         inspectContainer: f.inspectContainer,
         request: f.request,
+        runDocker: f.runDocker,
       });
       const receipt = JSON.parse(
         fs.readFileSync(path.join(f.state.output, "definition-import.json")),
@@ -341,6 +347,7 @@ for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutan
         api.verifyCcdRuntimeIdentity(f.state, {
           inspectContainer: f.inspectContainer,
           request: f.request,
+        runDocker: f.runDocker,
         }).fixtureDigest,
         receipt.fixtureDigest,
       );
@@ -389,6 +396,7 @@ for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutan
           api.verifyCcdRuntimeIdentity(f.state, {
             inspectContainer: f.inspectContainer,
             request: f.request,
+        runDocker: f.runDocker,
           }),
         /CCD_EVENT_ACL_MISMATCH/,
       );
@@ -427,6 +435,7 @@ test("support only: wrong selected state or unexpected source ACL rejects before
       api.importCcdDefinition(f.state, {
         inspectContainer: f.inspectContainer,
         request: f.request,
+        runDocker: f.runDocker,
       }),
     /CCD_EVENT_ACL_MISMATCH/,
   );
@@ -554,6 +563,7 @@ test("support only: selected import receipt status and source pin must match bef
   api.importCcdDefinition(f.state, {
     inspectContainer: f.inspectContainer,
     request: f.request,
+        runDocker: f.runDocker,
   });
   const file = path.join(f.state.output, "definition-import.json");
   const original = JSON.parse(fs.readFileSync(file));
@@ -675,4 +685,18 @@ test('AMD64 startup uses TCP readiness, synthetic databases and one exact local 
  const recovery=JSON.parse(fs.readFileSync(path.join(output,'recovery.json')));
  assert.equal(recovery.platform,'linux/amd64');
  for(const [name,pin] of Object.entries(pins))assert.equal(recovery.resources[name].image,pin.configDigest);
+});
+
+test('support only: live verification requires retained stored dates and rechecks actual database values',async t=>{
+ const api=await fixedRuntime(),f=eventRuntimeFixture(t,api);
+ const options={inspectContainer:f.inspectContainer,request:f.request,runDocker:f.runDocker};
+ api.importCcdDefinition(f.state,options);
+ const file=path.join(f.state.output,'definition-import.json'),receipt=JSON.parse(fs.readFileSync(file));
+ assert.equal(receipt.storedSourceShapeDates.definitionVersion,f.observed.version.number);
+ delete receipt.storedSourceShapeDates;fs.writeFileSync(file,JSON.stringify(receipt));
+ assert.throws(()=>api.verifyCcdRuntimeIdentity(f.state,options),/SHAPE_STORED_DATES_REQUIRED/);
+ api.importCcdDefinition(f.state,options);
+ assert.throws(()=>api.verifyCcdRuntimeIdentity(f.state,{...options,runDocker:(...args)=>{
+  const rows=JSON.parse(f.runDocker(...args));rows[0].live_from='2020-01-01';return JSON.stringify(rows);
+ }}),/SHAPE_STORED_DATE_ROWS_MISMATCH/);
 });
