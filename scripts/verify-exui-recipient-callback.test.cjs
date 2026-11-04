@@ -502,3 +502,10 @@ test(
     assert.equal(f.evidence[0].outcome, "request-too-large");
   },
 );
+test('UI invocation rejects then normalizes corrected data without changing existing modes',async t=>{
+ const server=await serve(t,'recipient-callback-ui');const rejected=body();rejected.case_details.case_data.sodAdditionalRecipientsList[0].value.emailInformation.emailName='HARNESS_CALLBACK_REJECT';
+ assert.deepEqual((await server.send(rejected)).body.errors,['HARNESS_CALLBACK_BUSINESS_REJECTION']);
+ const normalized=await server.send(body());assert.equal(normalized.body.data.sodAdditionalRecipientsList[0].value.emailInformation.emailName,'HARNESS_CALLBACK_NORMALIZED');
+ const repeat=body();repeat.case_details.case_data=normalized.body.data;assert.deepEqual((await server.send(repeat)).body.data,normalized.body.data);
+ assert.deepEqual(server.evidence.map(item=>item.outcome),['business-rejected','normalized','normalization-unchanged']);
+});

@@ -58,3 +58,14 @@ for (const importedStatus of [400,201]) test('support only: actual importer pres
  assert(roles.includes('caseworker-privatelaw-courtadmin')&&roles.includes('caseworker-privatelaw-readonly'));
  assert(!JSON.stringify(receipt).includes('test-private-token'));assert.deepEqual(state,before);
 });
+test('support only: callback omission is a sealed one-cell derivative with explicit absent descriptor',async t=>{
+ const {prepareRecipientCallbackImport,validateObservedRecipientCallback,importRecipientCallback}=await import('./lib/exui-recipient-callback-import.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-omission-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const baseline=path.join(root,'baseline'),omitted=path.join(root,'omitted');await prepareRecipientCallbackImport(baseline);const seal=await prepareRecipientCallbackImport(omitted,{variant:'binding-omitted'});
+ const before=JSON.parse(fs.readFileSync(baseline+'/definition.json')),after=JSON.parse(fs.readFileSync(omitted+'/definition.json'));
+ delete before.sheets.CaseEventToFields.find(row=>row.CaseFieldID===seal.binding.fieldId).CallBackURLMidEvent;assert.deepEqual(after,before);assert.equal(seal.variant,'binding-omitted');assert.equal(seal.catalogueCredit,false);
+ await assert.rejects(importRecipientCallback({}, {fixtureDirectory:omitted}),/CALLBACK_IMPORT_SEAL_MISMATCH/);
+ const definition={id:'HarnessNestedPRL',version:{number:1},events:[{id:seal.binding.eventId}]},pages={case_type_id:'HarnessNestedPRL',event_id:seal.binding.eventId,wizard_pages:[{id:'serviceOfDocuments2',wizard_page_fields:[{case_field_id:seal.binding.fieldId}],callback_url_mid_event:null}]};
+ validateObservedRecipientCallback(definition,pages,seal.binding,'binding-omitted');assert.throws(()=>validateObservedRecipientCallback(definition,pages,seal.binding),/CALLBACK_PAGE_URL/);
+ pages.wizard_pages[0].callback_url_mid_event=seal.binding.normalizedUrl;assert.throws(()=>validateObservedRecipientCallback(definition,pages,seal.binding,'binding-omitted'),/CALLBACK_PAGE_URL/);
+});

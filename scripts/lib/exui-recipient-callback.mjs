@@ -5,6 +5,7 @@ import {
 } from "./exui-recipient-callback-fixture.mjs";
 
 const invocations = Object.freeze({
+  "recipient-callback-ui": "validate-normalize",
   "recipient-callback-reject": "reject",
   "recipient-callback-normalize": "normalize",
   "recipient-callback-http-error": "http-error",
@@ -226,7 +227,7 @@ export function createRecipientCallbackResponder({
               ["HARNESS_CALLBACK_ORIGINAL", "HARNESS_CALLBACK_REJECT"].includes(
                 marker,
               ) ||
-              (mode === "normalize" && marker === "HARNESS_CALLBACK_NORMALIZED")
+              (["normalize", "validate-normalize"].includes(mode) && marker === "HARNESS_CALLBACK_NORMALIZED")
             ) {
               requestDigest = digest(raw);
               recipientCount = data.sodAdditionalRecipientsList.length;
@@ -235,7 +236,7 @@ export function createRecipientCallbackResponder({
                 outcome = "transport-failed";
                 payload = { code: "HARNESS_CALLBACK_HTTP_FAILURE" };
               } else if (
-                mode === "reject" &&
+                ["reject", "validate-normalize"].includes(mode) &&
                 marker === "HARNESS_CALLBACK_REJECT"
               ) {
                 status = 200;
@@ -248,14 +249,14 @@ export function createRecipientCallbackResponder({
               } else {
                 status = 200;
                 outcome =
-                  mode === "normalize"
+                  ["normalize", "validate-normalize"].includes(mode)
                     ? marker === "HARNESS_CALLBACK_NORMALIZED"
                       ? "normalization-unchanged"
                       : "normalized"
                     : "accepted";
                 payload = {
                   data:
-                    mode === "normalize"
+                    ["normalize", "validate-normalize"].includes(mode)
                       ? normalize(data)
                       : structuredClone(data),
                   errors: [],

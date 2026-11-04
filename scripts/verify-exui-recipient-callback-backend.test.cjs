@@ -76,3 +76,13 @@ test('support only: failed-worker observation recovery copies only bounded regul
  inventory[0].file=true;inventory[0].size=1048577;assert.throws(()=>collectCallbackProbeObservations({containers:{client:'owned-client'}},temp,{runDocker,inspect:()=>{}}),/CALLBACK_PROBE_OBSERVATIONS_COPY_FAILED/);
  assert.equal(copies.length,2);
 });
+
+test('support only: omission feasibility requires a completed named assertion after real positive witness, never timeout',async()=>{
+ const {assertCallbackUiOutcome}=await import('./run-harness-recipient-callback-ui.mjs');
+ const observed={catalogueCredit:false,faultEffective:true,witness:'valid-CYA-without-callback'};
+ const report={errors:[],stats:{skipped:0,unexpected:1,expected:0},suites:[{specs:[{tests:[{results:[{status:'failed',error:{message:'CALLBACK_BINDING_OMISSION_DETECTED'}}]}]}]}]};
+ assert.equal(assertCallbackUiOutcome('binding-omitted',{code:1,signal:null},observed,report),'callback-binding-omission-detected');
+ for(const change of [r=>r.suites[0].specs[0].tests[0].results[0].status='timedOut',r=>r.suites[0].specs[0].tests[0].results[0].error.message='unrelated failure',r=>r.stats.skipped=1,r=>r.errors.push({message:'global error'})]){const changed=structuredClone(report);change(changed);assert.throws(()=>assertCallbackUiOutcome('binding-omitted',{code:1,signal:null},observed,changed));}
+ assert.throws(()=>assertCallbackUiOutcome('binding-omitted',{code:1,signal:null},{...observed,faultEffective:false},report));
+ assert.throws(()=>assertCallbackUiOutcome('binding-omitted',{code:1,signal:'SIGTERM'},observed,report));
+});
