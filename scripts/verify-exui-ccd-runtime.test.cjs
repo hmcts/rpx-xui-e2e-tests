@@ -118,7 +118,7 @@ const fixedRuntime = async () => {
   const api = await runtime;
   assert.deepEqual(
     api.CCD_FIXTURE_SELECTIONS,
-    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant"],
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant"],
     "fixed source fixture selection must exist before transport use",
   );
   return api;
@@ -280,7 +280,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
     fs.readFileSync(path.join(__dirname, "fixtures/ccd/nested-prl.xlsx")),
   );
   const binding = require("./fixtures/ccd/event-capability/binding.json");
-  for (const variant of ["baseline", "mutant", "read-mutant"]) {
+  for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant"]) {
     const prepared = api.prepareCcdImport(
       undefined,
       "event-capability-" + variant,
@@ -306,7 +306,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
   );
 });
 
-for (const variant of ["baseline", "mutant", "read-mutant"])
+for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant"])
   test(
     "support only: real import function with fake transport validates source ACLs for " +
       variant,
@@ -349,6 +349,12 @@ for (const variant of ["baseline", "mutant", "read-mutant"])
       assert.equal(recipientAcl.create, true);
       assert.equal(recipientAcl.update, true);
       assert.equal(recipientAcl.delete, true);
+      const readonlyAcl = f.observed.case_fields.find(field => field.id === "sodAdditionalRecipientsList")
+        .acls.find(acl => acl.role === "caseworker-privatelaw-readonly");
+      assert.equal(readonlyAcl.read, variant !== "readonly-read-mutant");
+      assert.equal(readonlyAcl.update, variant === "readonly-read-mutant");
+      assert.equal(readonlyAcl.create, false);
+      assert.equal(readonlyAcl.delete, false);
       const judge = f.observed.events
         .find((e) => e.id === "serviceOfDocuments")
         .acls.find((a) => a.role === "caseworker-privatelaw-judge");
@@ -415,7 +421,7 @@ test("support only: wrong selected state or unexpected source ACL rejects before
 
 test("support only: source actors are provisioned and observed with exact three-role arrays", async () => {
   const api = await fixedRuntime();
-  for (const persona of ["courtadmin", "judge"]) {
+  for (const persona of ["courtadmin", "judge", "readonly"]) {
     const roles = [
         "caseworker",
         "caseworker-harness",

@@ -113,6 +113,16 @@ proofs["ccd-courtadmin-read-recipient-shapes"] = {
   lane: "Actual EXUI + isolated CCD",
   limits: "Literal source courtadmin role. The deliberate fault removes only recipient-field read permission in a fresh CCD import. No deployed PRL or production authorisation claim.",
 };
+proofs["ccd-readonly-read-recipient-shapes"] = {
+  phase: "eventCapability",
+  slice: "Read-only source role — email/post, one/two recipients",
+  behaviour: "Read every recipient value and postal address through the candidate case view, with independent unchanged CCD state and history checks.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD",
+  limits: "Literal source readonly role with R type/state/event/field ACLs. A fresh import removes only recipient-field R; every shape must disappear. No deployed PRL or update-denial credit.",
+};
 proofs["ccd-event-create-denied"] = {
   phase: "eventCapability",
   slice: "Readable case — event creation forbidden",
@@ -150,6 +160,7 @@ proofs["routing-noc-session-cache"] = {
     "Uses synthetic case and provider responses. It does not prove deployed PCS profiles, environment overlays, or other decentralised service entries.",
 };
 const faults = {
+  "ccd-remove-readonly-recipient-read": "Remove only the source read-only role’s recipient-field read permission",
   "ccd-remove-courtadmin-recipient-read": "Remove only the court administrator’s recipient-field read permission",
   "ccd-enable-judge-event":
     "Grant the judge create permission for the readable case’s source event",
@@ -227,7 +238,11 @@ function renderNativeEvidence(evidence) {
               "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
               "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
               "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",
-              "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397"].includes(id)
+              "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397",
+              "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a",
+              "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec",
+              "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf",
+              "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337"].includes(id)
             ? "eventCapability"
             : id ===
                 "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c"

@@ -394,3 +394,18 @@ test("support only: readonly rights cannot be broadened coherently in both basel
     assert.throws(() => api.validateEventCapabilityPair(pair.baseline, pair.mutant, source()), /EVENT_CAPABILITY_BASE_MISMATCH/);
   }
 });
+
+test("support only: readonly read fault changes only its recipient field R to U and rejects extra access", async () => {
+  const api = await load();
+  const baseline = api.buildEventCapabilityFixtures(source()).baseline;
+  const mutant = api.deriveReadonlyReadFault(baseline, source());
+  assert.deepEqual(api.validateReadonlyReadPair(baseline, mutant, source()), {
+    sheet: "AuthorisationCaseField", role: "caseworker-privatelaw-readonly",
+    caseField: "sodAdditionalRecipientsList", field: "CRUD", before: "R", after: "U",
+  });
+  const restored = structuredClone(mutant);
+  restored.sheets.AuthorisationCaseField.find(row => row.UserRole === "caseworker-privatelaw-readonly" && row.CaseFieldID === "sodAdditionalRecipientsList").CRUD = "R";
+  assert.deepEqual(restored, baseline);
+  mutant.sheets.AuthorisationCaseType.find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRU";
+  assert.throws(() => api.validateReadonlyReadPair(baseline, mutant, source()), /READONLY_READ_FAULT_MISMATCH/);
+});

@@ -11,12 +11,23 @@
     "before": "CRUD",
     "after": "CUD"
   },
+  "readonlyReadMutationId": "ccd-remove-readonly-recipient-read",
+  "readonlyReadTransformation": {
+    "sheet": "AuthorisationCaseField",
+    "role": "caseworker-privatelaw-readonly",
+    "caseField": "sodAdditionalRecipientsList",
+    "field": "CRUD",
+    "before": "R",
+    "after": "U"
+  },
   "proofs": {
     "courtadmin": "ccd-courtadmin-email-one",
     "judge": "ccd-event-create-denied",
     "mutant": "ccd-event-create-enabled",
     "courtadminRead": "ccd-courtadmin-read-recipient-shapes",
-    "courtadminReadMutant": "ccd-courtadmin-read-shapes-hidden"
+    "courtadminReadMutant": "ccd-courtadmin-read-shapes-hidden",
+    "readonlyRead": "ccd-readonly-read-recipient-shapes",
+    "readonlyReadMutant": "ccd-readonly-read-shapes-hidden"
   },
   "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
   "sourceProjectionDigest": "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e",
@@ -40,5 +51,9 @@
   "read-mutant": {
     "sourceDigest": "sha256:cd9644f3fac7338d5f6c4915a7212dc6774c02332824ce14493a4070d407a7ec",
     "workbookDigest": "sha256:0119aeb57fe7de9774b7a57038ce0680d220a6761a743e268f024aab904e81cd"
+  },
+  "readonly-read-mutant": {
+    "sourceDigest": "sha256:8763ad78e941aa7c1c3aaf208ee927b62f03fd79c918bd202d233ca5d4399deb",
+    "workbookDigest": "sha256:68d378e7c3e9a7f27abf461406492b115218fe30b3cf53cca8209c2e38ed811e"
   }
 }

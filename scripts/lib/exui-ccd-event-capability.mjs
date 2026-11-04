@@ -5,10 +5,27 @@ import { createHash } from "node:crypto";
 export const EVENT_CAPABILITY_SCOPE = "exui-ccd-event-capability-pilot";
 export const EVENT_CAPABILITY_MUTATION = "ccd-enable-judge-event";
 export const COURTADMIN_READ_MUTATION = "ccd-remove-courtadmin-recipient-read";
-export function eventCapabilityFaultVariant(invocationId) {
-  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
-  return invocationId === COURTADMIN_READ_MUTATION ? "read-mutant" : "mutant";
+export const READONLY_READ_MUTATION = "ccd-remove-readonly-recipient-read";
+export function eventCapabilityFaultContract(invocationId) {
+  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
+  const contract = {
+    [EVENT_CAPABILITY_MUTATION]: { variant: "mutant", target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD", transformationKey: "transformation", validatePair: validateEventCapabilityPair },
+    [COURTADMIN_READ_MUTATION]: { variant: "read-mutant", target: "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD", transformationKey: "readTransformation", validatePair: validateCourtadminReadPair },
+    [READONLY_READ_MUTATION]: { variant: "readonly-read-mutant", target: "AuthorisationCaseField:caseworker-privatelaw-readonly:sodAdditionalRecipientsList:CRUD", transformationKey: "readonlyReadTransformation", validatePair: validateReadonlyReadPair },
+  }[invocationId];
+  assert(contract, "EVENT_TRANSITION_INVOCATION");
+  return contract;
 }
+export function eventCapabilityFaultVariant(invocationId) {
+  return eventCapabilityFaultContract(invocationId).variant;
+}
+export const READONLY_READ_OBLIGATION = "ccd-source-readonly-read-shapes";
+export const READONLY_READ_CELLS = Object.freeze([
+  { id: "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a", channel: "email", recipientCount: 1 },
+  { id: "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec", channel: "email", recipientCount: 2 },
+  { id: "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", channel: "post", recipientCount: 1 },
+  { id: "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337", channel: "post", recipientCount: 2 },
+]);
 export const COURTADMIN_READ_OBLIGATION = "ccd-source-courtadmin-read-shapes";
 export const COURTADMIN_READ_CELLS = Object.freeze([
   { id: "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a", channel: "email", recipientCount: 1 },
@@ -22,6 +39,8 @@ export const EVENT_CAPABILITY_PROOFS = Object.freeze({
   mutant: "ccd-event-create-enabled",
   courtadminRead: "ccd-courtadmin-read-recipient-shapes",
   courtadminReadMutant: "ccd-courtadmin-read-shapes-hidden",
+  readonlyRead: "ccd-readonly-read-recipient-shapes",
+  readonlyReadMutant: "ccd-readonly-read-shapes-hidden",
 });
 export const EVENT_CAPABILITY_SOURCE_DIGEST =
   "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e";
@@ -420,4 +439,18 @@ export function validateCourtadminReadPair(baseline, mutant, source = readSource
     before: "CRUD",
     after: "CUD",
   };
+}
+
+export function deriveReadonlyReadFault(baseline, source = readSource()) {
+  assert.deepEqual(baseline, buildEventCapabilityFixtures(source).baseline, "READONLY_READ_BASE_MISMATCH");
+  const mutant = structuredClone(baseline);
+  mutant.sheets.AuthorisationCaseField.find(
+    row => row.UserRole === readonly && row.CaseFieldID === "sodAdditionalRecipientsList",
+  ).CRUD = "U";
+  return mutant;
+}
+
+export function validateReadonlyReadPair(baseline, mutant, source = readSource()) {
+  assert.deepEqual(mutant, deriveReadonlyReadFault(baseline, source), "READONLY_READ_FAULT_MISMATCH");
+  return { sheet: "AuthorisationCaseField", role: readonly, caseField: "sodAdditionalRecipientsList", field: "CRUD", before: "R", after: "U" };
 }
