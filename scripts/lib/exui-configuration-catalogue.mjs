@@ -64,13 +64,14 @@ export function assertCandidateConfigurationSources(candidateRoot, review) {
 const diagnosticConfiguration = (source) => source.repository === 'rpx-xui-webapp' && source.tracked === false
   && !['config/default.json', 'config/custom-environment-variables.json'].includes(source.path);
 
-function projectConfiguration(document) {
+function projectConfiguration(document, includeServiceApiEnvironment = false) {
   const result = Object.fromEntries(configurationKeys.filter((key) => key in document).map((key) => [key, document[key]]));
   if (document.feature?.workAllocationEnabled !== undefined) result.feature = { workAllocationEnabled: document.feature.workAllocationEnabled };
   const hearings = document.services?.hearings;
   if (hearings) result.services = { hearings: Object.fromEntries(Object.entries(hearings)
     .filter(([key, value]) => key === 'hearingsJurisdictions' || value && typeof value === 'object' && 'caseTypes' in value)
-    .map(([key, value]) => [key, key === 'hearingsJurisdictions' ? value : { caseTypes: value.caseTypes }])) };
+    .map(([key, value]) => [key, key === 'hearingsJurisdictions' ? value : { caseTypes: value.caseTypes,
+      ...(includeServiceApiEnvironment && typeof value.serviceApi === 'string' ? { serviceApiEnvironment: value.serviceApi } : {}) }])) };
   return result;
 }
 
@@ -91,7 +92,7 @@ export function readConfigurationSources({ webappRoot, definitionsRoot, review }
   for (const path of configurationFiles) if (unsupportedExtensions.has(extname(path))) throw new Error(`unsupported-configuration-format:config/${path}`);
   for (const name of configurationFiles.filter(path => path.endsWith('.json'))) {
     const path = `config/${name}`, bytes = readFileSync(join(webappRoot, path));
-    sources.push({ repository: 'rpx-xui-webapp', ...gitMetadata(webappRoot, path), path, fileDigest: fileDigest(bytes), document: projectConfiguration(JSON.parse(bytes.toString('utf8'))) });
+    sources.push({ repository: 'rpx-xui-webapp', ...gitMetadata(webappRoot, path), path, fileDigest: fileDigest(bytes), document: projectConfiguration(JSON.parse(bytes.toString('utf8')), path === 'config/custom-environment-variables.json') });
   }
   const definitionDiscovery = collectDefinitionDiscovery({ repositoryRoot: definitionsRoot, review });
   for (const source of selectReviewedDefinitionSources({ discovery: definitionDiscovery, review })) sources.push(source);

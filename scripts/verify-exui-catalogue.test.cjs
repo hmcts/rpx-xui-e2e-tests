@@ -128,7 +128,7 @@ test('source manifest rejects duplicate family profiles hidden by set comparison
 });
 
 test('PCS records its pinned Java definition source owner without gaining CCD-backed or release coverage', () => {
-  // Owning webapp config/default.json at76bf7a840fa71af466961de87294973023b2f0f3.
+  // Owning webapp config/default.json at the current reviewed source revision.
   assert.deepEqual(catalogue.EXUI_SERVICE_REF_DATA_MAPPING.PCS, ['AAA3']);
   const source = JSON.parse(readFileSync(resolve('src/data/exui-central-assurance-source.json'), 'utf8'));
   assert.deepEqual(source.rpxXuiWebapp['config/default.json'].serviceRefDataMapping.find((item) => item.service === 'PCS').serviceCodes, ['AAA3']);
@@ -172,9 +172,9 @@ for (const [key, exported] of [
   ['waSupportedJurisdictions', 'EXUI_WA_SUPPORTED_SERVICE_FAMILIES'],
   ['staffSupportedJurisdictions', 'EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES'],
 ]) {
-  test(`independent committed76bf projection requires current ${key} in JSON and model`, () => {
+  test(`independent committed projection requires current ${key} in JSON and model`, () => {
     const projection = JSON.parse(readFileSync(resolve('scripts/fixtures/exui-configuration-source.json'), 'utf8')).sources.find(item => item.repository === 'rpx-xui-webapp' && item.path === 'config/default.json');
-    assert.equal(projection.revision, '76bf7a840fa71af466961de87294973023b2f0f3');
+    assert.equal(projection.revision, '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0');
     const expected = projection.document[key].split(',');
     const legacy = JSON.parse(readFileSync(resolve('src/data/exui-central-assurance-source.json'), 'utf8'));
     assert.deepEqual(legacy.rpxXuiWebapp['config/default.json'][key], expected);

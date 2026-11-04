@@ -310,7 +310,7 @@ test("support only: finalized exact CCD sequence credits only one of112 and pres
     assert.equal(result.coverage.missingCandidateOrCcd.length, 111);
     assert(
       result.coverage.missingCandidateOrCcd.includes(
-        "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861",
+        "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
       ),
     );
     assert(!result.coverage.missingCandidateOrCcd.includes(id));
@@ -702,7 +702,7 @@ test("support only: native committed-summary loading needs no source checkout or
 const eventCell =
   "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313";
 const routingCell =
-  "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861";
+  "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c";
 async function completeRoutingBundle(root, values = {}) {
   const { createRoutingPhaseFixture } = require(
     "./fixtures/exui-routing-phase-evidence.mock.cjs",
@@ -794,7 +794,7 @@ test("support only: complete event phase credits the exact courtadmin cell witho
     api.loadCommittedConfigurationCatalogue().catalogue.obligations;
   assert.equal(
     digestBytes(JSON.stringify(before)),
-    "sha256:6a2953d46a5082360397549d790e35f11d59e46ef353cd49a588b0497822f377",
+    "sha256:66ab9952a57c8e9ae728e075d132302a0a80b66c0d798f7d03f6f79599b945bb",
   );
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: event.directory,

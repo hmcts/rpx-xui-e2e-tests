@@ -3,10 +3,10 @@
   "sources": [
     {
       "repository": "rpx-xui-webapp",
-      "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+      "revision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
       "path": "config/custom-environment-variables.json",
       "tracked": true,
-      "fileDigest": "59f4b48d697b832fe61e8b18a14b6e3ed7b2a7db7450af69cbbddeae68d34c42",
+      "fileDigest": "094eb0b44b3161095b0b8ec484ae3d047ad5d8a880d08d199d7aae4d2e2e4b9d",
       "document": {
         "jurisdictions": "JURISDICTIONS",
         "globalSearchServices": "GLOBAL_SEARCH_SERVICES",
@@ -26,19 +26,28 @@
           "hearings": {
             "hearingsJurisdictions": "HEARINGS_JURISDICTIONS",
             "sscs": {
-              "caseTypes": "SERVICES_HEARINGS_CASETYPES_SSCS"
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_SSCS",
+              "serviceApiEnvironment": "SERVICES_HEARINGS_COMPONENT_API_SSCS"
             },
             "privatelaw": {
-              "caseTypes": "SERVICES_HEARINGS_CASETYPES_PRIVATELAW"
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_PRIVATELAW",
+              "serviceApiEnvironment": "SERVICES_HEARINGS_COMPONENT_API_PRIVATELAW"
             },
             "civil": {
-              "caseTypes": "SERVICES_HEARINGS_CASETYPES_CIVIL"
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_CIVIL",
+              "serviceApiEnvironment": "SERVICES_HEARINGS_COMPONENT_API_CIVIL"
             },
             "ia": {
-              "caseTypes": "SERVICES_HEARINGS_CASETYPES_IAC"
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_IAC",
+              "serviceApiEnvironment": "SERVICES_HEARINGS_COMPONENT_API_IAC"
             },
             "employment": {
-              "caseTypes": "SERVICES_HEARINGS_CASETYPES_ET"
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_ET",
+              "serviceApiEnvironment": "SERVICES_HEARINGS_COMPONENT_API_ET"
+            },
+            "pcs": {
+              "caseTypes": "SERVICES_HEARINGS_CASETYPES_PCS",
+              "serviceApiEnvironment": "SERVICES_HEARINGS_COMPONENT_API_PCS"
             }
           }
         },
@@ -54,7 +63,7 @@
     },
     {
       "repository": "rpx-xui-webapp",
-      "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+      "revision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
       "path": "config/default.json",
       "tracked": true,
       "fileDigest": "ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1",
@@ -1065,7 +1074,7 @@
     "sources": [
       {
         "repository": "rpx-xui-webapp",
-        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "revision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
         "tracked": true,
         "path": "charts/xui-webapp/Chart.yaml",
         "fileDigest": "16a66a0aab713ca5ca979b16636e6c4e3a3ce4fb5cbffb09655b0d11bfe02139",
@@ -1087,7 +1096,7 @@
       },
       {
         "repository": "rpx-xui-webapp",
-        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "revision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
         "tracked": true,
         "path": "charts/xui-webapp/values.yaml",
         "fileDigest": "8728f0fe4869cacaf1b4f926b25f5146ceef2daea364eff7737b96ef1d80d66d",
@@ -1151,7 +1160,7 @@
       },
       {
         "repository": "rpx-xui-webapp",
-        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "revision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
         "tracked": true,
         "path": "charts/xui-webapp/values.aat.template.yaml",
         "fileDigest": "8f25dcc0f64c64b348dc31e764b06d1a80f5e8a59a1275670b38ef9feb43509b",
@@ -1208,7 +1217,7 @@
       },
       {
         "repository": "rpx-xui-webapp",
-        "revision": "76bf7a840fa71af466961de87294973023b2f0f3",
+        "revision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
         "tracked": true,
         "path": "charts/xui-webapp/values.preview.template.yaml",
         "fileDigest": "159c2358bde072c38817848011ea084cd89b0fd51e387f070f44db2b9f97e4e3",

@@ -216,7 +216,7 @@ function renderNativeEvidence(evidence) {
               "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313"
             ? "eventCapability"
             : id ===
-                "configuration-decentralisation:80ee7509e89da374b6497596777429115598168ceedf29d4243805349a82e861"
+                "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c"
               ? "routing"
             : null;
       const accepted = evidence.phases.find((item) => item.phase === phase);
