@@ -11,6 +11,7 @@ import {
   isKnownPostalBlock,
 } from "./exui-native-proof-validation.mjs";
 import { projectConfigurationCoverage } from "./exui-configuration-runtime-coverage.mjs";
+import { validateCallbackTransitionEvidence } from "./exui-recipient-callback-transition.mjs";
 import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs";
 import { nativeInvocations } from "./exui-native-contract.mjs";
 import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
@@ -23,6 +24,7 @@ const scopes = {
   ccd: "exui-ccd-pilot",
   eventCapability: "exui-ccd-event-capability-pilot",
   routing: ROUTING_SCOPE,
+  recipientCallback: "exui-ccd-recipient-callback-pilot",
 };
 const hashPattern = /^sha256:[a-f0-9]{64}$/;
 const uuid =
@@ -182,7 +184,9 @@ function phaseProjection(directory, selection, ciPhase, expected) {
       receiptArtifactDigest: pin.receiptArtifactDigest,
       ...(phase === "eventCapability"
         ? { eventTransition: pin.eventTransition }
-        : {}),
+        : phase === "recipientCallback"
+          ? { callbackTransition: pin.callbackTransition }
+          : {}),
     },
     ciPhase,
     "CI_PHASE_MISMATCH",
@@ -196,6 +200,8 @@ function phaseProjection(directory, selection, ciPhase, expected) {
     );
   if (phase === "eventCapability")
     validateEventTransitionEvidence(directory, pin, loaded.input);
+  if (phase === "recipientCallback")
+    validateCallbackTransitionEvidence(directory, pin, loaded.input);
   if (phase === "routing") {
     const routeInput = read(path.join(directory, "input.json")).value;
     const review = read(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json")).value;
@@ -358,6 +364,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       phaseDirectory: path.join(directory, "private/ccd"),
       eventPhaseDirectory: path.join(directory, "private/eventCapability"),
       routingPhaseDirectory: path.join(directory, "private/routing"),
+      callbackPhaseDirectory: path.join(directory, "private/recipientCallback"),
     });
     const ccdPin = expected.phases.find(
       (item) => item.phase === "ccd",
@@ -372,7 +379,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       ccdPin.evidenceManifestDigest,
       "COVERAGE_EVIDENCE_MISMATCH",
     );
-    for (const phase of ["ccd", "eventCapability", "routing"]) {
+    for (const phase of ["ccd", "eventCapability", "routing", "recipientCallback"]) {
       const selected = expected.phases.find((item) => item.phase === phase);
       const ref = accounting.phaseReferences[phase];
       for (const field of [

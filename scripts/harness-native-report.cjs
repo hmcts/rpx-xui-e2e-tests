@@ -178,7 +178,18 @@ proofs["routing-noc-session-cache"] = {
   limits:
     "Uses synthetic case and provider responses. It does not prove deployed PCS profiles, environment overlays, or other decentralised service entries.",
 };
+proofs["callback-recipient-row"] = {
+  phase: "recipientCallback",
+  slice: "Additional recipient callback row",
+  behaviour: "Render the source-shaped recipient row, invoke its mid-event callback through real CCD, and verify all eleven bounded row facets with candidate and stored-definition evidence.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD + synthetic callback responder",
+  limits: "Only the named source row is covered. Callback business logic is synthetic; no production PRL behaviour, deployed service, role-policy, date activation or full release approval is established.",
+};
 const faults = {
+  "ccd-omit-recipient-mid-event": "Omit only the recipient mid-event callback URL and observe the required binding failure",
   "ccd-remove-courtadmin-event-create": "Remove only source courtadmin event creation permission; preserve readable controls and deny writes",
   "ccd-enable-readonly-recipient-update": "Enable only the four readonly ACL permissions required for recipient updates",
   "ccd-remove-readonly-recipient-read": "Remove only the source read-only role’s recipient-field read permission",
@@ -208,6 +219,7 @@ const phaseLabels = {
   ccd: "CCD data and access",
   eventCapability: "Source role and event capability",
   routing: "PCS decentralised routing",
+  recipientCallback: "Recipient callback configuration",
 };
 const badge = (text, passed) =>
   `<span class="harness-status ${passed ? "passed" : "failed"}">${escape(text)}</span>`;
@@ -280,6 +292,8 @@ function renderNativeEvidence(evidence) {
             : id ===
                 "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c"
               ? "routing"
+              : id === "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94"
+                ? "recipientCallback"
             : null;
       const accepted = evidence.phases.find((item) => item.phase === phase);
       const ref = coverage.phaseReferences[phase];

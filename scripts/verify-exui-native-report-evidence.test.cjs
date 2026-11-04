@@ -291,6 +291,15 @@ async function fixture(
     expected: routing.expected,
   });
   phaseResults.push(routing.result);
+  const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+  const callback=await createCallbackPhaseFixture({
+    root:path.join(directory,'private'),harnessCommit:expected.harnessCommit,
+    sourceDigest:event.expected.harnessSourceDigest,dependencyDigest:event.expected.harnessDependencyDigest,
+    browserDigest:event.expected.browserDigest,
+  });
+  expected.phases.push({phase:'recipientCallback',policy:callback.policy,terminal:callback.terminal,expected:callback.expected});
+  phaseResults.push(callback.result);
+
   const last = phaseResults.reduce((worst, item) =>
     item.exitCode > worst.exitCode ? item : worst,
   );
@@ -313,6 +322,7 @@ async function fixture(
     directory,
     event,
     routing,
+    callback,
     descriptor,
     descriptorPath,
     save: () => write(descriptorPath, descriptor),
@@ -390,8 +400,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 17);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 17);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 18);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 18);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -667,7 +677,7 @@ for (const postalFailure of [false, true])
     const coverage = result.catalogueCoverage;
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
-    assert.equal(coverage.candidate, 4);
+    assert.equal(coverage.candidate, 5);
     assert.equal(coverage.ccd, postalFailure ? 16 : 17);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
@@ -695,9 +705,10 @@ for (const postalFailure of [false, true])
       "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec",
       "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf",
       "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337",
+      "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 92 : 91);
+    assert.equal(coverage.missing, postalFailure ? 91 : 90);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(
@@ -732,8 +743,8 @@ test("a later accepted phase cannot hide the postal blocker, and a failed new ce
     assert.equal(result.exitCode, 2);
     assert.equal(result.phases[3].status, "BLOCKED");
     assert.equal(result.catalogueCoverage.ccd, postalFailure ? 0 : 1);
-    assert.equal(result.catalogueCoverage.candidate, 1);
-    assert.equal(result.catalogueCoverage.missing, postalFailure ? 111 : 110);
+    assert.equal(result.catalogueCoverage.candidate, 2);
+    assert.equal(result.catalogueCoverage.missing, postalFailure ? 110 : 109);
     assert(
       !result.catalogueCoverage.creditedObligationIds.some((id) =>
         id.startsWith("configuration-cell:"),
@@ -784,4 +795,18 @@ test("historical four-phase evidence cannot become a completed five-phase report
     (await load()).readNativeReportEvidence(f.descriptorPath),
     /PHASE_SELECTION_REQUIRED/,
   );
+});
+
+test('callback publication rejects historical feasibility and forged phase claims',async t=>{
+ const {readNativeReportEvidence}=await load();
+ for(const change of [
+  descriptor=>descriptor.expected.phases.pop(),
+  descriptor=>descriptor.expected.phases.reverse(),
+  descriptor=>descriptor.expected.phases.push(descriptor.expected.phases.at(-1)),
+  descriptor=>{descriptor.expected.phases.at(-1).expected.callbackTransition={status:'passed',accepted:true};},
+  descriptor=>{descriptor.expected.phases.at(-1).expected.releaseScopeId='recipient-callback-ui-feasibility';},
+ ]) {
+  const f=await fixture(t);change(f.descriptor);f.save();
+  await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath));
+ }
 });
