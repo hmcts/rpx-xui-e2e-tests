@@ -10,15 +10,15 @@ const hash = digit => 'sha256:' + digit.repeat(64);
 const load = () => import('./lib/exui-native-proof-validation.mjs');
 const scope = 'exui-ccd-event-capability-pilot';
 
-async function fixture(t) {
+async function fixture(t, selectedScope = scope) {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-baseline-checkpoint-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'baseline'));
-  const policy = (await import('./lib/exui-release-policy.mjs')).getReleasePolicy(scope);
+  const policy = (await import('./lib/exui-release-policy.mjs')).getReleasePolicy(selectedScope);
   const manifest = completeRun().manifest;
   Object.assign(manifest, {
     runId: 'ccd-11111111-1111-4111-8111-111111111111',
-    releaseScopeId: scope, policyDigest: policy.policyDigest, requiredObligationIds: [...policy.requiredObligationIds],
+    releaseScopeId: selectedScope, policyDigest: policy.policyDigest, requiredObligationIds: [...policy.requiredObligationIds],
     runtimeMetadata: { isolation: 'native-separate-api-owned-network-none', harnessSourceState: 'clean', harnessSourceDigest: hash('4'), harnessDependencyDigest: hash('5'), browserDigest: hash('6') },
   });
   const expected = {
@@ -32,7 +32,7 @@ async function fixture(t) {
       ...Object.fromEntries(['runId', 'harnessCommit', 'releaseScopeId', 'policyDigest', 'identity'].map(key => [key, structuredClone(manifest[key])])),
       invocationId: 'baseline', harnessSourceState: 'clean', harnessSourceDigest: expected.harnessSourceDigest,
     },
-    tests: ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied', 'ccd-source-shape-conditional-email-complex', 'ccd-source-shape-optional-postal-line-two', 'ccd-source-shape-required-delivery-radio'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
+    tests: policy.obligations.flatMap(item => item.requiredProofIds).sort().map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
   };
   const execution = { runId: manifest.runId, invocationId: 'baseline', kind: 'baseline', identity: structuredClone(manifest.identity), terminalState: 'completed', runnerExitCode: 0, unexpectedGlobalErrors: [] };
   const terminal = { code: 0, signal: null };
@@ -212,4 +212,16 @@ test('known postal block accepts only full current CCD evidence with its exact e
   lateFailure.mutations.find(item => item.mutationId === 'ccd-write-then-deny').mutantResult.failureId = 'unrelated';
   assert.deepEqual(evaluateReleaseEvidence(lateFailure), verdict, 'the known early postal block can precede a later invalid witness');
   assert.equal(api.isKnownPostalBlock(lateFailure, verdict), false, 'continuation must still validate every later witness');
+});
+
+test('callback checkpoint is closed to its one candidate proof and requires baseline success before omission', async t => {
+ const {CALLBACK_SCOPE,CALLBACK_PROOF}=await import('./lib/exui-recipient-callback-contract.mjs');
+ const {readCallbackBaselineCheckpoint,readEventBaselineCheckpoint}=await load();
+ const f=await fixture(t,CALLBACK_SCOPE),observed=readCallbackBaselineCheckpoint(f.root,f.expected);
+ assert.deepEqual(observed.input.results.map(row=>[row.proofId,row.boundary,row.outcome]),[[CALLBACK_PROOF,'candidate','passed']]);
+ assert.equal(observed.input.mutations.length,0);assert.equal(observed.input.policy.mutationDefinitions.length,1);
+ assert.throws(()=>readEventBaselineCheckpoint(f.root,f.expected),/NATIVE_CHECKPOINT_SCOPE_REQUIRED/);
+ f.report.tests[0].status='failed';f.report.tests[0].failureId='recipient-callback-binding';f.report.status='failed';f.execution.runnerExitCode=1;f.terminal.code=1;f.write();
+ assert.throws(()=>readCallbackBaselineCheckpoint(f.root,f.expected),/NATIVE_CHECKPOINT_CALLBACK_BASELINE_PASSED_REQUIRED/);
+ const old=await fixture(t);assert.throws(()=>readCallbackBaselineCheckpoint(old.root,old.expected),/NATIVE_CHECKPOINT_SCOPE_REQUIRED/);
 });

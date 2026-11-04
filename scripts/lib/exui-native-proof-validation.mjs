@@ -1,3 +1,4 @@
+import { CALLBACK_SCOPE, CALLBACK_PROOF } from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
 import fs from "node:fs";
 import path from "node:path";
@@ -300,8 +301,13 @@ function checkpointArtifact(directory, relative) {
 // This is a baseline handoff, not a reduced release gate. The full current policy
 // remains in the returned input; the parent owns lifecycle checks and final evaluation.
 export function readEventBaselineCheckpoint(directory, expected) {
+  return readClosedBaselineCheckpoint(directory, expected, "exui-ccd-event-capability-pilot");
+}
+export function readCallbackBaselineCheckpoint(directory, expected) {
+  return readClosedBaselineCheckpoint(directory, expected, CALLBACK_SCOPE);
+}
+function readClosedBaselineCheckpoint(directory, expected, scope) {
   checkpointPath(directory, true);
-  const scope = "exui-ccd-event-capability-pilot";
   checkpointEqual(expected?.releaseScopeId, scope, "SCOPE_REQUIRED");
   checkpointEqual(expected.nativeAuthority, true, "NATIVE_AUTHORITY_REQUIRED");
   const policy = getReleasePolicy(scope);
@@ -357,7 +363,7 @@ export function readEventBaselineCheckpoint(directory, expected) {
       "RUNTIME_IDENTITY_MISMATCH",
     );
   }
-  const baselineIds = ["ccd-courtadmin-read-recipient-shapes", "ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", ...SOURCE_SHAPE_ROWS.map(row => `ccd-source-shape-${row.id}`)].sort();
+  const baselineIds = scope === CALLBACK_SCOPE ? [CALLBACK_PROOF] : ["ccd-courtadmin-read-recipient-shapes", "ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", ...SOURCE_SHAPE_ROWS.map(row => `ccd-source-shape-${row.id}`)].sort();
   checkpointEqual(
     policy.obligations.flatMap((item) => item.requiredProofIds).sort(),
     baselineIds,
@@ -404,7 +410,8 @@ export function readEventBaselineCheckpoint(directory, expected) {
       ["passed", "failed"].includes(result.outcome),
       "INCOMPLETE_PROOF",
     );
-    checkpointEqual(result.boundary, "ccd", "PROOF_BOUNDARY_MISMATCH");
+    checkpointEqual(result.boundary, scope === CALLBACK_SCOPE ? "candidate" : "ccd", "PROOF_BOUNDARY_MISMATCH");
+    if (scope === CALLBACK_SCOPE) checkpointEqual(result.outcome, "passed", "CALLBACK_BASELINE_PASSED_REQUIRED");
   }
   const terminalRecord = checkpointArtifact(
     directory,
