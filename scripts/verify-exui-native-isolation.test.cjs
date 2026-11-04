@@ -782,3 +782,39 @@ test("native AMD64 image admission binds platform, manifest and config identity"
   }
   assert.throws(() => nativeRuntimeImages("linux/ppc64le"), /UNSUPPORTED_NATIVE_PLATFORM/);
 });
+
+test('every event policy mutation constructs both owned tools and candidate plans with closed scope admission',async t=>{
+ const f=await eventOwnershipFixture(t);
+ const {getReleasePolicy}=await import('./lib/exui-release-policy.mjs');
+ const {nativeInvocations}=await import('./lib/exui-native-contract.mjs');
+ const {nativeContainerPlan}=await import('./lib/exui-native-containers.mjs');
+ const {toolContainerArguments,candidateArchiveArguments}=await import('./lib/exui-oci-runtime.mjs');
+ const {SOURCE_SHAPE_MUTATIONS}=await import('./lib/exui-source-shape-contract.mjs');
+ const {eventCapabilityFaultVariant}=await import('./lib/exui-ccd-event-capability.mjs');
+ const ids=['baseline',...getReleasePolicy(f.input.releaseScopeId).mutationDefinitions.map(row=>row.mutationId)];
+ assert.deepEqual(nativeInvocations(f.input.releaseScopeId).map(row=>row.invocationId),ids);
+ for(const invocationId of ids){
+  for(const name of ['sessions','diagnostics'])fs.mkdirSync(path.join(f.handoff.stateRoot,invocationId,name),{recursive:true});
+  const plan=nativeContainerPlan(f.input,f.handoff,invocationId);
+  assert(plan.tools.args.includes(invocationId));
+  assert(plan.candidate.arguments(f.input.ccd.namespace).includes('/candidate/runtime/node'));
+  if(invocationId!=='baseline'){
+   const selected={...f.input,ccd:{...f.input.ccd,fixtureSelection:`event-capability-${eventCapabilityFaultVariant(invocationId)}`}};
+   const owned=f.api.captureEventFaultOwnership(selected,f.handoff,{...f.context,ccd:selected.ccd},f.handoff.output,invocationId);
+   assert.deepEqual(owned.invocations.map(item=>item.invocationId),[invocationId]);
+   assert(owned.invocations[0].plan.candidate.arguments(selected.ccd.namespace).includes('/candidate/runtime/node'));
+  }
+ }
+ const tools={image:f.input.browserRuntimeImage,owner:f.input.runId,harnessRoot:f.handoff.stagedHarness,dependenciesRoot:fs.realpathSync(path.join(__dirname,'../node_modules')),candidateRoot:f.input.artifact.candidateRoot,output:f.handoff.output,browserRoot:f.input.browserRoot,native:true,namespace:f.input.ccd.namespace,releaseScopeId:f.input.releaseScopeId};
+ const candidate={image:f.input.nativeRuntime.imageId,owner:f.input.runId,namespace:f.input.ccd.namespace,candidateRoot:f.input.artifact.candidateRoot,guard:path.join(f.handoff.stagedHarness,'scripts/lib/exui-runtime-network-guard.cjs'),config:{},evidenceRoot:f.handoff.output,harnessRoot:f.handoff.stagedHarness,releaseScopeId:f.input.releaseScopeId};
+ for(const invocationId of SOURCE_SHAPE_MUTATIONS){
+  const sessions=path.join(f.handoff.stateRoot,invocationId,'sessions'),diagnostics=path.join(f.handoff.stateRoot,invocationId,'diagnostics');
+  for(const releaseScopeId of [undefined,'exui-ccd-pilot','exui-wa-family-pilot']){
+   assert.throws(()=>toolContainerArguments({...tools,invocationId,sessions,releaseScopeId}),/CCD_EVENT_SCOPE_REQUIRED/);
+   assert.throws(()=>candidateArchiveArguments({...candidate,invocationId,sessions,diagnostics,releaseScopeId}),/CCD_EVENT_SCOPE_REQUIRED/);
+  }
+  assert.throws(()=>toolContainerArguments({...tools,invocationId,sessions,native:false}),/UNSUPPORTED_OCI_INVOCATION/);
+ }
+ assert.throws(()=>toolContainerArguments({...tools,invocationId:'ccd-shape-unknown'}),/UNSUPPORTED_OCI_INVOCATION/);
+ assert.throws(()=>candidateArchiveArguments({...candidate,invocationId:'ccd-shape-unknown'}),/UNSUPPORTED_NATIVE_INVOCATION/);
+});

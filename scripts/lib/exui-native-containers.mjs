@@ -172,6 +172,7 @@ export function nativeContainerPlan(
         invocationId,
         native: true,
         namespace,
+        releaseScopeId: input.releaseScopeId,
       }),
     },
     candidate: {
