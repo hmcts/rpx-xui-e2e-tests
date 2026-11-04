@@ -372,3 +372,25 @@ test('support only: generated courtadmin field-read workbook changes one ACL cel
  const probe=spawnSync('python3',['-c','import zipfile,sys,xml.etree.ElementTree as E; a=zipfile.ZipFile(sys.argv[1]); b=zipfile.ZipFile(sys.argv[2]); assert a.namelist()==b.namelist(); changed=[n for n in a.namelist() if a.read(n)!=b.read(n)]; assert len(changed)==1; ns={"x":"http://schemas.openxmlformats.org/spreadsheetml/2006/main"}; av=[e.text for e in E.fromstring(a.read(changed[0])).findall(".//x:v",ns)]; bv=[e.text for e in E.fromstring(b.read(changed[0])).findall(".//x:v",ns)]; assert len(av)==len(bv); assert [(x,y) for x,y in zip(av,bv) if x!=y]==[("CRUD","CUD")]',path.join(output,'baseline.xlsx'),path.join(output,'read-mutant.xlsx')],{encoding:'utf8'});
  assert.equal(probe.status,0,probe.stderr);
 });
+
+test("support only: source readonly role preserves R at every CCD authorization layer", async () => {
+  const api = await load();
+  const rows = api.buildEventCapabilityFixtures(source()).baseline.sheets;
+  const role = "caseworker-privatelaw-readonly";
+  for (const sheet of ["AuthorisationCaseType", "AuthorisationCaseState", "AuthorisationCaseEvent", "AuthorisationCaseField"]) {
+    const selected = rows[sheet].filter(row => row.UserRole === role);
+    assert(selected.length > 0, `${sheet} must include the source readonly role`);
+    assert(selected.every(row => row.CRUD === "R"), `${sheet} must preserve read-only permission`);
+  }
+  assert.equal(rows.AuthorisationCaseEvent.some(row => row.UserRole === role && row.CaseEventID === "create"), false);
+});
+
+test("support only: readonly rights cannot be broadened coherently in both baseline and fault", async () => {
+  const api = await load();
+  for (const sheet of ["AuthorisationCaseType", "AuthorisationCaseState", "AuthorisationCaseEvent", "AuthorisationCaseField"]) {
+    const pair = api.buildEventCapabilityFixtures(source());
+    for (const fixture of [pair.baseline, pair.mutant])
+      fixture.sheets[sheet].find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRU";
+    assert.throws(() => api.validateEventCapabilityPair(pair.baseline, pair.mutant, source()), /EVENT_CAPABILITY_BASE_MISMATCH/);
+  }
+});

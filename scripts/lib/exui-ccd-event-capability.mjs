@@ -24,13 +24,14 @@ export const EVENT_CAPABILITY_PROOFS = Object.freeze({
   courtadminReadMutant: "ccd-courtadmin-read-shapes-hidden",
 });
 export const EVENT_CAPABILITY_SOURCE_DIGEST =
-  "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a";
+  "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e";
 export const EVENT_CAPABILITY_CELL =
   "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313";
 const revision = "694b9951e94369f1394380506960c4f04f25755d";
 const prefix = "definitions/private-law/json/";
 const courtadmin = "caseworker-privatelaw-courtadmin";
 const judge = "caseworker-privatelaw-judge";
+const readonly = "caseworker-privatelaw-readonly";
 const observer = "caseworker-harness-observer";
 const bootstrap = "caseworker-harness-allowed";
 const state = "JUDICIAL_REVIEW";
@@ -80,9 +81,10 @@ export function validateEventCapabilitySource(source) {
         item.rowDigest,
         "EVENT_CAPABILITY_SOURCE_ROW_DRIFT",
       );
-  for (const [role, type, eventPermission] of [
-    [courtadmin, "CRU", "CRU"],
-    [judge, "RU", "R"],
+  for (const [role, type, eventPermission, statePermission, fieldPermission] of [
+    [courtadmin, "CRU", "CRU", "CRUD", "CRUD"],
+    [judge, "RU", "R", "CRUD", "CRUD"],
+    [readonly, "R", "R", "R", "R"],
   ]) {
     for (const environment of ["prod", "nonprod"]) {
       assert.equal(
@@ -96,7 +98,7 @@ export function validateEventCapabilitySource(source) {
     }
     assert.equal(
       access(rows(source, "AuthorisationCaseState.json")[0], role),
-      "CRUD",
+      statePermission,
       "EVENT_CAPABILITY_STATE_VECTOR",
     );
     assert.equal(
@@ -107,7 +109,7 @@ export function validateEventCapabilitySource(source) {
         ).find((row) => row.CaseFieldID === "sodAdditionalRecipientsList"),
         role,
       ),
-      "CRUD",
+      fieldPermission,
       "EVENT_CAPABILITY_FIELD_VECTOR",
     );
     assert.equal(
@@ -239,19 +241,20 @@ export function buildEventCapabilityFixtures(source = readSource()) {
     AuthorisationCaseType: [
       [courtadmin, "CRU"],
       [judge, "RU"],
+      [readonly, "R"],
       [observer, "CRUD"],
       [bootstrap, "CRU"],
     ].map(([role, CRUD]) => ({ ...common, UserRole: role, CRUD })),
-    AuthorisationCaseState: [courtadmin, judge, observer, bootstrap].map(
+    AuthorisationCaseState: [courtadmin, judge, readonly, observer, bootstrap].map(
       (role) => ({
         ...common,
         CaseStateID: state,
         UserRole: role,
-        CRUD: "CRUD",
+        CRUD: role === readonly ? "R" : "CRUD",
       }),
     ),
     AuthorisationCaseEvent: [
-      ...[courtadmin, judge].map((role) => ({
+      ...[courtadmin, judge, readonly].map((role) => ({
         ...common,
         CaseEventID: event,
         UserRole: role,
@@ -267,7 +270,7 @@ export function buildEventCapabilityFixtures(source = readSource()) {
     ],
     AuthorisationCaseField: [
       ...aclFields.flatMap((row) =>
-        [courtadmin, judge].map((role) => ({
+        [courtadmin, judge, readonly].map((role) => ({
           ...common,
           CaseFieldID: row.CaseFieldID,
           UserRole: role,
@@ -285,6 +288,7 @@ export function buildEventCapabilityFixtures(source = readSource()) {
       ...[
         [courtadmin, "CRUD"],
         [judge, "R"],
+        [readonly, "R"],
       ].map(([role, CRUD]) => ({
         ...common,
         CaseFieldID: "protectedValue",
@@ -342,7 +346,7 @@ export function buildEventCapabilityFixtures(source = readSource()) {
         caseType: ct,
         state,
         event,
-        roles: { courtadmin, judge, observer, bootstrap },
+        roles: { courtadmin, judge, readonly, observer, bootstrap },
       },
       adaptations: [
         "PRLAPPS normalized to HarnessNestedPRL in disposable HARNESS jurisdiction",
