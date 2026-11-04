@@ -64,7 +64,7 @@ export function buildResultColumnFacetContract(fixture = buildResultColumnFixtur
     LiveFrom: { boundary: "ccd", semantics: "unresolved-consumer", proof: "Verify the actual imported live date and establish its supported import/version/runtime consumer from image-bound implementation or controlled import observations before choosing an effect oracle. No future-date removal behavior is assumed." },
     CaseTypeID: { boundary: "ccd", proof: "Imported descriptor and real search response belong to HarnessResultsPRL with the retained PRLAPPS normalization binding." },
     CaseFieldID: { boundary: "candidate+ccd", proof: "Exact real descriptor field binding and unique persisted value in the corresponding candidate column; a binding fault must be detected." },
-    Label: { boundary: "candidate+ccd", proof: "Exact source label including whitespace in imported descriptor, plus intended rendered heading; a label fault must be detected." },
+    Label: { boundary: "candidate+ccd", proof: "Retain exact source/workbook label; verify the imported descriptor against the explicitly bound CCD Java-style edge-trim rule and the intended rendered heading. A meaningful label fault must be detected." },
     DisplayOrder: { boundary: "candidate+ccd", proof: "Exact descriptor order and complete ordered candidate headings; an order fault must be detected." },
     ResultsOrdering: { boundary: "candidate+ccd", proof: "Real search results and candidate rows follow submitted timestamp descending order across three cases created in a different order; reversed ordering must be detected." },
   };
