@@ -10,6 +10,7 @@ import { CCD_IMAGES, ccdRuntimeImageIds, prepareCcdImport, assertObservedCcdDefi
 import {
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_MUTATION,
+  COURTADMIN_READ_MUTATION,
 } from "./exui-ccd-event-capability.mjs";
 
 const digest = (value) => /^sha256:[a-f0-9]{64}$/.test(value ?? "");
@@ -17,6 +18,11 @@ const binding = () => JSON.parse(fs.readFileSync(
   new URL("../fixtures/ccd/event-capability/binding.json", import.meta.url),
   "utf8",
 ));
+
+function eventFaultVariant(invocationId) {
+  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
+  return invocationId === COURTADMIN_READ_MUTATION ? "read-mutant" : "mutant";
+}
 
 // Replays parent-captured transition facts; it neither starts CCD nor decides proof outcomes.
 export function validateEventTransitionEvidence(directory, expected, loadedInput) {
@@ -200,8 +206,9 @@ export function eventCapabilityTransitionRequest(input) {
   };
 }
 
-export async function waitForEventCapabilityRuntime(input, output, { isCancelled = () => false, timeoutMs = 180000 } = {}) {
-  const file = path.join(output, EVENT_CAPABILITY_MUTATION, "runtime-input.json");
+export async function waitForEventCapabilityRuntime(input, output, { invocationId = EVENT_CAPABILITY_MUTATION, isCancelled = () => false, timeoutMs = 180000 } = {}) {
+  eventFaultVariant(invocationId);
+  const file = path.join(output, invocationId, "runtime-input.json");
   const deadline = Date.now() + timeoutMs;
   while (!fs.existsSync(file)) {
     assert(!isCancelled(), "EVENT_TRANSITION_CANCELLED");
@@ -210,11 +217,12 @@ export async function waitForEventCapabilityRuntime(input, output, { isCancelled
   }
   assert(!isCancelled(), "EVENT_TRANSITION_CANCELLED");
   assert(fs.lstatSync(file).isFile() && fs.realpathSync(file) === file, "EVENT_TRANSITION_ACK_ALIAS");
-  return selectEventCapabilityRuntime(input, EVENT_CAPABILITY_MUTATION, JSON.parse(fs.readFileSync(file, "utf8")));
+  return selectEventCapabilityRuntime(input, invocationId, JSON.parse(fs.readFileSync(file, "utf8")));
 }
 
 export function publishEventCapabilityRuntime(output, record) {
-  const directory = path.join(output, EVENT_CAPABILITY_MUTATION);
+  eventFaultVariant(record.invocationId);
+  const directory = path.join(output, record.invocationId);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   assert.equal(fs.realpathSync(directory), directory, "EVENT_TRANSITION_ACK_ALIAS");
   const file = path.join(directory, "runtime-input.json");
@@ -236,7 +244,7 @@ export function validateEventCapabilityTransitionRequest(input, request) {
 // The parent supplies this record only after baseline removal and independent fault import verification.
 export function selectEventCapabilityRuntime(input, invocationId, record) {
   const request = eventCapabilityTransitionRequest(input);
-  assert.equal(invocationId, EVENT_CAPABILITY_MUTATION, "EVENT_TRANSITION_INVOCATION");
+  const variant = eventFaultVariant(invocationId);
   assert.deepEqual(Object.keys(record).sort(), [
     "apiContracts", "ccd", "credentials", "definition", "definitionImportDigest",
     "invocationId", "requestDigest", "runId", "schemaVersion",
@@ -245,7 +253,7 @@ export function selectEventCapabilityRuntime(input, invocationId, record) {
   assert.equal(record.runId, input.runId, "EVENT_TRANSITION_RUN");
   assert.equal(record.invocationId, invocationId, "EVENT_TRANSITION_INVOCATION");
   assert.equal(record.requestDigest, digestBytes(JSON.stringify(request)), "EVENT_TRANSITION_REQUEST_BINDING");
-  assert.equal(record.ccd.fixtureSelection, "event-capability-mutant", "EVENT_TRANSITION_VARIANT");
+  assert.equal(record.ccd.fixtureSelection, `event-capability-${variant}`, "EVENT_TRANSITION_VARIANT");
   assert.equal(record.ccd.ready, true, "EVENT_TRANSITION_RUNTIME_NOT_READY");
   assert.equal(record.ccd.definitionImported, true, "EVENT_TRANSITION_IMPORT_REQUIRED");
   assert(/^[a-f0-9]{64}$/.test(record.ccd.namespace), "EVENT_TRANSITION_NAMESPACE");
@@ -254,7 +262,7 @@ export function selectEventCapabilityRuntime(input, invocationId, record) {
   assert.notEqual(record.ccd.owner, input.ccd.owner, "EVENT_TRANSITION_OWNER_REUSE");
   assert.deepEqual(record.ccd.images, input.ccd.images, "EVENT_TRANSITION_IMAGE_DRIFT");
   assert.deepEqual(record.apiContracts, input.apiContracts, "EVENT_TRANSITION_API_DRIFT");
-  assert.equal(record.definition.fixtureDigest, binding().mutant.workbookDigest, "EVENT_TRANSITION_FAULT_DEFINITION");
+  assert.equal(record.definition.fixtureDigest, binding()[variant].workbookDigest, "EVENT_TRANSITION_FAULT_DEFINITION");
   assert(digest(record.definition.observedDefinitionDigest), "EVENT_TRANSITION_OBSERVED_DEFINITION");
   assert.notEqual(record.definition.observedDefinitionDigest, input.definition.observedDefinitionDigest, "EVENT_TRANSITION_DEFINITION_UNCHANGED");
   assert(Number.isInteger(record.definition.definitionVersion) && record.definition.definitionVersion > 0, "EVENT_TRANSITION_DEFINITION_VERSION");

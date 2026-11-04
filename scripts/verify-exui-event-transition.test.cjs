@@ -74,6 +74,50 @@ test("support only: event fault runtime is a fresh namespace bound to the exact 
   assert.throws(() => eventCapabilityTransitionRequest({ ...input, releaseScopeId: "exui-ccd-pilot" }));
 });
 
+test("support only: courtadmin read fault binds its own workbook and cannot consume the judge fault", async (t) => {
+  const { eventCapabilityTransitionRequest, selectEventCapabilityRuntime, publishEventCapabilityRuntime, waitForEventCapabilityRuntime } = await load();
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-read-ack-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { input, state, definition, credentials } = fixture();
+  const mutation = "ccd-remove-courtadmin-recipient-read";
+  const record = {
+    schemaVersion: 1, runId: input.runId, invocationId: mutation,
+    requestDigest: hash(eventCapabilityTransitionRequest(input)), ccd: state("3", "read-mutant"),
+    definition: definition("read-mutant", "f"), definitionImportDigest: digest("f"),
+    credentials, apiContracts: input.apiContracts,
+  };
+  const actual = selectEventCapabilityRuntime(input, mutation, record);
+  assert.equal(actual.definition.fixtureDigest, definition("read-mutant", "f").fixtureDigest);
+  for (const mutate of [
+    (r) => { r.invocationId = "ccd-enable-judge-event"; },
+    (r) => { r.ccd.fixtureSelection = "event-capability-mutant"; },
+    (r) => { r.definition.fixtureDigest = definition("mutant", "f").fixtureDigest; },
+    (r) => { r.ccd.fixtureSelection = "event-capability-mutant"; r.definition = definition("mutant", "f"); },
+    (r) => { r.ccd.namespace = input.ccd.namespace; },
+    (r) => { r.ccd.owner = input.ccd.owner; },
+    (r) => { r.definitionImportDigest = input.definitionImportDigest; },
+    (r) => { r.requestDigest = digest("0"); },
+    (r) => { r.ccd.ready = false; },
+    (r) => { r.credentials.courtadmin.roles.push("caseworker-harness-allowed"); },
+  ]) {
+    const changed = structuredClone(record); mutate(changed);
+    assert.throws(() => selectEventCapabilityRuntime(input, mutation, changed));
+  }
+  assert.throws(() => selectEventCapabilityRuntime(input, "ccd-enable-judge-event", record));
+  const published = publishEventCapabilityRuntime(root, record);
+  assert.equal(published.path, `${mutation}/runtime-input.json`);
+  assert.deepEqual(await waitForEventCapabilityRuntime(input, root, { invocationId: mutation }), actual);
+  await assert.rejects(waitForEventCapabilityRuntime(input, root, { timeoutMs: 0 }), /EVENT_TRANSITION_ACK_TIMEOUT/);
+  await assert.rejects(waitForEventCapabilityRuntime(input, root, { invocationId: mutation, isCancelled: () => true }), /EVENT_TRANSITION_CANCELLED/);
+  assert.throws(() => publishEventCapabilityRuntime(root, record), /EEXIST/);
+  for (const invocationId of ["../escape", "baseline", "unknown", "toString", "__proto__"]) {
+    assert.throws(() => publishEventCapabilityRuntime(root, { ...record, invocationId }), /EVENT_TRANSITION_INVOCATION/);
+    await assert.rejects(waitForEventCapabilityRuntime(input, root, { invocationId, timeoutMs: 0 }), /EVENT_TRANSITION_INVOCATION/);
+    assert.throws(() => selectEventCapabilityRuntime(input, invocationId, { ...record, invocationId }), /EVENT_TRANSITION_INVOCATION/);
+  }
+  assert.deepEqual(fs.readdirSync(root), [mutation]);
+});
+
 test("support only: fault transition rejects changed, stale or partial handoffs", async () => {
   const { eventCapabilityTransitionRequest, validateEventCapabilityTransitionRequest } = await load();
   const { input } = fixture();

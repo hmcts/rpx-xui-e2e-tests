@@ -216,7 +216,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
     writeJsonAtomic(path.join(output, "container-launch.json"), handoff);
     for (const invocation of invocations) {
       const invocationInput = input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation
-        ? await waitForEventCapabilityRuntime(input, output, { isCancelled: () => Boolean(interrupted) })
+        ? await waitForEventCapabilityRuntime(input, output, { invocationId: invocation.invocationId, isCancelled: () => Boolean(interrupted) })
         : input;
       const directory = path.join(output, invocation.invocationId);
       fs.mkdirSync(directory, { mode: 0o700, ...(input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation ? { recursive: true } : {}) });
