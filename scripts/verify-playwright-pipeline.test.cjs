@@ -232,6 +232,8 @@ test('Jenkins native assurance builds exact webapp master in a private, script-d
   );
   assert.match(source, /scripts\/prepare-harness-candidate\.mjs/);
   assert.match(source, /scripts\/run-harness-assurance\.mjs/);
+  assert.match(source, /private\/orchestration-error\.json/);
+  assert.match(source, /NATIVE_PREFLIGHT_FAILED/);
   assert.match(source, /process\.umask\(0o077\)/);
   assert.match(source, /mode: 0o600/);
   assert.match(source, /validatePublicSummary\(source\)/);

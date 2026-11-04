@@ -270,8 +270,19 @@ function logNativeCompletion(output) {
     const completed = result.phaseResults
       .map((phase) => `${phase.phase} ${phase.status}`)
       .join(", ") || "none";
+    let stopReason = "";
+    try {
+      const failure = JSON.parse(
+        fs.readFileSync(path.join(output, "private/orchestration-error.json"), "utf8"),
+      );
+      stopReason = /^[A-Z][A-Z0-9_]*$/.test(failure.message)
+        ? `; stop reason ${failure.message}`
+        : "; stop reason NATIVE_PREFLIGHT_FAILED";
+    } catch {
+      // No orchestration failure was recorded.
+    }
     console.log(
-      `[harness-assurance] Native ${result.status}; completed proofs: ${completed}; cleanup ${result.cleanupComplete ? "complete" : "incomplete"}.`,
+      `[harness-assurance] Native ${result.status}; completed proofs: ${completed}${stopReason}; cleanup ${result.cleanupComplete ? "complete" : "incomplete"}.`,
     );
   } catch {
     // Missing or malformed private evidence gets no native credit.
