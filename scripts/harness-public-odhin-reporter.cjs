@@ -622,7 +622,7 @@ class HarnessPublicOdhinReporter {
         })),
       );
       presentation.querySelector("#TabDashboard").insertAdjacentHTML(
-        "afterbegin",
+        "beforeend",
         await overview.renderOverview(
           [...this.expected].map(([identity, entry]) => ({
             entry,

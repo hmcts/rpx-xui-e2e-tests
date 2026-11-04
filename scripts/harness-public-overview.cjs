@@ -150,6 +150,21 @@ async function renderOverview(
     throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
   const satisfiedRuntimeRequirements =
     runtimeCoverage?.creditedObligationIds.length ?? 0;
+  const requirementKinds = {
+    "configuration-profile": "Service-family configuration profiles",
+    "definition-shape": "CCD field, page, complex-type and search shapes",
+    "pilot-cell": "Role, action, recipient and channel scenarios",
+    "shared-policy": "Shared rendering and access policies",
+    "source-shape-sequence": "Nested-field validation and persistence sequences",
+    "configuration-decentralisation": "Decentralised application routing contracts",
+  };
+  const credited = new Set(runtimeCoverage?.creditedObligationIds ?? []);
+  const catalogueBreakdown = [...new Set(catalogue.obligations.map(item => item.kind))].map(kind => {
+    const entries = catalogue.obligations.filter(item => item.kind === kind);
+    const accepted = entries.filter(item => credited.has(item.id)).length;
+    return `<tr data-catalogue-kind="${escape(kind)}" data-catalogue-total="${entries.length}" data-catalogue-accepted="${accepted}"><th scope="row">${escape(requirementKinds[kind] ?? kind)}</th><td>${entries.length}</td><td>${accepted}</td><td>${entries.length - accepted}</td></tr>`;
+  }).join("");
+
   const validatedDefault = snapshot.sources.find(
     (source) =>
       source.repository === "rpx-xui-webapp" &&
@@ -257,14 +272,18 @@ async function renderOverview(
   )
     throw new Error("PUBLIC_ODHIN_SOURCE_REVISION_REQUIRED");
   return `<section id="harness-overview" class="p-4">
+<header class="harness-intro">
 <h1 class="h3">What this run checked</h1>
 <p>${profile === "local-aat" ? `${records.length - aatRecords.length} local Harness/model checks + ${aatRecords.length} live AAT probes = ${records.length} checks. AAT: ${responsePassed}/${aatRecords.length} response checks passed; ${groups.aat.failed} failed callbacks (${loginBlocked} blocked by login/setup); ${groups.aat.timedOut} timed out. ${confirmedResponses} endpoint responses confirmed. Deployed version unknown.` : `This run recorded ${records.length} checks on Harness logic and reviewed configuration models. ${nativeEvidence ? "The separately validated native execution is shown below." : "No validated native candidate application or CCD run is attached."}`}</p>
 ${profile === "local-aat" ? "<p>Authenticated probes share one configured solicitor session; the public UI-configuration probe is anonymous. Other roles and persona combinations are not covered.</p>" : ""}
 ${mismatches.length ? `<div class="alert alert-danger" data-aat-contract-mismatch><strong>Required service-family contract differs.</strong> ${escape(mismatchNotice)} Source expectations remain unchanged; this is not a login/setup failure. The deployed configuration, build and session-specific cause is unknown.</div>` : ""}
 ${diagnosticSource ? `<p class="harness-diagnostic-source" data-diagnostic-source-sha256="${objectDigest(diagnosticSource)}">Diagnostic source captured before execution: <code>${escape(diagnosticSource.commit || "commit unavailable")}</code> (${escape(diagnosticSource.state)}), ${escape(diagnosticSource.capturedAt)}. This stamp is not an immutable candidate seal.</p>` : ""}
+</header>
 <section id="harness-application-coverage" class="harness-application-coverage" aria-labelledby="harness-application-coverage-heading" data-runtime-obligations="${catalogue.obligations.length}"><h2 id="harness-application-coverage-heading">Application coverage and remaining gaps</h2>
 <p><strong>${satisfiedRuntimeRequirements} / ${catalogue.obligations.length} catalogue requirements satisfied by accepted runtime evidence — ${nativeEvidence ? `${runtimeCoverage.missing} remain unsatisfied. See the separate native proof outcomes below, including failed or blocked executions.` : "No accepted candidate/CCD runtime evidence is attached. See the build summary for the native gate outcome."}</strong> Passing model or framework checks do not prove a service works in EXUI. Release approval remains unavailable.</p>
-<p>The ${catalogue.obligations.length} source-catalogue obligations are a bounded inventory, not a complete universe of EXUI behaviour. ${runtimeGaps} deployment-profile/key runtime gaps and ${previewGaps} unreviewed preview-family cells remain outside those objects. Service-owner grouping, deployed profiles and discovery of unknown configuration changes remain open.</p></section>
+<p>The ${catalogue.obligations.length} source-catalogue obligations are a bounded inventory, not a complete universe of EXUI behaviour. ${runtimeGaps} deployment-profile/key runtime gaps and ${previewGaps} unreviewed preview-family cells remain outside those objects. Service-owner grouping, deployed profiles and discovery of unknown configuration changes remain open.</p>
+<p>Awaiting evidence is not a count of failed tests. This inventory mixes the distinct groups below; it is not a percentage of all EXUI behaviour. A shared slice can satisfy several entries only when its assertions and validated evidence demonstrate each required behaviour.</p>
+<div class="table-responsive"><table id="harness-catalogue-breakdown" class="table"><thead><tr><th>What the catalogue contains</th><th>Entries</th><th>Accepted runtime evidence</th><th>Awaiting evidence</th></tr></thead><tbody>${catalogueBreakdown}</tbody></table></div></section>
 ${renderCoverage(records, { nativeAttached: Boolean(nativeEvidence), labels: familyNames })}
 ${renderNativeEvidence(nativeEvidence)}
 <details class="odhin-thin-border p-3 mt-3"><summary><strong>Services and capabilities represented in the reviewed source models</strong></summary><p>These capability declarations span reviewed source profiles. They are not a claim that each service was individually exercised or enabled in this deployment. The shared catalogue-model checks above inspect this inventory; ${nativeEvidence ? "the separate native proofs above identify their actual fixture and service scope, without per-service profile credit." : "No accepted per-service UI or CCD evidence is attached."} ${profile === "local-aat" ? "The five AAT endpoint outcomes are shown separately below; they do not verify every family individually." : ""}</p>

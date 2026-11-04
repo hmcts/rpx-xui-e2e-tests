@@ -522,6 +522,11 @@ test("one report explains actual groups and preserves all runtime/owner gaps ind
   const html = fs.readFileSync(output(), "utf8");
   const root = require("node-html-parser").parse(html);
   assert.equal(root.querySelectorAll("#harness-overview").length, 1);
+  const dashboard = root.querySelector("#TabDashboard");
+  assert(
+    dashboard.innerHTML.indexOf('class="container-fluid') < dashboard.innerHTML.indexOf('id="harness-overview"'),
+    "Original Odhín panels must precede all added Harness context and coverage",
+  );
   assert.ok(
     root.querySelector("#TabDashboard #harness-overview"),
     "Run context must belong to Dashboard so the Tests tab shows only check details",
@@ -913,6 +918,15 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
       ),
     );
     assert.ok(html.includes(`${blocked ? 110 : 109} remain unsatisfied`));
+    const summary = require("node-html-parser").parse(html);
+    const rows = summary.querySelectorAll("[data-catalogue-kind]");
+    assert.equal(rows.length, 6);
+    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-total")), 0), 112);
+    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-accepted")), 0), blocked ? 2 : 3);
+    assert.equal(summary.querySelector('[data-catalogue-kind="definition-shape"]').getAttribute("data-catalogue-total"), "79");
+    assert.equal(summary.querySelector('[data-catalogue-kind="configuration-profile"]').getAttribute("data-catalogue-total"), "13");
+    assert.match(summary.textContent, /not a count of failed tests/);
+
     assert.ok(!html.includes("No accepted candidate/CCD runtime evidence is attached."));
   }
   for (const change of [
