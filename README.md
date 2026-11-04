@@ -158,3 +158,7 @@ For the explicitly authorized live AAT configuration slice, `yarn harness:aat` r
 Focused `yarn harness:support` and `yarn harness:diagnostic` commands remain available locally. Live Jenkins rendering/CSP still requires acceptance; download the HTML if the wrapper blocks its scripts. No global Jenkins security setting changes. Human review is required before merge or deployment.
 
 AI-assisted implementation; audit reference: harness-plan-execution-20261102.
+
+### Existing Jenkins worker observation
+
+The current PR and nightly jobs still run supporting checks with `harness:ci`. Before those checks, `scripts/observe-harness-worker.mjs` records sanitized host/Docker platforms, pinned-image availability and declared native-input presence in `functional-output/tests/harness/public/native-ci-capabilities.json`, using the existing Jenkins artifact destination. Missing Docker or inputs are reported without blocking the supporting checks. This observation never grants native readiness or release approval; it does not launch containers or verify candidate/browser integrity. If already provisioned, `HARNESS_ASSURANCE_INPUT` identifies the existing five-field native job JSON. No raw paths, credentials or Docker errors are published.

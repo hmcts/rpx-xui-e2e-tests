@@ -86,6 +86,10 @@ node() {
     printf '%s\\n' 'node:package-manager' >> "$CALLS_FILE"
     [[ "$FAIL_COMMAND" != package-manager ]] || return 23
     "$REAL_NODE" "$@"
+  elif [[ "$1" == scripts/observe-harness-worker.mjs ]]; then
+    [[ "$#" == 1 ]] || return 96
+    printf '%s\\n' 'worker:observe' >> "$CALLS_FILE"
+    [[ "$FAIL_COMMAND" != worker ]] || return 23
   elif [[ "$1" == scripts/manage-harness-public-reports.cjs ]]; then
     [[ "$#" == 2 && "$2" == --validate ]] || return 96
     printf '%s\\n' 'report:validate' >> "$CALLS_FILE"
@@ -106,7 +110,7 @@ corepack() {
 `);
       const expectedCalls = [
         'nvm:source', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
-        'corepack:yarn test:setup:playwright-install-chromium', 'browser:preflight',
+        'worker:observe', 'corepack:yarn test:setup:playwright-install-chromium', 'browser:preflight',
         'corepack:yarn harness:ci', 'report:validate'
       ];
       const cases = [
@@ -117,11 +121,12 @@ corepack() {
         { fail: 'package-manager', status: 23, through: 4 },
         { fail: '--version', status: 23, through: 5 },
         { fail: 'yarn-version', status: 1, through: 5 },
-        { fail: 'test:setup:playwright-install-chromium', status: 23, through: 6 },
-        { fail: 'browser', status: 1, through: 7 },
-        { fail: 'harness:ci', status: 23, through: 8 },
-        { fail: 'validate', status: 23, through: 9 },
-        { fail: '', status: 0, through: 9 }
+        { fail: 'worker', status: 23, through: 6 },
+        { fail: 'test:setup:playwright-install-chromium', status: 23, through: 7 },
+        { fail: 'browser', status: 1, through: 8 },
+        { fail: 'harness:ci', status: 23, through: 9 },
+        { fail: 'validate', status: 23, through: 10 },
+        { fail: '', status: 0, through: 10 }
       ];
       for (const { fail, status, through } of cases) {
         rmSync(calls, { force: true });
@@ -150,9 +155,15 @@ corepack() {
     const archived = [...source.matchAll(/archiveArtifacts[^\n]*artifacts:\s*'([^']+)'/g)].map((match) => match[1]);
     assert.deepEqual(archived, [
       'functional-output/tests/harness/public/release-assurance-summary.json',
+      'functional-output/tests/harness/public/native-ci-capabilities.json',
       'functional-output/tests/harness/public/odhin/index.html'
     ]);
     assert.ok(source.indexOf('manage-harness-public-reports.cjs --reset') < source.indexOf('try {'));
+    assert.ok(source.indexOf('observe-harness-worker.mjs --reset') < source.indexOf('try {'));
+    const workerValidation = source.indexOf('observe-harness-worker.mjs --validate', source.indexOf('finally {'));
+    const workerArchive = source.indexOf("artifacts: 'functional-output/tests/harness/public/native-ci-capabilities.json'");
+    assert.ok(workerValidation >= 0 && workerValidation < workerArchive);
+    assert.doesNotMatch(source, /harness:assurance|harness:candidate/);
     const validation = source.indexOf('manage-harness-public-reports.cjs --validate', source.indexOf('finally {'));
     const publication = source.indexOf("reportDir: 'functional-output/tests/harness/public/odhin'");
     assert.ok(validation >= 0 && validation < publication);
