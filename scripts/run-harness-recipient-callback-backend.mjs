@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import {callbackFailureCode} from './lib/exui-recipient-callback-diagnostics.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -13,6 +14,7 @@ export const callbackProbeFiles=Object.freeze([
  'scripts/lib/exui-ccd-browser-runtime.mjs','scripts/lib/exui-ccd-role-transition.mjs',
  'scripts/lib/exui-ccd-event-capability.mjs','scripts/lib/exui-native-sources.mjs',
  'scripts/lib/exui-recipient-callback.mjs','scripts/lib/exui-recipient-callback-fixture.mjs',
+ 'scripts/lib/exui-recipient-callback-diagnostics.mjs',
  'scripts/lib/exui-recipient-callback-auth.mjs','scripts/lib/exui-recipient-callback-backend.mjs',
  'scripts/fixtures/ccd/event-capability.source.json',
  'scripts/recipient-callback-backend-worker.mjs',
@@ -28,19 +30,19 @@ export function stageCallbackProbe(destination,sourceRoot=root){
 export async function runRecipientCallbackProbe({output,mode='normalize',platform='linux/arm64'}){
  assert(path.isAbsolute(output)&&['normalize','reject'].includes(mode),'CALLBACK_PROBE_ARGUMENTS');
  assert(!fs.existsSync(output),'CALLBACK_PROBE_FRESH_OUTPUT_REQUIRED');fs.mkdirSync(output,{mode:0o700});output=fs.realpathSync(output);
- const runtimePath=path.join(output,'runtime');let cancelled=false,child,state,terminal;
+ const runtimePath=path.join(output,'runtime');let phase='prepare-fixture',cancelled=false,child,state,terminal;
  const cancel=()=>{cancelled=true;child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
  const receipt={schemaVersion:1,mode,status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
  const save=()=>fs.writeFileSync(path.join(output,'probe.json'),JSON.stringify(receipt,null,2)+'\n',{mode:0o600});save();
  try{
   const fixtures=path.join(output,'fixture');await prepareRecipientCallbackImport(fixtures);
-  state=await startCcdRuntime(runtimePath,{fixtureSelection:'event-capability-baseline',platform,isCancelled:()=>cancelled});assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
-  receipt.import=await importRecipientCallback(state,{fixtureDirectory:fixtures});save();
-  const credentials=Object.fromEntries(['allowed','courtadmin','observer'].map(actor=>[actor,ccdCredentials(state,actor)]));
-  const staged=path.join(output,'sources');receipt.sourceSeals=stageCallbackProbe(staged);save();
+  phase='start-runtime';state=await startCcdRuntime(runtimePath,{fixtureSelection:'event-capability-baseline',platform,isCancelled:()=>cancelled});assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
+  phase='import-callback';receipt.import=await importRecipientCallback(state,{fixtureDirectory:fixtures});save();
+  phase='create-actors';const credentials=Object.fromEntries(['allowed','courtadmin','observer'].map(actor=>[actor,ccdCredentials(state,actor)]));
+  phase='stage-worker';const staged=path.join(output,'sources');receipt.sourceSeals=stageCallbackProbe(staged);save();
   verifyCcdContainerIdentity(state);docker(['cp',staged+'/.',state.containers.client+':/tmp/recipient-probe']);
   verifyCcdContainerIdentity(state);assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
-  terminal=new Promise((resolve,reject)=>{
+  phase='execute-worker';terminal=new Promise((resolve,reject)=>{
    child=spawn('docker',['exec','-i',state.containers.client,'node','/tmp/recipient-probe/scripts/recipient-callback-backend-worker.mjs'],{stdio:['pipe','pipe','pipe']});
    let text='',tooLarge=false;child.stdout.on('data',bytes=>{if(text.length+bytes.length>65536){tooLarge=true;child.kill('SIGTERM');}else text+=bytes.toString();});child.stderr.resume();
    child.once('error',()=>reject(Error('CALLBACK_PROBE_EXEC_START_FAILED')));child.once('close',code=>resolve({code,text,tooLarge}));
@@ -49,9 +51,11 @@ export async function runRecipientCallbackProbe({output,mode='normalize',platfor
   const result=await Promise.race([terminal,new Promise((_,reject)=>{const timer=setTimeout(()=>{child.kill('SIGTERM');reject(Error('CALLBACK_PROBE_EXEC_TIMEOUT'));},120000);timer.unref();terminal.finally(()=>clearTimeout(timer)).catch(()=>{});})]);
   assert(!cancelled,'CALLBACK_PROBE_CANCELLED');
   verifyCcdContainerIdentity(state);docker(['cp',state.containers.client+':/tmp/recipient-output',path.join(output,'observations')]);
-  assert(!result.tooLarge&&result.code===0,'CALLBACK_PROBE_WORKER_FAILED');
-  const worker=JSON.parse(result.text);assert.equal(worker.status,'completed','CALLBACK_PROBE_WORKER_RESULT');receipt.result=worker.result;receipt.status='backend-feasibility-observed';save();
- }catch{receipt.status=cancelled?'cancelled':'failed';receipt.failure='CALLBACK_BACKEND_PROBE_FAILED';save();}
+  assert(!result.tooLarge,'CALLBACK_PROBE_WORKER_FAILED');
+  const worker=JSON.parse(result.text);
+  if(worker.status==='failed') { receipt.workerFailure={code:callbackFailureCode({message:worker.code}),phase:['verify-source','read-input','start-gateway','backend-flow'].includes(worker.phase)?worker.phase:'unknown'};save(); }
+  assert.equal(result.code,0,'CALLBACK_PROBE_WORKER_FAILED');assert.equal(worker.status,'completed','CALLBACK_PROBE_WORKER_RESULT');receipt.result=worker.result;receipt.status='backend-feasibility-observed';save();
+ }catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackFailureCode(error);save();}
  finally{
   // Recovery uses independently retained fixed names/CIDs, including partial startup.
   try{receipt.cleanup=cleanupCiCcd(runtimePath);if(state)assert.equal(receipt.cleanup?.cleanupComplete,true,'CALLBACK_PROBE_CLEANUP_REQUIRED');}

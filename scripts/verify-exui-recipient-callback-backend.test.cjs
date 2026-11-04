@@ -8,7 +8,7 @@ async function execute(mode,defect){
   if(route.includes('/event-triggers/'))return {status:200,body:{token:actor.userId+'-token'}};
   if(route.endsWith('/cases')&&options.method==='POST'){assert.equal(actor.userId,'allowed');current={case_data:structuredClone(options.body.data),version:1,state:'JUDICIAL_REVIEW'};return {status:201,body:{id:1234567890123456}};}
   if(route.includes('/validate?')){
-   assert.equal(actor.userId,'courtadmin');assert.equal(options.body.event_token,'courtadmin-token');assert.equal(options.body.case_reference,'1234567890123456');assert(options.headers.accept.includes('case-data-validate.v2'));
+   assert.equal(actor.userId,'courtadmin');assert.equal(options.body.event_token,'courtadmin-token');assert.equal(options.body.case_reference,'1234567890123456');assert(options.headers.accept.includes('case-data-validate.v2'));assert.equal(route,'/case-types/HarnessNestedPRL/validate?pageId=serviceOfDocuments2');
    const data=structuredClone(options.body.data);
    if(defect==='persist-validation')current.version++;
    if(mode==='reject')return {status:422,body:{errors:['HARNESS_CALLBACK_BUSINESS_REJECTION']}};
@@ -32,4 +32,10 @@ test('support only: source staging copies exact allowlist and rejects aliases, n
  assert.deepEqual(Object.keys(seals),callbackProbeFiles);assert(callbackProbeFiles.every(name=>!name.includes('.env')&&!name.includes('node_modules')));
  const source=path.join(temp,'source');fs.mkdirSync(source);fs.symlinkSync(path.resolve('scripts'),path.join(source,'scripts'));
  assert.throws(()=>stageCallbackProbe(path.join(temp,'aliased'),source),/CALLBACK_PROBE_SOURCE_ALIAS/);
+});
+
+test('support only: diagnostic codes preserve known assertion cause without raw details',async()=>{
+ const {callbackFailureCode}=await import('./lib/exui-recipient-callback-diagnostics.mjs');
+ assert.equal(callbackFailureCode(Error('CALLBACK_PAGE_REQUIRED\nsecret request details')),'CALLBACK_PAGE_REQUIRED');
+ for(const message of ['private bearer token','CALLBACK_PRIVATE_SECRET','CALLBACK_PAGE_REQUIRED secret',''])assert.equal(callbackFailureCode(Error(message)),'CALLBACK_PROBE_UNCLASSIFIED_FAILURE');
 });

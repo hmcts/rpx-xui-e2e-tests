@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { callbackFailureCode } from "./exui-recipient-callback-diagnostics.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -31,7 +32,9 @@ export function validateObservedRecipientCallback(definition, pages, binding) {
   assert.equal(pages?.case_type_id,"HarnessNestedPRL","CALLBACK_PAGE_CASE_TYPE");
   assert.equal(pages?.event_id,binding.eventId,"CALLBACK_PAGE_EVENT");
   assert(Array.isArray(pages.wizard_pages),"CALLBACK_PAGE_SCHEMA");
-  const selected=pages.wizard_pages.filter(page=>page.id===String(binding.pageId));
+  // AbstractDisplayGroupParser (c37c9b84) groups by eventId + source PageID,
+  // then persists that key as the group reference; confirmed by real descriptor.
+  const selected=pages.wizard_pages.filter(page=>page.id===binding.eventId+String(binding.pageId));
   assert.equal(selected.length,1,"CALLBACK_PAGE_REQUIRED");
   assert(Array.isArray(selected[0].wizard_page_fields) && selected[0].wizard_page_fields.filter(field => field.case_field_id === binding.fieldId).length === 1,"CALLBACK_PAGE_FIELD_REQUIRED");
   assert.equal(selected[0].callback_url_mid_event,binding.normalizedUrl,"CALLBACK_PAGE_URL");
@@ -69,5 +72,5 @@ export async function importRecipientCallback(state,{fixtureDirectory,request=cc
     }
     validateObservedRecipientCallback(receipt.observations.definition.body,receipt.observations.pages.body,seal.binding);
     receipt.status="import-and-callback-descriptor-observed";save();return receipt;
-  } catch(error){receipt.status="failed";receipt.failure="CALLBACK_IMPORT_FEASIBILITY_FAILED";save();throw error;}
+  } catch(error){receipt.status="failed";receipt.failure=callbackFailureCode(error);save();throw error;}
 }

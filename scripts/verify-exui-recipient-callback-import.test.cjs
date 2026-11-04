@@ -15,9 +15,9 @@ test('support only: observed page binding rejects wrong page, stage, path and sc
  const {validateObservedRecipientCallback}=await import('./lib/exui-recipient-callback-import.mjs');
  const {binding}=deriveRecipientCallbackFixture();
  const definition={id:'HarnessNestedPRL',version:{number:1},events:[{id:'serviceOfDocuments'}]};
- const pages={case_type_id:'HarnessNestedPRL',event_id:'serviceOfDocuments',wizard_pages:[{id:'2',wizard_page_fields:[{case_field_id:binding.fieldId}],callback_url_mid_event:binding.normalizedUrl}]};
+ const pages={case_type_id:'HarnessNestedPRL',event_id:'serviceOfDocuments',wizard_pages:[{id:'serviceOfDocuments2',wizard_page_fields:[{case_field_id:binding.fieldId}],callback_url_mid_event:binding.normalizedUrl}]};
  validateObservedRecipientCallback(definition,pages,binding);
- for(const change of [p=>{p.event_id='create'},p=>{p.wizard_pages[0].id='1'},p=>{p.wizard_pages[0].callback_url_mid_event+='?different'},p=>{p.wizard_pages=[]},p=>{p.wizard_pages[0].wizard_page_fields=[]}]){const changed=structuredClone(pages);change(changed);assert.throws(()=>validateObservedRecipientCallback(definition,changed,binding),/CALLBACK_/);}
+ for(const change of [p=>{p.event_id='create'},p=>{p.wizard_pages[0].id='1'},p=>{p.wizard_pages[0].id='2'},p=>{p.wizard_pages[0].callback_url_mid_event+='?different'},p=>{p.wizard_pages=[]},p=>{p.wizard_pages[0].wizard_page_fields=[]}]){const changed=structuredClone(pages);change(changed);assert.throws(()=>validateObservedRecipientCallback(definition,changed,binding),/CALLBACK_/);}
  assert.throws(()=>validateObservedRecipientCallback({...definition,events:[{callback_url_about_to_submit_event:binding.normalizedUrl}]},pages,binding),/CALLBACK_UNEXPECTED_EVENT_STAGE/);
 });
 test('support only: tampered callback source workbook and seals stop before runtime access',async t=>{
@@ -45,7 +45,7 @@ for (const importedStatus of [400,201]) test('support only: actual importer pres
   if(route==='/api/user-role'){roles.push(options.body.role);return {status:201,body:{}};}
   if(route==='/import')return {status:importedStatus,body:{message:'fixture import response'}};
   if(route==='/api/data/case-type/HarnessNestedPRL')return {status:200,body:{id:'HarnessNestedPRL',version:{number:1},events:[{id:binding.eventId}]}};
-  if(route.includes('/wizard-page-structure/'))return {status:200,body:{case_type_id:'HarnessNestedPRL',event_id:binding.eventId,wizard_pages:[{id:'2',wizard_page_fields:[{case_field_id:binding.fieldId}],callback_url_mid_event:binding.normalizedUrl}]}};
+  if(route.includes('/wizard-page-structure/'))return {status:200,body:{case_type_id:'HarnessNestedPRL',event_id:binding.eventId,wizard_pages:[{id:'serviceOfDocuments2',wizard_page_fields:[{case_field_id:binding.fieldId}],callback_url_mid_event:binding.normalizedUrl}]}};
   throw Error('unexpected route');
  };
  const before=structuredClone(state);
