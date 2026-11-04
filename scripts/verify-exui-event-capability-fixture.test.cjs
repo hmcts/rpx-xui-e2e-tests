@@ -409,3 +409,29 @@ test("support only: readonly read fault changes only its recipient field R to U 
   mutant.sheets.AuthorisationCaseType.find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRU";
   assert.throws(() => api.validateReadonlyReadPair(baseline, mutant, source()), /READONLY_READ_FAULT_MISMATCH/);
 });
+
+test("support only: readonly update fault broadens only the four required source ACL cells", async () => {
+  const api = await load();
+  const baseline = api.buildEventCapabilityFixtures(source()).baseline;
+  const mutant = api.deriveReadonlyUpdateFault(baseline, source());
+  const transformation = api.validateReadonlyUpdatePair(baseline, mutant, source());
+  assert.deepEqual(transformation.changes, [
+    { sheet: "AuthorisationCaseType", key: "CaseTypeID", value: "HarnessNestedPRL", before: "R", after: "RU" },
+    { sheet: "AuthorisationCaseState", key: "CaseStateID", value: "JUDICIAL_REVIEW", before: "R", after: "RU" },
+    { sheet: "AuthorisationCaseEvent", key: "CaseEventID", value: "serviceOfDocuments", before: "R", after: "CR" },
+    { sheet: "AuthorisationCaseField", key: "CaseFieldID", value: "sodAdditionalRecipientsList", before: "R", after: "RU" },
+  ]);
+  const restored = structuredClone(mutant);
+  for (const change of transformation.changes)
+    restored.sheets[change.sheet].find(row => row.UserRole === "caseworker-privatelaw-readonly" && row[change.key] === change.value).CRUD = change.before;
+  assert.deepEqual(restored, baseline);
+  for (const change of transformation.changes) {
+    const incomplete = structuredClone(mutant);
+    incomplete.sheets[change.sheet].find(row => row.UserRole === "caseworker-privatelaw-readonly" && row[change.key] === change.value).CRUD = change.before;
+    assert.throws(() => api.validateReadonlyUpdatePair(baseline, incomplete, source()), /READONLY_UPDATE_FAULT_MISMATCH/);
+  }
+  for (const field of ["protectedValue", "sodAdditionalRecipients"])
+    assert.equal(mutant.sheets.AuthorisationCaseField.find(row => row.UserRole === "caseworker-privatelaw-readonly" && row.CaseFieldID === field).CRUD, "R");
+  mutant.sheets.AuthorisationCaseType.find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRUD";
+  assert.throws(() => api.validateReadonlyUpdatePair(baseline, mutant, source()), /READONLY_UPDATE_FAULT_MISMATCH/);
+});

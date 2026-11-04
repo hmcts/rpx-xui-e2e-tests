@@ -817,7 +817,7 @@ async function nativePresentationFixture(blocked = true) {
   };
 }
 
-test("same Odhín document separates thirteen native baselines and twelve faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
+test("same Odhín document separates fourteen native baselines and thirteen faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
   sandbox(t);
   const Reporter = api();
   const reporter = new Reporter({ selection: "local-aat" });
@@ -848,8 +848,8 @@ test("same Odhín document separates thirteen native baselines and twelve faults
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 13);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 12);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 14);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 13);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,

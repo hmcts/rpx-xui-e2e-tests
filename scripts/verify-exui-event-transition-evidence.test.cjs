@@ -15,7 +15,7 @@ test("offline transition replay requires the parent-bound baseline/removal/impor
   assert.equal(typeof validateEventTransitionEvidence, "function");
   const f = await fixture(t), expectedBefore = JSON.stringify(f.expected);
   const result = validateEventTransitionEvidence(f.directory, f.expected, await f.loaded());
-  assert.deepEqual(result, { transition: f.expected.eventTransition, identities: [{ invocationId: "ccd-enable-judge-event", identity: f.faultIdentity }, { invocationId: "ccd-remove-courtadmin-recipient-read", identity: f.readFaultIdentity }, { invocationId: "ccd-remove-readonly-recipient-read", identity: f.readonlyFaultIdentity }] });
+  assert.deepEqual(result, { transition: f.expected.eventTransition, identities: [{ invocationId: "ccd-enable-judge-event", identity: f.faultIdentity }, { invocationId: "ccd-remove-courtadmin-recipient-read", identity: f.readFaultIdentity }, { invocationId: "ccd-remove-readonly-recipient-read", identity: f.readonlyFaultIdentity }, { invocationId: "ccd-enable-readonly-recipient-update", identity: f.readonlyUpdateFaultIdentity }] });
   assert.equal(JSON.stringify(f.expected), expectedBefore);
   assert(!JSON.stringify(result).includes("PRIVATE-CANARY"));
   assert(!JSON.stringify(result).includes(f.root));
@@ -128,10 +128,16 @@ test("relocation cannot combine import records from unrelated original runtime p
 });
 
 
-test("all three independently captured faults are mandatory and cannot share imported runtime resources", async t => {
+test("all four independently captured faults are mandatory and cannot share imported runtime resources", async t => {
   const { validateEventTransitionEvidence: validate } = await load();
   for (const [change, code] of [
+    [f => { f.parent.faults = f.parent.faults.slice(0, 3); }, "EVENT_TRANSITION_FAULT_SELECTION"],
     [f => { f.parent.faults = f.parent.faults.slice(0, 2); }, "EVENT_TRANSITION_FAULT_SELECTION"],
+    [f => { f.readonlyUpdateRuntimeRecord.ccd.owner = f.readonlyRuntimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],
+    [f => { f.readonlyUpdateRuntimeRecord.ccd.containers.data = f.runtimeRecord.ccd.containers.data; }, "EVENT_TRANSITION_CCD_CID_REUSE"],
+    [f => { f.readonlyUpdateRuntimeRecord.definition.fixtureDigest = f.readonlyRuntimeRecord.definition.fixtureDigest; }, "EVENT_TRANSITION_FAULT_DEFINITION"],
+    [f => { f.readonlyUpdateDerivation.transformationRecord.changes.pop(); }, "EVENT_TRANSITION_DERIVATION_CELL"],
+    [f => { f.readonlyUpdateDerivation.transformationRecord.changes[0].after = "CRUD"; }, "EVENT_TRANSITION_DERIVATION_CELL"],
     [f => { f.readonlyRuntimeRecord.ccd.owner = f.readRuntimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],
     [f => { f.readonlyRuntimeRecord.ccd.containers.data = f.runtimeRecord.ccd.containers.data; }, "EVENT_TRANSITION_CCD_CID_REUSE"],
     [f => { f.readonlyRuntimeRecord.definition.fixtureDigest = f.readRuntimeRecord.definition.fixtureDigest; }, "EVENT_TRANSITION_FAULT_DEFINITION"],

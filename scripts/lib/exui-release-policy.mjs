@@ -8,15 +8,17 @@ export function getReleasePolicy(scope) {
   if (scope === 'exui-ccd-event-capability-pilot') {
     const courtadminCell = 'configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313';
     const courtadminReadCell = 'ccd-source-courtadmin-read-shapes';
+    const readonlyUpdateCell = 'ccd-source-readonly-update-shapes';
     const readonlyReadCell = 'ccd-source-readonly-read-shapes';
     const policy = {
       releaseScopeId: scope,
-      requiredObligationIds: [courtadminCell, 'ccd-source-event-capability', courtadminReadCell, readonlyReadCell],
+      requiredObligationIds: [courtadminCell, 'ccd-source-event-capability', courtadminReadCell, readonlyReadCell, readonlyUpdateCell],
       obligations: [
         { id: courtadminCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-email-one'], requiredMutationIds: [] },
         { id: 'ccd-source-event-capability', boundary: 'ccd', requiredProofIds: ['ccd-event-create-denied'], requiredMutationIds: ['ccd-enable-judge-event'] },
         { id: courtadminReadCell, boundary: 'ccd', requiredProofIds: ['ccd-courtadmin-read-recipient-shapes'], requiredMutationIds: ['ccd-remove-courtadmin-recipient-read'] },
-        { id: readonlyReadCell, boundary: 'ccd', requiredProofIds: ['ccd-readonly-read-recipient-shapes'], requiredMutationIds: ['ccd-remove-readonly-recipient-read'] }
+        { id: readonlyReadCell, boundary: 'ccd', requiredProofIds: ['ccd-readonly-read-recipient-shapes'], requiredMutationIds: ['ccd-remove-readonly-recipient-read'] },
+        { id: readonlyUpdateCell, boundary: 'ccd', requiredProofIds: ['ccd-readonly-update-recipient-shapes-denied'], requiredMutationIds: ['ccd-enable-readonly-recipient-update'] }
       ],
       mutationDefinitions: [{
         mutationId: 'ccd-enable-judge-event', obligationId: 'ccd-source-event-capability',
@@ -30,6 +32,10 @@ export function getReleasePolicy(scope) {
         mutationId: 'ccd-remove-readonly-recipient-read', obligationId: readonlyReadCell,
         definitionDigest: digest({ boundary: 'ccd', transformation: 'change-only-source-readonly-sodAdditionalRecipientsList-field-R-to-U' }),
         expectedFailureId: 'readonly-recipient-read-projection', baselineProofId: 'ccd-readonly-read-recipient-shapes', mutantProofId: 'ccd-readonly-read-shapes-hidden'
+      }, {
+        mutationId: 'ccd-enable-readonly-recipient-update', obligationId: readonlyUpdateCell,
+        definitionDigest: digest({ boundary: 'ccd', transformation: 'change-only-source-readonly-type-state-recipient-field-R-to-RU-and-serviceOfDocuments-event-R-to-CR' }),
+        expectedFailureId: 'readonly-update-isolation', baselineProofId: 'ccd-readonly-update-recipient-shapes-denied', mutantProofId: 'ccd-readonly-update-recipient-shapes-enabled'
       }]
     };
     return { ...policy, policyDigest: digest(policy) };

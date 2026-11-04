@@ -12,6 +12,7 @@ import {
   EVENT_CAPABILITY_MUTATION,
   COURTADMIN_READ_MUTATION,
   READONLY_READ_MUTATION,
+  READONLY_UPDATE_MUTATION,
   eventCapabilityFaultContract,
   eventCapabilityFaultVariant,
 } from "./exui-ccd-event-capability.mjs";
@@ -138,7 +139,7 @@ export function validateEventTransitionEvidence(directory, expected, loadedInput
   assert.deepEqual(loadedInput.manifest, checkpoint.input.manifest, "EVENT_TRANSITION_LOADED_BASELINE");
   for (const [field, value] of Object.entries({ ...baselineMetadata, gatewayDigest: input.gatewayDigest, idamSimulatorImage: input.ccd.images.idam.id }))
     assert.deepEqual(checkpoint.input.manifest.runtimeMetadata[field], value, "EVENT_TRANSITION_BASELINE_METADATA");
-  const mutationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION];
+  const mutationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION];
   assert.deepEqual(record.faults?.map(item => item.invocationId), mutationIds, "EVENT_TRANSITION_FAULT_SELECTION");
   const run = readFixed(directory, "run.json").value;
   assert.deepEqual(run.mutations.map(item => item.mutationId), mutationIds, "EVENT_TRANSITION_MUTATION_SELECTION");
@@ -214,7 +215,7 @@ export function eventCapabilityTransitionRequest(input) {
     schemaVersion: 2,
     runId: input.runId,
     releaseScopeId: EVENT_CAPABILITY_SCOPE,
-    invocationIds: [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION],
+    invocationIds: [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION],
     baselineNamespace: input.ccd.namespace,
     baselineDefinitionImportDigest: input.definitionImportDigest,
   };

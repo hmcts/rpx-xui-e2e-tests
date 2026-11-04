@@ -6,12 +6,14 @@ export const EVENT_CAPABILITY_SCOPE = "exui-ccd-event-capability-pilot";
 export const EVENT_CAPABILITY_MUTATION = "ccd-enable-judge-event";
 export const COURTADMIN_READ_MUTATION = "ccd-remove-courtadmin-recipient-read";
 export const READONLY_READ_MUTATION = "ccd-remove-readonly-recipient-read";
+export const READONLY_UPDATE_MUTATION = "ccd-enable-readonly-recipient-update";
 export function eventCapabilityFaultContract(invocationId) {
-  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
+  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
   const contract = {
     [EVENT_CAPABILITY_MUTATION]: { variant: "mutant", target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD", transformationKey: "transformation", validatePair: validateEventCapabilityPair },
     [COURTADMIN_READ_MUTATION]: { variant: "read-mutant", target: "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD", transformationKey: "readTransformation", validatePair: validateCourtadminReadPair },
     [READONLY_READ_MUTATION]: { variant: "readonly-read-mutant", target: "AuthorisationCaseField:caseworker-privatelaw-readonly:sodAdditionalRecipientsList:CRUD", transformationKey: "readonlyReadTransformation", validatePair: validateReadonlyReadPair },
+    [READONLY_UPDATE_MUTATION]: { variant: "readonly-update-mutant", target: "ReadonlyUpdateACLs:caseworker-privatelaw-readonly:serviceOfDocuments:sodAdditionalRecipientsList", transformationKey: "readonlyUpdateTransformation", validatePair: validateReadonlyUpdatePair },
   }[invocationId];
   assert(contract, "EVENT_TRANSITION_INVOCATION");
   return contract;
@@ -19,6 +21,13 @@ export function eventCapabilityFaultContract(invocationId) {
 export function eventCapabilityFaultVariant(invocationId) {
   return eventCapabilityFaultContract(invocationId).variant;
 }
+export const READONLY_UPDATE_OBLIGATION = "ccd-source-readonly-update-shapes";
+export const READONLY_UPDATE_CELLS = Object.freeze([
+  { id: "configuration-cell:2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea", channel: "email", recipientCount: 1 },
+  { id: "configuration-cell:8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59", channel: "email", recipientCount: 2 },
+  { id: "configuration-cell:32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de", channel: "post", recipientCount: 1 },
+  { id: "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb", channel: "post", recipientCount: 2 },
+]);
 export const READONLY_READ_OBLIGATION = "ccd-source-readonly-read-shapes";
 export const READONLY_READ_CELLS = Object.freeze([
   { id: "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a", channel: "email", recipientCount: 1 },
@@ -41,6 +50,8 @@ export const EVENT_CAPABILITY_PROOFS = Object.freeze({
   courtadminReadMutant: "ccd-courtadmin-read-shapes-hidden",
   readonlyRead: "ccd-readonly-read-recipient-shapes",
   readonlyReadMutant: "ccd-readonly-read-shapes-hidden",
+  readonlyUpdate: "ccd-readonly-update-recipient-shapes-denied",
+  readonlyUpdateMutant: "ccd-readonly-update-recipient-shapes-enabled",
 });
 export const EVENT_CAPABILITY_SOURCE_DIGEST =
   "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e";
@@ -453,4 +464,28 @@ export function deriveReadonlyReadFault(baseline, source = readSource()) {
 export function validateReadonlyReadPair(baseline, mutant, source = readSource()) {
   assert.deepEqual(mutant, deriveReadonlyReadFault(baseline, source), "READONLY_READ_FAULT_MISMATCH");
   return { sheet: "AuthorisationCaseField", role: readonly, caseField: "sodAdditionalRecipientsList", field: "CRUD", before: "R", after: "U" };
+}
+
+const readonlyUpdateChanges = [
+  { sheet: "AuthorisationCaseType", key: "CaseTypeID", value: ct, before: "R", after: "RU" },
+  { sheet: "AuthorisationCaseState", key: "CaseStateID", value: state, before: "R", after: "RU" },
+  { sheet: "AuthorisationCaseEvent", key: "CaseEventID", value: event, before: "R", after: "CR" },
+  { sheet: "AuthorisationCaseField", key: "CaseFieldID", value: "sodAdditionalRecipientsList", before: "R", after: "RU" },
+];
+
+export function deriveReadonlyUpdateFault(baseline, source = readSource()) {
+  assert.deepEqual(baseline, buildEventCapabilityFixtures(source).baseline, "READONLY_UPDATE_BASE_MISMATCH");
+  const mutant = structuredClone(baseline);
+  for (const change of readonlyUpdateChanges) {
+    const selected = mutant.sheets[change.sheet].filter(row => row.UserRole === readonly && row[change.key] === change.value);
+    assert.equal(selected.length, 1, "READONLY_UPDATE_SOURCE_ROW_REQUIRED");
+    assert.equal(selected[0].CRUD, change.before, "READONLY_UPDATE_SOURCE_PERMISSION_REQUIRED");
+    selected[0].CRUD = change.after;
+  }
+  return mutant;
+}
+
+export function validateReadonlyUpdatePair(baseline, mutant, source = readSource()) {
+  assert.deepEqual(mutant, deriveReadonlyUpdateFault(baseline, source), "READONLY_UPDATE_FAULT_MISMATCH");
+  return { role: readonly, changes: structuredClone(readonlyUpdateChanges) };
 }
