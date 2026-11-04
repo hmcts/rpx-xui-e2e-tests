@@ -19,6 +19,7 @@ const SOURCE_FILES = [
   'src/fixtures/harnessGlobalSearch.ts', 'src/tests/harness/global-search/capability-composition.spec.ts',
   'src/tests/harness/routing/create-entry.spec.ts', 'src/tests/harness/routing/noc-cache.spec.ts',
   'src/fixtures/harnessCcd.ts', 'src/fixtures/harnessCcdEvent.ts',
+  'src/tests/harness/ccd/courtadmin-read.spec.ts',
   'src/tests/harness/ccd/courtadmin-cell.spec.ts', 'src/tests/harness/ccd/event-capability.spec.ts',
   'src/tests/harness/wa/family-scope.spec.ts',
   'src/tests/harness/scope/organisation-case.spec.ts', 'src/tests/harness/ccd/nested-conditional.spec.ts',
@@ -150,7 +151,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 84);
+  assert.equal(SOURCE_FILES.length, 85);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

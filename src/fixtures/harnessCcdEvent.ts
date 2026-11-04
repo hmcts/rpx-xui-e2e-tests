@@ -13,6 +13,7 @@ export const EVENT_NAME = "Service of documents";
 export const EVENT_STATE = "JUDICIAL_REVIEW";
 export const EVENT_SCOPE = "exui-ccd-event-capability-pilot";
 export const EVENT_MUTATION = "ccd-enable-judge-event";
+export const COURTADMIN_READ_MUTATION = "ccd-remove-courtadmin-recipient-read";
 export const EVENT_START_HEADERS = {
   accept:
     "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-start-event-trigger.v2+json",
@@ -123,7 +124,7 @@ export async function submitServiceOfDocuments(page: Page, caseId: string) {
 }
 
 export function saveCcdEventObservation(
-  name: "courtadmin-cell" | "event-capability",
+  name: "courtadmin-cell" | "event-capability" | "courtadmin-read",
   value: unknown,
 ) {
   fs.writeFileSync(

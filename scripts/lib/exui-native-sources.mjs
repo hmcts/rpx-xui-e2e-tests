@@ -18,6 +18,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "src/tests/harness/routing/noc-cache.spec.ts",
   "src/fixtures/harnessCcd.ts",
   "src/fixtures/harnessCcdEvent.ts",
+  "src/tests/harness/ccd/courtadmin-read.spec.ts",
   "src/tests/harness/ccd/courtadmin-cell.spec.ts",
   "src/tests/harness/ccd/event-capability.spec.ts",
   "src/tests/harness/wa/family-scope.spec.ts",
