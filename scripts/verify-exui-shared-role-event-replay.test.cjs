@@ -116,13 +116,13 @@ test('actual case-view capture waits for control and every marker before observi
  const exports={}, library=await import('./lib/exui-shared-role-event-observations.mjs');
  new Function('require','exports',compiled.outputText)(name=>name.startsWith('node:')?require(name):name==='./harnessCcd'?{}:library,exports);
  const rows=recipients('email',2,'courtadmin'),control='synthetic-courtadmin-original',caseId='1234567890123456',calls=[],rendered=new Set();
- const response={status:()=>200,json:async()=>{throw Error('ABORTED_BROWSER_RESPONSE');},request:()=>({method:()=> 'GET'}),url:()=>`http://127.0.0.1:3100/data/internal/cases/${caseId}`};
- const evaluate=async(fn,id,status=200)=>{const original=global.fetch;global.fetch=async(target,options)=>{assert.equal(target,`/data/internal/cases/${caseId}`);assert.equal(options.credentials,'same-origin');assert(options.signal);calls.push('fresh-readback');return {status,json:async()=>({tabs:[{fields:[{id:'protectedValue',value:control},{id:'sodAdditionalRecipientsList',value:rows}]}]})};};try{return await fn(id);}finally{global.fetch=original;}};
+ const response={status:()=>200,json:async()=>{throw Error('ABORTED_BROWSER_RESPONSE');},request:()=>({method:()=> 'GET',allHeaders:async()=>({authorization:'Bearer synthetic-test-token',accept:'application/json',cookie:'private-test-cookie'})}),url:()=>`http://127.0.0.1:3100/data/internal/cases/${caseId}`};
+ const evaluate=async(fn,input,status=200)=>{const original=global.fetch;global.fetch=async(target,options)=>{assert.equal(target,`/data/internal/cases/${caseId}`);assert.equal(options.credentials,'same-origin');assert.deepEqual(options.headers,{authorization:'Bearer synthetic-test-token',accept:'application/json'});assert(options.signal);calls.push('fresh-readback');return {status,json:async()=>({tabs:[{fields:[{id:'protectedValue',value:control},{id:'sodAdditionalRecipientsList',value:rows}]}]})};};try{return await fn(input);}finally{global.fetch=original;}};
  const page={waitForResponse:async predicate=>{assert(predicate(response));return response;},goto:async target=>assert.equal(target,`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}`),evaluate,getByText:(marker,options)=>{assert.deepEqual(options,{exact:true});return {waitFor:async options=>{assert.deepEqual(options,{state:'visible'});calls.push('wait:'+marker);rendered.add(marker);},isVisible:async()=>{calls.push('read:'+marker);return rendered.has(marker);}};}};
  const observed=await exports.observeCcdEventReadback(page,caseId,rows.map(row=>row.value));
  assert.equal(observed.controlVisible,true);assert.deepEqual(observed.visible,[true,true]);assert.deepEqual(observed.projected,rows);
  assert(calls.indexOf('fresh-readback')<calls.indexOf('wait:'+control));
- await assert.rejects(()=>exports.observeCcdEventReadback({...page,evaluate:(fn,id)=>evaluate(fn,id,403)},caseId,rows.map(row=>row.value)),/CCD_READBACK_STATUS/);
+ await assert.rejects(()=>exports.observeCcdEventReadback({...page,evaluate:(fn,input)=>evaluate(fn,input,403)},caseId,rows.map(row=>row.value)),/CCD_READBACK_STATUS_403/);
  for(const marker of [control,...rows.flatMap(row=>[row.value.emailInformation.emailName,row.value.emailInformation.emailAddress])])assert(calls.indexOf('wait:'+marker)<calls.indexOf('read:'+marker));
  assert(observed.markerVisibility.flat().every(item=>item.visible));
 });
