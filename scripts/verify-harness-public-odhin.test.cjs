@@ -1021,12 +1021,16 @@ test("shared role policy credit requires its complete source and phase binding s
   assert.throws(() => require("./harness-native-report.cjs").renderNativeEvidence(evidence), /SHARED_ROLE_MISMATCH/);
 });
 
-test("native report attributes the source recipient label row to event capability", async () => {
+test("native report attributes every source shape to its accepted event capability receipt", async () => {
+  const { SOURCE_SHAPE_ROWS } = await import("./lib/exui-source-shape-contract.mjs");
   const evidence = await nativePresentationFixture(false);
-  evidence.catalogueCoverage.creditedObligationIds.push("configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f");
-  evidence.catalogueCoverage.candidate++;
-  evidence.catalogueCoverage.missing--;
-  assert.match(require("./harness-native-report.cjs").renderNativeEvidence(evidence), /CCD data and access/);
+  evidence.catalogueCoverage.creditedObligationIds.push(...SOURCE_SHAPE_ROWS.map(row => row.obligationId));
+  evidence.catalogueCoverage.candidate += SOURCE_SHAPE_ROWS.length;
+  evidence.catalogueCoverage.missing -= SOURCE_SHAPE_ROWS.length;
+  const { renderNativeEvidence } = require("./harness-native-report.cjs");
+  assert.match(renderNativeEvidence(evidence), /Postal recipient name/);
+  evidence.catalogueCoverage.phaseReferences.eventCapability.receiptArtifactDigest = "sha256:" + "f".repeat(64);
+  assert.throws(() => renderNativeEvidence(evidence), /NATIVE_CATALOGUE_MISMATCH/);
 });
 
 test("diagnostic source is captured at onBegin and not reread from a changed HEAD while rendering", async (t) => {
