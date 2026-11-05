@@ -20,6 +20,10 @@ import {
   eventCapabilityFaultVariant,
 } from "./exui-ccd-event-capability.mjs";
 
+const mutationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
+// Allow three minutes per serial fault import, capped at thirty minutes for the batch.
+const transitionTimeoutMs = Math.min(mutationIds.length * 3 * 60_000, 30 * 60_000);
+
 const digest = (value) => /^sha256:[a-f0-9]{64}$/.test(value ?? "");
 const binding = () => JSON.parse(fs.readFileSync(
   new URL("../fixtures/ccd/event-capability/binding.json", import.meta.url),
@@ -143,7 +147,6 @@ export function validateEventTransitionEvidence(directory, expected, loadedInput
   assert.deepEqual(loadedInput.manifest, checkpoint.input.manifest, "EVENT_TRANSITION_LOADED_BASELINE");
   for (const [field, value] of Object.entries({ ...baselineMetadata, gatewayDigest: input.gatewayDigest, idamSimulatorImage: input.ccd.images.idam.id }))
     assert.deepEqual(checkpoint.input.manifest.runtimeMetadata[field], value, "EVENT_TRANSITION_BASELINE_METADATA");
-  const mutationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
   assert.deepEqual(record.faults?.map(item => item.invocationId), mutationIds, "EVENT_TRANSITION_FAULT_SELECTION");
   const run = readFixed(directory, "run.json").value;
   assert.deepEqual(run.mutations.map(item => item.mutationId), mutationIds, "EVENT_TRANSITION_MUTATION_SELECTION");
@@ -219,14 +222,14 @@ export function eventCapabilityTransitionRequest(input) {
     schemaVersion: 2,
     runId: input.runId,
     releaseScopeId: EVENT_CAPABILITY_SCOPE,
-    invocationIds: [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS],
+    invocationIds: [...mutationIds],
     baselineNamespace: input.ccd.namespace,
     baselineDefinitionImportDigest: input.definitionImportDigest,
   };
 }
 
-// The parent prepares both isolated CCD fault imports before publishing either ACK.
-export async function waitForEventCapabilityRuntime(input, output, { invocationId = EVENT_CAPABILITY_MUTATION, isCancelled = () => false, timeoutMs = 360000 } = {}) {
+// The parent captures every isolated fault runtime before publishing any ACK.
+export async function waitForEventCapabilityRuntime(input, output, { invocationId = EVENT_CAPABILITY_MUTATION, isCancelled = () => false, timeoutMs = transitionTimeoutMs } = {}) {
   eventCapabilityFaultVariant(invocationId);
   const file = path.join(output, invocationId, "runtime-input.json");
   const deadline = Date.now() + timeoutMs;

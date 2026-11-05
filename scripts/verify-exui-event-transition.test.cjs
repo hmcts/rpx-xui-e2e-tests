@@ -39,6 +39,9 @@ test("support only: event fault runtime is a fresh namespace bound to the exact 
   const { eventCapabilityTransitionRequest, selectEventCapabilityRuntime } = await load();
   const { input, state, definition, credentials } = fixture();
   const request = eventCapabilityTransitionRequest(input);
+  const isolatedRequest = eventCapabilityTransitionRequest(input);
+  isolatedRequest.invocationIds.pop();
+  assert.deepEqual(eventCapabilityTransitionRequest(input).invocationIds, request.invocationIds, "request mutation cannot change the planned batch");
   const record = {
     schemaVersion: 1, runId: input.runId, invocationId: "ccd-enable-judge-event",
     requestDigest: hash(request), ccd: state("2", "mutant"),
@@ -193,4 +196,52 @@ test("support only: event scope has fixed ten-proof baseline and ten definition 
   assert.deepEqual(Object.keys(seedAppCcdSessions(credentials, (name) => name, scope)), ["allowed", "courtadmin", "judge", "readonly"]);
   credentials.judge.roles.push("caseworker-harness-allowed");
   assert.throws(() => seedAppCcdSessions(credentials, (name) => name, scope), /CCD_SOURCE_ACTOR_ROLES_REQUIRED/);
+});
+
+test("support only: default ACK allowance covers the complete serial fault batch beyond six minutes", async (t) => {
+  const { eventCapabilityTransitionRequest, publishEventCapabilityRuntime, waitForEventCapabilityRuntime } = await load();
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-batch-deadline-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { input, state, definition, credentials } = fixture();
+  const record = {
+    schemaVersion: 1, runId: input.runId, invocationId: "ccd-enable-judge-event",
+    requestDigest: hash(eventCapabilityTransitionRequest(input)), ccd: state("2", "mutant"),
+    definition: definition("mutant", "f"), definitionImportDigest: digest("f"),
+    credentials, apiContracts: input.apiContracts,
+  };
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  const pending = waitForEventCapabilityRuntime(input, root).then(value => ({ value }), error => ({ error }));
+  // Ten sequential 37-second preparations publish no ACK until the whole batch is captured.
+  for (let i = 0; i < 10; i++) { t.mock.timers.tick(37_000); await Promise.resolve(); }
+  publishEventCapabilityRuntime(root, record);
+  t.mock.timers.tick(10);
+  const result = await pending;
+  assert.equal(result.error, undefined, "the aggregate wait must not expire at the old two-fault deadline");
+  assert.equal(result.value.ccd.namespace, record.ccd.namespace);
+  assert.equal(result.value.definition.fixtureDigest, record.definition.fixtureDigest);
+});
+
+test("support only: default aggregate ACK allowance remains bounded at thirty minutes", async (t) => {
+  const { waitForEventCapabilityRuntime } = await load();
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-batch-cap-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  let failure;
+  const pending = waitForEventCapabilityRuntime(fixture().input, root).catch(error => { failure = error; });
+  t.mock.timers.tick(30 * 60_000 - 10); await new Promise(setImmediate);
+  assert.equal(failure, undefined);
+  t.mock.timers.tick(10); await pending;
+  assert.match(failure.message, /EVENT_TRANSITION_ACK_TIMEOUT/);
+});
+
+test("support only: cancellation still interrupts the longer aggregate ACK allowance", async (t) => {
+  const { waitForEventCapabilityRuntime } = await load();
+  const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-batch-cancel-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
+  let cancelled = false;
+  const pending = waitForEventCapabilityRuntime(fixture().input, root, { isCancelled: () => cancelled }).then(() => null, error => error);
+  t.mock.timers.tick(370_000); await Promise.resolve();
+  cancelled = true; t.mock.timers.tick(10);
+  assert.match((await pending).message, /EVENT_TRANSITION_CANCELLED/);
 });
