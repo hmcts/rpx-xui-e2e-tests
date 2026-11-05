@@ -32,11 +32,11 @@ export function validateDivorceBrowserObservation(facet,observation,journal,muta
 export function validateDivorceFlagEvidence(evidence) {
  const {calls,...policy}=evidence;
  assert.deepEqual(policy,{flag:'feature-global-search',evaluationFlags:{},routeFallback:true,liveProvider:false},'DIVORCE_PROFILE_BROWSER_FLAGS');
- assert(Array.isArray(calls)&&calls.some(call=>call.host==='clientsdk.launchdarkly.com'&&call.kind==='evaluation'&&call.method==='REPORT'),'DIVORCE_PROFILE_BROWSER_FLAGS');
+ assert(Array.isArray(calls)&&calls.some(call=>call.host==='app.launchdarkly.com'&&call.kind==='evaluation'&&call.method==='REPORT'),'DIVORCE_PROFILE_BROWSER_FLAGS');
  for(const call of calls){
   assert(['clientstream.launchdarkly.com','clientsdk.launchdarkly.com','events.launchdarkly.com','app.launchdarkly.com'].includes(call.host),'DIVORCE_PROFILE_BROWSER_FLAGS');
   assert(['goals','evaluation','auxiliary'].includes(call.kind)&&['GET','POST','REPORT','OPTIONS'].includes(call.method),'DIVORCE_PROFILE_BROWSER_FLAGS');
-  if(call.kind==='evaluation')assert(call.host==='clientsdk.launchdarkly.com'&&call.method==='REPORT','DIVORCE_PROFILE_BROWSER_FLAGS');
+  if(call.kind==='evaluation')assert(call.host==='app.launchdarkly.com'&&call.method==='REPORT','DIVORCE_PROFILE_BROWSER_FLAGS');
   assert.deepEqual(call,{host:call.host,kind:call.kind,method:call.method,...(call.kind==='evaluation'?{path:'/sdk/evalx/synthetic-flags/context'}:{}),response:call.kind==='goals'?[]:{}},'DIVORCE_PROFILE_BROWSER_FLAGS');
  }
 }

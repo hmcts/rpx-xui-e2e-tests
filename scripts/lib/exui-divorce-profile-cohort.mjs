@@ -21,13 +21,14 @@ export function divorceProducerBinding(sourceRoot=root){
 }
 export function divorceFallbackWitness(candidateRoot){
  const relative='node_modules/@hmcts/rpx-xui-common-lib/fesm2022/hmcts-rpx-xui-common-lib.mjs',bytes=fs.readFileSync(path.join(candidateRoot,relative)),source=bytes.toString();
- assert(source.includes('this.featureToggleService.getValueOnce(feature, true)')&&source.includes('return this.ready.pipe(filter((ready) => ready), map(() => this.client.variation(feature, defaultValue)));'),'DIVORCE_COHORT_FLAG_FALLBACK');
+ assert(source.includes('initialize(this.clientId, this.context, { useReport: true })')&&source.includes('this.featureToggleService.getValueOnce(feature, true)')&&source.includes('return this.ready.pipe(filter((ready) => ready), map(() => this.client.variation(feature, defaultValue)));'),'DIVORCE_COHORT_FLAG_FALLBACK');
  const mainPath='dist/rpx-exui/browser/main-HYPXLXEP.js',guardPath='dist/rpx-exui/browser/chunk-LZSBXBQ2.js';
  const main=fs.readFileSync(path.join(candidateRoot,mainPath)),guard=fs.readFileSync(path.join(candidateRoot,guardPath));
  const route='{path:"search",canActivate:[H,Z,Xt],loadChildren:()=>import("./chunk-DILEIFDO.js").then(o=>o.SearchModule),data:{title:"Search cases",needsFeaturesEnabled:["feature-global-search"],featureDisabledRedirect:"/"}}';
  assert(main.toString().includes(route)&&/import\{[^}]*Bd as Xt[^}]*\}from"\.\/chunk-LZSBXBQ2\.js"/.test(main.toString()),'DIVORCE_COHORT_FLAG_ROUTE');
+ assert(guard.toString().includes('baseUrl:{default:"https://app.launchdarkly.com"}')&&guard.toString().includes('h=[i,"/sdk/evalx/",e,"/context"].join("")'),'DIVORCE_COHORT_FLAG_ENDPOINT');
  assert(guard.toString().includes('ugi as Bd')&&guard.toString().includes('ugi=(()=>{class t{constructor(e,i){this.featureToggleService=e,this.router=i}canActivate(e){return vs([...e.data.needsFeaturesEnabled.map(i=>this.featureToggleService.getValueOnce(i,!0))])'),'DIVORCE_COHORT_FLAG_ROUTE');
- return {path:relative,digest:digestBytes(bytes),flag:'feature-global-search',guardDefault:true,evaluationFlags:{},liveProvider:false,route:{path:'/search',main:{path:mainPath,digest:digestBytes(main)},guard:{path:guardPath,digest:digestBytes(guard)},localAlias:'Xt',moduleExport:'Bd',guardSymbol:'ugi'}};
+ return {path:relative,digest:digestBytes(bytes),flag:'feature-global-search',guardDefault:true,evaluationRequest:{origin:'https://app.launchdarkly.com',method:'REPORT',path:'/sdk/evalx/synthetic-flags/context'},evaluationFlags:{},liveProvider:false,route:{path:'/search',main:{path:mainPath,digest:digestBytes(main)},guard:{path:guardPath,digest:digestBytes(guard)},localAlias:'Xt',moduleExport:'Bd',guardSymbol:'ugi'}};
 }
 const candidateConfiguration=(candidateRoot,facet,mutation=null)=>facetSettings(facet).configuration(candidateRoot,mutation);
 export function divorceConfigurationBindings(candidateRoot,configurationFor=candidateConfiguration){
@@ -48,9 +49,11 @@ export function divorceConfigurationBindings(candidateRoot,configurationFor=cand
  }
  return result;
 }
-export function validateDivorceCohortBinding(binding,{artifact,producer,runtime,browser},configurationFor=candidateConfiguration){
- assert.deepEqual(Object.keys(binding).sort(),['artifact','browser','configurations','contract','contractDigest','fallback','producer','runtime','schemaVersion'],'DIVORCE_COHORT_BINDING');
+export function validateDivorceCohortBinding(binding,{artifact,producer,runtime,browser,owners},configurationFor=candidateConfiguration){
+ assert.deepEqual(Object.keys(binding).sort(),['artifact','browser','configurations','contract','contractDigest','fallback','owners','producer','runtime','schemaVersion'],'DIVORCE_COHORT_BINDING');
  assert.equal(artifact.provenance.webappCommit,divorceProfileContract().consumerRevision,'DIVORCE_COHORT_CONSUMER');
+ assert.deepEqual(binding.owners,owners,'DIVORCE_COHORT_OWNERS');assert.deepEqual(Object.keys(owners),DIVORCE_PROFILE_FACETS.map(x=>x.facet),'DIVORCE_COHORT_OWNERS');
+ assert(new Set(Object.values(owners)).size===6&&Object.values(owners).every(owner=>/^candidate-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(owner)),'DIVORCE_COHORT_OWNERS');
  assert.equal(binding.schemaVersion,1,'DIVORCE_COHORT_BINDING');assert.deepEqual(binding.artifact,artifact,'DIVORCE_COHORT_ARTIFACT');assert.deepEqual(binding.producer,producer,'DIVORCE_COHORT_PRODUCER');assert.deepEqual(binding.browser,browser,'DIVORCE_COHORT_BROWSER');assert.deepEqual(binding.runtime,runtime,'DIVORCE_COHORT_RUNTIME');
  assert.deepEqual(binding.contract,divorceProfileContract(),'DIVORCE_COHORT_CONTRACT');assert.equal(binding.contractDigest,divorceProfileContractDigest(),'DIVORCE_COHORT_CONTRACT');
  assert.deepEqual(binding.configurations,divorceConfigurationBindings(artifact.candidateRoot,configurationFor),'DIVORCE_COHORT_FOREIGN_CONFIG');
@@ -74,6 +77,7 @@ export function readDivorceCohort(directory,expected,{configurationFor=candidate
   const sources=Object.fromEntries(PROFILE_SOURCE_FILES.map(name=>[name,binding.producer.files[name]]));assert.deepEqual(receipt.sources,{files:sources,digest:digestBytes(JSON.stringify(sources))},'DIVORCE_COHORT_PRODUCER');
   assert.deepEqual(input.artifact,binding.artifact,'DIVORCE_COHORT_ARTIFACT');assert.deepEqual(receipt.artifact,binding.artifact.identity,'DIVORCE_COHORT_ARTIFACT');assert.deepEqual(input.sources,receipt.sources,'DIVORCE_COHORT_PRODUCER');
   assert.deepEqual(receipt.browser??null,browser?binding.browser:null,'DIVORCE_COHORT_BROWSER');assert.deepEqual(input.browser,browser?binding.browser:null,'DIVORCE_COHORT_BROWSER');
+  assert.equal(receipt.owner,binding.owners[facet],'DIVORCE_COHORT_OWNER_BINDING');
   assert(!owners.has(receipt.owner),'DIVORCE_COHORT_OWNER_REUSE');owners.add(receipt.owner);
   const resources=read(path.join(folder,'owned-resources.json'));assert.equal(resources.length,4,'DIVORCE_COHORT_CLEANUP');assert.equal(receipt.cleanup.complete,true,'DIVORCE_COHORT_CLEANUP');assert.equal(receipt.privateStateRemoved,true,'DIVORCE_COHORT_CLEANUP');assert.deepEqual(receipt.cleanup.failureCodes,[],'DIVORCE_COHORT_CLEANUP');
   const results=[];

@@ -80,7 +80,7 @@ async function controller(t,{failProof=false,failCleanup=false,cancel=false,miss
   const {EventEmitter}=require('node:events');const signalTarget=new EventEmitter();signalTarget.stderr={write:()=>{}};let signalExitStateRemoved;signalTarget.exit=()=>{signalExitStateRemoved=!fs.existsSync(stateRoot);};
   let calls=0,sequence=0,stateRoot;
   const result=await runSourceProfileFeasibility({artifactPath,output},{
-    verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),signalTarget,
+    inspectOwner:()=>null,verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),signalTarget,
     configuration:(_root,mutation)=>{const config={jurisdictions:SOURCE_JURISDICTIONS.filter(id=>!mutation||id!=='DIVORCE').join(','),feature:{workAllocationEnabled:false}};return {config,digest:digestBytes(JSON.stringify(config)),contract:{mutation}};},
     runInvocation:async(spec,{resources})=>{
       calls++;const session=spec.candidate.mounts.find(x=>x.target==='/tmp/.sessions').source;sessions.push(session);stateRoot=path.resolve(session,'../..');

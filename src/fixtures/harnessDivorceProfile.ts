@@ -20,8 +20,8 @@ export const test=base.extend<{profileAssets:void}>({profileAssets:[async({conte
   if(url.origin==='http://127.0.0.1:3100'){await route.continue();return;}
   if(['clientstream.launchdarkly.com','clientsdk.launchdarkly.com','events.launchdarkly.com','app.launchdarkly.com'].includes(url.hostname)){
    const method=route.request().method();
-   const kind=url.hostname==='clientsdk.launchdarkly.com'&&url.pathname==='/sdk/evalx/synthetic-flags/context'&&method==='REPORT'?'evaluation':url.pathname.includes('goals')?'goals':'auxiliary',response=kind==='goals'?[]:{};
-   flagCalls.push({host:url.hostname,kind,method,...(kind==='evaluation'?{path:url.pathname}:{}),response});
+   const kind=url.pathname.startsWith('/sdk/evalx/')?'evaluation':url.pathname.includes('goals')?'goals':'auxiliary',response=kind==='goals'?[]:{};
+   flagCalls.push({host:url.hostname,kind,method,...(kind==='evaluation'?{path:url.pathname+url.search}:{}),response});
    await route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify(response)});return;
   }
   rejected.push(`UNDECLARED_BROWSER_DESTINATION:${url.origin}`);await route.abort('blockedbyclient');

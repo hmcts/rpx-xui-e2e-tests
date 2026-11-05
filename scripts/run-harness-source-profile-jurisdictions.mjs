@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {execFileSync} from 'node:child_process';
 import {verifyCandidateArtifact,assertFreshCandidateDerivationOutput,digestCandidateTree} from './lib/exui-candidate-artifact.mjs';
 import {inspectNativeApiRuntime,inspectNativeBrowserRuntime} from './lib/exui-native-containers.mjs';
-import {runHostInvocation,removeHostResource} from './lib/exui-host-invocation.mjs';
+import {runHostInvocation,removeHostResource,inspectHostContainer} from './lib/exui-host-invocation.mjs';
 import {assertReadOnlyMountIsolation,candidateArchiveProcess,installCancellationCleanup,browserExecutable} from './lib/exui-oci-runtime.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {sourceProfileJurisdictionConfiguration,validateProfileJurisdictionObservations,SOURCE_PROFILE_JURISDICTION_SCOPE,SOURCE_PROFILE_JURISDICTION_FAULT} from './lib/exui-source-profile-jurisdictions.mjs';
@@ -111,8 +111,10 @@ export function validateProfileInvocationResult({directory,invocationId,mutation
   else if(failure)throw failure;
   return {...expected,observationsDigest:digestBytes(fs.readFileSync(path.join(directory,'profile-jurisdiction-observations.json')))};
 }
-export async function runSourceProfileFeasibility({artifactPath,output,facet='jurisdictions',browserRoot=null},{verifyArtifact=verifyCandidateArtifact,inspectRuntime=inspectNativeApiRuntime,inspectBrowser=inspectNativeBrowserRuntime,verifyDependencies=verifyHarnessDependencies,digestBrowser=digestCandidateTree,runInvocation=runHostInvocation,removeResource=removeHostResource,configuration,signalTarget=process}={}) {
+export async function runSourceProfileFeasibility({artifactPath,output,facet='jurisdictions',browserRoot=null,owner='candidate-'+randomUUID()},{inspectOwner=inspectHostContainer,verifyArtifact=verifyCandidateArtifact,inspectRuntime=inspectNativeApiRuntime,inspectBrowser=inspectNativeBrowserRuntime,verifyDependencies=verifyHarnessDependencies,digestBrowser=digestCandidateTree,runInvocation=runHostInvocation,removeResource=removeHostResource,configuration,signalTarget=process}={}) {
+  assert(/^candidate-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(owner),'SOURCE_PROFILE_OWNER_REQUIRED');
   const settings=facetSettings(facet),{scope,fault}=settings,ids=['baseline',fault];configuration??=settings.configuration;
+  for(const id of ids)for(const service of ['candidate','tools'])assert.equal(inspectOwner(`${owner}-${id}-${service}`),null,'SOURCE_PROFILE_OWNER_NOT_FRESH');
   assert(path.isAbsolute(output??'')&&path.isAbsolute(artifactPath??''),'SOURCE_PROFILE_INPUT_INVALID');
   const artifact=await verifyArtifact(artifactPath);
   await assertFreshCandidateDerivationOutput({baseline:artifact,manifestPath:artifactPath,output});
@@ -123,7 +125,7 @@ export async function runSourceProfileFeasibility({artifactPath,output,facet='ju
   assertReadOnlyMountIsolation([root,artifact.candidateRoot],[output]);
   const stateRoot=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'profile-native-state-'));fs.chmodSync(stateRoot,0o700);
   const resources=new Map(),cleanupFailures=[];
-  const receipt={schemaVersion:1,kind:facet.startsWith('divorce-')?`source-profile-${facet}-feasibility`:facet==='wa-membership'?'source-profile-wa-membership-feasibility':facet==='wa-health'?'source-profile-wa-health-feasibility':'source-profile-jurisdiction-feasibility',scope,facet,owner:'candidate-'+randomUUID(),status:'in-progress',artifact:artifact.identity,invocations:[],...credits};
+  const receipt={schemaVersion:1,kind:facet.startsWith('divorce-')?`source-profile-${facet}-feasibility`:facet==='wa-membership'?'source-profile-wa-membership-feasibility':facet==='wa-health'?'source-profile-wa-health-feasibility':'source-profile-jurisdiction-feasibility',scope,facet,owner,status:'in-progress',artifact:artifact.identity,invocations:[],...credits};
   let cancelled=false,phase='prepare';
   const save=()=>writeJsonAtomic(path.join(output,'profile-feasibility.json'),receipt);
   const remove=async key=>{try{await removeResource(resources,key,output);}catch(error){cleanupFailures.push(profileFailureCode(error));throw error;}};
