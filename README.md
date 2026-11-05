@@ -177,3 +177,12 @@ The source-shaped CCD event slice also includes four readonly update-denial case
 
 
 Courtadmin UPDATE coverage now exercises all four email/post and one/two-recipient shapes through the real candidate form, Check your answers, Change and CCD readback. Its isolated event-permission fault must deny every requested write without changing CCD. See [the exact coverage boundary](docs/harness-evidence-contract.md#complete-source-courtadmin-update-shapes); historical one-email receipts do not satisfy this expanded proof.
+
+
+### Optional shared nested renderer attempt
+
+`yarn harness:shared-nested:attempt --input /absolute/private/job.json` runs the separate `exui-shared-nested-renderer-pilot` scope. The input has the same five fields as the native CI job: `schemaVersion`, `candidateManifest`, `expectedArtifactDigest`, `browserCache` and a fresh private `output`. It uses the existing pinned local CCD lifecycle and generates the single Odhín report at `functional-output/tests/harness/public/odhin/index.html` with supporting diagnostics and a separate runtime-attempt panel.
+
+Four baseline facets cover email/post with one/two recipients. The three controlled faults remove email data, an optional postal child or the second recipient. A failed baseline stops the fault batch: the report shows actual failed facets and faults **NOT RUN**, never effective faults. This opt-in command leaves all six default pilot policies, default CCD proofs and Jenkins phase selection unchanged.
+
+The full shared renderer requirement still needs all four complete baselines, all three effective faults and independently bound source/runtime evidence before it can receive credit. This attachment grants no catalogue or release credit. In particular, the source collection PostCode MANDATORY override must block CYA when that child is blank; the distinct root PostalInformation OPTIONAL override does not remove that obligation. A reproduced failure remains an explicit Harness gap; this repository does not change toolkit or CCD product code.

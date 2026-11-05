@@ -1,3 +1,4 @@
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_FACETS} from './exui-shared-nested-scope.mjs';
 import { CALLBACK_SCOPE, CALLBACK_PROOF } from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
 import fs from "node:fs";
@@ -306,6 +307,7 @@ export function readEventBaselineCheckpoint(directory, expected) {
 export function readCallbackBaselineCheckpoint(directory, expected) {
   return readClosedBaselineCheckpoint(directory, expected, CALLBACK_SCOPE);
 }
+export function readSharedNestedBaselineCheckpoint(directory,expected){return readClosedBaselineCheckpoint(directory,expected,SHARED_NESTED_SCOPE);}
 function readClosedBaselineCheckpoint(directory, expected, scope) {
   checkpointPath(directory, true);
   checkpointEqual(expected?.releaseScopeId, scope, "SCOPE_REQUIRED");
@@ -363,7 +365,7 @@ function readClosedBaselineCheckpoint(directory, expected, scope) {
       "RUNTIME_IDENTITY_MISMATCH",
     );
   }
-  const baselineIds = scope === CALLBACK_SCOPE ? [CALLBACK_PROOF] : ["ccd-courtadmin-read-recipient-shapes", "ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", ...SOURCE_SHAPE_ROWS.map(row => `ccd-source-shape-${row.id}`)].sort();
+  const baselineIds = scope===SHARED_NESTED_SCOPE?SHARED_NESTED_FACETS.map(row=>row.proofId).sort():scope === CALLBACK_SCOPE ? [CALLBACK_PROOF] : ["ccd-courtadmin-read-recipient-shapes", "ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", ...SOURCE_SHAPE_ROWS.map(row => `ccd-source-shape-${row.id}`)].sort();
   checkpointEqual(
     policy.obligations.flatMap((item) => item.requiredProofIds).sort(),
     baselineIds,
@@ -410,7 +412,7 @@ function readClosedBaselineCheckpoint(directory, expected, scope) {
       ["passed", "failed"].includes(result.outcome),
       "INCOMPLETE_PROOF",
     );
-    checkpointEqual(result.boundary, scope === CALLBACK_SCOPE ? "candidate" : "ccd", "PROOF_BOUNDARY_MISMATCH");
+    checkpointEqual(result.boundary, [CALLBACK_SCOPE,SHARED_NESTED_SCOPE].includes(scope) ? "candidate" : "ccd", "PROOF_BOUNDARY_MISMATCH");
     if (scope === CALLBACK_SCOPE) checkpointEqual(result.outcome, "passed", "CALLBACK_BASELINE_PASSED_REQUIRED");
   }
   const terminalRecord = checkpointArtifact(

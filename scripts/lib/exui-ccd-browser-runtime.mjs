@@ -1,4 +1,5 @@
 const SELECTOR_EVENT_SCOPE = "exui-ccd-selector-event-row-pilot";
+import {SHARED_NESTED_SCOPE} from './exui-shared-nested-scope.mjs';
 import {resultTransportRoute,resultSupportingResponse} from './exui-results-ui-contract.mjs';
 import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
 import assert from "node:assert/strict";
@@ -110,6 +111,13 @@ export function losePostalOptionalChild(body) {
   return changed;
 }
 
+export function loseSecondNestedRecipient(body) {
+  const changed=structuredClone(body),data=changed.data??changed.case_data;
+  if(Array.isArray(data?.sodAdditionalRecipientsList)&&data.sodAdditionalRecipientsList.length===2)
+    data.sodAdditionalRecipientsList=data.sodAdditionalRecipientsList.slice(0,1);
+  return changed;
+}
+
 const userId =
   "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
 const caseworker = `/caseworkers/${userId}/jurisdictions/HARNESS/case-types/HarnessNestedPRL`;
@@ -138,6 +146,7 @@ const eventRoutes = {
   [CALLBACK_SCOPE]: recipientEventRoutes,
   [SELECTOR_EVENT_SCOPE]: recipientEventRoutes,
 };
+eventRoutes[SHARED_NESTED_SCOPE]=[...eventRoutes["exui-ccd-pilot"],/^\/internal\/cases\/[0-9]{16}\/event-triggers\/update$/];
 const inputRoute = /^\/internal\/case-types\/HarnessResultsPRL\/work-basket-inputs$/;
 
 function ccdTransportRoute(method, pathname, scope) {
@@ -165,7 +174,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
   assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
   const { recipientCallback, workbasket, resultColumns } = options;
   if(resultColumns!==undefined){assert.equal(resultColumns,true,"RESULT_UI_GATEWAY_OPT_IN");assert.equal(recipientCallback,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(workbasket,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(mutation,null,"RESULT_UI_BASELINE_ONLY");}
-  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
   if (scope === SELECTOR_EVENT_SCOPE) {
     assert.equal(mutation,null,"SELECTOR_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
     assert.equal(recipientCallback,undefined,"SELECTOR_CALLBACK_OMITTED");
@@ -279,7 +288,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         path: ccdRoute?.path ?? receivedPath,
         receivedPath,
         upstreamPath: ccdRoute?.upstreamPath ?? url.pathname,
-        ...([EVENT_CAPABILITY_SCOPE,SELECTOR_EVENT_SCOPE].includes(scope) && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
+        ...([EVENT_CAPABILITY_SCOPE, SELECTOR_EVENT_SCOPE, "exui-ccd-pilot", SHARED_NESTED_SCOPE].includes(scope) && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
         ...(scope === SELECTOR_EVENT_SCOPE && ccdRoute && request.method === "POST" && ccdRoute.upstreamPath === "/case-types/HarnessNestedPRL/validate"
           ? { selectorValidation: selectorValidationProjection(body, url) } : {}),
       };
@@ -327,6 +336,9 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         headers.authorization === credentials.denied.headers.Authorization;
       const isWrite =
         request.method === "POST" && /\/(?:cases|events)$/.test(url.pathname);
+      const beforeNestedFault=isWrite&&body&&['ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient'].includes(mutation)?JSON.parse(body):null;
+      if (mutation === 'shared-nested-drop-second-recipient' && isWrite && body)
+        body=JSON.stringify(loseSecondNestedRecipient(JSON.parse(body)));
       if (mutation === "ccd-drop-child" && isWrite && body)
         body = JSON.stringify(loseNestedChild(JSON.parse(body)));
       if (mutation === "ccd-drop-postal-optional-child" && isWrite && body)
@@ -381,6 +393,11 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         redirect: "error",
       });
       let bytes = Buffer.from(await upstream.arrayBuffer());
+      if(beforeNestedFault) {
+        const changed=JSON.parse(body),beforeData=beforeNestedFault.data??beforeNestedFault.case_data,afterData=changed.data??changed.case_data;
+        if(JSON.stringify(beforeData)!==JSON.stringify(afterData))
+          fs.appendFileSync(`${output}/fault-actions.jsonl`,JSON.stringify({mutation,method:request.method,upstreamPath:ccdRoute.upstreamPath,status:upstream.status,eventId:beforeNestedFault.event?.id,before:beforeData,after:afterData})+'\n');
+      }
       if (mutation === "ccd-drop-workbasket-field" && ccdRoute?.upstreamPath === "/internal/case-types/HarnessResultsPRL/work-basket-inputs") {
         assert.equal(upstream.status, 200, "CCD_WORKBASKET_FAULT_RESPONSE_REQUIRED");
         const result = JSON.parse(bytes.toString());

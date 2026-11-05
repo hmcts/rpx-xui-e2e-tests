@@ -6,11 +6,13 @@ import {
   ARM64_BROWSER_RUNTIME,
   NATIVE_API_RUNTIME_REFERENCE,
   toolContainerArguments,
+  sharedNestedAuditToolContainerArguments,
   candidateArchiveArguments,
   candidateArchiveProcess,
   assertBrowserRuntime,
 } from "./exui-oci-runtime.mjs";
 import { hostDocker } from "./exui-host-invocation.mjs";
+import { SHARED_NESTED_SCOPE, sharedNestedRemovedStatePaths } from "./exui-shared-nested-scope.mjs";
 import {
   nativeInvocation,
   selectedArtifact,
@@ -106,6 +108,29 @@ export function nativeContainerPlan(
   invocationId,
   toolsNamespace,
 ) {
+  return buildNativeContainerPlan(input, handoff, invocationId, toolsNamespace, mount, toolContainerArguments);
+}
+
+// Audit an already removed private state root; launch planning always uses realpath.
+export function sharedNestedAuditContainerPlan(input, handoff, invocationId) {
+  assert.equal(input.releaseScopeId, SHARED_NESTED_SCOPE, "SHARED_NESTED_AUDIT_SCOPE");
+  const state = handoff.stateRoot;
+  const removed=sharedNestedRemovedStatePaths(state,invocationId);
+  const retired = new Map([
+    [removed.sessions, "/tmp/.sessions"],
+    [removed.diagnostics, "/diagnostics"],
+  ]);
+  const auditMount = (source, target, writable) => {
+    if (!retired.has(source)) return mount(source, target, writable);
+    assert.equal(target, retired.get(source), "SHARED_NESTED_AUDIT_MOUNT_TARGET");
+    assert.equal(writable, true, "SHARED_NESTED_AUDIT_MOUNT_ACCESS");
+    return { source, target, writable };
+  };
+  // The launch plan contains a function used only to create the candidate container.
+  return JSON.parse(JSON.stringify(buildNativeContainerPlan(input, handoff, invocationId, undefined, auditMount, options=>sharedNestedAuditToolContainerArguments(options,state))));
+}
+
+function buildNativeContainerPlan(input, handoff, invocationId, toolsNamespace, planMount, planToolsArguments) {
   const invocation = nativeInvocation(input, invocationId),
     artifact = selectedArtifact(input, invocation),
     candidateRoot = artifact.candidateRoot;
@@ -128,18 +153,18 @@ export function nativeContainerPlan(
       "scripts/lib/exui-runtime-network-guard.cjs",
     );
   const toolsMounts = [
-    mount(handoff.stagedHarness, "/harness", false),
-    mount(dependenciesRoot, "/harness/node_modules", false),
-    mount(candidateRoot, "/candidate", false),
-    mount(output, "/output", true),
-    mount(input.browserRoot, "/browser", false),
-    mount(sessions, "/tmp/.sessions", true),
+    planMount(handoff.stagedHarness, "/harness", false),
+    planMount(dependenciesRoot, "/harness/node_modules", false),
+    planMount(candidateRoot, "/candidate", false),
+    planMount(output, "/output", true),
+    planMount(input.browserRoot, "/browser", false),
+    planMount(sessions, "/tmp/.sessions", true),
   ];
   const candidateMounts = [
-    mount(candidateRoot, "/candidate", false),
-    mount(sessions, "/tmp/.sessions", true),
-    mount(diagnostics, "/diagnostics", true),
-    mount(guard, "/harness-network-guard.cjs", false),
+    planMount(candidateRoot, "/candidate", false),
+    planMount(sessions, "/tmp/.sessions", true),
+    planMount(diagnostics, "/diagnostics", true),
+    planMount(guard, "/harness-network-guard.cjs", false),
   ];
   assert(
     /^v\d+\.\d+\.\d+$/.test(artifact.provenance.runtimeNodeVersion ?? ""),
@@ -159,7 +184,7 @@ export function nativeContainerPlan(
       image: input.browserRuntimeImage,
       namespace,
       mounts: toolsMounts,
-      args: toolContainerArguments({
+      args: planToolsArguments({
         owner,
         image: input.browserRuntimeImage,
         platform: artifact.provenance.platform,

@@ -39,6 +39,13 @@ export function readExecutionEvidence(root, reference, manifest, policy) {
   references.push(reference);
   const { value: report } = readEvidenceArtifact(root, execution.resultArtifact);
   references.push(execution.resultArtifact);
+  if(Object.hasOwn(execution,'sharedNestedArtifacts')) {
+    requireFact(manifest.releaseScopeId==='exui-shared-nested-renderer-pilot'&&Array.isArray(execution.sharedNestedArtifacts),'INVALID_SHARED_NESTED_ARTIFACTS');
+    const permitted=['manifest.json','context.json','personas.json','ccd-requests.jsonl','fault-actions.jsonl',...['nested-email-1','nested-email-2','nested-post-1','nested-post-2'].flatMap(id=>[id+'-observation.json',id+'-mandatory-attempt.json'])];
+    const paths=execution.sharedNestedArtifacts.map(ref=>ref.path);
+    requireFact(new Set(paths).size===paths.length&&paths.every(name=>typeof name==='string'&&name.startsWith(execution.invocationId+'/')&&permitted.includes(name.slice(execution.invocationId.length+1))),'INVALID_SHARED_NESTED_ARTIFACT_SELECTION');
+    for(const ref of execution.sharedNestedArtifacts){readEvidenceArtifactBytes(root,ref);references.push(ref);}
+  }
   if (Object.hasOwn(execution, 'sharedRoleArtifacts')) {
     requireFact(['exui-ccd-pilot', 'exui-ccd-event-capability-pilot'].includes(manifest.releaseScopeId) && Array.isArray(execution.sharedRoleArtifacts), 'INVALID_SHARED_ROLE_ARTIFACTS');
     const paths = execution.sharedRoleArtifacts.map(item => item.path);

@@ -32,9 +32,14 @@ if (
     "ccd-recipient-callback",
     "ccd-applicant-results",
     "ccd-selector-event-row",
+    "ccd-shared-nested",
   ].includes(slice)
 )
   throw new Error("UNKNOWN_HARNESS_SLICE");
+const sharedNestedScope=candidateManifest?.releaseScopeId==='exui-shared-nested-renderer-pilot';
+if(slice==='ccd-shared-nested'&&!sharedNestedScope)throw Error('SHARED_NESTED_SCOPE_REQUIRED');
+if(sharedNestedScope&&(selection!=='ccd'||slice!=='ccd-shared-nested'))throw Error('SHARED_NESTED_SELECTION_REQUIRED');
+if(sharedNestedScope&&process.env.EXUI_HARNESS_MUTATION&&!['ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient'].includes(process.env.EXUI_HARNESS_MUTATION))throw Error('SHARED_NESTED_MUTATION_REQUIRED');
 const eventCapabilityScope =
   candidateManifest?.releaseScopeId === "exui-ccd-event-capability-pilot";
 if (slice === "ccd-event-capability" && !eventCapabilityScope)
@@ -62,7 +67,7 @@ const selectorEventScope = candidateManifest?.releaseScopeId === "exui-ccd-selec
 if (slice === "ccd-selector-event-row" && !selectorEventScope) throw new Error("SELECTOR_EVENT_SCOPE_REQUIRED");
 if (selectorEventScope && (selection !== "ccd" || slice !== "ccd-selector-event-row")) throw new Error("SELECTOR_EVENT_SELECTION_REQUIRED");
 if (selectorEventScope && process.env.EXUI_HARNESS_MUTATION && process.env.EXUI_HARNESS_MUTATION !== "ccd-hide-selector-summary") throw new Error("SELECTOR_EVENT_MUTATION_REQUIRED");
-const ccdFiles = selectorEventScope ? ["selector-event-row"] : applicantResultsScope ? ["applicant-results"] : callbackScope ? ["recipient-callback"] : eventCapabilityScope
+const ccdFiles = selectorEventScope ? ["selector-event-row"] : sharedNestedScope ? ["shared-nested-renderer"] : applicantResultsScope ? ["applicant-results"] : callbackScope ? ["recipient-callback"] : eventCapabilityScope
   ? process.env.EXUI_HARNESS_MUTATION === "ccd-enable-judge-event"
     ? ["event-capability"]
     : ["ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")

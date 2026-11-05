@@ -228,7 +228,7 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, nativeElapsedMs, phaseTimings } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
   const root = process.cwd();
@@ -240,10 +240,11 @@ async function runHarnessCollection(
   const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
-  if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined) {
+  if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
     const verificationStartedAt=new Date().toISOString(),verificationStarted=performance.now();
     if(nativeEvidencePath !== undefined) await reporter.prepareNativeEvidence(nativeEvidencePath);
     if(compatibilityEvidencePath !== undefined) await reporter.prepareCompatibilityEvidence(compatibilityEvidencePath);
+    if(sharedNestedAttemptPath !== undefined) await reporter.prepareSharedNestedAttempt(sharedNestedAttemptPath);
     const verificationMs=Math.round(performance.now()-verificationStarted);
     if(nativeElapsedMs!==undefined)reporter.nativeElapsedMs=nativeElapsedMs+verificationMs;
     if(phaseTimings!==undefined)reporter.phaseTimings=[...phaseTimings,{label:'Native evidence and interpreter verification',status:'completed',startedAt:verificationStartedAt,durationMs:verificationMs}];
@@ -413,8 +414,10 @@ async function runHarnessCollection(
     return {
       status,
       nativeStatus,
+      ...(reporter.sharedNestedAttemptEvidence?{sharedNestedStatus:reporter.sharedNestedAttemptEvidence.status}:{}),
       exitCode: Math.max(
         reporter.nativeEvidence?.exitCode || 0,
+        reporter.sharedNestedAttemptEvidence?.status==="BLOCKED"?2:0,
         status === "passed" ? 0 : 1,
       ),
     };

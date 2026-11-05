@@ -17,7 +17,7 @@ import { replaySharedRoleEventObservation } from './exui-shared-role-event-obser
 import { reproduceSharedRoleCcdSource, bindSharedRoleCcdRuntime, reproduceSharedRoleAmd64Source, bindSharedRoleAmd64Runtime } from './exui-shared-role-ccd-provenance.mjs';
 
 const contract = () => buildSharedPolicyContracts().find(item => item.id === 'configuration-shared:role-policy');
-const scopes = { ccd: 'exui-ccd-pilot', eventCapability: 'exui-ccd-event-capability-pilot' };
+const scopes = { ccd: 'exui-ccd-pilot', eventCapability: 'exui-ccd-event-capability-pilot',sharedNested:'exui-shared-nested-renderer-pilot' };
 const variants = {
   'ccd-remove-courtadmin-recipient-read': 'read-mutant',
   'ccd-remove-readonly-recipient-read': 'readonly-read-mutant',
@@ -103,7 +103,7 @@ export function bindSharedRoleFacet(record, { phase, manifest, execution, proof,
     assert.equal(imported.images?.[service]?.id, manifest.identity.dependencyIdentities[dependency]?.artifactDigest, 'SHARED_ROLE_IMPORT_IMAGE');
   return { ...expected, runId: manifest.runId, identity: manifest.identity, harnessCommit: manifest.harnessCommit, harnessSourceDigest: manifest.runtimeMetadata.harnessSourceDigest, definitionImportDigest: digestBytes(importedBytes), observedDefinitionDigest: imported.observedDefinitionDigest, definitionVersion: manifest.runtimeMetadata.definitionVersion, ccdNamespace: manifest.runtimeMetadata.ccdNamespace };
 }
-function loadPhase(harnessRoot, directory, phase) {
+export function loadSharedNativePhase(harnessRoot, directory, phase) {
   assert.equal(fs.realpathSync(directory), directory, 'SHARED_ROLE_PHASE_ALIAS');
   assert.equal(path.basename(directory), phase, 'SHARED_ROLE_PHASE_DIRECTORY');
   const policy = getReleasePolicy(scopes[phase]);
@@ -122,7 +122,7 @@ function loadPhase(harnessRoot, directory, phase) {
 
 export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDirectory, eventPhaseDirectory, candidateArtifactPath, sourceImageInputs }) {
   assert(ccdPhaseDirectory && eventPhaseDirectory, 'SHARED_ROLE_BOTH_PHASES_REQUIRED');
-  const phases = { ccd: loadPhase(harnessRoot, ccdPhaseDirectory, 'ccd'), eventCapability: loadPhase(harnessRoot, eventPhaseDirectory, 'eventCapability') };
+  const phases = { ccd: loadSharedNativePhase(harnessRoot, ccdPhaseDirectory, 'ccd'), eventCapability: loadSharedNativePhase(harnessRoot, eventPhaseDirectory, 'eventCapability') };
   assertSharedRolePhaseIdentity(phases.ccd.loaded.input.manifest, phases.eventCapability.loaded.input.manifest);
   const toolkit = await bindSharedRoleToolkitArtifact(candidateArtifactPath);
   for (const { loaded } of Object.values(phases))
