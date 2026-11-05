@@ -32,9 +32,9 @@ for(const facet of ['staff','mapping']) {
   const m=await load(),{startProfileJurisdictionProviders}=await import('./lib/exui-source-profile-provider.mjs'),output=temp(t);
   const server=http.createServer((_req,res)=>{res.writeHead(200);res.end('{}');});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));});
   const started=await startProfileJurisdictionProviders(output,{divorce:facet,seed:()=>({id:'synthetic-test'}),start:async()=>server});const origin=`http://127.0.0.1:${server.address().port}`;
-  if(facet==='staff'){
+  {
    const form={grant_type:'password',password:'synthetic-password',username:'synthetic-user',scope:'openid profile roles manage-user create-user search-user',client_id:'xuiwebapp',client_secret:'synthetic-client-value'};
-   const auth=await fetch(origin+'/o/token',{method:'POST',body:new URLSearchParams(form)});assert.equal(auth.status,200);assert.equal(typeof(await auth.json()).access_token,'string');assert.deepEqual(started.readJournal(),[]);
+   const auth=await fetch(origin+'/o/token',{method:'POST',body:new URLSearchParams(form)});assert.equal(auth.status,200);const token=(await auth.json()).access_token;assert.equal(token.split('.').length,3);assert.deepEqual(JSON.parse(Buffer.from(token.split('.')[1],'base64url').toString()),{sub:'synthetic-user',exp:4102444800});assert.deepEqual(started.readJournal(),[]);
    const denied=await fetch(origin+'/o/token',{method:'POST',body:new URLSearchParams({...form,username:'PRIVATE-AUTH-CANARY'})});assert.equal(denied.status,501);
    assert(!fs.readFileSync(path.join(output,'provider-rejections.jsonl'),'utf8').includes('PRIVATE-AUTH-CANARY'));
   }
@@ -66,6 +66,8 @@ for(const facet of ['staff','mapping']) {
   write('profile-divorce-observations.json',e);write('profile-divorce-destinations.json',e.journal);
   assert.equal(await executeProfileProof(current,{probe:()=>m.validateDivorceConsumerObservations(facet,e.observations,e.journal,mutation)}),1);
   assert.equal(validateProfileInvocationResult({...current,terminal:{code:1,signal:null}}).catalogueCredit,false);
+  write('provider-rejections.jsonl',{code:'UNDECLARED_PROFILE_REQUEST',method:'POST',path:'/o/token'});
+  assert.throws(()=>validateProfileInvocationResult({...current,terminal:{code:1,signal:null}}),/SOURCE_PROFILE_DIVORCE_JOURNAL/);fs.rmSync(path.join(directory,'provider-rejections.jsonl'));
   write('profile-divorce-destinations.json',[...e.journal,e.journal[0]]);
   assert.throws(()=>validateProfileInvocationResult({...current,terminal:{code:1,signal:null}}),/SOURCE_PROFILE_DIVORCE_JOURNAL/);
   write('profile-divorce-destinations.json',e.journal);e.observations[1].entrypoint='/wrong';write('profile-divorce-observations.json',e);

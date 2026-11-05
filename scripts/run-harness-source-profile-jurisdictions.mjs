@@ -62,6 +62,8 @@ export function validateProfileInvocationResult({directory,invocationId,mutation
   assert.deepEqual(worker,expected,'SOURCE_PROFILE_WORKER_RESULT');
   assert.deepEqual(terminal,{code:mutation?1:0,signal:null},'SOURCE_PROFILE_FRAMEWORK_TERMINAL');
   if(facet.startsWith('divorce-')) {
+    const rejections=path.join(directory,'provider-rejections.jsonl');
+    assert(!fs.existsSync(rejections)||fs.readFileSync(rejections,'utf8').trim()==='', 'SOURCE_PROFILE_DIVORCE_JOURNAL');
     const file=path.join(directory,'profile-divorce-observations.json'),data=read(file),journalFile=path.join(directory,'profile-divorce-destinations.json'),journal=read(journalFile);
     assert.deepEqual(Object.keys(data).sort(),['catalogueCredit','journal','mutation','observations'],'SOURCE_PROFILE_OBSERVATION_BINDING');
     assert.equal(data.mutation,mutation,'SOURCE_PROFILE_OBSERVATION_BINDING');assert.equal(data.catalogueCredit,false,'SOURCE_PROFILE_OBSERVATION_BINDING');
