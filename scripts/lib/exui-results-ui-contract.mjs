@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 export const RESULTS_UI_KIND='result-columns-ui-feasibility';
-export function resultsConfiguration(config) {return {...structuredClone(config),jurisdictions:['HARNESS']};}
+export function resultsConfiguration(config) {return {...structuredClone(config),jurisdictions:'HARNESS'};}
 export function resultTransportRoute(method,pathname,url,body,actor) {
  if(!actor)return null;
  const bare=pathname.startsWith('/data/')?pathname.slice(5):pathname;

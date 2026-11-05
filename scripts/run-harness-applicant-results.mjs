@@ -69,6 +69,7 @@ export async function runApplicantResults({candidate,browser,profile,output}) {
     captures.at(-1).runtimeRecord=publishApplicantResultRuntime(directory,record);phase='native-execution';return record;
    }});
   alive();const terminalFile=path.join(directory,'independent-controller-terminal.json');writeJsonAtomic(terminalFile,{schemaVersion:1,runId:expected.runId,terminal:execution.terminal});expected.applicantControllerTerminal=reference(directory,terminalFile);
+  assert.deepEqual(execution.terminal,{code:0,signal:null},'RESULT_CONTROLLER_FAILED');
   phase='validate-final-cleanup';removePrior();
   await cleanupNativeOwnership(ownership,{inspect:inspectHostContainer,remove:id=>hostDocker(['rm','-f',id])});
   const file=path.join(directory,'independent-results-capture.json');writeJsonAtomic(file,{schemaVersion:1,completedAfterController:true,baselineInputDigest:digestBytes(fs.readFileSync(path.join(directory,'input.json'))),invocations:captures});expected.applicantResultsCapture=reference(directory,file);

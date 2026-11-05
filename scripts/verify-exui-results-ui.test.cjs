@@ -2,7 +2,7 @@ const {test}=require('node:test');const assert=require('node:assert/strict');
 const load=()=>import('./lib/exui-results-ui-contract.mjs');
 const actor={userId:'11111111-1111-4111-8111-111111111111'};
 const payload=()=>({native_es_query:{from:0,size:10,sort:[],query:{match_all:{}}},supplementary_data:['*']});
-test('results scaffold is explicit and does not mutate source defaults',async()=>{const {resultsConfiguration}=await load();const base={jurisdictions:['IA'],other:{same:true}};assert.deepEqual(resultsConfiguration(base),{jurisdictions:['HARNESS'],other:{same:true}});assert.deepEqual(base.jurisdictions,['IA']);});
+test('results scaffold is explicit and does not mutate source defaults',async()=>{const {resultsConfiguration}=await load();const base={jurisdictions:'IA,CIVIL',other:{same:true}};const configured=resultsConfiguration(base);assert.deepEqual(configured,{jurisdictions:'HARNESS',other:{same:true}});assert.deepEqual(configured.jurisdictions.split(','),['HARNESS']);assert.equal(base.jurisdictions,'IA,CIVIL');});
 test('results gateway accepts only candidate baseline POST and real typed discovery routes',async()=>{
  const {resultTransportRoute:route}=await load();
  for(const view of ['SEARCH','WORKBASKET']) {const url=new URL('http://local/internal/searchCases?ctid=HarnessResultsPRL&use_case='+view+'&view='+view+'&page=1');assert.equal(route('POST',url.pathname,url,JSON.stringify(payload()),actor).upstreamPath,'/internal/searchCases');}

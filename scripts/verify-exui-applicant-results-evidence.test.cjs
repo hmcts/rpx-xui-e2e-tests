@@ -43,6 +43,8 @@ test('matching tampered child and manifest digests cannot replace parent pre-exe
 test('standalone result summary withdraws acceptance on final cleanup failure and guards immutable inputs before output creation',()=>{
  const source=require('node:fs').readFileSync(require('node:path').join(__dirname,'run-harness-applicant-results.mjs'),'utf8');
  assert.match(source,/status:'BLOCKED',nativeRuntimeAcceptance:false/);
+ const terminalGuard=source.indexOf("assert.deepEqual(execution.terminal,{code:0,signal:null},'RESULT_CONTROLLER_FAILED')"),finalCleanup=source.indexOf("phase='validate-final-cleanup';removePrior()");
+ assert(terminalGuard>=0&&finalCleanup>=0&&terminalGuard<finalCleanup);
  assert.match(source,/if\(!clean\)\{summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;\}/);
  assert(source.indexOf('verifyCandidateArtifact(candidate)')<source.indexOf('output=createFreshHarnessOutput'));
  assert.match(source,/createFreshHarnessOutput\(output,\[artifact.candidateRoot,candidate,browserRoot/);
