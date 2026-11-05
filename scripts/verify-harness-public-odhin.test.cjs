@@ -1261,3 +1261,46 @@ test('separately admitted DIVORCE profile stays outside main totals in the same 
  for(const change of [v=>delete v.nativeEvidence.divorceProfileAdmission,v=>v.nativeEvidence.divorceProfileAdmission.producerCommit='d'.repeat(40),v=>v.nativeEvidence.divorceProfileAdmission.accepted=2,v=>v.nativeEvidence.divorceProfileAdmission.private=canary]){const changed=JSON.parse(original);change(changed);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport());}
  fs.writeFileSync(recordFile,original);
 });
+
+
+test('dashboard exposes supplementary runs without adding them to main counts', () => {
+ const vm=require('node:vm');
+ const script=fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8');
+ const make=()=>({dataset:{},children:[],attributes:{},classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(name,value){this.attributes[name]=value}});
+ const panels={
+  '#harness-shared-nested-attempt':{dataset:{attemptStatus:'BLOCKED',attemptBaselinesCompleted:'4',attemptBaselinesPassed:'2',attemptBaselinesFailed:'2',attemptFaultsCompleted:'0',attemptFaultsNotRun:'3'}},
+  '#harness-divorce-profile-admission':{dataset:{profileStatus:'PASS',profileBaselines:'6',profileFaults:'6',profileAccepted:'1',profileSelected:'1'}},
+  '#harness-applicant-compatibility':{dataset:{compatibilityStatus:'PASS',compatibilityBaselines:'1',compatibilityFaults:'3'}},
+ };
+ const render=(supplements,main=true)=>{
+  const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
+  const elements={'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,...(main?{'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}}:{}),...supplements};
+  const document={createElement:make,querySelector:selector=>elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'35'}}]:[]};
+  vm.runInNewContext(script,{document});return metrics;
+ };
+ const text=node=>[node.textContent||'',...node.children.map(text)].join(' ');
+ const plain=render({});assert.equal(plain.children[1].children[0].textContent,'Native proof outcomes');assert(!plain.children.some(x=>x.className==='report-supplement-summary'));
+ const metrics=render(panels),summary=metrics.children[4];
+ assert.equal(metrics.children[0].children[1].textContent,'35 / 112');assert.equal(metrics.children[1].children[1].textContent,'2 + 2');assert.equal(metrics.children[2].children[1].textContent,'116');assert.equal(metrics.children[3].children[1].textContent,'Unavailable');
+ assert.equal(metrics.children[1].children[0].textContent,'Main native proof outcomes');assert.equal(summary.className,'report-supplement-summary');
+ const links=summary.children.find(x=>x.className==='report-supplement-links').children;
+ assert.deepEqual(links.map(x=>x.href),Object.keys(panels));
+ assert.match(text(links[0]),/BLOCKED/);assert.match(text(links[0]),/4 baseline facets completed/);assert.match(text(links[0]),/2 passed.*2 failed/);assert.match(text(links[0]),/0 effective faults.*3 not run/);
+ assert.match(text(links[1]),/6 baseline.*6 effective faults/);assert.match(text(links[1]),/1 \/ 1.*separate/);
+ assert.match(text(links[2]),/1 baseline.*3 effective faults/);assert.match(text(links[2]),/Corrected local ARM64 CCD/);
+ assert.match(text(summary),/excluded from the main totals/);
+ const standalone=render({'#harness-shared-nested-attempt':panels['#harness-shared-nested-attempt']},false);
+ assert.equal(standalone.children[1].children[1].textContent,'Not run');assert.equal(standalone.children[1].dataset.nativeStatus,'NOT_RUN');assert.equal(standalone.children[2].children[1].textContent,'116');assert.match(text(standalone.children[4]),/BLOCKED/);
+ for(const [selector,panel]of Object.entries(panels)){const one=render({[selector]:panel});assert.equal(one.children[4].children.find(x=>x.className==='report-supplement-links').children.length,1);}
+ const css=fs.readFileSync(path.join(__dirname,'harness-report-coverage.css'),'utf8');assert.match(css,/\.report-supplement-summary[^{]*\{[^}]*grid-column:\s*1 \/ -1/);assert.match(css,/\.report-supplement-links[^{]*\{[^}]*minmax/);
+});
+
+
+test('applicant compatibility publishes only validated dashboard count attributes', () => {
+ const {renderApplicantCompatibility}=require('./harness-applicant-results-report.cjs');
+ const hash='sha256:'+'a'.repeat(64);
+ const value={schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,dataImageDigest:hash,profileDigest:hash,descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
+ const section=require('node-html-parser').parse(renderApplicantCompatibility(value)).querySelector('#harness-applicant-compatibility');
+ assert.equal(section.getAttribute('data-compatibility-status'),'PASS');assert.equal(section.getAttribute('data-compatibility-baselines'),'1');assert.equal(section.getAttribute('data-compatibility-faults'),'3');
+ for(const changed of [{...value,baselineProofs:2},{...value,effectiveFaults:4},{...value,catalogueCredit:true},{...value,status:'FAIL'}])assert.throws(()=>renderApplicantCompatibility(changed));
+});
