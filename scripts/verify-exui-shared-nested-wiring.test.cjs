@@ -64,3 +64,19 @@ test('lightweight standalone policy pins the unchanged full reviewed renderer co
  const {sharedNestedContract}=await import('./lib/exui-shared-nested-contract.mjs');const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
  assert.equal(digestBytes(JSON.stringify(sharedNestedContract())),SHARED_NESTED_CONTRACT_DIGEST);
 });
+
+test('actual producer configuration keeps standalone gateway options and browser slice distinct',async t=>{
+ const {nativeCcdGatewayArguments,nativeProofConfiguration}=await import('./run-harness-native-tools.mjs');
+ const directory=fs.mkdtempSync(path.join(os.tmpdir(),'shared-nested-producer-config-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));fs.writeFileSync(path.join(directory,'provider-ready.json'),JSON.stringify({cookie:'synthetic-fixed-session'}));
+ for(const mutation of [null,'ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient']) {
+  const input={releaseScopeId:SCOPE,browserExecutable:'/browser/chromium'},invocation={mutation};
+  assert.deepEqual(nativeCcdGatewayArguments(input,invocation),[mutation,SCOPE,{}]);
+  const proof=nativeProofConfiguration(input,invocation,directory);
+  assert.equal(proof.env.EXUI_HARNESS_SELECTION,'ccd');assert.equal(proof.env.EXUI_HARNESS_SLICE,'ccd-shared-nested');
+  assert.equal(proof.env.EXUI_HARNESS_MUTATION,mutation??undefined);assert.equal(proof.args.at(-1),'shared-nested-renderer.spec.ts');
+ }
+ for(const [input,expected,slice]of [[{releaseScopeId:'exui-ccd-pilot'}, {},'family'],[{releaseScopeId:'exui-ccd-pilot',workbasket:true},{workbasket:true},'family'],[{releaseScopeId:'exui-ccd-recipient-callback-pilot'},{recipientCallback:{invocationId:'recipient-callback-native'}},'ccd-recipient-callback'],[{releaseScopeId:'exui-ccd-applicant-results-pilot'},{resultColumns:true},'ccd-applicant-results']]) {
+  assert.deepEqual(nativeCcdGatewayArguments(input,{mutation:null}),[null,input.releaseScopeId,expected]);
+  assert.equal(nativeProofConfiguration(input,{mutation:null},directory).env.EXUI_HARNESS_SLICE,slice);
+ }
+});

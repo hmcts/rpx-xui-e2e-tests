@@ -168,11 +168,7 @@ async function providers(input, invocation, directory) {
     server = await startCcdGateway(
       directory,
       credentials,
-      [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
-      input.releaseScopeId,
-      input.releaseScopeId === SHARED_NESTED_SCOPE
-        ? "ccd-shared-nested"
-        : input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultColumns:true} : input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
+      ...nativeCcdGatewayArguments(input, invocation),
     );
   } else {
     const assignments = invocation.persona
@@ -198,6 +194,13 @@ async function providers(input, invocation, directory) {
     });
   });
 }
+export function nativeCcdGatewayArguments(input, invocation) {
+  return [
+    [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
+    input.releaseScopeId,
+    input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultColumns:true} : input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
+  ];
+}
 export function nativeProofConfiguration(input, invocation, directory) {
   const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SHARED_NESTED_SCOPE].includes(input.releaseScopeId);
   const env = {
@@ -205,7 +208,9 @@ export function nativeProofConfiguration(input, invocation, directory) {
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+      input.releaseScopeId === SHARED_NESTED_SCOPE
+        ? "ccd-shared-nested"
+        : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
         ? "ccd-applicant-results"
         : input.releaseScopeId === CALLBACK_SCOPE
         ? "ccd-recipient-callback"

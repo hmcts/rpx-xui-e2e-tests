@@ -83,7 +83,9 @@ test('second-recipient gateway forwards one complete recipient and records succe
  const id='11111111-1111-4111-8111-111111111111',token='Bearer synthetic-fixed-bearer',credential={userId:id,headers:{Authorization:token,ServiceAuthorization:'synthetic-service'}};
  let forwarded;
  t.mock.method(global,'fetch',async(url,options)=>{assert.equal(String(url),'http://127.0.0.1:4452/cases/1234567890123456/events');forwarded=JSON.parse(options.body);return new Response(JSON.stringify({id:'1234567890123456'}),{status:201,headers:{'content-type':'application/json'}});});
- const server=await startCcdGateway(root,{allowed:credential,denied:{...credential,userId:'22222222-2222-4222-8222-222222222222',headers:{Authorization:'Bearer synthetic-denied-bearer'}}},'shared-nested-drop-second-recipient');t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const {nativeCcdGatewayArguments}=await import('./run-harness-native-tools.mjs');
+ const gateway=nativeCcdGatewayArguments({releaseScopeId:'exui-shared-nested-renderer-pilot'},{mutation:'shared-nested-drop-second-recipient'});
+ const server=await startCcdGateway(root,{allowed:credential,denied:{...credential,userId:'22222222-2222-4222-8222-222222222222',headers:{Authorization:'Bearer synthetic-denied-bearer'}}},...gateway);t.after(()=>new Promise(resolve=>server.close(resolve)));
  const body={data:{protectedValue:'control',sodAdditionalRecipientsList:[{id:'first',value:{name:'one'}},{id:'second',value:{name:'two'}}]},event:{id:'update'},event_token:'private-event-token-canary'};
  const status=await new Promise((resolve,reject)=>{const req=http.request('http://127.0.0.1:3101/data/cases/1234567890123456/events',{method:'POST',headers:{authorization:token,'content-type':'application/json'}},response=>{response.resume();response.on('end',()=>resolve(response.statusCode));});req.on('error',reject);req.end(JSON.stringify(body));});
  assert.equal(status,201);assert.deepEqual(forwarded.data,{...body.data,sodAdditionalRecipientsList:[body.data.sodAdditionalRecipientsList[0]]});
