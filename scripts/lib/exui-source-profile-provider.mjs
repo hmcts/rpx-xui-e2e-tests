@@ -6,16 +6,22 @@ import {handleDivorceProvider} from './exui-source-profile-divorce-provider.mjs'
 import { profileJurisdictionRows } from './exui-source-profile-jurisdictions.mjs';
 
 // Transport fixtures only. Filtering, authenticated UID rewriting and session caching remain candidate code.
-export async function startProfileJurisdictionProviders(output,{seed=seedSyntheticSession,start=startProviderSeams,health=false,membership=false,divorce=null}={}) {
+export async function startProfileJurisdictionProviders(output,{seed=seedSyntheticSession,start=startProviderSeams,health=false,membership=false,divorce=null,iaPositive=false}={}) {
   const server=await start(output);
   try {
     const persona=seed(undefined,`harness-source-profile-${randomUUID()}`);
     const cookie=`s:${persona.id}.${createHmac('sha256','synthetic-session-value').update(persona.id).digest('base64').replace(/=+$/,'')}`;
     const original=server.listeners('request')[0],journal=[];
     if(health)fs.writeFileSync(`${output}/profile-health-destinations.json`,'[]',{mode:0o600});
+    if(iaPositive)fs.writeFileSync(`${output}/profile-ia-wa-destinations.json`,'[]',{mode:0o600});
     if(membership)fs.writeFileSync(`${output}/profile-wa-membership-destinations.json`,'[]',{mode:0o600});
     // Independent synthetic transport fixtures; the membership oracle does not import these responses.
-    const tasks=[
+    const tasks=iaPositive?[
+      [{case_id:'3333444455556666',case_jurisdiction:'IA',case_type:'HarnessPositiveIA',event_id:'positiveRouteIA'},'positive-ia-route'],
+      [{case_id:'7777888899990000',case_jurisdiction:'CIVIL',case_type:'HarnessPositiveCIVIL',event_id:'positiveRouteCIVIL'},'positive-civil-route'],
+      [{case_id:'5555666677778888',case_jurisdiction:'IA',case_type:'HarnessPositiveIA',event_id:'positivePostIA'},'positive-ia-post'],
+      [{case_id:'8888999900001111',case_jurisdiction:'CIVIL',case_type:'HarnessPositiveCIVIL',event_id:'positivePostCIVIL'},'positive-civil-post'],
+    ]:[
       [{case_id:'1111222233334444',case_jurisdiction:'CMC',case_type:'HarnessMembershipCMC',event_id:'profilePostCMC'},'membership-cmc-post'],
       [{case_id:'5555666677778888',case_jurisdiction:'IA',case_type:'HarnessMembershipIA',event_id:'profilePostIA'},'membership-ia-post'],
       [{case_id:'9999000011112222',case_jurisdiction:'CMC',case_type:'HarnessMembershipCMC',event_id:'profileRouteCMC'},'membership-cmc-route'],
@@ -31,19 +37,19 @@ export async function startProfileJurisdictionProviders(output,{seed=seedSynthet
       const authGets=new Set(['/o/.well-known/openid-configuration','/health','/health/liveness','/am/role-assignments/actors/harness-supervisor']);
       if(!url.search&&(request.method==='GET'&&authGets.has(url.pathname)||request.method==='POST'&&url.pathname==='/lease'))return original(request,response);
       if(divorce&&await handleDivorceProvider(request,response,{facet:divorce,journal,output}))return;
-      if(membership&&request.method==='POST'&&request.url==='/task/search-for-completable') {
+      if((membership||iaPositive)&&request.method==='POST'&&request.url==='/task/search-for-completable') {
         let raw='',size=0,body;
         for await(const chunk of request){size+=chunk.length;if(size<=4096)raw+=chunk;}
         if(size<=4096)try{body=JSON.parse(raw);}catch{/* Reject without publishing the request body. */}
         const task=tasks.find(([expected])=>isDeepStrictEqual(body,expected));
         if(task){
           journal.push({method:'POST',path:url.pathname,body:task[0]});
-          fs.writeFileSync(`${output}/profile-wa-membership-destinations.json`,JSON.stringify(journal),{mode:0o600});
-          response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify([{id:task[1],name:'Synthetic membership task'}]));return;
+          fs.writeFileSync(`${output}/${iaPositive?'profile-ia-wa-destinations.json':'profile-wa-membership-destinations.json'}`,JSON.stringify(journal),{mode:0o600});
+          response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify([{id:task[1],name:iaPositive?'Synthetic positive membership task':'Synthetic membership task'}]));return;
         }
       }
       const access=accesses.get(request.url);
-      if(!membership&&!divorce&&request.method==='GET'&&access) {
+      if(!membership&&!divorce&&!iaPositive&&request.method==='GET'&&access) {
         journal.push({method:'GET',path:url.pathname,access});
         fs.writeFileSync(`${output}/profile-jurisdiction-destinations.json`,JSON.stringify(journal),{mode:0o600});
         response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify(profileJurisdictionRows(access)));return;
