@@ -22,7 +22,7 @@ function runtime(image){
  return{manifest,bytes};
 }
 test('source archive/tree/class extraction checks are executable offline',()=>{
- const result=spawnSync('python3',['scripts/verify-shared-role-ccd-source.test.py'],{encoding:'utf8'});assert.equal(result.status,0,result.stderr);
+ const result=spawnSync('python3',['scripts/verify-shared-role-ccd-source.test.py'],{encoding:'utf8',env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});assert.equal(result.status,0,result.stderr);
 });
 test('exact six consumers bind original or corrected imported runtime without whole-JAR or catalogue claim',async()=>{
  const lib=await import('./lib/exui-shared-role-ccd-provenance.mjs'),p=proof();
