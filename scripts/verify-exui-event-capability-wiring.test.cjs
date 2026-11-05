@@ -40,7 +40,7 @@ test('support only: old CCD selection excludes both new event-capability proofs'
   const { result, specs } = await collection(t, 'exui-ccd-pilot');
   assert.equal(result.status, 0, result.stderr + result.stdout);
   assert.deepEqual(specs.map(spec => path.basename(spec.file)).sort(), [
-    'case-event-policy.spec.ts', 'nested-conditional.spec.ts', 'postal-conditional.spec.ts', 'role-revocation.spec.ts',
+    'case-event-policy.spec.ts', 'nested-conditional.spec.ts', 'postal-conditional.spec.ts', 'role-revocation.spec.ts', 'workbasket-inputs.spec.ts',
   ]);
   const selected = await collection(t, 'exui-ccd-pilot', {}, ['event-capability.spec.ts']);
   assert.notEqual(selected.result.status, 0, 'an explicit filename must not bypass the old scope inventory');

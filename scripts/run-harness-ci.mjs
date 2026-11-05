@@ -5,6 +5,7 @@ import {selectCallbackRuntime,publishCallbackRuntime} from './lib/exui-recipient
 import {readCallbackBaselineCheckpoint} from './lib/exui-native-proof-validation.mjs';
 import {captureCiCallbackFaultOwnership} from './lib/exui-candidate-ci-evidence.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './lib/exui-source-shape-contract.mjs';
+import { importWorkbasketInputs } from './lib/exui-workbasket-input-import.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -468,11 +469,13 @@ export async function runHarnessCi(jobPath) {
         resources.set("ccd-runtime", { kind: "ccd", directory });
         context.ccd = await startCcdRuntime(directory, { platform: context.artifact.provenance.platform });
         importCcdDefinition(context.ccd);
+        const workbasketReceipt = await importWorkbasketInputs(context.ccd);
         const observed = verifyCcdRuntimeIdentity(context.ccd),
           config = effectiveCandidateConfiguration(
             context.artifact.candidateRoot,
           ).config;
         config.now = false;
+        config.jurisdictions = `${config.jurisdictions},HARNESS`;
         const apiContracts = Object.fromEntries(
           [
             ["data", 4452],
@@ -496,7 +499,8 @@ export async function runHarnessCi(jobPath) {
               mutation: null,
             }),
           ),
-          definitionDigests: { HarnessNestedPRL: observed.fixtureDigest },
+          definitionDigests: { HarnessNestedPRL: observed.fixtureDigest,
+            HarnessResultsPRL: workbasketReceipt.binding.workbookDigest },
           dependencyIdentities: Object.fromEntries(
             ["data", "definition"].map((service) => [
               service === "data" ? "ccd" : "ccd-definition",

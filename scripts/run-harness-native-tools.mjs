@@ -142,7 +142,7 @@ async function providers(input, invocation, directory) {
       credentials,
       [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
       input.releaseScopeId,
-      input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : {},
+      input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
     );
   } else {
     const assignments = invocation.persona
@@ -231,6 +231,8 @@ export function nativeProofConfiguration(input, invocation, directory) {
         ? "postal-conditional.spec.ts"
         : invocation.mutation === "ccd-drop-child"
           ? "nested-conditional.spec.ts"
+          : invocation.mutation === "ccd-drop-workbasket-field"
+            ? "workbasket-inputs.spec.ts"
           : "case-event-policy.spec.ts",
     );
   if (input.releaseScopeId === ROUTING_SCOPE && invocation.proofFile)

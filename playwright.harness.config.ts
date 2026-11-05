@@ -64,11 +64,12 @@ const ccdFiles = callbackScope ? ["recipient-callback"] : eventCapabilityScope
           : ["ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-optional-postal-line-two"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")
             ? ["source-shapes"]
             : ["courtadmin-cell", "courtadmin-read", "event-capability", "readonly-update", "source-shapes"]
-  : [
+  : process.env.EXUI_HARNESS_MUTATION === "ccd-drop-workbasket-field" ? ["workbasket-inputs"] : [
       "case-event-policy",
       "nested-conditional",
       "postal-conditional",
       "role-revocation",
+      "workbasket-inputs",
     ];
 export default defineConfig({
   ...config,

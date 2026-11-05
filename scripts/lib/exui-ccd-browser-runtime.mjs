@@ -146,9 +146,11 @@ function ccdTransportRoute(method, pathname, scope) {
 // CCD owns every baseline case/event response. The explicit callback opt-in adds
 // only the bounded synthetic recipient transport responder, never production PRL logic.
 export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
-  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => key === "recipientCallback"), "CCD_GATEWAY_OPTIONS_INVALID");
-  const { recipientCallback } = options;
+  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
+  const { recipientCallback, workbasket } = options;
   assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  assert(workbasket === undefined || (workbasket === true && scope === "exui-ccd-pilot"), "CCD_WORKBASKET_SCOPE_REQUIRED");
+  if (mutation === "ccd-drop-workbasket-field") assert.equal(workbasket, true, "CCD_WORKBASKET_FAULT_SCOPE_REQUIRED");
   if ([EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope))
     assert.equal(mutation, null, "CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
   if (scope === CALLBACK_SCOPE) assert(recipientCallback !== undefined, "CCD_NATIVE_CALLBACK_REQUIRED");
@@ -167,6 +169,19 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
     });
     // One fresh evidence journal per owned gateway invocation; never mix a reused run.
     fs.writeFileSync(callbackEvidenceFile, "", { flag: "wx", mode: 0o600 });
+  }
+  let workbasketJurisdictions;
+  if (workbasket) {
+    const imported = await fetch("http://127.0.0.1:4451/api/data/case-type/HarnessResultsPRL", {
+      headers: credentials.observer.headers, redirect: "error",
+    });
+    assert.equal(imported.status, 200, "CCD_WORKBASKET_DEFINITION_REQUIRED");
+    const caseType = await imported.json();
+    assert.equal(caseType.id, "HarnessResultsPRL", "CCD_WORKBASKET_CASE_TYPE_REQUIRED");
+    assert.equal(caseType.jurisdiction?.id, "HARNESS", "CCD_WORKBASKET_JURISDICTION_REQUIRED");
+    assert(Array.isArray(caseType.states) && caseType.states.length > 0, "CCD_WORKBASKET_STATES_REQUIRED");
+    workbasketJurisdictions = [{ id: caseType.jurisdiction.id, name: caseType.jurisdiction.name,
+      caseTypes: [{ id: caseType.id, name: caseType.name, states: caseType.states.map(({ id, name }) => ({ id, name })) }] }];
   }
   const server = http.createServer(async (request, response) => {
     try {
@@ -196,6 +211,26 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
             `/caseworkers/${actor.userId}/`,
           )
         : url.pathname;
+      if (workbasket && request.method === "GET" &&
+        new RegExp(`^/aggregated/caseworkers/${userId}/jurisdictions$`).test(url.pathname) &&
+        actor?.userId === url.pathname.split("/")[3]) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify(workbasketJurisdictions));
+        return;
+      }
+      if (workbasket && request.method === "GET" && url.pathname === "/refdata/external/v1/organisations") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end("[]");
+        return;
+      }
+      if (workbasket && request.method === "POST" && url.pathname === "/internal/searchCases" &&
+        url.searchParams.get("ctid") === "HarnessResultsPRL" &&
+        url.searchParams.get("use_case") === "WORKBASKET" &&
+        url.searchParams.get("view") === "WORKBASKET" && actor) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end('{"headers":[{"fields":[]}],"total":0,"cases":[]}');
+        return;
+      }
       const headers = {};
       for (const key of [
         "authorization",
@@ -314,7 +349,18 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         ...(body ? { body } : {}),
         redirect: "error",
       });
-      const bytes = Buffer.from(await upstream.arrayBuffer());
+      let bytes = Buffer.from(await upstream.arrayBuffer());
+      if (mutation === "ccd-drop-workbasket-field" && ccdRoute?.upstreamPath === "/internal/case-types/HarnessResultsPRL/work-basket-inputs") {
+        assert.equal(upstream.status, 200, "CCD_WORKBASKET_FAULT_RESPONSE_REQUIRED");
+        const result = JSON.parse(bytes.toString());
+        const before = result.workbasketInputs;
+        assert(Array.isArray(before) && before.filter(item => item.field?.id === "applicantCaseName").length === 1,
+          "CCD_WORKBASKET_FAULT_FIELD_REQUIRED");
+        result.workbasketInputs = before.filter(item => item.field.id !== "applicantCaseName");
+        bytes = Buffer.from(JSON.stringify(result));
+        fs.appendFileSync(`${output}/fault-actions.jsonl`, JSON.stringify({ mutation, removedField: "applicantCaseName",
+          before: before.length, after: result.workbasketInputs.length }) + "\n");
+      }
       if (staleGrant)
         fs.appendFileSync(`${output}/fault-actions.jsonl`, JSON.stringify({
           mutation, actorId: renewed.userId, caseId: transition.caseId,

@@ -90,6 +90,16 @@ const proofs = {
     limits:
       "A validation failure blocks later navigation/persistence credit. No deployed PRL or full profile claim.",
   },
+  "ccd-prl-workbasket-inputs": {
+    phase: "ccd",
+    slice: "Private Law Work Basket inputs",
+    behaviour: "Render all 10 pinned PRL input rows, including dependent courts, through EXUI and the CCD V2 descriptor.",
+    services: "Private Law source rows",
+    jurisdiction: "HARNESS (isolated CCD)",
+    caseType: "HarnessResultsPRL (synthetic case type)",
+    lane: "Actual EXUI + isolated CCD",
+    limits: "Source rows on a synthetic case type; no deployed PRL profile or search-result claim.",
+  },
 };
 proofs["ccd-courtadmin-update-recipient-shapes"] = {
   phase: "eventCapability",
@@ -205,6 +215,7 @@ const faults = {
     "Substitute the actor's old warmed bearer after role removal",
   "ccd-drop-postal-optional-child":
     "Drop the second postal recipient's optional address line",
+  "ccd-drop-workbasket-field": "Remove the PRL case-name input from the CCD V2 descriptor",
   "routing-omit-web-url": "Omit the PCS external web destination",
   "routing-omit-noc-base-url": "Omit the PCS NoC destination",
 };

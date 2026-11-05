@@ -286,6 +286,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
             ? {
                 gatewayDigest: invocationInput.gatewayDigest,
                 definitionImportDigest: invocationInput.definitionImportDigest,
+                ...(invocationInput.workbasket ? { workbasketImportDigest: invocationInput.workbasketImportDigest } : {}),
                 observedDefinitionDigest:
                   invocationInput.definition.observedDefinitionDigest,
                 ...(input.releaseScopeId === CALLBACK_SCOPE ? {observedPagesDigest:invocationInput.definition.observedPagesDigest} : {}),
@@ -306,7 +307,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
               : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
                 ? "literal source role/event/field permission shape in normalized HARNESS case type; synthetic sessions and IDAM; omitted PRL callbacks; no deployed PRL, AM/ABAC, OIDC, CSRF-enforcement or owner-acceptance credit"
               : input.ccd
-                ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; real CCD RBAC only; role removal uses renewed synthetic session, not immediate stale-session invalidation or OIDC login; ABAC/provider excluded"
+                ? "synthetic-session,IDAM-simulator,feature-flags,telemetry; source-bound synthetic case-list navigation, empty organisation lookup and empty result search; real CCD RBAC and workbasket-input readback; no deployed PRL or whole-profile credit; role removal uses renewed synthetic session, not immediate stale-session invalidation or OIDC login; ABAC/provider excluded"
                 : "synthetic-auth,refdata,task-provider,feature-flags,telemetry",
         },
       };

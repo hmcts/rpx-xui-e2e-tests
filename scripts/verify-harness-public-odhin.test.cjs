@@ -819,7 +819,7 @@ async function nativePresentationFixture(blocked = true) {
   };
 }
 
-test("same Odhín document separates eighteen native baselines and eighteen faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
+test("same Odhín document separates nineteen native baselines and nineteen faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
   sandbox(t);
   const Reporter = api();
   const reporter = new Reporter({ selection: "local-aat" });
@@ -850,8 +850,8 @@ test("same Odhín document separates eighteen native baselines and eighteen faul
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 18);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 18);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 19);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 19);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,
@@ -1095,7 +1095,7 @@ test("HTML integrity binds the full native projection and diagnostic source, not
       delete record.diagnosticSource;
     },
     (record) => {
-      record.nativeEvidence.phases[2].baselineProofs.at(-1).status = "passed";
+      record.nativeEvidence.phases[2].baselineProofs.find(proof => proof.proofId === "ccd-postal-two-roundtrip").status = "passed";
     },
     (record) => {
       record.nativeEvidence.source.harnessCommit = "f".repeat(40);

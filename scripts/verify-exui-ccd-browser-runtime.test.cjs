@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const http = require("node:http");
 
-async function withGateway(t, check, mutation = null, respond = null, transitioning = null, scope = "exui-ccd-pilot") {
+async function withGateway(t, check, mutation = null, respond = null, transitioning = null, scope = "exui-ccd-pilot", options = {}) {
   const { startCcdGateway } =
     await import("./lib/exui-ccd-browser-runtime.mjs");
   const output = fs.mkdtempSync(path.join(os.tmpdir(), "ccd-route-proof-"));
@@ -38,7 +38,7 @@ async function withGateway(t, check, mutation = null, respond = null, transition
       headers: { "content-type": "application/vnd.ccd-proof+json" },
     });
   };
-  const server = await startCcdGateway(output, credentials, mutation, scope);
+  const server = await startCcdGateway(output, credentials, mutation, scope, options);
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
     global.fetch = originalFetch;
@@ -81,6 +81,35 @@ async function withGateway(t, check, mutation = null, respond = null, transition
     });
   await check({ request, upstream, output });
 }
+
+test("workbasket navigation is derived from the imported CCD case type", async (t) => {
+  const observed = { id: "HarnessResultsPRL", name: "Harness result columns", jurisdiction: { id: "HARNESS", name: "Disposable Harness" }, states: [{ id: "Created", name: "Created" }] };
+  await withGateway(t, async ({ request, upstream }) => {
+    const response = await request("GET", "/aggregated/caseworkers/11111111-1111-4111-8111-111111111111/jurisdictions");
+    assert.equal(response.status, 200);
+    assert.deepEqual(JSON.parse(response.body), [{ id: "HARNESS", name: "Disposable Harness", caseTypes: [{ id: "HarnessResultsPRL", name: "Harness result columns", states: observed.states }] }]);
+    assert.equal(upstream.length, 1);
+    assert.equal(upstream[0].url, "http://127.0.0.1:4451/api/data/case-type/HarnessResultsPRL");
+    assert.equal((await request("GET", "/refdata/external/v1/organisations")).status, 200);
+    const search = await request("POST", "/internal/searchCases?ctid=HarnessResultsPRL&use_case=WORKBASKET&view=WORKBASKET&page=1");
+    assert.equal(search.status, 200);
+    assert.deepEqual(JSON.parse(search.body), { headers: [{ fields: [] }], total: 0, cases: [] });
+    assert.equal(upstream.length, 1);
+  }, null, (url) => new Response(JSON.stringify(observed), { status: 200, headers: { "content-type": "application/json" } }), null, "exui-ccd-pilot", { workbasket: true });
+});
+
+test("workbasket fault removes one real CCD input before the candidate consumes it", async (t) => {
+  const observed = { id: "HarnessResultsPRL", name: "Harness result columns", jurisdiction: { id: "HARNESS", name: "Disposable Harness" }, states: [{ id: "Created", name: "Created" }] };
+  const inputs = { workbasketInputs: [{ field: { id: "dfjArea" } }, { field: { id: "applicantCaseName" } }] };
+  await withGateway(t, async ({ request, upstream, output }) => {
+    const response = await request("GET", "/data/internal/case-types/HarnessResultsPRL/work-basket-inputs");
+    assert.equal(response.status, 200);
+    assert.deepEqual(JSON.parse(response.body), { workbasketInputs: [inputs.workbasketInputs[0]] });
+    assert.deepEqual(inputs.workbasketInputs.map(item => item.field.id), ["dfjArea", "applicantCaseName"]);
+    assert.equal(upstream.at(-1).url, "http://127.0.0.1:4452/internal/case-types/HarnessResultsPRL/work-basket-inputs");
+    assert.equal(JSON.parse(fs.readFileSync(`${output}/fault-actions.jsonl`, "utf8")).removedField, "applicantCaseName");
+  }, "ccd-drop-workbasket-field", (url) => new Response(JSON.stringify(url.includes("4451") ? observed : inputs), { status: 200, headers: { "content-type": "application/json" } }), null, "exui-ccd-pilot", { workbasket: true });
+});
 
 test("current rewritten CCD routes and legacy aliases preserve real upstream transport", async (t) => {
   await withGateway(t, async ({ request, upstream, output }) => {

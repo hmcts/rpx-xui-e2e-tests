@@ -1,6 +1,8 @@
 import {CALLBACK_SCOPE,CALLBACK_OBLIGATION,CALLBACK_PROOF,callbackCanonicalImport} from './exui-recipient-callback-contract.mjs';
 import {validateCallbackTransitionEvidence} from './exui-recipient-callback-transition.mjs';
 import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
+import { buildWorkbasketInputDefinition } from './exui-workbasket-input-definition.mjs';
+import { validateWorkbasketInputDescriptor } from './exui-workbasket-input-import.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -295,6 +297,35 @@ export function projectConfigurationCoverage(args) {
             status: "failed",
           });
       }
+    }
+    if (postalManifest.runtimeMetadata.workbasketImportDigest) {
+      const definition = buildWorkbasketInputDefinition();
+      const imported = readEvidenceArtifact(fs.realpathSync(path.dirname(phaseDirectory)), {
+        path: "ccd-runtime/workbasket-input-import/receipt.json",
+        digest: postalManifest.runtimeMetadata.workbasketImportDigest,
+      }).value;
+      assert.equal(imported.status, "import-and-inputs-observed", "COVERAGE_WORKBASKET_IMPORT_REQUIRED");
+      assert.deepEqual(imported.bindings, definition.workbasketInputBindings, "COVERAGE_WORKBASKET_BINDINGS_DRIFT");
+      assert.deepEqual(imported.binding.source, definition.workbasketInputSource, "COVERAGE_WORKBASKET_SOURCE_DRIFT");
+      assert.equal(imported.binding.workbookDigest, postalManifest.identity.definitionDigests.HarnessResultsPRL, "COVERAGE_WORKBASKET_DEFINITION_DRIFT");
+      for (const [service, dependency] of [["data", "ccd"], ["definition", "ccd-definition"]])
+        assert.equal(imported.images[service].id, postalManifest.identity.dependencyIdentities[dependency].artifactDigest,
+          "COVERAGE_WORKBASKET_IMAGE_DRIFT");
+      assert.equal(imported.observations.inputs.status, 200, "COVERAGE_WORKBASKET_READ_REQUIRED");
+      validateWorkbasketInputDescriptor(imported.observations.inputs.body, definition);
+      const proof = loaded.input.results.filter(item => item.proofId === "ccd-prl-workbasket-inputs" &&
+        item.obligationId === "ccd-prl-workbasket-source-inputs");
+      assert.equal(proof.length, 1, "COVERAGE_WORKBASKET_PROOF_REQUIRED");
+      for (const binding of definition.workbasketInputBindings) {
+        assert.equal(input.catalogue.obligations.find(item => item.id === binding.obligationId)?.requiredBoundary,
+          "candidate", "COVERAGE_WORKBASKET_SOURCE_BOUNDARY_MISMATCH");
+        if (verdict.status === "PASS" && proof[0].outcome === "passed")
+          executedProofs.push({ obligationId: binding.obligationId, boundary: "candidate", status: "passed" });
+        else unacceptedExecutionFacts.push({ obligationId: binding.obligationId, gateStatus: verdict.status,
+          proofId: proof[0].proofId, outcome: proof[0].outcome, failureId: proof[0].failureId });
+      }
+      references.push({ path: "ccd-runtime/workbasket-input-import/receipt.json",
+        digest: postalManifest.runtimeMetadata.workbasketImportDigest });
     }
     references.push(
       {

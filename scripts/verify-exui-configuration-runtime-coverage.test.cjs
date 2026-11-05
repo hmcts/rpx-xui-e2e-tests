@@ -140,6 +140,25 @@ async function completeCcdBundle(
       manifest.runtimeMetadata[key] = referenceManifest.runtimeMetadata[key];
   }
   alterManifest(manifest);
+  if (manifest.runtimeMetadata.workbasketImportDigest === "fixture") {
+    const { buildWorkbasketInputDefinition } = await import("./lib/exui-workbasket-input-definition.mjs");
+    const definition = buildWorkbasketInputDefinition();
+    const receipt = {
+      status: "import-and-inputs-observed",
+      binding: { source: definition.workbasketInputSource, workbookDigest: "sha256:" + "9".repeat(64) },
+      bindings: definition.workbasketInputBindings,
+      images: {
+        data: { id: manifest.identity.dependencyIdentities.ccd.artifactDigest },
+        definition: { id: manifest.identity.dependencyIdentities["ccd-definition"].artifactDigest },
+      },
+      observations: { inputs: { status: 200, body: JSON.parse(fs.readFileSync("scripts/fixtures/ccd/workbasket-input.observed.json")) } },
+    };
+    const bytes = JSON.stringify(receipt);
+    fs.mkdirSync(path.join(root, "ccd-runtime/workbasket-input-import"), { recursive: true });
+    fs.writeFileSync(path.join(root, "ccd-runtime/workbasket-input-import/receipt.json"), bytes);
+    manifest.runtimeMetadata.workbasketImportDigest = digestBytes(bytes);
+    manifest.identity.definitionDigests.HarnessResultsPRL = receipt.binding.workbookDigest;
+  }
   const observed = { id: "HarnessNestedPRL", version: { number: 1 } };
   const imported = {
     binding,
@@ -229,7 +248,7 @@ async function completeCcdBundle(
   for (const [i, mutation] of policy.mutationDefinitions.entries()) {
     const identity = {
       ...structuredClone(manifest.identity),
-      configurationDigest: "sha256:" + String(i + 5).repeat(64),
+      configurationDigest: "sha256:" + ((i + 5) % 16).toString(16).repeat(64),
     };
     invocation(
       mutation.mutationId,
@@ -268,7 +287,7 @@ async function completeCcdBundle(
     cleanupComplete: true,
   });
   const loaded = loadRunEvidence(path.join(directory, "run.json"), policy);
-  assert.equal(loaded.receipt.verdict.status, "PASS");
+  assert.equal(loaded.receipt.verdict.status, "PASS", JSON.stringify(loaded.receipt.verdict.reasons));
   write("gate.json", loaded.receipt);
   return {
     directory,
@@ -329,6 +348,27 @@ test("support only: finalized exact CCD sequence credits only one of112 and pres
     );
     assert.equal(saved.evidenceReferences.length, 2);
     assert.equal(saved.releaseCredit, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("accepted Work Basket proof credits ten pinned PRL shape rows and rejects receipt drift", async () => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "coverage-workbasket-"));
+  try {
+    const bundle = await completeCcdBundle(root, undefined, manifest => {
+      manifest.runtimeMetadata.workbasketImportDigest = "fixture";
+    });
+    const result = api.projectConfigurationCoverage({ phaseDirectory: bundle.directory });
+    assert.equal(result.report.coverage.candidate, 10);
+    assert.equal(result.report.coverage.ccd, 1);
+    assert.equal(result.report.executedProofs.filter(item => item.boundary === "candidate").length, 10);
+    const receipt = path.join(root, "ccd-runtime/workbasket-input-import/receipt.json");
+    const changed = JSON.parse(fs.readFileSync(receipt));
+    changed.observations.inputs.body.workbasketInputs[0].label = "wrong";
+    fs.writeFileSync(receipt, JSON.stringify(changed));
+    assert.throws(() => api.projectConfigurationCoverage({ phaseDirectory: bundle.directory }), /DIGEST|DRIFT|MISMATCH/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import assert from "node:assert/strict";
 import {
   verifyCandidateArtifact,
   digestCandidateTree,
@@ -24,6 +25,8 @@ import {
 import { CCD_HARNESS_SOURCE_FILES } from "./lib/exui-ccd-browser-runtime.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./lib/exui-ccd-event-capability.mjs";
 import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
+import { buildWorkbasketInputDefinition } from "./lib/exui-workbasket-input-definition.mjs";
+import { validateWorkbasketInputDescriptor } from "./lib/exui-workbasket-input-import.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (key) => {
   const index = process.argv.indexOf(key);
@@ -45,6 +48,7 @@ async function launch() {
       "ccd-broaden-access",
       "ccd-write-then-deny",
       "ccd-drop-postal-optional-child",
+      "ccd-drop-workbasket-field",
     ].includes(arg("--only"))
   )
     throw new Error("UNKNOWN_CCD_INVOCATION");
@@ -81,6 +85,28 @@ async function launch() {
   if ((ccd.platform ?? "linux/arm64") !== artifact.provenance.platform) throw new Error("CCD_CANDIDATE_PLATFORM_MISMATCH");
   if (releaseScopeId === CALLBACK_SCOPE) verifyNativeCallbackRuntime(ccd,"baseline");
   else verifyCcdRuntimeIdentity(ccd);
+  const workbasketReceiptFile = path.join(path.dirname(statePath), "workbasket-input-import/receipt.json");
+  const workbasket = releaseScopeId === "exui-ccd-pilot";
+  let workbasketDefinitionDigest;
+  let workbasketImportDigest;
+  if (workbasket) {
+    assert(fs.existsSync(workbasketReceiptFile), "CCD_WORKBASKET_IMPORT_REQUIRED");
+    const receipt = JSON.parse(fs.readFileSync(workbasketReceiptFile, "utf8"));
+    const definition = buildWorkbasketInputDefinition();
+    assert.equal(receipt.status, "import-and-inputs-observed", "CCD_WORKBASKET_IMPORT_REQUIRED");
+    assert.deepEqual(receipt.bindings, definition.workbasketInputBindings, "CCD_WORKBASKET_BINDINGS_REQUIRED");
+    assert.equal(receipt.binding.source.sourceDigest, definition.workbasketInputSource.sourceDigest, "CCD_WORKBASKET_SOURCE_REQUIRED");
+    workbasketDefinitionDigest = receipt.binding.workbookDigest;
+    workbasketImportDigest = digestBytes(fs.readFileSync(workbasketReceiptFile));
+    const actor = ccdCredentials(ccd, "observer");
+    const observed = ccdRequest(ccd, 4452, "/internal/case-types/HarnessResultsPRL/work-basket-inputs", {
+      headers: { ...actor.headers, experimental: "true",
+        accept: "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-workbasket-input-details.v2+json;charset=UTF-8" },
+    });
+    assert.equal(observed.status, 200, "CCD_WORKBASKET_READ_REQUIRED");
+    validateWorkbasketInputDescriptor(observed.body, definition);
+    assert.deepEqual(observed.body, receipt.observations.inputs.body, "CCD_WORKBASKET_READ_DRIFT");
+  }
   const inspection = spawnSync("docker", ["inspect", ccd.namespace], {
     encoding: "utf8",
   });
@@ -157,6 +183,9 @@ async function launch() {
     ccd,
     credentials,
     definition,
+    workbasket,
+    workbasketDefinitionDigest,
+    workbasketImportDigest,
     apiContracts,
     harnessDependencies,
     definitionImportDigest: digestBytes(fs.readFileSync(definitionFile)),

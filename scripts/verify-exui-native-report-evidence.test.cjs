@@ -400,8 +400,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 18);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 18);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 19);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 19);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -440,7 +440,7 @@ test("postal baseline failure remains BLOCKED and its wrong-assertion fault is n
   assert.equal(postal.observedFailureId, "postal-required-fields");
   assert.equal(
     ccd.faults.filter((p) => p.outcome === "expected-failure-observed").length,
-    4,
+    5,
   );
 });
 
@@ -659,8 +659,7 @@ test("raw proof boundary claims cannot relabel the source-owned obligation mappi
     ...loaded.input.results,
     ...loaded.input.mutations.map((item) => item.mutantResult),
   ]) {
-    assert.equal(proof.boundary, "ccd");
-    assert(policy.obligations.some((item) => item.id === proof.obligationId));
+    assert.equal(proof.boundary, policy.obligations.find((item) => item.id === proof.obligationId)?.boundary);
   }
   const result = await api.readNativeReportEvidence(f.descriptorPath);
   assert.equal(result.status, "PASS");

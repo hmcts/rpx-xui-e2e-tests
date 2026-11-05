@@ -75,6 +75,7 @@ const slices = {
       "ccd-broaden-access",
       "ccd-write-then-deny",
       "ccd-drop-postal-optional-child",
+      "ccd-drop-workbasket-field",
     ].map((mutation) => ({
       invocationId: mutation,
       kind: "mutation",
@@ -136,6 +137,8 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   config.now = false;
+  if (input.releaseScopeId === "exui-ccd-pilot" && input.workbasket)
+    config.jurisdictions = `${config.jurisdictions},HARNESS`;
   return {
     config,
     identity: {
@@ -147,7 +150,8 @@ export function nativeIdentity(input, invocation, candidateRoot) {
           mutation: [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
         }),
       ),
-      definitionDigests: { HarnessNestedPRL: input.definition.fixtureDigest },
+      definitionDigests: { HarnessNestedPRL: input.definition.fixtureDigest,
+        ...(input.workbasket ? { HarnessResultsPRL: input.workbasketDefinitionDigest } : {}) },
       dependencyIdentities: Object.fromEntries(
         ["data", "definition"].map((service) => [
           service === "data" ? "ccd" : "ccd-definition",

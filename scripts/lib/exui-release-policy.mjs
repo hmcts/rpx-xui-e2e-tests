@@ -115,12 +115,13 @@ export function getReleasePolicy(scope) {
       expectedFailureId: 'organisation-scope', baselineProofId: 'wa-org-scope-ia', mutantProofId: 'wa-scope-broadened' }]
   } : {
     releaseScopeId: scope,
-    requiredObligationIds: ['ccd-nested-preservation', 'ccd-access-integrity', 'ccd-role-revocation', postalSequenceId],
+    requiredObligationIds: ['ccd-nested-preservation', 'ccd-access-integrity', 'ccd-role-revocation', postalSequenceId, 'ccd-prl-workbasket-source-inputs'],
     obligations: [
       { id: 'ccd-nested-preservation', boundary: 'ccd', requiredProofIds: ['ccd-nested-roundtrip'], requiredMutationIds: ['ccd-drop-child'] },
       { id: 'ccd-role-revocation', boundary: 'ccd', requiredProofIds: ['ccd-role-revocation'], requiredMutationIds: ['ccd-stale-revoked-bearer'] },
       { id: 'ccd-access-integrity', boundary: 'ccd', requiredProofIds: ['ccd-role-policy'], requiredMutationIds: ['ccd-broaden-access', 'ccd-write-then-deny'] },
-      { id: postalSequenceId, boundary: 'ccd', requiredProofIds: ['ccd-postal-two-roundtrip'], requiredMutationIds: ['ccd-drop-postal-optional-child'] }
+      { id: postalSequenceId, boundary: 'ccd', requiredProofIds: ['ccd-postal-two-roundtrip'], requiredMutationIds: ['ccd-drop-postal-optional-child'] },
+      { id: 'ccd-prl-workbasket-source-inputs', boundary: 'candidate', requiredProofIds: ['ccd-prl-workbasket-inputs'], requiredMutationIds: ['ccd-drop-workbasket-field'] }
     ],
     mutationDefinitions: [
       { mutationId: 'ccd-drop-child', obligationId: 'ccd-nested-preservation',
@@ -135,6 +136,9 @@ export function getReleasePolicy(scope) {
       { mutationId: 'ccd-write-then-deny', obligationId: 'ccd-access-integrity',
         definitionDigest: digest({ boundary: 'ccd', transformation: 'persist-protected-field-change-before-denied-response' }),
         expectedFailureId: 'denied-state-integrity', baselineProofId: 'ccd-role-policy', mutantProofId: 'ccd-write-then-deny' },
+      { mutationId: 'ccd-drop-workbasket-field', obligationId: 'ccd-prl-workbasket-source-inputs',
+        definitionDigest: digest({ boundary: 'candidate', transformation: 'remove-only-applicantCaseName-from-real-CCD-workbasket-response' }),
+        expectedFailureId: 'workbasket-source-field', baselineProofId: 'ccd-prl-workbasket-inputs', mutantProofId: 'ccd-prl-workbasket-inputs-fault' },
       { mutationId: 'ccd-drop-postal-optional-child', obligationId: postalSequenceId,
         definitionDigest: digest({ boundary: 'ccd', transformation: 'drop-second-postal-recipient-optional-address-line2-on-submit' }),
         expectedFailureId: 'postal-persistence', baselineProofId: 'ccd-postal-two-roundtrip', mutantProofId: 'ccd-postal-child-loss' }

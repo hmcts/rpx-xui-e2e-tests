@@ -459,7 +459,7 @@ test("curated CCD collection includes the new baseline and selects exactly one r
     return specs;
   }
   const baseline = collect();
-  assert.equal(baseline.length, 4);
+  assert.equal(baseline.length, 5);
   assert.ok(
     baseline.some((spec) => spec.file.endsWith("case-event-policy.spec.ts")),
   );
