@@ -155,7 +155,7 @@ test('AMD64 provisioning pulls immutable images and removes temporary registry c
       }
       assert.fail('unexpected provisioning command');
     };
-    if(fail)assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}),/pull failed/);
+    if(fail)assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}),/NATIVE_DATA_PINNED_IMAGE_PULL_FAILED_UNKNOWN/);
     else provisionNativeImages('linux/amd64',{runCommand});
     assert(authDirectory);
     assert.equal(fs.existsSync(authDirectory),false);
@@ -164,6 +164,18 @@ test('AMD64 provisioning pulls immutable images and removes temporary registry c
     assert(az.args.includes('--expose-token'));
     assert(!calls.some(call=>call.command==='az'&&call.args[0]==='login'));
   }
+});
+
+test('pin pull diagnostics expose only a fixed cause, never registry output', async () => {
+  const { classifyPinPullFailure } = await load();
+  for (const [message, expected] of [
+    ['toomanyrequests: token=private', 'RATE_LIMIT'],
+    ['unauthorized: token=private', 'ACCESS_DENIED'],
+    ['manifest unknown: token=private', 'MANIFEST_UNAVAILABLE'],
+    ['context deadline exceeded: token=private', 'TIMEOUT'],
+    ['TLS connection failed: token=private', 'NETWORK'],
+    ['token=private', 'UNKNOWN'],
+  ]) assert.equal(classifyPinPullFailure(message), expected);
 });
 
 test('browser cache copy uses controller identity without preserving image ownership or widening its private root',async t=>{

@@ -53,6 +53,15 @@ function safeEnvironment(extra = {}) {
   return { ...environment, CI: "true", ...extra };
 }
 
+export function classifyPinPullFailure(output, errorCode) {
+  if (/toomanyrequests|rate limit|\b429\b/i.test(output)) return "RATE_LIMIT";
+  if (/unauthorized|authentication required|access denied|forbidden|\b40[13]\b/i.test(output)) return "ACCESS_DENIED";
+  if (/manifest unknown|manifest.*not found|\b404\b/i.test(output)) return "MANIFEST_UNAVAILABLE";
+  if (/timed? out|deadline exceeded/i.test(output) || errorCode === "ETIMEDOUT") return "TIMEOUT";
+  if (/connection|network|tls|certificate|resolve|no such host/i.test(output)) return "NETWORK";
+  return "UNKNOWN";
+}
+
 function run(command, args, { cwd = ROOT, env = safeEnvironment(), ...options } = {}) {
   const result = spawnSync(command, args, {
     cwd,
@@ -62,7 +71,9 @@ function run(command, args, { cwd = ROOT, env = safeEnvironment(), ...options } 
     ...options,
   });
   if (result.error || result.status !== 0) {
-    const code = command === "az" ? "NATIVE_REGISTRY_ACCESS_UNAVAILABLE" : command === "docker" && args[0] === "pull" ? "NATIVE_PINNED_IMAGE_PULL_FAILED" : command === "docker" && args[0] === "login" ? "NATIVE_REGISTRY_LOGIN_FAILED" : "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED";
+    const output = `${result.stderr ?? ""}\n${result.stdout ?? ""}`;
+    const pullCause = classifyPinPullFailure(output, result.error?.code);
+    const code = command === "az" ? "NATIVE_REGISTRY_ACCESS_UNAVAILABLE" : command === "docker" && args[0] === "pull" ? `NATIVE_PINNED_IMAGE_PULL_FAILED_${pullCause}` : command === "docker" && args[0] === "login" ? "NATIVE_REGISTRY_LOGIN_FAILED" : "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED";
     throw new Error(code);
   }
   return result.stdout?.trim() ?? "";
@@ -71,11 +82,13 @@ function run(command, args, { cwd = ROOT, env = safeEnvironment(), ...options } 
 export function provisionNativeImages(platform, { runCommand = run } = {}) {
   const native = nativeRuntimeImages(platform);
   const targets = [
-    ...Object.values(native).map((pin) => ({
+    ...Object.entries(native).map(([name, pin]) => ({
+      name: name.toUpperCase(),
       ...pin,
       verify: (info) => assertNativeRuntimeImage(info, pin, platform),
     })),
-    ...Object.values(ccdImagePins(platform)).map((pin) => ({
+    ...Object.entries(ccdImagePins(platform)).map(([name, pin]) => ({
+      name: name.toUpperCase(),
       ...pin,
       verify: (info) => assertCcdImageIdentity(info, pin, platform),
     })),
@@ -183,13 +196,16 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
           },
         );
       }
-      runCommand("docker", ["pull", "--platform", platform, pin.reference], {
-        env: safeEnvironment(
-          registryDirectory ? { DOCKER_CONFIG: registryDirectory } : {},
-        ),
-        stdio: "ignore",
-        timeout: 900_000,
-      });
+      try {
+        runCommand("docker", ["pull", "--platform", platform, pin.reference], {
+          env: safeEnvironment(
+            registryDirectory ? { DOCKER_CONFIG: registryDirectory } : {},
+          ),
+          timeout: 900_000,
+        });
+      } catch (error) {
+        throw new Error(`NATIVE_${pin.name}_${controlledFailureCode(error.message, "PINNED_IMAGE_PULL_FAILED_UNKNOWN")}`);
+      }
       const inspected = JSON.parse(
         runCommand("docker", ["image", "inspect", pin.reference]),
       );
