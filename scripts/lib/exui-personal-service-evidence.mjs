@@ -32,7 +32,11 @@ export function validatePersonalServiceObservation(observed,journal,actorId,vari
  assert.equal(f.after.history.length,f.before.history.length+1,'PERSONAL_SERVICE_HISTORY_COUNT');assert.deepEqual(f.after.history.filter(old),f.before.history,'PERSONAL_SERVICE_PRIOR_HISTORY');
  const added=f.after.history.filter(h=>!old(h));assert.equal(added.length,1,'PERSONAL_SERVICE_NEW_EVENT');
  for(const [key,want] of Object.entries({id:'serviceOfDocuments',case_type_id:'HarnessNestedPRL',state_id:'JUDICIAL_REVIEW',user_id:actorId}))assert.equal(added[0][key],want,'PERSONAL_SERVICE_HISTORY_ACTOR');
- assert.deepEqual(f.submission,{method:'POST',path:`/data/cases/${f.caseId}/events`,status:201,eventId:'serviceOfDocuments',data:expected},'PERSONAL_SERVICE_SUBMISSION');
+ // Pinned FieldsPurger removes the hidden, non-retained recipient collection
+ // from this form's transport. CCD retains its existing empty collection; the
+ // full persisted-state oracle above remains separate and exact.
+ const submitted={protectedValue:'personal-service-filled-control',sodAdditionalRecipients:[],sodServeToRespondentOptions:'No'};
+ assert.deepEqual(f.submission,{method:'POST',path:`/data/cases/${f.caseId}/events`,status:201,eventId:'serviceOfDocuments',data:submitted},'PERSONAL_SERVICE_SUBMISSION');
  assert(Array.isArray(journal),'PERSONAL_SERVICE_JOURNAL');
  const triggers=journal.filter(r=>r.method==='GET'&&/^\/data\/internal\/cases\/\d{16}\/event-triggers\/serviceOfDocuments$/.test(r.path));
  assert.deepEqual(triggers.map(r=>[r.path,r.status,r.actorId]),[f.caseId,e.caseId].map(id=>[`/data/internal/cases/${id}/event-triggers/serviceOfDocuments`,200,actorId]),'PERSONAL_SERVICE_TRIGGER_ORDER');
