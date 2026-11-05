@@ -2,6 +2,16 @@
 
 Full EXUI release approval remains unavailable. Supporting checks and a passing bounded pilot cannot substitute for the source/runtime/owner obligations below.
 
+## Latest local native run (PR #271)
+
+The native candidate job at `dab05c2397b5a032388a268b2b3dcc559eb79964` passed with a validated receipt and **34 of 112** catalogue obligations accepted: 17 candidate obligations and 17 CCD obligations, leaving 78 awaiting evidence. This packet includes the source-bound `postalInformation.postalName` rendering and persistence proof and its detected label fault. Its public summary reports `releaseApproval: false`; Jenkins acceptance for this revision is not yet verified. The local packet alone does not demonstrate an increase over the 34 previously reported for PR #270 below. Counts must be compared using the validated packets, rather than inferred from the number of added tests.
+
+## Previous bounded run (PR #270)
+
+The exact-head `8915171cd9cfdeb25b07d75ee73da15244650fc2` native and AAT local run accepted runtime evidence for **34 of 112** source-catalogue obligations. Its 121 diagnostics passed, and its separate native record contains 20 baseline and 20 deliberate-fault outcomes. The native run plus evidence preparation took 34m55s locally; the diagnostic Playwright collection took 22.8s. Jenkins PR #270 build #7 passed at that head. These are distinct measures and neither one is a full-release approval.
+
+The remaining **78 catalogue obligations** still need exact candidate or CCD evidence. The checked-in deployment-profile/key gaps and unreviewed preview-family cells also remain outside the 112-object catalogue. Earlier receipts below explain individual proof history; they must not be read as the current run's combined result. The current Odhín dashboard and public summary are the run-specific source of accepted counts.
+
 ## Follow-up after PR #254
 
 PR #254 established the Harness foundation. This follow-up changes the single Odhín diagnostic report to map 121 checks to four evidence lanes and 18 slices, including exact test behaviours, jurisdictions and case types. A fresh local collection passed 116 support/model checks and all five AAT GET probes. The AAT oracle uses the pinned deployment declaration's exact eight Global Search, eight WA and twelve staff families; the previous default-profile mismatch remains preserved in its original failed evidence. AAT agreement does not identify the deployed build.

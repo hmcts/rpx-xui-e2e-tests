@@ -203,7 +203,7 @@ test('native completion exposes assertion codes while withholding multiline priv
  fs.writeFileSync(path.join(root,'private/orchestration-error.json'),JSON.stringify({message:'CI_CLEAN_HARNESS_REQUIRED\n+ PRIVATE-CANARY credentials\n- expected'}));
  const messages=[];t.mock.method(console,'log',message=>messages.push(message));
  logNativeCompletion(root);
- assert.equal(messages.length,1);assert.match(messages[0],/stop reason CI_CLEAN_HARNESS_REQUIRED/);
+ assert.equal(messages.length,1);assert.match(messages[0],/CI_CLEAN_HARNESS_REQUIRED/);
  assert.doesNotMatch(messages[0],/PRIVATE-CANARY|credentials|expected/);
 });
 
@@ -223,4 +223,34 @@ test('shared Jenkins generated files do not dirty source while tracked code and 
  fs.mkdirSync(path.join(root,'scripts'));fs.writeFileSync(path.join(root,'scripts/transform-v4-to-v3-audit.cjs'),'new code');
  const status=git(['status','--porcelain']);
  assert.match(status,/ M source\.mjs/);assert.match(status,/ M yarn-audit-known-issues/);assert.match(status,/\?\? scripts\//);
+});
+
+test('native diagnostics preserve known failures and owned source lines without publishing private error data', async () => {
+ const {classifyNativeFailure,nativePhaseFailure,formatNativeFailure,readChildFailure,nativeFailurePrefix}=await import('./lib/exui-native-failure-diagnostics.mjs');
+ for (const value of [null, undefined, 42, 'PRIVATE-CANARY']) { assert.deepEqual(classifyNativeFailure(value), {reason:'NATIVE_OPERATION_FAILED'}); assert.doesNotMatch(formatNativeFailure(value), /PRIVATE-CANARY/); }
+ const secret='PRIVATE-CANARY credentials /private/secret';
+ for(const code of ['ENOENT','ETIMEDOUT','ENOBUFS','ERR_ASSERTION']){
+  const error=Object.assign(new Error(secret),{code,stack:`Error: ${secret}\n    at run (file://${path.resolve('scripts/run-harness-ci.mjs')}:123:4)\n    at ${secret}`});
+  const classified=classifyNativeFailure(error);
+  assert.deepEqual(classified,{reason:'NATIVE_OPERATION_FAILED',code,source:'run-harness-ci.mjs',line:123});
+  const child=readChildFailure(`${secret}\n${nativeFailurePrefix}${JSON.stringify({reason:'EVENT_TRANSITION_ACK_TIMEOUT',message:secret})}\n`);
+  const diagnostic=nativePhaseFailure(error,'eventCapability',{code:2,signal:null},{run:false,gate:false,baselineReport:true},child);
+  const output=formatNativeFailure(diagnostic);
+  assert.match(output,/EVENT_TRANSITION_ACK_TIMEOUT/);assert.match(output,/"baselineReport":true/);assert.match(output,/"code":2/);
+  assert.doesNotMatch(output,/PRIVATE-CANARY|credentials|\/private|message|stack/);
+ }
+ assert.deepEqual(classifyNativeFailure({message:'PRIVATE_UPPERCASE_CANARY',code:'PRIVATE_CODE',stack:'Error\n at /foreign/exui-native-host.mjs:25:1'}),{reason:'NATIVE_OPERATION_FAILED'});
+ assert.match(formatNativeFailure(nativePhaseFailure(new Error('CI_EVENT_TRANSITION_CANCELLED'), 'eventCapability', {code:2,signal:null}, {}, {reason:'EVENT_TRANSITION_ACK_TIMEOUT'})), /CI_EVENT_TRANSITION_CANCELLED.*EVENT_TRANSITION_ACK_TIMEOUT/);
+ const forged=formatNativeFailure({reason:'PRIVATE_UPPERCASE_CANARY',code:'PRIVATE_CODE',source:'PRIVATE_SOURCE',line:1,phase:'PRIVATE_PHASE',terminal:{code:'PRIVATE_CODE',signal:'PRIVATE_SIGNAL'},artifacts:{run:'PRIVATE_PATH'},child:{reason:'PRIVATE_CHILD'}});
+ assert.doesNotMatch(forged,/PRIVATE_/);
+});
+
+test('native completion publishes sanitized child failure with phase terminal and required artifact presence',async t=>{
+ const {logNativeCompletion}=await load();
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'native-child-code-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ fs.mkdirSync(path.join(root,'private'));
+ fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'BLOCKED',phaseResults:[{phase:'family',status:'PASS'},{phase:'recipientCallback',status:'PASS'}],cleanupComplete:true}));
+ fs.writeFileSync(path.join(root,'private/orchestration-error.json'),JSON.stringify({message:'PRIVATE-CANARY',diagnostic:{reason:'NATIVE_OPERATION_FAILED',code:'ENOENT',phase:'eventCapability',terminal:{code:2,signal:null},artifacts:{run:false,gate:false,baselineReport:true},child:{reason:'EVENT_TRANSITION_ACK_TIMEOUT',message:'PRIVATE-CANARY'}}}));
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);
+ assert.equal(messages.length,1);assert.match(messages[0],/EVENT_TRANSITION_ACK_TIMEOUT/);assert.match(messages[0],/eventCapability/);assert.match(messages[0],/recipientCallback PASS/);assert.match(messages[0],/"code":2/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|NATIVE_PREFLIGHT_FAILED/);
 });

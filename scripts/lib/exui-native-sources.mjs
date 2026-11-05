@@ -56,6 +56,8 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-postal-recipient-name-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-postal-recipient-name-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.xlsx",
 
@@ -107,6 +109,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-global-search-provider.mjs",
   "scripts/lib/exui-routing-provider.mjs",
   "scripts/lib/exui-native-host.mjs",
+  "scripts/lib/exui-native-failure-diagnostics.mjs",
   "scripts/lib/exui-native-containers.mjs",
   "scripts/lib/exui-host-invocation.mjs",
   "scripts/lib/exui-output-boundary.mjs",

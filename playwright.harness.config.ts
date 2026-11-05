@@ -45,7 +45,7 @@ if (
 if (
   eventCapabilityScope &&
   process.env.EXUI_HARNESS_MUTATION &&
-  !["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-optional-postal-line-two"].includes(process.env.EXUI_HARNESS_MUTATION)
+  !["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-postal-recipient-name", "ccd-shape-optional-postal-line-two"].includes(process.env.EXUI_HARNESS_MUTATION)
 )
   throw new Error("CCD_EVENT_CAPABILITY_MUTATION_REQUIRED");
 const callbackScope = candidateManifest?.releaseScopeId === "exui-ccd-recipient-callback-pilot";
@@ -61,7 +61,7 @@ const ccdFiles = callbackScope ? ["recipient-callback"] : eventCapabilityScope
         ? ["readonly-update"]
         : process.env.EXUI_HARNESS_MUTATION === "ccd-remove-courtadmin-event-create"
           ? ["courtadmin-cell"]
-          : ["ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-optional-postal-line-two"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")
+          : ["ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-postal-recipient-name", "ccd-shape-optional-postal-line-two"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")
             ? ["source-shapes"]
             : ["courtadmin-cell", "courtadmin-read", "event-capability", "readonly-update", "source-shapes"]
   : process.env.EXUI_HARNESS_MUTATION === "ccd-drop-workbasket-field" ? ["workbasket-inputs"] : [

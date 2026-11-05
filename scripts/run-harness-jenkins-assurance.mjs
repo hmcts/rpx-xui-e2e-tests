@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { classifyNativeFailure, formatNativeFailure } from "./lib/exui-native-failure-diagnostics.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -444,7 +445,7 @@ export function logNativeCompletion(output) {
     const result = JSON.parse(
       fs.readFileSync(path.join(output, "private/ci-result.json"), "utf8"),
     );
-    const allowed = new Set(["family", "scope", "ccd", "eventCapability", "routing"]);
+    const allowed = new Set(["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback"]);
     assert(
       ["PASS", "FAIL", "BLOCKED"].includes(result.status) &&
         Array.isArray(result.phaseResults) &&
@@ -461,7 +462,7 @@ export function logNativeCompletion(output) {
       const failure = JSON.parse(
         fs.readFileSync(path.join(output, "private/orchestration-error.json"), "utf8"),
       );
-      stopReason = `; stop reason ${controlledFailureCode(failure.message, "NATIVE_PREFLIGHT_FAILED")}`;
+      stopReason = `; stop reason ${formatNativeFailure(failure.diagnostic ?? classifyNativeFailure(failure))}`;
     } catch {
       // No orchestration failure was recorded.
     }

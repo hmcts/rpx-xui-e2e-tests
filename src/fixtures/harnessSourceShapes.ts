@@ -6,7 +6,7 @@ import {
   saveCcdEventObservation, ccdEventPersonas, eventProofInputs, EVENT_SCOPE,
 } from './harnessCcdEvent';
 
-export const shapes = ['case-field-recipient-selector', 'required-delivery-radio', 'conditional-email-complex', 'optional-postal-line-two'] as const;
+export const shapes = ['case-field-recipient-selector', 'required-delivery-radio', 'conditional-email-complex', 'postal-recipient-name', 'optional-postal-line-two'] as const;
 const mutation = process.env.EXUI_HARNESS_MUTATION;
 const control = 'synthetic-source-shape-control';
 const emailName = 'Synthetic shape recipient';
@@ -92,6 +92,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     const post = page.getByLabel('Post',{exact:true});
     const name = page.locator('input[id$="_emailName"]');
     const address = page.locator('input[id$="_emailAddress"]');
+    const postalName = page.locator('input[id$="_postalName"]');
     const line2 = page.locator('input[id$="AddressLine2"]');
     const continueButton = page.getByRole('button',{name:'Continue',exact:true});
     const cya = page.getByText('Check your answers',{exact:false});
@@ -156,6 +157,12 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
         contractSatisfied = true;
         expectedChannel = 'email';
       }
+    } else if (shape === 'postal-recipient-name') {
+      await email.check();
+      await assertSourceShapeHiddenControls(postalName);
+      await post.check();
+      await expect(postalName).toBeVisible();
+      expectedChannel = 'post';
     } else {
       await email.check();
       await assertSourceShapeHiddenControls(line2);
@@ -164,7 +171,11 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     }
     if (expectedChannel === 'post') {
       await page.getByRole('link',{name:"I can't enter a UK postcode",exact:true}).last().click();
-      await page.locator('input[id$="_postalName"]').fill(emailName);
+      if (shape === 'postal-recipient-name') {
+        await expect(postalName).toHaveAccessibleName(mutation ? /^Harness changed postal recipient name/ : /^Name/);
+        contractSatisfied = !mutation;
+      }
+      await postalName.fill(emailName);
       await page.locator('input[id$="AddressLine1"]').fill('Synthetic shape street');
       await page.locator('input[id$="PostCode"]').fill('SW1A 1AA');
       await fillSourceShapePostalSiblings(page);

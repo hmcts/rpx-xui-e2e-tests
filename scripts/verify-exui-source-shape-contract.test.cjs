@@ -59,9 +59,10 @@ test('accepted complete evidence credits only the exact source shapes in additio
     ['configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f',
       'configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49',
       'configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e',
+      'configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894',
       'configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757']);
 });
-for (const name of ['case-field-recipient-selector','required-delivery-radio','conditional-email-complex','optional-postal-line-two'])
+for (const name of ['case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two'])
   test(`wrong effective fault oracle for ${name} cannot credit source shapes`,async t=>{
     const {createEventTransitionFixture}=require('./fixtures/exui-event-transition-evidence.mock.cjs');
     const {projectConfigurationCoverage}=await import('./lib/exui-configuration-runtime-coverage.mjs');
@@ -86,21 +87,21 @@ with zipfile.ZipFile(sys.argv[1]) as z:
  selected=[]
  for row in rows[3:]:
   mapped={headers[k]:v for k,v in cells(row).items()}
-  if mapped['CaseEventID'][1]=='serviceOfDocuments' and mapped['CaseFieldID'][1]=='sodAdditionalRecipientsList' and mapped['ListElementCode'][1] in ['serveByPostOrEmail','emailInformation','postalInformation.postalAddress.AddressLine2']:
+  if mapped['CaseEventID'][1]=='serviceOfDocuments' and mapped['CaseFieldID'][1]=='sodAdditionalRecipientsList' and mapped['ListElementCode'][1] in ['serveByPostOrEmail','emailInformation','postalInformation.postalName','postalInformation.postalAddress.AddressLine2']:
    c,value=mapped['LiveFrom']; selected.append([mapped['ListElementCode'][1],c.attrib.get('t'),c.attrib.get('s'),int(value)])
  print(json.dumps(selected))
 `,path.join(__dirname,'fixtures/ccd/event-capability/baseline.xlsx')],{encoding:'utf8',timeout:10000});
   assert.equal(result.status,0,result.stderr);
   assert.deepEqual(JSON.parse(result.stdout),[
-    ['serveByPostOrEmail','n','1',45536],['emailInformation','n','1',45536],['postalInformation.postalAddress.AddressLine2','n','1',45536],
+    ['serveByPostOrEmail','n','1',45536],['emailInformation','n','1',45536],['postalInformation.postalName','n','1',45536],['postalInformation.postalAddress.AddressLine2','n','1',45536],
   ]);
 });
 
-const storedDateRows=()=>['emailInformation','postalInformation.postalAddress.AddressLine2','serveByPostOrEmail'].map(reference=>({case_type:'HarnessNestedPRL',version:7,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'}));
+const storedDateRows=()=>['emailInformation','postalInformation.postalAddress.AddressLine2','postalInformation.postalName','serveByPostOrEmail'].map(reference=>({case_type:'HarnessNestedPRL',version:7,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'}));
 test('stored shape dates bind exact typed rows, source identities, version and owned namespace',async()=>{
  const {sourceShapeDateRecord,assertStoredSourceShapeDates}=await import('./lib/exui-source-shape-dates.mjs');
  const state={owner:'harness-synthetic',namespace:'a'.repeat(64)},record=sourceShapeDateRecord(storedDateRows(),state,7);
- assert.equal(record.activationClaim,false);assert.equal(record.sourceRows.length,3);assertStoredSourceShapeDates(record,state,7);
+ assert.equal(record.activationClaim,false);assert.equal(record.sourceRows.length,4);assertStoredSourceShapeDates(record,state,7);
  assert.throws(()=>assertStoredSourceShapeDates(undefined,state,7),/SHAPE_STORED_DATES_REQUIRED/);
  for(const alter of [r=>r.rows.pop(),r=>r.rows.push(r.rows[0]),r=>r.rows[0].live_from='2024-01-09',r=>r.rows[0].sql_type='text',r=>r.rows[0].version=8,r=>r.rows[0].event='create',r=>r.rows[0].field='other',r=>r.rows[0].reference='anotherReference',r=>r.rows[0].case_type='PRLAPPS',r=>r.namespace='b'.repeat(64),r=>r.owner='different',r=>r.definitionVersion=8,r=>r.sourceRows[0].rowDigest='sha256:'+'0'.repeat(64),r=>r.sourceRevision='other',r=>r.sourceProjectionDigest='sha256:'+'0'.repeat(64),r=>r.sourcePath='other',r=>r.activationClaim=true]){
   const changed=structuredClone(record);alter(changed);assert.throws(()=>assertStoredSourceShapeDates(changed,state,7),/SHAPE_STORED_DATE/);
