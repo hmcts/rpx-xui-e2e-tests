@@ -18,6 +18,18 @@
 .report-coverage-map strong { font-size: 21px; color: var(--report-accent); }
 .report-coverage-map span, .report-metrics-note { font-size: 13px; color: var(--report-muted); }
 .report-metrics-note { margin: 0; }
+#harness-phase-timings { margin: 0 0 20px; padding: 18px 22px; border: 1px solid var(--report-line); border-radius: 16px; background: var(--report-surface); }
+#harness-phase-timings .harness-phase-heading { display: flex; justify-content: space-between; gap: 20px; align-items: start; }
+#harness-phase-timings h2 { margin: 0 0 4px; font-size: 20px; }
+#harness-phase-timings p { margin: 0 0 14px; color: var(--report-muted); font-size: 13px; }
+#harness-phase-timings .harness-phase-heading > strong { white-space: nowrap; color: var(--report-accent); }
+#harness-phase-timings .table { font-size: 13px; margin: 0; --bs-table-bg: transparent; }
+#harness-phase-timings .table th, #harness-phase-timings .table td { padding: 7px 10px; border-color: var(--report-line); vertical-align: middle; }
+#harness-phase-timings .table thead th { color: var(--report-muted); background: var(--report-soft); }
+#harness-phase-timings .table td:last-child { font-weight: 700; white-space: nowrap; }
+#harness-phase-timings .harness-phase-status { color: var(--odhin-passed-status-color); font-weight: 700; }
+#harness-phase-timings .harness-phase-status:is([data-status="FAIL"], [data-status="BLOCKED"], [data-status="stopped"]) { color: var(--odhin-failed-status-color); }
+@media (max-width: 700px) { #harness-phase-timings .harness-phase-heading { display: block; } }
 #body-content .testcase-run-info-table td { font-style: normal !important; }
 #body-content .testcase-run-info-table th { color: var(--report-muted); font-style: normal !important; width: 38%; }
 @media (max-width: 900px) { .report-coverage-map { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

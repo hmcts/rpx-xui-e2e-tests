@@ -228,7 +228,7 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, nativeElapsedMs } = {},
+  { profile = "harness", nativeEvidencePath, nativeElapsedMs, phaseTimings } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
   const root = process.cwd();
@@ -237,7 +237,7 @@ async function runHarnessCollection(
     "functional-output/tests/harness/private",
   );
   const diagnosticSource = Reporter.captureDiagnosticSource();
-  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs });
+  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
   if (nativeEvidencePath !== undefined)

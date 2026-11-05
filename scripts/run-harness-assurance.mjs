@@ -27,7 +27,7 @@ function read(file) {
   return { value: JSON.parse(bytes), digest: digestBytes(bytes) };
 }
 export async function runAssuranceSequence({ native, descriptor, collect }) {
-  const nativeStartedAt = Date.now();
+  const nativeStartedAt = performance.now();
   const verdict = await native();
   assert(
     ["PASS", "FAIL", "BLOCKED"].includes(verdict.status) &&
@@ -40,7 +40,10 @@ export async function runAssuranceSequence({ native, descriptor, collect }) {
   } catch (error) {
     if (verdict.status === "PASS") throw error;
   }
-  const diagnostics = await collect(nativeEvidencePath, nativeEvidencePath ? { nativeElapsedMs: Date.now() - nativeStartedAt } : {});
+  const diagnostics = await collect(nativeEvidencePath, nativeEvidencePath ? {
+    nativeElapsedMs: Math.round(performance.now() - nativeStartedAt),
+    ...(verdict.phaseTimings ? { phaseTimings: verdict.phaseTimings } : {}),
+  } : {});
   assert(
     ["passed", "failed"].includes(diagnostics.status) &&
       [0, 1, 2].includes(diagnostics.exitCode) &&

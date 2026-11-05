@@ -10,6 +10,8 @@ const { parse } = require("node-html-parser");
 const { applyPresentation } = require("./odhin-presentation/enhance.cjs");
 
 const statuses = ["passed", "failed", "skipped", "timedOut"];
+const nativePhaseLabels = ["WA family", "Scope fault candidate preparation", "WA organisation scope", "CCD runtime startup", "CCD configuration and access", "CCD runtime cleanup", "Source event CCD runtime startup", "CCD source event permissions", "Source event CCD runtime cleanup", "Application routing", "Recipient callback CCD runtime startup", "Recipient callback validation and persistence", "Recipient callback CCD runtime cleanup"];
+const proofPhases = new Map([["WA family", "family"], ["WA organisation scope", "scope"], ["CCD configuration and access", "ccd"], ["CCD source event permissions", "eventCapability"], ["Application routing", "routing"], ["Recipient callback validation and persistence", "recipientCallback"]]);
 // Pinned odhin-reports-playwright 1.1.8 has callback loading, with no readiness promise.
 const templateFields = [
   "base",
@@ -56,6 +58,26 @@ const htmlEscape = (text) =>
   );
 const key = (entry) => JSON.stringify([entry.file, entry.titlePath]);
 const failure = () => new Error("PUBLIC_ODHIN_INVALID_OR_INCOMPLETE");
+function validatePhaseTimings(timings, evidence, elapsed) {
+  if (!Array.isArray(timings) || !timings.length || !evidence || !Number.isSafeInteger(elapsed)) throw failure();
+  let prior = -1;
+  let total = 0;
+  for (const item of timings) {
+    const index = nativePhaseLabels.indexOf(item.label);
+    if (index <= prior || !["PASS", "FAIL", "BLOCKED", "completed", "stopped"].includes(item.status) ||
+      !Number.isSafeInteger(item.durationMs) || item.durationMs < 0 || item.durationMs > 7_200_000 ||
+      typeof item.startedAt !== "string" || new Date(item.startedAt).toISOString() !== item.startedAt) throw failure();
+    const phase = evidence.phases.find((row) => row.phase === proofPhases.get(item.label));
+    if (phase && item.status !== phase.status) throw failure();
+    prior = index;
+    total += item.durationMs;
+  }
+  if (total > elapsed + 1000 || (evidence.status === "PASS" && timings.length !== nativePhaseLabels.length)) throw failure();
+}
+function renderPhaseTimings(timings, elapsed) {
+  const duration = (ms) => `${Math.floor(ms / 60000)}m ${Math.floor(ms % 60000 / 1000)}s`;
+  return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Controller-observed local timings, in execution order. These are timing telemetry, not additional catalogue credit. Diagnostic Playwright time and Jenkins checkout/build time are separate.</p></div><strong>${duration(elapsed)} native run and evidence preparation</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr><th scope="row">${htmlEscape(item.label)}</th><td>${proofPhases.has(item.label) ? 'Proof' : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div></section>`;
+}
 
 function paths(selection) {
   if (!Object.hasOwn(fixture.selections, selection)) throw failure();
@@ -116,6 +138,10 @@ function inventory(p) {
 }
 function validateHtml(html, record) {
   if (record.nativeElapsedMs !== undefined && (!Number.isSafeInteger(record.nativeElapsedMs) || record.nativeElapsedMs < 0 || !html.includes(`data-native-elapsed-ms="${record.nativeElapsedMs}"`))) throw failure();
+  if (record.phaseTimings !== undefined) {
+    validatePhaseTimings(record.phaseTimings, record.nativeEvidence, record.nativeElapsedMs);
+    if (!html.includes('id="harness-phase-timings"') || !record.phaseTimings.every((item) => html.includes(htmlEscape(item.label)))) throw failure();
+  } else if (html.includes('id="harness-phase-timings"')) throw failure();
   if (
     Boolean(record.nativeEvidence) !==
       html.includes('id="harness-native-evidence"') ||
@@ -311,9 +337,10 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource, nativeElapsedMs } = {}) {
+  constructor({ selection, diagnosticSource, nativeElapsedMs, phaseTimings } = {}) {
     this.diagnosticSource = diagnosticSource;
     this.nativeElapsedMs = nativeElapsedMs;
+    this.phaseTimings = phaseTimings;
     this.nativeEvidence = null;
     this.selection = selection;
     this.paths = paths(selection);
@@ -475,6 +502,7 @@ class HarnessPublicOdhinReporter {
       this.ended = true;
       const counts = Object.fromEntries(statuses.map((status) => [status, 0]));
       if (this.nativeElapsedMs !== undefined && (!this.nativeEvidence || !Number.isSafeInteger(this.nativeElapsedMs) || this.nativeElapsedMs < 0)) this.reject();
+      if (this.phaseTimings !== undefined) validatePhaseTimings(this.phaseTimings, this.nativeEvidence, this.nativeElapsedMs);
       for (const record of this.results.values()) counts[record.status]++;
       if (
         result.status === "passed" &&
@@ -603,6 +631,7 @@ class HarnessPublicOdhinReporter {
         diagnosticSource: this.diagnosticSource,
         nativeEvidence: this.nativeEvidence,
         nativeElapsedMs: this.nativeElapsedMs,
+        phaseTimings: this.phaseTimings,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
@@ -664,6 +693,7 @@ class HarnessPublicOdhinReporter {
           },
         ),
       );
+      if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs));
       presentation
         .querySelector("head")
         .insertAdjacentHTML(

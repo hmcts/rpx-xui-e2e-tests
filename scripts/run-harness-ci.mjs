@@ -88,45 +88,60 @@ export function fixedCiPhasesPassed(results) {
 export async function runFixedCiPilots(operations) {
   const progress = operations.progress ?? ((_label, operation) => operation());
   const results = [];
+  const timings = [];
+  const timed = async (label, operation) => {
+    const startedAt = new Date().toISOString();
+    const started = performance.now();
+    let status = "stopped";
+    try {
+      const result = await progress(label, operation);
+      status = ["PASS", "FAIL", "BLOCKED"].includes(result?.status) ? result.status : "completed";
+      return result;
+    } finally {
+      const item = { label, status, startedAt, durationMs: Math.round(performance.now() - started) };
+      timings.push(item);
+      operations.onTiming?.(item);
+    }
+  };
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
   const phase = async (name) => {
     checkCancellation();
     const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence" };
-    const result = await progress(labels[name], () => operations.phase(name));
+    const result = await timed(labels[name], () => operations.phase(name));
     checkCancellation();
     results.push({ phase: name, ...result });
     return result;
   };
   const outcome = () => {
     const exitCode = Math.max(...results.map((item) => item.exitCode));
-    return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results };
+    return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results, timings };
   };
   let result = await phase("family");
-  if (result.exitCode !== 0) return { ...result, results };
+  if (result.exitCode !== 0) return { ...result, results, timings };
   checkCancellation();
-  await progress("Scope fault candidate preparation", () => operations.derive());
+  await timed("Scope fault candidate preparation", () => operations.derive());
   checkCancellation();
   result = await phase("scope");
-  if (result.exitCode !== 0) return { ...result, results };
+  if (result.exitCode !== 0) return { ...result, results, timings };
   try {
     checkCancellation();
-    await progress("CCD runtime startup", () => operations.start());
+    await timed("CCD runtime startup", () => operations.start());
     checkCancellation();
     result = await phase("ccd");
   } finally {
-    await progress("CCD runtime cleanup", () => operations.stop());
+    await timed("CCD runtime cleanup", () => operations.stop());
   }
   if (result.exitCode !== 0 && operations.canContinueAfterCcd?.() !== true)
-    return { ...result, results };
+    return { ...result, results, timings };
   let eventResult;
   try {
     checkCancellation();
-    await progress("Source event CCD runtime startup", () => operations.startEvent());
+    await timed("Source event CCD runtime startup", () => operations.startEvent());
     checkCancellation();
     eventResult = await phase("eventCapability");
   } finally {
-    await progress("Source event CCD runtime cleanup", () => operations.stopEvent());
+    await timed("Source event CCD runtime cleanup", () => operations.stopEvent());
   }
   if (eventResult.exitCode !== 0) return outcome();
   checkCancellation();
@@ -134,11 +149,11 @@ export async function runFixedCiPilots(operations) {
   if (routingResult.exitCode !== 0) return outcome();
   try {
     checkCancellation();
-    await progress("Recipient callback CCD runtime startup", () => operations.startCallback());
+    await timed("Recipient callback CCD runtime startup", () => operations.startCallback());
     checkCancellation();
     await phase("recipientCallback");
   } finally {
-    await progress("Recipient callback CCD runtime cleanup", () => operations.stopCallback());
+    await timed("Recipient callback CCD runtime cleanup", () => operations.stopCallback());
   }
   return outcome();
 }
@@ -158,7 +173,8 @@ export async function runHarnessCi(jobPath) {
     path.join(ROOT, "node_modules"),
   ]);
   const resources = new Map(),
-    phaseResults = [];
+    phaseResults = [],
+    phaseTimings = [];
   let context,
     verdict = blocked(),
     cleanupComplete = true,
@@ -246,6 +262,7 @@ export async function runHarnessCi(jobPath) {
     writeJsonAtomic(path.join(privateRoot, "job-input.json"), job);
     const operations = {
       progress: reportNativeProgress,
+      onTiming: (item) => phaseTimings.push(item),
       isCancelled: () => cancelled,
       phase: async (name) => {
         assert(!cancelled, "CI_JOB_CANCELLED");
@@ -570,7 +587,7 @@ export async function runHarnessCi(jobPath) {
       fixedCiPhasesPassed(phaseResults),
     );
   }
-  return verdict;
+  return { ...verdict, phaseTimings };
 }
 if (
   process.argv[1] &&

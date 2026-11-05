@@ -258,6 +258,12 @@ test("support only: fixed pilot order stops on a validated failure and always cl
     else {
       const result = await runFixedCiPilots(operations);
       assert.equal(result.exitCode, failed ? 1 : 0);
+      if (!failed) {
+        assert.equal(result.timings.length, 13);
+        assert.equal(result.timings[0].label, "WA family");
+        assert.equal(result.timings.at(-1).label, "Recipient callback CCD runtime cleanup");
+        assert.ok(result.timings.every((item) => Number.isSafeInteger(item.durationMs) && item.durationMs >= 0 && Number.isFinite(Date.parse(item.startedAt))));
+      }
     }
     assert.deepEqual(
       calls,

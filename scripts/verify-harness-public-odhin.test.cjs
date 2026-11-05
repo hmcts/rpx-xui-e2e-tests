@@ -838,7 +838,10 @@ async function nativePresentationFixture(blocked = true) {
 test("same Odhín document separates native baselines and faults from diagnostics and keeps postal BLOCKED", async (t) => {
   sandbox(t);
   const Reporter = api();
-  const reporter = new Reporter({ selection: "local-aat", nativeElapsedMs: 1920000 });
+  const reporter = new Reporter({ selection: "local-aat", nativeElapsedMs: 1920000, phaseTimings: [
+    { label: "WA family", status: "PASS", startedAt: "2026-11-05T10:00:00.000Z", durationMs: 140000 },
+    { label: "Scope fault candidate preparation", status: "completed", startedAt: "2026-11-05T10:02:20.000Z", durationMs: 158000 },
+  ] });
   // Presentation fixture only: the descriptor reader's raw/expected boundary has its own tests.
   reporter.nativeEvidence = await nativePresentationFixture();
   const entries = require("./harness-public-overview.cjs").profiles[
@@ -863,6 +866,8 @@ test("same Odhín document separates native baselines and faults from diagnostic
   const dom = require("node-html-parser").parse(html);
   assert.equal(dom.querySelector('#harness-public-run').getAttribute('data-native-elapsed-ms'), '1920000');
   assert.match(dom.querySelector('.testcase-run-info-table').textContent, /32\.0 min native run \+ evidence preparation/);
+  assert.equal(dom.querySelectorAll('#harness-phase-timings tbody tr').length, 2);
+  assert.match(dom.querySelector('#harness-phase-timings').textContent, /WA family.*2m 20s.*Scope fault candidate preparation.*2m 38s/s);
   assert.match(
     dom.querySelector("#harness-public-run").textContent,
     /Diagnostics passed \/ Native BLOCKED/,

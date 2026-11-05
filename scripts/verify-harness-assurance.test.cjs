@@ -34,10 +34,11 @@ test("contradictory native status and missing diagnostic exit cannot become succ
 test("blocked native policy remains blocked despite a passing diagnostic collection", async () => {
   const { runAssuranceSequence } = await api();
   const order = [];
+  const phaseTimings = [{ label: "WA family", status: "PASS", startedAt: "2026-11-05T10:00:00.000Z", durationMs: 1000 }];
   const result = await runAssuranceSequence({
     native: async () => {
       order.push("native");
-      return { status: "BLOCKED", exitCode: 2 };
+      return { status: "BLOCKED", exitCode: 2, phaseTimings };
     },
     descriptor: async (verdict) => {
       assert.equal(verdict.status, "BLOCKED");
@@ -47,6 +48,7 @@ test("blocked native policy remains blocked despite a passing diagnostic collect
     collect: async (file, timing) => {
       assert.equal(file, "/owned/request.json");
       assert.ok(Number.isSafeInteger(timing.nativeElapsedMs) && timing.nativeElapsedMs >= 0);
+      assert.equal(timing.phaseTimings, phaseTimings);
       order.push("collect");
       return { status: "passed", exitCode: 0 };
     },
