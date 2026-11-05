@@ -12,7 +12,7 @@ import {assertOwnedContainer,candidateArchiveProcess} from './exui-oci-runtime.m
 const root=fileURLToPath(new URL('../../',import.meta.url)).replace(/\/$/,'');
 const read=file=>JSON.parse(fs.readFileSync(file));
 const hash=/^sha256:[a-f0-9]{64}$/;
-export const DIVORCE_COHORT_FILES=Object.freeze([...PROFILE_SOURCE_FILES,'scripts/lib/exui-divorce-profile-cohort.mjs','scripts/run-harness-divorce-profile.mjs']);
+export const DIVORCE_COHORT_FILES=Object.freeze([...PROFILE_SOURCE_FILES,'scripts/lib/exui-divorce-profile-cohort.mjs','scripts/run-harness-divorce-profile.mjs','scripts/run-harness-divorce-profile-admission.mjs','scripts/lib/exui-divorce-profile-admission.mjs']);
 export function divorceProducerBinding(sourceRoot=root){
  const git=args=>execFileSync('git',args,{cwd:sourceRoot,encoding:'utf8'}).trim();
  assert.equal(git(['status','--porcelain','--untracked-files=all','--',...DIVORCE_COHORT_FILES]),'','DIVORCE_COHORT_COMMITTED_SOURCE');

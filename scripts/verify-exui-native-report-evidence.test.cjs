@@ -819,3 +819,9 @@ test('callback publication rejects historical feasibility and forged phase claim
   await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath));
  }
 });
+
+test('supplementary DIVORCE report input rejects caller acceptance flags and unpinned packets',async t=>{
+ const f=await fixture(t),api=await load(),descriptor=read(f.descriptorPath),primary=await api.readNativeReportEvidence(f.descriptorPath);
+ for(const value of [{accepted:1,wholeProfileSatisfied:true},'/missing/divorce-admission-request.json']){write(f.descriptorPath,{...descriptor,divorceProfileAdmission:value});await assert.rejects(api.readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_INVALID_EVIDENCE/);}
+ write(f.descriptorPath,descriptor);assert.deepEqual((await api.readNativeReportEvidence(f.descriptorPath)).catalogueCoverage,primary.catalogueCoverage);
+});

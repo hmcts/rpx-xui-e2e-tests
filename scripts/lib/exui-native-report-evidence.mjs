@@ -1,3 +1,4 @@
+import {readDivorceProfileAdmission} from "./exui-divorce-profile-admission.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -434,6 +435,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       ...(sharedRoleAdmission ? { sharedRoleAdmission } : {}),
       releaseCredit: false,
     };
+    const divorceProfileAdmission = descriptor.value.divorceProfileAdmission ? readDivorceProfileAdmission(descriptor.value.divorceProfileAdmission) : undefined;
     const first = expected.phases[0].expected;
     for (const { expected: pin } of expected.phases) {
       equal(
@@ -477,6 +479,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       releaseApproval: false,
       phases,
       catalogueCoverage,
+      ...(divorceProfileAdmission ? {divorceProfileAdmission} : {}),
     };
   } catch (error) {
     // Filesystem/library errors can contain private paths or raw evidence; expose fixed codes only.
