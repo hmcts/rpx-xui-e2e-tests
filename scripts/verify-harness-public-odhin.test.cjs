@@ -1271,12 +1271,12 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
  const make=()=>({dataset:{},children:[],attributes:{},classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(name,value){this.attributes[name]=value}});
  const panels={
   '#harness-shared-nested-attempt':{dataset:{attemptStatus:'BLOCKED',attemptBaselinesCompleted:'4',attemptBaselinesPassed:'2',attemptBaselinesFailed:'2',attemptFaultsCompleted:'0',attemptFaultsNotRun:'3'}},
-  '#harness-divorce-profile-admission':{dataset:{profileStatus:'PASS',profileBaselines:'6',profileFaults:'6',profileAccepted:'1',profileSelected:'1'}},
+  '#harness-divorce-profile-admission':{dataset:{profileStatus:'PASS',profileBaselines:'6',profileFaults:'6',profileAccepted:'1',profileSelected:'1',profileDurationMs:'125000'}},
   '#harness-applicant-compatibility':{dataset:{compatibilityStatus:'PASS',compatibilityBaselines:'1',compatibilityFaults:'3'}},
  };
  const render=(supplements,main=true)=>{
   const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
-  const elements={'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,...(main?{'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}}:{}),...supplements};
+  const elements={'#harness-public-run':{dataset:{nativeElapsedMs:'60000'}},'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,...(main?{'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}}:{}),...supplements};
   const document={createElement:make,querySelector:selector=>elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'35'}}]:[]};
   vm.runInNewContext(script,{document});return metrics;
  };
@@ -1290,7 +1290,12 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
  assert.match(text(links[0]),/BLOCKED/);assert.match(text(links[0]),/4 baseline facets completed/);assert.match(text(links[0]),/2 passed.*2 failed/);assert.match(text(links[0]),/0 effective faults.*3 not run/);
  assert.match(text(links[1]),/6 baseline.*6 effective faults/);assert.match(text(links[1]),/1 \/ 1.*separate/);
  assert.match(text(links[2]),/1 baseline.*3 effective faults/);assert.match(text(links[2]),/Corrected local ARM64 CCD/);
- assert.match(text(summary),/excluded from the main totals/);
+ assert.match(text(metrics.children[1]),/1\.0 min main native \+ evidence verification/);
+ assert.match(text(links[1]),/Separate profile interval: 2m 5s.*excluded from main native duration/);
+ assert.match(text(summary),/Separate execution counts and durations/);assert.match(text(summary),/Supplementary requirements enter the catalogue total only when jointly admitted/);assert.doesNotMatch(text(summary),/excluded from the main totals/);
+ const unknown=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:undefined}}});assert.match(text(unknown.children[4]),/Separate profile interval: not recorded/);
+ const included=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileInclusion:'included'}}});assert.match(text(included.children[4]),/already included in main candidate coverage/);assert.match(text(included.children[4]),/2m 5s.*excluded from main native duration/);assert.equal(included.children[0].children[1].textContent,'35 / 112');
+ const zero=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:'0'}}});assert.match(text(zero.children[4]),/Separate profile interval: 0m 0s/);
  const standalone=render({'#harness-shared-nested-attempt':panels['#harness-shared-nested-attempt']},false);
  assert.equal(standalone.children[1].children[1].textContent,'Not run');assert.equal(standalone.children[1].dataset.nativeStatus,'NOT_RUN');assert.equal(standalone.children[2].children[1].textContent,'116');assert.match(text(standalone.children[4]),/BLOCKED/);
  for(const [selector,panel]of Object.entries(panels)){const one=render({[selector]:panel});assert.equal(one.children[4].children.find(x=>x.className==='report-supplement-links').children.length,1);}

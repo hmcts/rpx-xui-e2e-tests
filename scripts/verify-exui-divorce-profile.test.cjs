@@ -64,6 +64,7 @@ test('exact profile admission replays complete twelve and rejects parent authori
  const render=require('./harness-divorce-profile-report.cjs').renderDivorceProfileAdmission;assert.match(render(result),/not added to the main cohort accepted count/);assert.match(render(result),/6 baseline proofs \+ 6 effective fault checks/);
  const epoch=Date.parse('2026-11-05T20:00:00.000Z'),span=(a,b)=>({startedAt:new Date(epoch+a).toISOString(),endedAt:new Date(epoch+b).toISOString(),durationMs:b-a});
  const timed={...result,standaloneTiming:{telemetryOnly:true,digest:'sha256:'+'a'.repeat(64),...span(0,20000),phases:{preparation:span(0,2000),execution:span(2000,18000),admission:span(18000,20000)},child:{preparation:span(2500,3000),facets:DIVORCE_PROFILE_FACETS.map(({facet},index)=>({facet,...span(3000+index*2000,5000+index*2000)})),finalization:span(15000,17000)}}};
+ assert.match(render(timed),/data-profile-duration-ms="20000"/);assert(!render(result).includes('data-profile-duration-ms'));
  assert.match(render(timed),/0m 20s total parent interval/);assert.match(render(timed),/do not add them to the parent total again/);assert.match(render(timed),/Independent collector verification happens later/);
  for(const change of [x=>x.standaloneTiming.telemetryOnly=false,x=>x.standaloneTiming.durationMs=-1,x=>x.standaloneTiming.child.facets.reverse(),x=>x.standaloneTiming.phases.preparation.private='canary-secret']){const bad=structuredClone(timed);change(bad);assert.throws(()=>render(bad),/DIVORCE_REPORT_TIMING_INVALID/);}
 

@@ -17,7 +17,7 @@
   const faults = native?.querySelectorAll('[data-native-table="fault"] tr[data-native-phase]').length || 0;
   const nativeElapsed = Number(run?.dataset.nativeElapsedMs);
   const nativeTime = Number.isFinite(nativeElapsed) && nativeElapsed > 0
-    ? ` · ${(nativeElapsed / 60000).toFixed(1)} min native + preparation` : '';
+    ? ` · ${(nativeElapsed / 60000).toFixed(1)} min main native + evidence verification` : '';
   const diagnosticTotal = Number(metrics.querySelector('.metric-0 strong')?.textContent || 0);
   const diagnosticPassRate = metrics.querySelector('.metric-1 strong')?.textContent.trim() || '—';
   const diagnosticAttention = metrics.querySelector('.metric-2 strong')?.textContent.trim() || '—';
@@ -34,10 +34,14 @@
   }
   if (profile) {
     const data = profile.dataset;
+    const duration = data.profileDurationMs === undefined ? null : Number(data.profileDurationMs);
+    const profileTime = Number.isSafeInteger(duration) && duration >= 0
+      ? `${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'not recorded';
     supplements.push(['DIVORCE configuration profile', data.profileStatus,
       `${data.profileBaselines} baselines · ${data.profileFaults} effective faults`,
       data.profileInclusion === 'included' ? `${data.profileAccepted} requirement already included in main candidate coverage` : `${data.profileAccepted} / ${data.profileSelected} requirement accepted in this separate run`,
-      '#harness-divorce-profile-admission']);
+      '#harness-divorce-profile-admission',
+      `Separate profile interval: ${profileTime} · excluded from main native duration`]);
   }
   if (applicant) {
     const data = applicant.dataset;
@@ -73,14 +77,14 @@
     const heading = document.createElement('h2');
     heading.textContent = 'Additional runtime activity';
     const explanation = document.createElement('p');
-    explanation.textContent = 'Separate runs and scopes, excluded from the main totals above. Open each result for its evidence and limits.';
+    explanation.textContent = 'Separate execution counts and durations. Supplementary requirements enter the catalogue total only when jointly admitted. Open each result for its evidence and limits.';
     const links = document.createElement('div');
     links.className = 'report-supplement-links';
-    supplements.forEach(([label, status, counts, scope, href]) => {
+    supplements.forEach(([label, status, counts, scope, href, timing]) => {
       const link = document.createElement('a');
       link.href = href;
       link.dataset.supplementStatus = status;
-      [label, status, counts, scope, 'View evidence →'].forEach((content, index) => {
+      [label, status, counts, ...(timing ? [timing] : []), scope, 'View evidence →'].forEach((content, index) => {
         const element = document.createElement(index === 0 ? 'strong' : 'span');
         if (index === 1) element.className = 'report-supplement-status';
         element.textContent = content;
