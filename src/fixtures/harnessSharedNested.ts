@@ -1,7 +1,7 @@
 import type { APIRequestContext, Page } from '@playwright/test';
 
 import { SHARED_NESTED_FAULT, SHARED_NESTED_MUTATIONS, sharedNestedValues, type SharedNestedFacet, type SharedNestedValue } from '../../scripts/lib/exui-shared-nested-contract.mjs';
-import { currentSharedNestedBinding, replaySharedNestedObservation, saveSharedNestedObservation } from '../../scripts/lib/exui-shared-nested-observations.mjs';
+import { assertSharedNestedIntendedPersistence, currentSharedNestedBinding, replaySharedNestedObservation, saveSharedNestedObservation } from '../../scripts/lib/exui-shared-nested-observations.mjs';
 
 import { test, expect, ccdPersonas, createSyntheticCase, observeCcd } from './harnessCcd';
 
@@ -162,6 +162,6 @@ export async function runSharedNestedFacet(facet:SharedNestedFacet,page:Page,req
 
   await test.step(`harness-assertion:${mutation===SHARED_NESTED_FAULT?'nested-sibling-preservation':mutation==='ccd-drop-child'?'nested-persistence':mutation==='ccd-drop-postal-optional-child'?'postal-persistence':facet.id}`,async()=>{
     expect(replay.recipientCount).toBe(replay.intendedRecipientCount);
-    expect(after.state.case_data.sodAdditionalRecipientsList.map((row:{value:unknown})=>row.value)).toEqual(values);
+    expect(()=>assertSharedNestedIntendedPersistence(observation)).not.toThrow();
   });
 }

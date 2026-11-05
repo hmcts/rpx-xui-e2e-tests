@@ -133,26 +133,28 @@ test('blocked attempt lifecycle remains bound to independent container ID, image
  const os=require('node:os'),path=require('node:path');const {assertSharedNestedInvocationAuthority}=await import('./lib/exui-shared-nested-attempt.mjs');
  const directory=fs.mkdtempSync(path.join(os.tmpdir(),'shared-nested-authority-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));fs.mkdirSync(path.join(directory,'baseline'));
  const owner='ccd-11111111-1111-4111-8111-111111111111',namespace='1'.repeat(64),image='sha256:'+'a'.repeat(64),mounts=[{source:'/private/tmp/sealed-candidate',target:'/candidate',writable:false}];
- const plan={namespace,candidate:{name:owner+'-baseline-api',image,mounts,launchProcess:{entrypoint:['node'],command:['/candidate/app.js']}},tools:{name:owner+'-baseline-tools',image:'sha256:'+'b'.repeat(64),mounts:[]}};
+ const expectedProcess={entrypoint:['node'],command:['/candidate/app.js']};
+ const plan={namespace,candidate:{name:owner+'-baseline-api',image,mounts},tools:{name:owner+'-baseline-tools',image:'sha256:'+'b'.repeat(64),mounts:[]}};
  const ownership={owner,invocations:[{invocationId:'baseline',plan}]},registry=[['candidate',plan.candidate,'2'.repeat(64)],['browser-provider',plan.tools,'3'.repeat(64)]].map(([service,resource,id])=>({name:resource.name,id,owner,service,image:resource.image,namespace,mounts:resource.mounts,removed:true}));
  const info={Id:registry[0].id,Name:'/'+plan.candidate.name,Image:image,Config:{Entrypoint:['node'],Cmd:['/candidate/app.js'],Labels:{'exui.harness.owner':owner,'exui.harness.service':'candidate'}},HostConfig:{NetworkMode:'container:'+namespace,ReadonlyRootfs:true,Init:true,Privileged:false,PidMode:'',CapDrop:['ALL'],SecurityOpt:['no-new-privileges'],PidsLimit:256,Memory:4294967296,NanoCpus:2000000000,PortBindings:{}},Mounts:mounts.map(row=>({Type:'bind',Source:row.source,Destination:row.target,RW:row.writable})),State:{Running:true,ExitCode:0,OOMKilled:false}};
  const lifecycle={requestedStop:true,before:info,after:{...structuredClone(info),State:{Running:false,ExitCode:143,OOMKilled:false}}},denial={candidateId:info.Id,attempts:[{path:'/output/report.json',denied:true},{path:'/harness/controller.mjs',denied:true}],controllerSourceVisible:false};
  const save=value=>fs.writeFileSync(path.join(directory,'baseline/candidate-lifecycle.json'),JSON.stringify(value));save(lifecycle);fs.writeFileSync(path.join(directory,'baseline/candidate-write-denial.json'),JSON.stringify(denial));
- const check=()=>assertSharedNestedInvocationAuthority({directory,execution:{invocationId:'baseline'},ownership,registry});check();
+ const check=()=>assertSharedNestedInvocationAuthority({directory,execution:{invocationId:'baseline'},ownership,registry,expectedProcess});check();
  for(const change of [x=>x.before.Id='4'.repeat(64),x=>x.before.Image='sha256:'+'f'.repeat(64),x=>x.before.HostConfig.NetworkMode='none',x=>x.before.Mounts[0].Source='/private/tmp/foreign-candidate',x=>x.before.Config.Cmd=['/candidate/foreign.js'],x=>x.after.Name='/foreign-container']){const changed=structuredClone(lifecycle);change(changed);save(changed);assert.throws(check);}
  save(lifecycle);registry[1].mounts=[{source:'/foreign',target:'/candidate',writable:true}];assert.throws(check,/SHARED_NESTED_ATTEMPT_INVALID/);
 });
 
 for(const [channel,mutation]of [['email','ccd-drop-child'],['post','ccd-drop-postal-optional-child']])test(`exact persisted ${mutation} is required before consequential named fault`,async()=>{
  const value=await observation(channel,2,mutation);const result=await replay(value);assert.equal(result.recipientCount,2);
+ const intended=(await api()).assertSharedNestedIntendedPersistence;assert.throws(()=>intended(value),/SHARED_NESTED_INTENDED_PERSISTENCE/);
  for(const change of [x=>x.status=422,x=>x.after.state.case_data.protectedValue='wrong',x=>x.after.state.case_data.sodAdditionalRecipientsList[0].value.serveByPostOrEmail='wrong',x=>{x.after.state.case_data.sodAdditionalRecipientsList=structuredClone(x.request.body.data.sodAdditionalRecipientsList);x.reread=structuredClone(x.after);x.savedRows=x.after.state.case_data.sodAdditionalRecipientsList.map(row=>text(row.value));}]){const changed=structuredClone(value);change(changed);await assert.rejects(replay(changed),/SHARED_NESTED_/);}
 });
 
 test('a surviving private native state directory cannot publish a safe runtime attempt',async()=>{
  const os=require('node:os'),path=require('node:path');const {assertSharedNestedStateRemoved}=await import('./lib/exui-shared-nested-attempt.mjs');
  const state=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'harness-native-state-'));
- try{assert.throws(()=>assertSharedNestedStateRemoved(state),/SHARED_NESTED_ATTEMPT_INVALID/);}finally{fs.rmSync(state,{recursive:true,force:true});}
- assertSharedNestedStateRemoved(state);assert.throws(()=>assertSharedNestedStateRemoved('harness-native-state-relative'),/SHARED_NESTED_ATTEMPT_INVALID/);
+ try{assert.throws(()=>assertSharedNestedStateRemoved(state),/SHARED_NESTED_AUDIT_STATE_PRESENT/);}finally{fs.rmSync(state,{recursive:true,force:true});}
+ assertSharedNestedStateRemoved(state);assert.throws(()=>assertSharedNestedStateRemoved('harness-native-state-relative'),/SHARED_NESTED_AUDIT_STATE_PATH/);
 });
 
 test('standalone cleanup removes only its captured owned state and rejects foreign owner or mounts',async t=>{
@@ -191,4 +193,47 @@ test('unobserved controller termination retains all native resources and CCD for
  await assert.rejects(afterSharedNestedChildStopped(child,cleanup,async(actual)=>{assert.equal(actual,child);order.push('termination-unobserved');throw failure;}),error=>error===failure);
  assert.deepEqual(order,['termination-unobserved']);
  order.length=0;await afterSharedNestedChildStopped(child,cleanup,async()=>{order.push('termination-observed');});assert.deepEqual(order,['termination-observed','containers','state','ccd']);
+});
+
+test('actual submitted inactive all-null subtree is preserved exactly alongside active email siblings',async()=>{
+ const value=await observation('email',2);
+ const inactive={postalName:null,postalAddress:Object.fromEntries(['AddressLine1','AddressLine2','AddressLine3','PostTown','County','PostCode','Country'].map(field=>[field,null]))};
+ for(const rows of [value.request.body.data.sodAdditionalRecipientsList,value.after.state.case_data.sodAdditionalRecipientsList,value.reread.state.case_data.sodAdditionalRecipientsList])for(const row of rows)row.value.postalInformation=structuredClone(inactive);
+ await replay(value);
+ (await api()).assertSharedNestedIntendedPersistence(value);
+ const changed=structuredClone(value);changed.after.state.case_data.sodAdditionalRecipientsList[0].value.postalInformation.postalAddress.AddressLine2='';changed.reread=structuredClone(changed.after);
+ await assert.rejects(replay(changed),/SHARED_NESTED_SIBLING_INTEGRITY/);
+});
+
+test('audit-only shared plans replay deleted owned mounts while launch planning stays strict',async t=>{
+ const os=require('node:os'),path=require('node:path');
+ const {nativeContainerPlan,sharedNestedAuditContainerPlan}=await import('./lib/exui-native-containers.mjs');
+ const {toolContainerArguments,sharedNestedAuditToolContainerArguments}=await import('./lib/exui-oci-runtime.mjs');
+ const {assertSharedNestedPlanBinding}=await import('./lib/exui-shared-nested-attempt.mjs');
+ const temporary=fs.realpathSync(os.tmpdir()),root=fs.mkdtempSync(path.join(temporary,'shared-audit-plan-')),state=fs.mkdtempSync(path.join(temporary,'harness-native-state-'));
+ t.after(()=>{fs.rmSync(root,{recursive:true,force:true});fs.rmSync(state,{recursive:true,force:true});});
+ for(const name of ['candidate/config','stage/scripts/lib','output','browser'])fs.mkdirSync(path.join(root,name),{recursive:true});
+ fs.writeFileSync(path.join(root,'candidate/config/default.json'),JSON.stringify({jurisdictions:'IA',services:{idam:{}},feature:{}}));fs.writeFileSync(path.join(root,'stage/scripts/lib/exui-runtime-network-guard.cjs'),'guard');
+ const ids=['baseline','ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient'];for(const id of ids)for(const kind of ['sessions','diagnostics'])fs.mkdirSync(path.join(state,id,kind),{recursive:true});
+ const sha=letter=>'sha256:'+letter.repeat(64),runId='ccd-11111111-1111-4111-8111-111111111111';
+ const input={releaseScopeId:'exui-shared-nested-renderer-pilot',runId,artifact:{candidateRoot:path.join(root,'candidate'),identity:{artifactDigest:sha('a')},provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.21.0'}},nativeRuntime:{imageId:sha('b'),platform:'linux/arm64'},browserRuntimeImage:sha('c'),browserRoot:path.join(root,'browser'),ccd:{namespace:'1'.repeat(64),images:{data:{id:sha('d')},definition:{id:sha('e')}}},definition:{fixtureDigest:sha('f')},apiContracts:{data:sha('8'),definition:sha('9')},gatewayDigest:sha('7')};
+ const handoff={mode:'native-separate-api',owner:runId,output:path.join(root,'output'),stagedHarness:path.join(root,'stage'),stateRoot:state};
+ const ownership={mode:handoff.mode,owner:runId,directory:handoff.output,invocations:ids.map(invocationId=>({invocationId,plan:JSON.parse(JSON.stringify(nativeContainerPlan(input,handoff,invocationId)))}))};
+ fs.rmSync(state,{recursive:true});assert.throws(()=>nativeContainerPlan(input,handoff,'baseline'),/ENOENT/);
+ assertSharedNestedPlanBinding(input,handoff,ownership,handoff.output,runId);assert(!fs.existsSync(state));
+ const toolOptions={owner:runId,image:input.browserRuntimeImage,platform:'linux/arm64',harnessRoot:handoff.stagedHarness,dependenciesRoot:fs.realpathSync(path.join(__dirname,'../node_modules')),candidateRoot:input.artifact.candidateRoot,output:handoff.output,browserRoot:input.browserRoot,sessions:path.join(state,'baseline','sessions'),invocationId:'baseline',native:true,namespace:input.ccd.namespace,releaseScopeId:input.releaseScopeId};
+ assert.throws(()=>toolContainerArguments(toolOptions),/ENOENT/);
+ assert.deepEqual(sharedNestedAuditToolContainerArguments(toolOptions,state),ownership.invocations[0].plan.tools.args);
+ assert.throws(()=>sharedNestedAuditToolContainerArguments({...toolOptions,native:false},state),/AUDIT_NATIVE_REQUIRED/);
+ assert.throws(()=>sharedNestedAuditToolContainerArguments({...toolOptions,sessions:path.join(state,'baseline','diagnostics')},state),/AUDIT_SESSION_PATH/);
+ assert.throws(()=>sharedNestedAuditToolContainerArguments({...toolOptions,candidateRoot:temporary},state),/READONLY_MOUNT_WRITABLE_ALIAS/);
+ assert.throws(()=>sharedNestedAuditToolContainerArguments({...toolOptions,output:root},state),/READONLY_MOUNT_WRITABLE_ALIAS/);
+
+ assert.equal(Object.hasOwn(sharedNestedAuditContainerPlan(input,handoff,'baseline').candidate,'arguments'),false);
+ for(const changedRoot of [path.join(state,'nested'),state+'-sibling',path.join(temporary,'foreign-state')])assert.throws(()=>assertSharedNestedPlanBinding(input,{...handoff,stateRoot:changedRoot},ownership,handoff.output,runId));
+ assert.throws(()=>sharedNestedAuditContainerPlan(input,handoff,'foreign'),/AUDIT_INVOCATION/);
+ assert.throws(()=>sharedNestedAuditContainerPlan({...input,releaseScopeId:'exui-ccd-pilot'},handoff,'baseline'),/AUDIT_SCOPE/);
+ for(const change of [x=>x.invocations[0].invocationId='foreign',x=>x.invocations[0].plan.candidate.mounts[1].target='/wrong',x=>x.invocations[0].plan.candidate.mounts[1].writable=false,x=>x.invocations[0].plan.tools.args.push('--foreign')]){const changed=structuredClone(ownership);change(changed);assert.throws(()=>assertSharedNestedPlanBinding(input,handoff,changed,handoff.output,runId));}
+ fs.mkdirSync(state);assert.throws(()=>sharedNestedAuditContainerPlan(input,handoff,'baseline'),/AUDIT_STATE_PRESENT/);fs.rmSync(state,{recursive:true});
+ fs.symlinkSync(state+'-absent-target',state);assert.throws(()=>sharedNestedAuditContainerPlan(input,handoff,'baseline'),/AUDIT_STATE_PRESENT/);fs.unlinkSync(state);
 });

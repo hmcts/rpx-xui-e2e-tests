@@ -22,6 +22,9 @@ export function sharedNestedBinding(manifest,context) {
 export function currentSharedNestedBinding() {
   return sharedNestedBinding(JSON.parse(fs.readFileSync(process.env.EXUI_CANDIDATE_RUN_MANIFEST,'utf8')),JSON.parse(fs.readFileSync(process.env.EXUI_EVIDENCE_CONTEXT,'utf8')));
 }
+export function assertSharedNestedIntendedPersistence(observation) {
+  assert.deepEqual(observation.after.state.case_data.sodAdditionalRecipientsList.map(row=>row.value),observation.request.body.data.sodAdditionalRecipientsList.map(row=>row.value),'SHARED_NESTED_INTENDED_PERSISTENCE');
+}
 export function assertSharedNestedRecipients(rows,expected,ids) {
   assert(Array.isArray(rows)&&rows.length===expected.length,'SHARED_NESTED_RECIPIENT_COUNT');
   if(ids)assert(rows.every(row=>uuid(row.id))&&new Set(rows.map(row=>row.id)).size===rows.length,'SHARED_NESTED_IDS');
@@ -125,9 +128,12 @@ export function replaySharedNestedObservation(value,{binding,actorId,facetId,mut
   const persistedExpected=structuredClone(mutation===SHARED_NESTED_FAULT?expected.slice(0,1):expected);
   if(mutation==='ccd-drop-child')for(const row of persistedExpected)delete row.emailInformation.emailAddress;
   if(mutation==='ccd-drop-postal-optional-child')delete persistedExpected[1].postalInformation.postalAddress.AddressLine2;
+  const persistedPayload=structuredClone(mutation===SHARED_NESTED_FAULT?payload.sodAdditionalRecipientsList.slice(0,1):payload.sodAdditionalRecipientsList);
+  if(mutation==='ccd-drop-child')for(const row of persistedPayload)delete row.value.emailInformation.emailAddress;
+  if(mutation==='ccd-drop-postal-optional-child')delete persistedPayload[1].value.postalInformation.postalAddress.AddressLine2;
   const actual=value.after.state.case_data;exact(actual,['protectedValue','sodAdditionalRecipientsList'],'SHARED_NESTED_SAVED_DATA');assert.equal(actual.protectedValue,payload.protectedValue,'SHARED_NESTED_CONTROL');assertSharedNestedRecipients(actual.sodAdditionalRecipientsList,persistedExpected,true);
   for(const [index,recipient] of actual.sodAdditionalRecipientsList.entries()) {
-    assert.deepEqual(recipient.value,persistedExpected[index],'SHARED_NESTED_SIBLING_INTEGRITY');
+    assert.deepEqual(recipient.value,persistedPayload[index].value,'SHARED_NESTED_SIBLING_INTEGRITY');
     const sent=payload.sodAdditionalRecipientsList[index].id;if(uuid(sent))assert.equal(recipient.id,sent,'SHARED_NESTED_ID_PRESERVATION');
   }
   assert.equal(value.after.state.version,value.before.state.version+1,'SHARED_NESTED_VERSION');

@@ -1,3 +1,7 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {createHash} from 'node:crypto';
 const digest=value=>'sha256:'+createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const SHARED_NESTED_SCOPE='exui-shared-nested-renderer-pilot';
@@ -16,4 +20,11 @@ export function sharedNestedPolicy() {
  ];
  const policy={releaseScopeId:SHARED_NESTED_SCOPE,requiredObligationIds:[SHARED_NESTED_ID],obligations:[{id:SHARED_NESTED_ID,boundary:'candidate',requiredProofIds:SHARED_NESTED_FACETS.map(row=>row.proofId),requiredMutationIds:SHARED_NESTED_MUTATIONS.slice()}],mutationDefinitions:mutations.map(row=>({...row,obligationId:SHARED_NESTED_ID,definitionDigest:digest({contractDigest:SHARED_NESTED_CONTRACT_DIGEST,mutation:row.mutationId})}))};
  return {...policy,policyDigest:digest(policy)};
+}
+
+export function sharedNestedRemovedStatePaths(state,invocationId) {
+ assert(['baseline',...SHARED_NESTED_MUTATIONS].includes(invocationId),'SHARED_NESTED_AUDIT_INVOCATION');
+ assert(typeof state==='string'&&path.isAbsolute(state)&&path.normalize(state)===state&&path.dirname(state)===fs.realpathSync(os.tmpdir())&&path.basename(state).startsWith('harness-native-state-'),'SHARED_NESTED_AUDIT_STATE_PATH');
+ let present=false;try{fs.lstatSync(state);present=true;}catch(error){if(error.code!=='ENOENT')throw error;}assert(!present,'SHARED_NESTED_AUDIT_STATE_PRESENT');
+ return {sessions:path.join(state,invocationId,'sessions'),diagnostics:path.join(state,invocationId,'diagnostics')};
 }

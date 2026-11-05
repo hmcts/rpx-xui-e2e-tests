@@ -1,4 +1,4 @@
-import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './exui-shared-nested-scope.mjs';
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS,sharedNestedRemovedStatePaths} from './exui-shared-nested-scope.mjs';
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
@@ -74,18 +74,21 @@ export function readImageMetadata(runtimeRoot) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-export function assertReadOnlyMountIsolation(readonlyRoots, writableRoots) {
+function assertCanonicalMountIsolation(readonlyRoots,writableRoots) {
   const overlap = (left, right) =>
     left === right ||
     left.startsWith(`${right}${path.sep}`) ||
     right.startsWith(`${left}${path.sep}`);
-  for (const readonly of readonlyRoots.map((value) => fs.realpathSync(value))) {
-    for (const writable of writableRoots.map((value) =>
-      fs.realpathSync(value),
-    )) {
+  for (const readonly of readonlyRoots) {
+    for (const writable of writableRoots) {
       assert(!overlap(readonly, writable), "OCI_READONLY_MOUNT_WRITABLE_ALIAS");
     }
   }
+}
+
+export function assertReadOnlyMountIsolation(readonlyRoots,writableRoots){
+  for(const readonly of readonlyRoots.map(value=>fs.realpathSync(value)))
+    assertCanonicalMountIsolation([readonly],writableRoots.map(value=>fs.realpathSync(value)));
 }
 
 export function browserExecutable(browsers, platform) {
@@ -113,7 +116,20 @@ export function assertBrowserRuntime(inspect, image, platform) {
   );
 }
 
-export function toolContainerArguments({
+export function toolContainerArguments(options) {
+ return buildToolContainerArguments(options,assertReadOnlyMountIsolation);
+}
+export function sharedNestedAuditToolContainerArguments(options,stateRoot) {
+ assert.equal(options.releaseScopeId,SHARED_NESTED_SCOPE,'SHARED_NESTED_AUDIT_SCOPE');
+ assert.equal(options.native,true,'SHARED_NESTED_AUDIT_NATIVE_REQUIRED');
+ const removed=sharedNestedRemovedStatePaths(stateRoot,options.invocationId);
+ assert.equal(options.sessions,removed.sessions,'SHARED_NESTED_AUDIT_SESSION_PATH');
+ return buildToolContainerArguments(options,(readonlyRoots,writableRoots)=>{
+  assert.deepEqual(writableRoots,[options.output,removed.sessions],'SHARED_NESTED_AUDIT_WRITABLE_PATHS');
+  assertCanonicalMountIsolation(readonlyRoots.map(value=>fs.realpathSync(value)),[fs.realpathSync(options.output),removed.sessions]);
+ });
+}
+function buildToolContainerArguments({
   owner,
   image,
   platform,
@@ -127,7 +143,7 @@ export function toolContainerArguments({
   native = false,
   namespace,
   releaseScopeId,
-}) {
+},checkIsolation) {
   if (!digest(image)) throw new Error("PINNED_BROWSER_RUNTIME_REQUIRED");
   if (namespace && !/^[a-f0-9]{64}$/.test(namespace))
     throw new Error("OWNED_TOOLS_NAMESPACE_REQUIRED");
@@ -171,7 +187,7 @@ export function toolContainerArguments({
   if (releaseScopeId === CALLBACK_SCOPE && !["baseline",CALLBACK_MUTATION].includes(invocationId)) throw new Error("UNSUPPORTED_CCD_CALLBACK_INVOCATION");
   if (SOURCE_SHAPE_MUTATIONS.includes(invocationId) && releaseScopeId !== "exui-ccd-event-capability-pilot")
     throw new Error("CCD_EVENT_SCOPE_REQUIRED");
-  assertReadOnlyMountIsolation(
+  checkIsolation(
     [harnessRoot, dependenciesRoot, candidateRoot, browserRoot],
     [output, sessions],
   );

@@ -1,8 +1,8 @@
-import os from 'node:os';
+import {sharedNestedRemovedStatePaths} from './exui-shared-nested-scope.mjs';
 import {getReleasePolicy} from './exui-release-policy.mjs';
-import {nativeContainerPlan} from './exui-native-containers.mjs';
-import {nativeInvocations,nativeIdentity} from './exui-native-contract.mjs';
-import {assertOwnedContainerAuthority} from './exui-oci-runtime.mjs';
+import {sharedNestedAuditContainerPlan} from './exui-native-containers.mjs';
+import {nativeInvocations,nativeIdentity,nativeInvocation} from './exui-native-contract.mjs';
+import {assertOwnedContainerAuthority,candidateArchiveProcess} from './exui-oci-runtime.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -54,8 +54,7 @@ export async function readSharedNestedAttempt(descriptorPath) {
  const sourceFixture=bindSharedNestedSourceFixture();const observed=read(path.join(directory,'ccd-runtime/observed-definition.json')),imported=read(path.join(directory,'ccd-runtime/definition-import.json'));assertSharedNestedObservedDefinition(observed.value);assert([200,201].includes(imported.value.status),fail);assert.equal(imported.value.fixtureDigest,sourceFixture.fixtureDigest,fail);assert.equal(imported.value.binding.workbookDigest,sourceFixture.workbookDigest,fail);assert.equal(imported.value.sourceRevision,sourceFixture.sourceRevision,fail);assert.equal(String(imported.value.definitionVersion),String(observed.value.version.number),fail);assert.equal(imported.value.observedDefinitionDigest,digestBytes(JSON.stringify(observed.value)),fail);assert.equal(input.definitionImportDigest,imported.digest,fail);
  const handoff=read(path.join(native,'container-launch.json')).value,ownership=before.value.ownership;
  assertSharedNestedStateRemoved(handoff.stateRoot);
- assert.equal(ownership.directory,native,fail);assert.equal(ownership.owner,expected.runId,fail);assert.equal(ownership.mode,handoff.mode,fail);
- assert.deepEqual(ownership.invocations,nativeInvocations(SHARED_NESTED_SCOPE).map(({invocationId})=>({invocationId,plan:nativeContainerPlan(input,handoff,invocationId)})),fail);
+ assertSharedNestedPlanBinding(input,handoff,ownership,native,expected.runId);
  const registry=read(path.join(native,'owned-resources.json')).value;
  assert.equal(nativeCleanup.value.owner,ownership.owner,fail);assert.equal(nativeCleanup.value.cleanupComplete,true,fail);assert.equal(nativeCleanup.value.privateStateRemoved,true,fail);
  assert.deepEqual(nativeCleanup.value.checkedNames,ownership.invocations.flatMap(({plan})=>[plan.tools.name,plan.candidate.name]),fail);
@@ -78,21 +77,24 @@ export async function readSharedNestedAttempt(descriptorPath) {
   facets.push({facetId:facet.id,status:proof.outcome==='passed'?'PASS':'FAIL',failure:proof.outcome==='passed'?'none':defect?'source-required-postcode':'other',failedRecipientIndex:defect?.failedRecipientIndex??null});
  }
  assert.equal(new Set(cases).size,cases.length,fail);const baselineFailed=facets.filter(row=>row.status==='FAIL').length;
- if(baselineFailed){for(const execution of checkpoint.input.executions)assertSharedNestedInvocationAuthority({directory:native,execution,ownership,registry});assert.equal(summary.value.status,'BLOCKED',fail);assert.deepEqual(registry.map(row=>row.name).sort(),ownership.invocations.find(row=>row.invocationId==='baseline').plan?[ownership.invocations[0].plan.tools.name,ownership.invocations[0].plan.candidate.name].sort():[],fail);assert.equal(terminal.value.terminal.code,2,fail);assert(!fs.existsSync(path.join(native,'run.json'))&&!fs.existsSync(path.join(native,'gate.json')),fail);assert(!input.only,fail);for(const mutation of ['ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient'])assert(!fs.existsSync(path.join(native,mutation,'manifest.json')),fail);}
- else {assert.equal(summary.value.status,'PASS',fail);assert.equal(terminal.value.terminal.code,0,fail);assert.equal(validateCiPhase(native,expected,terminal.value.terminal).status,'PASS',fail);for(const execution of loadRunEvidence(path.join(native,'run.json'),getReleasePolicy(SHARED_NESTED_SCOPE)).input.executions)assertSharedNestedInvocationAuthority({directory:native,execution,ownership,registry});await replaySharedNestedNativeBindings({harnessRoot:root,ccdPhaseDirectory:native,candidateArtifactPath:before.value.candidateManifest});}
+ if(baselineFailed){for(const execution of checkpoint.input.executions)assertSharedNestedInvocationAuthority({directory:native,execution,ownership,registry,expectedProcess:candidateArchiveProcess(nativeIdentity(input,nativeInvocation(input,execution.invocationId),input.artifact.candidateRoot).config,SHARED_NESTED_SCOPE)});assert.equal(summary.value.status,'BLOCKED',fail);assert.deepEqual(registry.map(row=>row.name).sort(),ownership.invocations.find(row=>row.invocationId==='baseline').plan?[ownership.invocations[0].plan.tools.name,ownership.invocations[0].plan.candidate.name].sort():[],fail);assert.equal(terminal.value.terminal.code,2,fail);assert(!fs.existsSync(path.join(native,'run.json'))&&!fs.existsSync(path.join(native,'gate.json')),fail);assert(!input.only,fail);for(const mutation of ['ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient'])assert(!fs.existsSync(path.join(native,mutation,'manifest.json')),fail);}
+ else {assert.equal(summary.value.status,'PASS',fail);assert.equal(terminal.value.terminal.code,0,fail);assert.equal(validateCiPhase(native,expected,terminal.value.terminal).status,'PASS',fail);for(const execution of loadRunEvidence(path.join(native,'run.json'),getReleasePolicy(SHARED_NESTED_SCOPE)).input.executions)assertSharedNestedInvocationAuthority({directory:native,execution,ownership,registry,expectedProcess:candidateArchiveProcess(nativeIdentity(input,nativeInvocation(input,execution.invocationId),input.artifact.candidateRoot).config,SHARED_NESTED_SCOPE)});await replaySharedNestedNativeBindings({harnessRoot:root,ccdPhaseDirectory:native,candidateArtifactPath:before.value.candidateManifest});}
  return {schemaVersion:1,kind:'shared-nested-attempt',status:baselineFailed?'BLOCKED':'PASS',runId:expected.runId,producerCommit:expected.harnessCommit,candidateCommit:expected.identity.webappCommit,candidateArtifactDigest:expected.identity.artifactDigest,sourceDigest,descriptorDigest:descriptor.digest,durationMs:summary.value.durationMs,baselinePassed:4-baselineFailed,baselineFailed,faultsObserved:baselineFailed?0:3,faultsNotRun:baselineFailed?3:0,facets,sharedRequirementId:SHARED_NESTED_ID,failedSourceRequirementId:facets.some(row=>row.failure==='source-required-postcode')?POSTCODE_SOURCE_ID:null,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
 }
 
-export function assertSharedNestedInvocationAuthority({directory,execution,ownership,registry}) {
+export function assertSharedNestedInvocationAuthority({directory,execution,ownership,registry,expectedProcess}) {
+ exact(expectedProcess,['entrypoint','command']);
  const row=ownership.invocations.find(item=>item.invocationId===execution.invocationId);assert(row,fail);const {plan}=row;
  const {denial,lifecycle}=validateNativeInvocationFinalization(directory,execution);
  for(const [service,resource]of [['candidate',plan.candidate],['browser-provider',plan.tools]]) {
   const recorded=registry.find(item=>item.name===resource.name);assert(recorded&&/^[a-f0-9]{64}$/.test(recorded.id),fail);
   assert.equal(recorded.owner,ownership.owner,fail);assert.equal(recorded.service,service,fail);assert.equal(recorded.image,resource.image,fail);assert.equal(recorded.namespace,plan.namespace,fail);assert.deepEqual(recorded.mounts,resource.mounts,fail);assert.equal(recorded.removed,true,fail);
-  if(service==='candidate') {assert.equal(denial.candidateId,recorded.id,fail);for(const info of [lifecycle.before,lifecycle.after]){assert.equal(info.Id,recorded.id,fail);assert.equal(info.Name,'/'+resource.name,fail);assertOwnedContainerAuthority(info,{owner:ownership.owner,service,image:resource.image,namespace:plan.namespace,mounts:resource.mounts,launchProcess:resource.launchProcess});}assert.equal(lifecycle.after.State.OOMKilled,false,fail);}
+  if(service==='candidate') {assert.equal(denial.candidateId,recorded.id,fail);for(const info of [lifecycle.before,lifecycle.after]){assert.equal(info.Id,recorded.id,fail);assert.equal(info.Name,'/'+resource.name,fail);assertOwnedContainerAuthority(info,{owner:ownership.owner,service,image:resource.image,namespace:plan.namespace,mounts:resource.mounts,launchProcess:expectedProcess});}assert.equal(lifecycle.after.State.OOMKilled,false,fail);}
  }
 }
 
-export function assertSharedNestedStateRemoved(stateRoot) {
- assert(typeof stateRoot==='string'&&path.isAbsolute(stateRoot)&&path.normalize(stateRoot)===stateRoot&&stateRoot.startsWith(fs.realpathSync(os.tmpdir())+path.sep)&&path.basename(stateRoot).startsWith('harness-native-state-')&&!fs.existsSync(stateRoot),fail);
+export function assertSharedNestedStateRemoved(stateRoot) {sharedNestedRemovedStatePaths(stateRoot,'baseline');}
+export function assertSharedNestedPlanBinding(input,handoff,ownership,directory,runId) {
+ assert.equal(ownership.directory,directory,fail);assert.equal(ownership.owner,runId,fail);assert.equal(ownership.mode,handoff.mode,fail);
+ assert.deepEqual(ownership.invocations,nativeInvocations(SHARED_NESTED_SCOPE).map(({invocationId})=>({invocationId,plan:sharedNestedAuditContainerPlan(input,handoff,invocationId)})),fail);
 }
