@@ -26,3 +26,14 @@ exports.outcome = (variant = 'baseline') => ({
   observed:{kind:'complex-email-text-observation',variant,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false,healthy:{status:201},probe:{validation:{status:variant==='baseline'?200:422}}},
   report:{errors:[],stats:{skipped:0},suites:[{specs:[{tests:[{results:[{retry:0,status:variant==='baseline'?'passed':'failed',...(variant==='baseline'?{}:{error:{message:'COMPLEX_EMAIL_SOURCE_TYPE_TIGHTENED'}})}]}]}]}]},
 });
+exports.classification = (variant='baseline') => {
+ const actorId='synthetic-actor',context={owner:'synthetic-owner',namespace:'a'.repeat(64),version:2};
+ const journeys=['1234567890123456','1234567890123457'].map((caseId,index)=>{
+  const rejected=index===1&&variant==='email-type';
+  const recipients=rejected?[]:[0,1].map(n=>({id:`recipient-${index}-${n}`,value:{emailInformation:{emailName:`Synthetic ${n}`,emailAddress:`person${n}@harness.example.com`}}}));
+  return {caseId,before:{state:{case_data:{sodAdditionalRecipientsList:[]},data_classification:{}}},after:{state:{version:rejected?1:2,case_data:{sodAdditionalRecipientsList:recipients},data_classification:{}}}};
+ });
+ const observed={variant,actorId,healthy:journeys[0],probe:journeys[1]};
+ const rows=journeys.map((j,index)=>({reference:j.caseId,case_type:'HarnessNestedPRL',jurisdiction:'HARNESS',version:j.after.state.version,data:structuredClone(j.after.state.case_data),data_classification:{sodAdditionalRecipientsList:{classification:'PUBLIC',value:j.after.state.case_data.sodAdditionalRecipientsList.map(r=>({id:r.id,value:{emailInformation:{classification:'PUBLIC',value:{emailName:'PUBLIC',emailAddress:'PUBLIC'}}}}))}},events:(index===1&&variant==='email-type'?['create']:['create','update']).map(event_id=>({event_id,case_type_id:'HarnessNestedPRL',case_type_version:2,user_id:actorId}))}));
+ return {observed,rows,context};
+};

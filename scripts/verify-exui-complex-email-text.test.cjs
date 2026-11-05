@@ -83,10 +83,10 @@ test('complex email descriptors and outcome cannot turn malformed imports or unr
   }
   const bad=mock.outcome('email-type');bad.report.suites[0].specs[0].tests[0].results[0].error.message='timeout';
   assert.throws(()=>assertComplexEmailUiOutcome('email-type',bad.terminal,bad.observed,bad.report));
-  for(const file of ['scripts/lib/exui-complex-email-text.mjs','scripts/lib/exui-complex-email-import.mjs','src/fixtures/harnessComplexEmail.ts','src/tests/harness/callback-feasibility/complex-email-text.spec.ts'])assert(CALLBACK_UI_SOURCES.includes(file));
+  for(const file of ['scripts/lib/exui-complex-email-classification.mjs','scripts/lib/exui-complex-email-text.mjs','scripts/lib/exui-complex-email-import.mjs','src/fixtures/harnessComplexEmail.ts','src/tests/harness/callback-feasibility/complex-email-text.spec.ts'])assert(CALLBACK_UI_SOURCES.includes(file));
   CALLBACK_UI_SOURCES.forEach(file=>assert(fs.statSync(path.join(__dirname,'..',file)).isFile()));
   const {RESULTS_UI_SOURCES}=await import('./run-harness-results-ui.mjs');
-  for(const file of ['scripts/lib/exui-complex-email-text.mjs','scripts/lib/exui-complex-email-import.mjs'])assert(RESULTS_UI_SOURCES.includes(file));
+  for(const file of ['scripts/lib/exui-complex-email-classification.mjs','scripts/lib/exui-complex-email-text.mjs','scripts/lib/exui-complex-email-import.mjs'])assert(RESULTS_UI_SOURCES.includes(file));
   for(const runner of ['run-harness-recipient-callback-ui.mjs','run-harness-results-ui.mjs']) {
     const source=fs.readFileSync(path.join(__dirname,runner),'utf8');
     assert.match(source,/plan\.proofArguments=\['scripts\/recipient-callback-ui-tools\.mjs','--inside-proof'\]/);
@@ -141,4 +141,37 @@ test('complex email imported metadata binds the exact type path and typed PUBLIC
   assert(sql.startsWith('BEGIN READ ONLY;'));
   assert(sql.includes('ct.version=2'));
   assert(!sql.includes('live_from'));
+});
+
+test('complex email observer API omission never substitutes for stored PUBLIC classification', async()=>{
+ const {validateComplexEmailObserver,validateComplexEmailStoredClassification}=await import('./lib/exui-complex-email-classification.mjs');
+ const empty={case_data:{sodAdditionalRecipientsList:[]},data_classification:{}};validateComplexEmailObserver(empty);
+ for(const state of [null,{}, {...empty,data_classification:null},{...empty,data_classification:[]},{...empty,data_classification:{sodAdditionalRecipientsList:{value:[]}}}])assert.throws(()=>validateComplexEmailObserver(state),/COMPLEX_EMAIL_OBSERVER_/);
+ for(const variant of ['baseline','email-type']) {
+  const {rows,observed,context}=mock.classification(variant);assert.equal(validateComplexEmailStoredClassification(rows,observed,context).catalogueCredit,false);
+  for(const mutate of [x=>x.pop(),x=>x[0].reference='9999999999999999',x=>x[0].case_type='Wrong',x=>x[0].version++,x=>x[0].data.sodAdditionalRecipientsList.pop(),x=>delete x[0].data_classification.sodAdditionalRecipientsList,x=>x[0].data_classification.sodAdditionalRecipientsList.value[0].id='wrong-recipient',x=>x[0].data_classification.sodAdditionalRecipientsList.value[0].value.emailInformation.value.emailAddress='PRIVATE',x=>x[0].events[0].case_type_version++,x=>x[0].events[0].user_id='foreign-actor']) {
+   const bad=structuredClone(rows);mutate(bad);assert.throws(()=>validateComplexEmailStoredClassification(bad,observed,context),/COMPLEX_EMAIL_/);
+  }
+ }
+});
+
+test('complex email classification read is bound to owned imported runtime and remains read only',async t=>{
+ const {readComplexEmailStoredClassification}=await import('./lib/exui-complex-email-classification.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'complex-email-stored-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(root+'/complex-email-import');
+ const {rows,observed,context}=mock.classification();
+ const state={output:root,owner:context.owner,namespace:context.namespace,images:{data:{id:'pinned-data-image'}}};
+ const imported={owner:state.owner,namespace:state.namespace,images:state.images,status:'import-and-complex-metadata-observed',descriptor:{version:2}};
+ let inspected=0,queried=0;
+ const options={inspect:()=>{inspected++;},runDocker:(args,sql)=>{
+  queried++;assert.deepEqual(args,['exec','-i',state.namespace,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','ccd_data']);
+  assert.match(sql,/^BEGIN READ ONLY;/);assert.match(sql,/ROLLBACK;$/);assert(!/\b(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/.test(sql));assert.match(sql,/case_type_id='HarnessNestedPRL'/);return JSON.stringify(rows);
+ }};
+ for(const change of [x=>x.owner='foreign-owner',x=>x.namespace='b'.repeat(64),x=>x.images={}]) {
+  const bad=structuredClone(imported);change(bad);assert.throws(()=>readComplexEmailStoredClassification(state,bad,observed,options),/COMPLEX_EMAIL_RUNTIME_IDENTITY/);
+ }
+ assert.equal(queried,0);assert.equal(inspected,0);
+ const result=readComplexEmailStoredClassification(state,imported,observed,options);assert.equal(inspected,2);assert.equal(queried,1);assert.equal(result.definitionVersion,2);assert.equal(result.catalogueCredit,false);
+ assert.equal(fs.readFileSync(root+'/complex-email-import/stored-classification-rows.json','utf8'),JSON.stringify(rows));
+ const blocked={...options,inspect:()=>{throw Error('CCD_RUNTIME_OWNER_MISMATCH');}};
+ assert.throws(()=>readComplexEmailStoredClassification(state,imported,observed,blocked),/CCD_RUNTIME_OWNER_MISMATCH/);assert.equal(queried,1);
 });

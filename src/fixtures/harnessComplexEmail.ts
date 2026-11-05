@@ -4,6 +4,7 @@ import { expect, type Page, type PlaywrightWorkerArgs } from '@playwright/test';
 
 import { ccdPersonas, ccdSessionRequest, createSyntheticCase, observeCcd } from './harnessCcd';
 import { collectionRows, openUpdate } from './harnessSharedNested';
+import { validateComplexEmailObserver } from '../../scripts/lib/exui-complex-email-classification.mjs';
 
 const input = (page:Page, field:string, index:number) => page.locator(`input[id$="_${field}"]`).nth(index);
 
@@ -25,8 +26,9 @@ export async function runComplexEmailText({page,playwright,variant,step}: {
   async function journey(addresses:string[],reject:boolean) {
     const caseId=await createSyntheticCase(actor);
     const before=await observeCcd(caseId);
+    fs.writeFileSync(`${directory}/complex-email-${reject?'probe':'control'}-${caseId}-before.json`,JSON.stringify(before),{mode:0o600});
+    validateComplexEmailObserver(before.state);
     expect(before.state.case_data.sodAdditionalRecipientsList).toEqual([]);
-    expect(before.state.data_classification.sodAdditionalRecipientsList.value).toEqual([]);
     await openUpdate(page,caseId);
     const names=addresses.map((_,index)=>`Synthetic contact ${reject?'probe':'control'} ${index+1}`);
     for(let index=0;index<addresses.length;index++) {
@@ -87,6 +89,8 @@ export async function runComplexEmailText({page,playwright,variant,step}: {
     const sent={data:raw.data,event:{id:raw.event.id}};
     expect(sent.event.id).toBe('update');
     const after=await observeCcd(caseId);
+    fs.writeFileSync(`${directory}/complex-email-${caseId}-after.json`,JSON.stringify(after),{mode:0o600});
+    validateComplexEmailObserver(after.state);
     expect(after.state.version).toBe(before.state.version+1);
     expect(after.state.case_data.protectedValue).toBe(before.state.case_data.protectedValue);
     expect(after.history.filter((row:{id:string})=>row.id!=='update')).toEqual(before.history);
@@ -95,13 +99,9 @@ export async function runComplexEmailText({page,playwright,variant,step}: {
     expect(updates[0].user_id).toBe(actorId);
     const saved=after.state.case_data.sodAdditionalRecipientsList;
     expect(saved).toHaveLength(addresses.length);
-    const classification=after.state.data_classification.sodAdditionalRecipientsList.value;
-    expect(classification).toHaveLength(addresses.length);
     for(let index=0;index<addresses.length;index++) {
       expect(saved[index].value.emailInformation).toEqual({emailName:names[index],emailAddress:addresses[index]});
       expect(saved[index].id).toBe(sent.data.sodAdditionalRecipientsList[index].id);
-      expect(classification[index].id).toBe(saved[index].id);
-      expect(classification[index].value.emailInformation.value.emailAddress).toBe('PUBLIC');
     }
     expect(new Set(saved.map((row:{id:string})=>row.id)).size).toBe(addresses.length);
     expect(submissions.slice(startSubmissions)).toHaveLength(1);
