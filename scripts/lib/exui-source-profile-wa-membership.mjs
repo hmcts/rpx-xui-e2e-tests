@@ -7,31 +7,36 @@ import {digestBytes} from './exui-evidence-io.mjs';
 
 export const WA_MEMBERSHIP_SCOPE = 'exui-source-profile-wa-membership-feasibility';
 export const WA_MEMBERSHIP_FAULT = 'source-profile-add-cmc-wa-membership';
+export const DIVORCE_WA_SCOPE='exui-source-profile-divorce-wa-feasibility';
+export const DIVORCE_WA_FAULT='source-profile-add-divorce-wa-membership';
 const sourceMembership = 'IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS';
-const calls = [
+const cmcCalls = [
   {route:'case-event',family:'CMC',caseId:'9999000011112222',caseType:'HarnessMembershipCMC',eventId:'profileRouteCMC',marker:'membership-cmc-route'},
   {route:'case-event',family:'IA',caseId:'3333444455556666',caseType:'HarnessMembershipIA',eventId:'profileRouteIA',marker:'membership-ia-route'},
   {route:'post',family:'CMC',caseId:'1111222233334444',caseType:'HarnessMembershipCMC',eventId:'profilePostCMC',marker:'membership-cmc-post'},
   {route:'post',family:'IA',caseId:'5555666677778888',caseType:'HarnessMembershipIA',eventId:'profilePostIA',marker:'membership-ia-post'},
 ];
+const callsFor=family=>{assert(['CMC','DIVORCE'].includes(family),'SOURCE_PROFILE_MEMBERSHIP_CONFIG');return family==='CMC'?cmcCalls:cmcCalls.map(call=>call.family==='CMC'?{...call,family:'DIVORCE',caseType:'HarnessMembershipDIVORCE',marker:call.marker.replace('cmc','divorce')}:call);};
+const faultFor=family=>{callsFor(family);return family==='DIVORCE'?DIVORCE_WA_FAULT:WA_MEMBERSHIP_FAULT;};
 const credits = {runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false};
 
-export function sourceProfileWaMembershipConfiguration(candidateRoot, mutation = null) {
-  assert(mutation===null||mutation===WA_MEMBERSHIP_FAULT,'SOURCE_PROFILE_UNKNOWN_FAULT');
+export function sourceProfileWaMembershipConfiguration(candidateRoot, mutation = null, family='CMC') {
+  const fault=faultFor(family);assert(mutation===null||mutation===fault,'SOURCE_PROFILE_UNKNOWN_FAULT');
   const original=sourceProfileJurisdictionConfiguration(candidateRoot),config=original.config;
   assert.equal(config.waSupportedJurisdictions,sourceMembership,'SOURCE_PROFILE_MEMBERSHIP_CONFIG');
   assert.equal(config.feature.workAllocationEnabled,false,'SOURCE_PROFILE_WA_DEFAULT');
-  if(mutation)config.waSupportedJurisdictions+=',CMC';
+  if(mutation)config.waSupportedJurisdictions+=','+family;
   return {config,digest:digestBytes(JSON.stringify(config)),contract:{
-    ...original.contract,scope:WA_MEMBERSHIP_SCOPE,families:['CMC','IA'],facet:'WA completable-task jurisdiction membership',mutation,
+    ...original.contract,scope:family==='DIVORCE'?DIVORCE_WA_SCOPE:WA_MEMBERSHIP_SCOPE,families:[family,'IA'],facet:'WA completable-task jurisdiction membership',mutation,
     entrypoints:['POST /workallocation/searchForCompletable','GET /workallocation/case/tasks/:caseId/event/:eventId/caseType/:caseType/jurisdiction/:jurisdiction'],
     exclusions:['Synthetic authentication and upstream task data','No CCD case creation or authorization proof','No case-view tabs or whole-family configuration proof'],
     unresolved:['Remaining source-profile capabilities and reviewed whole-profile admission'],...credits,
   }};
 }
 
-export function validateWaMembershipObservations(observations, journal, mutation = null) {
-  assert(mutation===null||mutation===WA_MEMBERSHIP_FAULT,'SOURCE_PROFILE_UNKNOWN_FAULT');
+export function validateWaMembershipObservations(observations, journal, mutation = null, family='CMC') {
+  const fault=faultFor(family);assert(mutation===null||mutation===fault,'SOURCE_PROFILE_UNKNOWN_FAULT');
+  const calls=callsFor(family);
   assert.equal(observations.length,calls.length,'SOURCE_PROFILE_MEMBERSHIP_OBSERVATIONS');
   for(const [index,call] of calls.entries()) {
     const observation=observations[index];
@@ -43,17 +48,17 @@ export function validateWaMembershipObservations(observations, journal, mutation
     body:{case_id:call.caseId,case_jurisdiction:call.family,case_type:call.caseType,event_id:call.eventId}}));
   assert.deepEqual(journal,expected,'SOURCE_PROFILE_MEMBERSHIP_JOURNAL');
   if(mutation)throw Error('SOURCE_PROFILE_WA_MEMBERSHIP_ASSERTION');
-  return {facet:'WA completable-task jurisdiction membership',families:['CMC','IA'],...credits};
+  return {facet:'WA completable-task jurisdiction membership',families:[family,'IA'],...credits};
 }
 
-export async function probeWaMembership({cookie,output,readJournal,mutation=null,request=fetch}) {
-  assert(mutation===null||mutation===WA_MEMBERSHIP_FAULT,'SOURCE_PROFILE_UNKNOWN_FAULT');
+export async function probeWaMembership({cookie,output,readJournal,mutation=null,request=fetch,family='CMC'}) {
+  const fault=faultFor(family);assert(mutation===null||mutation===fault,'SOURCE_PROFILE_UNKNOWN_FAULT');
   assert(typeof cookie==='string'&&cookie.length>0,'SOURCE_PROFILE_SESSION_REQUIRED');
   assert(typeof readJournal==='function','SOURCE_PROFILE_JOURNAL_REQUIRED');
   assert.deepEqual(readJournal(),[],'SOURCE_PROFILE_MEMBERSHIP_JOURNAL');
   const observations=[];
   let csrfToken;
-  for(const call of calls) {
+  for(const call of callsFor(family)) {
     const post=call.route==='post';
     const route=post?'/workallocation/searchForCompletable':`/workallocation/case/tasks/${call.caseId}/event/${call.eventId}/caseType/${call.caseType}/jurisdiction/${call.family}`;
     const response=await request(CANDIDATE_URL+route,{method:post?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(15000),
@@ -72,5 +77,5 @@ export async function probeWaMembership({cookie,output,readJournal,mutation=null
   }
   const journal=readJournal();
   fs.writeFileSync(path.join(output,'profile-wa-membership-observations.json'),JSON.stringify({observations,journal,mutation,catalogueCredit:false}),{mode:0o600});
-  return validateWaMembershipObservations(observations,journal,mutation);
+  return validateWaMembershipObservations(observations,journal,mutation,family);
 }
