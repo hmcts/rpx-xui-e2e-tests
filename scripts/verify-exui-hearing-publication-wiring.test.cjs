@@ -46,6 +46,8 @@ const SOURCE_FILES = [
   "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-conditional-postal-complex-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-conditional-postal-complex-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.xlsx",
 
@@ -202,7 +204,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 148);
+  assert.equal(SOURCE_FILES.length, 150);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

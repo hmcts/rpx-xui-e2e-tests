@@ -846,6 +846,7 @@ test("support only: complete event phase credits the exact courtadmin edit and r
     {obligationId:"configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f",boundary:"candidate",status:"passed"},
     {obligationId:"configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49",boundary:"candidate",status:"passed"},
     {obligationId:"configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e",boundary:"candidate",status:"passed"},
+    {obligationId:"configuration-shape:69bfc1eb277c1389d00d2f2dab9cb7e59585c0f3383d25432691084976cb5498",boundary:"candidate",status:"passed"},
     {obligationId:"configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757",boundary:"candidate",status:"passed"},
     { obligationId: eventCell, boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66", boundary: "ccd", status: "passed" },
@@ -865,9 +866,9 @@ test("support only: complete event phase credits the exact courtadmin edit and r
     { obligationId: "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337", boundary: "ccd", status: "passed" },
   ]);
-  assert.equal(projected.report.coverage.candidate, 4);
+  assert.equal(projected.report.coverage.candidate, 5);
   assert.equal(projected.report.coverage.ccd, 16);
-  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 92);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 91);
   assert.equal(projected.report.releaseCredit, false);
   assert.equal(
     projected.phaseReferences.eventCapability.receiptArtifactDigest,
@@ -966,7 +967,7 @@ for (const oldBlocked of [false, true])
       assert.equal(projected.report.coverage.ccd, oldBlocked ? 16 : 17);
       assert.equal(
         projected.report.coverage.missingCandidateOrCcd.length,
-        oldBlocked ? 92 : 91,
+        oldBlocked ? 91 : 90,
       );
       assert.equal(
         projected.phaseReferences.ccd.status,
@@ -1450,7 +1451,7 @@ test("support only: writer requires independent tool/source pins and projection 
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: b.directory,
   });
-  assert.equal(projected.report.coverage.candidate, 4);
+  assert.equal(projected.report.coverage.candidate, 5);
   assert.equal(projected.report.coverage.ccd, 16);
   assert.deepEqual(
     Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),

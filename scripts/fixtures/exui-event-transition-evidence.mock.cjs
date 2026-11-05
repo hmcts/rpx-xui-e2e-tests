@@ -73,7 +73,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
     const imported = { binding: prepared.binding, status: 201, fixtureDigest: hash(prepared.file), images,
       sourceRevision: fixtureBinding.sourceRevision, sourceProjectionDigest: fixtureBinding.sourceProjectionDigest,
       fixtureSelection: state.fixtureSelection, observedDefinitionDigest: hash(JSON.stringify(observed)), definitionVersion: 1 };
-    imported.storedSourceShapeDates=sourceShapeDateRecord(['emailInformation','postalInformation.postalAddress.AddressLine2','serveByPostOrEmail'].map(reference=>({case_type:'HarnessNestedPRL',version:1,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'})),state,1);
+    imported.storedSourceShapeDates=sourceShapeDateRecord(['emailInformation','postalInformation','postalInformation.postalAddress.AddressLine2','serveByPostOrEmail'].map(reference=>({case_type:'HarnessNestedPRL',version:1,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'})),state,1);
     put("observed-definition.json", observed, output);
     const importedRef = put("definition-import.json", imported, output);
     variants[variant] = { state, observed, imported, importedRef };

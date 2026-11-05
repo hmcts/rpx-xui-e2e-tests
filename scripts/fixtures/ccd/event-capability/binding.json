@@ -23,6 +23,14 @@
     "before": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
     "after": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\""
   },
+  "shape-conditional-postal-complex-transformation": {
+    "schemaVersion": 1,
+    "shape": "conditional-postal-complex",
+    "reference": "postalInformation",
+    "column": "FieldShowCondition",
+    "before": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
+    "after": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+  },
   "shape-optional-postal-line-two-transformation": {
     "schemaVersion": 1,
     "shape": "optional-postal-line-two",
@@ -153,6 +161,10 @@
   "shape-conditional-email-complex-mutant": {
     "sourceDigest": "sha256:334834cd0f72c143f9d877430cfab8b6554808c27413f84f424727adc990f800",
     "workbookDigest": "sha256:1ccf0fb316bc6c97f2c262a550289b20c5dca759abd296f12f26a23d051bc609"
+  },
+  "shape-conditional-postal-complex-mutant": {
+    "sourceDigest": "sha256:505fc4a2c8597d1a09757599757163e67e56dd62e05da27c3182d4121ce2b87e",
+    "workbookDigest": "sha256:7970ca0437162bc32bc2e55ee49210ca12e5e17c220d7eddff29e7b8ed071e01"
   },
   "shape-optional-postal-line-two-mutant": {
     "sourceDigest": "sha256:d834e8e7a694dc8579167485d3c2c6a7e05abda7f9175cca7a1ca55b6e190e39",

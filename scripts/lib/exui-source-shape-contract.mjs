@@ -16,6 +16,10 @@ export const SOURCE_SHAPE_ROWS = Object.freeze([
     label: '', order: 2, context: 'COMPLEX',
     condition: 'sodAdditionalRecipientsList.serveByPostOrEmail="email"',
     faultColumn: 'FieldShowCondition', faultValue: 'sodAdditionalRecipientsList.serveByPostOrEmail="post"' }),
+  Object.freeze({ id: 'conditional-postal-complex', obligationId: 'configuration-shape:69bfc1eb277c1389d00d2f2dab9cb7e59585c0f3383d25432691084976cb5498', reference: 'postalInformation',
+    label: '', order: 5, context: 'COMPLEX',
+    condition: 'sodAdditionalRecipientsList.serveByPostOrEmail="post"',
+    faultColumn: 'FieldShowCondition', faultValue: 'sodAdditionalRecipientsList.serveByPostOrEmail="email"' }),
   // Toolkit 7.4.22 and 7.4.25 map nonempty event labels onto this nested leaf.
   // Their AddressUK validator only requires AddressLine1/TextMax150; changing
   // Line2 to MANDATORY is not a proven UI fault. Blank + filled CCD writes remain required.
