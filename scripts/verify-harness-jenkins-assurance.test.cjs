@@ -254,3 +254,16 @@ test('native completion publishes sanitized child failure with phase terminal an
  const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);
  assert.equal(messages.length,1);assert.match(messages[0],/EVENT_TRANSITION_ACK_TIMEOUT/);assert.match(messages[0],/eventCapability/);assert.match(messages[0],/recipientCallback PASS/);assert.match(messages[0],/"code":2/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|NATIVE_PREFLIGHT_FAILED/);
 });
+
+
+test('native completion logs all seven fixed phases and rejects foreign phase names',async t=>{
+ const {logNativeCompletion}=await load();
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'native-seven-completion-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'));
+ const phases=['family','scope','ccd','eventCapability','routing','recipientCallback','selectorEventRow'];
+ const result={status:'PASS',phaseResults:phases.map(phase=>({phase,status:'PASS',privateDetail:'PRIVATE-CANARY'})),cleanupComplete:true};
+ const write=()=>fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify(result));
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));write();logNativeCompletion(root);
+ assert.equal(messages.length,1);assert.match(messages[0],/Native PASS/);for(const phase of phases)assert(messages[0].includes(phase+' PASS'));assert.match(messages[0],/cleanup complete/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY/);
+ result.status='BLOCKED';result.phaseResults[6].status='BLOCKED';write();logNativeCompletion(root);assert.equal(messages.length,2);assert.match(messages[1],/Native BLOCKED/);assert.match(messages[1],/selectorEventRow BLOCKED/);
+ result.phaseResults.push({phase:'PRIVATE-CANARY\nforeign',status:'PASS'});write();logNativeCompletion(root);assert.equal(messages.length,2);
+});

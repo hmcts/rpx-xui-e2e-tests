@@ -445,7 +445,7 @@ export function logNativeCompletion(output) {
     const result = JSON.parse(
       fs.readFileSync(path.join(output, "private/ci-result.json"), "utf8"),
     );
-    const allowed = new Set(["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback"]);
+    const allowed = new Set(["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"]);
     assert(
       ["PASS", "FAIL", "BLOCKED"].includes(result.status) &&
         Array.isArray(result.phaseResults) &&
