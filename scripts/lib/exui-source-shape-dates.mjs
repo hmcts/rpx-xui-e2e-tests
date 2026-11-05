@@ -46,7 +46,7 @@ JOIN event ev ON ev.id=ef.event_id JOIN case_type ct ON ct.id=ev.case_type_id
 JOIN case_field cf ON cf.id=ef.case_field_id AND cf.case_type_id=ct.id
 WHERE ct.reference='HarnessNestedPRL' AND ct.version=${version}
 AND ev.reference='serviceOfDocuments' AND cf.reference='sodAdditionalRecipientsList'
-AND ec.reference IN ('serveByPostOrEmail','emailInformation','postalInformation','postalInformation.postalAddress.AddressLine2')
+AND ec.reference IN ('serveByPostOrEmail','emailInformation','postalInformation.postalName','postalInformation.postalAddress.AddressLine2')
 ORDER BY ec.reference) r; COMMIT;`;
   let raw;
   try {raw=runDocker(['exec','-i',state.namespace,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','ccd_definition'],sql);}

@@ -54,7 +54,7 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
   assert.deepEqual(observed.input.policy, f.policy);
   assert.equal(observed.input.policy.mutationDefinitions.length, 10);
   assert.deepEqual(observed.input.mutations, []);
-  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied', 'ccd-source-shape-case-field-recipient-selector', 'ccd-source-shape-conditional-email-complex', 'ccd-source-shape-conditional-postal-complex', 'ccd-source-shape-optional-postal-line-two', 'ccd-source-shape-required-delivery-radio']);
+  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied', 'ccd-source-shape-case-field-recipient-selector', 'ccd-source-shape-conditional-email-complex', 'ccd-source-shape-optional-postal-line-two', 'ccd-source-shape-postal-recipient-name', 'ccd-source-shape-required-delivery-radio']);
   assert.deepEqual(observed.terminal, f.terminal);
   assert.deepEqual(observed.references.map(item => item.path), ['baseline/manifest.json', 'baseline/execution.json', 'baseline/report.json', 'baseline/framework-terminal.json']);
   assert.equal(observed.checkpointDigest, sha(JSON.stringify(observed.references)));

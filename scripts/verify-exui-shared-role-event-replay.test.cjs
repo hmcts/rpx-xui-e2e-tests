@@ -135,7 +135,7 @@ test('shared fixture preserves source-shape and judge observation formats outsid
  const library=await import('./lib/exui-shared-role-event-observations.mjs');
  const fakeFs={writeFileSync:(file,bytes,options)=>writes.push({file,value:JSON.parse(bytes),options}),readFileSync:()=>{throw Error('NON_ROLE_CONTEXT_READ');}};
  new Function('require','exports','process',compiled.outputText)(name=>name==='node:fs'?fakeFs:name.startsWith('node:')?require(name):name==='./harnessCcd'?{}:library,exports,{env:{EXUI_CCD_EVIDENCE:'/private/unit-observation'}});
- const selected=['event-capability','source-shape-required-delivery-radio','source-shape-conditional-email-complex','source-shape-conditional-postal-complex','source-shape-optional-postal-line-two'];
+ const selected=['event-capability','source-shape-required-delivery-radio','source-shape-conditional-email-complex','source-shape-postal-recipient-name','source-shape-optional-postal-line-two'];
  for(const name of selected)exports.saveCcdEventObservation(name,[{sourceShape:name}]);
  assert.deepEqual(writes,selected.map(name=>({file:`/private/unit-observation/${name}-observation.json`,value:[{sourceShape:name}],options:{mode:0o600,flag:'wx'}})));
 });

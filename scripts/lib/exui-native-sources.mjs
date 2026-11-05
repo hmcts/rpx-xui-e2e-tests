@@ -56,8 +56,8 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.xlsx",
-  "scripts/fixtures/ccd/event-capability/shape-conditional-postal-complex-mutant.json",
-  "scripts/fixtures/ccd/event-capability/shape-conditional-postal-complex-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-postal-recipient-name-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-postal-recipient-name-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.xlsx",
 

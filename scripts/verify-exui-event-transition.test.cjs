@@ -181,12 +181,12 @@ test("support only: event scope has fixed ten-proof baseline and ten definition 
     { invocationId:"ccd-shape-case-field-recipient-selector",kind:"mutation",mutation:"ccd-shape-case-field-recipient-selector" },
     { invocationId:"ccd-shape-required-delivery-radio",kind:"mutation",mutation:"ccd-shape-required-delivery-radio" },
     { invocationId:"ccd-shape-conditional-email-complex",kind:"mutation",mutation:"ccd-shape-conditional-email-complex" },
-    { invocationId:"ccd-shape-conditional-postal-complex",kind:"mutation",mutation:"ccd-shape-conditional-postal-complex" },
+    { invocationId:"ccd-shape-postal-recipient-name",kind:"mutation",mutation:"ccd-shape-postal-recipient-name" },
     { invocationId:"ccd-shape-optional-postal-line-two",kind:"mutation",mutation:"ccd-shape-optional-postal-line-two" },
 
   ]);
   const policy = getReleasePolicy(scope);
-  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-courtadmin-read-recipient-shapes", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", "ccd-source-shape-case-field-recipient-selector", "ccd-source-shape-required-delivery-radio", "ccd-source-shape-conditional-email-complex", "ccd-source-shape-conditional-postal-complex", "ccd-source-shape-optional-postal-line-two"]);
+  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-courtadmin-read-recipient-shapes", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", "ccd-source-shape-case-field-recipient-selector", "ccd-source-shape-required-delivery-radio", "ccd-source-shape-conditional-email-complex", "ccd-source-shape-postal-recipient-name", "ccd-source-shape-optional-postal-line-two"]);
   assert.equal(policy.mutationDefinitions[0].expectedFailureId, "event-capability-isolation");
   assert.equal(policy.mutationDefinitions[1].expectedFailureId, "courtadmin-recipient-read-projection");
   const credentials = { readonly: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-readonly"] }, allowed: {}, observer: {}, courtadmin: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-courtadmin"] }, judge: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-judge"] } };

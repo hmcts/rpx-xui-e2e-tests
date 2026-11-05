@@ -6,7 +6,7 @@ import {
   saveCcdEventObservation, ccdEventPersonas, eventProofInputs, EVENT_SCOPE,
 } from './harnessCcdEvent';
 
-export const shapes = ['case-field-recipient-selector', 'required-delivery-radio', 'conditional-email-complex', 'conditional-postal-complex', 'optional-postal-line-two'] as const;
+export const shapes = ['case-field-recipient-selector', 'required-delivery-radio', 'conditional-email-complex', 'postal-recipient-name', 'optional-postal-line-two'] as const;
 const mutation = process.env.EXUI_HARNESS_MUTATION;
 const control = 'synthetic-source-shape-control';
 const emailName = 'Synthetic shape recipient';
@@ -101,7 +101,6 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     const expectedLine2: string | null = null;
     let postalLabel: string | undefined;
     let faultEmailPresent = false;
-    let faultPostalPresent = false;
 
     if (shape === 'required-delivery-radio') {
       await assertSourceShapeRadioLabel(page, Boolean(mutation));
@@ -158,34 +157,24 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
         contractSatisfied = true;
         expectedChannel = 'email';
       }
-    } else if (shape === 'conditional-postal-complex') {
+    } else if (shape === 'postal-recipient-name') {
       await email.check();
-      await assertSourceShapeHiddenControls(postalName, line2);
+      await assertSourceShapeHiddenControls(postalName);
       await post.check();
-      if (mutation) {
-        await assertSourceShapeHiddenControls(postalName, line2);
-        await email.check();
-        await expect(postalName).toBeVisible();
-        await name.fill(emailName);
-        await address.fill(emailAddress);
-        faultPostalPresent = true;
-        expectedChannel = 'email';
-      } else {
-        await expect(postalName).toBeVisible();
-        await email.check();
-        await assertSourceShapeHiddenControls(postalName, line2);
-        await post.check();
-        contractSatisfied = true;
-        expectedChannel = 'post';
-      }
+      await expect(postalName).toBeVisible();
+      expectedChannel = 'post';
     } else {
       await email.check();
       await assertSourceShapeHiddenControls(line2);
       await post.check();
       expectedChannel = 'post';
     }
-    if (expectedChannel === 'post' || faultPostalPresent) {
+    if (expectedChannel === 'post') {
       await page.getByRole('link',{name:"I can't enter a UK postcode",exact:true}).last().click();
+      if (shape === 'postal-recipient-name') {
+        await expect(postalName).toHaveAccessibleName(mutation ? /^Harness changed postal recipient name/ : /^Name/);
+        contractSatisfied = !mutation;
+      }
       await postalName.fill(emailName);
       await page.locator('input[id$="AddressLine1"]').fill('Synthetic shape street');
       await page.locator('input[id$="PostCode"]').fill('SW1A 1AA');
@@ -217,8 +206,6 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     }
     if (expectedChannel === 'email') {
       expect(recipients[0].value.emailInformation).toMatchObject({emailName,emailAddress});
-      if (faultPostalPresent) expect(recipients[0].value.postalInformation).toMatchObject({postalName:emailName,
-        postalAddress:{AddressLine1:'Synthetic shape street',PostCode:'SW1A 1AA',...postalSiblingValues}});
     }
     if (expectedChannel === 'post') {
       expect(recipients[0].value.postalInformation).toMatchObject({postalName:emailName,

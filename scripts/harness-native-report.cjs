@@ -152,7 +152,7 @@ for (const [id,slice,behaviour] of [
   ['case-field-recipient-selector','Additional recipient field — source label','Select an additional recipient, persist the choice and verify the source-defined label on the case view.'],
   ['required-delivery-radio','Delivery method — required selection','Show Served by, reject an omitted method, then persist a selected email recipient.'],
   ['conditional-email-complex','Email details — conditional complex','Toggle email/post, verify email controls appear only for email, and persist entered recipient data.'],
-  ['conditional-postal-complex','Postal details — conditional complex','Toggle email/post, verify postal controls appear only for post, and persist the postal recipient data.'],
+  ['postal-recipient-name','Postal recipient name — source label','Show the source postal-name field for Post, submit its value and confirm CCD persistence.'],
   ['optional-postal-line-two','Postal address — optional second line','Save a blank second line, edit the same recipient to a filled second line, and verify both writes with unchanged siblings.'],
 ]) proofs[`ccd-source-shape-${id}`] = {
   phase:'eventCapability',slice,behaviour,services:'Private Law source-shaped fixture',
@@ -232,7 +232,7 @@ Object.assign(faults, {
   'ccd-shape-case-field-recipient-selector':'Change only the imported CaseField label; prove the candidate renders the changed label after a real CCD write before the source-label oracle fails',
   'ccd-shape-required-delivery-radio':'Remove the mandatory delivery-method constraint; prove an omitted method persists before the required-method oracle fails',
   'ccd-shape-conditional-email-complex':'Change only email-complex visibility to post; prove the altered visible branch and a real write before the email-condition oracle fails',
-  'ccd-shape-conditional-postal-complex':'Change only postal-complex visibility to email; prove the altered visible branch and a real write before the postal-condition oracle fails',
+  'ccd-shape-postal-recipient-name':'Change only the postal-name event label; prove the changed candidate label and a real CCD write before the source-label oracle fails',
   'ccd-shape-optional-postal-line-two':'Change only the second address line label; prove the changed candidate label and filled persistence before the source-label oracle fails',
 });
 const phaseLabels = {

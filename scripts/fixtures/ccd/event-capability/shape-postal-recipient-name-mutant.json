@@ -746,7 +746,7 @@
         "ID": "ServeOrgDetails",
         "CaseEventID": "serviceOfDocuments",
         "CaseFieldID": "sodAdditionalRecipientsList",
-        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+        "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
         "ListElementCode": "postalInformation",
         "EventElementLabel": " ",
         "FieldDisplayOrder": "5",
@@ -760,7 +760,7 @@
         "CaseFieldID": "sodAdditionalRecipientsList",
         "ListElementCode": "postalInformation.postalName",
         "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\"",
-        "EventElementLabel": " ",
+        "EventElementLabel": "Harness changed postal recipient name",
         "FieldDisplayOrder": "6",
         "DisplayContext": "MANDATORY"
       },
