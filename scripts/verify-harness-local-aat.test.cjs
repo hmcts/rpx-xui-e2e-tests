@@ -570,11 +570,14 @@ test("credential-free collection runs only116 offline tests and preserves every 
     fs.rmSync(root, { recursive: true, force: true });
   });
   const calls = [];
+  let clock=0, expectedVerificationMs=25;
+  t.mock.method(performance,"now",()=>clock);
   let nativeStatus = "BLOCKED",
     nativeExitCode = 2;
   Reporter.prototype.prepareNativeEvidence = async function (descriptor) {
     assert.equal(descriptor, "/explicit/descriptor.json");
     calls.push("validate-native");
+    clock+=25;
     this.nativeEvidence = {
       status: nativeStatus,
       exitCode: nativeExitCode,
@@ -585,6 +588,12 @@ test("credential-free collection runs only116 offline tests and preserves every 
     calls.push("render");
     assert.equal(this.results.size, 116);
     assert.equal(this.diagnosticSource.state, "unavailable");
+    assert.equal(this.phaseTimings.length, 2);
+    assert.equal(this.phaseTimings[0].durationMs, 1000);
+    const verification = this.phaseTimings[1];
+    assert.equal(verification.label, "Native evidence and interpreter verification");
+    assert.equal(verification.durationMs,expectedVerificationMs);
+    assert.equal(this.nativeElapsedMs, 1000 + verification.durationMs);
   };
   cp.spawn = (_command, _args, options) => {
     calls.push("offline");
@@ -618,7 +627,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
     nativeExitCode = code;
     const result = await runHarnessCollection(
       { PATH: "/bin", SOLICITOR_PASSWORD: canary },
-      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json" },
+      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json", nativeElapsedMs:1000, phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}] },
     );
     assert.deepEqual(result, {
       status: "passed",
@@ -630,6 +639,13 @@ test("credential-free collection runs only116 offline tests and preserves every 
     calls,
     Array(3).fill(["validate-native", "offline", "render"]).flat(),
   );
+  Reporter.prototype.prepareCompatibilityEvidence = async function (descriptor) {
+    assert.equal(descriptor,"/explicit/compatibility.json");assert.equal(this.nativeEvidence.status,"PASS");
+    calls.push("validate-compatibility");clock+=35;
+  };
+  expectedVerificationMs=60;
+  await runHarnessCollection({}, {nativeEvidencePath:"/explicit/descriptor.json",compatibilityEvidencePath:"/explicit/compatibility.json",nativeElapsedMs:1000,phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}]});
+  assert.deepEqual(calls.slice(-4),["validate-native","validate-compatibility","offline","render"]);
   Reporter.prototype.prepareCompatibilityEvidence = async function (descriptor) {
     assert.equal(descriptor,"/explicit/compatibility.json");assert.equal(this.nativeEvidence.status,"PASS");
     calls.push("validate-compatibility");throw new Error("APPLICANT_REPORT_EVIDENCE_INVALID");
@@ -645,7 +661,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
   );
   assert.equal(
     calls.length,
-    11,
+    15,
     "invalid evidence must not launch diagnostics or publish",
   );
 });

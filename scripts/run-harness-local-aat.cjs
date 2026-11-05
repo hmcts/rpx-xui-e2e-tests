@@ -240,10 +240,14 @@ async function runHarnessCollection(
   const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
-  if (nativeEvidencePath !== undefined)
-    await reporter.prepareNativeEvidence(nativeEvidencePath);
-  if (compatibilityEvidencePath !== undefined)
-    await reporter.prepareCompatibilityEvidence(compatibilityEvidencePath);
+  if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined) {
+    const verificationStartedAt=new Date().toISOString(),verificationStarted=performance.now();
+    if(nativeEvidencePath !== undefined) await reporter.prepareNativeEvidence(nativeEvidencePath);
+    if(compatibilityEvidencePath !== undefined) await reporter.prepareCompatibilityEvidence(compatibilityEvidencePath);
+    const verificationMs=Math.round(performance.now()-verificationStarted);
+    if(nativeElapsedMs!==undefined)reporter.nativeElapsedMs=nativeElapsedMs+verificationMs;
+    if(phaseTimings!==undefined)reporter.phaseTimings=[...phaseTimings,{label:'Native evidence and interpreter verification',status:'completed',startedAt:verificationStartedAt,durationMs:verificationMs}];
+  }
   fs.mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
   const runRoot = fs.mkdtempSync(path.join(privateRoot, ".local-aat-"));
   fs.chmodSync(runRoot, 0o700);
