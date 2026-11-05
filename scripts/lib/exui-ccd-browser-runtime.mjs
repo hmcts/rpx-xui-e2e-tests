@@ -1,7 +1,9 @@
+import {resultTransportRoute,resultSupportingResponse} from './exui-results-ui-contract.mjs';
+import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
-import { createHmac } from "node:crypto";
+import { createHmac, createHash } from "node:crypto";
 import { validateRoleTransition } from "./exui-ccd-role-transition.mjs";
 import { createRecipientCallbackResponder } from "./exui-recipient-callback.mjs";
 import { CALLBACK_SCOPE, RECIPIENT_CALLBACK_PATH } from "./exui-recipient-callback-fixture.mjs";
@@ -146,9 +148,11 @@ function ccdTransportRoute(method, pathname, scope) {
 // CCD owns every baseline case/event response. The explicit callback opt-in adds
 // only the bounded synthetic recipient transport responder, never production PRL logic.
 export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
-  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
-  const { recipientCallback, workbasket } = options;
-  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
+  const { recipientCallback, workbasket, resultColumns } = options;
+  if(resultColumns!==undefined){assert.equal(resultColumns,true,"RESULT_UI_GATEWAY_OPT_IN");assert.equal(recipientCallback,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(workbasket,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(mutation,null,"RESULT_UI_BASELINE_ONLY");}
+  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  if (scope === APPLICANT_RESULTS_SCOPE) assert.equal(resultColumns,true,"APPLICANT_RESULTS_GATEWAY_REQUIRED");
   assert(workbasket === undefined || (workbasket === true && scope === "exui-ccd-pilot"), "CCD_WORKBASKET_SCOPE_REQUIRED");
   if (mutation === "ccd-drop-workbasket-field") assert.equal(workbasket, true, "CCD_WORKBASKET_FAULT_SCOPE_REQUIRED");
   if ([EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope))
@@ -242,9 +246,15 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
       ]) {
         if (request.headers[key]) headers[key] = request.headers[key];
       }
+      const supporting = resultSupportingResponse(resultColumns,request.method,url,body,actor);
+      if (supporting && receivedPath === url.pathname) {
+        response.writeHead(supporting.status, {"content-type":"application/json"});
+        response.end(supporting.responseBody);
+        return;
+      }
       const ccdRoute =
         receivedPath === url.pathname
-          ? ccdTransportRoute(request.method, transportedPath, scope)
+          ? (resultColumns ? resultTransportRoute(request.method,transportedPath,url,body,actor) : ccdTransportRoute(request.method, transportedPath, scope))
           : null;
       const journal = {
         path: ccdRoute?.path ?? receivedPath,
@@ -373,6 +383,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
           method: request.method,
           ...journal,
           status: upstream.status,
+          ...(resultColumns?{useCase:url.searchParams.get("use_case"),requestDigest:createHash("sha256").update(body).digest("hex"),responseDigest:createHash("sha256").update(bytes).digest("hex")}:{}),
           mutation,
         }) + "\n",
       );

@@ -558,10 +558,12 @@ test("credential-free collection runs only116 offline tests and preserves every 
   const Reporter = require("./harness-public-odhin-reporter.cjs");
   const oldSpawn = cp.spawn,
     oldPrepare = Reporter.prototype.prepareNativeEvidence,
+    oldCompatibility = Reporter.prototype.prepareCompatibilityEvidence,
     oldEnd = Reporter.prototype.onEnd;
   t.after(() => {
     cp.spawn = oldSpawn;
     Reporter.prototype.prepareNativeEvidence = oldPrepare;
+    Reporter.prototype.prepareCompatibilityEvidence = oldCompatibility;
     Reporter.prototype.onEnd = oldEnd;
     delete require.cache[modulePath];
     process.chdir(previous);
@@ -628,6 +630,12 @@ test("credential-free collection runs only116 offline tests and preserves every 
     calls,
     Array(3).fill(["validate-native", "offline", "render"]).flat(),
   );
+  Reporter.prototype.prepareCompatibilityEvidence = async function (descriptor) {
+    assert.equal(descriptor,"/explicit/compatibility.json");assert.equal(this.nativeEvidence.status,"PASS");
+    calls.push("validate-compatibility");throw new Error("APPLICANT_REPORT_EVIDENCE_INVALID");
+  };
+  await assert.rejects(runHarnessCollection({}, {nativeEvidencePath:"/explicit/descriptor.json",compatibilityEvidencePath:"/explicit/compatibility.json"}),/APPLICANT_REPORT_EVIDENCE_INVALID/);
+  assert.deepEqual(calls.slice(-2),["validate-native","validate-compatibility"]);
   Reporter.prototype.prepareNativeEvidence = async () => {
     throw new Error("NATIVE_REPORT_IDENTITY_MISMATCH");
   };
@@ -637,7 +645,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
   );
   assert.equal(
     calls.length,
-    9,
+    11,
     "invalid evidence must not launch diagnostics or publish",
   );
 });

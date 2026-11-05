@@ -137,6 +137,10 @@ function inventory(p) {
   }
 }
 function validateHtml(html, record) {
+  if (Boolean(record.compatibilityEvidence) !== html.includes('id="harness-applicant-compatibility"')) throw failure();
+  if (record.compatibilityEvidence) {
+    if (!record.nativeEvidence || !html.includes(require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(record.compatibilityEvidence))) throw failure();
+  }
   if (record.nativeElapsedMs !== undefined && (!Number.isSafeInteger(record.nativeElapsedMs) || record.nativeElapsedMs < 0 || !html.includes(`data-native-elapsed-ms="${record.nativeElapsedMs}"`))) throw failure();
   if (record.phaseTimings !== undefined) {
     validatePhaseTimings(record.phaseTimings, record.nativeEvidence, record.nativeElapsedMs);
@@ -342,6 +346,7 @@ class HarnessPublicOdhinReporter {
     this.nativeElapsedMs = nativeElapsedMs;
     this.phaseTimings = phaseTimings;
     this.nativeEvidence = null;
+    this.compatibilityEvidence = null;
     this.selection = selection;
     this.paths = paths(selection);
     this.expected = new Map(
@@ -363,6 +368,12 @@ class HarnessPublicOdhinReporter {
     require("./harness-native-report.cjs").renderNativeEvidence(
       this.nativeEvidence,
     );
+  }
+  async prepareCompatibilityEvidence(descriptorPath) {
+    if (this.begun || this.compatibilityEvidence || !this.nativeEvidence) this.reject();
+    const { readApplicantCompatibilityEvidence } = await import("./lib/exui-applicant-results-report-evidence.mjs");
+    this.compatibilityEvidence = readApplicantCompatibilityEvidence(descriptorPath);
+    require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence);
   }
   reject() {
     this.invalid = true;
@@ -630,6 +641,7 @@ class HarnessPublicOdhinReporter {
         globalErrors: this.globalErrors,
         diagnosticSource: this.diagnosticSource,
         nativeEvidence: this.nativeEvidence,
+        compatibilityEvidence: this.compatibilityEvidence,
         nativeElapsedMs: this.nativeElapsedMs,
         phaseTimings: this.phaseTimings,
         startTime: result.startTime.toISOString(),
@@ -693,6 +705,7 @@ class HarnessPublicOdhinReporter {
           },
         ),
       );
+      if (this.compatibilityEvidence) presentation.querySelector("#harness-native-evidence").insertAdjacentHTML("afterend", require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence));
       if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs));
       presentation
         .querySelector("head")

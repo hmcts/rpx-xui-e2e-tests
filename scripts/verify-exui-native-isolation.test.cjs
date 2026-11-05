@@ -841,3 +841,17 @@ test('callback policy pair constructs both owned plans and rejects foreign scope
  for(const invocationId of ['ccd-enable-judge-event','wa-drop-family']){assert.throws(()=>toolContainerArguments({...tools,invocationId}),/UNSUPPORTED_CCD_CALLBACK_INVOCATION/);assert.throws(()=>candidateArchiveArguments({...candidate,invocationId}),/UNSUPPORTED_CCD_CALLBACK_INVOCATION/);}
  assert.throws(()=>f.api.captureCallbackFaultOwnership(input,f.handoff,f.context,f.handoff.output),/CI_NATIVE_CALLBACK_VARIANT_MISMATCH/);
 });
+test('applicant result invocations construct closed native plans without permitting foreign scope',async t=>{
+ const f=await eventOwnershipFixture(t),{APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS}=await import('./lib/exui-applicant-results-contract.mjs');
+ const {toolContainerArguments,candidateArchiveArguments}=await import('./lib/exui-oci-runtime.mjs');
+ const {nativeInvocations}=await import('./lib/exui-native-contract.mjs');assert.deepEqual(nativeInvocations(APPLICANT_RESULTS_SCOPE).map(row=>row.invocationId),['baseline',...APPLICANT_RESULTS_MUTATIONS]);
+ for(const invocationId of ['baseline',...APPLICANT_RESULTS_MUTATIONS]){
+  const sessions=path.join(f.handoff.stateRoot,invocationId,'sessions'),diagnostics=path.join(f.handoff.stateRoot,invocationId,'diagnostics');fs.mkdirSync(sessions,{recursive:true});fs.mkdirSync(diagnostics,{recursive:true});
+  const common={owner:f.input.runId,namespace:f.input.ccd.namespace,invocationId,releaseScopeId:APPLICANT_RESULTS_SCOPE,sessions,candidateRoot:f.input.artifact.candidateRoot,harnessRoot:f.handoff.stagedHarness};
+  const tools={...common,image:f.input.browserRuntimeImage,dependenciesRoot:fs.realpathSync(path.join(__dirname,'../node_modules')),output:f.handoff.output,browserRoot:f.input.browserRoot,native:true};
+  const candidate={...common,image:f.input.nativeRuntime.imageId,guard:path.join(f.handoff.stagedHarness,'scripts/lib/exui-runtime-network-guard.cjs'),config:{},evidenceRoot:f.handoff.output,diagnostics};
+  assert(toolContainerArguments(tools).includes(invocationId));assert(candidateArchiveArguments(candidate).includes('/candidate/runtime/node'));
+  if(invocationId!=='baseline')for(const releaseScopeId of [undefined,'exui-ccd-pilot','exui-ccd-event-capability-pilot']){assert.throws(()=>toolContainerArguments({...tools,releaseScopeId}),/CCD_RESULTS_SCOPE_REQUIRED/);assert.throws(()=>candidateArchiveArguments({...candidate,releaseScopeId}),/CCD_RESULTS_SCOPE_REQUIRED/);}
+  for(const foreign of ['wa-drop-family','ccd-enable-judge-event']){assert.throws(()=>toolContainerArguments({...tools,invocationId:foreign}),/UNSUPPORTED_CCD_RESULTS_INVOCATION/);assert.throws(()=>candidateArchiveArguments({...candidate,invocationId:foreign}),/UNSUPPORTED_CCD_RESULTS_INVOCATION/);}
+ }
+});

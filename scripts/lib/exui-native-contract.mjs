@@ -1,5 +1,7 @@
+import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import { CALLBACK_SCOPE, CALLBACK_MUTATION } from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
+import {RESULTS_UI_KIND,resultsConfiguration} from './exui-results-ui-contract.mjs';
 import assert from "node:assert/strict";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
 import { digestBytes } from "./exui-evidence-io.mjs";
@@ -13,6 +15,7 @@ import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration 
 import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION } from "./exui-ccd-event-capability.mjs";
 
 const slices = {
+  [APPLICANT_RESULTS_SCOPE]: [{invocationId:"baseline",kind:"baseline",mutation:null},...APPLICANT_RESULTS_MUTATIONS.map(mutation=>({invocationId:mutation,kind:"mutation",mutation}))],
   [CALLBACK_SCOPE]: [{invocationId:"baseline",kind:"baseline"},{invocationId:CALLBACK_MUTATION,kind:"mutation",mutation:CALLBACK_MUTATION}],
   [EVENT_CAPABILITY_SCOPE]: [
     { invocationId: "baseline", kind: "baseline", mutation: null },
@@ -101,7 +104,7 @@ export function selectedArtifact(input, invocation) {
 }
 export function nativeIdentity(input, invocation, candidateRoot) {
   const artifact = selectedArtifact(input, invocation);
-  const { config, digest } = effectiveCandidateConfiguration(
+  let { config, digest } = effectiveCandidateConfiguration(
     candidateRoot,
     invocation.mutation === "wa-drop-family" ? "wa-drop-family" : null,
   );
@@ -126,7 +129,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   }
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId))
     return {
       config,
       identity: {
@@ -136,6 +139,8 @@ export function nativeIdentity(input, invocation, candidateRoot) {
         dependencyIdentities: {},
       },
     };
+  if(input.releaseScopeId===APPLICANT_RESULTS_SCOPE)config=resultsConfiguration(config);
+  if(input.kind===RESULTS_UI_KIND){assert.equal(invocation.mutation??null,null,"RESULT_UI_BASELINE_ONLY");config=resultsConfiguration(config);}
   config.now = false;
   if (input.releaseScopeId === "exui-ccd-pilot" && input.workbasket)
     config.jurisdictions = `${config.jurisdictions},HARNESS`;
@@ -147,10 +152,10 @@ export function nativeIdentity(input, invocation, candidateRoot) {
         JSON.stringify({
           config,
           gatewayDigest: input.gatewayDigest,
-          mutation: [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
+          mutation: [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
         }),
       ),
-      definitionDigests: { HarnessNestedPRL: input.definition.fixtureDigest,
+      definitionDigests: { [input.kind===RESULTS_UI_KIND||input.releaseScopeId===APPLICANT_RESULTS_SCOPE?"HarnessResultsPRL":"HarnessNestedPRL"]: input.definition.fixtureDigest,
         ...(input.workbasket ? { HarnessResultsPRL: input.workbasketDefinitionDigest } : {}) },
       dependencyIdentities: Object.fromEntries(
         ["data", "definition"].map((service) => [

@@ -1,3 +1,5 @@
+import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS,applicantResultsMutation} from './exui-applicant-results-contract.mjs';
+import {applicantResultTransitionRequest,waitForApplicantResultRuntime,waitForApplicantResultBaselineCapture} from './exui-applicant-results-transition.mjs';
 import {callbackObservationReferences} from './exui-recipient-callback-observations.mjs';
 import {CALLBACK_SCOPE,callbackMutationContract} from './exui-recipient-callback-contract.mjs';
 import {callbackTransitionRequest,waitForCallbackRuntime} from './exui-recipient-callback-transition.mjs';
@@ -112,6 +114,8 @@ function derivations(input, output, policy, identities, artifactDerivation) {
                   "wa-drop-family",
                 ).config.waSupportedJurisdictions,
               }
+            : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+              ? { target:"SearchResultFields+WorkBasketResultFields applicantName", transformationRecord:applicantResultsMutation(definition.mutationId), beforeDigest:baseline.identity.definitionDigests.HarnessResultsPRL, afterDigest:mutant.identity.definitionDigests.HarnessResultsPRL, baselineRuntimeMetadata:baseline.runtimeMetadata, mutantRuntimeMetadata:mutant.runtimeMetadata, runtimeRecord:ref(output,path.join(output,definition.mutationId,"runtime-input.json")) }
             : input.releaseScopeId === CALLBACK_SCOPE
               ? {
                   target: callbackMutationContract().target,
@@ -229,14 +233,18 @@ export async function runNativeHostPhase(output, stagedHarness) {
     };
     writeJsonAtomic(path.join(output, "input.json"), input);
     writeJsonAtomic(path.join(output, "container-launch.json"), handoff);
+    if(input.releaseScopeId===APPLICANT_RESULTS_SCOPE)await waitForApplicantResultBaselineCapture(input,output,{isCancelled:()=>Boolean(interrupted)});
+    let priorResultInput=input;
     for (const invocation of invocations) {
-      const invocationInput = input.releaseScopeId === CALLBACK_SCOPE && invocation.mutation
+      const invocationInput = input.releaseScopeId === APPLICANT_RESULTS_SCOPE && invocation.mutation
+        ? await waitForApplicantResultRuntime(input,output,invocation.invocationId,priorResultInput,{isCancelled:()=>Boolean(interrupted)})
+        : input.releaseScopeId === CALLBACK_SCOPE && invocation.mutation
         ? await waitForCallbackRuntime(input, output, {isCancelled: () => Boolean(interrupted)})
         : input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation
         ? await waitForEventCapabilityRuntime(input, output, { invocationId: invocation.invocationId, isCancelled: () => Boolean(interrupted) })
         : input;
       const directory = path.join(output, invocation.invocationId);
-      fs.mkdirSync(directory, { mode: 0o700, ...([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId) && invocation.mutation ? { recursive: true } : {}) });
+      fs.mkdirSync(directory, { mode: 0o700, ...(input.releaseScopeId===APPLICANT_RESULTS_SCOPE||([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId)&&invocation.mutation)?{recursive:true}:{}) });
       const artifact = selectedArtifact(invocationInput, invocation),
         { identity, config } = nativeIdentity(
           invocationInput,
@@ -290,6 +298,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
                 observedDefinitionDigest:
                   invocationInput.definition.observedDefinitionDigest,
                 ...(input.releaseScopeId === CALLBACK_SCOPE ? {observedPagesDigest:invocationInput.definition.observedPagesDigest} : {}),
+                ...(input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultDatesDigest:invocationInput.resultDatesDigest,resultExpectedDigest:invocationInput.resultExpectedDigest,resultsSourceContractDigest:digestBytes(JSON.stringify(invocationInput.definition.sourceContract)),resultVariant:invocationInput.variant}:{}),
                 definitionVersion: String(invocationInput.definition.definitionVersion),
                 ccdNamespace: invocationInput.ccd.namespace,
                 idamSimulatorImage: invocationInput.ccd.images.idam.id,
@@ -302,6 +311,8 @@ export async function runNativeHostPhase(output, stagedHarness) {
               ? "synthetic-auth,reference-data,empty-search-response,auxiliary-read-jurisdictions,feature-flags,telemetry; no CCD search/access/cache algorithm/profile credit"
               : input.releaseScopeId === ROUTING_SCOPE
               ? "synthetic-auth,upstream-definition-metadata,central-NoC-response,PCS-NoC-response,PCS-destination-marker,feature-flags,telemetry; no PCS backend/CCD/access/persistence or aggregate80ee credit"
+              : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+                ? "two source applicant result rows on explicit corrected local ARM64 CCD; synthetic IDAM/session/scaffold; typed date retention only; no temporal activation, backing-field access/security policy, deployed CCD or full release approval"
               : input.releaseScopeId === CALLBACK_SCOPE
                 ? "actual candidate and owned CCD source-row callback transport; synthetic callback business rules, sessions, IDAM and predecessor page; stored LiveFrom preservation only; no production PRL callback logic, deployed service or release approval credit"
               : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
@@ -344,10 +355,15 @@ export async function runNativeHostPhase(output, stagedHarness) {
       manifest ??= current;
       executions.push(ref(output, path.join(directory, "execution.json")));
       identities.push({ invocationId: invocation.invocationId, identity,
-        ...([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId) ? {
-          runtimeMetadata: Object.fromEntries(["definitionImportDigest", "observedDefinitionDigest", ...(input.releaseScopeId === CALLBACK_SCOPE ? ["observedPagesDigest"] : []), "definitionVersion", "ccdNamespace"].map((key) => [key, current.runtimeMetadata[key]])),
+        ...([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId) ? {
+          runtimeMetadata: Object.fromEntries(["definitionImportDigest", "observedDefinitionDigest", ...(input.releaseScopeId === CALLBACK_SCOPE ? ["observedPagesDigest"] : []), ...(input.releaseScopeId===APPLICANT_RESULTS_SCOPE?["resultDatesDigest","resultExpectedDigest","resultsSourceContractDigest","resultVariant"]:[]), "definitionVersion", "ccdNamespace"].map((key) => [key, current.runtimeMetadata[key]])),
         } : {}),
       });
+      if(input.releaseScopeId===APPLICANT_RESULTS_SCOPE){
+        priorResultInput=invocationInput;
+        const next=APPLICANT_RESULTS_MUTATIONS[invocations.indexOf(invocation)];
+        if(next)writeJsonAtomic(path.join(output,`results-transition-${next}.json`),applicantResultTransitionRequest(input,next,priorResultInput));
+      }
       if (input.releaseScopeId === CALLBACK_SCOPE && invocation.invocationId === "baseline")
         writeJsonAtomic(path.join(output, "callback-transition-request.json"), callbackTransitionRequest(input));
       if (input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === "baseline")

@@ -5,13 +5,13 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { assertFreshCandidateDerivationOutput } from "./lib/exui-candidate-artifact.mjs";
 import { digestBytes } from "./lib/exui-evidence-io.mjs";
-import { buildResultColumnDefinition } from "./lib/exui-result-columns-definition.mjs";
+import { applicantResultDefinition } from "./lib/exui-applicant-results.mjs";
 
 const fixtureRoot = fileURLToPath(new URL("./fixtures/ccd/", import.meta.url));
-export async function prepareResultColumnDefinition(output) {
+export async function prepareResultColumnDefinition(output, {variant="baseline"} = {}) {
   const destination = await assertFreshCandidateDerivationOutput({ baseline: { candidateRoot: fixtureRoot }, manifestPath: path.join(fixtureRoot, "result-columns.source.json"), output });
   fs.mkdirSync(destination, { mode: 0o700 });
-  const definition = buildResultColumnDefinition();
+  const definition = applicantResultDefinition(variant);
   const json = path.join(destination, "definition.json");
   fs.writeFileSync(json, JSON.stringify(definition, null, 2) + "\n", { flag: "wx", mode: 0o600 });
   const workbook = path.join(destination, "definition.xlsx");

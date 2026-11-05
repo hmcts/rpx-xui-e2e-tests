@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {validateResultFieldType} from './exui-result-field-types.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ccdCredentials, ccdRequest, verifyCcdContainerIdentity } from './exui-ccd-runtime.mjs';
@@ -31,11 +32,11 @@ export function validateResultCcdSearch(body, layout, definition, rows, useCase)
   for (let i = 0; i < columns.length; i++) {
     const field = columns[i], descriptor = expected[i];
     for (const key of ['case_field_id', 'label', 'order', 'metadata']) assert.deepEqual(field[key], descriptor[key], 'RESULT_CCD_SEARCH_COLUMN_BINDING');
-    assert(typeof field.case_field_type?.id === 'string' && field.case_field_type.id.length > 0, 'RESULT_CCD_SEARCH_FIELD_TYPE');
+    validateResultFieldType(field.case_field_id,field.case_field_type);
     if (!field.metadata) {
       const source = definition.case_fields.find(item => item.id === field.case_field_id);
       assert(source, 'RESULT_CCD_SEARCH_SOURCE_FIELD');
-      assert.equal(field.case_field_type.id, source.field_type.id, 'RESULT_CCD_SEARCH_FIELD_TYPE');
+      validateResultFieldType(field.case_field_id,source.field_type);
     }
   }
   assert(Array.isArray(body.cases) && body.cases.length === 3, 'RESULT_CCD_SEARCH_CASE_COUNT');

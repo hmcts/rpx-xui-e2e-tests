@@ -1,3 +1,6 @@
+import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
+import {validateApplicantResultsEvidence} from './exui-applicant-results-evidence.mjs';
+import {captureApplicantFaultOwnership} from './exui-native-ci-ownership.mjs';
 import {CALLBACK_SCOPE} from './exui-recipient-callback-contract.mjs';
 import {validateCallbackTransitionEvidence} from './exui-recipient-callback-transition.mjs';
 import {captureCallbackFaultOwnership} from './exui-native-ci-ownership.mjs';
@@ -41,6 +44,7 @@ const scopes = {
   ccd: "exui-ccd-pilot",
   eventCapability: EVENT_CAPABILITY_SCOPE,
   recipientCallback: CALLBACK_SCOPE,
+  applicantResults: APPLICANT_RESULTS_SCOPE,
 };
 export function validateCiPhase(directory, expected, terminal) {
   assert.equal(terminal.signal, null, "CI_PHASE_TERMINAL_SIGNAL");
@@ -83,6 +87,11 @@ export function validateCiPhase(directory, expected, terminal) {
     validateCompleteNativeProofs(loaded.input,policy);
     validateNativeOutcome(loaded.input,loaded.receipt.verdict);
     validateCallbackTransitionEvidence(directory,expected,loaded.input);
+  }
+  if(expected.releaseScopeId===APPLICANT_RESULTS_SCOPE){
+    assert.equal(expected.nativeAuthority,true,"CI_RESULTS_NATIVE_AUTHORITY_REQUIRED");
+    validateCompleteNativeProofs(loaded.input,policy);validateNativeOutcome(loaded.input,loaded.receipt.verdict);
+    validateApplicantResultsEvidence(directory,expected,loaded.input,terminal);
   }
   const promotion = {
     ...expected,
@@ -137,7 +146,7 @@ export function captureCiPhaseExpectation(
   const policy = getReleasePolicy(scopes[name]);
   assert.deepEqual(
     input.harnessSources,
-    ["ccd", "eventCapability", "recipientCallback"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
+    ["ccd", "eventCapability", "recipientCallback", "applicantResults"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
     "CI_LAUNCH_SOURCE_INVENTORY_MISMATCH",
   );
   assert.equal(
@@ -211,7 +220,7 @@ export function captureCiPhaseExpectation(
         .startsWith(fs.realpathSync(os.tmpdir()) + path.sep),
     "CI_PRIVATE_SOURCE_HANDOFF_REQUIRED",
   );
-  const identity = ["ccd", "eventCapability", "recipientCallback"].includes(name)
+  const identity = ["ccd", "eventCapability", "recipientCallback", "applicantResults"].includes(name)
     ? context.ccdIdentity
     : name === "routing"
       ? nativeIdentity(input, { mutation: null }, context.artifact.candidateRoot).identity
@@ -234,7 +243,7 @@ export function captureCiPhaseExpectation(
 function captureOwnership(input, handoff, context, directory, name, capture) {
   assert.deepEqual(
     input.harnessSources,
-    ["ccd", "eventCapability", "recipientCallback"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
+    ["ccd", "eventCapability", "recipientCallback", "applicantResults"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
     "CI_LAUNCH_SOURCE_INVENTORY_MISMATCH",
   );
   assert.equal(
@@ -320,4 +329,9 @@ export function captureCiEventFaultOwnership(input, handoff, context, directory,
 export function captureCiCallbackFaultOwnership(input,handoff,context,directory) {
   assert.equal(handoff.mode,"native-separate-api","CI_CALLBACK_NATIVE_AUTHORITY_REQUIRED");
   return captureOwnership(input,handoff,context,directory,"recipientCallback",(input,handoff,context,directory)=>captureCallbackFaultOwnership(input,handoff,context,directory));
+}
+
+export function captureCiApplicantFaultOwnership(input,handoff,context,directory,invocationId){
+ assert.equal(handoff.mode,"native-separate-api","CI_RESULTS_NATIVE_AUTHORITY_REQUIRED");
+ return captureOwnership(input,handoff,context,directory,"applicantResults",(input,handoff,context,directory)=>captureApplicantFaultOwnership(input,handoff,context,directory,invocationId));
 }

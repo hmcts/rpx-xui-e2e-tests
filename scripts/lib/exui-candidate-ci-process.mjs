@@ -1,5 +1,8 @@
+import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
+import {createApplicantResultWatcher} from './exui-applicant-results-watch.mjs';
 import {CALLBACK_SCOPE} from './exui-recipient-callback-contract.mjs';
 import {validateCallbackTransitionRequest} from './exui-recipient-callback-transition.mjs';
+import {verifyLocalCcdRuntimeProfile} from './exui-local-ccd-runtime-profile.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -112,9 +115,10 @@ export async function executeCiProcess({
   onPrepared,
   onEventTransition,
   onCallbackTransition,
+  onResultsTransition,
   onChild = () => {},
 }) {
-  assert(!(onEventTransition !== undefined && onCallbackTransition !== undefined), "CI_TRANSITION_SCOPE_AMBIGUOUS");
+  assert([onEventTransition,onCallbackTransition,onResultsTransition].filter(value=>value!==undefined).length<=1,"CI_TRANSITION_SCOPE_AMBIGUOUS");
   assert(!fs.existsSync(output), "FRESH_CI_PHASE_OUTPUT_REQUIRED");
   const log = fs.openSync(
     path.join(path.dirname(output), path.basename(output) + "-supervisor.log"),
@@ -140,6 +144,7 @@ export async function executeCiProcess({
     });
   });
   let expected, input, handoff, transition;
+  const checkResults=createApplicantResultWatcher(output,onResultsTransition,()=>({input,handoff,expected,isTerminated:()=>Boolean(terminal)}));
   const callbackMode = onCallbackTransition !== undefined;
   const transitionScope = callbackMode ? CALLBACK_SCOPE : EVENT_CAPABILITY_SCOPE;
   const onTransition = callbackMode ? onCallbackTransition : onEventTransition;
@@ -195,6 +200,7 @@ export async function executeCiProcess({
   };
   try {
     while (!terminal) {
+      await checkResults();
       await checkTransition();
       if (
         !expected &&
@@ -207,6 +213,7 @@ export async function executeCiProcess({
         );
         input = read(path.join(output, "input.json"));
         handoff = read(path.join(output, "container-launch.json"));
+        if(onResultsTransition!==undefined)assert.equal(input.releaseScopeId,APPLICANT_RESULTS_SCOPE,"RESULT_TRANSITION_SCOPE");
         if (onTransition !== undefined)
           assert.equal(input.releaseScopeId, transitionScope, "CI_EVENT_TRANSITION_SCOPE");
         expected = onPrepared(input, handoff);
@@ -224,6 +231,7 @@ export async function executeCiProcess({
     await finished;
     if (error) throw error;
     await checkTransition();
+    await checkResults();
     assert(expected, "CI_PHASE_LAUNCH_INPUTS_REQUIRED");
     return { terminal, expected };
   } finally {
@@ -309,7 +317,7 @@ export async function cleanupCiPhase(
 
 export function cleanupCiCcd(
   directory,
-  { inspect = inspectContainer, stop = stopCcdRuntime } = {},
+  { inspect = inspectContainer, stop = stopCcdRuntime, localCcdProfile } = {},
 ) {
   const recoveryPath = path.join(directory, "recovery.json");
   if (!fs.existsSync(recoveryPath)) {
@@ -320,6 +328,8 @@ export function cleanupCiCcd(
     return;
   }
   const recovery = read(recoveryPath);
+  assert.equal(recovery.localCcdProfile,localCcdProfile,'LOCAL_CCD_EXPLICIT_CLEANUP_REQUIRED');
+  const local=localCcdProfile?verifyLocalCcdRuntimeProfile(localCcdProfile):null;
   assert(
     /^harness-[a-f0-9]{16}$/.test(recovery.owner),
     "CI_CCD_RECOVERY_OWNER_REQUIRED",
@@ -335,9 +345,10 @@ export function cleanupCiCcd(
   const statePath = path.join(directory, "runtime.json");
   const state = fs.existsSync(statePath)
     ? read(statePath)
-    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}), ...(elasticsearch ? { elasticsearch } : {}) };
+    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}), ...(elasticsearch ? { elasticsearch } : {}), ...(localCcdProfile ? { localCcdProfile } : {}) };
   assert.equal(state.elasticsearch ?? false, elasticsearch, "CI_CCD_RECOVERY_ELASTICSEARCH_MISMATCH");
   assert.equal(state.platform ?? "linux/arm64", recovery.platform ?? "linux/arm64", "CI_CCD_RECOVERY_PLATFORM_MISMATCH");
+  assert.equal(state.localCcdProfile,recovery.localCcdProfile,"LOCAL_CCD_RECOVERY_PROFILE_MISMATCH");
   assert.equal(state.owner, recovery.owner, "CI_CCD_RECOVERY_OWNER_MISMATCH");
   assert.equal(state.output, directory, "CI_CCD_RECOVERY_PATH_MISMATCH");
   assert(
@@ -354,7 +365,8 @@ export function cleanupCiCcd(
       `${recovery.owner}-${service}`,
       "CI_CCD_RECOVERY_NAME_MISMATCH",
     );
-    assert(planned.image === pin.manifestDigest || (pin.configDigest && planned.image === pin.configDigest), "CI_CCD_RECOVERY_IMAGE_MISMATCH");
+    if(service==='data'&&local)assert.equal(planned.image,local.imageId,'CI_CCD_RECOVERY_IMAGE_MISMATCH');
+    else assert(planned.image === pin.manifestDigest || (pin.configDigest && planned.image === pin.configDigest), "CI_CCD_RECOVERY_IMAGE_MISMATCH");
     const image = planned.image;
     const recorded = state.containers[service];
     if (recorded)
