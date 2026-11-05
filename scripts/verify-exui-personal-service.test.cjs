@@ -27,6 +27,8 @@ const negatives={
  'empty CYA missing healthy row':p=>{delete p.observed.empty.cyaControl;},
  'empty CYA uses filled control value':p=>{p.observed.empty.cyaControl.value='personal-service-filled-control';},
  'empty CYA repeats control row':p=>{p.observed.empty.cyaControl.rowCount=2;},
+ 'optional target missing source-context suffix':p=>{p.observed.filled.ui.label='Does this document need to be personally served on the respondent?';},
+ 'optional sibling missing source-context suffix':p=>{p.observed.empty.healthySibling='Select additional recipients who needs to be served';},
  'unhealthy filled control':p=>{p.observed.filled.ui.precedesSelector=false;},
  'filled default already chosen':p=>{p.observed.filled.ui.initialSelected=1;},
  'missing actual persistence':p=>{p.observed.filled.after=structuredClone(p.observed.filled.before);},
@@ -73,4 +75,8 @@ test('default native staged closure executes existing import without loading ded
   const result=await m.prepareRecipientCallbackImport(path.join(root,'fixture'),{variant:'binding-omitted',rowFacets:true,selectorEventVariant:'baseline'});assert.equal(result.selectorEventBinding.variant,'baseline');assert.equal(result.personalServiceBinding,undefined);
   await assert.rejects(m.prepareRecipientCallbackImport(path.join(root,'personal'),{variant:'binding-omitted',rowFacets:true,personalServiceVariant:'baseline'}),{code:'ERR_MODULE_NOT_FOUND'});assert(!fs.existsSync(path.join(root,'personal')));
  }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('mandatory target must retain the unsuffixed label while its optional sibling has the suffix',async()=>{
+ const {validatePersonalServiceObservation:validate}=await import('./lib/exui-personal-service-evidence.mjs');const p=await packet();validate(p.observed,p.journal,p.actorId,'baseline');p.observed.filled.ui.label+=' (Optional)';assert.throws(()=>validate(p.observed,p.journal,p.actorId,'baseline'),/PERSONAL_SERVICE_FILLED_UI/);
 });

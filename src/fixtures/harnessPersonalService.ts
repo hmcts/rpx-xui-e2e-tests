@@ -31,13 +31,15 @@ export async function runPersonalService({ page, playwright, variant, step }: {
   const predecessorEditable=await predecessorControls.count();
   await page.getByRole("button",{name:"Continue",exact:true}).click();
   await expect(page).toHaveURL(/\/trigger\/serviceOfDocuments\/serviceOfDocuments2$/);
-  await expect(group().locator("legend .form-label")).toHaveText(label);
+  // Match the pinned toolkit FieldLabelPipe, as the existing source-radio proof does.
+  const displayedLabel=variant==="optional"?`${label} (Optional)`:label;
+  await expect(group().locator("legend .form-label")).toHaveText(displayedLabel);
   await expect(group().getByRole("radio")).toHaveCount(3);
   const options=await group().locator('.multiple-choice label').allTextContents();expect(options.map(x=>x.trim())).toEqual(["Yes","No","Not applicable"]);
   const selectedControls=group().locator('input[type="radio"]:checked');await expect(selectedControls).toHaveCount(0);
   const initialSelected=await selectedControls.count();
   const before=await observeCcd(caseId);expect(before.state.case_data).toEqual(seed(empty));
-  return {caseId,before,predecessorLabel:predecessorLabel!.trim(),predecessorEditable,initialSelected,options:options.map(x=>x.trim())};
+  return {caseId,before,displayedLabel:(await group().locator("legend .form-label").textContent())!.trim(),predecessorLabel:predecessorLabel!.trim(),predecessorEditable,initialSelected,options:options.map(x=>x.trim())};
  };
  const continueToCya=async()=>{
   const response=page.waitForResponse(r=>r.request().method()==="POST"&&new URL(r.url()).pathname==="/data/case-types/HarnessNestedPRL/validate"&&new URL(r.url()).searchParams.get("pageId")==="serviceOfDocuments2");
@@ -55,7 +57,7 @@ export async function runPersonalService({ page, playwright, variant, step }: {
  const sibling=summaryRow(page,"Protected value");await expect(sibling).toHaveCount(1);await expect(sibling.getByText("personal-service-filled-control",{exact:true})).toBeVisible();
  const change=row.getByRole("link",{name:`Change ${label}`,exact:true});await expect(change).toBeVisible();await change.click();
  await expect(page).toHaveURL(/\/trigger\/serviceOfDocuments\/serviceOfDocuments2$/);await expect(group().getByRole("radio",{name:"No",exact:true})).toBeChecked();
- filled.ui={initialSelected:prepared.initialSelected,options:prepared.options,selected:"No",label,precedesSelector,predecessorLabel:prepared.predecessorLabel,predecessorEditable:prepared.predecessorEditable,changeName:`Change ${label}`,changePath:new URL(page.url()).pathname,afterChange:"No",healthySibling:"Protected value"};
+ filled.ui={initialSelected:prepared.initialSelected,options:prepared.options,selected:"No",label:prepared.displayedLabel,precedesSelector,predecessorLabel:prepared.predecessorLabel,predecessorEditable:prepared.predecessorEditable,changeName:`Change ${label}`,changePath:new URL(page.url()).pathname,afterChange:"No",healthySibling:"Protected value"};
  await continueToCya();filled.beforeSubmit=await observeCcd(caseId);expect(filled.beforeSubmit).toEqual(before);
  const submission=await submitServiceOfDocuments(page,caseId);expect(submission.status()).toBe(201);const payload=submission.request().postDataJSON();
  filled.submission={method:submission.request().method(),path:new URL(submission.url()).pathname,status:submission.status(),eventId:payload.event.id,data:payload.data};
@@ -64,7 +66,7 @@ export async function runPersonalService({ page, playwright, variant, step }: {
  const added=after.history.filter((h:{id:string;created_date:string})=>!before.history.some((p:{id:string;created_date:string})=>h.id===p.id&&h.created_date===p.created_date));
  expect(added).toHaveLength(1);expect(added[0]).toMatchObject({id:"serviceOfDocuments",case_type_id:"HarnessNestedPRL",state_id:"JUDICIAL_REVIEW",user_id:ccdEventPersonas().credentials.courtadmin.userId});
  const blank=await prepare(true);const empty: Record<string,unknown>={caseId:blank.caseId,before:blank.before,initialSelected:blank.initialSelected};observed.empty=empty;
- const healthySibling=page.getByText("Select additional recipients who needs to be served",{exact:true});await expect(healthySibling).toBeVisible();empty.healthySibling=(await healthySibling.textContent())!.trim();
+ const healthySibling=page.getByText("Select additional recipients who needs to be served (Optional)",{exact:true});await expect(healthySibling).toBeVisible();empty.healthySibling=(await healthySibling.textContent())!.trim();
  if(variant==="optional"){
   empty.cya=await continueToCya();
   const control=summaryRow(page,"Protected value");await expect(control).toHaveCount(1);await expect(control.getByText("personal-service-empty-control",{exact:true})).toBeVisible();

@@ -21,7 +21,7 @@ export function validatePersonalServiceObservation(observed,journal,actorId,vari
  const f=observed.filled,e=observed.empty;
  before(f.before,f.caseId,false);before(e.before,e.caseId,true);assert.notEqual(f.caseId,e.caseId,'PERSONAL_SERVICE_DISTINCT_CASES');
  assert.deepEqual(f.beforeSubmit,f.before,'PERSONAL_SERVICE_PREMATURE_PERSISTENCE');assert.deepEqual(e.after,e.before,'PERSONAL_SERVICE_EMPTY_PERSISTENCE');
- assert.deepEqual(f.ui,{initialSelected:0,options:['Yes','No','Not applicable'],selected:'No',label:PERSONAL_SERVICE_LABEL,precedesSelector:true,predecessorLabel:'Protected value',predecessorEditable:0,changeName:`Change ${PERSONAL_SERVICE_LABEL}`,changePath:eventPath(f.caseId)+'serviceOfDocuments2',afterChange:'No',healthySibling:'Protected value'},'PERSONAL_SERVICE_FILLED_UI');
+ assert.deepEqual(f.ui,{initialSelected:0,options:['Yes','No','Not applicable'],selected:'No',label:variant==='optional'?`${PERSONAL_SERVICE_LABEL} (Optional)`:PERSONAL_SERVICE_LABEL,precedesSelector:true,predecessorLabel:'Protected value',predecessorEditable:0,changeName:`Change ${PERSONAL_SERVICE_LABEL}`,changePath:eventPath(f.caseId)+'serviceOfDocuments2',afterChange:'No',healthySibling:'Protected value'},'PERSONAL_SERVICE_FILLED_UI');
  cya(f.cya,f.caseId);
  const expected={...personalServiceSeed(false),[PERSONAL_SERVICE_FIELD]:'No'};
  assert.deepEqual(f.after.state.case_data,expected,'PERSONAL_SERVICE_PERSISTED_DATA');assert.equal(f.after.state.version,f.before.state.version+1,'PERSONAL_SERVICE_PERSISTED_VERSION');
@@ -49,7 +49,7 @@ export function validatePersonalServiceObservation(observed,journal,actorId,vari
  assert.deepEqual(validations,[...filledValidations,...emptyValidations],'PERSONAL_SERVICE_VALIDATION_OUTSIDE_WINDOW');
  for(const r of validations){assert.equal(r.status,200,'PERSONAL_SERVICE_VALIDATION_STATUS');assert.equal(r.actorId,actorId,'PERSONAL_SERVICE_VALIDATION_ACTOR');assert.equal(r.personalService.eventId,'serviceOfDocuments','PERSONAL_SERVICE_VALIDATION_EVENT');}
  assert.deepEqual(validations.filter(r=>r.personalService.pageId==='serviceOfDocuments2').map(r=>r.personalService.answer),variant==='baseline'?['No','No']:['No','No',null],'PERSONAL_SERVICE_VALIDATION_ANSWER');
- assert.equal(e.initialSelected,0,'PERSONAL_SERVICE_EMPTY_SELECTED');assert.equal(e.healthySibling,'Select additional recipients who needs to be served','PERSONAL_SERVICE_EMPTY_SIBLING');
+ assert.equal(e.initialSelected,0,'PERSONAL_SERVICE_EMPTY_SELECTED');assert.equal(e.healthySibling,'Select additional recipients who needs to be served (Optional)','PERSONAL_SERVICE_EMPTY_SIBLING');
  if(variant==='baseline'){
   assert.equal(e.pagePath,eventPath(e.caseId)+'serviceOfDocuments2','PERSONAL_SERVICE_REQUIRED_PAGE');assert.equal(e.requiredError,`${PERSONAL_SERVICE_LABEL} is required`,'PERSONAL_SERVICE_REQUIRED_ERROR');assert.equal(e.cya,null,'PERSONAL_SERVICE_REQUIRED_CYA');assert.equal(observed.completed,true,'PERSONAL_SERVICE_BASELINE_INCOMPLETE');
  }else{
