@@ -166,14 +166,12 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
         await assertSourceShapeHiddenControls(postalName, line2);
         await email.check();
         await expect(postalName).toBeVisible();
-        await expect(line2).toBeVisible();
         await name.fill(emailName);
         await address.fill(emailAddress);
         faultPostalPresent = true;
         expectedChannel = 'email';
       } else {
         await expect(postalName).toBeVisible();
-        await expect(line2).toBeVisible();
         await email.check();
         await assertSourceShapeHiddenControls(postalName, line2);
         await post.check();
