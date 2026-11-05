@@ -29,6 +29,12 @@ export function bindSharedNestedSourceFixture(fixture = JSON.parse(read('nested-
   assert.equal(digestBytes(read('nested-prl.xlsx')),binding.workbookDigest,'SHARED_NESTED_WORKBOOK_SEAL');
   return {sourceRevision:source.revision,sourceProjectionDigest:EVENT_CAPABILITY_SOURCE_DIGEST,fixtureDigest:binding.sourceDigest,workbookDigest:binding.workbookDigest,normalization:'HARNESS/HarnessNestedPRL; synthetic create/update and ACLs; source child types, labels, order and conditions retained; source page2 selector/business callback excluded'};
 }
+export function assertSharedNestedImportDigests(receipt) {
+  const source=bindSharedNestedSourceFixture();
+  assert.equal(receipt.fixtureDigest,source.workbookDigest,'SHARED_NESTED_IMPORTED_WORKBOOK');
+  assert.equal(receipt.binding?.workbookDigest,source.workbookDigest,'SHARED_NESTED_BOUND_WORKBOOK');
+  assert.equal(receipt.binding?.sourceDigest,source.fixtureDigest,'SHARED_NESTED_BOUND_SOURCE');
+}
 export function sharedNestedValues(channel,count) {
   assert(['email','post'].includes(channel)&&[1,2].includes(count),'SHARED_NESTED_SHAPE');
   return Array.from({length:count},(_,index)=>({serveByPostOrEmail:channel,...(channel==='email'?{emailInformation:{emailName:`Synthetic nested ${count} email ${index+1}`,emailAddress:`nested-${count}-${index+1}@harness.example.com`}}:{postalInformation:{postalName:`Synthetic nested ${count} post ${index+1}`,postalAddress:{AddressLine1:`Synthetic nested street ${index+1}`,AddressLine2:`Synthetic nested suite ${index+1}`,AddressLine3:`Synthetic nested third ${count}-${index+1}`,PostTown:`Synthetic nested town ${index+1}`,County:`Synthetic nested county ${index+1}`,PostCode:index?'M1 1AA':'SW1A 1AA',Country:'United Kingdom'}}})}));

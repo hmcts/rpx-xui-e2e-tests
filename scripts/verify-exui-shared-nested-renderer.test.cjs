@@ -237,3 +237,13 @@ test('audit-only shared plans replay deleted owned mounts while launch planning 
  fs.mkdirSync(state);assert.throws(()=>sharedNestedAuditContainerPlan(input,handoff,'baseline'),/AUDIT_STATE_PRESENT/);fs.rmSync(state,{recursive:true});
  fs.symlinkSync(state+'-absent-target',state);assert.throws(()=>sharedNestedAuditContainerPlan(input,handoff,'baseline'),/AUDIT_STATE_PRESENT/);fs.unlinkSync(state);
 });
+
+// The import receipt hashes the uploaded XLSX; its binding separately seals the source JSON.
+test('shared renderer import receipt binds workbook and source digests in their actual byte domains',async()=>{
+ const {bindSharedNestedSourceFixture,assertSharedNestedImportDigests}=await contract();
+ const source=bindSharedNestedSourceFixture();
+ assert.notEqual(source.fixtureDigest,source.workbookDigest);
+ const receipt={fixtureDigest:source.workbookDigest,binding:{sourceDigest:source.fixtureDigest,workbookDigest:source.workbookDigest}};
+ assert.doesNotThrow(()=>assertSharedNestedImportDigests(receipt));
+ for(const change of [value=>value.fixtureDigest=source.fixtureDigest,value=>value.binding.sourceDigest=source.workbookDigest,value=>value.binding.workbookDigest=source.fixtureDigest]){const changed=structuredClone(receipt);change(changed);assert.throws(()=>assertSharedNestedImportDigests(changed));}
+});
