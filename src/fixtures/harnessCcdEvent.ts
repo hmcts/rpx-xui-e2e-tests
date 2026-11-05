@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { APIRequestContext, Page, Route } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
 
 import { sharedRoleEventEnvelope } from "../../scripts/lib/exui-shared-role-event-observations.mjs";
 export { sharedRoleEventActor } from "../../scripts/lib/exui-shared-role-event-observations.mjs";
@@ -178,21 +178,16 @@ export async function observeCcdEventReadback(
     postalInformation?: { postalName: string; postalAddress: { AddressLine1: string; PostCode: string } };
   }>,
 ) {
-  const routePath = `**/data/internal/cases/${caseId}`;
-  let body: {tabs: Array<{fields: Array<{id: string; value?: unknown}>}>} | undefined;
-  let readbackStatus: number | undefined;
-  const capture = async (route: Route) => {
-    const upstream = await route.fetch({maxRedirects: 0, timeout: 15_000});
-    readbackStatus = upstream.status();
-    if (readbackStatus === 200) body = await upstream.json();
-    await route.fulfill({response: upstream});
-  };
-  await page.route(routePath, capture);
-  const response = await (async () => {
-    try { return await openCcdEventCase(page, caseId); }
-    finally { await page.unroute(routePath, capture); }
-  })();
-  if (readbackStatus !== 200 || !body) throw new Error(`CCD_READBACK_STATUS_${readbackStatus}`);
+  const finished = page.waitForEvent("requestfinished", {
+    predicate: request => request.method() === "GET" &&
+      new URL(request.url()).origin === "http://127.0.0.1:3100" &&
+      new URL(request.url()).pathname === `/data/internal/cases/${caseId}`,
+    timeout: 30_000,
+  });
+  await page.goto(`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}`);
+  const response = await (await finished).response();
+  if (response?.status() !== 200) throw new Error(`CCD_READBACK_STATUS_${response?.status()}`);
+  const body = await response.json();
   const fields: Array<{id: string; value?: unknown}> = body.tabs.flatMap(
     (tab: {fields: Array<{id: string; value?: unknown}>}) => tab.fields,
   );
