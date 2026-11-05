@@ -122,13 +122,15 @@ const eventRoutes = {
   [EVENT_CAPABILITY_SCOPE]: recipientEventRoutes,
   [CALLBACK_SCOPE]: recipientEventRoutes,
 };
+const inputRoute = /^\/internal\/case-types\/HarnessResultsPRL\/work-basket-inputs$/;
 
 function ccdTransportRoute(method, pathname, scope) {
   // Current EXUI removes /data at its proxy mount; older bundles retain it.
   const upstreamPath = pathname.startsWith("/data/")
     ? pathname.slice(5)
     : pathname;
-  const routes = [...(ccdRoutes[method] ?? []), ...(method === "GET" ? eventRoutes[scope] : [])];
+  const routes = [...(ccdRoutes[method] ?? []), ...(method === "GET" ? eventRoutes[scope] : []),
+    ...(method === "GET" && scope === "exui-ccd-pilot" ? [inputRoute] : [])];
   if (routes.some((route) => route.test(upstreamPath)))
     return { path: `/data${upstreamPath}`, upstreamPath };
   if (

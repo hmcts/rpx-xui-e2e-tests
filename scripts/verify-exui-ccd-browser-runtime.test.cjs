@@ -95,6 +95,7 @@ test("current rewritten CCD routes and legacy aliases preserve real upstream tra
       ],
       ["POST", `${caseworker}/cases`],
       ["GET", "/internal/case-types/HarnessNestedPRL/event-triggers/create"],
+      ["GET", "/internal/case-types/HarnessResultsPRL/work-basket-inputs"],
       ["GET", "/internal/cases/1793646213983629"],
       ["POST", "/case-types/HarnessNestedPRL/cases"],
       ["POST", "/case-types/HarnessNestedPRL/validate"],
@@ -158,6 +159,8 @@ test("CCD gateway rejects malformed, unrelated and unsupported method aliases wi
       ["GET", "/internal/cases/1793646213983629/extra"],
       ["GET", "/internal/case-types/OtherCase/event-triggers/create"],
       ["GET", "/internal/case-types/HarnessNestedPRL/event-triggers/delete"],
+      ["GET", "/internal/case-types/OtherCase/work-basket-inputs"],
+      ["POST", "/internal/case-types/HarnessResultsPRL/work-basket-inputs"],
       ["POST", "/internal/case-types/HarnessNestedPRL/event-triggers/create"],
       ["DELETE", "/cases/1793646213983629/events"],
       [
