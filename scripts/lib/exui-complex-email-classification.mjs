@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {digestBytes,writeJsonAtomic} from './exui-evidence-io.mjs';
+import {assertSharedNestedRecipients} from './exui-shared-nested-observations.mjs';
 import {docker,verifyCcdContainerIdentity} from './exui-ccd-runtime.mjs';
 
 export function validateComplexEmailObserver(state) {
@@ -10,6 +11,14 @@ export function validateComplexEmailObserver(state) {
   // The authenticated CCD API omits complex-ACL classifications. Their values
   // must be proven separately against the owned database, never inferred here.
   assert(!Object.hasOwn(state.data_classification,'sodAdditionalRecipientsList'),'COMPLEX_EMAIL_OBSERVER_CLASSIFICATION');
+}
+
+export function validateComplexEmailRecipientIds(saved,sent) {
+  assert(Array.isArray(saved)&&Array.isArray(sent)&&saved.length===2&&sent.length===2,'COMPLEX_EMAIL_STORED_RECIPIENTS');
+  assert(sent.every(item=>item?.id===null),'COMPLEX_EMAIL_NEW_RECIPIENT_ID');
+  const expected=sent.map(item=>({serveByPostOrEmail:'email',emailInformation:item.value?.emailInformation}));
+  assertSharedNestedRecipients(sent,expected,false);assertSharedNestedRecipients(saved,expected,true);
+  for(let index=0;index<2;index++)assert.deepEqual(saved[index].value,sent[index].value,'COMPLEX_EMAIL_RECIPIENT_ASSOCIATION');
 }
 
 export function validateComplexEmailStoredClassification(rows,observed,context) {

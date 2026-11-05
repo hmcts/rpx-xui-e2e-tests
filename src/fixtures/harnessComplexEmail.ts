@@ -4,7 +4,7 @@ import { expect, type Page, type PlaywrightWorkerArgs } from '@playwright/test';
 
 import { ccdPersonas, ccdSessionRequest, createSyntheticCase, observeCcd } from './harnessCcd';
 import { collectionRows, openUpdate } from './harnessSharedNested';
-import { validateComplexEmailObserver } from '../../scripts/lib/exui-complex-email-classification.mjs';
+import { validateComplexEmailObserver, validateComplexEmailRecipientIds } from '../../scripts/lib/exui-complex-email-classification.mjs';
 
 const input = (page:Page, field:string, index:number) => page.locator(`input[id$="_${field}"]`).nth(index);
 
@@ -87,6 +87,7 @@ export async function runComplexEmailText({page,playwright,variant,step}: {
     const raw=response.request().postDataJSON();
     expect(Object.hasOwn(raw,'data_classification')).toBe(false);
     const sent={data:raw.data,event:{id:raw.event.id}};
+    fs.writeFileSync(`${directory}/complex-email-${caseId}-submitted.json`,JSON.stringify(sent),{mode:0o600});
     expect(sent.event.id).toBe('update');
     const after=await observeCcd(caseId);
     fs.writeFileSync(`${directory}/complex-email-${caseId}-after.json`,JSON.stringify(after),{mode:0o600});
@@ -99,9 +100,9 @@ export async function runComplexEmailText({page,playwright,variant,step}: {
     expect(updates[0].user_id).toBe(actorId);
     const saved=after.state.case_data.sodAdditionalRecipientsList;
     expect(saved).toHaveLength(addresses.length);
+    validateComplexEmailRecipientIds(saved,sent.data.sodAdditionalRecipientsList);
     for(let index=0;index<addresses.length;index++) {
       expect(saved[index].value.emailInformation).toEqual({emailName:names[index],emailAddress:addresses[index]});
-      expect(saved[index].id).toBe(sent.data.sodAdditionalRecipientsList[index].id);
     }
     expect(new Set(saved.map((row:{id:string})=>row.id)).size).toBe(addresses.length);
     expect(submissions.slice(startSubmissions)).toHaveLength(1);

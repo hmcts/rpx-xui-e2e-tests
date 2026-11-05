@@ -149,7 +149,7 @@ test('complex email observer API omission never substitutes for stored PUBLIC cl
  for(const state of [null,{}, {...empty,data_classification:null},{...empty,data_classification:[]},{...empty,data_classification:{sodAdditionalRecipientsList:{value:[]}}}])assert.throws(()=>validateComplexEmailObserver(state),/COMPLEX_EMAIL_OBSERVER_/);
  for(const variant of ['baseline','email-type']) {
   const {rows,observed,context}=mock.classification(variant);assert.equal(validateComplexEmailStoredClassification(rows,observed,context).catalogueCredit,false);
-  for(const mutate of [x=>x.pop(),x=>x[0].reference='9999999999999999',x=>x[0].case_type='Wrong',x=>x[0].version++,x=>x[0].data.sodAdditionalRecipientsList.pop(),x=>delete x[0].data_classification.sodAdditionalRecipientsList,x=>x[0].data_classification.sodAdditionalRecipientsList.value[0].id='wrong-recipient',x=>x[0].data_classification.sodAdditionalRecipientsList.value[0].value.emailInformation.value.emailAddress='PRIVATE',x=>x[0].events[0].case_type_version++,x=>x[0].events[0].user_id='foreign-actor']) {
+  for(const mutate of [x=>x.pop(),x=>x[0].reference='9999999999999999',x=>x[0].case_type='Wrong',x=>x[0].version++,x=>x[0].data.sodAdditionalRecipientsList.pop(),x=>{x[0].data.sodAdditionalRecipientsList[0].id='99999999-2222-3333-4444-555555555555';x[0].data_classification.sodAdditionalRecipientsList.value[0].id='99999999-2222-3333-4444-555555555555';},x=>delete x[0].data_classification.sodAdditionalRecipientsList,x=>x[0].data_classification.sodAdditionalRecipientsList.value[0].id='wrong-recipient',x=>x[0].data_classification.sodAdditionalRecipientsList.value[0].value.emailInformation.value.emailAddress='PRIVATE',x=>x[0].events[0].case_type_version++,x=>x[0].events[0].user_id='foreign-actor']) {
    const bad=structuredClone(rows);mutate(bad);assert.throws(()=>validateComplexEmailStoredClassification(bad,observed,context),/COMPLEX_EMAIL_/);
   }
  }
@@ -174,4 +174,15 @@ test('complex email classification read is bound to owned imported runtime and r
  assert.equal(fs.readFileSync(root+'/complex-email-import/stored-classification-rows.json','utf8'),JSON.stringify(rows));
  const blocked={...options,inspect:()=>{throw Error('CCD_RUNTIME_OWNER_MISMATCH');}};
  assert.throws(()=>readComplexEmailStoredClassification(state,imported,observed,blocked),/CCD_RUNTIME_OWNER_MISMATCH/);assert.equal(queried,1);
+});
+
+test('complex email new recipients require generated unique IDs with the submitted associations',async()=>{
+ const {validateComplexEmailRecipientIds}=await import('./lib/exui-complex-email-classification.mjs');
+ const sent=[0,1].map(index=>({id:null,value:{serveByPostOrEmail:'email',emailInformation:{emailName:`Synthetic ${index}`,emailAddress:`person${index}@harness.example.com`}}}));
+ const saved=sent.map((item,index)=>({...structuredClone(item),id:`11111111-2222-3333-4444-55555555555${index}`}));
+ validateComplexEmailRecipientIds(saved,sent);
+ for(const mutate of [x=>delete x[0].id,x=>x[0].id=null,x=>x[0].id=x[1].id,x=>x[0].id='wrong',x=>x.reverse(),x=>x[0].value.emailInformation.emailAddress='wrong']) {
+  const bad=structuredClone(saved);mutate(bad);assert.throws(()=>validateComplexEmailRecipientIds(bad,sent),/(?:COMPLEX_EMAIL_|SHARED_NESTED_)/);
+ }
+ const bad=structuredClone(sent);bad[0].id=saved[0].id;assert.throws(()=>validateComplexEmailRecipientIds(saved,bad),/COMPLEX_EMAIL_NEW_RECIPIENT_ID/);
 });
