@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import {SELECTOR_EVENT_SCOPE} from './lib/exui-selector-event-row-contract.mjs';
+import {verifySelectorRuntime,copySelectorRuntimeEvidence} from './lib/exui-selector-event-row-runtime.mjs';
 import {CALLBACK_SCOPE} from './lib/exui-recipient-callback-contract.mjs';
 import {verifyNativeCallbackRuntime} from './lib/exui-recipient-callback-native-import.mjs';
 import { classifyNativeFailure, nativeFailurePrefix } from "./lib/exui-native-failure-diagnostics.mjs";
@@ -35,8 +37,9 @@ const arg = (key) => {
 };
 async function launch() {
   const releaseScopeId = arg("--scope") ?? "exui-ccd-pilot";
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, SELECTOR_EVENT_SCOPE].includes(releaseScopeId))
     throw new Error("UNKNOWN_CCD_SCOPE");
+  if (releaseScopeId === SELECTOR_EVENT_SCOPE && arg("--only")) throw new Error("COMPLETE_SELECTOR_SCOPE_REQUIRED");
   if (releaseScopeId === CALLBACK_SCOPE && arg("--only")) throw new Error("COMPLETE_CALLBACK_SCOPE_REQUIRED");
   if (releaseScopeId === EVENT_CAPABILITY_SCOPE && arg("--only"))
     throw new Error("COMPLETE_EVENT_CAPABILITY_SCOPE_REQUIRED");
@@ -79,12 +82,14 @@ async function launch() {
     throw new Error("CCD_NESTED_RUNTIME_REQUIRED");
   if (
     !ccd.ready ||
-    (releaseScopeId !== CALLBACK_SCOPE && !ccd.definitionImported) ||
+    (![CALLBACK_SCOPE,SELECTOR_EVENT_SCOPE].includes(releaseScopeId) && !ccd.definitionImported) ||
     !/^[a-f0-9]{64}$/.test(ccd.namespace)
   )
     throw new Error("CCD_READY_IMPORT_REQUIRED");
   if ((ccd.platform ?? "linux/arm64") !== artifact.provenance.platform) throw new Error("CCD_CANDIDATE_PLATFORM_MISMATCH");
-  if (releaseScopeId === CALLBACK_SCOPE) verifyNativeCallbackRuntime(ccd,"baseline");
+  const selector = releaseScopeId===SELECTOR_EVENT_SCOPE ? verifySelectorRuntime(ccd) : null;
+  if (selector) { /* Owned import, descriptor and typed-date checks completed above. */ }
+  else if (releaseScopeId === CALLBACK_SCOPE) verifyNativeCallbackRuntime(ccd,"baseline");
   else verifyCcdRuntimeIdentity(ccd);
   const workbasketReceiptFile = path.join(path.dirname(statePath), "workbasket-input-import/receipt.json");
   const workbasket = releaseScopeId === "exui-ccd-pilot";
@@ -131,7 +136,7 @@ async function launch() {
   ]);
   const definitionFile = path.join(
     path.dirname(statePath),
-    releaseScopeId === CALLBACK_SCOPE ? "recipient-callback-native-import.json" : "definition-import.json",
+    releaseScopeId === SELECTOR_EVENT_SCOPE ? "selector-native-import.json" : releaseScopeId === CALLBACK_SCOPE ? "recipient-callback-native-import.json" : "definition-import.json",
   );
   const definition = JSON.parse(fs.readFileSync(definitionFile, "utf8"));
   const browserDigest = await digestCandidateTree(browserRoot);
@@ -142,7 +147,7 @@ async function launch() {
     ),
   ).browsers.find((item) => item.name === "chromium-headless-shell");
   const credentials = Object.fromEntries(
-    ([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(releaseScopeId)
+    ([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,SELECTOR_EVENT_SCOPE].includes(releaseScopeId)
       ? ["allowed", "courtadmin", "judge", "observer", "readonly"]
       : ["allowed", "denied", "observer"]).map((name) => [
       name,
@@ -184,6 +189,7 @@ async function launch() {
     ccd,
     credentials,
     definition,
+    ...(selector ? {selectorEventBinding:selector.selectorEventBinding,...copySelectorRuntimeEvidence(output,selector,"baseline")} : {}),
     workbasket,
     workbasketDefinitionDigest,
     workbasketImportDigest,

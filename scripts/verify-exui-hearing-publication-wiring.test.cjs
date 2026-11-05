@@ -32,6 +32,15 @@ const SOURCE_FILES = [
   "scripts/lib/exui-recipient-callback-transition.mjs",
   "scripts/lib/exui-recipient-callback-facets.mjs",
   "scripts/lib/exui-recipient-callback-import.mjs",
+  "scripts/lib/exui-selector-event-row-contract.mjs",
+  "scripts/lib/exui-selector-event-row-facets.mjs",
+  "scripts/lib/exui-selector-event-row-observations.mjs",
+  "scripts/lib/exui-selector-event-row-runtime.mjs",
+  "scripts/lib/exui-selector-event-row-transition.mjs",
+  "scripts/lib/exui-selector-event-row-evidence.mjs",
+  "src/fixtures/harnessSelectorEventRow.ts",
+  "src/tests/harness/ccd/selector-event-row.spec.ts",
+
   "scripts/lib/exui-recipient-callback-diagnostics.mjs",
   "scripts/fixtures/ccd/recipient-callback-native/baseline/definition.json",
   "scripts/fixtures/ccd/recipient-callback-native/baseline/definition.xlsx",
@@ -209,7 +218,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 173);
+  assert.equal(SOURCE_FILES.length, 181);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

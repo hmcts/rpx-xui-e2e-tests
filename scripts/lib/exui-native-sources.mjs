@@ -62,6 +62,15 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-recipient-callback-transition.mjs",
   "scripts/lib/exui-recipient-callback-facets.mjs",
   "scripts/lib/exui-recipient-callback-import.mjs",
+  "scripts/lib/exui-selector-event-row-contract.mjs",
+  "scripts/lib/exui-selector-event-row-facets.mjs",
+  "scripts/lib/exui-selector-event-row-observations.mjs",
+  "scripts/lib/exui-selector-event-row-runtime.mjs",
+  "scripts/lib/exui-selector-event-row-transition.mjs",
+  "scripts/lib/exui-selector-event-row-evidence.mjs",
+  "src/fixtures/harnessSelectorEventRow.ts",
+  "src/tests/harness/ccd/selector-event-row.spec.ts",
+
   "scripts/lib/exui-recipient-callback-diagnostics.mjs",
 
   "scripts/fixtures/ccd/recipient-callback-native/baseline/definition.json",

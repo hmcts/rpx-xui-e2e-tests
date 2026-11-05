@@ -1,3 +1,5 @@
+import {SELECTOR_EVENT_SCOPE} from './exui-selector-event-row-contract.mjs';
+import {validateSelectorTransitionRequest} from './exui-selector-event-row-transition.mjs';
 import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
 import {createApplicantResultWatcher} from './exui-applicant-results-watch.mjs';
 import {CALLBACK_SCOPE} from './exui-recipient-callback-contract.mjs';
@@ -115,10 +117,11 @@ export async function executeCiProcess({
   onPrepared,
   onEventTransition,
   onCallbackTransition,
+  onSelectorTransition,
   onResultsTransition,
   onChild = () => {},
 }) {
-  assert([onEventTransition,onCallbackTransition,onResultsTransition].filter(value=>value!==undefined).length<=1,"CI_TRANSITION_SCOPE_AMBIGUOUS");
+  assert([onEventTransition,onCallbackTransition,onSelectorTransition,onResultsTransition].filter(value=>value!==undefined).length<=1,"CI_TRANSITION_SCOPE_AMBIGUOUS");
   assert(!fs.existsSync(output), "FRESH_CI_PHASE_OUTPUT_REQUIRED");
   const log = fs.openSync(
     path.join(path.dirname(output), path.basename(output) + "-supervisor.log"),
@@ -145,12 +148,13 @@ export async function executeCiProcess({
   });
   let expected, input, handoff, transition;
   const checkResults=createApplicantResultWatcher(output,onResultsTransition,()=>({input,handoff,expected,isTerminated:()=>Boolean(terminal)}));
+  const selectorMode = onSelectorTransition !== undefined;
   const callbackMode = onCallbackTransition !== undefined;
-  const transitionScope = callbackMode ? CALLBACK_SCOPE : EVENT_CAPABILITY_SCOPE;
-  const onTransition = callbackMode ? onCallbackTransition : onEventTransition;
-  const validateRequest = callbackMode ? validateCallbackTransitionRequest : validateEventCapabilityTransitionRequest;
-  const requestFile = path.join(output, callbackMode ? "callback-transition-request.json" : "event-transition-request.json");
-  const foreignRequestFile = path.join(output, callbackMode ? "event-transition-request.json" : "callback-transition-request.json");
+  const transitionScope = selectorMode ? SELECTOR_EVENT_SCOPE : callbackMode ? CALLBACK_SCOPE : EVENT_CAPABILITY_SCOPE;
+  const onTransition = selectorMode ? onSelectorTransition : callbackMode ? onCallbackTransition : onEventTransition;
+  const validateRequest = selectorMode ? validateSelectorTransitionRequest : callbackMode ? validateCallbackTransitionRequest : validateEventCapabilityTransitionRequest;
+  const requestFile = path.join(output, selectorMode ? "selector-transition-request.json" : callbackMode ? "callback-transition-request.json" : "event-transition-request.json");
+  const foreignRequestFiles = ["event-transition-request.json","callback-transition-request.json","selector-transition-request.json"].map(file=>path.join(output,file)).filter(file=>file!==requestFile);
   const requestSnapshot = () => {
     assert(fs.existsSync(requestFile), "CI_EVENT_TRANSITION_REQUEST_CHANGED");
     const before = fs.lstatSync(requestFile, { bigint: true });
@@ -172,7 +176,7 @@ export async function executeCiProcess({
     return { stamp: { ...identity(after), digest: digestBytes(bytes) }, bytes };
   };
   const checkTransition = async () => {
-    assert(!fs.lstatSync(foreignRequestFile, {throwIfNoEntry:false}), "CI_TRANSITION_FOREIGN_SCOPE_REQUEST");
+    for(const file of foreignRequestFiles)assert(!fs.lstatSync(file, {throwIfNoEntry:false}), "CI_TRANSITION_FOREIGN_SCOPE_REQUEST");
     if (!fs.lstatSync(requestFile, { throwIfNoEntry: false })) {
       assert(!transition, "CI_EVENT_TRANSITION_REQUEST_CHANGED");
       return;

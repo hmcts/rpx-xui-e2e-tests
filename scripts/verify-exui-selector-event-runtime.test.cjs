@@ -1,0 +1,27 @@
+const assert=require('node:assert/strict'),{test}=require('node:test'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+
+test('selector runtime replay requires exact imported source workbook, descriptors, version and typed date',async t=>{
+ const {deriveSelectorEventRowFixture,SELECTOR_EVENT_SCOPE}=await import('./lib/exui-selector-event-row-contract.mjs');
+ const {prepareRecipientCallbackImport}=await import('./lib/exui-recipient-callback-import.mjs');
+ const {copySelectorRuntimeEvidence,assertCopiedSelectorRuntimeEvidence}=await import('./lib/exui-selector-event-row-runtime.mjs');
+ const {validateSelectorStoredDate}=await import('./lib/exui-selector-event-row-facets.mjs');
+ const {canonicalRecipientCallbackPages}=await import('./lib/exui-recipient-callback-fixture.mjs');
+ const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const output=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'selector-runtime-'));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));
+ const state={output,owner:'harness-'+'a'.repeat(16),namespace:'b'.repeat(64),images:{definition:{id:'sha256:'+'c'.repeat(64)}}};
+ const {binding}=deriveSelectorEventRowFixture();const seal=await prepareRecipientCallbackImport(path.join(output,'selector-fixture'),{variant:'binding-omitted',rowFacets:true,selectorEventVariant:'baseline'});
+ const definition={id:'HarnessNestedPRL',version:{number:2},events:[{id:'serviceOfDocuments',case_fields:[{case_field_id:'sodAdditionalRecipients',display_context:'OPTIONAL',show_condition:null,show_summary_change_option:true},{case_field_id:'protectedValue',display_context:'READONLY'}]}],case_fields:[{id:'sodAdditionalRecipients',label:'Select additional recipients who needs to be served',field_type:{id:'MultiSelectList-AdditionalRecipients',type:'MultiSelectList',fixed_list_items:[{code:'additionalRecipients',label:'Additional recipients (optional)',order:1}]}}]};
+ const pages={case_type_id:'HarnessNestedPRL',event_id:'serviceOfDocuments',wizard_pages:[{id:'serviceOfDocumentsharnessBefore',order:1,show_condition:null,wizard_page_fields:[{case_field_id:'protectedValue',order:1}]},{id:'serviceOfDocuments2',order:2,show_condition:null,wizard_page_fields:[{case_field_id:'sodAdditionalRecipients',order:7},{case_field_id:'sodAdditionalRecipientsList',order:8}]}]};
+ const rows=[{case_type:'HarnessNestedPRL',version:2,event:'serviceOfDocuments',page:'serviceOfDocuments2',field:'sodAdditionalRecipients',live_from:'2024-09-01',sql_type:'date'}];
+ const date={...validateSelectorStoredDate(rows,2),owner:state.owner,namespace:state.namespace,images:state.images,rawDigest:digestBytes(JSON.stringify(rows))};
+ const imported={status:'import-and-callback-descriptor-observed',owner:state.owner,namespace:state.namespace,images:state.images,seal,observations:{import:{status:201},definition:{status:200,body:definition},pages:{status:200,body:pages}}};
+ const record={schemaVersion:1,kind:'native-selector-event-row-definition',releaseScopeId:SELECTOR_EVENT_SCOPE,variant:'baseline',fixtureDigest:seal.workbookDigest,sourceDefinitionDigest:seal.definitionDigest,observedDefinitionDigest:digestBytes(JSON.stringify(definition)),observedPagesDigest:digestBytes(JSON.stringify(canonicalRecipientCallbackPages(pages))),definitionVersion:2,storedDateDigest:digestBytes(JSON.stringify(date)),sourceBinding:binding,owner:state.owner,namespace:state.namespace,images:state.images};
+ fs.mkdirSync(path.join(output,'recipient-callback-import'));
+ const put=(file,value)=>fs.writeFileSync(path.join(output,file),JSON.stringify(value));put('recipient-callback-import/receipt.json',imported);put('recipient-callback-import/selector-stored-row-date.json',date);put('selector-native-import.json',record);
+ const input={ccd:state,definition:record,definitionImportDigest:digestBytes(fs.readFileSync(path.join(output,'selector-native-import.json')))};
+ const directory=path.join(output,'captured');fs.mkdirSync(directory);Object.assign(input,copySelectorRuntimeEvidence(directory,input,'baseline'));assertCopiedSelectorRuntimeEvidence(directory,input,'baseline');
+ assert.throws(()=>copySelectorRuntimeEvidence(directory,input,'baseline'),/EEXIST/);
+ const corrupt=(key,alter)=>{const bad=structuredClone(input),file=path.join(directory,bad[key].path),original=fs.readFileSync(file),value=JSON.parse(original);alter(value);const bytes=Buffer.from(JSON.stringify(value));fs.writeFileSync(file,bytes);bad[key].digest=digestBytes(bytes);try{assert.throws(()=>assertCopiedSelectorRuntimeEvidence(directory,bad,'baseline'),/SELECTOR_/);}finally{fs.writeFileSync(file,original);}};
+ corrupt('selectorDateReceipt',x=>{x.rows[0].live_from='2020-01-01';});corrupt('selectorDateReceipt',x=>{x.rows[0].version=1;});corrupt('selectorDateReceipt',x=>{x.activationClaim=true;});corrupt('selectorObservedReceipt',x=>{x.observations.import.status=500;});corrupt('selectorObservedReceipt',x=>{x.observations.definition.body.events[0].case_fields[0].show_summary_change_option=false;});corrupt('selectorDefinitionReceipt',x=>{x.sheets.CaseEventToFields.find(r=>r.CaseEventID==='serviceOfDocuments'&&r.CaseFieldID==='sodAdditionalRecipients').PageID=1;});
+ const workbook=path.join(directory,input.selectorWorkbookReceipt.path),bytes=fs.readFileSync(workbook);fs.appendFileSync(workbook,'corrupt');assert.throws(()=>assertCopiedSelectorRuntimeEvidence(directory,input,'baseline'),/DIGEST/);fs.writeFileSync(workbook,bytes);
+});
