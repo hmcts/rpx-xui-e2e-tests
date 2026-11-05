@@ -2,9 +2,10 @@ import fs from 'node:fs';
 
 import { expect, type Page, type PlaywrightWorkerArgs } from '@playwright/test';
 
+import { validateComplexEmailObserver, validateComplexEmailRecipientIds } from '../../scripts/lib/exui-complex-email-classification.mjs';
+
 import { ccdPersonas, ccdSessionRequest, createSyntheticCase, observeCcd } from './harnessCcd';
 import { collectionRows, openUpdate } from './harnessSharedNested';
-import { validateComplexEmailObserver, validateComplexEmailRecipientIds } from '../../scripts/lib/exui-complex-email-classification.mjs';
 
 const input = (page:Page, field:string, index:number) => page.locator(`input[id$="_${field}"]`).nth(index);
 
