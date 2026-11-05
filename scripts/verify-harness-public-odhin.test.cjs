@@ -978,6 +978,26 @@ test("native report attributes pinned Work Basket input rows to the CCD phase", 
   assert.match(require("./harness-native-report.cjs").renderNativeEvidence(evidence), /CCD data and access/);
 });
 
+test("shared role policy credit requires its complete source and phase binding summary", async () => {
+  const overview = require("./harness-public-overview.cjs");
+  const evidence = await nativePresentationFixture(false), coverage = evidence.catalogueCoverage;
+  const id = "configuration-shared:role-policy";
+  coverage.creditedObligationIds.push(id);
+  coverage.ccd++;
+  coverage.missing--;
+  assert.throws(() => require("./harness-native-report.cjs").renderNativeEvidence(evidence), /SHARED_ROLE_MISMATCH/);
+  coverage.sharedRoleAdmission = { obligationId:id, boundary:"ccd", status:"passed", sourceImageProofDigest:"sha256:"+"a".repeat(64),
+    roleFacetCount:25, sourceBindingCount:25, eventObservationCount:8, candidateArtifactDigest:evidence.source.candidateArtifactDigest,
+    ccdRunId:coverage.phaseReferences.ccd.runId, eventRunId:coverage.phaseReferences.eventCapability.runId };
+  const records = overview.entries.map(entry => ({entry,observed:{status:"passed"}}));
+  const html = await overview.renderOverview(records,"harness",{nativeEvidence:evidence});
+  assert.match(html,/6 \/ 112 catalogue requirements satisfied by accepted runtime evidence/);
+  const summary = require("node-html-parser").parse(html);
+  assert.equal(summary.querySelector('[data-catalogue-kind="shared-policy"]').getAttribute("data-catalogue-accepted"),"1");
+  coverage.sharedRoleAdmission.roleFacetCount = 24;
+  assert.throws(() => require("./harness-native-report.cjs").renderNativeEvidence(evidence), /SHARED_ROLE_MISMATCH/);
+});
+
 test("native report attributes the source recipient label row to event capability", async () => {
   const evidence = await nativePresentationFixture(false);
   evidence.catalogueCoverage.creditedObligationIds.push("configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f");

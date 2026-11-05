@@ -85,6 +85,10 @@ test('all25 requirements bind to their actual phase, proof, invocation and basel
  assert.equal(plan.find(x=>x.id==='ccd-remove-courtadmin-recipient-read').importPath,'event-read-mutant-runtime/definition-import.json');
  assert.equal(plan.find(x=>x.id==='ccd-broaden-access').importPath,'ccd-runtime/definition-import.json');
 });
+test('shared role admission cannot use a replay receipt without fresh source-image inputs',async()=>{
+ const {admitSharedRoleNative}=await import('./lib/exui-shared-role-native-binding.mjs');
+ await assert.rejects(admitSharedRoleNative({replay:{bindingStatus:'verified',acceptedObligationIds:['configuration-shared:role-policy']}}),/SHARED_ROLE_SOURCE_IMAGE_REQUIRED/);
+});
 async function facetInput(){
  const lib=await import('./lib/exui-shared-role-native-binding.mjs');
  const record=lib.sharedRoleNativePlan()[0],{manifest}=inputs();

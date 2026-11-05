@@ -305,6 +305,13 @@ test("descriptor binds parent capture before gate and preserves blocked policy f
     /EEXIST/,
   );
 });
+test("descriptor includes source inputs only when explicitly supplied by the job", async (t) => {
+  const { writeNativeDescriptor } = await api(), f = fixture(t);
+  f.job.candidateManifest = path.join(f.root, 'candidate-artifact.json');
+  const inputs = { sourceArchive:path.join(f.root,'source.tar.gz'), javaHome:'/opt/java', gradleHome:'/opt/gradle', output:path.join(f.root,'source-proof') };
+  const descriptor = JSON.parse(fs.readFileSync(writeNativeDescriptor(f.job,f.captured,f.verdict,inputs)));
+  assert.deepEqual(descriptor.sharedRoleAdmission,{candidateArtifactPath:f.job.candidateManifest,sourceImageInputs:inputs});
+});
 test("post-execution identity cannot replace the independently captured expectation", async (t) => {
   const { writeNativeDescriptor } = await api(),
     f = fixture(t);

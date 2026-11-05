@@ -195,3 +195,18 @@ export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDire
   // This is an independent preparation reader; catalogue admission remains explicit.
   return { schemaVersion: 1, obligationId: contract().id, contractDigest: contract().contractDigest, bindingStatus: 'verified', records, toolkit, eventObservations, ...(sourceImage ? {sourceImage} : {}), acceptedObligationIds: [], catalogueCredit: false, runtimeAcceptance: false, missingAcceptanceEvidence: [...(sourceImage ? [] : ['CCD-source-to-running-image-provenance']), 'explicit-shared-role-catalogue-admission'] };
 }
+
+export async function admitSharedRoleNative(inputs) {
+  assert(inputs?.sourceImageInputs, 'SHARED_ROLE_SOURCE_IMAGE_REQUIRED');
+  const replay = await replaySharedRoleNativeBindings(inputs);
+  const plan = sharedRoleNativePlan();
+  assert.equal(replay.bindingStatus, 'verified', 'SHARED_ROLE_BINDING_REQUIRED');
+  assert.deepEqual(replay.records.map(item => item.id).sort(), plan.map(item => item.id).sort(), 'SHARED_ROLE_COMPLETE_FACETS_REQUIRED');
+  assert.deepEqual(replay.sourceImage?.bindings.map(item => item.id).sort(), plan.map(item => item.id).sort(), 'SHARED_ROLE_COMPLETE_SOURCE_BINDING_REQUIRED');
+  assert.equal(replay.eventObservations.length, 8, 'SHARED_ROLE_EVENT_OBSERVATIONS_REQUIRED');
+  assert.deepEqual(replay.missingAcceptanceEvidence, ['explicit-shared-role-catalogue-admission'], 'SHARED_ROLE_UNEXPECTED_GAP');
+  assert.deepEqual([replay.catalogueCredit, replay.runtimeAcceptance, replay.acceptedObligationIds], [false, false, []], 'SHARED_ROLE_NO_SELF_CREDIT');
+  return { obligationId: contract().id, boundary: 'ccd', status: 'passed', sourceImageProofDigest: replay.sourceImage.proofDigest,
+    roleFacetCount: replay.records.length, sourceBindingCount: replay.sourceImage.bindings.length,
+    eventObservationCount: replay.eventObservations.length, candidateArtifactDigest: replay.toolkit.candidateIdentity.artifactDigest };
+}

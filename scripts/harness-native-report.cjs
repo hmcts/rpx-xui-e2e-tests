@@ -289,6 +289,7 @@ function renderNativeEvidence(evidence) {
     !coverage.phaseReferences ||
     coverage.creditedObligationIds.some((id) => {
       const phase =
+        id === "configuration-shared:role-policy" ? "ccd" :
         id ===
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
@@ -330,6 +331,18 @@ function renderNativeEvidence(evidence) {
     })
   )
     throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
+  const roleCredited = coverage.creditedObligationIds.includes("configuration-shared:role-policy");
+  const role = coverage.sharedRoleAdmission;
+  if (roleCredited !== Boolean(role) || (role && (
+    JSON.stringify(Object.keys(role).sort()) !== JSON.stringify(['boundary','candidateArtifactDigest','ccdRunId','eventObservationCount','eventRunId','obligationId','roleFacetCount','sourceBindingCount','sourceImageProofDigest','status']) ||
+    role.obligationId !== "configuration-shared:role-policy" || role.boundary !== "ccd" || role.status !== "passed" ||
+    role.roleFacetCount !== 25 || role.sourceBindingCount !== 25 || role.eventObservationCount !== 8 ||
+    !/^sha256:[a-f0-9]{64}$/.test(role.sourceImageProofDigest) ||
+    role.candidateArtifactDigest !== evidence.source.candidateArtifactDigest ||
+    role.ccdRunId !== coverage.phaseReferences.ccd?.runId ||
+    role.eventRunId !== coverage.phaseReferences.eventCapability?.runId ||
+    evidence.phases.find(item => item.phase === 'eventCapability')?.status !== 'PASS'
+  ))) throw new Error("PUBLIC_ODHIN_NATIVE_SHARED_ROLE_MISMATCH");
   if (
     JSON.stringify(evidence.phases.map((phase) => phase.phase)) !==
     JSON.stringify(Object.keys(phaseLabels))

@@ -53,7 +53,7 @@ export async function runAssuranceSequence({ native, descriptor, collect }) {
     releaseApproval: false,
   };
 }
-export function writeNativeDescriptor(job, captured, verdict) {
+export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs) {
   const root = path.join(job.output, "private");
   assert(fs.realpathSync(root) === root, "ASSURANCE_PRIVATE_ROOT_REQUIRED");
   const result = read(path.join(root, "ci-result.json"));
@@ -187,6 +187,7 @@ export function writeNativeDescriptor(job, captured, verdict) {
   const descriptor = {
     schemaVersion: 1,
     directory: job.output,
+    ...(sharedRoleSourceInputs ? { sharedRoleAdmission: { candidateArtifactPath: job.candidateManifest, sourceImageInputs: sharedRoleSourceInputs } } : {}),
     expected: {
       jobRunId: result.value.jobRunId,
       ciResultDigest: result.digest,
@@ -210,6 +211,8 @@ export async function runHarnessAssurance(
   // Invalid job input must also withdraw the earlier owned public report.
   Reporter.resetPublicReport("harness");
   const job = validateCiJob(read(jobPath).value);
+  const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS
+    ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
   const captured = {
     harnessCommit: execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: ROOT,
@@ -226,7 +229,7 @@ export async function runHarnessAssurance(
   const { runHarnessCollection } = await import("./run-harness-local-aat.cjs");
   return runAssuranceSequence({
     native: () => runHarnessCi(jobPath),
-    descriptor: (verdict) => writeNativeDescriptor(job, captured, verdict),
+    descriptor: (verdict) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs),
     collect: (nativeEvidencePath) =>
       runHarnessCollection(env, {
         profile: aat ? "local-aat" : "harness",

@@ -719,6 +719,13 @@ for (const postalFailure of [false, true])
     assert.deepEqual(snapshot(f.root), before, "accounting is read-only");
   });
 
+test('shared role catalogue admission rejects a caller-supplied receipt without source inputs', async t => {
+  const f = await fixture(t);
+  f.descriptor.sharedRoleAdmission = { proof: { acceptedObligationIds: ['configuration-shared:role-policy'] } };
+  f.save();
+  await assert.rejects((await load()).readNativeReportEvidence(f.descriptorPath), /NATIVE_REPORT_SHARED_ROLE_INPUT_SCHEMA/);
+});
+
 test("native accounting cannot bypass imported source binding on a complete BLOCKED phase", async (t) => {
   const f = await fixture(t, { postalFailure: true });
   const importedPath = path.join(
