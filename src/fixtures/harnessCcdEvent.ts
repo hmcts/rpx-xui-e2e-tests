@@ -135,9 +135,9 @@ export function saveCcdEventObservation(
 ) {
   fs.writeFileSync(
     path.join(process.env.EXUI_CCD_EVIDENCE!, `${name}-observation.json`),
-    JSON.stringify(name === "event-capability" ? value : sharedRoleEventEnvelope(
+    JSON.stringify(["courtadmin-cell", "courtadmin-read", "readonly-read", "readonly-update"].includes(name) ? sharedRoleEventEnvelope(
       name, value, eventProofInputs().manifest, eventProofInputs().context, ccdEventPersonas(),
-    ), null, 2),
+    ) : value, null, 2),
     { mode: 0o600, flag: "wx" },
   );
 }

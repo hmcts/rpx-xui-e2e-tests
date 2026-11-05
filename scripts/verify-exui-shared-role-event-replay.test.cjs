@@ -123,3 +123,14 @@ test('actual case-view capture waits for control and every marker before observi
  for(const marker of [control,...rows.flatMap(row=>[row.value.emailInformation.emailName,row.value.emailInformation.emailAddress])])assert(calls.indexOf('wait:'+marker)<calls.indexOf('read:'+marker));
  assert(observed.markerVisibility.flat().every(item=>item.visible));
 });
+
+test('shared fixture preserves source-shape and judge observation formats outside role envelope selection',async()=>{
+ const ts=require('typescript'),source=fs.readFileSync(path.join(__dirname,'../src/fixtures/harnessCcdEvent.ts'),'utf8');
+ const compiled=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}),exports={},writes=[];
+ const library=await import('./lib/exui-shared-role-event-observations.mjs');
+ const fakeFs={writeFileSync:(file,bytes,options)=>writes.push({file,value:JSON.parse(bytes),options}),readFileSync:()=>{throw Error('NON_ROLE_CONTEXT_READ');}};
+ new Function('require','exports','process',compiled.outputText)(name=>name==='node:fs'?fakeFs:name.startsWith('node:')?require(name):name==='./harnessCcd'?{}:library,exports,{env:{EXUI_CCD_EVIDENCE:'/private/unit-observation'}});
+ const selected=['event-capability','source-shape-required-delivery-radio','source-shape-conditional-email-complex','source-shape-optional-postal-line-two'];
+ for(const name of selected)exports.saveCcdEventObservation(name,[{sourceShape:name}]);
+ assert.deepEqual(writes,selected.map(name=>({file:`/private/unit-observation/${name}-observation.json`,value:[{sourceShape:name}],options:{mode:0o600,flag:'wx'}})));
+});
