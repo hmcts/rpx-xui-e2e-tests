@@ -544,6 +544,9 @@ test("event capability routes forward exact source event and actor without a gat
     assert.equal(fs.existsSync(path.join(output, "fault-actions.jsonl")), false);
     const forwarded = fs.readFileSync(path.join(output, "ccd-requests.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
     assert(forwarded.every(entry => entry.mutation === null));
+    assert(forwarded.every(entry => entry.actorId === id));
+    assert(!JSON.stringify(forwarded).includes("Bearer"));
+    assert(!JSON.stringify(forwarded).includes("synthetic-judge"));
   }, null, null, null, "exui-ccd-event-capability-pilot");
 });
 

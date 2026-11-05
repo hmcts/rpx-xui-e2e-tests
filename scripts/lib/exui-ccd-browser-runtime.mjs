@@ -213,6 +213,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         path: ccdRoute?.path ?? receivedPath,
         receivedPath,
         upstreamPath: ccdRoute?.upstreamPath ?? url.pathname,
+        ...(scope === EVENT_CAPABILITY_SCOPE && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
       };
       let target;
       if (ccdRoute)

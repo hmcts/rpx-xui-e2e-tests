@@ -79,7 +79,7 @@ const SOURCE_FILES = [
   'scripts/lib/exui-host-invocation.mjs', 'scripts/lib/exui-output-boundary.mjs',
   'scripts/lib/exui-candidate-runtime.mjs', 'scripts/lib/exui-candidate-child.mjs',
   'scripts/lib/exui-configuration-catalogue.mjs', 'scripts/lib/exui-shared-policy-contracts.mjs', 'scripts/lib/exui-definition-discovery.mjs',
-  'scripts/lib/exui-shared-role-observations.mjs', 'scripts/lib/exui-shared-role-observations.d.mts',
+  'scripts/lib/exui-shared-role-observations.mjs', 'scripts/lib/exui-shared-role-event-observations.mjs', 'scripts/lib/exui-shared-role-event-observations.d.mts', 'scripts/lib/exui-shared-role-observations.d.mts',
   'scripts/lib/exui-shared-role-artifacts.mjs', 'scripts/lib/exui-shared-role-toolkit.mjs',
   'scripts/lib/exui-shared-role-native-binding.mjs', 'scripts/replay-harness-shared-role.mjs',
   'scripts/lib/exui-shared-role-ccd-provenance.mjs', 'scripts/fixtures/ccd/shared-role-ccd-class-witnesses.json',
@@ -191,7 +191,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 134);
+  assert.equal(SOURCE_FILES.length, 136);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

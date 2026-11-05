@@ -13,6 +13,7 @@ const scope = "exui-ccd-event-capability-pilot",
 // Execute the actual source proof with independent in-memory UI and CCD transports.
 // This validates proof behavior, never claims actual candidate or CCD execution.
 async function execute(options = {}) {
+  const {sharedRoleEventActor} = await import("./lib/exui-shared-role-event-observations.mjs");
   const scenarios = ["email", "post"].flatMap((channel) =>
     [1, 2].map((count) => ({
       name: `${channel}-${count}`,
@@ -168,7 +169,7 @@ async function execute(options = {}) {
         });
       },
     },
-    getByText: (marker) => ({ marker }),
+    getByText: (marker) => ({ marker, isVisible: async () => visibleValues().includes(marker) && marker !== options.hiddenMarker }),
     locator: (selector) => field(inputName(selector), 0),
     getByLabel: (label) => {
       if (label === "Additional recipients (optional)")
@@ -201,6 +202,7 @@ async function execute(options = {}) {
     },
   };
   const support = {
+    sharedRoleEventActor,
     test: fakeTest,
     expect: fakeExpect,
     COURTADMIN_UPDATE_MUTATION: mutation,
@@ -247,7 +249,15 @@ async function execute(options = {}) {
     openCcdEventCase: async () =>
       response(200, {
         triggers: selected ? [] : [{ id: eventId, name: eventName }],
+        tabs: [{fields: [{id: "protectedValue", value: "synthetic-courtadmin-original"}]}],
       }),
+    observeCcdEventReadback: async (_page, id, expected) => {
+      calls.push("case-view-readback:" + id);
+      const persisted = structuredClone(cases.get(id).state.case_data.sodAdditionalRecipientsList);
+      return {caseViewStatus: 200, protectedValue: "synthetic-courtadmin-original", controlVisible: true,
+        recipientFields: [{id: "sodAdditionalRecipientsList", value: persisted}], projected: persisted,
+        visible: expected.map(() => true)};
+    },
     openServiceOfDocuments: async () => response(200),
     submitServiceOfDocuments: async () => {
       calls.push("ui-submit:" + current);
@@ -345,6 +355,7 @@ test("support only: courtadmin baseline proves all form/CYA/Change/persisted sha
     4,
   );
   assert.equal(result.calls.filter((x) => x === "click:/Change/").length, 4);
+  assert.equal(result.calls.filter((x) => x.startsWith("case-view-readback:")).length, 4);
   for (const marker of [
     "Postal 0",
     "Postal 1",

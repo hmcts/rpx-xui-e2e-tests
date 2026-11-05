@@ -13,6 +13,7 @@ const oracle = "harness-assertion:readonly-update-isolation";
 // Execute the actual proof against independent fake transports. These checks establish
 // proof control flow and attribution only; they are not native execution evidence.
 async function execute(options = {}) {
+  const {sharedRoleEventActor} = await import("./lib/exui-shared-role-event-observations.mjs");
   const scenarios = ["email", "post"].flatMap((channel) =>
     [1, 2].map((count) => ({
       name: `${channel}-${count}`,
@@ -95,6 +96,7 @@ async function execute(options = {}) {
     expect,
   );
   const support = {
+    sharedRoleEventActor,
     test: fakeTest,
     expect: fakeExpect,
     EVENT_SCOPE: scope,
@@ -147,6 +149,7 @@ async function execute(options = {}) {
       current = id;
       return response(200, {
         triggers: selected ? [{ id: eventId, name: eventName }] : [],
+        tabs: [{fields: Object.entries(cases.get(id).state.case_data).map(([id,value]) => ({id,value:structuredClone(value)}))}],
       });
     },
     ccdSessionRequest: async (_playwright, session) => {
@@ -219,7 +222,7 @@ async function execute(options = {}) {
         });
       },
     },
-    getByText: (marker) => ({ marker }),
+    getByText: (marker) => ({ marker, isVisible: async () => JSON.stringify(cases.get(current).state.case_data).includes(marker) && marker !== options.hiddenMarker }),
     locator: (selector) => {
       assert.equal(selector, "ccd-event-trigger #next-step option");
       return { allTextContents: async () => (selected ? [eventName] : []) };

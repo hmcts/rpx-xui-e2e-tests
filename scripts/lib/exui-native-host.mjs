@@ -336,8 +336,8 @@ export async function runNativeHostPhase(output, stagedHarness) {
         runnerExitCode: terminal.code,
         unexpectedGlobalErrors: report.globalErrors,
         resultArtifact: ref(output, path.join(directory, "report.json")),
-        ...(input.releaseScopeId === "exui-ccd-pilot" ? {
-          sharedRoleArtifacts: captureSharedRoleArtifacts(output, invocation.invocationId),
+        ...(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId) ? {
+          sharedRoleArtifacts: captureSharedRoleArtifacts(output, invocation.invocationId, input.releaseScopeId),
         } : {}),
       });
       manifest ??= current;

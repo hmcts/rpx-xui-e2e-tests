@@ -13,6 +13,7 @@ import { bindSharedRoleToolkitArtifact } from './exui-shared-role-toolkit.mjs';
 import { sharedRoleObservationBinding, replaySharedRoleDenial, replaySharedRoleRevocation } from './exui-shared-role-observations.mjs';
 import { NATIVE_HARNESS_SOURCE_FILES } from './exui-native-sources.mjs';
 import { readSharedRoleArtifact } from './exui-shared-role-artifacts.mjs';
+import { replaySharedRoleEventObservation } from './exui-shared-role-event-observations.mjs';
 import { reproduceSharedRoleCcdSource, bindSharedRoleCcdRuntime } from './exui-shared-role-ccd-provenance.mjs';
 
 const contract = () => buildSharedPolicyContracts().find(item => item.id === 'configuration-shared:role-policy');
@@ -176,8 +177,17 @@ export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDire
       }
     }
   }
-  // No caller attestation can replace reproduction of the CCD source/image chain.
-  // Event semantic observations still need their own independent per-shape replay;
-  // the existing native receipts are necessary, but not a substitute for that.
-  return { schemaVersion: 1, obligationId: contract().id, contractDigest: contract().contractDigest, bindingStatus: 'verified', records, toolkit, ...(sourceImage ? {sourceImage} : {}), acceptedObligationIds: [], catalogueCredit: false, runtimeAcceptance: false, missingAcceptanceEvidence: [...(sourceImage ? [] : ['CCD-source-to-running-image-provenance']), 'independent-event-shape-observation-replay'] };
+  const event = phases.eventCapability, eventObservations = [];
+  for (const [invocation, names] of Object.entries({ baseline: ['courtadmin-read', 'readonly-read', 'courtadmin-cell', 'readonly-update'],
+    'ccd-remove-courtadmin-recipient-read': ['courtadmin-read'], 'ccd-remove-readonly-recipient-read': ['readonly-read'],
+    'ccd-remove-courtadmin-event-create': ['courtadmin-cell'], 'ccd-enable-readonly-recipient-update': ['readonly-update'],
+  })) {
+    const execution = event.loaded.input.executions.find(item => item.invocationId === invocation);
+    const read = name => JSON.parse(readSharedRoleArtifact(event.directory, execution, name, scopes.eventCapability));
+    const manifest = read('manifest.json'), context = read('context.json'), personas = read('personas.json');
+    const requests = readSharedRoleArtifact(event.directory, execution, 'ccd-requests.jsonl', scopes.eventCapability).toString().trim().split('\n').map(line => JSON.parse(line));
+    for (const name of names) eventObservations.push(replaySharedRoleEventObservation(read(name + '-observation.json'), { name, manifest, context, personas, requests }));
+  }
+  // This is an independent preparation reader; catalogue admission remains explicit.
+  return { schemaVersion: 1, obligationId: contract().id, contractDigest: contract().contractDigest, bindingStatus: 'verified', records, toolkit, eventObservations, ...(sourceImage ? {sourceImage} : {}), acceptedObligationIds: [], catalogueCredit: false, runtimeAcceptance: false, missingAcceptanceEvidence: [...(sourceImage ? [] : ['CCD-source-to-running-image-provenance']), 'explicit-shared-role-catalogue-admission'] };
 }

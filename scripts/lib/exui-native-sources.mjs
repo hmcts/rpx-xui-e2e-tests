@@ -105,6 +105,8 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-configuration-catalogue.mjs",
   "scripts/lib/exui-shared-policy-contracts.mjs",
   "scripts/lib/exui-shared-role-observations.mjs",
+  "scripts/lib/exui-shared-role-event-observations.mjs",
+  "scripts/lib/exui-shared-role-event-observations.d.mts",
   "scripts/lib/exui-shared-role-artifacts.mjs",
   "scripts/lib/exui-shared-role-observations.d.mts",
   "scripts/lib/exui-shared-role-toolkit.mjs",

@@ -9,6 +9,7 @@ import {
   switchCcdEventActor,
   openCcdEventCase,
   saveCcdEventObservation,
+  sharedRoleEventActor,
   EVENT_ID,
   EVENT_NAME,
   EVENT_STATE,
@@ -141,8 +142,8 @@ test(
         maxRetries: 0,
       });
       expect(sessionResponse.status()).toBe(200);
-      const sessionUser = (await sessionResponse.json()).userInfo;
-      expect(sessionUser.id ?? sessionUser.uid).toBe(
+      const sessionUser = sharedRoleEventActor((await sessionResponse.json()).userInfo);
+      expect(sessionUser.id).toBe(
         personas.credentials.readonly.userId,
       );
       expect([...sessionUser.roles].sort()).toEqual([
@@ -157,16 +158,27 @@ test(
       await expect(
         page.getByText("synthetic-readonly-update-control", { exact: true }),
       ).toBeVisible();
+      const visible = [];
+      const markerVisibility = [];
       for (const recipient of scenario.recipients) {
         const markers = [
+          recipient.value.emailInformation?.emailName,
           recipient.value.emailInformation?.emailAddress,
           recipient.value.postalInformation?.postalName,
           recipient.value.postalInformation?.postalAddress.AddressLine1,
           recipient.value.postalInformation?.postalAddress.PostCode,
         ].filter((value): value is string => typeof value === "string");
-        for (const marker of markers)
+        const states = [];
+        for (const marker of markers) {
           await expect(page.getByText(marker, { exact: true })).toBeVisible();
+          states.push({marker, visible: await page.getByText(marker, {exact: true}).isVisible()});
+        }
+        markerVisibility.push(states);
+        visible.push(states.length > 0 && states.every(item => item.visible));
       }
+      const fields: Array<{id: string; value?: unknown}> = caseView.tabs.flatMap((tab: {fields: Array<{id: string; value?: unknown}>}) => tab.fields);
+      const recipientFields = fields.filter(field => field.id === "sodAdditionalRecipientsList").map(field => ({id: field.id, value: field.value}));
+      const controlVisible = await page.getByText("synthetic-readonly-update-control", {exact: true}).isVisible();
       const menuOptions = await page
         .locator("ccd-event-trigger #next-step option")
         .allTextContents();
@@ -225,16 +237,18 @@ test(
         const observation = {
           scenario: scenario.name,
           actor: {
-            userId: personas.credentials.readonly.userId,
+            id: personas.credentials.readonly.userId,
             roles: personas.credentials.readonly.roles,
           },
           sessionUser: {
-            id: sessionUser.id ?? sessionUser.uid,
+            id: sessionUser.id,
             roles: sessionUser.roles,
           },
           caseId,
           eventId: EVENT_ID,
           caseViewStatus: read.status(),
+          protectedValue: fields.find(field => field.id === "protectedValue")?.value,
+          controlVisible, recipientFields, projected: recipientFields[0]?.value ?? null, visible, markerVisibility,
           caseTriggers: caseView.triggers,
           menuOptions,
           eventTriggers,

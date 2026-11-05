@@ -3,6 +3,9 @@ import path from "node:path";
 
 import type { APIRequestContext, Page } from "@playwright/test";
 
+import { sharedRoleEventEnvelope } from "../../scripts/lib/exui-shared-role-event-observations.mjs";
+export { sharedRoleEventActor } from "../../scripts/lib/exui-shared-role-event-observations.mjs";
+
 import { ccdPersonas, type CcdPersonas, type Credential } from "./harnessCcd";
 
 export { test, expect, observeCcd, ccdSessionRequest } from "./harnessCcd";
@@ -132,7 +135,9 @@ export function saveCcdEventObservation(
 ) {
   fs.writeFileSync(
     path.join(process.env.EXUI_CCD_EVIDENCE!, `${name}-observation.json`),
-    JSON.stringify(value, null, 2),
+    JSON.stringify(name === "event-capability" ? value : sharedRoleEventEnvelope(
+      name, value, eventProofInputs().manifest, eventProofInputs().context, ccdEventPersonas(),
+    ), null, 2),
     { mode: 0o600, flag: "wx" },
   );
 }
@@ -162,3 +167,42 @@ export const courtadminReadScenarios = ["email", "post"].flatMap(channel =>
     })),
   })),
 );
+
+// Retain only the synthetic case-view projection and visible markers needed by
+// role replay; never serialize the user-details response or session headers.
+export async function observeCcdEventReadback(
+  page: Page,
+  caseId: string,
+  expected: Array<{
+    emailInformation?: { emailName: string; emailAddress: string };
+    postalInformation?: { postalName: string; postalAddress: { AddressLine1: string; PostCode: string } };
+  }>,
+) {
+  const response = await openCcdEventCase(page, caseId);
+  const body = await response.json();
+  const fields: Array<{id: string; value?: unknown}> = body.tabs.flatMap(
+    (tab: {fields: Array<{id: string; value?: unknown}>}) => tab.fields,
+  );
+  const protectedValue = fields.find(field => field.id === "protectedValue")?.value;
+  const recipientFields = fields.filter(field => field.id === "sodAdditionalRecipientsList")
+    .map(field => ({id: field.id, value: field.value}));
+  const visible = [];
+  const markerVisibility = [];
+  if (typeof protectedValue === "string") await page.getByText(protectedValue, {exact: true}).waitFor({state: "visible"});
+  for (const value of expected) {
+    const markers = [value.emailInformation?.emailName, value.emailInformation?.emailAddress,
+      value.postalInformation?.postalName, value.postalInformation?.postalAddress.AddressLine1,
+      value.postalInformation?.postalAddress.PostCode].filter((marker): marker is string => typeof marker === "string");
+    const states = [];
+    for (const marker of markers) {
+      const locator = page.getByText(marker, {exact: true});
+      await locator.waitFor({state: "visible"});
+      states.push({marker, visible: await locator.isVisible()});
+    }
+    markerVisibility.push(states);
+    visible.push(states.length > 0 && states.every(item => item.visible));
+  }
+  return {caseViewStatus: response.status(), protectedValue,
+    controlVisible: typeof protectedValue === "string" && await page.getByText(protectedValue, {exact: true}).isVisible(),
+    recipientFields, projected: recipientFields[0]?.value ?? null, visible, markerVisibility};
+}

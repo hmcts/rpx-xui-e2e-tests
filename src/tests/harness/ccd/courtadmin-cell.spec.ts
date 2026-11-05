@@ -15,6 +15,8 @@ import {
   openServiceOfDocuments,
   submitServiceOfDocuments,
   saveCcdEventObservation,
+  sharedRoleEventActor,
+  observeCcdEventReadback,
   courtadminReadScenarios,
   EVENT_ID,
   EVENT_NAME,
@@ -195,6 +197,7 @@ async function formJourney(
       ? `sha256:${createHash("sha256").update(csrf).digest("hex")}`
       : null,
     after: await observeCcd(caseId),
+    readback: await observeCcdEventReadback(page, caseId, values(scenario, true)),
   };
 }
 async function deniedJourney(
@@ -252,6 +255,7 @@ async function deniedJourney(
       submittedData: data,
       csrfHeaderPresent: false,
       csrfHeaderDigest: null,
+      readback: null,
       after,
     };
   } finally {
@@ -310,6 +314,10 @@ test(
         scenario: string;
         expectedValues: ReturnType<typeof values>;
         actor: unknown;
+        caseViewStatus: number;
+        eventTriggers: Array<{id: string; name: string}>;
+        protectedValue: unknown;
+        controlVisible: boolean;
         caseId: string;
         before: Observation;
       }
@@ -334,8 +342,8 @@ test(
         maxRetries: 0,
       });
       expect(details.status()).toBe(200);
-      const actor = (await details.json()).userInfo;
-      expect(actor.id ?? actor.uid).toBe(
+      const actor = sharedRoleEventActor((await details.json()).userInfo);
+      expect(actor.id).toBe(
         personas.credentials.courtadmin.userId,
       );
       expect([...actor.roles].sort()).toEqual(roles);
@@ -349,6 +357,10 @@ test(
         scenario: scenario.name,
         expectedValues: values(scenario, true),
         actor,
+        caseViewStatus: read.status(),
+        eventTriggers: view.triggers.filter((event: {id: string}) => event.id === EVENT_ID),
+        protectedValue: view.tabs.flatMap((tab: {fields: Array<{id: string; value?: unknown}>}) => tab.fields).find((field: {id: string}) => field.id === "protectedValue")?.value,
+        controlVisible: await page.getByText(control, {exact: true}).isVisible(),
         caseId,
         before,
         ...(await journey(page, playwright, caseId, scenario, before)),
