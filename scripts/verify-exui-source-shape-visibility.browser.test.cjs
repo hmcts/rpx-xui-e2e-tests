@@ -75,3 +75,15 @@ test('postal label witness reads the actual label and rejects unrelated or uncha
   await assert.rejects(()=>fixture.exports.assertSourceShapePostalLabel(page.locator('#line2'),false));
  } finally {await browser.close();}
 });
+
+
+test('radio bypass requires real successful empty-recipient persistence and preserves unrelated state/history',()=>{
+ const before={state:{state:'JUDICIAL_REVIEW',version:1,case_data:{protectedValue:'control',sodAdditionalRecipientsList:[]}},history:[{id:'create',created_date:'before'}]};
+ const after={state:{state:'JUDICIAL_REVIEW',version:2,case_data:{...before.state.case_data,sodAdditionalRecipients:['additionalRecipients'],sodAdditionalRecipientsList:[]}},history:[{id:'serviceOfDocuments',created_date:'after'},...before.history]};
+ fixture.exports.assertRadioValidationBypass(201,before,after);
+ for(const change of [x=>x.state.case_data.sodAdditionalRecipientsList=[{id:'unexpected'}],x=>delete x.state.case_data.sodAdditionalRecipientsList,x=>x.state.case_data.protectedValue='changed',x=>x.state.case_data.extra='changed',x=>x.state.state='other',x=>x.state.version=1,x=>x.history.pop(),x=>x.history[1].created_date='changed',x=>x.history[0].id='wrongEvent']) {
+  const changed=structuredClone(after);change(changed);
+  assert.throws(()=>fixture.exports.assertRadioValidationBypass(201,before,changed));
+ }
+ assert.throws(()=>fixture.exports.assertRadioValidationBypass(400,before,after));
+});

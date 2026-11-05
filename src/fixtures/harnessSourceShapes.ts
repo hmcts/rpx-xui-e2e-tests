@@ -39,6 +39,17 @@ export async function fillSourceShapePostalSiblings(page: Page) {
   }
 }
 
+type RadioObservation = {state:{state:string;version:number;case_data:Record<string,unknown>};history:Array<Record<string,unknown>>};
+export function assertRadioValidationBypass(status:number,before:RadioObservation,after:RadioObservation) {
+  expect(status).toBe(201);
+  expect(after.state.state).toBe(before.state.state);
+  expect(after.state.case_data).toEqual({...before.state.case_data,sodAdditionalRecipients:['additionalRecipients'],sodAdditionalRecipientsList:[]});
+  expect(after.state.version).toBe(before.state.version+1);
+  expect(after.history).toHaveLength(before.history.length+1);
+  expect(after.history.filter(event=>event.id==='serviceOfDocuments')).toHaveLength(1);
+  expect(after.history.filter(event=>event.id!=='serviceOfDocuments')).toEqual(before.history);
+}
+
 async function assertControlOrder(controls: Locator[]) {
   for (let index = 1; index < controls.length; index++) {
     await expect(controls[index]).toHaveAttribute('id', /.+/);
@@ -169,9 +180,13 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     expect(after.state.state).toBe(before.state.state);
     expect(after.state.case_data.protectedValue).toBe(control);
     const recipients = after.state.case_data.sodAdditionalRecipientsList;
-    expect(recipients).toHaveLength(1);
-    expect(recipients[0].id).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(recipients[0].value.serveByPostOrEmail ?? null).toBe(expectedChannel);
+    if(shape==='required-delivery-radio' && mutation) {
+      assertRadioValidationBypass(submitted.status(),before,after);
+    } else {
+      expect(recipients).toHaveLength(1);
+      expect(recipients[0].id).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(recipients[0].value.serveByPostOrEmail ?? null).toBe(expectedChannel);
+    }
     if (expectedChannel === 'email') {
       expect(recipients[0].value.emailInformation).toMatchObject({emailName,emailAddress});
     }
