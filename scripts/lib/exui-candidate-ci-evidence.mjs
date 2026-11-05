@@ -91,7 +91,7 @@ export function validateCiPhase(directory, expected, terminal) {
   if(expected.releaseScopeId===APPLICANT_RESULTS_SCOPE){
     assert.equal(expected.nativeAuthority,true,"CI_RESULTS_NATIVE_AUTHORITY_REQUIRED");
     validateCompleteNativeProofs(loaded.input,policy);validateNativeOutcome(loaded.input,loaded.receipt.verdict);
-    validateApplicantResultsEvidence(directory,expected,loaded.input);
+    validateApplicantResultsEvidence(directory,expected,loaded.input,terminal);
   }
   const promotion = {
     ...expected,

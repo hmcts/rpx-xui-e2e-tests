@@ -62,9 +62,11 @@ export function assertApplicantInvocationRemoved(ownership,invocationId,inspect)
  return {invocationId,removed};
 }
 
-export function validateApplicantResultsEvidence(directory,expected,loadedInput) {
+export function validateApplicantResultsEvidence(directory,expected,loadedInput,terminal) {
  assert.equal(expected.nativeAuthority,true,'RESULT_EVIDENCE_AUTHORITY');
  const referenced=(reference,relative)=>{assert.deepEqual(Object.keys(reference??{}).sort(),['digest','path'],'RESULT_EVIDENCE_REFERENCE');assert.equal(reference.path,relative,'RESULT_EVIDENCE_REFERENCE_PATH');const actual=readApplicantArtifact(directory,relative);assert.equal(actual.reference.digest,reference.digest,'RESULT_EVIDENCE_REFERENCE_DIGEST');return actual.value;};
+ const observedTerminal=referenced(expected.applicantControllerTerminal,'independent-controller-terminal.json');
+ assert.deepEqual(observedTerminal,{schemaVersion:1,runId:expected.runId,terminal},'RESULT_EVIDENCE_OBSERVED_TERMINAL');
  const capture=referenced(expected.applicantResultsCapture,'independent-results-capture.json');
  assert.equal(capture.schemaVersion,1,'RESULT_EVIDENCE_CAPTURE_SCHEMA');assert.equal(capture.completedAfterController,true,'RESULT_EVIDENCE_CAPTURE_ORDER');
  assert.deepEqual(capture.invocations.map(item=>item.invocationId),applicantResultSequence,'RESULT_EVIDENCE_CAPTURE_SELECTION');

@@ -28,13 +28,15 @@ test('matching tampered child and manifest digests cannot replace parent pre-exe
   const write=(relative,value)=>{const file=path.join(directory,relative);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value));return {path:relative,digest:digestBytes(fs.readFileSync(file))};};
   try{
    const baseline=structuredClone(inputs[0]);const expected={nativeAuthority:true,runId:baseline.runId,releaseScopeId:baseline.releaseScopeId};
+   expected.applicantControllerTerminal=write('independent-controller-terminal.json',{schemaVersion:1,runId:expected.runId,terminal:{code:0,signal:null}});
    const before={capturedBeforeExecution:true,invocationId:'baseline',expected,...Object.fromEntries(['resultExpectedDigest','resultDatesDigest','resultDescriptorDigests','definitionImportDigest'].map(name=>[name,baseline[name]]))};
    const expectation=write('independent-results-baseline.json',before);
    baseline[key]=key==='resultDescriptorDigests'?{...baseline[key],definition:'sha256:'+'9'.repeat(64)}:'sha256:'+'9'.repeat(64);
    if(key==='resultExpectedDigest'){baseline.resultExpected={SEARCH:{changed:true},WORKBASKET:{}};baseline[key]=digestBytes(JSON.stringify(baseline.resultExpected));}
    const input=write('input.json',baseline);write('baseline/manifest.json',{runtimeMetadata:{[key]:baseline[key]}});
    expected.applicantResultsCapture=write('independent-results-capture.json',{schemaVersion:1,completedAfterController:true,baselineInputDigest:input.digest,invocations:mod.applicantResultSequence.map(invocationId=>({invocationId,...(invocationId==='baseline'?{expectation}:{})}))});
-   assert.throws(()=>validateApplicantResultsEvidence(directory,expected,{executions:mod.applicantResultSequence.map(invocationId=>({invocationId}))}),/RESULT_EVIDENCE_INDEPENDENT_OBSERVATION_DIGEST/);
+   assert.throws(()=>validateApplicantResultsEvidence(directory,expected,{executions:mod.applicantResultSequence.map(invocationId=>({invocationId}))},{code:0,signal:null}),/RESULT_EVIDENCE_INDEPENDENT_OBSERVATION_DIGEST/);
+   assert.throws(()=>validateApplicantResultsEvidence(directory,expected,{executions:[]},{code:1,signal:null}),/RESULT_EVIDENCE_OBSERVED_TERMINAL/);
   }finally{fs.rmSync(directory,{recursive:true});}
  }
 });

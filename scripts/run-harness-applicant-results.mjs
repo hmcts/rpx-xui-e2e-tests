@@ -68,9 +68,11 @@ export async function runApplicantResults({candidate,browser,profile,output}) {
     const record={schemaVersion:1,runId:input.runId,invocationId:request.invocationId,request,requestDigest:digestBytes(JSON.stringify(request)),runtime};
     captures.at(-1).runtimeRecord=publishApplicantResultRuntime(directory,record);phase='native-execution';return record;
    }});
-  alive();phase='validate-final-cleanup';removePrior();
+  alive();const terminalFile=path.join(directory,'independent-controller-terminal.json');writeJsonAtomic(terminalFile,{schemaVersion:1,runId:expected.runId,terminal:execution.terminal});expected.applicantControllerTerminal=reference(directory,terminalFile);
+  phase='validate-final-cleanup';removePrior();
   await cleanupNativeOwnership(ownership,{inspect:inspectHostContainer,remove:id=>hostDocker(['rm','-f',id])});
   const file=path.join(directory,'independent-results-capture.json');writeJsonAtomic(file,{schemaVersion:1,completedAfterController:true,baselineInputDigest:digestBytes(fs.readFileSync(path.join(directory,'input.json'))),invocations:captures});expected.applicantResultsCapture=reference(directory,file);
+  writeJsonAtomic(path.join(directory,'independent-results-admission.json'),{schemaVersion:1,completedAfterController:true,expected});
   phase='independent-admission';const verdict=validateCiPhase(directory,expected,execution.terminal);
   summary.status=verdict.status;summary.nativeRuntimeAcceptance=verdict.status==='PASS';summary.invocations=4;summary.proposedCatalogueRows=2;summary.receiptArtifactDigest=verdict.receiptArtifactDigest;
  }catch(error){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;summary.diagnostic=classifyNativeFailure(error);summary.phase=phase;summary.failure=cancelled?'RESULT_JOB_CANCELLED':'RESULT_JOB_FAILED';}
