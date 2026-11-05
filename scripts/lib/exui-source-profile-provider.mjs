@@ -2,10 +2,11 @@ import fs from 'node:fs';
 import { createHmac, randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { startProviderSeams, seedSyntheticSession } from './exui-provider-seams.mjs';
+import {handleDivorceProvider} from './exui-source-profile-divorce-provider.mjs';
 import { profileJurisdictionRows } from './exui-source-profile-jurisdictions.mjs';
 
 // Transport fixtures only. Filtering, authenticated UID rewriting and session caching remain candidate code.
-export async function startProfileJurisdictionProviders(output,{seed=seedSyntheticSession,start=startProviderSeams,health=false,membership=false}={}) {
+export async function startProfileJurisdictionProviders(output,{seed=seedSyntheticSession,start=startProviderSeams,health=false,membership=false,divorce=null}={}) {
   const server=await start(output);
   try {
     const persona=seed(undefined,`harness-source-profile-${randomUUID()}`);
@@ -20,6 +21,7 @@ export async function startProfileJurisdictionProviders(output,{seed=seedSynthet
       [{case_id:'9999000011112222',case_jurisdiction:'CMC',case_type:'HarnessMembershipCMC',event_id:'profileRouteCMC'},'membership-cmc-route'],
       [{case_id:'3333444455556666',case_jurisdiction:'IA',case_type:'HarnessMembershipIA',event_id:'profileRouteIA'},'membership-ia-route'],
     ];
+    if(divorce)fs.writeFileSync(`${output}/profile-divorce-destinations.json`,'[]',{mode:0o600});
     const route='/aggregated/caseworkers/harness-supervisor/jurisdictions';
     const accesses=new Map([[route,'default'],[`${route}?access=read`,'read'],[`${route}?access=create`,'create']]);
     server.removeListener('request',original);
@@ -28,6 +30,7 @@ export async function startProfileJurisdictionProviders(output,{seed=seedSynthet
       if(health&&request.method==='GET'&&request.url==='/health'){journal.push({method:'GET',path:'/health'});fs.writeFileSync(`${output}/profile-health-destinations.json`,JSON.stringify(journal),{mode:0o600});return original(request,response);}
       const authGets=new Set(['/o/.well-known/openid-configuration','/health','/health/liveness','/am/role-assignments/actors/harness-supervisor']);
       if(!url.search&&(request.method==='GET'&&authGets.has(url.pathname)||request.method==='POST'&&url.pathname==='/lease'))return original(request,response);
+      if(divorce&&await handleDivorceProvider(request,response,{facet:divorce,journal,output}))return;
       if(membership&&request.method==='POST'&&request.url==='/task/search-for-completable') {
         let raw='',size=0,body;
         for await(const chunk of request){size+=chunk.length;if(size<=4096)raw+=chunk;}
@@ -40,7 +43,7 @@ export async function startProfileJurisdictionProviders(output,{seed=seedSynthet
         }
       }
       const access=accesses.get(request.url);
-      if(!membership&&request.method==='GET'&&access) {
+      if(!membership&&!divorce&&request.method==='GET'&&access) {
         journal.push({method:'GET',path:url.pathname,access});
         fs.writeFileSync(`${output}/profile-jurisdiction-destinations.json`,JSON.stringify(journal),{mode:0o600});
         response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify(profileJurisdictionRows(access)));return;
