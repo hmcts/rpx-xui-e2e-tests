@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import type { APIRequestContext, Page } from "@playwright/test";
+import type { APIRequestContext, Page, Route } from "@playwright/test";
 
 import { sharedRoleEventEnvelope } from "../../scripts/lib/exui-shared-role-event-observations.mjs";
 export { sharedRoleEventActor } from "../../scripts/lib/exui-shared-role-event-observations.mjs";
@@ -178,14 +178,21 @@ export async function observeCcdEventReadback(
     postalInformation?: { postalName: string; postalAddress: { AddressLine1: string; PostCode: string } };
   }>,
 ) {
-  const response = await openCcdEventCase(page, caseId);
-  const originalHeaders = await response.request().allHeaders();
-  const headers = Object.fromEntries(["authorization", "accept"].filter(key => originalHeaders[key]).map(key => [key, originalHeaders[key]]));
-  const body = await page.evaluate(async ({id, headers}) => {
-    const readback = await fetch(`/data/internal/cases/${id}`, {credentials: "same-origin", headers, signal: AbortSignal.timeout(15_000)});
-    if (readback.status !== 200) throw new Error(`CCD_READBACK_STATUS_${readback.status}`);
-    return readback.json();
-  }, {id: caseId, headers});
+  const routePath = `**/data/internal/cases/${caseId}`;
+  let body: {tabs: Array<{fields: Array<{id: string; value?: unknown}>}>} | undefined;
+  let readbackStatus: number | undefined;
+  const capture = async (route: Route) => {
+    const upstream = await route.fetch({maxRedirects: 0, timeout: 15_000});
+    readbackStatus = upstream.status();
+    if (readbackStatus === 200) body = await upstream.json();
+    await route.fulfill({response: upstream});
+  };
+  await page.route(routePath, capture);
+  const response = await (async () => {
+    try { return await openCcdEventCase(page, caseId); }
+    finally { await page.unroute(routePath, capture); }
+  })();
+  if (readbackStatus !== 200 || !body) throw new Error(`CCD_READBACK_STATUS_${readbackStatus}`);
   const fields: Array<{id: string; value?: unknown}> = body.tabs.flatMap(
     (tab: {fields: Array<{id: string; value?: unknown}>}) => tab.fields,
   );
