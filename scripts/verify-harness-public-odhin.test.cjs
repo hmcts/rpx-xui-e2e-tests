@@ -978,6 +978,14 @@ test("native report attributes pinned Work Basket input rows to the CCD phase", 
   assert.match(require("./harness-native-report.cjs").renderNativeEvidence(evidence), /CCD data and access/);
 });
 
+test("native report attributes the source recipient label row to event capability", async () => {
+  const evidence = await nativePresentationFixture(false);
+  evidence.catalogueCoverage.creditedObligationIds.push("configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f");
+  evidence.catalogueCoverage.candidate++;
+  evidence.catalogueCoverage.missing--;
+  assert.match(require("./harness-native-report.cjs").renderNativeEvidence(evidence), /CCD data and access/);
+});
+
 test("diagnostic source is captured at onBegin and not reread from a changed HEAD while rendering", async (t) => {
   sandbox(t);
   const cp = require("node:child_process"),
