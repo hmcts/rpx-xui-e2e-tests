@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { classifyNativeFailure, nativeFailurePrefix } from "./lib/exui-native-failure-diagnostics.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -143,6 +144,7 @@ async function launch() {
 try {
   await launch();
 } catch (error) {
+  console.error(nativeFailurePrefix + JSON.stringify(classifyNativeFailure(error)));
   console.error(`BLOCKED: ${error.message}`);
   process.exitCode = 2;
 }

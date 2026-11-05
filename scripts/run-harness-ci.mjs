@@ -6,6 +6,7 @@ import {readCallbackBaselineCheckpoint} from './lib/exui-native-proof-validation
 import {captureCiCallbackFaultOwnership} from './lib/exui-candidate-ci-evidence.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './lib/exui-source-shape-contract.mjs';
 import { importWorkbasketInputs } from './lib/exui-workbasket-input-import.mjs';
+import { nativePhaseFailure, readChildFailure } from "./lib/exui-native-failure-diagnostics.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -175,6 +176,7 @@ export async function runHarnessCi(jobPath) {
   const resources = new Map(),
     phaseResults = [],
     phaseTimings = [];
+  let failedPhase, phaseTerminal, phaseFailure;
   let context,
     verdict = blocked(),
     cleanupComplete = true,
@@ -265,6 +267,8 @@ export async function runHarnessCi(jobPath) {
       onTiming: (item) => phaseTimings.push(item),
       isCancelled: () => cancelled,
       phase: async (name) => {
+        failedPhase = name;
+        phaseTerminal = undefined;
         assert(!cancelled, "CI_JOB_CANCELLED");
         const directory = path.join(privateRoot, name),
           phaseContext = name === "eventCapability" ? { ...context, ...context.eventBaseline } : name === "recipientCallback" ? {...context,...context.callbackBaseline} : context,
@@ -405,6 +409,7 @@ export async function runHarnessCi(jobPath) {
               },
             } : {}),
           });
+          phaseTerminal = result.terminal;
           assert(!cancelled, "CI_JOB_CANCELLED");
           if (name === "recipientCallback") result.expected = {...result.expected,callbackTransition:resource.callbackTransition};
           if (name === "eventCapability")
@@ -467,7 +472,17 @@ export async function runHarnessCi(jobPath) {
             writeConfigurationCoverage({harnessRoot:ROOT,output:path.join(privateRoot,"configuration"),phaseDirectory:context.ccdResult.directory,expected:context.ccdResult.expected,terminal:context.ccdResult.terminal,eventPhase:context.eventResult,routingPhase:context.routingResult,callbackPhase:context.callbackResult});
           }
           phaseResults.push({ phase: name, ...validated });
+          failedPhase = undefined;
           return validated;
+        } catch (error) {
+          let child;
+          try { child = readChildFailure(fs.readFileSync(`${directory}-supervisor.log`, "utf8")); } catch { /* No child diagnostic was available. */ }
+          phaseFailure = nativePhaseFailure(error, name, phaseTerminal ?? (resource.child ? {code: resource.child.exitCode, signal: resource.child.signalCode} : undefined), {
+            run: fs.existsSync(path.join(directory, "run.json")),
+            gate: fs.existsSync(path.join(directory, "gate.json")),
+            baselineReport: fs.existsSync(path.join(directory, "baseline/report.json")),
+          }, child);
+          throw error;
         } finally {
           await remove(name, resource);
         }
@@ -561,6 +576,7 @@ export async function runHarnessCi(jobPath) {
     writeJsonAtomic(path.join(privateRoot, "orchestration-error.json"), {
       message:
         error instanceof Error ? error.message : "CI_ORCHESTRATION_FAILED",
+      diagnostic: phaseFailure ?? nativePhaseFailure(error, failedPhase),
     });
     verdict = blocked();
   } finally {

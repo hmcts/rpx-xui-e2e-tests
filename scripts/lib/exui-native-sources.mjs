@@ -109,6 +109,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-global-search-provider.mjs",
   "scripts/lib/exui-routing-provider.mjs",
   "scripts/lib/exui-native-host.mjs",
+  "scripts/lib/exui-native-failure-diagnostics.mjs",
   "scripts/lib/exui-native-containers.mjs",
   "scripts/lib/exui-host-invocation.mjs",
   "scripts/lib/exui-output-boundary.mjs",
