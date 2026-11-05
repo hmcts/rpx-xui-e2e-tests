@@ -97,3 +97,22 @@ export function validateSelectorEventEvidence(directory,expected,loadedInput,ter
  assert.deepEqual(mutation.selectorObservations,selectorObservationReferences(directory),'SELECTOR_EVIDENCE_OBSERVATION_REFERENCES');
  return true;
 }
+
+// Recover only the supervisor-owned chain: the pre-execution expectation remains
+// the anchor, while final capture/terminal hashes are explicit later additions.
+export function readSelectorPhaseAuthority(directory) {
+ const pre=readSelectorArtifact(directory,'independent-preexecution.json').value;
+ assert.equal(pre.capturedBeforeGate,true,'SELECTOR_PHASE_PREEXECUTION_REQUIRED');
+ assert(Number.isFinite(Date.parse(pre.capturedAt)),'SELECTOR_PHASE_CAPTURE_TIME');
+ const {capturedAt,capturedBeforeGate,...initial}=pre;
+ const admission=readSelectorArtifact(directory,'independent-selector-admission.json').value;
+ assert.equal(admission.schemaVersion,1,'SELECTOR_PHASE_ADMISSION_SCHEMA');
+ assert.equal(admission.completedAfterController,true,'SELECTOR_PHASE_ADMISSION_ORDER');
+ const {selectorEventCapture,selectorControllerTerminal,...rest}=admission.expected;
+ assert.deepEqual(rest,initial,'SELECTOR_PHASE_EXPECTATION_CHANGED');
+ const observed=readSelectorArtifact(directory,'independent-controller-terminal.json');
+ assert.deepEqual(selectorControllerTerminal,observed.reference,'SELECTOR_PHASE_TERMINAL_CHANGED');
+ assert.equal(observed.value.runId,initial.runId,'SELECTOR_PHASE_TERMINAL_RUN');
+ assert.deepEqual(selectorEventCapture,readSelectorArtifact(directory,'independent-selector-capture.json').reference,'SELECTOR_PHASE_CAPTURE_CHANGED');
+ return {expected:admission.expected,terminal:observed.value.terminal};
+}

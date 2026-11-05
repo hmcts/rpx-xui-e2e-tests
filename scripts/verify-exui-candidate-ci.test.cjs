@@ -225,7 +225,7 @@ test("support only: cleanup verifies CID, owner, image, network and every writab
 
 test("support only: fixed pilot order stops on a validated failure and always cleans owned CCD", async () => {
   const { runFixedCiPilots } = await load();
-  for (const failed of [null, "family", "scope", "ccd", "startup", "eventCapability", "eventStartup", "routing", "recipientCallback", "callbackStartup"]) {
+  for (const failed of [null, "family", "scope", "ccd", "startup", "eventCapability", "eventStartup", "routing", "recipientCallback", "callbackStartup", "selectorEventRow"]) {
     const calls = [];
     const operations = {
       phase: async (name) => {
@@ -259,9 +259,9 @@ test("support only: fixed pilot order stops on a validated failure and always cl
       const result = await runFixedCiPilots(operations);
       assert.equal(result.exitCode, failed ? 1 : 0);
       if (!failed) {
-        assert.equal(result.timings.length, 13);
+        assert.equal(result.timings.length, 14);
         assert.equal(result.timings[0].label, "WA family");
-        assert.equal(result.timings.at(-1).label, "Recipient callback CCD runtime cleanup");
+        assert.equal(result.timings.at(-1).label, "Selector CCD baseline preparation");
         assert.ok(result.timings.every((item) => Number.isSafeInteger(item.durationMs) && item.durationMs >= 0 && Number.isFinite(Date.parse(item.startedAt))));
       }
     }
@@ -285,7 +285,7 @@ test("support only: fixed pilot order stops on a validated failure and always cl
                   "startEvent",
                   ...(failed === "eventStartup"
                     ? ["stopEvent"]
-                    : ["eventCapability", "stopEvent", ...(failed === "eventCapability" ? [] : ["routing", ...(failed === "routing" ? [] : ["startCallback", ...(failed === "callbackStartup" ? [] : ["recipientCallback"]), "stopCallback"])])]),
+                    : ["eventCapability", "stopEvent", ...(failed === "eventCapability" ? [] : ["routing", ...(failed === "routing" ? [] : ["startCallback", ...(failed === "callbackStartup" ? [] : ["recipientCallback"]), "stopCallback", ...(["callbackStartup","recipientCallback"].includes(failed)?[]:["selectorEventRow"])])])]),
                 ],
     );
   }
@@ -328,10 +328,10 @@ test("support only: independently recognized postal blockage permits the event s
       assert.equal(result.status, "BLOCKED");
       assert.equal(result.exitCode, 2);
       assert.deepEqual(calls, ["family", "scope", "ccd", "old-removed", "validate-postal",
-        ...(continued === true ? ["new-started", "eventCapability", "new-removed", ...(eventExit === 0 ? ["routing", "callback-started", "recipientCallback", "callback-removed"] : [])] : [])]);
+        ...(continued === true ? ["new-started", "eventCapability", "new-removed", ...(eventExit === 0 ? ["routing", "callback-started", "recipientCallback", "callback-removed", "selectorEventRow"] : [])] : [])]);
       assert.equal(
         result.results.length,
-        continued !== true ? 3 : eventExit === 0 ? 6 : 4,
+        continued !== true ? 3 : eventExit === 0 ? 7 : 4,
       );
       if (continued === true && eventExit === 0)
         assert.equal(result.results[4].phase, "routing");
@@ -1341,7 +1341,7 @@ test("support only: actual CI stop callback returns owned cleanup completion and
 
 test("support only: fixed job cancellation at any phase, derivation or CCD startup prevents subsequent work and still stops owned CCD", async () => {
   const { runFixedCiPilots } = await load();
-  for (const point of ["family", "derive", "scope", "start", "ccd", "startEvent", "eventCapability", "routing", "startCallback", "recipientCallback"]) {
+  for (const point of ["family", "derive", "scope", "start", "ccd", "startEvent", "eventCapability", "routing", "startCallback", "recipientCallback", "selectorEventRow"]) {
     const calls = [];
     let cancelled = false;
     await assert.rejects(
@@ -1371,7 +1371,7 @@ test("support only: fixed job cancellation at any phase, derivation or CCD start
       }),
       /CI_JOB_CANCELLED/,
     );
-    const order = ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", "eventCapability", "stopEvent", "routing", "startCallback", "recipientCallback", "stopCallback"];
+    const order = ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", "eventCapability", "stopEvent", "routing", "startCallback", "recipientCallback", "stopCallback", "selectorEventRow"];
     const expected = order.slice(
       0,
       order.indexOf(point) + 1,
@@ -1510,12 +1510,14 @@ test('actual callback parent removes baseline and captures fresh fault ownership
  }
 });
 
- test('public completion requires all six ordered phases and preserves five prior results without inventing callback', async () => {
+ test('public completion requires all seven ordered phases without inventing selector evidence', async () => {
   const {fixedCiPhasesPassed}=await import('./run-harness-ci.mjs');
   const prior=['family','scope','ccd','eventCapability','routing'].map(phase=>({phase,status:'PASS'}));
   assert.equal(fixedCiPhasesPassed(prior),false);assert.equal(prior.length,5);
   assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'BLOCKED'}]),false);
-  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'}]),true);
+  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'}]),false);
+  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'},{phase:'selectorEventRow',status:'PASS'}]),true);
+  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'},{phase:'selectorEventRow',status:'BLOCKED'}]),false);
   assert.equal(fixedCiPhasesPassed([...prior,{phase:'routing',status:'PASS'}]),false);
   assert.equal(fixedCiPhasesPassed([...prior].reverse().concat({phase:'recipientCallback',status:'PASS'})),false);
 });

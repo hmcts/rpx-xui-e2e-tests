@@ -655,7 +655,7 @@ test("main dashboard shows the catalogue evidence gap and coverage map before na
   const applicationCoverage = dom.querySelector("#harness-application-coverage");
   assert.ok(applicationCoverage);
   assert.equal(applicationCoverage.tagName.toLowerCase(), "section");
-  assert.match(applicationCoverage.textContent, /5\s*\/\s*112/);
+  assert.match(applicationCoverage.textContent, /6\s*\/\s*112/);
   assert.match(applicationCoverage.textContent, /Release approval remains unavailable/);
 });
 
@@ -751,19 +751,20 @@ async function nativePresentationFixture(blocked = true) {
     catalogueCoverage: {
       catalogueDigest: `sha256:${objectDigest(catalogue.obligations)}`,
       selected: catalogue.obligations.length,
-      candidate: 2,
+      candidate: 3,
       ccd: blocked ? 2 : 3,
       creditedObligationIds: [
+        "configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe",
         "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94",
         ...(blocked ? [] : [catalogue.sequences[0].id]),
         "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
         "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
         "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
       ],
-      missing: catalogue.obligations.length - (blocked ? 4 : 5),
+      missing: catalogue.obligations.length - (blocked ? 5 : 6),
       sourceArtifactDigests,
       phaseReferences: Object.fromEntries(
-        ["ccd", "eventCapability", "routing", "recipientCallback"].map((phase) => [
+        ["ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"].map((phase) => [
           phase,
           {
             releaseScopeId:
@@ -771,7 +772,7 @@ async function nativePresentationFixture(blocked = true) {
                 ? "exui-ccd-pilot"
                 : phase === "eventCapability"
                   ? "exui-ccd-event-capability-pilot"
-                  : phase === "routing" ? "exui-decentralised-routing-pilot" : "exui-ccd-recipient-callback-pilot",
+                  : phase === "routing" ? "exui-decentralised-routing-pilot" : phase === "selectorEventRow" ? "exui-ccd-selector-event-row-pilot" : "exui-ccd-recipient-callback-pilot",
             runId: "candidate-11111111-1111-4111-8111-111111111111",
             receiptArtifactDigest: hash,
             status: blocked && phase === "ccd" ? "BLOCKED" : "PASS",
@@ -787,6 +788,7 @@ async function nativePresentationFixture(blocked = true) {
       eventCapability: "exui-ccd-event-capability-pilot",
       routing: "exui-decentralised-routing-pilot",
       recipientCallback: "exui-ccd-recipient-callback-pilot",
+      selectorEventRow: "exui-ccd-selector-event-row-pilot",
     }).map(([phase, scope]) => {
       const policy = getReleasePolicy(scope);
       return {
@@ -873,8 +875,8 @@ test("same Odhín document separates native baselines and faults from diagnostic
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 22);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 22);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 23);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 23);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,
@@ -896,7 +898,7 @@ test("same Odhín document separates native baselines and faults from diagnostic
   );
   assert.match(
     dom.querySelector("[data-runtime-obligations]").textContent,
-        /4 \/ 112/,
+        /5 \/ 112/,
   );
   assert.equal(Reporter.validatePublicReport().tests, 121);
   assert.equal(
@@ -940,15 +942,15 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
     });
     assert.ok(
       html.includes(
-        `${blocked ? 4 : 5} / 112 catalogue requirements satisfied by accepted runtime evidence`,
+        `${blocked ? 5 : 6} / 112 catalogue requirements satisfied by accepted runtime evidence`,
       ),
     );
-    assert.ok(html.includes(`${blocked ? 108 : 107} remain unsatisfied`));
+    assert.ok(html.includes(`${blocked ? 107 : 106} remain unsatisfied`));
     const summary = require("node-html-parser").parse(html);
     const rows = summary.querySelectorAll("[data-catalogue-kind]");
     assert.equal(rows.length, 6);
     assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-total")), 0), 112);
-    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-accepted")), 0), blocked ? 4 : 5);
+    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-accepted")), 0), blocked ? 5 : 6);
     assert.equal(summary.querySelector('[data-catalogue-kind="definition-shape"]').getAttribute("data-catalogue-total"), "79");
     assert.equal(summary.querySelector('[data-catalogue-kind="configuration-profile"]').getAttribute("data-catalogue-total"), "13");
     assert.match(summary.textContent, /not a count of failed tests/);
@@ -1014,7 +1016,7 @@ test("shared role policy credit requires its complete source and phase binding s
     ccdRunId:coverage.phaseReferences.ccd.runId, eventRunId:coverage.phaseReferences.eventCapability.runId };
   const records = overview.entries.map(entry => ({entry,observed:{status:"passed"}}));
   const html = await overview.renderOverview(records,"harness",{nativeEvidence:evidence});
-  assert.match(html,/6 \/ 112 catalogue requirements satisfied by accepted runtime evidence/);
+  assert.match(html,/7 \/ 112 catalogue requirements satisfied by accepted runtime evidence/);
   const summary = require("node-html-parser").parse(html);
   assert.equal(summary.querySelector('[data-catalogue-kind="shared-policy"]').getAttribute("data-catalogue-accepted"),"1");
   coverage.sharedRoleAdmission.roleFacetCount = 24;
@@ -1202,11 +1204,11 @@ test("six-phase presentation cannot relabel historical or partial native collect
 
 test("callback presentation cannot credit a missing phase, wrong source row or extra proof",async()=>{
  const {renderNativeEvidence}=require('./harness-native-report.cjs');
- for(const alter of [e=>e.phases.pop(),e=>e.phases.reverse(),e=>e.phases.push(e.phases.at(-1)),e=>e.phases.at(-1).baselineProofs.push({...e.phases.at(-1).baselineProofs[0],proofId:'foreign-callback'}),e=>e.catalogueCoverage.phaseReferences.recipientCallback.status='BLOCKED']) {
+ for(const alter of [e=>e.phases.pop(),e=>e.phases.reverse(),e=>e.phases.push(e.phases.at(-1)),e=>e.phases.find(p=>p.phase==='recipientCallback').baselineProofs.push({...e.phases.find(p=>p.phase==='recipientCallback').baselineProofs[0],proofId:'foreign-callback'}),e=>e.catalogueCoverage.phaseReferences.recipientCallback.status='BLOCKED']) {
   const evidence=await nativePresentationFixture(false);alter(evidence);assert.throws(()=>renderNativeEvidence(evidence),/PUBLIC_ODHIN_/);
  }
  const evidence=await nativePresentationFixture(false);
- evidence.phases.at(-1).privateCallbackJournal={rawBody:canary,caseReference:canary};
+ evidence.phases.find(p=>p.phase==='recipientCallback').privateCallbackJournal={rawBody:canary,caseReference:canary};
  const html=renderNativeEvidence(evidence);assert.ok(!html.includes(canary));
  assert.match(html,/Additional recipient callback row/);assert.match(html,/Callback business logic is synthetic/);
  assert.equal((html.match(/data-native-phase="recipientCallback" data-native-kind="baseline"/g)||[]).length,1);
@@ -1303,4 +1305,32 @@ test('applicant compatibility publishes only validated dashboard count attribute
  const section=require('node-html-parser').parse(renderApplicantCompatibility(value)).querySelector('#harness-applicant-compatibility');
  assert.equal(section.getAttribute('data-compatibility-status'),'PASS');assert.equal(section.getAttribute('data-compatibility-baselines'),'1');assert.equal(section.getAttribute('data-compatibility-faults'),'3');
  for(const changed of [{...value,baselineProofs:2},{...value,effectiveFaults:4},{...value,catalogueCredit:true},{...value,status:'FAIL'}])assert.throws(()=>renderApplicantCompatibility(changed));
+});
+
+
+test('selector catalogue credit requires its exact successful phase and cannot duplicate the source row',async()=>{
+ const {renderNativeEvidence}=require('./harness-native-report.cjs');
+ const id='configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe';
+ for(const alter of [e=>{e.phases.find(p=>p.phase==='selectorEventRow').status='BLOCKED';},e=>{e.catalogueCoverage.phaseReferences.selectorEventRow.receiptArtifactDigest='sha256:'+'0'.repeat(64);},e=>{e.catalogueCoverage.creditedObligationIds.push(id);e.catalogueCoverage.candidate++;e.catalogueCoverage.missing--;},e=>{e.phases.find(p=>p.phase==='selectorEventRow').faults=[];}]){
+  const evidence=await nativePresentationFixture(false);alter(evidence);assert.throws(()=>renderNativeEvidence(evidence),/PUBLIC_ODHIN_/);
+ }
+ const evidence=await nativePresentationFixture(false),html=renderNativeEvidence(evidence);
+ assert.equal(evidence.catalogueCoverage.creditedObligationIds.filter(value=>value===id).length,1);
+ assert.match(html,/Optional recipient selector on source Page2/);assert.match(html,/Fields1–6 and the neighbouring business callback are excluded/);
+ assert.equal((html.match(/data-native-phase="selectorEventRow" data-native-kind="baseline"/g)||[]).length,1);assert.equal((html.match(/data-native-phase="selectorEventRow" data-native-kind="fault"/g)||[]).length,1);
+});
+
+test('seven-phase dashboard includes selector setup, execution, evidence and cleanup timings exactly once',async t=>{
+ sandbox(t);const Reporter=api();
+ const labels=['WA family','Scope fault candidate preparation','WA organisation scope','CCD runtime startup','CCD configuration and access','CCD runtime cleanup','Source event CCD runtime startup','CCD source event permissions','Source event CCD runtime cleanup','Application routing','Recipient callback CCD runtime startup','Recipient callback validation and persistence','Recipient callback CCD runtime cleanup','Selector CCD baseline preparation','Selector baseline proof and cleanup','Selector CCD fault preparation','Selector fault proof and cleanup','Selector evidence verification','Selector final cleanup','Selector cohort admission'];
+ const passed=new Set(['WA family','WA organisation scope','CCD configuration and access','CCD source event permissions','Application routing','Recipient callback validation and persistence','Selector evidence verification','Selector cohort admission']);
+ const phaseTimings=labels.map((label,index)=>({label,status:passed.has(label)?'PASS':'completed',startedAt:new Date(Date.UTC(2026,10,5,12,0,index)).toISOString(),durationMs:1000}));
+ const reporter=new Reporter({selection:'harness',nativeElapsedMs:20000,phaseTimings});reporter.nativeEvidence=await nativePresentationFixture(false);
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
+ assert.equal(Reporter.validatePublicReport('harness').status,'passed');
+ const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),table=dom.querySelector('#harness-phase-timings');
+ assert.equal(table.querySelectorAll('tbody tr').length,20);assert.match(table.textContent,/0m 20s native run/);
+ for(const label of labels.slice(-7))assert.equal(table.querySelectorAll('tbody tr').filter(row=>row.textContent.includes(label)).length,1);
+ assert.match(table.textContent,/Selector baseline proof and cleanupProof \+ setup \/ cleanup/);
+ assert(!table.textContent.includes('Selector Page2 preparation, proofs and cleanup'));
 });

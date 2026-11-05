@@ -56,7 +56,7 @@ test('all six default policy objects and their policy digests stay identical to 
  ['exui-ccd-recipient-callback-pilot','027e4e0834de7b3a947d2cecae2c93139875fc3af657ee9494640387a747250b','02f8e50a2c1928fcd9b62c3d458be4a33a785a40deb344cea98fe94114c38af9']];
  for(const [name,policy,object]of pins){const actual=getReleasePolicy(name);assert.equal(actual.policyDigest,'sha256:'+policy);assert.equal(digestBytes(JSON.stringify(actual)),'sha256:'+object);}
  assert.deepEqual(getReleasePolicy('exui-ccd-pilot').obligations.flatMap(row=>row.requiredProofIds).sort(),['ccd-nested-roundtrip','ccd-postal-two-roundtrip','ccd-prl-workbasket-inputs','ccd-role-policy','ccd-role-revocation']);
- const calls=[];await(await import('./run-harness-ci.mjs')).runFixedCiPilots({phase:async name=>{calls.push(name);return {status:'PASS',exitCode:0}},derive:async()=>{},start:async()=>{},stop:async()=>{},startEvent:async()=>{},stopEvent:async()=>{},startCallback:async()=>{},stopCallback:async()=>{}});assert.deepEqual(calls,['family','scope','ccd','eventCapability','routing','recipientCallback']);
+ const calls=[];await(await import('./run-harness-ci.mjs')).runFixedCiPilots({phase:async name=>{calls.push(name);return {status:'PASS',exitCode:0}},derive:async()=>{},start:async()=>{},stop:async()=>{},startEvent:async()=>{},stopEvent:async()=>{},startCallback:async()=>{},stopCallback:async()=>{}});assert.deepEqual(calls,['family','scope','ccd','eventCapability','routing','recipientCallback','selectorEventRow']);
 });
 
 test('lightweight standalone policy pins the unchanged full reviewed renderer contract',async()=>{

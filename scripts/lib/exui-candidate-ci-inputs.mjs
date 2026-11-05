@@ -212,6 +212,7 @@ export async function prepareCiJob(job, output) {
       sharedNested: sourceDigest(CCD_HARNESS_SOURCE_FILES),
       eventCapability: sourceDigest(CCD_HARNESS_SOURCE_FILES),
       recipientCallback: sourceDigest(CCD_HARNESS_SOURCE_FILES),
+      selectorEventRow: sourceDigest(CCD_HARNESS_SOURCE_FILES),
       routing: waSourceDigest,
     },
     job,

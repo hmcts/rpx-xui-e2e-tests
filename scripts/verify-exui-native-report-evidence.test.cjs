@@ -299,6 +299,15 @@ async function fixture(
   });
   expected.phases.push({phase:'recipientCallback',policy:callback.policy,terminal:callback.terminal,expected:callback.expected});
   phaseResults.push(callback.result);
+  const {createSelectorPhaseFixture}=require('./fixtures/exui-selector-phase-evidence.mock.cjs');
+  const selector=await createSelectorPhaseFixture({
+    root:path.join(directory,'private'),harnessCommit:expected.harnessCommit,
+    sourceDigest:event.expected.harnessSourceDigest,dependencyDigest:event.expected.harnessDependencyDigest,
+    browserDigest:event.expected.browserDigest,
+  });
+  expected.phases.push({phase:'selectorEventRow',policy:selector.policy,terminal:selector.terminal,expected:selector.expected});
+  phaseResults.push(selector.result);
+
 
   const last = phaseResults.reduce((worst, item) =>
     item.exitCode > worst.exitCode ? item : worst,
@@ -323,6 +332,7 @@ async function fixture(
     event,
     routing,
     callback,
+    selector,
     descriptor,
     descriptorPath,
     save: () => write(descriptorPath, descriptor),
@@ -400,8 +410,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 22);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 22);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 23);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 23);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -676,7 +686,7 @@ for (const postalFailure of [false, true])
     const coverage = result.catalogueCoverage;
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
-    assert.equal(coverage.candidate, 8);
+    assert.equal(coverage.candidate, 9);
     assert.equal(coverage.ccd, postalFailure ? 16 : 17);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
@@ -708,9 +718,10 @@ for (const postalFailure of [false, true])
       "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf",
       "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337",
       "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94",
+      "configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 88 : 87);
+    assert.equal(coverage.missing, postalFailure ? 87 : 86);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(
@@ -752,8 +763,8 @@ test("a later accepted phase cannot hide the postal blocker, and a failed new ce
     assert.equal(result.exitCode, 2);
     assert.equal(result.phases[3].status, "BLOCKED");
     assert.equal(result.catalogueCoverage.ccd, postalFailure ? 0 : 1);
-    assert.equal(result.catalogueCoverage.candidate, 2);
-    assert.equal(result.catalogueCoverage.missing, postalFailure ? 110 : 109);
+    assert.equal(result.catalogueCoverage.candidate, 3);
+    assert.equal(result.catalogueCoverage.missing, postalFailure ? 109 : 108);
     assert(
       !result.catalogueCoverage.creditedObligationIds.some((id) =>
         id.startsWith("configuration-cell:"),
@@ -796,7 +807,7 @@ test("rehashed transition claims still require the independent before-fault capt
   );
 });
 
-test("historical four-phase evidence cannot become a completed five-phase report", async (t) => {
+test("historical six-phase evidence cannot become a completed seven-phase report", async (t) => {
   const f = await fixture(t);
   f.descriptor.expected.phases.pop();
   f.save();
@@ -812,8 +823,8 @@ test('callback publication rejects historical feasibility and forged phase claim
   descriptor=>descriptor.expected.phases.pop(),
   descriptor=>descriptor.expected.phases.reverse(),
   descriptor=>descriptor.expected.phases.push(descriptor.expected.phases.at(-1)),
-  descriptor=>{descriptor.expected.phases.at(-1).expected.callbackTransition={status:'passed',accepted:true};},
-  descriptor=>{descriptor.expected.phases.at(-1).expected.releaseScopeId='recipient-callback-ui-feasibility';},
+  descriptor=>{descriptor.expected.phases.find(phase=>phase.phase==='recipientCallback').expected.callbackTransition={status:'passed',accepted:true};},
+  descriptor=>{descriptor.expected.phases.find(phase=>phase.phase==='recipientCallback').expected.releaseScopeId='recipient-callback-ui-feasibility';},
  ]) {
   const f=await fixture(t);change(f.descriptor);f.save();
   await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath));
@@ -824,4 +835,21 @@ test('supplementary DIVORCE report input rejects caller acceptance flags and unp
  const f=await fixture(t),api=await load(),descriptor=read(f.descriptorPath),primary=await api.readNativeReportEvidence(f.descriptorPath);
  for(const value of [{accepted:1,wholeProfileSatisfied:true},'/missing/divorce-admission-request.json']){write(f.descriptorPath,{...descriptor,divorceProfileAdmission:value});await assert.rejects(api.readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_INVALID_EVIDENCE/);}
  write(f.descriptorPath,descriptor);assert.deepEqual((await api.readNativeReportEvidence(f.descriptorPath)).catalogueCoverage,primary.catalogueCoverage);
+});
+
+test('selector phase rejects coherently rehashed unhealthy UI, actor, history and validation evidence',async t=>{
+ const {readNativeReportEvidence}=await load();
+ for(const mutate of [
+  f=>{f.selector.observations.baseline.observation.selectedCya.selectorSummaryCount=0;},
+  f=>{f.selector.observations.baseline.observation.after.history[0].user_id='changed';},
+  f=>{f.selector.observations.baseline.journal.find(row=>row.selectorValidation?.pageId==='serviceOfDocuments2').status=500;},
+  f=>{f.selector.observations['ccd-hide-selector-summary'].observation.selectedCya.healthySiblingCount=0;},
+  f=>{f.selector.capture.completedAfterController=false;},
+ ]) {
+  const f=await fixture(t);mutate(f);f.selector.write();
+  const ciPath=path.join(f.directory,'private/ci-result.json'),ci=read(ciPath);
+  ci.phaseResults.find(phase=>phase.phase==='selectorEventRow').receiptArtifactDigest=f.selector.expected.receiptArtifactDigest;
+  f.descriptor.expected.ciResultDigest=write(ciPath,ci);f.save();
+  await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_/);
+ }
 });

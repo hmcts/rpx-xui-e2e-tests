@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -17,6 +18,7 @@ const scopes = {
   eventCapability: "exui-ccd-event-capability-pilot",
   routing: "exui-decentralised-routing-pilot",
   recipientCallback: "exui-ccd-recipient-callback-pilot",
+  selectorEventRow: "exui-ccd-selector-event-row-pilot",
 };
 function read(file) {
   assert(
@@ -116,9 +118,19 @@ export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
       evidenceManifestDigest,
       eventTransition,
       callbackTransition,
+      selectorEventCapture,
+      selectorControllerTerminal,
       ...promoted
     } = promotion;
     assert.deepEqual(promoted, expected, "ASSURANCE_EXPECTATION_CHANGED");
+    if(phase.phase==='selectorEventRow'){
+      const authority=readSelectorPhaseAuthority(dir);
+      assert.deepEqual(authority.expected,{...expected,selectorEventCapture,selectorControllerTerminal},'ASSURANCE_SELECTOR_EXPECTATION_CHANGED');
+      assert.deepEqual(authority.terminal,{code:phase.exitCode,signal:null},'ASSURANCE_SELECTOR_TERMINAL_CHANGED');
+    }else{
+      assert.equal(selectorEventCapture,undefined,'ASSURANCE_UNEXPECTED_SELECTOR_CAPTURE');
+      assert.equal(selectorControllerTerminal,undefined,'ASSURANCE_UNEXPECTED_SELECTOR_TERMINAL');
+    }
     if (phase.phase === "eventCapability") {
       const transition = read(path.join(dir, "independent-transition.json"));
       assert.equal(

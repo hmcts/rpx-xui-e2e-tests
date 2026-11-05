@@ -1,4 +1,5 @@
 import {readDivorceProfileAdmission} from "./exui-divorce-profile-admission.mjs";
+import {validateSelectorEventEvidence} from './exui-selector-event-row-evidence.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -27,6 +28,7 @@ const scopes = {
   eventCapability: "exui-ccd-event-capability-pilot",
   routing: ROUTING_SCOPE,
   recipientCallback: "exui-ccd-recipient-callback-pilot",
+  selectorEventRow: "exui-ccd-selector-event-row-pilot",
 };
 const hashPattern = /^sha256:[a-f0-9]{64}$/;
 const uuid =
@@ -204,6 +206,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
     validateEventTransitionEvidence(directory, pin, loaded.input);
   if (phase === "recipientCallback")
     validateCallbackTransitionEvidence(directory, pin, loaded.input);
+  if(phase === 'selectorEventRow') validateSelectorEventEvidence(directory,pin,loaded.input,terminal);
   if (phase === "routing") {
     const routeInput = read(path.join(directory, "input.json")).value;
     const review = read(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json")).value;
@@ -367,6 +370,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       eventPhaseDirectory: path.join(directory, "private/eventCapability"),
       routingPhaseDirectory: path.join(directory, "private/routing"),
       callbackPhaseDirectory: path.join(directory, "private/recipientCallback"),
+      selectorPhaseDirectory: path.join(directory, "private/selectorEventRow"),
     });
     const ccdPin = expected.phases.find(
       (item) => item.phase === "ccd",
@@ -381,7 +385,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       ccdPin.evidenceManifestDigest,
       "COVERAGE_EVIDENCE_MISMATCH",
     );
-    for (const phase of ["ccd", "eventCapability", "routing", "recipientCallback"]) {
+    for (const phase of ["ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"]) {
       const selected = expected.phases.find((item) => item.phase === phase);
       const ref = accounting.phaseReferences[phase];
       for (const field of [
