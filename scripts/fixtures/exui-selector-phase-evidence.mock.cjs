@@ -30,7 +30,7 @@ async function createSelectorObservation(baseline = true, actor) {
   return { m, selected, observation, journal };
 }
 // Synthetic full-reader packet only; accepted native evidence comes from the owned controller.
-async function createSelectorPhaseFixture({root,harnessCommit='b'.repeat(40),sourceDigest=digest('4'),dependencyDigest=digest('a'),browserDigest=digest('b')}={}) {
+async function createSelectorPhaseFixture({root,candidate,harnessCommit='b'.repeat(40),sourceDigest=digest('4'),dependencyDigest=digest('a'),browserDigest=digest('b')}={}) {
  const c=await import('../lib/exui-selector-event-row-contract.mjs');
  const {prepareRecipientCallbackImport}=await import('../lib/exui-recipient-callback-import.mjs');
  const {canonicalRecipientCallbackPages}=await import('../lib/exui-recipient-callback-fixture.mjs');
@@ -44,7 +44,7 @@ async function createSelectorPhaseFixture({root,harnessCommit='b'.repeat(40),sou
  const directory=path.join(root,'selectorEventRow');fs.mkdirSync(directory,{recursive:true});
  const put=(name,value,base=directory)=>{const bytes=Buffer.isBuffer(value)?value:Buffer.from(JSON.stringify(value));const file=path.join(base,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,bytes);return {path:name,digest:hash(bytes)};};
  const candidateRoot=path.join(root,'selector-candidate');put('config/default.json',{services:{idam:{}},feature:{}},candidateRoot);
- const artifact={candidateRoot,identity:completeRun().manifest.identity},policy=c.selectorEventPolicy();
+ const artifact={candidateRoot,...(candidate??{identity:completeRun().manifest.identity})},policy=c.selectorEventPolicy();
  const images=Object.fromEntries(Object.entries(CCD_IMAGES).map(([name,id])=>[name,{id,architecture:'arm64',repoDigests:[`fixture@${id}`]}]));
  const credentials=Object.fromEntries(['allowed','courtadmin','judge','observer','readonly'].map((name,i)=>[name,{userId:`${i+1}1111111-1111-4111-8111-111111111111`,headers:{Authorization:`Bearer PRIVATE-CANARY-${name}`},roles:['caseworker','caseworker-harness',`caseworker-privatelaw-${name}`]}]));
  const variants={};
@@ -91,7 +91,7 @@ async function createSelectorPhaseFixture({root,harnessCommit='b'.repeat(40),sou
    put(id+'/selector-event-row-observation.json',observation.observation);fs.writeFileSync(path.join(directory,id,'ccd-requests.jsonl'),observation.journal.map(row=>JSON.stringify(row)+'\n').join(''));
    const resources=['candidate','tools'].map((role,i)=>({name:`${input.runId}-${id}-${role}`,id:String(8+index*2+i).padStart(64,'0'),owner:input.runId,service:role==='candidate'?'candidate':'browser-provider',image:role==='candidate'?input.nativeRuntime.imageId:input.browserRuntimeImage,namespace:value.ccd.namespace,removed:true}));registry.push(...resources);
    put(id+'/candidate-write-denial.json',{candidateId:resources[0].id,controllerSourceVisible:false,attempts:['/output/report.json','/harness/controller.mjs'].map(file=>({path:file,denied:true}))});
-   put(id+'/candidate-lifecycle.json',{requestedStop:true,before:{Id:resources[0].id,Name:'/'+resources[0].name,State:{Running:true}},after:{Id:resources[0].id,Name:'/'+resources[0].name,State:{Running:false,ExitCode:143,OOMKilled:false}}});
+   put(id+'/candidate-lifecycle.json',{requestedStop:true,before:{Image:input.nativeRuntime.imageId,Id:resources[0].id,Name:'/'+resources[0].name,State:{Running:true}},after:{Image:input.nativeRuntime.imageId,Id:resources[0].id,Name:'/'+resources[0].name,State:{Running:false,ExitCode:143,OOMKilled:false}}});
    const initial={...expected,identity};
    const before={capturedBeforeExecution:true,capturedAt:'2026-11-05T12:00:00Z',invocationId:id,expected:initial,definition:value.definition,definitionImportDigest:value.definitionImportDigest,selectorEventBinding:value.selectorEventBinding,ccd:value.ccd,apiContracts:value.apiContracts,runtimeEvidence:Object.fromEntries(Object.entries(value).filter(([key])=>/^selector.*Receipt$/.test(key))),actors:Object.fromEntries(Object.entries(credentials).map(([name,actor])=>[name,{userId:actor.userId,roles:actor.roles}]))};
    capture.invocations.push({invocationId:id,identity,expectation:put(`independent-selector-${id}.json`,before),removal:put(`independent-selector-${id}-removal.json`,{invocationId:id,native:{invocationId:id,removed:resources.map(({name,id})=>({name,id}))},ccd:{owner:value.ccd.owner,cleanupComplete:true,checkedNames:Object.keys(value.ccd.containers).map(service=>`${value.ccd.owner}-${service}`),checkedContainerIds:Object.values(value.ccd.containers)}}),...(index?{runtimeRecord:put(id+'/runtime-input.json',runtimeRecord)}:{})});

@@ -76,7 +76,8 @@ export async function runDivorceProfileAdmission({artifactPath,browserRoot,outpu
   const timing={schemaVersion:1,kind:'divorce-profile-wrapper-timing',runId,inputDigest,telemetryOnly:true,...finishDivorceClock(totalStart),phases:{preparation,execution,admission},childTimingDigest};
   writeJsonAtomic(path.join(output,'standalone-timing.json'),timing);
   const standaloneTimingDigest=digestBytes(fs.readFileSync(path.join(output,'standalone-timing.json')));readDivorceProfileTiming(output,standaloneTimingDigest,expected);
-  writeJsonAtomic(path.join(output,'admission-request.json'),{schemaVersion:1,kind:'divorce-profile-admission-request',directory:output,expected,standaloneTimingDigest});return result;
+  const requestPath=path.join(output,'admission-request.json');writeJsonAtomic(requestPath,{schemaVersion:1,kind:'divorce-profile-admission-request',directory:output,expected,standaloneTimingDigest});
+  return {...result,reportRequest:{path:requestPath,digest:digestBytes(fs.readFileSync(requestPath)),runId}};
  }catch(error){
   // No destructive cleanup when process termination could not be observed.
   if(terminal?.observed)cleanupOwnedAfterTerminal(output,binding);

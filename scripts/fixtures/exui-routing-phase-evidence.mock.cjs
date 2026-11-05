@@ -14,6 +14,7 @@ const write = (file, value) => {
 
 async function createRoutingPhaseFixture({
   root,
+  candidate,
   harnessCommit = "b".repeat(40),
   sourceDigest = digest("4"),
   dependencyDigest = digest("a"),
@@ -47,8 +48,8 @@ async function createRoutingPhaseFixture({
       decentralisedServiceMap: {},
     }),
   );
-  const identity = completeRun().manifest.identity;
-  const artifact = {
+  const identity = candidate?.identity ?? completeRun().manifest.identity;
+  const artifact = candidate ? {candidateRoot,...candidate} : {
     candidateRoot,
     identity,
     provenance: {

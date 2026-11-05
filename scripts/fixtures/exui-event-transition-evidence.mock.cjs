@@ -37,7 +37,7 @@ function observedDefinition(source) {
   };
 }
 
-async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
+async function createEventTransitionFixture(t, { root: suppliedRoot, sourceDigest=digest("4"), candidate } = {}) {
   const root = suppliedRoot ?? fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-transition-evidence-"));
   if (!suppliedRoot) t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(root, { recursive: true });
@@ -61,7 +61,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
   const policy = getReleasePolicy(scope), fixtureBinding = JSON.parse(fs.readFileSync(path.join(__dirname, "ccd/event-capability/binding.json")));
   const candidateRoot = path.join(root, "candidate");
   put("config/default.json", { services: { idam: {} }, feature: {} }, candidateRoot);
-  const artifact = { candidateRoot, identity: completeRun().manifest.identity };
+  const artifact = { candidateRoot, ...(candidate??{identity:completeRun().manifest.identity}) };
   const images = Object.fromEntries(Object.entries(runtime.CCD_IMAGES).map(([name, id]) => [name, { id, architecture: "arm64", repoDigests: [`fixture@${id}`] }]));
   const variants = {};
   for (const [index, variant] of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)].entries()) {
@@ -85,7 +85,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
     roles: ["caseworker", "caseworker-harness", `caseworker-privatelaw-${name}`],
   }]));
   const input = { runId: "ccd-11111111-1111-4111-8111-111111111111", releaseScopeId: scope,
-    harnessCommit: "b".repeat(40), harnessSourceDigest: digest("4"), artifact,
+    harnessCommit: "b".repeat(40), harnessSourceDigest: sourceDigest, artifact,
     ccd: variants.baseline.state, definition: variants.baseline.imported, definitionImportDigest: variants.baseline.importedRef.digest,
     credentials, apiContracts: { data: digest("5"), definition: digest("6") }, gatewayDigest: digest("7"),
     nativeRuntime: { imageId: digest("8") }, browserRuntimeImage: digest("9"),

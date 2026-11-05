@@ -414,6 +414,7 @@ async function runHarnessCollection(
     return {
       status,
       nativeStatus,
+      ...(reporter.nativeEvidence?.divorceProfileAdmission?.joint ? {divorceProfileInclusion:reporter.nativeEvidence.divorceProfileAdmission.joint.status} : {}),
       ...(reporter.sharedNestedAttemptEvidence?{sharedNestedStatus:reporter.sharedNestedAttemptEvidence.status}:{}),
       exitCode: Math.max(
         reporter.nativeEvidence?.exitCode || 0,

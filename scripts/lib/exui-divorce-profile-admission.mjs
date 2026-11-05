@@ -1,3 +1,6 @@
+import {isDeepStrictEqual} from 'node:util';
+import {DIVORCE_NATIVE_POLICY,divorceCandidateContent,nativeInventoryDigest} from './exui-divorce-native-binding.mjs';
+import {NATIVE_HARNESS_SOURCE_FILES} from './exui-native-sources.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,11 +49,33 @@ export function admitDivorceProfile(directory,expected,options={}){
  const row=catalogue.obligations.filter(item=>item.id===DIVORCE_PROFILE_ID);assert.equal(row.length,1,fail);assert.equal(row[0].kind,'configuration-profile',fail);assert.equal(row[0].family,'DIVORCE',fail);assert.equal(row[0].requiredBoundary,'candidate',fail);
  return {schemaVersion:1,kind:'divorce-profile-admission',status:'passed',obligationId:DIVORCE_PROFILE_ID,boundary:'candidate',family:'DIVORCE',baselineProofs:6,effectiveFaults:6,selected:1,accepted:1,catalogueSize:112,runId:expected.runId,producerCommit:expected.producerCommit,producerDigest:expected.producerDigest,candidateArtifactDigest:expected.candidateArtifactDigest,candidateCommit:binding.artifact.provenance.webappCommit,inputDigest:expected.inputDigest,bindingDigest:expected.bindingDigest,receiptDigest:expected.receiptDigest,terminalDigest:expected.terminalDigest,launchDigest:expected.launchDigest,cleanupDigest:expected.cleanupDigest,contractDigest:actual.contractDigest,releaseCredit:false,releaseApproval:false};
 }
-export function readDivorceProfileAdmission(descriptorPath){
- const {value}=readDivorceAdmissionFile(descriptorPath);const timed=Object.hasOwn(value,'standaloneTimingDigest');keys(value,['schemaVersion','kind','directory','expected',...(timed?['standaloneTimingDigest']:[])]);assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'divorce-profile-admission-request',fail);
- const result=admitDivorceProfile(value.directory,value.expected);
- return {...result,...(timed?{standaloneTiming:readDivorceProfileTiming(value.directory,value.standaloneTimingDigest,value.expected)}:{})};
+export function readDivorceProfileAdmissionPacket(descriptorPath,requestPin,configurationFor){
+ const {value,digest}=readDivorceAdmissionFile(descriptorPath);
+ if(requestPin!==undefined){keys(requestPin,['runId','digest']);assert.equal(digest,requestPin.digest,fail);assert.equal(value.expected.runId,requestPin.runId,fail);}
+ const timed=Object.hasOwn(value,'standaloneTimingDigest');keys(value,['schemaVersion','kind','directory','expected',...(timed?['standaloneTimingDigest']:[])]);assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'divorce-profile-admission-request',fail);
+ const result=admitDivorceProfile(value.directory,value.expected,configurationFor?{configurationFor}:{});
+ return {admission:{...result,...(timed?{standaloneTiming:readDivorceProfileTiming(value.directory,value.standaloneTimingDigest,value.expected)}:{})},binding:readDivorceAdmissionFile(path.join(value.directory,'expected-input.json')).value.binding};
 }
+export function readDivorceProfileAdmission(descriptorPath){return readDivorceProfileAdmissionPacket(descriptorPath).admission;}
+// Both raw gates and all supplied pins have already passed. This fixed policy admits one existing ID only.
+export function divorceNativeJointAdmission(native,packet,expected){
+ const separate=reason=>({policy:DIVORCE_NATIVE_POLICY,status:'separate',reason});
+ if(!native||!expected.divorceProfileRequest)return separate('missing-native-binding');
+ const {binding,admission}=packet;
+ assert.equal(admission.obligationId,DIVORCE_PROFILE_ID,fail);
+ if(native.producer.commit!==binding.producer.commit)return separate('different-producer');
+ const projected=Object.fromEntries(NATIVE_HARNESS_SOURCE_FILES.map(name=>[name,binding.producer.files[name]]));
+ assert.deepEqual(projected,native.producer.files,fail);assert.equal(nativeInventoryDigest(projected),native.producer.sourceDigest,fail);
+ if(native.candidate.identity.artifactDigest!==binding.artifact.identity.artifactDigest)return separate('different-candidate');
+ assert.deepEqual(divorceCandidateContent(binding.artifact),native.candidate,fail);
+ assert.equal(native.sourceDefault.revision,binding.contract.sourceRevision,fail);assert.equal(native.profileContractDigest,binding.contractDigest,fail);
+ if(!isDeepStrictEqual(native.runtime,binding.runtime))return separate('different-runtime');
+ if(!isDeepStrictEqual(native.browser,{image:binding.browser.image,digest:binding.browser.digest}))return separate('different-browser');
+ if(!isDeepStrictEqual(native.dependencies,{digest:binding.browser.dependencies.digest,playwrightVersion:binding.browser.dependencies.playwrightVersion}))return separate('different-dependencies');
+ const nativeOwners=new Set(expected.phases.map(row=>row.expected.runId));for(const owner of Object.values(binding.owners))assert(!nativeOwners.has(owner),fail);
+ return {policy:DIVORCE_NATIVE_POLICY,status:'included',obligationId:DIVORCE_PROFILE_ID,nativeRunId:expected.jobRunId,profileRunId:admission.runId,nativeBindingDigest:expected.nativeCohortBinding.digest,requestDigest:expected.divorceProfileRequest.digest,inputDigest:admission.inputDigest,bindingDigest:admission.bindingDigest,receiptDigest:admission.receiptDigest,contractDigest:admission.contractDigest};
+}
+
 
 // Optional telemetry is pinned and checked separately; it grants no admission authority.
 export function readDivorceProfileTiming(directory,timingDigest,expected){

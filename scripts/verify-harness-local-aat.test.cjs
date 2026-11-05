@@ -574,6 +574,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
   const calls = [];
   let clock=0, expectedVerificationMs=25;
   t.mock.method(performance,"now",()=>clock);
+  let profileInclusion;
   let nativeStatus = "BLOCKED",
     nativeExitCode = 2;
   Reporter.prototype.prepareNativeEvidence = async function (descriptor) {
@@ -582,6 +583,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
     clock+=25;
     this.nativeEvidence = {
       status: nativeStatus,
+      ...(profileInclusion ? {divorceProfileAdmission:{joint:{status:profileInclusion}}} : {}),
       exitCode: nativeExitCode,
       descriptorDigest: "sha256:" + "a".repeat(64),
     };
@@ -641,6 +643,13 @@ test("credential-free collection runs only116 offline tests and preserves every 
     calls,
     Array(3).fill(["validate-native", "offline", "render"]).flat(),
   );
+  for (const inclusion of ['separate','included']) {
+    profileInclusion=inclusion;
+    const result=await runHarnessCollection({}, {nativeEvidencePath:'/explicit/descriptor.json',nativeElapsedMs:1000,phaseTimings:[{label:'WA family',status:'completed',durationMs:1000,startedAt:new Date().toISOString()}]});
+    assert.equal(result.divorceProfileInclusion,inclusion);
+    assert.deepEqual(calls.slice(-3),['validate-native','offline','render']);
+  }
+  profileInclusion=undefined;
   Reporter.prototype.prepareCompatibilityEvidence = async function (descriptor) {
     assert.equal(descriptor,"/explicit/compatibility.json");assert.equal(this.nativeEvidence.status,"PASS");
     calls.push("validate-compatibility");clock+=35;
@@ -671,7 +680,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
   );
   assert.equal(
     calls.length,
-    20,
+    26,
     "invalid evidence must not launch diagnostics or publish",
   );
 });

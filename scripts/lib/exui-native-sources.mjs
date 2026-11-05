@@ -1,5 +1,13 @@
 // Exact shared native-controller closure; collection remains constrained by the fixed pilot selection.
 export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
+  "scripts/lib/exui-divorce-native-binding.mjs",
+  "scripts/lib/exui-candidate-ci-inputs.mjs",
+  "scripts/run-harness-ci.mjs",
+  "scripts/run-harness-assurance.mjs",
+  "scripts/run-harness-divorce-joint-assurance.mjs",
+  "scripts/lib/exui-native-report-evidence.mjs",
+  "scripts/lib/exui-divorce-profile-contract.mjs",
+  "scripts/lib/exui-source-profile-jurisdictions.mjs",
   "scripts/lib/exui-applicant-results-contract.mjs",
   "scripts/lib/exui-applicant-results-transition.mjs",
   "scripts/lib/exui-applicant-results-watch.mjs",

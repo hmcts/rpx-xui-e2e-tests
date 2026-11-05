@@ -1,3 +1,4 @@
+import {captureDivorceNativeBinding} from './exui-divorce-native-binding.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -236,5 +237,6 @@ export async function prepareCiJob(job, output) {
     ...observations,
     playwrightVersion: dependencies.playwrightVersion,
   });
+  context.nativeCohortCapture = captureDivorceNativeBinding(context, output);
   return context;
 }

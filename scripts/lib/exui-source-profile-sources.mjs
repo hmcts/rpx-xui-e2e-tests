@@ -6,7 +6,6 @@ import {NATIVE_HARNESS_SOURCE_FILES} from './exui-native-sources.mjs';
 
 // This is a separate feasibility closure. It does not extend any release selector.
 export const PROFILE_SOURCE_FILES=Object.freeze([...NATIVE_HARNESS_SOURCE_FILES,
-  'scripts/lib/exui-source-profile-jurisdictions.mjs',
   'scripts/lib/exui-source-profile-provider.mjs',
   'scripts/lib/exui-source-profile-wa-health.mjs',
   'scripts/lib/exui-source-profile-wa-membership.mjs',
@@ -14,7 +13,6 @@ export const PROFILE_SOURCE_FILES=Object.freeze([...NATIVE_HARNESS_SOURCE_FILES,
   'scripts/lib/exui-source-profile-divorce-consumers.mjs',
   'scripts/lib/exui-source-profile-divorce-provider.mjs',
   'scripts/lib/exui-source-profile-sources.mjs',
-  'scripts/lib/exui-divorce-profile-contract.mjs',
   'scripts/lib/exui-divorce-profile-browser.mjs',
   'scripts/lib/exui-divorce-profile-browser-provider.mjs',
   'playwright.divorce-profile.config.mjs',
