@@ -57,6 +57,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
   const { readEventBaselineCheckpoint } = await import("../lib/exui-native-proof-validation.mjs");
   const { eventCapabilityTransitionRequest } = await import("../lib/exui-ccd-event-transition.mjs");
   const {SOURCE_SHAPE_ROWS} = await import("../lib/exui-source-shape-contract.mjs");
+  const {eventCapabilityFaultContract} = await import("../lib/exui-ccd-event-capability.mjs");
   const policy = getReleasePolicy(scope), fixtureBinding = JSON.parse(fs.readFileSync(path.join(__dirname, "ccd/event-capability/binding.json")));
   const candidateRoot = path.join(root, "candidate");
   put("config/default.json", { services: { idam: {} }, feature: {} }, candidateRoot);
@@ -160,7 +161,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
       observedDefinitionDigest:record.definition.observedDefinitionDigest,definitionVersion:"1",idamSimulatorImage:images.idam.id});
     const execution=makeExecution(id,current,[`ccd-source-shape-${row.id}-fault`],true);
     const derivation={mutationDefinitionDigest:policy.mutationDefinitions[index+5].definitionDigest,baselineIdentity,mutantIdentity:identity,
-      transformation:id,target:`EventToComplexTypes:ServeOrgDetails:${row.id}`,transformationRecord:fixtureBinding[`shape-${row.id}-transformation`],
+      transformation:id,target:eventCapabilityFaultContract(id).target,transformationRecord:fixtureBinding[`shape-${row.id}-transformation`],
       beforeDigest:fixtureBinding.baseline.workbookDigest,afterDigest:fixtureBinding[variant].workbookDigest};
     return {id,variant,record,identity,execution,derivation,cid:String(index+4).repeat(64)};
   });

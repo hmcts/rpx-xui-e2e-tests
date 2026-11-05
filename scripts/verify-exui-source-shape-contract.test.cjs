@@ -144,3 +144,21 @@ test('postal fault changes only the consumed event label and rejects the old ine
  row.EventElementLabel=' ';row.DisplayContext='MANDATORY';
  assert.throws(()=>validateSourceShapeFault('optional-postal-line-two',base,mutant),/SHAPE_SINGLE_FACET_FAULT_REQUIRED/);
 });
+
+
+test('CaseField fault targets retain their actual source field and changed column', async () => {
+  const {eventCapabilityFaultContract}=await import('./lib/exui-ccd-event-capability.mjs');
+  assert.equal(eventCapabilityFaultContract('ccd-shape-recipient-collection').target,'CaseField:sodAdditionalRecipientsList:FieldType');
+  assert.equal(eventCapabilityFaultContract('ccd-shape-case-field-recipient-selector').target,'CaseField:sodAdditionalRecipients:Label');
+  assert.equal(eventCapabilityFaultContract('ccd-shape-required-delivery-radio').target,'EventToComplexTypes:ServeOrgDetails:required-delivery-radio');
+});
+for (const id of ['recipient-collection','case-field-recipient-selector'])
+  test(`a rehashed wrong-sheet target cannot authorize the ${id} CaseField fault`,async t=>{
+    const {createEventTransitionFixture}=require('./fixtures/exui-event-transition-evidence.mock.cjs');
+    const {validateEventTransitionEvidence}=await import('./lib/exui-ccd-event-transition.mjs');
+    const f=await createEventTransitionFixture(t);
+    f.shapeFaults.find(row=>row.id===`ccd-shape-${id}`).derivation.target=`EventToComplexTypes:ServeOrgDetails:${id}`;
+    f.write();
+    const loaded=await f.loaded();
+    assert.throws(()=>validateEventTransitionEvidence(f.directory,f.expected,loaded),/EVENT_TRANSITION_DERIVATION_TARGET/);
+  });

@@ -1,4 +1,4 @@
-import { SOURCE_SHAPE_MUTATIONS, sourceShapeIdForMutation, validateSourceShapeFault } from './exui-source-shape-contract.mjs';
+import { SOURCE_SHAPE_MUTATIONS, sourceShapeIdForMutation, sourceShapeContract, validateSourceShapeFault } from './exui-source-shape-contract.mjs';
 export { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -13,8 +13,8 @@ export const READONLY_UPDATE_MUTATION = "ccd-enable-readonly-recipient-update";
 export function eventCapabilityFaultContract(invocationId) {
   assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
   if (SOURCE_SHAPE_MUTATIONS.includes(invocationId)) {
-    const id = sourceShapeIdForMutation(invocationId);
-    return {variant:`shape-${id}-mutant`, target:`EventToComplexTypes:ServeOrgDetails:${id}`, transformationKey:`shape-${id}-transformation`,
+    const id = sourceShapeIdForMutation(invocationId), row = sourceShapeContract(id);
+    return {variant:`shape-${id}-mutant`, target:row.sheet === "CaseField" ? `CaseField:${row.reference}:${row.faultColumn}` : `EventToComplexTypes:ServeOrgDetails:${id}`, transformationKey:`shape-${id}-transformation`,
       validatePair:(baseline,mutant,source) => validateSourceShapeFault(id,baseline,mutant,source)};
   }
   const contract = {
