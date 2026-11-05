@@ -22,7 +22,7 @@ function observedDefinition(source) {
     id: "HarnessNestedPRL", version: { number: 1 }, acls: acls(s.AuthorisationCaseType),
     states: [{ id: "JUDICIAL_REVIEW", acls: acls(s.AuthorisationCaseState) }],
     case_fields: s.CaseField.map(row => ({ id: row.ID, label: row.Label ?? null,
-      field_type: { id: row.FieldTypeParameter ? `${row.FieldType}-${row.FieldTypeParameter}` : row.FieldType, type: row.FieldType },
+      field_type: row.ID === 'sodAdditionalRecipientsList' ? (row.FieldType === 'Collection' ? {id:'synthetic-collection-type',type:'Collection',collection_field_type:{id:'ServeOrgDetails'}} : {id:'ServeOrgDetails',type:'Complex',collection_field_type:null}) : { id: row.FieldTypeParameter ? `${row.FieldType}-${row.FieldTypeParameter}` : row.FieldType, type: row.FieldType },
       acls: acls(s.AuthorisationCaseField.filter(a => a.CaseFieldID === row.ID)) })),
     events: s.CaseEvent.map(row => ({ id: row.ID, name: row.Name,
       pre_states: row["PreConditionState(s)"]?.split(";") ?? [], post_states: [{ post_state_reference: row.PostConditionState }],

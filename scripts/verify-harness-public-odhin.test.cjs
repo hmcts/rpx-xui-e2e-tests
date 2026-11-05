@@ -873,8 +873,8 @@ test("same Odhín document separates native baselines and faults from diagnostic
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 21);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 21);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 22);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 22);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,

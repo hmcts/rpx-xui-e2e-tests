@@ -118,7 +118,7 @@ const fixedRuntime = async () => {
   const api = await runtime;
   assert.deepEqual(
     api.CCD_FIXTURE_SELECTIONS,
-    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant", "event-capability-shape-case-field-recipient-selector-mutant", "event-capability-shape-required-delivery-radio-mutant", "event-capability-shape-conditional-email-complex-mutant", "event-capability-shape-postal-recipient-name-mutant", "event-capability-shape-optional-postal-line-two-mutant"],
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant", "event-capability-shape-recipient-collection-mutant", "event-capability-shape-case-field-recipient-selector-mutant", "event-capability-shape-required-delivery-radio-mutant", "event-capability-shape-conditional-email-complex-mutant", "event-capability-shape-postal-recipient-name-mutant", "event-capability-shape-optional-postal-line-two-mutant"],
     "fixed source fixture selection must exist before transport use",
   );
   return api;
@@ -151,7 +151,7 @@ function observedEventFixture(fixture) {
       ),
       complexACLs: [],
       field_type: {
-        ...(row.ID === "sodAdditionalRecipientsList" ? { collection_field_type: { id: "ServeOrgDetails" } } : {}),
+        ...(row.ID === "sodAdditionalRecipientsList" ? (row.FieldType === "Collection" ? { type: "Collection", collection_field_type: { id: "ServeOrgDetails" } } : {type:"Complex",id:"ServeOrgDetails",collection_field_type:null}) : {}),
         ...(row.ID === "sodAdditionalRecipients" ? { id: "MultiSelectList-AdditionalRecipients", type: "MultiSelectList" } : {}),
       },
     })),
@@ -314,7 +314,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
   );
 });
 
-for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"])
+for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", "shape-recipient-collection-mutant"])
   test(
     "support only: real import function with fake transport validates source ACLs for " +
       variant,

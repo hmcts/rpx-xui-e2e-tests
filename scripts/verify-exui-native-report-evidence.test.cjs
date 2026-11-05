@@ -400,8 +400,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 21);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 21);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 22);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 22);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -676,7 +676,7 @@ for (const postalFailure of [false, true])
     const coverage = result.catalogueCoverage;
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
-    assert.equal(coverage.candidate, 7);
+    assert.equal(coverage.candidate, 8);
     assert.equal(coverage.ccd, postalFailure ? 16 : 17);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
@@ -684,6 +684,7 @@ for (const postalFailure of [false, true])
         : [
             "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
           ]),
+      "configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc",
       "configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f",
       "configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49",
       "configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e",
@@ -709,7 +710,7 @@ for (const postalFailure of [false, true])
       "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 89 : 88);
+    assert.equal(coverage.missing, postalFailure ? 88 : 87);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(

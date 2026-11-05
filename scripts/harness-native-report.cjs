@@ -149,6 +149,7 @@ proofs["ccd-readonly-update-recipient-shapes-denied"] = {
   limits: "Literal source readonly role. A fresh fault adds only type/state/recipient-field U and event C; every shape must persist its intended edit before the denial oracle fails. No deployed PRL authorisation claim.",
 };
 for (const [id,slice,behaviour] of [
+  ['recipient-collection','Recipient collection — separate entries and persistence','Add two distinct recipients, verify both CYA entries and independent CCD identities, and detect a singular-complex type fault.'],
   ['case-field-recipient-selector','Additional recipient field — source label','Select an additional recipient, persist the choice and verify the source-defined label on the case view.'],
   ['required-delivery-radio','Delivery method — required selection','Show Served by, reject an omitted method, then persist a selected email recipient.'],
   ['conditional-email-complex','Email details — conditional complex','Toggle email/post, verify email controls appear only for email, and persist entered recipient data.'],
@@ -157,7 +158,9 @@ for (const [id,slice,behaviour] of [
 ]) proofs[`ccd-source-shape-${id}`] = {
   phase:'eventCapability',slice,behaviour,services:'Private Law source-shaped fixture',
   jurisdiction:'HARNESS (actual synthetic jurisdiction)',caseType:'HarnessNestedPRL (actual synthetic case type)',
-  lane:'Actual EXUI + isolated CCD',limits:id === 'case-field-recipient-selector'
+  lane:'Actual EXUI + isolated CCD',limits:id === 'recipient-collection'
+    ? 'Exact CaseField Collection/ServeOrgDetails source row and one-column singular-complex fault. No whole shared-renderer or deployed PRL credit.'
+    : id === 'case-field-recipient-selector'
     ? 'Exact imported CaseField label/type and single-label fault; candidate case view after a real CCD write. No deployed PRL or whole-profile credit.'
     : 'Exact event override context, imported label/order/condition and single-facet fault. LiveFrom is an import-only date, not a date-gated UI claim. No deployed PRL or callback credit.',
 };
@@ -229,6 +232,7 @@ const faults = {
   "routing-omit-noc-base-url": "Omit the PCS NoC destination",
 };
 Object.assign(faults, {
+  'ccd-shape-recipient-collection':'Change only Collection to the singular ServeOrgDetails type; prove the usable singular form persists one object before the two-recipient collection oracle fails',
   'ccd-shape-case-field-recipient-selector':'Change only the imported CaseField label; prove the candidate renders the changed label after a real CCD write before the source-label oracle fails',
   'ccd-shape-required-delivery-radio':'Remove the mandatory delivery-method constraint; prove an omitted method persists before the required-method oracle fails',
   'ccd-shape-conditional-email-complex':'Change only email-complex visibility to post; prove the altered visible branch and a real write before the email-condition oracle fails',
@@ -296,7 +300,7 @@ function renderNativeEvidence(evidence) {
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
           : workbasketRows.has(id) ? "ccd"
-          : ["configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f","configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49","configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e","configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757","configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894","configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+          : ["configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc","configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f","configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49","configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e","configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757","configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894","configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
               "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66",
               "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3",
               "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65",

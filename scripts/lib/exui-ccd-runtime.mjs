@@ -749,7 +749,11 @@ export function importCcdDefinition(
   const nested = observed.body.case_fields.find(
     (f) => f.id === "sodAdditionalRecipientsList",
   );
-  assert.equal(nested.field_type.collection_field_type.id, "ServeOrgDetails");
+  if (selection === "event-capability-shape-recipient-collection-mutant") {
+    assert.equal(nested.field_type.type, "Complex", "CCD_COLLECTION_FAULT_TYPE_REQUIRED");
+    assert.equal(nested.field_type.id, "ServeOrgDetails", "CCD_COLLECTION_FAULT_TYPE_REQUIRED");
+    assert.equal(nested.field_type.collection_field_type, null, "CCD_COLLECTION_FAULT_TYPE_REQUIRED");
+  } else assert.equal(nested.field_type.collection_field_type.id, "ServeOrgDetails");
   const event = observed.body.events.find((e) => e.id === "create");
   assert(
     event.case_fields
