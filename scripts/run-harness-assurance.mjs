@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {verifyDivorceNativeCapture} from './lib/exui-divorce-native-binding.mjs';
 import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -59,7 +60,7 @@ export async function runAssuranceSequence({ native, descriptor, collect }) {
     releaseApproval: false,
   };
 }
-export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs) {
+export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest) {
   const root = path.join(job.output, "private");
   assert(fs.realpathSync(root) === root, "ASSURANCE_PRIVATE_ROOT_REQUIRED");
   const result = read(path.join(root, "ci-result.json"));
@@ -200,11 +201,21 @@ export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
       terminal: { code: phase.exitCode, signal: null },
     };
   });
+  const nativeCohortBinding = captured.nativeCohortCapture ? verifyDivorceNativeCapture(job.output, captured.nativeCohortCapture) : undefined;
+  if (divorceProfileRequest) {
+    assert.deepEqual(Object.keys(divorceProfileRequest).sort(), ["digest", "path", "runId"], "ASSURANCE_PROFILE_REQUEST_INVALID");
+    const request = read(divorceProfileRequest.path);
+    assert.equal(request.digest, divorceProfileRequest.digest, "ASSURANCE_PROFILE_REQUEST_CHANGED");
+    assert.equal(request.value.expected.runId, divorceProfileRequest.runId, "ASSURANCE_PROFILE_REQUEST_CHANGED");
+  }
   const descriptor = {
     schemaVersion: 1,
     directory: job.output,
+    ...(divorceProfileRequest ? {divorceProfileAdmission: divorceProfileRequest.path} : {}),
     ...(sharedRoleSourceInputs ? { sharedRoleAdmission: { candidateArtifactPath: job.candidateManifest, sourceImageInputs: sharedRoleSourceInputs } } : {}),
     expected: {
+      ...(nativeCohortBinding ? {nativeCohortBinding} : {}),
+      ...(divorceProfileRequest ? {divorceProfileRequest: {runId: divorceProfileRequest.runId, digest: divorceProfileRequest.digest}} : {}),
       jobRunId: result.value.jobRunId,
       ciResultDigest: result.digest,
       harnessCommit: captured.harnessCommit,
@@ -219,17 +230,8 @@ export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
   });
   return file;
 }
-export async function runHarnessAssurance(
-  jobPath,
-  { aat = false, env = process.env } = {},
-) {
-  assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
-  // Invalid job input must also withdraw the earlier owned public report.
-  Reporter.resetPublicReport("harness");
-  const job = validateCiJob(read(jobPath).value);
-  const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS
-    ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
-  const captured = {
+export function captureAssuranceExpectations(env = process.env) {
+  return {
     harnessCommit: execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: ROOT,
       env: { PATH: env.PATH },
@@ -242,9 +244,21 @@ export async function runHarnessAssurance(
       ]),
     ),
   };
+}
+export async function runHarnessAssurance(
+  jobPath,
+  { aat = false, env = process.env } = {},
+) {
+  assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
+  // Invalid job input must also withdraw the earlier owned public report.
+  Reporter.resetPublicReport("harness");
+  const job = validateCiJob(read(jobPath).value);
+  const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS
+    ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
+  const captured = captureAssuranceExpectations(env);
   const { runHarnessCollection } = await import("./run-harness-local-aat.cjs");
   return runAssuranceSequence({
-    native: () => runHarnessCi(jobPath),
+    native: () => runHarnessCi(jobPath, {captureNativeCohort: value => {captured.nativeCohortCapture = value;}}),
     descriptor: (verdict) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs),
     collect: (nativeEvidencePath, timing) =>
       runHarnessCollection(env, {

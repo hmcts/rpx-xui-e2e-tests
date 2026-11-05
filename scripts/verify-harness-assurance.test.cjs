@@ -134,6 +134,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
     path.join(root, "scripts/run-harness-assurance.mjs"),
   );
   for (const name of [
+    "exui-divorce-native-binding.mjs",
     "exui-candidate-ci-inputs.mjs",
     "exui-release-policy.mjs",
     "exui-evidence-io.mjs",
@@ -418,4 +419,14 @@ test("callback transition must match the independently captured receipt", async 
   promotion.callbackTransition.digest = "sha256:" + "0".repeat(64);
   fs.writeFileSync(file, JSON.stringify(promotion));
   assert.throws(() => writeNativeDescriptor(f.job, f.captured, f.verdict), /CALLBACK_TRANSITION_CHANGED/);
+});
+test('descriptor retains the preflight hash and actual wrapper request pins without adopting later replacements',async t=>{
+ const {writeNativeDescriptor}=await api(),f=fixture(t),{digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const binding={syntheticPreflight:'held-before-phases'},file=path.join(f.root,'private/native-cohort-binding.json');fs.writeFileSync(file,JSON.stringify(binding));
+ f.captured.nativeCohortCapture={binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(fs.readFileSync(file))}};
+ const requestFile=path.join(f.root,'profile-request.json'),runId='divorce-00000000-0000-4000-8000-000000000001';fs.writeFileSync(requestFile,JSON.stringify({expected:{runId}}));
+ const request={path:requestFile,runId,digest:digestBytes(fs.readFileSync(requestFile))};
+ const previous=fs.readFileSync(file);fs.writeFileSync(file,JSON.stringify({syntheticPreflight:'coherently-replaced'}));assert.throws(()=>writeNativeDescriptor(f.job,f.captured,f.verdict,undefined,request),/DIVORCE_NATIVE_BINDING_INVALID/);fs.writeFileSync(file,previous);
+ const saved=fs.readFileSync(requestFile);fs.writeFileSync(requestFile,JSON.stringify({expected:{runId:'divorce-ffffffff-ffff-4fff-8fff-ffffffffffff'}}));assert.throws(()=>writeNativeDescriptor(f.job,f.captured,f.verdict,undefined,request),/ASSURANCE_PROFILE_REQUEST_CHANGED/);fs.writeFileSync(requestFile,saved);
+ const descriptor=JSON.parse(fs.readFileSync(writeNativeDescriptor(f.job,f.captured,f.verdict,undefined,request)));assert.deepEqual(descriptor.expected.nativeCohortBinding,f.captured.nativeCohortCapture.reference);assert.deepEqual(descriptor.expected.divorceProfileRequest,{runId,digest:request.digest});assert.equal(descriptor.divorceProfileAdmission,requestFile);
 });

@@ -1,3 +1,4 @@
+const assert = require('node:assert/strict');
 const { createHash } = require("node:crypto");
 const objectDigest = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -277,6 +278,15 @@ function proofDetails(label, proof, phase) {
 }
 function renderNativeEvidence(evidence) {
   if (!evidence) return "";
+  if (evidence.divorceProfileAdmission?.joint?.status === "included") {
+    const profile = evidence.divorceProfileAdmission, joint = profile.joint;
+    assert.equal(profile.producerCommit, evidence.source.harnessCommit, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(profile.candidateArtifactDigest, evidence.source.candidateArtifactDigest, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(profile.candidateCommit, evidence.source.webappCommit, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.deepEqual(evidence.catalogueCoverage.divorceProfileAdmission, joint, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(joint.nativeRunId, evidence.jobRunId, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(evidence.catalogueCoverage.creditedObligationIds.filter(id => id === joint.obligationId).length, 1, "NATIVE_REPORT_PROFILE_JOIN");
+  }
   const divorceProfile = evidence.divorceProfileAdmission ? require("./harness-divorce-profile-report.cjs").renderDivorceProfileAdmission(evidence.divorceProfileAdmission) : "";
   if (
     evidence.kind !== "native-policy-proof-outcomes" ||
@@ -303,6 +313,7 @@ function renderNativeEvidence(evidence) {
       coverage.creditedObligationIds.length ||
     !coverage.phaseReferences ||
     coverage.creditedObligationIds.some((id) => {
+      if (id === "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce") return evidence.divorceProfileAdmission?.joint?.status !== "included";
       const phase =
         id === "configuration-shared:role-policy" ? "ccd" :
         id ===
@@ -347,6 +358,9 @@ function renderNativeEvidence(evidence) {
     })
   )
     throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
+  const profileId = "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce";
+  assert.equal(coverage.creditedObligationIds.includes(profileId), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
+  assert.equal(Boolean(coverage.divorceProfileAdmission), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
   const roleCredited = coverage.creditedObligationIds.includes("configuration-shared:role-policy");
   const role = coverage.sharedRoleAdmission;
   if (roleCredited !== Boolean(role) || (role && (

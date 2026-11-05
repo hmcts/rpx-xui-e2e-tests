@@ -1,4 +1,5 @@
-import {readDivorceProfileAdmission} from "./exui-divorce-profile-admission.mjs";
+import {readDivorceProfileAdmissionPacket,divorceNativeJointAdmission} from "./exui-divorce-profile-admission.mjs";
+import {readDivorceNativeBinding} from "./exui-divorce-native-binding.mjs";
 import {validateSelectorEventEvidence} from './exui-selector-event-row-evidence.mjs';
 import fs from "node:fs";
 import path from "node:path";
@@ -305,7 +306,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
 }
 
 /** Independent expectations are caller-owned launch/terminal captures, never inferred from the receipt. */
-export async function readNativeReportEvidence(descriptorPath) {
+export async function readNativeReportEvidence(descriptorPath, {profileConfigurationFor} = {}) {
   try {
     const descriptor = read(descriptorPath);
     const { directory, expected } = descriptor.value;
@@ -439,7 +440,24 @@ export async function readNativeReportEvidence(descriptorPath) {
       ...(sharedRoleAdmission ? { sharedRoleAdmission } : {}),
       releaseCredit: false,
     };
-    const divorceProfileAdmission = descriptor.value.divorceProfileAdmission ? readDivorceProfileAdmission(descriptor.value.divorceProfileAdmission) : undefined;
+    // Validate both complete raw packets and every supplied parent pin before classifying compatibility.
+    const nativeBinding = readDivorceNativeBinding(directory, expected);
+    fact(!expected.divorceProfileRequest || descriptor.value.divorceProfileAdmission, "PROFILE_REQUEST_REQUIRED");
+    fact(!nativeBinding || !descriptor.value.divorceProfileAdmission || expected.divorceProfileRequest, "PROFILE_REQUEST_REQUIRED");
+    const profilePacket = descriptor.value.divorceProfileAdmission ? readDivorceProfileAdmissionPacket(descriptor.value.divorceProfileAdmission, expected.divorceProfileRequest, profileConfigurationFor) : undefined;
+    let divorceProfileAdmission;
+    if (profilePacket) {
+      const joint = divorceNativeJointAdmission(nativeBinding, profilePacket, expected);
+      divorceProfileAdmission = {...profilePacket.admission, joint};
+      if (joint.status === "included") {
+        const id = joint.obligationId, rows = accounting.catalogue.obligations.filter(row => row.id === id);
+        fact(rows.length === 1 && rows[0].kind === "configuration-profile" && rows[0].family === "DIVORCE" && rows[0].requiredBoundary === "candidate", "PROFILE_CATALOGUE_ROW");
+        fact(catalogueCoverage.selected === 112 && !creditedObligationIds.includes(id), "PROFILE_DUPLICATE_CREDIT");
+        fact(accounting.report.coverage.missingCandidateOrCcd.some(row => (typeof row === "string" ? row : row.id) === id), "PROFILE_NOT_MISSING");
+        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;
+        catalogueCoverage.divorceProfileAdmission = joint;
+      }
+    }
     const first = expected.phases[0].expected;
     for (const { expected: pin } of expected.phases) {
       equal(

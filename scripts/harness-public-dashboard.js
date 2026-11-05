@@ -36,7 +36,7 @@
     const data = profile.dataset;
     supplements.push(['DIVORCE configuration profile', data.profileStatus,
       `${data.profileBaselines} baselines · ${data.profileFaults} effective faults`,
-      `${data.profileAccepted} / ${data.profileSelected} requirement accepted in this separate run`,
+      data.profileInclusion === 'included' ? `${data.profileAccepted} requirement already included in main candidate coverage` : `${data.profileAccepted} / ${data.profileSelected} requirement accepted in this separate run`,
       '#harness-divorce-profile-admission']);
   }
   if (applicant) {

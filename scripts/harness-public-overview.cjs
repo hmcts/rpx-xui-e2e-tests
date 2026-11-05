@@ -248,7 +248,7 @@ async function renderOverview(
           )?.observed.aatOutcome;
           return `${label}: ${observed === "response-passed" ? "response check passed" : observed === "login-setup-blocked" ? "login/setup blocked; response not confirmed" : observed ? "not confirmed" : "not run"}`;
         });
-      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>${family.id === "DIVORCE" && nativeEvidence?.divorceProfileAdmission ? "Separate profile run: 1/1 accepted; excluded from main cohort count" : nativeEvidence ? "See bounded native proofs above; no per-family profile claim" : "NOT RUN"}</td></tr>`;
+      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>${family.id === "DIVORCE" && nativeEvidence?.divorceProfileAdmission ? nativeEvidence.divorceProfileAdmission.joint?.status === "included" ? "DIVORCE profile: 1 requirement included in main candidate coverage" : "Separate profile run: 1/1 accepted; excluded from main cohort count" : nativeEvidence ? "See bounded native proofs above; no per-family profile claim" : "NOT RUN"}</td></tr>`;
     })
     .join("");
   const runtimeGaps = deployment.gaps.filter((gap) =>

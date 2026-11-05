@@ -4,7 +4,7 @@ const {completeRun}=require('./exui-release-evidence.mock.cjs');
 const hash=value=>'sha256:'+createHash('sha256').update(value).digest('hex');
 const digest=c=>'sha256:'+c.repeat(64);
 // Unit-test packet only: never substitutes for the owned native producer.
-async function createCallbackPhaseFixture({root,harnessCommit='b'.repeat(40),sourceDigest=digest('4'),dependencyDigest=digest('a'),browserDigest=digest('b')}={}){
+async function createCallbackPhaseFixture({root,candidate,harnessCommit='b'.repeat(40),sourceDigest=digest('4'),dependencyDigest=digest('a'),browserDigest=digest('b')}={}){
  const c=await import('../lib/exui-recipient-callback-contract.mjs');
  const {callbackNativeImportRecord}=await import('../lib/exui-recipient-callback-native-import.mjs');
  const {validateCallbackStoredDate}=await import('../lib/exui-recipient-callback-facets.mjs');
@@ -18,7 +18,7 @@ async function createCallbackPhaseFixture({root,harnessCommit='b'.repeat(40),sou
  const directory=path.join(root,'recipientCallback');fs.mkdirSync(directory,{recursive:true});
  const put=(name,value,base=directory)=>{const file=path.join(base,name),bytes=JSON.stringify(value);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,bytes);return {path:name,digest:hash(bytes)};};
  const candidateRoot=path.join(root,'callback-candidate');put('config/default.json',{services:{idam:{}},feature:{}},candidateRoot);
- const artifact={candidateRoot,identity:completeRun().manifest.identity},policy=getReleasePolicy(c.CALLBACK_SCOPE);
+ const artifact={candidateRoot,...(candidate??{identity:completeRun().manifest.identity})},policy=getReleasePolicy(c.CALLBACK_SCOPE);
  const images=Object.fromEntries(Object.entries(CCD_IMAGES).map(([name,id])=>[name,{id,architecture:'arm64',repoDigests:[`fixture@${id}`]}]));
  const variants={};
  for(const [index,variant] of ['baseline','binding-omitted'].entries()){
