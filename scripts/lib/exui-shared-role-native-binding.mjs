@@ -13,6 +13,7 @@ import { bindSharedRoleToolkitArtifact } from './exui-shared-role-toolkit.mjs';
 import { sharedRoleObservationBinding, replaySharedRoleDenial, replaySharedRoleRevocation } from './exui-shared-role-observations.mjs';
 import { NATIVE_HARNESS_SOURCE_FILES } from './exui-native-sources.mjs';
 import { readSharedRoleArtifact } from './exui-shared-role-artifacts.mjs';
+import { reproduceSharedRoleCcdSource, bindSharedRoleCcdRuntime } from './exui-shared-role-ccd-provenance.mjs';
 
 const contract = () => buildSharedPolicyContracts().find(item => item.id === 'configuration-shared:role-policy');
 const scopes = { ccd: 'exui-ccd-pilot', eventCapability: 'exui-ccd-event-capability-pilot' };
@@ -118,7 +119,7 @@ function loadPhase(harnessRoot, directory, phase) {
   return { loaded, directory };
 }
 
-export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDirectory, eventPhaseDirectory, candidateArtifactPath }) {
+export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDirectory, eventPhaseDirectory, candidateArtifactPath, sourceImageInputs }) {
   assert(ccdPhaseDirectory && eventPhaseDirectory, 'SHARED_ROLE_BOTH_PHASES_REQUIRED');
   const phases = { ccd: loadPhase(harnessRoot, ccdPhaseDirectory, 'ccd'), eventCapability: loadPhase(harnessRoot, eventPhaseDirectory, 'eventCapability') };
   assertSharedRolePhaseIdentity(phases.ccd.loaded.input.manifest, phases.eventCapability.loaded.input.manifest);
@@ -143,6 +144,14 @@ export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDire
     }
     return bindSharedRoleFacet(record, { phase: record.phase, manifest, execution, proof, importedBytes, observed: json(root, record.importPath.replace('definition-import.json', 'observed-definition.json')) });
   });
+  let sourceImage;
+  if (sourceImageInputs) {
+    const reproduced = reproduceSharedRoleCcdSource(sourceImageInputs);
+    sourceImage = { proofDigest: reproduced.proofDigest, bindings: records.map(record => {
+      const directory = phases[record.phase].directory;
+      return { id: record.id, ...bindSharedRoleCcdRuntime(reproduced.proof, json(directory, record.invocationId + '/manifest.json'), canonicalBytes(path.dirname(directory), record.importPath)) };
+    }) };
+  }
   const ccd = phases.ccd;
   for (const invocation of ['baseline', 'ccd-broaden-access', 'ccd-write-then-deny', 'ccd-stale-revoked-bearer']) {
     const execution = ccd.loaded.input.executions.find(item => item.invocationId === invocation);
@@ -167,8 +176,8 @@ export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDire
       }
     }
   }
-  // No caller attestation can close the still-unbound CCD source/image boundary.
-  // Event semantic observations also need their own independent per-shape replay;
+  // No caller attestation can replace reproduction of the CCD source/image chain.
+  // Event semantic observations still need their own independent per-shape replay;
   // the existing native receipts are necessary, but not a substitute for that.
-  return { schemaVersion: 1, obligationId: contract().id, contractDigest: contract().contractDigest, bindingStatus: 'verified', records, toolkit, acceptedObligationIds: [], catalogueCredit: false, runtimeAcceptance: false, missingAcceptanceEvidence: ['CCD-source-to-running-image-provenance', 'independent-event-shape-observation-replay'] };
+  return { schemaVersion: 1, obligationId: contract().id, contractDigest: contract().contractDigest, bindingStatus: 'verified', records, toolkit, ...(sourceImage ? {sourceImage} : {}), acceptedObligationIds: [], catalogueCredit: false, runtimeAcceptance: false, missingAcceptanceEvidence: [...(sourceImage ? [] : ['CCD-source-to-running-image-provenance']), 'independent-event-shape-observation-replay'] };
 }

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+  "sourceGitTree": "5b4b765f015949e62fc2f4fb9fa61ff8fdbb1300",
+  "rebuiltJarDigest": "sha256:5ddd26e313cbd37dc50651155fbe7e37d1b9bc1f751c5a9185c0e26359e9c90a",
+  "roleClasses": [
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/casedataaccesscontrol/RoleBasedCaseDataAccessControl.java",
+      "sourceDigest": "sha256:924bfc7e7a3cb1fc7fd2e2cc0f0b367e9fe74bfa1c56b4d9579d873aeb93bc84",
+      "classDigest": "sha256:03da70722b7340df2eb5ae73f520468eacbb49177005736de3730c5b052fb3c2",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/casedataaccesscontrol/RoleBasedCaseDataAccessControl.class",
+          "digest": "sha256:03da70722b7340df2eb5ae73f520468eacbb49177005736de3730c5b052fb3c2"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/getcase/AuthorisedGetCaseOperation.java",
+      "sourceDigest": "sha256:aa1ccfe12139f25e4bdc70356f62f2de669c8214987a6f78e8d666d4e309d363",
+      "classDigest": "sha256:64d9e6d740c11390e141be268e70ca48205cd2356e75764e5841c57e2d8d5da0",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/getcase/AuthorisedGetCaseOperation.class",
+          "digest": "sha256:64d9e6d740c11390e141be268e70ca48205cd2356e75764e5841c57e2d8d5da0"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/createevent/AuthorisedCreateEventOperation.java",
+      "sourceDigest": "sha256:42f64793bd2b54e3c620bd0deb395e69c17e6f56882af6468fb78cbd8f48ce1b",
+      "classDigest": "sha256:c5dd87eeea1c87a6b90af29dc1ec9db6127eb2319d6eda742fec25664d2c401d",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/createevent/AuthorisedCreateEventOperation.class",
+          "digest": "sha256:c5dd87eeea1c87a6b90af29dc1ec9db6127eb2319d6eda742fec25664d2c401d"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/startevent/AuthorisedStartEventOperation.java",
+      "sourceDigest": "sha256:713464a1fcbcdc42d69871d08d1d3e74bdb471fa8466d63fd3e50694b9e4844d",
+      "classDigest": "sha256:74b6fb05a63d7ecfcd9a6309bacd1b76378da75c926e2b6f578619122e53e090",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/startevent/AuthorisedStartEventOperation.class",
+          "digest": "sha256:74b6fb05a63d7ecfcd9a6309bacd1b76378da75c926e2b6f578619122e53e090"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/security/idam/IdamRepository.java",
+      "sourceDigest": "sha256:040239d94928028c0b328466e5be995428cef25eba68f652e647be5048c93e7f",
+      "classDigest": "sha256:a2a892fdd5dc5f95598f727127d8818fd51277275999174cdfcb8214ad5cae6d",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/security/idam/IdamRepository.class",
+          "digest": "sha256:a2a892fdd5dc5f95598f727127d8818fd51277275999174cdfcb8214ad5cae6d"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/security/JwtGrantedAuthoritiesConverter.java",
+      "sourceDigest": "sha256:0dd4f2700bab9195c1cbd853b37c05238b5c7225e1518dfff7600fb38191d421",
+      "classDigest": "sha256:26d06d0f85c694cdf339bbe2b123908972d46ebe651a437af8d2cc87d8f34e40",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/security/JwtGrantedAuthoritiesConverter.class",
+          "digest": "sha256:26d06d0f85c694cdf339bbe2b123908972d46ebe651a437af8d2cc87d8f34e40"
+        }
+      ]
+    }
+  ]
+}
