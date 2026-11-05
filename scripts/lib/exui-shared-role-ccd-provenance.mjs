@@ -58,7 +58,7 @@ export function reproduceSharedRoleCcdSource(inputs) {
   assert(!fs.existsSync(inputs.output) && fs.realpathSync(path.dirname(inputs.output)) === path.dirname(inputs.output), 'SHARED_CCD_FRESH_OUTPUT_REQUIRED');
   const script = fileURLToPath(new URL('../verify-shared-role-ccd-source.py', import.meta.url));
   const args = [script, ...keys.flatMap(key => ['--' + key.replace(/[A-Z]/g, char => '-' + char.toLowerCase()), inputs[key]])];
-  const result = spawnSync('python3', args, { encoding: 'utf8', timeout: 300000, maxBuffer: 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME } });
+  const result = spawnSync('python3', args, { encoding: 'utf8', timeout: 300000, maxBuffer: 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, PYTHONDONTWRITEBYTECODE: '1' } });
   assert(!result.error && result.status === 0, 'SHARED_CCD_REPRODUCTION_FAILED');
   const summary = JSON.parse(result.stdout);
   assert.equal(summary.status, 'SOURCE_IMAGE_VERIFIED', 'SHARED_CCD_REPRODUCTION_INCOMPLETE');
