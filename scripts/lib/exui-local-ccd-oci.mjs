@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { hostDocker } from './exui-host-invocation.mjs';
@@ -14,7 +15,7 @@ export function verifyLocalCcdDerivative({baseArchive,derivedArchive,artifactRoo
  const args=[verifier,'--base',path.resolve(baseArchive),'--artifact-root',path.resolve(artifactRoot)];
  if(derivedArchive)args.push('--derived',path.resolve(derivedArchive));
  if(materializeBase)args.push('--materialize-base',path.resolve(materializeBase));
- const result=run('python3',args,{encoding:'utf8',timeout:300000,maxBuffer:4*1024*1024,env:{PATH:process.env.PATH,HOME:process.env.HOME}});
+ const result=run('python3',args,{encoding:'utf8',timeout:300000,maxBuffer:4*1024*1024,env:{PATH:process.env.PATH,HOME:process.env.HOME??os.homedir()}});
  if(result.error||result.status!==0) {
   let code;try { code=JSON.parse(result.stdout).error; } catch { /* Never publish raw process output. */ }
   throw new Error(verifierCodes.has(code)?code:'LOCAL_CCD_OCI_VERIFICATION_FAILED');
