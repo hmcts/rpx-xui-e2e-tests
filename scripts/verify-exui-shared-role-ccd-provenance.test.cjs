@@ -3,6 +3,7 @@ const {test}=require('node:test');
 const fs=require('node:fs');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
+const os=require('node:os');
 const {createHash}=require('node:crypto');
 const hash=value=>'sha256:'+createHash('sha256').update(value).digest('hex');
 const fixture=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/ccd/shared-role-ccd-class-witnesses.json')));
@@ -41,4 +42,12 @@ for(const [name,change] of [
 test('reproduction entrypoint rejects caller receipt or acceptance flags before launching anything',async()=>{
  const {reproduceSharedRoleCcdSource}=await import('./lib/exui-shared-role-ccd-provenance.mjs');
  assert.throws(()=>reproduceSharedRoleCcdSource({proof:proof(),verified:true}),/SHARED_CCD_INPUT_SCHEMA/);
+});
+test('AMD64 source verifier rejects unsealed source before Docker or Gradle execution',t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'shared-amd64-negative-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const archive=path.join(root,'source.tar.gz');fs.writeFileSync(archive,'changed source bytes');
+ const output=path.join(root,'proof');
+ const result=spawnSync('python3',[path.join(__dirname,'verify-shared-role-amd64-source.py'),'--source-archive',archive,'--java-home',root,'--gradle-home',root,'--output',output],{encoding:'utf8'});
+ assert.equal(result.status,2);assert.deepEqual(JSON.parse(result.stdout),{status:'BLOCKED',code:'SHARED_AMD64_ARCHIVE_DIGEST',catalogueCredit:false});
+ assert.equal(fs.existsSync(output),false);
 });
