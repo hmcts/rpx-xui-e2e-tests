@@ -228,7 +228,7 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, nativeElapsedMs, phaseTimings } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, nativeElapsedMs, phaseTimings } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
   const root = process.cwd();
@@ -242,6 +242,8 @@ async function runHarnessCollection(
   Reporter.resetPublicReport("harness");
   if (nativeEvidencePath !== undefined)
     await reporter.prepareNativeEvidence(nativeEvidencePath);
+  if (compatibilityEvidencePath !== undefined)
+    await reporter.prepareCompatibilityEvidence(compatibilityEvidencePath);
   fs.mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
   const runRoot = fs.mkdtempSync(path.join(privateRoot, ".local-aat-"));
   fs.chmodSync(runRoot, 0o700);

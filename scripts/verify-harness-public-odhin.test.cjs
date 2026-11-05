@@ -1212,3 +1212,20 @@ test("callback presentation cannot credit a missing phase, wrong source row or e
  assert.equal((html.match(/data-native-phase="recipientCallback" data-native-kind="baseline"/g)||[]).length,1);
  assert.equal((html.match(/data-native-phase="recipientCallback" data-native-kind="fault"/g)||[]).length,1);
 });
+
+test('supplementary compatibility evidence stays outside primary counts and is bound into the one public report',async(t)=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});
+ reporter.nativeEvidence=await nativePresentationFixture(false);
+ const primary=structuredClone(reporter.nativeEvidence),hash='sha256:'+'a'.repeat(64);
+ reporter.compatibilityEvidence={schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,dataImageDigest:hash,profileDigest:hash,descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
+ const record=Reporter.validatePublicReport();assert.equal(record.tests,tests.length);assert.deepEqual(record.nativeEvidence,primary);
+ const htmlFile=path.join(root,'functional-output/tests/harness/public/odhin/index.html');
+ const html=fs.readFileSync(htmlFile,'utf8');assert(!html.includes(canary));assert.equal((html.match(/id="harness-applicant-compatibility"/g)||[]).length,1);
+ assert(html.indexOf('id="harness-native-evidence"')<html.indexOf('id="harness-applicant-compatibility"'));
+ const recordFile=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(recordFile);
+ for(const change of [v=>v.compatibilityEvidence=null,v=>v.compatibilityEvidence.producerCommit='d'.repeat(40),v=>v.compatibilityEvidence.catalogueCredit=true,v=>v.compatibilityEvidence.private=canary]){
+  const changed=JSON.parse(original);change(changed);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport());
+ }
+ fs.writeFileSync(recordFile,original);assert.equal(Reporter.validatePublicReport().compatibilityEvidence.cleanupComplete,true);
+});
