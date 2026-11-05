@@ -9,7 +9,7 @@ async function createCallbackPhaseFixture({root,harnessCommit='b'.repeat(40),sou
  const {callbackNativeImportRecord}=await import('../lib/exui-recipient-callback-native-import.mjs');
  const {validateCallbackStoredDate}=await import('../lib/exui-recipient-callback-facets.mjs');
  const {callbackTransitionRequest}=await import('../lib/exui-recipient-callback-transition.mjs');
- const {callbackSeedData,callbackObservationReferences}=await import('../lib/exui-recipient-callback-observations.mjs');
+ const {callbackSeedData,callbackTransportData,callbackObservationReferences}=await import('../lib/exui-recipient-callback-observations.mjs');
  const {CCD_IMAGES}=await import('../lib/exui-ccd-runtime.mjs');
  const {nativeIdentity}=await import('../lib/exui-native-contract.mjs');
  const {getReleasePolicy}=await import('../lib/exui-release-policy.mjs');
@@ -68,7 +68,7 @@ async function createCallbackPhaseFixture({root,harnessCommit='b'.repeat(40),sou
    for(let i=0;i<3;i++){
     const current=structuredClone(i===2?intended:data);if(i===0)current.sodAdditionalRecipientsList[0].value.emailInformation.emailName='HARNESS_CALLBACK_REJECT';
     const details=case_data=>({id:Number(caseId),case_type_id:'HarnessNestedPRL',jurisdiction:'HARNESS',state:'JUDICIAL_REVIEW',case_data});
-    const rawRequest=JSON.stringify({event_id:'serviceOfDocuments',ignore_warning:false,case_details:details(current),case_details_before:details(data)}),rawResponse=JSON.stringify({data:i===0?current:intended,errors:i===0?['HARNESS_CALLBACK_BUSINESS_REJECTION']:[],warnings:[]});
+    const rawRequest=JSON.stringify({event_id:'serviceOfDocuments',ignore_warning:false,case_details:details(callbackTransportData(current)),case_details_before:details(data)}),rawResponse=JSON.stringify({data:callbackTransportData(i===0?current:intended),errors:i===0?['HARNESS_CALLBACK_BUSINESS_REJECTION']:[],warnings:[]});
     journal.push({schemaVersion:1,sequence:i+1,invocationId:'recipient-callback-native',authenticatedService:'ccd_data',path:'/service-of-documents/validate-additional-recipients',method:'POST',bindingDigest:hash(JSON.stringify(c.callbackCanonicalImport().binding)),recipientCount:2,status:200,outcome:['business-rejected','normalized','normalization-unchanged'][i],rawRequest,rawResponse,requestDigest:hash(rawRequest),responseDigest:hash(rawResponse)});
    }
    Object.assign(observation,{completed:true,beforeSubmit:structuredClone(before),after,validation:[{pageId:'serviceOfDocuments2',status:422},{pageId:'serviceOfDocuments2',status:200},{pageId:'serviceOfDocuments2',status:200}]});ui.cya={recipientLabel:'Recipient',changeAccessibleName:'Change Recipient',summaryRecipientNames:names,changedRecipientNames:[...names]};

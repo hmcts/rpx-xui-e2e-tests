@@ -100,3 +100,41 @@ test('callback response cannot silently alter sibling data even with fresh byte 
  const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-response-negative-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const f=await createCallbackPhaseFixture({root});const record=f.observations.baseline.journal[1],response=JSON.parse(record.rawResponse);response.data.sodAdditionalRecipientsList[1].value.emailInformation.emailName='Changed sibling';record.rawResponse=JSON.stringify(response);record.responseDigest=digestBytes(record.rawResponse);f.write();assert.throws(()=>validateCallbackTransitionEvidence(f.directory,f.expected,f.loaded()),/CALLBACK_JOURNAL_RESPONSE_DATA/);
 });
+
+async function initialCallbackFixture(t){
+ const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-initial-version-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const f=await createCallbackPhaseFixture({root});
+ for(const o of Object.values(f.observations)){
+  for(const key of ['before','afterRejected','beforeSubmit'])if(o[key]){o[key].state.version=0;o[key].history=[];}
+  if(o.after){o.after.state.version=1;o.after.history=o.after.history.filter(e=>e.id==='serviceOfDocuments');}
+ }
+ f.write();return f;
+}
+test('native callback accepts initial version zero with no prior audit while preserving relative transition',async t=>{
+ const f=await initialCallbackFixture(t);const {validateCallbackTransitionEvidence}=await import('./lib/exui-recipient-callback-transition.mjs');
+ validateCallbackTransitionEvidence(f.directory,f.expected,f.loaded());
+});
+for(const [name,change,code] of [
+ ['negative',o=>o.before.state.version=-1,/CALLBACK_OBSERVATION_VERSION/],
+ ['fractional',o=>o.before.state.version=0.5,/CALLBACK_OBSERVATION_VERSION/],
+ ['string',o=>o.before.state.version='0',/CALLBACK_OBSERVATION_VERSION/],
+ ['missing history',o=>delete o.before.history,/CALLBACK_OBSERVATION_HISTORY/],
+ ['version drift',o=>o.after.state.version=2,/CALLBACK_OBSERVATION_PERSISTED_VERSION/],
+ ['missing new event',o=>o.after.history=[],/CALLBACK_OBSERVATION_HISTORY_COUNT/],
+ ['wrong identity',o=>o.after.state.case_type_id='Other',/CALLBACK_OBSERVATION_UNRELATED_STATE/],
+])test(`initial callback rejects ${name}`,async t=>{
+ const f=await initialCallbackFixture(t);change(f.observations.baseline);f.write();
+ const {validateCallbackTransitionEvidence}=await import('./lib/exui-recipient-callback-transition.mjs');
+ assert.throws(()=>validateCallbackTransitionEvidence(f.directory,f.expected,f.loaded()),code);
+});
+
+for(const [name,change] of [
+ ['active email loss',d=>delete d.sodAdditionalRecipientsList[0].value.emailInformation],
+ ['extra field',d=>d.extra='unexpected'],
+ ['changed sibling',d=>d.sodAdditionalRecipientsList[1].value.emailInformation.emailName='changed'],
+ ['retained inactive postal',d=>d.sodAdditionalRecipientsList[0].value.postalInformation={}],
+])test(`callback transport projection rejects ${name} after digest recomputation`,async t=>{
+ const f=await initialCallbackFixture(t);const record=f.observations.baseline.journal[0];const request=JSON.parse(record.rawRequest);change(request.case_details.case_data);record.rawRequest=JSON.stringify(request);record.requestDigest=(await import('./lib/exui-evidence-io.mjs')).digestBytes(record.rawRequest);f.write();
+ const {validateCallbackTransitionEvidence}=await import('./lib/exui-recipient-callback-transition.mjs');assert.throws(()=>validateCallbackTransitionEvidence(f.directory,f.expected,f.loaded()),/CALLBACK_JOURNAL_REQUEST_DATA/);
+});

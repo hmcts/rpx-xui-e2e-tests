@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { expect, type Page, type PlaywrightWorkerArgs } from "@playwright/test";
+import { expect, type Page, type Locator, type PlaywrightWorkerArgs } from "@playwright/test";
 
 import { bootstrapCcdEventCase, switchCcdEventActor, openCcdEventCase, openServiceOfDocuments, submitServiceOfDocuments, ccdEventPersonas, ccdSessionRequest, observeCcd } from "./harnessCcdEvent";
 const directory = process.env.EXUI_CCD_EVIDENCE!;
@@ -10,6 +10,18 @@ const journal = () => fs.readFileSync(path.join(directory, "recipient-callback.j
 // seed the same explicit shape so whole-data equality never ignores hidden fields.
 const emptyPostal = () => ({ postalName: null, postalAddress: { AddressLine1: null, AddressLine2: null, AddressLine3: null, PostTown: null, County: null, PostCode: null, Country: null } });
 const save = (value: unknown) => fs.writeFileSync(path.join(directory, "callback-ui-observation.json"), JSON.stringify(value, null, 2), { mode: 0o600 });
+
+export async function waitForCallbackFirstPage(page: Page,caseId:string) {
+ expect(caseId).toMatch(/^\d{16}$/);
+ await expect(page).toHaveURL(new RegExp(`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}/trigger/serviceOfDocuments/serviceOfDocumentsharnessBefore$`));
+}
+export async function callbackChangeAccessibleName(link: Locator) {
+ await expect(link).toHaveAccessibleName('Change Recipient');
+ const snapshot=await link.ariaSnapshot();
+ const matched=/^- link ("[^"\n]+")(?::|$)/.exec(snapshot);
+ expect(matched).not.toBeNull();
+ return JSON.parse(matched![1]) as string;
+}
 
 export async function runRecipientCallbackJourney({page,playwright,mode,variant,invocationId,step}: {
  page: Page; playwright: PlaywrightWorkerArgs["playwright"]; mode: "native"|"feasibility";
@@ -39,6 +51,7 @@ export async function runRecipientCallbackJourney({page,playwright,mode,variant,
   await switchCcdEventActor(page, "courtadmin");
   expect((await openCcdEventCase(page, caseId)).status()).toBe(200);
   expect((await openServiceOfDocuments(page, caseId)).status()).toBe(200);
+  await waitForCallbackFirstPage(page,caseId);
   await expect(page.getByText("Protected value", { exact: true })).toBeVisible();
   navigation.push(new URL(page.url()).pathname);
   ui.predecessor.label=await page.getByText("Protected value",{exact:true}).textContent();
@@ -104,7 +117,7 @@ export async function runRecipientCallbackJourney({page,playwright,mode,variant,
   await expect(page.getByText("Synthetic sibling", { exact: true })).toBeVisible();
   const recipientSummary = page.locator("tr").filter({ has: page.locator("th.case-field-label").filter({ hasText: /^Recipient$/ }) });
   await expect(recipientSummary).toHaveCount(1);
-  ui.cya={recipientLabel:await recipientSummary.locator('th.case-field-label').textContent(),changeAccessibleName:await recipientSummary.getByRole('link',{name:'Change Recipient',exact:true}).getAttribute('aria-label'),summaryRecipientNames:[await page.getByText('HARNESS_CALLBACK_NORMALIZED',{exact:true}).textContent(),await page.getByText('Synthetic sibling',{exact:true}).textContent()]};
+  ui.cya={recipientLabel:await recipientSummary.locator('th.case-field-label').textContent(),changeAccessibleName:await callbackChangeAccessibleName(recipientSummary.getByRole('link',{name:'Change Recipient',exact:true})),summaryRecipientNames:[await page.getByText('HARNESS_CALLBACK_NORMALIZED',{exact:true}).textContent(),await page.getByText('Synthetic sibling',{exact:true}).textContent()]};
   await recipientSummary.getByRole("link", { name: "Change Recipient", exact: true }).click();
   await expect(names.first()).toHaveValue("HARNESS_CALLBACK_NORMALIZED");
   await expect(names.last()).toHaveValue("Synthetic sibling");

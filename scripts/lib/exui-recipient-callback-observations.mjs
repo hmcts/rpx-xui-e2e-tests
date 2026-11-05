@@ -10,6 +10,17 @@ export const callbackSeedData=()=>({protectedValue:'synthetic-callback-ui',sodAd
  {id:'22222222-2222-4222-8222-222222222222',value:{serveByPostOrEmail:'email',emailInformation:{emailName:'Synthetic sibling',emailAddress:'second@harness.example.com'},postalInformation:postal()}},
 ]});
 const renamed=name=>{const result=callbackSeedData();result.sodAdditionalRecipientsList[0].value.emailInformation.emailName=name;return result;};
+// Sealed candidate 26d17eb / toolkit 7.4.25 FormValueService.removeUnnecessaryFields removes the inactive postal
+// branch for these two email recipients. CCD MidEventCallback forwards current
+// event fields, while case_details_before and persisted data retain canonical nulls.
+// CCD source pin: 5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3,
+// MidEventCallback.invoke and CaseService.populateCurrentCaseDetailsWithEventFields.
+// Project only independently constructed expected data, never observed requests.
+export const callbackTransportData=data=>{
+ const projected=structuredClone(data);
+ for(const recipient of projected.sodAdditionalRecipientsList)delete recipient.value.postalInformation;
+ return projected;
+};
 const fixedRead=(directory,name)=>{const file=path.join(directory,name);assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,'CALLBACK_OBSERVATION_ALIAS');const bytes=fs.readFileSync(file);assert(bytes.length<=1024*1024,'CALLBACK_OBSERVATION_LIMIT');return bytes;};
 export function callbackObservationReferences(directory) {
  return Object.fromEntries([['baseline','baseline/callback-ui-observation.json'],['baselineJournal','baseline/recipient-callback.jsonl'],['mutant',`${CALLBACK_MUTATION}/callback-ui-observation.json`],['mutantJournal',`${CALLBACK_MUTATION}/recipient-callback.jsonl`]].map(([key,name])=>[key,{path:name,digest:digestBytes(fixedRead(directory,name))}]));
@@ -22,7 +33,9 @@ export function validateCallbackInvocationObservation(observation,journal,select
  const before=observation.before;
  assert.equal(String(before.state.id),observation.caseId,'CALLBACK_OBSERVATION_CASE_ID');
  assert.equal(before.state.case_type_id,'HarnessNestedPRL','CALLBACK_OBSERVATION_CASE_TYPE');assert.equal(before.state.jurisdiction,'HARNESS','CALLBACK_OBSERVATION_JURISDICTION');assert.equal(before.state.state,'JUDICIAL_REVIEW','CALLBACK_OBSERVATION_STATE');
- assert(Number.isSafeInteger(before.state.version)&&before.state.version>0,'CALLBACK_OBSERVATION_VERSION');assert(Array.isArray(before.history)&&before.history.length>0,'CALLBACK_OBSERVATION_HISTORY');
+ // CCD's @Version property can start at zero; prior audit history may be empty.
+ // The successful event must still advance version and append exactly one audit.
+ assert(Number.isSafeInteger(before.state.version)&&before.state.version>=0,'CALLBACK_OBSERVATION_VERSION');assert(Array.isArray(before.history),'CALLBACK_OBSERVATION_HISTORY');
  assert.deepEqual(before.state.case_data,callbackSeedData(),'CALLBACK_OBSERVATION_SEED');assert.deepEqual(observation.afterRejected,before,'CALLBACK_OBSERVATION_REJECTION_PERSISTED');
  const ui=observation.ui;
  assert.equal(ui.predecessor.label?.trim(),'Protected value','CALLBACK_OBSERVATION_PREDECESSOR_LABEL');assert.equal(ui.predecessor.editableControlCount,0,'CALLBACK_OBSERVATION_PREDECESSOR_CONTEXT');
@@ -59,8 +72,8 @@ export function validateCallbackInvocationObservation(observation,journal,select
   assert.deepEqual(Object.keys(request).sort(),['case_details','case_details_before','event_id','ignore_warning'],'CALLBACK_JOURNAL_REQUEST_FIELDS');assert.equal(request.event_id,'serviceOfDocuments','CALLBACK_JOURNAL_EVENT');assert.equal(request.ignore_warning,false,'CALLBACK_JOURNAL_WARNING');
   for(const details of [request.case_details,request.case_details_before]){assert.equal(String(details.id),observation.caseId,'CALLBACK_JOURNAL_CASE');assert.equal(details.case_type_id,'HarnessNestedPRL','CALLBACK_JOURNAL_CASE_TYPE');assert.equal(details.jurisdiction,'HARNESS','CALLBACK_JOURNAL_JURISDICTION');assert.equal(details.state,'JUDICIAL_REVIEW','CALLBACK_JOURNAL_STATE');}
   assert.deepEqual(request.case_details_before.case_data,before.state.case_data,'CALLBACK_JOURNAL_BEFORE');
-  const current=index===0?renamed('HARNESS_CALLBACK_REJECT'):index===1?callbackSeedData():intended;
-  assert.deepEqual(request.case_details.case_data,current,'CALLBACK_JOURNAL_REQUEST_DATA');assert.deepEqual(response,{data:index===0?current:intended,errors:index===0?['HARNESS_CALLBACK_BUSINESS_REJECTION']:[],warnings:[]},'CALLBACK_JOURNAL_RESPONSE_DATA');
+  const current=callbackTransportData(index===0?renamed('HARNESS_CALLBACK_REJECT'):index===1?callbackSeedData():intended);
+  assert.deepEqual(request.case_details.case_data,current,'CALLBACK_JOURNAL_REQUEST_DATA');assert.deepEqual(response,{data:index===0?current:callbackTransportData(intended),errors:index===0?['HARNESS_CALLBACK_BUSINESS_REJECTION']:[],warnings:[]},'CALLBACK_JOURNAL_RESPONSE_DATA');
  }
 }
 export function validateCallbackNativeObservations(directory,input,faultInput,references) {
