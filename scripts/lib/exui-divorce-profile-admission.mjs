@@ -47,6 +47,24 @@ export function admitDivorceProfile(directory,expected,options={}){
  return {schemaVersion:1,kind:'divorce-profile-admission',status:'passed',obligationId:DIVORCE_PROFILE_ID,boundary:'candidate',family:'DIVORCE',baselineProofs:6,effectiveFaults:6,selected:1,accepted:1,catalogueSize:112,runId:expected.runId,producerCommit:expected.producerCommit,producerDigest:expected.producerDigest,candidateArtifactDigest:expected.candidateArtifactDigest,candidateCommit:binding.artifact.provenance.webappCommit,inputDigest:expected.inputDigest,bindingDigest:expected.bindingDigest,receiptDigest:expected.receiptDigest,terminalDigest:expected.terminalDigest,launchDigest:expected.launchDigest,cleanupDigest:expected.cleanupDigest,contractDigest:actual.contractDigest,releaseCredit:false,releaseApproval:false};
 }
 export function readDivorceProfileAdmission(descriptorPath){
- const {value}=readDivorceAdmissionFile(descriptorPath);keys(value,['schemaVersion','kind','directory','expected']);assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'divorce-profile-admission-request',fail);
- return admitDivorceProfile(value.directory,value.expected);
+ const {value}=readDivorceAdmissionFile(descriptorPath);const timed=Object.hasOwn(value,'standaloneTimingDigest');keys(value,['schemaVersion','kind','directory','expected',...(timed?['standaloneTimingDigest']:[])]);assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'divorce-profile-admission-request',fail);
+ const result=admitDivorceProfile(value.directory,value.expected);
+ return {...result,...(timed?{standaloneTiming:readDivorceProfileTiming(value.directory,value.standaloneTimingDigest,value.expected)}:{})};
+}
+
+// Optional telemetry is pinned and checked separately; it grants no admission authority.
+export function readDivorceProfileTiming(directory,timingDigest,expected){
+ const code='DIVORCE_TIMING_INVALID';assert(hash.test(timingDigest),code);
+ const loaded=readDivorceAdmissionFile(path.join(directory,'standalone-timing.json'));assert.equal(loaded.digest,timingDigest,code);const timing=loaded.value;
+ keys(timing,['schemaVersion','kind','runId','inputDigest','telemetryOnly','startedAt','endedAt','durationMs','phases','childTimingDigest']);
+ assert.equal(timing.schemaVersion,1,code);assert.equal(timing.kind,'divorce-profile-wrapper-timing',code);assert.equal(timing.runId,expected.runId,code);assert.equal(timing.inputDigest,expected.inputDigest,code);assert.equal(timing.telemetryOnly,true,code);
+ const span=value=>{for(const name of ['startedAt','endedAt'])assert(typeof value[name]==='string'&&new Date(value[name]).toISOString()===value[name],code);assert(Number.isSafeInteger(value.durationMs)&&value.durationMs>=0&&value.durationMs<=24*60*60*1000,code);const start=Date.parse(value.startedAt),end=Date.parse(value.endedAt);assert(end>=start&&Math.abs(end-start-value.durationMs)<=1000,code);return {start,end,duration:value.durationMs};};
+ const total=span(timing);
+ const nested=(values,parent)=>{let previous=parent.start,sum=0;for(const value of values){const current=span(value);assert(current.start>=previous&&current.end<=parent.end,code);previous=current.end;sum+=current.duration;}assert(sum<=parent.duration+1000,code);};
+ keys(timing.phases,['preparation','execution','admission']);for(const value of Object.values(timing.phases))keys(value,['startedAt','endedAt','durationMs']);nested(Object.values(timing.phases),total);
+ assert(hash.test(timing.childTimingDigest),code);const loadedChild=readDivorceAdmissionFile(path.join(directory,'cohort/cohort-timing.json'));assert.equal(loadedChild.digest,timing.childTimingDigest,code);const child=loadedChild.value;
+ keys(child,['schemaVersion','kind','bindingDigest','telemetryOnly','preparation','facets','finalization']);assert.equal(child.schemaVersion,1,code);assert.equal(child.kind,'divorce-profile-child-timing',code);assert.equal(child.bindingDigest,expected.bindingDigest,code);assert.equal(child.telemetryOnly,true,code);
+ assert.deepEqual(child.facets.map(row=>row.facet),DIVORCE_PROFILE_FACETS.map(row=>row.facet),code);for(const row of child.facets)keys(row,['facet','startedAt','endedAt','durationMs']);for(const row of [child.preparation,child.finalization])keys(row,['startedAt','endedAt','durationMs']);
+ nested([child.preparation,...child.facets,child.finalization],span(timing.phases.execution));
+ return {telemetryOnly:true,digest:timingDigest,startedAt:timing.startedAt,endedAt:timing.endedAt,durationMs:timing.durationMs,phases:timing.phases,child:{preparation:child.preparation,facets:child.facets,finalization:child.finalization}};
 }

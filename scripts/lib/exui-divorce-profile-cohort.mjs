@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {performance} from 'node:perf_hooks';
 import fs from 'node:fs';
 import path from 'node:path';
 import {execFileSync} from 'node:child_process';
@@ -12,6 +13,9 @@ import {assertOwnedContainer,candidateArchiveProcess} from './exui-oci-runtime.m
 const root=fileURLToPath(new URL('../../',import.meta.url)).replace(/\/$/,'');
 const read=file=>JSON.parse(fs.readFileSync(file));
 const hash=/^sha256:[a-f0-9]{64}$/;
+// Telemetry only: never derive execution authority or elapsed time from file metadata.
+export const startDivorceClock=()=>({startedAt:new Date().toISOString(),monotonic:performance.now()});
+export const finishDivorceClock=start=>({startedAt:start.startedAt,endedAt:new Date().toISOString(),durationMs:Math.round(performance.now()-start.monotonic)});
 export const DIVORCE_COHORT_FILES=Object.freeze([...PROFILE_SOURCE_FILES,'scripts/lib/exui-divorce-profile-cohort.mjs','scripts/run-harness-divorce-profile.mjs','scripts/run-harness-divorce-profile-admission.mjs','scripts/lib/exui-divorce-profile-admission.mjs']);
 export function divorceProducerBinding(sourceRoot=root){
  const git=args=>execFileSync('git',args,{cwd:sourceRoot,encoding:'utf8'}).trim();

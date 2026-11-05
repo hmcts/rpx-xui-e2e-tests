@@ -7,9 +7,9 @@ import {randomUUID} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {prepareDivorceProfileBinding} from './run-harness-divorce-profile.mjs';
-import {divorceProducerBinding} from './lib/exui-divorce-profile-cohort.mjs';
+import {divorceProducerBinding,startDivorceClock,finishDivorceClock} from './lib/exui-divorce-profile-cohort.mjs';
 import {DIVORCE_PROFILE_FACETS} from './lib/exui-divorce-profile-contract.mjs';
-import {admitDivorceProfile,divorceAdmissionPins} from './lib/exui-divorce-profile-admission.mjs';
+import {admitDivorceProfile,divorceAdmissionPins,readDivorceProfileTiming} from './lib/exui-divorce-profile-admission.mjs';
 import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
 import {verifyCandidateArtifact} from './lib/exui-candidate-artifact.mjs';
 import {terminateOwnedChild} from './lib/exui-candidate-runtime.mjs';
@@ -49,6 +49,7 @@ function cleanupOwnedAfterTerminal(output,binding){
  }
 }
 export async function runDivorceProfileAdmission({artifactPath,browserRoot,output}){
+ const totalStart=startDivorceClock();
  assert([artifactPath,browserRoot,output].every(value=>typeof value==='string'&&path.isAbsolute(value)),'DIVORCE_ADMISSION_INPUT');
  const binding=await prepareDivorceProfileBinding({artifactPath,browserRoot});assertFreshOwners(binding);
  output=createFreshHarnessOutput(output,[root,artifactPath,binding.artifact.candidateRoot,binding.browser.root,binding.browser.dependenciesRoot]);
@@ -59,7 +60,9 @@ export async function runDivorceProfileAdmission({artifactPath,browserRoot,outpu
  assert.deepEqual(divorceProducerBinding(),binding.producer,'DIVORCE_ADMISSION_PRODUCER');
  const log=fs.openSync(path.join(output,'controller.log'),'wx',0o600);let terminal;
  try{
+  const preparation=finishDivorceClock(totalStart),executionStart=startDivorceClock();
   terminal=await executeDivorceController(command,{log});
+  const execution=finishDivorceClock(executionStart),admissionStart=startDivorceClock();
   writeJsonAtomic(path.join(output,'independent-controller-terminal.json'),{schemaVersion:1,runId,inputDigest,...terminal});
   assert.deepEqual(terminal,{started:true,observed:true,forced:false,cancelled:false,code:0,signal:null},'DIVORCE_ADMISSION_CONTROLLER');
   assert.equal(fs.readFileSync(path.join(output,'expected-input.json'),'utf8'),inputBytes,'DIVORCE_ADMISSION_INPUT_DRIFT');
@@ -68,8 +71,12 @@ export async function runDivorceProfileAdmission({artifactPath,browserRoot,outpu
   const expected=divorceAdmissionPins(output);assert.equal(expected.launchDigest,launchDigest,'DIVORCE_ADMISSION_LAUNCH_DRIFT');assert.equal(expected.inputDigest,inputDigest,'DIVORCE_ADMISSION_INPUT_DRIFT');assert.equal(expected.bindingDigest,digestBytes(JSON.stringify(binding)),'DIVORCE_ADMISSION_INPUT_DRIFT');
   const result=admitDivorceProfile(output,expected);
   assertFreshOwners(binding);
-  writeJsonAtomic(path.join(output,'admission-request.json'),{schemaVersion:1,kind:'divorce-profile-admission-request',directory:output,expected});
-  writeJsonAtomic(path.join(output,'divorce-profile-admission.json'),result);return result;
+  writeJsonAtomic(path.join(output,'divorce-profile-admission.json'),result);
+  const childTimingDigest=digestBytes(fs.readFileSync(path.join(output,'cohort/cohort-timing.json'))),admission=finishDivorceClock(admissionStart);
+  const timing={schemaVersion:1,kind:'divorce-profile-wrapper-timing',runId,inputDigest,telemetryOnly:true,...finishDivorceClock(totalStart),phases:{preparation,execution,admission},childTimingDigest};
+  writeJsonAtomic(path.join(output,'standalone-timing.json'),timing);
+  const standaloneTimingDigest=digestBytes(fs.readFileSync(path.join(output,'standalone-timing.json')));readDivorceProfileTiming(output,standaloneTimingDigest,expected);
+  writeJsonAtomic(path.join(output,'admission-request.json'),{schemaVersion:1,kind:'divorce-profile-admission-request',directory:output,expected,standaloneTimingDigest});return result;
  }catch(error){
   // No destructive cleanup when process termination could not be observed.
   if(terminal?.observed)cleanupOwnedAfterTerminal(output,binding);

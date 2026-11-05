@@ -10,7 +10,7 @@ import {browserExecutable} from './lib/exui-oci-runtime.mjs';
 import {verifyHarnessDependencies} from './lib/exui-harness-dependencies.mjs';
 import {writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {DIVORCE_PROFILE_FACETS,divorceProfileContract,divorceProfileContractDigest} from './lib/exui-divorce-profile-contract.mjs';
-import {divorceProducerBinding,divorceFallbackWitness,divorceConfigurationBindings,readDivorceCohort,validateDivorceCohortBinding} from './lib/exui-divorce-profile-cohort.mjs';
+import {divorceProducerBinding,divorceFallbackWitness,divorceConfigurationBindings,readDivorceCohort,validateDivorceCohortBinding,startDivorceClock,finishDivorceClock} from './lib/exui-divorce-profile-cohort.mjs';
 import {runSourceProfileFeasibility} from './run-harness-source-profile-jurisdictions.mjs';
 import {runHostInvocation} from './lib/exui-host-invocation.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
@@ -23,6 +23,7 @@ export async function prepareDivorceProfileBinding({artifactPath,browserRoot,own
  validateDivorceCohortBinding(binding,{artifact,producer,runtime,browser,owners});return binding;
 }
 export async function runDivorceProfile({artifactPath,browserRoot,output,expectedInput}){
+ const preparationStart=startDivorceClock(),facetTimings=[];
  assert(typeof output==='string'&&path.isAbsolute(output),'DIVORCE_COHORT_INPUT');
  let supplied;
  if(expectedInput){assert(path.isAbsolute(expectedInput)&&fs.realpathSync(expectedInput)===expectedInput&&!fs.lstatSync(expectedInput).isSymbolicLink(),'DIVORCE_COHORT_PARENT_INPUT');supplied=JSON.parse(fs.readFileSync(expectedInput));assert.deepEqual(Object.keys(supplied).sort(),['binding','runId','schemaVersion'],'DIVORCE_COHORT_PARENT_INPUT');assert.equal(supplied.schemaVersion,1,'DIVORCE_COHORT_PARENT_INPUT');}
@@ -32,7 +33,9 @@ export async function runDivorceProfile({artifactPath,browserRoot,output,expecte
  await assertFreshCandidateDerivationOutput({baseline:artifact,manifestPath:artifactPath,output});
  assert(!output.startsWith(root+path.sep)&&!root.startsWith(output+path.sep),'DIVORCE_COHORT_INPUT');
  fs.mkdirSync(output,{mode:0o700});output=fs.realpathSync(output);fs.writeFileSync(path.join(output,'cohort-input.json'),JSON.stringify(binding,null,2)+'\n',{mode:0o444,flag:'wx'});
+ const preparation=finishDivorceClock(preparationStart);
  for(const {facet,browser:needsBrowser} of DIVORCE_PROFILE_FACETS){
+  const started=startDivorceClock();
   assert.deepEqual(divorceProducerBinding(),producer,'DIVORCE_COHORT_PRODUCER');
   const receipt=await runSourceProfileFeasibility({artifactPath,output:path.join(output,facet),facet,owner:owners[facet],browserRoot:needsBrowser?browserRoot:null},{runInvocation:async(spec,options)=>{
    // Parent-owned before launch; candidate cannot write this evidence mount.
@@ -40,10 +43,13 @@ export async function runDivorceProfile({artifactPath,browserRoot,output,expecte
    const observed=await runHostInvocation(spec,options);writeJsonAtomic(path.join(spec.directory,'cohort-host-terminal.json'),observed.terminal);return observed;
   }});
   assert.equal(receipt.status,'feasibility-observed','DIVORCE_COHORT_INCOMPLETE');
+  facetTimings.push({facet,...finishDivorceClock(started)});
   console.log(JSON.stringify({facet,status:receipt.status,catalogueCredit:false}));
  }
+ const finalizationStart=startDivorceClock();
  assert.deepEqual(await verifyCandidateArtifact(artifactPath),artifact,'DIVORCE_COHORT_ARTIFACT');assert.deepEqual(divorceProducerBinding(),producer,'DIVORCE_COHORT_PRODUCER');
- const result=readDivorceCohort(output,{artifact,producer,runtime,browser,owners});writeJsonAtomic(path.join(output,'divorce-profile-cohort.json'),result);return result;
+ const result=readDivorceCohort(output,{artifact,producer,runtime,browser,owners});writeJsonAtomic(path.join(output,'divorce-profile-cohort.json'),result);
+ writeJsonAtomic(path.join(output,'cohort-timing.json'),{schemaVersion:1,kind:'divorce-profile-child-timing',bindingDigest:result.bindingDigest,telemetryOnly:true,preparation,facets:facetTimings,finalization:finishDivorceClock(finalizationStart)});return result;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  process.umask(0o077);
