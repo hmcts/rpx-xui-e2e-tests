@@ -9,10 +9,10 @@ export const WA_MEMBERSHIP_SCOPE = 'exui-source-profile-wa-membership-feasibilit
 export const WA_MEMBERSHIP_FAULT = 'source-profile-add-cmc-wa-membership';
 const sourceMembership = 'IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS';
 const calls = [
-  {route:'post',family:'CMC',caseId:'1111222233334444',caseType:'HarnessMembershipCMC',eventId:'profilePostCMC',marker:'membership-cmc-post'},
-  {route:'post',family:'IA',caseId:'5555666677778888',caseType:'HarnessMembershipIA',eventId:'profilePostIA',marker:'membership-ia-post'},
   {route:'case-event',family:'CMC',caseId:'9999000011112222',caseType:'HarnessMembershipCMC',eventId:'profileRouteCMC',marker:'membership-cmc-route'},
   {route:'case-event',family:'IA',caseId:'3333444455556666',caseType:'HarnessMembershipIA',eventId:'profileRouteIA',marker:'membership-ia-route'},
+  {route:'post',family:'CMC',caseId:'1111222233334444',caseType:'HarnessMembershipCMC',eventId:'profilePostCMC',marker:'membership-cmc-post'},
+  {route:'post',family:'IA',caseId:'5555666677778888',caseType:'HarnessMembershipIA',eventId:'profilePostIA',marker:'membership-ia-post'},
 ];
 const credits = {runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false};
 
@@ -52,13 +52,22 @@ export async function probeWaMembership({cookie,output,readJournal,mutation=null
   assert(typeof readJournal==='function','SOURCE_PROFILE_JOURNAL_REQUIRED');
   assert.deepEqual(readJournal(),[],'SOURCE_PROFILE_MEMBERSHIP_JOURNAL');
   const observations=[];
+  let csrfToken;
   for(const call of calls) {
     const post=call.route==='post';
     const route=post?'/workallocation/searchForCompletable':`/workallocation/case/tasks/${call.caseId}/event/${call.eventId}/caseType/${call.caseType}/jurisdiction/${call.family}`;
     const response=await request(CANDIDATE_URL+route,{method:post?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(15000),
-      headers:{cookie:`xui-webapp=${encodeURIComponent(cookie)}`,...(post?{'content-type':'application/json'}:{})},
+      headers:{cookie:`xui-webapp=${encodeURIComponent(cookie)}`,...(post?{'content-type':'application/json','x-xsrf-token':csrfToken}:{})},
       ...(post?{body:JSON.stringify({searchRequest:{ccdId:call.caseId,jurisdiction:call.family,caseTypeId:call.caseType,eventId:call.eventId}})}:{})});
+    if(response.status!==200)fs.writeFileSync(path.join(output,'profile-wa-membership-transport.json'),JSON.stringify({route:call.route,family:call.family,status:Number.isInteger(response.status)&&response.status>=100&&response.status<=599?response.status:null}),{mode:0o600});
     assert.equal(response.status,200,'SOURCE_PROFILE_MEMBERSHIP_TRANSPORT');
+    if(!post) {
+      // Auth middleware issues the session-bound token on GET, before either task route.
+      const tokens=response.headers.getSetCookie().filter(value=>value.startsWith('XSRF-TOKEN='));
+      assert.equal(tokens.length,1,'SOURCE_PROFILE_MEMBERSHIP_CSRF');
+      csrfToken=decodeURIComponent(tokens[0].split(';',1)[0].slice('XSRF-TOKEN='.length));
+      assert(/^[A-Za-z0-9_-]{1,512}$/.test(csrfToken),'SOURCE_PROFILE_MEMBERSHIP_CSRF');
+    }
     observations.push({route:call.route,family:call.family,status:response.status,body:await response.json()});
   }
   const journal=readJournal();

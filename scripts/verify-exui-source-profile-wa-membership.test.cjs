@@ -7,10 +7,10 @@ const http = require('node:http');
 
 const fault = 'source-profile-add-cmc-wa-membership';
 const vectors = [
-  ['post', 'CMC', '1111222233334444', 'HarnessMembershipCMC', 'profilePostCMC', 'membership-cmc-post'],
-  ['post', 'IA', '5555666677778888', 'HarnessMembershipIA', 'profilePostIA', 'membership-ia-post'],
   ['case-event', 'CMC', '9999000011112222', 'HarnessMembershipCMC', 'profileRouteCMC', 'membership-cmc-route'],
   ['case-event', 'IA', '3333444455556666', 'HarnessMembershipIA', 'profileRouteIA', 'membership-ia-route'],
+  ['post', 'CMC', '1111222233334444', 'HarnessMembershipCMC', 'profilePostCMC', 'membership-cmc-post'],
+  ['post', 'IA', '5555666677778888', 'HarnessMembershipIA', 'profilePostIA', 'membership-ia-post'],
 ];
 const payload = row => ({case_id:row[2],case_jurisdiction:row[1],case_type:row[3],event_id:row[4]});
 const marker = row => [{id:row[5],name:'Synthetic membership task'}];
@@ -60,17 +60,19 @@ test('probe uses four valid real entrypoints and preserves only synthetic body/j
     const row=vectors[count];assert.equal(options.redirect,'manual');assert.equal(options.headers.cookie,'xui-webapp=PRIVATE-COOKIE-CANARY');
     if(row[0]==='post') {
       assert.equal(url,'http://127.0.0.1:3100/workallocation/searchForCompletable');assert.equal(options.method,'POST');
+      assert.equal(options.headers['x-xsrf-token'],'PRIVATE-CSRF-CANARY');
       assert.deepEqual(JSON.parse(options.body),{searchRequest:{ccdId:row[2],jurisdiction:row[1],caseTypeId:row[3],eventId:row[4]}});
     } else {
       assert.equal(url,`http://127.0.0.1:3100/workallocation/case/tasks/${row[2]}/event/${row[4]}/caseType/${row[3]}/jurisdiction/${row[1]}`);
       assert.equal(options.method,'GET');assert.equal(options.body,undefined);
+      assert.equal(options.headers['x-xsrf-token'],undefined);
     }
     if(row[1]==='IA')journal.push({method:'POST',path:'/task/search-for-completable',body:payload(row)});
-    return {status:200,json:async()=>e.observations[count++].body};
+    return {status:200,headers:{getSetCookie:()=>['XSRF-TOKEN=PRIVATE-CSRF-CANARY; Path=/; Secure']},json:async()=>e.observations[count++].body};
   }});
   assert.equal(count,4);
   const saved=fs.readFileSync(path.join(output,'profile-wa-membership-observations.json'),'utf8');
-  assert(!saved.includes('PRIVATE-COOKIE-CANARY'));assert.deepEqual(JSON.parse(saved),e);
+  assert(!saved.includes('PRIVATE-COOKIE-CANARY'));assert(!saved.includes('PRIVATE-CSRF-CANARY'));assert.deepEqual(JSON.parse(saved),e);
 });
 
 test('probe rejects preexisting calls and failed transport without reading private response body',async t=>{
@@ -78,6 +80,18 @@ test('probe rejects preexisting calls and failed transport without reading priva
   await assert.rejects(probeWaMembership({output,cookie:'private',readJournal:()=>[{}],request:()=>assert.fail('must reject before contact')}),/SOURCE_PROFILE_MEMBERSHIP_JOURNAL/);
   await assert.rejects(probeWaMembership({output,cookie:'PRIVATE-COOKIE-CANARY',readJournal:()=>[],request:async()=>({status:403,json:()=>assert.fail('do not read private error body')})}),/SOURCE_PROFILE_MEMBERSHIP_TRANSPORT/);
   assert.equal(fs.existsSync(path.join(output,'profile-wa-membership-observations.json')),false);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(output,'profile-wa-membership-transport.json'))),{route:'case-event',family:'CMC',status:403});
+});
+
+test('probe requires one candidate-issued valid token before any POST and never persists it',async t=>{
+  const {probeWaMembership}=await import('./lib/exui-source-profile-wa-membership.mjs');
+  for(const cookies of [[],['XSRF-TOKEN=one','XSRF-TOKEN=two'],['XSRF-TOKEN='],['XSRF-TOKEN=bad%0Atoken']]){
+    const output=temporary(t);let calls=0;
+    await assert.rejects(probeWaMembership({output,cookie:'private',readJournal:()=>[],request:async(_url,options)=>{
+      calls++;assert.equal(options.method,'GET');return{status:200,headers:{getSetCookie:()=>cookies},json:async()=>[]};
+    }}),/SOURCE_PROFILE_MEMBERSHIP_CSRF/);
+    assert.equal(calls,1);assert.equal(fs.existsSync(path.join(output,'profile-wa-membership-observations.json')),false);
+  }
 });
 
 async function provider(t) {
