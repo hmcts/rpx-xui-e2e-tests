@@ -166,3 +166,27 @@ test('standalone cleanup removes only its captured owned state and rejects forei
  const wrong=structuredClone(ownership);wrong.invocations[0].plan.candidate.mounts[0].source='/foreign';assert.throws(()=>removeSharedNestedState(handoff,wrong),/STATE_MOUNT/);assert(fs.existsSync(state));
  removeSharedNestedState(handoff,ownership);assert(!fs.existsSync(state));
 });
+
+test('standalone supervisor uses actual onPrepared handshake and unwraps observed terminal',async()=>{
+ const {executeSharedNestedController}=await import('./run-harness-shared-nested.mjs');
+ const input={runId:'synthetic'},handoff={owner:'synthetic'},expected={runId:'synthetic',nativeAuthority:true};let captures=0;
+ const options={script:'/producer.mjs',args:[],output:'/private/tmp/output',onChild:()=>{},capturePrepared:(actualInput,actualHandoff)=>{assert.equal(actualInput,input);assert.equal(actualHandoff,handoff);captures++;return expected;}};
+ const terminal=await executeSharedNestedController(options,async actual=>{assert.equal(actual.onLaunch,undefined);assert.equal(typeof actual.onPrepared,'function');assert.deepEqual(actual.onPrepared(input,handoff),expected);return {terminal:{code:2,signal:null},expected};});
+ assert.deepEqual(terminal,{code:2,signal:null});assert.equal(captures,1);
+ await assert.rejects(executeSharedNestedController(options,async()=>({terminal:{code:0,signal:null},expected})),/CAPTURE_REQUIRED/);
+ await assert.rejects(executeSharedNestedController(options,async actual=>{actual.onPrepared(input,handoff);return {terminal:{code:0,signal:null},expected:{runId:'foreign'}};}),/SUPERVISOR_EXPECTATION/);
+});
+
+test('supervisor callback failure stops its observed child before cleanup can remove CCD',async()=>{
+ const {executeSharedNestedController}=await import('./run-harness-shared-nested.mjs');const child={},order=[],failure=new Error('controlled-supervisor-failure');
+ await assert.rejects(executeSharedNestedController({capturePrepared:()=>{throw failure;},onChild:actual=>{assert.equal(actual,child);order.push('observed');}},async options=>{options.onChild(child);options.onPrepared({},{});},async(actual,options)=>{assert.equal(actual,child);assert.equal(options.graceMs,10000);order.push('stopped');}),error=>error===failure);
+ assert.deepEqual(order,['observed','stopped']);
+});
+
+test('unobserved controller termination retains all native resources and CCD for recovery',async()=>{
+ const {afterSharedNestedChildStopped}=await import('./run-harness-shared-nested.mjs');const order=[],child={},failure=new Error('OWNED_CHILD_TERMINATION_UNOBSERVED');
+ const cleanup=async()=>{order.push('containers','state','ccd');};
+ await assert.rejects(afterSharedNestedChildStopped(child,cleanup,async(actual)=>{assert.equal(actual,child);order.push('termination-unobserved');throw failure;}),error=>error===failure);
+ assert.deepEqual(order,['termination-unobserved']);
+ order.length=0;await afterSharedNestedChildStopped(child,cleanup,async()=>{order.push('termination-observed');});assert.deepEqual(order,['termination-observed','containers','state','ccd']);
+});

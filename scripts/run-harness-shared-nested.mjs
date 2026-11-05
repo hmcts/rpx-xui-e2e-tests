@@ -11,6 +11,7 @@ import {captureCiPhaseExpectation,captureCiOwnership,validateCiPhase} from './li
 import {executeCiProcess,cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {cleanupNativeOwnership} from './lib/exui-native-ci-ownership.mjs';
 import {inspectHostContainer,hostDocker} from './lib/exui-host-invocation.mjs';
+import {terminateOwnedChild} from './lib/exui-candidate-runtime.mjs';
 import {effectiveCandidateConfiguration} from './lib/exui-candidate-runtime.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {SHARED_NESTED_SCOPE} from './lib/exui-shared-nested-contract.mjs';
@@ -32,28 +33,39 @@ export async function runSharedNestedAttempt(value) {
   config.now=false;config.jurisdictions=`${config.jurisdictions},HARNESS`;
   const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(context.ccd,port,'/v3/api-docs');assert.equal(response.status,200,'SHARED_NESTED_API_REQUIRED');return [name,digestBytes(JSON.stringify(response.body))];}));
   context.ccdIdentity={...context.artifact.identity,configurationDigest:digestBytes(JSON.stringify({config,gatewayDigest:digestBytes(fs.readFileSync(path.join(root,'scripts/lib/exui-ccd-browser-runtime.mjs'))),mutation:null})),definitionDigests:{HarnessNestedPRL:observed.fixtureDigest},dependencyIdentities:Object.fromEntries([['data','ccd'],['definition','ccd-definition']].map(([name,key])=>[key,{artifactDigest:context.ccd.images[name].id,apiContractDigest:apiContracts[name]}]))};
-  terminal=await executeCiProcess({script:path.join(root,'scripts/run-harness-ccd-candidate.mjs'),args:['--candidate',job.candidateManifest,'--browser',job.browserCache,'--output',directory,'--ccd-state',path.join(runtime,'runtime.json'),'--scope',SHARED_NESTED_SCOPE],output:directory,onChild:running=>child=running,onLaunch:(input,handoff)=>{
+  terminal=await executeSharedNestedController({script:path.join(root,'scripts/run-harness-ccd-candidate.mjs'),args:['--candidate',job.candidateManifest,'--browser',job.browserCache,'--output',directory,'--ccd-state',path.join(runtime,'runtime.json'),'--scope',SHARED_NESTED_SCOPE],output:directory,onChild:running=>child=running,capturePrepared:(input,handoff)=>{
    assert(!cancelled,'SHARED_NESTED_CANCELLED');
    expected=captureCiPhaseExpectation('sharedNested',input,handoff,context,directory);
    ownership=captureCiOwnership(input,handoff,context,directory,'sharedNested');
    writeJsonAtomic(path.join(output,'independent-before.json'),{schemaVersion:1,capturedBeforeExecution:true,expected,candidateManifest:job.candidateManifest,ccd:context.ccd,ownership});
+   return expected;
   }});
   child=null;writeJsonAtomic(path.join(output,'independent-terminal.json'),{terminal});
   if(terminal.code===0){const verified=validateCiPhase(directory,expected,terminal);assert.equal(verified.status,'PASS','SHARED_NESTED_COMPLETE_GATE_REQUIRED');}
   summary.status=terminal.code===0?'PASS':'BLOCKED';
  } finally {
-  let clean=!child;
-  if(ownership)try{
-   await cleanupNativeOwnership(ownership,{inspect:inspectHostContainer,remove:id=>hostDocker(['rm','-f',id])});
-   const registry=read(path.join(directory,'owned-resources.json'));
-   const checkedNames=ownership.invocations.flatMap(({plan})=>[plan.tools.name,plan.candidate.name]);
-   const checkedContainerIds=[...new Set(registry.map(row=>row.id).filter(Boolean))].sort();
-   for(const identifier of [...checkedNames,...checkedContainerIds])assert.equal(inspectHostContainer(identifier),null,'SHARED_NESTED_CONTAINER_STILL_PRESENT');
-   removeSharedNestedState(read(path.join(directory,'container-launch.json')),ownership);
-   writeJsonAtomic(path.join(output,'native-cleanup.json'),{owner:ownership.owner,cleanupComplete:true,privateStateRemoved:true,checkedNames,checkedContainerIds});
+  let clean=true;
+  try {
+   await afterSharedNestedChildStopped(child,async()=>{
+    child=null;
+    const inputFile=path.join(directory,'input.json'),handoffFile=path.join(directory,'container-launch.json');
+    if(!ownership&&context&&fs.existsSync(inputFile)&&fs.existsSync(handoffFile)) {
+     // Recovery establishes cleanup authority only; it never creates a pre-execution expectation.
+     ownership=captureCiOwnership(read(inputFile),read(handoffFile),context,directory,'sharedNested');
+    }
+    if(ownership) {
+     await cleanupNativeOwnership(ownership,{inspect:inspectHostContainer,remove:id=>hostDocker(['rm','-f',id])});
+     const registry=read(path.join(directory,'owned-resources.json'));
+     const checkedNames=ownership.invocations.flatMap(({plan})=>[plan.tools.name,plan.candidate.name]);
+     const checkedContainerIds=[...new Set(registry.map(row=>row.id).filter(Boolean))].sort();
+     for(const identifier of [...checkedNames,...checkedContainerIds])assert.equal(inspectHostContainer(identifier),null,'SHARED_NESTED_CONTAINER_STILL_PRESENT');
+     removeSharedNestedState(read(handoffFile),ownership);
+     writeJsonAtomic(path.join(output,'native-cleanup.json'),{owner:ownership.owner,cleanupComplete:true,privateStateRemoved:true,checkedNames,checkedContainerIds});
+    } else {assert(!fs.existsSync(handoffFile),'SHARED_NESTED_CLEANUP_AUTHORITY_REQUIRED');clean=false;}
+    const cleanup=cleanupCiCcd(runtime);if(cleanup)writeJsonAtomic(path.join(output,'ccd-cleanup.json'),cleanup);else clean=false;
+   });
   }catch{clean=false;}
-  try{const cleanup=cleanupCiCcd(runtime);if(cleanup)writeJsonAtomic(path.join(output,'ccd-cleanup.json'),cleanup);else clean=false;}catch{clean=false;}
-  cleanupComplete=clean;summary.cleanupComplete=clean;summary.completedAt=new Date().toISOString();summary.durationMs=Date.parse(summary.completedAt)-Date.parse(summary.startedAt);writeJsonAtomic(path.join(output,'summary.json'),summary);
+  cleanupComplete=clean;summary.cleanupComplete=clean;if(!clean)summary.status='BLOCKED';summary.completedAt=new Date().toISOString();summary.durationMs=Date.parse(summary.completedAt)-Date.parse(summary.startedAt);writeJsonAtomic(path.join(output,'summary.json'),summary);
   process.off('SIGINT',cancel);process.off('SIGTERM',cancel);
  }
  assert(expected&&terminal&&cleanupComplete&&!cancelled,'SHARED_NESTED_ATTEMPT_INCOMPLETE');
@@ -61,6 +73,19 @@ export async function runSharedNestedAttempt(value) {
  const descriptor=path.join(output,'attempt-request.json');writeJsonAtomic(descriptor,request);
  const report=await collector.runHarnessCollection(process.env,{profile:'harness',sharedNestedAttemptPath:descriptor});
  return {status:report.sharedNestedStatus,catalogueCredit:false,reportStatus:report.status,exitCode:Math.max(terminal.code,report.exitCode)};
+}
+export async function afterSharedNestedChildStopped(child,cleanup,terminate=terminateOwnedChild) {
+ if(child)await terminate(child,{graceMs:10000});
+ await cleanup();
+}
+export async function executeSharedNestedController({capturePrepared,...options},execute=executeCiProcess,terminate=terminateOwnedChild) {
+ let captured,child;
+ try {
+  const result=await execute({...options,onChild:value=>{child=value;options.onChild?.(value);},onPrepared:(input,handoff)=>{captured=capturePrepared(input,handoff);return captured;}});
+  assert(captured&&result?.terminal,'SHARED_NESTED_SUPERVISOR_CAPTURE_REQUIRED');
+  assert.deepEqual(result.expected,captured,'SHARED_NESTED_SUPERVISOR_EXPECTATION');
+  return result.terminal;
+ }catch(error){if(child)await terminate(child,{graceMs:10000});throw error;}
 }
 export function removeSharedNestedState(handoff,ownership) {
  assert.equal(handoff.owner,ownership.owner,'SHARED_NESTED_STATE_OWNER');assert.equal(handoff.mode,'native-separate-api','SHARED_NESTED_STATE_MODE');assert.equal(handoff.output,ownership.directory,'SHARED_NESTED_STATE_OUTPUT');
