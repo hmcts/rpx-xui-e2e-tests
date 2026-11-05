@@ -44,8 +44,9 @@ test("blocked native policy remains blocked despite a passing diagnostic collect
       order.push("descriptor");
       return "/owned/request.json";
     },
-    collect: async (file) => {
+    collect: async (file, timing) => {
       assert.equal(file, "/owned/request.json");
+      assert.ok(Number.isSafeInteger(timing.nativeElapsedMs) && timing.nativeElapsedMs >= 0);
       order.push("collect");
       return { status: "passed", exitCode: 0 };
     },

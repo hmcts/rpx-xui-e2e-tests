@@ -27,6 +27,7 @@ function read(file) {
   return { value: JSON.parse(bytes), digest: digestBytes(bytes) };
 }
 export async function runAssuranceSequence({ native, descriptor, collect }) {
+  const nativeStartedAt = Date.now();
   const verdict = await native();
   assert(
     ["PASS", "FAIL", "BLOCKED"].includes(verdict.status) &&
@@ -39,7 +40,7 @@ export async function runAssuranceSequence({ native, descriptor, collect }) {
   } catch (error) {
     if (verdict.status === "PASS") throw error;
   }
-  const diagnostics = await collect(nativeEvidencePath);
+  const diagnostics = await collect(nativeEvidencePath, nativeEvidencePath ? { nativeElapsedMs: Date.now() - nativeStartedAt } : {});
   assert(
     ["passed", "failed"].includes(diagnostics.status) &&
       [0, 1, 2].includes(diagnostics.exitCode) &&
@@ -230,10 +231,11 @@ export async function runHarnessAssurance(
   return runAssuranceSequence({
     native: () => runHarnessCi(jobPath),
     descriptor: (verdict) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs),
-    collect: (nativeEvidencePath) =>
+    collect: (nativeEvidencePath, timing) =>
       runHarnessCollection(env, {
         profile: aat ? "local-aat" : "harness",
         nativeEvidencePath,
+        ...timing,
       }),
   });
 }

@@ -115,6 +115,7 @@ function inventory(p) {
   }
 }
 function validateHtml(html, record) {
+  if (record.nativeElapsedMs !== undefined && (!Number.isSafeInteger(record.nativeElapsedMs) || record.nativeElapsedMs < 0 || !html.includes(`data-native-elapsed-ms="${record.nativeElapsedMs}"`))) throw failure();
   if (
     Boolean(record.nativeEvidence) !==
       html.includes('id="harness-native-evidence"') ||
@@ -163,7 +164,7 @@ function validateHtml(html, record) {
     /(?:screenshots|videos|traces)\//.test(html)
   )
     throw failure();
-  const marker = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}">`;
+  const marker = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}>`;
   if (
     !html.includes(marker) ||
     !html.includes("no release credit") ||
@@ -310,8 +311,9 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource } = {}) {
+  constructor({ selection, diagnosticSource, nativeElapsedMs } = {}) {
     this.diagnosticSource = diagnosticSource;
+    this.nativeElapsedMs = nativeElapsedMs;
     this.nativeEvidence = null;
     this.selection = selection;
     this.paths = paths(selection);
@@ -341,6 +343,7 @@ class HarnessPublicOdhinReporter {
   }
   onBegin(_config, suite) {
     try {
+      this.configuredWorkers = Number.isSafeInteger(_config?.workers) && _config.workers > 0 ? _config.workers : null;
       this.diagnosticSource ||= captureDiagnosticSource();
       validateDiagnosticSource(this.diagnosticSource);
       resetPublicReport(this.selection);
@@ -471,6 +474,7 @@ class HarnessPublicOdhinReporter {
         this.reject();
       this.ended = true;
       const counts = Object.fromEntries(statuses.map((status) => [status, 0]));
+      if (this.nativeElapsedMs !== undefined && (!this.nativeEvidence || !Number.isSafeInteger(this.nativeElapsedMs) || this.nativeElapsedMs < 0)) this.reject();
       for (const record of this.results.values()) counts[record.status]++;
       if (
         result.status === "passed" &&
@@ -598,15 +602,40 @@ class HarnessPublicOdhinReporter {
         globalErrors: this.globalErrors,
         diagnosticSource: this.diagnosticSource,
         nativeEvidence: this.nativeEvidence,
+        nativeElapsedMs: this.nativeElapsedMs,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
       );
       const presentation = parse(html);
+      const runInfo = [...presentation.querySelectorAll('.info-box-header')]
+        .find((header) => header.textContent.trim() === 'Run info')?.parentNode;
+      if (!runInfo) this.reject();
+      const runRows = [...runInfo.querySelectorAll('tr')];
+      const setRunInfo = (label, value, renamed = label) => {
+        const row = runRows.find((item) => item.querySelector('th')?.textContent.trim() === label);
+        if (!row) this.reject();
+        row.querySelector('th').textContent = renamed;
+        row.querySelector('td').textContent = value;
+      };
+      const harnessRevision = this.diagnosticSource.commit?.slice(0, 12) || 'unavailable';
+      const candidateRevision = this.nativeEvidence?.source.webappCommit?.slice(0, 12);
+      setRunInfo('Project', 'EXUI Assurance Harness');
+      setRunInfo('Release', candidateRevision ? `EXUI candidate ${candidateRevision} · Harness ${harnessRevision}` : `Harness ${harnessRevision} · candidate not run`, 'Source revisions');
+      setRunInfo('Test Environment', this.selection === 'local-aat' ? 'AAT endpoint probes + local diagnostics' : this.nativeEvidence ? 'Isolated local EXUI candidate + CCD; local diagnostics' : 'Local Harness diagnostics only', 'Execution environment');
+      for (const [from, to] of [['Execution Start Time', 'Diagnostic start'], ['Execution End Time', 'Diagnostic end']]) {
+        const row = runRows.find((item) => item.querySelector('th')?.textContent.trim() === from);
+        if (!row) this.reject();
+        row.querySelector('th').textContent = to;
+      }
+      setRunInfo('Total Execution Time', runRows.find((item) => item.querySelector('th')?.textContent.trim() === 'Total Execution Time')?.querySelector('td')?.textContent.trim() || 'Not recorded', 'Diagnostic execution time');
+      const observedWorkers = new Set([...this.results.values()].map((item) => item.workerIndex).filter((index) => index >= 0)).size;
+      const nativeDuration = this.nativeElapsedMs === undefined ? 'duration not recorded' : `${(this.nativeElapsedMs / 60000).toFixed(1)} min native run + evidence preparation`;
+      runInfo.querySelector('table').insertAdjacentHTML('beforeend', `<tr><th scope="row">Playwright diagnostic workers</th><td>${this.configuredWorkers ?? 'Not recorded'} configured · ${observedWorkers} observed</td></tr><tr><th scope="row">Native execution</th><td>${this.nativeEvidence ? `${this.nativeEvidence.status} · ${nativeDuration}` : 'Not run'}</td></tr>`);
       applyPresentation(
         presentation,
         [...this.expected].map(([identity, entry], index) => ({
@@ -646,6 +675,12 @@ class HarnessPublicOdhinReporter {
         .insertAdjacentHTML(
           "beforeend",
           `<script id="harness-coverage-ui">${fs.readFileSync(path.join(__dirname, "harness-report-coverage.js"), "utf8")}</script>`,
+        );
+      presentation
+        .querySelector("body")
+        .insertAdjacentHTML(
+          "beforeend",
+          `<script id="harness-dashboard-ui">${fs.readFileSync(path.join(__dirname, "harness-public-dashboard.js"), "utf8")}</script>`,
         );
       html = presentation.toString();
       validateHtml(html, record);

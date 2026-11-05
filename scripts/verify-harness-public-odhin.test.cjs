@@ -576,6 +576,22 @@ test("one report explains actual groups and preserves all runtime/owner gaps ind
   assert.deepEqual(fs.readdirSync(publicRoot), ["odhin"]);
 });
 
+test("dashboard separates diagnostic run info from unexecuted candidate evidence", async (t) => {
+  sandbox(t);
+  const Reporter = await complete();
+  const html = fs.readFileSync(output(), "utf8");
+  const root = require("node-html-parser").parse(html);
+  const info = [...root.querySelectorAll('.info-box-header')].find((header) => header.textContent.trim() === 'Run info').parentNode;
+  assert.match(info.textContent, /EXUI Assurance Harness/);
+  assert.match(info.textContent, /Source revisions.*candidate not run/s);
+  assert.match(info.textContent, /Execution environment.*Local Harness diagnostics only/s);
+  assert.match(info.textContent, /Diagnostic execution time/);
+  assert.match(info.textContent, /Playwright diagnostic workers.*Not recorded configured · 1 observed/s);
+  assert.match(info.textContent, /Native execution.*Not run/s);
+  assert.ok(root.querySelector('#harness-dashboard-ui'));
+  assert.equal(Reporter.validatePublicReport('harness').tests, 116);
+});
+
 test("coverage map breaks out each unique AAT diagnostic by lane, slice, service, jurisdiction and case type", () => {
   const overview = require("./harness-public-overview.cjs");
   const { renderCoverage } = require("./harness-report-coverage.cjs");
@@ -819,10 +835,10 @@ async function nativePresentationFixture(blocked = true) {
   };
 }
 
-test("same Odhín document separates nineteen native baselines and nineteen faults from121 diagnostics and keeps postal BLOCKED", async (t) => {
+test("same Odhín document separates native baselines and faults from diagnostics and keeps postal BLOCKED", async (t) => {
   sandbox(t);
   const Reporter = api();
-  const reporter = new Reporter({ selection: "local-aat" });
+  const reporter = new Reporter({ selection: "local-aat", nativeElapsedMs: 1920000 });
   // Presentation fixture only: the descriptor reader's raw/expected boundary has its own tests.
   reporter.nativeEvidence = await nativePresentationFixture();
   const entries = require("./harness-public-overview.cjs").profiles[
@@ -845,6 +861,8 @@ test("same Odhín document separates nineteen native baselines and nineteen faul
   await reporter.onEnd(fullResult());
   const html = fs.readFileSync(output(), "utf8");
   const dom = require("node-html-parser").parse(html);
+  assert.equal(dom.querySelector('#harness-public-run').getAttribute('data-native-elapsed-ms'), '1920000');
+  assert.match(dom.querySelector('.testcase-run-info-table').textContent, /32\.0 min native run \+ evidence preparation/);
   assert.match(
     dom.querySelector("#harness-public-run").textContent,
     /Diagnostics passed \/ Native BLOCKED/,
