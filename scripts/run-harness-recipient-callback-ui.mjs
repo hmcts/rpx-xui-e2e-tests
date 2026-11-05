@@ -27,7 +27,7 @@ import {validateSelectorRowDescriptors,readSelectorStoredDate,assertSelectorUiOu
 import {classifyNativeFailure} from './lib/exui-native-failure-diagnostics.mjs';
 import {browserExecutable} from './lib/exui-oci-runtime.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
-export const CALLBACK_UI_SOURCES=Object.freeze([...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/lib/exui-recipient-callback-facets.mjs','scripts/run-harness-recipient-callback-ui.mjs','scripts/lib/exui-recipient-callback-import.mjs','src/fixtures/harnessCallback.ts','playwright.callback-feasibility.config.mjs','scripts/recipient-callback-ui-tools.mjs','src/tests/harness/callback-feasibility/recipient-callback.spec.ts','src/tests/harness/callback-feasibility/selector-event-row.spec.ts','src/fixtures/harnessSelectorEventRow.ts','scripts/lib/exui-selector-event-row-contract.mjs','scripts/lib/exui-selector-event-row-facets.mjs','scripts/lib/exui-personal-service-contract.mjs','scripts/lib/exui-personal-service-facets.mjs','scripts/lib/exui-personal-service-evidence.mjs','scripts/fixtures/ccd/personal-service.source.json','src/fixtures/harnessPersonalService.ts','src/tests/harness/callback-feasibility/personal-service.spec.ts'])]);
+export const CALLBACK_UI_SOURCES=Object.freeze([...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/lib/exui-recipient-callback-facets.mjs','scripts/run-harness-recipient-callback-ui.mjs','scripts/lib/exui-recipient-callback-import.mjs','src/fixtures/harnessCallback.ts','playwright.callback-feasibility.config.mjs','scripts/recipient-callback-ui-tools.mjs','src/tests/harness/callback-feasibility/recipient-callback.spec.ts','src/tests/harness/callback-feasibility/selector-event-row.spec.ts','src/fixtures/harnessSelectorEventRow.ts','scripts/lib/exui-selector-event-row-contract.mjs','scripts/lib/exui-selector-event-row-facets.mjs','scripts/lib/exui-personal-service-contract.mjs','scripts/lib/exui-personal-service-facets.mjs','scripts/lib/exui-personal-service-evidence.mjs','scripts/fixtures/ccd/personal-service.source.json','src/fixtures/harnessPersonalService.ts','src/tests/harness/callback-feasibility/personal-service.spec.ts','scripts/run-harness-personal-service-cohort.mjs','scripts/run-harness-personal-service-invocation.mjs','scripts/lib/exui-personal-service-invocation-binding.mjs'])]);
 export function callbackUiFailureCode(error) {
  const known=new Set(['CALLBACK_UI_BROWSER_ASSERTION_FAILED','OWNED_OCI_CONTAINER_REQUIRED','OCI_READONLY_MOUNT_WRITABLE_ALIAS','NATIVE_CANDIDATE_PLATFORM_MISMATCH','NATIVE_SEALED_NODE_VERSION_REQUIRED','PINNED_BROWSER_RUNTIME_REQUIRED','OWNED_TOOLS_NAMESPACE_REQUIRED','UNSUPPORTED_OCI_INVOCATION','CALLBACK_UI_TOOLS_ENTRYPOINT','CALLBACK_UI_CANCELLED','CALLBACK_UI_VARIANT','CALLBACK_UI_FRESH_OUTPUT','CALLBACK_UI_IMPORT_RECEIPT_MISMATCH','CALLBACK_UI_IMPORT_IDENTITY_MISMATCH','CALLBACK_UI_IMPORT_STATUS','CALLBACK_UI_IMPORT_READBACK_FAILED','CALLBACK_UI_IMPORT_DRIFT','HOST_INVOCATION_CANCELLED','HOST_NAMESPACE_EGRESS_AVAILABLE','HOST_CANDIDATE_RUNTIME_OS','HOST_CANDIDATE_RUNTIME_ARCH','HOST_CANDIDATE_SEALED_NODE_VERSION','HOST_PROVIDER_SHUTDOWN_FAILED','HOST_UNDECLARED_DESTINATION','HOST_FRAMEWORK_TERMINATION_MISMATCH','CCD_RUNTIME_OWNER_MISMATCH','CCD_RUNTIME_NAMESPACE_MISMATCH']);
  const first=typeof error?.message==='string'?error.message.split('\n',1)[0]:'';
@@ -75,10 +75,11 @@ export function createCallbackNativeWorkspace() {
  for(const kind of ['sessions','diagnostics']){const directory=stateRoot+'/baseline/'+kind;fs.mkdirSync(directory,{recursive:true,mode:0o777});fs.chmodSync(directory,0o777);}
  return {workspace,stagedHarness,stateRoot};
 }
-export async function runCallbackUi({candidate,browser,output,variant='baseline',scenario='recipient-callback'}) {
+export async function runCallbackUi({candidate,browser,output,variant='baseline',scenario='recipient-callback',preparePersonal=false}) {
  const invocationClock={startedAt:new Date().toISOString(),start:performance.now()};
  assert(['recipient-callback','selector-event-row','personal-service'].includes(scenario),'CALLBACK_UI_SCENARIO');
  const selector=scenario==='selector-event-row',personal=scenario==='personal-service';
+ assert(typeof preparePersonal==='boolean'&&(!preparePersonal||personal),'PERSONAL_SERVICE_PREPARATION_SCOPE');
  const personalContract=personal?await import('./lib/exui-personal-service-contract.mjs'):undefined;
  const personalFacets=personal?await import('./lib/exui-personal-service-facets.mjs'):undefined;
  const personalEvidence=personal?await import('./lib/exui-personal-service-evidence.mjs'):undefined;
@@ -88,7 +89,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
  const receipt={kind:personal?'personal-service-ui-feasibility':selector?'selector-event-row-ui-feasibility':'recipient-callback-ui-feasibility',scenario,variant,status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
  const save=()=>{writeJsonAtomic(output+'/receipt.json',receipt);fs.chmodSync(output+'/receipt.json',0o600);};save();
  const resources=new Map();let cancelled=false;const cancel=()=>{cancelled=true;for(const resource of resources.values())if(resource.kind==='process')resource.child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
- let phase='verify-candidate',privateWorkspace,personalPreexecution;const runtime=output+'/runtime';
+ let phase='verify-candidate',privateWorkspace,personalPreexecution,preparedPersonal;const runtime=output+'/runtime';
  try {
   const harnessDependencies=await verifyHarnessDependencies(root+'/node_modules',root+'/package.json',root+'/yarn.lock');
   assertCandidateConfigurationSources(artifact.candidateRoot,read(root+'/scripts/fixtures/exui-configuration-review.json'));
@@ -123,6 +124,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   plan.proofArguments=['scripts/recipient-callback-ui-tools.mjs','--inside-proof'];
   const {identity}=nativeIdentity(input,{invocationId:'baseline',mutation:null},artifact.candidateRoot);
   const manifest={schemaVersion:1,kind:receipt.kind,identity,runId,variant,catalogueCredit:false,releaseCredit:false,runtimeMetadata:{rowFacetDigest:digestBytes(JSON.stringify(receipt.facets)),callbackImportDigest:digestBytes(fs.readFileSync(runtime+'/recipient-callback-import/receipt.json')),harnessSourceDigest,browserDigest}};
+  if(preparePersonal){preparedPersonal={input,handoff,plan,manifest,privateWorkspace,preexecution:personalPreexecution};return preparedPersonal;}
   phase='execute-candidate';const result=await runHostInvocation({...plan,manifest,payloadDigest:artifact.payloadDigest},{resources,isCancelled:()=>cancelled});receipt.runnerExitCode=result.terminal.code;
   if(personal)writeJsonAtomic(output+'/personal-service-observed-terminal.json',{runId,terminal:result.terminal});
   phase='evaluate-browser-proof';const report=read(directory+'/report.json');
@@ -136,6 +138,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   }else receipt.status=(selector?assertSelectorUiOutcome:assertCallbackUiOutcome)(variant,result.terminal,observed,report);
  } catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackUiFailureCode(error);receipt.diagnostic=classifyNativeFailure(error);}
  finally {
+  if(!preparedPersonal){
   const cleanup=[];for(const key of [...resources.keys()].reverse()){try{await removeHostResource(resources,key,output);}catch{cleanup.push(key);}}
   try{receipt.cleanup=fs.existsSync(runtime+'/recovery.json')?cleanupCiCcd(runtime):{cleanupComplete:true};}catch{receipt.cleanup={cleanupComplete:false};}
   receipt.nativeCleanupComplete=cleanup.length===0;
@@ -143,7 +146,9 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   if(privateWorkspace&&receipt.nativeCleanupComplete&&receipt.cleanup?.cleanupComplete===true){try{fs.rmSync(privateWorkspace,{recursive:true,force:true});receipt.workspaceCleanupComplete=true;}catch{receipt.workspaceCleanupComplete=false;}}
   if(cleanup.length||receipt.cleanup?.cleanupComplete!==true||!receipt.workspaceCleanupComplete)receipt.status='cleanup-uncertain';
   if(personal)receipt.timing={startedAt:invocationClock.startedAt,endedAt:new Date().toISOString(),durationMs:Math.round(performance.now()-invocationClock.start),scope:'standalone-invocation-including-preparation-proof-reader-and-cleanup',telemetryOnly:true};
-  process.off('SIGINT',cancel);process.off('SIGTERM',cancel);save();
+  save();
+  }
+  process.off('SIGINT',cancel);process.off('SIGTERM',cancel);
  }
  return receipt;
 }
