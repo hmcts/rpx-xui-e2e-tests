@@ -968,6 +968,16 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
   }
 });
 
+test("native report attributes pinned Work Basket input rows to the CCD phase", async () => {
+  const { buildWorkbasketInputDefinition } = await import("./lib/exui-workbasket-input-definition.mjs");
+  const evidence = await nativePresentationFixture(false);
+  const rows = buildWorkbasketInputDefinition().workbasketInputBindings.map(item => item.obligationId);
+  evidence.catalogueCoverage.creditedObligationIds.push(...rows);
+  evidence.catalogueCoverage.candidate += rows.length;
+  evidence.catalogueCoverage.missing -= rows.length;
+  assert.match(require("./harness-native-report.cjs").renderNativeEvidence(evidence), /CCD data and access/);
+});
+
 test("diagnostic source is captured at onBegin and not reread from a changed HEAD while rendering", async (t) => {
   sandbox(t);
   const cp = require("node:child_process"),
