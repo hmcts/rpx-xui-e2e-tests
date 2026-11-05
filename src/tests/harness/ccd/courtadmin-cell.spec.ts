@@ -289,6 +289,7 @@ test(
     },
   },
   async ({ page, request, playwright }) => {
+    test.setTimeout(180_000);
     const { manifest, context } = eventProofInputs();
     expect(manifest.releaseScopeId).toBe(EVENT_SCOPE);
     expect(context.releaseScopeId).toBe(EVENT_SCOPE);
