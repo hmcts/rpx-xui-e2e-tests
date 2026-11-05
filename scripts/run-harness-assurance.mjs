@@ -16,6 +16,7 @@ const scopes = {
   ccd: "exui-ccd-pilot",
   eventCapability: "exui-ccd-event-capability-pilot",
   routing: "exui-decentralised-routing-pilot",
+  recipientCallback: "exui-ccd-recipient-callback-pilot",
 };
 function read(file) {
   assert(
@@ -110,6 +111,7 @@ export function writeNativeDescriptor(job, captured, verdict) {
       receiptArtifactDigest,
       evidenceManifestDigest,
       eventTransition,
+      callbackTransition,
       ...promoted
     } = promotion;
     assert.deepEqual(promoted, expected, "ASSURANCE_EXPECTATION_CHANGED");
@@ -145,6 +147,16 @@ export function writeNativeDescriptor(job, captured, verdict) {
         undefined,
         "ASSURANCE_UNEXPECTED_TRANSITION",
       );
+    }
+    if (phase.phase === "recipientCallback") {
+      const transition = read(path.join(dir, "independent-callback-transition.json"));
+      assert.equal(transition.value.capturedBeforeFault, true, "ASSURANCE_CALLBACK_TRANSITION_CAPTURE_REQUIRED");
+      const reference = { path: "independent-callback-transition.json", digest: transition.digest };
+      assert.deepEqual(callbackTransition, reference, "ASSURANCE_CALLBACK_TRANSITION_CHANGED");
+      assert.deepEqual(phase.callbackTransition, reference, "ASSURANCE_CALLBACK_TRANSITION_CHANGED");
+    } else {
+      assert.equal(callbackTransition, undefined, "ASSURANCE_UNEXPECTED_CALLBACK_TRANSITION");
+      assert.equal(phase.callbackTransition, undefined, "ASSURANCE_UNEXPECTED_CALLBACK_TRANSITION");
     }
     assert.equal(
       receiptArtifactDigest,

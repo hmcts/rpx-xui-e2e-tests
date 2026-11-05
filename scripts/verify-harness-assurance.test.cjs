@@ -204,7 +204,7 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, "private"));
   const digest = "sha256:" + "a".repeat(64),
     commit = "b".repeat(40);
-  const phases = ["family", "scope", "ccd", "eventCapability", "routing"];
+  const phases = ["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback"];
   const captured = { harnessCommit: commit, policies: {} };
   const write = (file, value) => {
     const bytes = JSON.stringify(value);
@@ -241,8 +241,14 @@ function fixture(t) {
             }),
           }
         : undefined;
+    const callbackTransition = phase === "recipientCallback"
+      ? { path: "independent-callback-transition.json", digest: write(`${phase}/independent-callback-transition.json`, {
+          capturedBeforeFault: true,
+        }) }
+      : undefined;
     write(`${phase}/promotion-expected.json`, {
       ...(transition ? { eventTransition: transition } : {}),
+      ...(callbackTransition ? { callbackTransition } : {}),
       ...pre,
       receiptArtifactDigest: digest,
       evidenceManifestDigest: digest,
@@ -271,7 +277,11 @@ function fixture(t) {
               ),
             ).eventTransition,
           }
-        : {}),
+        : phase === "recipientCallback" ? {
+            callbackTransition: JSON.parse(fs.readFileSync(
+              path.join(root, "private", phase, "promotion-expected.json"),
+            )).callbackTransition,
+          } : {}),
     })),
   });
   return {
@@ -341,7 +351,7 @@ test("missing preexecution capture and incomplete cleanup cannot publish a descr
   );
 });
 
-test("transition capture must match the separate parent pin and cannot relabel a four-phase job", async (t) => {
+test("transition capture must match the separate parent pin and cannot relabel a partial job", async (t) => {
   const { writeNativeDescriptor } = await api();
   const f = fixture(t);
   const file = path.join(
@@ -379,4 +389,14 @@ test("promotion cannot substitute a transition pin from a different parent captu
     () => writeNativeDescriptor(f.job, f.captured, f.verdict),
     /TRANSITION_CHANGED/,
   );
+});
+
+test("callback transition must match the independently captured receipt", async (t) => {
+  const { writeNativeDescriptor } = await api();
+  const f = fixture(t);
+  const file = path.join(f.root, "private/recipientCallback/promotion-expected.json");
+  const promotion = JSON.parse(fs.readFileSync(file));
+  promotion.callbackTransition.digest = "sha256:" + "0".repeat(64);
+  fs.writeFileSync(file, JSON.stringify(promotion));
+  assert.throws(() => writeNativeDescriptor(f.job, f.captured, f.verdict), /CALLBACK_TRANSITION_CHANGED/);
 });
