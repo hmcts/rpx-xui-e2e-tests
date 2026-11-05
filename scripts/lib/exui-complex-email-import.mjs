@@ -59,6 +59,12 @@ export async function importComplexEmail(state,{fixtureDirectory,variant,request
   const save=()=>writeJsonAtomic(path.join(output,'receipt.json'),receipt);
   try {
     const observer=ccdCredentials(state,'observer',{request});
+    receipt.observations.roles=[];
+    for(const role of ['caseworker','caseworker-harness','caseworker-harness-allowed','caseworker-harness-observer','caseworker-harness-denied','ccd-import']) {
+      const response=request(state,4451,'/api/user-role',{method:'PUT',headers:observer.headers,body:{role,security_classification:'PUBLIC'}});
+      receipt.observations.roles.push({role,status:response.status});save();
+      assert([200,201,205].includes(response.status),'COMPLEX_EMAIL_ROLE_REGISTRATION');
+    }
     receipt.observations.import=request(state,4451,'/import',{method:'POST',headers:observer.headers,file:workbook.toString('base64')});save();
     assert([200,201].includes(receipt.observations.import.status),'COMPLEX_EMAIL_IMPORT_REJECTED');
     receipt.observations.definition=request(state,4451,'/api/data/case-type/HarnessNestedPRL',{headers:observer.headers});save();

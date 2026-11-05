@@ -7,14 +7,19 @@ exports.definition = (variant = 'baseline') => {
   ]};
 };
 exports.metadata = (variant = 'baseline') => [{case_type:'HarnessNestedPRL',version:2,field:'sodAdditionalRecipientsList',parent:'ServeOrgDetails',branch:'emailInformation',type:'EmailInformation',reference:'emailAddress',label:'Email address',field_type:variant==='email-type'?'Email':'Text',security:'PUBLIC',searchable:variant==='searchable',searchable_sql_type:'boolean'}];
-exports.request = (variant, importStatus = 201) => (_state,_port,route) => {
+exports.request = (variant, importStatus = 201) => {
+ const registered=new Set();
+ const required=['caseworker','caseworker-harness','caseworker-harness-allowed','caseworker-harness-observer','caseworker-harness-denied','ccd-import'];
+ return (_state,_port,route,options) => {
   if(route==='/testing-support/accounts')return {status:201,body:{}};
   if(route==='/o/token')return {status:200,body:{access_token:'synthetic-private-token'}};
   if(route==='/details')return {status:200,body:{id:'synthetic-observer'}};
   if(route==='/testing-support/lease')return {status:200,body:'synthetic-service-token'};
-  if(route==='/import')return {status:importStatus,body:{}};
+  if(route==='/api/user-role'){registered.add(options.body.role);return {status:201,body:{}};}
+  if(route==='/import')return {status:required.every(role=>registered.has(role))?importStatus:400,body:{}};
   if(route==='/api/data/case-type/HarnessNestedPRL')return {status:200,body:exports.definition(variant)};
   throw Error('unexpected synthetic route');
+ };
 };
 exports.outcome = (variant = 'baseline') => ({
   terminal:{code:variant==='baseline'?0:1,signal:null},

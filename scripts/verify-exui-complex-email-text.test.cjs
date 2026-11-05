@@ -34,6 +34,8 @@ test('complex email actual importer rejects failed imports and coherent source s
     let inspections=0;
     const receipt=await m.importComplexEmail(state,{fixtureDirectory,variant,request:mock.request(variant),inspect:()=>{inspections++;},runDocker:()=>JSON.stringify(mock.metadata(variant))});
     assert.equal(inspections,3);assert.equal(receipt.status,'import-and-complex-metadata-observed');assert.equal(receipt.runtimeAcceptance,false);
+    assert.deepEqual(receipt.observations.roles.map(row=>row.role),['caseworker','caseworker-harness','caseworker-harness-allowed','caseworker-harness-observer','caseworker-harness-denied','ccd-import']);
+    assert(receipt.observations.roles.every(row=>row.status===201));
     const changed=JSON.parse(fs.readFileSync(fixtureDirectory+'/definition.json'));
     changed.sheets.ComplexTypes.find(r=>r.ID==='EmailInformation'&&r.ListElementCode==='emailAddress').ElementLabel='coherent wrong source';
     fs.writeFileSync(fixtureDirectory+'/definition.json',JSON.stringify(changed));
@@ -45,6 +47,25 @@ test('complex email actual importer rejects failed imports and coherent source s
   const output=path.join(root,'failed');fs.mkdirSync(output);const fixtureDirectory=path.join(output,'fixture');await m.prepareComplexEmailImport(fixtureDirectory,'baseline');
   await assert.rejects(m.importComplexEmail({output,owner:'synthetic-owner',namespace:'a'.repeat(64),images:{}},{fixtureDirectory,variant:'baseline',inspect:()=>{},request:mock.request('baseline',400),runDocker:()=>{throw Error('unexpected SQL');}}),/COMPLEX_EMAIL_IMPORT_REJECTED/);
   assert.equal(JSON.parse(fs.readFileSync(output+'/complex-email-import/receipt.json')).status,'failed');
+});
+
+test('complex email role registration refusal stops before import and retains only safe statuses', async t => {
+  const m=await import('./lib/exui-complex-email-import.mjs');
+  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'complex-email-role-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const fixtureDirectory=path.join(root,'fixture');await m.prepareComplexEmailImport(fixtureDirectory,'baseline');
+  const calls=[];const request=mock.request('baseline');
+  await assert.rejects(m.importComplexEmail({output:root,owner:'synthetic-owner',namespace:'a'.repeat(64),images:{}},{fixtureDirectory,variant:'baseline',inspect:()=>{},runDocker:()=>{throw Error('unexpected SQL');},request:(state,port,route,options)=>{
+    calls.push(route);
+    if(route==='/api/user-role') {
+      assert.equal(options.method,'PUT');assert.deepEqual(options.body,{role:'caseworker',security_classification:'PUBLIC'});
+      return {status:403,body:{sensitive:'canary-not-retained'}};
+    }
+    return request(state,port,route,options);
+  }}),/COMPLEX_EMAIL_ROLE_REGISTRATION/);
+  assert(!calls.includes('/import'));
+  const raw=fs.readFileSync(root+'/complex-email-import/receipt.json','utf8');const receipt=JSON.parse(raw);
+  assert.equal(receipt.status,'failed');assert.deepEqual(receipt.observations.roles,[{role:'caseworker',status:403}]);assert(!raw.includes('canary-not-retained'));
 });
 
 test('complex email descriptors and outcome cannot turn malformed imports or unrelated failures green',async()=>{
