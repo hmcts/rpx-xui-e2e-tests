@@ -62,6 +62,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/lib/exui-recipient-callback-transition.mjs",
   "scripts/lib/exui-recipient-callback-facets.mjs",
   "scripts/lib/exui-recipient-callback-import.mjs",
+  "scripts/lib/exui-selector-event-row-contract.mjs",
   "scripts/lib/exui-recipient-callback-diagnostics.mjs",
 
   "scripts/fixtures/ccd/recipient-callback-native/baseline/definition.json",
