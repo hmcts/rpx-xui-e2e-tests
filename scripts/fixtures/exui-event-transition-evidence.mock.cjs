@@ -21,7 +21,9 @@ function observedDefinition(source) {
   return {
     id: "HarnessNestedPRL", version: { number: 1 }, acls: acls(s.AuthorisationCaseType),
     states: [{ id: "JUDICIAL_REVIEW", acls: acls(s.AuthorisationCaseState) }],
-    case_fields: s.CaseField.map(row => ({ id: row.ID, acls: acls(s.AuthorisationCaseField.filter(a => a.CaseFieldID === row.ID)) })),
+    case_fields: s.CaseField.map(row => ({ id: row.ID, label: row.Label ?? null,
+      field_type: { id: row.FieldTypeParameter ? `${row.FieldType}-${row.FieldTypeParameter}` : row.FieldType, type: row.FieldType },
+      acls: acls(s.AuthorisationCaseField.filter(a => a.CaseFieldID === row.ID)) })),
     events: s.CaseEvent.map(row => ({ id: row.ID, name: row.Name,
       pre_states: row["PreConditionState(s)"]?.split(";") ?? [], post_states: [{ post_state_reference: row.PostConditionState }],
       acls: acls(s.AuthorisationCaseEvent.filter(a => a.CaseEventID === row.ID)), show_summary: true,
@@ -65,8 +67,8 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
     const prepared = runtime.prepareCcdImport(undefined, "event-capability-" + variant);
     const observed = observedDefinition(prepared.source);
     const output = path.join(root, `event-${variant}-runtime`);
-    const containers = Object.fromEntries(Object.keys(images).map((name, i) => [name, ["a", "b", "f", "9", "6", "4", "0", "1", "5"][index] + String(i + 1).repeat(63)]));
-    const state = { schemaVersion: 1, ready: true, definitionImported: true, owner: "harness-" + String(index + 1).repeat(16),
+    const containers = Object.fromEntries(Object.keys(images).map((name, i) => [name, index.toString(16) + String(i + 1).repeat(63)]));
+    const state = { schemaVersion: 1, ready: true, definitionImported: true, owner: "harness-" + index.toString(16).repeat(16),
       output, containers, namespace: containers.database, images, fixtureSelection: "event-capability-" + variant };
     const imported = { binding: prepared.binding, status: 201, fixtureDigest: hash(prepared.file), images,
       sourceRevision: fixtureBinding.sourceRevision, sourceProjectionDigest: fixtureBinding.sourceProjectionDigest,

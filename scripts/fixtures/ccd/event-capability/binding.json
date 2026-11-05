@@ -1,4 +1,12 @@
 {
+  "shape-case-field-recipient-selector-transformation": {
+    "schemaVersion": 1,
+    "shape": "case-field-recipient-selector",
+    "reference": "sodAdditionalRecipients",
+    "column": "Label",
+    "before": "Select additional recipients who needs to be served",
+    "after": "Harness changed recipient selector"
+  },
   "shape-required-delivery-radio-transformation": {
     "schemaVersion": 1,
     "shape": "required-delivery-radio",
@@ -133,6 +141,10 @@
   "courtadmin-update-mutant": {
     "sourceDigest": "sha256:739bdf940b364516c151ae3fe4073ecbd5591b3e56f167596b08ccfc2696d4f7",
     "workbookDigest": "sha256:919b3d990290feef3cc294058bf2ccd3b1ad18e49c7165fca5e82ec0a66241bf"
+  },
+  "shape-case-field-recipient-selector-mutant": {
+    "sourceDigest": "sha256:f4c0113aa414ea151d3a5e33057538df25a632425fccc478352b9bd620b83416",
+    "workbookDigest": "sha256:07d2f84b9eb4f3ddb4560c8b152dcf38f0a761feee781f7f903ddf7dbad43d41"
   },
   "shape-required-delivery-radio-mutant": {
     "sourceDigest": "sha256:ad5fde8abc949b379bfda747f0163d0cd026f7380fd47b47e2fd7e27b5f05516",

@@ -367,7 +367,9 @@ export function assertObservedEventCapabilityDefinition(observed, source) {
     }
   }
   for (const contract of SOURCE_SHAPE_ROWS) {
-    const row = sheets.EventToComplexTypes.find(item => item.CaseEventID === 'serviceOfDocuments' && item.CaseFieldID === 'sodAdditionalRecipientsList' && item.ListElementCode === contract.reference);
+    const row = contract.sheet === 'CaseField'
+      ? sheets.CaseField.find(item => item.ID === contract.reference)
+      : sheets.EventToComplexTypes.find(item => item.CaseEventID === 'serviceOfDocuments' && item.CaseFieldID === 'sodAdditionalRecipientsList' && item.ListElementCode === contract.reference);
     assert(row, 'CCD_SHAPE_SOURCE_CONTEXT_REQUIRED');
     assertObservedSourceShape(observed,contract.id,row[contract.faultColumn] === contract.faultValue);
   }

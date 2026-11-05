@@ -20,7 +20,7 @@ function controlledChild(t, mode = "valid", releaseScopeId = scope) {
   };
   const request = {
     schemaVersion: 2, runId: input.runId, releaseScopeId: scope,
-    invocationIds: ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-optional-postal-line-two"], baselineNamespace: input.ccd.namespace,
+    invocationIds: ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-optional-postal-line-two"], baselineNamespace: input.ccd.namespace,
     baselineDefinitionImportDigest: input.definitionImportDigest,
   };
   const handoff = { mode: "native-separate-api", owner: input.runId };

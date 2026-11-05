@@ -50,6 +50,8 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/fixtures/ccd/recipient-callback-native/binding-omitted/definition.xlsx",
   "scripts/fixtures/ccd/recipient-callback-native/binding-omitted/binding.json",
 
+  "scripts/fixtures/ccd/event-capability/shape-case-field-recipient-selector-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-case-field-recipient-selector-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.json",
   "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.xlsx",
   "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.json",

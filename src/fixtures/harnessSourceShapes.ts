@@ -6,7 +6,7 @@ import {
   saveCcdEventObservation, ccdEventPersonas, eventProofInputs, EVENT_SCOPE,
 } from './harnessCcdEvent';
 
-export const shapes = ['required-delivery-radio', 'conditional-email-complex', 'optional-postal-line-two'] as const;
+export const shapes = ['case-field-recipient-selector', 'required-delivery-radio', 'conditional-email-complex', 'optional-postal-line-two'] as const;
 const mutation = process.env.EXUI_HARNESS_MUTATION;
 const control = 'synthetic-source-shape-control';
 const emailName = 'Synthetic shape recipient';
@@ -119,6 +119,12 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
         expectedChannel = 'email';
         await continueButton.click();
       }
+    } else if (shape === 'case-field-recipient-selector') {
+      await email.check();
+      await expect(name).toBeVisible();
+      await name.fill(emailName);
+      await address.fill(emailAddress);
+      expectedChannel = 'email';
     } else if (shape === 'conditional-email-complex') {
       await email.check();
       if (mutation) {
@@ -170,7 +176,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       if (shape === 'optional-postal-line-two') {
         contractSatisfied = postalLabel === 'Address Line 2 (Optional)';
       }
-    } else if (shape === 'conditional-email-complex') {
+    } else if (shape === 'conditional-email-complex' || shape === 'case-field-recipient-selector') {
       await continueButton.click();
     }
     await expect(cya).toBeVisible();
@@ -227,6 +233,12 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       expect(filledObservation.state.version).toBe(after.state.version + 1);
       expect(filledObservation.history).toHaveLength(after.history.length + 1);
       expect(filledObservation.history.filter((event: {id:string}) => event.id === 'serviceOfDocuments')).toHaveLength(2);
+    }
+
+    if (shape === 'case-field-recipient-selector') {
+      expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
+      await expect(page.getByText(mutation ? 'Harness changed recipient selector' : 'Select additional recipients who needs to be served', {exact:true})).toBeVisible();
+      contractSatisfied = !mutation;
     }
 
     saveCcdEventObservation(`source-shape-${shape}`,{shape,actor,caseId,before,after,filledObservation,postalLabel,contractSatisfied});

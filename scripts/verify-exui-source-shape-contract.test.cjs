@@ -27,6 +27,17 @@ test('each independent fault changes one event facet and cannot broaden a role o
 test('observed source shape requires real event context and exact normalized metadata', async () => {
   const {SOURCE_SHAPE_ROWS,assertObservedSourceShape} = await api();
   for (const contract of SOURCE_SHAPE_ROWS) {
+    if (contract.sheet === 'CaseField') {
+      const field={id:contract.reference,label:contract.label,field_type:{id:`${contract.fieldType}-${contract.fieldTypeParameter}`,type:contract.fieldType}};
+      const observed={id:'HarnessNestedPRL',case_fields:[field]};
+      assertObservedSourceShape(observed,contract.id);
+      field.label='unexpected';
+      assert.throws(()=>assertObservedSourceShape(observed,contract.id),/SHAPE_LABEL_MISMATCH/);
+      field.label=contract.label;
+      observed.case_fields.push({...field});
+      assert.throws(()=>assertObservedSourceShape(observed,contract.id),/SHAPE_RUNTIME_ROW_REQUIRED/);
+      continue;
+    }
     const child={reference:contract.reference,label:contract.label,order:contract.order,displayContext:contract.context,showCondition:contract.condition};
     const observed={id:'HarnessNestedPRL',events:[{id:'serviceOfDocuments',case_fields:[{case_field_id:'sodAdditionalRecipientsList',case_fields_complex:[child]}]}]};
     assertObservedSourceShape(observed,contract.id);
@@ -39,17 +50,18 @@ test('observed source shape requires real event context and exact normalized met
   }
 });
 
-test('accepted complete evidence credits only the three exact source shapes in addition to existing role cells', async t => {
+test('accepted complete evidence credits only the exact source shapes in addition to existing role cells', async t => {
   const {createEventTransitionFixture}=require('./fixtures/exui-event-transition-evidence.mock.cjs');
   const {projectConfigurationCoverage}=await import('./lib/exui-configuration-runtime-coverage.mjs');
   const f=await createEventTransitionFixture(t);
   const report=projectConfigurationCoverage({eventPhaseDirectory:f.directory}).report;
   assert.deepEqual(report.executedProofs.filter(row=>row.obligationId.startsWith('configuration-shape:')).map(row=>row.obligationId),
-    ['configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49',
+    ['configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f',
+      'configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49',
       'configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e',
       'configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757']);
 });
-for (const name of ['required-delivery-radio','conditional-email-complex','optional-postal-line-two'])
+for (const name of ['case-field-recipient-selector','required-delivery-radio','conditional-email-complex','optional-postal-line-two'])
   test(`wrong effective fault oracle for ${name} cannot credit source shapes`,async t=>{
     const {createEventTransitionFixture}=require('./fixtures/exui-event-transition-evidence.mock.cjs');
     const {projectConfigurationCoverage}=await import('./lib/exui-configuration-runtime-coverage.mjs');

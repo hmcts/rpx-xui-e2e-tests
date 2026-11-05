@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
 import { EVENT_CAPABILITY_SOURCE_DIGEST, validateEventCapabilitySource } from './exui-ccd-event-capability.mjs';
+const storedEventRows = SOURCE_SHAPE_ROWS.filter(row => row.sheet !== 'CaseField');
 
 // Pinned definition-store c37c9b84: EventCaseFieldComplexTypeParser parses
 // LocalDate; EventComplexTypeEntity stores it, while its DTO omits it.
@@ -12,7 +13,7 @@ function sourceIdentity() {
   const sourcePath = 'definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json';
   const files = source.sources.filter(file => file.path === sourcePath);
   assert.equal(files.length, 1, 'SHAPE_DATE_SOURCE_REQUIRED');
-  const rows = SOURCE_SHAPE_ROWS.map(contract => {
+  const rows = storedEventRows.map(contract => {
     const matches = files[0].rows.filter(({row}) => row.CaseTypeID === 'PRLAPPS' && row.ID === 'ServeOrgDetails' && row.CaseEventID === 'serviceOfDocuments' && row.CaseFieldID === 'sodAdditionalRecipientsList' && row.ListElementCode === contract.reference);
     assert.equal(matches.length, 1, 'SHAPE_DATE_SOURCE_REQUIRED');
     assert.equal(matches[0].row.LiveFrom, '01/09/2024', 'SHAPE_DATE_SOURCE_REQUIRED');
@@ -22,7 +23,7 @@ function sourceIdentity() {
 }
 function expectedRows(version) {
   assert(Number.isSafeInteger(version) && version > 0, 'SHAPE_DATE_VERSION_REQUIRED');
-  return SOURCE_SHAPE_ROWS.map(({reference}) => ({case_type:'HarnessNestedPRL',version,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'})).sort((a,b) => a.reference.localeCompare(b.reference));
+  return storedEventRows.map(({reference}) => ({case_type:'HarnessNestedPRL',version,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'})).sort((a,b) => a.reference.localeCompare(b.reference));
 }
 export function sourceShapeDateRecord(rows, state, version) {
   assert.deepEqual(rows, expectedRows(version), 'SHAPE_STORED_DATE_ROWS_MISMATCH');

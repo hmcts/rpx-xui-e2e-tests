@@ -6,6 +6,9 @@ import { buildEventCapabilityFixtures } from './exui-ccd-event-capability.mjs';
 // from CaseEventFieldComplex. Blank labels are trimmed; the candidate retains
 // the underlying field label when its override is empty.
 export const SOURCE_SHAPE_ROWS = Object.freeze([
+  Object.freeze({ id: 'case-field-recipient-selector', obligationId: 'configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f', sheet: 'CaseField', reference: 'sodAdditionalRecipients',
+    label: 'Select additional recipients who needs to be served', fieldType: 'MultiSelectList', fieldTypeParameter: 'AdditionalRecipients',
+    faultColumn: 'Label', faultValue: 'Harness changed recipient selector' }),
   Object.freeze({ id: 'required-delivery-radio', obligationId: 'configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49', reference: 'serveByPostOrEmail',
     label: 'Served by', order: 1, context: 'MANDATORY', condition: null,
     faultColumn: 'DisplayContext', faultValue: 'OPTIONAL' }),
@@ -27,6 +30,11 @@ export const sourceShapeIdForMutation = mutation => {
   return mutation.slice('ccd-shape-'.length);
 };
 const selected = (fixture, contract) => {
+  if (contract.sheet === 'CaseField') {
+    const rows = fixture.sheets.CaseField.filter(row => row.ID === contract.reference);
+    assert.equal(rows.length, 1, 'SHAPE_EXACT_SOURCE_CONTEXT_REQUIRED');
+    return rows[0];
+  }
   const rows = fixture.sheets.EventToComplexTypes.filter(row =>
     row.CaseEventID === 'serviceOfDocuments' && row.CaseFieldID === 'sodAdditionalRecipientsList' &&
     row.ID === 'ServeOrgDetails' && row.ListElementCode === contract.reference);
@@ -41,6 +49,15 @@ export function sourceShapeContract(id) {
 export function assertSourceShapeRows(fixture) {
   for (const contract of SOURCE_SHAPE_ROWS) {
     const row = selected(fixture, contract);
+    if (contract.sheet === 'CaseField') {
+      assert.deepEqual(row, {
+        LiveFrom: '01/09/2024', CaseTypeID: 'HarnessNestedPRL', ID: contract.reference,
+        Label: contract.label, FieldType: contract.fieldType,
+        HintText: 'For example, Cafcass, Local authority and Other organization',
+        FieldTypeParameter: contract.fieldTypeParameter, SecurityClassification: 'Public', Searchable: 'N',
+      }, 'SHAPE_SOURCE_FACET_DRIFT');
+      continue;
+    }
     assert.deepEqual(row, {
       LiveFrom: '01/09/2024', CaseTypeID: 'HarnessNestedPRL', ID: 'ServeOrgDetails',
       CaseEventID: 'serviceOfDocuments', CaseFieldID: 'sodAdditionalRecipientsList',
@@ -67,6 +84,14 @@ export function validateSourceShapeFault(id, baseline, mutant, source) {
 export function assertObservedSourceShape(observed, id, fault = false) {
   const contract = sourceShapeContract(id);
   assert.equal(observed.id, 'HarnessNestedPRL', 'SHAPE_CASE_TYPE_MISMATCH');
+  if (contract.sheet === 'CaseField') {
+    const rows = observed.case_fields.filter(row => row.id === contract.reference);
+    assert.equal(rows.length, 1, 'SHAPE_RUNTIME_ROW_REQUIRED');
+    assert.equal(rows[0].label, fault ? contract.faultValue : contract.label, 'SHAPE_LABEL_MISMATCH');
+    assert.equal(rows[0].field_type.type, contract.fieldType, 'SHAPE_FIELD_TYPE_MISMATCH');
+    assert.equal(rows[0].field_type.id, `${contract.fieldType}-${contract.fieldTypeParameter}`, 'SHAPE_FIELD_TYPE_PARAMETER_MISMATCH');
+    return;
+  }
   const events = observed.events.filter(row => row.id === 'serviceOfDocuments');
   assert.equal(events.length, 1, 'SHAPE_EVENT_CONTEXT_REQUIRED');
   const fields = events[0].case_fields.filter(row => row.case_field_id === 'sodAdditionalRecipientsList');

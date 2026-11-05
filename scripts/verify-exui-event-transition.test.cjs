@@ -178,13 +178,14 @@ test("support only: event scope has fixed eight-proof baseline and eight definit
     { invocationId: "ccd-remove-readonly-recipient-read", kind: "mutation", mutation: "ccd-remove-readonly-recipient-read" },
     { invocationId: "ccd-enable-readonly-recipient-update", kind: "mutation", mutation: "ccd-enable-readonly-recipient-update" },
     { invocationId: "ccd-remove-courtadmin-event-create", kind: "mutation", mutation: "ccd-remove-courtadmin-event-create" },
+    { invocationId:"ccd-shape-case-field-recipient-selector",kind:"mutation",mutation:"ccd-shape-case-field-recipient-selector" },
     { invocationId:"ccd-shape-required-delivery-radio",kind:"mutation",mutation:"ccd-shape-required-delivery-radio" },
     { invocationId:"ccd-shape-conditional-email-complex",kind:"mutation",mutation:"ccd-shape-conditional-email-complex" },
     { invocationId:"ccd-shape-optional-postal-line-two",kind:"mutation",mutation:"ccd-shape-optional-postal-line-two" },
 
   ]);
   const policy = getReleasePolicy(scope);
-  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-courtadmin-read-recipient-shapes", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", "ccd-source-shape-required-delivery-radio", "ccd-source-shape-conditional-email-complex", "ccd-source-shape-optional-postal-line-two"]);
+  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-courtadmin-read-recipient-shapes", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", "ccd-source-shape-case-field-recipient-selector", "ccd-source-shape-required-delivery-radio", "ccd-source-shape-conditional-email-complex", "ccd-source-shape-optional-postal-line-two"]);
   assert.equal(policy.mutationDefinitions[0].expectedFailureId, "event-capability-isolation");
   assert.equal(policy.mutationDefinitions[1].expectedFailureId, "courtadmin-recipient-read-projection");
   const credentials = { readonly: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-readonly"] }, allowed: {}, observer: {}, courtadmin: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-courtadmin"] }, judge: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-judge"] } };
