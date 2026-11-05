@@ -46,7 +46,7 @@ export async function runSelectorEventRow({candidate,browser,output}) {
   validateSelectorRuntimeInput(input,input.selectorInvocation);assertCopiedSelectorRuntimeEvidence(directory,input,input.selectorInvocation);
   const variantContext={...context,ccd:input.ccd,ccdIdentity:nativeIdentity(input,{invocationId:input.selectorInvocation,mutation:input.selectorInvocation==='baseline'?null:input.selectorInvocation},context.artifact.candidateRoot).identity};
   const current=captureCiPhaseExpectation('selectorEventRow',input,handoff,variantContext,directory);
-  const plan=input.selectorInvocation==='baseline'?captureCiOwnership(input,handoff,variantContext,directory,'selectorEventRow'):captureCiSelectorFaultOwnership(input,handoff,variantContext,directory,input.selectorInvocation);
+  const plan=input.selectorInvocation==='baseline'?captureCiOwnership(input,handoff,variantContext,directory,'selectorEventRow'):captureCiSelectorFaultOwnership(input,handoff,variantContext,directory);
   const file=path.join(directory,`independent-selector-${input.selectorInvocation}.json`);
   writeJsonAtomic(file,{schemaVersion:1,invocationId:input.selectorInvocation,capturedBeforeExecution:true,capturedAt:new Date().toISOString(),expected:current,actors:actors(known.credentials),ccd:input.ccd,definition:input.definition,selectorEventBinding:known.selectorEventBinding,apiContracts:known.apiContracts,definitionImportDigest:known.definitionImportDigest,runtimeEvidence:Object.fromEntries(Object.entries(input).filter(([key])=>/^selector.*Receipt$/.test(key)))});
   captures.push({invocationId:input.selectorInvocation,identity:current.identity,expectation:reference(directory,file)});

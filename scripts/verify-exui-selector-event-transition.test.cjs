@@ -30,3 +30,19 @@ test('selector baseline cannot start before independently bound import and names
  const file=path.join(output,'independent-selector-baseline.json');fs.writeFileSync(file,JSON.stringify(capture));await m.waitForSelectorBaselineCapture(input,output);
  capture.definition={...capture.definition,definitionVersion:1};fs.writeFileSync(file,JSON.stringify(capture));await assert.rejects(m.waitForSelectorBaselineCapture(input,output),/DEFINITION/);
 });
+
+test('selector CI ownership adapter captures the fixed fault invocation rather than the generic phase name',async t=>{
+ const {record}=await inputs();const {captureCiSelectorFaultOwnership}=await import('./lib/exui-candidate-ci-evidence.mjs');const {NATIVE_HARNESS_SOURCE_FILES}=await import('./lib/exui-native-sources.mjs');const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'selector-ownership-')),stateRoot=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'harness-native-state-'));t.after(()=>{fs.rmSync(root,{recursive:true,force:true});fs.rmSync(stateRoot,{recursive:true,force:true});});
+ const input=structuredClone(record.runtime),directory=path.join(root,'output'),stage=path.join(root,'stage'),candidate=path.join(root,'candidate'),browser=path.join(root,'browser');
+ for(const folder of [directory,stage,browser,path.join(candidate,'config'),...['sessions','diagnostics'].map(kind=>path.join(stateRoot,record.invocationId,kind))])fs.mkdirSync(folder,{recursive:true});
+ fs.writeFileSync(path.join(candidate,'config/default.json'),JSON.stringify({services:{idam:{}},feature:{}}));
+ for(const file of NATIVE_HARNESS_SOURCE_FILES){const target=path.join(stage,file);fs.mkdirSync(path.dirname(target),{recursive:true});fs.copyFileSync(path.join(__dirname,'..',file),target);}
+ input.harnessSources=NATIVE_HARNESS_SOURCE_FILES;input.harnessSourceDigest=digestBytes(JSON.stringify(NATIVE_HARNESS_SOURCE_FILES.map(file=>[file,digestBytes(fs.readFileSync(path.join(stage,file)))])));
+ input.artifact={candidateRoot:candidate,identity:{artifactDigest:'sha256:'+'a'.repeat(64)},provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.1'}};input.nativeRuntime={imageId:'sha256:'+'b'.repeat(64),platform:'linux/arm64'};input.browserRuntimeImage='sha256:'+'c'.repeat(64);input.browserRoot=browser;input.gatewayDigest='sha256:'+'d'.repeat(64);input.apiContracts={data:'sha256:'+'e'.repeat(64),definition:'sha256:'+'f'.repeat(64)};
+ input.ccd.images={data:{id:'sha256:'+'1'.repeat(64)},definition:{id:'sha256:'+'2'.repeat(64)},idam:{id:'sha256:'+'3'.repeat(64)}};input.definition.images=input.ccd.images;
+ const context={artifact:input.artifact,nativeRuntime:input.nativeRuntime,browserRuntimeImage:input.browserRuntimeImage,browserRoot:browser,ccd:input.ccd,sourceDigests:{selectorEventRow:input.harnessSourceDigest}};
+ const handoff={mode:'native-separate-api',owner:input.runId,output:directory,stagedHarness:stage,stateRoot};
+ const captured=captureCiSelectorFaultOwnership(input,handoff,context,directory);
+ assert.deepEqual(captured.invocations.map(item=>item.invocationId),[record.invocationId]);assert.equal(captured.invocations[0].plan.namespace,input.ccd.namespace);
+});

@@ -347,5 +347,5 @@ export function captureCiApplicantFaultOwnership(input,handoff,context,directory
 
 export function captureCiSelectorFaultOwnership(input,handoff,context,directory){
  assert.equal(handoff.mode,"native-separate-api","CI_SELECTOR_NATIVE_AUTHORITY_REQUIRED");
- return captureOwnership(input,handoff,context,directory,"selectorEventRow",captureSelectorFaultOwnership);
+ return captureOwnership(input,handoff,context,directory,"selectorEventRow",(input,handoff,context,directory)=>captureSelectorFaultOwnership(input,handoff,context,directory));
 }
