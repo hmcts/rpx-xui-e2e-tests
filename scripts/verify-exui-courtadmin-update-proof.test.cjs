@@ -79,6 +79,7 @@ async function execute(options = {}) {
   const fakeTest = (_name, metadata, callback) => {
     registration = { metadata, callback };
   };
+  fakeTest.setTimeout = (milliseconds) => assert.equal(milliseconds, 180_000);
   fakeTest.describe = {
     configure: (value) => assert.deepEqual(value, { retries: 0 }),
   };
