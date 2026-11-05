@@ -31,6 +31,7 @@ if (
     "ccd-event-capability",
     "ccd-recipient-callback",
     "ccd-applicant-results",
+    "ccd-selector-event-row",
   ].includes(slice)
 )
   throw new Error("UNKNOWN_HARNESS_SLICE");
@@ -57,7 +58,11 @@ const applicantResultsScope = candidateManifest?.releaseScopeId === "exui-ccd-ap
 if (slice === "ccd-applicant-results" && !applicantResultsScope) throw new Error("APPLICANT_RESULTS_SCOPE_REQUIRED");
 if (applicantResultsScope && (selection !== "ccd" || slice !== "ccd-applicant-results")) throw new Error("APPLICANT_RESULTS_SELECTION_REQUIRED");
 if (applicantResultsScope && process.env.EXUI_HARNESS_MUTATION && !["applicant-binding", "applicant-label", "applicant-order"].includes(process.env.EXUI_HARNESS_MUTATION)) throw new Error("APPLICANT_RESULTS_MUTATION_REQUIRED");
-const ccdFiles = applicantResultsScope ? ["applicant-results"] : callbackScope ? ["recipient-callback"] : eventCapabilityScope
+const selectorEventScope = candidateManifest?.releaseScopeId === "exui-ccd-selector-event-row-pilot";
+if (slice === "ccd-selector-event-row" && !selectorEventScope) throw new Error("SELECTOR_EVENT_SCOPE_REQUIRED");
+if (selectorEventScope && (selection !== "ccd" || slice !== "ccd-selector-event-row")) throw new Error("SELECTOR_EVENT_SELECTION_REQUIRED");
+if (selectorEventScope && process.env.EXUI_HARNESS_MUTATION && process.env.EXUI_HARNESS_MUTATION !== "ccd-hide-selector-summary") throw new Error("SELECTOR_EVENT_MUTATION_REQUIRED");
+const ccdFiles = selectorEventScope ? ["selector-event-row"] : applicantResultsScope ? ["applicant-results"] : callbackScope ? ["recipient-callback"] : eventCapabilityScope
   ? process.env.EXUI_HARNESS_MUTATION === "ccd-enable-judge-event"
     ? ["event-capability"]
     : ["ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")

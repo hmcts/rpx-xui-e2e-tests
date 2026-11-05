@@ -49,7 +49,7 @@ export function validateSelectorStoredDate(rows, version) {
   return { kind: 'selector-event-row-date-retention', rows, sourceRowDigest: binding.sourceRowDigest, sourceRevision: binding.sourceRevision, activationClaim: false, catalogueCredit: false };
 }
 
-export function readSelectorStoredDate(state, version, { runDocker = docker, inspect = verifyCcdContainerIdentity } = {}) {
+export function readSelectorStoredDate(state, version, { runDocker = docker, inspect = verifyCcdContainerIdentity, writeReceipt = true } = {}) {
   assert(Number.isSafeInteger(version) && version > 0, 'SELECTOR_DATE_VERSION');
   inspect(state);
   const sql = `BEGIN READ ONLY; SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
@@ -68,7 +68,8 @@ AND dg.reference='serviceOfDocuments2' AND cf.reference='sodAdditionalRecipients
   let rows;
   try { rows = JSON.parse(raw); } catch { throw Error('SELECTOR_DATE_RESPONSE'); }
   const result = { ...validateSelectorStoredDate(rows, version), owner: state.owner, namespace: state.namespace, images: state.images, rawDigest: digestBytes(raw) };
-  fs.writeFileSync(path.join(state.output, 'recipient-callback-import/selector-stored-row-date.json'), JSON.stringify(result, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+  assert.equal(typeof writeReceipt, 'boolean', 'SELECTOR_DATE_WRITE_MODE');
+  if (writeReceipt) fs.writeFileSync(path.join(state.output, 'recipient-callback-import/selector-stored-row-date.json'), JSON.stringify(result, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
   return result;
 }
 
@@ -92,6 +93,8 @@ export function assertSelectorUiOutcome(variant, terminal, observed, report) {
   assert.equal(specs[0].tests[0].results.length, 1, 'SELECTOR_ONE_ATTEMPT_REQUIRED');
   const result = specs[0].tests[0].results[0];
   assert.equal(result.retry, 0, 'SELECTOR_RETRY_FORBIDDEN');
+  assert(Array.isArray(result.errors), 'SELECTOR_RESULT_ERRORS_REQUIRED');
+  assert.equal(result.errors.length, variant === 'baseline' ? 0 : 1, 'SELECTOR_EXTRA_RESULT_ERROR');
   if (variant === 'baseline') {
     assert.equal(terminal.code, 0, 'SELECTOR_BASELINE_EXIT');
     assert.equal(result.status, 'passed', 'SELECTOR_BASELINE_STATUS');
@@ -109,6 +112,7 @@ export function assertSelectorUiOutcome(variant, terminal, observed, report) {
   assert.equal(observed.faultEffective, true, 'SELECTOR_FAULT_NOT_EFFECTIVE');
   assert.equal(observed.witness, 'healthy-cya-without-selector-row', 'SELECTOR_FAULT_WITNESS');
   assert(result.error?.message?.includes('SELECTOR_SOURCE_SUMMARY_ROW_REQUIRED'), 'SELECTOR_FAILURE_NOT_ATTRIBUTED');
+  assert(result.errors[0]?.message?.includes('SELECTOR_SOURCE_SUMMARY_ROW_REQUIRED'), 'SELECTOR_FAILURE_NOT_ATTRIBUTED');
   const steps = [];
   const walk = values => { for (const value of values ?? []) { steps.push(value); walk(value.steps); } };
   walk(result.steps);

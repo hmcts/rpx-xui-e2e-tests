@@ -1,9 +1,14 @@
+import {digestBytes} from './exui-evidence-io.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { deriveRecipientCallbackImport } from './exui-recipient-callback-fixture.mjs';
 import { validateEventCapabilitySource } from './exui-ccd-event-capability.mjs';
 
 export const SELECTOR_EVENT_OBLIGATION = 'configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe';
+export const SELECTOR_EVENT_SCOPE = 'exui-ccd-selector-event-row-pilot';
+export const SELECTOR_EVENT_PROOF = 'ccd-selector-event-row';
+export const SELECTOR_EVENT_MUTATION = 'ccd-hide-selector-summary';
+export const SELECTOR_EVENT_MUTANT_PROOF = 'ccd-selector-summary-hidden';
 export const SELECTOR_EVENT_ATTRIBUTES = Object.freeze(['LiveFrom', 'CaseTypeID', 'CaseEventID', 'CaseFieldID', 'DisplayContext', 'PageID', 'PageDisplayOrder', 'PageFieldDisplayOrder', 'ShowSummaryChangeOption'].sort());
 export const SELECTOR_EVENT_VARIANTS = Object.freeze(['baseline', 'summary-hidden']);
 export const SELECTOR_EVENT_FAILURE = 'selector-event-summary-row';
@@ -66,4 +71,14 @@ export function deriveSelectorEventRowFixture(variant = 'baseline') {
 export function validateSelectorEventRowFixture(value, variant = 'baseline') {
   assert.deepEqual(value, deriveSelectorEventRowFixture(variant), 'SELECTOR_CANONICAL_FIXTURE_REQUIRED');
   return structuredClone(value.binding);
+}
+
+export function selectorEventMutation() {
+ return {sourceRowDigest:rowDigest,target:'CaseEventToFields/serviceOfDocuments/sodAdditionalRecipients/ShowSummaryChangeOption',column:'ShowSummaryChangeOption',before:'Y',after:'N',transformation:'change-only-selected-source-summary-Y-to-N'};
+}
+export function selectorEventPolicy() {
+ const policy={releaseScopeId:SELECTOR_EVENT_SCOPE,requiredObligationIds:[SELECTOR_EVENT_OBLIGATION],
+ obligations:[{id:SELECTOR_EVENT_OBLIGATION,boundary:'candidate',requiredProofIds:[SELECTOR_EVENT_PROOF],requiredMutationIds:[SELECTOR_EVENT_MUTATION]}],
+ mutationDefinitions:[{mutationId:SELECTOR_EVENT_MUTATION,obligationId:SELECTOR_EVENT_OBLIGATION,definitionDigest:digestBytes(JSON.stringify(selectorEventMutation())),expectedFailureId:SELECTOR_EVENT_FAILURE,baselineProofId:SELECTOR_EVENT_PROOF,mutantProofId:SELECTOR_EVENT_MUTANT_PROOF}]};
+ return {...policy,policyDigest:digestBytes(JSON.stringify(policy))};
 }

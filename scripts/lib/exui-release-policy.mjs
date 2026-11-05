@@ -1,3 +1,4 @@
+import {SELECTOR_EVENT_SCOPE,selectorEventPolicy} from './exui-selector-event-row-contract.mjs';
 import {APPLICANT_RESULTS_SCOPE,applicantResultsPolicy} from './exui-applicant-results-contract.mjs';
 import { CALLBACK_SCOPE, CALLBACK_OBLIGATION, CALLBACK_PROOF, CALLBACK_MUTATION, CALLBACK_MUTANT_PROOF, CALLBACK_FAILURE } from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
@@ -8,6 +9,7 @@ const digest = (value) => 'sha256:' + createHash('sha256').update(JSON.stringify
 
 // This reviewed pilot scope cannot authorize a full EXUI release.
 export function getReleasePolicy(scope) {
+  if(scope===SELECTOR_EVENT_SCOPE)return selectorEventPolicy();
   if(scope===APPLICANT_RESULTS_SCOPE)return applicantResultsPolicy();
   if (scope === CALLBACK_SCOPE) {
     const policy={releaseScopeId:scope,requiredObligationIds:[CALLBACK_OBLIGATION],

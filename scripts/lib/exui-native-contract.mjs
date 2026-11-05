@@ -1,3 +1,4 @@
+import { SELECTOR_EVENT_SCOPE, SELECTOR_EVENT_MUTATION } from './exui-selector-event-row-contract.mjs';
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import { CALLBACK_SCOPE, CALLBACK_MUTATION } from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
@@ -15,6 +16,7 @@ import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration 
 import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION } from "./exui-ccd-event-capability.mjs";
 
 const slices = {
+  [SELECTOR_EVENT_SCOPE]: [{invocationId:"baseline",kind:"baseline",mutation:null},{invocationId:SELECTOR_EVENT_MUTATION,kind:"mutation",mutation:SELECTOR_EVENT_MUTATION}],
   [APPLICANT_RESULTS_SCOPE]: [{invocationId:"baseline",kind:"baseline",mutation:null},...APPLICANT_RESULTS_MUTATIONS.map(mutation=>({invocationId:mutation,kind:"mutation",mutation}))],
   [CALLBACK_SCOPE]: [{invocationId:"baseline",kind:"baseline"},{invocationId:CALLBACK_MUTATION,kind:"mutation",mutation:CALLBACK_MUTATION}],
   [EVENT_CAPABILITY_SCOPE]: [
@@ -129,7 +131,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   }
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId))
     return {
       config,
       identity: {
@@ -152,7 +154,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
         JSON.stringify({
           config,
           gatewayDigest: input.gatewayDigest,
-          mutation: [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
+          mutation: [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
         }),
       ),
       definitionDigests: { [input.kind===RESULTS_UI_KIND||input.releaseScopeId===APPLICANT_RESULTS_SCOPE?"HarnessResultsPRL":"HarnessNestedPRL"]: input.definition.fixtureDigest,
@@ -170,7 +172,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
   };
 }
 export function seedAppCcdSessions(credentials, seed, scope) {
-  const actors = [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope)
+  const actors = [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, SELECTOR_EVENT_SCOPE].includes(scope)
     ? ["allowed", "courtadmin", "judge", "readonly"]
     : ["allowed", "denied", ...(credentials.transitioning ? ["transitioning"] : [])];
   return Object.fromEntries(

@@ -1,3 +1,6 @@
+import {SELECTOR_EVENT_SCOPE} from './lib/exui-selector-event-row-contract.mjs';
+import {selectSelectorRuntime} from './lib/exui-selector-event-row-transition.mjs';
+import {assertCopiedSelectorRuntimeEvidence} from './lib/exui-selector-event-row-runtime.mjs';
 import {CALLBACK_SCOPE} from './lib/exui-recipient-callback-contract.mjs';
 import {APPLICANT_RESULTS_SCOPE} from './lib/exui-applicant-results-contract.mjs';
 import {selectApplicantResultRuntime} from './lib/exui-applicant-results-transition.mjs';
@@ -113,7 +116,7 @@ async function providers(input, invocation, directory) {
       "ROUTING_OBSERVED_INTERPRETER_MISMATCH",
     );
     ({ server, cookie } = await startRoutingProviders(directory));
-  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId)) {
+  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId)) {
     for (const [service, port] of [
       ["data", 4452],
       ["definition", 4451],
@@ -146,7 +149,8 @@ async function providers(input, invocation, directory) {
       input.definition.observedDefinitionDigest,
       "CCD_IMPORTED_DEFINITION_DRIFT",
     );
-    if (input.releaseScopeId === CALLBACK_SCOPE) {
+    if (input.releaseScopeId === SELECTOR_EVENT_SCOPE) assertCopiedSelectorRuntimeEvidence(path.dirname(directory),input,invocation.invocationId);
+    if ([CALLBACK_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId)) {
       const pages = await fetch("http://127.0.0.1:4451/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments", {headers: input.credentials.observer.headers, redirect:"error"});
       assert(pages.ok, "CALLBACK_NATIVE_PAGES_REQUIRED");
       assert.equal(digestBytes(JSON.stringify(canonicalRecipientCallbackPages(await pages.json()))), input.definition.observedPagesDigest, "CALLBACK_NATIVE_PAGES_DRIFT");
@@ -167,7 +171,7 @@ async function providers(input, invocation, directory) {
     server = await startCcdGateway(
       directory,
       credentials,
-      [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
+      [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
       input.releaseScopeId,
       input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultColumns:true} : input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
     );
@@ -196,13 +200,15 @@ async function providers(input, invocation, directory) {
   });
 }
 export function nativeProofConfiguration(input, invocation, directory) {
-  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId);
+  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId);
   const env = {
     PATH: "/usr/local/bin:/usr/bin:/bin",
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+      input.releaseScopeId === SELECTOR_EVENT_SCOPE
+        ? "ccd-selector-event-row"
+        : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
         ? "ccd-applicant-results"
         : input.releaseScopeId === CALLBACK_SCOPE
         ? "ccd-recipient-callback"
@@ -293,7 +299,9 @@ if (
     const baselineInput = read("/output/input.json"),
       invocation = nativeInvocation(baselineInput, arg("--invocation")),
       directory = path.join("/output", invocation.invocationId);
-    const input = baselineInput.releaseScopeId === APPLICANT_RESULTS_SCOPE && invocation.kind === "mutation"
+    const input = baselineInput.releaseScopeId === SELECTOR_EVENT_SCOPE && invocation.kind === "mutation"
+      ? selectSelectorRuntime(baselineInput,read(path.join(directory,"runtime-input.json")))
+      : baselineInput.releaseScopeId === APPLICANT_RESULTS_SCOPE && invocation.kind === "mutation"
       ? selectApplicantResultRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))
       : baselineInput.releaseScopeId === CALLBACK_SCOPE && invocation.kind === "mutation"
       ? selectCallbackRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))

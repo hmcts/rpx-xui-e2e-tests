@@ -68,6 +68,7 @@ test('selector effective fault requires healthy form and sibling CYA, exact term
   const report = { errors: [], stats: { skipped: 0, unexpected: 1, expected: 0 }, suites: [{ specs: [{ tests: [{ results: [{ status: 'failed', error: { message: 'SELECTOR_SOURCE_SUMMARY_ROW_REQUIRED' }, steps: [{ title: 'harness-assertion:selector-event-summary-row', error: { message: 'SELECTOR_SOURCE_SUMMARY_ROW_REQUIRED' } }] }] }] }] }] };
   observed.sourceBinding = deriveSelectorEventRowFixture('summary-hidden').binding;
   report.suites[0].specs[0].tests[0].results[0].retry = 0;
+  report.suites[0].specs[0].tests[0].results[0].errors = [report.suites[0].specs[0].tests[0].results[0].error];
   assert.equal(assertSelectorUiOutcome('summary-hidden', { code: 1, signal: null }, observed, report), 'selector-summary-omission-detected');
   for (const mutate of [x => {x.selectedCya.healthySiblingCount = 0;}, x => {x.selectedCya.selectorSummaryCount = 1;}, x => {x.optionalEmpty.status = 500;}, x => {x.selectedCya.predecessorRoundTrip = false;}, x => {x.faultEffective = false;}]) {
     const bad = structuredClone(observed); mutate(bad);
@@ -80,6 +81,8 @@ test('selector effective fault requires healthy form and sibling CYA, exact term
   assert.throws(() => assertSelectorUiOutcome('summary-hidden', { code: 1, signal: null }, observed, backend), /SELECTOR_/);
   const retried = structuredClone(report); retried.suites[0].specs[0].tests[0].results[0].retry = 1;
   assert.throws(() => assertSelectorUiOutcome('summary-hidden', { code: 1, signal: null }, observed, retried), /SELECTOR_RETRY_FORBIDDEN/);
+  const additional = structuredClone(report); additional.suites[0].specs[0].tests[0].results[0].errors.push({ message: 'candidate asset mismatch' });
+  assert.throws(() => assertSelectorUiOutcome('summary-hidden', { code: 1, signal: null }, observed, additional), /SELECTOR_EXTRA_RESULT_ERROR/);
 });
 
 test('selector workbook opt-in seals each variant and refuses restoring a conflicting callback', async t => {

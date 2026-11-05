@@ -1,3 +1,4 @@
+import {SELECTOR_EVENT_SCOPE,SELECTOR_EVENT_MUTATION} from './exui-selector-event-row-contract.mjs';
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
@@ -152,6 +153,7 @@ export function toolContainerArguments({
       "ccd-remove-courtadmin-event-create",
       ...SOURCE_SHAPE_MUTATIONS,
       CALLBACK_MUTATION,
+      SELECTOR_EVENT_MUTATION,
       ...APPLICANT_RESULTS_MUTATIONS,
             "routing-omit-web-url",
             "routing-omit-noc-base-url",
@@ -164,6 +166,8 @@ export function toolContainerArguments({
     throw new Error("UNSUPPORTED_OCI_INVOCATION");
   if(APPLICANT_RESULTS_MUTATIONS.includes(invocationId)&&releaseScopeId!==APPLICANT_RESULTS_SCOPE)throw Error("CCD_RESULTS_SCOPE_REQUIRED");
   if(releaseScopeId===APPLICANT_RESULTS_SCOPE&&!["baseline",...APPLICANT_RESULTS_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_CCD_RESULTS_INVOCATION");
+  if (invocationId === SELECTOR_EVENT_MUTATION && releaseScopeId !== SELECTOR_EVENT_SCOPE) throw Error("CCD_SELECTOR_SCOPE_REQUIRED");
+  if (releaseScopeId === SELECTOR_EVENT_SCOPE && !["baseline",SELECTOR_EVENT_MUTATION].includes(invocationId)) throw Error("UNSUPPORTED_CCD_SELECTOR_INVOCATION");
   if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
   if (releaseScopeId === CALLBACK_SCOPE && !["baseline",CALLBACK_MUTATION].includes(invocationId)) throw new Error("UNSUPPORTED_CCD_CALLBACK_INVOCATION");
   if (SOURCE_SHAPE_MUTATIONS.includes(invocationId) && releaseScopeId !== "exui-ccd-event-capability-pilot")
@@ -263,6 +267,7 @@ export function candidateArchiveArguments({
       "ccd-remove-courtadmin-event-create",
       ...SOURCE_SHAPE_MUTATIONS,
       CALLBACK_MUTATION,
+      SELECTOR_EVENT_MUTATION,
       ...APPLICANT_RESULTS_MUTATIONS,
       "routing-omit-web-url",
       "routing-omit-noc-base-url",
@@ -273,6 +278,8 @@ export function candidateArchiveArguments({
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
   if(APPLICANT_RESULTS_MUTATIONS.includes(invocationId)&&releaseScopeId!==APPLICANT_RESULTS_SCOPE)throw Error("CCD_RESULTS_SCOPE_REQUIRED");
   if(releaseScopeId===APPLICANT_RESULTS_SCOPE&&!["baseline",...APPLICANT_RESULTS_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_CCD_RESULTS_INVOCATION");
+  if (invocationId === SELECTOR_EVENT_MUTATION && releaseScopeId !== SELECTOR_EVENT_SCOPE) throw Error("CCD_SELECTOR_SCOPE_REQUIRED");
+  if (releaseScopeId === SELECTOR_EVENT_SCOPE && !["baseline",SELECTOR_EVENT_MUTATION].includes(invocationId)) throw Error("UNSUPPORTED_CCD_SELECTOR_INVOCATION");
   if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
   if (releaseScopeId === CALLBACK_SCOPE && !["baseline",CALLBACK_MUTATION].includes(invocationId)) throw new Error("UNSUPPORTED_CCD_CALLBACK_INVOCATION");
   if (invocationId === "ccd-stale-revoked-bearer" && releaseScopeId !== "exui-ccd-pilot")

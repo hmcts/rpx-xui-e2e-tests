@@ -1,3 +1,4 @@
+const SELECTOR_EVENT_SCOPE = "exui-ccd-selector-event-row-pilot";
 import {resultTransportRoute,resultSupportingResponse} from './exui-results-ui-contract.mjs';
 import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
 import assert from "node:assert/strict";
@@ -9,6 +10,18 @@ import { createRecipientCallbackResponder } from "./exui-recipient-callback.mjs"
 import { CALLBACK_SCOPE, RECIPIENT_CALLBACK_PATH } from "./exui-recipient-callback-fixture.mjs";
 import { createOwnedCallbackServiceVerifier } from "./exui-recipient-callback-auth.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
+
+export function selectorValidationProjection(body, url) {
+  let payload;
+  try { payload = JSON.parse(body); } catch { payload = {}; }
+  const selected = payload?.data?.sodAdditionalRecipients;
+  return {
+    pageId: ["serviceOfDocuments1", "serviceOfDocuments2"].includes(url.searchParams.get("pageId")) ? url.searchParams.get("pageId") : null,
+    eventId: payload?.event?.id === "serviceOfDocuments" ? "serviceOfDocuments" : null,
+    controlValue: ["selector-empty-control", "selector-persistence-control"].includes(payload?.data?.protectedValue) ? payload.data.protectedValue : null,
+    selected: Array.isArray(selected) && (selected.length === 0 || (selected.length === 1 && selected[0] === "additionalRecipients")) ? selected : null,
+  };
+}
 
 export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.sessions") {
   if (!/^[a-z-]+$/.test(persona)) throw new Error("CCD_SESSION_PERSONA_INVALID");
@@ -123,6 +136,7 @@ const eventRoutes = {
   "exui-ccd-pilot": [new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`)],
   [EVENT_CAPABILITY_SCOPE]: recipientEventRoutes,
   [CALLBACK_SCOPE]: recipientEventRoutes,
+  [SELECTOR_EVENT_SCOPE]: recipientEventRoutes,
 };
 const inputRoute = /^\/internal\/case-types\/HarnessResultsPRL\/work-basket-inputs$/;
 
@@ -151,7 +165,12 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
   assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
   const { recipientCallback, workbasket, resultColumns } = options;
   if(resultColumns!==undefined){assert.equal(resultColumns,true,"RESULT_UI_GATEWAY_OPT_IN");assert.equal(recipientCallback,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(workbasket,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(mutation,null,"RESULT_UI_BASELINE_ONLY");}
-  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  if (scope === SELECTOR_EVENT_SCOPE) {
+    assert.equal(mutation,null,"SELECTOR_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
+    assert.equal(recipientCallback,undefined,"SELECTOR_CALLBACK_OMITTED");
+    assert.equal(resultColumns,undefined,"SELECTOR_RESULTS_EXCLUDED");
+  }
   if (scope === APPLICANT_RESULTS_SCOPE) assert.equal(resultColumns,true,"APPLICANT_RESULTS_GATEWAY_REQUIRED");
   assert(workbasket === undefined || (workbasket === true && scope === "exui-ccd-pilot"), "CCD_WORKBASKET_SCOPE_REQUIRED");
   if (mutation === "ccd-drop-workbasket-field") assert.equal(workbasket, true, "CCD_WORKBASKET_FAULT_SCOPE_REQUIRED");
@@ -260,7 +279,9 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         path: ccdRoute?.path ?? receivedPath,
         receivedPath,
         upstreamPath: ccdRoute?.upstreamPath ?? url.pathname,
-        ...(scope === EVENT_CAPABILITY_SCOPE && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
+        ...([EVENT_CAPABILITY_SCOPE,SELECTOR_EVENT_SCOPE].includes(scope) && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
+        ...(scope === SELECTOR_EVENT_SCOPE && ccdRoute && request.method === "POST" && ccdRoute.upstreamPath === "/case-types/HarnessNestedPRL/validate"
+          ? { selectorValidation: selectorValidationProjection(body, url) } : {}),
       };
       let target;
       if (ccdRoute)
