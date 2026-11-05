@@ -140,6 +140,25 @@ async function completeCcdBundle(
       manifest.runtimeMetadata[key] = referenceManifest.runtimeMetadata[key];
   }
   alterManifest(manifest);
+  if (manifest.runtimeMetadata.workbasketImportDigest === "fixture") {
+    const { buildWorkbasketInputDefinition } = await import("./lib/exui-workbasket-input-definition.mjs");
+    const definition = buildWorkbasketInputDefinition();
+    const receipt = {
+      status: "import-and-inputs-observed",
+      binding: { source: definition.workbasketInputSource, workbookDigest: "sha256:" + "9".repeat(64) },
+      bindings: definition.workbasketInputBindings,
+      images: {
+        data: { id: manifest.identity.dependencyIdentities.ccd.artifactDigest },
+        definition: { id: manifest.identity.dependencyIdentities["ccd-definition"].artifactDigest },
+      },
+      observations: { inputs: { status: 200, body: JSON.parse(fs.readFileSync("scripts/fixtures/ccd/workbasket-input.observed.json")) } },
+    };
+    const bytes = JSON.stringify(receipt);
+    fs.mkdirSync(path.join(root, "ccd-runtime/workbasket-input-import"), { recursive: true });
+    fs.writeFileSync(path.join(root, "ccd-runtime/workbasket-input-import/receipt.json"), bytes);
+    manifest.runtimeMetadata.workbasketImportDigest = digestBytes(bytes);
+    manifest.identity.definitionDigests.HarnessResultsPRL = receipt.binding.workbookDigest;
+  }
   const observed = { id: "HarnessNestedPRL", version: { number: 1 } };
   const imported = {
     binding,
@@ -229,7 +248,7 @@ async function completeCcdBundle(
   for (const [i, mutation] of policy.mutationDefinitions.entries()) {
     const identity = {
       ...structuredClone(manifest.identity),
-      configurationDigest: "sha256:" + String(i + 5).repeat(64),
+      configurationDigest: "sha256:" + ((i + 5) % 16).toString(16).repeat(64),
     };
     invocation(
       mutation.mutationId,
@@ -268,7 +287,7 @@ async function completeCcdBundle(
     cleanupComplete: true,
   });
   const loaded = loadRunEvidence(path.join(directory, "run.json"), policy);
-  assert.equal(loaded.receipt.verdict.status, "PASS");
+  assert.equal(loaded.receipt.verdict.status, "PASS", JSON.stringify(loaded.receipt.verdict.reasons));
   write("gate.json", loaded.receipt);
   return {
     directory,
@@ -329,6 +348,27 @@ test("support only: finalized exact CCD sequence credits only one of112 and pres
     );
     assert.equal(saved.evidenceReferences.length, 2);
     assert.equal(saved.releaseCredit, false);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("accepted Work Basket proof credits ten pinned PRL shape rows and rejects receipt drift", async () => {
+  const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "coverage-workbasket-"));
+  try {
+    const bundle = await completeCcdBundle(root, undefined, manifest => {
+      manifest.runtimeMetadata.workbasketImportDigest = "fixture";
+    });
+    const result = api.projectConfigurationCoverage({ phaseDirectory: bundle.directory });
+    assert.equal(result.report.coverage.candidate, 10);
+    assert.equal(result.report.coverage.ccd, 1);
+    assert.equal(result.report.executedProofs.filter(item => item.boundary === "candidate").length, 10);
+    const receipt = path.join(root, "ccd-runtime/workbasket-input-import/receipt.json");
+    const changed = JSON.parse(fs.readFileSync(receipt));
+    changed.observations.inputs.body.workbasketInputs[0].label = "wrong";
+    fs.writeFileSync(receipt, JSON.stringify(changed));
+    assert.throws(() => api.projectConfigurationCoverage({ phaseDirectory: bundle.directory }), /DIGEST|DRIFT|MISMATCH/);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -725,6 +765,8 @@ test("support only: complete routing phase credits its single reviewed PCS sourc
   assert.equal(projected.report.coverage.ccd, 0);
   assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 111);
   assert.deepEqual(projected.report.executedProofs, [
+
+
     { obligationId: routingCell, boundary: "candidate", status: "passed" },
   ]);
   assert.equal(projected.phaseReferences.routing.status, "PASS");
@@ -782,7 +824,7 @@ async function completeEventBundle(root) {
   return createEventTransitionFixture(undefined, { root });
 }
 
-test("support only: complete event phase credits the exact courtadmin cell without changing112 obligations", async (t) => {
+test("support only: complete event phase credits the exact courtadmin edit and read cells without changing112 obligations", async (t) => {
   const api = await import("./lib/exui-configuration-runtime-coverage.mjs");
   const { digestBytes } = await import("./lib/exui-evidence-io.mjs");
   const root = fs.mkdtempSync(
@@ -793,7 +835,7 @@ test("support only: complete event phase credits the exact courtadmin cell witho
   const before =
     api.loadCommittedConfigurationCatalogue().catalogue.obligations;
   assert.equal(
-    digestBytes(JSON.stringify(before)),
+    digestBytes(JSON.stringify(before.map(item => item.kind === "shared-policy" ? {...item, sourceKeys: []} : item))),
     "sha256:66ab9952a57c8e9ae728e075d132302a0a80b66c0d798f7d03f6f79599b945bb",
   );
   const projected = api.projectConfigurationCoverage({
@@ -801,10 +843,31 @@ test("support only: complete event phase credits the exact courtadmin cell witho
   });
   assert.deepEqual(projected.catalogue.obligations, before);
   assert.deepEqual(projected.report.executedProofs, [
+    {obligationId:"configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f",boundary:"candidate",status:"passed"},
+    {obligationId:"configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49",boundary:"candidate",status:"passed"},
+    {obligationId:"configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e",boundary:"candidate",status:"passed"},
+    {obligationId:"configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757",boundary:"candidate",status:"passed"},
     { obligationId: eventCell, boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65", boundary: "ccd", status: "passed" },
+
+    { obligationId: "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", boundary: "ccd", status: "passed" },
+    { obligationId: "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337", boundary: "ccd", status: "passed" },
   ]);
-  assert.equal(projected.report.coverage.ccd, 1);
-  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 111);
+  assert.equal(projected.report.coverage.candidate, 4);
+  assert.equal(projected.report.coverage.ccd, 16);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 92);
   assert.equal(projected.report.releaseCredit, false);
   assert.equal(
     projected.phaseReferences.eventCapability.receiptArtifactDigest,
@@ -818,7 +881,7 @@ test("support only: complete event phase credits the exact courtadmin cell witho
       terminal: event.terminal,
     },
   });
-  assert.equal(result.coverage.ccd, 1);
+  assert.equal(result.coverage.ccd, 16);
 });
 
 async function refreshEventBundle(bundle, edit) {
@@ -900,10 +963,10 @@ for (const oldBlocked of [false, true])
         phaseDirectory: postal.directory,
         eventPhaseDirectory: event.directory,
       });
-      assert.equal(projected.report.coverage.ccd, oldBlocked ? 1 : 2);
+      assert.equal(projected.report.coverage.ccd, oldBlocked ? 16 : 17);
       assert.equal(
         projected.report.coverage.missingCandidateOrCcd.length,
-        oldBlocked ? 111 : 110,
+        oldBlocked ? 92 : 91,
       );
       assert.equal(
         projected.phaseReferences.ccd.status,
@@ -926,13 +989,20 @@ for (const oldBlocked of [false, true])
           terminal: event.terminal,
         },
       });
-      assert.equal(result.coverage.ccd, oldBlocked ? 1 : 2);
+      assert.equal(result.coverage.ccd, oldBlocked ? 16 : 17);
     },
   );
 
 for (const fault of [
   "judge-failed",
   "courtadmin-failed",
+  "wrong-courtadmin-update-mutation-failure",
+  "read-failed",
+  "readonly-failed",
+  "readonly-update-failed",
+  "wrong-readonly-update-mutation-failure",
+  "wrong-readonly-mutation-failure",
+  "wrong-read-mutation-failure",
   "wrong-mutation-failure",
 ])
   test(
@@ -946,12 +1016,20 @@ for (const fault of [
       t.after(() => fs.rmSync(root, { recursive: true, force: true }));
       const b = await completeEventBundle(root);
       const receipt = await refreshEventBundle(b, (report, execution) => {
-        const target =
-          fault === "judge-failed"
+        const target = fault === "wrong-courtadmin-update-mutation-failure" ? "ccd-courtadmin-update-recipient-shapes-denied"
+          : fault === "readonly-update-failed" ? "ccd-readonly-update-recipient-shapes-denied"
+          : fault === "wrong-readonly-update-mutation-failure" ? "ccd-readonly-update-recipient-shapes-enabled"
+          : fault === "readonly-failed" ? "ccd-readonly-read-recipient-shapes"
+          : fault === "wrong-readonly-mutation-failure" ? "ccd-readonly-read-shapes-hidden"
+          : fault === "judge-failed"
             ? "ccd-event-create-denied"
             : fault === "courtadmin-failed"
-              ? "ccd-courtadmin-email-one"
-              : "ccd-event-create-enabled";
+              ? "ccd-courtadmin-update-recipient-shapes"
+              : fault === "read-failed"
+                ? "ccd-courtadmin-read-recipient-shapes"
+                : fault === "wrong-read-mutation-failure"
+                  ? "ccd-courtadmin-read-shapes-hidden"
+                  : "ccd-event-create-enabled";
         const test = report.tests.find((x) => x.proofId === target);
         if (test) {
           test.status = "failed";
@@ -1166,6 +1244,24 @@ test("support only: fixed event source overlap, exact cell and sequence reject s
     getReleasePolicy(b.manifest.releaseScopeId),
   );
   for (const change of [
+    ...["1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66", "6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3", "2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65"].flatMap(id => [
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).expectedAccess = "denied"; },
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).action = "read"; },
+      c => { c.catalogue.obligations.find(x => x.id === "configuration-cell:" + id).sequence = ["readback"]; },
+    ]),
+    ...["2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea", "8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59", "32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de", "f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb"].flatMap(id => [
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).expectedAccess = "allowed"; },
+      c => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).action = "read"; },
+      c => { c.catalogue.obligations.find(x => x.id === "configuration-cell:" + id).sequence = ["read", "assert-visible-projection"]; },
+    ]),
+    ...["8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a", "fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec", "b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", "8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337"].map(id => c => {
+      c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).role = "caseworker-privatelaw-courtadmin";
+    }),
+    ...["a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", "5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", "d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397"].map(id => c => {
+      c.catalogue.pilotCells.find(x => x.id === "configuration-cell:" + id).recipientCount = 3;
+    }),
+    (c) => { c.catalogue.pilotCells.find(x => x.id === "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a").action = "update"; },
+    (c) => { c.catalogue.obligations.find(x => x.id === "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a").sequence = ["readback"]; },
     (c) => {
       c.catalogue.pilotCells.find((x) => x.id === eventCell).role =
         "caseworker-privatelaw-judge";
@@ -1279,6 +1375,12 @@ for (const fault of ["namespace", "import-observation", "runtime-record"])
       if (fault === "namespace") {
         rt.ccd.namespace = "3".repeat(64);
         manifest.runtimeMetadata.ccdNamespace = rt.ccd.namespace;
+        const importPath=path.join(root,"event-mutant-runtime/definition-import.json");
+        const imported=JSON.parse(fs.readFileSync(importPath));
+        imported.storedSourceShapeDates.namespace=rt.ccd.namespace;
+        fs.writeFileSync(importPath,JSON.stringify(imported));
+        rt.definitionImportDigest=digestBytes(fs.readFileSync(importPath));
+        manifest.runtimeMetadata.definitionImportDigest=rt.definitionImportDigest;
       }
       if (fault === "runtime-record")
         rt.credentials.judge.headers.Authorization =
@@ -1296,6 +1398,8 @@ for (const fault of ["namespace", "import-observation", "runtime-record"])
           imported = JSON.parse(fs.readFileSync(importPath));
         observed.version.number = 18;
         imported.definitionVersion = 18;
+        imported.storedSourceShapeDates.definitionVersion=18;
+        imported.storedSourceShapeDates.rows.forEach(row=>{row.version=18;});
         imported.observedDefinitionDigest = digestBytes(
           JSON.stringify(observed),
         );
@@ -1346,7 +1450,8 @@ test("support only: writer requires independent tool/source pins and projection 
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: b.directory,
   });
-  assert.equal(projected.report.coverage.ccd, 1);
+  assert.equal(projected.report.coverage.candidate, 4);
+  assert.equal(projected.report.coverage.ccd, 16);
   assert.deepEqual(
     Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),
     before,
@@ -1401,4 +1506,14 @@ test("support only: event raw report aliases are rejected even when in-root byte
       api.projectConfigurationCoverage({ eventPhaseDirectory: b.directory }),
     /CATALOGUE_INPUT_PATH_ESCAPE/,
   );
+});
+test('support only: exact callback native packet attributes one candidate row, never CCD count or full release',async t=>{
+ const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+ const {projectConfigurationCoverage,writeConfigurationCoverage}=await import('./lib/exui-configuration-runtime-coverage.mjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-coverage-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const f=await createCallbackPhaseFixture({root});
+ const projected=projectConfigurationCoverage({harnessRoot:path.resolve('.'),callbackPhaseDirectory:f.directory});
+ assert.equal(projected.report.coverage.candidate,1);assert.equal(projected.report.coverage.ccd,0);assert.equal(projected.report.coverage.missingCandidateOrCcd.length,111);assert.equal(projected.report.releaseCredit,false);assert.equal(projected.catalogue.obligations.length,112);
+ assert.deepEqual(projected.report.executedProofs,[{obligationId:'configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94',boundary:'candidate',status:'passed'}]);
+ assert.equal(writeConfigurationCoverage({harnessRoot:path.resolve('.'),output:path.join(root,'coverage'),callbackPhase:{directory:f.directory,expected:f.expected,terminal:f.terminal}}).coverage.candidate,1);
+ f.observations.baseline.ui.cya.changeAccessibleName='Change Another';f.write();assert.throws(()=>projectConfigurationCoverage({harnessRoot:path.resolve('.'),callbackPhaseDirectory:f.directory}),/CALLBACK_OBSERVATION_CYA_CHANGE/);
 });

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { SOURCE_SHAPE_ROWS, deriveSourceShapeFault, validateSourceShapeFault } from './lib/exui-source-shape-contract.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +9,18 @@ import { assertFreshCandidateDerivationOutput } from "./lib/exui-candidate-artif
 import {
   buildEventCapabilityFixtures,
   validateEventCapabilityPair,
+  deriveCourtadminReadFault,
+  deriveReadonlyReadFault,
+  validateReadonlyReadPair,
+  READONLY_READ_MUTATION,
+  READONLY_UPDATE_MUTATION,
+  COURTADMIN_UPDATE_MUTATION,
+  deriveCourtadminUpdateFault,
+  validateCourtadminUpdatePair,
+  deriveReadonlyUpdateFault,
+  validateReadonlyUpdatePair,
+  validateCourtadminReadPair,
+  COURTADMIN_READ_MUTATION,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_MUTATION,
   EVENT_CAPABILITY_PROOFS,
@@ -19,6 +32,12 @@ export async function prepareEventCapabilityFixtures(output) {
   const sourcePath = path.join(fixtureRoot, "event-capability.source.json");
   const source = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
   const pair = buildEventCapabilityFixtures(source);
+  pair["read-mutant"] = deriveCourtadminReadFault(pair.baseline, source);
+  pair["readonly-read-mutant"] = deriveReadonlyReadFault(pair.baseline, source);
+  pair["readonly-update-mutant"] = deriveReadonlyUpdateFault(pair.baseline, source);
+  const readonlyUpdateTransformation = validateReadonlyUpdatePair(pair.baseline, pair["readonly-update-mutant"], source);
+  const readonlyReadTransformation = validateReadonlyReadPair(pair.baseline, pair["readonly-read-mutant"], source);
+  const readTransformation = validateCourtadminReadPair(pair.baseline, pair["read-mutant"], source);
   const transformation = validateEventCapabilityPair(
     pair.baseline,
     pair.mutant,
@@ -31,17 +50,28 @@ export async function prepareEventCapabilityFixtures(output) {
   });
   fs.mkdirSync(destination, { mode: 0o700 });
   fs.chmodSync(destination, 0o700);
+  pair["courtadmin-update-mutant"] = deriveCourtadminUpdateFault(pair.baseline, source);
+  for (const row of SOURCE_SHAPE_ROWS) pair[`shape-${row.id}-mutant`] = deriveSourceShapeFault(row.id,pair.baseline,source);
   const binding = {
+    ...Object.fromEntries(SOURCE_SHAPE_ROWS.map(row => [`shape-${row.id}-transformation`,validateSourceShapeFault(row.id,pair.baseline,pair[`shape-${row.id}-mutant`],source)])),
     schemaVersion: 1,
     scope: EVENT_CAPABILITY_SCOPE,
     mutationId: EVENT_CAPABILITY_MUTATION,
+    readMutationId: COURTADMIN_READ_MUTATION,
+    readTransformation,
+    readonlyReadMutationId: READONLY_READ_MUTATION,
+    readonlyReadTransformation,
+    courtadminUpdateMutationId: COURTADMIN_UPDATE_MUTATION,
+    courtadminUpdateTransformation: validateCourtadminUpdatePair(pair.baseline, pair["courtadmin-update-mutant"], source),
+    readonlyUpdateMutationId: READONLY_UPDATE_MUTATION,
+    readonlyUpdateTransformation,
     proofs: EVENT_CAPABILITY_PROOFS,
     sourceRevision: source.revision,
     sourceProjectionDigest: EVENT_CAPABILITY_SOURCE_DIGEST,
     transformation,
     releaseCredit: false,
   };
-  for (const name of ["baseline", "mutant"]) {
+  for (const name of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)]) {
     const file = path.join(destination, name + ".json");
     fs.writeFileSync(file, JSON.stringify(pair[name], null, 2) + "\n", {
       flag: "wx",

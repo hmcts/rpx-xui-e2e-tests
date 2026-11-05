@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "kind": "recipient-callback-import",
+  "rowFacets": true,
+  "syntheticPredecessor": "protectedValue:READONLY:serviceOfDocumentsharnessBefore:order1",
+  "variant": "binding-omitted",
+  "mutation": "omit-page2-mid-event-binding",
+  "binding": {
+    "schemaVersion": 1,
+    "sourceRepository": "hmcts/prl-ccd-definitions",
+    "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
+    "sourceProjectionDigest": "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e",
+    "sourcePath": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+    "sourceFileDigest": "sha256:246b111d163ec15d3e9303c807b9ede7c987133de336bc541a483b0f3bbb90c1",
+    "sourceRowDigest": "sha256:867df74fb320620da2249eb754aea68faecfb8cc2de18ab5298c2239179b6196",
+    "sourceAttribute": "CallBackURLMidEvent",
+    "stage": "MID_EVENT",
+    "eventId": "serviceOfDocuments",
+    "fieldId": "sodAdditionalRecipientsList",
+    "pageId": 2,
+    "sourceUrl": "${CCD_DEF_COS_URL}/service-of-documents/validate-additional-recipients",
+    "normalizedUrl": "http://127.0.0.1:3101/service-of-documents/validate-additional-recipients",
+    "responderSourceDigest": "sha256:6be6a5a8d8c9a6eadbca1fd1a5fa63555f7b01d49a4d6b38145e4a2c49c8b198",
+    "releaseCredit": false
+  },
+  "definitionDigest": "sha256:c54e8a73fe257c46b13b602ecfd2264ebcb4ae270820e414d685c5074c0644b0",
+  "workbookDigest": "sha256:69e9f5665a94bb6129e7dc9d91f235e71039ab6af980f190df8036585e368caf",
+  "runtimeAcceptance": false,
+  "catalogueCredit": false,
+  "releaseCredit": false
+}

@@ -104,7 +104,7 @@ test("support only: routing is the fifth required CI phase and existing policies
     "exui-wa-scope-pilot":
       "sha256:7f870c55aff532dbba8196503505bfbcbf48274785eefe67a2c6798aacdedfd0",
     "exui-ccd-pilot":
-      "sha256:5f656ce25290f9c275aa895348a8961c7026e3b4544caba53fbc11a6db6e59b2",
+      "sha256:dd0cdf377d3a46b93ae0c8114ee6b00158b7b8b91f3de6851e76fc1a75d14a23",
   };
   for (const [scope, digest] of Object.entries(expected))
     assert.equal(getReleasePolicy(scope).policyDigest, digest);
@@ -114,6 +114,7 @@ test("support only: routing is the fifth required CI phase and existing policies
     [
       "ccd-nested-roundtrip",
       "ccd-postal-two-roundtrip",
+      "ccd-prl-workbasket-inputs",
       "ccd-role-policy",
       "ccd-role-revocation",
     ],
@@ -135,8 +136,9 @@ test("support only: routing is the fifth required CI phase and existing policies
     stop: async () => {},
     startEvent: async () => {},
     stopEvent: async () => {},
+    startCallback: async () => {}, stopCallback: async () => {},
   });
-  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability", "routing"]);
+  assert.deepEqual(calls, ["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback"]);
 });
 
 test("support only: scoped real Node guard admits PCS NoC but denies UI/other origins and keeps old scopes unchanged", () => {

@@ -1,3 +1,5 @@
+import { CALLBACK_SCOPE, CALLBACK_MUTATION } from './exui-recipient-callback-contract.mjs';
+import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import { effectiveCandidateConfiguration } from "./exui-candidate-runtime.mjs";
 import { digestBytes } from "./exui-evidence-io.mjs";
@@ -8,12 +10,18 @@ import {
 } from "./exui-routing-contract.mjs";
 
 import { GLOBAL_SEARCH_SCOPE, GLOBAL_SEARCH_MUTATION, globalSearchConfiguration } from "./exui-global-search-contract.mjs";
-import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION } from "./exui-ccd-event-capability.mjs";
 
 const slices = {
+  [CALLBACK_SCOPE]: [{invocationId:"baseline",kind:"baseline"},{invocationId:CALLBACK_MUTATION,kind:"mutation",mutation:CALLBACK_MUTATION}],
   [EVENT_CAPABILITY_SCOPE]: [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     { invocationId: EVENT_CAPABILITY_MUTATION, kind: "mutation", mutation: EVENT_CAPABILITY_MUTATION },
+    { invocationId: COURTADMIN_READ_MUTATION, kind: "mutation", mutation: COURTADMIN_READ_MUTATION },
+    { invocationId: READONLY_READ_MUTATION, kind: "mutation", mutation: READONLY_READ_MUTATION },
+    { invocationId: READONLY_UPDATE_MUTATION, kind: "mutation", mutation: READONLY_UPDATE_MUTATION },
+    { invocationId: COURTADMIN_UPDATE_MUTATION, kind: "mutation", mutation: COURTADMIN_UPDATE_MUTATION },
+    ...SOURCE_SHAPE_MUTATIONS.map(mutation => ({invocationId:mutation, kind:"mutation", mutation})),
   ],
   "exui-hearing-publication-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },
@@ -67,6 +75,7 @@ const slices = {
       "ccd-broaden-access",
       "ccd-write-then-deny",
       "ccd-drop-postal-optional-child",
+      "ccd-drop-workbasket-field",
     ].map((mutation) => ({
       invocationId: mutation,
       kind: "mutation",
@@ -117,7 +126,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   }
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId))
     return {
       config,
       identity: {
@@ -128,6 +137,8 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   config.now = false;
+  if (input.releaseScopeId === "exui-ccd-pilot" && input.workbasket)
+    config.jurisdictions = `${config.jurisdictions},HARNESS`;
   return {
     config,
     identity: {
@@ -136,10 +147,11 @@ export function nativeIdentity(input, invocation, candidateRoot) {
         JSON.stringify({
           config,
           gatewayDigest: input.gatewayDigest,
-          mutation: input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? null : invocation.mutation ?? null,
+          mutation: [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
         }),
       ),
-      definitionDigests: { HarnessNestedPRL: input.definition.fixtureDigest },
+      definitionDigests: { HarnessNestedPRL: input.definition.fixtureDigest,
+        ...(input.workbasket ? { HarnessResultsPRL: input.workbasketDefinitionDigest } : {}) },
       dependencyIdentities: Object.fromEntries(
         ["data", "definition"].map((service) => [
           service === "data" ? "ccd" : "ccd-definition",
@@ -153,13 +165,13 @@ export function nativeIdentity(input, invocation, candidateRoot) {
   };
 }
 export function seedAppCcdSessions(credentials, seed, scope) {
-  const actors = scope === EVENT_CAPABILITY_SCOPE
-    ? ["allowed", "courtadmin", "judge"]
+  const actors = [EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope)
+    ? ["allowed", "courtadmin", "judge", "readonly"]
     : ["allowed", "denied", ...(credentials.transitioning ? ["transitioning"] : [])];
   return Object.fromEntries(
     actors.map((persona) => {
       assert(credentials[persona], "CCD_APP_PERSONA_REQUIRED");
-      if (["courtadmin", "judge"].includes(persona))
+      if (["courtadmin", "judge", "readonly"].includes(persona))
         assert.deepEqual(credentials[persona].roles?.slice().sort(), [
           "caseworker", "caseworker-harness", `caseworker-privatelaw-${persona}`,
         ], "CCD_SOURCE_ACTOR_ROLES_REQUIRED");

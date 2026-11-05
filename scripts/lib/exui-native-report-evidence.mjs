@@ -11,10 +11,12 @@ import {
   isKnownPostalBlock,
 } from "./exui-native-proof-validation.mjs";
 import { projectConfigurationCoverage } from "./exui-configuration-runtime-coverage.mjs";
+import { validateCallbackTransitionEvidence } from "./exui-recipient-callback-transition.mjs";
 import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs";
 import { nativeInvocations } from "./exui-native-contract.mjs";
 import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs";
 import { assertRoutingInterpreter, ROUTING_SCOPE } from "./exui-routing-contract.mjs";
+import { admitSharedRoleNative } from "./exui-shared-role-native-binding.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const scopes = {
@@ -23,6 +25,7 @@ const scopes = {
   ccd: "exui-ccd-pilot",
   eventCapability: "exui-ccd-event-capability-pilot",
   routing: ROUTING_SCOPE,
+  recipientCallback: "exui-ccd-recipient-callback-pilot",
 };
 const hashPattern = /^sha256:[a-f0-9]{64}$/;
 const uuid =
@@ -182,7 +185,9 @@ function phaseProjection(directory, selection, ciPhase, expected) {
       receiptArtifactDigest: pin.receiptArtifactDigest,
       ...(phase === "eventCapability"
         ? { eventTransition: pin.eventTransition }
-        : {}),
+        : phase === "recipientCallback"
+          ? { callbackTransition: pin.callbackTransition }
+          : {}),
     },
     ciPhase,
     "CI_PHASE_MISMATCH",
@@ -196,6 +201,8 @@ function phaseProjection(directory, selection, ciPhase, expected) {
     );
   if (phase === "eventCapability")
     validateEventTransitionEvidence(directory, pin, loaded.input);
+  if (phase === "recipientCallback")
+    validateCallbackTransitionEvidence(directory, pin, loaded.input);
   if (phase === "routing") {
     const routeInput = read(path.join(directory, "input.json")).value;
     const review = read(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json")).value;
@@ -358,6 +365,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       phaseDirectory: path.join(directory, "private/ccd"),
       eventPhaseDirectory: path.join(directory, "private/eventCapability"),
       routingPhaseDirectory: path.join(directory, "private/routing"),
+      callbackPhaseDirectory: path.join(directory, "private/recipientCallback"),
     });
     const ccdPin = expected.phases.find(
       (item) => item.phase === "ccd",
@@ -372,7 +380,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       ccdPin.evidenceManifestDigest,
       "COVERAGE_EVIDENCE_MISMATCH",
     );
-    for (const phase of ["ccd", "eventCapability", "routing"]) {
+    for (const phase of ["ccd", "eventCapability", "routing", "recipientCallback"]) {
       const selected = expected.phases.find((item) => item.phase === phase);
       const ref = accounting.phaseReferences[phase];
       for (const field of [
@@ -388,20 +396,42 @@ export async function readNativeReportEvidence(descriptorPath) {
         "COVERAGE_PHASE_MISMATCH",
       );
     }
+    let sharedRoleAdmission;
+    if (descriptor.value.sharedRoleAdmission) {
+      const admission = descriptor.value.sharedRoleAdmission;
+      equal(Object.keys(admission).sort(), ['candidateArtifactPath','sourceImageInputs'], 'SHARED_ROLE_INPUT_SCHEMA');
+      canonical(admission.candidateArtifactPath);
+      equal(admission.candidateArtifactPath, read(path.join(directory, 'private/job-input.json')).value.candidateManifest, 'SHARED_ROLE_CANDIDATE_PATH');
+      if (['ccd', 'eventCapability'].every(phase => phases.find(item => item.phase === phase)?.status === 'PASS')) {
+        const accepted = await admitSharedRoleNative({ harnessRoot: ROOT, ccdPhaseDirectory: path.join(directory, 'private/ccd'),
+          eventPhaseDirectory: path.join(directory, 'private/eventCapability'), candidateArtifactPath: admission.candidateArtifactPath,
+          sourceImageInputs: admission.sourceImageInputs });
+        equal(accepted.candidateArtifactDigest, expected.candidateArtifactDigest, 'SHARED_ROLE_CANDIDATE_DIGEST');
+        const row = accounting.catalogue.obligations.find(item => item.id === accepted.obligationId);
+        fact(row?.kind === 'shared-policy' && row.requiredBoundary === 'ccd', 'SHARED_ROLE_CATALOGUE_ROW');
+        sharedRoleAdmission = { ...accepted, ccdRunId: accounting.phaseReferences.ccd.runId,
+          eventRunId: accounting.phaseReferences.eventCapability.runId };
+      }
+    }
     const creditedObligationIds = accounting.report.executedProofs
       .filter((item) => item.status === "passed")
       .map((item) => item.obligationId);
+    if (sharedRoleAdmission) {
+      fact(!creditedObligationIds.includes(sharedRoleAdmission.obligationId), 'SHARED_ROLE_DUPLICATE_CREDIT');
+      creditedObligationIds.push(sharedRoleAdmission.obligationId);
+    }
     const catalogueCoverage = {
       catalogueDigest: digestBytes(
         JSON.stringify(accounting.catalogue.obligations),
       ),
       selected: accounting.report.coverage.selected,
       candidate: accounting.report.coverage.candidate,
-      ccd: accounting.report.coverage.ccd,
+      ccd: accounting.report.coverage.ccd + (sharedRoleAdmission ? 1 : 0),
       creditedObligationIds,
-      missing: accounting.report.coverage.missingCandidateOrCcd.length,
+      missing: accounting.report.coverage.missingCandidateOrCcd.length - (sharedRoleAdmission ? 1 : 0),
       sourceArtifactDigests: accounting.report.provenance.sourceArtifactDigests,
       phaseReferences: accounting.phaseReferences,
+      ...(sharedRoleAdmission ? { sharedRoleAdmission } : {}),
       releaseCredit: false,
     };
     const first = expected.phases[0].expected;

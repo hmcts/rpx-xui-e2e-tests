@@ -1,6 +1,11 @@
 import fs from "node:fs";
 
 import {
+  currentSharedRoleObservationBinding,
+  projectSharedRoleResponse,
+  saveSharedRoleObservation,
+} from "../../../../scripts/lib/exui-shared-role-observations.mjs";
+import {
   test,
   expect,
   ccdPersonas,
@@ -132,23 +137,29 @@ test(
         maxRetries: 0,
       });
       const observation = {
+        schemaVersion: 1,
+        binding: currentSharedRoleObservationBinding(),
+        complete: false,
         caseId,
+        actor: { id: user.id ?? user.uid, roles: [...user.roles].sort() },
         identity: transition.observations,
         grantedRead: read.status(),
         legitimateWrite: written.status(),
         warmedRead: warm.status,
         freshBearerRead: freshDirect.status,
         originalBearerRead: staleDirect.status,
-        renewedSessionUser: { id: user.id ?? user.uid, roles: user.roles },
+        warmedResponse: projectSharedRoleResponse(warm.status, warm.body),
+        freshBearerResponse: projectSharedRoleResponse(freshDirect.status, freshDirect.body),
+        originalBearerResponse: projectSharedRoleResponse(staleDirect.status, staleDirect.body),
+        renewedSessionUser: { id: user.id ?? user.uid, roles: [...user.roles].sort() },
         renewedCandidateRead: deniedRead.status(),
+        renewedCandidateResponse: projectSharedRoleResponse(deniedRead.status(), await deniedRead.text()),
         before,
         boundary:
           "real CCD RBAC; same synthetic IDAM actor; explicitly renewed synthetic EXUI session; no OIDC-login or immediate stale-session revocation claim",
       };
       const evidence = `${process.env.EXUI_CCD_EVIDENCE}/role-revocation-observation.json`;
-      fs.writeFileSync(evidence, JSON.stringify(observation, null, 2), {
-        mode: 0o600,
-      });
+      saveSharedRoleObservation(evidence, observation);
 
       await test.step("harness-assertion:revoked-data-isolation", async () => {
         expect([403, 404]).toContain(deniedRead.status());
@@ -174,6 +185,8 @@ test(
           ignore_warning: false,
         },
       });
+      const renewedWriteResponse = projectSharedRoleResponse(deniedWrite.status(), await deniedWrite.text());
+      saveSharedRoleObservation(evidence, { ...observation, renewedCandidateWrite: deniedWrite.status(), renewedWriteResponse });
       expect([403, 404]).toContain(deniedWrite.status());
       expect(await deniedWrite.text()).not.toContain(
         "revoked-write-must-not-persist",
@@ -195,20 +208,14 @@ test(
             [403, 404].includes(item.status),
         ),
       ).toBeTruthy();
-      fs.writeFileSync(
-        evidence,
-        JSON.stringify(
-          {
-            ...observation,
-            renewedCandidateWrite: deniedWrite.status(),
-            after,
-            auditOnlyExceptions: [],
-          },
-          null,
-          2,
-        ),
-        { mode: 0o600 },
-      );
+      saveSharedRoleObservation(evidence, {
+        ...observation,
+        complete: true,
+        renewedCandidateWrite: deniedWrite.status(),
+        renewedWriteResponse,
+        after,
+        auditOnlyExceptions: [],
+      });
 
       await test.step("harness-assertion:revoked-state-integrity", async () => {
         expect(after).toEqual(before);

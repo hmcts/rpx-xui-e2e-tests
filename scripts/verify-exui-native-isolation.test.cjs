@@ -611,7 +611,7 @@ async function eventOwnershipFixture(t) {
   });
   for (const name of ["candidate/config", "stage/scripts/lib", "output/baseline", "browser"])
     fs.mkdirSync(path.join(root, name), { recursive: true });
-  for (const id of ["baseline", "ccd-enable-judge-event"])
+  for (const id of ["baseline", "ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create"])
     for (const kind of ["sessions", "diagnostics"])
       fs.mkdirSync(path.join(state, id, kind), { recursive: true });
   fs.writeFileSync(path.join(root, "candidate/config/default.json"), JSON.stringify({ services: { idam: {} }, feature: {} }));
@@ -666,6 +666,24 @@ test("support only: event ownership captures baseline and fresh fault plans sepa
   assert.throws(() => f.api.captureEventFaultOwnership(f.input, f.handoff, f.context, f.handoff.output), /EVENT_VARIANT_MISMATCH/);
   assert.throws(() => f.api.captureEventFaultOwnership(faultInput, f.handoff, f.context, f.handoff.output), /CCD_NAMESPACE_MISMATCH/);
   assert.throws(() => f.api.assertEventBaselineRemoved(fault, { inspect: () => null }), /BASELINE_OWNERSHIP_REQUIRED/);
+});
+
+for (const [mutation, variant] of [["ccd-remove-courtadmin-recipient-read", "read-mutant"], ["ccd-remove-readonly-recipient-read", "readonly-read-mutant"], ["ccd-enable-readonly-recipient-update", "readonly-update-mutant"], ["ccd-remove-courtadmin-event-create", "courtadmin-update-mutant"]])
+test("support only: read-fault ownership uses its exact namespace, invocation and private process mounts: " + mutation, async t => {
+  const f = await eventOwnershipFixture(t);
+  const captureEventFaultOwnership = f.api.captureEventFaultOwnership;
+  const input = { ...f.input, ccd: { ...f.input.ccd, namespace: "5".repeat(64), owner: "read-fault-owner", fixtureSelection: "event-capability-" + variant } };
+  const context = { ...f.context, ccd: input.ccd };
+  const owned = captureEventFaultOwnership(input, f.handoff, context, f.handoff.output, mutation);
+  assert.deepEqual(owned.invocations.map(item => item.invocationId), [mutation]);
+  const { plan } = owned.invocations[0];
+  assert.equal(plan.namespace, input.ccd.namespace);
+  for (const service of ["candidate", "tools"]) {
+    assert(plan[service].name.includes(mutation));
+    assert.equal(plan[service].namespace, input.ccd.namespace);
+  }
+  assert.throws(() => captureEventFaultOwnership(input, f.handoff, context, f.handoff.output, "ccd-enable-judge-event"), /EVENT_VARIANT_MISMATCH/);
+  assert.throws(() => captureEventFaultOwnership(input, f.handoff, context, f.handoff.output, "../escape"), /EVENT_TRANSITION_INVOCATION/);
 });
 
 test("support only: event handoff refuses either baseline child still present by its name or CID", async t => {
@@ -740,8 +758,13 @@ test("support only: event fault candidate arguments cannot be selected under an 
     config: {}, evidenceRoot: f.handoff.output, harnessRoot: f.handoff.stagedHarness,
     releaseScopeId: "exui-ccd-event-capability-pilot",
   };
-  assert(candidateArchiveArguments(args).includes("/candidate/runtime/node"));
-  assert.throws(() => candidateArchiveArguments({ ...args, releaseScopeId: "exui-ccd-pilot" }), /CCD_EVENT_SCOPE_REQUIRED/);
+  for (const invocationId of ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create"]) {
+    const selected = { ...args, invocationId,
+      sessions: path.join(f.handoff.stateRoot, invocationId, "sessions"),
+      diagnostics: path.join(f.handoff.stateRoot, invocationId, "diagnostics") };
+    assert(candidateArchiveArguments(selected).includes("/candidate/runtime/node"));
+    assert.throws(() => candidateArchiveArguments({ ...selected, releaseScopeId: "exui-ccd-pilot" }), /CCD_EVENT_SCOPE_REQUIRED/);
+  }
   assert.throws(() => candidateArchiveArguments({ ...args, invocationId: "ccd-drop-child" }), /UNSUPPORTED_CCD_EVENT_INVOCATION/);
 });
 
@@ -758,4 +781,63 @@ test("native AMD64 image admission binds platform, manifest and config identity"
       assert.throws(() => assertNativeRuntimeImage({ ...info, ...patch }, pin, "linux/amd64"), /NATIVE_RUNTIME_/);
   }
   assert.throws(() => nativeRuntimeImages("linux/ppc64le"), /UNSUPPORTED_NATIVE_PLATFORM/);
+});
+
+test('every event policy mutation constructs both owned tools and candidate plans with closed scope admission',async t=>{
+ const f=await eventOwnershipFixture(t);
+ const {getReleasePolicy}=await import('./lib/exui-release-policy.mjs');
+ const {nativeInvocations}=await import('./lib/exui-native-contract.mjs');
+ const {nativeContainerPlan}=await import('./lib/exui-native-containers.mjs');
+ const {toolContainerArguments,candidateArchiveArguments}=await import('./lib/exui-oci-runtime.mjs');
+ const {SOURCE_SHAPE_MUTATIONS}=await import('./lib/exui-source-shape-contract.mjs');
+ const {eventCapabilityFaultVariant}=await import('./lib/exui-ccd-event-capability.mjs');
+ const ids=['baseline',...getReleasePolicy(f.input.releaseScopeId).mutationDefinitions.map(row=>row.mutationId)];
+ assert.deepEqual(nativeInvocations(f.input.releaseScopeId).map(row=>row.invocationId),ids);
+ for(const invocationId of ids){
+  for(const name of ['sessions','diagnostics'])fs.mkdirSync(path.join(f.handoff.stateRoot,invocationId,name),{recursive:true});
+  const plan=nativeContainerPlan(f.input,f.handoff,invocationId);
+  assert(plan.tools.args.includes(invocationId));
+  assert(plan.candidate.arguments(f.input.ccd.namespace).includes('/candidate/runtime/node'));
+  if(invocationId!=='baseline'){
+   const selected={...f.input,ccd:{...f.input.ccd,fixtureSelection:`event-capability-${eventCapabilityFaultVariant(invocationId)}`}};
+   const owned=f.api.captureEventFaultOwnership(selected,f.handoff,{...f.context,ccd:selected.ccd},f.handoff.output,invocationId);
+   assert.deepEqual(owned.invocations.map(item=>item.invocationId),[invocationId]);
+   assert(owned.invocations[0].plan.candidate.arguments(selected.ccd.namespace).includes('/candidate/runtime/node'));
+  }
+ }
+ const tools={image:f.input.browserRuntimeImage,owner:f.input.runId,harnessRoot:f.handoff.stagedHarness,dependenciesRoot:fs.realpathSync(path.join(__dirname,'../node_modules')),candidateRoot:f.input.artifact.candidateRoot,output:f.handoff.output,browserRoot:f.input.browserRoot,native:true,namespace:f.input.ccd.namespace,releaseScopeId:f.input.releaseScopeId};
+ const candidate={image:f.input.nativeRuntime.imageId,owner:f.input.runId,namespace:f.input.ccd.namespace,candidateRoot:f.input.artifact.candidateRoot,guard:path.join(f.handoff.stagedHarness,'scripts/lib/exui-runtime-network-guard.cjs'),config:{},evidenceRoot:f.handoff.output,harnessRoot:f.handoff.stagedHarness,releaseScopeId:f.input.releaseScopeId};
+ for(const invocationId of SOURCE_SHAPE_MUTATIONS){
+  const sessions=path.join(f.handoff.stateRoot,invocationId,'sessions'),diagnostics=path.join(f.handoff.stateRoot,invocationId,'diagnostics');
+  for(const releaseScopeId of [undefined,'exui-ccd-pilot','exui-wa-family-pilot']){
+   assert.throws(()=>toolContainerArguments({...tools,invocationId,sessions,releaseScopeId}),/CCD_EVENT_SCOPE_REQUIRED/);
+   assert.throws(()=>candidateArchiveArguments({...candidate,invocationId,sessions,diagnostics,releaseScopeId}),/CCD_EVENT_SCOPE_REQUIRED/);
+  }
+  assert.throws(()=>toolContainerArguments({...tools,invocationId,sessions,native:false}),/UNSUPPORTED_OCI_INVOCATION/);
+ }
+ assert.throws(()=>toolContainerArguments({...tools,invocationId:'ccd-shape-unknown'}),/UNSUPPORTED_OCI_INVOCATION/);
+ assert.throws(()=>candidateArchiveArguments({...candidate,invocationId:'ccd-shape-unknown'}),/UNSUPPORTED_NATIVE_INVOCATION/);
+});
+test('callback policy pair constructs both owned plans and rejects foreign scope or event invocations',async t=>{
+ const f=await eventOwnershipFixture(t);
+ const {CALLBACK_SCOPE,CALLBACK_MUTATION,callbackCanonicalImport}=await import('./lib/exui-recipient-callback-contract.mjs');
+ const {getReleasePolicy}=await import('./lib/exui-release-policy.mjs');
+ const {nativeInvocations}=await import('./lib/exui-native-contract.mjs');
+ const {nativeContainerPlan}=await import('./lib/exui-native-containers.mjs');
+ const {toolContainerArguments,candidateArchiveArguments}=await import('./lib/exui-oci-runtime.mjs');
+ const input={...f.input,releaseScopeId:CALLBACK_SCOPE,definition:{...f.input.definition,kind:'native-recipient-callback-definition',variant:'baseline',namespace:f.input.ccd.namespace,fixtureDigest:callbackCanonicalImport().seal.workbookDigest}};
+ const ids=['baseline',...getReleasePolicy(CALLBACK_SCOPE).mutationDefinitions.map(row=>row.mutationId)];assert.deepEqual(ids,['baseline',CALLBACK_MUTATION]);assert.deepEqual(nativeInvocations(CALLBACK_SCOPE).map(row=>row.invocationId),ids);
+ for(const invocationId of ids){
+  for(const name of ['sessions','diagnostics'])fs.mkdirSync(path.join(f.handoff.stateRoot,invocationId,name),{recursive:true});
+  const selected={...input,definition:{...input.definition,variant:invocationId==='baseline'?'baseline':'binding-omitted'}};
+  const plan=nativeContainerPlan(selected,f.handoff,invocationId);assert(plan.tools.args.includes(invocationId));assert(plan.candidate.arguments(input.ccd.namespace).includes('/candidate/runtime/node'));
+  const owned=invocationId==='baseline'?f.api.captureNativeOwnership(selected,f.handoff,f.context,f.handoff.output,'recipientCallback'):f.api.captureCallbackFaultOwnership(selected,f.handoff,f.context,f.handoff.output);
+  assert.deepEqual(owned.invocations.map(row=>row.invocationId),[invocationId]);
+ }
+ const sessions=path.join(f.handoff.stateRoot,CALLBACK_MUTATION,'sessions'),diagnostics=path.join(f.handoff.stateRoot,CALLBACK_MUTATION,'diagnostics');
+ const tools={image:input.browserRuntimeImage,owner:input.runId,harnessRoot:f.handoff.stagedHarness,dependenciesRoot:fs.realpathSync(path.join(__dirname,'../node_modules')),candidateRoot:input.artifact.candidateRoot,output:f.handoff.output,browserRoot:input.browserRoot,native:true,namespace:input.ccd.namespace,releaseScopeId:CALLBACK_SCOPE,sessions,invocationId:CALLBACK_MUTATION};
+ const candidate={image:input.nativeRuntime.imageId,owner:input.runId,namespace:input.ccd.namespace,candidateRoot:input.artifact.candidateRoot,guard:path.join(f.handoff.stagedHarness,'scripts/lib/exui-runtime-network-guard.cjs'),config:{},evidenceRoot:f.handoff.output,harnessRoot:f.handoff.stagedHarness,releaseScopeId:CALLBACK_SCOPE,sessions,diagnostics,invocationId:CALLBACK_MUTATION};
+ for(const releaseScopeId of [undefined,'exui-ccd-pilot','exui-ccd-event-capability-pilot']){assert.throws(()=>toolContainerArguments({...tools,releaseScopeId}),/CCD_CALLBACK_SCOPE_REQUIRED/);assert.throws(()=>candidateArchiveArguments({...candidate,releaseScopeId}),/CCD_CALLBACK_SCOPE_REQUIRED/);}
+ for(const invocationId of ['ccd-enable-judge-event','wa-drop-family']){assert.throws(()=>toolContainerArguments({...tools,invocationId}),/UNSUPPORTED_CCD_CALLBACK_INVOCATION/);assert.throws(()=>candidateArchiveArguments({...candidate,invocationId}),/UNSUPPORTED_CCD_CALLBACK_INVOCATION/);}
+ assert.throws(()=>f.api.captureCallbackFaultOwnership(input,f.handoff,f.context,f.handoff.output),/CI_NATIVE_CALLBACK_VARIANT_MISMATCH/);
 });

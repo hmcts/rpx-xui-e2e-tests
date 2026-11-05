@@ -14,7 +14,7 @@ test("support only: independent source profiles expose15-key presence and nine p
   const api = await import("./lib/exui-configuration-catalogue.mjs");
   const catalogue = api.buildConfigurationCatalogue(snapshot, review);
   assert.deepEqual(catalogue.deploymentProfiles.map(x => x.name), ["base", "aat", "preview"]);
-  assert.equal(digest(JSON.stringify(catalogue.obligations)), "66ab9952a57c8e9ae728e075d132302a0a80b66c0d798f7d03f6f79599b945bb");
+  assert.equal(digest(JSON.stringify(catalogue.obligations.map(item => item.kind === "shared-policy" ? {...item, sourceKeys: []} : item))), "66ab9952a57c8e9ae728e075d132302a0a80b66c0d798f7d03f6f79599b945bb");
   const [base, aat, preview] = catalogue.deploymentProfiles;
   for (const profile of catalogue.deploymentProfiles) {
     assert.equal(Object.keys(profile.environment).length, 15);

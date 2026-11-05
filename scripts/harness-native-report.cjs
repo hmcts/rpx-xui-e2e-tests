@@ -1,6 +1,11 @@
 const { createHash } = require("node:crypto");
 const objectDigest = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
+const canonical = value => Array.isArray(value) ? value.map(canonical) : value && typeof value === "object"
+  ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+const workbasketSource = require("./fixtures/ccd/workbasket-input.source.json").sources[0];
+const workbasketRows = new Set(workbasketSource.rows.map(({ row }) => "configuration-shape:" +
+  objectDigest(canonical({ source: "prl-ccd-definitions:" + workbasketSource.path, row }))));
 const { escape } = require("./harness-report-coverage.cjs");
 
 // Reviewed labels describe the fixed proof, never infer per-service execution from a PASS.
@@ -90,18 +95,70 @@ const proofs = {
     limits:
       "A validation failure blocks later navigation/persistence credit. No deployed PRL or full profile claim.",
   },
+  "ccd-prl-workbasket-inputs": {
+    phase: "ccd",
+    slice: "Private Law Work Basket inputs",
+    behaviour: "Render all 10 pinned PRL input rows, including dependent courts, through EXUI and the CCD V2 descriptor.",
+    services: "Private Law source rows",
+    jurisdiction: "HARNESS (isolated CCD)",
+    caseType: "HarnessResultsPRL (synthetic case type)",
+    lane: "Actual EXUI + isolated CCD",
+    limits: "Source rows on a synthetic case type; no deployed PRL profile or search-result claim.",
+  },
 };
-proofs["ccd-courtadmin-email-one"] = {
+proofs["ccd-courtadmin-update-recipient-shapes"] = {
   phase: "eventCapability",
-  slice: "Court administrator — one email recipient",
+  slice: "Court administrator — email/post, one/two recipients",
   behaviour:
-    "Enter one email recipient, preserve it through Check your answers and Change, then submit and read it back from CCD.",
+    "Enter all four recipient shapes, preserve their values through Check your answers and Change, then submit and independently read exact values and history from CCD.",
   services: "Private Law source-shaped fixture",
   jurisdiction: "HARNESS (actual synthetic jurisdiction)",
   caseType: "HarnessNestedPRL (actual synthetic case type)",
   lane: "Actual EXUI + isolated CCD",
   limits:
     "Literal source role caseworker-privatelaw-courtadmin with synthetic identity; source-shaped serviceOfDocuments event in JUDICIAL_REVIEW. No deployed PRL, Access Management, ABAC, OIDC or CSRF credit.",
+};
+proofs["ccd-courtadmin-read-recipient-shapes"] = {
+  phase: "eventCapability",
+  slice: "Court administrator — read email/post, one/two recipients",
+  behaviour: "Read all four seeded email/post and one/two-recipient shapes through the candidate case view; verify every recipient and independently confirm unchanged CCD data and history.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD",
+  limits: "Literal source courtadmin role. The deliberate fault removes only recipient-field read permission in a fresh CCD import. No deployed PRL or production authorisation claim.",
+};
+proofs["ccd-readonly-read-recipient-shapes"] = {
+  phase: "eventCapability",
+  slice: "Read-only source role — email/post, one/two recipients",
+  behaviour: "Read every recipient value and postal address through the candidate case view, with independent unchanged CCD state and history checks.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD",
+  limits: "Literal source readonly role with R type/state/event/field ACLs. A fresh import removes only recipient-field R; every shape must disappear. No deployed PRL or update-denial credit.",
+};
+proofs["ccd-readonly-update-recipient-shapes-denied"] = {
+  phase: "eventCapability",
+  slice: "Read-only update denial — email/post, one/two recipients",
+  behaviour: "Read every recipient and control value, reject event start and update submission, and independently verify unchanged CCD data and history for all four shapes.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD",
+  limits: "Literal source readonly role. A fresh fault adds only type/state/recipient-field U and event C; every shape must persist its intended edit before the denial oracle fails. No deployed PRL authorisation claim.",
+};
+for (const [id,slice,behaviour] of [
+  ['case-field-recipient-selector','Additional recipient field — source label','Select an additional recipient, persist the choice and verify the source-defined label on the case view.'],
+  ['required-delivery-radio','Delivery method — required selection','Show Served by, reject an omitted method, then persist a selected email recipient.'],
+  ['conditional-email-complex','Email details — conditional complex','Toggle email/post, verify email controls appear only for email, and persist entered recipient data.'],
+  ['optional-postal-line-two','Postal address — optional second line','Save a blank second line, edit the same recipient to a filled second line, and verify both writes with unchanged siblings.'],
+]) proofs[`ccd-source-shape-${id}`] = {
+  phase:'eventCapability',slice,behaviour,services:'Private Law source-shaped fixture',
+  jurisdiction:'HARNESS (actual synthetic jurisdiction)',caseType:'HarnessNestedPRL (actual synthetic case type)',
+  lane:'Actual EXUI + isolated CCD',limits:id === 'case-field-recipient-selector'
+    ? 'Exact imported CaseField label/type and single-label fault; candidate case view after a real CCD write. No deployed PRL or whole-profile credit.'
+    : 'Exact event override context, imported label/order/condition and single-facet fault. LiveFrom is an import-only date, not a date-gated UI claim. No deployed PRL or callback credit.',
 };
 proofs["ccd-event-create-denied"] = {
   phase: "eventCapability",
@@ -139,7 +196,22 @@ proofs["routing-noc-session-cache"] = {
   limits:
     "Uses synthetic case and provider responses. It does not prove deployed PCS profiles, environment overlays, or other decentralised service entries.",
 };
+proofs["callback-recipient-row"] = {
+  phase: "recipientCallback",
+  slice: "Additional recipient callback row",
+  behaviour: "Render the source-shaped recipient row, invoke its mid-event callback through real CCD, and verify all eleven bounded row facets with candidate and stored-definition evidence.",
+  services: "Private Law source-shaped fixture",
+  jurisdiction: "HARNESS (actual synthetic jurisdiction)",
+  caseType: "HarnessNestedPRL (actual synthetic case type)",
+  lane: "Actual EXUI + isolated CCD + synthetic callback responder",
+  limits: "Only the named source row is covered. Callback business logic is synthetic; no production PRL behaviour, deployed service, role-policy, date activation or full release approval is established.",
+};
 const faults = {
+  "ccd-omit-recipient-mid-event": "Omit only the recipient mid-event callback URL and observe the required binding failure",
+  "ccd-remove-courtadmin-event-create": "Remove only source courtadmin event creation permission; preserve readable controls and deny writes",
+  "ccd-enable-readonly-recipient-update": "Enable only the four readonly ACL permissions required for recipient updates",
+  "ccd-remove-readonly-recipient-read": "Remove only the source read-only role’s recipient-field read permission",
+  "ccd-remove-courtadmin-recipient-read": "Remove only the court administrator’s recipient-field read permission",
   "ccd-enable-judge-event":
     "Grant the judge create permission for the readable case’s source event",
   "wa-drop-family": "Omit Immigration and Asylum from supported WA services",
@@ -151,15 +223,23 @@ const faults = {
     "Substitute the actor's old warmed bearer after role removal",
   "ccd-drop-postal-optional-child":
     "Drop the second postal recipient's optional address line",
+  "ccd-drop-workbasket-field": "Remove the PRL case-name input from the CCD V2 descriptor",
   "routing-omit-web-url": "Omit the PCS external web destination",
   "routing-omit-noc-base-url": "Omit the PCS NoC destination",
 };
+Object.assign(faults, {
+  'ccd-shape-case-field-recipient-selector':'Change only the imported CaseField label; prove the candidate renders the changed label after a real CCD write before the source-label oracle fails',
+  'ccd-shape-required-delivery-radio':'Remove the mandatory delivery-method constraint; prove an omitted method persists before the required-method oracle fails',
+  'ccd-shape-conditional-email-complex':'Change only email-complex visibility to post; prove the altered visible branch and a real write before the email-condition oracle fails',
+  'ccd-shape-optional-postal-line-two':'Make the optional second address line mandatory; prove blank rejection then filled persistence before the optionality oracle fails',
+});
 const phaseLabels = {
   family: "WA families",
   scope: "WA organisation scope",
   ccd: "CCD data and access",
   eventCapability: "Source role and event capability",
   routing: "PCS decentralised routing",
+  recipientCallback: "Recipient callback configuration",
 };
 const badge = (text, passed) =>
   `<span class="harness-status ${passed ? "passed" : "failed"}">${escape(text)}</span>`;
@@ -209,15 +289,33 @@ function renderNativeEvidence(evidence) {
     !coverage.phaseReferences ||
     coverage.creditedObligationIds.some((id) => {
       const phase =
+        id === "configuration-shared:role-policy" ? "ccd" :
         id ===
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
-          : id ===
-              "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313"
+          : workbasketRows.has(id) ? "ccd"
+          : ["configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f","configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49","configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e","configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757","configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+              "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66",
+              "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3",
+              "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65",
+              "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
+              "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
+              "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",
+              "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397",
+              "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a",
+              "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec",
+              "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf",
+              "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337",
+              "configuration-cell:2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea",
+              "configuration-cell:8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59",
+              "configuration-cell:32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de",
+              "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb"].includes(id)
             ? "eventCapability"
             : id ===
                 "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c"
               ? "routing"
+              : id === "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94"
+                ? "recipientCallback"
             : null;
       const accepted = evidence.phases.find((item) => item.phase === phase);
       const ref = coverage.phaseReferences[phase];
@@ -233,6 +331,18 @@ function renderNativeEvidence(evidence) {
     })
   )
     throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
+  const roleCredited = coverage.creditedObligationIds.includes("configuration-shared:role-policy");
+  const role = coverage.sharedRoleAdmission;
+  if (roleCredited !== Boolean(role) || (role && (
+    JSON.stringify(Object.keys(role).sort()) !== JSON.stringify(['boundary','candidateArtifactDigest','ccdRunId','eventObservationCount','eventRunId','obligationId','roleFacetCount','sourceBindingCount','sourceImageProofDigest','status']) ||
+    role.obligationId !== "configuration-shared:role-policy" || role.boundary !== "ccd" || role.status !== "passed" ||
+    role.roleFacetCount !== 25 || role.sourceBindingCount !== 25 || role.eventObservationCount !== 8 ||
+    !/^sha256:[a-f0-9]{64}$/.test(role.sourceImageProofDigest) ||
+    role.candidateArtifactDigest !== evidence.source.candidateArtifactDigest ||
+    role.ccdRunId !== coverage.phaseReferences.ccd?.runId ||
+    role.eventRunId !== coverage.phaseReferences.eventCapability?.runId ||
+    evidence.phases.find(item => item.phase === 'eventCapability')?.status !== 'PASS'
+  ))) throw new Error("PUBLIC_ODHIN_NATIVE_SHARED_ROLE_MISMATCH");
   if (
     JSON.stringify(evidence.phases.map((phase) => phase.phase)) !==
     JSON.stringify(Object.keys(phaseLabels))

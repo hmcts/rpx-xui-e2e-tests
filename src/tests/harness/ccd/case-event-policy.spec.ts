@@ -1,6 +1,11 @@
 import fs from "node:fs";
 
 import {
+  currentSharedRoleObservationBinding,
+  projectSharedRoleResponse,
+  saveSharedRoleObservation,
+} from "../../../../scripts/lib/exui-shared-role-observations.mjs";
+import {
   test,
   expect,
   ccdPersonas,
@@ -52,6 +57,10 @@ test(
       },
     });
     try {
+      const details = await denied.get("/api/user/details", { maxRedirects: 0 });
+      expect(details.status()).toBe(200);
+      const user = (await details.json()).userInfo;
+      expect(user.id ?? user.uid).toBe(personas.credentials.denied.userId);
       const read = await denied.get(`/data/internal/cases/${caseId}`, {
         headers: {
           accept:
@@ -59,7 +68,19 @@ test(
           experimental: "true",
         },
       });
-
+      const evidence = `${process.env.EXUI_CCD_EVIDENCE}/policy-observation.json`;
+      const observation = {
+        schemaVersion: 1,
+        binding: currentSharedRoleObservationBinding(),
+        complete: false,
+        caseId,
+        actor: { id: user.id ?? user.uid, roles: [...user.roles].sort() },
+        before,
+        deniedRead: read.status(),
+        deniedReadResponse: projectSharedRoleResponse(read.status(), await read.text()),
+      };
+      // Persist before the consequential oracle so an effective access fault is replayable.
+      saveSharedRoleObservation(evidence, observation);
       expect([200, 403, 404]).toContain(read.status());
 
       await test.step("harness-assertion:denied-data-isolation", async () => {
@@ -84,6 +105,8 @@ test(
           ignore_warning: false,
         },
       });
+      const deniedWriteResponse = projectSharedRoleResponse(write.status(), await write.text());
+      saveSharedRoleObservation(evidence, { ...observation, deniedWrite: write.status(), deniedWriteResponse });
       expect([403, 404]).toContain(write.status());
       expect(await write.text()).not.toContain("must-never-persist");
       const forwarded = fs
@@ -104,20 +127,14 @@ test(
         "denied write reached the declared real CCD boundary",
       ).toBeTruthy();
       const after = await observeCcd(caseId);
-      fs.writeFileSync(
-        `${process.env.EXUI_CCD_EVIDENCE}/policy-observation.json`,
-        JSON.stringify(
-          {
-            before,
-            after,
-            deniedRead: read.status(),
-            deniedWrite: write.status(),
-            auditOnlyExceptions: [],
-          },
-          null,
-          2,
-        ),
-      );
+      saveSharedRoleObservation(evidence, {
+        ...observation,
+        complete: true,
+        after,
+        deniedWrite: write.status(),
+        deniedWriteResponse,
+        auditOnlyExceptions: [],
+      });
 
       await test.step("harness-assertion:denied-state-integrity", async () => {
         expect(after).toEqual(before);

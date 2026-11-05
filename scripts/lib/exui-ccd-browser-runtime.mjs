@@ -3,13 +3,16 @@ import fs from "node:fs";
 import http from "node:http";
 import { createHmac } from "node:crypto";
 import { validateRoleTransition } from "./exui-ccd-role-transition.mjs";
+import { createRecipientCallbackResponder } from "./exui-recipient-callback.mjs";
+import { CALLBACK_SCOPE, RECIPIENT_CALLBACK_PATH } from "./exui-recipient-callback-fixture.mjs";
+import { createOwnedCallbackServiceVerifier } from "./exui-recipient-callback-auth.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
 
 export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.sessions") {
   if (!/^[a-z-]+$/.test(persona)) throw new Error("CCD_SESSION_PERSONA_INVALID");
   if (persona.startsWith("transitioning") && !Array.isArray(credential.roles))
     throw new Error("CCD_OBSERVED_ROLES_REQUIRED");
-  if (["courtadmin", "judge"].includes(persona))
+  if (["courtadmin", "judge", "readonly"].includes(persona))
     assert.deepEqual(credential.roles?.slice().sort(), [
       "caseworker", "caseworker-harness", `caseworker-privatelaw-${persona}`,
     ], "CCD_SOURCE_ACTOR_ROLES_REQUIRED");
@@ -110,20 +113,24 @@ const ccdRoutes = {
   ],
 };
 
-const eventRoutes = {
-  "exui-ccd-pilot": [new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`)],
-  [EVENT_CAPABILITY_SCOPE]: [
+const recipientEventRoutes = [
     new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/serviceOfDocuments/token$`),
     /^\/internal\/cases\/[0-9]{16}\/event-triggers\/serviceOfDocuments$/,
-  ],
+];
+const eventRoutes = {
+  "exui-ccd-pilot": [new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`)],
+  [EVENT_CAPABILITY_SCOPE]: recipientEventRoutes,
+  [CALLBACK_SCOPE]: recipientEventRoutes,
 };
+const inputRoute = /^\/internal\/case-types\/HarnessResultsPRL\/work-basket-inputs$/;
 
 function ccdTransportRoute(method, pathname, scope) {
   // Current EXUI removes /data at its proxy mount; older bundles retain it.
   const upstreamPath = pathname.startsWith("/data/")
     ? pathname.slice(5)
     : pathname;
-  const routes = [...(ccdRoutes[method] ?? []), ...(method === "GET" ? eventRoutes[scope] : [])];
+  const routes = [...(ccdRoutes[method] ?? []), ...(method === "GET" ? eventRoutes[scope] : []),
+    ...(method === "GET" && scope === "exui-ccd-pilot" ? [inputRoute] : [])];
   if (routes.some((route) => route.test(upstreamPath)))
     return { path: `/data${upstreamPath}`, upstreamPath };
   if (
@@ -136,13 +143,52 @@ function ccdTransportRoute(method, pathname, scope) {
   return null;
 }
 
-// This gateway implements path/auth transport only. CCD owns every baseline case/event response.
-export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot") {
-  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
-  if (scope === EVENT_CAPABILITY_SCOPE)
+// CCD owns every baseline case/event response. The explicit callback opt-in adds
+// only the bounded synthetic recipient transport responder, never production PRL logic.
+export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
+  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
+  const { recipientCallback, workbasket } = options;
+  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  assert(workbasket === undefined || (workbasket === true && scope === "exui-ccd-pilot"), "CCD_WORKBASKET_SCOPE_REQUIRED");
+  if (mutation === "ccd-drop-workbasket-field") assert.equal(workbasket, true, "CCD_WORKBASKET_FAULT_SCOPE_REQUIRED");
+  if ([EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope))
     assert.equal(mutation, null, "CCD_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
+  if (scope === CALLBACK_SCOPE) assert(recipientCallback !== undefined, "CCD_NATIVE_CALLBACK_REQUIRED");
+  let callback;
+  if (recipientCallback !== undefined) {
+    assert([EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_CALLBACK_EVENT_SCOPE_REQUIRED");
+    assert(recipientCallback && typeof recipientCallback === "object" && !Array.isArray(recipientCallback), "CCD_CALLBACK_OPTIONS_INVALID");
+    assert.deepEqual(Object.keys(recipientCallback), ["invocationId"], "CCD_CALLBACK_OPTIONS_INVALID");
+    if (scope === CALLBACK_SCOPE) assert.equal(recipientCallback.invocationId, "recipient-callback-native", "CCD_NATIVE_CALLBACK_INVOCATION_REQUIRED");
+    else assert.notEqual(recipientCallback.invocationId, "recipient-callback-native", "CCD_NATIVE_CALLBACK_SCOPE_REQUIRED");
+    const callbackEvidenceFile = `${output}/recipient-callback.jsonl`;
+    callback = createRecipientCallbackResponder({
+      invocationId: recipientCallback.invocationId,
+      verifyServiceAuthorization: createOwnedCallbackServiceVerifier(),
+      recordEvidence: evidence => fs.appendFileSync(callbackEvidenceFile, JSON.stringify(evidence) + "\n", { mode: 0o600 }),
+    });
+    // One fresh evidence journal per owned gateway invocation; never mix a reused run.
+    fs.writeFileSync(callbackEvidenceFile, "", { flag: "wx", mode: 0o600 });
+  }
+  let workbasketJurisdictions;
+  if (workbasket) {
+    const imported = await fetch("http://127.0.0.1:4451/api/data/case-type/HarnessResultsPRL", {
+      headers: credentials.observer.headers, redirect: "error",
+    });
+    assert.equal(imported.status, 200, "CCD_WORKBASKET_DEFINITION_REQUIRED");
+    const caseType = await imported.json();
+    assert.equal(caseType.id, "HarnessResultsPRL", "CCD_WORKBASKET_CASE_TYPE_REQUIRED");
+    assert.equal(caseType.jurisdiction?.id, "HARNESS", "CCD_WORKBASKET_JURISDICTION_REQUIRED");
+    assert(Array.isArray(caseType.states) && caseType.states.length > 0, "CCD_WORKBASKET_STATES_REQUIRED");
+    workbasketJurisdictions = [{ id: caseType.jurisdiction.id, name: caseType.jurisdiction.name,
+      caseTypes: [{ id: caseType.id, name: caseType.name, states: caseType.states.map(({ id, name }) => ({ id, name })) }] }];
+  }
   const server = http.createServer(async (request, response) => {
     try {
+      if (callback && request.url.split("?")[0] === RECIPIENT_CALLBACK_PATH) {
+        await callback(request, response);
+        return;
+      }
       const chunks = [];
       for await (const chunk of request) chunks.push(chunk);
       let body = Buffer.concat(chunks).toString();
@@ -165,6 +211,26 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
             `/caseworkers/${actor.userId}/`,
           )
         : url.pathname;
+      if (workbasket && request.method === "GET" &&
+        new RegExp(`^/aggregated/caseworkers/${userId}/jurisdictions$`).test(url.pathname) &&
+        actor?.userId === url.pathname.split("/")[3]) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(JSON.stringify(workbasketJurisdictions));
+        return;
+      }
+      if (workbasket && request.method === "GET" && url.pathname === "/refdata/external/v1/organisations") {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end("[]");
+        return;
+      }
+      if (workbasket && request.method === "POST" && url.pathname === "/internal/searchCases" &&
+        url.searchParams.get("ctid") === "HarnessResultsPRL" &&
+        url.searchParams.get("use_case") === "WORKBASKET" &&
+        url.searchParams.get("view") === "WORKBASKET" && actor) {
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end('{"headers":[{"fields":[]}],"total":0,"cases":[]}');
+        return;
+      }
       const headers = {};
       for (const key of [
         "authorization",
@@ -184,6 +250,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         path: ccdRoute?.path ?? receivedPath,
         receivedPath,
         upstreamPath: ccdRoute?.upstreamPath ?? url.pathname,
+        ...(scope === EVENT_CAPABILITY_SCOPE && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
       };
       let target;
       if (ccdRoute)
@@ -282,7 +349,18 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         ...(body ? { body } : {}),
         redirect: "error",
       });
-      const bytes = Buffer.from(await upstream.arrayBuffer());
+      let bytes = Buffer.from(await upstream.arrayBuffer());
+      if (mutation === "ccd-drop-workbasket-field" && ccdRoute?.upstreamPath === "/internal/case-types/HarnessResultsPRL/work-basket-inputs") {
+        assert.equal(upstream.status, 200, "CCD_WORKBASKET_FAULT_RESPONSE_REQUIRED");
+        const result = JSON.parse(bytes.toString());
+        const before = result.workbasketInputs;
+        assert(Array.isArray(before) && before.filter(item => item.field?.id === "applicantCaseName").length === 1,
+          "CCD_WORKBASKET_FAULT_FIELD_REQUIRED");
+        result.workbasketInputs = before.filter(item => item.field.id !== "applicantCaseName");
+        bytes = Buffer.from(JSON.stringify(result));
+        fs.appendFileSync(`${output}/fault-actions.jsonl`, JSON.stringify({ mutation, removedField: "applicantCaseName",
+          before: before.length, after: result.workbasketInputs.length }) + "\n");
+      }
       if (staleGrant)
         fs.appendFileSync(`${output}/fault-actions.jsonl`, JSON.stringify({
           mutation, actorId: renewed.userId, caseId: transition.caseId,

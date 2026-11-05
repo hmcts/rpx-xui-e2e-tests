@@ -15,7 +15,7 @@ test("offline transition replay requires the parent-bound baseline/removal/impor
   assert.equal(typeof validateEventTransitionEvidence, "function");
   const f = await fixture(t), expectedBefore = JSON.stringify(f.expected);
   const result = validateEventTransitionEvidence(f.directory, f.expected, await f.loaded());
-  assert.deepEqual(result, { transition: f.expected.eventTransition, identity: f.faultIdentity });
+  assert.deepEqual(result, { transition: f.expected.eventTransition, identities: [{ invocationId: "ccd-enable-judge-event", identity: f.faultIdentity }, { invocationId: "ccd-remove-courtadmin-recipient-read", identity: f.readFaultIdentity }, { invocationId: "ccd-remove-readonly-recipient-read", identity: f.readonlyFaultIdentity }, { invocationId: "ccd-enable-readonly-recipient-update", identity: f.readonlyUpdateFaultIdentity }, { invocationId: "ccd-remove-courtadmin-event-create", identity: f.courtadminUpdateFaultIdentity }, ...f.shapeFaults.map(item => ({invocationId:item.id,identity:item.identity}))] });
   assert.equal(JSON.stringify(f.expected), expectedBefore);
   assert(!JSON.stringify(result).includes("PRIVATE-CANARY"));
   assert(!JSON.stringify(result).includes(f.root));
@@ -94,7 +94,7 @@ test("portable replay does not reopen the original candidate and uses the canoni
   const f = await fixture(t), loaded = await f.loaded();
   fs.writeFileSync(path.join(f.directory, "event-transition-request.json"), JSON.stringify(f.request, null, 2) + "\n");
   fs.rmSync(f.input.artifact.candidateRoot, { recursive: true });
-  assert.deepEqual(validate(f.directory, f.expected, loaded).identity, f.faultIdentity);
+  assert.deepEqual(validate(f.directory, f.expected, loaded).identities[0].identity, f.faultIdentity);
 });
 
 test("a coherently rehashed fault cannot rewrite the independently captured configuration or artifact", async t => {
@@ -116,7 +116,7 @@ test("an exported complete packet replays after relocation without original runt
   t.after(() => fs.rmSync(relocated, { recursive: true, force: true }));
   fs.cpSync(f.root, relocated, { recursive: true });
   fs.rmSync(f.root, { recursive: true });
-  assert.deepEqual(validate(path.join(relocated, "eventCapability"), f.expected, loaded).identity, f.faultIdentity);
+  assert.deepEqual(validate(path.join(relocated, "eventCapability"), f.expected, loaded).identities[0].identity, f.faultIdentity);
 });
 
 test("relocation cannot combine import records from unrelated original runtime parents", async t => {
@@ -125,4 +125,38 @@ test("relocation cannot combine import records from unrelated original runtime p
   f.runtimeRecord.ccd.output = path.join(f.root, "unrelated", "event-mutant-runtime");
   f.write();
   assert.throws(() => validate(f.directory, f.expected, loaded), /EVENT_TRANSITION_IMPORT_ORIGINAL_PARENT/);
+});
+
+
+test("all eight independently captured faults are mandatory and cannot share imported runtime resources", async t => {
+  const { validateEventTransitionEvidence: validate } = await load();
+  for (const [change, code] of [
+    [f => { f.parent.faults = f.parent.faults.slice(0, 4); }, "EVENT_TRANSITION_FAULT_SELECTION"],
+    [f => { f.courtadminUpdateRuntimeRecord.ccd.owner = f.readonlyUpdateRuntimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],
+    [f => { f.courtadminUpdateRuntimeRecord.ccd.containers.data = f.runtimeRecord.ccd.containers.data; }, "EVENT_TRANSITION_CCD_CID_REUSE"],
+    [f => { f.courtadminUpdateRuntimeRecord.definition.fixtureDigest = f.readonlyUpdateRuntimeRecord.definition.fixtureDigest; }, "EVENT_TRANSITION_FAULT_DEFINITION"],
+    [f => { f.courtadminUpdateDerivation.transformationRecord.after = "R"; }, "EVENT_TRANSITION_DERIVATION_CELL"],
+    [f => { f.parent.faults = f.parent.faults.slice(0, 3); }, "EVENT_TRANSITION_FAULT_SELECTION"],
+    [f => { f.parent.faults = f.parent.faults.slice(0, 2); }, "EVENT_TRANSITION_FAULT_SELECTION"],
+    [f => { f.readonlyUpdateRuntimeRecord.ccd.owner = f.readonlyRuntimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],
+    [f => { f.readonlyUpdateRuntimeRecord.ccd.containers.data = f.runtimeRecord.ccd.containers.data; }, "EVENT_TRANSITION_CCD_CID_REUSE"],
+    [f => { f.readonlyUpdateRuntimeRecord.definition.fixtureDigest = f.readonlyRuntimeRecord.definition.fixtureDigest; }, "EVENT_TRANSITION_FAULT_DEFINITION"],
+    [f => { f.readonlyUpdateDerivation.transformationRecord.changes.pop(); }, "EVENT_TRANSITION_DERIVATION_CELL"],
+    [f => { f.readonlyUpdateDerivation.transformationRecord.changes[0].after = "CRUD"; }, "EVENT_TRANSITION_DERIVATION_CELL"],
+    [f => { f.readonlyRuntimeRecord.ccd.owner = f.readRuntimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],
+    [f => { f.readonlyRuntimeRecord.ccd.containers.data = f.runtimeRecord.ccd.containers.data; }, "EVENT_TRANSITION_CCD_CID_REUSE"],
+    [f => { f.readonlyRuntimeRecord.definition.fixtureDigest = f.readRuntimeRecord.definition.fixtureDigest; }, "EVENT_TRANSITION_FAULT_DEFINITION"],
+    [f => { f.readonlyDerivation.transformationRecord.after = "CRUD"; }, "EVENT_TRANSITION_DERIVATION_CELL"],
+    [f => { f.parent.faults = f.parent.faults.slice(0, 1); }, "EVENT_TRANSITION_FAULT_SELECTION"],
+    [f => { f.parent.faults = [...f.parent.faults].reverse(); }, "EVENT_TRANSITION_FAULT_SELECTION"],
+    [f => { f.readRuntimeRecord.ccd.owner = f.runtimeRecord.ccd.owner; }, "EVENT_TRANSITION_CCD_OWNER_REUSE"],
+    [f => { f.readRuntimeRecord.ccd.containers.data = f.runtimeRecord.ccd.containers.data; }, "EVENT_TRANSITION_CCD_CID_REUSE"],
+    [f => { f.readRuntimeRecord.definition.fixtureDigest = f.runtimeRecord.definition.fixtureDigest; }, "EVENT_TRANSITION_FAULT_DEFINITION"],
+    [f => { f.readDerivation.transformationRecord.after = "CR"; }, "EVENT_TRANSITION_DERIVATION_CELL"],
+    [f => { f.readFaultIdentity.configurationDigest = digest("0"); }, "EVENT_TRANSITION_FAULT_IDENTITY"],
+  ]) {
+    const f = await fixture(t), loaded = await f.loaded();
+    change(f); f.write();
+    assert.throws(() => validate(f.directory, f.expected, loaded), new RegExp(code));
+  }
 });

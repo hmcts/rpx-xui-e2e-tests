@@ -1,0 +1,335 @@
+{
+  "workbasketInputs": [
+    {
+      "label": "DFJ Area",
+      "order": 1,
+      "field": {
+        "id": "dfjArea",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "FixedList-DFJArea",
+          "type": "FixedList",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [
+            {
+              "code": "SWANSEA",
+              "label": "Swansea",
+              "order": "1"
+            },
+            {
+              "code": "HUMBERSIDE",
+              "label": "Humberside",
+              "order": "2"
+            },
+            {
+              "code": "ESSEX_AND_SUFFOLK",
+              "label": "Essex and Suffolk",
+              "order": "3"
+            },
+            {
+              "code": "WOLVERHAMPTON",
+              "label": "Wolverhampton",
+              "order": "4"
+            }
+          ],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": null
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Court",
+      "order": 2,
+      "field": {
+        "id": "swanseaDFJCourt",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "FixedList-SwanseaDFJCourts",
+          "type": "FixedList",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [
+            {
+              "code": "827534",
+              "label": "Aberystwyth",
+              "order": "1"
+            },
+            {
+              "code": "101959",
+              "label": "Carmarthen",
+              "order": "2"
+            },
+            {
+              "code": "700596",
+              "label": "Haverfordwest",
+              "order": "3"
+            },
+            {
+              "code": "390932",
+              "label": "Llanelli",
+              "order": "4"
+            },
+            {
+              "code": "846055",
+              "label": "Port Talbot",
+              "order": "5"
+            },
+            {
+              "code": "234946",
+              "label": "Swansea",
+              "order": "6"
+            }
+          ],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": "dfjArea=\"SWANSEA\""
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Court",
+      "order": 2,
+      "field": {
+        "id": "humbersideDFJCourt",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "FixedList-HumbersideDFJCourts",
+          "type": "FixedList",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [
+            {
+              "code": "478126",
+              "label": "Great Grimsby",
+              "order": "1"
+            },
+            {
+              "code": "195520",
+              "label": "Kingston Upon Hull",
+              "order": "2"
+            }
+          ],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": "dfjArea=\"HUMBERSIDE\""
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Court",
+      "order": 2,
+      "field": {
+        "id": "essexAndSuffolkDFJCourt",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "FixedList-EssexAndSuffolkDFJCourts",
+          "type": "FixedList",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [
+            {
+              "code": "257431",
+              "label": "Bury St Edmunds",
+              "order": "1"
+            },
+            {
+              "code": "816875",
+              "label": "Chelmsford",
+              "order": "2"
+            },
+            {
+              "code": "471349",
+              "label": "Ipswich",
+              "order": "3"
+            },
+            {
+              "code": "781139",
+              "label": "Southend",
+              "order": "4"
+            }
+          ],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": "dfjArea=\"ESSEX_AND_SUFFOLK\""
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Court",
+      "order": 2,
+      "field": {
+        "id": "wolverhamptonDFJCourt",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "FixedList-WolverhamptonDFJCourts",
+          "type": "FixedList",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [
+            {
+              "code": "758998",
+              "label": "Dudley",
+              "order": "1"
+            },
+            {
+              "code": "292771",
+              "label": "Telford",
+              "order": "2"
+            },
+            {
+              "code": "177463",
+              "label": "Walsall",
+              "order": "3"
+            },
+            {
+              "code": "41047",
+              "label": "Wolverhampton",
+              "order": "4"
+            }
+          ],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": "dfjArea=\"WOLVERHAMPTON\""
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Case name",
+      "order": 3,
+      "field": {
+        "id": "applicantCaseName",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "Text",
+          "type": "Text",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": null
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Familyman number",
+      "order": 4,
+      "field": {
+        "id": "familymanCaseNumber",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "Text",
+          "type": "Text",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": null
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "CCD number",
+      "order": 5,
+      "field": {
+        "id": "[CASE_REFERENCE]",
+        "elementPath": null,
+        "metadata": true,
+        "field_type": {
+          "id": "Text",
+          "type": "Text",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": null
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Application type",
+      "order": 6,
+      "field": {
+        "id": "caseTypeOfApplication",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "FixedRadioList-CaseTypeOfApplicationEnum",
+          "type": "FixedRadioList",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [
+            {
+              "code": "C100",
+              "label": "C100 Child Arrangements Application",
+              "order": "1"
+            },
+            {
+              "code": "FL401",
+              "label": "FL401 Non-Molestation &/or Occupation Order Application",
+              "order": "2"
+            }
+          ],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": null
+      },
+      "display_context_parameter": null
+    },
+    {
+      "label": "Date Submitted",
+      "order": 7,
+      "field": {
+        "id": "dateSubmitted",
+        "elementPath": null,
+        "metadata": false,
+        "field_type": {
+          "id": "Date",
+          "type": "Date",
+          "min": null,
+          "max": null,
+          "regular_expression": null,
+          "fixed_list_items": [],
+          "complex_fields": [],
+          "collection_field_type": null
+        },
+        "show_condition": null
+      },
+      "display_context_parameter": null
+    }
+  ],
+  "_links": {
+    "self": {
+      "href": "http://127.0.0.1:4452/internal/case-types/HarnessResultsPRL/work-basket-inputs"
+    }
+  }
+}

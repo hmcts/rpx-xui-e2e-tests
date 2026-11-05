@@ -1,22 +1,84 @@
+import { SOURCE_SHAPE_MUTATIONS, sourceShapeIdForMutation, validateSourceShapeFault } from './exui-source-shape-contract.mjs';
+export { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 
 export const EVENT_CAPABILITY_SCOPE = "exui-ccd-event-capability-pilot";
 export const EVENT_CAPABILITY_MUTATION = "ccd-enable-judge-event";
+export const COURTADMIN_UPDATE_MUTATION = "ccd-remove-courtadmin-event-create";
+export const COURTADMIN_READ_MUTATION = "ccd-remove-courtadmin-recipient-read";
+export const READONLY_READ_MUTATION = "ccd-remove-readonly-recipient-read";
+export const READONLY_UPDATE_MUTATION = "ccd-enable-readonly-recipient-update";
+export function eventCapabilityFaultContract(invocationId) {
+  assert([EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS].includes(invocationId), "EVENT_TRANSITION_INVOCATION");
+  if (SOURCE_SHAPE_MUTATIONS.includes(invocationId)) {
+    const id = sourceShapeIdForMutation(invocationId);
+    return {variant:`shape-${id}-mutant`, target:`EventToComplexTypes:ServeOrgDetails:${id}`, transformationKey:`shape-${id}-transformation`,
+      validatePair:(baseline,mutant,source) => validateSourceShapeFault(id,baseline,mutant,source)};
+  }
+  const contract = {
+    [EVENT_CAPABILITY_MUTATION]: { variant: "mutant", target: "AuthorisationCaseEvent:caseworker-privatelaw-judge:serviceOfDocuments:CRUD", transformationKey: "transformation", validatePair: validateEventCapabilityPair },
+    [COURTADMIN_READ_MUTATION]: { variant: "read-mutant", target: "AuthorisationCaseField:caseworker-privatelaw-courtadmin:sodAdditionalRecipientsList:CRUD", transformationKey: "readTransformation", validatePair: validateCourtadminReadPair },
+    [READONLY_READ_MUTATION]: { variant: "readonly-read-mutant", target: "AuthorisationCaseField:caseworker-privatelaw-readonly:sodAdditionalRecipientsList:CRUD", transformationKey: "readonlyReadTransformation", validatePair: validateReadonlyReadPair },
+    [READONLY_UPDATE_MUTATION]: { variant: "readonly-update-mutant", target: "ReadonlyUpdateACLs:caseworker-privatelaw-readonly:serviceOfDocuments:sodAdditionalRecipientsList", transformationKey: "readonlyUpdateTransformation", validatePair: validateReadonlyUpdatePair },
+    [COURTADMIN_UPDATE_MUTATION]: { variant: "courtadmin-update-mutant", target: "AuthorisationCaseEvent:caseworker-privatelaw-courtadmin:serviceOfDocuments:CRUD", transformationKey: "courtadminUpdateTransformation", validatePair: validateCourtadminUpdatePair },
+  }[invocationId];
+  assert(contract, "EVENT_TRANSITION_INVOCATION");
+  return contract;
+}
+export function eventCapabilityFaultVariant(invocationId) {
+  return eventCapabilityFaultContract(invocationId).variant;
+}
+export const COURTADMIN_UPDATE_OBLIGATION = "ccd-source-courtadmin-update-shapes";
+export const COURTADMIN_UPDATE_CELLS = Object.freeze([
+  { id: "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313", channel: "email", recipientCount: 1 },
+  { id: "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66", channel: "email", recipientCount: 2 },
+  { id: "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3", channel: "post", recipientCount: 1 },
+  { id: "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65", channel: "post", recipientCount: 2 },
+]);
+export const READONLY_UPDATE_OBLIGATION = "ccd-source-readonly-update-shapes";
+export const READONLY_UPDATE_CELLS = Object.freeze([
+  { id: "configuration-cell:2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea", channel: "email", recipientCount: 1 },
+  { id: "configuration-cell:8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59", channel: "email", recipientCount: 2 },
+  { id: "configuration-cell:32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de", channel: "post", recipientCount: 1 },
+  { id: "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb", channel: "post", recipientCount: 2 },
+]);
+export const READONLY_READ_OBLIGATION = "ccd-source-readonly-read-shapes";
+export const READONLY_READ_CELLS = Object.freeze([
+  { id: "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a", channel: "email", recipientCount: 1 },
+  { id: "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec", channel: "email", recipientCount: 2 },
+  { id: "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", channel: "post", recipientCount: 1 },
+  { id: "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337", channel: "post", recipientCount: 2 },
+]);
+export const COURTADMIN_READ_OBLIGATION = "ccd-source-courtadmin-read-shapes";
+export const COURTADMIN_READ_CELLS = Object.freeze([
+  { id: "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a", channel: "email", recipientCount: 1 },
+  { id: "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba", channel: "email", recipientCount: 2 },
+  { id: "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6", channel: "post", recipientCount: 1 },
+  { id: "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397", channel: "post", recipientCount: 2 },
+]);
 export const EVENT_CAPABILITY_PROOFS = Object.freeze({
-  courtadmin: "ccd-courtadmin-email-one",
+  courtadmin: "ccd-courtadmin-update-recipient-shapes",
+  courtadminUpdateMutant: "ccd-courtadmin-update-recipient-shapes-denied",
   judge: "ccd-event-create-denied",
   mutant: "ccd-event-create-enabled",
+  courtadminRead: "ccd-courtadmin-read-recipient-shapes",
+  courtadminReadMutant: "ccd-courtadmin-read-shapes-hidden",
+  readonlyRead: "ccd-readonly-read-recipient-shapes",
+  readonlyReadMutant: "ccd-readonly-read-shapes-hidden",
+  readonlyUpdate: "ccd-readonly-update-recipient-shapes-denied",
+  readonlyUpdateMutant: "ccd-readonly-update-recipient-shapes-enabled",
 });
 export const EVENT_CAPABILITY_SOURCE_DIGEST =
-  "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a";
+  "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e";
 export const EVENT_CAPABILITY_CELL =
   "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313";
 const revision = "694b9951e94369f1394380506960c4f04f25755d";
 const prefix = "definitions/private-law/json/";
 const courtadmin = "caseworker-privatelaw-courtadmin";
 const judge = "caseworker-privatelaw-judge";
+const readonly = "caseworker-privatelaw-readonly";
 const observer = "caseworker-harness-observer";
 const bootstrap = "caseworker-harness-allowed";
 const state = "JUDICIAL_REVIEW";
@@ -66,9 +128,10 @@ export function validateEventCapabilitySource(source) {
         item.rowDigest,
         "EVENT_CAPABILITY_SOURCE_ROW_DRIFT",
       );
-  for (const [role, type, eventPermission] of [
-    [courtadmin, "CRU", "CRU"],
-    [judge, "RU", "R"],
+  for (const [role, type, eventPermission, statePermission, fieldPermission] of [
+    [courtadmin, "CRU", "CRU", "CRUD", "CRUD"],
+    [judge, "RU", "R", "CRUD", "CRUD"],
+    [readonly, "R", "R", "R", "R"],
   ]) {
     for (const environment of ["prod", "nonprod"]) {
       assert.equal(
@@ -82,7 +145,7 @@ export function validateEventCapabilitySource(source) {
     }
     assert.equal(
       access(rows(source, "AuthorisationCaseState.json")[0], role),
-      "CRUD",
+      statePermission,
       "EVENT_CAPABILITY_STATE_VECTOR",
     );
     assert.equal(
@@ -93,7 +156,7 @@ export function validateEventCapabilitySource(source) {
         ).find((row) => row.CaseFieldID === "sodAdditionalRecipientsList"),
         role,
       ),
-      "CRUD",
+      fieldPermission,
       "EVENT_CAPABILITY_FIELD_VECTOR",
     );
     assert.equal(
@@ -225,19 +288,20 @@ export function buildEventCapabilityFixtures(source = readSource()) {
     AuthorisationCaseType: [
       [courtadmin, "CRU"],
       [judge, "RU"],
+      [readonly, "R"],
       [observer, "CRUD"],
       [bootstrap, "CRU"],
     ].map(([role, CRUD]) => ({ ...common, UserRole: role, CRUD })),
-    AuthorisationCaseState: [courtadmin, judge, observer, bootstrap].map(
+    AuthorisationCaseState: [courtadmin, judge, readonly, observer, bootstrap].map(
       (role) => ({
         ...common,
         CaseStateID: state,
         UserRole: role,
-        CRUD: "CRUD",
+        CRUD: role === readonly ? "R" : "CRUD",
       }),
     ),
     AuthorisationCaseEvent: [
-      ...[courtadmin, judge].map((role) => ({
+      ...[courtadmin, judge, readonly].map((role) => ({
         ...common,
         CaseEventID: event,
         UserRole: role,
@@ -253,7 +317,7 @@ export function buildEventCapabilityFixtures(source = readSource()) {
     ],
     AuthorisationCaseField: [
       ...aclFields.flatMap((row) =>
-        [courtadmin, judge].map((role) => ({
+        [courtadmin, judge, readonly].map((role) => ({
           ...common,
           CaseFieldID: row.CaseFieldID,
           UserRole: role,
@@ -271,6 +335,7 @@ export function buildEventCapabilityFixtures(source = readSource()) {
       ...[
         [courtadmin, "CRUD"],
         [judge, "R"],
+        [readonly, "R"],
       ].map(([role, CRUD]) => ({
         ...common,
         CaseFieldID: "protectedValue",
@@ -328,7 +393,7 @@ export function buildEventCapabilityFixtures(source = readSource()) {
         caseType: ct,
         state,
         event,
-        roles: { courtadmin, judge, observer, bootstrap },
+        roles: { courtadmin, judge, readonly, observer, bootstrap },
       },
       adaptations: [
         "PRLAPPS normalized to HarnessNestedPRL in disposable HARNESS jurisdiction",
@@ -373,4 +438,85 @@ export function validateEventCapabilityPair(
     before: "R",
     after: "CR",
   };
+}
+
+export function deriveCourtadminReadFault(baseline, source = readSource()) {
+  assert.deepEqual(
+    baseline,
+    buildEventCapabilityFixtures(source).baseline,
+    "COURTADMIN_READ_BASE_MISMATCH",
+  );
+  const mutant = structuredClone(baseline);
+  mutant.sheets.AuthorisationCaseField.find(
+    (row) => row.UserRole === courtadmin && row.CaseFieldID === "sodAdditionalRecipientsList",
+  ).CRUD = "CUD";
+  return mutant;
+}
+
+export function validateCourtadminReadPair(baseline, mutant, source = readSource()) {
+  assert.deepEqual(
+    mutant,
+    deriveCourtadminReadFault(baseline, source),
+    "COURTADMIN_READ_FAULT_MISMATCH",
+  );
+  return {
+    sheet: "AuthorisationCaseField",
+    role: courtadmin,
+    caseField: "sodAdditionalRecipientsList",
+    field: "CRUD",
+    before: "CRUD",
+    after: "CUD",
+  };
+}
+
+export function deriveReadonlyReadFault(baseline, source = readSource()) {
+  assert.deepEqual(baseline, buildEventCapabilityFixtures(source).baseline, "READONLY_READ_BASE_MISMATCH");
+  const mutant = structuredClone(baseline);
+  mutant.sheets.AuthorisationCaseField.find(
+    row => row.UserRole === readonly && row.CaseFieldID === "sodAdditionalRecipientsList",
+  ).CRUD = "U";
+  return mutant;
+}
+
+export function validateReadonlyReadPair(baseline, mutant, source = readSource()) {
+  assert.deepEqual(mutant, deriveReadonlyReadFault(baseline, source), "READONLY_READ_FAULT_MISMATCH");
+  return { sheet: "AuthorisationCaseField", role: readonly, caseField: "sodAdditionalRecipientsList", field: "CRUD", before: "R", after: "U" };
+}
+
+const readonlyUpdateChanges = [
+  { sheet: "AuthorisationCaseType", key: "CaseTypeID", value: ct, before: "R", after: "RU" },
+  { sheet: "AuthorisationCaseState", key: "CaseStateID", value: state, before: "R", after: "RU" },
+  { sheet: "AuthorisationCaseEvent", key: "CaseEventID", value: event, before: "R", after: "CR" },
+  { sheet: "AuthorisationCaseField", key: "CaseFieldID", value: "sodAdditionalRecipientsList", before: "R", after: "RU" },
+];
+
+export function deriveReadonlyUpdateFault(baseline, source = readSource()) {
+  assert.deepEqual(baseline, buildEventCapabilityFixtures(source).baseline, "READONLY_UPDATE_BASE_MISMATCH");
+  const mutant = structuredClone(baseline);
+  for (const change of readonlyUpdateChanges) {
+    const selected = mutant.sheets[change.sheet].filter(row => row.UserRole === readonly && row[change.key] === change.value);
+    assert.equal(selected.length, 1, "READONLY_UPDATE_SOURCE_ROW_REQUIRED");
+    assert.equal(selected[0].CRUD, change.before, "READONLY_UPDATE_SOURCE_PERMISSION_REQUIRED");
+    selected[0].CRUD = change.after;
+  }
+  return mutant;
+}
+
+export function validateReadonlyUpdatePair(baseline, mutant, source = readSource()) {
+  assert.deepEqual(mutant, deriveReadonlyUpdateFault(baseline, source), "READONLY_UPDATE_FAULT_MISMATCH");
+  return { role: readonly, changes: structuredClone(readonlyUpdateChanges) };
+}
+
+export function deriveCourtadminUpdateFault(baseline, source = readSource()) {
+  assert.deepEqual(baseline, buildEventCapabilityFixtures(source).baseline, "COURTADMIN_UPDATE_BASE_MISMATCH");
+  const mutant = structuredClone(baseline);
+  const selected = mutant.sheets.AuthorisationCaseEvent.filter(row => row.UserRole === courtadmin && row.CaseEventID === event);
+  assert.equal(selected.length, 1, "COURTADMIN_UPDATE_SOURCE_ROW_REQUIRED");
+  assert.equal(selected[0].CRUD, "CRU", "COURTADMIN_UPDATE_SOURCE_PERMISSION_REQUIRED");
+  selected[0].CRUD = "RU";
+  return mutant;
+}
+export function validateCourtadminUpdatePair(baseline, mutant, source = readSource()) {
+  assert.deepEqual(mutant, deriveCourtadminUpdateFault(baseline, source), "COURTADMIN_UPDATE_FAULT_MISMATCH");
+  return { sheet: "AuthorisationCaseEvent", role: courtadmin, caseEvent: event, field: "CRUD", before: "CRU", after: "RU" };
 }

@@ -16,6 +16,7 @@ const scopes = {
   ccd: "exui-ccd-pilot",
   eventCapability: "exui-ccd-event-capability-pilot",
   routing: "exui-decentralised-routing-pilot",
+  recipientCallback: "exui-ccd-recipient-callback-pilot",
 };
 function read(file) {
   assert(
@@ -26,6 +27,7 @@ function read(file) {
   return { value: JSON.parse(bytes), digest: digestBytes(bytes) };
 }
 export async function runAssuranceSequence({ native, descriptor, collect }) {
+  const nativeStartedAt = performance.now();
   const verdict = await native();
   assert(
     ["PASS", "FAIL", "BLOCKED"].includes(verdict.status) &&
@@ -38,7 +40,10 @@ export async function runAssuranceSequence({ native, descriptor, collect }) {
   } catch (error) {
     if (verdict.status === "PASS") throw error;
   }
-  const diagnostics = await collect(nativeEvidencePath);
+  const diagnostics = await collect(nativeEvidencePath, nativeEvidencePath ? {
+    nativeElapsedMs: Math.round(performance.now() - nativeStartedAt),
+    ...(verdict.phaseTimings ? { phaseTimings: verdict.phaseTimings } : {}),
+  } : {});
   assert(
     ["passed", "failed"].includes(diagnostics.status) &&
       [0, 1, 2].includes(diagnostics.exitCode) &&
@@ -52,7 +57,7 @@ export async function runAssuranceSequence({ native, descriptor, collect }) {
     releaseApproval: false,
   };
 }
-export function writeNativeDescriptor(job, captured, verdict) {
+export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs) {
   const root = path.join(job.output, "private");
   assert(fs.realpathSync(root) === root, "ASSURANCE_PRIVATE_ROOT_REQUIRED");
   const result = read(path.join(root, "ci-result.json"));
@@ -110,6 +115,7 @@ export function writeNativeDescriptor(job, captured, verdict) {
       receiptArtifactDigest,
       evidenceManifestDigest,
       eventTransition,
+      callbackTransition,
       ...promoted
     } = promotion;
     assert.deepEqual(promoted, expected, "ASSURANCE_EXPECTATION_CHANGED");
@@ -146,6 +152,16 @@ export function writeNativeDescriptor(job, captured, verdict) {
         "ASSURANCE_UNEXPECTED_TRANSITION",
       );
     }
+    if (phase.phase === "recipientCallback") {
+      const transition = read(path.join(dir, "independent-callback-transition.json"));
+      assert.equal(transition.value.capturedBeforeFault, true, "ASSURANCE_CALLBACK_TRANSITION_CAPTURE_REQUIRED");
+      const reference = { path: "independent-callback-transition.json", digest: transition.digest };
+      assert.deepEqual(callbackTransition, reference, "ASSURANCE_CALLBACK_TRANSITION_CHANGED");
+      assert.deepEqual(phase.callbackTransition, reference, "ASSURANCE_CALLBACK_TRANSITION_CHANGED");
+    } else {
+      assert.equal(callbackTransition, undefined, "ASSURANCE_UNEXPECTED_CALLBACK_TRANSITION");
+      assert.equal(phase.callbackTransition, undefined, "ASSURANCE_UNEXPECTED_CALLBACK_TRANSITION");
+    }
     assert.equal(
       receiptArtifactDigest,
       phase.receiptArtifactDigest,
@@ -175,6 +191,7 @@ export function writeNativeDescriptor(job, captured, verdict) {
   const descriptor = {
     schemaVersion: 1,
     directory: job.output,
+    ...(sharedRoleSourceInputs ? { sharedRoleAdmission: { candidateArtifactPath: job.candidateManifest, sourceImageInputs: sharedRoleSourceInputs } } : {}),
     expected: {
       jobRunId: result.value.jobRunId,
       ciResultDigest: result.digest,
@@ -198,6 +215,8 @@ export async function runHarnessAssurance(
   // Invalid job input must also withdraw the earlier owned public report.
   Reporter.resetPublicReport("harness");
   const job = validateCiJob(read(jobPath).value);
+  const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS
+    ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
   const captured = {
     harnessCommit: execFileSync("git", ["rev-parse", "HEAD"], {
       cwd: ROOT,
@@ -214,11 +233,12 @@ export async function runHarnessAssurance(
   const { runHarnessCollection } = await import("./run-harness-local-aat.cjs");
   return runAssuranceSequence({
     native: () => runHarnessCi(jobPath),
-    descriptor: (verdict) => writeNativeDescriptor(job, captured, verdict),
-    collect: (nativeEvidencePath) =>
+    descriptor: (verdict) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs),
+    collect: (nativeEvidencePath, timing) =>
       runHarnessCollection(env, {
         profile: aat ? "local-aat" : "harness",
         nativeEvidencePath,
+        ...timing,
       }),
   });
 }

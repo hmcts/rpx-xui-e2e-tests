@@ -12,6 +12,43 @@ const MUTATION = 'hearing-amendments-use-enabled-map';
 const PHASE = 'hearingPublication';
 const INVOCATIONS = ['baseline', MUTATION];
 const SOURCE_FILES = [
+  "src/tests/harness/ccd/workbasket-inputs.spec.ts",
+  "scripts/fixtures/ccd/workbasket-input.source.json",
+  "scripts/fixtures/ccd/result-columns.source.json",
+  "scripts/lib/exui-workbasket-input-definition.mjs",
+  "scripts/lib/exui-workbasket-input-import.mjs",
+  "scripts/lib/exui-result-columns-definition.mjs",
+  "scripts/lib/exui-result-columns.mjs",
+  "scripts/prepare-harness-workbasket-input.mjs",
+  "src/tests/harness/ccd/source-shapes.spec.ts",
+  "src/fixtures/harnessSourceShapes.ts",
+  "scripts/lib/exui-source-shape-contract.mjs",
+  "scripts/lib/exui-source-shape-dates.mjs",
+  "scripts/lib/exui-recipient-callback-contract.mjs",
+  "scripts/lib/exui-recipient-callback-observations.mjs",
+  "src/fixtures/harnessCallbackJourney.ts",
+  "src/tests/harness/ccd/recipient-callback.spec.ts",
+  "scripts/lib/exui-recipient-callback-native-import.mjs",
+  "scripts/lib/exui-recipient-callback-transition.mjs",
+  "scripts/lib/exui-recipient-callback-facets.mjs",
+  "scripts/lib/exui-recipient-callback-import.mjs",
+  "scripts/lib/exui-recipient-callback-diagnostics.mjs",
+  "scripts/fixtures/ccd/recipient-callback-native/baseline/definition.json",
+  "scripts/fixtures/ccd/recipient-callback-native/baseline/definition.xlsx",
+  "scripts/fixtures/ccd/recipient-callback-native/baseline/binding.json",
+  "scripts/fixtures/ccd/recipient-callback-native/binding-omitted/definition.json",
+  "scripts/fixtures/ccd/recipient-callback-native/binding-omitted/definition.xlsx",
+  "scripts/fixtures/ccd/recipient-callback-native/binding-omitted/binding.json",
+
+  "scripts/fixtures/ccd/event-capability/shape-case-field-recipient-selector-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-case-field-recipient-selector-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-required-delivery-radio-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-conditional-email-complex-mutant.xlsx",
+  "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.json",
+  "scripts/fixtures/ccd/event-capability/shape-optional-postal-line-two-mutant.xlsx",
+
   'package.json', 'yarn.lock', 'tsconfig.json', 'playwright.harness.config.ts',
   'src/harness/candidate.ts', 'src/fixtures/harness.ts', 'src/fixtures/harnessIdentity.ts',
   'src/fixtures/harnessRouting.ts', 'src/harness/routing.ts', 'src/harness/globalSearch.ts',
@@ -19,6 +56,7 @@ const SOURCE_FILES = [
   'src/fixtures/harnessGlobalSearch.ts', 'src/tests/harness/global-search/capability-composition.spec.ts',
   'src/tests/harness/routing/create-entry.spec.ts', 'src/tests/harness/routing/noc-cache.spec.ts',
   'src/fixtures/harnessCcd.ts', 'src/fixtures/harnessCcdEvent.ts',
+  'src/tests/harness/ccd/courtadmin-read.spec.ts', 'src/tests/harness/ccd/readonly-update.spec.ts',
   'src/tests/harness/ccd/courtadmin-cell.spec.ts', 'src/tests/harness/ccd/event-capability.spec.ts',
   'src/tests/harness/wa/family-scope.spec.ts',
   'src/tests/harness/scope/organisation-case.spec.ts', 'src/tests/harness/ccd/nested-conditional.spec.ts',
@@ -29,10 +67,17 @@ const SOURCE_FILES = [
   'scripts/lib/exui-hearing-publication-mutation.mjs',
   'scripts/fixtures/exui-configuration-review.json', 'scripts/fixtures/exui-configuration-source.json',
   'scripts/fixtures/ccd/linux-amd64-images.json', 'scripts/fixtures/ccd/nested-prl.json', 'scripts/fixtures/ccd/nested-prl.binding.json',
+  'scripts/fixtures/ccd/elasticsearch-images.json',
   'scripts/fixtures/ccd/nested-prl.xlsx',
   'scripts/fixtures/ccd/event-capability.source.json',
+  'scripts/fixtures/ccd/shared-policy-sources.json',
+  'scripts/fixtures/ccd/shared-role-write-collection.source.txt',
   'scripts/fixtures/ccd/event-capability/baseline.json', 'scripts/fixtures/ccd/event-capability/baseline.xlsx',
   'scripts/fixtures/ccd/event-capability/mutant.json', 'scripts/fixtures/ccd/event-capability/mutant.xlsx',
+  'scripts/fixtures/ccd/event-capability/read-mutant.json', 'scripts/fixtures/ccd/event-capability/read-mutant.xlsx',
+  'scripts/fixtures/ccd/event-capability/readonly-read-mutant.json', 'scripts/fixtures/ccd/event-capability/readonly-read-mutant.xlsx',
+  'scripts/fixtures/ccd/event-capability/readonly-update-mutant.json', 'scripts/fixtures/ccd/event-capability/readonly-update-mutant.xlsx',
+  'scripts/fixtures/ccd/event-capability/courtadmin-update-mutant.json', 'scripts/fixtures/ccd/event-capability/courtadmin-update-mutant.xlsx',
   'scripts/fixtures/ccd/event-capability/binding.json', 'scripts/fixtures/ccd/workbook.py',
   'scripts/lib/exui-configuration-runtime-coverage.mjs',
   'scripts/lib/exui-event-coverage-binding.mjs', 'scripts/lib/exui-native-proof-validation.mjs',
@@ -43,7 +88,13 @@ const SOURCE_FILES = [
   'scripts/lib/exui-native-host.mjs', 'scripts/lib/exui-native-containers.mjs',
   'scripts/lib/exui-host-invocation.mjs', 'scripts/lib/exui-output-boundary.mjs',
   'scripts/lib/exui-candidate-runtime.mjs', 'scripts/lib/exui-candidate-child.mjs',
-  'scripts/lib/exui-configuration-catalogue.mjs', 'scripts/lib/exui-definition-discovery.mjs',
+  'scripts/lib/exui-configuration-catalogue.mjs', 'scripts/lib/exui-shared-policy-contracts.mjs', 'scripts/lib/exui-definition-discovery.mjs',
+  'scripts/lib/exui-shared-role-observations.mjs', 'scripts/lib/exui-shared-role-event-observations.mjs', 'scripts/lib/exui-shared-role-event-observations.d.mts', 'scripts/lib/exui-shared-role-observations.d.mts',
+  'scripts/lib/exui-shared-role-artifacts.mjs', 'scripts/lib/exui-shared-role-toolkit.mjs',
+  'scripts/lib/exui-shared-role-native-binding.mjs', 'scripts/replay-harness-shared-role.mjs',
+  'scripts/lib/exui-shared-role-ccd-provenance.mjs', 'scripts/fixtures/ccd/shared-role-ccd-class-witnesses.json',
+  'scripts/fixtures/ccd/shared-role-amd64-source-witnesses.json',
+  'scripts/verify-shared-role-ccd-source.py', 'scripts/verify-shared-role-amd64-source.py', 'scripts/verify-local-ccd-oci.py',
   'scripts/lib/exui-definition-references.mjs', 'scripts/lib/exui-deployment-profiles.mjs',
   'scripts/lib/exui-provider-seams.mjs', 'scripts/lib/exui-runtime-network-guard.cjs',
   'scripts/lib/exui-candidate-artifact.mjs', 'scripts/lib/exui-evidence-io.mjs',
@@ -53,6 +104,8 @@ const SOURCE_FILES = [
   'scripts/lib/exui-ccd-role-transition.mjs', 'scripts/lib/exui-ccd-runtime.mjs',
   'scripts/lib/exui-ccd-event-capability.mjs', 'scripts/lib/exui-ccd-event-transition.mjs',
   'scripts/lib/exui-ccd-browser-runtime.mjs',
+  'scripts/lib/exui-recipient-callback.mjs', 'scripts/lib/exui-recipient-callback-fixture.mjs',
+  'scripts/lib/exui-recipient-callback-auth.mjs',
 ];
 
 function temporary(t, prefix) {
@@ -98,9 +151,9 @@ test('support only: Hearing policy binds exact publication proof and fault witho
   await (await import('./run-harness-ci.mjs')).runFixedCiPilots({
     phase: async name => { calls.push(name); return { status: 'PASS', exitCode: 0 }; },
     derive: async () => {}, start: async () => {}, stop: async () => {},
-    startEvent: async () => {}, stopEvent: async () => {},
+    startEvent: async () => {}, stopEvent: async () => {}, startCallback: async () => {}, stopCallback: async () => {},
   });
-  assert.deepEqual(calls, ['family', 'scope', 'ccd', 'eventCapability', 'routing']);
+  assert.deepEqual(calls, ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback']);
 });
 
 test('support only: Hearing selects the derived artifact while retaining identical effective configuration', async t => {
@@ -149,7 +202,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 82);
+  assert.equal(SOURCE_FILES.length, 148);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

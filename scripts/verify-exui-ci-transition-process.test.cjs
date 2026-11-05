@@ -19,8 +19,8 @@ function controlledChild(t, mode = "valid", releaseScopeId = scope) {
     definitionImportDigest: "sha256:" + "b".repeat(64),
   };
   const request = {
-    schemaVersion: 1, runId: input.runId, releaseScopeId: scope,
-    invocationId: "ccd-enable-judge-event", baselineNamespace: input.ccd.namespace,
+    schemaVersion: 2, runId: input.runId, releaseScopeId: scope,
+    invocationIds: ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-optional-postal-line-two"], baselineNamespace: input.ccd.namespace,
     baselineDefinitionImportDigest: input.definitionImportDigest,
   };
   const handoff = { mode: "native-separate-api", owner: input.runId };
@@ -195,4 +195,22 @@ test("support only: CCD cleanup confirms every planned name and captured CID abs
       for (const key of [...result.checkedNames, id, oldId]) assert(inspectedAfter.includes(key));
     } else assert.throws(() => cleanupCiCcd(directory, options), /CI_CCD_REMOVAL_INCOMPLETE/);
   }
+});
+test('callback controller watches its separate request, captures once and rejects ambiguous or foreign hooks',async t=>{
+ const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+ const {callbackTransitionRequest}=await import('./lib/exui-recipient-callback-transition.mjs');
+ const {executeCiProcess}=await load();
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-process-source-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const source=await createCallbackPhaseFixture({root});
+ for(const foreign of [false,true]){
+  const f=controlledChild(t);Object.assign(f.input,source.input);Object.assign(f.request,callbackTransitionRequest(f.input));
+  fs.writeFileSync(f.options.args[1],JSON.stringify({input:f.input,handoff:f.handoff,request:f.request,mode:'valid'}));
+  fs.writeFileSync(f.options.script,fs.readFileSync(f.options.script,'utf8').replaceAll('event-transition-request.json','callback-transition-request.json'));
+  let transitions=0;
+  const options={...f.options,onPrepared:(...args)=>{const result=f.options.onPrepared(...args);if(foreign)fs.writeFileSync(path.join(f.output,'event-transition-request.json'),'{}');return result;},onCallbackTransition:async(request,context)=>{transitions++;assert.deepEqual(request,f.request);assert.deepEqual(context.input,f.input);fs.writeFileSync(path.join(f.output,'ack.json'),'{}');}};
+  if(foreign)await assert.rejects(executeCiProcess(options),/CI_TRANSITION_FOREIGN_SCOPE_REQUEST/);
+  else {const result=await executeCiProcess(options);assert.equal(result.terminal.code,0);}
+  assert.equal(transitions,foreign?0:1);
+ }
+ const f=controlledChild(t);await assert.rejects(executeCiProcess({...f.options,onEventTransition:async()=>{},onCallbackTransition:async()=>{}}),/CI_TRANSITION_SCOPE_AMBIGUOUS/);assert.equal(fs.existsSync(f.output),false);
 });

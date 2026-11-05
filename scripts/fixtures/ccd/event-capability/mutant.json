@@ -3,7 +3,7 @@
     "schemaVersion": 1,
     "sourceRepository": "hmcts/prl-ccd-definitions",
     "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
-    "sourceProjectionDigest": "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a",
+    "sourceProjectionDigest": "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e",
     "sourceManifest": [
       {
         "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-prod.json",
@@ -16,6 +16,10 @@
           {
             "index": 3,
             "rowDigest": "sha256:ed1d480773d8264062894aff1d0856e5df98b711fd0c9090d2fa6fcd7a483674"
+          },
+          {
+            "index": 14,
+            "rowDigest": "sha256:d36626a89a2add98f4b8f40f15ad144b7145ace1aaf2dbc41d72b2119f624035"
           }
         ]
       },
@@ -30,6 +34,10 @@
           {
             "index": 3,
             "rowDigest": "sha256:ed1d480773d8264062894aff1d0856e5df98b711fd0c9090d2fa6fcd7a483674"
+          },
+          {
+            "index": 14,
+            "rowDigest": "sha256:d36626a89a2add98f4b8f40f15ad144b7145ace1aaf2dbc41d72b2119f624035"
           }
         ]
       },
@@ -294,6 +302,7 @@
       "roles": {
         "courtadmin": "caseworker-privatelaw-courtadmin",
         "judge": "caseworker-privatelaw-judge",
+        "readonly": "caseworker-privatelaw-readonly",
         "observer": "caseworker-harness-observer",
         "bootstrap": "caseworker-harness-allowed"
       }
@@ -1149,6 +1158,12 @@
       {
         "LiveFrom": "01/01/2020",
         "CaseTypeID": "HarnessNestedPRL",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
         "UserRole": "caseworker-harness-observer",
         "CRUD": "CRUD"
       },
@@ -1173,6 +1188,13 @@
         "CaseStateID": "JUDICIAL_REVIEW",
         "UserRole": "caseworker-privatelaw-judge",
         "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseStateID": "JUDICIAL_REVIEW",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
       },
       {
         "LiveFrom": "01/01/2020",
@@ -1203,6 +1225,13 @@
         "CaseEventID": "serviceOfDocuments",
         "UserRole": "caseworker-privatelaw-judge",
         "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseEventID": "serviceOfDocuments",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
       },
       {
         "LiveFrom": "01/01/2020",
@@ -1251,6 +1280,13 @@
       {
         "LiveFrom": "01/01/2020",
         "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipients",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
         "CaseFieldID": "sodAdditionalRecipientsList",
         "UserRole": "caseworker-privatelaw-courtadmin",
         "CRUD": "CRUD"
@@ -1261,6 +1297,13 @@
         "CaseFieldID": "sodAdditionalRecipientsList",
         "UserRole": "caseworker-privatelaw-judge",
         "CRUD": "CRUD"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "sodAdditionalRecipientsList",
+        "UserRole": "caseworker-privatelaw-readonly",
+        "CRUD": "R"
       },
       {
         "LiveFrom": "01/01/2020",
@@ -1316,6 +1359,13 @@
         "CaseTypeID": "HarnessNestedPRL",
         "CaseFieldID": "protectedValue",
         "UserRole": "caseworker-privatelaw-judge",
+        "CRUD": "R"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessNestedPRL",
+        "CaseFieldID": "protectedValue",
+        "UserRole": "caseworker-privatelaw-readonly",
         "CRUD": "R"
       }
     ],

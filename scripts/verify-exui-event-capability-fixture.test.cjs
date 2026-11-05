@@ -167,7 +167,7 @@ test("support only: actual preparer produces deterministic sealed additive files
     const binding = JSON.parse(
       fs.readFileSync(path.join(output, "binding.json")),
     );
-    for (const name of ["baseline", "mutant"])
+    for (const name of ["baseline", "mutant", "read-mutant"])
       for (const [extension, field] of [
         ["json", "sourceDigest"],
         ["xlsx", "workbookDigest"],
@@ -326,7 +326,7 @@ test("support only: required complex authorisation tab has exact headers and zer
     'assert [e.text for e in rows[2].findall(".//x:v",ns)]==["LiveFrom","CaseTypeID","CaseFieldID","ListElementCode","UserRole","CRUD"]',
     'assert not any(int(r.attrib["r"])>=4 for r in rows)',
   ].join("\n");
-  for (const name of ["baseline", "mutant"]) {
+  for (const name of ["baseline", "mutant", "read-mutant"]) {
     const checked = spawnSync(
       "python3",
       ["-B", "-c", script, path.join(output, name + ".xlsx")],
@@ -334,4 +334,121 @@ test("support only: required complex authorisation tab has exact headers and zer
     );
     assert.equal(checked.status, 0, checked.stderr);
   }
+});
+
+
+test('support only: courtadmin read fault removes only recipient-field R from the pinned baseline',async()=>{
+ const api=await load();const baseline=api.buildEventCapabilityFixtures(source()).baseline;
+ const before=structuredClone(baseline);const mutant=api.deriveCourtadminReadFault(baseline,source());
+ const expected=structuredClone(baseline);
+ expected.sheets.AuthorisationCaseField.find(r=>r.UserRole===courtadmin&&r.CaseFieldID==='sodAdditionalRecipientsList').CRUD='CUD';
+ assert.deepEqual(mutant,expected);assert.deepEqual(baseline,before);
+ assert.deepEqual(api.validateCourtadminReadPair(baseline,mutant,source()),{
+  sheet:'AuthorisationCaseField',role:courtadmin,caseField:'sodAdditionalRecipientsList',field:'CRUD',before:'CRUD',after:'CUD'
+ });
+ assert.equal(mutant.provenance.releaseCredit,false);
+});
+
+test('support only: courtadmin read pair rejects unrelated ACL changes and coherently forged baselines',async()=>{
+ const api=await load();const baseline=api.buildEventCapabilityFixtures(source()).baseline;
+ const mutant=api.deriveCourtadminReadFault(baseline,source());
+ const changed=structuredClone(mutant);changed.sheets.AuthorisationCaseEvent[0].CRUD='R';
+ assert.throws(()=>api.validateCourtadminReadPair(baseline,changed,source()),/COURTADMIN_READ_FAULT_MISMATCH/);
+ const forgedBase=structuredClone(baseline),forgedFault=structuredClone(mutant);
+ forgedBase.sheets.AuthorisationCaseType[0].CRUD=forgedFault.sheets.AuthorisationCaseType[0].CRUD='CRUD';
+ assert.throws(()=>api.validateCourtadminReadPair(forgedBase,forgedFault,source()),/COURTADMIN_READ_BASE_MISMATCH/);
+ assert.throws(()=>api.deriveCourtadminReadFault(forgedBase,source()),/COURTADMIN_READ_BASE_MISMATCH/);
+ const drift=source();drift.revision='0'.repeat(40);
+ assert.throws(()=>api.deriveCourtadminReadFault(baseline,drift),/EVENT_CAPABILITY_SOURCE_DRIFT/);
+});
+
+
+test('support only: generated courtadmin field-read workbook changes one ACL cell and no other sheet',async t=>{
+ const {prepareEventCapabilityFixtures}=await import('./prepare-harness-event-capability.mjs');
+ const parent=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'courtadmin-read-workbook-'));t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ const output=path.join(parent,'fixtures');const binding=await prepareEventCapabilityFixtures(output);
+ assert.equal(binding.readMutationId,'ccd-remove-courtadmin-recipient-read');
+ assert.equal(binding.readTransformation.before,'CRUD');assert.equal(binding.readTransformation.after,'CUD');
+ const probe=spawnSync('python3',['-c','import zipfile,sys,xml.etree.ElementTree as E; a=zipfile.ZipFile(sys.argv[1]); b=zipfile.ZipFile(sys.argv[2]); assert a.namelist()==b.namelist(); changed=[n for n in a.namelist() if a.read(n)!=b.read(n)]; assert len(changed)==1; ns={"x":"http://schemas.openxmlformats.org/spreadsheetml/2006/main"}; av=[e.text for e in E.fromstring(a.read(changed[0])).findall(".//x:v",ns)]; bv=[e.text for e in E.fromstring(b.read(changed[0])).findall(".//x:v",ns)]; assert len(av)==len(bv); assert [(x,y) for x,y in zip(av,bv) if x!=y]==[("CRUD","CUD")]',path.join(output,'baseline.xlsx'),path.join(output,'read-mutant.xlsx')],{encoding:'utf8'});
+ assert.equal(probe.status,0,probe.stderr);
+});
+
+test("support only: source readonly role preserves R at every CCD authorization layer", async () => {
+  const api = await load();
+  const rows = api.buildEventCapabilityFixtures(source()).baseline.sheets;
+  const role = "caseworker-privatelaw-readonly";
+  for (const sheet of ["AuthorisationCaseType", "AuthorisationCaseState", "AuthorisationCaseEvent", "AuthorisationCaseField"]) {
+    const selected = rows[sheet].filter(row => row.UserRole === role);
+    assert(selected.length > 0, `${sheet} must include the source readonly role`);
+    assert(selected.every(row => row.CRUD === "R"), `${sheet} must preserve read-only permission`);
+  }
+  assert.equal(rows.AuthorisationCaseEvent.some(row => row.UserRole === role && row.CaseEventID === "create"), false);
+});
+
+test("support only: readonly rights cannot be broadened coherently in both baseline and fault", async () => {
+  const api = await load();
+  for (const sheet of ["AuthorisationCaseType", "AuthorisationCaseState", "AuthorisationCaseEvent", "AuthorisationCaseField"]) {
+    const pair = api.buildEventCapabilityFixtures(source());
+    for (const fixture of [pair.baseline, pair.mutant])
+      fixture.sheets[sheet].find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRU";
+    assert.throws(() => api.validateEventCapabilityPair(pair.baseline, pair.mutant, source()), /EVENT_CAPABILITY_BASE_MISMATCH/);
+  }
+});
+
+test("support only: readonly read fault changes only its recipient field R to U and rejects extra access", async () => {
+  const api = await load();
+  const baseline = api.buildEventCapabilityFixtures(source()).baseline;
+  const mutant = api.deriveReadonlyReadFault(baseline, source());
+  assert.deepEqual(api.validateReadonlyReadPair(baseline, mutant, source()), {
+    sheet: "AuthorisationCaseField", role: "caseworker-privatelaw-readonly",
+    caseField: "sodAdditionalRecipientsList", field: "CRUD", before: "R", after: "U",
+  });
+  const restored = structuredClone(mutant);
+  restored.sheets.AuthorisationCaseField.find(row => row.UserRole === "caseworker-privatelaw-readonly" && row.CaseFieldID === "sodAdditionalRecipientsList").CRUD = "R";
+  assert.deepEqual(restored, baseline);
+  mutant.sheets.AuthorisationCaseType.find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRU";
+  assert.throws(() => api.validateReadonlyReadPair(baseline, mutant, source()), /READONLY_READ_FAULT_MISMATCH/);
+});
+
+test("support only: readonly update fault broadens only the four required source ACL cells", async () => {
+  const api = await load();
+  const baseline = api.buildEventCapabilityFixtures(source()).baseline;
+  const mutant = api.deriveReadonlyUpdateFault(baseline, source());
+  const transformation = api.validateReadonlyUpdatePair(baseline, mutant, source());
+  assert.deepEqual(transformation.changes, [
+    { sheet: "AuthorisationCaseType", key: "CaseTypeID", value: "HarnessNestedPRL", before: "R", after: "RU" },
+    { sheet: "AuthorisationCaseState", key: "CaseStateID", value: "JUDICIAL_REVIEW", before: "R", after: "RU" },
+    { sheet: "AuthorisationCaseEvent", key: "CaseEventID", value: "serviceOfDocuments", before: "R", after: "CR" },
+    { sheet: "AuthorisationCaseField", key: "CaseFieldID", value: "sodAdditionalRecipientsList", before: "R", after: "RU" },
+  ]);
+  const restored = structuredClone(mutant);
+  for (const change of transformation.changes)
+    restored.sheets[change.sheet].find(row => row.UserRole === "caseworker-privatelaw-readonly" && row[change.key] === change.value).CRUD = change.before;
+  assert.deepEqual(restored, baseline);
+  for (const change of transformation.changes) {
+    const incomplete = structuredClone(mutant);
+    incomplete.sheets[change.sheet].find(row => row.UserRole === "caseworker-privatelaw-readonly" && row[change.key] === change.value).CRUD = change.before;
+    assert.throws(() => api.validateReadonlyUpdatePair(baseline, incomplete, source()), /READONLY_UPDATE_FAULT_MISMATCH/);
+  }
+  for (const field of ["protectedValue", "sodAdditionalRecipients"])
+    assert.equal(mutant.sheets.AuthorisationCaseField.find(row => row.UserRole === "caseworker-privatelaw-readonly" && row.CaseFieldID === field).CRUD, "R");
+  mutant.sheets.AuthorisationCaseType.find(row => row.UserRole === "caseworker-privatelaw-readonly").CRUD = "CRUD";
+  assert.throws(() => api.validateReadonlyUpdatePair(baseline, mutant, source()), /READONLY_UPDATE_FAULT_MISMATCH/);
+});
+
+test("support only: courtadmin update fault removes only event C and preserves every other source permission", async () => {
+  const api = await import("./lib/exui-ccd-event-capability.mjs");
+  const baseline = api.buildEventCapabilityFixtures().baseline;
+  const mutant = api.deriveCourtadminUpdateFault(baseline);
+  const record = api.validateCourtadminUpdatePair(baseline, mutant);
+  assert.deepEqual(record, { sheet: "AuthorisationCaseEvent", role: "caseworker-privatelaw-courtadmin", caseEvent: "serviceOfDocuments", field: "CRUD", before: "CRU", after: "RU" });
+  const row = mutant.sheets.AuthorisationCaseEvent.find(item => item.UserRole === record.role && item.CaseEventID === record.caseEvent);
+  row.CRUD = "CRU";
+  assert.deepEqual(mutant, baseline);
+  assert.throws(() => api.validateCourtadminUpdatePair(baseline, mutant), /COURTADMIN_UPDATE_FAULT_MISMATCH/);
+  row.CRUD = "R";
+  assert.throws(() => api.validateCourtadminUpdatePair(baseline, mutant), /COURTADMIN_UPDATE_FAULT_MISMATCH/);
+  const extra = api.deriveCourtadminUpdateFault(baseline);
+  extra.sheets.AuthorisationCaseType.find(item => item.UserRole === record.role).CRUD = "R";
+  assert.throws(() => api.validateCourtadminUpdatePair(baseline, extra), /COURTADMIN_UPDATE_FAULT_MISMATCH/);
 });

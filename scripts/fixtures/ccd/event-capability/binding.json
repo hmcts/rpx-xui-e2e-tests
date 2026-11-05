@@ -1,14 +1,114 @@
 {
+  "shape-case-field-recipient-selector-transformation": {
+    "schemaVersion": 1,
+    "shape": "case-field-recipient-selector",
+    "reference": "sodAdditionalRecipients",
+    "column": "Label",
+    "before": "Select additional recipients who needs to be served",
+    "after": "Harness changed recipient selector"
+  },
+  "shape-required-delivery-radio-transformation": {
+    "schemaVersion": 1,
+    "shape": "required-delivery-radio",
+    "reference": "serveByPostOrEmail",
+    "column": "DisplayContext",
+    "before": "MANDATORY",
+    "after": "OPTIONAL"
+  },
+  "shape-conditional-email-complex-transformation": {
+    "schemaVersion": 1,
+    "shape": "conditional-email-complex",
+    "reference": "emailInformation",
+    "column": "FieldShowCondition",
+    "before": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+    "after": "sodAdditionalRecipientsList.serveByPostOrEmail=\"post\""
+  },
+  "shape-optional-postal-line-two-transformation": {
+    "schemaVersion": 1,
+    "shape": "optional-postal-line-two",
+    "reference": "postalInformation.postalAddress.AddressLine2",
+    "column": "EventElementLabel",
+    "before": " ",
+    "after": "Harness changed postal line two"
+  },
   "schemaVersion": 1,
   "scope": "exui-ccd-event-capability-pilot",
   "mutationId": "ccd-enable-judge-event",
+  "readMutationId": "ccd-remove-courtadmin-recipient-read",
+  "readTransformation": {
+    "sheet": "AuthorisationCaseField",
+    "role": "caseworker-privatelaw-courtadmin",
+    "caseField": "sodAdditionalRecipientsList",
+    "field": "CRUD",
+    "before": "CRUD",
+    "after": "CUD"
+  },
+  "readonlyReadMutationId": "ccd-remove-readonly-recipient-read",
+  "readonlyReadTransformation": {
+    "sheet": "AuthorisationCaseField",
+    "role": "caseworker-privatelaw-readonly",
+    "caseField": "sodAdditionalRecipientsList",
+    "field": "CRUD",
+    "before": "R",
+    "after": "U"
+  },
+  "courtadminUpdateMutationId": "ccd-remove-courtadmin-event-create",
+  "courtadminUpdateTransformation": {
+    "sheet": "AuthorisationCaseEvent",
+    "role": "caseworker-privatelaw-courtadmin",
+    "caseEvent": "serviceOfDocuments",
+    "field": "CRUD",
+    "before": "CRU",
+    "after": "RU"
+  },
+  "readonlyUpdateMutationId": "ccd-enable-readonly-recipient-update",
+  "readonlyUpdateTransformation": {
+    "role": "caseworker-privatelaw-readonly",
+    "changes": [
+      {
+        "sheet": "AuthorisationCaseType",
+        "key": "CaseTypeID",
+        "value": "HarnessNestedPRL",
+        "before": "R",
+        "after": "RU"
+      },
+      {
+        "sheet": "AuthorisationCaseState",
+        "key": "CaseStateID",
+        "value": "JUDICIAL_REVIEW",
+        "before": "R",
+        "after": "RU"
+      },
+      {
+        "sheet": "AuthorisationCaseEvent",
+        "key": "CaseEventID",
+        "value": "serviceOfDocuments",
+        "before": "R",
+        "after": "CR"
+      },
+      {
+        "sheet": "AuthorisationCaseField",
+        "key": "CaseFieldID",
+        "value": "sodAdditionalRecipientsList",
+        "before": "R",
+        "after": "RU"
+      }
+    ]
+  },
   "proofs": {
-    "courtadmin": "ccd-courtadmin-email-one",
+    "courtadmin": "ccd-courtadmin-update-recipient-shapes",
+    "courtadminUpdateMutant": "ccd-courtadmin-update-recipient-shapes-denied",
     "judge": "ccd-event-create-denied",
-    "mutant": "ccd-event-create-enabled"
+    "mutant": "ccd-event-create-enabled",
+    "courtadminRead": "ccd-courtadmin-read-recipient-shapes",
+    "courtadminReadMutant": "ccd-courtadmin-read-shapes-hidden",
+    "readonlyRead": "ccd-readonly-read-recipient-shapes",
+    "readonlyReadMutant": "ccd-readonly-read-shapes-hidden",
+    "readonlyUpdate": "ccd-readonly-update-recipient-shapes-denied",
+    "readonlyUpdateMutant": "ccd-readonly-update-recipient-shapes-enabled"
   },
   "sourceRevision": "694b9951e94369f1394380506960c4f04f25755d",
-  "sourceProjectionDigest": "sha256:4224ae216f9a9c547a382460e28069a53d4b6016f381d9250479bc55dfeaf58a",
+  "sourceProjectionDigest": "sha256:528445a5ed3661b2a8fa5774b4041755c177f6434d6662c35699a4b81339d88e",
   "transformation": {
     "sheet": "AuthorisationCaseEvent",
     "role": "caseworker-privatelaw-judge",
@@ -19,11 +119,43 @@
   },
   "releaseCredit": false,
   "baseline": {
-    "sourceDigest": "sha256:053cbd9a2c99aba28f4dc48313fad4b1dfcacc52e6bdae4d9e3eb0d56c53397a",
-    "workbookDigest": "sha256:c31fefc9db5690acb05a11c10e55238445f4dab492926933ab05c8736704102b"
+    "sourceDigest": "sha256:83fa20c765f8133738447490b1d04b2bb228abd0d09b9039ac8e6f03163df56c",
+    "workbookDigest": "sha256:ab345080bb05554ad1134d017a027dec2efb06ce62a182e0c3feb21968d5ec7d"
   },
   "mutant": {
-    "sourceDigest": "sha256:698f10039605c73d6409f9c2ac34347a894208fd2a790e30c210c963e37ad95b",
-    "workbookDigest": "sha256:66547ce859c0ebf4ee94c4ee232130fffb8fe8f1e3f6d645b8ddc89d519153c6"
+    "sourceDigest": "sha256:de8fcdabf246c2ee4090280a087973db56a8f28e14cc7036ae549af501d60467",
+    "workbookDigest": "sha256:d7654e1d3d181db7fa96d80004d673f51ea2ffd1440d61b88a8248be7ebc0e2c"
+  },
+  "read-mutant": {
+    "sourceDigest": "sha256:cd9644f3fac7338d5f6c4915a7212dc6774c02332824ce14493a4070d407a7ec",
+    "workbookDigest": "sha256:0119aeb57fe7de9774b7a57038ce0680d220a6761a743e268f024aab904e81cd"
+  },
+  "readonly-read-mutant": {
+    "sourceDigest": "sha256:8763ad78e941aa7c1c3aaf208ee927b62f03fd79c918bd202d233ca5d4399deb",
+    "workbookDigest": "sha256:68d378e7c3e9a7f27abf461406492b115218fe30b3cf53cca8209c2e38ed811e"
+  },
+  "readonly-update-mutant": {
+    "sourceDigest": "sha256:f42f61238a59267e13ee6b496f08f335d25466b35dad37eff33f0182aa7e8e5c",
+    "workbookDigest": "sha256:391b3efbc8c274b70c5c39bfe4259e0a07ace7704f6a272ae655fc9bb74dbb7b"
+  },
+  "courtadmin-update-mutant": {
+    "sourceDigest": "sha256:739bdf940b364516c151ae3fe4073ecbd5591b3e56f167596b08ccfc2696d4f7",
+    "workbookDigest": "sha256:919b3d990290feef3cc294058bf2ccd3b1ad18e49c7165fca5e82ec0a66241bf"
+  },
+  "shape-case-field-recipient-selector-mutant": {
+    "sourceDigest": "sha256:f4c0113aa414ea151d3a5e33057538df25a632425fccc478352b9bd620b83416",
+    "workbookDigest": "sha256:07d2f84b9eb4f3ddb4560c8b152dcf38f0a761feee781f7f903ddf7dbad43d41"
+  },
+  "shape-required-delivery-radio-mutant": {
+    "sourceDigest": "sha256:ad5fde8abc949b379bfda747f0163d0cd026f7380fd47b47e2fd7e27b5f05516",
+    "workbookDigest": "sha256:7bac9dbf259935016f85abdb080b53ce61b166c2654f664903f736fb28c978f6"
+  },
+  "shape-conditional-email-complex-mutant": {
+    "sourceDigest": "sha256:334834cd0f72c143f9d877430cfab8b6554808c27413f84f424727adc990f800",
+    "workbookDigest": "sha256:1ccf0fb316bc6c97f2c262a550289b20c5dca759abd296f12f26a23d051bc609"
+  },
+  "shape-optional-postal-line-two-mutant": {
+    "sourceDigest": "sha256:d834e8e7a694dc8579167485d3c2c6a7e05abda7f9175cca7a1ca55b6e190e39",
+    "workbookDigest": "sha256:b92405f43cfacfafa27665a8e3f5b8118f297ccfaf34c65e3859b4a8782ccb34"
   }
 }

@@ -1,5 +1,8 @@
+import {CALLBACK_SCOPE} from './lib/exui-recipient-callback-contract.mjs';
+import {selectCallbackRuntime} from './lib/exui-recipient-callback-transition.mjs';
+import {canonicalRecipientCallbackPages} from './lib/exui-recipient-callback-fixture.mjs';
 import { provisionRoleTransitionActor } from "./lib/exui-ccd-role-transition.mjs";
-import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./lib/exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE } from "./lib/exui-ccd-event-capability.mjs";
 import { selectEventCapabilityRuntime } from "./lib/exui-ccd-event-transition.mjs";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -93,7 +96,7 @@ async function providers(input, invocation, directory) {
       "ROUTING_OBSERVED_INTERPRETER_MISMATCH",
     );
     ({ server, cookie } = await startRoutingProviders(directory));
-  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId)) {
+  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId)) {
     for (const [service, port] of [
       ["data", 4452],
       ["definition", 4451],
@@ -118,6 +121,11 @@ async function providers(input, invocation, directory) {
       input.definition.observedDefinitionDigest,
       "CCD_IMPORTED_DEFINITION_DRIFT",
     );
+    if (input.releaseScopeId === CALLBACK_SCOPE) {
+      const pages = await fetch("http://127.0.0.1:4451/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments", {headers: input.credentials.observer.headers, redirect:"error"});
+      assert(pages.ok, "CALLBACK_NATIVE_PAGES_REQUIRED");
+      assert.equal(digestBytes(JSON.stringify(canonicalRecipientCallbackPages(await pages.json()))), input.definition.observedPagesDigest, "CALLBACK_NATIVE_PAGES_DRIFT");
+    }
     const credentials = { ...input.credentials };
     if (input.releaseScopeId === "exui-ccd-pilot" && (!invocation.mutation || invocation.mutation === "ccd-stale-revoked-bearer"))
       credentials.transitioning = await provisionRoleTransitionActor({
@@ -132,8 +140,9 @@ async function providers(input, invocation, directory) {
     server = await startCcdGateway(
       directory,
       credentials,
-      input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? null : invocation.mutation ?? null,
+      [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
       input.releaseScopeId,
+      input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
     );
   } else {
     const assignments = invocation.persona
@@ -160,13 +169,15 @@ async function providers(input, invocation, directory) {
   });
 }
 export function nativeProofConfiguration(input, invocation, directory) {
-  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId);
+  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId);
   const env = {
     PATH: "/usr/local/bin:/usr/bin:/bin",
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === EVENT_CAPABILITY_SCOPE
+      input.releaseScopeId === CALLBACK_SCOPE
+        ? "ccd-recipient-callback"
+        : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
         ? "ccd-event-capability"
         : input.releaseScopeId === "exui-hearing-publication-pilot"
         ? "hearing-publication"
@@ -220,6 +231,8 @@ export function nativeProofConfiguration(input, invocation, directory) {
         ? "postal-conditional.spec.ts"
         : invocation.mutation === "ccd-drop-child"
           ? "nested-conditional.spec.ts"
+          : invocation.mutation === "ccd-drop-workbasket-field"
+            ? "workbasket-inputs.spec.ts"
           : "case-event-policy.spec.ts",
     );
   if (input.releaseScopeId === ROUTING_SCOPE && invocation.proofFile)
@@ -248,7 +261,9 @@ if (
     const baselineInput = read("/output/input.json"),
       invocation = nativeInvocation(baselineInput, arg("--invocation")),
       directory = path.join("/output", invocation.invocationId);
-    const input = baselineInput.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === EVENT_CAPABILITY_MUTATION
+    const input = baselineInput.releaseScopeId === CALLBACK_SCOPE && invocation.kind === "mutation"
+      ? selectCallbackRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))
+      : baselineInput.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.kind === "mutation"
       ? selectEventCapabilityRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))
       : baselineInput;
     if (process.argv.includes("--inside-providers"))

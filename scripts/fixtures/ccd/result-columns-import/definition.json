@@ -1,0 +1,596 @@
+{
+  "schemaVersion": 1,
+  "kind": "source-bound-result-column-import",
+  "source": {
+    "repository": "hmcts/prl-ccd-definitions",
+    "revision": "694b9951e94369f1394380506960c4f04f25755d",
+    "projectionDigest": "sha256:6e36db1ac7090ee2aaeeaaab48d3be006741984139e2c52ada00255a30f8e770",
+    "dependencyTree": "36785779929fcb864866b2ef13de048861664419"
+  },
+  "caseType": "HarnessResultsPRL",
+  "runtimeAcceptance": false,
+  "catalogueCredit": false,
+  "releaseCredit": false,
+  "normalization": {
+    "sourceCaseType": "PRLAPPS",
+    "targetCaseType": "HarnessResultsPRL",
+    "changedSourceAttributes": [
+      "CaseTypeID"
+    ]
+  },
+  "syntheticScaffolding": {
+    "sheets": [
+      "ComplexTypes",
+      "FixedLists",
+      "EventToComplexTypes",
+      "AuthorisationComplexType",
+      "SearchInputFields",
+      "WorkBasketInputFields",
+      "CaseTypeTab",
+      "Jurisdiction",
+      "CaseType",
+      "State",
+      "CaseEvent",
+      "CaseEventToFields",
+      "AuthorisationCaseType",
+      "AuthorisationCaseState",
+      "AuthorisationCaseEvent",
+      "AuthorisationCaseField",
+      "UserProfile"
+    ],
+    "role": "caseworker-harness",
+    "jurisdiction": "HARNESS",
+    "state": "ResultsReady",
+    "event": "create",
+    "claim": "Disposable import/create/read scaffolding; not source PRL authorisation or workflow coverage"
+  },
+  "sheets": {
+    "ComplexTypes": [],
+    "FixedLists": [],
+    "EventToComplexTypes": [],
+    "AuthorisationComplexType": [],
+    "SearchInputFields": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantCaseName",
+        "Label": "Synthetic case name filter",
+        "DisplayOrder": 1
+      }
+    ],
+    "WorkBasketInputFields": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantCaseName",
+        "Label": "Synthetic case name filter",
+        "DisplayOrder": 1
+      }
+    ],
+    "CaseTypeTab": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "TabID": "results",
+        "TabLabel": "Synthetic results data",
+        "TabDisplayOrder": 1,
+        "CaseFieldID": "applicantCaseName",
+        "TabFieldDisplayOrder": 1
+      }
+    ],
+    "Jurisdiction": [
+      {
+        "LiveFrom": "01/01/2020",
+        "ID": "HARNESS",
+        "Name": "Disposable Harness",
+        "Description": "Synthetic isolated CCD"
+      }
+    ],
+    "CaseType": [
+      {
+        "LiveFrom": "01/01/2020",
+        "ID": "HarnessResultsPRL",
+        "Name": "Harness result columns",
+        "Description": "Synthetic source-derived result tables; no deployed PRL identity",
+        "JurisdictionID": "HARNESS",
+        "SecurityClassification": "Public"
+      }
+    ],
+    "State": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "ResultsReady",
+        "Name": "Synthetic results ready"
+      }
+    ],
+    "CaseEvent": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "create",
+        "Name": "Create synthetic results case",
+        "PostConditionState": "ResultsReady",
+        "SecurityClassification": "Public",
+        "ShowSummary": "Y"
+      }
+    ],
+    "CaseEventToFields": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "applicantName",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 1
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "childName",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 2
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "respondentName",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 3
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "applicantCaseName",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 4
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "selectedCaseTypeID",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 5
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "familymanCaseNumber",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 6
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "dateSubmitted",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 7
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "CaseFieldID": "caseSubmittedTimeStamp",
+        "DisplayContext": "OPTIONAL",
+        "PageID": "results",
+        "PageDisplayOrder": 1,
+        "PageFieldDisplayOrder": 8
+      }
+    ],
+    "AuthorisationCaseType": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      }
+    ],
+    "AuthorisationCaseState": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseStateID": "ResultsReady",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      }
+    ],
+    "AuthorisationCaseEvent": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseEventID": "create",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      }
+    ],
+    "AuthorisationCaseField": [
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantName",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "childName",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "respondentName",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantCaseName",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "selectedCaseTypeID",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "familymanCaseNumber",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "dateSubmitted",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      },
+      {
+        "LiveFrom": "01/01/2020",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "caseSubmittedTimeStamp",
+        "UserRole": "caseworker-harness",
+        "CRUD": "CR"
+      }
+    ],
+    "UserProfile": [
+      {
+        "UserIDAMId": "observer@harness.example.com",
+        "WorkBasketDefaultJurisdiction": "HARNESS",
+        "WorkBasketDefaultCaseType": "HarnessResultsPRL",
+        "WorkBasketDefaultState": "ResultsReady"
+      }
+    ],
+    "SearchResultFields": [
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantCaseName",
+        "Label": "Case name",
+        "DisplayOrder": 1
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "selectedCaseTypeID",
+        "Label": "Case type",
+        "DisplayOrder": 2
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "[CREATED_DATE]",
+        "Label": "Case created date ",
+        "DisplayOrder": 3
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantName",
+        "Label": "Applicant name",
+        "DisplayOrder": 4
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "respondentName",
+        "Label": "Respondent name",
+        "DisplayOrder": 5
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "childName",
+        "Label": "Child name",
+        "DisplayOrder": 6
+      },
+      {
+        "LiveFrom": "01/01/2022",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "dateSubmitted",
+        "Label": "Date submitted",
+        "DisplayOrder": 7
+      }
+    ],
+    "WorkBasketResultFields": [
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantCaseName",
+        "Label": "Case",
+        "DisplayOrder": 1
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "familymanCaseNumber",
+        "Label": "Familyman number",
+        "DisplayOrder": 2
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "selectedCaseTypeID",
+        "Label": "Case type",
+        "DisplayOrder": 3
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "[STATE]",
+        "Label": "State",
+        "DisplayOrder": 4
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "applicantName",
+        "Label": "Applicant name",
+        "DisplayOrder": 5
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "respondentName",
+        "Label": "Respondent name",
+        "DisplayOrder": 6
+      },
+      {
+        "LiveFrom": "01/01/2022",
+        "CaseTypeID": "HarnessResultsPRL",
+        "CaseFieldID": "caseSubmittedTimeStamp",
+        "Label": "Submitted date and time",
+        "DisplayOrder": 7,
+        "ResultsOrdering": "1:DESC"
+      }
+    ],
+    "CaseField": [
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "applicantName",
+        "Label": "Applicant name",
+        "FieldType": "Text",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "childName",
+        "Label": "Child name",
+        "FieldType": "Text",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "01/07/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "respondentName",
+        "Label": "Respondent name",
+        "FieldType": "Text",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "05/11/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "applicantCaseName",
+        "Label": "Case Name",
+        "HintText": "Enter the eldest child’s full name. For example, John Smith",
+        "FieldType": "Text",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "05/11/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "selectedCaseTypeID",
+        "Label": "Type of Case",
+        "FieldType": "Text",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "14/01/2022",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "familymanCaseNumber",
+        "Label": "FamilyMan case number",
+        "FieldType": "Text",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "01/08/2021",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "dateSubmitted",
+        "Label": " ",
+        "FieldType": "Date",
+        "SecurityClassification": "Public"
+      },
+      {
+        "LiveFrom": "01/01/2017",
+        "CaseTypeID": "HarnessResultsPRL",
+        "ID": "caseSubmittedTimeStamp",
+        "Label": "Submitted date and time",
+        "FieldType": "DateTime",
+        "SecurityClassification": "Public",
+        "Searchable": "Y"
+      }
+    ]
+  },
+  "bindings": [
+    {
+      "obligationId": "configuration-shape:d1594e44450b917d4f021dbb181b38553662cf59072a48bc4a52bf78ac78f375",
+      "sourcePath": "definitions/private-law/json/SearchResultFields.json",
+      "sourceIndex": 0,
+      "rowDigest": "sha256:1a137538c8b1f4fb984a73e40eaeba79149feb22f4847a67bf7e41abf2bc07a7",
+      "field": "applicantCaseName",
+      "fieldDependency": "sha256:a064e8f157e963c2435c8de72c3add497943b67c73aad1d897fb6196fa28b90c"
+    },
+    {
+      "obligationId": "configuration-shape:02d6fb3921272f33f81a3085b06f00c749ceb0e060145b7dbcc2f5efb7d00d4d",
+      "sourcePath": "definitions/private-law/json/SearchResultFields.json",
+      "sourceIndex": 1,
+      "rowDigest": "sha256:d353ea80a884e2b9b0a1ab7156e2192bb785b3201b636b94d19e3f1dde91d98a",
+      "field": "selectedCaseTypeID",
+      "fieldDependency": "sha256:25008dab23d3338a53eab3021df0f59a0ff02d4f4f94361beeb531bceabe7eab"
+    },
+    {
+      "obligationId": "configuration-shape:ff6b473d9bea5c91e3da9492720ff0415edbcbc66a5f2a53ae2a82586b8ce82c",
+      "sourcePath": "definitions/private-law/json/SearchResultFields.json",
+      "sourceIndex": 2,
+      "rowDigest": "sha256:ffa093a4c70c27628da03dff01f5ade75981733434ea7ad5f05f835b7b574b7f",
+      "field": "[CREATED_DATE]",
+      "fieldDependency": null
+    },
+    {
+      "obligationId": "configuration-shape:03d72dbbb7b22d6f829fd7eaeca12da69ee34305c2b736fed3328b9d52913843",
+      "sourcePath": "definitions/private-law/json/SearchResultFields.json",
+      "sourceIndex": 3,
+      "rowDigest": "sha256:1be0bfbbfe3618794ef52cb140b94e1e9238fb08c2e16fc93012245503435c33",
+      "field": "applicantName",
+      "fieldDependency": "sha256:7afd782cd98f2a4da1bc51ea2cc909c93e22269e8ce1d956bdf563e0175ee47a"
+    },
+    {
+      "obligationId": "configuration-shape:32721e43b1a9f62c5bd850e43450edb711cad8dd941ec35b2d12e3a8e8fbff72",
+      "sourcePath": "definitions/private-law/json/SearchResultFields.json",
+      "sourceIndex": 4,
+      "rowDigest": "sha256:c9bfa384df3ed2ca9708c843b6585dc6fe937cfbbdd27e7da5540f638b827174",
+      "field": "respondentName",
+      "fieldDependency": "sha256:20499d512aeaa11bc95b57d62bb09f289483b5ebaf93acae3752909f748b67cd"
+    },
+    {
+      "obligationId": "configuration-shape:f0af199f433e327efcc2f81b128dc0e1bdee4bc34dd16543b5acdca07389be50",
+      "sourcePath": "definitions/private-law/json/SearchResultFields.json",
+      "sourceIndex": 5,
+      "rowDigest": "sha256:042862fb2e89ba314197e5014e6e8df3303f2f7c6f83d90c41f99d4b22395d59",
+      "field": "childName",
+      "fieldDependency": "sha256:dcdd669163a806871b982a814260a3d05ce27df5845b38b04177d774fa813179"
+    },
+    {
+      "obligationId": "configuration-shape:1167d64be4bb7105c1479932120f54b8889ec50a136f0a323dedadb7dbef33e4",
+      "sourcePath": "definitions/private-law/json/SearchResultFields.json",
+      "sourceIndex": 6,
+      "rowDigest": "sha256:e43522c38aa5210961025ce6dafcdee88790e3ebd80f9f335234435d6fe30dc9",
+      "field": "dateSubmitted",
+      "fieldDependency": "sha256:fb88058beda85cacf108de932188638c3d8bfa25ad9fdfb3c1b760b186b4d70a"
+    },
+    {
+      "obligationId": "configuration-shape:bff9082cbfe5b46c4f6462f9e5f0a870e8d02bd88408a65a1063086c541d60e7",
+      "sourcePath": "definitions/private-law/json/WorkBasketResultFields.json",
+      "sourceIndex": 0,
+      "rowDigest": "sha256:89f065651787c32dfecfc7c5f71620ea3c14fc5b8bc442fc161a4fdbf8c7051b",
+      "field": "applicantCaseName",
+      "fieldDependency": "sha256:a064e8f157e963c2435c8de72c3add497943b67c73aad1d897fb6196fa28b90c"
+    },
+    {
+      "obligationId": "configuration-shape:bd7af2a30355a565999d5484e4fd4e365167fd28ac1fcc6b118c4bbc8f637c89",
+      "sourcePath": "definitions/private-law/json/WorkBasketResultFields.json",
+      "sourceIndex": 1,
+      "rowDigest": "sha256:11b1759d9dda90e4d155344409a3d91493967ed66eb4456357fe180c9bbf4ce1",
+      "field": "familymanCaseNumber",
+      "fieldDependency": "sha256:283e0892f70fec46a0b7629efbe723cccdd634a06562541d440dab4ce3584968"
+    },
+    {
+      "obligationId": "configuration-shape:f5c8c90936942d9795e10c8eee653744c32a4b46923092ea6a2eaa82dda45757",
+      "sourcePath": "definitions/private-law/json/WorkBasketResultFields.json",
+      "sourceIndex": 2,
+      "rowDigest": "sha256:92fefe35a0519a8dd6e89bf9af099890f92fbdffd8cd7211ea6c3ea3b69f3e71",
+      "field": "selectedCaseTypeID",
+      "fieldDependency": "sha256:25008dab23d3338a53eab3021df0f59a0ff02d4f4f94361beeb531bceabe7eab"
+    },
+    {
+      "obligationId": "configuration-shape:9e86d75f8fb1ad08ce61774c354cf075ae5d05844a9473c41bc626300ab17b0d",
+      "sourcePath": "definitions/private-law/json/WorkBasketResultFields.json",
+      "sourceIndex": 3,
+      "rowDigest": "sha256:7337428358f64a1e848235bde81d87e849cbb223de854eb413509100265825ed",
+      "field": "[STATE]",
+      "fieldDependency": null
+    },
+    {
+      "obligationId": "configuration-shape:08a604dcba55326233339684cdc7f53d7df02d63b0187684e44a974cd1bd5d58",
+      "sourcePath": "definitions/private-law/json/WorkBasketResultFields.json",
+      "sourceIndex": 4,
+      "rowDigest": "sha256:751996905c58d5d9bfbd89513c602ec6a74d372b45b4bd6a5fe9225092c29812",
+      "field": "applicantName",
+      "fieldDependency": "sha256:7afd782cd98f2a4da1bc51ea2cc909c93e22269e8ce1d956bdf563e0175ee47a"
+    },
+    {
+      "obligationId": "configuration-shape:51f0bf1911000b905f2b146b35e1d9c9ccc5d600b40189f43792c6c6778eea66",
+      "sourcePath": "definitions/private-law/json/WorkBasketResultFields.json",
+      "sourceIndex": 5,
+      "rowDigest": "sha256:b2c179454cf8dae260e069c65737e62ff85d6a3e2dfc06ccddc7eb93639374c9",
+      "field": "respondentName",
+      "fieldDependency": "sha256:20499d512aeaa11bc95b57d62bb09f289483b5ebaf93acae3752909f748b67cd"
+    },
+    {
+      "obligationId": "configuration-shape:43d8b4e07f9525da87d44a30bb6ca19abb4255aad60c8ed41e3e3de71728d11f",
+      "sourcePath": "definitions/private-law/json/WorkBasketResultFields.json",
+      "sourceIndex": 6,
+      "rowDigest": "sha256:bf3456687148e2fc421efaf760157e5c074273fac7ad09132d460b18600d585d",
+      "field": "caseSubmittedTimeStamp",
+      "fieldDependency": "sha256:ea1bfe49150a9c0484f26c59e75594bee0b9442c4832d260b60bdd9dc11878fd"
+    }
+  ],
+  "gaps": [
+    {
+      "field": "[CREATED_DATE]",
+      "kind": "ccd-runtime-metadata-required",
+      "fieldType": null
+    },
+    {
+      "field": "[STATE]",
+      "kind": "ccd-runtime-metadata-required",
+      "fieldType": null
+    }
+  ],
+  "exclusions": [
+    "Workbook preparation does not establish successful CCD import.",
+    "No synthetic CaseField definitions are supplied for CCD metadata fields.",
+    "Search and workbasket inputs are synthetic import scaffolding, not source-input coverage; no application proof, live service permissions or index synchronization coverage.",
+    "Elasticsearch mappings must be generated by the real definition-store import; no guessed mappings."
+  ]
+}

@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './lib/exui-recipient-callback-contract.mjs';
+import {importNativeCallbackDefinition,verifyNativeCallbackRuntime} from './lib/exui-recipient-callback-native-import.mjs';
+import {selectCallbackRuntime,publishCallbackRuntime} from './lib/exui-recipient-callback-transition.mjs';
+import {readCallbackBaselineCheckpoint} from './lib/exui-native-proof-validation.mjs';
+import {captureCiCallbackFaultOwnership} from './lib/exui-candidate-ci-evidence.mjs';
+import { SOURCE_SHAPE_MUTATIONS } from './lib/exui-source-shape-contract.mjs';
+import { importWorkbasketInputs } from './lib/exui-workbasket-input-import.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -19,7 +26,7 @@ import {
 import { digestBytes, writeJsonAtomic, loadRunEvidence } from "./lib/exui-evidence-io.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
 import { nativeIdentity } from "./lib/exui-native-contract.mjs";
-import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION } from "./lib/exui-ccd-event-capability.mjs";
+import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, eventCapabilityFaultVariant } from "./lib/exui-ccd-event-capability.mjs";
 import { selectEventCapabilityRuntime, publishEventCapabilityRuntime } from "./lib/exui-ccd-event-transition.mjs";
 import { readEventBaselineCheckpoint, isKnownPostalBlock } from "./lib/exui-native-proof-validation.mjs";
 import { assertEventBaselineRemoved } from "./lib/exui-native-ci-ownership.mjs";
@@ -51,6 +58,7 @@ const scopes = {
   ccd: "exui-ccd-pilot",
   eventCapability: EVENT_CAPABILITY_SCOPE,
   routing: "exui-decentralised-routing-pilot",
+  recipientCallback: CALLBACK_SCOPE,
 };
 export async function reportNativeProgress(label, operation) {
   const started = performance.now();
@@ -72,52 +80,81 @@ export async function reportNativeProgress(label, operation) {
   }
 }
 
+export function fixedCiPhasesPassed(results) {
+  const phases = ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback'];
+  return results.length === phases.length && results.every((result, index) => result.phase === phases[index] && result.status === 'PASS');
+}
+
 export async function runFixedCiPilots(operations) {
   const progress = operations.progress ?? ((_label, operation) => operation());
   const results = [];
+  const timings = [];
+  const timed = async (label, operation) => {
+    const startedAt = new Date().toISOString();
+    const started = performance.now();
+    let status = "stopped";
+    try {
+      const result = await progress(label, operation);
+      status = ["PASS", "FAIL", "BLOCKED"].includes(result?.status) ? result.status : "completed";
+      return result;
+    } finally {
+      const item = { label, status, startedAt, durationMs: Math.round(performance.now() - started) };
+      timings.push(item);
+      operations.onTiming?.(item);
+    }
+  };
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
   const phase = async (name) => {
     checkCancellation();
-    const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing" };
-    const result = await progress(labels[name], () => operations.phase(name));
+    const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence" };
+    const result = await timed(labels[name], () => operations.phase(name));
     checkCancellation();
     results.push({ phase: name, ...result });
     return result;
   };
   const outcome = () => {
     const exitCode = Math.max(...results.map((item) => item.exitCode));
-    return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results };
+    return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results, timings };
   };
   let result = await phase("family");
-  if (result.exitCode !== 0) return { ...result, results };
+  if (result.exitCode !== 0) return { ...result, results, timings };
   checkCancellation();
-  await progress("Scope fault candidate preparation", () => operations.derive());
+  await timed("Scope fault candidate preparation", () => operations.derive());
   checkCancellation();
   result = await phase("scope");
-  if (result.exitCode !== 0) return { ...result, results };
+  if (result.exitCode !== 0) return { ...result, results, timings };
   try {
     checkCancellation();
-    await progress("CCD runtime startup", () => operations.start());
+    await timed("CCD runtime startup", () => operations.start());
     checkCancellation();
     result = await phase("ccd");
   } finally {
-    await progress("CCD runtime cleanup", () => operations.stop());
+    await timed("CCD runtime cleanup", () => operations.stop());
   }
   if (result.exitCode !== 0 && operations.canContinueAfterCcd?.() !== true)
-    return { ...result, results };
+    return { ...result, results, timings };
   let eventResult;
   try {
     checkCancellation();
-    await progress("Source event CCD runtime startup", () => operations.startEvent());
+    await timed("Source event CCD runtime startup", () => operations.startEvent());
     checkCancellation();
     eventResult = await phase("eventCapability");
   } finally {
-    await progress("Source event CCD runtime cleanup", () => operations.stopEvent());
+    await timed("Source event CCD runtime cleanup", () => operations.stopEvent());
   }
   if (eventResult.exitCode !== 0) return outcome();
   checkCancellation();
-  await phase("routing");
+  const routingResult = await phase("routing");
+  if (routingResult.exitCode !== 0) return outcome();
+  try {
+    checkCancellation();
+    await timed("Recipient callback CCD runtime startup", () => operations.startCallback());
+    checkCancellation();
+    await phase("recipientCallback");
+  } finally {
+    await timed("Recipient callback CCD runtime cleanup", () => operations.stopCallback());
+  }
   return outcome();
 }
 
@@ -136,7 +173,8 @@ export async function runHarnessCi(jobPath) {
     path.join(ROOT, "node_modules"),
   ]);
   const resources = new Map(),
-    phaseResults = [];
+    phaseResults = [],
+    phaseTimings = [];
   let context,
     verdict = blocked(),
     cleanupComplete = true,
@@ -153,7 +191,8 @@ export async function runHarnessCi(jobPath) {
     resources.delete(_id);
     return evidence;
   };
-  const startOwnedCcd = async (key, fixtureSelection, alive = () => true, phaseResource) => {
+  const startOwnedCcd = async (key, fixtureSelection, alive = () => true, phaseResource, callbackVariant) => {
+    assert(callbackVariant === undefined || ["baseline","binding-omitted"].includes(callbackVariant),"CI_CALLBACK_VARIANT_REQUIRED");
     assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
     const directory = path.join(privateRoot, key);
     assert(!fs.existsSync(directory), "CI_FRESH_CCD_DIRECTORY_REQUIRED");
@@ -174,13 +213,19 @@ export async function runHarnessCi(jobPath) {
     }));
     const ccd = await resource.pendingStart;
     assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
-    importCcdDefinition(ccd);
-    verifyCcdRuntimeIdentity(ccd);
+    if (callbackVariant === undefined) {
+      importCcdDefinition(ccd);
+      verifyCcdRuntimeIdentity(ccd);
+    } else {
+      await importNativeCallbackDefinition(ccd,callbackVariant);
+      verifyNativeCallbackRuntime(ccd,callbackVariant);
+    }
     assert(!cancelled && alive(), "CI_EVENT_IMPORT_CANCELLED");
     return ccd;
   };
-  const eventRuntimeData = (ccd) => {
-    const definitionFile = path.join(ccd.output, "definition-import.json");
+  const eventRuntimeData = (ccd, scope = EVENT_CAPABILITY_SCOPE) => {
+    assert([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(scope),"CI_SOURCE_RUNTIME_SCOPE_REQUIRED");
+    const definitionFile = path.join(ccd.output, scope === CALLBACK_SCOPE ? "recipient-callback-native-import.json" : "definition-import.json");
     const apiContracts = Object.fromEntries([["data", 4452], ["definition", 4451]].map(([service, port]) => {
       const response = ccdRequest(ccd, port, "/v3/api-docs");
       assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
@@ -191,11 +236,11 @@ export async function runHarnessCi(jobPath) {
       definition: read(definitionFile),
       definitionImportDigest: digestBytes(fs.readFileSync(definitionFile)),
       apiContracts,
-      credentials: Object.fromEntries(["allowed", "courtadmin", "judge", "observer"].map((actor) => [actor, ccdCredentials(ccd, actor)])),
+      credentials: Object.fromEntries(["allowed", "courtadmin", "judge", "observer", "readonly"].map((actor) => [actor, ccdCredentials(ccd, actor)])),
     };
   };
-  const eventIdentity = (data) => nativeIdentity({
-    ...data, artifact: context.artifact, releaseScopeId: EVENT_CAPABILITY_SCOPE,
+  const eventIdentity = (data, releaseScopeId = EVENT_CAPABILITY_SCOPE) => nativeIdentity({
+    ...data, artifact: context.artifact, releaseScopeId,
     gatewayDigest: digestBytes(fs.readFileSync(path.join(ROOT, "scripts/lib/exui-ccd-browser-runtime.mjs"))),
   }, { mutation: null }, context.artifact.candidateRoot).identity;
   const uninstall = installCiCancellation({
@@ -217,11 +262,12 @@ export async function runHarnessCi(jobPath) {
     writeJsonAtomic(path.join(privateRoot, "job-input.json"), job);
     const operations = {
       progress: reportNativeProgress,
+      onTiming: (item) => phaseTimings.push(item),
       isCancelled: () => cancelled,
       phase: async (name) => {
         assert(!cancelled, "CI_JOB_CANCELLED");
         const directory = path.join(privateRoot, name),
-          phaseContext = name === "eventCapability" ? { ...context, ...context.eventBaseline } : context,
+          phaseContext = name === "eventCapability" ? { ...context, ...context.eventBaseline } : name === "recipientCallback" ? {...context,...context.callbackBaseline} : context,
           resource = { kind: "phase", name, directory, child: null, context: phaseContext };
         resources.set(name, resource);
         const args = [
@@ -232,10 +278,10 @@ export async function runHarnessCi(jobPath) {
           "--output",
           directory,
         ];
-        if (["ccd", "eventCapability"].includes(name))
+        if (["ccd", "eventCapability", "recipientCallback"].includes(name))
           args.push(
             "--ccd-state",
-            path.join(privateRoot, name === "eventCapability" ? "event-baseline-runtime/runtime.json" : "ccd-runtime/runtime.json"),
+            path.join(privateRoot, name === "recipientCallback" ? "callback-baseline-runtime/runtime.json" : name === "eventCapability" ? "event-baseline-runtime/runtime.json" : "ccd-runtime/runtime.json"),
             "--scope", scopes[name],
           );
         else args.push("--scope", scopes[name]);
@@ -248,7 +294,7 @@ export async function runHarnessCi(jobPath) {
           const result = await executeCiProcess({
             script: path.join(
               ROOT,
-              ["ccd", "eventCapability"].includes(name)
+              ["ccd", "eventCapability", "recipientCallback"].includes(name)
                 ? "scripts/run-harness-ccd-candidate.mjs"
                 : "scripts/run-harness-candidate.mjs",
             ),
@@ -292,22 +338,34 @@ export async function runHarnessCi(jobPath) {
                 const removalFile = path.join(directory, "baseline-removal.json");
                 writeJsonAtomic(removalFile, removal);
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
-                const fault = eventRuntimeData(await startOwnedCcd("event-mutant-runtime", "event-capability-mutant", alive, resource));
-                const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId: EVENT_CAPABILITY_MUTATION,
-                  requestDigest: digestBytes(JSON.stringify(request)), ...fault };
-                const selected = selectEventCapabilityRuntime(handoff.input, EVENT_CAPABILITY_MUTATION, record);
-                const identity = eventIdentity(fault);
-                const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory);
-                resource.expectedContainer.invocations.push(...faultOwnership.invocations);
+                const records = [], faults = [], states = [handoff.input.ccd];
+                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS]) {
+                  assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                  const variant = eventCapabilityFaultVariant(invocationId);
+                  const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
+                  const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId,
+                    requestDigest: digestBytes(JSON.stringify(request)), ...fault };
+                  const selected = selectEventCapabilityRuntime(handoff.input, invocationId, record);
+                  for (const state of states) {
+                    assert.notEqual(fault.ccd.owner, state.owner, "CI_EVENT_FAULT_OWNER_REUSE");
+                    assert.notEqual(fault.ccd.namespace, state.namespace, "CI_EVENT_FAULT_NAMESPACE_REUSE");
+                    assert(Object.values(fault.ccd.containers).every(id => !Object.values(state.containers).includes(id)), "CI_EVENT_FAULT_CID_REUSE");
+                  }
+                  states.push(fault.ccd);
+                  const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory, invocationId);
+                  resource.expectedContainer.invocations.push(...faultOwnership.invocations);
+                  records.push(record);
+                  faults.push({ invocationId, identity: eventIdentity(fault),
+                    runtimeRecord: { path: `${invocationId}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") } });
+                }
                 const transition = {
-                  schemaVersion: 1, runId: handoff.input.runId, releaseScopeId: EVENT_CAPABILITY_SCOPE,
+                  schemaVersion: 2, runId: handoff.input.runId, releaseScopeId: EVENT_CAPABILITY_SCOPE,
                   harnessCommit: handoff.expected.harnessCommit, harnessSourceDigest: handoff.expected.harnessSourceDigest,
                   capturedBeforeFault: true, capturedAt: new Date().toISOString(),
                   baselineInputDigest: digestBytes(fs.readFileSync(path.join(directory, "input.json"))),
-                  requestDigest: record.requestDigest, baselineCheckpointDigest: checkpoint.checkpointDigest,
+                  requestDigest: digestBytes(JSON.stringify(request)), baselineCheckpointDigest: checkpoint.checkpointDigest,
                   baselineRemoval: { path: "baseline-removal.json", digest: digestBytes(fs.readFileSync(removalFile)) },
-                  runtimeRecord: { path: `${EVENT_CAPABILITY_MUTATION}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") },
-                  identity,
+                  faults,
                 };
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const transitionFile = path.join(directory, "independent-transition.json");
@@ -315,11 +373,40 @@ export async function runHarnessCi(jobPath) {
                 writeJsonAtomic(transitionFile, transition);
                 resource.eventTransition = { path: "independent-transition.json", digest: digestBytes(fs.readFileSync(transitionFile)) };
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
-                assert.deepEqual(publishEventCapabilityRuntime(directory, record), transition.runtimeRecord, "CI_EVENT_ACK_CHANGED");
+                for (const [index, record] of records.entries()) {
+                  assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                  assert.deepEqual(publishEventCapabilityRuntime(directory, record), transition.faults[index].runtimeRecord, "CI_EVENT_ACK_CHANGED");
+                }
+              },
+            } : {}),
+            ...(name === "recipientCallback" ? {
+              onCallbackTransition: async (request,handoff) => {
+                const alive=()=>!handoff.isTerminated();
+                assert(!cancelled&&alive(),"CI_CALLBACK_TRANSITION_CANCELLED");
+                const checkpoint=readCallbackBaselineCheckpoint(directory,handoff.expected);
+                const native=assertEventBaselineRemoved(resource.expectedContainer,{inspect:inspectHostContainer});
+                const ccd=await remove("callback-baseline-runtime",resources.get("callback-baseline-runtime"));
+                assert(ccd?.cleanupComplete===true,"CI_CALLBACK_BASELINE_CLEANUP_REQUIRED");
+                const removal={schemaVersion:1,runId:handoff.input.runId,native,ccd,baselineNamespace:handoff.input.ccd.namespace,baselineOwner:handoff.input.ccd.owner};
+                const removalFile=path.join(directory,"baseline-removal.json");writeJsonAtomic(removalFile,removal);
+                const fault=eventRuntimeData(await startOwnedCcd("callback-binding-omitted-runtime","event-capability-baseline",alive,resource,"binding-omitted"),CALLBACK_SCOPE);
+                assert(!cancelled&&alive(),"CI_CALLBACK_TRANSITION_CANCELLED");
+                const record={schemaVersion:1,runId:handoff.input.runId,invocationId:CALLBACK_MUTATION,requestDigest:digestBytes(JSON.stringify(request)),...fault};
+                const selected=selectCallbackRuntime(handoff.input,CALLBACK_MUTATION,record);
+                assert(Object.values(fault.ccd.containers).every(id=>!Object.values(handoff.input.ccd.containers).includes(id)),"CI_CALLBACK_FAULT_CID_REUSE");
+                const ownership=captureCiCallbackFaultOwnership(selected,handoff.handoff,{...context,ccd:fault.ccd},directory);
+                resource.expectedContainer.invocations.push(...ownership.invocations);
+                const transition={schemaVersion:1,runId:handoff.input.runId,releaseScopeId:CALLBACK_SCOPE,harnessCommit:handoff.expected.harnessCommit,harnessSourceDigest:handoff.expected.harnessSourceDigest,capturedBeforeFault:true,capturedAt:new Date().toISOString(),baselineInputDigest:digestBytes(fs.readFileSync(path.join(directory,"input.json"))),requestDigest:digestBytes(JSON.stringify(request)),baselineCheckpointDigest:checkpoint.checkpointDigest,baselineRemoval:{path:"baseline-removal.json",digest:digestBytes(fs.readFileSync(removalFile))},faults:[{invocationId:CALLBACK_MUTATION,identity:eventIdentity(fault,CALLBACK_SCOPE),runtimeRecord:{path:`${CALLBACK_MUTATION}/runtime-input.json`,digest:digestBytes(JSON.stringify(record,null,2)+"\n")}}]};
+                assert(!cancelled&&alive(),"CI_CALLBACK_TRANSITION_CANCELLED");
+                const transitionFile=path.join(directory,"independent-callback-transition.json");assert(!fs.existsSync(transitionFile),"CI_CALLBACK_TRANSITION_ALREADY_CAPTURED");writeJsonAtomic(transitionFile,transition);
+                resource.callbackTransition={path:"independent-callback-transition.json",digest:digestBytes(fs.readFileSync(transitionFile))};
+                assert(!cancelled&&alive(),"CI_CALLBACK_TRANSITION_CANCELLED");
+                assert.deepEqual(publishCallbackRuntime(directory,record),transition.faults[0].runtimeRecord,"CI_CALLBACK_ACK_CHANGED");
               },
             } : {}),
           });
           assert(!cancelled, "CI_JOB_CANCELLED");
+          if (name === "recipientCallback") result.expected = {...result.expected,callbackTransition:resource.callbackTransition};
           if (name === "eventCapability")
             result.expected = { ...result.expected, eventTransition: resource.eventTransition };
           const validated = validateCiPhase(
@@ -357,6 +444,7 @@ export async function runHarnessCi(jobPath) {
               eventPhase: context.eventResult,
             });
           }
+          if (name === "routing") context.routingResult={directory,expected:{...result.expected,receiptArtifactDigest:validated.receiptArtifactDigest},terminal:result.terminal};
           if (name === "routing")
             writeConfigurationCoverage({
               harnessRoot: ROOT,
@@ -374,6 +462,10 @@ export async function runHarnessCi(jobPath) {
                 terminal: result.terminal,
               },
             });
+          if (name === "recipientCallback") {
+            context.callbackResult={directory,expected:{...result.expected,receiptArtifactDigest:validated.receiptArtifactDigest},terminal:result.terminal};
+            writeConfigurationCoverage({harnessRoot:ROOT,output:path.join(privateRoot,"configuration"),phaseDirectory:context.ccdResult.directory,expected:context.ccdResult.expected,terminal:context.ccdResult.terminal,eventPhase:context.eventResult,routingPhase:context.routingResult,callbackPhase:context.callbackResult});
+          }
           phaseResults.push({ phase: name, ...validated });
           return validated;
         } finally {
@@ -394,11 +486,13 @@ export async function runHarnessCi(jobPath) {
         resources.set("ccd-runtime", { kind: "ccd", directory });
         context.ccd = await startCcdRuntime(directory, { platform: context.artifact.provenance.platform });
         importCcdDefinition(context.ccd);
+        const workbasketReceipt = await importWorkbasketInputs(context.ccd);
         const observed = verifyCcdRuntimeIdentity(context.ccd),
           config = effectiveCandidateConfiguration(
             context.artifact.candidateRoot,
           ).config;
         config.now = false;
+        config.jurisdictions = `${config.jurisdictions},HARNESS`;
         const apiContracts = Object.fromEntries(
           [
             ["data", 4452],
@@ -422,7 +516,8 @@ export async function runHarnessCi(jobPath) {
               mutation: null,
             }),
           ),
-          definitionDigests: { HarnessNestedPRL: observed.fixtureDigest },
+          definitionDigests: { HarnessNestedPRL: observed.fixtureDigest,
+            HarnessResultsPRL: workbasketReceipt.binding.workbookDigest },
           dependencyIdentities: Object.fromEntries(
             ["data", "definition"].map((service) => [
               service === "data" ? "ccd" : "ccd-definition",
@@ -442,12 +537,19 @@ export async function runHarnessCi(jobPath) {
         const loaded = loadRunEvidence(path.join(privateRoot, "ccd/run.json"), getReleasePolicy("exui-ccd-pilot"));
         return isKnownPostalBlock(loaded.input, loaded.receipt.verdict);
       },
+      startCallback: async () => {
+        const data=eventRuntimeData(await startOwnedCcd("callback-baseline-runtime","event-capability-baseline",()=>true,undefined,"baseline"),CALLBACK_SCOPE);
+        context.callbackBaseline={...data,ccdIdentity:eventIdentity(data,CALLBACK_SCOPE)};
+      },
+      stopCallback: async () => {
+        for(const key of ["callback-binding-omitted-runtime","callback-baseline-runtime"]){const resource=resources.get(key);if(resource)await remove(key,resource);}
+      },
       startEvent: async () => {
         const data = eventRuntimeData(await startOwnedCcd("event-baseline-runtime", "event-capability-baseline"));
         context.eventBaseline = { ...data, ccdIdentity: eventIdentity(data) };
       },
       stopEvent: async () => {
-        for (const key of ["event-mutant-runtime", "event-baseline-runtime"]) {
+        for (const key of [...SOURCE_SHAPE_MUTATIONS.map(id => `event-shape-${id.slice("ccd-shape-".length)}-mutant-runtime`).reverse(), "event-courtadmin-update-mutant-runtime", "event-readonly-update-mutant-runtime", "event-readonly-read-mutant-runtime", "event-read-mutant-runtime", "event-mutant-runtime", "event-baseline-runtime"]) {
           const resource = resources.get(key);
           if (resource) await remove(key, resource);
         }
@@ -482,11 +584,10 @@ export async function runHarnessCi(jobPath) {
     writeCiPublicSummary(
       job.output,
       verdict,
-      phaseResults.length === 5 &&
-        phaseResults.every((result) => result.status === "PASS"),
+      fixedCiPhasesPassed(phaseResults),
     );
   }
-  return verdict;
+  return { ...verdict, phaseTimings };
 }
 if (
   process.argv[1] &&

@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "repository": "hmcts/prl-ccd-definitions",
+  "revision": "694b9951e94369f1394380506960c4f04f25755d",
+  "dependencyTree": "36785779929fcb864866b2ef13de048861664419",
+  "rowDigestFormat": "sha256 of UTF8 compact JSON with recursively sorted keys",
+  "sources": [
+    {
+      "path": "definitions/private-law/json/SearchResultFields.json",
+      "fileDigest": "sha256:60be8ea6c2c56db59334ad6ffeb7860b7f5226f03dbccebf580d23f47b10f871",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:1a137538c8b1f4fb984a73e40eaeba79149feb22f4847a67bf7e41abf2bc07a7",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "applicantCaseName",
+            "Label": "Case name",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1,
+          "rowDigest": "sha256:d353ea80a884e2b9b0a1ab7156e2192bb785b3201b636b94d19e3f1dde91d98a",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "selectedCaseTypeID",
+            "Label": "Case type",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 2,
+          "rowDigest": "sha256:ffa093a4c70c27628da03dff01f5ade75981733434ea7ad5f05f835b7b574b7f",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "[CREATED_DATE]",
+            "Label": "Case created date ",
+            "DisplayOrder": 3
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:1be0bfbbfe3618794ef52cb140b94e1e9238fb08c2e16fc93012245503435c33",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "applicantName",
+            "Label": "Applicant name",
+            "DisplayOrder": 4
+          }
+        },
+        {
+          "index": 4,
+          "rowDigest": "sha256:c9bfa384df3ed2ca9708c843b6585dc6fe937cfbbdd27e7da5540f638b827174",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "respondentName",
+            "Label": "Respondent name",
+            "DisplayOrder": 5
+          }
+        },
+        {
+          "index": 5,
+          "rowDigest": "sha256:042862fb2e89ba314197e5014e6e8df3303f2f7c6f83d90c41f99d4b22395d59",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "childName",
+            "Label": "Child name",
+            "DisplayOrder": 6
+          }
+        },
+        {
+          "index": 6,
+          "rowDigest": "sha256:e43522c38aa5210961025ce6dafcdee88790e3ebd80f9f335234435d6fe30dc9",
+          "row": {
+            "LiveFrom": "01/01/2022",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "dateSubmitted",
+            "Label": "Date submitted",
+            "DisplayOrder": 7
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/WorkBasketResultFields.json",
+      "fileDigest": "sha256:fc8c5a0b67387c4ce65d679ae0b3acca86614a09c29d92697d3e7c9f118cfcdb",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:89f065651787c32dfecfc7c5f71620ea3c14fc5b8bc442fc161a4fdbf8c7051b",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "applicantCaseName",
+            "Label": "Case",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1,
+          "rowDigest": "sha256:11b1759d9dda90e4d155344409a3d91493967ed66eb4456357fe180c9bbf4ce1",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "familymanCaseNumber",
+            "Label": "Familyman number",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 2,
+          "rowDigest": "sha256:92fefe35a0519a8dd6e89bf9af099890f92fbdffd8cd7211ea6c3ea3b69f3e71",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "selectedCaseTypeID",
+            "Label": "Case type",
+            "DisplayOrder": 3
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:7337428358f64a1e848235bde81d87e849cbb223de854eb413509100265825ed",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "[STATE]",
+            "Label": "State",
+            "DisplayOrder": 4
+          }
+        },
+        {
+          "index": 4,
+          "rowDigest": "sha256:751996905c58d5d9bfbd89513c602ec6a74d372b45b4bd6a5fe9225092c29812",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "applicantName",
+            "Label": "Applicant name",
+            "DisplayOrder": 5
+          }
+        },
+        {
+          "index": 5,
+          "rowDigest": "sha256:b2c179454cf8dae260e069c65737e62ff85d6a3e2dfc06ccddc7eb93639374c9",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "respondentName",
+            "Label": "Respondent name",
+            "DisplayOrder": 6
+          }
+        },
+        {
+          "index": 6,
+          "rowDigest": "sha256:bf3456687148e2fc421efaf760157e5c074273fac7ad09132d460b18600d585d",
+          "row": {
+            "LiveFrom": "01/01/2022",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "caseSubmittedTimeStamp",
+            "Label": "Submitted date and time",
+            "DisplayOrder": 7,
+            "ResultsOrdering": "1:DESC"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseField/CaseField.json",
+      "fileDigest": "sha256:407e0e48dc483f2d479101890d378bac9e6d858946cb0d2abf1613576127d9c7",
+      "rows": [
+        {
+          "index": 7,
+          "rowDigest": "sha256:7afd782cd98f2a4da1bc51ea2cc909c93e22269e8ce1d956bdf563e0175ee47a",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "applicantName",
+            "Label": "Applicant name",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 8,
+          "rowDigest": "sha256:dcdd669163a806871b982a814260a3d05ce27df5845b38b04177d774fa813179",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "childName",
+            "Label": "Child name",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 9,
+          "rowDigest": "sha256:20499d512aeaa11bc95b57d62bb09f289483b5ebaf93acae3752909f748b67cd",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "respondentName",
+            "Label": "Respondent name",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 171,
+          "rowDigest": "sha256:a064e8f157e963c2435c8de72c3add497943b67c73aad1d897fb6196fa28b90c",
+          "row": {
+            "LiveFrom": "05/11/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "applicantCaseName",
+            "Label": "Case Name",
+            "HintText": "Enter the eldest child’s full name. For example, John Smith",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 176,
+          "rowDigest": "sha256:25008dab23d3338a53eab3021df0f59a0ff02d4f4f94361beeb531bceabe7eab",
+          "row": {
+            "LiveFrom": "05/11/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "selectedCaseTypeID",
+            "Label": "Type of Case",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 313,
+          "rowDigest": "sha256:283e0892f70fec46a0b7629efbe723cccdd634a06562541d440dab4ce3584968",
+          "row": {
+            "LiveFrom": "14/01/2022",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "familymanCaseNumber",
+            "Label": "FamilyMan case number",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 336,
+          "rowDigest": "sha256:fb88058beda85cacf108de932188638c3d8bfa25ad9fdfb3c1b760b186b4d70a",
+          "row": {
+            "LiveFrom": "01/08/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "dateSubmitted",
+            "Label": " ",
+            "FieldType": "Date",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 365,
+          "rowDigest": "sha256:ea1bfe49150a9c0484f26c59e75594bee0b9442c4832d260b60bdd9dc11878fd",
+          "row": {
+            "LiveFrom": "01/01/2017",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "caseSubmittedTimeStamp",
+            "Label": "Submitted date and time",
+            "FieldType": "DateTime",
+            "SecurityClassification": "Public",
+            "Searchable": "Y"
+          }
+        }
+      ]
+    }
+  ]
+}

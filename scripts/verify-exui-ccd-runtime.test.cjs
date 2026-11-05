@@ -118,7 +118,7 @@ const fixedRuntime = async () => {
   const api = await runtime;
   assert.deepEqual(
     api.CCD_FIXTURE_SELECTIONS,
-    ["nested-prl", "event-capability-baseline", "event-capability-mutant"],
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant", "event-capability-shape-case-field-recipient-selector-mutant", "event-capability-shape-required-delivery-radio-mutant", "event-capability-shape-conditional-email-complex-mutant", "event-capability-shape-optional-postal-line-two-mutant"],
     "fixed source fixture selection must exist before transport use",
   );
   return api;
@@ -145,14 +145,15 @@ function observedEventFixture(fixture) {
     })),
     case_fields: s.CaseField.map((row) => ({
       id: row.ID,
+      label: row.Label,
       acls: acl(
         s.AuthorisationCaseField.filter((a) => a.CaseFieldID === row.ID),
       ),
       complexACLs: [],
-      field_type:
-        row.ID === "sodAdditionalRecipientsList"
-          ? { collection_field_type: { id: "ServeOrgDetails" } }
-          : {},
+      field_type: {
+        ...(row.ID === "sodAdditionalRecipientsList" ? { collection_field_type: { id: "ServeOrgDetails" } } : {}),
+        ...(row.ID === "sodAdditionalRecipients" ? { id: "MultiSelectList-AdditionalRecipients", type: "MultiSelectList" } : {}),
+      },
     })),
     events: s.CaseEvent.map((row) => ({
       id: row.ID,
@@ -175,6 +176,8 @@ function observedEventFixture(fixture) {
         ).map((e) => ({
           reference: e.ListElementCode,
           displayContext: e.DisplayContext,
+          label: e.EventElementLabel?.trim() ?? null,
+          order: Number(e.FieldDisplayOrder),
           showCondition: e.FieldShowCondition || null,
         })),
       })),
@@ -270,7 +273,12 @@ function eventRuntimeFixture(t, api, variant = "baseline") {
       return { status: 200, body: observed };
     assert.fail("Unexpected fake request " + port + route);
   };
-  return { state, inspectContainer, request, observed, calls };
+  const runDocker = (args,sql) => {
+    assert.deepEqual(args,['exec','-i',state.namespace,'psql','-X','-qAt','-v','ON_ERROR_STOP=1','-U','postgres','-d','ccd_definition']);
+    assert.match(sql,/^BEGIN READ ONLY;/);assert(sql.includes(`ct.version=${observed.version.number}\n`));
+    return JSON.stringify(['emailInformation','postalInformation.postalAddress.AddressLine2','serveByPostOrEmail'].map(reference=>({case_type:'HarnessNestedPRL',version:observed.version.number,event:'serviceOfDocuments',field:'sodAdditionalRecipientsList',reference,live_from:'2024-09-01',sql_type:'date'})));
+  };
+  return { state, inspectContainer, request, observed, calls, runDocker };
 }
 
 test("support only: fixed event imports retain exact selected prepared workbook and legacy default", async () => {
@@ -280,7 +288,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
     fs.readFileSync(path.join(__dirname, "fixtures/ccd/nested-prl.xlsx")),
   );
   const binding = require("./fixtures/ccd/event-capability/binding.json");
-  for (const variant of ["baseline", "mutant"]) {
+  for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"]) {
     const prepared = api.prepareCcdImport(
       undefined,
       "event-capability-" + variant,
@@ -306,7 +314,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
   );
 });
 
-for (const variant of ["baseline", "mutant"])
+for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"])
   test(
     "support only: real import function with fake transport validates source ACLs for " +
       variant,
@@ -316,6 +324,7 @@ for (const variant of ["baseline", "mutant"])
       api.importCcdDefinition(f.state, {
         inspectContainer: f.inspectContainer,
         request: f.request,
+        runDocker: f.runDocker,
       });
       const receipt = JSON.parse(
         fs.readFileSync(path.join(f.state.output, "definition-import.json")),
@@ -339,9 +348,35 @@ for (const variant of ["baseline", "mutant"])
         api.verifyCcdRuntimeIdentity(f.state, {
           inspectContainer: f.inspectContainer,
           request: f.request,
+        runDocker: f.runDocker,
         }).fixtureDigest,
         receipt.fixtureDigest,
       );
+      const recipientAcl = f.observed.case_fields
+        .find(field => field.id === "sodAdditionalRecipientsList")
+        .acls.find(acl => acl.role === "caseworker-privatelaw-courtadmin");
+      assert.equal(recipientAcl.read, variant !== "read-mutant");
+      assert.equal(recipientAcl.create, true);
+      assert.equal(recipientAcl.update, true);
+      assert.equal(recipientAcl.delete, true);
+      assert.deepEqual(f.observed.events.find(e => e.id === "serviceOfDocuments").acls.find(a => a.role === "caseworker-privatelaw-courtadmin"), {
+        role: "caseworker-privatelaw-courtadmin", create: variant !== "courtadmin-update-mutant", read: true, update: true, delete: false,
+      });
+      const readonlyAcl = f.observed.case_fields.find(field => field.id === "sodAdditionalRecipientsList")
+        .acls.find(acl => acl.role === "caseworker-privatelaw-readonly");
+      assert.equal(readonlyAcl.read, variant !== "readonly-read-mutant");
+      assert.equal(readonlyAcl.update, ["readonly-read-mutant", "readonly-update-mutant"].includes(variant));
+      const readonlyRole = "caseworker-privatelaw-readonly";
+      for (const acls of [f.observed.acls, f.observed.states.find(s => s.id === "JUDICIAL_REVIEW").acls]) {
+        assert.deepEqual(acls.find(acl => acl.role === readonlyRole), {
+          role: readonlyRole, create: false, read: true, update: variant === "readonly-update-mutant", delete: false,
+        });
+      }
+      assert.deepEqual(f.observed.events.find(e => e.id === "serviceOfDocuments").acls.find(a => a.role === readonlyRole), {
+        role: readonlyRole, create: variant === "readonly-update-mutant", read: true, update: false, delete: false,
+      });
+      assert.equal(readonlyAcl.create, false);
+      assert.equal(readonlyAcl.delete, false);
       const judge = f.observed.events
         .find((e) => e.id === "serviceOfDocuments")
         .acls.find((a) => a.role === "caseworker-privatelaw-judge");
@@ -362,6 +397,7 @@ for (const variant of ["baseline", "mutant"])
           api.verifyCcdRuntimeIdentity(f.state, {
             inspectContainer: f.inspectContainer,
             request: f.request,
+        runDocker: f.runDocker,
           }),
         /CCD_EVENT_ACL_MISMATCH/,
       );
@@ -400,6 +436,7 @@ test("support only: wrong selected state or unexpected source ACL rejects before
       api.importCcdDefinition(f.state, {
         inspectContainer: f.inspectContainer,
         request: f.request,
+        runDocker: f.runDocker,
       }),
     /CCD_EVENT_ACL_MISMATCH/,
   );
@@ -408,7 +445,7 @@ test("support only: wrong selected state or unexpected source ACL rejects before
 
 test("support only: source actors are provisioned and observed with exact three-role arrays", async () => {
   const api = await fixedRuntime();
-  for (const persona of ["courtadmin", "judge"]) {
+  for (const persona of ["courtadmin", "judge", "readonly"]) {
     const roles = [
         "caseworker",
         "caseworker-harness",
@@ -527,6 +564,7 @@ test("support only: selected import receipt status and source pin must match bef
   api.importCcdDefinition(f.state, {
     inspectContainer: f.inspectContainer,
     request: f.request,
+        runDocker: f.runDocker,
   });
   const file = path.join(f.state.output, "definition-import.json");
   const original = JSON.parse(fs.readFileSync(file));
@@ -648,4 +686,18 @@ test('AMD64 startup uses TCP readiness, synthetic databases and one exact local 
  const recovery=JSON.parse(fs.readFileSync(path.join(output,'recovery.json')));
  assert.equal(recovery.platform,'linux/amd64');
  for(const [name,pin] of Object.entries(pins))assert.equal(recovery.resources[name].image,pin.configDigest);
+});
+
+test('support only: live verification requires retained stored dates and rechecks actual database values',async t=>{
+ const api=await fixedRuntime(),f=eventRuntimeFixture(t,api);
+ const options={inspectContainer:f.inspectContainer,request:f.request,runDocker:f.runDocker};
+ api.importCcdDefinition(f.state,options);
+ const file=path.join(f.state.output,'definition-import.json'),receipt=JSON.parse(fs.readFileSync(file));
+ assert.equal(receipt.storedSourceShapeDates.definitionVersion,f.observed.version.number);
+ delete receipt.storedSourceShapeDates;fs.writeFileSync(file,JSON.stringify(receipt));
+ assert.throws(()=>api.verifyCcdRuntimeIdentity(f.state,options),/SHAPE_STORED_DATES_REQUIRED/);
+ api.importCcdDefinition(f.state,options);
+ assert.throws(()=>api.verifyCcdRuntimeIdentity(f.state,{...options,runDocker:(...args)=>{
+  const rows=JSON.parse(f.runDocker(...args));rows[0].live_from='2020-01-01';return JSON.stringify(rows);
+ }}),/SHAPE_STORED_DATE_ROWS_MISMATCH/);
 });

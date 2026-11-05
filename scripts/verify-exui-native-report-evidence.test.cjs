@@ -264,13 +264,13 @@ async function fixture(
   expected.phases.push({
     phase: "eventCapability",
     policy: event.policy,
-    terminal: { code: unknownFailure ? 1 : 0, signal: null },
+    terminal: { code: unknownFailure ? 2 : 0, signal: null },
     expected: event.expected,
   });
   phaseResults.push({
     phase: "eventCapability",
-    status: unknownFailure ? "FAIL" : "PASS",
-    exitCode: unknownFailure ? 1 : 0,
+    status: unknownFailure ? "BLOCKED" : "PASS",
+    exitCode: unknownFailure ? 2 : 0,
     receiptArtifactDigest: event.expected.receiptArtifactDigest,
     eventTransition: event.expected.eventTransition,
   });
@@ -291,6 +291,15 @@ async function fixture(
     expected: routing.expected,
   });
   phaseResults.push(routing.result);
+  const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
+  const callback=await createCallbackPhaseFixture({
+    root:path.join(directory,'private'),harnessCommit:expected.harnessCommit,
+    sourceDigest:event.expected.harnessSourceDigest,dependencyDigest:event.expected.harnessDependencyDigest,
+    browserDigest:event.expected.browserDigest,
+  });
+  expected.phases.push({phase:'recipientCallback',policy:callback.policy,terminal:callback.terminal,expected:callback.expected});
+  phaseResults.push(callback.result);
+
   const last = phaseResults.reduce((worst, item) =>
     item.exitCode > worst.exitCode ? item : worst,
   );
@@ -313,6 +322,7 @@ async function fixture(
     directory,
     event,
     routing,
+    callback,
     descriptor,
     descriptorPath,
     save: () => write(descriptorPath, descriptor),
@@ -390,8 +400,8 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 11);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 10);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 20);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 20);
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -430,7 +440,7 @@ test("postal baseline failure remains BLOCKED and its wrong-assertion fault is n
   assert.equal(postal.observedFailureId, "postal-required-fields");
   assert.equal(
     ccd.faults.filter((p) => p.outcome === "expected-failure-observed").length,
-    4,
+    5,
   );
 });
 
@@ -439,10 +449,10 @@ test("unknown private failure identifiers never enter the safe projection", asyn
   const result = await (
     await load()
   ).readNativeReportEvidence(f.descriptorPath);
-  assert.equal(result.status, "FAIL");
+  assert.equal(result.status, "BLOCKED");
   assert.equal(
     result.phases[3].baselineProofs.find(
-      (p) => p.proofId === "ccd-courtadmin-email-one",
+      (p) => p.proofId === "ccd-courtadmin-update-recipient-shapes",
     ).failureId,
     null,
   );
@@ -649,8 +659,7 @@ test("raw proof boundary claims cannot relabel the source-owned obligation mappi
     ...loaded.input.results,
     ...loaded.input.mutations.map((item) => item.mutantResult),
   ]) {
-    assert.equal(proof.boundary, "ccd");
-    assert(policy.obligations.some((item) => item.id === proof.obligationId));
+    assert.equal(proof.boundary, policy.obligations.find((item) => item.id === proof.obligationId)?.boundary);
   }
   const result = await api.readNativeReportEvidence(f.descriptorPath);
   assert.equal(result.status, "PASS");
@@ -667,18 +676,39 @@ for (const postalFailure of [false, true])
     const coverage = result.catalogueCoverage;
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
-    assert.equal(coverage.candidate, 1);
-    assert.equal(coverage.ccd, postalFailure ? 1 : 2);
+    assert.equal(coverage.candidate, 6);
+    assert.equal(coverage.ccd, postalFailure ? 16 : 17);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
         ? []
         : [
             "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
           ]),
+      "configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f",
+      "configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49",
+      "configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e",
+      "configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757",
       "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+      "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66",
+      "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3",
+      "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65",
+
+      "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
+      "configuration-cell:a4563399414365b47e8e8358355038fa5a3398127584c2b821674be2525462ba",
+      "configuration-cell:5e6b7152607a4c223cb1cb1c8912d4837a71fca9e27e5fd5ef3cd8f60d7096a6",
+      "configuration-cell:d418df10fcef3e7a349c270d06a975ac9d1381ea428cf1fc4e955ea968680397",
+      "configuration-cell:2a2bf38052f112d7dbe5982d38785085948e100327169e49300047def7a224ea",
+      "configuration-cell:8c9effa57e804623271da0fc5d054a2fa69389cb8b2bb4fa179f35e75fa38a59",
+      "configuration-cell:32b597279bd96db1646aaf4bfb440504a79d327907018d89d30253f6b02315de",
+      "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb",
+      "configuration-cell:8b58b9887954abf5777c3e444bd4876fcdae07c4955880fedf50582aefb3e58a",
+      "configuration-cell:fbf6c3058a52de86c9a6323bbb4428c0fe9b9faf0d72c33080b945397418f8ec",
+      "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf",
+      "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337",
+      "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 110 : 109);
+    assert.equal(coverage.missing, postalFailure ? 90 : 89);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(
@@ -688,6 +718,13 @@ for (const postalFailure of [false, true])
     );
     assert.deepEqual(snapshot(f.root), before, "accounting is read-only");
   });
+
+test('shared role catalogue admission rejects a caller-supplied receipt without source inputs', async t => {
+  const f = await fixture(t);
+  f.descriptor.sharedRoleAdmission = { proof: { acceptedObligationIds: ['configuration-shared:role-policy'] } };
+  f.save();
+  await assert.rejects((await load()).readNativeReportEvidence(f.descriptorPath), /NATIVE_REPORT_SHARED_ROLE_INPUT_SCHEMA/);
+});
 
 test("native accounting cannot bypass imported source binding on a complete BLOCKED phase", async (t) => {
   const f = await fixture(t, { postalFailure: true });
@@ -709,12 +746,12 @@ test("a later accepted phase cannot hide the postal blocker, and a failed new ce
   for (const postalFailure of [false, true]) {
     const f = await fixture(t, { postalFailure, unknownFailure: true });
     const result = await api.readNativeReportEvidence(f.descriptorPath);
-    assert.equal(result.status, postalFailure ? "BLOCKED" : "FAIL");
-    assert.equal(result.exitCode, postalFailure ? 2 : 1);
-    assert.equal(result.phases[3].status, "FAIL");
+    assert.equal(result.status, "BLOCKED");
+    assert.equal(result.exitCode, 2);
+    assert.equal(result.phases[3].status, "BLOCKED");
     assert.equal(result.catalogueCoverage.ccd, postalFailure ? 0 : 1);
-    assert.equal(result.catalogueCoverage.candidate, 1);
-    assert.equal(result.catalogueCoverage.missing, postalFailure ? 111 : 110);
+    assert.equal(result.catalogueCoverage.candidate, 2);
+    assert.equal(result.catalogueCoverage.missing, postalFailure ? 110 : 109);
     assert(
       !result.catalogueCoverage.creditedObligationIds.some((id) =>
         id.startsWith("configuration-cell:"),
@@ -765,4 +802,18 @@ test("historical four-phase evidence cannot become a completed five-phase report
     (await load()).readNativeReportEvidence(f.descriptorPath),
     /PHASE_SELECTION_REQUIRED/,
   );
+});
+
+test('callback publication rejects historical feasibility and forged phase claims',async t=>{
+ const {readNativeReportEvidence}=await load();
+ for(const change of [
+  descriptor=>descriptor.expected.phases.pop(),
+  descriptor=>descriptor.expected.phases.reverse(),
+  descriptor=>descriptor.expected.phases.push(descriptor.expected.phases.at(-1)),
+  descriptor=>{descriptor.expected.phases.at(-1).expected.callbackTransition={status:'passed',accepted:true};},
+  descriptor=>{descriptor.expected.phases.at(-1).expected.releaseScopeId='recipient-callback-ui-feasibility';},
+ ]) {
+  const f=await fixture(t);change(f.descriptor);f.save();
+  await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath));
+ }
 });

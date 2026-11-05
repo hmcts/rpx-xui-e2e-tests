@@ -10,15 +10,15 @@ const hash = digit => 'sha256:' + digit.repeat(64);
 const load = () => import('./lib/exui-native-proof-validation.mjs');
 const scope = 'exui-ccd-event-capability-pilot';
 
-async function fixture(t) {
+async function fixture(t, selectedScope = scope) {
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-baseline-checkpoint-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(path.join(root, 'baseline'));
-  const policy = (await import('./lib/exui-release-policy.mjs')).getReleasePolicy(scope);
+  const policy = (await import('./lib/exui-release-policy.mjs')).getReleasePolicy(selectedScope);
   const manifest = completeRun().manifest;
   Object.assign(manifest, {
     runId: 'ccd-11111111-1111-4111-8111-111111111111',
-    releaseScopeId: scope, policyDigest: policy.policyDigest, requiredObligationIds: [...policy.requiredObligationIds],
+    releaseScopeId: selectedScope, policyDigest: policy.policyDigest, requiredObligationIds: [...policy.requiredObligationIds],
     runtimeMetadata: { isolation: 'native-separate-api-owned-network-none', harnessSourceState: 'clean', harnessSourceDigest: hash('4'), harnessDependencyDigest: hash('5'), browserDigest: hash('6') },
   });
   const expected = {
@@ -32,7 +32,7 @@ async function fixture(t) {
       ...Object.fromEntries(['runId', 'harnessCommit', 'releaseScopeId', 'policyDigest', 'identity'].map(key => [key, structuredClone(manifest[key])])),
       invocationId: 'baseline', harnessSourceState: 'clean', harnessSourceDigest: expected.harnessSourceDigest,
     },
-    tests: ['ccd-courtadmin-email-one', 'ccd-event-create-denied'].map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
+    tests: policy.obligations.flatMap(item => item.requiredProofIds).sort().map(proofId => ({ proofId, expectedStatus: 'passed', status: 'passed', retry: 0, unattributedErrors: 0, failureId: null })),
   };
   const execution = { runId: manifest.runId, invocationId: 'baseline', kind: 'baseline', identity: structuredClone(manifest.identity), terminalState: 'completed', runnerExitCode: 0, unexpectedGlobalErrors: [] };
   const terminal = { code: 0, signal: null };
@@ -52,9 +52,9 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
   const before = fs.readdirSync(path.join(f.root, 'baseline')).sort().map(name => [name, sha(fs.readFileSync(path.join(f.root, 'baseline', name)))]);
   const observed = readEventBaselineCheckpoint(f.root, f.expected);
   assert.deepEqual(observed.input.policy, f.policy);
-  assert.equal(observed.input.policy.mutationDefinitions.length, 1);
+  assert.equal(observed.input.policy.mutationDefinitions.length, 9);
   assert.deepEqual(observed.input.mutations, []);
-  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-email-one', 'ccd-event-create-denied']);
+  assert.deepEqual(observed.input.results.map(result => result.proofId), ['ccd-courtadmin-read-recipient-shapes', 'ccd-courtadmin-update-recipient-shapes', 'ccd-event-create-denied', 'ccd-readonly-read-recipient-shapes', 'ccd-readonly-update-recipient-shapes-denied', 'ccd-source-shape-case-field-recipient-selector', 'ccd-source-shape-conditional-email-complex', 'ccd-source-shape-optional-postal-line-two', 'ccd-source-shape-required-delivery-radio']);
   assert.deepEqual(observed.terminal, f.terminal);
   assert.deepEqual(observed.references.map(item => item.path), ['baseline/manifest.json', 'baseline/execution.json', 'baseline/report.json', 'baseline/framework-terminal.json']);
   assert.equal(observed.checkpointDigest, sha(JSON.stringify(observed.references)));
@@ -66,7 +66,7 @@ test('checkpoint reads exact baseline with full policy and binds all four artifa
 
 test('checkpoint retains an attributed product failure and requires coherent framework and execution terminal', async t => {
   const f = await fixture(t), { readEventBaselineCheckpoint } = await load();
-  f.report.tests[0].status = 'failed'; f.report.tests[0].failureId = 'courtadmin-email-one';
+  f.report.tests[0].status = 'failed'; f.report.tests[0].failureId = 'courtadmin-update-persistence';
   f.report.status = 'failed'; f.execution.runnerExitCode = 1; f.terminal.code = 1; f.write();
   assert.equal(readEventBaselineCheckpoint(f.root, f.expected).input.results[0].outcome, 'failed');
   f.terminal.code = 0; f.write();
@@ -79,6 +79,8 @@ test('checkpoint rejects partial selection, retries, skips, global and unattribu
   const { readEventBaselineCheckpoint } = await load();
   for (const change of [
     f => f.report.tests.pop(),
+    f => { f.report.tests.find(test => test.proofId === "ccd-courtadmin-update-recipient-shapes").proofId = "ccd-courtadmin-email-one"; },
+    f => { f.report.tests[1].proofId = "ccd-courtadmin-read-email-one"; },
     f => f.report.tests.push(structuredClone(f.report.tests[0])),
     f => { f.report.tests[0].proofId = 'ccd-event-create-enabled'; },
     f => { f.report.tests[0].retry = 1; },
@@ -131,10 +133,14 @@ test('checkpoint accepts only fixed canonical baseline artifacts and digest-veri
 test('shared complete native validation retains mutation identity checks and structural-outcome rejection', async t => {
   const f = await fixture(t), api = await load();
   const baseline = api.readEventBaselineCheckpoint(f.root, f.expected).input;
-  const definition = f.policy.mutationDefinitions[0];
-  const mutantIdentity = structuredClone(f.manifest.identity); mutantIdentity.configurationDigest = hash('8');
-  const mutant = { ...structuredClone(baseline.results[1]), proofId: definition.mutantProofId, invocationId: definition.mutationId, identity: mutantIdentity, outcome: 'failed', failureId: definition.expectedFailureId };
-  const input = { ...baseline, executions: [...baseline.executions, { ...structuredClone(baseline.executions[0]), invocationId: definition.mutationId, kind: 'mutation', identity: mutantIdentity, runnerExitCode: 1 }], mutations: [{ mutationId: definition.mutationId, obligationId: definition.obligationId, runId: f.manifest.runId, mutationDefinitionDigest: definition.definitionDigest, baselineIdentity: f.manifest.identity, mutantIdentity, baselineResult: baseline.results[1], mutantResult: mutant }] };
+  const input = { ...baseline, executions: [...baseline.executions], mutations: [] };
+  for (const definition of f.policy.mutationDefinitions) {
+    const baselineResult = baseline.results.find(item => item.proofId === definition.baselineProofId);
+    const mutantIdentity = structuredClone(f.manifest.identity); mutantIdentity.configurationDigest = sha(definition.mutationId);
+    const mutant = { ...structuredClone(baselineResult), proofId: definition.mutantProofId, invocationId: definition.mutationId, identity: mutantIdentity, outcome: 'failed', failureId: definition.expectedFailureId };
+    input.executions.push({ ...structuredClone(baseline.executions[0]), invocationId: definition.mutationId, kind: 'mutation', identity: mutantIdentity, runnerExitCode: 1 });
+    input.mutations.push({ mutationId: definition.mutationId, obligationId: definition.obligationId, runId: f.manifest.runId, mutationDefinitionDigest: definition.definitionDigest, baselineIdentity: f.manifest.identity, mutantIdentity, baselineResult, mutantResult: mutant });
+  }
   api.validateCompleteNativeProofs(input, f.policy);
   api.validateNativeOutcome(input, { status: 'PASS', exitCode: 0, reasons: [] });
   api.validateNativeOutcome(input, { status: 'BLOCKED', exitCode: 2, reasons: ['MUTATION_BASELINE_UNAVAILABLE'] });
@@ -206,4 +212,16 @@ test('known postal block accepts only full current CCD evidence with its exact e
   lateFailure.mutations.find(item => item.mutationId === 'ccd-write-then-deny').mutantResult.failureId = 'unrelated';
   assert.deepEqual(evaluateReleaseEvidence(lateFailure), verdict, 'the known early postal block can precede a later invalid witness');
   assert.equal(api.isKnownPostalBlock(lateFailure, verdict), false, 'continuation must still validate every later witness');
+});
+
+test('callback checkpoint is closed to its one candidate proof and requires baseline success before omission', async t => {
+ const {CALLBACK_SCOPE,CALLBACK_PROOF}=await import('./lib/exui-recipient-callback-contract.mjs');
+ const {readCallbackBaselineCheckpoint,readEventBaselineCheckpoint}=await load();
+ const f=await fixture(t,CALLBACK_SCOPE),observed=readCallbackBaselineCheckpoint(f.root,f.expected);
+ assert.deepEqual(observed.input.results.map(row=>[row.proofId,row.boundary,row.outcome]),[[CALLBACK_PROOF,'candidate','passed']]);
+ assert.equal(observed.input.mutations.length,0);assert.equal(observed.input.policy.mutationDefinitions.length,1);
+ assert.throws(()=>readEventBaselineCheckpoint(f.root,f.expected),/NATIVE_CHECKPOINT_SCOPE_REQUIRED/);
+ f.report.tests[0].status='failed';f.report.tests[0].failureId='recipient-callback-binding';f.report.status='failed';f.execution.runnerExitCode=1;f.terminal.code=1;f.write();
+ assert.throws(()=>readCallbackBaselineCheckpoint(f.root,f.expected),/NATIVE_CHECKPOINT_CALLBACK_BASELINE_PASSED_REQUIRED/);
+ const old=await fixture(t);assert.throws(()=>readCallbackBaselineCheckpoint(old.root,old.expected),/NATIVE_CHECKPOINT_SCOPE_REQUIRED/);
 });

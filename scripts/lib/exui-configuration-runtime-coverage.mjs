@@ -1,3 +1,8 @@
+import {CALLBACK_SCOPE,CALLBACK_OBLIGATION,CALLBACK_PROOF,callbackCanonicalImport} from './exui-recipient-callback-contract.mjs';
+import {validateCallbackTransitionEvidence} from './exui-recipient-callback-transition.mjs';
+import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
+import { buildWorkbasketInputDefinition } from './exui-workbasket-input-definition.mjs';
+import { validateWorkbasketInputDescriptor } from './exui-workbasket-input-import.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -20,7 +25,14 @@ import {
   ROUTING_SCOPE,
 } from "./exui-routing-contract.mjs";
 import {
-  EVENT_CAPABILITY_CELL,
+  COURTADMIN_UPDATE_CELLS,
+  COURTADMIN_UPDATE_OBLIGATION,
+  COURTADMIN_READ_CELLS,
+  COURTADMIN_READ_OBLIGATION,
+  READONLY_READ_CELLS,
+  READONLY_UPDATE_CELLS,
+  READONLY_UPDATE_OBLIGATION,
+  READONLY_READ_OBLIGATION,
   EVENT_CAPABILITY_SCOPE,
   EVENT_CAPABILITY_PROOFS,
 } from "./exui-ccd-event-capability.mjs";
@@ -190,14 +202,14 @@ function bindImportedDefinition(phaseDirectory, manifest, signature) {
 export function projectConfigurationCoverage(args) {
   assert(
     Object.keys(args).every((key) =>
-      ["harnessRoot", "phaseDirectory", "eventPhaseDirectory", "routingPhaseDirectory"].includes(key),
+      ["harnessRoot", "phaseDirectory", "eventPhaseDirectory", "routingPhaseDirectory", "callbackPhaseDirectory"].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
   );
-  const { harnessRoot = ROOT, phaseDirectory, eventPhaseDirectory, routingPhaseDirectory } = args;
+  const { harnessRoot = ROOT, phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory } = args;
   assert(
-    new Set([phaseDirectory, eventPhaseDirectory, routingPhaseDirectory].filter(Boolean).map((directory) => fs.realpathSync(directory))).size ===
-      [phaseDirectory, eventPhaseDirectory, routingPhaseDirectory].filter(Boolean).length,
+    new Set([phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory].filter(Boolean).map((directory) => fs.realpathSync(directory))).size ===
+      [phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory].filter(Boolean).length,
     "COVERAGE_DUPLICATE_PHASE",
   );
   let harnessCommit = null,
@@ -286,6 +298,35 @@ export function projectConfigurationCoverage(args) {
           });
       }
     }
+    if (postalManifest.runtimeMetadata.workbasketImportDigest) {
+      const definition = buildWorkbasketInputDefinition();
+      const imported = readEvidenceArtifact(fs.realpathSync(path.dirname(phaseDirectory)), {
+        path: "ccd-runtime/workbasket-input-import/receipt.json",
+        digest: postalManifest.runtimeMetadata.workbasketImportDigest,
+      }).value;
+      assert.equal(imported.status, "import-and-inputs-observed", "COVERAGE_WORKBASKET_IMPORT_REQUIRED");
+      assert.deepEqual(imported.bindings, definition.workbasketInputBindings, "COVERAGE_WORKBASKET_BINDINGS_DRIFT");
+      assert.deepEqual(imported.binding.source, definition.workbasketInputSource, "COVERAGE_WORKBASKET_SOURCE_DRIFT");
+      assert.equal(imported.binding.workbookDigest, postalManifest.identity.definitionDigests.HarnessResultsPRL, "COVERAGE_WORKBASKET_DEFINITION_DRIFT");
+      for (const [service, dependency] of [["data", "ccd"], ["definition", "ccd-definition"]])
+        assert.equal(imported.images[service].id, postalManifest.identity.dependencyIdentities[dependency].artifactDigest,
+          "COVERAGE_WORKBASKET_IMAGE_DRIFT");
+      assert.equal(imported.observations.inputs.status, 200, "COVERAGE_WORKBASKET_READ_REQUIRED");
+      validateWorkbasketInputDescriptor(imported.observations.inputs.body, definition);
+      const proof = loaded.input.results.filter(item => item.proofId === "ccd-prl-workbasket-inputs" &&
+        item.obligationId === "ccd-prl-workbasket-source-inputs");
+      assert.equal(proof.length, 1, "COVERAGE_WORKBASKET_PROOF_REQUIRED");
+      for (const binding of definition.workbasketInputBindings) {
+        assert.equal(input.catalogue.obligations.find(item => item.id === binding.obligationId)?.requiredBoundary,
+          "candidate", "COVERAGE_WORKBASKET_SOURCE_BOUNDARY_MISMATCH");
+        if (verdict.status === "PASS" && proof[0].outcome === "passed")
+          executedProofs.push({ obligationId: binding.obligationId, boundary: "candidate", status: "passed" });
+        else unacceptedExecutionFacts.push({ obligationId: binding.obligationId, gateStatus: verdict.status,
+          proofId: proof[0].proofId, outcome: proof[0].outcome, failureId: proof[0].failureId });
+      }
+      references.push({ path: "ccd-runtime/workbasket-input-import/receipt.json",
+        digest: postalManifest.runtimeMetadata.workbasketImportDigest });
+    }
     references.push(
       {
         path: path.join(path.basename(phaseDirectory), "run.json"),
@@ -372,29 +413,38 @@ export function projectConfigurationCoverage(args) {
       directory: eventPhaseDirectory,
       loaded,
     });
-    const proof = loaded.input.results.find(
-      (item) => item.proofId === EVENT_CAPABILITY_PROOFS.courtadmin,
-    );
-    assert.equal(
-      proof.obligationId,
-      EVENT_CAPABILITY_CELL,
-      "COVERAGE_EVENT_PROOF_MISMATCH",
-    );
-    if (loaded.receipt.verdict.status === "PASS") {
-      assert.equal(proof.outcome, "passed", "COVERAGE_PASSED_PROOF_REQUIRED");
-      executedProofs.push({
-        obligationId: EVENT_CAPABILITY_CELL,
-        boundary: "ccd",
-        status: "passed",
-      });
-    } else
-      unacceptedExecutionFacts.push({
-        obligationId: EVENT_CAPABILITY_CELL,
-        gateStatus: loaded.receipt.verdict.status,
-        proofId: proof.proofId,
-        outcome: proof.outcome,
-        failureId: proof.failureId,
-      });
+    for (const [cell, proofId, obligationId, boundary = "ccd"] of [
+      ...SOURCE_SHAPE_ROWS.map(row => [row.obligationId, `ccd-source-shape-${row.id}`, `ccd-source-shape-${row.id}`, "candidate"]),
+      ...COURTADMIN_UPDATE_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadmin, COURTADMIN_UPDATE_OBLIGATION]),
+      ...COURTADMIN_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.courtadminRead, COURTADMIN_READ_OBLIGATION]),
+      ...READONLY_UPDATE_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.readonlyUpdate, READONLY_UPDATE_OBLIGATION]),
+      ...READONLY_READ_CELLS.map(cell => [cell.id, EVENT_CAPABILITY_PROOFS.readonlyRead, READONLY_READ_OBLIGATION]),
+    ]) {
+      assert.equal(input.catalogue.obligations.find(item => item.id === cell)?.requiredBoundary, boundary, "COVERAGE_EVENT_SOURCE_BOUNDARY_MISMATCH");
+      const proof = loaded.input.results.find(
+        (item) => item.proofId === proofId,
+      );
+      assert.equal(
+        proof.obligationId,
+        obligationId,
+        "COVERAGE_EVENT_PROOF_MISMATCH",
+      );
+      if (loaded.receipt.verdict.status === "PASS") {
+        assert.equal(proof.outcome, "passed", "COVERAGE_PASSED_PROOF_REQUIRED");
+        executedProofs.push({
+          obligationId: cell,
+          boundary,
+          status: "passed",
+        });
+      } else
+        unacceptedExecutionFacts.push({
+          obligationId: cell,
+          gateStatus: loaded.receipt.verdict.status,
+          proofId: proof.proofId,
+          outcome: proof.outcome,
+          failureId: proof.failureId,
+        });
+    }
     harnessCommit ??= manifest.harnessCommit;
     phaseReferences.eventCapability = {
       releaseScopeId: policy.releaseScopeId,
@@ -415,6 +465,37 @@ export function projectConfigurationCoverage(args) {
       },
       ...imports.map(({ path, digest }) => ({ path, digest })),
     );
+  }
+  if (callbackPhaseDirectory) {
+    assert.equal(path.basename(callbackPhaseDirectory),"recipientCallback","COVERAGE_CALLBACK_DIRECTORY");
+    const policy=getReleasePolicy(CALLBACK_SCOPE),loaded=loadRunEvidence(path.join(callbackPhaseDirectory,"run.json"),policy);
+    const receiptBytes=regularBytes(callbackPhaseDirectory,"gate.json");
+    assert.deepEqual(JSON.parse(receiptBytes),loaded.receipt,"COVERAGE_RECEIPT_RECOMPUTATION_MISMATCH");
+    validateCompleteNativeProofs(loaded.input,policy);validateNativeOutcome(loaded.input,loaded.receipt.verdict);
+    validateNativePhaseFinalization(callbackPhaseDirectory,loaded.input.executions,{code:loaded.receipt.verdict.exitCode,signal:null});
+    const manifest=loaded.input.manifest;
+    const expected={nativeAuthority:true,...Object.fromEntries(["runId","releaseScopeId","harnessCommit","policyDigest","identity"].map(key=>[key,manifest[key]])),...Object.fromEntries(["harnessSourceDigest","harnessDependencyDigest","browserDigest"].map(key=>[key,manifest.runtimeMetadata[key]])),callbackTransition:{path:"independent-callback-transition.json",digest:digestBytes(regularBytes(callbackPhaseDirectory,"independent-callback-transition.json"))}};
+    validateCallbackTransitionEvidence(callbackPhaseDirectory,expected,loaded.input);
+    const canonical=callbackCanonicalImport(),binding=canonical.binding,sourceKey="prl-ccd-definitions:"+binding.sourcePath;
+    const source=input.snapshot.sources.filter(item=>item.repository==="prl-ccd-definitions"&&item.path===binding.sourcePath);
+    assert.equal(source.length,1,"COVERAGE_CALLBACK_SOURCE_REQUIRED");assert.equal(source[0].revision,binding.sourceRevision,"COVERAGE_CALLBACK_SOURCE_REVISION");assert.equal("sha256:"+source[0].fileDigest,binding.sourceFileDigest,"COVERAGE_CALLBACK_SOURCE_FILE");
+    const canonicalRow=value=>value&&typeof value==="object"&&!Array.isArray(value)?Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonicalRow(value[key])])):Array.isArray(value)?value.map(canonicalRow):value;
+    const rows=source[0].document.filter(row=>digestBytes(JSON.stringify(canonicalRow(row)))===binding.sourceRowDigest);assert.equal(rows.length,1,"COVERAGE_CALLBACK_SOURCE_ROW");
+    const normalized={...rows[0],CaseTypeID:"HarnessNestedPRL",CallBackURLMidEvent:binding.normalizedUrl};
+    assert.deepEqual(canonical.fixture.sheets.CaseEventToFields.filter(row=>row.CaseEventID===binding.eventId&&row.CaseFieldID===binding.fieldId),[normalized],"COVERAGE_CALLBACK_FULL_ROW");
+    assert.deepEqual(input.catalogue.obligations.filter(item=>item.id===CALLBACK_OBLIGATION),[{id:CALLBACK_OBLIGATION,family:"PRIVATELAW",kind:"definition-shape",requiredBoundary:"candidate",sourceKeys:[sourceKey]}],"COVERAGE_CALLBACK_OBLIGATION");
+    const feature=input.catalogue.features.filter(item=>item.id===CALLBACK_OBLIGATION);assert.equal(feature.length,1,"COVERAGE_CALLBACK_FEATURE");assert.equal(feature[0].sourceKey,sourceKey,"COVERAGE_CALLBACK_SOURCE_KEY");assert.equal("sha256:"+feature[0].rowDigest,binding.sourceRowDigest,"COVERAGE_CALLBACK_FEATURE_ROW");
+    if(postalManifest){
+      const comparable=value=>{const identity=structuredClone(value.identity);delete identity.configurationDigest;delete identity.definitionDigests;return {identity,harnessCommit:value.harnessCommit,runtime:Object.fromEntries(["harnessSourceState","harnessSourceDigest","harnessDependencyDigest","browserDigest"].map(key=>[key,value.runtimeMetadata[key]]))};};
+      assert.deepEqual(comparable(manifest),comparable(postalManifest),"COVERAGE_CROSS_PHASE_IDENTITY_MISMATCH");
+    }
+    const proof=loaded.input.results.find(item=>item.proofId===CALLBACK_PROOF);assert.equal(proof.obligationId,CALLBACK_OBLIGATION,"COVERAGE_CALLBACK_PROOF");
+    if(loaded.receipt.verdict.status==="PASS"){assert.equal(proof.outcome,"passed","COVERAGE_PASSED_PROOF_REQUIRED");executedProofs.push({obligationId:CALLBACK_OBLIGATION,boundary:"candidate",status:"passed"});}
+    else unacceptedExecutionFacts.push({obligationId:CALLBACK_OBLIGATION,gateStatus:loaded.receipt.verdict.status,proofId:proof.proofId,outcome:proof.outcome,failureId:proof.failureId});
+    const imports=["baseline","binding-omitted"].flatMap(variant=>["recipient-callback-native-import.json","recipient-callback-import/receipt.json","recipient-callback-import/stored-row-date.json"].map(name=>{const directory=path.join(path.dirname(callbackPhaseDirectory),`callback-${variant}-runtime`);return {path:`callback-${variant}-runtime/${name}`,digest:digestBytes(regularBytes(directory,name))};}));
+    harnessCommit??=manifest.harnessCommit;
+    phaseReferences.recipientCallback={releaseScopeId:CALLBACK_SCOPE,runId:manifest.runId,receiptArtifactDigest:digestBytes(receiptBytes),evidenceManifestDigest:loaded.evidenceManifestDigest,status:loaded.receipt.verdict.status,imports};
+    references.push({path:"recipientCallback/run.json",digest:digestBytes(regularBytes(callbackPhaseDirectory,"run.json"))},{path:"recipientCallback/gate.json",digest:digestBytes(receiptBytes)},...imports);
   }
   if (routingPhaseDirectory) {
     const policy = getReleasePolicy(ROUTING_SCOPE);
@@ -540,6 +621,7 @@ export function writeConfigurationCoverage(args) {
         "terminal",
         "eventPhase",
         "routingPhase",
+        "callbackPhase",
       ].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
@@ -552,6 +634,7 @@ export function writeConfigurationCoverage(args) {
     terminal,
     eventPhase,
     routingPhase,
+    callbackPhase,
   } = args;
   if (phaseDirectory) {
     assert(
@@ -618,11 +701,17 @@ export function writeConfigurationCoverage(args) {
     assert.equal(digestBytes(regularBytes(directory, "gate.json")), routingExpected.receiptArtifactDigest, "COVERAGE_RECEIPT_TRANSPORT_MISMATCH");
     validateCiPhase(directory, routingExpected, routingTerminal);
   }
+  if(callbackPhase){
+    assert.deepEqual(Object.keys(callbackPhase).sort(),["directory","expected","terminal"],"COVERAGE_CALLBACK_PHASE_FIELDS");
+    const {directory,expected:callbackExpected,terminal:callbackTerminal}=callbackPhase;
+    assert(callbackExpected&&callbackTerminal&&callbackExpected.nativeAuthority===true,"COVERAGE_OBSERVED_NATIVE_PHASE_REQUIRED");assert.equal(callbackExpected.releaseScopeId,CALLBACK_SCOPE,"COVERAGE_CALLBACK_SCOPE_MISMATCH");assert.equal(digestBytes(regularBytes(directory,"gate.json")),callbackExpected.receiptArtifactDigest,"COVERAGE_RECEIPT_TRANSPORT_MISMATCH");validateCiPhase(directory,callbackExpected,callbackTerminal);
+  }
   const projected = projectConfigurationCoverage({
     harnessRoot,
     phaseDirectory,
     eventPhaseDirectory: eventPhase?.directory,
     routingPhaseDirectory: routingPhase?.directory,
+    callbackPhaseDirectory: callbackPhase?.directory,
   });
   writeJsonAtomic(path.join(output, "catalogue.json"), projected.catalogue);
   writeJsonAtomic(path.join(output, "selection.json"), projected.selection);
