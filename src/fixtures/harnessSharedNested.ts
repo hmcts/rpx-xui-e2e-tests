@@ -27,7 +27,7 @@ async function branch(page:Page,index:number,channel:'email'|'post') {
   for(const field of hidden)await expect(input(page,field,index)).toBeHidden();
   return {emailName:await input(page,'emailName',index).isVisible(),emailAddress:await input(page,'emailAddress',index).isVisible(),postalName:await input(page,'postalName',index).isVisible()};
 }
-async function collectionRows(page:Page,firstName:string,count:number) {
+export async function collectionRows(page:Page,firstName:string,count:number) {
   // The sealed toolkit collection renderer gives each recipient one direct row.
   const table=page.locator('table.collection-field-table').filter({has:page.getByText(firstName,{exact:true})});
   await expect(table).toHaveCount(1);
@@ -35,7 +35,7 @@ async function collectionRows(page:Page,firstName:string,count:number) {
   await expect(rows).toHaveCount(count);
   return (await rows.allTextContents()).map(row=>row.replace(/\s+/g,' ').trim());
 }
-async function openUpdate(page:Page,caseId:string) {
+export async function openUpdate(page:Page,caseId:string) {
   const read=page.waitForResponse(response=>response.request().method()==='GET'&&new URL(response.url()).pathname===`/data/internal/cases/${caseId}`);
   await page.goto(`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}`);
   expect((await read).status()).toBe(200);

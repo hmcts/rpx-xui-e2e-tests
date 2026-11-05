@@ -82,6 +82,26 @@ async function withGateway(t, check, mutation = null, respond = null, transition
   await check({ request, upstream, output });
 }
 
+test('complex email feasibility selects existing update transport without enabling callback or shared-policy acceptance', async t => {
+  const {feasibilityGatewaySelection}=await import('./lib/exui-feasibility-gateway.mjs');
+  const {SHARED_NESTED_SCOPE}=await import('./lib/exui-shared-nested-scope.mjs');
+  for(const kind of ['complex-email-text-ui-feasibility','recipient-callback-ui-feasibility','selector-event-row-ui-feasibility','result-columns-ui-feasibility'])await t.test(kind,async child=>{
+    const complex=kind==='complex-email-text-ui-feasibility';
+    const selection=feasibilityGatewaySelection(kind);
+    assert.deepEqual(selection,complex?{scope:SHARED_NESTED_SCOPE,options:{}}:{scope:'exui-ccd-event-capability-pilot',options:kind==='result-columns-ui-feasibility'?{resultColumns:true}:{recipientCallback:{invocationId:'recipient-callback-ui'}}});
+    await withGateway(child,async({request,upstream})=>{
+      for(const prefix of ['', '/data']) {
+        const response=await request('GET',prefix+'/internal/cases/1793646213983629/event-triggers/update');
+        assert.equal(response.status,complex?207:501);
+      }
+      assert.equal(upstream.length,complex?2:0);
+      const response=await request('GET','/data/internal/cases/1793646213983629/event-triggers/serviceOfDocuments');
+      assert.equal(response.status,complex||kind==='result-columns-ui-feasibility'?501:207);
+    },null,null,null,selection.scope,selection.options);
+  });
+  assert.throws(()=>feasibilityGatewaySelection('shared-policy-proof'),/FEASIBILITY_GATEWAY_KIND/);
+});
+
 test("workbasket navigation is derived from the imported CCD case type", async (t) => {
   const observed = { id: "HarnessResultsPRL", name: "Harness result columns", jurisdiction: { id: "HARNESS", name: "Disposable Harness" }, states: [{ id: "Created", name: "Created" }] };
   await withGateway(t, async ({ request, upstream }) => {
