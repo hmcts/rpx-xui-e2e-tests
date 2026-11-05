@@ -559,11 +559,13 @@ test("credential-free collection runs only116 offline tests and preserves every 
   const oldSpawn = cp.spawn,
     oldPrepare = Reporter.prototype.prepareNativeEvidence,
     oldCompatibility = Reporter.prototype.prepareCompatibilityEvidence,
+    oldSharedNested = Reporter.prototype.prepareSharedNestedAttempt,
     oldEnd = Reporter.prototype.onEnd;
   t.after(() => {
     cp.spawn = oldSpawn;
     Reporter.prototype.prepareNativeEvidence = oldPrepare;
     Reporter.prototype.prepareCompatibilityEvidence = oldCompatibility;
+    Reporter.prototype.prepareSharedNestedAttempt = oldSharedNested;
     Reporter.prototype.onEnd = oldEnd;
     delete require.cache[modulePath];
     process.chdir(previous);
@@ -646,6 +648,14 @@ test("credential-free collection runs only116 offline tests and preserves every 
   expectedVerificationMs=60;
   await runHarnessCollection({}, {nativeEvidencePath:"/explicit/descriptor.json",compatibilityEvidencePath:"/explicit/compatibility.json",nativeElapsedMs:1000,phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}]});
   assert.deepEqual(calls.slice(-4),["validate-native","validate-compatibility","offline","render"]);
+  Reporter.prototype.prepareSharedNestedAttempt = async function(descriptor) {
+    assert.equal(descriptor,"/explicit/nested.json");calls.push("validate-shared-nested");clock+=45;
+    this.sharedNestedAttemptEvidence={status:"BLOCKED"};
+  };
+  expectedVerificationMs=105;
+  const nested=await runHarnessCollection({}, {nativeEvidencePath:"/explicit/descriptor.json",compatibilityEvidencePath:"/explicit/compatibility.json",sharedNestedAttemptPath:"/explicit/nested.json",nativeElapsedMs:1000,phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}]});
+  assert.deepEqual(nested,{status:"passed",nativeStatus:"PASS",sharedNestedStatus:"BLOCKED",exitCode:2});
+  assert.deepEqual(calls.slice(-5),["validate-native","validate-compatibility","validate-shared-nested","offline","render"]);
   Reporter.prototype.prepareCompatibilityEvidence = async function (descriptor) {
     assert.equal(descriptor,"/explicit/compatibility.json");assert.equal(this.nativeEvidence.status,"PASS");
     calls.push("validate-compatibility");throw new Error("APPLICANT_REPORT_EVIDENCE_INVALID");
@@ -661,7 +671,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
   );
   assert.equal(
     calls.length,
-    15,
+    20,
     "invalid evidence must not launch diagnostics or publish",
   );
 });

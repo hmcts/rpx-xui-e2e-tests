@@ -1,3 +1,4 @@
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './lib/exui-shared-nested-scope.mjs';
 import {CALLBACK_SCOPE} from './lib/exui-recipient-callback-contract.mjs';
 import {APPLICANT_RESULTS_SCOPE} from './lib/exui-applicant-results-contract.mjs';
 import {selectApplicantResultRuntime} from './lib/exui-applicant-results-transition.mjs';
@@ -113,7 +114,7 @@ async function providers(input, invocation, directory) {
       "ROUTING_OBSERVED_INTERPRETER_MISMATCH",
     );
     ({ server, cookie } = await startRoutingProviders(directory));
-  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId)) {
+  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SHARED_NESTED_SCOPE].includes(input.releaseScopeId)) {
     for (const [service, port] of [
       ["data", 4452],
       ["definition", 4451],
@@ -169,7 +170,9 @@ async function providers(input, invocation, directory) {
       credentials,
       [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
       input.releaseScopeId,
-      input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultColumns:true} : input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
+      input.releaseScopeId === SHARED_NESTED_SCOPE
+        ? "ccd-shared-nested"
+        : input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultColumns:true} : input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
     );
   } else {
     const assignments = invocation.persona
@@ -196,7 +199,7 @@ async function providers(input, invocation, directory) {
   });
 }
 export function nativeProofConfiguration(input, invocation, directory) {
-  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId);
+  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SHARED_NESTED_SCOPE].includes(input.releaseScopeId);
   const env = {
     PATH: "/usr/local/bin:/usr/bin:/bin",
     HOME: "/tmp",
@@ -253,6 +256,7 @@ export function nativeProofConfiguration(input, invocation, directory) {
     "--config",
     "/harness/playwright.harness.config.ts",
   ];
+  if(input.releaseScopeId===SHARED_NESTED_SCOPE)args.push("shared-nested-renderer.spec.ts");
   if (input.releaseScopeId === "exui-ccd-pilot" && invocation.mutation)
     args.push(
       invocation.mutation === "ccd-stale-revoked-bearer"

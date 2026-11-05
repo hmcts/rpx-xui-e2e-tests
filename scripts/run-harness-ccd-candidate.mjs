@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './lib/exui-shared-nested-scope.mjs';
 import {CALLBACK_SCOPE} from './lib/exui-recipient-callback-contract.mjs';
 import {verifyNativeCallbackRuntime} from './lib/exui-recipient-callback-native-import.mjs';
 import { classifyNativeFailure, nativeFailurePrefix } from "./lib/exui-native-failure-diagnostics.mjs";
@@ -35,8 +36,9 @@ const arg = (key) => {
 };
 async function launch() {
   const releaseScopeId = arg("--scope") ?? "exui-ccd-pilot";
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, SHARED_NESTED_SCOPE].includes(releaseScopeId))
     throw new Error("UNKNOWN_CCD_SCOPE");
+  if(releaseScopeId===SHARED_NESTED_SCOPE&&arg("--only"))throw Error("COMPLETE_SHARED_NESTED_SCOPE_REQUIRED");
   if (releaseScopeId === CALLBACK_SCOPE && arg("--only")) throw new Error("COMPLETE_CALLBACK_SCOPE_REQUIRED");
   if (releaseScopeId === EVENT_CAPABILITY_SCOPE && arg("--only"))
     throw new Error("COMPLETE_EVENT_CAPABILITY_SCOPE_REQUIRED");
@@ -75,7 +77,7 @@ async function launch() {
   const ccd = JSON.parse(fs.readFileSync(statePath, "utf8"));
   if (releaseScopeId === EVENT_CAPABILITY_SCOPE && ccd.fixtureSelection !== "event-capability-baseline")
     throw new Error("EVENT_CAPABILITY_BASELINE_RUNTIME_REQUIRED");
-  if (releaseScopeId === "exui-ccd-pilot" && ![undefined, "nested-prl"].includes(ccd.fixtureSelection))
+  if (["exui-ccd-pilot",SHARED_NESTED_SCOPE].includes(releaseScopeId) && ![undefined, "nested-prl"].includes(ccd.fixtureSelection))
     throw new Error("CCD_NESTED_RUNTIME_REQUIRED");
   if (
     !ccd.ready ||

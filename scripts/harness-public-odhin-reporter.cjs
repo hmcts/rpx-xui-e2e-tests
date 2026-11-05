@@ -137,6 +137,8 @@ function inventory(p) {
   }
 }
 function validateHtml(html, record) {
+  if(Boolean(record.sharedNestedAttemptEvidence)!==html.includes('id="harness-shared-nested-attempt"'))throw failure();
+  if(record.sharedNestedAttemptEvidence&&!html.includes(require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(record.sharedNestedAttemptEvidence)))throw failure();
   if (Boolean(record.compatibilityEvidence) !== html.includes('id="harness-applicant-compatibility"')) throw failure();
   if (record.compatibilityEvidence) {
     if (!record.nativeEvidence || !html.includes(require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(record.compatibilityEvidence))) throw failure();
@@ -347,6 +349,7 @@ class HarnessPublicOdhinReporter {
     this.phaseTimings = phaseTimings;
     this.nativeEvidence = null;
     this.compatibilityEvidence = null;
+    this.sharedNestedAttemptEvidence = null;
     this.selection = selection;
     this.paths = paths(selection);
     this.expected = new Map(
@@ -374,6 +377,13 @@ class HarnessPublicOdhinReporter {
     const { readApplicantCompatibilityEvidence } = await import("./lib/exui-applicant-results-report-evidence.mjs");
     this.compatibilityEvidence = readApplicantCompatibilityEvidence(descriptorPath);
     require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence);
+  }
+  async prepareSharedNestedAttempt(descriptorPath) {
+    if(this.begun||this.sharedNestedAttemptEvidence)this.reject();
+    const {readSharedNestedAttempt}=await import('./lib/exui-shared-nested-attempt.mjs');
+    const started=performance.now(),observed=await readSharedNestedAttempt(descriptorPath);
+    this.sharedNestedAttemptEvidence={...observed,collectorVerificationMs:Math.round(performance.now()-started)};
+    require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence);
   }
   reject() {
     this.invalid = true;
@@ -642,12 +652,13 @@ class HarnessPublicOdhinReporter {
         diagnosticSource: this.diagnosticSource,
         nativeEvidence: this.nativeEvidence,
         compatibilityEvidence: this.compatibilityEvidence,
+        sharedNestedAttemptEvidence:this.sharedNestedAttemptEvidence,
         nativeElapsedMs: this.nativeElapsedMs,
         phaseTimings: this.phaseTimings,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
@@ -706,6 +717,7 @@ class HarnessPublicOdhinReporter {
         ),
       );
       if (this.compatibilityEvidence) presentation.querySelector("#harness-native-evidence").insertAdjacentHTML("afterend", require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence));
+      if(this.sharedNestedAttemptEvidence)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence));
       if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs));
       presentation
         .querySelector("head")

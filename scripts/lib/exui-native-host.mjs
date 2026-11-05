@@ -1,3 +1,5 @@
+import {captureSharedNestedArtifacts} from './exui-shared-nested-artifacts.mjs';
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './exui-shared-nested-scope.mjs';
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS,applicantResultsMutation} from './exui-applicant-results-contract.mjs';
 import {applicantResultTransitionRequest,waitForApplicantResultRuntime,waitForApplicantResultBaselineCapture} from './exui-applicant-results-transition.mjs';
 import {callbackObservationReferences} from './exui-recipient-callback-observations.mjs';
@@ -348,6 +350,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
         runnerExitCode: terminal.code,
         unexpectedGlobalErrors: report.globalErrors,
         resultArtifact: ref(output, path.join(directory, "report.json")),
+        ...(input.releaseScopeId===SHARED_NESTED_SCOPE?{sharedNestedArtifacts:captureSharedNestedArtifacts(output,invocation.invocationId)}:{}),
         ...(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId) ? {
           sharedRoleArtifacts: captureSharedRoleArtifacts(output, invocation.invocationId, input.releaseScopeId),
         } : {}),
@@ -368,6 +371,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
         writeJsonAtomic(path.join(output, "callback-transition-request.json"), callbackTransitionRequest(input));
       if (input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === "baseline")
         writeJsonAtomic(path.join(output, "event-transition-request.json"), eventCapabilityTransitionRequest(input));
+      if(input.releaseScopeId===SHARED_NESTED_SCOPE&&invocation.invocationId==='baseline'&&(report.status!=='passed'||report.globalErrors.length))throw Error('SHARED_NESTED_BASELINE_UNSATISFIED');
     }
     const mutations = derivations(
       input,

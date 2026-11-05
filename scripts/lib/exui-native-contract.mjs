@@ -1,3 +1,4 @@
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './exui-shared-nested-scope.mjs';
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import { CALLBACK_SCOPE, CALLBACK_MUTATION } from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
@@ -70,6 +71,7 @@ const slices = {
       mutation: "wa-broaden-scope",
     },
   ],
+  [SHARED_NESTED_SCOPE]:[{invocationId:"baseline",kind:"baseline",mutation:null},...SHARED_NESTED_MUTATIONS.map(mutation=>({invocationId:mutation,kind:"mutation",mutation}))],
   "exui-ccd-pilot": [
     { invocationId: "baseline", kind: "baseline", mutation: null },
     ...[
@@ -129,7 +131,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
       },
     };
   }
-  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE].includes(input.releaseScopeId))
+  if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SHARED_NESTED_SCOPE].includes(input.releaseScopeId))
     return {
       config,
       identity: {
@@ -142,7 +144,7 @@ export function nativeIdentity(input, invocation, candidateRoot) {
   if(input.releaseScopeId===APPLICANT_RESULTS_SCOPE)config=resultsConfiguration(config);
   if(input.kind===RESULTS_UI_KIND){assert.equal(invocation.mutation??null,null,"RESULT_UI_BASELINE_ONLY");config=resultsConfiguration(config);}
   config.now = false;
-  if (input.releaseScopeId === "exui-ccd-pilot" && input.workbasket)
+  if ((input.releaseScopeId === "exui-ccd-pilot" && input.workbasket) || input.releaseScopeId===SHARED_NESTED_SCOPE)
     config.jurisdictions = `${config.jurisdictions},HARNESS`;
   return {
     config,

@@ -1,3 +1,4 @@
+import {SHARED_NESTED_SCOPE} from './exui-shared-nested-scope.mjs';
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import {validateApplicantResultRuntime} from './exui-applicant-results-transition.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION,callbackVariant} from './exui-recipient-callback-contract.mjs';
@@ -23,6 +24,7 @@ const scopes = {
   eventCapability: EVENT_CAPABILITY_SCOPE,
   recipientCallback: CALLBACK_SCOPE,
   applicantResults: APPLICANT_RESULTS_SCOPE,
+  sharedNested: SHARED_NESTED_SCOPE,
 };
 function captureOwnership(
   input,
@@ -73,7 +75,7 @@ function captureOwnership(
       "CI_NATIVE_MUTANT_MISMATCH",
     );
   else assert(!input.mutantArtifact, "CI_NATIVE_UNEXPECTED_MUTANT");
-  if (["ccd", "eventCapability", "recipientCallback", "applicantResults"].includes(name)) {
+  if (["ccd", "eventCapability", "recipientCallback", "applicantResults", "sharedNested"].includes(name)) {
     assert.equal(
       input.ccd.namespace,
       context.ccd.namespace,

@@ -1,3 +1,4 @@
+import {SHARED_NESTED_SCOPE} from './exui-shared-nested-scope.mjs';
 import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
 import {validateApplicantResultsEvidence} from './exui-applicant-results-evidence.mjs';
 import {captureApplicantFaultOwnership} from './exui-native-ci-ownership.mjs';
@@ -45,6 +46,7 @@ const scopes = {
   eventCapability: EVENT_CAPABILITY_SCOPE,
   recipientCallback: CALLBACK_SCOPE,
   applicantResults: APPLICANT_RESULTS_SCOPE,
+  sharedNested: SHARED_NESTED_SCOPE,
 };
 export function validateCiPhase(directory, expected, terminal) {
   assert.equal(terminal.signal, null, "CI_PHASE_TERMINAL_SIGNAL");
@@ -146,7 +148,7 @@ export function captureCiPhaseExpectation(
   const policy = getReleasePolicy(scopes[name]);
   assert.deepEqual(
     input.harnessSources,
-    ["ccd", "eventCapability", "recipientCallback", "applicantResults"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
+    ["ccd", "eventCapability", "recipientCallback", "applicantResults", "sharedNested"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
     "CI_LAUNCH_SOURCE_INVENTORY_MISMATCH",
   );
   assert.equal(
@@ -220,7 +222,7 @@ export function captureCiPhaseExpectation(
         .startsWith(fs.realpathSync(os.tmpdir()) + path.sep),
     "CI_PRIVATE_SOURCE_HANDOFF_REQUIRED",
   );
-  const identity = ["ccd", "eventCapability", "recipientCallback", "applicantResults"].includes(name)
+  const identity = ["ccd", "eventCapability", "recipientCallback", "applicantResults", "sharedNested"].includes(name)
     ? context.ccdIdentity
     : name === "routing"
       ? nativeIdentity(input, { mutation: null }, context.artifact.candidateRoot).identity
@@ -243,7 +245,7 @@ export function captureCiPhaseExpectation(
 function captureOwnership(input, handoff, context, directory, name, capture) {
   assert.deepEqual(
     input.harnessSources,
-    ["ccd", "eventCapability", "recipientCallback", "applicantResults"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
+    ["ccd", "eventCapability", "recipientCallback", "applicantResults", "sharedNested"].includes(name) ? CCD_HARNESS_SOURCE_FILES : HARNESS_SOURCE_FILES,
     "CI_LAUNCH_SOURCE_INVENTORY_MISMATCH",
   );
   assert.equal(

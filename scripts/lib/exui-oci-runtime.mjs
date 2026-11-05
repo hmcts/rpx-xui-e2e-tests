@@ -1,3 +1,4 @@
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './exui-shared-nested-scope.mjs';
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
@@ -144,7 +145,7 @@ export function toolContainerArguments({
             "ccd-broaden-access",
             "ccd-write-then-deny",
             "ccd-drop-postal-optional-child",
-            "ccd-drop-workbasket-field",
+            "ccd-drop-workbasket-field", "shared-nested-drop-second-recipient",
             "ccd-enable-judge-event",
             "ccd-remove-courtadmin-recipient-read",
             "ccd-remove-readonly-recipient-read",
@@ -162,6 +163,8 @@ export function toolContainerArguments({
     ).includes(invocationId)
   )
     throw new Error("UNSUPPORTED_OCI_INVOCATION");
+  if(releaseScopeId===SHARED_NESTED_SCOPE&&!["baseline",...SHARED_NESTED_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_SHARED_NESTED_INVOCATION");
+  if(invocationId==="shared-nested-drop-second-recipient"&&releaseScopeId!==SHARED_NESTED_SCOPE)throw Error("SHARED_NESTED_SCOPE_REQUIRED");
   if(APPLICANT_RESULTS_MUTATIONS.includes(invocationId)&&releaseScopeId!==APPLICANT_RESULTS_SCOPE)throw Error("CCD_RESULTS_SCOPE_REQUIRED");
   if(releaseScopeId===APPLICANT_RESULTS_SCOPE&&!["baseline",...APPLICANT_RESULTS_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_CCD_RESULTS_INVOCATION");
   if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
@@ -255,7 +258,7 @@ export function candidateArchiveArguments({
       "ccd-broaden-access",
       "ccd-write-then-deny",
       "ccd-drop-postal-optional-child",
-      "ccd-drop-workbasket-field",
+      "ccd-drop-workbasket-field", "shared-nested-drop-second-recipient",
       "ccd-enable-judge-event",
       "ccd-remove-courtadmin-recipient-read",
       "ccd-remove-readonly-recipient-read",
@@ -271,6 +274,8 @@ export function candidateArchiveArguments({
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
+  if(releaseScopeId===SHARED_NESTED_SCOPE&&!["baseline",...SHARED_NESTED_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_SHARED_NESTED_INVOCATION");
+  if(invocationId==="shared-nested-drop-second-recipient"&&releaseScopeId!==SHARED_NESTED_SCOPE)throw Error("SHARED_NESTED_SCOPE_REQUIRED");
   if(APPLICANT_RESULTS_MUTATIONS.includes(invocationId)&&releaseScopeId!==APPLICANT_RESULTS_SCOPE)throw Error("CCD_RESULTS_SCOPE_REQUIRED");
   if(releaseScopeId===APPLICANT_RESULTS_SCOPE&&!["baseline",...APPLICANT_RESULTS_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_CCD_RESULTS_INVOCATION");
   if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");

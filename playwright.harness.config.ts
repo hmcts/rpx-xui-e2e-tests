@@ -31,9 +31,14 @@ if (
     "ccd-event-capability",
     "ccd-recipient-callback",
     "ccd-applicant-results",
+    "ccd-shared-nested",
   ].includes(slice)
 )
   throw new Error("UNKNOWN_HARNESS_SLICE");
+const sharedNestedScope=candidateManifest?.releaseScopeId==='exui-shared-nested-renderer-pilot';
+if(slice==='ccd-shared-nested'&&!sharedNestedScope)throw Error('SHARED_NESTED_SCOPE_REQUIRED');
+if(sharedNestedScope&&(selection!=='ccd'||slice!=='ccd-shared-nested'))throw Error('SHARED_NESTED_SELECTION_REQUIRED');
+if(sharedNestedScope&&process.env.EXUI_HARNESS_MUTATION&&!['ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient'].includes(process.env.EXUI_HARNESS_MUTATION))throw Error('SHARED_NESTED_MUTATION_REQUIRED');
 const eventCapabilityScope =
   candidateManifest?.releaseScopeId === "exui-ccd-event-capability-pilot";
 if (slice === "ccd-event-capability" && !eventCapabilityScope)
@@ -57,7 +62,7 @@ const applicantResultsScope = candidateManifest?.releaseScopeId === "exui-ccd-ap
 if (slice === "ccd-applicant-results" && !applicantResultsScope) throw new Error("APPLICANT_RESULTS_SCOPE_REQUIRED");
 if (applicantResultsScope && (selection !== "ccd" || slice !== "ccd-applicant-results")) throw new Error("APPLICANT_RESULTS_SELECTION_REQUIRED");
 if (applicantResultsScope && process.env.EXUI_HARNESS_MUTATION && !["applicant-binding", "applicant-label", "applicant-order"].includes(process.env.EXUI_HARNESS_MUTATION)) throw new Error("APPLICANT_RESULTS_MUTATION_REQUIRED");
-const ccdFiles = applicantResultsScope ? ["applicant-results"] : callbackScope ? ["recipient-callback"] : eventCapabilityScope
+const ccdFiles = sharedNestedScope ? ["shared-nested-renderer"] : applicantResultsScope ? ["applicant-results"] : callbackScope ? ["recipient-callback"] : eventCapabilityScope
   ? process.env.EXUI_HARNESS_MUTATION === "ccd-enable-judge-event"
     ? ["event-capability"]
     : ["ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")
