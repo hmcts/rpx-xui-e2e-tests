@@ -93,7 +93,7 @@ async function controller(t,facet,extraMutation=false){
  const artifactPath=path.join(parent,'artifact.json');fs.writeFileSync(artifactPath,JSON.stringify(artifact));
  const output=path.join(parent,'output'),image='sha256:'+'c'.repeat(64),seen=[],fault=m.DIVORCE_CONSUMERS[facet].fault;let resourceId=0;
  const result=await runSourceProfileFeasibility({artifactPath,output,facet:`divorce-${facet}`},{
-  verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),
+  inspectOwner:()=>null,verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),
   configuration:(_root,mutation)=>{const config={staffSupportedJurisdictions:'IA,DIVORCE',serviceRefDataMapping:[{service:'DIVORCE',serviceCodes:['ABA1']},{service:'IA',serviceCodes:['BFA1']}],feature:{workAllocationEnabled:false}};if(mutation)m.applyDivorceConsumerFault(config,facet);if(mutation&&extraMutation)config.feature.workAllocationEnabled=true;return{config,digest:digestBytes(JSON.stringify(config)),contract:{mutation}};},
   runInvocation:async(spec,{resources})=>{
    seen.push(spec.invocationId);assert.equal(spec.manifest.scope,m.DIVORCE_CONSUMERS[facet].scope);

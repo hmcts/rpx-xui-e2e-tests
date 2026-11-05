@@ -139,7 +139,7 @@ async function controller(t, extraMutation = false) {
   const artifactPath=path.join(parent,'artifact.json');fs.writeFileSync(artifactPath,JSON.stringify(artifact));
   const output=path.join(parent,'output'),image='sha256:'+'c'.repeat(64),seen=[];let resourceId=0;
   const result=await runSourceProfileFeasibility({artifactPath,output,facet:'wa-membership'},{
-    verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),
+    inspectOwner:()=>null,verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),
     configuration:(_root,mutation)=>{const config={waSupportedJurisdictions:mutation?'IA,CMC':'IA',feature:{workAllocationEnabled:false}};if(extraMutation&&mutation)config.feature.workAllocationEnabled=true;return{config,digest:digestBytes(JSON.stringify(config)),contract:{mutation}};},
     runInvocation:async(spec,{resources})=>{
       seen.push(spec.invocationId);
