@@ -71,7 +71,8 @@ export function validateComplexEmailMetadata(rows, context, variant = 'baseline'
 
 export function complexEmailMetadataSql(version) {
   metadataExpected(version, 'baseline');
-  // Pinned definition-store c37c9b84 has no ComplexFieldEntity date column.
+  // Image-reported source120b9a23 has no ComplexFieldEntity date column;
+  // exact compiled-class equivalence remains an independent admission gap.
   // Read the actual parent chain for the exact imported case-type version.
   return `BEGIN READ ONLY; SELECT COALESCE(json_agg(row_to_json(r)), '[]'::json) FROM (
 SELECT ct.reference AS case_type, ct.version, cf.reference AS field,
