@@ -87,6 +87,9 @@ const SOURCE_FILES = [
   'scripts/lib/exui-native-sources.mjs', 'scripts/lib/exui-native-contract.mjs',
   'scripts/lib/exui-routing-contract.mjs', 'scripts/lib/exui-global-search-contract.mjs',
   'scripts/lib/exui-global-search-provider.mjs', 'scripts/lib/exui-routing-provider.mjs',
+  'scripts/lib/exui-applicant-results-contract.mjs', 'scripts/lib/exui-applicant-results-transition.mjs', 'scripts/lib/exui-applicant-results-watch.mjs', 'scripts/lib/exui-applicant-results-evidence.mjs', 'scripts/lib/exui-applicant-results-runtime.mjs', 'scripts/lib/exui-result-columns-import.mjs', 'scripts/lib/exui-result-row-seed.mjs', 'scripts/lib/exui-result-ccd-search.mjs', 'scripts/lib/exui-result-field-types.mjs', 'scripts/lib/exui-applicant-results.d.mts', 'scripts/lib/exui-result-field-types.d.mts', 'scripts/prepare-harness-result-columns.mjs', 'scripts/run-harness-applicant-results-candidate.mjs', 'src/fixtures/harnessResultColumns.ts', 'src/tests/harness/ccd/applicant-results.spec.ts',
+  'scripts/lib/exui-local-ccd-runtime-profile.mjs', 'scripts/lib/exui-local-ccd-oci.mjs',
+  'scripts/lib/exui-results-ui-contract.mjs', 'scripts/lib/exui-applicant-results.mjs', 'scripts/lib/exui-applicant-result-dates.mjs',
   'scripts/lib/exui-native-host.mjs', 'scripts/lib/exui-native-failure-diagnostics.mjs', 'scripts/lib/exui-native-containers.mjs',
   'scripts/lib/exui-host-invocation.mjs', 'scripts/lib/exui-output-boundary.mjs',
   'scripts/lib/exui-candidate-runtime.mjs', 'scripts/lib/exui-candidate-child.mjs',
@@ -204,7 +207,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 151);
+  assert.equal(SOURCE_FILES.length, 171);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

@@ -5,13 +5,13 @@ import path from "node:path";
 import { test as base, expect } from "@playwright/test";
 
 // Candidate transport checks for the explicit feasibility CLI; no release-policy adapter.
-export const test = base.extend<{ callbackCandidate: void }>({
+export function feasibilityTest(kind: string) { return base.extend<{ callbackCandidate: void }>({
   callbackCandidate: [async ({ context }, use) => {
     const directory = process.env.EXUI_CCD_EVIDENCE!;
     const identity = JSON.parse(fs.readFileSync(path.join(directory, "runtime-identity.json"), "utf8"));
     const manifest = JSON.parse(fs.readFileSync(path.join(directory, "manifest.json"), "utf8"));
     expect(identity.identity).toEqual(manifest.identity);
-    expect(manifest.kind).toBe("recipient-callback-ui-feasibility");
+    expect(manifest.kind).toBe(kind);
     expect(manifest.catalogueCredit).toBe(false);
     const assets: Promise<boolean>[] = []; let rejected = 0;
     context.on("response", response => {
@@ -34,5 +34,6 @@ export const test = base.extend<{ callbackCandidate: void }>({
     expect((await Promise.all(assets)).every(Boolean), "served candidate assets match sealed bytes").toBe(true);
     expect(rejected, "no undeclared browser destinations").toBe(0);
   }, { auto: true }],
-});
+}); }
+export const test = feasibilityTest("recipient-callback-ui-feasibility");
 export { expect };

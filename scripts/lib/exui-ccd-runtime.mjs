@@ -1,5 +1,6 @@
 import { readStoredSourceShapeDates, assertStoredSourceShapeDates } from './exui-source-shape-dates.mjs';
 import { SOURCE_SHAPE_ROWS, validateSourceShapeFault, assertObservedSourceShape } from './exui-source-shape-contract.mjs';
+import {verifyLocalCcdRuntimeProfile,assertLocalCcdRuntimeScope} from './exui-local-ccd-runtime-profile.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -77,10 +78,17 @@ export function assertCcdImageIdentity(info, pin, platform) {
   );
 }
 export function ccdRuntimeImageIds(state) {
+  let local;
+  if(state.localCcdProfile) {
+    assertLocalCcdRuntimeScope(state);
+    local=verifyLocalCcdRuntimeProfile(state.localCcdProfile);
+    assert.equal(state.images?.data?.id,local.imageId,'LOCAL_CCD_RUNTIME_IMAGE_DRIFT');
+  }
   const platform = state.platform ?? 'linux/arm64',
     pins = ccdImagePins(platform, { elasticsearch: state.elasticsearch ?? false });
   return Object.fromEntries(
     Object.entries(pins).map(([name, pin]) => {
+      if(name==='data'&&local)return [name,local.imageId];
       if (platform === 'linux/arm64' && name !== 'elasticsearch') {
         if (state.images)
           assert.equal(
@@ -164,25 +172,29 @@ export function ccdRequest(state,port,route,options={}) {
  try {result.body=JSON.parse(result.body);}catch{} return result;
 }
 const save=(state)=>fs.writeFileSync(path.join(state.output,'runtime.json'),JSON.stringify(state,null,2)+'\n');
-export async function startCcdRuntime(output,{runDocker=docker,request=ccdRequest,fixtureSelection:selection='nested-prl',isCancelled=()=>false,platform='linux/arm64',elasticsearch=false}={}) {
+export async function startCcdRuntime(output,{runDocker=docker,request=ccdRequest,fixtureSelection:selection='nested-prl',isCancelled=()=>false,platform='linux/arm64',elasticsearch=false,localCcdProfile}={}) {
  fixtureSelection(null,selection);
+ let local;
+ if(localCcdProfile!==undefined) { assertLocalCcdRuntimeScope({platform,elasticsearch,fixtureSelection:selection});local=verifyLocalCcdRuntimeProfile(localCcdProfile,{docker:runDocker}); }
  const pins=ccdImagePins(platform,{elasticsearch}),images=Object.fromEntries(Object.entries(pins).map(([name,pin])=>[name,pin.manifestDigest]));
+ if(local)images.data=local.imageId;
  const checkCancellation=()=>assert(!isCancelled(),'CCD_START_CANCELLED');
  checkCancellation();
  fs.mkdirSync(path.dirname(path.resolve(output)),{recursive:true});
  try{fs.mkdirSync(output);}catch(error){if(error.code==='EEXIST')throw new Error('CCD_FRESH_OUTPUT_REQUIRED');throw error;}
  const state={schemaVersion:1,ready:false,owner:`harness-${crypto.randomBytes(8).toString('hex')}`,output:path.resolve(output),containers:{},images:{},caseType:'HarnessNestedPRL',jurisdiction:'HARNESS',policy:'real CCD RBAC; synthetic IDAM simulator; no ABAC/provider credit'};
+ if(local) {state.policy='local corrected CCD results feasibility; synthetic IDAM; no catalogue or release credit';state.localCcdProfile=local.profilePath;state.localOnly=true;state.runtimeAcceptance=false;state.catalogueCredit=false;state.releaseCredit=false;}
  if(platform!=='linux/arm64')state.platform=platform;
  if(elasticsearch)state.elasticsearch=true;
  if(selection!=='nested-prl')state.fixtureSelection=selection;
  const resources=Object.fromEntries(Object.entries(images).map(([service,image])=>[service,{name:`${state.owner}-${service}`,image}]));
- const recovery=()=>({owner:state.owner,output:state.output,...(state.platform?{platform}:{}),...(elasticsearch?{elasticsearch:true}:{}),resources});
+ const recovery=()=>({owner:state.owner,output:state.output,...(state.platform?{platform}:{}),...(elasticsearch?{elasticsearch:true}:{}),...(local?{localCcdProfile:local.profilePath}:{}),resources});
  fs.writeFileSync(path.join(state.output,'recovery.json'),JSON.stringify(recovery(),null,2)+'\n',{flag:'wx'});
  save(state);
  prepareCcdImport(fixtureRoot,selection);
  for(const [service,pin] of Object.entries(pins)) {
-  const info=JSON.parse(runDocker(['image','inspect',pin.reference]))[0];
-  assertCcdImageIdentity(info,pin,platform);
+  const info=service==='data'&&local?local.info:JSON.parse(runDocker(['image','inspect',pin.reference]))[0];
+  if(!(service==='data'&&local))assertCcdImageIdentity(info,pin,platform);
   images[service]=info.Id;resources[service].image=info.Id;
   state.images[service]={id:info.Id,architecture:info.Architecture,repoDigests:info.RepoDigests};
  }
@@ -394,8 +406,9 @@ export function verifyCcdContainerIdentity(state,inspectContainer=(id)=>JSON.par
   assert.deepEqual(info.HostConfig.PortBindings||{}, {}, 'CCD_RUNTIME_PUBLISHED_PORT');
  }
 }
-export function loadCcdRuntimeForReuse(output,inspectContainer,{elasticsearch}={}) {
+export function loadCcdRuntimeForReuse(output,inspectContainer,{elasticsearch,localCcdProfile}={}) {
  const state=JSON.parse(fs.readFileSync(path.join(output,'runtime.json')));
+ assert.equal(state.localCcdProfile,localCcdProfile,'LOCAL_CCD_EXPLICIT_REUSE_REQUIRED');
  assert.equal(path.resolve(state.output||output),path.resolve(output),'CCD_RUNTIME_OUTPUT_MISMATCH');
  if(elasticsearch!==undefined)assert.equal(state.elasticsearch??false,elasticsearch,'CCD_RUNTIME_ELASTICSEARCH_MISMATCH');
  verifyCcdContainerIdentity(state,inspectContainer);
@@ -405,6 +418,7 @@ export function verifyCcdRuntimeIdentity(
   state,
   { fixtureSelection: requested, inspectContainer, request = ccdRequest, runDocker = docker } = {},
 ) {
+  assert(!state?.localCcdProfile,'LOCAL_CCD_NATIVE_ACCEPTANCE_FORBIDDEN');
   const selection = fixtureSelection(state, requested);
   const prepared = prepareCcdImport(fixtureRoot, selection);
   verifyCcdContainerIdentity(state, inspectContainer);
@@ -686,6 +700,7 @@ export function importCcdDefinition(
     runDocker = docker,
   } = {},
 ) {
+  assert(!state?.localCcdProfile,'LOCAL_CCD_NATIVE_ACCEPTANCE_FORBIDDEN');
   const selection = fixtureSelection(state, requested);
   const prepared = prepareCcdImport(fixtureDirectory, selection);
   const { file, binding } = prepared;

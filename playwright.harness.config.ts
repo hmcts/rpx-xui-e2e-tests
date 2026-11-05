@@ -30,6 +30,7 @@ if (
     "hearing-publication",
     "ccd-event-capability",
     "ccd-recipient-callback",
+    "ccd-applicant-results",
   ].includes(slice)
 )
   throw new Error("UNKNOWN_HARNESS_SLICE");
@@ -52,7 +53,11 @@ const callbackScope = candidateManifest?.releaseScopeId === "exui-ccd-recipient-
 if (slice === "ccd-recipient-callback" && !callbackScope) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
 if (callbackScope && (selection !== "ccd" || slice !== "ccd-recipient-callback")) throw new Error("CCD_CALLBACK_SELECTION_REQUIRED");
 if (callbackScope && process.env.EXUI_HARNESS_MUTATION && process.env.EXUI_HARNESS_MUTATION !== "ccd-omit-recipient-mid-event") throw new Error("CCD_CALLBACK_MUTATION_REQUIRED");
-const ccdFiles = callbackScope ? ["recipient-callback"] : eventCapabilityScope
+const applicantResultsScope = candidateManifest?.releaseScopeId === "exui-ccd-applicant-results-pilot";
+if (slice === "ccd-applicant-results" && !applicantResultsScope) throw new Error("APPLICANT_RESULTS_SCOPE_REQUIRED");
+if (applicantResultsScope && (selection !== "ccd" || slice !== "ccd-applicant-results")) throw new Error("APPLICANT_RESULTS_SELECTION_REQUIRED");
+if (applicantResultsScope && process.env.EXUI_HARNESS_MUTATION && !["applicant-binding", "applicant-label", "applicant-order"].includes(process.env.EXUI_HARNESS_MUTATION)) throw new Error("APPLICANT_RESULTS_MUTATION_REQUIRED");
+const ccdFiles = applicantResultsScope ? ["applicant-results"] : callbackScope ? ["recipient-callback"] : eventCapabilityScope
   ? process.env.EXUI_HARNESS_MUTATION === "ccd-enable-judge-event"
     ? ["event-capability"]
     : ["ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read"].includes(process.env.EXUI_HARNESS_MUTATION ?? "")
