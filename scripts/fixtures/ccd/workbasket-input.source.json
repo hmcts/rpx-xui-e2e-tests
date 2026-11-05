@@ -1,0 +1,507 @@
+{
+  "schemaVersion": 1,
+  "repository": "hmcts/prl-ccd-definitions",
+  "revision": "694b9951e94369f1394380506960c4f04f25755d",
+  "sources": [
+    {
+      "path": "definitions/private-law/json/WorkBasketInputFields.json",
+      "fileDigest": "sha256:ac3730134ceccce93b468658210876eafc6bad9159560bd724ed0a0eaaa29c96",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:3fbc9777cf49f466a6fbbc2379459fff049b7e0f1f523550242309310053215e",
+          "row": {
+            "LiveFrom": "01/01/2017",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "dfjArea",
+            "Label": "DFJ Area",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1,
+          "rowDigest": "sha256:8e8d47fb023845dff76ff25ba9ee3f803996c53f8d3594bd6a002e14b35db8f6",
+          "row": {
+            "LiveFrom": "01/01/2017",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "swanseaDFJCourt",
+            "Label": "Court",
+            "DisplayOrder": 2,
+            "FieldShowCondition": "dfjArea = \"SWANSEA\""
+          }
+        },
+        {
+          "index": 2,
+          "rowDigest": "sha256:d9c78981b23f4be99283096b0edf559dd1d8b6dae6d870d2e8b1b9f544cb64c7",
+          "row": {
+            "LiveFrom": "01/01/2017",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "humbersideDFJCourt",
+            "Label": "Court",
+            "DisplayOrder": 2,
+            "FieldShowCondition": "dfjArea = \"HUMBERSIDE\""
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:e9e6f4045d1c548fe48241aa5308c01b94ccb31ef75e693f4857d01f664a1cdd",
+          "row": {
+            "LiveFrom": "01/01/2017",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "essexAndSuffolkDFJCourt",
+            "Label": "Court",
+            "DisplayOrder": 2,
+            "FieldShowCondition": "dfjArea = \"ESSEX_AND_SUFFOLK\""
+          }
+        },
+        {
+          "index": 4,
+          "rowDigest": "sha256:8c8f3db1e74e93801139939ff21020fff47db6a894187456c5d266dfa9551a92",
+          "row": {
+            "LiveFrom": "01/01/2017",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "wolverhamptonDFJCourt",
+            "Label": "Court",
+            "DisplayOrder": 2,
+            "FieldShowCondition": "dfjArea = \"WOLVERHAMPTON\""
+          }
+        },
+        {
+          "index": 5,
+          "rowDigest": "sha256:9c71640314132c649bed0523e46e5468502005e7f7801d51b81b914f4e8a50d4",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "applicantCaseName",
+            "Label": "Case name",
+            "DisplayOrder": 3
+          }
+        },
+        {
+          "index": 6,
+          "rowDigest": "sha256:3a15bff14e0490b92bd626a822817d823b511fa13441786040a9422e5666b395",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "familymanCaseNumber",
+            "Label": "Familyman number",
+            "DisplayOrder": 4
+          }
+        },
+        {
+          "index": 7,
+          "rowDigest": "sha256:4e2bd81e9a6853a6066f1762b5e2920d8d5b53fcf0fd2d4c1e0051e9488df4fd",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "[CASE_REFERENCE]",
+            "Label": "CCD number",
+            "DisplayOrder": 5
+          }
+        },
+        {
+          "index": 8,
+          "rowDigest": "sha256:3b7b6b8fd3a0428e890b5a9cda0da7b176945f42dd8dab10730a7b432a75a4b7",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "caseTypeOfApplication",
+            "Label": "Application type",
+            "DisplayOrder": 6
+          }
+        },
+        {
+          "index": 9,
+          "rowDigest": "sha256:b6f9752014e8cfd8238d3bb47715a90cc6b630a49c2a8e25c4e16d59584c4f47",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "CaseFieldID": "dateSubmitted",
+            "Label": "Date Submitted",
+            "DisplayOrder": 7
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseField/CaseField.json",
+      "fileDigest": "sha256:407e0e48dc483f2d479101890d378bac9e6d858946cb0d2abf1613576127d9c7",
+      "rows": [
+        {
+          "index": 171,
+          "rowDigest": "sha256:a064e8f157e963c2435c8de72c3add497943b67c73aad1d897fb6196fa28b90c",
+          "row": {
+            "LiveFrom": "05/11/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "applicantCaseName",
+            "Label": "Case Name",
+            "HintText": "Enter the eldest child’s full name. For example, John Smith",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 177,
+          "rowDigest": "sha256:f5c4418612382d65441df531dbfd6f477055ed4666fb085f6ffe330c48e8cbc5",
+          "row": {
+            "LiveFrom": "05/11/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "caseTypeOfApplication",
+            "Label": " ",
+            "FieldType": "FixedRadioList",
+            "FieldTypeParameter": "CaseTypeOfApplicationEnum",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 313,
+          "rowDigest": "sha256:283e0892f70fec46a0b7629efbe723cccdd634a06562541d440dab4ce3584968",
+          "row": {
+            "LiveFrom": "14/01/2022",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "familymanCaseNumber",
+            "Label": "FamilyMan case number",
+            "FieldType": "Text",
+            "SecurityClassification": "Public"
+          }
+        },
+        {
+          "index": 336,
+          "rowDigest": "sha256:fb88058beda85cacf108de932188638c3d8bfa25ad9fdfb3c1b760b186b4d70a",
+          "row": {
+            "LiveFrom": "01/08/2021",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "dateSubmitted",
+            "Label": " ",
+            "FieldType": "Date",
+            "SecurityClassification": "Public"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseField/DFJArea/CaseField.json",
+      "fileDigest": "sha256:8cb2d32cd6844088de1e3013c6e636268cc8c387539a60ca05623ce1355596aa",
+      "rows": [
+        {
+          "index": 0,
+          "rowDigest": "sha256:69681f9d116aca19cef2ec6aa5749ae53b45e85e2fb93b121d0b5d109579d03f",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "dfjArea",
+            "Label": "DFJ Area :",
+            "FieldType": "FixedList",
+            "FieldTypeParameter": "DFJArea",
+            "SecurityClassification": "Public",
+            "Searchable": "Y"
+          }
+        },
+        {
+          "index": 1,
+          "rowDigest": "sha256:1a15f3f2e7f89e9cf14418b5a1dc8abc4e17717464fbf6d2c9c05d9291f627ed",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "swanseaDFJCourt",
+            "Label": "swanseaDFJCourt :",
+            "FieldType": "FixedList",
+            "FieldTypeParameter": "SwanseaDFJCourts",
+            "SecurityClassification": "Public",
+            "Searchable": "Y"
+          }
+        },
+        {
+          "index": 2,
+          "rowDigest": "sha256:711829caa3f365c9f7fd7a93a82dfeb90cd18adbffb49895d5e9581ff150dc2b",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "humbersideDFJCourt",
+            "Label": "humbersideDFJCourt :",
+            "FieldType": "FixedList",
+            "FieldTypeParameter": "HumbersideDFJCourts",
+            "SecurityClassification": "Public",
+            "Searchable": "Y"
+          }
+        },
+        {
+          "index": 3,
+          "rowDigest": "sha256:be21896dd24e207403bb4e1adc6224828d924e5f6aeb94f158c42a630aed8d16",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "essexAndSuffolkDFJCourt",
+            "Label": "essexAndSuffolkDFJCourt :",
+            "FieldType": "FixedList",
+            "FieldTypeParameter": "EssexAndSuffolkDFJCourts",
+            "SecurityClassification": "Public",
+            "Searchable": "Y"
+          }
+        },
+        {
+          "index": 4,
+          "rowDigest": "sha256:70bc4eb33464a23426bcdd037b3cce5254c448f326b21e7028d10e342e82ac5f",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "wolverhamptonDFJCourt",
+            "Label": "wolverhamptonDFJCourt :",
+            "FieldType": "FixedList",
+            "FieldTypeParameter": "WolverhamptonDFJCourts",
+            "SecurityClassification": "Public",
+            "Searchable": "Y"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/FixedLists.json",
+      "fileDigest": "sha256:d44be4605dc71a17096e0aee4ae6fbedf4b0a7a522cb793e9b43bb76c4f371c6",
+      "rows": [
+        {
+          "index": 221,
+          "rowDigest": "sha256:0baaa7d53779ec511649a2af36bbf886ed156f5b6a360b5563a61d0ce318b701",
+          "row": {
+            "LiveFrom": "20/08/2021",
+            "ID": "CaseTypeOfApplicationEnum",
+            "ListElementCode": "C100",
+            "ListElement": "C100 Child Arrangements Application",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 222,
+          "rowDigest": "sha256:649e47b139885f1c20b7a821f55d01327b8f06e1052015e708878b519693a754",
+          "row": {
+            "LiveFrom": "20/08/2021",
+            "ID": "CaseTypeOfApplicationEnum",
+            "ListElementCode": "FL401",
+            "ListElement": "FL401 Non-Molestation &/or Occupation Order Application",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 1137,
+          "rowDigest": "sha256:a0dbf678e0fd330161a6e75ec3467ec1eaada2e4deca4395309ddb04e76c6803",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "DFJArea",
+            "ListElementCode": "SWANSEA",
+            "ListElement": "Swansea",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1138,
+          "rowDigest": "sha256:7e58f9bed2a8d17de6269285cb140bbc66a1c9198b34e4039d5169ad9600a21b",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "DFJArea",
+            "ListElementCode": "HUMBERSIDE",
+            "ListElement": "Humberside",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 1139,
+          "rowDigest": "sha256:8c9686cb86a1e0f180634a8ae40a34a79a3d5ddceb7f48032a5e203eb33c691b",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "DFJArea",
+            "ListElementCode": "ESSEX_AND_SUFFOLK",
+            "ListElement": "Essex and Suffolk",
+            "DisplayOrder": 3
+          }
+        },
+        {
+          "index": 1140,
+          "rowDigest": "sha256:7f1e1cd4ab80faefe4fc3a20685b1c81de04077669287c32bb936e050be187a3",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "DFJArea",
+            "ListElementCode": "WOLVERHAMPTON",
+            "ListElement": "Wolverhampton",
+            "DisplayOrder": 4
+          }
+        },
+        {
+          "index": 1141,
+          "rowDigest": "sha256:801be8531fa93c243903b1f16bfa5c3c2e79811f8eea53a8519c0ac6b513a073",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "SwanseaDFJCourts",
+            "ListElementCode": "827534",
+            "ListElement": "Aberystwyth",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1142,
+          "rowDigest": "sha256:6cdbb3e4ec34aee7a129e72f3c3d57419fab3b25b136aa0ec7a59b4e438de9b5",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "SwanseaDFJCourts",
+            "ListElementCode": "101959",
+            "ListElement": "Carmarthen",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 1143,
+          "rowDigest": "sha256:e868bd0e883757a08ba6b5ab22c9bb5265501a671672afe839fa27921aabf249",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "SwanseaDFJCourts",
+            "ListElementCode": "700596",
+            "ListElement": "Haverfordwest",
+            "DisplayOrder": 3
+          }
+        },
+        {
+          "index": 1144,
+          "rowDigest": "sha256:6f75ec26308b90ee8b1d2fb21e84d2e8a26a12e20dfdb451e9042481114265f2",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "SwanseaDFJCourts",
+            "ListElementCode": "390932",
+            "ListElement": "Llanelli",
+            "DisplayOrder": 4
+          }
+        },
+        {
+          "index": 1145,
+          "rowDigest": "sha256:a90ef03132430ea7f51316ea3c3348b01367c7eefb7e523667a5fbca098f4a5e",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "SwanseaDFJCourts",
+            "ListElementCode": "846055",
+            "ListElement": "Port Talbot",
+            "DisplayOrder": 5
+          }
+        },
+        {
+          "index": 1146,
+          "rowDigest": "sha256:2e2dd93599633f290d2e31437cc3f68483d5d069d5c689a61e91f140a1c64c33",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "SwanseaDFJCourts",
+            "ListElementCode": "234946",
+            "ListElement": "Swansea",
+            "DisplayOrder": 6
+          }
+        },
+        {
+          "index": 1147,
+          "rowDigest": "sha256:d46cf7e185acff983db6aba527dbc574bbd94d15ac8a03f040314351b52c5257",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "HumbersideDFJCourts",
+            "ListElementCode": "478126",
+            "ListElement": "Great Grimsby",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1148,
+          "rowDigest": "sha256:8c3d6df670c6d0bd63dd855980c97211cc749c05015e6db0ca65ce67c175982b",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "HumbersideDFJCourts",
+            "ListElementCode": "195520",
+            "ListElement": "Kingston Upon Hull",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 1149,
+          "rowDigest": "sha256:ffc7c0076301529fb94699b1d84a3ecab2cf81a7142ccaac5171aa0e43bb6d35",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "EssexAndSuffolkDFJCourts",
+            "ListElementCode": "257431",
+            "ListElement": "Bury St Edmunds",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1150,
+          "rowDigest": "sha256:868492bdf7909fa79d5ea46bcb32ba87d11d736f8dddadb31a58a104b6f11856",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "EssexAndSuffolkDFJCourts",
+            "ListElementCode": "816875",
+            "ListElement": "Chelmsford",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 1151,
+          "rowDigest": "sha256:205fa553dadcc196352a56c7a51e5bc7a801212228cf903324bae637d4d1406e",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "EssexAndSuffolkDFJCourts",
+            "ListElementCode": "471349",
+            "ListElement": "Ipswich",
+            "DisplayOrder": 3
+          }
+        },
+        {
+          "index": 1152,
+          "rowDigest": "sha256:b5c43b72c8baf8830a09e9d528fbed44744c82fab2f19293c63d7f21a223cef0",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "EssexAndSuffolkDFJCourts",
+            "ListElementCode": "781139",
+            "ListElement": "Southend",
+            "DisplayOrder": 4
+          }
+        },
+        {
+          "index": 1153,
+          "rowDigest": "sha256:f1ee6f1d71d98e31dce741c6617e8b2c52ac6557871ae9bd3c1c9650776bc55a",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "WolverhamptonDFJCourts",
+            "ListElementCode": "758998",
+            "ListElement": "Dudley",
+            "DisplayOrder": 1
+          }
+        },
+        {
+          "index": 1154,
+          "rowDigest": "sha256:904e45262d93d78bf0ceb58ee2a264f54dcd59fe21f6b6474a0d253d93e571a5",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "WolverhamptonDFJCourts",
+            "ListElementCode": "292771",
+            "ListElement": "Telford",
+            "DisplayOrder": 2
+          }
+        },
+        {
+          "index": 1155,
+          "rowDigest": "sha256:dd58b1a99f3ce8f389f0825cd1a5eb4355b43876c70bce1424544a3ff3d8c811",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "WolverhamptonDFJCourts",
+            "ListElementCode": "177463",
+            "ListElement": "Walsall",
+            "DisplayOrder": 3
+          }
+        },
+        {
+          "index": 1156,
+          "rowDigest": "sha256:4bbb9b4c1807409ee2cf0499cffb4e3319c584f66203e49dfce9c30b8b90edd8",
+          "row": {
+            "LiveFrom": "01/01/2018",
+            "ID": "WolverhamptonDFJCourts",
+            "ListElementCode": "41047",
+            "ListElement": "Wolverhampton",
+            "DisplayOrder": 4
+          }
+        }
+      ]
+    }
+  ]
+}
