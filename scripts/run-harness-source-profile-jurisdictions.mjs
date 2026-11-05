@@ -15,10 +15,11 @@ import {sourceProfileJurisdictionConfiguration,validateProfileJurisdictionObserv
 import {PROFILE_SOURCE_FILES,stageProfileSources,verifyProfileSources,profileFailureCode} from './lib/exui-source-profile-sources.mjs';
 import {WA_HEALTH_SCOPE,WA_HEALTH_FAULT,sourceProfileWaHealthConfiguration,validateWaHealthObservations} from './lib/exui-source-profile-wa-health.mjs';
 import {WA_MEMBERSHIP_SCOPE,WA_MEMBERSHIP_FAULT,sourceProfileWaMembershipConfiguration,validateWaMembershipObservations} from './lib/exui-source-profile-wa-membership.mjs';
+import {IA_WA_SCOPE,IA_WA_FAULT,iaWaConfiguration,validateIaWaObservations} from './lib/exui-source-profile-ia-wa.mjs';
 import {DIVORCE_CONSUMERS,divorceConsumerConfiguration,validateDivorceConsumerObservations} from './lib/exui-source-profile-divorce-consumers.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
 const read=file=>JSON.parse(fs.readFileSync(file));
-const facetSettings=facet=>{assert(['jurisdictions','wa-health','wa-membership','divorce-staff','divorce-mapping'].includes(facet),'SOURCE_PROFILE_INPUT_INVALID');if(facet.startsWith('divorce-')){const key=facet.slice(8);return {...DIVORCE_CONSUMERS[key],configuration:(root,mutation)=>divorceConsumerConfiguration(root,key,mutation)};}return facet==='wa-membership'?{scope:WA_MEMBERSHIP_SCOPE,fault:WA_MEMBERSHIP_FAULT,configuration:sourceProfileWaMembershipConfiguration}:facet==='wa-health'?{scope:WA_HEALTH_SCOPE,fault:WA_HEALTH_FAULT,configuration:sourceProfileWaHealthConfiguration}:{scope:SOURCE_PROFILE_JURISDICTION_SCOPE,fault:SOURCE_PROFILE_JURISDICTION_FAULT,configuration:sourceProfileJurisdictionConfiguration};};
+const facetSettings=facet=>{assert(['jurisdictions','wa-health','wa-membership','divorce-staff','divorce-mapping','ia-wa-positive'].includes(facet),'SOURCE_PROFILE_INPUT_INVALID');if(facet.startsWith('divorce-')){const key=facet.slice(8);return {...DIVORCE_CONSUMERS[key],configuration:(root,mutation)=>divorceConsumerConfiguration(root,key,mutation)};}return facet==='ia-wa-positive'?{scope:IA_WA_SCOPE,fault:IA_WA_FAULT,configuration:iaWaConfiguration}:facet==='wa-membership'?{scope:WA_MEMBERSHIP_SCOPE,fault:WA_MEMBERSHIP_FAULT,configuration:sourceProfileWaMembershipConfiguration}:facet==='wa-health'?{scope:WA_HEALTH_SCOPE,fault:WA_HEALTH_FAULT,configuration:sourceProfileWaHealthConfiguration}:{scope:SOURCE_PROFILE_JURISDICTION_SCOPE,fault:SOURCE_PROFILE_JURISDICTION_FAULT,configuration:sourceProfileJurisdictionConfiguration};};
 const credits={runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false};
 const hardened=['--init','--read-only','--cap-drop','ALL','--security-opt','no-new-privileges','--pids-limit','256','--memory','4g','--cpus','2','--tmpfs','/tmp:rw,nosuid,size=512m'];
 const mount=(source,target,writable)=>({source:fs.realpathSync(source),target,writable});
@@ -51,7 +52,7 @@ export function profileInvocationPlan({owner,invocationId,artifact,runtime,confi
 export function validateProfileInvocationResult({directory,invocationId,mutation,identity,configDigest,sourceDigest,terminal,facet='jurisdictions'}) {
   const {fault}=facetSettings(facet),ids=['baseline',fault];
   assert(ids.includes(invocationId)&&mutation===(invocationId==='baseline'?null:fault),'SOURCE_PROFILE_INVOCATION_INVALID');
-  const expected={schemaVersion:1,status:mutation?'expected-fault-observed':'observed',invocationId,mutation,code:mutation?(facet==='divorce-staff'?'SOURCE_PROFILE_DIVORCE_STAFF_ASSERTION':facet==='divorce-mapping'?'SOURCE_PROFILE_DIVORCE_MAPPING_ASSERTION':facet==='wa-membership'?'SOURCE_PROFILE_WA_MEMBERSHIP_ASSERTION':facet==='wa-health'?'SOURCE_PROFILE_WA_HEALTH_ASSERTION':'SOURCE_PROFILE_JURISDICTION_ASSERTION'):null,identity,configDigest,sourceDigest,...credits};
+  const expected={schemaVersion:1,status:mutation?'expected-fault-observed':'observed',invocationId,mutation,code:mutation?(facet==='ia-wa-positive'?'SOURCE_PROFILE_IA_WA_ASSERTION':facet==='divorce-staff'?'SOURCE_PROFILE_DIVORCE_STAFF_ASSERTION':facet==='divorce-mapping'?'SOURCE_PROFILE_DIVORCE_MAPPING_ASSERTION':facet==='wa-membership'?'SOURCE_PROFILE_WA_MEMBERSHIP_ASSERTION':facet==='wa-health'?'SOURCE_PROFILE_WA_HEALTH_ASSERTION':'SOURCE_PROFILE_JURISDICTION_ASSERTION'):null,identity,configDigest,sourceDigest,...credits};
   const worker=read(path.join(directory,'profile-worker-result.json'));
   if(worker.status==='failed') {
     assert.equal(typeof worker.code,'string','SOURCE_PROFILE_WORKER_RESULT');
@@ -71,6 +72,17 @@ export function validateProfileInvocationResult({directory,invocationId,mutation
     let failure;try{validateDivorceConsumerObservations(facet.slice(8),data.observations,journal,mutation);}catch(error){failure=error;}
     const named=facet==='divorce-staff'?'SOURCE_PROFILE_DIVORCE_STAFF_ASSERTION':'SOURCE_PROFILE_DIVORCE_MAPPING_ASSERTION';
     if(mutation){if(failure?.message!==named)throw failure??Error('SOURCE_PROFILE_FAULT_NOT_EFFECTIVE');}else if(failure)throw failure;
+    return {...expected,observationsDigest:digestBytes(fs.readFileSync(file)),journalDigest:digestBytes(fs.readFileSync(journalFile))};
+  }
+  if(facet==='ia-wa-positive') {
+    const rejections=path.join(directory,'provider-rejections.jsonl');
+    assert(!fs.existsSync(rejections)||fs.readFileSync(rejections,'utf8').trim()==='', 'SOURCE_PROFILE_IA_WA_JOURNAL');
+    const file=path.join(directory,'profile-ia-wa-observations.json'),data=read(file),journalFile=path.join(directory,'profile-ia-wa-destinations.json'),journal=read(journalFile);
+    assert.deepEqual(Object.keys(data).sort(),['catalogueCredit','journal','mutation','observations'],'SOURCE_PROFILE_OBSERVATION_BINDING');
+    assert.equal(data.mutation,mutation,'SOURCE_PROFILE_OBSERVATION_BINDING');assert.equal(data.catalogueCredit,false,'SOURCE_PROFILE_OBSERVATION_BINDING');
+    assert.deepEqual(data.journal,journal,'SOURCE_PROFILE_IA_WA_JOURNAL');
+    let failure;try{validateIaWaObservations(data.observations,journal,mutation);}catch(error){failure=error;}
+    if(mutation){if(failure?.message!=='SOURCE_PROFILE_IA_WA_ASSERTION')throw failure??Error('SOURCE_PROFILE_FAULT_NOT_EFFECTIVE');}else if(failure)throw failure;
     return {...expected,observationsDigest:digestBytes(fs.readFileSync(file)),journalDigest:digestBytes(fs.readFileSync(journalFile))};
   }
   if(facet==='wa-membership') {
@@ -112,7 +124,7 @@ export async function runSourceProfileFeasibility({artifactPath,output,facet='ju
   assertReadOnlyMountIsolation([root,artifact.candidateRoot],[output]);
   const stateRoot=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'profile-native-state-'));fs.chmodSync(stateRoot,0o700);
   const resources=new Map(),cleanupFailures=[];
-  const receipt={schemaVersion:1,kind:facet.startsWith('divorce-')?`source-profile-${facet}-feasibility`:facet==='wa-membership'?'source-profile-wa-membership-feasibility':facet==='wa-health'?'source-profile-wa-health-feasibility':'source-profile-jurisdiction-feasibility',scope,facet,owner:'candidate-'+randomUUID(),status:'in-progress',artifact:artifact.identity,invocations:[],...credits};
+  const receipt={schemaVersion:1,kind:facet==='ia-wa-positive'?'source-profile-ia-wa-positive-feasibility':facet.startsWith('divorce-')?`source-profile-${facet}-feasibility`:facet==='wa-membership'?'source-profile-wa-membership-feasibility':facet==='wa-health'?'source-profile-wa-health-feasibility':'source-profile-jurisdiction-feasibility',scope,facet,owner:'candidate-'+randomUUID(),status:'in-progress',artifact:artifact.identity,invocations:[],...credits};
   let cancelled=false,phase='prepare';
   const save=()=>writeJsonAtomic(path.join(output,'profile-feasibility.json'),receipt);
   const remove=async key=>{try{await removeResource(resources,key,output);}catch(error){cleanupFailures.push(profileFailureCode(error));throw error;}};
@@ -126,7 +138,7 @@ export async function runSourceProfileFeasibility({artifactPath,output,facet='ju
   save();
   try {
     const configurations=Object.fromEntries(ids.map(id=>[id,configuration(artifact.candidateRoot,id==='baseline'?null:fault)]));
-    const expected=structuredClone(configurations.baseline.config);if(facet==='divorce-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');else if(facet==='divorce-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='DIVORCE'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='wa-membership')expected.waSupportedJurisdictions+=',CMC';else if(facet==='wa-health')expected.feature.workAllocationEnabled=true;else expected.jurisdictions=expected.jurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');
+    const expected=structuredClone(configurations.baseline.config);if(facet==='divorce-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');else if(facet==='divorce-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='DIVORCE'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='ia-wa-positive')expected.waSupportedJurisdictions=expected.waSupportedJurisdictions.split(',').filter(id=>id!=='IA').join(',');else if(facet==='wa-membership')expected.waSupportedJurisdictions+=',CMC';else if(facet==='wa-health')expected.feature.workAllocationEnabled=true;else expected.jurisdictions=expected.jurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');
     assert.deepEqual(configurations[fault].config,expected,'SOURCE_PROFILE_CONFIG_DRIFT');
     assert.equal(configurations.baseline.config.feature.workAllocationEnabled,false,'SOURCE_PROFILE_WA_DEFAULT');
     phase='verify-runtime';const runtime=inspectRuntime(artifact.provenance.platform);
@@ -134,7 +146,7 @@ export async function runSourceProfileFeasibility({artifactPath,output,facet='ju
     receipt.harnessSourceState=execFileSync('git',['status','--porcelain','--untracked-files=all','--',...PROFILE_SOURCE_FILES],{cwd:root,encoding:'utf8'}).trim()?'sealed-working-tree':'committed';
     const bindings=Object.fromEntries(ids.map(id=>[id,{digest:configurations[id].digest,contract:configurations[id].contract}]));
     writeJsonAtomic(path.join(output,'profile-input.json'),{scope,facet,artifact,sources:receipt.sources,configurations:bindings,...credits});
-    receipt.configuration=bindings;receipt.mutation=facet.startsWith('divorce-')?{id:fault,target:facet==='divorce-staff'?'NODE_CONFIG.staffSupportedJurisdictions':'NODE_CONFIG.serviceRefDataMapping[DIVORCE].serviceCodes',before:facet==='divorce-staff'?configurations.baseline.config.staffSupportedJurisdictions:['ABA1'],after:facet==='divorce-staff'?expected.staffSupportedJurisdictions:['ZZZ1']}:facet==='wa-membership'?{id:fault,target:'NODE_CONFIG.waSupportedJurisdictions',before:configurations.baseline.config.waSupportedJurisdictions,after:expected.waSupportedJurisdictions}:facet==='wa-health'?{id:fault,target:'NODE_CONFIG.feature.workAllocationEnabled',before:false,after:true}:{id:fault,target:'NODE_CONFIG.jurisdictions',before:configurations.baseline.config.jurisdictions,after:expected.jurisdictions};save();
+    receipt.configuration=bindings;receipt.mutation=facet.startsWith('divorce-')?{id:fault,target:facet==='divorce-staff'?'NODE_CONFIG.staffSupportedJurisdictions':'NODE_CONFIG.serviceRefDataMapping[DIVORCE].serviceCodes',before:facet==='divorce-staff'?configurations.baseline.config.staffSupportedJurisdictions:['ABA1'],after:facet==='divorce-staff'?expected.staffSupportedJurisdictions:['ZZZ1']}:['wa-membership','ia-wa-positive'].includes(facet)?{id:fault,target:'NODE_CONFIG.waSupportedJurisdictions',before:configurations.baseline.config.waSupportedJurisdictions,after:expected.waSupportedJurisdictions}:facet==='wa-health'?{id:fault,target:'NODE_CONFIG.feature.workAllocationEnabled',before:false,after:true}:{id:fault,target:'NODE_CONFIG.jurisdictions',before:configurations.baseline.config.jurisdictions,after:expected.jurisdictions};save();
     for(const invocationId of ids) {
       assert(!cancelled,'SOURCE_PROFILE_CANCELLED');phase=invocationId;
       const directory=path.join(output,invocationId);fs.mkdirSync(directory,{mode:0o700});
