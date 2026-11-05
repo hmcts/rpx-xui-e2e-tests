@@ -1229,3 +1229,23 @@ test('supplementary compatibility evidence stays outside primary counts and is b
  }
  fs.writeFileSync(recordFile,original);assert.equal(Reporter.validatePublicReport().compatibilityEvidence.cleanupComplete,true);
 });
+
+
+test("native headline shows the actual status and reserves green for passing evidence", () => {
+ const vm = require('node:vm');
+ const script = fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8');
+ const make = () => ({dataset:{},children:[],classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(){}});
+ for (const status of [null,'PASS','FAIL','BLOCKED']) {
+  const metrics=make(); metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
+  const native=status?{dataset:{nativeStatus:status},querySelectorAll:()=>[{},{}]}:null;
+  const document={createElement:make,querySelector:selector=>({'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':native})[selector]||null,querySelectorAll:()=>[]};
+  vm.runInNewContext(script,{document});
+  const card=metrics.children[1];
+  assert.equal(card.dataset.nativeStatus,status||'NOT_RUN');
+  assert.equal(card.children[1].textContent,status?'2 + 2':'Not run');
+  assert.ok(card.children[2].textContent.includes(status||'Candidate and CCD checks not attached'));
+ }
+ const css=fs.readFileSync(path.join(__dirname,'harness-report-coverage.css'),'utf8');
+ assert.match(css,/\.report-metric\.metric-1\[data-native-status\] strong\s*\{\s*color: var\(--report-ink\);/);
+ assert.match(css,/\.report-metric\.metric-1\[data-native-status="PASS"\] strong\s*\{\s*color: var\(--odhin-passed-status-color\);/);
+});

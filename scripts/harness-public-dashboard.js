@@ -4,6 +4,7 @@
   if (!coverage || !metrics) return;
   const native = document.querySelector('#harness-native-evidence');
   const run = document.querySelector('#harness-public-run');
+  const nativeStatus = native?.dataset.nativeStatus || 'NOT_RUN';
   const info = document.querySelector('#TabDashboard .testcase-run-info-table');
   const infoValue = (label) => [...(info?.querySelectorAll('tr') || [])]
     .find((row) => row.querySelector('th')?.textContent.trim() === label)
@@ -22,7 +23,7 @@
   const diagnosticAttention = metrics.querySelector('.metric-2 strong')?.textContent.trim() || '—';
   const cards = [
     ['Catalogue runtime evidence', `${accepted} / ${selected}`, `${selected - accepted} awaiting accepted evidence`, '#harness-application-coverage'],
-    ['Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${baselines} baseline · ${faults} deliberate faults${nativeTime}` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],
+    ['Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${nativeStatus} · ${baselines} baseline · ${faults} deliberate faults${nativeTime}` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],
     ['Diagnostic tests', String(diagnosticTotal), `${diagnosticPassRate} pass rate · ${diagnosticAttention} need attention · ${diagnosticTime}`, '#TabTests'],
     ['Release approval', 'Unavailable', 'Catalogue and deployment gaps remain', '#harness-application-coverage'],
   ];
@@ -31,6 +32,7 @@
     const card = document.createElement(href ? 'a' : 'div');
     card.className = `report-metric metric-${index}`;
     if (href) card.href = href;
+    if (index === 1) card.dataset.nativeStatus = nativeStatus;
     if (index === 2 && diagnosticAttention !== '0') card.classList.add('has-attention');
     [label, value, detail].forEach((content, part) => {
       const element = document.createElement(part === 1 ? 'strong' : 'span');
