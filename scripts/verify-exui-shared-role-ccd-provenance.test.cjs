@@ -15,10 +15,10 @@ function proof(){return {
  originalImage:{imageId:'sha256:230af88ec4791950396e7a78f2dc330018d1a259242e317f4374ec5a384d30c0',manifestDigest:'sha256:2b1b4208520244122d1ebfdc4fbdf7d1120fc0a1bacecb9bba06583762571e9b',configDigest:'sha256:58a53f7013ff354a312ff4e35a5b2af81d3094600ff30622262c5100554f57da',archiveDigest:'sha256:184a3664f57676c3147211ebcbb5cc162eac795efc15f9a55d9e7df512fb8591',jarDigest:'sha256:1c3afe85796f549b29c14378f22ba9b3069488d04ad93b42983d8a6e79db06fc',sourceBuildCommit:fixture.sourceCommit,platform:'linux/arm64',rootfsDiffIds:[hash('unit-base')]},
  toolchain:{javaVersion:'Temurin-21.0.12+8',javacVersion:'javac 21.0.12',javaExecutableDigest:hash('unit-java'),javacExecutableDigest:hash('unit-javac'),gradleWrapperDigest:hash('unit-gradle')},buildLogDigest:hash('unit-log'),runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false,
 };}
-function runtime(image){
+function runtime(image,architecture='arm64'){
  const {completeRun}=require('./fixtures/exui-release-evidence.mock.cjs');const manifest=completeRun().manifest;
  manifest.releaseScopeId='exui-ccd-pilot';manifest.identity.dependencyIdentities.ccd={artifactDigest:image,apiContractDigest:hash('api')};manifest.identity.definitionDigests={HarnessNestedPRL:hash('definition')};
- const imported={status:201,images:{data:{id:image,architecture:'arm64'}},fixtureDigest:hash('definition'),observedDefinitionDigest:hash('observed'),definitionVersion:1};
+ const imported={status:201,images:{data:{id:image,architecture}},fixtureDigest:hash('definition'),observedDefinitionDigest:hash('observed'),definitionVersion:1};
  const bytes=Buffer.from(JSON.stringify(imported));Object.assign(manifest.runtimeMetadata,{definitionImportDigest:hash(bytes),observedDefinitionDigest:hash('observed'),definitionVersion:'1'});
  return{manifest,bytes};
 }
@@ -50,4 +50,19 @@ test('AMD64 source verifier rejects unsealed source before Docker or Gradle exec
  const result=spawnSync('python3',[path.join(__dirname,'verify-shared-role-amd64-source.py'),'--source-archive',archive,'--java-home',root,'--gradle-home',root,'--output',output],{encoding:'utf8'});
  assert.equal(result.status,2);assert.deepEqual(JSON.parse(result.stdout),{status:'BLOCKED',code:'SHARED_AMD64_ARCHIVE_DIGEST',catalogueCredit:false});
  assert.equal(fs.existsSync(output),false);
+});
+test('AMD64 proof is validated independently and binds only the exact imported runtime',async()=>{
+ const lib=await import('./lib/exui-shared-role-ccd-provenance.mjs');
+ const witness=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/ccd/shared-role-amd64-source-witnesses.json')));
+ const p={schemaVersion:1,kind:'reproduced-shared-role-amd64-source-image',...witness,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
+ delete p.imageConfigDigest;
+ const r=runtime(p.imageManifestDigest,'amd64');
+ const bound=lib.bindSharedRoleAmd64Runtime(p,r.manifest,r.bytes);
+ assert.equal(bound.runtimeImageDigest,p.imageManifestDigest);assert.equal(bound.catalogueCredit,false);
+ for(const change of [x=>x.roleClasses[0].classDigest=hash('foreign'),x=>x.catalogueCredit=true,x=>x.jarDigest=hash('foreign')]){
+  const altered=structuredClone(p);change(altered);assert.throws(()=>lib.validateSharedRoleAmd64Proof(altered));
+ }
+ const wrong=runtime(hash('foreign'),'amd64');assert.throws(()=>lib.bindSharedRoleAmd64Runtime(p,wrong.manifest,wrong.bytes));
+ const arm=runtime(p.imageManifestDigest);assert.throws(()=>lib.bindSharedRoleAmd64Runtime(p,arm.manifest,arm.bytes));
+ assert.throws(()=>lib.reproduceSharedRoleAmd64Source({proof:p,verified:true}),/SHARED_AMD64_INPUT_SCHEMA/);
 });

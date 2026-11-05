@@ -9,6 +9,9 @@ import { validateRunManifest } from './exui-release-evidence.mjs';
 const fixtureBytes = fs.readFileSync(new URL('../fixtures/ccd/shared-role-ccd-class-witnesses.json', import.meta.url));
 assert.equal(digestBytes(fixtureBytes), 'sha256:4ae153dfdced674ae3b79478515cdd306035c8bea587152d727d1476f72a3851', 'SHARED_CCD_CLASS_INVENTORY_SEAL');
 const fixture = JSON.parse(fixtureBytes);
+const amd64Bytes = fs.readFileSync(new URL('../fixtures/ccd/shared-role-amd64-source-witnesses.json', import.meta.url));
+assert.equal(digestBytes(amd64Bytes), 'sha256:784705c40eb24ed456efac2127c3062b4124da44e157ec50c208a1c629dbc5e0', 'SHARED_AMD64_WITNESS_SEAL');
+const amd64 = JSON.parse(amd64Bytes);
 const originalImage = 'sha256:230af88ec4791950396e7a78f2dc330018d1a259242e317f4374ec5a384d30c0';
 const correctedImage = 'sha256:0ec6bc39e2ba42645931c4f01f74beb84ff678770ea9c709b8c08cf1eb8c6ff4';
 const originalJar = 'sha256:1c3afe85796f549b29c14378f22ba9b3069488d04ad93b42983d8a6e79db06fc';
@@ -82,4 +85,48 @@ export function bindSharedRoleCcdRuntime(proof, manifest, importedBytes) {
   assert.equal(imported.observedDefinitionDigest, manifest.runtimeMetadata.observedDefinitionDigest, 'SHARED_CCD_IMPORT_OBSERVED');
   assert.equal(String(imported.definitionVersion), manifest.runtimeMetadata.definitionVersion, 'SHARED_CCD_IMPORT_VERSION');
   return { boundary, runtimeImageDigest: actual, jarDigest: actual === originalImage ? originalJar : fixture.rebuiltJarDigest, sourceCommit: fixture.sourceCommit, roleClassInventoryDigest: digestBytes(fixtureBytes), definitionImportDigest: digestBytes(importedBytes), runId: manifest.runId, harnessCommit: manifest.harnessCommit, catalogueCredit: false };
+}
+
+export function validateSharedRoleAmd64Proof(proof) {
+  exact(proof, ['schemaVersion','kind','sourceCommit','sourceGitTree','sourceArchiveDigest','imageManifestDigest','jarDigest','roleClasses','runtimeAcceptance','catalogueCredit','releaseCredit'], 'SHARED_AMD64_PROOF_SCHEMA');
+  assert.equal(proof.schemaVersion, 1, 'SHARED_AMD64_PROOF_SCHEMA');
+  assert.equal(proof.kind, 'reproduced-shared-role-amd64-source-image', 'SHARED_AMD64_PROOF_KIND');
+  for (const key of ['sourceCommit','sourceGitTree','sourceArchiveDigest','imageManifestDigest','jarDigest','roleClasses'])
+    assert.deepEqual(proof[key], amd64[key], 'SHARED_AMD64_PROOF_INPUT');
+  assert.deepEqual([proof.runtimeAcceptance,proof.catalogueCredit,proof.releaseCredit], [false,false,false], 'SHARED_AMD64_NO_IMPLICIT_CREDIT');
+}
+
+export function reproduceSharedRoleAmd64Source(inputs) {
+  const keys = ['sourceArchive','javaHome','gradleHome','output'];
+  exact(inputs, keys, 'SHARED_AMD64_INPUT_SCHEMA');
+  for (const key of keys) assert(typeof inputs[key] === 'string' && path.isAbsolute(inputs[key]), 'SHARED_AMD64_ABSOLUTE_INPUT_REQUIRED');
+  assert(!fs.existsSync(inputs.output), 'SHARED_AMD64_FRESH_OUTPUT_REQUIRED');
+  const script = fileURLToPath(new URL('../verify-shared-role-amd64-source.py', import.meta.url));
+  const args = [script, ...keys.flatMap(key => ['--' + key.replace(/[A-Z]/g, char => '-' + char.toLowerCase()), inputs[key]])];
+  const result = spawnSync('python3', args, { encoding: 'utf8', timeout: 900000, maxBuffer: 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, PYTHONDONTWRITEBYTECODE: '1' } });
+  assert(!result.error && result.status === 0, 'SHARED_AMD64_REPRODUCTION_FAILED');
+  const file = path.join(inputs.output, 'source-image-binding.json');
+  assert(fs.lstatSync(file).isFile() && fs.realpathSync(file) === file, 'SHARED_AMD64_PROOF_FILE_ALIAS');
+  const bytes = fs.readFileSync(file), proof = JSON.parse(bytes);
+  validateSharedRoleAmd64Proof(proof);
+  return { proof, proofDigest: digestBytes(bytes) };
+}
+
+export function bindSharedRoleAmd64Runtime(proof, manifest, importedBytes) {
+  validateSharedRoleAmd64Proof(proof);
+  validateRunManifest(manifest);
+  assert(['exui-ccd-pilot', 'exui-ccd-event-capability-pilot'].includes(manifest.releaseScopeId), 'SHARED_AMD64_RUNTIME_SCOPE');
+  assert(Buffer.isBuffer(importedBytes), 'SHARED_AMD64_IMPORT_REQUIRED');
+  const imported = JSON.parse(importedBytes), actual = manifest.identity.dependencyIdentities.ccd?.artifactDigest;
+  assert.equal(actual, proof.imageManifestDigest, 'SHARED_AMD64_RUNTIME_IMAGE');
+  assert.equal(imported.images?.data?.id, actual, 'SHARED_AMD64_IMPORT_IMAGE');
+  assert.equal(imported.images.data.architecture, 'amd64', 'SHARED_AMD64_IMPORT_PLATFORM');
+  assert.equal(digestBytes(importedBytes), manifest.runtimeMetadata.definitionImportDigest, 'SHARED_AMD64_IMPORT_DIGEST');
+  assert([200, 201].includes(imported.status), 'SHARED_AMD64_IMPORT_FAILED');
+  assert.equal(imported.fixtureDigest, manifest.identity.definitionDigests.HarnessNestedPRL, 'SHARED_AMD64_IMPORT_FIXTURE');
+  assert.equal(imported.observedDefinitionDigest, manifest.runtimeMetadata.observedDefinitionDigest, 'SHARED_AMD64_IMPORT_OBSERVED');
+  assert.equal(String(imported.definitionVersion), manifest.runtimeMetadata.definitionVersion, 'SHARED_AMD64_IMPORT_VERSION');
+  return { boundary: 'six-reviewed-role-consumer-classes; exact-AMD64-image-JAR-rebuilt', runtimeImageDigest: actual,
+    jarDigest: proof.jarDigest, sourceCommit: proof.sourceCommit, roleClassInventoryDigest: digestBytes(amd64Bytes),
+    definitionImportDigest: digestBytes(importedBytes), runId: manifest.runId, harnessCommit: manifest.harnessCommit, catalogueCredit: false };
 }

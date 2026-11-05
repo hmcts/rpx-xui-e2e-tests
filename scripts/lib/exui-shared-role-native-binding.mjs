@@ -14,7 +14,7 @@ import { sharedRoleObservationBinding, replaySharedRoleDenial, replaySharedRoleR
 import { NATIVE_HARNESS_SOURCE_FILES } from './exui-native-sources.mjs';
 import { readSharedRoleArtifact } from './exui-shared-role-artifacts.mjs';
 import { replaySharedRoleEventObservation } from './exui-shared-role-event-observations.mjs';
-import { reproduceSharedRoleCcdSource, bindSharedRoleCcdRuntime } from './exui-shared-role-ccd-provenance.mjs';
+import { reproduceSharedRoleCcdSource, bindSharedRoleCcdRuntime, reproduceSharedRoleAmd64Source, bindSharedRoleAmd64Runtime } from './exui-shared-role-ccd-provenance.mjs';
 
 const contract = () => buildSharedPolicyContracts().find(item => item.id === 'configuration-shared:role-policy');
 const scopes = { ccd: 'exui-ccd-pilot', eventCapability: 'exui-ccd-event-capability-pilot' };
@@ -147,10 +147,14 @@ export async function replaySharedRoleNativeBindings({ harnessRoot, ccdPhaseDire
   });
   let sourceImage;
   if (sourceImageInputs) {
-    const reproduced = reproduceSharedRoleCcdSource(sourceImageInputs);
+    const amd64 = sourceImageInputs.platform === 'linux/amd64';
+    const inputs = {...sourceImageInputs};
+    delete inputs.platform;
+    const reproduced = amd64 ? reproduceSharedRoleAmd64Source(inputs) : reproduceSharedRoleCcdSource(sourceImageInputs);
+    const bind = amd64 ? bindSharedRoleAmd64Runtime : bindSharedRoleCcdRuntime;
     sourceImage = { proofDigest: reproduced.proofDigest, bindings: records.map(record => {
       const directory = phases[record.phase].directory;
-      return { id: record.id, ...bindSharedRoleCcdRuntime(reproduced.proof, json(directory, record.invocationId + '/manifest.json'), canonicalBytes(path.dirname(directory), record.importPath)) };
+      return { id: record.id, ...bind(reproduced.proof, json(directory, record.invocationId + '/manifest.json'), canonicalBytes(path.dirname(directory), record.importPath)) };
     }) };
   }
   const ccd = phases.ccd;

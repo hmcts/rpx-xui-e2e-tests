@@ -10,6 +10,8 @@ import subprocess
 import sys
 import zipfile
 
+sys.dont_write_bytecode = True
+
 ROOT = Path(__file__).resolve().parent
 WITNESS = ROOT / 'fixtures/ccd/shared-role-amd64-source-witnesses.json'
 SOURCE = ROOT / 'verify-shared-role-ccd-source.py'
