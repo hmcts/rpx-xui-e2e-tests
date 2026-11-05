@@ -169,7 +169,7 @@ test('support only: Hearing policy binds exact publication proof and fault witho
     derive: async () => {}, start: async () => {}, stop: async () => {},
     startEvent: async () => {}, stopEvent: async () => {}, startCallback: async () => {}, stopCallback: async () => {},
   });
-  assert.deepEqual(calls, ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback']);
+  assert.deepEqual(calls, ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback', 'selectorEventRow']);
 });
 
 test('support only: Hearing selects the derived artifact while retaining identical effective configuration', async t => {

@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import {runSelectorEventPhase} from './run-harness-selector-event-row.mjs';
+import {SELECTOR_EVENT_SCOPE} from './lib/exui-selector-event-row-contract.mjs';
+import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './lib/exui-recipient-callback-contract.mjs';
 import {importNativeCallbackDefinition,verifyNativeCallbackRuntime} from './lib/exui-recipient-callback-native-import.mjs';
 import {selectCallbackRuntime,publishCallbackRuntime} from './lib/exui-recipient-callback-transition.mjs';
@@ -60,6 +63,7 @@ const scopes = {
   eventCapability: EVENT_CAPABILITY_SCOPE,
   routing: "exui-decentralised-routing-pilot",
   recipientCallback: CALLBACK_SCOPE,
+  selectorEventRow: SELECTOR_EVENT_SCOPE,
 };
 export async function reportNativeProgress(label, operation) {
   const started = performance.now();
@@ -82,7 +86,7 @@ export async function reportNativeProgress(label, operation) {
 }
 
 export function fixedCiPhasesPassed(results) {
-  const phases = ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback'];
+  const phases = ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback', 'selectorEventRow'];
   return results.length === phases.length && results.every((result, index) => result.phase === phases[index] && result.status === 'PASS');
 }
 
@@ -93,22 +97,22 @@ export async function runFixedCiPilots(operations) {
   const timed = async (label, operation) => {
     const startedAt = new Date().toISOString();
     const started = performance.now();
-    let status = "stopped";
+    let status = "stopped", nested;
     try {
       const result = await progress(label, operation);
       status = ["PASS", "FAIL", "BLOCKED"].includes(result?.status) ? result.status : "completed";
+      if(label === "Selector Page2 preparation, proofs and cleanup") nested=result.phaseTimings;
       return result;
     } finally {
       const item = { label, status, startedAt, durationMs: Math.round(performance.now() - started) };
-      timings.push(item);
-      operations.onTiming?.(item);
+      for(const row of nested ?? [item]) {timings.push(row);operations.onTiming?.(row);}
     }
   };
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
   const phase = async (name) => {
     checkCancellation();
-    const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence" };
+    const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence", selectorEventRow: "Selector Page2 preparation, proofs and cleanup" };
     const result = await timed(labels[name], () => operations.phase(name));
     checkCancellation();
     results.push({ phase: name, ...result });
@@ -156,7 +160,33 @@ export async function runFixedCiPilots(operations) {
   } finally {
     await timed("Recipient callback CCD runtime cleanup", () => operations.stopCallback());
   }
+  if (results.at(-1).exitCode !== 0) return outcome();
+  await phase("selectorEventRow");
   return outcome();
+}
+
+export async function stopSelectorCiResource(resource) {
+ resource.controller.abort();
+ assert(resource.completion,'CI_SELECTOR_COMPLETION_REQUIRED');
+ const result=await resource.completion;
+ assert.equal(result.cleanupComplete,true,'CI_SELECTOR_CLEANUP_INCOMPLETE');
+}
+export async function runSelectorCiPhase(job,context,directory,resource,{run=runSelectorEventPhase,readAuthority=readSelectorPhaseAuthority,validate=validateCiPhase}={}) {
+ resource.completion=Promise.resolve().then(()=>run({candidate:job.candidateManifest,browser:context.browserRoot,output:directory},{signal:resource.controller.signal}));
+ const result=await resource.completion;
+ resource.summary=result;
+ resource.admissionStarted={startedAt:new Date().toISOString(),start:performance.now()};
+ assert.equal(result.cleanupComplete,true,'CI_SELECTOR_CLEANUP_INCOMPLETE');
+ assert.equal(result.status,'PASS','CI_SELECTOR_NATIVE_PHASE_REQUIRED');
+ assert.equal(result.nativeRuntimeAcceptance,true,'CI_SELECTOR_NATIVE_PHASE_REQUIRED');
+ const selected=readAuthority(directory);
+ for(const [field,value] of Object.entries({harnessCommit:context.commit,harnessSourceDigest:context.sourceDigests.selectorEventRow,harnessDependencyDigest:context.dependencies.digest,browserDigest:context.browserDigest}))
+  assert.equal(selected.expected[field],value,'CI_SELECTOR_JOB_IDENTITY');
+ assert.equal(selected.expected.identity.artifactDigest,job.expectedArtifactDigest,'CI_SELECTOR_JOB_CANDIDATE');
+ const validated=validate(directory,selected.expected,selected.terminal);
+ assert.equal(validated.receiptArtifactDigest,result.receiptArtifactDigest,'CI_SELECTOR_RECEIPT_CHANGED');
+ resource.validated=validated;
+ return {directory,...selected,expected:{...selected.expected,receiptArtifactDigest:validated.receiptArtifactDigest}};
 }
 
 export async function runHarnessCi(jobPath) {
@@ -184,7 +214,9 @@ export async function runHarnessCi(jobPath) {
   const privateRoot = path.join(job.output, "private");
   const remove = async (_id, resource) => {
     let evidence;
-    if (resource.kind === "ccd") {
+    if (resource.kind === "selector") {
+      await stopSelectorCiResource(resource);
+    } else if (resource.kind === "ccd") {
       await resource.pendingStart?.catch(() => {});
       evidence = cleanupCiCcd(resource.directory);
       if (evidence)
@@ -270,6 +302,20 @@ export async function runHarnessCi(jobPath) {
         failedPhase = name;
         phaseTerminal = undefined;
         assert(!cancelled, "CI_JOB_CANCELLED");
+        if(name === "selectorEventRow") {
+          const directory=path.join(privateRoot,name),resource={kind:"selector",controller:new AbortController()};
+          resources.set(name,resource);
+          try {
+            const selected=await runSelectorCiPhase(job,context,directory,resource);
+            context.selectorResult=selected;
+            const validated=resource.validated;
+            writeConfigurationCoverage({harnessRoot:ROOT,output:path.join(privateRoot,"configuration"),phaseDirectory:context.ccdResult.directory,expected:context.ccdResult.expected,terminal:context.ccdResult.terminal,eventPhase:context.eventResult,routingPhase:context.routingResult,callbackPhase:context.callbackResult,selectorPhase:selected});
+            phaseResults.push({phase:name,...validated});failedPhase=undefined;return {...validated,phaseTimings:[...(await resource.completion).phaseTimings,{label:'Selector cohort admission',status:validated.status,startedAt:resource.admissionStarted.startedAt,durationMs:Math.round(performance.now()-resource.admissionStarted.start)}]};
+          } catch(error) {
+            phaseFailure=nativePhaseFailure(error,name,undefined,{run:fs.existsSync(path.join(directory,'run.json')),gate:fs.existsSync(path.join(directory,'gate.json')),baselineReport:fs.existsSync(path.join(directory,'baseline/report.json'))},resource.summary?.diagnostic);
+            throw error;
+          } finally { await remove(name,resource); }
+        }
         const directory = path.join(privateRoot, name),
           phaseContext = name === "eventCapability" ? { ...context, ...context.eventBaseline } : name === "recipientCallback" ? {...context,...context.callbackBaseline} : context,
           resource = { kind: "phase", name, directory, child: null, context: phaseContext };

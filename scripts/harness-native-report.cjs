@@ -239,6 +239,13 @@ Object.assign(faults, {
   'ccd-shape-postal-recipient-name':'Change only the postal-name event label; prove the changed candidate label and a real CCD write before the source-label oracle fails',
   'ccd-shape-optional-postal-line-two':'Change only the second address line label; prove the changed candidate label and filled persistence before the source-label oracle fails',
 });
+proofs['ccd-selector-event-row'] = {
+ phase:'selectorEventRow',slice:'Optional recipient selector on source Page2',
+ behaviour:'Verify optional-empty progression, source page and field order, Check your answers and Change, then persist the selected recipient association.',
+ services:'Private Law source-shaped fixture',jurisdiction:'HARNESS (Private Law source)',caseType:'HarnessNestedPRL (PRLAPPS source)',
+ lane:'Actual EXUI + isolated CCD',limits:'One nine-attribute CaseEventToFields row; source rows7/8 and a declared predecessor. Fields1–6 and the neighbouring business callback are excluded. LiveFrom is typed date retention, not activation coverage.'
+};
+faults['ccd-hide-selector-summary']='Change only ShowSummaryChangeOption Y→N and observe the selector CYA row missing while the form, validation and sibling remain healthy';
 const phaseLabels = {
   family: "WA families",
   scope: "WA organisation scope",
@@ -246,6 +253,7 @@ const phaseLabels = {
   eventCapability: "Source role and event capability",
   routing: "PCS decentralised routing",
   recipientCallback: "Recipient callback configuration",
+  selectorEventRow: "Optional selector Page2 configuration",
 };
 const badge = (text, passed) =>
   `<span class="harness-status ${passed ? "passed" : "failed"}">${escape(text)}</span>`;
@@ -299,6 +307,7 @@ function renderNativeEvidence(evidence) {
         id ===
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
+          : id === "configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe" ? "selectorEventRow"
           : workbasketRows.has(id) ? "ccd"
           : ["configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc","configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f","configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49","configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e","configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757","configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894","configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
               "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66",

@@ -1,3 +1,5 @@
+import {SELECTOR_EVENT_SCOPE,SELECTOR_EVENT_OBLIGATION,SELECTOR_EVENT_PROOF,deriveSelectorEventRowFixture} from './exui-selector-event-row-contract.mjs';
+import {readSelectorPhaseAuthority,validateSelectorEventEvidence} from './exui-selector-event-row-evidence.mjs';
 import {CALLBACK_SCOPE,CALLBACK_OBLIGATION,CALLBACK_PROOF,callbackCanonicalImport} from './exui-recipient-callback-contract.mjs';
 import {validateCallbackTransitionEvidence} from './exui-recipient-callback-transition.mjs';
 import { SOURCE_SHAPE_ROWS } from './exui-source-shape-contract.mjs';
@@ -202,14 +204,14 @@ function bindImportedDefinition(phaseDirectory, manifest, signature) {
 export function projectConfigurationCoverage(args) {
   assert(
     Object.keys(args).every((key) =>
-      ["harnessRoot", "phaseDirectory", "eventPhaseDirectory", "routingPhaseDirectory", "callbackPhaseDirectory"].includes(key),
+      ["harnessRoot", "phaseDirectory", "eventPhaseDirectory", "routingPhaseDirectory", "callbackPhaseDirectory", "selectorPhaseDirectory"].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
   );
-  const { harnessRoot = ROOT, phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory } = args;
+  const { harnessRoot = ROOT, phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory, selectorPhaseDirectory } = args;
   assert(
-    new Set([phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory].filter(Boolean).map((directory) => fs.realpathSync(directory))).size ===
-      [phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory].filter(Boolean).length,
+    new Set([phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory, selectorPhaseDirectory].filter(Boolean).map((directory) => fs.realpathSync(directory))).size ===
+      [phaseDirectory, eventPhaseDirectory, routingPhaseDirectory, callbackPhaseDirectory, selectorPhaseDirectory].filter(Boolean).length,
     "COVERAGE_DUPLICATE_PHASE",
   );
   let harnessCommit = null,
@@ -497,6 +499,30 @@ export function projectConfigurationCoverage(args) {
     phaseReferences.recipientCallback={releaseScopeId:CALLBACK_SCOPE,runId:manifest.runId,receiptArtifactDigest:digestBytes(receiptBytes),evidenceManifestDigest:loaded.evidenceManifestDigest,status:loaded.receipt.verdict.status,imports};
     references.push({path:"recipientCallback/run.json",digest:digestBytes(regularBytes(callbackPhaseDirectory,"run.json"))},{path:"recipientCallback/gate.json",digest:digestBytes(receiptBytes)},...imports);
   }
+  if(selectorPhaseDirectory) {
+    assert.equal(path.basename(selectorPhaseDirectory),'selectorEventRow','COVERAGE_SELECTOR_DIRECTORY');
+    const policy=getReleasePolicy(SELECTOR_EVENT_SCOPE),loaded=loadRunEvidence(path.join(selectorPhaseDirectory,'run.json'),policy);
+    const receiptBytes=regularBytes(selectorPhaseDirectory,'gate.json');
+    assert.deepEqual(JSON.parse(receiptBytes),loaded.receipt,'COVERAGE_RECEIPT_RECOMPUTATION_MISMATCH');
+    validateCompleteNativeProofs(loaded.input,policy);validateNativeOutcome(loaded.input,loaded.receipt.verdict);
+    const authority=readSelectorPhaseAuthority(selectorPhaseDirectory);
+    validateNativePhaseFinalization(selectorPhaseDirectory,loaded.input.executions,authority.terminal);
+    validateSelectorEventEvidence(selectorPhaseDirectory,authority.expected,loaded.input,authority.terminal);
+    const manifest=loaded.input.manifest,{binding}=deriveSelectorEventRowFixture(),sourceKey='prl-ccd-definitions:'+binding.sourcePath;
+    assert.equal(binding.sourceRepository,'hmcts/prl-ccd-definitions','COVERAGE_SELECTOR_SOURCE_REPOSITORY');
+    const sources=input.snapshot.sources.filter(item=>item.repository==='prl-ccd-definitions'&&item.path===binding.sourcePath);assert.equal(sources.length,1,'COVERAGE_SELECTOR_SOURCE');assert.equal(sources[0].revision,binding.sourceRevision,'COVERAGE_SELECTOR_REVISION');assert.equal('sha256:'+sources[0].fileDigest,binding.sourceFileDigest,'COVERAGE_SELECTOR_FILE');
+    assert.deepEqual(input.catalogue.obligations.filter(item=>item.id===SELECTOR_EVENT_OBLIGATION),[{id:SELECTOR_EVENT_OBLIGATION,family:'PRIVATELAW',kind:'definition-shape',requiredBoundary:'candidate',sourceKeys:[sourceKey]}],'COVERAGE_SELECTOR_OBLIGATION');
+    const features=input.catalogue.features.filter(item=>item.id===SELECTOR_EVENT_OBLIGATION);
+    assert.equal(features.length,1,'COVERAGE_SELECTOR_FEATURE');assert.equal(features[0].sourceKey,sourceKey,'COVERAGE_SELECTOR_SOURCE');assert.equal('sha256:'+features[0].rowDigest,binding.sourceRowDigest,'COVERAGE_SELECTOR_ROW');
+    assert(postalManifest,'COVERAGE_SELECTOR_COHORT_REQUIRED');
+    const comparable=value=>{const identity=structuredClone(value.identity);delete identity.configurationDigest;delete identity.definitionDigests;return {identity,harnessCommit:value.harnessCommit,runtime:Object.fromEntries(['harnessSourceState','harnessSourceDigest','harnessDependencyDigest','browserDigest'].map(key=>[key,value.runtimeMetadata[key]]))};};
+    assert.deepEqual(comparable(manifest),comparable(postalManifest),'COVERAGE_CROSS_PHASE_IDENTITY_MISMATCH');
+    const proofs=loaded.input.results.filter(item=>item.proofId===SELECTOR_EVENT_PROOF);assert.equal(proofs.length,1,'COVERAGE_SELECTOR_PROOF');assert.equal(proofs[0].obligationId,SELECTOR_EVENT_OBLIGATION,'COVERAGE_SELECTOR_PROOF');
+    if(loaded.receipt.verdict.status==='PASS') {assert.equal(proofs[0].outcome,'passed','COVERAGE_PASSED_PROOF_REQUIRED');executedProofs.push({obligationId:SELECTOR_EVENT_OBLIGATION,boundary:'candidate',status:'passed'});}
+    else unacceptedExecutionFacts.push({obligationId:SELECTOR_EVENT_OBLIGATION,gateStatus:loaded.receipt.verdict.status,proofId:proofs[0].proofId,outcome:proofs[0].outcome,failureId:proofs[0].failureId});
+    phaseReferences.selectorEventRow={releaseScopeId:SELECTOR_EVENT_SCOPE,runId:manifest.runId,receiptArtifactDigest:digestBytes(receiptBytes),evidenceManifestDigest:loaded.evidenceManifestDigest,status:loaded.receipt.verdict.status};
+    for(const name of ['run.json','gate.json','independent-preexecution.json','independent-selector-admission.json','independent-selector-capture.json','independent-controller-terminal.json'])references.push({path:'selectorEventRow/'+name,digest:digestBytes(regularBytes(selectorPhaseDirectory,name))});
+  }
   if (routingPhaseDirectory) {
     const policy = getReleasePolicy(ROUTING_SCOPE);
     const loaded = loadRunEvidence(
@@ -622,6 +648,7 @@ export function writeConfigurationCoverage(args) {
         "eventPhase",
         "routingPhase",
         "callbackPhase",
+        "selectorPhase",
       ].includes(key),
     ),
     "UNSUPPORTED_COVERAGE_INPUT",
@@ -635,6 +662,7 @@ export function writeConfigurationCoverage(args) {
     eventPhase,
     routingPhase,
     callbackPhase,
+    selectorPhase,
   } = args;
   if (phaseDirectory) {
     assert(
@@ -706,12 +734,20 @@ export function writeConfigurationCoverage(args) {
     const {directory,expected:callbackExpected,terminal:callbackTerminal}=callbackPhase;
     assert(callbackExpected&&callbackTerminal&&callbackExpected.nativeAuthority===true,"COVERAGE_OBSERVED_NATIVE_PHASE_REQUIRED");assert.equal(callbackExpected.releaseScopeId,CALLBACK_SCOPE,"COVERAGE_CALLBACK_SCOPE_MISMATCH");assert.equal(digestBytes(regularBytes(directory,"gate.json")),callbackExpected.receiptArtifactDigest,"COVERAGE_RECEIPT_TRANSPORT_MISMATCH");validateCiPhase(directory,callbackExpected,callbackTerminal);
   }
+  if(selectorPhase){
+    assert.deepEqual(Object.keys(selectorPhase).sort(),['directory','expected','terminal'],'COVERAGE_SELECTOR_PHASE_FIELDS');
+    assert.equal(selectorPhase.expected?.releaseScopeId,SELECTOR_EVENT_SCOPE,'COVERAGE_SELECTOR_SCOPE');
+    assert.equal(selectorPhase.expected.nativeAuthority,true,'COVERAGE_OBSERVED_NATIVE_PHASE_REQUIRED');
+    assert.equal(digestBytes(regularBytes(selectorPhase.directory,'gate.json')),selectorPhase.expected.receiptArtifactDigest,'COVERAGE_RECEIPT_TRANSPORT_MISMATCH');
+    validateCiPhase(selectorPhase.directory,selectorPhase.expected,selectorPhase.terminal);
+  }
   const projected = projectConfigurationCoverage({
     harnessRoot,
     phaseDirectory,
     eventPhaseDirectory: eventPhase?.directory,
     routingPhaseDirectory: routingPhase?.directory,
     callbackPhaseDirectory: callbackPhase?.directory,
+    selectorPhaseDirectory: selectorPhase?.directory,
   });
   writeJsonAtomic(path.join(output, "catalogue.json"), projected.catalogue);
   writeJsonAtomic(path.join(output, "selection.json"), projected.selection);

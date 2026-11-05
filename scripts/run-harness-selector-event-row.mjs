@@ -28,14 +28,20 @@ export async function afterSelectorChildStopped(child,cleanup,terminate=terminat
  assert.equal(terminal.observed,true,'SELECTOR_CHILD_TERMINATION_UNOBSERVED');
  await cleanup();return terminal;
 }
-export async function runSelectorEventRow({candidate,browser,output}) {
+export async function runSelectorEventPhase({candidate,browser,output}, {signal} = {}) {
+ const phaseStarted={startedAt:new Date().toISOString(),start:performance.now()};
  assert(path.isAbsolute(output),'SELECTOR_JOB_FRESH_OUTPUT');
  const artifact=await verifyCandidateArtifact(candidate),browserRoot=fs.realpathSync(browser);
- output=createFreshHarnessOutput(output,[artifact.candidateRoot,candidate,browserRoot,path.resolve(root),root+'node_modules']);
- const directory=path.join(output,'native'),runtimes=new Map();let child,cancelled=false,ownership,context,baseline,expected,priorInput,priorExpected;
- const captures=[],cancel=()=>{cancelled=true;child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
+ const directory=path.resolve(output);assert(!fs.existsSync(directory),'SELECTOR_JOB_FRESH_OUTPUT');
+ output=createFreshHarnessOutput(directory+'-runtime',[artifact.candidateRoot,candidate,browserRoot,path.resolve(root),root+'node_modules']);
+ const runtimes=new Map();let child,cancelled=false,ownership,context,baseline,expected,priorInput,priorExpected;
+ const captures=[],cancel=()=>{cancelled=true;child?.kill('SIGTERM');};signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
  const alive=()=>assert(!cancelled,'SELECTOR_TRANSITION_CANCELLED');
- const summary={kind:'standalone-selector-event-row-pilot',status:'BLOCKED',nativeRuntimeAcceptance:false,catalogueCredit:false,releaseCredit:false,cleanupComplete:false};let phase='verify-inputs';
+ const summary={phaseTimings:[],kind:'standalone-selector-event-row-pilot',status:'BLOCKED',nativeRuntimeAcceptance:false,catalogueCredit:false,releaseCredit:false,cleanupComplete:false};let phase='verify-inputs';
+ let timing;
+ const finishTiming=status=>{if(timing){summary.phaseTimings.push({label:timing.label,startedAt:timing.startedAt,durationMs:Math.round(performance.now()-timing.start),status});timing=undefined;}};
+ const startTiming=label=>{finishTiming('completed');timing={label,startedAt:new Date().toISOString(),start:performance.now()};};
+ timing={label:'Selector CCD baseline preparation',...phaseStarted};
  const persist=()=>writeJsonAtomic(path.join(output,'summary.json'),summary);persist();
  const runtimePath=variant=>path.join(output,`selector-${variant}-runtime`);
  const removeRuntime=variant=>{const removed=cleanupCiCcd(runtimePath(variant));runtimes.delete(variant);return removed;};
@@ -63,16 +69,17 @@ export async function runSelectorEventRow({candidate,browser,output}) {
   const sourceDigest=digestBytes(JSON.stringify(NATIVE_HARNESS_SOURCE_FILES.map(file=>[file,digestBytes(fs.readFileSync(path.join(root,file)))])));
   context={commit:git(['rev-parse','HEAD']),artifact,browserRoot,browserDigest:await digestCandidateTree(browserRoot),dependencies,sourceDigests:{selectorEventRow:sourceDigest},nativeRuntime:inspectNativeApiRuntime(artifact.provenance.platform),browserRuntimeImage:inspectNativeBrowserRuntime(artifact.provenance.platform)};
   phase='prepare-baseline';runtimes.set('baseline',runtimePath('baseline'));baseline=await prepareSelectorRuntime(runtimePath('baseline'),{platform:artifact.provenance.platform,isCancelled:()=>cancelled});alive();
+  startTiming('Selector baseline proof and cleanup');
   phase='native-execution';const execution=await executeCiProcess({script:root+'scripts/run-harness-ccd-candidate.mjs',args:['--candidate',candidate,'--browser',browserRoot,'--ccd-state',path.join(runtimePath('baseline'),'runtime.json'),'--scope',SELECTOR_EVENT_SCOPE,'--output',directory],output:directory,onChild:value=>{child=value;},
    onPrepared:(input,handoff)=>{input.selectorInvocation="baseline";const captured=captureBefore(input,handoff,baseline);ownership=captured.plan;expected=captured.current;priorInput=input;priorExpected=expected;return expected;},
    onSelectorTransition:async(request,{input,handoff,isTerminated})=>{
-    const running=()=>{alive();assert(!isTerminated(),'SELECTOR_TRANSITION_CHILD_TERMINATED');};running();removePrior();running();
+    const running=()=>{alive();assert(!isTerminated(),'SELECTOR_TRANSITION_CHILD_TERMINATED');};running();removePrior();running();startTiming('Selector CCD fault preparation');
     phase=`prepare-${SELECTOR_EVENT_MUTATION}`;runtimes.set(SELECTOR_EVENT_MUTATION,runtimePath(SELECTOR_EVENT_MUTATION));
     const known=await prepareSelectorRuntime(runtimePath(SELECTOR_EVENT_MUTATION),{invocationId:SELECTOR_EVENT_MUTATION,platform:artifact.provenance.platform,isCancelled:()=>cancelled||isTerminated()});running();
     const runtime={...input,...known,selectorInvocation:SELECTOR_EVENT_MUTATION};Object.assign(runtime,copySelectorRuntimeEvidence(directory,runtime,SELECTOR_EVENT_MUTATION));
     const captured=captureBefore(runtime,handoff,known);ownership.invocations.push(...captured.plan.invocations);priorInput=runtime;priorExpected=captured.current;
     const record={schemaVersion:1,runId:input.runId,invocationId:SELECTOR_EVENT_MUTATION,request,requestDigest:digestBytes(JSON.stringify(request)),runtime};
-    captures.at(-1).runtimeRecord=publishSelectorRuntime(directory,record);phase='native-execution';return record;
+    captures.at(-1).runtimeRecord=publishSelectorRuntime(directory,record);startTiming('Selector fault proof and cleanup');phase='native-execution';return record;
    }});
   alive();const terminalFile=path.join(directory,'independent-controller-terminal.json');writeJsonAtomic(terminalFile,{schemaVersion:1,runId:expected.runId,terminal:execution.terminal});expected.selectorControllerTerminal=reference(directory,terminalFile);
   assert.deepEqual(execution.terminal,{code:0,signal:null},'SELECTOR_CONTROLLER_FAILED');
@@ -80,10 +87,11 @@ export async function runSelectorEventRow({candidate,browser,output}) {
   await cleanupNativeOwnership(ownership,{inspect:inspectHostContainer,remove:id=>hostDocker(['rm','-f',id])});
   const file=path.join(directory,'independent-selector-capture.json');writeJsonAtomic(file,{schemaVersion:1,completedAfterController:true,baselineInputDigest:digestBytes(fs.readFileSync(path.join(directory,'input.json'))),invocations:captures});expected.selectorEventCapture=reference(directory,file);
   writeJsonAtomic(path.join(directory,'independent-selector-admission.json'),{schemaVersion:1,completedAfterController:true,expected});
-  phase='independent-admission';const verdict=validateCiPhase(directory,expected,execution.terminal);
+  startTiming('Selector evidence verification');phase='independent-admission';const verdict=validateCiPhase(directory,expected,execution.terminal);
   summary.status=verdict.status;summary.nativeRuntimeAcceptance=verdict.status==='PASS';summary.invocations=2;summary.proposedCatalogueRows=1;summary.receiptArtifactDigest=verdict.receiptArtifactDigest;
  }catch(error){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;summary.diagnostic=classifyNativeFailure(error);summary.phase=phase;summary.failure=cancelled?'SELECTOR_JOB_CANCELLED':'SELECTOR_JOB_FAILED';}
  finally{
+  finishTiming(summary.status==='PASS'?'PASS':'stopped');startTiming('Selector final cleanup');
   let clean=false;
   try{
    const stopped=await afterSelectorChildStopped(child,async()=>{
@@ -95,10 +103,20 @@ export async function runSelectorEventRow({candidate,browser,output}) {
     for(const variant of [...runtimes.keys()].reverse())removeRuntime(variant);
    });clean=!stopped.forced;
   }catch{clean=false;}
-  summary.cleanupComplete=clean;if(!clean){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;}process.off('SIGINT',cancel);process.off('SIGTERM',cancel);persist();
+  finishTiming(clean?'completed':'stopped');summary.cleanupComplete=clean;if(!clean){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;}signal?.removeEventListener('abort',cancel);persist();
  }
 
  return summary;
+}
+export async function runSelectorEventRow({candidate,browser,output}) {
+ const artifact=await verifyCandidateArtifact(candidate);
+ const rootOutput=createFreshHarnessOutput(output,[artifact.candidateRoot,candidate,fs.realpathSync(browser),path.resolve(root),root+'node_modules']);
+ const controller=new AbortController(),cancel=()=>controller.abort();
+ process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
+ try{
+  const result=await runSelectorEventPhase({candidate,browser,output:path.join(rootOutput,'native')},{signal:controller.signal});
+  writeJsonAtomic(path.join(rootOutput,'summary.json'),result);return result;
+ }finally{process.off('SIGINT',cancel);process.off('SIGTERM',cancel);}
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  try{const args=process.argv.slice(2);assert.equal(args.length,6);assert.deepEqual(args.filter((_,i)=>i%2===0),['--candidate','--browser','--output']);const result=await runSelectorEventRow({candidate:args[1],browser:args[3],output:args[5]});console.log(JSON.stringify(result));process.exitCode=result.status==='PASS'&&result.cleanupComplete?0:2;}catch{console.error('SELECTOR_JOB_ARGUMENTS_REJECTED');process.exitCode=2;}

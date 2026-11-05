@@ -137,6 +137,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
     "exui-candidate-ci-inputs.mjs",
     "exui-release-policy.mjs",
     "exui-evidence-io.mjs",
+    "exui-selector-event-row-evidence.mjs",
   ])
     fs.writeFileSync(
       path.join(root, "scripts/lib", name),
@@ -207,7 +208,7 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, "private"));
   const digest = "sha256:" + "a".repeat(64),
     commit = "b".repeat(40);
-  const phases = ["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback"];
+  const phases = ["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"];
   const captured = { harnessCommit: commit, policies: {} };
   const write = (file, value) => {
     const bytes = JSON.stringify(value);
@@ -249,10 +250,18 @@ function fixture(t) {
           capturedBeforeFault: true,
         }) }
       : undefined;
+    let selectorAuthority;
+    if(phase==='selectorEventRow'){
+      selectorAuthority={...pre,
+        selectorEventCapture:{path:'independent-selector-capture.json',digest:write(`${phase}/independent-selector-capture.json`,{schemaVersion:1})},
+        selectorControllerTerminal:{path:'independent-controller-terminal.json',digest:write(`${phase}/independent-controller-terminal.json`,{schemaVersion:1,terminal:{code:0,signal:null}})}};
+      write(`${phase}/independent-selector-admission.json`,{schemaVersion:1,completedAfterController:true,expected:selectorAuthority});
+    }
     write(`${phase}/promotion-expected.json`, {
       ...(transition ? { eventTransition: transition } : {}),
       ...(callbackTransition ? { callbackTransition } : {}),
       ...pre,
+      ...(selectorAuthority??{}),
       receiptArtifactDigest: digest,
       evidenceManifestDigest: digest,
     });
