@@ -179,9 +179,11 @@ export async function observeCcdEventReadback(
   }>,
 ) {
   const response = await openCcdEventCase(page, caseId);
-  const readback = await page.request.get(`/data/internal/cases/${caseId}`, {maxRedirects: 0, maxRetries: 0});
-  if (readback.status() !== 200) throw new Error("CCD_READBACK_STATUS");
-  const body = await readback.json();
+  const body = await page.evaluate(async id => {
+    const readback = await fetch(`/data/internal/cases/${id}`, {credentials: "same-origin", signal: AbortSignal.timeout(15_000)});
+    if (readback.status !== 200) throw new Error("CCD_READBACK_STATUS");
+    return readback.json();
+  }, caseId);
   const fields: Array<{id: string; value?: unknown}> = body.tabs.flatMap(
     (tab: {fields: Array<{id: string; value?: unknown}>}) => tab.fields,
   );
