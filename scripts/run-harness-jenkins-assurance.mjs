@@ -56,7 +56,7 @@ function safeEnvironment(extra = {}) {
 export function classifyPinPullFailure(output, errorCode) {
   if (/toomanyrequests|rate limit|\b429\b/i.test(output)) return "RATE_LIMIT";
   if (/unauthorized|authentication required|access denied|forbidden|\b40[13]\b/i.test(output)) return "ACCESS_DENIED";
-  if (/manifest unknown|manifest.*not found|\b404\b/i.test(output)) return "MANIFEST_UNAVAILABLE";
+  if (/manifest unknown|no such manifest|manifest.*not found|\b404\b/i.test(output)) return "MANIFEST_UNAVAILABLE";
   if (/timed? out|deadline exceeded/i.test(output) || errorCode === "ETIMEDOUT") return "TIMEOUT";
   if (/connection|network|tls|certificate|resolve|no such host/i.test(output)) return "NETWORK";
   return "UNKNOWN";

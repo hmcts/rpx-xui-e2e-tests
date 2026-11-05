@@ -28,11 +28,11 @@
     "reference": "hmctsprod.azurecr.io/rpe/service-auth-provider@sha256:f5bee834b3c05cc75ef7048bac921ee77ac91587b1c5a772088d5dd706b325d6"
   },
   "idam": {
-    "indexDigest": "sha256:e28200a6b41a275851d0225443c0c84febdd1426fe381ec8b66c8a91d834df01",
-    "manifestDigest": "sha256:c1b704a6e10fdc605923be114d605abe08b72edbdd4896e1a652d7b8bfe93b37",
-    "configDigest": "sha256:3ddcef24af603cc108e70ccfe8cfc8876d04d4469a43813d337950f69eb9e024",
+    "indexDigest": "sha256:13034e179565727c8c6e3887220cacb8f0a69f62f8deaa2ee8ba6195105323a7",
+    "manifestDigest": "sha256:e972cf0fa4a3b7d78def9bf16aa2ba2592a90d629c722568dda1e67a62f54b75",
+    "configDigest": "sha256:11aae332690d0cfc0aac9cde5be32133f56a3f04f121ff10d16eb549ce514a08",
     "platform": "linux/amd64",
-    "reference": "hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator@sha256:c1b704a6e10fdc605923be114d605abe08b72edbdd4896e1a652d7b8bfe93b37"
+    "reference": "hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator@sha256:e972cf0fa4a3b7d78def9bf16aa2ba2592a90d629c722568dda1e67a62f54b75"
   },
   "database": {
     "reference": "postgres@sha256:7da5d534f1ffcdb2f69efa6e466a7a29ff89eefd611c7b50c4d69aa77fd4a822",

@@ -172,6 +172,7 @@ test('pin pull diagnostics expose only a fixed cause, never registry output', as
     ['toomanyrequests: token=private', 'RATE_LIMIT'],
     ['unauthorized: token=private', 'ACCESS_DENIED'],
     ['manifest unknown: token=private', 'MANIFEST_UNAVAILABLE'],
+    ['failed to resolve reference: no such manifest', 'MANIFEST_UNAVAILABLE'],
     ['context deadline exceeded: token=private', 'TIMEOUT'],
     ['TLS connection failed: token=private', 'NETWORK'],
     ['token=private', 'UNKNOWN'],
