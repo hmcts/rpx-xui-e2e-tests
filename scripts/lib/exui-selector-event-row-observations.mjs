@@ -9,13 +9,11 @@ import { deriveSelectorEventRowFixture, SELECTOR_EVENT_MUTATION } from './exui-s
 export const selectorEmptySeed = () => ({ protectedValue: 'selector-empty-control', sodAdditionalRecipients: [], sodAdditionalRecipientsList: [] });
 export const selectorSeed = () => ({ protectedValue: 'selector-persistence-control', sodAdditionalRecipients: [], sodAdditionalRecipientsList: [{ id: '11111111-1111-4111-8111-111111111111', value: { serveByPostOrEmail: 'email', emailInformation: { emailName: 'Selector recipient', emailAddress: 'selector@harness.example.com' }, postalInformation: { postalName: null, postalAddress: { AddressLine1: null, AddressLine2: null, AddressLine3: null, PostTown: null, County: null, PostCode: null, Country: null } } } }] });
 export const selectorPersisted = () => ({ ...selectorSeed(), sodAdditionalRecipients: ['additionalRecipients'] });
-export const selectorTransport = () => {
-  const value = selectorPersisted();
-  // Pinned toolkit FormValueService.removeUnnecessaryFields retains readonly
-  // protectedValue and removes the inactive postal branch for an email item.
-  delete value.sodAdditionalRecipientsList[0].value.postalInformation;
-  return value;
-};
+// This source slice retains the complete seeded recipient structure at submit.
+// Bind that exact association independently; do not infer hidden-field deletion
+// from the general toolkit cleanup routine.
+export const selectorTransport = () => selectorPersisted();
+
 const stateBefore = (value, caseId, data) => {
   assert(/^\d{16}$/.test(caseId), 'SELECTOR_OBSERVATION_CASE_ID');
   assert.equal(String(value.state.id), caseId, 'SELECTOR_OBSERVATION_CASE_ID');
@@ -56,15 +54,26 @@ export function validateSelectorInvocationObservation(observation, journal, sele
   assert.equal(ui.cyaHeading?.trim(), 'Check your answers', 'SELECTOR_OBSERVATION_CYA_HEADING');
   assert(typeof ui.cyaPath === 'string' && ui.cyaPath.startsWith(eventPath) && !ui.navigation.includes(ui.cyaPath), 'SELECTOR_OBSERVATION_CYA_PATH');
   assert(Array.isArray(journal), 'SELECTOR_OBSERVATION_JOURNAL');
-  const validations = journal.filter(entry => entry.method === 'POST' && entry.path === '/data/case-types/HarnessNestedPRL/validate');
-  for (const [controlValue, selectedValues] of [['selector-empty-control', []], ['selector-persistence-control', ['additionalRecipients']]]) {
-    const matches = validations.filter(entry => entry.selectorValidation?.pageId === 'serviceOfDocuments2' && entry.selectorValidation.controlValue === controlValue);
-    assert(matches.length > 0, 'SELECTOR_VALIDATION_TRANSPORT_REQUIRED');
-    for (const entry of matches) {
-      assert.equal(entry.status, 200, 'SELECTOR_VALIDATION_TRANSPORT_STATUS');
-      assert.equal(entry.actorId, selected.credentials.courtadmin.userId, 'SELECTOR_VALIDATION_TRANSPORT_ACTOR');
-      assert.equal(entry.selectorValidation.eventId, 'serviceOfDocuments', 'SELECTOR_VALIDATION_TRANSPORT_EVENT');
-      assert.deepEqual(entry.selectorValidation.selected, selectedValues, 'SELECTOR_VALIDATION_TRANSPORT_VALUES');
+  const validationPath = '/data/case-types/HarnessNestedPRL/validate';
+  const triggers = journal.map((entry,index)=>({entry,index})).filter(({entry})=>entry.method==='GET' && /^\/data\/internal\/cases\/\d{16}\/event-triggers\/serviceOfDocuments$/.test(entry.path));
+  const cases=[empty.caseId,observation.caseId];
+  assert.deepEqual(triggers.map(({entry})=>entry.path),cases.map(id=>`/data/internal/cases/${id}/event-triggers/serviceOfDocuments`),'SELECTOR_VALIDATION_CASE_WINDOWS');
+  assert(!journal.slice(0,triggers[0].index).some(entry=>entry.method==='POST'&&entry.path===validationPath),'SELECTOR_VALIDATION_BEFORE_TRIGGER');
+  for(const [index,{entry:trigger,index:start}] of triggers.entries()) {
+    assert.equal(trigger.status,200,'SELECTOR_TRIGGER_STATUS');assert.equal(trigger.actorId,selected.credentials.courtadmin.userId,'SELECTOR_TRIGGER_ACTOR');
+    const end=triggers[index+1]?.index??journal.length;
+    const validations=journal.slice(start+1,end).filter(entry=>entry.method==='POST'&&entry.path===validationPath);
+    const predecessor='serviceOfDocumentsharnessBefore',page='serviceOfDocuments2';
+    const pages=index===0?[predecessor,page]:[predecessor,predecessor,page,...(baseline?[page]:[])];
+    assert.deepEqual(validations.map(entry=>entry.selectorValidation?.pageId),pages,'SELECTOR_VALIDATION_PAGE_SEQUENCE');
+    const submission=journal.findIndex(entry=>entry.method==='POST'&&entry.path===`/data/cases/${cases[index]}/events`);
+    for(const entry of validations) {
+      assert(submission<0||journal.indexOf(entry)<submission,'SELECTOR_VALIDATION_AFTER_SUBMISSION');
+      assert.equal(entry.status,200,'SELECTOR_VALIDATION_TRANSPORT_STATUS');assert.equal(entry.actorId,selected.credentials.courtadmin.userId,'SELECTOR_VALIDATION_TRANSPORT_ACTOR');
+      assert.equal(entry.selectorValidation.eventId,'serviceOfDocuments','SELECTOR_VALIDATION_TRANSPORT_EVENT');
+      const firstPage=entry.selectorValidation.pageId===predecessor;
+      assert.equal(entry.selectorValidation.controlValue,firstPage?(index===0?'selector-empty-control':'selector-persistence-control'):null,'SELECTOR_VALIDATION_PAGE_CONTROL');
+      assert.deepEqual(entry.selectorValidation.selected,firstPage?null:index===0?[]:['additionalRecipients'],'SELECTOR_VALIDATION_TRANSPORT_VALUES');
     }
   }
   assert(!journal.some(entry => entry.method === 'POST' && entry.path === `/data/cases/${empty.caseId}/events`), 'SELECTOR_EMPTY_SUBMITTED');

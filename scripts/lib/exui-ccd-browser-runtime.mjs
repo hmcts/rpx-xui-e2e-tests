@@ -16,7 +16,7 @@ export function selectorValidationProjection(body, url) {
   try { payload = JSON.parse(body); } catch { payload = {}; }
   const selected = payload?.data?.sodAdditionalRecipients;
   return {
-    pageId: ["serviceOfDocuments1", "serviceOfDocuments2"].includes(url.searchParams.get("pageId")) ? url.searchParams.get("pageId") : null,
+    pageId: ["serviceOfDocumentsharnessBefore", "serviceOfDocuments2"].includes(url.searchParams.get("pageId")) ? url.searchParams.get("pageId") : null,
     eventId: payload?.event?.id === "serviceOfDocuments" ? "serviceOfDocuments" : null,
     controlValue: ["selector-empty-control", "selector-persistence-control"].includes(payload?.data?.protectedValue) ? payload.data.protectedValue : null,
     selected: Array.isArray(selected) && (selected.length === 0 || (selected.length === 1 && selected[0] === "additionalRecipients")) ? selected : null,

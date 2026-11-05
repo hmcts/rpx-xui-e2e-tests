@@ -11,19 +11,25 @@ async function fixture(baseline = true) {
     optionalEmptyState: { caseId: emptyId, before: empty, after: structuredClone(empty), cyaHeading: 'Check your answers', cyaPath: prefix(emptyId) + 'submit' }, optionalEmpty: { status: 200, pageId: 'serviceOfDocuments2' },
     ui: { navigation: ['serviceOfDocumentsharnessBefore','serviceOfDocuments2','serviceOfDocumentsharnessBefore','serviceOfDocuments2'].map(page => prefix(caseId) + page), predecessorLabel: 'Protected value', predecessorEditableControls: 0, selectorInitiallyChecked: false, selectorAfterCheck: true, siblingLabel: 'Recipient', siblingValue: 'Selector recipient', cyaHeading: 'Check your answers', cyaPath: prefix(caseId) + 'submit', selectorSummaryLabel: 'Select additional recipients who needs to be served', selectorSummaryValue: 'Additional recipients (optional)', changeAccessibleName: 'Change Select additional recipients who needs to be served', changeTarget: prefix(caseId) + 'serviceOfDocuments2', selectedAfterChange: true },
     selectedCya: { validation: { status: 200, pageId: 'serviceOfDocuments2' }, selectorChecked: true, selectorPrecedesRecipient: true, predecessorRoundTrip: true, healthySiblingCount: 1, selectorSummaryCount: baseline ? 1 : 0 }, completed: baseline };
-  const journal = [['selector-empty-control',[]],['selector-persistence-control',['additionalRecipients']]].map(([controlValue,selectedValues])=>({method:'POST',path:'/data/case-types/HarnessNestedPRL/validate',status:200,actorId:selected.credentials.courtadmin.userId,selectorValidation:{pageId:'serviceOfDocuments2',controlValue,eventId:'serviceOfDocuments',selected:selectedValues}}));
+  const journal=[];
+  for(const [index,id] of [emptyId,caseId].entries()) {
+    journal.push({method:'GET',path:`/data/internal/cases/${id}/event-triggers/serviceOfDocuments`,status:200,actorId:selected.credentials.courtadmin.userId});
+    const predecessor='serviceOfDocumentsharnessBefore',page='serviceOfDocuments2';
+    for(const pageId of index===0?[predecessor,page]:[predecessor,predecessor,page,...(baseline?[page]:[])])journal.push({method:'POST',path:'/data/case-types/HarnessNestedPRL/validate',status:200,actorId:selected.credentials.courtadmin.userId,selectorValidation:{pageId,eventId:'serviceOfDocuments',controlValue:pageId===predecessor?(index===0?'selector-empty-control':'selector-persistence-control'):null,selected:pageId===predecessor?null:index===0?[]:['additionalRecipients']}});
+  }
+
   if (baseline) {
     observation.beforeSubmit = structuredClone(before); observation.intended = m.selectorPersisted(); observation.after = structuredClone(before);
     observation.after.state.case_data = m.selectorPersisted(); observation.after.state.version++; observation.after.state.last_modified = '2026-11-05T12:01:00Z';
     observation.after.history.push({ id: 'serviceOfDocuments', created_date: '2026-11-05T12:01:00Z', case_type_id: 'HarnessNestedPRL', state_id: 'JUDICIAL_REVIEW', user_id: selected.credentials.courtadmin.userId });
-    observation.submission = { method: 'POST', path: `/data/cases/${caseId}/events`, status: 201, eventId: 'serviceOfDocuments', data: m.selectorTransport() };
+    observation.submission = { method: 'POST', path: `/data/cases/${caseId}/events`, status: 201, eventId: 'serviceOfDocuments', data: m.selectorPersisted() };
     journal.push({ method: 'POST', path: `/data/cases/${caseId}/events`, status: 201, actorId: selected.credentials.courtadmin.userId });
   } else Object.assign(observation, { faultEffective: true, witness: 'healthy-cya-without-selector-row', afterFault: structuredClone(before) });
   return { m, selected, observation, journal };
 }
 test('trusted selector reader replays optional empty, navigation, Change, exact persisted association and history', async () => {
   const good = await fixture(); const check = x => good.m.validateSelectorInvocationObservation(x.observation, x.journal, x.selected, 'baseline'); check(good);
-  const changes = [x=>{x.observation.optionalEmptyState.after.state.version++;},x=>{x.observation.ui.navigation.pop();},x=>{x.observation.ui.predecessorEditableControls=1;},x=>{x.observation.ui.selectorInitiallyChecked=true;},x=>{x.observation.ui.cyaHeading='Service unavailable';},x=>{x.observation.ui.changeTarget+='wrong';},x=>{x.observation.ui.selectedAfterChange=false;},x=>{x.observation.beforeSubmit.state.version++;},x=>{x.observation.after.state.case_data.sodAdditionalRecipientsList[0].id='changed';},x=>{x.observation.after.state.security_classification='PRIVATE';},x=>{x.observation.after.state.version--;},x=>{x.observation.after.history[0].user_id='changed';},x=>{x.observation.after.history.at(-1).user_id='other';},x=>{x.observation.submission.data.protectedValue='changed';},x=>{x.journal[0].status=500;},x=>{x.journal[0].actorId='other';},x=>{x.journal.shift();},x=>{x.journal[0].selectorValidation.selected=['additionalRecipients'];},x=>{x.journal.push({method:'POST',path:`/data/cases/${x.observation.optionalEmptyState.caseId}/events`,status:201});},x=>{x.journal.push(structuredClone(x.journal.at(-1)));},x=>{x.selected.credentials.courtadmin.roles=['caseworker'];}];
+  const changes = [x=>{x.observation.optionalEmptyState.after.state.version++;},x=>{x.observation.ui.navigation.pop();},x=>{x.observation.ui.predecessorEditableControls=1;},x=>{x.observation.ui.selectorInitiallyChecked=true;},x=>{x.observation.ui.cyaHeading='Service unavailable';},x=>{x.observation.ui.changeTarget+='wrong';},x=>{x.observation.ui.selectedAfterChange=false;},x=>{x.observation.beforeSubmit.state.version++;},x=>{x.observation.after.state.case_data.sodAdditionalRecipientsList[0].id='changed';},x=>{x.observation.after.state.security_classification='PRIVATE';},x=>{x.observation.after.state.version--;},x=>{x.observation.after.history[0].user_id='changed';},x=>{x.observation.after.history.at(-1).user_id='other';},x=>{x.observation.submission.data.protectedValue='changed';},x=>{delete x.observation.submission.data.sodAdditionalRecipientsList[0].value.postalInformation;},x=>{x.journal[0].status=500;},x=>{x.journal[0].actorId='other';},x=>{x.journal.shift();},x=>{x.journal.find(e=>e.selectorValidation?.pageId==='serviceOfDocuments2').selectorValidation.selected=['additionalRecipients'];},x=>{x.journal.push({method:'POST',path:`/data/cases/${x.observation.optionalEmptyState.caseId}/events`,status:201});},x=>{x.journal.push(structuredClone(x.journal.at(-1)));},x=>{x.selected.credentials.courtadmin.roles=['caseworker'];}];
   for (const change of changes) { const bad = structuredClone({selected:good.selected,observation:good.observation,journal:good.journal}); change(bad); assert.throws(()=>check(bad),/SELECTOR_/); }
 });
 test('trusted selector fault cannot pass with unhealthy CYA, changed case, wrong variant or a submitted event', async () => {
@@ -59,4 +65,21 @@ test('selector removal requires exact captured launch command and both lifecycle
   const bad=structuredClone(lifecycle);if(field==='Name')bad[side][field]=value;else bad[side].Config[field]=value;write(bad);assert.throws(()=>assertSelectorInvocationRemoved(ownership,'baseline',()=>null),reason);
  }
  write(lifecycle);assert.throws(()=>assertSelectorInvocationRemoved(ownership,'baseline',()=>({present:true})),/CID_PRESENT/);
+});
+
+test('selector raw validation windows reject reused/swapped cases, missing predecessor and late or foreign requests',async()=>{
+ const good=await fixture();const check=x=>good.m.validateSelectorInvocationObservation(x.observation,x.journal,x.selected,'baseline');check(good);
+ const changes=[
+ x=>{const starts=x.journal.filter(e=>e.method==='GET');[starts[0].path,starts[1].path]=[starts[1].path,starts[0].path];},
+ x=>{const starts=x.journal.filter(e=>e.method==='GET');starts[1].path=starts[0].path;},
+ x=>{x.journal.unshift(structuredClone(x.journal[1]));},
+ x=>{x.journal.splice(1,1);},
+ x=>{x.journal[1].selectorValidation.controlValue='selector-persistence-control';},
+ x=>{x.journal[1].selectorValidation.pageId='serviceOfDocuments1';},
+ x=>{x.journal.push(structuredClone(x.journal.find(e=>e.method==='GET')));},
+ x=>{x.journal.push(structuredClone(x.journal.at(-2)));},
+ x=>{const val=x.journal.find(e=>e.selectorValidation?.pageId==='serviceOfDocuments2');val.actorId='other';},
+ x=>{const val=x.journal.find(e=>e.selectorValidation?.pageId==='serviceOfDocuments2');val.status=500;},
+ ];
+ for(const change of changes){const bad=structuredClone({observation:good.observation,journal:good.journal,selected:good.selected});change(bad);assert.throws(()=>check(bad),/SELECTOR_/);}
 });

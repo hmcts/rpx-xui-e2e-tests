@@ -10,6 +10,8 @@ test('selector validation journal retains only bounded synthetic semantics', asy
  }
  assert.deepEqual(project(JSON.stringify({event:{id:'private'},data:{protectedValue:'private',sodAdditionalRecipients:['private']}}),new URL('http://localhost/?pageId=private')),
   {pageId:null,eventId:null,controlValue:null,selected:null});
+ assert.equal(project('{}',new URL('http://localhost/?pageId=serviceOfDocumentsharnessBefore')).pageId,'serviceOfDocumentsharnessBefore');
+ assert.equal(project('{}',new URL('http://localhost/?pageId=serviceOfDocuments1')).pageId,null);
  assert.deepEqual(project('null',url),{pageId:'serviceOfDocuments2',eventId:null,controlValue:null,selected:null});
  assert.deepEqual(project('invalid',url),{pageId:'serviceOfDocuments2',eventId:null,controlValue:null,selected:null});
 });
