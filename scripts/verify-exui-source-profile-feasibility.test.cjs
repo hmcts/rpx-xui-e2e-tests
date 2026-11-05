@@ -11,6 +11,10 @@ test('staged source closure imports in isolation and rejects missing, changed an
   const {stageProfileSources,verifyProfileSources}=await import('./lib/exui-source-profile-sources.mjs');
   const directory=path.join(temporary(t),'sources');const staged=stageProfileSources(directory,root);
   assert.equal(verifyProfileSources(directory,staged.digest).digest,staged.digest);
+  assert(fs.lstatSync(path.join(directory,'node_modules')).isDirectory());
+  assert.deepEqual(fs.readdirSync(path.join(directory,'node_modules')),[]);
+  const {profileFailureCode}=await import('./lib/exui-source-profile-sources.mjs');
+  assert.equal(profileFailureCode(Error('HOST_DOCKER_START_FAILED')),'HOST_DOCKER_START_FAILED');
   const child=spawnSync(process.execPath,[path.join(directory,'scripts/source-profile-jurisdictions-worker.mjs'),'--verify-only'],{encoding:'utf8',env:{PATH:process.env.PATH},timeout:10000});
   assert.equal(child.status,0,child.stderr);assert.equal(JSON.parse(child.stdout).status,'source-verified');
   const file=path.join(directory,'scripts/lib/exui-source-profile-provider.mjs');fs.chmodSync(file,0o600);fs.appendFileSync(file,'\n// changed');
@@ -76,7 +80,7 @@ async function controller(t,{failProof=false,failCleanup=false,cancel=false,miss
   const {EventEmitter}=require('node:events');const signalTarget=new EventEmitter();signalTarget.stderr={write:()=>{}};let signalExitStateRemoved;signalTarget.exit=()=>{signalExitStateRemoved=!fs.existsSync(stateRoot);};
   let calls=0,sequence=0,stateRoot;
   const result=await runSourceProfileFeasibility({artifactPath,output},{
-    verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),signalTarget,
+    inspectOwner:()=>null,verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),signalTarget,
     configuration:(_root,mutation)=>{const config={jurisdictions:SOURCE_JURISDICTIONS.filter(id=>!mutation||id!=='DIVORCE').join(','),feature:{workAllocationEnabled:false}};return {config,digest:digestBytes(JSON.stringify(config)),contract:{mutation}};},
     runInvocation:async(spec,{resources})=>{
       calls++;const session=spec.candidate.mounts.find(x=>x.target==='/tmp/.sessions').source;sessions.push(session);stateRoot=path.resolve(session,'../..');
