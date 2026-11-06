@@ -28,7 +28,7 @@ test('observed source shape requires real event context and exact normalized met
   const {SOURCE_SHAPE_ROWS,assertObservedSourceShape} = await api();
   for (const contract of SOURCE_SHAPE_ROWS) {
     if (contract.sheet === 'CaseField') {
-      const field={id:contract.reference,label:contract.label,field_type:{id:`${contract.fieldType}-${contract.fieldTypeParameter}`,type:contract.fieldType}};
+      const field={id:contract.reference,label:contract.label,field_type:{id:`${contract.fieldType}-${contract.fieldTypeParameter}`,type:contract.fieldType,...(contract.fieldType==='Collection'?{collection_field_type:{id:contract.fieldTypeParameter}}:{})}};
       const observed={id:'HarnessNestedPRL',case_fields:[field]};
       assertObservedSourceShape(observed,contract.id);
       field.label='unexpected';
@@ -56,13 +56,14 @@ test('accepted complete evidence credits only the exact source shapes in additio
   const f=await createEventTransitionFixture(t);
   const report=projectConfigurationCoverage({eventPhaseDirectory:f.directory}).report;
   assert.deepEqual(report.executedProofs.filter(row=>row.obligationId.startsWith('configuration-shape:')).map(row=>row.obligationId),
-    ['configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f',
+    ['configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc',
+      'configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f',
       'configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49',
       'configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e',
       'configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894',
       'configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757']);
 });
-for (const name of ['case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two'])
+for (const name of ['recipient-collection','case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two'])
   test(`wrong effective fault oracle for ${name} cannot credit source shapes`,async t=>{
     const {createEventTransitionFixture}=require('./fixtures/exui-event-transition-evidence.mock.cjs');
     const {projectConfigurationCoverage}=await import('./lib/exui-configuration-runtime-coverage.mjs');
@@ -143,3 +144,21 @@ test('postal fault changes only the consumed event label and rejects the old ine
  row.EventElementLabel=' ';row.DisplayContext='MANDATORY';
  assert.throws(()=>validateSourceShapeFault('optional-postal-line-two',base,mutant),/SHAPE_SINGLE_FACET_FAULT_REQUIRED/);
 });
+
+
+test('CaseField fault targets retain their actual source field and changed column', async () => {
+  const {eventCapabilityFaultContract}=await import('./lib/exui-ccd-event-capability.mjs');
+  assert.equal(eventCapabilityFaultContract('ccd-shape-recipient-collection').target,'CaseField:sodAdditionalRecipientsList:FieldType');
+  assert.equal(eventCapabilityFaultContract('ccd-shape-case-field-recipient-selector').target,'CaseField:sodAdditionalRecipients:Label');
+  assert.equal(eventCapabilityFaultContract('ccd-shape-required-delivery-radio').target,'EventToComplexTypes:ServeOrgDetails:required-delivery-radio');
+});
+for (const id of ['recipient-collection','case-field-recipient-selector'])
+  test(`a rehashed wrong-sheet target cannot authorize the ${id} CaseField fault`,async t=>{
+    const {createEventTransitionFixture}=require('./fixtures/exui-event-transition-evidence.mock.cjs');
+    const {validateEventTransitionEvidence}=await import('./lib/exui-ccd-event-transition.mjs');
+    const f=await createEventTransitionFixture(t);
+    f.shapeFaults.find(row=>row.id===`ccd-shape-${id}`).derivation.target=`EventToComplexTypes:ServeOrgDetails:${id}`;
+    f.write();
+    const loaded=await f.loaded();
+    assert.throws(()=>validateEventTransitionEvidence(f.directory,f.expected,loaded),/EVENT_TRANSITION_DERIVATION_TARGET/);
+  });

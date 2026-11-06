@@ -63,6 +63,21 @@ const familyNames = {
   CMC: "CMC",
   PCS: "Possession",
 };
+function familyRuntimeSummary(id, evidence) {
+  const results = [];
+  if (id === 'PRIVATELAW') {
+    if (evidence?.personalServiceAdmission) results.push(evidence.personalServiceAdmission.joint?.status === 'included'
+      ? 'Personal-service event row: 1 candidate requirement included; bounded nine-key proof, not the full service'
+      : 'Personal-service event row: separate 1/1, not included in main coverage');
+    if (evidence?.complexEmailAdmission) results.push(evidence.complexEmailAdmission.joint?.status === 'included'
+      ? 'ComplexTypes email address: 1 candidate requirement included; bounded seven-attribute proof'
+      : 'ComplexTypes email address: separate 1/1, not included in main coverage');
+  }
+  if (id === 'DIVORCE' && evidence?.divorceProfileAdmission) results.push(evidence.divorceProfileAdmission.joint?.status === 'included'
+    ? 'DIVORCE profile: 1 requirement included in main candidate coverage'
+    : 'Separate profile run: 1/1 accepted; excluded from main cohort count');
+  return results.join('; ') || (evidence ? 'See bounded native proofs above; no per-family profile claim' : 'NOT RUN');
+}
 function groupFor(file) {
   if (file === "src/tests/harness/diagnostic/configuration.spec.ts")
     return "aat";
@@ -248,7 +263,7 @@ async function renderOverview(
           )?.observed.aatOutcome;
           return `${label}: ${observed === "response-passed" ? "response check passed" : observed === "login-setup-blocked" ? "login/setup blocked; response not confirmed" : observed ? "not confirmed" : "not run"}`;
         });
-      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>${nativeEvidence ? "See bounded native proofs above; no per-family profile claim" : "NOT RUN"}</td></tr>`;
+      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>${escape(familyRuntimeSummary(family.id, nativeEvidence))}</td></tr>`;
     })
     .join("");
   const runtimeGaps = deployment.gaps.filter((gap) =>
@@ -286,7 +301,7 @@ ${diagnosticSource ? `<p class="harness-diagnostic-source" data-diagnostic-sourc
 <div class="table-responsive"><table id="harness-catalogue-breakdown" class="table"><thead><tr><th>What the catalogue contains</th><th>Entries</th><th>Accepted runtime evidence</th><th>Awaiting evidence</th></tr></thead><tbody>${catalogueBreakdown}</tbody></table></div></section>
 ${renderCoverage(records, { nativeAttached: Boolean(nativeEvidence), labels: familyNames })}
 ${renderNativeEvidence(nativeEvidence)}
-<details class="odhin-thin-border p-3 mt-3"><summary><strong>Services and capabilities represented in the reviewed source models</strong></summary><p>These capability declarations span reviewed source profiles. They are not a claim that each service was individually exercised or enabled in this deployment. The shared catalogue-model checks above inspect this inventory; ${nativeEvidence ? "the separate native proofs above identify their actual fixture and service scope, without per-service profile credit." : "No accepted per-service UI or CCD evidence is attached."} ${profile === "local-aat" ? "The five AAT endpoint outcomes are shown separately below; they do not verify every family individually." : ""}</p>
+<details class="odhin-thin-border p-3 mt-3"><summary><strong>Services and capabilities represented in the reviewed source models</strong></summary><p>These capability declarations span reviewed source profiles. They are not a claim that each service was individually exercised or enabled in this deployment. The shared catalogue-model checks above inspect this inventory; ${nativeEvidence ? "the native proofs identify their actual fixture and service scope. Any separately admitted DIVORCE profile is labelled with its own producer and excluded from the main cohort count." : "No accepted per-service UI or CCD evidence is attached."} ${profile === "local-aat" ? "The five AAT endpoint outcomes are shown separately below; they do not verify every family individually." : ""}</p>
 <div class="table-responsive"><table class="table"><thead><tr><th>Service family</th><th>Declared capabilities</th><th>This build's evidence</th><th>Live AAT configuration reads</th><th>UI journey / CCD</th></tr></thead><tbody>${families}</tbody></table></div></details>
 ${
   profile === "local-aat"
@@ -313,4 +328,5 @@ module.exports = {
   definitions,
   renderOverview,
   familyNames,
+  familyRuntimeSummary,
 };

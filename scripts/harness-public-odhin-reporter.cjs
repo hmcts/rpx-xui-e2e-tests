@@ -10,8 +10,8 @@ const { parse } = require("node-html-parser");
 const { applyPresentation } = require("./odhin-presentation/enhance.cjs");
 
 const statuses = ["passed", "failed", "skipped", "timedOut"];
-const nativePhaseLabels = ["WA family", "Scope fault candidate preparation", "WA organisation scope", "CCD runtime startup", "CCD configuration and access", "CCD runtime cleanup", "Source event CCD runtime startup", "CCD source event permissions", "Source event CCD runtime cleanup", "Application routing", "Recipient callback CCD runtime startup", "Recipient callback validation and persistence", "Recipient callback CCD runtime cleanup"];
-const proofPhases = new Map([["WA family", "family"], ["WA organisation scope", "scope"], ["CCD configuration and access", "ccd"], ["CCD source event permissions", "eventCapability"], ["Application routing", "routing"], ["Recipient callback validation and persistence", "recipientCallback"]]);
+const nativePhaseLabels = ["WA family", "Scope fault candidate preparation", "WA organisation scope", "CCD runtime startup", "CCD configuration and access", "CCD runtime cleanup", "Source event CCD runtime startup", "CCD source event permissions", "Source event CCD runtime cleanup", "Application routing", "Recipient callback CCD runtime startup", "Recipient callback validation and persistence", "Recipient callback CCD runtime cleanup", "Selector CCD baseline preparation", "Selector baseline proof and cleanup", "Selector CCD fault preparation", "Selector fault proof and cleanup", "Selector evidence verification", "Selector final cleanup", "Selector cohort admission", "Native evidence and interpreter verification"];
+const proofPhases = new Map([["WA family", "family"], ["WA organisation scope", "scope"], ["CCD configuration and access", "ccd"], ["CCD source event permissions", "eventCapability"], ["Application routing", "routing"], ["Recipient callback validation and persistence", "recipientCallback"], ["Selector cohort admission", "selectorEventRow"]]);
 // Pinned odhin-reports-playwright 1.1.8 has callback loading, with no readiness promise.
 const templateFields = [
   "base",
@@ -72,11 +72,11 @@ function validatePhaseTimings(timings, evidence, elapsed) {
     prior = index;
     total += item.durationMs;
   }
-  if (total > elapsed + 1000 || (evidence.status === "PASS" && timings.length !== nativePhaseLabels.length)) throw failure();
+  if (total > elapsed + 1000 || (evidence.status === "PASS" && timings.filter(item=>item.label!=="Native evidence and interpreter verification").length !== nativePhaseLabels.length-1)) throw failure();
 }
 function renderPhaseTimings(timings, elapsed) {
   const duration = (ms) => `${Math.floor(ms / 60000)}m ${Math.floor(ms % 60000 / 1000)}s`;
-  return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Controller-observed local timings, in execution order. These are timing telemetry, not additional catalogue credit. Diagnostic Playwright time and Jenkins checkout/build time are separate.</p></div><strong>${duration(elapsed)} native run and evidence preparation</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr><th scope="row">${htmlEscape(item.label)}</th><td>${proofPhases.has(item.label) ? 'Proof' : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div></section>`;
+  return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. Diagnostic Playwright time and Jenkins checkout/build time are separate.</p></div><strong>${duration(elapsed)} native run and evidence preparation</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr><th scope="row">${htmlEscape(item.label)}</th><td>${['Native evidence and interpreter verification','Selector evidence verification','Selector cohort admission'].includes(item.label)?'Evidence verification':['Selector baseline proof and cleanup','Selector fault proof and cleanup'].includes(item.label) ? 'Proof + setup / cleanup' : proofPhases.has(item.label) ? 'Proof' : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div></section>`;
 }
 
 function paths(selection) {
@@ -136,7 +136,30 @@ function inventory(p) {
     }
   }
 }
-function validateHtml(html, record) {
+function validateHtml(html, record, retiringPreviousRun = false) {
+  const complexAdmission = record.nativeEvidence?.complexEmailAdmission;
+  const complexDom = parse(html);
+  const complexPanels = complexDom.querySelectorAll('[id="harness-complex-email-admission"]').length;
+  const complexAttemptPanels = complexDom.querySelectorAll('[id="harness-complex-email-attempt"]').length;
+  if (complexPanels !== (complexAdmission ? 1 : 0) || complexAttemptPanels !== (record.complexEmailAttempt ? 1 : 0)) throw failure();
+  if (complexAdmission && !html.includes(require('./harness-complex-email-report.cjs').renderComplexEmailAdmission(complexAdmission))) throw failure();
+
+  if (record.complexEmailAttempt && record.nativeEvidence?.complexEmailAdmission) throw failure();
+  if (Boolean(record.complexEmailAttempt) !== html.includes('id="harness-complex-email-attempt"')) throw failure();
+  if (record.complexEmailAttempt && !html.includes(require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(record.complexEmailAttempt))) throw failure();
+  if(record.personalServiceAttempt&&record.nativeEvidence?.personalServiceAdmission)throw failure();
+  if(Boolean(record.personalServiceAttempt)!==html.includes('id="harness-personal-service-attempt"'))throw failure();
+  if(record.personalServiceAttempt&&!html.includes(require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(record.personalServiceAttempt)))throw failure();
+  if (!retiringPreviousRun && !html.includes(require('./harness-native-report.cjs').renderNativeExecutionInfo(record.nativeEvidence))) throw failure();
+  if(record.divorceProfileAttempt&&record.nativeEvidence?.divorceProfileAdmission)throw failure();
+  if(Boolean(record.divorceProfileAttempt)!==html.includes('id="harness-divorce-profile-attempt"'))throw failure();
+  if(record.divorceProfileAttempt&&!html.includes(require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(record.divorceProfileAttempt)))throw failure();
+  if(Boolean(record.sharedNestedAttemptEvidence)!==html.includes('id="harness-shared-nested-attempt"'))throw failure();
+  if(record.sharedNestedAttemptEvidence&&!html.includes(require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(record.sharedNestedAttemptEvidence)))throw failure();
+  if (Boolean(record.compatibilityEvidence) !== html.includes('id="harness-applicant-compatibility"')) throw failure();
+  if (record.compatibilityEvidence) {
+    if (!record.nativeEvidence || !html.includes(require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(record.compatibilityEvidence))) throw failure();
+  }
   if (record.nativeElapsedMs !== undefined && (!Number.isSafeInteger(record.nativeElapsedMs) || record.nativeElapsedMs < 0 || !html.includes(`data-native-elapsed-ms="${record.nativeElapsedMs}"`))) throw failure();
   if (record.phaseTimings !== undefined) {
     validatePhaseTimings(record.phaseTimings, record.nativeEvidence, record.nativeElapsedMs);
@@ -221,7 +244,7 @@ function validateHtml(html, record) {
     if (!html.includes(htmlEscape(entry.titlePath.at(-1)))) throw failure();
   }
 }
-function validatePublicReport(selection) {
+function validateOwnedReport(selection, retiringPreviousRun = false) {
   try {
     const p = paths(selection || "harness");
     inventory(p);
@@ -261,18 +284,22 @@ function validatePublicReport(selection) {
       throw failure();
     const html = fs.readFileSync(p.html, "utf8");
     if (digest(html) !== record.sha256) throw failure();
-    validateHtml(html, record);
+    validateHtml(html, record, retiringPreviousRun);
     return record;
   } catch {
     throw failure();
   }
+}
+function validatePublicReport(selection) {
+  return validateOwnedReport(selection);
 }
 function resetPublicReport(selection) {
   try {
     const p = paths(selection);
     inventory(p);
     if (fs.existsSync(p.html)) {
-      validatePublicReport();
+      // Retirement keeps ownership/privacy checks but permits the previous RunInfo layout.
+      validateOwnedReport(undefined, true);
       fs.unlinkSync(p.html);
     }
     if (fs.existsSync(p.record)) fs.unlinkSync(p.record);
@@ -337,11 +364,19 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource, nativeElapsedMs, phaseTimings } = {}) {
+  constructor({ selection, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt } = {}) {
     this.diagnosticSource = diagnosticSource;
     this.nativeElapsedMs = nativeElapsedMs;
     this.phaseTimings = phaseTimings;
+    if(divorceProfileAttempt)require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(divorceProfileAttempt);
+    this.divorceProfileAttempt = divorceProfileAttempt;
+    if(personalServiceAttempt)require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(personalServiceAttempt);
+    this.personalServiceAttempt=personalServiceAttempt;
+    if (complexEmailAttempt) require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(complexEmailAttempt);
+    this.complexEmailAttempt = complexEmailAttempt;
     this.nativeEvidence = null;
+    this.compatibilityEvidence = null;
+    this.sharedNestedAttemptEvidence = null;
     this.selection = selection;
     this.paths = paths(selection);
     this.expected = new Map(
@@ -363,6 +398,19 @@ class HarnessPublicOdhinReporter {
     require("./harness-native-report.cjs").renderNativeEvidence(
       this.nativeEvidence,
     );
+  }
+  async prepareCompatibilityEvidence(descriptorPath) {
+    if (this.begun || this.compatibilityEvidence || !this.nativeEvidence) this.reject();
+    const { readApplicantCompatibilityEvidence } = await import("./lib/exui-applicant-results-report-evidence.mjs");
+    this.compatibilityEvidence = readApplicantCompatibilityEvidence(descriptorPath);
+    require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence);
+  }
+  async prepareSharedNestedAttempt(descriptorPath) {
+    if(this.begun||this.sharedNestedAttemptEvidence)this.reject();
+    const {readSharedNestedAttempt}=await import('./lib/exui-shared-nested-attempt.mjs');
+    const started=performance.now(),observed=await readSharedNestedAttempt(descriptorPath);
+    this.sharedNestedAttemptEvidence={...observed,collectorVerificationMs:Math.round(performance.now()-started)};
+    require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence);
   }
   reject() {
     this.invalid = true;
@@ -502,6 +550,9 @@ class HarnessPublicOdhinReporter {
       this.ended = true;
       const counts = Object.fromEntries(statuses.map((status) => [status, 0]));
       if (this.nativeElapsedMs !== undefined && (!this.nativeEvidence || !Number.isSafeInteger(this.nativeElapsedMs) || this.nativeElapsedMs < 0)) this.reject();
+      if(this.personalServiceAttempt&&this.nativeEvidence?.personalServiceAdmission)throw failure();
+      if (this.complexEmailAttempt && this.nativeEvidence?.complexEmailAdmission) throw failure();
+      if(this.divorceProfileAttempt&&this.nativeEvidence?.divorceProfileAdmission)throw failure();
       if (this.phaseTimings !== undefined) validatePhaseTimings(this.phaseTimings, this.nativeEvidence, this.nativeElapsedMs);
       for (const record of this.results.values()) counts[record.status]++;
       if (
@@ -630,12 +681,17 @@ class HarnessPublicOdhinReporter {
         globalErrors: this.globalErrors,
         diagnosticSource: this.diagnosticSource,
         nativeEvidence: this.nativeEvidence,
+        compatibilityEvidence: this.compatibilityEvidence,
+        sharedNestedAttemptEvidence:this.sharedNestedAttemptEvidence,
         nativeElapsedMs: this.nativeElapsedMs,
         phaseTimings: this.phaseTimings,
+        divorceProfileAttempt: this.divorceProfileAttempt,
+        personalServiceAttempt:this.personalServiceAttempt,
+        complexEmailAttempt:this.complexEmailAttempt,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.personalServiceAttempt?` / Personal event row ${record.personalServiceAttempt.status}`:""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.complexEmailAttempt?` / ComplexTypes ${record.complexEmailAttempt.status}`:''}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
@@ -665,6 +721,7 @@ class HarnessPublicOdhinReporter {
       const observedWorkers = new Set([...this.results.values()].map((item) => item.workerIndex).filter((index) => index >= 0)).size;
       const nativeDuration = this.nativeElapsedMs === undefined ? 'duration not recorded' : `${(this.nativeElapsedMs / 60000).toFixed(1)} min native run + evidence preparation`;
       runInfo.querySelector('table').insertAdjacentHTML('beforeend', `<tr><th scope="row">Playwright diagnostic workers</th><td>${this.configuredWorkers ?? 'Not recorded'} configured · ${observedWorkers} observed</td></tr><tr><th scope="row">Native execution</th><td>${this.nativeEvidence ? `${this.nativeEvidence.status} · ${nativeDuration}` : 'Not run'}</td></tr>`);
+      runInfo.querySelector('table').insertAdjacentHTML('beforeend', require('./harness-native-report.cjs').renderNativeExecutionInfo(this.nativeEvidence));
       applyPresentation(
         presentation,
         [...this.expected].map(([identity, entry], index) => ({
@@ -693,6 +750,11 @@ class HarnessPublicOdhinReporter {
           },
         ),
       );
+      if (this.compatibilityEvidence) presentation.querySelector("#harness-native-evidence").insertAdjacentHTML("afterend", require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence));
+      if(this.personalServiceAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(this.personalServiceAttempt));
+      if (this.complexEmailAttempt) presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend', require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(this.complexEmailAttempt));
+      if(this.divorceProfileAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(this.divorceProfileAttempt));
+      if(this.sharedNestedAttemptEvidence)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence));
       if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs));
       presentation
         .querySelector("head")

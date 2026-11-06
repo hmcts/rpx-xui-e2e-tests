@@ -225,7 +225,7 @@ test("support only: cleanup verifies CID, owner, image, network and every writab
 
 test("support only: fixed pilot order stops on a validated failure and always cleans owned CCD", async () => {
   const { runFixedCiPilots } = await load();
-  for (const failed of [null, "family", "scope", "ccd", "startup", "eventCapability", "eventStartup", "routing", "recipientCallback", "callbackStartup"]) {
+  for (const failed of [null, "family", "scope", "ccd", "startup", "eventCapability", "eventStartup", "routing", "recipientCallback", "callbackStartup", "selectorEventRow"]) {
     const calls = [];
     const operations = {
       phase: async (name) => {
@@ -259,9 +259,9 @@ test("support only: fixed pilot order stops on a validated failure and always cl
       const result = await runFixedCiPilots(operations);
       assert.equal(result.exitCode, failed ? 1 : 0);
       if (!failed) {
-        assert.equal(result.timings.length, 13);
+        assert.equal(result.timings.length, 14);
         assert.equal(result.timings[0].label, "WA family");
-        assert.equal(result.timings.at(-1).label, "Recipient callback CCD runtime cleanup");
+        assert.equal(result.timings.at(-1).label, "Selector CCD baseline preparation");
         assert.ok(result.timings.every((item) => Number.isSafeInteger(item.durationMs) && item.durationMs >= 0 && Number.isFinite(Date.parse(item.startedAt))));
       }
     }
@@ -285,7 +285,7 @@ test("support only: fixed pilot order stops on a validated failure and always cl
                   "startEvent",
                   ...(failed === "eventStartup"
                     ? ["stopEvent"]
-                    : ["eventCapability", "stopEvent", ...(failed === "eventCapability" ? [] : ["routing", ...(failed === "routing" ? [] : ["startCallback", ...(failed === "callbackStartup" ? [] : ["recipientCallback"]), "stopCallback"])])]),
+                    : ["eventCapability", "stopEvent", ...(failed === "eventCapability" ? [] : ["routing", ...(failed === "routing" ? [] : ["startCallback", ...(failed === "callbackStartup" ? [] : ["recipientCallback"]), "stopCallback", ...(["callbackStartup","recipientCallback"].includes(failed)?[]:["selectorEventRow"])])])]),
                 ],
     );
   }
@@ -328,10 +328,10 @@ test("support only: independently recognized postal blockage permits the event s
       assert.equal(result.status, "BLOCKED");
       assert.equal(result.exitCode, 2);
       assert.deepEqual(calls, ["family", "scope", "ccd", "old-removed", "validate-postal",
-        ...(continued === true ? ["new-started", "eventCapability", "new-removed", ...(eventExit === 0 ? ["routing", "callback-started", "recipientCallback", "callback-removed"] : [])] : [])]);
+        ...(continued === true ? ["new-started", "eventCapability", "new-removed", ...(eventExit === 0 ? ["routing", "callback-started", "recipientCallback", "callback-removed", "selectorEventRow"] : [])] : [])]);
       assert.equal(
         result.results.length,
-        continued !== true ? 3 : eventExit === 0 ? 6 : 4,
+        continued !== true ? 3 : eventExit === 0 ? 7 : 4,
       );
       if (continued === true && eventExit === 0)
         assert.equal(result.results[4].phase, "routing");
@@ -1341,7 +1341,7 @@ test("support only: actual CI stop callback returns owned cleanup completion and
 
 test("support only: fixed job cancellation at any phase, derivation or CCD startup prevents subsequent work and still stops owned CCD", async () => {
   const { runFixedCiPilots } = await load();
-  for (const point of ["family", "derive", "scope", "start", "ccd", "startEvent", "eventCapability", "routing", "startCallback", "recipientCallback"]) {
+  for (const point of ["family", "derive", "scope", "start", "ccd", "startEvent", "eventCapability", "routing", "startCallback", "recipientCallback", "selectorEventRow"]) {
     const calls = [];
     let cancelled = false;
     await assert.rejects(
@@ -1371,7 +1371,7 @@ test("support only: fixed job cancellation at any phase, derivation or CCD start
       }),
       /CI_JOB_CANCELLED/,
     );
-    const order = ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", "eventCapability", "stopEvent", "routing", "startCallback", "recipientCallback", "stopCallback"];
+    const order = ["family", "derive", "scope", "start", "ccd", "stop", "startEvent", "eventCapability", "stopEvent", "routing", "startCallback", "recipientCallback", "stopCallback", "selectorEventRow"];
     const expected = order.slice(
       0,
       order.indexOf(point) + 1,
@@ -1510,12 +1510,111 @@ test('actual callback parent removes baseline and captures fresh fault ownership
  }
 });
 
- test('public completion requires all six ordered phases and preserves five prior results without inventing callback', async () => {
+ test('public completion requires all seven ordered phases without inventing selector evidence', async () => {
   const {fixedCiPhasesPassed}=await import('./run-harness-ci.mjs');
   const prior=['family','scope','ccd','eventCapability','routing'].map(phase=>({phase,status:'PASS'}));
   assert.equal(fixedCiPhasesPassed(prior),false);assert.equal(prior.length,5);
   assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'BLOCKED'}]),false);
-  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'}]),true);
+  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'}]),false);
+  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'},{phase:'selectorEventRow',status:'PASS'}]),true);
+  assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'},{phase:'selectorEventRow',status:'BLOCKED'}]),false);
   assert.equal(fixedCiPhasesPassed([...prior,{phase:'routing',status:'PASS'}]),false);
   assert.equal(fixedCiPhasesPassed([...prior].reverse().concat({phase:'recipientCallback',status:'PASS'})),false);
+});
+
+function eventPreparationDeferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+const eventPreparationTick = () => new Promise(setImmediate);
+
+test('owned CCD cleanup joins the actual callback import, identity and final cancellation boundary', { timeout: 2000 }, async t => {
+  const source = fs.readFileSync(path.join(__dirname, 'run-harness-ci.mjs'), 'utf8');
+  const before = '  const remove = async (_id, resource) => {', middle = '  const startOwnedCcd = async ', after = '  const eventRuntimeData = ';
+  for (const marker of [before, middle, after]) assert.equal(source.split(marker).length, 2, 'unique actual owned-start/remove boundary');
+  const block = source.slice(source.indexOf(before), source.indexOf(after));
+  for (const fault of ['none', 'import', 'identity', 'startup-unknown']) {
+    const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-owned-import-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const importing = eventPreparationDeferred(), startup = eventPreparationDeferred(), events = [];
+    const expectedError = new Error('controlled-' + fault);
+    const dependencies = {
+      assert, fs, path, privateRoot: root, context: { artifact: { provenance: { platform: 'linux/arm64' } } },
+      docker: () => assert.fail('no actual Docker'), cleanupCiPhase: () => assert.fail('CCD cleanup only'), stopSelectorCiResource: () => assert.fail('CCD cleanup only'),
+      writeJsonAtomic: (file, value) => fs.writeFileSync(file, JSON.stringify(value)),
+      startCcdRuntime: async (directory, options) => {
+        fs.mkdirSync(directory); events.push('start'); await startup.promise;
+        if (fault === 'startup-unknown') { options.onCreateUncertainty(); throw expectedError; }
+        return { output: directory };
+      },
+      importCcdDefinition: () => assert.fail('callback branch expected'), verifyCcdRuntimeIdentity: () => assert.fail('callback branch expected'),
+      importNativeCallbackDefinition: async () => { events.push('import'); await importing.promise; if (fault === 'import') throw expectedError; },
+      verifyNativeCallbackRuntime: () => { events.push('identity'); if (fault === 'identity') throw expectedError; },
+      cleanupCiCcd: () => { events.push('cleanup'); return { cleanupComplete: true }; },
+    };
+    const api = new Function(...Object.keys(dependencies), `let cleanupComplete=true,cancelled=false;const resources=new Map();\n${block}\nreturn {startOwnedCcd,remove,resources,cancel:()=>{cancelled=true;},isClean:()=>cleanupComplete};`)(...Object.values(dependencies));
+    const phase = { name: 'eventCapability' }; api.resources.set(phase.name, phase);
+    const start = api.startOwnedCcd('callback-runtime', 'event-capability-baseline', () => true, phase, 'baseline');
+    const observed = start.then(() => ({}), error => ({ error }));
+    await eventPreparationTick();
+    assert.deepEqual([...api.resources.keys()], ['callback-runtime', 'eventCapability'], 'phase child must remain first in reverse cleanup');
+    startup.resolve(); await eventPreparationTick();
+    if (fault !== 'startup-unknown') assert.deepEqual(events, ['start', 'import']);
+    if (fault === 'none') api.cancel();
+    let removed = false;
+    const removal = api.remove('callback-runtime', api.resources.get('callback-runtime')).then(() => { removed = true; });
+    await eventPreparationTick();
+    if (fault !== 'startup-unknown') { assert.equal(removed, false, 'cleanup must not overtake full import'); assert(!events.includes('cleanup')); }
+    importing.resolve();
+    const result = await observed; await removal;
+    assert.equal(removed, true); assert.equal(events.at(-1), 'cleanup');
+    if (fault === 'none') assert.match(result.error.message, /CI_EVENT_IMPORT_CANCELLED/); else assert.equal(result.error, expectedError);
+    assert.equal(api.resources.has('callback-runtime'), false);
+    assert.equal(api.isClean(), fault !== 'startup-unknown', 'unknown creation remains fail-closed after a settled promise');
+  }
+});
+
+test('owned baseline CCD cleanup joins deferred workbasket import and preserves context or failure', { timeout: 2000 }, async t => {
+  const source = fs.readFileSync(path.join(__dirname, 'run-harness-ci.mjs'), 'utf8');
+  const removeStart = '  const remove = async (_id, resource) => {', removeEnd = '  const startOwnedCcd = async ', start = '      start: async () => {', end = '      stop: () => {';
+  for (const marker of [removeStart, removeEnd, start, end]) assert.equal(source.split(marker).length, 2, 'unique baseline startup/cleanup boundary');
+  const removeCode = source.slice(source.indexOf(removeStart), source.indexOf(removeEnd));
+  const startCode = source.slice(source.indexOf(start), source.indexOf(end)).trim().replace(/^start: /, '').replace(/,$/, '');
+  for (const fault of ['none', 'cancel', 'import', 'identity', 'cleanup']) {
+    const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-baseline-import-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const gate = eventPreparationDeferred(), events = [], expectedError = new Error('controlled-' + fault);
+    const context = { artifact: { provenance: { platform: 'linux/arm64' }, identity: {}, candidateRoot: '/candidate' } };
+    const dependencies = {
+      assert, fs, path, context, privateRoot: root, ROOT: path.resolve(__dirname, '..'),
+      docker: () => assert.fail('no Docker'), cleanupCiPhase: () => assert.fail('CCD only'), stopSelectorCiResource: () => assert.fail('CCD only'),
+      writeJsonAtomic: (file, value) => fs.writeFileSync(file, JSON.stringify(value)), digestBytes: () => digest('a'),
+      startCcdRuntime: async directory => { fs.mkdirSync(directory); events.push('start'); return { output: directory, images: { data: { id: 'data-image' }, definition: { id: 'definition-image' } } }; },
+      importCcdDefinition: () => events.push('definition'),
+      importWorkbasketInputs: async () => { events.push('workbasket'); await gate.promise; if (fault === 'import') throw expectedError; return { binding: { workbookDigest: 'workbasket-digest' } }; },
+      verifyCcdRuntimeIdentity: () => { events.push('identity'); if (fault === 'identity') throw expectedError; return { fixtureDigest: 'definition-digest' }; },
+      effectiveCandidateConfiguration: () => ({ config: { jurisdictions: 'SYNTHETIC' } }), ccdRequest: () => ({ status: 200, body: {} }),
+      cleanupCiCcd: () => { events.push('cleanup'); if (fault === 'cleanup') throw expectedError; return { cleanupComplete: true }; },
+    };
+    const api = new Function(...Object.keys(dependencies), `let cancelled=false,cleanupComplete=true;const resources=new Map();\n${removeCode}\nconst start=${startCode};return {start,remove,resources,cancel:()=>{cancelled=true},isClean:()=>cleanupComplete};`)(...Object.values(dependencies));
+    const started = api.start().then(() => ({}), error => ({ error }));
+    await eventPreparationTick(); assert.deepEqual(events, ['start', 'definition', 'workbasket']);
+    if (fault === 'cancel') api.cancel();
+    let removed = false;
+    const removal = api.remove('ccd-runtime', api.resources.get('ccd-runtime')).then(() => { removed = true; return {}; }, error => ({ error }));
+    await eventPreparationTick();
+    assert.equal(removed, false); assert(!events.includes('cleanup'), 'cleanup cannot race workbasket import');
+    gate.resolve(); const result = await started, cleaned = await removal;
+    if (fault === 'import' || fault === 'identity') assert.equal(result.error, expectedError);
+    else if (fault === 'cancel') assert.match(result.error.message, /CI_JOB_CANCELLED/);
+    else {
+      assert.equal(result.error, undefined);
+      assert.deepEqual(context.ccdIdentity.definitionDigests, { HarnessNestedPRL: 'definition-digest', HarnessResultsPRL: 'workbasket-digest' });
+    }
+    if (fault === 'cleanup') { assert.equal(cleaned.error, expectedError); assert.equal(api.isClean(), false); assert(api.resources.has('ccd-runtime')); }
+    else { assert.equal(removed, true); assert.equal(api.resources.has('ccd-runtime'), false); }
+    assert.equal(events.at(-1), 'cleanup');
+  }
 });

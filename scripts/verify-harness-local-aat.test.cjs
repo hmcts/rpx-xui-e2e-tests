@@ -558,23 +558,33 @@ test("credential-free collection runs only116 offline tests and preserves every 
   const Reporter = require("./harness-public-odhin-reporter.cjs");
   const oldSpawn = cp.spawn,
     oldPrepare = Reporter.prototype.prepareNativeEvidence,
+    oldCompatibility = Reporter.prototype.prepareCompatibilityEvidence,
+    oldSharedNested = Reporter.prototype.prepareSharedNestedAttempt,
     oldEnd = Reporter.prototype.onEnd;
   t.after(() => {
     cp.spawn = oldSpawn;
     Reporter.prototype.prepareNativeEvidence = oldPrepare;
+    Reporter.prototype.prepareCompatibilityEvidence = oldCompatibility;
+    Reporter.prototype.prepareSharedNestedAttempt = oldSharedNested;
     Reporter.prototype.onEnd = oldEnd;
     delete require.cache[modulePath];
     process.chdir(previous);
     fs.rmSync(root, { recursive: true, force: true });
   });
   const calls = [];
+  let clock=0, expectedVerificationMs=25;
+  t.mock.method(performance,"now",()=>clock);
+  let profileInclusion,personalInclusion;
   let nativeStatus = "BLOCKED",
     nativeExitCode = 2;
   Reporter.prototype.prepareNativeEvidence = async function (descriptor) {
     assert.equal(descriptor, "/explicit/descriptor.json");
     calls.push("validate-native");
+    clock+=25;
     this.nativeEvidence = {
       status: nativeStatus,
+      ...(profileInclusion ? {divorceProfileAdmission:{joint:{status:profileInclusion}}} : {}),
+      ...(personalInclusion?{personalServiceAdmission:{joint:{status:personalInclusion}}}:{}),
       exitCode: nativeExitCode,
       descriptorDigest: "sha256:" + "a".repeat(64),
     };
@@ -583,6 +593,12 @@ test("credential-free collection runs only116 offline tests and preserves every 
     calls.push("render");
     assert.equal(this.results.size, 116);
     assert.equal(this.diagnosticSource.state, "unavailable");
+    assert.equal(this.phaseTimings.length, 2);
+    assert.equal(this.phaseTimings[0].durationMs, 1000);
+    const verification = this.phaseTimings[1];
+    assert.equal(verification.label, "Native evidence and interpreter verification");
+    assert.equal(verification.durationMs,expectedVerificationMs);
+    assert.equal(this.nativeElapsedMs, 1000 + verification.durationMs);
   };
   cp.spawn = (_command, _args, options) => {
     calls.push("offline");
@@ -616,7 +632,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
     nativeExitCode = code;
     const result = await runHarnessCollection(
       { PATH: "/bin", SOLICITOR_PASSWORD: canary },
-      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json" },
+      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json", nativeElapsedMs:1000, phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}] },
     );
     assert.deepEqual(result, {
       status: "passed",
@@ -628,6 +644,40 @@ test("credential-free collection runs only116 offline tests and preserves every 
     calls,
     Array(3).fill(["validate-native", "offline", "render"]).flat(),
   );
+  for (const inclusion of ['separate','included']) {
+    profileInclusion=inclusion;
+    const result=await runHarnessCollection({}, {nativeEvidencePath:'/explicit/descriptor.json',nativeElapsedMs:1000,phaseTimings:[{label:'WA family',status:'completed',durationMs:1000,startedAt:new Date().toISOString()}]});
+    assert.equal(result.divorceProfileInclusion,inclusion);
+    assert.deepEqual(calls.slice(-3),['validate-native','offline','render']);
+  }
+  profileInclusion=undefined;
+  for(const inclusion of [undefined,'separate','included']){
+    personalInclusion=inclusion;
+    const result=await runHarnessCollection({}, {nativeEvidencePath:'/explicit/descriptor.json',nativeElapsedMs:1000,phaseTimings:[{label:'WA family',status:'completed',durationMs:1000,startedAt:new Date().toISOString()}]});
+    assert.equal(result.personalServiceInclusion,inclusion);assert.equal(Object.hasOwn(result,'personalServiceInclusion'),Boolean(inclusion));assert.deepEqual(calls.slice(-3),['validate-native','offline','render']);
+  }
+  personalInclusion=undefined;
+  Reporter.prototype.prepareCompatibilityEvidence = async function (descriptor) {
+    assert.equal(descriptor,"/explicit/compatibility.json");assert.equal(this.nativeEvidence.status,"PASS");
+    calls.push("validate-compatibility");clock+=35;
+  };
+  expectedVerificationMs=60;
+  await runHarnessCollection({}, {nativeEvidencePath:"/explicit/descriptor.json",compatibilityEvidencePath:"/explicit/compatibility.json",nativeElapsedMs:1000,phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}]});
+  assert.deepEqual(calls.slice(-4),["validate-native","validate-compatibility","offline","render"]);
+  Reporter.prototype.prepareSharedNestedAttempt = async function(descriptor) {
+    assert.equal(descriptor,"/explicit/nested.json");calls.push("validate-shared-nested");clock+=45;
+    this.sharedNestedAttemptEvidence={status:"BLOCKED"};
+  };
+  expectedVerificationMs=105;
+  const nested=await runHarnessCollection({}, {nativeEvidencePath:"/explicit/descriptor.json",compatibilityEvidencePath:"/explicit/compatibility.json",sharedNestedAttemptPath:"/explicit/nested.json",nativeElapsedMs:1000,phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}]});
+  assert.deepEqual(nested,{status:"passed",nativeStatus:"PASS",sharedNestedStatus:"BLOCKED",exitCode:2});
+  assert.deepEqual(calls.slice(-5),["validate-native","validate-compatibility","validate-shared-nested","offline","render"]);
+  Reporter.prototype.prepareCompatibilityEvidence = async function (descriptor) {
+    assert.equal(descriptor,"/explicit/compatibility.json");assert.equal(this.nativeEvidence.status,"PASS");
+    calls.push("validate-compatibility");throw new Error("APPLICANT_REPORT_EVIDENCE_INVALID");
+  };
+  await assert.rejects(runHarnessCollection({}, {nativeEvidencePath:"/explicit/descriptor.json",compatibilityEvidencePath:"/explicit/compatibility.json"}),/APPLICANT_REPORT_EVIDENCE_INVALID/);
+  assert.deepEqual(calls.slice(-2),["validate-native","validate-compatibility"]);
   Reporter.prototype.prepareNativeEvidence = async () => {
     throw new Error("NATIVE_REPORT_IDENTITY_MISMATCH");
   };
@@ -637,7 +687,33 @@ test("credential-free collection runs only116 offline tests and preserves every 
   );
   assert.equal(
     calls.length,
-    9,
+    35,
     "invalid evidence must not launch diagnostics or publish",
   );
+});
+
+test('collector abort during evidence preparation launches no diagnostics and withdraws old report',async t=>{
+ const os=require('node:os'),cp=require('node:child_process'),previous=process.cwd(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'collector-abort-')));process.chdir(root);
+ const Reporter=require('./harness-public-odhin-reporter.cjs'),oldPrepare=Reporter.prototype.prepareNativeEvidence,oldSpawn=cp.spawn;let launches=0;
+ t.after(()=>{Reporter.prototype.prepareNativeEvidence=oldPrepare;cp.spawn=oldSpawn;delete require.cache[modulePath];process.chdir(previous);fs.rmSync(root,{recursive:true,force:true});});
+ const controller=new AbortController();Reporter.prototype.prepareNativeEvidence=async()=>{await Promise.resolve();controller.abort();};cp.spawn=()=>{launches++;throw Error('UNEXPECTED_DIAGNOSTIC_LAUNCH');};delete require.cache[modulePath];
+ await assert.rejects(require(modulePath).runHarnessCollection({PATH:process.env.PATH},{nativeEvidencePath:'/private/native.json',signal:controller.signal}),/LOCAL_AAT_INCOMPLETE_OR_INVALID/);
+ assert.equal(launches,0);assert.equal(fs.existsSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html')),false);
+});
+
+test('one successful diagnostic collection keeps a nonadmitted profile BLOCKED',async t=>{
+ const os=require('node:os'),cp=require('node:child_process'),{EventEmitter}=require('node:events'),previous=process.cwd(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'collector-profile-blocked-')));process.chdir(root);const oldSpawn=cp.spawn;
+ t.after(()=>{cp.spawn=oldSpawn;delete require.cache[modulePath];process.chdir(previous);fs.rmSync(root,{recursive:true,force:true});});let calls=0;
+ cp.spawn=(_file,_args,options)=>{calls++;const raw=document(require('./harness-public-overview.cjs').entries);raw.config.rootDir=root;raw.stats.startTime=new Date().toISOString();raw.stats.duration=1;for(const suite of raw.suites)for(const child of suite.suites)for(const spec of child.specs)spec.tests[0].results[0].startTime=raw.stats.startTime;fs.writeFileSync(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE,JSON.stringify(raw));const child=new EventEmitter();child.kill=()=>{};setImmediate(()=>child.emit('close',0,null));return child;};delete require.cache[modulePath];
+ const attempt={schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'profile-not-admitted',durationMs:2000};const result=await require(modulePath).runHarnessCollection({PATH:process.env.PATH},{divorceProfileAttempt:attempt});assert.equal(calls,1);assert.equal(result.status,'passed');assert.equal(result.exitCode,2);const record=require('./harness-public-odhin-reporter.cjs').validatePublicReport();assert.equal(record.tests,116);assert.deepEqual(record.divorceProfileAttempt,attempt);assert.equal(record.nativeEvidence,null);
+});
+
+test('collector handles abort plus process signal once and observes diagnostic child close',async t=>{
+ const os=require('node:os'),cp=require('node:child_process'),{EventEmitter}=require('node:events'),previous=process.cwd(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'collector-stop-once-')));process.chdir(root);const oldSpawn=cp.spawn;
+ t.after(()=>{cp.spawn=oldSpawn;delete require.cache[modulePath];process.chdir(previous);fs.rmSync(root,{recursive:true,force:true});});
+ for(const duringSpawn of [false,true]){const controller=new AbortController(),signals=[],child=new EventEmitter();let launches=0;
+  child.kill=signal=>{signals.push(signal);queueMicrotask(()=>child.emit('close',143,null));};
+  cp.spawn=()=>{launches++;if(duringSpawn)controller.abort();else setImmediate(()=>{controller.abort();process.emit('SIGTERM');});return child;};delete require.cache[modulePath];
+  await assert.rejects(require(modulePath).runHarnessCollection({PATH:process.env.PATH},{signal:controller.signal}),/LOCAL_AAT_INCOMPLETE_OR_INVALID/);assert.equal(launches,1);assert.deepEqual(signals,['SIGTERM']);assert.equal(fs.existsSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html')),false);
+ }
 });

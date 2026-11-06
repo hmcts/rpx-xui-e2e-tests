@@ -4,6 +4,7 @@
   if (!coverage || !metrics) return;
   const native = document.querySelector('#harness-native-evidence');
   const run = document.querySelector('#harness-public-run');
+  const nativeStatus = native?.dataset.nativeStatus || 'NOT_RUN';
   const info = document.querySelector('#TabDashboard .testcase-run-info-table');
   const infoValue = (label) => [...(info?.querySelectorAll('tr') || [])]
     .find((row) => row.querySelector('th')?.textContent.trim() === label)
@@ -16,13 +17,76 @@
   const faults = native?.querySelectorAll('[data-native-table="fault"] tr[data-native-phase]').length || 0;
   const nativeElapsed = Number(run?.dataset.nativeElapsedMs);
   const nativeTime = Number.isFinite(nativeElapsed) && nativeElapsed > 0
-    ? ` · ${(nativeElapsed / 60000).toFixed(1)} min native + preparation` : '';
+    ? ` · ${(nativeElapsed / 60000).toFixed(1)} min main native + evidence verification` : '';
   const diagnosticTotal = Number(metrics.querySelector('.metric-0 strong')?.textContent || 0);
   const diagnosticPassRate = metrics.querySelector('.metric-1 strong')?.textContent.trim() || '—';
   const diagnosticAttention = metrics.querySelector('.metric-2 strong')?.textContent.trim() || '—';
+  const supplements = [];
+  const renderer = document.querySelector('#harness-shared-nested-attempt');
+  const profile = document.querySelector('#harness-divorce-profile-admission');
+  const applicant = document.querySelector('#harness-applicant-compatibility');
+  if (renderer) {
+    const data = renderer.dataset;
+    supplements.push(['Shared nested renderer', data.attemptStatus,
+      `${data.attemptBaselinesCompleted} baseline facets completed · ${data.attemptBaselinesPassed} passed · ${data.attemptBaselinesFailed} failed`,
+      `${data.attemptFaultsCompleted} effective faults · ${data.attemptFaultsNotRun} not run · No catalogue credit`,
+      '#harness-shared-nested-attempt']);
+  }
+  if (profile) {
+    const data = profile.dataset;
+    const duration = data.profileDurationMs === undefined ? null : Number(data.profileDurationMs);
+    const profileTime = Number.isSafeInteger(duration) && duration >= 0
+      ? `${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'not recorded';
+    supplements.push(['DIVORCE configuration profile', data.profileStatus,
+      `${data.profileBaselines} baselines · ${data.profileFaults} effective faults`,
+      data.profileInclusion === 'included' ? `${data.profileAccepted} requirement already included in main candidate coverage` : `${data.profileAccepted} / ${data.profileSelected} requirement accepted in this separate run`,
+      '#harness-divorce-profile-admission',
+      `Separate profile interval: ${profileTime} · excluded from main native duration`]);
+  }
+  const profileAttempt = document.querySelector('#harness-divorce-profile-attempt');
+  if(profileAttempt)supplements.push(['DIVORCE profile not admitted',profileAttempt.dataset.profileAttemptStatus,'Completed proof counts unavailable','No catalogue or release credit','#harness-divorce-profile-attempt']);
+  if (applicant) {
+    const data = applicant.dataset;
+    supplements.push(['Applicant result columns', data.compatibilityStatus,
+      `${data.compatibilityBaselines} baseline · ${data.compatibilityFaults} effective faults`,
+      'Corrected local ARM64 CCD · No main catalogue credit',
+      '#harness-applicant-compatibility']);
+  }
+  const personal = document.querySelector('#harness-personal-service-admission');
+  if (personal) {
+    const data = personal.dataset;
+    const duration = data.personalDurationMs === undefined ? null : Number(data.personalDurationMs);
+    const pairTime = Number.isSafeInteger(duration) && duration >= 0
+      ? `${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'not recorded';
+    supplements.push(['Personal-service event row', data.personalStatus,
+      `${data.personalBaselines} baseline · ${data.personalEffectiveFaults} effective fault`,
+      data.personalInclusion === 'included' ? `${data.personalAccepted} requirement already included in main candidate coverage` : `${data.personalAccepted} / ${data.personalTotal} requirement accepted in this separate run`,
+      '#harness-personal-service-admission', `Personal pair interval: ${pairTime} · excluded from main native duration`]);
+  }
+  const personalAttempt = document.querySelector('#harness-personal-service-attempt');
+  if (personalAttempt) {
+    const duration = Number(personalAttempt.dataset.personalAttemptDurationMs);
+    supplements.push(['Personal-service event row not admitted', personalAttempt.dataset.personalAttemptStatus,
+      'Completed proof counts unavailable', 'No additional catalogue or release credit', '#harness-personal-service-attempt',
+      Number.isSafeInteger(duration) && duration >= 0 ? `Observed attempt interval: ${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'Attempt duration not recorded']);
+  }
+  const complex = document.querySelector('#harness-complex-email-admission');
+  if (complex) {
+    const data = complex.dataset;
+    const interval = Number(data.complexDurationMs);
+    const observed = Number.isSafeInteger(interval) && interval >= 0
+      ? `${Math.floor(interval / 60000)}m ${Math.floor(interval % 60000 / 1000)}s` : 'not recorded';
+    supplements.push(['ComplexTypes email address', data.complexStatus,
+      `${data.complexBrowserContexts} browser invocations · ${data.complexMappingContexts} mapping contexts · ${data.complexEffectiveFaults} effective faults`,
+      data.complexInclusion === 'included' ? '1 requirement already included in candidate coverage' : '1 requirement verified separately; excluded from main coverage',
+      '#harness-complex-email-admission', `Cohort interval: ${observed} · source reproduction included · excluded from main native duration`]);
+  }
+  const complexAttempt = document.querySelector('#harness-complex-email-attempt');
+  if (complexAttempt) supplements.push(['ComplexTypes email address', 'NOT_RUN', 'No execution counts',
+    'Requirement remains unaccepted in this run', '#harness-complex-email-attempt']);
   const cards = [
     ['Catalogue runtime evidence', `${accepted} / ${selected}`, `${selected - accepted} awaiting accepted evidence`, '#harness-application-coverage'],
-    ['Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${baselines} baseline · ${faults} deliberate faults${nativeTime}` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],
+    [supplements.length ? 'Main native proof outcomes' : 'Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${nativeStatus} · ${baselines} baseline · ${faults} deliberate faults${nativeTime}` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],
     ['Diagnostic tests', String(diagnosticTotal), `${diagnosticPassRate} pass rate · ${diagnosticAttention} need attention · ${diagnosticTime}`, '#TabTests'],
     ['Release approval', 'Unavailable', 'Catalogue and deployment gaps remain', '#harness-application-coverage'],
   ];
@@ -31,6 +95,7 @@
     const card = document.createElement(href ? 'a' : 'div');
     card.className = `report-metric metric-${index}`;
     if (href) card.href = href;
+    if (index === 1) card.dataset.nativeStatus = nativeStatus;
     if (index === 2 && diagnosticAttention !== '0') card.classList.add('has-attention');
     [label, value, detail].forEach((content, part) => {
       const element = document.createElement(part === 1 ? 'strong' : 'span');
@@ -39,6 +104,31 @@
     });
     metrics.append(card);
   });
+  if (supplements.length) {
+    const summary = document.createElement('section');
+    summary.className = 'report-supplement-summary';
+    summary.setAttribute('aria-label', 'Additional runtime activity');
+    const heading = document.createElement('h2');
+    heading.textContent = 'Additional runtime activity';
+    const explanation = document.createElement('p');
+    explanation.textContent = 'Separate execution counts and durations. Supplementary requirements enter the catalogue total only when jointly admitted. Open each result for its evidence and limits.';
+    const links = document.createElement('div');
+    links.className = 'report-supplement-links';
+    supplements.forEach(([label, status, counts, scope, href, timing]) => {
+      const link = document.createElement('a');
+      link.href = href;
+      link.dataset.supplementStatus = status;
+      [label, status, counts, ...(timing ? [timing] : []), scope, 'View evidence →'].forEach((content, index) => {
+        const element = document.createElement(index === 0 ? 'strong' : 'span');
+        if (index === 1) element.className = 'report-supplement-status';
+        element.textContent = content;
+        link.append(element);
+      });
+      links.append(link);
+    });
+    summary.append(heading, explanation, links);
+    metrics.append(summary);
+  }
   const map = document.createElement('nav');
   map.className = 'report-coverage-map';
   map.setAttribute('aria-label', 'Explore Harness coverage');

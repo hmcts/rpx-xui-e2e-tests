@@ -68,6 +68,32 @@ def copy_bounded(source, destination, limit):
 
 @contextlib.contextmanager
 def layout(archive):
+    with _layout(archive, BASE_INDEX, BASE_MANIFEST) as value:
+        yield value
+
+
+@contextlib.contextmanager
+def definition_layout(archive):
+    # Fixed published definition-store ARM identities; not a caller-selected image mode.
+    with _layout(archive,
+                 'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52',
+                 'sha256:cc8507b0218afe8d85b10a9dba3c42eee0a4c73abd3608b22e8fddc4e0fad900', definition_envelope=True) as value:
+        require(value['indexDigest'] == 'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52' and value['manifestDigest'] == 'sha256:cc8507b0218afe8d85b10a9dba3c42eee0a4c73abd3608b22e8fddc4e0fad900', 'DEFINITION_IMAGE')
+        require(value['configDigest'] == 'sha256:7725e2475ded2180df9eaef000f8043c20a28d231cd4d41bbc3d2360bfdd61ca', 'DEFINITION_CONFIG')
+        yield value
+
+
+def validate_definition_envelope(record, manifest):
+    require(isinstance(record, list) and len(record) == 1 and isinstance(record[0], dict), 'DEFINITION_DOCKER_RECORD')
+    item = record[0]
+    require(set(item) == {'Config', 'RepoTags', 'Layers'} and item['RepoTags'] is None, 'DEFINITION_DOCKER_FIELDS')
+    # Tags are never image identity. This fixed export has null tags; bind byte paths to OCI descriptors.
+    require(item['Config'] == 'blobs/sha256/' + manifest['config']['digest'][7:], 'DEFINITION_DOCKER_CONFIG')
+    require(item['Layers'] == ['blobs/sha256/' + layer['digest'][7:] for layer in manifest['layers']], 'DEFINITION_DOCKER_LAYERS')
+
+
+@contextlib.contextmanager
+def _layout(archive, expected_index, expected_manifest, definition_envelope=False):
     regular(archive)
     require(Path(archive).stat().st_size <= MAX_TOTAL, 'LOCAL_OCI_ARCHIVE_SIZE')
     with tempfile.TemporaryDirectory(prefix='ccd-oci-verify-') as temporary:
@@ -84,7 +110,9 @@ def layout(archive):
                     continue
                 require(entry.isfile(), 'LOCAL_OCI_ENTRY_TYPE')
                 blob = name.startswith('blobs/sha256/') and len(name) == 77 and all(c in '0123456789abcdef' for c in name[13:])
-                require(name in ['index.json', 'oci-layout'] or blob, 'LOCAL_OCI_EXTRA_ENTRY')
+                require(name in ['index.json', 'oci-layout'] or blob or definition_envelope and name == 'manifest.json', 'LOCAL_OCI_EXTRA_ENTRY')
+                if name == 'manifest.json':
+                    require(entry.size <= 64 * 1024, 'DEFINITION_DOCKER_SIZE')
                 require(0 <= entry.size <= MAX_BLOB, 'LOCAL_OCI_BLOB_SIZE')
                 total += entry.size
                 require(total <= MAX_TOTAL, 'LOCAL_OCI_TOTAL_SIZE')
@@ -110,11 +138,11 @@ def layout(archive):
         index_digest = None
         if selected.get('mediaType') == DOCKER_INDEX:
             index_digest = selected.get('digest')
-            require(index_digest == BASE_INDEX, 'LOCAL_OCI_BASE_INDEX_IDENTITY')
+            require(index_digest == expected_index, 'LOCAL_OCI_BASE_INDEX_IDENTITY')
             upstream = load_json(descriptor(selected, {DOCKER_INDEX}))
             require(upstream.get('schemaVersion') == 2 and upstream.get('mediaType') == DOCKER_INDEX, 'LOCAL_OCI_INDEX_SCHEMA')
             matches = [item for item in upstream.get('manifests', []) if item.get('platform') == {'architecture':'arm64','os':'linux'}]
-            require(len(matches) == 1 and matches[0].get('digest') == BASE_MANIFEST, 'LOCAL_OCI_BASE_MANIFEST_IDENTITY')
+            require(len(matches) == 1 and matches[0].get('digest') == expected_manifest, 'LOCAL_OCI_BASE_MANIFEST_IDENTITY')
             selected = matches[0]
         manifest_file = descriptor(selected, {MANIFEST, DOCKER_MANIFEST})
         manifest = load_json(manifest_file)
@@ -138,6 +166,9 @@ def layout(archive):
                 require(expanded_total <= MAX_TOTAL, 'LOCAL_OCI_TOTAL_EXPANSION_LIMIT')
             require(hash_file(target) == diffs[n], 'LOCAL_OCI_DIFF_ID')
             expanded.append(target)
+        if definition_envelope:
+            require('manifest.json' in seen, 'DEFINITION_DOCKER_REQUIRED')
+            validate_definition_envelope(load_json(root / 'manifest.json'), manifest)
         require({name for name in seen if name.startswith('blobs/sha256/') and name != 'blobs/sha256/'} == used, 'LOCAL_OCI_UNREFERENCED_BLOB')
         yield {'root': root, 'indexDigest': index_digest, 'indexDocumentDigest': hash_file(root / 'index.json'), 'archiveDigest': hash_file(archive), 'manifestDigest': selected['digest'], 'manifest': manifest, 'configDigest': manifest['config']['digest'], 'config': config, 'expanded': expanded}
 

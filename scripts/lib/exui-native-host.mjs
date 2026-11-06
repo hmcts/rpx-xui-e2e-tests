@@ -1,3 +1,10 @@
+import {SELECTOR_EVENT_SCOPE,selectorEventMutation} from './exui-selector-event-row-contract.mjs';
+import {selectorTransitionRequest,waitForSelectorRuntime,waitForSelectorBaselineCapture} from './exui-selector-event-row-transition.mjs';
+import {selectorObservationReferences} from './exui-selector-event-row-observations.mjs';
+import {captureSharedNestedArtifacts} from './exui-shared-nested-artifacts.mjs';
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './exui-shared-nested-scope.mjs';
+import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS,applicantResultsMutation} from './exui-applicant-results-contract.mjs';
+import {applicantResultTransitionRequest,waitForApplicantResultRuntime,waitForApplicantResultBaselineCapture} from './exui-applicant-results-transition.mjs';
 import {callbackObservationReferences} from './exui-recipient-callback-observations.mjs';
 import {CALLBACK_SCOPE,callbackMutationContract} from './exui-recipient-callback-contract.mjs';
 import {callbackTransitionRequest,waitForCallbackRuntime} from './exui-recipient-callback-transition.mjs';
@@ -112,6 +119,10 @@ function derivations(input, output, policy, identities, artifactDerivation) {
                   "wa-drop-family",
                 ).config.waSupportedJurisdictions,
               }
+            : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+              ? { target:"SearchResultFields+WorkBasketResultFields applicantName", transformationRecord:applicantResultsMutation(definition.mutationId), beforeDigest:baseline.identity.definitionDigests.HarnessResultsPRL, afterDigest:mutant.identity.definitionDigests.HarnessResultsPRL, baselineRuntimeMetadata:baseline.runtimeMetadata, mutantRuntimeMetadata:mutant.runtimeMetadata, runtimeRecord:ref(output,path.join(output,definition.mutationId,"runtime-input.json")) }
+            : input.releaseScopeId === SELECTOR_EVENT_SCOPE
+              ? {target:selectorEventMutation().target,transformationRecord:selectorEventMutation(),selectorObservations:selectorObservationReferences(output),beforeDigest:baseline.identity.definitionDigests.HarnessNestedPRL,afterDigest:mutant.identity.definitionDigests.HarnessNestedPRL,baselineRuntimeMetadata:baseline.runtimeMetadata,mutantRuntimeMetadata:mutant.runtimeMetadata,runtimeRecord:ref(output,path.join(output,definition.mutationId,"runtime-input.json"))}
             : input.releaseScopeId === CALLBACK_SCOPE
               ? {
                   target: callbackMutationContract().target,
@@ -229,14 +240,21 @@ export async function runNativeHostPhase(output, stagedHarness) {
     };
     writeJsonAtomic(path.join(output, "input.json"), input);
     writeJsonAtomic(path.join(output, "container-launch.json"), handoff);
+    if(input.releaseScopeId===APPLICANT_RESULTS_SCOPE)await waitForApplicantResultBaselineCapture(input,output,{isCancelled:()=>Boolean(interrupted)});
+    if(input.releaseScopeId===SELECTOR_EVENT_SCOPE)await waitForSelectorBaselineCapture(input,output,{isCancelled:()=>Boolean(interrupted)});
+    let priorResultInput=input;
     for (const invocation of invocations) {
-      const invocationInput = input.releaseScopeId === CALLBACK_SCOPE && invocation.mutation
+      const invocationInput = input.releaseScopeId === APPLICANT_RESULTS_SCOPE && invocation.mutation
+        ? await waitForApplicantResultRuntime(input,output,invocation.invocationId,priorResultInput,{isCancelled:()=>Boolean(interrupted)})
+        : input.releaseScopeId === SELECTOR_EVENT_SCOPE && invocation.mutation
+        ? await waitForSelectorRuntime(input,output,{isCancelled:()=>Boolean(interrupted)})
+        : input.releaseScopeId === CALLBACK_SCOPE && invocation.mutation
         ? await waitForCallbackRuntime(input, output, {isCancelled: () => Boolean(interrupted)})
         : input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation
         ? await waitForEventCapabilityRuntime(input, output, { invocationId: invocation.invocationId, isCancelled: () => Boolean(interrupted) })
         : input;
       const directory = path.join(output, invocation.invocationId);
-      fs.mkdirSync(directory, { mode: 0o700, ...([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId) && invocation.mutation ? { recursive: true } : {}) });
+      fs.mkdirSync(directory, { mode: 0o700, ...([APPLICANT_RESULTS_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId)||([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId)&&invocation.mutation)?{recursive:true}:{}) });
       const artifact = selectedArtifact(invocationInput, invocation),
         { identity, config } = nativeIdentity(
           invocationInput,
@@ -289,7 +307,9 @@ export async function runNativeHostPhase(output, stagedHarness) {
                 ...(invocationInput.workbasket ? { workbasketImportDigest: invocationInput.workbasketImportDigest } : {}),
                 observedDefinitionDigest:
                   invocationInput.definition.observedDefinitionDigest,
-                ...(input.releaseScopeId === CALLBACK_SCOPE ? {observedPagesDigest:invocationInput.definition.observedPagesDigest} : {}),
+                ...([CALLBACK_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId) ? {observedPagesDigest:invocationInput.definition.observedPagesDigest} : {}),
+                ...(input.releaseScopeId === SELECTOR_EVENT_SCOPE ? {selectorStoredDateDigest:invocationInput.definition.storedDateDigest}:{}),
+                ...(input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultDatesDigest:invocationInput.resultDatesDigest,resultExpectedDigest:invocationInput.resultExpectedDigest,resultsSourceContractDigest:digestBytes(JSON.stringify(invocationInput.definition.sourceContract)),resultVariant:invocationInput.variant}:{}),
                 definitionVersion: String(invocationInput.definition.definitionVersion),
                 ccdNamespace: invocationInput.ccd.namespace,
                 idamSimulatorImage: invocationInput.ccd.images.idam.id,
@@ -302,6 +322,10 @@ export async function runNativeHostPhase(output, stagedHarness) {
               ? "synthetic-auth,reference-data,empty-search-response,auxiliary-read-jurisdictions,feature-flags,telemetry; no CCD search/access/cache algorithm/profile credit"
               : input.releaseScopeId === ROUTING_SCOPE
               ? "synthetic-auth,upstream-definition-metadata,central-NoC-response,PCS-NoC-response,PCS-destination-marker,feature-flags,telemetry; no PCS backend/CCD/access/persistence or aggregate80ee credit"
+              : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+                ? "two source applicant result rows on explicit corrected local ARM64 CCD; synthetic IDAM/session/scaffold; typed date retention only; no temporal activation, backing-field access/security policy, deployed CCD or full release approval"
+              : input.releaseScopeId === SELECTOR_EVENT_SCOPE
+                ? "one source CaseEventToFields row; normalized HARNESS case type, two source page rows and synthetic predecessor; neighbouring business callback omitted in both variants; typed LiveFrom retention only; no fields 1-6, temporal activation, full PRL workflow or release approval"
               : input.releaseScopeId === CALLBACK_SCOPE
                 ? "actual candidate and owned CCD source-row callback transport; synthetic callback business rules, sessions, IDAM and predecessor page; stored LiveFrom preservation only; no production PRL callback logic, deployed service or release approval credit"
               : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
@@ -337,6 +361,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
         runnerExitCode: terminal.code,
         unexpectedGlobalErrors: report.globalErrors,
         resultArtifact: ref(output, path.join(directory, "report.json")),
+        ...(input.releaseScopeId===SHARED_NESTED_SCOPE?{sharedNestedArtifacts:captureSharedNestedArtifacts(output,invocation.invocationId)}:{}),
         ...(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId) ? {
           sharedRoleArtifacts: captureSharedRoleArtifacts(output, invocation.invocationId, input.releaseScopeId),
         } : {}),
@@ -344,14 +369,22 @@ export async function runNativeHostPhase(output, stagedHarness) {
       manifest ??= current;
       executions.push(ref(output, path.join(directory, "execution.json")));
       identities.push({ invocationId: invocation.invocationId, identity,
-        ...([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId) ? {
-          runtimeMetadata: Object.fromEntries(["definitionImportDigest", "observedDefinitionDigest", ...(input.releaseScopeId === CALLBACK_SCOPE ? ["observedPagesDigest"] : []), "definitionVersion", "ccdNamespace"].map((key) => [key, current.runtimeMetadata[key]])),
+        ...([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId) ? {
+          runtimeMetadata: Object.fromEntries(["definitionImportDigest", "observedDefinitionDigest", ...([CALLBACK_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId) ? ["observedPagesDigest"] : []), ...(input.releaseScopeId===SELECTOR_EVENT_SCOPE?["selectorStoredDateDigest"]:[]), ...(input.releaseScopeId===APPLICANT_RESULTS_SCOPE?["resultDatesDigest","resultExpectedDigest","resultsSourceContractDigest","resultVariant"]:[]), "definitionVersion", "ccdNamespace"].map((key) => [key, current.runtimeMetadata[key]])),
         } : {}),
       });
+      if(input.releaseScopeId===APPLICANT_RESULTS_SCOPE){
+        priorResultInput=invocationInput;
+        const next=APPLICANT_RESULTS_MUTATIONS[invocations.indexOf(invocation)];
+        if(next)writeJsonAtomic(path.join(output,`results-transition-${next}.json`),applicantResultTransitionRequest(input,next,priorResultInput));
+      }
+      if (input.releaseScopeId === SELECTOR_EVENT_SCOPE && invocation.invocationId === "baseline")
+        writeJsonAtomic(path.join(output,"selector-transition-request.json"),selectorTransitionRequest(input));
       if (input.releaseScopeId === CALLBACK_SCOPE && invocation.invocationId === "baseline")
         writeJsonAtomic(path.join(output, "callback-transition-request.json"), callbackTransitionRequest(input));
       if (input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.invocationId === "baseline")
         writeJsonAtomic(path.join(output, "event-transition-request.json"), eventCapabilityTransitionRequest(input));
+      if(input.releaseScopeId===SHARED_NESTED_SCOPE&&invocation.invocationId==='baseline'&&(report.status!=='passed'||report.globalErrors.length))throw Error('SHARED_NESTED_BASELINE_UNSATISFIED');
     }
     const mutations = derivations(
       input,

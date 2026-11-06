@@ -76,6 +76,22 @@ test('partial startup preserves exclusive recovery owner and resource inventory'
   await assert.rejects(startCcdRuntime(directory,{runDocker:()=>assert.fail('Recovery overwritten')}),/CCD_FRESH_OUTPUT_REQUIRED/);
  }finally{fs.rmSync(parent,{recursive:true,force:true});}
 });
+test('uncertain CCD creation is journaled before execution and cannot become safe from later absence',async t=>{
+ const {startCcdRuntime}=await runtime,{cleanupCiCcd}=await import('./lib/exui-candidate-ci-process.mjs');
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const parent=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'ccd-create-uncertain-')),directory=path.join(parent,'runtime');t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ let unsafe=0,stopped=0;
+ const runDocker=args=>{
+  if(args[0]==='image')return JSON.stringify([{Id:args[2],Architecture:'arm64',RepoDigests:['fixture@'+args[2]]}]);
+  assert.equal(args[0],'create');const journal=JSON.parse(fs.readFileSync(path.join(directory,'creation-attempts.json')));
+  assert.equal(journal.length,1);assert.equal(journal[0].state,'pending');assert.equal(journal[0].service,'database');assert.equal(journal[0].containerId,undefined);
+  throw Error('CONTROLLED_CREATE_TIMEOUT');
+ };
+ await assert.rejects(startCcdRuntime(directory,{runDocker,onCreateUncertainty:()=>unsafe++}),/CONTROLLED_CREATE_TIMEOUT/);
+ assert.equal(unsafe,1);
+ assert.throws(()=>cleanupCiCcd(directory,{inspect:()=>null,stop:()=>stopped++}),/CI_CCD_CREATE_OUTCOME_UNCERTAIN/);
+ assert.equal(stopped,1);assert.equal(JSON.parse(fs.readFileSync(path.join(directory,'creation-attempts.json')))[0].state,'pending');
+});
 
 test('reuse changed owner, image or namespace fails before any service request',async()=>{
  const {loadCcdRuntimeForReuse,CCD_IMAGES}=await runtime;
@@ -118,7 +134,7 @@ const fixedRuntime = async () => {
   const api = await runtime;
   assert.deepEqual(
     api.CCD_FIXTURE_SELECTIONS,
-    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant", "event-capability-shape-case-field-recipient-selector-mutant", "event-capability-shape-required-delivery-radio-mutant", "event-capability-shape-conditional-email-complex-mutant", "event-capability-shape-postal-recipient-name-mutant", "event-capability-shape-optional-postal-line-two-mutant"],
+    ["nested-prl", "event-capability-baseline", "event-capability-mutant", "event-capability-read-mutant", "event-capability-readonly-read-mutant", "event-capability-readonly-update-mutant", "event-capability-courtadmin-update-mutant", "event-capability-shape-recipient-collection-mutant", "event-capability-shape-case-field-recipient-selector-mutant", "event-capability-shape-required-delivery-radio-mutant", "event-capability-shape-conditional-email-complex-mutant", "event-capability-shape-postal-recipient-name-mutant", "event-capability-shape-optional-postal-line-two-mutant"],
     "fixed source fixture selection must exist before transport use",
   );
   return api;
@@ -151,7 +167,7 @@ function observedEventFixture(fixture) {
       ),
       complexACLs: [],
       field_type: {
-        ...(row.ID === "sodAdditionalRecipientsList" ? { collection_field_type: { id: "ServeOrgDetails" } } : {}),
+        ...(row.ID === "sodAdditionalRecipientsList" ? (row.FieldType === "Collection" ? { type: "Collection", collection_field_type: { id: "ServeOrgDetails" } } : {type:"Complex",id:"ServeOrgDetails",collection_field_type:null}) : {}),
         ...(row.ID === "sodAdditionalRecipients" ? { id: "MultiSelectList-AdditionalRecipients", type: "MultiSelectList" } : {}),
       },
     })),
@@ -314,7 +330,7 @@ test("support only: fixed event imports retain exact selected prepared workbook 
   );
 });
 
-for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant"])
+for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", "shape-recipient-collection-mutant"])
   test(
     "support only: real import function with fake transport validates source ACLs for " +
       variant,

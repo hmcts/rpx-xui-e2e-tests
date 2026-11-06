@@ -1,3 +1,4 @@
+const assert = require('node:assert/strict');
 const { createHash } = require("node:crypto");
 const objectDigest = (value) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -149,6 +150,7 @@ proofs["ccd-readonly-update-recipient-shapes-denied"] = {
   limits: "Literal source readonly role. A fresh fault adds only type/state/recipient-field U and event C; every shape must persist its intended edit before the denial oracle fails. No deployed PRL authorisation claim.",
 };
 for (const [id,slice,behaviour] of [
+  ['recipient-collection','Recipient collection — separate entries and persistence','Add two distinct recipients, verify both CYA entries and independent CCD identities, and detect a singular-complex type fault.'],
   ['case-field-recipient-selector','Additional recipient field — source label','Select an additional recipient, persist the choice and verify the source-defined label on the case view.'],
   ['required-delivery-radio','Delivery method — required selection','Show Served by, reject an omitted method, then persist a selected email recipient.'],
   ['conditional-email-complex','Email details — conditional complex','Toggle email/post, verify email controls appear only for email, and persist entered recipient data.'],
@@ -157,7 +159,9 @@ for (const [id,slice,behaviour] of [
 ]) proofs[`ccd-source-shape-${id}`] = {
   phase:'eventCapability',slice,behaviour,services:'Private Law source-shaped fixture',
   jurisdiction:'HARNESS (actual synthetic jurisdiction)',caseType:'HarnessNestedPRL (actual synthetic case type)',
-  lane:'Actual EXUI + isolated CCD',limits:id === 'case-field-recipient-selector'
+  lane:'Actual EXUI + isolated CCD',limits:id === 'recipient-collection'
+    ? 'Exact CaseField Collection/ServeOrgDetails source row and one-column singular-complex fault. No whole shared-renderer or deployed PRL credit.'
+    : id === 'case-field-recipient-selector'
     ? 'Exact imported CaseField label/type and single-label fault; candidate case view after a real CCD write. No deployed PRL or whole-profile credit.'
     : 'Exact event override context, imported label/order/condition and single-facet fault. LiveFrom is an import-only date, not a date-gated UI claim. No deployed PRL or callback credit.',
 };
@@ -229,12 +233,20 @@ const faults = {
   "routing-omit-noc-base-url": "Omit the PCS NoC destination",
 };
 Object.assign(faults, {
+  'ccd-shape-recipient-collection':'Change only Collection to the singular ServeOrgDetails type; prove the usable singular form persists one object before the two-recipient collection oracle fails',
   'ccd-shape-case-field-recipient-selector':'Change only the imported CaseField label; prove the candidate renders the changed label after a real CCD write before the source-label oracle fails',
   'ccd-shape-required-delivery-radio':'Remove the mandatory delivery-method constraint; prove an omitted method persists before the required-method oracle fails',
   'ccd-shape-conditional-email-complex':'Change only email-complex visibility to post; prove the altered visible branch and a real write before the email-condition oracle fails',
   'ccd-shape-postal-recipient-name':'Change only the postal-name event label; prove the changed candidate label and a real CCD write before the source-label oracle fails',
   'ccd-shape-optional-postal-line-two':'Change only the second address line label; prove the changed candidate label and filled persistence before the source-label oracle fails',
 });
+proofs['ccd-selector-event-row'] = {
+ phase:'selectorEventRow',slice:'Optional recipient selector on source Page2',
+ behaviour:'Verify optional-empty progression, source page and field order, Check your answers and Change, then persist the selected recipient association.',
+ services:'Private Law source-shaped fixture',jurisdiction:'HARNESS (Private Law source)',caseType:'HarnessNestedPRL (PRLAPPS source)',
+ lane:'Actual EXUI + isolated CCD',limits:'One nine-attribute CaseEventToFields row; source rows7/8 and a declared predecessor. Fields1–6 and the neighbouring business callback are excluded. LiveFrom is typed date retention, not activation coverage.'
+};
+faults['ccd-hide-selector-summary']='Change only ShowSummaryChangeOption Y→N and observe the selector CYA row missing while the form, validation and sibling remain healthy';
 const phaseLabels = {
   family: "WA families",
   scope: "WA organisation scope",
@@ -242,6 +254,7 @@ const phaseLabels = {
   eventCapability: "Source role and event capability",
   routing: "PCS decentralised routing",
   recipientCallback: "Recipient callback configuration",
+  selectorEventRow: "Optional selector Page2 configuration",
 };
 const badge = (text, passed) =>
   `<span class="harness-status ${passed ? "passed" : "failed"}">${escape(text)}</span>`;
@@ -252,10 +265,57 @@ function labelFor(proofId, phase) {
   return label;
 }
 function nativeCounts(evidence) {
+  const complete = evidence.phases.every(phase => Array.isArray(phase.invocations));
+  const invocations = [];
+  for (const phase of evidence.phases) {
+    if (phase.invocations === undefined) continue;
+    assert(Array.isArray(phase.invocations), "PUBLIC_ODHIN_NATIVE_INVOCATIONS");
+    const expected = [...new Set([...phase.baselineProofs, ...phase.faults].map(item => item.invocationId))].sort();
+    assert.deepEqual(phase.invocations.map(item => item.invocationId).sort(), expected, "PUBLIC_ODHIN_NATIVE_INVOCATIONS");
+    for (const item of phase.invocations) {
+      assert.deepEqual(Object.keys(item).sort(), ['configuredWorkers', 'invocationId'], "PUBLIC_ODHIN_NATIVE_INVOCATIONS");
+      assert(item.configuredWorkers === null || (Number.isSafeInteger(item.configuredWorkers) && item.configuredWorkers > 0), "PUBLIC_ODHIN_NATIVE_WORKERS");
+      invocations.push(item);
+    }
+  }
   return {
     baselines: evidence.phases.reduce((n, p) => n + p.baselineProofs.length, 0),
     faults: evidence.phases.reduce((n, p) => n + p.faults.length, 0),
+    invocations: complete ? invocations.length : null,
+    workerSlots: complete ? [...new Set(invocations.map(item => item.configuredWorkers).filter(value => value !== null))].sort((a, b) => a - b) : [],
+    workersUnknown: complete ? invocations.filter(item => item.configuredWorkers === null).length : null,
   };
+}
+function renderNativeExecutionInfo(evidence) {
+  const groups = [['Core native', evidence ? nativeCounts(evidence) : null]];
+  if (evidence?.personalServiceAdmission) {
+    const records = evidence.personalServiceAdmission.invocations;
+    let count = {invocations:null, workerSlots:[], workersUnknown:null};
+    if (records !== undefined) {
+      assert(Array.isArray(records), "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+      assert.deepEqual(records.map(item => item.invocationId).sort(), ['baseline', 'optional'], "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+      for (const item of records) {
+        assert.deepEqual(Object.keys(item).sort(), ['configuredWorkers', 'invocationId', 'runId'], "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+        assert(/^ccd-[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(item.runId), "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+        assert(item.configuredWorkers === null || (Number.isSafeInteger(item.configuredWorkers) && item.configuredWorkers > 0), "PUBLIC_ODHIN_PERSONAL_WORKERS");
+      }
+      assert.equal(new Set(records.map(item => item.runId)).size, 2, "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+      count = {invocations:records.length, workerSlots:[...new Set(records.map(item => item.configuredWorkers).filter(value => value !== null))].sort((a,b)=>a-b), workersUnknown:records.filter(item=>item.configuredWorkers===null).length};
+    }
+    groups.push(['Personal-service', count]);
+  }
+  if (evidence?.complexEmailAdmission) groups.push(['ComplexTypes', require('./harness-complex-email-report.cjs').complexInvocationCounts(evidence.complexEmailAdmission)]);
+  return groups.map(([label, count]) => {
+    let workers = 'Not run';
+    if (count) {
+      workers = count.workerSlots.length === 0 ? 'Not recorded' : count.workerSlots.length === 1
+        ? `${count.workerSlots[0]} per invocation${count.workersUnknown ? ' where recorded' : ''}`
+        : `${count.workerSlots.join(', ')} slots per invocation (varies)`;
+      if (count.workersUnknown) workers += ` · ${count.workersUnknown} invocations not recorded`;
+      workers += '<br><small>Configured slots, not concurrent processes. Observed and peak native worker process counts are not recorded.</small>';
+    }
+    return `<tr><th scope="row">${label} Playwright invocations</th><td>${count ? count.invocations ?? 'Not recorded' : 'Not run'}</td></tr><tr><th scope="row">Configured ${label.toLowerCase()} worker slots</th><td>${workers}</td></tr>`;
+  }).join('');
 }
 function scopeCells(label) {
   return `<td>${escape(label.services)}<br><small>${escape(label.jurisdiction)}</small></td><td>${escape(label.caseType)}</td>`;
@@ -265,6 +325,32 @@ function proofDetails(label, proof, phase) {
 }
 function renderNativeEvidence(evidence) {
   if (!evidence) return "";
+  if (evidence.divorceProfileAdmission?.joint?.status === "included") {
+    const profile = evidence.divorceProfileAdmission, joint = profile.joint;
+    assert.equal(profile.producerCommit, evidence.source.harnessCommit, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(profile.candidateArtifactDigest, evidence.source.candidateArtifactDigest, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(profile.candidateCommit, evidence.source.webappCommit, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.deepEqual(evidence.catalogueCoverage.divorceProfileAdmission, joint, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(joint.nativeRunId, evidence.jobRunId, "NATIVE_REPORT_PROFILE_JOIN");
+    assert.equal(evidence.catalogueCoverage.creditedObligationIds.filter(id => id === joint.obligationId).length, 1, "NATIVE_REPORT_PROFILE_JOIN");
+  }
+  const {PERSONAL_SERVICE_ID,renderPersonalServiceAdmission}=require('./harness-personal-service-report.cjs');
+  const personal=evidence.personalServiceAdmission;
+  if(personal?.joint?.status==='included'){
+    assert.equal(personal.producerCommit,evidence.source.harnessCommit,'NATIVE_REPORT_PERSONAL_JOIN');assert.equal(personal.candidateArtifactDigest,evidence.source.candidateArtifactDigest,'NATIVE_REPORT_PERSONAL_JOIN');assert.equal(personal.candidateCommit,evidence.source.webappCommit,'NATIVE_REPORT_PERSONAL_JOIN');assert.equal(personal.joint.nativeRunId,evidence.jobRunId,'NATIVE_REPORT_PERSONAL_JOIN');assert.deepEqual(evidence.catalogueCoverage.personalServiceAdmission,personal.joint,'NATIVE_REPORT_PERSONAL_JOIN');
+  }
+  const personalReport=personal?renderPersonalServiceAdmission(personal):'';
+  const {COMPLEX_EMAIL_ID, renderComplexEmailAdmission} = require('./harness-complex-email-report.cjs');
+  const complex = evidence.complexEmailAdmission;
+  if (complex?.joint?.status === 'included') {
+    assert.equal(complex.producerCommit, evidence.source.harnessCommit, 'NATIVE_REPORT_COMPLEX_JOIN');
+    assert.equal(complex.candidateArtifactDigest, evidence.source.candidateArtifactDigest, 'NATIVE_REPORT_COMPLEX_JOIN');
+    assert.equal(complex.candidateCommit, evidence.source.webappCommit, 'NATIVE_REPORT_COMPLEX_JOIN');
+    assert.equal(complex.joint.nativeRunId, evidence.jobRunId, 'NATIVE_REPORT_COMPLEX_JOIN');
+    assert.deepEqual(evidence.catalogueCoverage.complexEmailAdmission, complex.joint, 'NATIVE_REPORT_COMPLEX_JOIN');
+  }
+  const complexReport = complex ? renderComplexEmailAdmission(complex) : '';
+  const divorceProfile = evidence.divorceProfileAdmission ? require("./harness-divorce-profile-report.cjs").renderDivorceProfileAdmission(evidence.divorceProfileAdmission) : "";
   if (
     evidence.kind !== "native-policy-proof-outcomes" ||
     evidence.releaseApproval !== false ||
@@ -290,13 +376,17 @@ function renderNativeEvidence(evidence) {
       coverage.creditedObligationIds.length ||
     !coverage.phaseReferences ||
     coverage.creditedObligationIds.some((id) => {
+      if(id===PERSONAL_SERVICE_ID)return personal?.joint?.status!=="included";
+      if (id === COMPLEX_EMAIL_ID) return complex?.joint?.status !== 'included';
+      if (id === "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce") return evidence.divorceProfileAdmission?.joint?.status !== "included";
       const phase =
         id === "configuration-shared:role-policy" ? "ccd" :
         id ===
         "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed"
           ? "ccd"
+          : id === "configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe" ? "selectorEventRow"
           : workbasketRows.has(id) ? "ccd"
-          : ["configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f","configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49","configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e","configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757","configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894","configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
+          : ["configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc","configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f","configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49","configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e","configuration-shape:9ece0d15adfefeabf964c0905981f1343b26487ad4e68f47a9d7bcbf73aaa757","configuration-shape:0d8d6aca578c8ab32c6e2b5e794db038a1f232a15489d40fc6a58e7790b03894","configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
               "configuration-cell:1413f10a8d3caf763c82b901d8cc627bb73e555ee4c57aaea5a53ef5e378bc66",
               "configuration-cell:6e8617ff5fd98ab11df8d26d96f3d420e0f4eadfe5a36b23e10095a0e2ec6bf3",
               "configuration-cell:2b80551e385239c5c2e13878ae7645cbeb938e68dda2bcabe52d1ad68046dc65",
@@ -333,6 +423,12 @@ function renderNativeEvidence(evidence) {
     })
   )
     throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
+  const profileId = "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce";
+  assert.equal(coverage.creditedObligationIds.includes(profileId), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
+  assert.equal(Boolean(coverage.divorceProfileAdmission), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
+  assert.equal(coverage.creditedObligationIds.includes(PERSONAL_SERVICE_ID),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');assert.equal(Boolean(coverage.personalServiceAdmission),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');
+  assert.equal(coverage.creditedObligationIds.includes(COMPLEX_EMAIL_ID), complex?.joint?.status === 'included', 'NATIVE_REPORT_COMPLEX_JOIN');
+  assert.equal(Boolean(coverage.complexEmailAdmission), complex?.joint?.status === 'included', 'NATIVE_REPORT_COMPLEX_JOIN');
   const roleCredited = coverage.creditedObligationIds.includes("configuration-shared:role-policy");
   const role = coverage.sharedRoleAdmission;
   if (roleCredited !== Boolean(role) || (role && (
@@ -394,6 +490,6 @@ function renderNativeEvidence(evidence) {
     .map(([id, label]) => `<option value="${id}">${label}</option>`)
     .join(
       "",
-    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred.</p></details></section>`;
+    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}${personalReport}${complexReport}</section>`;
 }
-module.exports = { renderNativeEvidence, nativeCounts, objectDigest };
+module.exports = { renderNativeEvidence, nativeCounts, renderNativeExecutionInfo, objectDigest };

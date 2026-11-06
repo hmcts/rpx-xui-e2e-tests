@@ -45,3 +45,12 @@ test('only fixed verifier codes survive process and command diagnostics',async()
   assert.equal(lib.safeLocalCcdFailure(new Error(text)),'LOCAL_CCD_OCI_COMMAND_FAILED');
  }
 });
+test('local OCI verifier resolves the actual user home when a sanitized controller omits HOME',async()=>{
+ const {verifyLocalCcdDerivative}=await import('./lib/exui-local-ccd-oci.mjs');
+ const previous=process.env.HOME;delete process.env.HOME;let observed;
+ try{
+  const expected=require('node:os').homedir();
+  verifyLocalCcdDerivative({baseArchive:'/tmp/synthetic-base',derivedArchive:'/tmp/synthetic-derived',artifactRoot:'/tmp/synthetic-artifact'},{run:(_command,_args,options)=>{observed=options.env;return {status:0,stdout:'{"kind":"synthetic-verification"}'};}});
+  assert.equal(observed.HOME,expected);assert.equal(typeof observed.HOME,'string');assert.deepEqual(Object.keys(observed).sort(),['HOME','PATH']);
+ }finally{if(previous===undefined)delete process.env.HOME;else process.env.HOME=previous;}
+});

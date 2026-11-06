@@ -1,4 +1,12 @@
+import {SELECTOR_EVENT_SCOPE} from './lib/exui-selector-event-row-contract.mjs';
+import {selectSelectorRuntime} from './lib/exui-selector-event-row-transition.mjs';
+import {assertCopiedSelectorRuntimeEvidence} from './lib/exui-selector-event-row-runtime.mjs';
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS} from './lib/exui-shared-nested-scope.mjs';
 import {CALLBACK_SCOPE} from './lib/exui-recipient-callback-contract.mjs';
+import {APPLICANT_RESULTS_SCOPE} from './lib/exui-applicant-results-contract.mjs';
+import {selectApplicantResultRuntime} from './lib/exui-applicant-results-transition.mjs';
+import {assertApplicantResultDates} from './lib/exui-applicant-result-dates.mjs';
+import {resultsSupportingScaffold,resultsSupportingScaffoldDigest} from './lib/exui-results-ui-contract.mjs';
 import {selectCallbackRuntime} from './lib/exui-recipient-callback-transition.mjs';
 import {canonicalRecipientCallbackPages} from './lib/exui-recipient-callback-fixture.mjs';
 import { provisionRoleTransitionActor } from "./lib/exui-ccd-role-transition.mjs";
@@ -31,7 +39,7 @@ import {
   startCcdGateway,
   seedCcdSession,
 } from "./lib/exui-ccd-browser-runtime.mjs";
-import { digestBytes, writeJsonAtomic } from "./lib/exui-evidence-io.mjs";
+import { digestBytes, writeJsonAtomic, readEvidenceArtifact } from "./lib/exui-evidence-io.mjs";
 import {
   ROUTING_SCOPE,
   assertRoutingInterpreter,
@@ -42,6 +50,19 @@ import { startGlobalSearchProviders } from "./lib/exui-global-search-provider.mj
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
+
+export function validateApplicantResultsInput(input, invocation, directory) {
+  assert.equal(input.variant, invocation.mutation ?? 'baseline', 'APPLICANT_RESULTS_VARIANT');
+  assertApplicantResultDates(input.storedResultDates,input.ccd,input.definition.definitionVersion,{variant:input.variant,workbookDigest:input.definition.fixtureDigest});
+  assert.deepEqual(input.supportingScaffold,resultsSupportingScaffold(),'RESULT_UI_SUPPORTING_SCAFFOLD_DRIFT');
+  assert.equal(input.supportingScaffoldDigest,resultsSupportingScaffoldDigest(),'RESULT_UI_SUPPORTING_SCAFFOLD_DIGEST');
+  assert.equal(digestBytes(JSON.stringify(input.resultExpected)),input.resultExpectedDigest,'RESULT_UI_EXPECTATION_DRIFT');
+  assert.equal(input.resultBackendReceipt?.path,`${invocation.invocationId}/backend-search.json`,'APPLICANT_RESULTS_BACKEND_PATH');
+  const {value:backend}=readEvidenceArtifact(path.dirname(directory),input.resultBackendReceipt);
+  assert.equal(backend.status,'both-use-cases-observed','APPLICANT_RESULTS_BACKEND_REQUIRED');
+  assert.deepEqual(Object.keys(backend.observations).sort(),['SEARCH','WORKBASKET'],'APPLICANT_RESULTS_BACKEND_VIEWS');
+  assert.deepEqual(input.resultExpected,Object.fromEntries(Object.entries(backend.observations).map(([view,value])=>[view,value.body])),'APPLICANT_RESULTS_BACKEND_MISMATCH');
+}
 
 async function providers(input, invocation, directory) {
   const source = digestBytes(
@@ -57,22 +78,25 @@ async function providers(input, invocation, directory) {
     input.harnessSourceDigest,
     "HARNESS_SOURCE_SNAPSHOT_MISMATCH",
   );
-  await verifyHarnessDependencies(
-    "/harness/node_modules",
-    path.join(root, "package.json"),
-    path.join(root, "yarn.lock"),
-    input.harnessDependencies.digest,
-  );
-  assert.equal(
-    await digestCandidateTree("/browser"),
-    input.browserDigest,
-    "BROWSER_ARTIFACT_MISMATCH",
-  );
-  const artifact = selectedArtifact(input, invocation),
-    observed = await describeCandidateArtifact(
-      "/candidate",
-      artifact.provenance,
-    );
+  let artifact;
+  const [dependencySeal, browserSeal, candidateSeal] = await Promise.allSettled([
+    verifyHarnessDependencies(
+      "/harness/node_modules",
+      path.join(root, "package.json"),
+      path.join(root, "yarn.lock"),
+      input.harnessDependencies.digest,
+    ),
+    digestCandidateTree("/browser"),
+    (async () => {
+      artifact = selectedArtifact(input, invocation);
+      return describeCandidateArtifact("/candidate", artifact.provenance);
+    })(),
+  ]);
+  if (dependencySeal.status === "rejected") throw dependencySeal.reason;
+  if (browserSeal.status === "rejected") throw browserSeal.reason;
+  assert.equal(browserSeal.value, input.browserDigest, "BROWSER_ARTIFACT_MISMATCH");
+  if (candidateSeal.status === "rejected") throw candidateSeal.reason;
+  const observed = candidateSeal.value;
   assertRuntimeIdentity(artifact.identity, observed.identity);
   assertCandidateConfigurationSources(
     "/candidate",
@@ -96,7 +120,7 @@ async function providers(input, invocation, directory) {
       "ROUTING_OBSERVED_INTERPRETER_MISMATCH",
     );
     ({ server, cookie } = await startRoutingProviders(directory));
-  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId)) {
+  } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(input.releaseScopeId)) {
     for (const [service, port] of [
       ["data", 4452],
       ["definition", 4451],
@@ -112,16 +136,25 @@ async function providers(input, invocation, directory) {
       );
     }
     const definition = await fetch(
-      "http://127.0.0.1:4451/api/data/case-type/HarnessNestedPRL",
+      `http://127.0.0.1:4451/api/data/case-type/${input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? 'HarnessResultsPRL' : 'HarnessNestedPRL'}`,
       { headers: input.credentials.observer.headers, redirect: "error" },
     );
+    if (input.releaseScopeId === APPLICANT_RESULTS_SCOPE) {
+      validateApplicantResultsInput(input,invocation,directory);
+      for(const [name,route] of [['search','/api/display/search-result-definition/HarnessResultsPRL'],['workbasket','/api/display/work-basket-definition/HarnessResultsPRL']]) {
+        const response=await fetch('http://127.0.0.1:4451'+route,{headers:input.credentials.observer.headers,redirect:'error'});
+        assert(response.ok,'APPLICANT_RESULTS_DESCRIPTOR_REQUIRED');
+        assert.equal(digestBytes(JSON.stringify(await response.json())),input.resultDescriptorDigests[name],'RESULT_UI_DESCRIPTOR_DRIFT');
+      }
+    }
     assert(definition.ok, "CCD_IMPORTED_DEFINITION_REQUIRED");
     assert.equal(
       digestBytes(JSON.stringify(await definition.json())),
       input.definition.observedDefinitionDigest,
       "CCD_IMPORTED_DEFINITION_DRIFT",
     );
-    if (input.releaseScopeId === CALLBACK_SCOPE) {
+    if (input.releaseScopeId === SELECTOR_EVENT_SCOPE) assertCopiedSelectorRuntimeEvidence(path.dirname(directory),input,invocation.invocationId);
+    if ([CALLBACK_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId)) {
       const pages = await fetch("http://127.0.0.1:4451/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments", {headers: input.credentials.observer.headers, redirect:"error"});
       assert(pages.ok, "CALLBACK_NATIVE_PAGES_REQUIRED");
       assert.equal(digestBytes(JSON.stringify(canonicalRecipientCallbackPages(await pages.json()))), input.definition.observedPagesDigest, "CALLBACK_NATIVE_PAGES_DRIFT");
@@ -131,7 +164,9 @@ async function providers(input, invocation, directory) {
       credentials.transitioning = await provisionRoleTransitionActor({
         serviceAuthorization: input.credentials.allowed.headers.ServiceAuthorization,
       });
-    const sessions = seedAppCcdSessions(credentials, seedCcdSession, input.releaseScopeId);
+    const sessions = input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+      ? {allowed:seedCcdSession('allowed',credentials.allowed)}
+      : seedAppCcdSessions(credentials, seedCcdSession, input.releaseScopeId);
     cookie = sessions.allowed;
     writeJsonAtomic(path.join(directory, "personas.json"), {
       credentials,
@@ -140,9 +175,7 @@ async function providers(input, invocation, directory) {
     server = await startCcdGateway(
       directory,
       credentials,
-      [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
-      input.releaseScopeId,
-      input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
+      ...nativeCcdGatewayArguments(input, invocation),
     );
   } else {
     const assignments = invocation.persona
@@ -168,14 +201,27 @@ async function providers(input, invocation, directory) {
     });
   });
 }
+export function nativeCcdGatewayArguments(input, invocation) {
+  return [
+    [EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE,APPLICANT_RESULTS_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId) ? null : invocation.mutation ?? null,
+    input.releaseScopeId,
+    input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? {resultColumns:true} : input.releaseScopeId === CALLBACK_SCOPE ? {recipientCallback:{invocationId:"recipient-callback-native"}} : input.workbasket ? {workbasket:true} : {},
+  ];
+}
 export function nativeProofConfiguration(input, invocation, directory) {
-  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(input.releaseScopeId);
+  const ccd = ["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(input.releaseScopeId);
   const env = {
     PATH: "/usr/local/bin:/usr/bin:/bin",
     HOME: "/tmp",
     EXUI_HARNESS_SELECTION: ccd ? "ccd" : "candidate",
     EXUI_HARNESS_SLICE:
-      input.releaseScopeId === CALLBACK_SCOPE
+      input.releaseScopeId === SELECTOR_EVENT_SCOPE
+        ? "ccd-selector-event-row"
+        : input.releaseScopeId === SHARED_NESTED_SCOPE
+        ? "ccd-shared-nested"
+        : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+        ? "ccd-applicant-results"
+        : input.releaseScopeId === CALLBACK_SCOPE
         ? "ccd-recipient-callback"
         : input.releaseScopeId === EVENT_CAPABILITY_SCOPE
         ? "ccd-event-capability"
@@ -204,6 +250,7 @@ export function nativeProofConfiguration(input, invocation, directory) {
       : {}),
     ...(invocation.persona ? { EXUI_SCOPE_PERSONA: invocation.persona } : {}),
     ...(input.releaseScopeId === GLOBAL_SEARCH_SCOPE ? { EXUI_GLOBAL_SEARCH_EVIDENCE: directory } : {}),
+    ...(input.releaseScopeId === APPLICANT_RESULTS_SCOPE ? { EXUI_CCD_RESULTS_INPUT: path.join(directory,'result-input.json') } : {}),
     ...(input.releaseScopeId === ROUTING_SCOPE
       ? {
           EXUI_ROUTING_SESSIONS: path.join(directory, "routing-sessions.json"),
@@ -223,6 +270,7 @@ export function nativeProofConfiguration(input, invocation, directory) {
     "--config",
     "/harness/playwright.harness.config.ts",
   ];
+  if(input.releaseScopeId===SHARED_NESTED_SCOPE)args.push("shared-nested-renderer.spec.ts");
   if (input.releaseScopeId === "exui-ccd-pilot" && invocation.mutation)
     args.push(
       invocation.mutation === "ccd-stale-revoked-bearer"
@@ -240,6 +288,8 @@ export function nativeProofConfiguration(input, invocation, directory) {
   return { args, env };
 }
 async function proof(input, invocation, directory) {
+  if(input.releaseScopeId === APPLICANT_RESULTS_SCOPE)
+    writeJsonAtomic(path.join(directory,'result-input.json'),{variant:input.variant,resultExpected:input.resultExpected});
   const { args, env } = nativeProofConfiguration(input, invocation, directory);
   const child = spawn(process.execPath, args, {
     cwd: root,
@@ -261,7 +311,11 @@ if (
     const baselineInput = read("/output/input.json"),
       invocation = nativeInvocation(baselineInput, arg("--invocation")),
       directory = path.join("/output", invocation.invocationId);
-    const input = baselineInput.releaseScopeId === CALLBACK_SCOPE && invocation.kind === "mutation"
+    const input = baselineInput.releaseScopeId === SELECTOR_EVENT_SCOPE && invocation.kind === "mutation"
+      ? selectSelectorRuntime(baselineInput,read(path.join(directory,"runtime-input.json")))
+      : baselineInput.releaseScopeId === APPLICANT_RESULTS_SCOPE && invocation.kind === "mutation"
+      ? selectApplicantResultRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))
+      : baselineInput.releaseScopeId === CALLBACK_SCOPE && invocation.kind === "mutation"
       ? selectCallbackRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))
       : baselineInput.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.kind === "mutation"
       ? selectEventCapabilityRuntime(baselineInput, invocation.invocationId, read(path.join(directory, "runtime-input.json")))

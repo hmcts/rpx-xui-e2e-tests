@@ -1,3 +1,6 @@
+import {captureComplexNativeBinding} from './exui-complex-email-admission.mjs';
+import {capturePersonalNativeBinding} from './exui-personal-service-admission.mjs';
+import {captureDivorceNativeBinding} from './exui-divorce-native-binding.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -150,7 +153,7 @@ export function observeCiToolchain({
   };
 }
 
-export async function prepareCiJob(job, output) {
+export async function prepareCiJob(job, output, {complexSourceConfiguration=null} = {}) {
   const artifact = await verifyCandidateArtifact(job.candidateManifest);
   assert.equal(
     artifact.identity.artifactDigest,
@@ -209,8 +212,10 @@ export async function prepareCiJob(job, output) {
       family: waSourceDigest,
       scope: waSourceDigest,
       ccd: sourceDigest(CCD_HARNESS_SOURCE_FILES),
+      sharedNested: sourceDigest(CCD_HARNESS_SOURCE_FILES),
       eventCapability: sourceDigest(CCD_HARNESS_SOURCE_FILES),
       recipientCallback: sourceDigest(CCD_HARNESS_SOURCE_FILES),
+      selectorEventRow: sourceDigest(CCD_HARNESS_SOURCE_FILES),
       routing: waSourceDigest,
     },
     job,
@@ -234,5 +239,8 @@ export async function prepareCiJob(job, output) {
     ...observations,
     playwrightVersion: dependencies.playwrightVersion,
   });
+  context.nativeCohortCapture = captureDivorceNativeBinding(context, output);
+  context.personalNativeCapture = capturePersonalNativeBinding(context, output, observations.ccdImages);
+  context.complexNativeCapture = captureComplexNativeBinding(context, output, observations.ccdImages, complexSourceConfiguration);
   return context;
 }

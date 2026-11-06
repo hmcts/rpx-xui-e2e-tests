@@ -843,6 +843,7 @@ test("support only: complete event phase credits the exact courtadmin edit and r
   });
   assert.deepEqual(projected.catalogue.obligations, before);
   assert.deepEqual(projected.report.executedProofs, [
+    {obligationId:"configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc",boundary:"candidate",status:"passed"},
     {obligationId:"configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f",boundary:"candidate",status:"passed"},
     {obligationId:"configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49",boundary:"candidate",status:"passed"},
     {obligationId:"configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e",boundary:"candidate",status:"passed"},
@@ -866,9 +867,9 @@ test("support only: complete event phase credits the exact courtadmin edit and r
     { obligationId: "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf", boundary: "ccd", status: "passed" },
     { obligationId: "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337", boundary: "ccd", status: "passed" },
   ]);
-  assert.equal(projected.report.coverage.candidate, 5);
+  assert.equal(projected.report.coverage.candidate, 6);
   assert.equal(projected.report.coverage.ccd, 16);
-  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 91);
+  assert.equal(projected.report.coverage.missingCandidateOrCcd.length, 90);
   assert.equal(projected.report.releaseCredit, false);
   assert.equal(
     projected.phaseReferences.eventCapability.receiptArtifactDigest,
@@ -967,7 +968,7 @@ for (const oldBlocked of [false, true])
       assert.equal(projected.report.coverage.ccd, oldBlocked ? 16 : 17);
       assert.equal(
         projected.report.coverage.missingCandidateOrCcd.length,
-        oldBlocked ? 91 : 90,
+        oldBlocked ? 90 : 89,
       );
       assert.equal(
         projected.phaseReferences.ccd.status,
@@ -1451,7 +1452,7 @@ test("support only: writer requires independent tool/source pins and projection 
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: b.directory,
   });
-  assert.equal(projected.report.coverage.candidate, 5);
+  assert.equal(projected.report.coverage.candidate, 6);
   assert.equal(projected.report.coverage.ccd, 16);
   assert.deepEqual(
     Object.fromEntries(files.map((f) => [f, digestBytes(fs.readFileSync(f))])),

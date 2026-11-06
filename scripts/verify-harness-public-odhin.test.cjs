@@ -169,6 +169,56 @@ test("combined output validates and reset withdraws only its complete owned repo
   Reporter.resetPublicReport("harness");
 });
 
+test("retirement accepts a prior owned report without new RunInfo rows while current publication rejects it", async (t) => {
+  const root = sandbox(t);
+  const Reporter = await complete();
+  const recordFile = path.join(root, "functional-output/tests/harness/private/public-odhin-harness.json");
+  const record = JSON.parse(fs.readFileSync(recordFile, "utf8"));
+  const rows = require("./harness-native-report.cjs").renderNativeExecutionInfo(record.nativeEvidence);
+  const currentHtml = fs.readFileSync(output(), "utf8");
+  assert(currentHtml.includes(rows));
+  const previousHtml = currentHtml.replace(rows, "");
+  record.sha256 = require("node:crypto").createHash("sha256").update(previousHtml).digest("hex");
+  fs.writeFileSync(output(), previousHtml);
+  fs.writeFileSync(recordFile, JSON.stringify(record));
+  assert.throws(() => Reporter.validatePublicReport("harness"), /PUBLIC_ODHIN/);
+  // No public argument may opt current publication into retirement compatibility.
+  assert.throws(() => Reporter.validatePublicReport("harness", true), /PUBLIC_ODHIN/);
+  Reporter.resetPublicReport("harness");
+  assert(!fs.existsSync(output()));
+  assert(!fs.existsSync(recordFile));
+  await complete();
+  assert.equal(Reporter.validatePublicReport("harness").status, "passed");
+});
+
+test("prior report retirement retains hash, ownership, privacy, metadata and symlink guards", async (t) => {
+  const root = sandbox(t);
+  const Reporter = await complete();
+  const recordFile = path.join(root, "functional-output/tests/harness/private/public-odhin-harness.json");
+  const record = JSON.parse(fs.readFileSync(recordFile, "utf8"));
+  const previousHtml = fs.readFileSync(output(), "utf8").replace(require("./harness-native-report.cjs").renderNativeExecutionInfo(record.nativeEvidence), "");
+  const hash = value => require("node:crypto").createHash("sha256").update(value).digest("hex");
+  for (const scenario of ["hash", "ownership", "privacy", "metadata", "foreign-file", "symlink"]) {
+    const changed = structuredClone(record);
+    let html = previousHtml;
+    if (scenario === "ownership") changed.runId = "00000000-0000-4000-8000-000000000000";
+    if (scenario === "privacy") html += '<script src="https://example.invalid/private.js"></script>';
+    if (scenario === "metadata") changed.tests++;
+    changed.sha256 = hash(scenario === "hash" ? html + "changed" : html);
+    fs.writeFileSync(output(), html);
+    fs.writeFileSync(recordFile, JSON.stringify(changed));
+    const foreign = path.join(path.dirname(output()), "foreign.txt");
+    const outside = path.join(root, "outside.html");
+    if (scenario === "foreign-file") fs.writeFileSync(foreign, canary);
+    if (scenario === "symlink") { fs.writeFileSync(outside, html); fs.unlinkSync(output()); fs.symlinkSync(outside, output()); }
+    assert.throws(() => Reporter.resetPublicReport("harness"), /PUBLIC_ODHIN/, scenario);
+    assert(fs.existsSync(output()), scenario);
+    assert.equal(fs.readFileSync(recordFile, "utf8"), JSON.stringify(changed), scenario);
+    if (scenario === "foreign-file") { assert.equal(fs.readFileSync(foreign, "utf8"), canary); fs.unlinkSync(foreign); }
+    if (scenario === "symlink") { assert.equal(fs.readFileSync(outside, "utf8"), html); fs.unlinkSync(output()); }
+  }
+});
+
 test("global errors remain numeric failed-run facts without copying their messages", async (t) => {
   sandbox(t);
   const Reporter = await complete("harness", [], "failed", 1);
@@ -588,6 +638,8 @@ test("dashboard separates diagnostic run info from unexecuted candidate evidence
   assert.match(info.textContent, /Diagnostic execution time/);
   assert.match(info.textContent, /Playwright diagnostic workers.*Not recorded configured · 1 observed/s);
   assert.match(info.textContent, /Native execution.*Not run/s);
+  assert.match(info.textContent, /Core native Playwright invocations.*Not run/s);
+  assert.match(info.textContent, /Configured core native worker slots.*Not run/s);
   assert.ok(root.querySelector('#harness-dashboard-ui'));
   assert.equal(Reporter.validatePublicReport('harness').tests, 116);
 });
@@ -655,7 +707,7 @@ test("main dashboard shows the catalogue evidence gap and coverage map before na
   const applicationCoverage = dom.querySelector("#harness-application-coverage");
   assert.ok(applicationCoverage);
   assert.equal(applicationCoverage.tagName.toLowerCase(), "section");
-  assert.match(applicationCoverage.textContent, /5\s*\/\s*112/);
+  assert.match(applicationCoverage.textContent, /6\s*\/\s*112/);
   assert.match(applicationCoverage.textContent, /Release approval remains unavailable/);
 });
 
@@ -727,6 +779,7 @@ test("overview rejects source-model drift even when every runner check passes", 
 });
 
 async function nativePresentationFixture(blocked = true) {
+  const { nativeInvocations } = await import("./lib/exui-native-contract.mjs");
   const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
   const { loadCommittedConfigurationCatalogue } =
     await import("./lib/exui-configuration-runtime-coverage.mjs");
@@ -751,19 +804,20 @@ async function nativePresentationFixture(blocked = true) {
     catalogueCoverage: {
       catalogueDigest: `sha256:${objectDigest(catalogue.obligations)}`,
       selected: catalogue.obligations.length,
-      candidate: 2,
+      candidate: 3,
       ccd: blocked ? 2 : 3,
       creditedObligationIds: [
+        "configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe",
         "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94",
         ...(blocked ? [] : [catalogue.sequences[0].id]),
         "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
         "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
         "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
       ],
-      missing: catalogue.obligations.length - (blocked ? 4 : 5),
+      missing: catalogue.obligations.length - (blocked ? 5 : 6),
       sourceArtifactDigests,
       phaseReferences: Object.fromEntries(
-        ["ccd", "eventCapability", "routing", "recipientCallback"].map((phase) => [
+        ["ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"].map((phase) => [
           phase,
           {
             releaseScopeId:
@@ -771,7 +825,7 @@ async function nativePresentationFixture(blocked = true) {
                 ? "exui-ccd-pilot"
                 : phase === "eventCapability"
                   ? "exui-ccd-event-capability-pilot"
-                  : phase === "routing" ? "exui-decentralised-routing-pilot" : "exui-ccd-recipient-callback-pilot",
+                  : phase === "routing" ? "exui-decentralised-routing-pilot" : phase === "selectorEventRow" ? "exui-ccd-selector-event-row-pilot" : "exui-ccd-recipient-callback-pilot",
             runId: "candidate-11111111-1111-4111-8111-111111111111",
             receiptArtifactDigest: hash,
             status: blocked && phase === "ccd" ? "BLOCKED" : "PASS",
@@ -787,6 +841,7 @@ async function nativePresentationFixture(blocked = true) {
       eventCapability: "exui-ccd-event-capability-pilot",
       routing: "exui-decentralised-routing-pilot",
       recipientCallback: "exui-ccd-recipient-callback-pilot",
+      selectorEventRow: "exui-ccd-selector-event-row-pilot",
     }).map(([phase, scope]) => {
       const policy = getReleasePolicy(scope);
       return {
@@ -797,11 +852,12 @@ async function nativePresentationFixture(blocked = true) {
         receiptArtifactDigest: hash,
         status: blocked && phase === "ccd" ? "BLOCKED" : "PASS",
         exitCode: blocked && phase === "ccd" ? 2 : 0,
+        invocations: nativeInvocations(scope).map(item => ({invocationId:item.invocationId, configuredWorkers:null})),
         baselineProofs: policy.obligations
           .flatMap((item) => item.requiredProofIds)
           .map((proofId) => ({
             proofId,
-            invocationId: "baseline",
+            invocationId: phase === "scope" ? (proofId === "wa-org-scope-civil" ? "scope-civil" : "scope-ia") : "baseline",
             status:
               blocked && proofId === "ccd-postal-two-roundtrip"
                 ? "failed"
@@ -814,7 +870,7 @@ async function nativePresentationFixture(blocked = true) {
         faults: policy.mutationDefinitions.map((item) => ({
           mutationId: item.mutationId,
           proofId: item.mutantProofId,
-          invocationId: item.mutationId,
+          invocationId: nativeInvocations(scope).find(invocation => invocation.mutation === item.mutationId).invocationId,
           baselineProofId: item.baselineProofId,
           baselineStatus:
             blocked && item.baselineProofId === "ccd-postal-two-roundtrip"
@@ -873,8 +929,8 @@ test("same Odhín document separates native baselines and faults from diagnostic
     /Diagnostics passed \/ Native BLOCKED/,
   );
   assert.equal(dom.querySelectorAll("[data-harness-check]").length, 121);
-  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 21);
-  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 21);
+  assert.equal(dom.querySelectorAll("[data-native-kind=baseline]").length, 23);
+  assert.equal(dom.querySelectorAll("[data-native-kind=fault]").length, 23);
   assert.match(
     dom.querySelector("[data-native-postal-blocked]").textContent,
     /required postcode blank/,
@@ -896,7 +952,7 @@ test("same Odhín document separates native baselines and faults from diagnostic
   );
   assert.match(
     dom.querySelector("[data-runtime-obligations]").textContent,
-        /4 \/ 112/,
+        /5 \/ 112/,
   );
   assert.equal(Reporter.validatePublicReport().tests, 121);
   assert.equal(
@@ -940,15 +996,15 @@ test("catalogue coverage reflects only accepted exact requirements and rejects i
     });
     assert.ok(
       html.includes(
-        `${blocked ? 4 : 5} / 112 catalogue requirements satisfied by accepted runtime evidence`,
+        `${blocked ? 5 : 6} / 112 catalogue requirements satisfied by accepted runtime evidence`,
       ),
     );
-    assert.ok(html.includes(`${blocked ? 108 : 107} remain unsatisfied`));
+    assert.ok(html.includes(`${blocked ? 107 : 106} remain unsatisfied`));
     const summary = require("node-html-parser").parse(html);
     const rows = summary.querySelectorAll("[data-catalogue-kind]");
     assert.equal(rows.length, 6);
     assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-total")), 0), 112);
-    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-accepted")), 0), blocked ? 4 : 5);
+    assert.equal(rows.reduce((sum, row) => sum + Number(row.getAttribute("data-catalogue-accepted")), 0), blocked ? 5 : 6);
     assert.equal(summary.querySelector('[data-catalogue-kind="definition-shape"]').getAttribute("data-catalogue-total"), "79");
     assert.equal(summary.querySelector('[data-catalogue-kind="configuration-profile"]').getAttribute("data-catalogue-total"), "13");
     assert.match(summary.textContent, /not a count of failed tests/);
@@ -1014,7 +1070,7 @@ test("shared role policy credit requires its complete source and phase binding s
     ccdRunId:coverage.phaseReferences.ccd.runId, eventRunId:coverage.phaseReferences.eventCapability.runId };
   const records = overview.entries.map(entry => ({entry,observed:{status:"passed"}}));
   const html = await overview.renderOverview(records,"harness",{nativeEvidence:evidence});
-  assert.match(html,/6 \/ 112 catalogue requirements satisfied by accepted runtime evidence/);
+  assert.match(html,/7 \/ 112 catalogue requirements satisfied by accepted runtime evidence/);
   const summary = require("node-html-parser").parse(html);
   assert.equal(summary.querySelector('[data-catalogue-kind="shared-policy"]').getAttribute("data-catalogue-accepted"),"1");
   coverage.sharedRoleAdmission.roleFacetCount = 24;
@@ -1202,13 +1258,209 @@ test("six-phase presentation cannot relabel historical or partial native collect
 
 test("callback presentation cannot credit a missing phase, wrong source row or extra proof",async()=>{
  const {renderNativeEvidence}=require('./harness-native-report.cjs');
- for(const alter of [e=>e.phases.pop(),e=>e.phases.reverse(),e=>e.phases.push(e.phases.at(-1)),e=>e.phases.at(-1).baselineProofs.push({...e.phases.at(-1).baselineProofs[0],proofId:'foreign-callback'}),e=>e.catalogueCoverage.phaseReferences.recipientCallback.status='BLOCKED']) {
+ for(const alter of [e=>e.phases.pop(),e=>e.phases.reverse(),e=>e.phases.push(e.phases.at(-1)),e=>e.phases.find(p=>p.phase==='recipientCallback').baselineProofs.push({...e.phases.find(p=>p.phase==='recipientCallback').baselineProofs[0],proofId:'foreign-callback'}),e=>e.catalogueCoverage.phaseReferences.recipientCallback.status='BLOCKED']) {
   const evidence=await nativePresentationFixture(false);alter(evidence);assert.throws(()=>renderNativeEvidence(evidence),/PUBLIC_ODHIN_/);
  }
  const evidence=await nativePresentationFixture(false);
- evidence.phases.at(-1).privateCallbackJournal={rawBody:canary,caseReference:canary};
+ evidence.phases.find(p=>p.phase==='recipientCallback').privateCallbackJournal={rawBody:canary,caseReference:canary};
  const html=renderNativeEvidence(evidence);assert.ok(!html.includes(canary));
  assert.match(html,/Additional recipient callback row/);assert.match(html,/Callback business logic is synthetic/);
  assert.equal((html.match(/data-native-phase="recipientCallback" data-native-kind="baseline"/g)||[]).length,1);
  assert.equal((html.match(/data-native-phase="recipientCallback" data-native-kind="fault"/g)||[]).length,1);
+});
+
+test('supplementary compatibility evidence stays outside primary counts and is bound into the one public report',async(t)=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});
+ reporter.nativeEvidence=await nativePresentationFixture(false);
+ const primary=structuredClone(reporter.nativeEvidence),hash='sha256:'+'a'.repeat(64);
+ reporter.compatibilityEvidence={schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,dataImageDigest:hash,profileDigest:hash,descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
+ const record=Reporter.validatePublicReport();assert.equal(record.tests,tests.length);assert.deepEqual(record.nativeEvidence,primary);
+ const htmlFile=path.join(root,'functional-output/tests/harness/public/odhin/index.html');
+ const html=fs.readFileSync(htmlFile,'utf8');assert(!html.includes(canary));assert.equal((html.match(/id="harness-applicant-compatibility"/g)||[]).length,1);
+ assert(html.indexOf('id="harness-native-evidence"')<html.indexOf('id="harness-applicant-compatibility"'));
+ const recordFile=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(recordFile);
+ for(const change of [v=>v.compatibilityEvidence=null,v=>v.compatibilityEvidence.producerCommit='d'.repeat(40),v=>v.compatibilityEvidence.catalogueCredit=true,v=>v.compatibilityEvidence.private=canary]){
+  const changed=JSON.parse(original);change(changed);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport());
+ }
+ fs.writeFileSync(recordFile,original);assert.equal(Reporter.validatePublicReport().compatibilityEvidence.cleanupComplete,true);
+});
+
+
+test("native headline shows the actual status and reserves green for passing evidence", () => {
+ const vm = require('node:vm');
+ const script = fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8');
+ const make = () => ({dataset:{},children:[],classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(){}});
+ for (const status of [null,'PASS','FAIL','BLOCKED']) {
+  const metrics=make(); metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
+  const native=status?{dataset:{nativeStatus:status},querySelectorAll:()=>[{},{}]}:null;
+  const document={createElement:make,querySelector:selector=>({'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':native})[selector]||null,querySelectorAll:()=>[]};
+  vm.runInNewContext(script,{document});
+  const card=metrics.children[1];
+  assert.equal(card.dataset.nativeStatus,status||'NOT_RUN');
+  assert.equal(card.children[1].textContent,status?'2 + 2':'Not run');
+  assert.ok(card.children[2].textContent.includes(status||'Candidate and CCD checks not attached'));
+ }
+ const css=fs.readFileSync(path.join(__dirname,'harness-report-coverage.css'),'utf8');
+ assert.match(css,/\.report-metric\.metric-1\[data-native-status\] strong\s*\{\s*color: var\(--report-ink\);/);
+ assert.match(css,/\.report-metric\.metric-1\[data-native-status="PASS"\] strong\s*\{\s*color: var\(--odhin-passed-status-color\);/);
+});
+
+test('separately admitted DIVORCE profile stays outside main totals in the same report',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),hash='sha256:'+'a'.repeat(64);
+ reporter.nativeEvidence=await nativePresentationFixture(true);const primary=structuredClone(reporter.nativeEvidence);
+ reporter.nativeEvidence.divorceProfileAdmission={schemaVersion:1,kind:'divorce-profile-admission',status:'passed',obligationId:'configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce',boundary:'candidate',family:'DIVORCE',baselineProofs:6,effectiveFaults:6,selected:1,accepted:1,catalogueSize:112,releaseCredit:false,releaseApproval:false,runId:'divorce-00000000-0000-4000-8000-000000000001',producerCommit:'e'.repeat(40),candidateCommit:'f'.repeat(40),...Object.fromEntries(['producerDigest','candidateArtifactDigest','inputDigest','bindingDigest','receiptDigest','terminalDigest','launchDigest','cleanupDigest','contractDigest'].map(key=>[key,hash]))};
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
+ const record=Reporter.validatePublicReport();assert.equal(record.tests,tests.length);assert.deepEqual(record.nativeEvidence.catalogueCoverage,primary.catalogueCoverage);assert.deepEqual(record.nativeEvidence.source,primary.source);assert.equal(record.nativeEvidence.status,primary.status);
+ const html=fs.readFileSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.equal((html.match(/id="harness-divorce-profile-admission"/g)||[]).length,1);assert.match(html,/1\/1 profile accepted in a separate run/);assert.match(html,/Postal proof BLOCKED/);assert.match(html,/Separate profile run: 1\/1 accepted; excluded from main cohort count/);assert.match(html,/Standalone total duration not recorded/);assert.match(html,/data-profile-status="PASS" data-profile-baselines="6" data-profile-faults="6" data-profile-accepted="1" data-profile-selected="1"/);assert(html.includes('data-profile-producer="'+'e'.repeat(40)+'"'));assert(html.includes('data-profile-run="divorce-00000000-0000-4000-8000-000000000001"'));
+ const recordFile=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(recordFile);
+ for(const change of [v=>delete v.nativeEvidence.divorceProfileAdmission,v=>v.nativeEvidence.divorceProfileAdmission.producerCommit='d'.repeat(40),v=>v.nativeEvidence.divorceProfileAdmission.accepted=2,v=>v.nativeEvidence.divorceProfileAdmission.private=canary]){const changed=JSON.parse(original);change(changed);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport());}
+ fs.writeFileSync(recordFile,original);
+});
+
+
+test('dashboard exposes supplementary runs without adding them to main counts', () => {
+ const vm=require('node:vm');
+ const script=fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8');
+ const make=()=>({dataset:{},children:[],attributes:{},classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(name,value){this.attributes[name]=value}});
+ const panels={
+  '#harness-shared-nested-attempt':{dataset:{attemptStatus:'BLOCKED',attemptBaselinesCompleted:'4',attemptBaselinesPassed:'2',attemptBaselinesFailed:'2',attemptFaultsCompleted:'0',attemptFaultsNotRun:'3'}},
+  '#harness-divorce-profile-admission':{dataset:{profileStatus:'PASS',profileBaselines:'6',profileFaults:'6',profileAccepted:'1',profileSelected:'1',profileDurationMs:'125000'}},
+  '#harness-applicant-compatibility':{dataset:{compatibilityStatus:'PASS',compatibilityBaselines:'1',compatibilityFaults:'3'}},
+  '#harness-personal-service-admission':{dataset:{personalStatus:'PASS',personalBaselines:'1',personalEffectiveFaults:'1',personalAccepted:'1',personalTotal:'1',personalInclusion:'included',personalDurationMs:'247013'}},
+ };
+ const render=(supplements,main=true)=>{
+  const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
+  const elements={'#harness-public-run':{dataset:{nativeElapsedMs:'60000'}},'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,...(main?{'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}}:{}),...supplements};
+  const document={createElement:make,querySelector:selector=>elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'35'}}]:[]};
+  vm.runInNewContext(script,{document});return metrics;
+ };
+ const text=node=>[node.textContent||'',...node.children.map(text)].join(' ');
+ const plain=render({});assert.equal(plain.children[1].children[0].textContent,'Native proof outcomes');assert(!plain.children.some(x=>x.className==='report-supplement-summary'));
+ const metrics=render(panels),summary=metrics.children[4];
+ assert.equal(metrics.children[0].children[1].textContent,'35 / 112');assert.equal(metrics.children[1].children[1].textContent,'2 + 2');assert.equal(metrics.children[2].children[1].textContent,'116');assert.equal(metrics.children[3].children[1].textContent,'Unavailable');
+ assert.equal(metrics.children[1].children[0].textContent,'Main native proof outcomes');assert.equal(summary.className,'report-supplement-summary');
+ const links=summary.children.find(x=>x.className==='report-supplement-links').children;
+ assert.deepEqual(links.map(x=>x.href),Object.keys(panels));
+ assert.match(text(links[0]),/BLOCKED/);assert.match(text(links[0]),/4 baseline facets completed/);assert.match(text(links[0]),/2 passed.*2 failed/);assert.match(text(links[0]),/0 effective faults.*3 not run/);
+ assert.match(text(links[1]),/6 baseline.*6 effective faults/);assert.match(text(links[1]),/1 \/ 1.*separate/);
+ assert.match(text(links[2]),/1 baseline.*3 effective faults/);assert.match(text(links[2]),/Corrected local ARM64 CCD/);
+ assert.match(text(links[3]),/PASS.*1 baseline.*1 effective fault/);assert.match(text(links[3]),/already included in main candidate coverage/);assert.match(text(links[3]),/Personal pair interval: 4m 7s.*excluded from main native duration/);
+ const separatePersonal=render({'#harness-personal-service-admission':{dataset:{...panels['#harness-personal-service-admission'].dataset,personalInclusion:'separate'}}});assert.match(text(separatePersonal.children[4]),/1 \/ 1 requirement accepted in this separate run/);assert.equal(separatePersonal.children[0].children[1].textContent,'35 / 112');
+ const failedPersonal=render({'#harness-personal-service-attempt':{dataset:{personalAttemptStatus:'BLOCKED',personalAttemptDurationMs:'1234'}}});assert.match(text(failedPersonal.children[4]),/BLOCKED.*Completed proof counts unavailable.*No additional catalogue/);assert.doesNotMatch(text(failedPersonal.children[4]),/1 baseline|1 effective fault/);assert.match(text(failedPersonal.children[4]),/Observed attempt interval: 0m 1s/);
+ assert.match(text(metrics.children[1]),/1\.0 min main native \+ evidence verification/);
+ assert.match(text(links[1]),/Separate profile interval: 2m 5s.*excluded from main native duration/);
+ assert.match(text(summary),/Separate execution counts and durations/);assert.match(text(summary),/Supplementary requirements enter the catalogue total only when jointly admitted/);assert.doesNotMatch(text(summary),/excluded from the main totals/);
+ const unknown=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:undefined}}});assert.match(text(unknown.children[4]),/Separate profile interval: not recorded/);
+ const included=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileInclusion:'included'}}});assert.match(text(included.children[4]),/already included in main candidate coverage/);assert.match(text(included.children[4]),/2m 5s.*excluded from main native duration/);assert.equal(included.children[0].children[1].textContent,'35 / 112');
+ const zero=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:'0'}}});assert.match(text(zero.children[4]),/Separate profile interval: 0m 0s/);
+ const standalone=render({'#harness-shared-nested-attempt':panels['#harness-shared-nested-attempt']},false);
+ assert.equal(standalone.children[1].children[1].textContent,'Not run');assert.equal(standalone.children[1].dataset.nativeStatus,'NOT_RUN');assert.equal(standalone.children[2].children[1].textContent,'116');assert.match(text(standalone.children[4]),/BLOCKED/);
+ for(const [selector,panel]of Object.entries(panels)){const one=render({[selector]:panel});assert.equal(one.children[4].children.find(x=>x.className==='report-supplement-links').children.length,1);}
+ const css=fs.readFileSync(path.join(__dirname,'harness-report-coverage.css'),'utf8');assert.match(css,/\.report-supplement-summary[^{]*\{[^}]*grid-column:\s*1 \/ -1/);assert.match(css,/\.report-supplement-links[^{]*\{[^}]*minmax/);
+});
+
+
+test('applicant compatibility publishes only validated dashboard count attributes', () => {
+ const {renderApplicantCompatibility}=require('./harness-applicant-results-report.cjs');
+ const hash='sha256:'+'a'.repeat(64);
+ const value={schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,dataImageDigest:hash,profileDigest:hash,descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
+ const section=require('node-html-parser').parse(renderApplicantCompatibility(value)).querySelector('#harness-applicant-compatibility');
+ assert.equal(section.getAttribute('data-compatibility-status'),'PASS');assert.equal(section.getAttribute('data-compatibility-baselines'),'1');assert.equal(section.getAttribute('data-compatibility-faults'),'3');
+ for(const changed of [{...value,baselineProofs:2},{...value,effectiveFaults:4},{...value,catalogueCredit:true},{...value,status:'FAIL'}])assert.throws(()=>renderApplicantCompatibility(changed));
+});
+
+
+test('selector catalogue credit requires its exact successful phase and cannot duplicate the source row',async()=>{
+ const {renderNativeEvidence}=require('./harness-native-report.cjs');
+ const id='configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe';
+ for(const alter of [e=>{e.phases.find(p=>p.phase==='selectorEventRow').status='BLOCKED';},e=>{e.catalogueCoverage.phaseReferences.selectorEventRow.receiptArtifactDigest='sha256:'+'0'.repeat(64);},e=>{e.catalogueCoverage.creditedObligationIds.push(id);e.catalogueCoverage.candidate++;e.catalogueCoverage.missing--;},e=>{e.phases.find(p=>p.phase==='selectorEventRow').faults=[];}]){
+  const evidence=await nativePresentationFixture(false);alter(evidence);assert.throws(()=>renderNativeEvidence(evidence),/PUBLIC_ODHIN_/);
+ }
+ const evidence=await nativePresentationFixture(false),html=renderNativeEvidence(evidence);
+ assert.equal(evidence.catalogueCoverage.creditedObligationIds.filter(value=>value===id).length,1);
+ assert.match(html,/Optional recipient selector on source Page2/);assert.match(html,/Fields1–6 and the neighbouring business callback are excluded/);
+ assert.equal((html.match(/data-native-phase="selectorEventRow" data-native-kind="baseline"/g)||[]).length,1);assert.equal((html.match(/data-native-phase="selectorEventRow" data-native-kind="fault"/g)||[]).length,1);
+});
+
+test('seven-phase dashboard includes selector setup, execution, evidence and cleanup timings exactly once',async t=>{
+ sandbox(t);const Reporter=api();
+ const labels=['WA family','Scope fault candidate preparation','WA organisation scope','CCD runtime startup','CCD configuration and access','CCD runtime cleanup','Source event CCD runtime startup','CCD source event permissions','Source event CCD runtime cleanup','Application routing','Recipient callback CCD runtime startup','Recipient callback validation and persistence','Recipient callback CCD runtime cleanup','Selector CCD baseline preparation','Selector baseline proof and cleanup','Selector CCD fault preparation','Selector fault proof and cleanup','Selector evidence verification','Selector final cleanup','Selector cohort admission'];
+ const passed=new Set(['WA family','WA organisation scope','CCD configuration and access','CCD source event permissions','Application routing','Recipient callback validation and persistence','Selector evidence verification','Selector cohort admission']);
+ const phaseTimings=labels.map((label,index)=>({label,status:passed.has(label)?'PASS':'completed',startedAt:new Date(Date.UTC(2026,10,5,12,0,index)).toISOString(),durationMs:1000}));
+ const reporter=new Reporter({selection:'harness',nativeElapsedMs:20000,phaseTimings});reporter.nativeEvidence=await nativePresentationFixture(false);
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
+ assert.equal(Reporter.validatePublicReport('harness').status,'passed');
+ const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),table=dom.querySelector('#harness-phase-timings');
+ assert.equal(table.querySelectorAll('tbody tr').length,20);assert.match(table.textContent,/0m 20s native run/);
+ for(const label of labels.slice(-7))assert.equal(table.querySelectorAll('tbody tr').filter(row=>row.textContent.includes(label)).length,1);
+ assert.match(table.textContent,/Selector baseline proof and cleanupProof \+ setup \/ cleanup/);
+ assert(!table.textContent.includes('Selector Page2 preparation, proofs and cleanup'));
+});
+
+test('nonadmitted DIVORCE attempts remain visible without invented completion or catalogue credit',async t=>{
+ const root=sandbox(t),Reporter=require(reporterPath),overview=require('./harness-public-overview.cjs');
+ for(const attempt of [{schemaVersion:1,kind:'divorce-profile-attempt',status:'NOT_RUN',reason:'main-evidence-unavailable'},{schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'profile-not-admitted',durationMs:125000}]){
+  const reporter=new Reporter({selection:'harness',divorceProfileAttempt:attempt});const tests=overview.entries.map(entry=>({location:{file:path.join(root,entry.file)},titlePath:()=>entry.titlePath,retries:0,expectedStatus:'passed'}));reporter.onBegin({}, {allTests:()=>tests});const startTime=new Date('2026-11-05T12:00:00Z');for(const item of tests)reporter.onTestEnd(item,{status:'passed',retry:0,duration:1,startTime,workerIndex:0,parallelIndex:0});await reporter.onEnd({status:'passed',startTime,duration:1000});
+  const result=Reporter.validatePublicReport();assert.equal(result.tests,116);assert.equal(result.nativeEvidence,null);assert.deepEqual(result.divorceProfileAttempt,attempt);const html=fs.readFileSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.match(html,/DIVORCE profile: not admitted/);assert.match(html,/Completed proof counts are unavailable/);assert.match(html,/adds no catalogue or release credit/);assert(!html.includes('PRIVATE-CANARY'));assert(html.includes('data-profile-attempt-status="'+attempt.status+'"'));
+ }
+ const render=require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt,base={schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'profile-not-admitted'};
+ for(const bad of [{...base,status:'PASS'},{...base,reason:'PRIVATE-CANARY'},{...base,accepted:1},{...base,durationMs:-1},{...base,status:'NOT_RUN',durationMs:0},{...base,durationMs:'125000'}])assert.throws(()=>render(bad),/DIVORCE_ATTEMPT_INVALID/);
+});
+
+
+test('native execution counts separate31 physical invocations from46 proof records and unknown workers', async () => {
+  const evidence = await nativePresentationFixture(false);
+  const {nativeCounts, renderNativeExecutionInfo} = require('./harness-native-report.cjs');
+  assert.deepEqual(nativeCounts(evidence), {baselines:23, faults:23, invocations:31, workerSlots:[], workersUnknown:31});
+  assert.deepEqual(evidence.phases.map(p=>p.invocations.length), [2,3,7,12,3,2,2]);
+  assert.match(renderNativeExecutionInfo(evidence), /Not recorded · 31 invocations not recorded/);
+  for (const phase of evidence.phases) for (const item of phase.invocations) item.configuredWorkers=1;
+  assert.match(renderNativeExecutionInfo(evidence), /1 per invocation/);
+  evidence.phases[0].invocations[0].configuredWorkers=2;
+  assert.match(renderNativeExecutionInfo(evidence), /1, 2 slots per invocation \(varies\)/);
+  assert.match(renderNativeExecutionInfo(evidence), /Observed and peak native worker process counts are not recorded/);
+  for (const change of [e=>e.phases[0].invocations.push(e.phases[0].invocations[0]),e=>e.phases[0].invocations.pop(),e=>{e.phases[0].invocations[0].invocationId='foreign';},e=>{e.phases[0].invocations[0].configuredWorkers=canary;}]) {
+    const changed=structuredClone(evidence);change(changed);assert.throws(()=>nativeCounts(changed));
+  }
+  for (const phase of evidence.phases) delete phase.invocations;
+  assert.equal(nativeCounts(evidence).invocations,null);
+  assert.match(renderNativeExecutionInfo(evidence), /Core native Playwright invocations<\/th><td>Not recorded/);
+});
+
+test('RunInfo shows core native invocations and configured slots without inventing observed processes', async t => {
+  sandbox(t);
+  const Reporter=api(), reporter=new Reporter({selection:'harness'});
+  reporter.nativeEvidence=await nativePresentationFixture(false);
+  for(const phase of reporter.nativeEvidence.phases)for(const item of phase.invocations)item.configuredWorkers=1;
+  const tests=testsFor();reporter.onBegin({workers:1},{allTests:()=>tests});
+  for(const [index,item] of tests.entries())reporter.onTestEnd(item,result('passed',index));
+  await reporter.onEnd(fullResult());
+  const html=fs.readFileSync(output('harness'),'utf8');
+  assert.match(html,/Core native Playwright invocations<\/th><td>31<\/td>/);
+  assert.match(html,/Configured core native worker slots<\/th><td>1 per invocation/);
+  assert.match(html,/Configured slots, not concurrent processes/);
+  assert.equal(Reporter.validatePublicReport('harness').tests,116);
+});
+
+
+test('personal invocation telemetry is separate from core and historical absence stays unknown', async () => {
+  const evidence=await nativePresentationFixture(false), {renderNativeExecutionInfo,nativeCounts}=require('./harness-native-report.cjs');
+  const before=nativeCounts(evidence);
+  evidence.personalServiceAdmission={invocations:[
+    {invocationId:'baseline',runId:'ccd-11111111-1111-4111-8111-111111111111',configuredWorkers:1},
+    {invocationId:'optional',runId:'ccd-22222222-2222-4222-8222-222222222222',configuredWorkers:1}
+  ]};
+  const html=renderNativeExecutionInfo(evidence);
+  assert.match(html,/Core native Playwright invocations<\/th><td>31<\/td>/);
+  assert.match(html,/Personal-service Playwright invocations<\/th><td>2<\/td>/);
+  assert.match(html,/Configured personal-service worker slots<\/th><td>1 per invocation/);
+  assert.deepEqual(nativeCounts(evidence),before);
+  for(const change of [a=>a.invocations.pop(),a=>a.invocations.push(a.invocations[0]),a=>{a.invocations[1].runId=a.invocations[0].runId;},a=>{a.invocations[1].invocationId='foreign';},a=>{a.invocations[1].configuredWorkers=canary;}]){
+    const modified=structuredClone(evidence);change(modified.personalServiceAdmission);assert.throws(()=>renderNativeExecutionInfo(modified));
+  }
+  evidence.personalServiceAdmission.invocations.forEach(item=>{item.configuredWorkers=null;});
+  assert.match(renderNativeExecutionInfo(evidence),/Not recorded · 2 invocations not recorded/);
+  delete evidence.personalServiceAdmission.invocations;
+  assert.match(renderNativeExecutionInfo(evidence),/Personal-service Playwright invocations<\/th><td>Not recorded<\/td>/);
 });

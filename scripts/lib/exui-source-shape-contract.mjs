@@ -6,6 +6,9 @@ import { buildEventCapabilityFixtures } from './exui-ccd-event-capability.mjs';
 // from CaseEventFieldComplex. Blank labels are trimmed; the candidate retains
 // the underlying field label when its override is empty.
 export const SOURCE_SHAPE_ROWS = Object.freeze([
+  Object.freeze({ id: 'recipient-collection', obligationId: 'configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc', sheet: 'CaseField', reference: 'sodAdditionalRecipientsList',
+    label: 'Recipient', fieldType: 'Collection', fieldTypeParameter: 'ServeOrgDetails',
+    faultColumn: 'FieldType', faultValue: 'ServeOrgDetails' }),
   Object.freeze({ id: 'case-field-recipient-selector', obligationId: 'configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f', sheet: 'CaseField', reference: 'sodAdditionalRecipients',
     label: 'Select additional recipients who needs to be served', fieldType: 'MultiSelectList', fieldTypeParameter: 'AdditionalRecipients',
     faultColumn: 'Label', faultValue: 'Harness changed recipient selector' }),
@@ -57,7 +60,7 @@ export function assertSourceShapeRows(fixture) {
       assert.deepEqual(row, {
         LiveFrom: '01/09/2024', CaseTypeID: 'HarnessNestedPRL', ID: contract.reference,
         Label: contract.label, FieldType: contract.fieldType,
-        HintText: 'For example, Cafcass, Local authority and Other organization',
+        ...(contract.id === 'case-field-recipient-selector' ? { HintText: 'For example, Cafcass, Local authority and Other organization' } : {}),
         FieldTypeParameter: contract.fieldTypeParameter, SecurityClassification: 'Public', Searchable: 'N',
       }, 'SHAPE_SOURCE_FACET_DRIFT');
       continue;
@@ -91,9 +94,13 @@ export function assertObservedSourceShape(observed, id, fault = false) {
   if (contract.sheet === 'CaseField') {
     const rows = observed.case_fields.filter(row => row.id === contract.reference);
     assert.equal(rows.length, 1, 'SHAPE_RUNTIME_ROW_REQUIRED');
-    assert.equal(rows[0].label, fault ? contract.faultValue : contract.label, 'SHAPE_LABEL_MISMATCH');
-    assert.equal(rows[0].field_type.type, contract.fieldType, 'SHAPE_FIELD_TYPE_MISMATCH');
-    assert.equal(rows[0].field_type.id, `${contract.fieldType}-${contract.fieldTypeParameter}`, 'SHAPE_FIELD_TYPE_PARAMETER_MISMATCH');
+    assert.equal(rows[0].label, fault && contract.faultColumn === 'Label' ? contract.faultValue : contract.label, 'SHAPE_LABEL_MISMATCH');
+    const singularCollectionFault = contract.id === 'recipient-collection' && fault;
+    assert.equal(rows[0].field_type.type, singularCollectionFault ? 'Complex' : contract.fieldType, 'SHAPE_FIELD_TYPE_MISMATCH');
+    if (contract.fieldType === 'Collection') {
+      assert.equal(singularCollectionFault ? rows[0].field_type.id : rows[0].field_type.collection_field_type?.id, contract.fieldTypeParameter, 'SHAPE_FIELD_TYPE_PARAMETER_MISMATCH');
+      if (singularCollectionFault) assert.equal(rows[0].field_type.collection_field_type, null, 'SHAPE_COLLECTION_FAULT_REQUIRED');
+    } else assert.equal(rows[0].field_type.id, `${contract.fieldType}-${contract.fieldTypeParameter}`, 'SHAPE_FIELD_TYPE_PARAMETER_MISMATCH');
     return;
   }
   const events = observed.events.filter(row => row.id === 'serviceOfDocuments');

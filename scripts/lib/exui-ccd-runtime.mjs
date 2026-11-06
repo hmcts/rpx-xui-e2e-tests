@@ -1,5 +1,6 @@
 import { readStoredSourceShapeDates, assertStoredSourceShapeDates } from './exui-source-shape-dates.mjs';
 import { SOURCE_SHAPE_ROWS, validateSourceShapeFault, assertObservedSourceShape } from './exui-source-shape-contract.mjs';
+import {verifyLocalCcdRuntimeProfile,assertLocalCcdRuntimeScope} from './exui-local-ccd-runtime-profile.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
@@ -77,10 +78,17 @@ export function assertCcdImageIdentity(info, pin, platform) {
   );
 }
 export function ccdRuntimeImageIds(state) {
+  let local;
+  if(state.localCcdProfile) {
+    assertLocalCcdRuntimeScope(state);
+    local=verifyLocalCcdRuntimeProfile(state.localCcdProfile);
+    assert.equal(state.images?.data?.id,local.imageId,'LOCAL_CCD_RUNTIME_IMAGE_DRIFT');
+  }
   const platform = state.platform ?? 'linux/arm64',
     pins = ccdImagePins(platform, { elasticsearch: state.elasticsearch ?? false });
   return Object.fromEntries(
     Object.entries(pins).map(([name, pin]) => {
+      if(name==='data'&&local)return [name,local.imageId];
       if (platform === 'linux/arm64' && name !== 'elasticsearch') {
         if (state.images)
           assert.equal(
@@ -164,32 +172,45 @@ export function ccdRequest(state,port,route,options={}) {
  try {result.body=JSON.parse(result.body);}catch{} return result;
 }
 const save=(state)=>fs.writeFileSync(path.join(state.output,'runtime.json'),JSON.stringify(state,null,2)+'\n');
-export async function startCcdRuntime(output,{runDocker=docker,request=ccdRequest,fixtureSelection:selection='nested-prl',isCancelled=()=>false,platform='linux/arm64',elasticsearch=false}={}) {
+export async function startCcdRuntime(output,{runDocker=docker,request=ccdRequest,fixtureSelection:selection='nested-prl',isCancelled=()=>false,onCreateUncertainty=()=>{},platform='linux/arm64',elasticsearch=false,localCcdProfile}={}) {
  fixtureSelection(null,selection);
+ let local;
+ if(localCcdProfile!==undefined) { assertLocalCcdRuntimeScope({platform,elasticsearch,fixtureSelection:selection});local=verifyLocalCcdRuntimeProfile(localCcdProfile,{docker:runDocker}); }
  const pins=ccdImagePins(platform,{elasticsearch}),images=Object.fromEntries(Object.entries(pins).map(([name,pin])=>[name,pin.manifestDigest]));
+ if(local)images.data=local.imageId;
  const checkCancellation=()=>assert(!isCancelled(),'CCD_START_CANCELLED');
  checkCancellation();
  fs.mkdirSync(path.dirname(path.resolve(output)),{recursive:true});
  try{fs.mkdirSync(output);}catch(error){if(error.code==='EEXIST')throw new Error('CCD_FRESH_OUTPUT_REQUIRED');throw error;}
  const state={schemaVersion:1,ready:false,owner:`harness-${crypto.randomBytes(8).toString('hex')}`,output:path.resolve(output),containers:{},images:{},caseType:'HarnessNestedPRL',jurisdiction:'HARNESS',policy:'real CCD RBAC; synthetic IDAM simulator; no ABAC/provider credit'};
+ if(local) {state.policy='local corrected CCD results feasibility; synthetic IDAM; no catalogue or release credit';state.localCcdProfile=local.profilePath;state.localOnly=true;state.runtimeAcceptance=false;state.catalogueCredit=false;state.releaseCredit=false;}
  if(platform!=='linux/arm64')state.platform=platform;
  if(elasticsearch)state.elasticsearch=true;
  if(selection!=='nested-prl')state.fixtureSelection=selection;
  const resources=Object.fromEntries(Object.entries(images).map(([service,image])=>[service,{name:`${state.owner}-${service}`,image}]));
- const recovery=()=>({owner:state.owner,output:state.output,...(state.platform?{platform}:{}),...(elasticsearch?{elasticsearch:true}:{}),resources});
+ const recovery=()=>({owner:state.owner,output:state.output,...(state.platform?{platform}:{}),...(elasticsearch?{elasticsearch:true}:{}),...(local?{localCcdProfile:local.profilePath}:{}),resources});
  fs.writeFileSync(path.join(state.output,'recovery.json'),JSON.stringify(recovery(),null,2)+'\n',{flag:'wx'});
  save(state);
  prepareCcdImport(fixtureRoot,selection);
  for(const [service,pin] of Object.entries(pins)) {
-  const info=JSON.parse(runDocker(['image','inspect',pin.reference]))[0];
-  assertCcdImageIdentity(info,pin,platform);
+  const info=service==='data'&&local?local.info:JSON.parse(runDocker(['image','inspect',pin.reference]))[0];
+  if(!(service==='data'&&local))assertCcdImageIdentity(info,pin,platform);
   images[service]=info.Id;resources[service].image=info.Id;
   state.images[service]={id:info.Id,architecture:info.Architecture,repoDigests:info.RepoDigests};
  }
  fs.writeFileSync(path.join(state.output,'recovery.json'),JSON.stringify(recovery(),null,2)+'\n');
- state.namespace=runDocker(['create',...(platform==='linux/amd64'?['--user','999:999']:[]),'--name',`${state.owner}-database`,'--label',`exui.harness.owner=${state.owner}`,'--label','exui.harness.service=database','--network','none','--tmpfs','/var/lib/postgresql/data:rw,nosuid,size=512m,uid=999,gid=999,mode=0700','-e','POSTGRES_HOST_AUTH_METHOD=trust','-e',`DB_USERNAME=ccd`,'-e',`DB_PASSWORD=${password}`,images.database,'postgres','-c','listen_addresses=127.0.0.1']);
+ const attempts=[],journal=path.join(state.output,'creation-attempts.json');
+ const saveAttempts=()=>fs.writeFileSync(journal,JSON.stringify(attempts,null,2)+'\n',{mode:0o600});
+ function create(service,args) {
+  const attempt={service,name:resources[service].name,state:'pending'};attempts.push(attempt);saveAttempts();
+  try {
+   const id=runDocker(args);assert(typeof id==='string'&&/^[a-f0-9]{64}$/.test(id),'CCD_CREATE_CID_REQUIRED');
+   attempt.containerId=id;attempt.state='settled';saveAttempts();return id;
+  } catch(error) {onCreateUncertainty();throw error;}
+ }
+ state.namespace=create('database',['create',...(platform==='linux/amd64'?['--user','999:999']:[]),'--name',`${state.owner}-database`,'--label',`exui.harness.owner=${state.owner}`,'--label','exui.harness.service=database','--network','none','--tmpfs','/var/lib/postgresql/data:rw,nosuid,size=512m,uid=999,gid=999,mode=0700','-e','POSTGRES_HOST_AUTH_METHOD=trust','-e',`DB_USERNAME=ccd`,'-e',`DB_PASSWORD=${password}`,images.database,'postgres','-c','listen_addresses=127.0.0.1']);
  state.containers.database=state.namespace; save(state);runDocker(['start',state.namespace]);
- function run(service,env,args=[]) { const command=sidecarArguments({owner:state.owner,namespace:state.namespace,image:images[service],service,env});command.splice(0,2,'create');if(service==='elasticsearch')command.splice(-1,0,'--user','1000:0','--tmpfs','/usr/share/elasticsearch/data:rw,nosuid,size=512m,uid=1000,gid=0,mode=0700');state.containers[service]=runDocker([...command,...args]);save(state);runDocker(['start',state.containers[service]]); }
+ function run(service,env,args=[]) { const command=sidecarArguments({owner:state.owner,namespace:state.namespace,image:images[service],service,env});command.splice(0,2,'create');if(service==='elasticsearch')command.splice(-1,0,'--user','1000:0','--tmpfs','/usr/share/elasticsearch/data:rw,nosuid,size=512m,uid=1000,gid=0,mode=0700');state.containers[service]=create(service,[...command,...args]);save(state);runDocker(['start',state.containers[service]]); }
  run('client',{},['node','-e','setInterval(()=>{},2147483647)']);
  const probes=JSON.parse(runDocker(['exec',state.containers.client,'node','-e',`const net=require('net');Promise.all(['1.1.1.1','192.168.65.254','host.docker.internal'].map(host=>new Promise(resolve=>{const s=net.connect({host,port:443});s.setTimeout(700);s.on('connect',()=>{s.destroy();resolve({host,connected:true})});s.on('error',()=>resolve({host,connected:false}));s.on('timeout',()=>{s.destroy();resolve({host,connected:false})});}))).then(v=>console.log(JSON.stringify(v)));`]));
  if(probes.some(p=>p.connected)) throw new Error('CCD_NETWORK_ESCAPE');state.forbiddenProbes=probes;save(state);
@@ -394,8 +415,9 @@ export function verifyCcdContainerIdentity(state,inspectContainer=(id)=>JSON.par
   assert.deepEqual(info.HostConfig.PortBindings||{}, {}, 'CCD_RUNTIME_PUBLISHED_PORT');
  }
 }
-export function loadCcdRuntimeForReuse(output,inspectContainer,{elasticsearch}={}) {
+export function loadCcdRuntimeForReuse(output,inspectContainer,{elasticsearch,localCcdProfile}={}) {
  const state=JSON.parse(fs.readFileSync(path.join(output,'runtime.json')));
+ assert.equal(state.localCcdProfile,localCcdProfile,'LOCAL_CCD_EXPLICIT_REUSE_REQUIRED');
  assert.equal(path.resolve(state.output||output),path.resolve(output),'CCD_RUNTIME_OUTPUT_MISMATCH');
  if(elasticsearch!==undefined)assert.equal(state.elasticsearch??false,elasticsearch,'CCD_RUNTIME_ELASTICSEARCH_MISMATCH');
  verifyCcdContainerIdentity(state,inspectContainer);
@@ -405,6 +427,7 @@ export function verifyCcdRuntimeIdentity(
   state,
   { fixtureSelection: requested, inspectContainer, request = ccdRequest, runDocker = docker } = {},
 ) {
+  assert(!state?.localCcdProfile,'LOCAL_CCD_NATIVE_ACCEPTANCE_FORBIDDEN');
   const selection = fixtureSelection(state, requested);
   const prepared = prepareCcdImport(fixtureRoot, selection);
   verifyCcdContainerIdentity(state, inspectContainer);
@@ -481,7 +504,6 @@ export function ccdCredentials(
   persona = "allowed",
   { request = ccdRequest } = {},
 ) {
-  const email = `${persona}@harness.example.com`;
   const sourceRole = Object.hasOwn(sourceActors, persona)
     ? sourceActors[persona]
     : undefined;
@@ -490,6 +512,20 @@ export function ccdCredentials(
       fixtureSelection(state).startsWith("event-capability-"),
       "CCD_SOURCE_ACTOR_SCOPE_REQUIRED",
     );
+  return credentialsForFixedRole(state, persona, sourceRole, request);
+}
+
+// Only the explicit non-credit AuthorisationCaseEvent milestone provisions these
+// five fixed source personas; default registration and persona mapping stay unchanged.
+export function ccdAuthorisationRowCredentials(state, persona, { request = ccdRequest } = {}) {
+  assert.equal(fixtureSelection(state), 'event-capability-baseline', 'CCD_AUTH_ROW_BASELINE_CONTEXT_REQUIRED');
+  const actors = { ...sourceActors, systemupdate: 'caseworker-privatelaw-systemupdate', la: 'caseworker-privatelaw-la' };
+  assert(Object.hasOwn(actors, persona), 'CCD_AUTH_ROW_FIXED_ACTOR_REQUIRED');
+  return credentialsForFixedRole(state, 'authrow-' + persona, actors[persona], request);
+}
+
+function credentialsForFixedRole(state, persona, sourceRole, request) {
+  const email = `${persona}@harness.example.com`;
   const roles = sourceRole
     ? ["caseworker", "caseworker-harness", sourceRole]
     : [
@@ -686,6 +722,7 @@ export function importCcdDefinition(
     runDocker = docker,
   } = {},
 ) {
+  assert(!state?.localCcdProfile,'LOCAL_CCD_NATIVE_ACCEPTANCE_FORBIDDEN');
   const selection = fixtureSelection(state, requested);
   const prepared = prepareCcdImport(fixtureDirectory, selection);
   const { file, binding } = prepared;
@@ -749,7 +786,11 @@ export function importCcdDefinition(
   const nested = observed.body.case_fields.find(
     (f) => f.id === "sodAdditionalRecipientsList",
   );
-  assert.equal(nested.field_type.collection_field_type.id, "ServeOrgDetails");
+  if (selection === "event-capability-shape-recipient-collection-mutant") {
+    assert.equal(nested.field_type.type, "Complex", "CCD_COLLECTION_FAULT_TYPE_REQUIRED");
+    assert.equal(nested.field_type.id, "ServeOrgDetails", "CCD_COLLECTION_FAULT_TYPE_REQUIRED");
+    assert.equal(nested.field_type.collection_field_type, null, "CCD_COLLECTION_FAULT_TYPE_REQUIRED");
+  } else assert.equal(nested.field_type.collection_field_type.id, "ServeOrgDetails");
   const event = observed.body.events.find((e) => e.id === "create");
   assert(
     event.case_fields

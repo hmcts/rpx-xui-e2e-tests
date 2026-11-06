@@ -11,7 +11,12 @@ import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {prepareRecipientCallbackImport,importRecipientCallback} from './lib/exui-recipient-callback-import.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 export const callbackProbeFiles=Object.freeze([
- 'scripts/lib/exui-ccd-browser-runtime.mjs','scripts/lib/exui-ccd-role-transition.mjs',
+ 'scripts/lib/exui-applicant-results-contract.mjs','scripts/lib/exui-applicant-results.mjs',
+ 'scripts/lib/exui-result-columns.mjs','scripts/lib/exui-result-columns-definition.mjs',
+ 'scripts/lib/exui-definition-references.mjs','scripts/fixtures/ccd/result-columns.source.json',
+ 'scripts/lib/exui-complex-email-transport.mjs','scripts/lib/exui-evidence-io.mjs',
+ 'scripts/lib/exui-release-evidence.mjs','scripts/lib/exui-external-evidence.mjs',
+ 'scripts/lib/exui-shared-nested-scope.mjs','scripts/lib/exui-ccd-browser-runtime.mjs','scripts/lib/exui-results-ui-contract.mjs','scripts/lib/exui-ccd-role-transition.mjs',
  'scripts/lib/exui-ccd-event-capability.mjs','scripts/lib/exui-native-sources.mjs',
  'scripts/lib/exui-source-shape-contract.mjs',
  'scripts/lib/exui-recipient-callback.mjs','scripts/lib/exui-recipient-callback-fixture.mjs',

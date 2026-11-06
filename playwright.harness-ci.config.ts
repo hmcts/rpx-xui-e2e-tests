@@ -1,6 +1,13 @@
+import { createRequire } from "node:module";
+
 import { defineConfig } from "@playwright/test";
 
 import support from "./playwright.harness-support.config";
+
+const require = createRequire(import.meta.url);
+const { fullMachineReporters } = require("./scripts/harness-reporting.cjs") as {
+  fullMachineReporters: (output: string) => [string, Record<string, unknown>][];
+};
 
 // One runner, one report: retain the focused local configs without executing them twice.
 export default defineConfig({
@@ -13,7 +20,8 @@ export default defineConfig({
   ],
   timeout: 90000,
   reporter: [
-    [process.env.CI ? "dot" : "list"],
+    ["failures"],
+    ...fullMachineReporters("functional-output/tests/harness/private/ci"),
     ["./scripts/harness-public-odhin-reporter.cjs", { selection: "harness" }],
     [
       "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
@@ -30,10 +38,6 @@ export default defineConfig({
         testOutput: "only-on-failure",
         lightweight: true,
       },
-    ],
-    [
-      "junit",
-      { outputFile: "functional-output/tests/harness/private/ci/junit.xml" },
     ],
   ],
   outputDir: "functional-output/tests/harness/private/ci/test-results",

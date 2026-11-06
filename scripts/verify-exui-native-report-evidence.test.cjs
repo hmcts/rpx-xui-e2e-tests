@@ -36,298 +36,7 @@ function write(file, value) {
   return digest(bytes);
 }
 
-async function fixture(
-  t,
-  { postalFailure = false, unknownFailure = false } = {},
-) {
-  const root = fs.mkdtempSync(
-    path.join(fs.realpathSync(os.tmpdir()), "native-report-"),
-  );
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const directory = path.join(root, "run");
-  const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
-  const { nativeInvocations } = await import("./lib/exui-native-contract.mjs");
-  const { loadRunEvidence } = await import("./lib/exui-evidence-io.mjs");
-  const event =
-    await require("./fixtures/exui-event-transition-evidence.mock.cjs").createEventTransitionFixture(
-      t,
-      { root: path.join(directory, "private") },
-    );
-  const identity = structuredClone(event.expected.identity);
-  if (unknownFailure) {
-    event.baseline.report.status = "failed";
-    event.baseline.report.tests[0].status = "failed";
-    event.baseline.report.tests[0].failureId = canary;
-    event.baseline.execution.runnerExitCode = 1;
-    event.write();
-  }
-  const expected = {
-    jobRunId: "ci-" + randomUUID(),
-    harnessCommit: "b".repeat(40),
-    candidateArtifactDigest: identity.artifactDigest,
-    phases: [],
-  };
-  const binding = read(
-    path.join(__dirname, "fixtures/ccd/nested-prl.binding.json"),
-  );
-  identity.definitionDigests.HarnessNestedPRL = binding.workbookDigest;
-  const observed = { id: "HarnessNestedPRL", version: { number: 1 } };
-  const imported = {
-    status: 201,
-    sourceRevision: "694b9951e94369f1394380506960c4f04f25755d",
-    binding,
-    fixtureDigest: binding.workbookDigest,
-    observedDefinitionDigest: digest(JSON.stringify(observed)),
-    definitionVersion: 1,
-    images: {
-      data: { id: identity.dependencyIdentities.ccd.artifactDigest },
-      definition: {
-        id: identity.dependencyIdentities["ccd-definition"].artifactDigest,
-      },
-    },
-  };
-  const importDigest = write(
-    path.join(directory, "private/ccd-runtime/definition-import.json"),
-    imported,
-  );
-  write(
-    path.join(directory, "private/ccd-runtime/observed-definition.json"),
-    observed,
-  );
-  const phaseResults = [];
-  for (const [phase, releaseScopeId] of Object.entries({
-    family: "exui-wa-family-pilot",
-    scope: "exui-wa-scope-pilot",
-    ccd: "exui-ccd-pilot",
-  })) {
-    const policy = getReleasePolicy(releaseScopeId);
-    const dir = path.join(directory, "private", phase);
-    const manifest = {
-      schemaVersion: 1,
-      runId: (phase === "ccd" ? "ccd-" : "candidate-") + randomUUID(),
-      harnessCommit: expected.harnessCommit,
-      releaseScopeId,
-      policyDigest: policy.policyDigest,
-      identity,
-      requiredObligationIds: policy.requiredObligationIds,
-      runtimeMetadata: {
-        harnessSourceState: "clean",
-        harnessSourceDigest: event.expected.harnessSourceDigest,
-        harnessDependencyDigest: event.expected.harnessDependencyDigest,
-        browserDigest: event.expected.browserDigest,
-        isolation: "native-separate-api-owned-network-none",
-        privateCanary: canary,
-        ...(phase === "ccd"
-          ? {
-              definitionImportDigest: importDigest,
-              observedDefinitionDigest: imported.observedDefinitionDigest,
-              definitionVersion: "1",
-            }
-          : {}),
-      },
-    };
-    const run = {
-      schemaVersion: 1,
-      manifest,
-      executionArtifacts: [],
-      mutations: [],
-    };
-    const put = (relative, value) => ({
-      path: relative,
-      digest: write(path.join(dir, relative), value),
-    });
-    for (const invocation of nativeInvocations(releaseScopeId)) {
-      const definition = policy.mutationDefinitions.find(
-        (d) => d.mutationId === invocation.mutation,
-      );
-      const changedIdentity = definition
-        ? { ...identity, configurationDigest: digest(definition.mutationId) }
-        : identity;
-      const proofIds = definition
-        ? [definition.mutantProofId]
-        : policy.obligations
-            .flatMap((o) => o.requiredProofIds)
-            .filter((p) => phase !== "scope" || p.endsWith(invocation.persona));
-      const tests = proofIds.map((proofId) => {
-        const postal =
-          postalFailure &&
-          ["ccd-postal-two-roundtrip", "ccd-postal-child-loss"].includes(
-            proofId,
-          );
-        const status = definition || postal || false ? "failed" : "passed";
-        const failureId = postal
-          ? "postal-required-fields"
-          : (definition?.expectedFailureId ?? null);
-        return {
-          proofId,
-          expectedStatus: "passed",
-          status,
-          retry: 0,
-          failureId,
-          unattributedErrors: 0,
-        };
-      });
-      const status = tests.some((p) => p.status === "failed")
-        ? "failed"
-        : "passed";
-      const execution = {
-        invocationId: invocation.invocationId,
-        runId: manifest.runId,
-        identity: changedIdentity,
-        kind: invocation.kind,
-        terminalState: "completed",
-        runnerExitCode: status === "passed" ? 0 : 1,
-        unexpectedGlobalErrors: [],
-      };
-      execution.resultArtifact = put(invocation.invocationId + "/report.json", {
-        schemaVersion: 1,
-        context: {
-          runId: manifest.runId,
-          invocationId: invocation.invocationId,
-          identity: changedIdentity,
-          harnessCommit: manifest.harnessCommit,
-          releaseScopeId,
-          policyDigest: policy.policyDigest,
-          harnessSourceState: "clean",
-          harnessSourceDigest: event.expected.harnessSourceDigest,
-        },
-        complete: true,
-        status,
-        tests,
-        globalErrors: [],
-        privateCanary: canary,
-      });
-      run.executionArtifacts.push(
-        put(invocation.invocationId + "/execution.json", execution),
-      );
-      put(invocation.invocationId + "/candidate-write-denial.json", {
-        attempts: [
-          { path: "/output/report.json", denied: true },
-          { path: "/harness/controller.mjs", denied: true },
-        ],
-        controllerSourceVisible: false,
-      });
-      put(invocation.invocationId + "/candidate-lifecycle.json", {
-        requestedStop: true,
-        before: { State: { Running: true } },
-        after: { State: { Running: false, ExitCode: 143 } },
-        privateCanary: canary,
-      });
-      if (definition)
-        run.mutations.push({
-          mutationId: definition.mutationId,
-          baselineInvocationId: phase === "scope" ? "scope-ia" : "baseline",
-          mutantInvocationId: invocation.invocationId,
-          derivationArtifact: put(
-            invocation.invocationId + "/derivation.json",
-            {
-              baselineIdentity: identity,
-              mutantIdentity: changedIdentity,
-              mutationDefinitionDigest: definition.definitionDigest,
-            },
-          ),
-        });
-    }
-    put("run.json", run);
-    const loaded = loadRunEvidence(path.join(dir, "run.json"), policy);
-    const receiptArtifactDigest = put("gate.json", loaded.receipt).digest;
-    put("controller-terminal.json", {
-      status: "completed",
-      exitCode: loaded.receipt.verdict.exitCode,
-      cleanupComplete: true,
-    });
-    expected.phases.push({
-      phase,
-      policy,
-      terminal: { code: loaded.receipt.verdict.exitCode, signal: null },
-      expected: {
-        runId: manifest.runId,
-        harnessCommit: manifest.harnessCommit,
-        releaseScopeId,
-        policyDigest: policy.policyDigest,
-        identity,
-        harnessSourceDigest: event.expected.harnessSourceDigest,
-        harnessDependencyDigest: event.expected.harnessDependencyDigest,
-        browserDigest: event.expected.browserDigest,
-        nativeAuthority: true,
-        evidenceManifestDigest: loaded.evidenceManifestDigest,
-        receiptArtifactDigest,
-      },
-    });
-    phaseResults.push({
-      phase,
-      ...loaded.receipt.verdict,
-      receiptArtifactDigest,
-    });
-    delete phaseResults.at(-1).reasons;
-  }
-  expected.phases.push({
-    phase: "eventCapability",
-    policy: event.policy,
-    terminal: { code: unknownFailure ? 2 : 0, signal: null },
-    expected: event.expected,
-  });
-  phaseResults.push({
-    phase: "eventCapability",
-    status: unknownFailure ? "BLOCKED" : "PASS",
-    exitCode: unknownFailure ? 2 : 0,
-    receiptArtifactDigest: event.expected.receiptArtifactDigest,
-    eventTransition: event.expected.eventTransition,
-  });
-  const { createRoutingPhaseFixture } = require(
-    "./fixtures/exui-routing-phase-evidence.mock.cjs",
-  );
-  const routing = await createRoutingPhaseFixture({
-    root: path.join(directory, "private"),
-    harnessCommit: expected.harnessCommit,
-    sourceDigest: event.expected.harnessSourceDigest,
-    dependencyDigest: event.expected.harnessDependencyDigest,
-    browserDigest: event.expected.browserDigest,
-  });
-  expected.phases.push({
-    phase: "routing",
-    policy: routing.policy,
-    terminal: routing.terminal,
-    expected: routing.expected,
-  });
-  phaseResults.push(routing.result);
-  const {createCallbackPhaseFixture}=require('./fixtures/exui-recipient-callback-phase-evidence.mock.cjs');
-  const callback=await createCallbackPhaseFixture({
-    root:path.join(directory,'private'),harnessCommit:expected.harnessCommit,
-    sourceDigest:event.expected.harnessSourceDigest,dependencyDigest:event.expected.harnessDependencyDigest,
-    browserDigest:event.expected.browserDigest,
-  });
-  expected.phases.push({phase:'recipientCallback',policy:callback.policy,terminal:callback.terminal,expected:callback.expected});
-  phaseResults.push(callback.result);
-
-  const last = phaseResults.reduce((worst, item) =>
-    item.exitCode > worst.exitCode ? item : worst,
-  );
-  expected.ciResultDigest = write(
-    path.join(directory, "private/ci-result.json"),
-    {
-      classification: "fixed-pilot-suite-no-full-release-approval",
-      jobRunId: expected.jobRunId,
-      status: last.status,
-      exitCode: last.exitCode,
-      cleanupComplete: true,
-      phaseResults,
-    },
-  );
-  const descriptor = { schemaVersion: 1, directory, expected };
-  const descriptorPath = path.join(root, "descriptor.json");
-  write(descriptorPath, descriptor);
-  return {
-    root,
-    directory,
-    event,
-    routing,
-    callback,
-    descriptor,
-    descriptorPath,
-    save: () => write(descriptorPath, descriptor),
-  };
-}
+const {fixture}=require('./fixtures/exui-native-report-packet.mock.cjs');
 
 // Keep every transport hash and recomputed receipt consistent, so these faults
 // exercise semantic witness validation rather than stale-file detection.
@@ -400,8 +109,11 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.status, "PASS");
   assert.equal(result.releaseApproval, false);
   assert.equal(result.descriptorDigest, digest(before));
-  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 21);
-  assert.equal(result.phases.flatMap((p) => p.faults).length, 21);
+  assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 23);
+  assert.equal(result.phases.flatMap((p) => p.faults).length, 23);
+  assert.deepEqual(result.phases.map(p => p.invocations.length), [2, 3, 7, 12, 3, 2, 2]);
+  assert.equal(result.phases.flatMap(p => p.invocations).length, 31);
+  assert(result.phases.flatMap(p => p.invocations).every(p => p.configuredWorkers === null));
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -676,7 +388,7 @@ for (const postalFailure of [false, true])
     const coverage = result.catalogueCoverage;
     assert.match(coverage.catalogueDigest, /^sha256:[a-f0-9]{64}$/);
     assert.equal(coverage.selected, 112);
-    assert.equal(coverage.candidate, 7);
+    assert.equal(coverage.candidate, 9);
     assert.equal(coverage.ccd, postalFailure ? 16 : 17);
     assert.deepEqual(coverage.creditedObligationIds, [
       ...(postalFailure
@@ -684,6 +396,7 @@ for (const postalFailure of [false, true])
         : [
             "configuration-sequence:5e3fa818f42a05cf53c18623577ef91e26ceaff4ee829692ad7cf5e305ce22ed",
           ]),
+      "configuration-shape:9d78188410918b9fb4c767e43a5bde771ebd5e8ca5e14ba70e948f7779cc34dc",
       "configuration-shape:2ec5abfbce91a706d031d903e3381ea76eabe174cd71ee48f7eecbb02d57da6f",
       "configuration-shape:69bcacf62a9db6f81914356612c4c4d770865dd287bc48704f88be54013bbe49",
       "configuration-shape:02958e8aee4cc1376f6b6607883e90293d8d2c765b4e9796884a61e24123919e",
@@ -707,9 +420,10 @@ for (const postalFailure of [false, true])
       "configuration-cell:b0d9eefe2d358d1516cb7d564c171fd623357dcb32a90a4d8989ecf7a61e14cf",
       "configuration-cell:8d000fcc1cafb9115e2702da1907d9e6e843d9add4c9c03f8fb49d52d769f337",
       "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94",
+      "configuration-shape:bbfb8dfe6d409d6df3291b434a305a3ac5237d63d21ba8c0695b787af62913fe",
       "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
     ]);
-    assert.equal(coverage.missing, postalFailure ? 89 : 88);
+    assert.equal(coverage.missing, postalFailure ? 87 : 86);
     assert.equal(coverage.releaseCredit, false);
     assert.equal(
       coverage.creditedObligationIds.some(
@@ -751,8 +465,8 @@ test("a later accepted phase cannot hide the postal blocker, and a failed new ce
     assert.equal(result.exitCode, 2);
     assert.equal(result.phases[3].status, "BLOCKED");
     assert.equal(result.catalogueCoverage.ccd, postalFailure ? 0 : 1);
-    assert.equal(result.catalogueCoverage.candidate, 2);
-    assert.equal(result.catalogueCoverage.missing, postalFailure ? 110 : 109);
+    assert.equal(result.catalogueCoverage.candidate, 3);
+    assert.equal(result.catalogueCoverage.missing, postalFailure ? 109 : 108);
     assert(
       !result.catalogueCoverage.creditedObligationIds.some((id) =>
         id.startsWith("configuration-cell:"),
@@ -795,7 +509,7 @@ test("rehashed transition claims still require the independent before-fault capt
   );
 });
 
-test("historical four-phase evidence cannot become a completed five-phase report", async (t) => {
+test("historical six-phase evidence cannot become a completed seven-phase report", async (t) => {
   const f = await fixture(t);
   f.descriptor.expected.phases.pop();
   f.save();
@@ -811,10 +525,62 @@ test('callback publication rejects historical feasibility and forged phase claim
   descriptor=>descriptor.expected.phases.pop(),
   descriptor=>descriptor.expected.phases.reverse(),
   descriptor=>descriptor.expected.phases.push(descriptor.expected.phases.at(-1)),
-  descriptor=>{descriptor.expected.phases.at(-1).expected.callbackTransition={status:'passed',accepted:true};},
-  descriptor=>{descriptor.expected.phases.at(-1).expected.releaseScopeId='recipient-callback-ui-feasibility';},
+  descriptor=>{descriptor.expected.phases.find(phase=>phase.phase==='recipientCallback').expected.callbackTransition={status:'passed',accepted:true};},
+  descriptor=>{descriptor.expected.phases.find(phase=>phase.phase==='recipientCallback').expected.releaseScopeId='recipient-callback-ui-feasibility';},
  ]) {
   const f=await fixture(t);change(f.descriptor);f.save();
   await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath));
  }
+});
+
+test('supplementary DIVORCE report input rejects caller acceptance flags and unpinned packets',async t=>{
+ const f=await fixture(t),api=await load(),descriptor=read(f.descriptorPath),primary=await api.readNativeReportEvidence(f.descriptorPath);
+ for(const value of [{accepted:1,wholeProfileSatisfied:true},'/missing/divorce-admission-request.json']){write(f.descriptorPath,{...descriptor,divorceProfileAdmission:value});await assert.rejects(api.readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_INVALID_EVIDENCE/);}
+ write(f.descriptorPath,descriptor);assert.deepEqual((await api.readNativeReportEvidence(f.descriptorPath)).catalogueCoverage,primary.catalogueCoverage);
+});
+
+test('selector phase rejects coherently rehashed unhealthy UI, actor, history and validation evidence',async t=>{
+ const {readNativeReportEvidence}=await load();
+ for(const mutate of [
+  f=>{f.selector.observations.baseline.observation.selectedCya.selectorSummaryCount=0;},
+  f=>{f.selector.observations.baseline.observation.after.history[0].user_id='changed';},
+  f=>{f.selector.observations.baseline.journal.find(row=>row.selectorValidation?.pageId==='serviceOfDocuments2').status=500;},
+  f=>{f.selector.observations['ccd-hide-selector-summary'].observation.selectedCya.healthySiblingCount=0;},
+  f=>{f.selector.capture.completedAfterController=false;},
+ ]) {
+  const f=await fixture(t);mutate(f);f.selector.write();
+  const ciPath=path.join(f.directory,'private/ci-result.json'),ci=read(ciPath);
+  ci.phaseResults.find(phase=>phase.phase==='selectorEventRow').receiptArtifactDigest=f.selector.expected.receiptArtifactDigest;
+  f.descriptor.expected.ciResultDigest=write(ciPath,ci);f.save();
+  await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_/);
+ }
+});
+
+
+test('native projection reads configured slots from hashed reports without changing coverage', async t => {
+  const f=await fixture(t), {readNativeReportEvidence}=await load();
+  const before=await readNativeReportEvidence(f.descriptorPath);
+  await rewriteCcd(f,({reports})=>reports.forEach((report,index)=>{report.configuredWorkers=index===0?2:1;}));
+  const after=await readNativeReportEvidence(f.descriptorPath);
+  assert.deepEqual(after.phases.find(p=>p.phase==='ccd').invocations.map(p=>p.configuredWorkers),[2,1,1,1,1,1,1]);
+  assert.deepEqual(after.catalogueCoverage.creditedObligationIds,before.catalogueCoverage.creditedObligationIds);
+  assert(after.phases.filter(p=>p.phase!=='ccd').flatMap(p=>p.invocations).every(item=>item.configuredWorkers===null));
+});
+
+test('native projection rejects invalid worker scalars and duplicate missing or foreign physical invocations', async t => {
+  const {readNativeReportEvidence}=await load();
+  for(const workers of [0,-1,1.5,canary,{workers:1}]){
+    const f=await fixture(t);await rewriteCcd(f,({reports})=>{reports[0].configuredWorkers=workers;});
+    await assert.rejects(readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_WORKER_CONFIGURATION_INVALID/);
+  }
+  for(const action of ['duplicate','missing','foreign']){
+    const f=await fixture(t), dir=path.join(f.directory,'private/family'),run=read(path.join(dir,'run.json'));
+    if(action==='duplicate')run.executionArtifacts.push(run.executionArtifacts[0]);
+    if(action==='missing')run.executionArtifacts.pop();
+    if(action==='foreign'){
+      const ref=run.executionArtifacts[0],execution=read(path.join(dir,ref.path));execution.invocationId='foreign';ref.digest=write(path.join(dir,ref.path),execution);
+    }
+    write(path.join(dir,'run.json'),run);
+    await assert.rejects(readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_INVOCATION_INVENTORY_MISMATCH/);
+  }
 });

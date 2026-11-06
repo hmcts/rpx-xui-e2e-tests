@@ -1,5 +1,10 @@
+import {SELECTOR_EVENT_SCOPE} from './exui-selector-event-row-contract.mjs';
+import {validateSelectorTransitionRequest} from './exui-selector-event-row-transition.mjs';
+import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
+import {createApplicantResultWatcher} from './exui-applicant-results-watch.mjs';
 import {CALLBACK_SCOPE} from './exui-recipient-callback-contract.mjs';
 import {validateCallbackTransitionRequest} from './exui-recipient-callback-transition.mjs';
+import {verifyLocalCcdRuntimeProfile} from './exui-local-ccd-runtime-profile.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -112,9 +117,11 @@ export async function executeCiProcess({
   onPrepared,
   onEventTransition,
   onCallbackTransition,
+  onSelectorTransition,
+  onResultsTransition,
   onChild = () => {},
 }) {
-  assert(!(onEventTransition !== undefined && onCallbackTransition !== undefined), "CI_TRANSITION_SCOPE_AMBIGUOUS");
+  assert([onEventTransition,onCallbackTransition,onSelectorTransition,onResultsTransition].filter(value=>value!==undefined).length<=1,"CI_TRANSITION_SCOPE_AMBIGUOUS");
   assert(!fs.existsSync(output), "FRESH_CI_PHASE_OUTPUT_REQUIRED");
   const log = fs.openSync(
     path.join(path.dirname(output), path.basename(output) + "-supervisor.log"),
@@ -140,12 +147,14 @@ export async function executeCiProcess({
     });
   });
   let expected, input, handoff, transition;
+  const checkResults=createApplicantResultWatcher(output,onResultsTransition,()=>({input,handoff,expected,isTerminated:()=>Boolean(terminal)}));
+  const selectorMode = onSelectorTransition !== undefined;
   const callbackMode = onCallbackTransition !== undefined;
-  const transitionScope = callbackMode ? CALLBACK_SCOPE : EVENT_CAPABILITY_SCOPE;
-  const onTransition = callbackMode ? onCallbackTransition : onEventTransition;
-  const validateRequest = callbackMode ? validateCallbackTransitionRequest : validateEventCapabilityTransitionRequest;
-  const requestFile = path.join(output, callbackMode ? "callback-transition-request.json" : "event-transition-request.json");
-  const foreignRequestFile = path.join(output, callbackMode ? "event-transition-request.json" : "callback-transition-request.json");
+  const transitionScope = selectorMode ? SELECTOR_EVENT_SCOPE : callbackMode ? CALLBACK_SCOPE : EVENT_CAPABILITY_SCOPE;
+  const onTransition = selectorMode ? onSelectorTransition : callbackMode ? onCallbackTransition : onEventTransition;
+  const validateRequest = selectorMode ? validateSelectorTransitionRequest : callbackMode ? validateCallbackTransitionRequest : validateEventCapabilityTransitionRequest;
+  const requestFile = path.join(output, selectorMode ? "selector-transition-request.json" : callbackMode ? "callback-transition-request.json" : "event-transition-request.json");
+  const foreignRequestFiles = ["event-transition-request.json","callback-transition-request.json","selector-transition-request.json"].map(file=>path.join(output,file)).filter(file=>file!==requestFile);
   const requestSnapshot = () => {
     assert(fs.existsSync(requestFile), "CI_EVENT_TRANSITION_REQUEST_CHANGED");
     const before = fs.lstatSync(requestFile, { bigint: true });
@@ -167,7 +176,7 @@ export async function executeCiProcess({
     return { stamp: { ...identity(after), digest: digestBytes(bytes) }, bytes };
   };
   const checkTransition = async () => {
-    assert(!fs.lstatSync(foreignRequestFile, {throwIfNoEntry:false}), "CI_TRANSITION_FOREIGN_SCOPE_REQUEST");
+    for(const file of foreignRequestFiles)assert(!fs.lstatSync(file, {throwIfNoEntry:false}), "CI_TRANSITION_FOREIGN_SCOPE_REQUEST");
     if (!fs.lstatSync(requestFile, { throwIfNoEntry: false })) {
       assert(!transition, "CI_EVENT_TRANSITION_REQUEST_CHANGED");
       return;
@@ -195,6 +204,7 @@ export async function executeCiProcess({
   };
   try {
     while (!terminal) {
+      await checkResults();
       await checkTransition();
       if (
         !expected &&
@@ -207,6 +217,7 @@ export async function executeCiProcess({
         );
         input = read(path.join(output, "input.json"));
         handoff = read(path.join(output, "container-launch.json"));
+        if(onResultsTransition!==undefined)assert.equal(input.releaseScopeId,APPLICANT_RESULTS_SCOPE,"RESULT_TRANSITION_SCOPE");
         if (onTransition !== undefined)
           assert.equal(input.releaseScopeId, transitionScope, "CI_EVENT_TRANSITION_SCOPE");
         expected = onPrepared(input, handoff);
@@ -224,6 +235,7 @@ export async function executeCiProcess({
     await finished;
     if (error) throw error;
     await checkTransition();
+    await checkResults();
     assert(expected, "CI_PHASE_LAUNCH_INPUTS_REQUIRED");
     return { terminal, expected };
   } finally {
@@ -238,13 +250,18 @@ export async function cleanupCiPhase(
     inspect = inspectContainer,
     remove = (id) => command("docker", ["rm", "-f", id]),
     reconcileMs = 1000,
+    terminate = terminateOwnedChild,
   } = {},
 ) {
-  const terminal = await terminateOwnedChild(resource.child, {
+  const terminal = await terminate(resource.child, {
     graceMs: 10000,
   });
   const handoff = path.join(resource.directory, "container-launch.json");
-  if (!fs.existsSync(handoff)) return;
+  if (!fs.existsSync(handoff)) {
+    assert(terminal.observed === true && terminal.forced === false && terminal.cancelled !== true
+      && (!terminal.started || (Number.isInteger(terminal.code) && !terminal.signal)), 'CI_NO_HANDOFF_TERMINATION_UNCERTAIN');
+    return;
+  }
   const expected =
     resource.expectedContainer ??
     captureCiOwnership(
@@ -309,17 +326,19 @@ export async function cleanupCiPhase(
 
 export function cleanupCiCcd(
   directory,
-  { inspect = inspectContainer, stop = stopCcdRuntime } = {},
+  { inspect = inspectContainer, stop = stopCcdRuntime, localCcdProfile } = {},
 ) {
   const recoveryPath = path.join(directory, "recovery.json");
   if (!fs.existsSync(recoveryPath)) {
     assert(
-      !fs.existsSync(path.join(directory, "runtime.json")),
+      !fs.existsSync(path.join(directory, "runtime.json")) && !fs.existsSync(path.join(directory, 'creation-attempts.json')),
       "CI_CCD_RECOVERY_REQUIRED",
     );
     return;
   }
   const recovery = read(recoveryPath);
+  assert.equal(recovery.localCcdProfile,localCcdProfile,'LOCAL_CCD_EXPLICIT_CLEANUP_REQUIRED');
+  const local=localCcdProfile?verifyLocalCcdRuntimeProfile(localCcdProfile):null;
   assert(
     /^harness-[a-f0-9]{16}$/.test(recovery.owner),
     "CI_CCD_RECOVERY_OWNER_REQUIRED",
@@ -335,9 +354,10 @@ export function cleanupCiCcd(
   const statePath = path.join(directory, "runtime.json");
   const state = fs.existsSync(statePath)
     ? read(statePath)
-    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}), ...(elasticsearch ? { elasticsearch } : {}) };
+    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}), ...(elasticsearch ? { elasticsearch } : {}), ...(localCcdProfile ? { localCcdProfile } : {}) };
   assert.equal(state.elasticsearch ?? false, elasticsearch, "CI_CCD_RECOVERY_ELASTICSEARCH_MISMATCH");
   assert.equal(state.platform ?? "linux/arm64", recovery.platform ?? "linux/arm64", "CI_CCD_RECOVERY_PLATFORM_MISMATCH");
+  assert.equal(state.localCcdProfile,recovery.localCcdProfile,"LOCAL_CCD_RECOVERY_PROFILE_MISMATCH");
   assert.equal(state.owner, recovery.owner, "CI_CCD_RECOVERY_OWNER_MISMATCH");
   assert.equal(state.output, directory, "CI_CCD_RECOVERY_PATH_MISMATCH");
   assert(
@@ -354,7 +374,8 @@ export function cleanupCiCcd(
       `${recovery.owner}-${service}`,
       "CI_CCD_RECOVERY_NAME_MISMATCH",
     );
-    assert(planned.image === pin.manifestDigest || (pin.configDigest && planned.image === pin.configDigest), "CI_CCD_RECOVERY_IMAGE_MISMATCH");
+    if(service==='data'&&local)assert.equal(planned.image,local.imageId,'CI_CCD_RECOVERY_IMAGE_MISMATCH');
+    else assert(planned.image === pin.manifestDigest || (pin.configDigest && planned.image === pin.configDigest), "CI_CCD_RECOVERY_IMAGE_MISMATCH");
     const image = planned.image;
     const recorded = state.containers[service];
     if (recorded)
@@ -405,6 +426,12 @@ export function cleanupCiCcd(
   stop(recovered);
   for (const identifier of [...checkedNames, ...checkedContainerIds])
     assert.equal(inspect(identifier), null, "CI_CCD_REMOVAL_INCOMPLETE");
+  const journalPath = path.join(directory, 'creation-attempts.json');
+  if (fs.existsSync(journalPath)) {
+    const attempts = read(journalPath);
+    assert(Array.isArray(attempts) && attempts.every(attempt => attempt.state === 'settled'
+      && /^[a-f0-9]{64}$/.test(attempt.containerId)), 'CI_CCD_CREATE_OUTCOME_UNCERTAIN');
+  }
   return { owner: recovery.owner, cleanupComplete: true, checkedNames, checkedContainerIds };
 }
 

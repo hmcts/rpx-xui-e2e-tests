@@ -170,7 +170,7 @@ test("support only: runtime ACK is private, atomic, immutable and consumed only 
   assert.deepEqual(fs.readFileSync(file), bytes);
 });
 
-test("support only: event scope has fixed ten-proof baseline and ten definition faults without granting source actors a Harness alias", async () => {
+test("support only: event scope has fixed eleven-proof baseline and eleven definition faults without granting source actors a Harness alias", async () => {
   const { nativeInvocations, seedAppCcdSessions } = await import("./lib/exui-native-contract.mjs");
   const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
   const scope = "exui-ccd-event-capability-pilot";
@@ -181,6 +181,7 @@ test("support only: event scope has fixed ten-proof baseline and ten definition 
     { invocationId: "ccd-remove-readonly-recipient-read", kind: "mutation", mutation: "ccd-remove-readonly-recipient-read" },
     { invocationId: "ccd-enable-readonly-recipient-update", kind: "mutation", mutation: "ccd-enable-readonly-recipient-update" },
     { invocationId: "ccd-remove-courtadmin-event-create", kind: "mutation", mutation: "ccd-remove-courtadmin-event-create" },
+    { invocationId:"ccd-shape-recipient-collection",kind:"mutation",mutation:"ccd-shape-recipient-collection" },
     { invocationId:"ccd-shape-case-field-recipient-selector",kind:"mutation",mutation:"ccd-shape-case-field-recipient-selector" },
     { invocationId:"ccd-shape-required-delivery-radio",kind:"mutation",mutation:"ccd-shape-required-delivery-radio" },
     { invocationId:"ccd-shape-conditional-email-complex",kind:"mutation",mutation:"ccd-shape-conditional-email-complex" },
@@ -189,7 +190,7 @@ test("support only: event scope has fixed ten-proof baseline and ten definition 
 
   ]);
   const policy = getReleasePolicy(scope);
-  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-courtadmin-read-recipient-shapes", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", "ccd-source-shape-case-field-recipient-selector", "ccd-source-shape-required-delivery-radio", "ccd-source-shape-conditional-email-complex", "ccd-source-shape-postal-recipient-name", "ccd-source-shape-optional-postal-line-two"]);
+  assert.deepEqual(policy.obligations.flatMap((o) => o.requiredProofIds), ["ccd-courtadmin-update-recipient-shapes", "ccd-event-create-denied", "ccd-courtadmin-read-recipient-shapes", "ccd-readonly-read-recipient-shapes", "ccd-readonly-update-recipient-shapes-denied", "ccd-source-shape-recipient-collection", "ccd-source-shape-case-field-recipient-selector", "ccd-source-shape-required-delivery-radio", "ccd-source-shape-conditional-email-complex", "ccd-source-shape-postal-recipient-name", "ccd-source-shape-optional-postal-line-two"]);
   assert.equal(policy.mutationDefinitions[0].expectedFailureId, "event-capability-isolation");
   assert.equal(policy.mutationDefinitions[1].expectedFailureId, "courtadmin-recipient-read-projection");
   const credentials = { readonly: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-readonly"] }, allowed: {}, observer: {}, courtadmin: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-courtadmin"] }, judge: { roles: ["caseworker", "caseworker-harness", "caseworker-privatelaw-judge"] } };

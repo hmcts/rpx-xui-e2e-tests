@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ccdCredentials, ccdRequest, verifyCcdContainerIdentity } from "./exui-ccd-runtime.mjs";
 import { prepareResultColumnDefinition } from "../prepare-harness-result-columns.mjs";
-import { validateResultColumnDefinition } from "./exui-result-columns-definition.mjs";
+import { validateApplicantResultDefinition } from "./exui-applicant-results.mjs";
 
 const fixtureRoot = fileURLToPath(new URL("../fixtures/ccd/result-columns-import/", import.meta.url));
 const caseType = "HarnessResultsPRL", alias = "harnessresultsprl_cases";
@@ -46,16 +46,16 @@ export function validateResultDescriptors(definition, observed) {
 }
 
 // Feasibility only: never changes runtime.caseType/definitionImported or issues a gate receipt.
-export async function importResultColumns(state, { fixtureDirectory = fixtureRoot, request = ccdRequest, inspectContainer } = {}) {
+export async function importResultColumns(state, { fixtureDirectory = fixtureRoot, variant="baseline", request = ccdRequest, inspectContainer } = {}) {
   const temporary = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "result-import-seal-"));
   let definition, binding, workbook;
   try {
     const canonical = path.join(temporary, "canonical");
-    await prepareResultColumnDefinition(canonical);
+    await prepareResultColumnDefinition(canonical,{variant});
     for (const file of ["definition.json", "definition.xlsx", "binding.json"])
       assert.deepEqual(fs.readFileSync(path.join(fixtureDirectory, file)), fs.readFileSync(path.join(canonical, file)), "RESULT_IMPORT_SEAL_MISMATCH");
     definition = JSON.parse(fs.readFileSync(path.join(fixtureDirectory, "definition.json")));
-    validateResultColumnDefinition(definition);
+    validateApplicantResultDefinition(definition,variant);
     binding = JSON.parse(fs.readFileSync(path.join(fixtureDirectory, "binding.json")));
     workbook = fs.readFileSync(path.join(fixtureDirectory, "definition.xlsx"));
   } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
@@ -63,7 +63,7 @@ export async function importResultColumns(state, { fixtureDirectory = fixtureRoo
   verifyCcdContainerIdentity(state, inspectContainer);
   const output = path.join(state.output, "result-columns-import");
   fs.mkdirSync(output, { mode: 0o700 }); // Refuse replay/overwrite before any import side effect.
-  const receipt = { schemaVersion: 1, kind: "result-columns-import-feasibility", caseType, alias,
+  const receipt = { schemaVersion: 1, kind: "result-columns-import-feasibility", caseType, alias, variant,
     binding, owner: state.owner, namespace: state.namespace, images: state.images,
     descriptorNormalizations: ["SearchResultFields", "WorkBasketResultFields"].flatMap(sheet => definition.sheets[sheet]
       .filter(row => importedLabel(row.Label) !== row.Label)

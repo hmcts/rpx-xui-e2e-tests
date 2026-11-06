@@ -1,12 +1,36 @@
+import {complexTransportProjection} from './exui-complex-email-transport.mjs';
+const SELECTOR_EVENT_SCOPE = "exui-ccd-selector-event-row-pilot";
+import {SHARED_NESTED_SCOPE} from './exui-shared-nested-scope.mjs';
+import {resultTransportRoute,resultSupportingResponse} from './exui-results-ui-contract.mjs';
+import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
-import { createHmac } from "node:crypto";
+import { createHmac, createHash } from "node:crypto";
 import { validateRoleTransition } from "./exui-ccd-role-transition.mjs";
 import { createRecipientCallbackResponder } from "./exui-recipient-callback.mjs";
 import { CALLBACK_SCOPE, RECIPIENT_CALLBACK_PATH } from "./exui-recipient-callback-fixture.mjs";
 import { createOwnedCallbackServiceVerifier } from "./exui-recipient-callback-auth.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
+
+export function selectorValidationProjection(body, url) {
+  let payload;
+  try { payload = JSON.parse(body); } catch { payload = {}; }
+  const selected = payload?.data?.sodAdditionalRecipients;
+  return {
+    pageId: ["serviceOfDocumentsharnessBefore", "serviceOfDocuments2"].includes(url.searchParams.get("pageId")) ? url.searchParams.get("pageId") : null,
+    eventId: payload?.event?.id === "serviceOfDocuments" ? "serviceOfDocuments" : null,
+    controlValue: ["selector-empty-control", "selector-persistence-control"].includes(payload?.data?.protectedValue) ? payload.data.protectedValue : null,
+    selected: Array.isArray(selected) && (selected.length === 0 || (selected.length === 1 && selected[0] === "additionalRecipients")) ? selected : null,
+  };
+}
+
+// Only the fixed synthetic personal-service row is journalled; no arbitrary payloads.
+export function personalServiceValidationProjection(body,url) {
+ let payload;try{payload=JSON.parse(body);}catch{payload={};}
+ const answer=payload?.data?.sodServeToRespondentOptions;
+ return {pageId:['serviceOfDocumentsharnessBefore','serviceOfDocuments2'].includes(url.searchParams.get('pageId'))?url.searchParams.get('pageId'):null,eventId:payload?.event?.id==='serviceOfDocuments'?'serviceOfDocuments':null,answer:answer==null?null:['Yes','No','NotApplicable'].includes(answer)?answer:'invalid-answer'};
+}
 
 export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.sessions") {
   if (!/^[a-z-]+$/.test(persona)) throw new Error("CCD_SESSION_PERSONA_INVALID");
@@ -95,6 +119,13 @@ export function losePostalOptionalChild(body) {
   return changed;
 }
 
+export function loseSecondNestedRecipient(body) {
+  const changed=structuredClone(body),data=changed.data??changed.case_data;
+  if(Array.isArray(data?.sodAdditionalRecipientsList)&&data.sodAdditionalRecipientsList.length===2)
+    data.sodAdditionalRecipientsList=data.sodAdditionalRecipientsList.slice(0,1);
+  return changed;
+}
+
 const userId =
   "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}";
 const caseworker = `/caseworkers/${userId}/jurisdictions/HARNESS/case-types/HarnessNestedPRL`;
@@ -121,7 +152,9 @@ const eventRoutes = {
   "exui-ccd-pilot": [new RegExp(`^${caseworker}/cases/[0-9]{16}/event-triggers/update/token$`)],
   [EVENT_CAPABILITY_SCOPE]: recipientEventRoutes,
   [CALLBACK_SCOPE]: recipientEventRoutes,
+  [SELECTOR_EVENT_SCOPE]: recipientEventRoutes,
 };
+eventRoutes[SHARED_NESTED_SCOPE]=[...eventRoutes["exui-ccd-pilot"],/^\/internal\/cases\/[0-9]{16}\/event-triggers\/update$/];
 const inputRoute = /^\/internal\/case-types\/HarnessResultsPRL\/work-basket-inputs$/;
 
 function ccdTransportRoute(method, pathname, scope) {
@@ -146,9 +179,20 @@ function ccdTransportRoute(method, pathname, scope) {
 // CCD owns every baseline case/event response. The explicit callback opt-in adds
 // only the bounded synthetic recipient transport responder, never production PRL logic.
 export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
-  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
-  const { recipientCallback, workbasket } = options;
-  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns", "personalService", "complexEmail"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
+  const { recipientCallback, workbasket, resultColumns, personalService, complexEmail } = options;
+  if(complexEmail!==undefined){assert.equal(complexEmail,true,"COMPLEX_GATEWAY_OPT_IN");assert.equal(scope,SHARED_NESTED_SCOPE,"COMPLEX_GATEWAY_SCOPE");assert.equal(mutation,null,"COMPLEX_GATEWAY_DEFINITION_ONLY");assert([recipientCallback,workbasket,resultColumns,personalService].every(v=>v===undefined),"COMPLEX_GATEWAY_EXCLUSIVE");}
+  let complexOrdinal=0;
+  if(complexEmail)fs.writeFileSync(`${output}/complex-email-transport.jsonl`,'',{flag:'wx',mode:0o600});
+  if(personalService!==undefined){assert.equal(personalService,true,'PERSONAL_SERVICE_GATEWAY_OPT_IN');assert.equal(scope,EVENT_CAPABILITY_SCOPE,'PERSONAL_SERVICE_GATEWAY_SCOPE');assert.equal(resultColumns,undefined,'PERSONAL_SERVICE_GATEWAY_EXCLUSIVE');assert.equal(workbasket,undefined,'PERSONAL_SERVICE_GATEWAY_EXCLUSIVE');assert.equal(mutation,null,'PERSONAL_SERVICE_DEFINITION_FAULT_ONLY');}
+  if(resultColumns!==undefined){assert.equal(resultColumns,true,"RESULT_UI_GATEWAY_OPT_IN");assert.equal(recipientCallback,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(workbasket,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(mutation,null,"RESULT_UI_BASELINE_ONLY");}
+  assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
+  if (scope === SELECTOR_EVENT_SCOPE) {
+    assert.equal(mutation,null,"SELECTOR_DEFINITION_FAULT_NOT_GATEWAY_MUTATION");
+    assert.equal(recipientCallback,undefined,"SELECTOR_CALLBACK_OMITTED");
+    assert.equal(resultColumns,undefined,"SELECTOR_RESULTS_EXCLUDED");
+  }
+  if (scope === APPLICANT_RESULTS_SCOPE) assert.equal(resultColumns,true,"APPLICANT_RESULTS_GATEWAY_REQUIRED");
   assert(workbasket === undefined || (workbasket === true && scope === "exui-ccd-pilot"), "CCD_WORKBASKET_SCOPE_REQUIRED");
   if (mutation === "ccd-drop-workbasket-field") assert.equal(workbasket, true, "CCD_WORKBASKET_FAULT_SCOPE_REQUIRED");
   if ([EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE].includes(scope))
@@ -242,15 +286,24 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
       ]) {
         if (request.headers[key]) headers[key] = request.headers[key];
       }
+      const supporting = resultSupportingResponse(resultColumns,request.method,url,body,actor);
+      if (supporting && receivedPath === url.pathname) {
+        response.writeHead(supporting.status, {"content-type":"application/json"});
+        response.end(supporting.responseBody);
+        return;
+      }
       const ccdRoute =
         receivedPath === url.pathname
-          ? ccdTransportRoute(request.method, transportedPath, scope)
+          ? (resultColumns ? resultTransportRoute(request.method,transportedPath,url,body,actor) : ccdTransportRoute(request.method, transportedPath, scope))
           : null;
       const journal = {
         path: ccdRoute?.path ?? receivedPath,
         receivedPath,
         upstreamPath: ccdRoute?.upstreamPath ?? url.pathname,
-        ...(scope === EVENT_CAPABILITY_SCOPE && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
+        ...([EVENT_CAPABILITY_SCOPE, SELECTOR_EVENT_SCOPE, "exui-ccd-pilot", SHARED_NESTED_SCOPE].includes(scope) && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
+        ...(scope === SELECTOR_EVENT_SCOPE && ccdRoute && request.method === "POST" && ccdRoute.upstreamPath === "/case-types/HarnessNestedPRL/validate"
+          ? { selectorValidation: selectorValidationProjection(body, url) } : {}),
+        ...(personalService && ccdRoute && request.method==='POST' && ccdRoute.upstreamPath==='/case-types/HarnessNestedPRL/validate' ? {personalService:personalServiceValidationProjection(body,url)} : {}),
       };
       let target;
       if (ccdRoute)
@@ -296,6 +349,9 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         headers.authorization === credentials.denied.headers.Authorization;
       const isWrite =
         request.method === "POST" && /\/(?:cases|events)$/.test(url.pathname);
+      const beforeNestedFault=isWrite&&body&&['ccd-drop-child','ccd-drop-postal-optional-child','shared-nested-drop-second-recipient'].includes(mutation)?JSON.parse(body):null;
+      if (mutation === 'shared-nested-drop-second-recipient' && isWrite && body)
+        body=JSON.stringify(loseSecondNestedRecipient(JSON.parse(body)));
       if (mutation === "ccd-drop-child" && isWrite && body)
         body = JSON.stringify(loseNestedChild(JSON.parse(body)));
       if (mutation === "ccd-drop-postal-optional-child" && isWrite && body)
@@ -350,6 +406,11 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         redirect: "error",
       });
       let bytes = Buffer.from(await upstream.arrayBuffer());
+      if(beforeNestedFault) {
+        const changed=JSON.parse(body),beforeData=beforeNestedFault.data??beforeNestedFault.case_data,afterData=changed.data??changed.case_data;
+        if(JSON.stringify(beforeData)!==JSON.stringify(afterData))
+          fs.appendFileSync(`${output}/fault-actions.jsonl`,JSON.stringify({mutation,method:request.method,upstreamPath:ccdRoute.upstreamPath,status:upstream.status,eventId:beforeNestedFault.event?.id,before:beforeData,after:afterData})+'\n');
+      }
       if (mutation === "ccd-drop-workbasket-field" && ccdRoute?.upstreamPath === "/internal/case-types/HarnessResultsPRL/work-basket-inputs") {
         assert.equal(upstream.status, 200, "CCD_WORKBASKET_FAULT_RESPONSE_REQUIRED");
         const result = JSON.parse(bytes.toString());
@@ -367,12 +428,14 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
           oldTokenDigest: transition.oldTokenDigest, status: upstream.status,
           method: request.method, upstreamPath: ccdRoute.upstreamPath,
         }) + "\n");
+      if(complexEmail&&ccdRoute){const projected=complexTransportProjection({method:request.method,upstreamPath:ccdRoute.upstreamPath,path:ccdRoute.path,body,response:bytes,status:upstream.status,actorId:actor?.userId,ordinal:complexOrdinal+1});if(projected){complexOrdinal++;fs.appendFileSync(`${output}/complex-email-transport.jsonl`,JSON.stringify(projected)+'\n',{mode:0o600});}}
       fs.appendFileSync(
         `${output}/ccd-requests.jsonl`,
         JSON.stringify({
           method: request.method,
           ...journal,
           status: upstream.status,
+          ...(resultColumns?{useCase:url.searchParams.get("use_case"),requestDigest:createHash("sha256").update(body).digest("hex"),responseDigest:createHash("sha256").update(bytes).digest("hex")}:{}),
           mutation,
         }) + "\n",
       );

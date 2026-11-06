@@ -22,7 +22,7 @@ function observedDefinition(source) {
     id: "HarnessNestedPRL", version: { number: 1 }, acls: acls(s.AuthorisationCaseType),
     states: [{ id: "JUDICIAL_REVIEW", acls: acls(s.AuthorisationCaseState) }],
     case_fields: s.CaseField.map(row => ({ id: row.ID, label: row.Label ?? null,
-      field_type: { id: row.FieldTypeParameter ? `${row.FieldType}-${row.FieldTypeParameter}` : row.FieldType, type: row.FieldType },
+      field_type: row.ID === 'sodAdditionalRecipientsList' ? (row.FieldType === 'Collection' ? {id:'synthetic-collection-type',type:'Collection',collection_field_type:{id:'ServeOrgDetails'}} : {id:'ServeOrgDetails',type:'Complex',collection_field_type:null}) : { id: row.FieldTypeParameter ? `${row.FieldType}-${row.FieldTypeParameter}` : row.FieldType, type: row.FieldType },
       acls: acls(s.AuthorisationCaseField.filter(a => a.CaseFieldID === row.ID)) })),
     events: s.CaseEvent.map(row => ({ id: row.ID, name: row.Name,
       pre_states: row["PreConditionState(s)"]?.split(";") ?? [], post_states: [{ post_state_reference: row.PostConditionState }],
@@ -37,7 +37,7 @@ function observedDefinition(source) {
   };
 }
 
-async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
+async function createEventTransitionFixture(t, { root: suppliedRoot, sourceDigest=digest("4"), candidate } = {}) {
   const root = suppliedRoot ?? fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-transition-evidence-"));
   if (!suppliedRoot) t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   fs.mkdirSync(root, { recursive: true });
@@ -57,10 +57,11 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
   const { readEventBaselineCheckpoint } = await import("../lib/exui-native-proof-validation.mjs");
   const { eventCapabilityTransitionRequest } = await import("../lib/exui-ccd-event-transition.mjs");
   const {SOURCE_SHAPE_ROWS} = await import("../lib/exui-source-shape-contract.mjs");
+  const {eventCapabilityFaultContract} = await import("../lib/exui-ccd-event-capability.mjs");
   const policy = getReleasePolicy(scope), fixtureBinding = JSON.parse(fs.readFileSync(path.join(__dirname, "ccd/event-capability/binding.json")));
   const candidateRoot = path.join(root, "candidate");
   put("config/default.json", { services: { idam: {} }, feature: {} }, candidateRoot);
-  const artifact = { candidateRoot, identity: completeRun().manifest.identity };
+  const artifact = { candidateRoot, ...(candidate??{identity:completeRun().manifest.identity}) };
   const images = Object.fromEntries(Object.entries(runtime.CCD_IMAGES).map(([name, id]) => [name, { id, architecture: "arm64", repoDigests: [`fixture@${id}`] }]));
   const variants = {};
   for (const [index, variant] of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_ROWS.map(row => `shape-${row.id}-mutant`)].entries()) {
@@ -84,7 +85,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
     roles: ["caseworker", "caseworker-harness", `caseworker-privatelaw-${name}`],
   }]));
   const input = { runId: "ccd-11111111-1111-4111-8111-111111111111", releaseScopeId: scope,
-    harnessCommit: "b".repeat(40), harnessSourceDigest: digest("4"), artifact,
+    harnessCommit: "b".repeat(40), harnessSourceDigest: sourceDigest, artifact,
     ccd: variants.baseline.state, definition: variants.baseline.imported, definitionImportDigest: variants.baseline.importedRef.digest,
     credentials, apiContracts: { data: digest("5"), definition: digest("6") }, gatewayDigest: digest("7"),
     nativeRuntime: { imageId: digest("8") }, browserRuntimeImage: digest("9"),
@@ -160,7 +161,7 @@ async function createEventTransitionFixture(t, { root: suppliedRoot } = {}) {
       observedDefinitionDigest:record.definition.observedDefinitionDigest,definitionVersion:"1",idamSimulatorImage:images.idam.id});
     const execution=makeExecution(id,current,[`ccd-source-shape-${row.id}-fault`],true);
     const derivation={mutationDefinitionDigest:policy.mutationDefinitions[index+5].definitionDigest,baselineIdentity,mutantIdentity:identity,
-      transformation:id,target:`EventToComplexTypes:ServeOrgDetails:${row.id}`,transformationRecord:fixtureBinding[`shape-${row.id}-transformation`],
+      transformation:id,target:eventCapabilityFaultContract(id).target,transformationRecord:fixtureBinding[`shape-${row.id}-transformation`],
       beforeDigest:fixtureBinding.baseline.workbookDigest,afterDigest:fixtureBinding[variant].workbookDigest};
     return {id,variant,record,identity,execution,derivation,cid:String(index+4).repeat(64)};
   });

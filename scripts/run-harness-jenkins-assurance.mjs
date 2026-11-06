@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {prepareComplexAdmissionInputs} from './lib/exui-complex-email-admission.mjs';
 import { classifyNativeFailure, formatNativeFailure } from "./lib/exui-native-failure-diagnostics.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -7,11 +8,11 @@ import path from "node:path";
 import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { ARM64_BROWSER_RUNTIME } from "./lib/exui-oci-runtime.mjs";
-import { nativeRuntimeImages, assertNativeRuntimeImage } from "./lib/exui-native-containers.mjs";
+import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
+import { nativeRuntimeImages, nativeBrowserDonor, assertNativeRuntimeImage } from "./lib/exui-native-containers.mjs";
 import { ccdImagePins, assertCcdImageIdentity } from "./lib/exui-ccd-runtime.mjs";
 import { readCandidateBuildContract } from "./lib/exui-candidate-build.mjs";
-import { verifyCandidateArtifact } from "./lib/exui-candidate-artifact.mjs";
+import { verifyCandidateArtifact, digestCandidateTree } from "./lib/exui-candidate-artifact.mjs";
 import {
   validatePublicSummary,
   writePublicSummary,
@@ -47,6 +48,7 @@ function safeEnvironment(extra = {}) {
     "HTTPS_PROXY",
     "NO_PROXY",
     "HARNESS_SHARED_ROLE_SOURCE_INPUTS",
+    "HARNESS_COMPLEX_SOURCE_INPUTS",
     "http_proxy",
     "https_proxy",
     "no_proxy",
@@ -82,7 +84,7 @@ function run(command, args, { cwd = ROOT, env = safeEnvironment(), ...options } 
 }
 
 export function provisionNativeImages(platform, { runCommand = run } = {}) {
-  const native = nativeRuntimeImages(platform);
+  const native = { ...nativeRuntimeImages(platform), browserDonor: nativeBrowserDonor(platform) };
   const targets = [
     ...Object.entries(native).map(([name, pin]) => ({
       name: name.toUpperCase(),
@@ -265,8 +267,17 @@ export function writePrivateJob(file, value) {
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
 }
 
-export function prepareBrowserCache(privateRoot, platform, { runCommand = run } = {}) {
+export async function prepareBrowserCache(privateRoot, platform, { runCommand = run } = {}) {
   assertPrivateDirectory(privateRoot);
+  const donor = nativeBrowserDonor(platform);
+  const inspected = JSON.parse(runCommand("docker", ["image", "inspect", donor.reference]));
+  assert.equal(inspected.length, 1, "NATIVE_BROWSER_DONOR_IDENTITY_REQUIRED");
+  assertNativeRuntimeImage(inspected[0], donor, platform);
+  const playwrightVersion = JSON.parse(fs.readFileSync(path.join(ROOT, "node_modules/playwright-core/package.json"))).version;
+  const browsers = JSON.parse(fs.readFileSync(path.join(ROOT, "node_modules/playwright-core/browsers.json")));
+  assert.equal(playwrightVersion, "1.65.0", "NATIVE_BROWSER_DONOR_VERSION_MISMATCH");
+  const revision = browsers.browsers.find(item => item.name === "chromium-headless-shell")?.revision;
+  assert.equal(revision, "1254", "NATIVE_BROWSER_DONOR_REVISION_MISMATCH");
   const browserCache = path.join(privateRoot, "browser-cache");
   fs.mkdirSync(browserCache, { mode: 0o700 });
   runCommand(
@@ -298,7 +309,7 @@ export function prepareBrowserCache(privateRoot, platform, { runCommand = run } 
       `type=bind,src=${browserCache},dst=/browser`,
       "--entrypoint",
       "/bin/sh",
-      platform === "linux/arm64" ? ARM64_BROWSER_RUNTIME : nativeRuntimeImages(platform).browser.reference,
+      donor.reference,
       "-c",
       "cp -a --no-preserve=ownership /ms-playwright/. /browser/",
     ],
@@ -308,6 +319,21 @@ export function prepareBrowserCache(privateRoot, platform, { runCommand = run } 
   assert(fs.realpathSync(browserCache) === browserCache && fs.statSync(browserCache).uid === process.getuid(), "NATIVE_BROWSER_CACHE_OWNER_REQUIRED");
   assertPrivateDirectory(privateRoot);
   assert(fs.readdirSync(browserCache).length > 0, "NATIVE_BROWSER_CACHE_REQUIRED");
+  const executable = browserExecutable(browsers, platform);
+  const executablePath = path.join(browserCache, executable);
+  assert.equal(fs.realpathSync(executablePath), executablePath, "NATIVE_BROWSER_EXECUTABLE_ALIAS");
+  const info = fs.lstatSync(executablePath);
+  assert(info.isFile() && (info.mode & 0o111) !== 0, "NATIVE_BROWSER_EXECUTABLE_REQUIRED");
+  const header = Buffer.alloc(20), fd = fs.openSync(executablePath, "r");
+  try {
+    assert.equal(fs.readSync(fd, header, 0, header.length, 0), header.length, "NATIVE_BROWSER_EXECUTABLE_REQUIRED");
+  } finally { fs.closeSync(fd); }
+  assert(header.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])) &&
+    header.readUInt16LE(18) === (platform === "linux/arm64" ? 183 : 62), "NATIVE_BROWSER_PLATFORM_MISMATCH");
+  writePrivateJob(path.join(privateRoot, "browser-cache-receipt.json"), {
+    kind: "browser-cache-preparation", donor, platform, playwrightVersion, revision, executable, executableBytes: info.size,
+    cacheDigest: await digestCandidateTree(browserCache),
+  });
   return browserCache;
 }
 
@@ -316,6 +342,12 @@ async function prepareJob(privateRoot, platform) {
   const candidate = path.join(privateRoot, "candidate");
   const output = path.join(privateRoot, "native-output");
   const jobPath = path.join(privateRoot, "job-input.json");
+  // Provisioning supplies only paths. Invalid specified inputs fail before builds;
+  // unsupported fixed source toolchains remain visible as NOT_RUN in assurance.
+  const complex=prepareComplexAdmissionInputs(process.env.HARNESS_COMPLEX_SOURCE_INPUTS);
+  let complexSourceInputs;
+  if(complex.inputs){complexSourceInputs=path.join(privateRoot,'complex-source-inputs.json');writePrivateJob(complexSourceInputs,complex.inputs);}
+
 
   stage = "webapp master fetch";
   run(
@@ -394,7 +426,7 @@ async function prepareJob(privateRoot, platform) {
   assert.equal(artifact.identity.webappCommit, commit, "WEBAPP_CANDIDATE_COMMIT_MISMATCH");
 
   stage = "matching browser cache";
-  const browserCache = prepareBrowserCache(privateRoot, platform);
+  const browserCache = await prepareBrowserCache(privateRoot, platform);
   const job = {
     schemaVersion: 1,
     candidateManifest,
@@ -409,21 +441,19 @@ async function prepareJob(privateRoot, platform) {
   run(process.execPath, ["scripts/observe-harness-worker.mjs"], {
     env: safeEnvironment({ HARNESS_ASSURANCE_INPUT: jobPath }),
   });
-  return { jobPath, output };
+  return { jobPath, output, complexSourceInputs };
 }
 
-function publishSummary(privateOutput) {
+export function publishSummary(privateOutput, assuranceExitCode = 0) {
   const source = path.join(privateOutput, "public/release-assurance-summary.json");
   const info = fs.lstatSync(source);
   assert(info.isFile() && !info.isSymbolicLink() && fs.realpathSync(source) === source);
   const summary = validatePublicSummary(source);
-  writePublicSummary(
-    PUBLIC,
-    { status: summary.status, exitCode: { PASS: 0, FAIL: 1, BLOCKED: 2 }[summary.status] },
-    summary.receiptAvailable,
-  );
-  assert.equal(validatePublicSummary(PUBLIC).status, summary.status);
-  return summary.status;
+  assert([0,1,2].includes(assuranceExitCode),'ASSURANCE_EXIT_REQUIRED');
+  const exitCode=Math.max({PASS:0,FAIL:1,BLOCKED:2}[summary.status],assuranceExitCode),status=['PASS','FAIL','BLOCKED'][exitCode];
+  writePublicSummary(PUBLIC,{status,exitCode},exitCode===0&&summary.receiptAvailable);
+  assert.equal(validatePublicSummary(PUBLIC).status,status);
+  return status;
 }
 
 function reportIsValid() {
@@ -445,7 +475,7 @@ export function logNativeCompletion(output) {
     const result = JSON.parse(
       fs.readFileSync(path.join(output, "private/ci-result.json"), "utf8"),
     );
-    const allowed = new Set(["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback"]);
+    const allowed = new Set(["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"]);
     assert(
       ["PASS", "FAIL", "BLOCKED"].includes(result.status) &&
         Array.isArray(result.phaseResults) &&
@@ -490,18 +520,18 @@ async function main() {
     privateRoot = createPrivateJobDirectory();
     stage = "pinned runtime provisioning";
     provisionNativeImages(platform);
-    const { jobPath, output } = await prepareJob(privateRoot, platform);
+    const { jobPath, output, complexSourceInputs } = await prepareJob(privateRoot, platform);
     stage = "native candidate and CCD pilots";
     const result = spawnSync(
       process.execPath,
       ["scripts/run-harness-assurance.mjs", "--input", jobPath],
-      { cwd: ROOT, env: safeEnvironment(), stdio: "inherit" },
+      { cwd: ROOT, env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}), stdio: "inherit" },
     );
     exitCode = result.error || result.status === null ? 2 : result.status;
     logNativeCompletion(output);
     stage = "validated summary publication";
     try {
-      const summaryStatus = publishSummary(output);
+      const summaryStatus = publishSummary(output, exitCode);
       if (exitCode === 0 && summaryStatus !== "PASS") exitCode = 2;
     } catch {
       console.error("[harness-assurance] No validated native summary was available; release approval remains blocked.");

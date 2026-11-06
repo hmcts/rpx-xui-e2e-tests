@@ -1,3 +1,8 @@
+import {readComplexNativeBinding,readComplexAdmissionPacket,complexNativeJointAdmission,assertComplexOwnership} from './exui-complex-email-admission.mjs';
+import {readPersonalNativeBinding,readPersonalAdmissionPacket,personalNativeJointAdmission} from './exui-personal-service-admission.mjs';
+import {readDivorceProfileAdmissionPacket,divorceNativeJointAdmission} from "./exui-divorce-profile-admission.mjs";
+import {readDivorceNativeBinding} from "./exui-divorce-native-binding.mjs";
+import {validateSelectorEventEvidence} from './exui-selector-event-row-evidence.mjs';
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +15,7 @@ import {
   validateNativeOutcome,
   isKnownPostalBlock,
 } from "./exui-native-proof-validation.mjs";
-import { projectConfigurationCoverage } from "./exui-configuration-runtime-coverage.mjs";
+import { projectConfigurationCoverage, creditComplexEmailRow } from "./exui-configuration-runtime-coverage.mjs";
 import { validateCallbackTransitionEvidence } from "./exui-recipient-callback-transition.mjs";
 import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs";
 import { nativeInvocations } from "./exui-native-contract.mjs";
@@ -26,6 +31,7 @@ const scopes = {
   eventCapability: "exui-ccd-event-capability-pilot",
   routing: ROUTING_SCOPE,
   recipientCallback: "exui-ccd-recipient-callback-pilot",
+  selectorEventRow: "exui-ccd-selector-event-row-pilot",
 };
 const hashPattern = /^sha256:[a-f0-9]{64}$/;
 const uuid =
@@ -84,12 +90,16 @@ function validateRawPaths(directory, run) {
     Array.isArray(run.executionArtifacts) && Array.isArray(run.mutations),
     "EXECUTIONS_REQUIRED",
   );
-  for (const item of run.executionArtifacts) {
+  const invocations = run.executionArtifacts.map((item) => {
     const execution = reference(directory, item);
-    reference(directory, execution.resultArtifact);
-  }
+    const report = reference(directory, execution.resultArtifact);
+    const configuredWorkers = report.configuredWorkers ?? null;
+    fact(configuredWorkers === null || (Number.isSafeInteger(configuredWorkers) && configuredWorkers > 0), "WORKER_CONFIGURATION_INVALID");
+    return {invocationId: execution.invocationId, configuredWorkers};
+  });
   for (const mutation of run.mutations)
     reference(directory, mutation.derivationArtifact);
+  return invocations;
 }
 function phaseProjection(directory, selection, ciPhase, expected) {
   const { phase, policy, terminal } = selection;
@@ -128,7 +138,8 @@ function phaseProjection(directory, selection, ciPhase, expected) {
   ])
     fact(hashPattern.test(pin[field]), "EXPECTED_DIGEST_REQUIRED");
   const run = read(path.join(directory, "run.json")).value;
-  validateRawPaths(directory, run);
+  const invocations = validateRawPaths(directory, run);
+  equal(invocations.map(item => item.invocationId).sort(), nativeInvocations(scopes[phase]).map(item => item.invocationId).sort(), "INVOCATION_INVENTORY_MISMATCH");
   const loaded = loadRunEvidence(path.join(directory, "run.json"), policy);
   const gate = read(path.join(directory, "gate.json"));
   equal(
@@ -203,6 +214,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
     validateEventTransitionEvidence(directory, pin, loaded.input);
   if (phase === "recipientCallback")
     validateCallbackTransitionEvidence(directory, pin, loaded.input);
+  if(phase === 'selectorEventRow') validateSelectorEventEvidence(directory,pin,loaded.input,terminal);
   if (phase === "routing") {
     const routeInput = read(path.join(directory, "input.json")).value;
     const review = read(path.join(ROOT, "scripts/fixtures/exui-configuration-review.json")).value;
@@ -242,6 +254,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
     receiptArtifactDigest: pin.receiptArtifactDigest,
     status: ciPhase.status,
     exitCode: ciPhase.exitCode,
+    invocations,
     baselineProofs: loaded.input.results.map((result) => ({
       proofId: result.proofId,
       invocationId: result.invocationId,
@@ -301,7 +314,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
 }
 
 /** Independent expectations are caller-owned launch/terminal captures, never inferred from the receipt. */
-export async function readNativeReportEvidence(descriptorPath) {
+export async function readNativeReportEvidence(descriptorPath, {profileConfigurationFor} = {}) {
   try {
     const descriptor = read(descriptorPath);
     const { directory, expected } = descriptor.value;
@@ -366,6 +379,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       eventPhaseDirectory: path.join(directory, "private/eventCapability"),
       routingPhaseDirectory: path.join(directory, "private/routing"),
       callbackPhaseDirectory: path.join(directory, "private/recipientCallback"),
+      selectorPhaseDirectory: path.join(directory, "private/selectorEventRow"),
     });
     const ccdPin = expected.phases.find(
       (item) => item.phase === "ccd",
@@ -380,7 +394,7 @@ export async function readNativeReportEvidence(descriptorPath) {
       ccdPin.evidenceManifestDigest,
       "COVERAGE_EVIDENCE_MISMATCH",
     );
-    for (const phase of ["ccd", "eventCapability", "routing", "recipientCallback"]) {
+    for (const phase of ["ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"]) {
       const selected = expected.phases.find((item) => item.phase === phase);
       const ref = accounting.phaseReferences[phase];
       for (const field of [
@@ -434,6 +448,50 @@ export async function readNativeReportEvidence(descriptorPath) {
       ...(sharedRoleAdmission ? { sharedRoleAdmission } : {}),
       releaseCredit: false,
     };
+    // Validate both complete raw packets and every supplied parent pin before classifying compatibility.
+    const nativeBinding = readDivorceNativeBinding(directory, expected);
+    fact(!expected.divorceProfileRequest || descriptor.value.divorceProfileAdmission, "PROFILE_REQUEST_REQUIRED");
+    fact(!nativeBinding || !descriptor.value.divorceProfileAdmission || expected.divorceProfileRequest, "PROFILE_REQUEST_REQUIRED");
+    const profilePacket = descriptor.value.divorceProfileAdmission ? readDivorceProfileAdmissionPacket(descriptor.value.divorceProfileAdmission, expected.divorceProfileRequest, profileConfigurationFor) : undefined;
+    let divorceProfileAdmission;
+    if (profilePacket) {
+      const joint = divorceNativeJointAdmission(nativeBinding, profilePacket, expected);
+      divorceProfileAdmission = {...profilePacket.admission, joint};
+      if (joint.status === "included") {
+        const id = joint.obligationId, rows = accounting.catalogue.obligations.filter(row => row.id === id);
+        fact(rows.length === 1 && rows[0].kind === "configuration-profile" && rows[0].family === "DIVORCE" && rows[0].requiredBoundary === "candidate", "PROFILE_CATALOGUE_ROW");
+        fact(catalogueCoverage.selected === 112 && !creditedObligationIds.includes(id), "PROFILE_DUPLICATE_CREDIT");
+        fact(accounting.report.coverage.missingCandidateOrCcd.some(row => (typeof row === "string" ? row : row.id) === id), "PROFILE_NOT_MISSING");
+        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;
+        catalogueCoverage.divorceProfileAdmission = joint;
+      }
+    }
+    const personalNative=(expected.personalServiceRequest||descriptor.value.personalServiceAdmission)?readPersonalNativeBinding(directory,expected,nativeBinding):undefined;
+    fact(!expected.personalServiceRequest||descriptor.value.personalServiceAdmission,'PERSONAL_REQUEST_REQUIRED');
+    fact(!descriptor.value.personalServiceAdmission||expected.personalServiceRequest,'PERSONAL_REQUEST_REQUIRED');
+    const personalPacket=descriptor.value.personalServiceAdmission?readPersonalAdmissionPacket(descriptor.value.personalServiceAdmission,expected.personalServiceRequest):undefined;
+    let personalServiceAdmission;
+    if(personalPacket){
+      const joint=personalNativeJointAdmission(nativeBinding,personalNative,personalPacket,expected);personalServiceAdmission={...personalPacket.admission,joint};
+      if(joint.status==='included'){
+        const id=joint.obligationId,rows=accounting.catalogue.obligations.filter(row=>row.id===id);
+        fact(rows.length===1&&rows[0].family==='PRIVATELAW'&&rows[0].kind==='definition-shape'&&rows[0].requiredBoundary==='candidate','PERSONAL_CATALOGUE_ROW');
+        equal(rows[0].sourceKeys,[personalPacket.admission.sourceKey],'PERSONAL_CATALOGUE_SOURCE');
+        fact(catalogueCoverage.selected===112&&!creditedObligationIds.includes(id),'PERSONAL_DUPLICATE_CREDIT');
+        fact(accounting.report.coverage.missingCandidateOrCcd.some(row=>(typeof row==='string'?row:row.id)===id),'PERSONAL_NOT_MISSING');
+        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.personalServiceAdmission=joint;
+      }
+    }
+    const complexNative=(expected.complexEmailRequest||descriptor.value.complexEmailAdmission)?readComplexNativeBinding(directory,expected,nativeBinding):undefined;
+    fact(!expected.complexEmailRequest||descriptor.value.complexEmailAdmission,'COMPLEX_REQUEST_REQUIRED');
+    fact(!descriptor.value.complexEmailAdmission||expected.complexEmailRequest,'COMPLEX_REQUEST_REQUIRED');
+    const complexPacket=descriptor.value.complexEmailAdmission?await readComplexAdmissionPacket(descriptor.value.complexEmailAdmission,expected.complexEmailRequest):undefined;
+    let complexEmailAdmission;
+    if(complexPacket){
+      assertComplexOwnership(directory,expected,complexPacket,{personalRequestPath:descriptor.value.personalServiceAdmission,profileOwners:profilePacket?Object.values(profilePacket.binding.owners):[]});
+      const joint=complexNativeJointAdmission(nativeBinding,complexNative,complexPacket,expected);complexEmailAdmission={...complexPacket.admission,joint};
+      if(joint.status==='included')creditComplexEmailRow(catalogueCoverage,accounting.catalogue,accounting.report.coverage.missingCandidateOrCcd,complexEmailAdmission);
+    }
     const first = expected.phases[0].expected;
     for (const { expected: pin } of expected.phases) {
       equal(
@@ -477,6 +535,9 @@ export async function readNativeReportEvidence(descriptorPath) {
       releaseApproval: false,
       phases,
       catalogueCoverage,
+      ...(divorceProfileAdmission ? {divorceProfileAdmission} : {}),
+      ...(personalServiceAdmission?{personalServiceAdmission}:{}),
+      ...(complexEmailAdmission?{complexEmailAdmission}:{}),
     };
   } catch (error) {
     // Filesystem/library errors can contain private paths or raw evidence; expose fixed codes only.

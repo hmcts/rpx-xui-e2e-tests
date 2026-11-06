@@ -1,3 +1,8 @@
+import { SELECTOR_EVENT_SCOPE, SELECTOR_EVENT_MUTATION } from './exui-selector-event-row-contract.mjs';
+import {validateSelectorRuntimeInput} from './exui-selector-event-row-transition.mjs';
+import {SHARED_NESTED_SCOPE} from './exui-shared-nested-scope.mjs';
+import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
+import {validateApplicantResultRuntime} from './exui-applicant-results-transition.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION,callbackVariant} from './exui-recipient-callback-contract.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -20,6 +25,9 @@ const scopes = {
   ccd: "exui-ccd-pilot",
   eventCapability: EVENT_CAPABILITY_SCOPE,
   recipientCallback: CALLBACK_SCOPE,
+  applicantResults: APPLICANT_RESULTS_SCOPE,
+  selectorEventRow: SELECTOR_EVENT_SCOPE,
+  sharedNested: SHARED_NESTED_SCOPE,
 };
 function captureOwnership(
   input,
@@ -70,7 +78,7 @@ function captureOwnership(
       "CI_NATIVE_MUTANT_MISMATCH",
     );
   else assert(!input.mutantArtifact, "CI_NATIVE_UNEXPECTED_MUTANT");
-  if (["ccd", "eventCapability", "recipientCallback"].includes(name)) {
+  if (["ccd", "eventCapability", "recipientCallback", "applicantResults", "selectorEventRow", "sharedNested"].includes(name)) {
     assert.equal(
       input.ccd.namespace,
       context.ccd.namespace,
@@ -81,6 +89,8 @@ function captureOwnership(
       context.ccd.owner,
       "CI_NATIVE_CCD_OWNER_MISMATCH",
     );
+    if(name==="selectorEventRow")validateSelectorRuntimeInput(input,eventFault??"baseline");
+    if(name==="applicantResults")validateApplicantResultRuntime(input,eventFault??"baseline");
     if (name === "recipientCallback") {
       assert.equal(input.definition?.kind,"native-recipient-callback-definition","CI_NATIVE_CALLBACK_IMPORT_REQUIRED");
       assert.equal(input.definition.variant,callbackVariant(eventFault ?? "baseline"),"CI_NATIVE_CALLBACK_VARIANT_MISMATCH");
@@ -106,7 +116,7 @@ function captureOwnership(
   );
   // Plans are rebuilt from the declared candidate, toolchain and fixed invocation inventory.
   const invocations = nativeInvocations(scopes[name]).filter((invocation) =>
-    !["eventCapability","recipientCallback"].includes(name) || invocation.invocationId === (eventFault ?? "baseline"),
+    !["eventCapability","recipientCallback","applicantResults","selectorEventRow"].includes(name) || invocation.invocationId === (eventFault ?? "baseline"),
   ).map(
     ({ invocationId }) => ({
       invocationId,
@@ -338,4 +348,14 @@ export function validateNativeInvocationFinalization(directory, execution) {
       "CI_NATIVE_STOP_EXIT_MISMATCH",
     );
     return { denial, lifecycle };
+}
+
+export function captureApplicantFaultOwnership(input,handoff,context,directory,invocationId){
+ assert(APPLICANT_RESULTS_MUTATIONS.includes(invocationId),"CI_NATIVE_RESULTS_INVOCATION");
+ return captureOwnership(input,handoff,context,directory,"applicantResults",invocationId);
+}
+
+export function captureSelectorFaultOwnership(input,handoff,context,directory,invocationId=SELECTOR_EVENT_MUTATION) {
+ assert.equal(invocationId,SELECTOR_EVENT_MUTATION,"SELECTOR_OWNERSHIP_INVOCATION");
+ return captureOwnership(input,handoff,context,directory,"selectorEventRow",invocationId);
 }

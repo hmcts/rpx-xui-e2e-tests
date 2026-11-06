@@ -1,4 +1,12 @@
 {
+  "shape-recipient-collection-transformation": {
+    "schemaVersion": 1,
+    "shape": "recipient-collection",
+    "reference": "sodAdditionalRecipientsList",
+    "column": "FieldType",
+    "before": "Collection",
+    "after": "ServeOrgDetails"
+  },
   "shape-case-field-recipient-selector-transformation": {
     "schemaVersion": 1,
     "shape": "case-field-recipient-selector",
@@ -149,6 +157,10 @@
   "courtadmin-update-mutant": {
     "sourceDigest": "sha256:739bdf940b364516c151ae3fe4073ecbd5591b3e56f167596b08ccfc2696d4f7",
     "workbookDigest": "sha256:919b3d990290feef3cc294058bf2ccd3b1ad18e49c7165fca5e82ec0a66241bf"
+  },
+  "shape-recipient-collection-mutant": {
+    "sourceDigest": "sha256:a0959e099fa461f90ff6b729a2b26166a299a775bd3f0b702392cd0f7bb84a6c",
+    "workbookDigest": "sha256:4d69a7b396aa0f34634c4e201f4257b3114bbee8fa5b59ac62dbec5f02402974"
   },
   "shape-case-field-recipient-selector-mutant": {
     "sourceDigest": "sha256:f4c0113aa414ea151d3a5e33057538df25a632425fccc478352b9bd620b83416",

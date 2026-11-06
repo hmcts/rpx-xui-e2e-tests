@@ -98,3 +98,49 @@ test('private transport parents can keep stable payload-root execute bits withou
  fs.chmodSync(file,0o700);fs.writeFileSync(file,'changed');assert.notEqual(await digestCandidateTree(root),portable);
  assert.equal(fs.statSync(parent).mode&0o777,0o700);
 });
+
+
+test('streaming tree seal matches the frozen transcript for file boundaries, replacements and mutations', async t => {
+  const { digestCandidateTree } = await import('./lib/exui-candidate-artifact.mjs');
+  const { digestCandidateTree: frozenDigest } = await import('./fixtures/exui-candidate-artifact-frozen-digest.mjs');
+  const { chmod, readFile, unlink } = require('node:fs/promises');
+  const root = await fixture(t);
+  // Boundaries surround the 1 MiB small-file budget; binary data crosses stream chunks.
+  const large = Buffer.alloc(2 * 1024 * 1024 + 17);
+  for (let index = 0; index < large.length; index++) large[index] = index % 251;
+  await mkdir(path.join(root, 'z-empty-directory'));
+  for (const [name, value] of [
+    ['empty', ''], ['a-small', 'synthetic-small'], ['large', large],
+    ['below-boundary', large.subarray(0, 1024 * 1024 - 1)],
+    ['at-boundary', large.subarray(0, 1024 * 1024)],
+    ['above-boundary', large.subarray(0, 1024 * 1024 + 1)],
+  ]) await writeFile(path.join(root, name), value);
+  await symlink('a-small', path.join(root, 'internal-link'));
+  const baseline = await frozenDigest(root);
+  assert.equal(await digestCandidateTree(root), baseline);
+  for (const replacement of ['', Buffer.alloc(0), 'replacement', Buffer.from([0, 255, 128]), large, null, undefined]) {
+    const replacements = new Map([['large', replacement], ['a-small', replacement]]);
+    assert.equal(await digestCandidateTree(root, replacements), await frozenDigest(root, replacements));
+  }
+  const target = path.join(root, 'large');
+  const original = await readFile(target);
+  const mutated = Buffer.from(original);
+  mutated[mutated.length - 1] ^= 255;
+  await writeFile(target, mutated);
+  assert.notEqual(await digestCandidateTree(root), baseline);
+  assert.equal(await digestCandidateTree(root), await frozenDigest(root));
+  await writeFile(target, original);
+  await chmod(target, 0o700);
+  assert.notEqual(await digestCandidateTree(root), baseline);
+  assert.equal(await digestCandidateTree(root), await frozenDigest(root));
+  await unlink(path.join(root, 'internal-link'));
+  await symlink('./a-small', path.join(root, 'internal-link'));
+  assert.equal(await digestCandidateTree(root), await frozenDigest(root));
+  await symlink(os.tmpdir(), path.join(root, 'escape-link'));
+  await assert.rejects(digestCandidateTree(root), /Artifact symlink escapes root: escape-link/);
+  await assert.rejects(frozenDigest(root), /Artifact symlink escapes root: escape-link/);
+  await unlink(path.join(root, 'escape-link'));
+  await symlink('missing-file', path.join(root, 'broken-link'));
+  await assert.rejects(digestCandidateTree(root), { code: 'ENOENT' });
+  await assert.rejects(frozenDigest(root), { code: 'ENOENT' });
+});

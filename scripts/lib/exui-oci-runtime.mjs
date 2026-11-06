@@ -1,3 +1,6 @@
+import {SELECTOR_EVENT_SCOPE,SELECTOR_EVENT_MUTATION} from './exui-selector-event-row-contract.mjs';
+import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS,sharedNestedRemovedStatePaths} from './exui-shared-nested-scope.mjs';
+import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
 import assert from "node:assert/strict";
@@ -72,18 +75,21 @@ export function readImageMetadata(runtimeRoot) {
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
-export function assertReadOnlyMountIsolation(readonlyRoots, writableRoots) {
+function assertCanonicalMountIsolation(readonlyRoots,writableRoots) {
   const overlap = (left, right) =>
     left === right ||
     left.startsWith(`${right}${path.sep}`) ||
     right.startsWith(`${left}${path.sep}`);
-  for (const readonly of readonlyRoots.map((value) => fs.realpathSync(value))) {
-    for (const writable of writableRoots.map((value) =>
-      fs.realpathSync(value),
-    )) {
+  for (const readonly of readonlyRoots) {
+    for (const writable of writableRoots) {
       assert(!overlap(readonly, writable), "OCI_READONLY_MOUNT_WRITABLE_ALIAS");
     }
   }
+}
+
+export function assertReadOnlyMountIsolation(readonlyRoots,writableRoots){
+  for(const readonly of readonlyRoots.map(value=>fs.realpathSync(value)))
+    assertCanonicalMountIsolation([readonly],writableRoots.map(value=>fs.realpathSync(value)));
 }
 
 export function browserExecutable(browsers, platform) {
@@ -111,7 +117,20 @@ export function assertBrowserRuntime(inspect, image, platform) {
   );
 }
 
-export function toolContainerArguments({
+export function toolContainerArguments(options) {
+ return buildToolContainerArguments(options,assertReadOnlyMountIsolation);
+}
+export function sharedNestedAuditToolContainerArguments(options,stateRoot) {
+ assert.equal(options.releaseScopeId,SHARED_NESTED_SCOPE,'SHARED_NESTED_AUDIT_SCOPE');
+ assert.equal(options.native,true,'SHARED_NESTED_AUDIT_NATIVE_REQUIRED');
+ const removed=sharedNestedRemovedStatePaths(stateRoot,options.invocationId);
+ assert.equal(options.sessions,removed.sessions,'SHARED_NESTED_AUDIT_SESSION_PATH');
+ return buildToolContainerArguments(options,(readonlyRoots,writableRoots)=>{
+  assert.deepEqual(writableRoots,[options.output,removed.sessions],'SHARED_NESTED_AUDIT_WRITABLE_PATHS');
+  assertCanonicalMountIsolation(readonlyRoots.map(value=>fs.realpathSync(value)),[fs.realpathSync(options.output),removed.sessions]);
+ });
+}
+function buildToolContainerArguments({
   owner,
   image,
   platform,
@@ -125,7 +144,7 @@ export function toolContainerArguments({
   native = false,
   namespace,
   releaseScopeId,
-}) {
+},checkIsolation) {
   if (!digest(image)) throw new Error("PINNED_BROWSER_RUNTIME_REQUIRED");
   if (namespace && !/^[a-f0-9]{64}$/.test(namespace))
     throw new Error("OWNED_TOOLS_NAMESPACE_REQUIRED");
@@ -143,7 +162,7 @@ export function toolContainerArguments({
             "ccd-broaden-access",
             "ccd-write-then-deny",
             "ccd-drop-postal-optional-child",
-            "ccd-drop-workbasket-field",
+            "ccd-drop-workbasket-field", "shared-nested-drop-second-recipient",
             "ccd-enable-judge-event",
             "ccd-remove-courtadmin-recipient-read",
             "ccd-remove-readonly-recipient-read",
@@ -151,6 +170,8 @@ export function toolContainerArguments({
       "ccd-remove-courtadmin-event-create",
       ...SOURCE_SHAPE_MUTATIONS,
       CALLBACK_MUTATION,
+      SELECTOR_EVENT_MUTATION,
+      ...APPLICANT_RESULTS_MUTATIONS,
             "routing-omit-web-url",
             "routing-omit-noc-base-url",
             "global-search-wa-capability",
@@ -160,11 +181,17 @@ export function toolContainerArguments({
     ).includes(invocationId)
   )
     throw new Error("UNSUPPORTED_OCI_INVOCATION");
+  if(releaseScopeId===SHARED_NESTED_SCOPE&&!["baseline",...SHARED_NESTED_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_SHARED_NESTED_INVOCATION");
+  if(invocationId==="shared-nested-drop-second-recipient"&&releaseScopeId!==SHARED_NESTED_SCOPE)throw Error("SHARED_NESTED_SCOPE_REQUIRED");
+  if(APPLICANT_RESULTS_MUTATIONS.includes(invocationId)&&releaseScopeId!==APPLICANT_RESULTS_SCOPE)throw Error("CCD_RESULTS_SCOPE_REQUIRED");
+  if(releaseScopeId===APPLICANT_RESULTS_SCOPE&&!["baseline",...APPLICANT_RESULTS_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_CCD_RESULTS_INVOCATION");
+  if (invocationId === SELECTOR_EVENT_MUTATION && releaseScopeId !== SELECTOR_EVENT_SCOPE) throw Error("CCD_SELECTOR_SCOPE_REQUIRED");
+  if (releaseScopeId === SELECTOR_EVENT_SCOPE && !["baseline",SELECTOR_EVENT_MUTATION].includes(invocationId)) throw Error("UNSUPPORTED_CCD_SELECTOR_INVOCATION");
   if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
   if (releaseScopeId === CALLBACK_SCOPE && !["baseline",CALLBACK_MUTATION].includes(invocationId)) throw new Error("UNSUPPORTED_CCD_CALLBACK_INVOCATION");
   if (SOURCE_SHAPE_MUTATIONS.includes(invocationId) && releaseScopeId !== "exui-ccd-event-capability-pilot")
     throw new Error("CCD_EVENT_SCOPE_REQUIRED");
-  assertReadOnlyMountIsolation(
+  checkIsolation(
     [harnessRoot, dependenciesRoot, candidateRoot, browserRoot],
     [output, sessions],
   );
@@ -251,7 +278,7 @@ export function candidateArchiveArguments({
       "ccd-broaden-access",
       "ccd-write-then-deny",
       "ccd-drop-postal-optional-child",
-      "ccd-drop-workbasket-field",
+      "ccd-drop-workbasket-field", "shared-nested-drop-second-recipient",
       "ccd-enable-judge-event",
       "ccd-remove-courtadmin-recipient-read",
       "ccd-remove-readonly-recipient-read",
@@ -259,6 +286,8 @@ export function candidateArchiveArguments({
       "ccd-remove-courtadmin-event-create",
       ...SOURCE_SHAPE_MUTATIONS,
       CALLBACK_MUTATION,
+      SELECTOR_EVENT_MUTATION,
+      ...APPLICANT_RESULTS_MUTATIONS,
       "routing-omit-web-url",
       "routing-omit-noc-base-url",
       "global-search-wa-capability",
@@ -266,6 +295,12 @@ export function candidateArchiveArguments({
     ].includes(invocationId)
   )
     throw Error("UNSUPPORTED_NATIVE_INVOCATION");
+  if(releaseScopeId===SHARED_NESTED_SCOPE&&!["baseline",...SHARED_NESTED_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_SHARED_NESTED_INVOCATION");
+  if(invocationId==="shared-nested-drop-second-recipient"&&releaseScopeId!==SHARED_NESTED_SCOPE)throw Error("SHARED_NESTED_SCOPE_REQUIRED");
+  if(APPLICANT_RESULTS_MUTATIONS.includes(invocationId)&&releaseScopeId!==APPLICANT_RESULTS_SCOPE)throw Error("CCD_RESULTS_SCOPE_REQUIRED");
+  if(releaseScopeId===APPLICANT_RESULTS_SCOPE&&!["baseline",...APPLICANT_RESULTS_MUTATIONS].includes(invocationId))throw Error("UNSUPPORTED_CCD_RESULTS_INVOCATION");
+  if (invocationId === SELECTOR_EVENT_MUTATION && releaseScopeId !== SELECTOR_EVENT_SCOPE) throw Error("CCD_SELECTOR_SCOPE_REQUIRED");
+  if (releaseScopeId === SELECTOR_EVENT_SCOPE && !["baseline",SELECTOR_EVENT_MUTATION].includes(invocationId)) throw Error("UNSUPPORTED_CCD_SELECTOR_INVOCATION");
   if (invocationId === CALLBACK_MUTATION && releaseScopeId !== CALLBACK_SCOPE) throw new Error("CCD_CALLBACK_SCOPE_REQUIRED");
   if (releaseScopeId === CALLBACK_SCOPE && !["baseline",CALLBACK_MUTATION].includes(invocationId)) throw new Error("UNSUPPORTED_CCD_CALLBACK_INVOCATION");
   if (invocationId === "ccd-stale-revoked-bearer" && releaseScopeId !== "exui-ccd-pilot")

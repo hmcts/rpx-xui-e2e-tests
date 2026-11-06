@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import {runSelectorEventPhase} from './run-harness-selector-event-row.mjs';
+import {SELECTOR_EVENT_SCOPE} from './lib/exui-selector-event-row-contract.mjs';
+import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './lib/exui-recipient-callback-contract.mjs';
 import {importNativeCallbackDefinition,verifyNativeCallbackRuntime} from './lib/exui-recipient-callback-native-import.mjs';
 import {selectCallbackRuntime,publishCallbackRuntime} from './lib/exui-recipient-callback-transition.mjs';
@@ -60,6 +63,7 @@ const scopes = {
   eventCapability: EVENT_CAPABILITY_SCOPE,
   routing: "exui-decentralised-routing-pilot",
   recipientCallback: CALLBACK_SCOPE,
+  selectorEventRow: SELECTOR_EVENT_SCOPE,
 };
 export async function reportNativeProgress(label, operation) {
   const started = performance.now();
@@ -82,7 +86,7 @@ export async function reportNativeProgress(label, operation) {
 }
 
 export function fixedCiPhasesPassed(results) {
-  const phases = ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback'];
+  const phases = ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback', 'selectorEventRow'];
   return results.length === phases.length && results.every((result, index) => result.phase === phases[index] && result.status === 'PASS');
 }
 
@@ -93,22 +97,24 @@ export async function runFixedCiPilots(operations) {
   const timed = async (label, operation) => {
     const startedAt = new Date().toISOString();
     const started = performance.now();
-    let status = "stopped";
+    let status = "stopped", nested;
     try {
       const result = await progress(label, operation);
       status = ["PASS", "FAIL", "BLOCKED"].includes(result?.status) ? result.status : "completed";
+      if(label === "Selector Page2 preparation, proofs and cleanup") nested=result.phaseTimings;
       return result;
     } finally {
-      const item = { label, status, startedAt, durationMs: Math.round(performance.now() - started) };
-      timings.push(item);
-      operations.onTiming?.(item);
+      const selectorFallback = label === "Selector Page2 preparation, proofs and cleanup" && nested == null;
+      const item = { label: selectorFallback ? "Selector CCD baseline preparation" : label,
+        status: selectorFallback ? "stopped" : status, startedAt, durationMs: Math.round(performance.now() - started) };
+      for(const row of nested ?? [item]) {timings.push(row);operations.onTiming?.(row);}
     }
   };
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
   const phase = async (name) => {
     checkCancellation();
-    const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence" };
+    const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence", selectorEventRow: "Selector Page2 preparation, proofs and cleanup" };
     const result = await timed(labels[name], () => operations.phase(name));
     checkCancellation();
     results.push({ phase: name, ...result });
@@ -156,10 +162,36 @@ export async function runFixedCiPilots(operations) {
   } finally {
     await timed("Recipient callback CCD runtime cleanup", () => operations.stopCallback());
   }
+  if (results.at(-1).exitCode !== 0) return outcome();
+  await phase("selectorEventRow");
   return outcome();
 }
 
-export async function runHarnessCi(jobPath) {
+export async function stopSelectorCiResource(resource) {
+ resource.controller.abort();
+ assert(resource.completion,'CI_SELECTOR_COMPLETION_REQUIRED');
+ const result=await resource.completion;
+ assert.equal(result.cleanupComplete,true,'CI_SELECTOR_CLEANUP_INCOMPLETE');
+}
+export async function runSelectorCiPhase(job,context,directory,resource,{run=runSelectorEventPhase,readAuthority=readSelectorPhaseAuthority,validate=validateCiPhase}={}) {
+ resource.completion=Promise.resolve().then(()=>run({candidate:job.candidateManifest,browser:context.browserRoot,output:directory},{signal:resource.controller.signal}));
+ const result=await resource.completion;
+ resource.summary=result;
+ resource.admissionStarted={startedAt:new Date().toISOString(),start:performance.now()};
+ assert.equal(result.cleanupComplete,true,'CI_SELECTOR_CLEANUP_INCOMPLETE');
+ assert.equal(result.status,'PASS','CI_SELECTOR_NATIVE_PHASE_REQUIRED');
+ assert.equal(result.nativeRuntimeAcceptance,true,'CI_SELECTOR_NATIVE_PHASE_REQUIRED');
+ const selected=readAuthority(directory);
+ for(const [field,value] of Object.entries({harnessCommit:context.commit,harnessSourceDigest:context.sourceDigests.selectorEventRow,harnessDependencyDigest:context.dependencies.digest,browserDigest:context.browserDigest}))
+  assert.equal(selected.expected[field],value,'CI_SELECTOR_JOB_IDENTITY');
+ assert.equal(selected.expected.identity.artifactDigest,job.expectedArtifactDigest,'CI_SELECTOR_JOB_CANDIDATE');
+ const validated=validate(directory,selected.expected,selected.terminal);
+ assert.equal(validated.receiptArtifactDigest,result.receiptArtifactDigest,'CI_SELECTOR_RECEIPT_CHANGED');
+ resource.validated=validated;
+ return {directory,...selected,expected:{...selected.expected,receiptArtifactDigest:validated.receiptArtifactDigest}};
+}
+
+export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonalNative,captureComplexNative,complexSourceConfiguration} = {}) {
   const job = validateCiJob(read(jobPath));
   const envelope = read(job.candidateManifest);
   assert(
@@ -183,15 +215,24 @@ export async function runHarnessCi(jobPath) {
     cancelled = false;
   const privateRoot = path.join(job.output, "private");
   const remove = async (_id, resource) => {
+    try {
     let evidence;
-    if (resource.kind === "ccd") {
+    if (resource.kind === "selector") {
+      await stopSelectorCiResource(resource);
+    } else if (resource.kind === "ccd") {
       await resource.pendingStart?.catch(() => {});
       evidence = cleanupCiCcd(resource.directory);
+      if (resource.successfulStart || resource.createAttempted)
+        assert.equal(evidence?.cleanupComplete, true, "CI_CCD_CLEANUP_RECEIPT_REQUIRED");
       if (evidence)
         writeJsonAtomic(path.join(resource.directory, "cleanup-verification.json"), evidence);
     } else await cleanupCiPhase(resource, resource.context ?? context);
     resources.delete(_id);
     return evidence;
+    } catch (error) {
+      cleanupComplete = false;
+      throw error;
+    }
   };
   const startOwnedCcd = async (key, fixtureSelection, alive = () => true, phaseResource, callbackVariant) => {
     assert(callbackVariant === undefined || ["baseline","binding-omitted"].includes(callbackVariant),"CI_CALLBACK_VARIANT_REQUIRED");
@@ -207,23 +248,27 @@ export async function runHarnessCi(jobPath) {
     resource.pendingStart = Promise.resolve().then(() => startCcdRuntime(directory, {
       fixtureSelection,
       platform: context.artifact.provenance.platform,
+      onCreateUncertainty: () => { cleanupComplete = false; },
       isCancelled: () => cancelled || !alive(),
       runDocker: (args, input) => {
         assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+        if (args[0] === "create") resource.createAttempted = true;
         return docker(args, input);
       },
-    }));
-    const ccd = await resource.pendingStart;
-    assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
-    if (callbackVariant === undefined) {
-      importCcdDefinition(ccd);
-      verifyCcdRuntimeIdentity(ccd);
-    } else {
-      await importNativeCallbackDefinition(ccd,callbackVariant);
-      verifyNativeCallbackRuntime(ccd,callbackVariant);
-    }
-    assert(!cancelled && alive(), "CI_EVENT_IMPORT_CANCELLED");
-    return ccd;
+    })).then(ccd => { resource.successfulStart = true; return ccd; });
+    resource.pendingStart = resource.pendingStart.then(async ccd => {
+      assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+      if (callbackVariant === undefined) {
+        importCcdDefinition(ccd);
+        verifyCcdRuntimeIdentity(ccd);
+      } else {
+        await importNativeCallbackDefinition(ccd,callbackVariant);
+        verifyNativeCallbackRuntime(ccd,callbackVariant);
+      }
+      assert(!cancelled && alive(), "CI_EVENT_IMPORT_CANCELLED");
+      return ccd;
+    });
+    return resource.pendingStart;
   };
   const eventRuntimeData = (ccd, scope = EVENT_CAPABILITY_SCOPE) => {
     assert([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(scope),"CI_SOURCE_RUNTIME_SCOPE_REQUIRED");
@@ -255,7 +300,10 @@ export async function runHarnessCi(jobPath) {
     },
   });
   try {
-    context = await prepareCiJob(job, job.output);
+    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration}));
+    captureNativeCohort?.(structuredClone(context.nativeCohortCapture));
+    capturePersonalNative?.(structuredClone(context.personalNativeCapture));
+    captureComplexNative?.(structuredClone(context.complexNativeCapture));
     assert(!cancelled, "CI_JOB_CANCELLED");
     writeConfigurationCoverage({
       harnessRoot: ROOT,
@@ -270,6 +318,20 @@ export async function runHarnessCi(jobPath) {
         failedPhase = name;
         phaseTerminal = undefined;
         assert(!cancelled, "CI_JOB_CANCELLED");
+        if(name === "selectorEventRow") {
+          const directory=path.join(privateRoot,name),resource={kind:"selector",controller:new AbortController()};
+          resources.set(name,resource);
+          try {
+            const selected=await runSelectorCiPhase(job,context,directory,resource);
+            context.selectorResult=selected;
+            const validated=resource.validated;
+            writeConfigurationCoverage({harnessRoot:ROOT,output:path.join(privateRoot,"configuration"),phaseDirectory:context.ccdResult.directory,expected:context.ccdResult.expected,terminal:context.ccdResult.terminal,eventPhase:context.eventResult,routingPhase:context.routingResult,callbackPhase:context.callbackResult,selectorPhase:selected});
+            phaseResults.push({phase:name,...validated});failedPhase=undefined;return {...validated,phaseTimings:[...(await resource.completion).phaseTimings,{label:'Selector cohort admission',status:validated.status,startedAt:resource.admissionStarted.startedAt,durationMs:Math.round(performance.now()-resource.admissionStarted.start)}]};
+          } catch(error) {
+            phaseFailure=nativePhaseFailure(error,name,undefined,{run:fs.existsSync(path.join(directory,'run.json')),gate:fs.existsSync(path.join(directory,'gate.json')),baselineReport:fs.existsSync(path.join(directory,'baseline/report.json'))},resource.summary?.diagnostic);
+            throw error;
+          } finally { await remove(name,resource); }
+        }
         const directory = path.join(privateRoot, name),
           phaseContext = name === "eventCapability" ? { ...context, ...context.eventBaseline } : name === "recipientCallback" ? {...context,...context.callbackBaseline} : context,
           resource = { kind: "phase", name, directory, child: null, context: phaseContext };
@@ -498,51 +560,67 @@ export async function runHarnessCi(jobPath) {
       },
       start: async () => {
         const directory = path.join(privateRoot, "ccd-runtime");
-        resources.set("ccd-runtime", { kind: "ccd", directory });
-        context.ccd = await startCcdRuntime(directory, { platform: context.artifact.provenance.platform });
-        importCcdDefinition(context.ccd);
-        const workbasketReceipt = await importWorkbasketInputs(context.ccd);
-        const observed = verifyCcdRuntimeIdentity(context.ccd),
-          config = effectiveCandidateConfiguration(
-            context.artifact.candidateRoot,
-          ).config;
-        config.now = false;
-        config.jurisdictions = `${config.jurisdictions},HARNESS`;
-        const apiContracts = Object.fromEntries(
-          [
-            ["data", 4452],
-            ["definition", 4451],
-          ].map(([service, port]) => {
-            const response = ccdRequest(context.ccd, port, "/v3/api-docs");
-            assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
-            return [service, digestBytes(JSON.stringify(response.body))];
-          }),
-        );
-        context.ccdIdentity = {
-          ...context.artifact.identity,
-          configurationDigest: digestBytes(
-            JSON.stringify({
-              config,
-              gatewayDigest: digestBytes(
-                fs.readFileSync(
-                  path.join(ROOT, "scripts/lib/exui-ccd-browser-runtime.mjs"),
-                ),
-              ),
-              mutation: null,
+        const resource = { kind: "ccd", directory };
+        resources.set("ccd-runtime", resource);
+        resource.pendingStart = startCcdRuntime(directory, {
+          platform: context.artifact.provenance.platform,
+          onCreateUncertainty: () => { cleanupComplete = false; },
+          isCancelled: () => cancelled,
+          runDocker: (args, input) => {
+            assert(!cancelled, "CI_JOB_CANCELLED");
+            if (args[0] === "create") resource.createAttempted = true;
+            return docker(args, input);
+          },
+        }).then(ccd => { resource.successfulStart = true; return ccd; });
+        resource.pendingStart = resource.pendingStart.then(async ccd => {
+          context.ccd = ccd;
+          assert(!cancelled, "CI_JOB_CANCELLED");
+          importCcdDefinition(context.ccd);
+          const workbasketReceipt = await importWorkbasketInputs(context.ccd);
+          assert(!cancelled, "CI_JOB_CANCELLED");
+          const observed = verifyCcdRuntimeIdentity(context.ccd),
+            config = effectiveCandidateConfiguration(
+              context.artifact.candidateRoot,
+            ).config;
+          config.now = false;
+          config.jurisdictions = `${config.jurisdictions},HARNESS`;
+          const apiContracts = Object.fromEntries(
+            [
+              ["data", 4452],
+              ["definition", 4451],
+            ].map(([service, port]) => {
+              const response = ccdRequest(context.ccd, port, "/v3/api-docs");
+              assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
+              return [service, digestBytes(JSON.stringify(response.body))];
             }),
-          ),
-          definitionDigests: { HarnessNestedPRL: observed.fixtureDigest,
-            HarnessResultsPRL: workbasketReceipt.binding.workbookDigest },
-          dependencyIdentities: Object.fromEntries(
-            ["data", "definition"].map((service) => [
-              service === "data" ? "ccd" : "ccd-definition",
-              {
-                artifactDigest: context.ccd.images[service].id,
-                apiContractDigest: apiContracts[service],
-              },
-            ]),
-          ),
-        };
+          );
+          context.ccdIdentity = {
+            ...context.artifact.identity,
+            configurationDigest: digestBytes(
+              JSON.stringify({
+                config,
+                gatewayDigest: digestBytes(
+                  fs.readFileSync(
+                    path.join(ROOT, "scripts/lib/exui-ccd-browser-runtime.mjs"),
+                  ),
+                ),
+                mutation: null,
+              }),
+            ),
+            definitionDigests: { HarnessNestedPRL: observed.fixtureDigest,
+              HarnessResultsPRL: workbasketReceipt.binding.workbookDigest },
+            dependencyIdentities: Object.fromEntries(
+              ["data", "definition"].map((service) => [
+                service === "data" ? "ccd" : "ccd-definition",
+                {
+                  artifactDigest: context.ccd.images[service].id,
+                  apiContractDigest: apiContracts[service],
+                },
+              ]),
+            ),
+          };
+        });
+        return resource.pendingStart;
       },
       stop: () => {
         const resource = resources.get("ccd-runtime");
@@ -588,7 +666,7 @@ export async function runHarnessCi(jobPath) {
         verdict = blocked();
       }
     uninstall();
-    if (cancelled) verdict = blocked();
+    if (cancelled || !cleanupComplete) verdict = blocked();
     writeJsonAtomic(path.join(privateRoot, "ci-result.json"), {
       classification: "fixed-pilot-suite-no-full-release-approval",
       jobRunId: `ci-${randomUUID()}`,
@@ -603,7 +681,7 @@ export async function runHarnessCi(jobPath) {
       fixedCiPhasesPassed(phaseResults),
     );
   }
-  return { ...verdict, phaseTimings };
+  return { ...verdict, phaseTimings, continuationSafe: cleanupComplete && !cancelled && resources.size === 0 };
 }
 if (
   process.argv[1] &&

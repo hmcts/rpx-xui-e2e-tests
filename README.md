@@ -51,7 +51,7 @@ Each invocation needs a fresh native output directory in its job file. The combi
 
 The 112 catalogue requirements are coverage obligations, not an already implemented 112-test suite. This command executes the implemented native policies; it cannot grant coverage to missing service/profile proofs. Jenkins still needs the supported native agent, sealed candidate inputs and approved durable evidence storage before this command can become a required release gate.
 
-The default job has five fixed phases: WA family → IA/Civil scope → CCD nested/access/role-removal/postal → CCD source event capability → PCS routing. Its required inventory is fourteen baseline proofs and fourteen deliberate fault checks, not a claim that they passed. The strict job input cannot supply a catalogue, proof status or selected subset.
+The default job has seven fixed phases: WA family → IA/Civil scope → CCD nested/access/role-removal/postal → CCD source event capability → PCS routing → recipient callback → optional selector Page2. Its required inventory is23 baseline proofs and23 deliberate fault checks, not a claim that they passed. The last phase proves one existing nine-attribute CaseEventToFields row; it adds catalogue credit only after fresh independent runtime validation in the same candidate, producer, browser and default CCD cohort. The strict job input cannot supply a catalogue, proof status or selected subset.
 
 The original `exui-ccd-event-capability-pilot` used the pinned PRL courtadmin/judge permissions in the normalized `HARNESS/HarnessNestedPRL` definition. It requires a courtadmin to enter one email recipient through form → CYA → Change → submit/readback, while a judge can read the case but cannot start or submit the event with event permission `R`. Its original definition fault changed that judge event permission from `R` to `CR`; the test must observe the enabled write before failing the denial assertion. The accepted clean `6895660` run passed both baselines and detected the intended `R` → `CR` fault at `event-capability-isolation`, after observing the real persisted judge write. Independent observer checks confirmed exactly one edited courtadmin recipient and unchanged case state/history after the baseline judge denial.
 
@@ -143,7 +143,7 @@ The shared evaluator recomputes raw framework evidence and receipts. `harness:ve
 
 The pinned Jenkins library runs lint during Build. The later Harness stage reactivates NVM and checks actual Node against `.nvmrc` and actual Yarn against `packageManager` before browser preflight and supporting checks.
 
-Checked-in Jenkins jobs attempt the bounded native candidate/CCD pilots on the existing worker, then collect supporting diagnostics in the same report. Native preparation requires an observed Linux ARM64 or AMD64 Docker server before webapp fetch or candidate build. AMD64 provisioning pulls immutable Node, Playwright and CCD image references, reusing the current worker’s existing Azure context for private registry access. Registry credentials stay in a temporary private Docker configuration and are removed after preparation. No agent or Azure subscription is changed. These observations grant no runtime or release credit; Jenkins native acceptance remains unverified.
+Checked-in Jenkins jobs attempt the bounded native candidate/CCD pilots on the existing worker, then collect supporting diagnostics in the same report. Native preparation requires an observed Linux ARM64 or AMD64 Docker server before webapp fetch or candidate build. AMD64 provisioning pulls immutable Node, Playwright and CCD image references, reusing the current worker’s existing Azure context for private registry access. Registry credentials stay in a temporary private Docker configuration and are removed after preparation. No agent or Azure subscription is changed. Capability and provisioning observations alone grant no runtime or release credit. [PR271 build5](https://build.hmcts.net/job/HMCTS_j_to_z/job/rpx-xui-e2e-tests/job/PR-271/5/) subsequently completed all six native phases and admitted34/112 catalogue requirements for its recorded candidate and Harness producer. This is bounded evidence for that run, not validation of later source or candidates; full release approval remains unavailable.
 
 The shared Jenkins library deletes its workspace at job completion. Job-local raw reports are not durable evidence retention; an approved private store is still required for native CI acceptance.
 
@@ -151,9 +151,15 @@ The native Jenkins wrapper preserves each job directory under `functional-output
 
 Native execution prints fixed phase start/completion messages and a heartbeat every minute while awaiting a phase, derived candidate or CCD startup/cleanup. A heartbeat proves only that the coordinator is still waiting; application coverage requires the validated gate result. Detailed subprocess logs remain private.
 
+If controller termination or resource cleanup cannot be certified, assurance withdraws its report and stops before another stage can start. A later cleanup attempt does not erase an earlier uncertain outcome. Private evidence is retained for recovery.
+
 Raw native evidence and detailed diagnostic failures stay under `functional-output/tests/harness/private/`. Both Jenkins jobs publish one **EXUI Assurance Harness** Odhín report at `functional-output/tests/harness/public/odhin/index.html`.
 
 Run `yarn harness:ci` for a diagnostic-only report locally, or `yarn harness:assurance --input /absolute/job.json` to include independently validated native evidence. One Playwright runner executes the retained framework checks and portable models once. The first screen explains what ran, why it matters, and what remains untested: configuration/service catalogue models, cross-service historical defect replays, and Harness framework checks. Group counts and outcomes come from actual records; Build-time Node/pipeline/TypeScript/lint checks are explained separately, not invented as Playwright rows.
+
+For the fixed DIVORCE profile join, run `node scripts/run-harness-divorce-joint-assurance.mjs --input /absolute/native-job.json --profile-output /absolute/fresh-private-profile-output`. This explicit caller completes the seven native phases, then the twelve DIVORCE invocations and the personal-service pair, retains the controllers' independent pins, and publishes one report. Only matching producer, candidate, source and toolchain bindings can add the existing DIVORCE requirement once to the unchanged112 catalogue. Independently valid different contexts remain separate1/1; invalid evidence blocks the join. Native failures, CCD credit, other gaps and release approval remain unchanged. The normal CI phase sequence does not acquire an automatic profile stage.
+
+The explicit DIVORCE contract currently requires its recorded webapp consumer revision; it is not qualified for arbitrary webapp master candidates. Standard assurance runs the seven main phases, the fixed personal-service baseline/fault pair, and one supporting collection without attempting that profile. An absent profile panel means no profile execution or credit, not a successful profile check. Both callers require the actual native API to report safe continuation. Every explicit profile error stops later resource launchers. A personal rejection permits a BLOCKED main report only when the actual parent proves no creation started or normal, settled child termination and owned cleanup; unknown creation, forced termination or cancellation withdraws the public report.
 
 In a diagnostic-only collection, the service/capability view uses reviewed source metadata and has no accepted candidate/CCD evidence, so it credits **0 of 112 required runtime obligations**. The combined native collection reports its separately validated execution and catalogue credit alongside these diagnostics, retaining distinct source/run identities. The 112 are a bounded inventory; deployment-profile/key gaps, unreviewed preview-family cells, discovery and owner acceptance remain additional gaps. Historical native receipts and retired mock UI are not results of this build.
 
@@ -173,7 +179,34 @@ The current PR and nightly jobs still run supporting checks with `harness:ci`. B
 The current source event phase also requires the courtadmin read projection for all four email/post and one/two-recipient shapes, and a separate field-read fault exercised against every shape. See the [current evidence contract](docs/harness-evidence-contract.md#court-admin-read-projection-extension) for its exact source cells and isolated five-baseline/five-fault acceptance boundary.
 
 
-The source-shaped CCD event slice also includes four readonly update-denial cases (email/post × one/two recipients), with independent unchanged-state checks and a separate effective permission-broadening fault. The fixed native inventory is 14 baseline proofs and 14 faults; [the evidence contract](docs/harness-evidence-contract.md#source-readonly-update-denial-four-bounded-shapes) explains the exact permissions, source limits and runtime acceptance requirements. Implementation alone does not add catalogue credit.
+The source-shaped CCD event slice also includes four readonly update-denial cases (email/post × one/two recipients), with independent unchanged-state checks and a separate effective permission-broadening fault. The required native inventory is the seven-phase inventory above; [the evidence contract](docs/harness-evidence-contract.md#source-readonly-update-denial-four-bounded-shapes) explains the exact permissions, source limits and runtime acceptance requirements. Implementation alone does not add catalogue credit.
 
 
 Courtadmin UPDATE coverage now exercises all four email/post and one/two-recipient shapes through the real candidate form, Check your answers, Change and CCD readback. Its isolated event-permission fault must deny every requested write without changing CCD. See [the exact coverage boundary](docs/harness-evidence-contract.md#complete-source-courtadmin-update-shapes); historical one-email receipts do not satisfy this expanded proof.
+
+The selector phase is mandatory in the standard Harness run; “optional” describes the source field, not execution selection. Odhín reports its baseline preparation, baseline proof/cleanup, fault preparation, fault proof/cleanup, evidence verification, final cleanup and cohort admission separately. A reviewed local standalone pair took about3m22s on ARM64; this is an observed local cost, not a Jenkins duration promise. No deployed PRL business callback, omitted fields1–6 or LiveFrom activation is claimed. See [the exact selector contract](docs/harness-evidence-contract.md#optional-selector-page2).
+
+
+### Optional shared nested renderer attempt
+
+`yarn harness:shared-nested:attempt --input /absolute/private/job.json` runs the separate `exui-shared-nested-renderer-pilot` scope. The input has the same five fields as the native CI job: `schemaVersion`, `candidateManifest`, `expectedArtifactDigest`, `browserCache` and a fresh private `output`. It uses the existing pinned local CCD lifecycle and generates the single Odhín report at `functional-output/tests/harness/public/odhin/index.html` with supporting diagnostics and a separate runtime-attempt panel.
+
+Four baseline facets cover email/post with one/two recipients. The three controlled faults remove email data, an optional postal child or the second recipient. A failed baseline stops the fault batch: the report shows actual failed facets and faults **NOT RUN**, never effective faults. This opt-in command leaves the six existing pilot policies, default CCD proofs and Jenkins phase selection unchanged.
+
+The full shared renderer requirement still needs all four complete baselines, all three effective faults and independently bound source/runtime evidence before it can receive credit. This attachment grants no catalogue or release credit. In particular, the source collection PostCode MANDATORY override must block CYA when that child is blank; the distinct root PostalInformation OPTIONAL override does not remove that obligation. A reproduced failure remains an explicit Harness gap; this repository does not change toolkit or CCD product code.
+
+### Optional CCD application-class reproduction
+
+This artifact verifier reproduces all635 Java classes in eight application modules from source commit `120b9a23`, against the reviewed JAR from pinned ARM64 definition image `4c6b17`. It uses a fixed cached Temurin21.0.12 macOS ARM64 compiler, Lombok1.18.46 and MapStruct1.6.3. It never downloads dependencies or grants runtime, catalogue or release credit.
+
+```sh
+python3 scripts/verify-complex-email-application-source.py \
+  --source-archive /absolute/source.tar.gz \
+  --image-jar /absolute/case-definition-store-api.jar \
+  --java-home /absolute/temurin-21.0.12-macos-arm64 \
+  --lombok /absolute/lombok-1.18.46.jar \
+  --mapstruct /absolute/mapstruct-processor-1.6.3.jar \
+  --output /absolute/fresh-private-output
+```
+
+Create the source archive with `git archive --format=tar.gz --prefix=source/ 120b9a232f7b617d03faf68ad2d8e63a0afb0442` from an existing source checkout. Every input must match the tracked [fixed witness](scripts/fixtures/ccd/complex-email-application-class-witnesses.json). The verifier checks the complete class inventory and bytes, including generated classes, and retains private input pins, compiler diagnostics and `result.json`. A missing input or mismatch stops verification. This establishes application Java-class equivalence only; third-party code, resources, configuration, original build provenance and activation behavior remain outside its scope. It is separate from the default CI run.

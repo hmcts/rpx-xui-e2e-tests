@@ -82,6 +82,26 @@ async function withGateway(t, check, mutation = null, respond = null, transition
   await check({ request, upstream, output });
 }
 
+test('complex email feasibility selects existing update transport without enabling callback or shared-policy acceptance', async t => {
+  const {feasibilityGatewaySelection}=await import('./lib/exui-feasibility-gateway.mjs');
+  const {SHARED_NESTED_SCOPE}=await import('./lib/exui-shared-nested-scope.mjs');
+  for(const kind of ['complex-email-text-ui-feasibility','recipient-callback-ui-feasibility','selector-event-row-ui-feasibility','result-columns-ui-feasibility'])await t.test(kind,async child=>{
+    const complex=kind==='complex-email-text-ui-feasibility';
+    const selection=feasibilityGatewaySelection(kind);
+    assert.deepEqual(selection,complex?{scope:SHARED_NESTED_SCOPE,options:{complexEmail:true}}:{scope:'exui-ccd-event-capability-pilot',options:kind==='result-columns-ui-feasibility'?{resultColumns:true}:{recipientCallback:{invocationId:'recipient-callback-ui'}}});
+    await withGateway(child,async({request,upstream})=>{
+      for(const prefix of ['', '/data']) {
+        const response=await request('GET',prefix+'/internal/cases/1793646213983629/event-triggers/update');
+        assert.equal(response.status,complex?207:501);
+      }
+      assert.equal(upstream.length,complex?2:0);
+      const response=await request('GET','/data/internal/cases/1793646213983629/event-triggers/serviceOfDocuments');
+      assert.equal(response.status,complex||kind==='result-columns-ui-feasibility'?501:207);
+    },null,null,null,selection.scope,selection.options);
+  });
+  assert.throws(()=>feasibilityGatewaySelection('shared-policy-proof'),/FEASIBILITY_GATEWAY_KIND/);
+});
+
 test("workbasket navigation is derived from the imported CCD case type", async (t) => {
   const observed = { id: "HarnessResultsPRL", name: "Harness result columns", jurisdiction: { id: "HARNESS", name: "Disposable Harness" }, states: [{ id: "Created", name: "Created" }] };
   await withGateway(t, async ({ request, upstream }) => {
@@ -621,4 +641,35 @@ test("source actor sessions require exact observed roles and definition faults c
       if (accidentallyStarted) await new Promise(resolve => accidentallyStarted.close(resolve));
     }
   }
+});
+
+test('Complex opt-in journals ordered fixed business projections without credentials and leaves old journal schema unchanged',async t=>{
+  const {SHARED_NESTED_SCOPE}=await import('./lib/exui-shared-nested-scope.mjs');
+  const actor='11111111-1111-4111-8111-111111111111',data={protectedValue:'synthetic-protected-original',sodAdditionalRecipientsList:[]};
+  await withGateway(t,async({request,output})=>{
+    const created=await request('POST',`/data/caseworkers/${actor}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases`,'allowed',{data,event:{id:'create'},event_token:'COMPLEX-TOKEN-CANARY'});assert.equal(created.status,201);
+    const validated=await request('POST','/data/case-types/HarnessNestedPRL/validate','allowed',{data,event:{id:'update'},token:'COMPLEX-TOKEN-CANARY'});assert.equal(validated.status,200);
+    const bytes=fs.readFileSync(path.join(output,'complex-email-transport.jsonl'),'utf8'),rows=bytes.trim().split('\n').map(JSON.parse);
+    assert.deepEqual(rows.map(r=>[r.ordinal,r.kind,r.status]),[[1,'create',201],[2,'validate',200]]);assert.equal(rows[0].caseId,'1793646213983629');assert.equal(rows[1].actorId,actor);
+    assert(!bytes.includes('CANARY'));assert(!bytes.includes('Bearer'));assert(!Object.hasOwn(rows[0],'response'));
+    for(const row of fs.readFileSync(path.join(output,'ccd-requests.jsonl'),'utf8').trim().split('\n').map(JSON.parse))assert.deepEqual(Object.keys(row).sort(),['method','path','receivedPath','upstreamPath','actorId','status','mutation'].sort());
+  },null,async url=>new Response(JSON.stringify(url.endsWith('/cases')?{id:'1793646213983629',token:'COMPLEX-TOKEN-CANARY',unknown:'COMPLEX-ERROR-CANARY'}:{data,token:'COMPLEX-TOKEN-CANARY'}),{status:url.endsWith('/cases')?201:200}),null,SHARED_NESTED_SCOPE,{complexEmail:true});
+});
+test('old gateway mode creates no Complex journal or body projection',async t=>{
+  await withGateway(t,async({request,output})=>{await request('GET','/data/internal/profile');assert.equal(fs.existsSync(path.join(output,'complex-email-transport.jsonl')),false);});
+});
+
+
+test('Complex journal preserves IDAM passthrough before and after a CCD business request',async t=>{
+  const {SHARED_NESTED_SCOPE}=await import('./lib/exui-shared-nested-scope.mjs');
+  const actor='11111111-1111-4111-8111-111111111111',data={protectedValue:'synthetic-protected-original',sodAdditionalRecipientsList:[]};
+  await withGateway(t,async({request,upstream,output})=>{
+    const details=await request('GET','/details');assert.equal(details.status,200);assert.deepEqual(JSON.parse(details.body),{id:'synthetic-user'});
+    assert.equal(fs.readFileSync(path.join(output,'complex-email-transport.jsonl'),'utf8'),'');
+    const created=await request('POST',`/data/caseworkers/${actor}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases`,'allowed',{data,event:{id:'create'}});assert.equal(created.status,201);
+    const userinfo=await request('GET','/userinfo');assert.equal(userinfo.status,200);assert.deepEqual(JSON.parse(userinfo.body),{id:'synthetic-user'});
+    assert.deepEqual(upstream.map(row=>row.url),['http://127.0.0.1:5000/details',`http://127.0.0.1:4452/caseworkers/${actor}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases`,'http://127.0.0.1:5000/userinfo']);
+    const rows=fs.readFileSync(path.join(output,'complex-email-transport.jsonl'),'utf8').trim().split('\n').map(JSON.parse);assert.deepEqual(rows.map(row=>[row.ordinal,row.kind]),[[1,'create']]);
+    assert.equal(fs.existsSync(path.join(output,'gateway-errors.jsonl')),false);
+  },null,async url=>new Response(JSON.stringify(url.endsWith('/cases')?{id:'1793646213983629'}:{id:'synthetic-user'}),{status:url.endsWith('/cases')?201:200}),null,SHARED_NESTED_SCOPE,{complexEmail:true});
 });

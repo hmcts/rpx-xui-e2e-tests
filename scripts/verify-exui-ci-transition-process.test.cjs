@@ -6,6 +6,14 @@ const path = require("node:path");
 const { once } = require("node:events");
 const load = () => import("./lib/exui-candidate-ci-process.mjs");
 const scope = "exui-ccd-event-capability-pilot";
+test('missing launch handoff cannot certify forced, unobserved or signalled controller closure',async t=>{
+ const {cleanupCiPhase}=await load();
+ const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'no-handoff-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ for(const terminal of [{started:true,observed:true,forced:true,code:null,signal:'SIGKILL'},{started:true,observed:false,forced:false,code:1,signal:null},{started:true,observed:true,forced:false,code:null,signal:'SIGTERM'},{started:true,observed:true,forced:false,cancelled:true,code:1,signal:null}])
+  await assert.rejects(cleanupCiPhase({directory},{},{terminate:async()=>terminal,inspect:()=>assert.fail('No ownership handoff exists'),remove:()=>assert.fail('No known resource')}),/CI_NO_HANDOFF_TERMINATION_UNCERTAIN/);
+ for(const terminal of [{started:false,observed:true,forced:false},{started:true,observed:true,forced:false,code:1,signal:null}])
+  await cleanupCiPhase({directory},{},{terminate:async()=>terminal});
+});
 
 function controlledChild(t, mode = "valid", releaseScopeId = scope) {
   const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "ci-transition-"));
@@ -20,7 +28,7 @@ function controlledChild(t, mode = "valid", releaseScopeId = scope) {
   };
   const request = {
     schemaVersion: 2, runId: input.runId, releaseScopeId: scope,
-    invocationIds: ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-postal-recipient-name", "ccd-shape-optional-postal-line-two"], baselineNamespace: input.ccd.namespace,
+    invocationIds: ["ccd-enable-judge-event", "ccd-remove-courtadmin-recipient-read", "ccd-remove-readonly-recipient-read", "ccd-enable-readonly-recipient-update", "ccd-remove-courtadmin-event-create", "ccd-shape-recipient-collection", "ccd-shape-case-field-recipient-selector", "ccd-shape-required-delivery-radio", "ccd-shape-conditional-email-complex", "ccd-shape-postal-recipient-name", "ccd-shape-optional-postal-line-two"], baselineNamespace: input.ccd.namespace,
     baselineDefinitionImportDigest: input.definitionImportDigest,
   };
   const handoff = { mode: "native-separate-api", owner: input.runId };
