@@ -142,6 +142,25 @@ const SOURCE_FILES = [
   'scripts/lib/exui-ccd-browser-runtime.mjs',
   'scripts/lib/exui-recipient-callback.mjs', 'scripts/lib/exui-recipient-callback-fixture.mjs',
   'scripts/lib/exui-recipient-callback-auth.mjs',
+  "scripts/lib/exui-source-profile-provider.mjs",
+  "scripts/lib/exui-source-profile-wa-health.mjs",
+  "scripts/lib/exui-source-profile-wa-membership.mjs",
+  "scripts/lib/exui-source-profile-ia-wa.mjs",
+  "scripts/lib/exui-source-profile-divorce-consumers.mjs",
+  "scripts/lib/exui-source-profile-divorce-provider.mjs",
+  "scripts/lib/exui-source-profile-sources.mjs",
+  "scripts/lib/exui-divorce-profile-browser.mjs",
+  "scripts/lib/exui-divorce-profile-browser-provider.mjs",
+  "playwright.divorce-profile.config.mjs",
+  "src/fixtures/harnessDivorceProfile.ts",
+  "src/tests/harness/divorce-profile/jurisdiction.spec.ts",
+  "src/tests/harness/divorce-profile/global-search.spec.ts",
+  "scripts/run-harness-source-profile-jurisdictions.mjs",
+  "scripts/source-profile-jurisdictions-worker.mjs",
+  "scripts/lib/exui-divorce-profile-cohort.mjs",
+  "scripts/run-harness-divorce-profile.mjs",
+  "scripts/run-harness-divorce-profile-admission.mjs",
+  "scripts/lib/exui-divorce-profile-admission.mjs",
 ];
 
 function temporary(t, prefix) {
@@ -238,7 +257,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 201);
+  assert.equal(SOURCE_FILES.length, 220);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

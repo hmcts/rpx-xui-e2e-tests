@@ -412,18 +412,16 @@ async function prepareJob(privateRoot, platform) {
   return { jobPath, output };
 }
 
-function publishSummary(privateOutput) {
+export function publishSummary(privateOutput, assuranceExitCode = 0) {
   const source = path.join(privateOutput, "public/release-assurance-summary.json");
   const info = fs.lstatSync(source);
   assert(info.isFile() && !info.isSymbolicLink() && fs.realpathSync(source) === source);
   const summary = validatePublicSummary(source);
-  writePublicSummary(
-    PUBLIC,
-    { status: summary.status, exitCode: { PASS: 0, FAIL: 1, BLOCKED: 2 }[summary.status] },
-    summary.receiptAvailable,
-  );
-  assert.equal(validatePublicSummary(PUBLIC).status, summary.status);
-  return summary.status;
+  assert([0,1,2].includes(assuranceExitCode),'ASSURANCE_EXIT_REQUIRED');
+  const exitCode=Math.max({PASS:0,FAIL:1,BLOCKED:2}[summary.status],assuranceExitCode),status=['PASS','FAIL','BLOCKED'][exitCode];
+  writePublicSummary(PUBLIC,{status,exitCode},exitCode===0&&summary.receiptAvailable);
+  assert.equal(validatePublicSummary(PUBLIC).status,status);
+  return status;
 }
 
 function reportIsValid() {
@@ -501,7 +499,7 @@ async function main() {
     logNativeCompletion(output);
     stage = "validated summary publication";
     try {
-      const summaryStatus = publishSummary(output);
+      const summaryStatus = publishSummary(output, exitCode);
       if (exitCode === 0 && summaryStatus !== "PASS") exitCode = 2;
     } catch {
       console.error("[harness-assurance] No validated native summary was available; release approval remains blocked.");

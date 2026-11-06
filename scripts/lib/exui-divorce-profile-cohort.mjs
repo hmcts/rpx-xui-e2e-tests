@@ -16,7 +16,7 @@ const hash=/^sha256:[a-f0-9]{64}$/;
 // Telemetry only: never derive execution authority or elapsed time from file metadata.
 export const startDivorceClock=()=>({startedAt:new Date().toISOString(),monotonic:performance.now()});
 export const finishDivorceClock=start=>({startedAt:start.startedAt,endedAt:new Date().toISOString(),durationMs:Math.round(performance.now()-start.monotonic)});
-export const DIVORCE_COHORT_FILES=Object.freeze([...PROFILE_SOURCE_FILES,'scripts/lib/exui-divorce-profile-cohort.mjs','scripts/run-harness-divorce-profile.mjs','scripts/run-harness-divorce-profile-admission.mjs','scripts/lib/exui-divorce-profile-admission.mjs']);
+export const DIVORCE_COHORT_FILES=PROFILE_SOURCE_FILES;
 export function divorceProducerBinding(sourceRoot=root){
  const git=args=>execFileSync('git',args,{cwd:sourceRoot,encoding:'utf8'}).trim();
  assert.equal(git(['status','--porcelain','--untracked-files=all','--',...DIVORCE_COHORT_FILES]),'','DIVORCE_COHORT_COMMITTED_SOURCE');

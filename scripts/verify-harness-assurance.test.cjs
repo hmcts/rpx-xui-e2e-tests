@@ -135,6 +135,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   );
   for (const name of [
     "exui-divorce-native-binding.mjs",
+    "exui-output-boundary.mjs",
     "exui-candidate-ci-inputs.mjs",
     "exui-release-policy.mjs",
     "exui-evidence-io.mjs",
@@ -148,6 +149,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
     path.join(root, "scripts/harness-public-odhin-reporter.cjs"),
     `module.exports = require(${JSON.stringify(path.join(__dirname, "harness-public-odhin-reporter.cjs"))});`,
   );
+  fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
     path.join(root, "scripts/run-harness-ci.mjs"),
     'import fs from "node:fs"; export async function runHarnessCi() { fs.writeFileSync("native-started", "unexpected"); throw Error("UNEXPECTED_NATIVE_RUN"); }',
@@ -429,4 +431,54 @@ test('descriptor retains the preflight hash and actual wrapper request pins with
  const previous=fs.readFileSync(file);fs.writeFileSync(file,JSON.stringify({syntheticPreflight:'coherently-replaced'}));assert.throws(()=>writeNativeDescriptor(f.job,f.captured,f.verdict,undefined,request),/DIVORCE_NATIVE_BINDING_INVALID/);fs.writeFileSync(file,previous);
  const saved=fs.readFileSync(requestFile);fs.writeFileSync(requestFile,JSON.stringify({expected:{runId:'divorce-ffffffff-ffff-4fff-8fff-ffffffffffff'}}));assert.throws(()=>writeNativeDescriptor(f.job,f.captured,f.verdict,undefined,request),/ASSURANCE_PROFILE_REQUEST_CHANGED/);fs.writeFileSync(requestFile,saved);
  const descriptor=JSON.parse(fs.readFileSync(writeNativeDescriptor(f.job,f.captured,f.verdict,undefined,request)));assert.deepEqual(descriptor.expected.nativeCohortBinding,f.captured.nativeCohortCapture.reference);assert.deepEqual(descriptor.expected.divorceProfileRequest,{runId,digest:request.digest});assert.equal(descriptor.divorceProfileAdmission,requestFile);
+});
+
+test('canonical joint sequence runs profile after complete blocked main and collects once with disjoint time', async () => {
+ const {runAssuranceSequence}=await api();const order=[];let now=0;const request={path:'/private/profile.json',runId:'profile',digest:'sha256:'+'a'.repeat(64)};
+ const result=await runAssuranceSequence({clock:()=>now,native:async()=>{order.push('native');now+=100;return {status:'BLOCKED',exitCode:2,phaseTimings:[]};},prepare:async()=>{order.push('prepare');now+=10;},profile:async()=>{order.push('profile');now+=5000;return {status:'passed',reportRequest:request};},descriptor:async(verdict,actual)=>{order.push('descriptor');assert.equal(verdict.status,'BLOCKED');assert.equal(actual,request);now+=20;return '/private/native.json';},collect:async(file,timing)=>{order.push('collect');assert.equal(file,'/private/native.json');assert.equal(timing.nativeElapsedMs,130);assert.equal(timing.divorceProfileAttempt,undefined);return {status:'passed',exitCode:2,divorceProfileInclusion:'included'};}});
+ assert.deepEqual(order,['native','prepare','profile','descriptor','collect']);assert.equal(result.nativeStatus,'BLOCKED');assert.equal(result.profileStatus,'PASS');assert.equal(result.exitCode,2);assert.equal(result.releaseApproval,false);
+});
+
+test('canonical joint profile failures remain explicit despite passing main and diagnostics',async()=>{
+ const {runAssuranceSequence}=await api();
+ for(const fault of ['setup','execution','admission','cleanup']){let collections=0;
+  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{throw Error('PRIVATE-CANARY-'+fault);},descriptor:async(verdict,request)=>{assert.equal(verdict.status,'PASS');assert.equal(request,undefined);return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');assert.equal(timing.divorceProfileAttempt.reason,'profile-not-admitted');assert(!JSON.stringify(timing).includes('PRIVATE-CANARY'));return {status:'passed',exitCode:0};}});
+  assert.equal(collections,1);assert.equal(result.exitCode,2);assert.equal(result.nativeStatus,'PASS');assert.equal(result.profileStatus,'BLOCKED');
+ }
+});
+
+test('canonical joint skips ineligible profile and bad profile pins cannot replace main evidence',async()=>{
+ const {runAssuranceSequence}=await api();let launches=0,collections=0;
+ const skipped=await runAssuranceSequence({native:async()=>({status:'BLOCKED',exitCode:2}),prepare:async()=>{throw Error('PRIVATE-CLEANUP');},profile:async()=>{launches++;},descriptor:async()=>{throw Error('INCOMPLETE');},collect:async(file,timing)=>{collections++;assert.equal(file,undefined);assert.equal(timing.divorceProfileAttempt.status,'NOT_RUN');assert.equal(timing.divorceProfileAttempt.reason,'main-evidence-unavailable');return {status:'passed',exitCode:0};}});assert.equal(launches,0);assert.equal(collections,1);assert.equal(skipped.exitCode,2);
+ let descriptors=0;collections=0;
+ const mismatch=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>({status:'passed',reportRequest:{path:'/stale/profile'}}),descriptor:async(verdict,request)=>{descriptors++;if(request)throw Error('BAD_PROFILE_PIN');return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');return {status:'passed',exitCode:0};}});assert.equal(descriptors,2);assert.equal(collections,1);assert.equal(mismatch.exitCode,2);
+});
+
+test('canonical joint cancellation prohibits every later child and withdraws report',async()=>{
+ const {runAssuranceSequence}=await api();
+ for(const stop of ['preflight','native','prepare','profile','descriptor','collect']){
+  const controller=new AbortController(),calls=[];let withdrawn=0;if(stop==='preflight')controller.abort();
+  const stage=async name=>{calls.push(name);if(stop===name)controller.abort();};
+  const result=await runAssuranceSequence({signal:controller.signal,withdraw:()=>withdrawn++,native:async()=>{await stage('native');return {status:'PASS',exitCode:0};},prepare:async()=>{await stage('prepare');},profile:async()=>{await stage('profile');return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>{await stage('descriptor');return '/native';},collect:async()=>{await stage('collect');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};}});
+  assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');assert.equal(withdrawn,1);const expected=['native','prepare','profile','descriptor','collect'];assert.deepEqual(calls,stop==='preflight'?[]:expected.slice(0,expected.indexOf(stop)+1));
+ }
+});
+
+test('canonical joint publishes whole-command BLOCKED without changing passing main receipts',async t=>{
+ const {runAssuranceSequence,publishAssuranceSummary}=await api();const {digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs');
+ for(const profileFails of [true,false]){
+  const output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-overall-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'));
+  const binding={synthetic:'parent-captured-output'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(output,'private/native-cohort-binding.json'),bytes);
+  const captured={nativeCohortCapture:{binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}}},job={output};
+  const main=JSON.stringify({status:'PASS',phaseResults:[{phase:'family',status:'PASS'}]});fs.writeFileSync(path.join(output,'private/ci-result.json'),main);let published=0,collections=0;
+  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{if(profileFails)throw Error('PRIVATE-CANARY');return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>'/native',collect:async()=>{collections++;return {status:'passed',exitCode:0,divorceProfileInclusion:profileFails?undefined:'included'};},publish:value=>{published++;publishAssuranceSummary(job,captured,value);}});
+  assert.equal(published,1);assert.equal(collections,1);assert.equal(result.exitCode,profileFails?2:0);assert.equal(fs.readFileSync(path.join(output,'private/ci-result.json'),'utf8'),main);
+  const summary=validatePublicSummary(path.join(output,'public/release-assurance-summary.json'));assert.equal(summary.status,profileFails?'BLOCKED':'PASS');assert.equal(summary.releaseApproval,false);
+ }
+ const foreign=fs.mkdtempSync(path.join(os.tmpdir(),'assurance-unowned-'));t.after(()=>fs.rmSync(foreign,{recursive:true,force:true}));fs.writeFileSync(path.join(foreign,'canary'),'untouched');publishAssuranceSummary({output:foreign},{},{exitCode:2});assert.deepEqual(fs.readdirSync(foreign),['canary']);
+});
+
+test('canonical joint abort after observed profile cleanup cannot start descriptor or diagnostics',async()=>{
+ const {runAssuranceSequence}=await api(),controller=new AbortController(),order=[];
+ const result=await runAssuranceSequence({signal:controller.signal,native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{order.push('profile');order.push('cleanup-observed');controller.abort();return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>{order.push('descriptor');},collect:async()=>{order.push('diagnostics');},withdraw:()=>order.push('withdraw')});assert.deepEqual(order,['profile','cleanup-observed','withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');
 });

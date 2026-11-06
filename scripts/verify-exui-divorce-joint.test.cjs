@@ -98,21 +98,13 @@ for(const [reason,context]of [['different-producer',{producer:{commit:'e'.repeat
 test('a fully valid other twelve-invocation request cannot replace the actual wrapper request at the same path',async t=>{
  const first=await jointFixture(t),other=await jointFixture(t);assert.equal((await other.read()).divorceProfileAdmission.joint.status,'included');fs.writeFileSync(first.requestFile,fs.readFileSync(other.requestFile));await assert.rejects(first.read,/NATIVE_REPORT_INVALID_EVIDENCE/);
 });
-test('fixed repository caller retains actual pins, waits for native shutdown and delegates one replay to the collector',async t=>{
- const {spawnSync}=require('node:child_process'),root=temp(t),put=(name,source)=>{const file=path.join(root,name);fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,source);};
- fs.mkdirSync(path.join(root,'scripts'));fs.copyFileSync(path.join(__dirname,'run-harness-divorce-joint-assurance.mjs'),path.join(root,'scripts/run-harness-divorce-joint-assurance.mjs'));
- put('scripts/lib/exui-candidate-ci-inputs.mjs',`export const validateCiJob=value=>value;`);
- put('scripts/harness-public-odhin-reporter.cjs',`module.exports={resetPublicReport(){globalThis.calls=['reset'];}};`);
- put('scripts/run-harness-ci.mjs',`export async function runHarnessCi(_job,{captureNativeCohort}){calls.push('native-start');globalThis.heldNative={binding:{preflight:'held'},reference:{digest:'held'}};captureNativeCohort(heldNative);await Promise.resolve();globalThis.nativeStopped=true;calls.push('native-end');return {status:'BLOCKED',exitCode:2,phaseTimings:[]};}`);
- put('scripts/run-harness-divorce-profile-admission.mjs',`import assert from 'node:assert/strict';export async function runDivorceProfileAdmission(){assert.equal(globalThis.nativeStopped,true);calls.push('profile');globalThis.wrapperRequest={path:'/synthetic/request',digest:'held-wrapper-digest',runId:'held-wrapper-run'};return {status:'passed',reportRequest:wrapperRequest};}`);
- put('scripts/run-harness-assurance.mjs',`import assert from 'node:assert/strict';export const captureAssuranceExpectations=()=>({parent:'original'});export function writeNativeDescriptor(_job,captured,_verdict,_source,request){assert.equal(captured.nativeCohortCapture,globalThis.heldNative);assert.equal(request,globalThis.wrapperRequest);calls.push('descriptor');return '/synthetic/descriptor';}`);
- const job=path.join(root,'job.json');write(job,{candidateManifest:'/synthetic/artifact',browserCache:'/synthetic/browser'});
- for(const inclusion of ['included','separate',undefined]){
-  put('scripts/run-harness-local-aat.cjs',`const assert=require('node:assert/strict'),fs=require('node:fs');exports.runHarnessCollection=async(_env,input)=>{assert.equal(input.nativeEvidencePath,'/synthetic/descriptor');assert(Number.isSafeInteger(input.nativeElapsedMs));calls.push('collect');fs.writeFileSync('calls.json',JSON.stringify(calls));return {status:'passed',exitCode:2,${inclusion?`divorceProfileInclusion:'${inclusion}'`:''}};};`);
-  const result=spawnSync(process.execPath,[path.join(root,'scripts/run-harness-divorce-joint-assurance.mjs'),'--input',job,'--profile-output',path.join(root,'profile')],{cwd:root,encoding:'utf8',env:{PATH:process.env.PATH}});
-  assert.deepEqual(read(path.join(root,'calls.json')),['reset','native-start','native-end','profile','descriptor','collect']);assert.equal(result.status,2);
-  if(inclusion==='included'){const output=JSON.parse(result.stdout);assert.equal(output.profileStatus,'passed');assert.equal(output.releaseApproval,false);}else assert.match(result.stderr,/DIVORCE_JOINT_ASSURANCE_FAILED/);
- }
+test('local joint caller is one thin delegate to the canonical default assurance API',async t=>{
+ const {spawnSync}=require('node:child_process'),root=temp(t);fs.mkdirSync(path.join(root,'scripts'));
+ fs.copyFileSync(path.join(__dirname,'run-harness-divorce-joint-assurance.mjs'),path.join(root,'scripts/run-harness-divorce-joint-assurance.mjs'));
+ fs.writeFileSync(path.join(root,'scripts/run-harness-assurance.mjs'),`import fs from 'node:fs';export async function runHarnessAssurance(job,options){fs.writeFileSync('calls.json',JSON.stringify([{job,options}]));return {nativeStatus:'BLOCKED',profileStatus:'PASS',diagnosticStatus:'passed',exitCode:2,releaseApproval:false};}`);
+ const job=path.join(root,'job.json'),profileOutput=path.join(root,'profile');
+ const child=spawnSync(process.execPath,[path.join(root,'scripts/run-harness-divorce-joint-assurance.mjs'),'--input',job,'--profile-output',profileOutput],{cwd:root,encoding:'utf8',env:{PATH:process.env.PATH}});
+ assert.equal(child.status,2,child.stderr);assert.deepEqual(read(path.join(root,'calls.json')),[{job,options:{profileOutput}}]);assert.equal(JSON.parse(child.stdout).releaseApproval,false);
 });
 test('native preflight capture rejects different raw source-default bytes before writing authority',async t=>{
  const root=temp(t),candidateRoot=path.join(root,'candidate');fs.mkdirSync(path.join(candidateRoot,'config'),{recursive:true});fs.writeFileSync(path.join(candidateRoot,'config/default.json'),'{"source":"foreign"}');

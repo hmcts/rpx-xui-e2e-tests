@@ -267,3 +267,11 @@ test('native completion logs all seven fixed phases and rejects foreign phase na
  result.status='BLOCKED';result.phaseResults[6].status='BLOCKED';write();logNativeCompletion(root);assert.equal(messages.length,2);assert.match(messages[1],/Native BLOCKED/);assert.match(messages[1],/selectorEventRow BLOCKED/);
  result.phaseResults.push({phase:'PRIVATE-CANARY\nforeign',status:'PASS'});write();logNativeCompletion(root);assert.equal(messages.length,2);
 });
+
+test('Jenkins overall failure cannot publish a passing main-only summary',async t=>{
+ const {publishSummary}=await load();const {writeHarnessPublicSummary}=await import('./lib/exui-output-boundary.mjs'),{validatePublicSummary}=await import('./lib/exui-evidence-io.mjs');
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'jenkins-overall-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));writeHarnessPublicSummary(root,{status:'PASS',exitCode:0},true);
+ const target=path.resolve(__dirname,'../functional-output/tests/harness/public/release-assurance-summary.json'),prior=fs.existsSync(target)?fs.readFileSync(target):null;fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o700});t.after(()=>{if(prior)fs.writeFileSync(target,prior);else fs.rmSync(target,{force:true});});
+ assert.equal(publishSummary(root,2),'BLOCKED');assert.equal(validatePublicSummary(target).status,'BLOCKED');assert.equal(validatePublicSummary(target).receiptAvailable,false);assert.equal(validatePublicSummary(path.join(root,'public/release-assurance-summary.json')).status,'PASS');
+ assert.equal(publishSummary(root,0),'PASS');assert.equal(validatePublicSummary(target).releaseApproval,false);assert.throws(()=>publishSummary(root,7),/ASSURANCE_EXIT_REQUIRED/);
+});

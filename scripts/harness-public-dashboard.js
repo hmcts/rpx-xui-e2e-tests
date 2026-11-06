@@ -43,6 +43,8 @@
       '#harness-divorce-profile-admission',
       `Separate profile interval: ${profileTime} · excluded from main native duration`]);
   }
+  const profileAttempt = document.querySelector('#harness-divorce-profile-attempt');
+  if(profileAttempt)supplements.push(['DIVORCE profile not admitted',profileAttempt.dataset.profileAttemptStatus,'Completed proof counts unavailable','No catalogue or release credit','#harness-divorce-profile-attempt']);
   if (applicant) {
     const data = applicant.dataset;
     supplements.push(['Applicant result columns', data.compatibilityStatus,

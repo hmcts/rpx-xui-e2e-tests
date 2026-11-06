@@ -228,27 +228,31 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, signal } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
+  if(signal?.aborted){Reporter.resetPublicReport('harness');throw fail();}
   const root = process.cwd();
   const privateRoot = path.join(
     root,
     "functional-output/tests/harness/private",
   );
   const diagnosticSource = Reporter.captureDiagnosticSource();
-  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings });
+  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
   if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
     const verificationStartedAt=new Date().toISOString(),verificationStarted=performance.now();
     if(nativeEvidencePath !== undefined) await reporter.prepareNativeEvidence(nativeEvidencePath);
+    if(signal?.aborted)throw fail();
     if(compatibilityEvidencePath !== undefined) await reporter.prepareCompatibilityEvidence(compatibilityEvidencePath);
+    if(signal?.aborted)throw fail();
     if(sharedNestedAttemptPath !== undefined) await reporter.prepareSharedNestedAttempt(sharedNestedAttemptPath);
     const verificationMs=Math.round(performance.now()-verificationStarted);
     if(nativeElapsedMs!==undefined)reporter.nativeElapsedMs=nativeElapsedMs+verificationMs;
     if(phaseTimings!==undefined)reporter.phaseTimings=[...phaseTimings,{label:'Native evidence and interpreter verification',status:'completed',startedAt:verificationStartedAt,durationMs:verificationMs}];
   }
+  if(signal?.aborted){Reporter.resetPublicReport('harness');throw fail();}
   fs.mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
   const runRoot = fs.mkdtempSync(path.join(privateRoot, ".local-aat-"));
   fs.chmodSync(runRoot, 0o700);
@@ -257,17 +261,19 @@ async function runHarnessCollection(
       ? phaseEnvironment(env, runRoot)
       : { offline: { ...selectedEnv(env, offlineKeys), CI: "true" } };
   let child,
-    interrupted = false;
+    interrupted = signal?.aborted ?? false;
   let forceTimer;
   const cancel = () => {
     interrupted = true;
-    if (child) {
-      child.kill("SIGTERM");
-      forceTimer ||= setTimeout(() => child?.kill("SIGKILL"), 5000);
+    if (child && !forceTimer) {
+      const running=child;
+      forceTimer=setTimeout(()=>running.kill("SIGKILL"),5000);
+      running.kill("SIGTERM");
     }
   };
   process.on("SIGINT", cancel);
   process.on("SIGTERM", cancel);
+  signal?.addEventListener('abort',cancel,{once:true});
   const phases = [];
   try {
     for (const phase of [
@@ -288,7 +294,8 @@ async function runHarnessCollection(
           ]
         : []),
     ]) {
-      if (interrupted) throw fail();
+      await new Promise(resolve=>setImmediate(resolve));
+      if (interrupted || signal?.aborted) throw fail();
       const output = path.join(runRoot, phase.name);
       fs.mkdirSync(output, { mode: 0o700 });
       const jsonFile = path.join(output, "playwright.json");
@@ -325,6 +332,7 @@ async function runHarnessCollection(
             child = undefined;
             resolve({ code, signal });
           });
+          if(interrupted)cancel();
         });
       } finally {
         fs.closeSync(log);
@@ -419,6 +427,7 @@ async function runHarnessCollection(
       exitCode: Math.max(
         reporter.nativeEvidence?.exitCode || 0,
         reporter.sharedNestedAttemptEvidence?.status==="BLOCKED"?2:0,
+        divorceProfileAttempt?2:0,
         status === "passed" ? 0 : 1,
       ),
     };
@@ -426,6 +435,7 @@ async function runHarnessCollection(
     clearTimeout(forceTimer);
     process.removeListener("SIGINT", cancel);
     process.removeListener("SIGTERM", cancel);
+    signal?.removeEventListener('abort',cancel);
   }
 }
 function runLocalAat(env = process.env, options = {}) {

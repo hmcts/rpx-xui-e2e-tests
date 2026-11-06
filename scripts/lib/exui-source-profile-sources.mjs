@@ -4,24 +4,8 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {NATIVE_HARNESS_SOURCE_FILES} from './exui-native-sources.mjs';
 
-// This is a separate feasibility closure. It does not extend any release selector.
-export const PROFILE_SOURCE_FILES=Object.freeze([...NATIVE_HARNESS_SOURCE_FILES,
-  'scripts/lib/exui-source-profile-provider.mjs',
-  'scripts/lib/exui-source-profile-wa-health.mjs',
-  'scripts/lib/exui-source-profile-wa-membership.mjs',
-  'scripts/lib/exui-source-profile-ia-wa.mjs',
-  'scripts/lib/exui-source-profile-divorce-consumers.mjs',
-  'scripts/lib/exui-source-profile-divorce-provider.mjs',
-  'scripts/lib/exui-source-profile-sources.mjs',
-  'scripts/lib/exui-divorce-profile-browser.mjs',
-  'scripts/lib/exui-divorce-profile-browser-provider.mjs',
-  'playwright.divorce-profile.config.mjs',
-  'src/fixtures/harnessDivorceProfile.ts',
-  'src/tests/harness/divorce-profile/jurisdiction.spec.ts',
-  'src/tests/harness/divorce-profile/global-search.spec.ts',
-  'scripts/run-harness-source-profile-jurisdictions.mjs',
-  'scripts/source-profile-jurisdictions-worker.mjs',
-]);
+// The canonical controller now includes this finite profile closure; policies stay separate.
+export const PROFILE_SOURCE_FILES=NATIVE_HARNESS_SOURCE_FILES;
 const digest=bytes=>'sha256:'+createHash('sha256').update(bytes).digest('hex');
 export function stageProfileSources(destination,sourceRoot) {
   assert(!fs.existsSync(destination),'SOURCE_PROFILE_FRESH_SOURCES_REQUIRED');

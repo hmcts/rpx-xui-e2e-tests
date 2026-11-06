@@ -14,11 +14,16 @@ import {divorceProducerBinding,divorceFallbackWitness,divorceConfigurationBindin
 import {runSourceProfileFeasibility} from './run-harness-source-profile-jurisdictions.mjs';
 import {runHostInvocation} from './lib/exui-host-invocation.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
-export async function prepareDivorceProfileBinding({artifactPath,browserRoot,owners=Object.fromEntries(DIVORCE_PROFILE_FACETS.map(({facet})=>[facet,'candidate-'+randomUUID()]))}){
+export async function prepareDivorceProfileBinding({artifactPath,browserRoot,signal,owners=Object.fromEntries(DIVORCE_PROFILE_FACETS.map(({facet})=>[facet,'candidate-'+randomUUID()]))}){
  assert([artifactPath,browserRoot].every(value=>typeof value==='string'&&path.isAbsolute(value)),'DIVORCE_COHORT_INPUT');
- const artifact=await verifyCandidateArtifact(artifactPath),producer=divorceProducerBinding();
- const runtime=inspectNativeApiRuntime(artifact.provenance.platform),dependenciesRoot=fs.realpathSync(path.join(root,'node_modules'));
- const browser={root:fs.realpathSync(browserRoot),dependenciesRoot,digest:await digestCandidateTree(browserRoot),dependencies:await verifyHarnessDependencies(dependenciesRoot,path.join(root,'package.json'),path.join(root,'yarn.lock')),image:inspectNativeBrowserRuntime(artifact.provenance.platform),executable:'/browser/'+browserExecutable(JSON.parse(fs.readFileSync(path.join(root,'node_modules/playwright-core/browsers.json'))),artifact.provenance.platform)};
+ assert(!signal?.aborted,'DIVORCE_COHORT_CANCELLED');
+ const artifact=await verifyCandidateArtifact(artifactPath);
+ await new Promise(resolve=>setImmediate(resolve));assert(!signal?.aborted,'DIVORCE_COHORT_CANCELLED');
+ const producer=divorceProducerBinding(),runtime=inspectNativeApiRuntime(artifact.provenance.platform),dependenciesRoot=fs.realpathSync(path.join(root,'node_modules'));
+ const browserDigest=await digestCandidateTree(browserRoot);assert(!signal?.aborted,'DIVORCE_COHORT_CANCELLED');
+ const dependencies=await verifyHarnessDependencies(dependenciesRoot,path.join(root,'package.json'),path.join(root,'yarn.lock'));
+ await new Promise(resolve=>setImmediate(resolve));assert(!signal?.aborted,'DIVORCE_COHORT_CANCELLED');
+ const browser={root:fs.realpathSync(browserRoot),dependenciesRoot,digest:browserDigest,dependencies,image:inspectNativeBrowserRuntime(artifact.provenance.platform),executable:'/browser/'+browserExecutable(JSON.parse(fs.readFileSync(path.join(root,'node_modules/playwright-core/browsers.json'))),artifact.provenance.platform)};
  const binding={schemaVersion:1,artifact,producer,runtime,browser,owners,contract:divorceProfileContract(),contractDigest:divorceProfileContractDigest(),configurations:divorceConfigurationBindings(artifact.candidateRoot),fallback:divorceFallbackWitness(artifact.candidateRoot)};
  validateDivorceCohortBinding(binding,{artifact,producer,runtime,browser,owners});return binding;
 }

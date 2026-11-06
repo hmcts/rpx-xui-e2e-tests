@@ -137,6 +137,9 @@ function inventory(p) {
   }
 }
 function validateHtml(html, record) {
+  if(record.divorceProfileAttempt&&record.nativeEvidence?.divorceProfileAdmission)throw failure();
+  if(Boolean(record.divorceProfileAttempt)!==html.includes('id="harness-divorce-profile-attempt"'))throw failure();
+  if(record.divorceProfileAttempt&&!html.includes(require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(record.divorceProfileAttempt)))throw failure();
   if(Boolean(record.sharedNestedAttemptEvidence)!==html.includes('id="harness-shared-nested-attempt"'))throw failure();
   if(record.sharedNestedAttemptEvidence&&!html.includes(require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(record.sharedNestedAttemptEvidence)))throw failure();
   if (Boolean(record.compatibilityEvidence) !== html.includes('id="harness-applicant-compatibility"')) throw failure();
@@ -343,10 +346,12 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource, nativeElapsedMs, phaseTimings } = {}) {
+  constructor({ selection, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt } = {}) {
     this.diagnosticSource = diagnosticSource;
     this.nativeElapsedMs = nativeElapsedMs;
     this.phaseTimings = phaseTimings;
+    if(divorceProfileAttempt)require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(divorceProfileAttempt);
+    this.divorceProfileAttempt = divorceProfileAttempt;
     this.nativeEvidence = null;
     this.compatibilityEvidence = null;
     this.sharedNestedAttemptEvidence = null;
@@ -523,6 +528,7 @@ class HarnessPublicOdhinReporter {
       this.ended = true;
       const counts = Object.fromEntries(statuses.map((status) => [status, 0]));
       if (this.nativeElapsedMs !== undefined && (!this.nativeEvidence || !Number.isSafeInteger(this.nativeElapsedMs) || this.nativeElapsedMs < 0)) this.reject();
+      if(this.divorceProfileAttempt&&this.nativeEvidence?.divorceProfileAdmission)throw failure();
       if (this.phaseTimings !== undefined) validatePhaseTimings(this.phaseTimings, this.nativeEvidence, this.nativeElapsedMs);
       for (const record of this.results.values()) counts[record.status]++;
       if (
@@ -655,10 +661,11 @@ class HarnessPublicOdhinReporter {
         sharedNestedAttemptEvidence:this.sharedNestedAttemptEvidence,
         nativeElapsedMs: this.nativeElapsedMs,
         phaseTimings: this.phaseTimings,
+        divorceProfileAttempt: this.divorceProfileAttempt,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
@@ -717,6 +724,7 @@ class HarnessPublicOdhinReporter {
         ),
       );
       if (this.compatibilityEvidence) presentation.querySelector("#harness-native-evidence").insertAdjacentHTML("afterend", require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence));
+      if(this.divorceProfileAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(this.divorceProfileAttempt));
       if(this.sharedNestedAttemptEvidence)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence));
       if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs));
       presentation

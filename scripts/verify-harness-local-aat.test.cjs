@@ -684,3 +684,29 @@ test("credential-free collection runs only116 offline tests and preserves every 
     "invalid evidence must not launch diagnostics or publish",
   );
 });
+
+test('collector abort during evidence preparation launches no diagnostics and withdraws old report',async t=>{
+ const os=require('node:os'),cp=require('node:child_process'),previous=process.cwd(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'collector-abort-')));process.chdir(root);
+ const Reporter=require('./harness-public-odhin-reporter.cjs'),oldPrepare=Reporter.prototype.prepareNativeEvidence,oldSpawn=cp.spawn;let launches=0;
+ t.after(()=>{Reporter.prototype.prepareNativeEvidence=oldPrepare;cp.spawn=oldSpawn;delete require.cache[modulePath];process.chdir(previous);fs.rmSync(root,{recursive:true,force:true});});
+ const controller=new AbortController();Reporter.prototype.prepareNativeEvidence=async()=>{await Promise.resolve();controller.abort();};cp.spawn=()=>{launches++;throw Error('UNEXPECTED_DIAGNOSTIC_LAUNCH');};delete require.cache[modulePath];
+ await assert.rejects(require(modulePath).runHarnessCollection({PATH:process.env.PATH},{nativeEvidencePath:'/private/native.json',signal:controller.signal}),/LOCAL_AAT_INCOMPLETE_OR_INVALID/);
+ assert.equal(launches,0);assert.equal(fs.existsSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html')),false);
+});
+
+test('one successful diagnostic collection keeps a nonadmitted profile BLOCKED',async t=>{
+ const os=require('node:os'),cp=require('node:child_process'),{EventEmitter}=require('node:events'),previous=process.cwd(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'collector-profile-blocked-')));process.chdir(root);const oldSpawn=cp.spawn;
+ t.after(()=>{cp.spawn=oldSpawn;delete require.cache[modulePath];process.chdir(previous);fs.rmSync(root,{recursive:true,force:true});});let calls=0;
+ cp.spawn=(_file,_args,options)=>{calls++;const raw=document(require('./harness-public-overview.cjs').entries);raw.config.rootDir=root;raw.stats.startTime=new Date().toISOString();raw.stats.duration=1;for(const suite of raw.suites)for(const child of suite.suites)for(const spec of child.specs)spec.tests[0].results[0].startTime=raw.stats.startTime;fs.writeFileSync(options.env.PLAYWRIGHT_JSON_OUTPUT_FILE,JSON.stringify(raw));const child=new EventEmitter();child.kill=()=>{};setImmediate(()=>child.emit('close',0,null));return child;};delete require.cache[modulePath];
+ const attempt={schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'profile-not-admitted',durationMs:2000};const result=await require(modulePath).runHarnessCollection({PATH:process.env.PATH},{divorceProfileAttempt:attempt});assert.equal(calls,1);assert.equal(result.status,'passed');assert.equal(result.exitCode,2);const record=require('./harness-public-odhin-reporter.cjs').validatePublicReport();assert.equal(record.tests,116);assert.deepEqual(record.divorceProfileAttempt,attempt);assert.equal(record.nativeEvidence,null);
+});
+
+test('collector handles abort plus process signal once and observes diagnostic child close',async t=>{
+ const os=require('node:os'),cp=require('node:child_process'),{EventEmitter}=require('node:events'),previous=process.cwd(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'collector-stop-once-')));process.chdir(root);const oldSpawn=cp.spawn;
+ t.after(()=>{cp.spawn=oldSpawn;delete require.cache[modulePath];process.chdir(previous);fs.rmSync(root,{recursive:true,force:true});});
+ for(const duringSpawn of [false,true]){const controller=new AbortController(),signals=[],child=new EventEmitter();let launches=0;
+  child.kill=signal=>{signals.push(signal);queueMicrotask(()=>child.emit('close',143,null));};
+  cp.spawn=()=>{launches++;if(duringSpawn)controller.abort();else setImmediate(()=>{controller.abort();process.emit('SIGTERM');});return child;};delete require.cache[modulePath];
+  await assert.rejects(require(modulePath).runHarnessCollection({PATH:process.env.PATH},{signal:controller.signal}),/LOCAL_AAT_INCOMPLETE_OR_INVALID/);assert.equal(launches,1);assert.deepEqual(signals,['SIGTERM']);assert.equal(fs.existsSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html')),false);
+ }
+});

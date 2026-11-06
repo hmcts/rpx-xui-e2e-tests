@@ -58,9 +58,9 @@ export function readDivorceProfileAdmissionPacket(descriptorPath,requestPin,conf
 }
 export function readDivorceProfileAdmission(descriptorPath){return readDivorceProfileAdmissionPacket(descriptorPath).admission;}
 // Both raw gates and all supplied pins have already passed. This fixed policy admits one existing ID only.
-export function divorceNativeJointAdmission(native,packet,expected){
+export function divorceNativeProfileCompatibility(native,packet,expected){
  const separate=reason=>({policy:DIVORCE_NATIVE_POLICY,status:'separate',reason});
- if(!native||!expected.divorceProfileRequest)return separate('missing-native-binding');
+ if(!native||!expected.nativeCohortBinding)return separate('missing-native-binding');
  const {binding,admission}=packet;
  assert.equal(admission.obligationId,DIVORCE_PROFILE_ID,fail);
  if(native.producer.commit!==binding.producer.commit)return separate('different-producer');
@@ -73,6 +73,12 @@ export function divorceNativeJointAdmission(native,packet,expected){
  if(!isDeepStrictEqual(native.browser,{image:binding.browser.image,digest:binding.browser.digest}))return separate('different-browser');
  if(!isDeepStrictEqual(native.dependencies,{digest:binding.browser.dependencies.digest,playwrightVersion:binding.browser.dependencies.playwrightVersion}))return separate('different-dependencies');
  const nativeOwners=new Set(expected.phases.map(row=>row.expected.runId));for(const owner of Object.values(binding.owners))assert(!nativeOwners.has(owner),fail);
+ return {policy:DIVORCE_NATIVE_POLICY,status:'included'};
+}
+export function divorceNativeJointAdmission(native,packet,expected){
+ if(!native||!expected.divorceProfileRequest)return {policy:DIVORCE_NATIVE_POLICY,status:'separate',reason:'missing-native-binding'};
+ const compatibility=divorceNativeProfileCompatibility(native,packet,expected);if(compatibility.status!=='included')return compatibility;
+ const {admission}=packet;
  return {policy:DIVORCE_NATIVE_POLICY,status:'included',obligationId:DIVORCE_PROFILE_ID,nativeRunId:expected.jobRunId,profileRunId:admission.runId,nativeBindingDigest:expected.nativeCohortBinding.digest,requestDigest:expected.divorceProfileRequest.digest,inputDigest:admission.inputDigest,bindingDigest:admission.bindingDigest,receiptDigest:admission.receiptDigest,contractDigest:admission.contractDigest};
 }
 

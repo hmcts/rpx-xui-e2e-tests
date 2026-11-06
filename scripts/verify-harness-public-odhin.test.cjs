@@ -1339,3 +1339,13 @@ test('seven-phase dashboard includes selector setup, execution, evidence and cle
  assert.match(table.textContent,/Selector baseline proof and cleanupProof \+ setup \/ cleanup/);
  assert(!table.textContent.includes('Selector Page2 preparation, proofs and cleanup'));
 });
+
+test('nonadmitted DIVORCE attempts remain visible without invented completion or catalogue credit',async t=>{
+ const root=sandbox(t),Reporter=require(reporterPath),overview=require('./harness-public-overview.cjs');
+ for(const attempt of [{schemaVersion:1,kind:'divorce-profile-attempt',status:'NOT_RUN',reason:'main-evidence-unavailable'},{schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'profile-not-admitted',durationMs:125000}]){
+  const reporter=new Reporter({selection:'harness',divorceProfileAttempt:attempt});const tests=overview.entries.map(entry=>({location:{file:path.join(root,entry.file)},titlePath:()=>entry.titlePath,retries:0,expectedStatus:'passed'}));reporter.onBegin({}, {allTests:()=>tests});const startTime=new Date('2026-11-05T12:00:00Z');for(const item of tests)reporter.onTestEnd(item,{status:'passed',retry:0,duration:1,startTime,workerIndex:0,parallelIndex:0});await reporter.onEnd({status:'passed',startTime,duration:1000});
+  const result=Reporter.validatePublicReport();assert.equal(result.tests,116);assert.equal(result.nativeEvidence,null);assert.deepEqual(result.divorceProfileAttempt,attempt);const html=fs.readFileSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.match(html,/DIVORCE profile: not admitted/);assert.match(html,/Completed proof counts are unavailable/);assert.match(html,/adds no catalogue or release credit/);assert(!html.includes('PRIVATE-CANARY'));assert(html.includes('data-profile-attempt-status="'+attempt.status+'"'));
+ }
+ const render=require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt,base={schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'profile-not-admitted'};
+ for(const bad of [{...base,status:'PASS'},{...base,reason:'PRIVATE-CANARY'},{...base,accepted:1},{...base,durationMs:-1},{...base,status:'NOT_RUN',durationMs:0},{...base,durationMs:'125000'}])assert.throws(()=>render(bad),/DIVORCE_ATTEMPT_INVALID/);
+});

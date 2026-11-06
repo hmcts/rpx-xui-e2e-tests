@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import {runDivorceProfileAdmission} from './run-harness-divorce-profile-admission.mjs';
+import {writeHarnessPublicSummary} from './lib/exui-output-boundary.mjs';
 import {verifyDivorceNativeCapture} from './lib/exui-divorce-native-binding.mjs';
 import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence.mjs';
 import assert from "node:assert/strict";
@@ -29,38 +31,71 @@ function read(file) {
   const bytes = fs.readFileSync(file);
   return { value: JSON.parse(bytes), digest: digestBytes(bytes) };
 }
-export async function runAssuranceSequence({ native, descriptor, collect }) {
-  const nativeStartedAt = performance.now();
+export async function runAssuranceSequence({ native, prepare, profile, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, clock = () => performance.now() }) {
+  const finish=value=>{publish(value);return value;};
+  if(signal?.aborted){withdraw();return finish({nativeStatus:'NOT_RUN',...(profile?{profileStatus:'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
+  const nativeStartedAt = clock();
   const verdict = await native();
-  assert(
-    ["PASS", "FAIL", "BLOCKED"].includes(verdict.status) &&
-      { PASS: 0, FAIL: 1, BLOCKED: 2 }[verdict.status] === verdict.exitCode,
-    "ASSURANCE_NATIVE_VERDICT_REQUIRED",
-  );
-  let nativeEvidencePath;
-  try {
-    nativeEvidencePath = await descriptor(verdict);
-  } catch (error) {
-    if (verdict.status === "PASS") throw error;
-  }
-  const diagnostics = await collect(nativeEvidencePath, nativeEvidencePath ? {
-    nativeElapsedMs: Math.round(performance.now() - nativeStartedAt),
-    ...(verdict.phaseTimings ? { phaseTimings: verdict.phaseTimings } : {}),
-  } : {});
-  assert(
-    ["passed", "failed"].includes(diagnostics.status) &&
-      [0, 1, 2].includes(diagnostics.exitCode) &&
-      (diagnostics.status !== "failed" || diagnostics.exitCode !== 0),
-    "ASSURANCE_DIAGNOSTIC_VERDICT_REQUIRED",
-  );
-  return {
-    nativeStatus: verdict.status,
-    diagnosticStatus: diagnostics.status,
-    exitCode: Math.max(verdict.exitCode, diagnostics.exitCode),
-    releaseApproval: false,
+  assert(["PASS", "FAIL", "BLOCKED"].includes(verdict.status) && { PASS: 0, FAIL: 1, BLOCKED: 2 }[verdict.status] === verdict.exitCode, "ASSURANCE_NATIVE_VERDICT_REQUIRED");
+  let nativeElapsedMs = Math.round(clock() - nativeStartedAt), profileRequest, profileAttempt, profileDurationMs, eligible = true, descriptorFailed = false;
+  const cancelled = () => {
+    if (!signal?.aborted) return false;
+    withdraw();
+    return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), diagnosticStatus: "not-run", exitCode: 2, releaseApproval: false });
   };
+  let stopped = cancelled(); if (stopped) return stopped;
+  if (prepare) {
+    const started = clock();
+    try { await prepare(verdict); } catch { eligible = false; }
+    nativeElapsedMs += Math.round(clock() - started);
+  }
+  stopped = cancelled(); if (stopped) return stopped;
+  if (profile) {
+    if (eligible) {
+      const started = clock();
+      try {
+        const result = await profile(signal);
+        assert.equal(result.status, "passed", "ASSURANCE_PROFILE_RESULT_REQUIRED");
+        assert(result.reportRequest, "ASSURANCE_PROFILE_REQUEST_REQUIRED");
+        profileRequest = result.reportRequest;
+      } catch {
+        profileAttempt = { schemaVersion: 1, kind: "divorce-profile-attempt", status: "BLOCKED", reason: "profile-not-admitted" };
+      } finally {
+        profileDurationMs = Math.round(clock() - started);
+        if(profileAttempt)profileAttempt.durationMs = profileDurationMs;
+      }
+    } else profileAttempt = { schemaVersion: 1, kind: "divorce-profile-attempt", status: "NOT_RUN", reason: "main-evidence-unavailable" };
+  }
+  stopped = cancelled(); if (stopped) return stopped;
+  let nativeEvidencePath;
+  const descriptorStarted = clock();
+  try { nativeEvidencePath = await descriptor(verdict, profileRequest); }
+  catch (error) {
+    if (!profile && verdict.status === "PASS") throw error;
+    descriptorFailed = true;
+    if (profileRequest) {
+      profileRequest = undefined;
+      profileAttempt = { schemaVersion: 1, kind: "divorce-profile-attempt", status: "BLOCKED", reason: "profile-not-admitted", ...(profileDurationMs===undefined?{}:{durationMs:profileDurationMs}) };
+      try { nativeEvidencePath = await descriptor(verdict, undefined); } catch { /* Unavailable main evidence receives no credit. */ }
+    }
+    if (profile && !nativeEvidencePath && profileAttempt?.status!=="NOT_RUN") profileAttempt = { schemaVersion: 1, kind: "divorce-profile-attempt", status: "BLOCKED", reason: "main-evidence-unavailable" };
+  }
+  if(profile && typeof nativeEvidencePath!=='string'){
+    descriptorFailed=true;profileRequest=undefined;
+    profileAttempt??={schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'main-evidence-unavailable',...(profileDurationMs===undefined?{}:{durationMs:profileDurationMs})};
+  }
+  nativeElapsedMs += Math.round(clock() - descriptorStarted);
+  stopped = cancelled(); if (stopped) return stopped;
+  const diagnostics = await collect(nativeEvidencePath, {
+    ...(nativeEvidencePath ? { nativeElapsedMs, ...(verdict.phaseTimings ? { phaseTimings: verdict.phaseTimings } : {}) } : {}),
+    ...(profileAttempt ? { divorceProfileAttempt: profileAttempt } : {}),
+  });
+  stopped = cancelled(); if (stopped) return stopped;
+  assert(["passed", "failed"].includes(diagnostics.status) && [0, 1, 2].includes(diagnostics.exitCode) && (diagnostics.status !== "failed" || diagnostics.exitCode !== 0), "ASSURANCE_DIAGNOSTIC_VERDICT_REQUIRED");
+  const profileStatus = profileRequest && diagnostics.divorceProfileInclusion === "included" ? "PASS" : profileAttempt?.status ?? "BLOCKED";
+  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus } : {}), diagnosticStatus: diagnostics.status, exitCode: Math.max(verdict.exitCode, diagnostics.exitCode, profileAttempt || (profile && descriptorFailed) || (profileRequest && diagnostics.divorceProfileInclusion!=='included') ? 2 : 0), releaseApproval: false });
 }
-export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest) {
+export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest) {
   const root = path.join(job.output, "private");
   assert(fs.realpathSync(root) === root, "ASSURANCE_PRIVATE_ROOT_REQUIRED");
   const result = read(path.join(root, "ci-result.json"));
@@ -223,7 +258,11 @@ export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
       phases,
     },
   };
-  const file = path.join(root, "native-report-request.json");
+  return descriptor;
+}
+export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest) {
+  const descriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest);
+  const file = path.join(job.output, "private/native-report-request.json");
   fs.writeFileSync(file, JSON.stringify(descriptor, null, 2) + "\n", {
     flag: "wx",
     mode: 0o600,
@@ -245,29 +284,41 @@ export function captureAssuranceExpectations(env = process.env) {
     ),
   };
 }
-export async function runHarnessAssurance(
-  jobPath,
-  { aat = false, env = process.env } = {},
-) {
+export function publishAssuranceSummary(job, captured, result) {
+  if(!captured.nativeCohortCapture)return;
+  verifyDivorceNativeCapture(job.output,captured.nativeCohortCapture);
+  assert([0,1,2].includes(result.exitCode),'ASSURANCE_EXIT_REQUIRED');
+  writeHarnessPublicSummary(job.output,{status:['PASS','FAIL','BLOCKED'][result.exitCode],exitCode:result.exitCode},result.exitCode===0);
+}
+export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput } = {}) {
   assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
-  // Invalid job input must also withdraw the earlier owned public report.
   Reporter.resetPublicReport("harness");
   const job = validateCiJob(read(jobPath).value);
-  const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS
-    ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
+  const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
   const captured = captureAssuranceExpectations(env);
   const { runHarnessCollection } = await import("./run-harness-local-aat.cjs");
-  return runAssuranceSequence({
-    native: () => runHarnessCi(jobPath, {captureNativeCohort: value => {captured.nativeCohortCapture = value;}}),
-    descriptor: (verdict) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs),
-    collect: (nativeEvidencePath, timing) =>
-      runHarnessCollection(env, {
-        profile: aat ? "local-aat" : "harness",
-        nativeEvidencePath,
-        ...timing,
-      }),
-  });
+  const cancellation = new AbortController(), cancel = () => cancellation.abort();
+  process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
+  let result, mainDescriptor, published=false;
+  try {
+    result = await runAssuranceSequence({
+      native: () => runHarnessCi(jobPath, { captureNativeCohort: value => { captured.nativeCohortCapture = value; } }),
+      prepare: verdict => { assert(captured.nativeCohortCapture, 'ASSURANCE_PREFLIGHT_REQUIRED'); mainDescriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs); },
+      profile: signal => runDivorceProfileAdmission({ artifactPath: job.candidateManifest, browserRoot: job.browserCache, output: profileOutput ?? path.join(job.output, 'private/divorce-profile'), signal, nativeContext: { binding: captured.nativeCohortCapture.binding, expected: mainDescriptor.expected } }),
+      descriptor: (verdict, request) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, request),
+      collect: (nativeEvidencePath, timing) => runHarnessCollection(env, { profile: aat ? "local-aat" : "harness", nativeEvidencePath, ...timing, signal: cancellation.signal }),
+      signal: cancellation.signal,
+      withdraw: () => Reporter.resetPublicReport('harness'),
+      publish: value => {published=true;publishAssuranceSummary(job,captured,value);},
+    });
+    return result;
+  } finally {
+    process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel);
+    // Only a parent-captured owned output can receive the whole-command summary.
+    if(!published)publishAssuranceSummary(job,captured,{exitCode:2});
+  }
 }
+
 if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
