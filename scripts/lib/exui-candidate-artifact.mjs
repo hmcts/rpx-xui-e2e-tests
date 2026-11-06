@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { lstat, readFile, readdir, readlink, realpath, cp, lchmod } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { constants, createReadStream } from 'node:fs';
 import path from 'node:path';
 
 const hash = (value) => `sha256:${createHash('sha256').update(value).digest('hex')}`;
+// Bound per-file buffering while avoiding stream setup for the many small dependency files.
+const MAX_BUFFERED_FILE_BYTES = 1024 * 1024;
 const inside = (root, target) => target === root || target.startsWith(`${root}${path.sep}`);
 
 // Sorted paths, entry kinds, executable bits and content make the seal independent of timestamps.
@@ -24,7 +26,14 @@ export async function digestCandidateTree(directory, replacements = new Map()) {
     } else if (stat.isDirectory()) {
       for (const name of (await readdir(absolute)).sort()) await visit(relative ? `${relative}/${name}` : name);
     } else {
-      digest.update(hash(replacements.get(relative) ?? await readFile(absolute)));
+      const replacement = replacements.get(relative);
+      if (replacement != null) digest.update(hash(replacement));
+      else if (stat.size <= MAX_BUFFERED_FILE_BYTES) digest.update(hash(await readFile(absolute)));
+      else {
+        const fileDigest = createHash('sha256');
+        for await (const chunk of createReadStream(absolute)) fileDigest.update(chunk);
+        digest.update(`sha256:${fileDigest.digest('hex')}`);
+      }
     }
   }
   await visit('');

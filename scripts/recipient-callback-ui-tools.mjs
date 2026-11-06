@@ -31,9 +31,16 @@ if(selector)assert.deepEqual(input.selectorEventBinding,deriveSelectorEventRowFi
 if(personal)assert.deepEqual(input.personalServiceBinding,personalContract.derivePersonalServiceFixture(input.variant).binding,'PERSONAL_SERVICE_PROVIDER_BINDING');
 if(process.argv.includes('--inside-providers')) {
  assert.equal(digestBytes(JSON.stringify(input.harnessSources.map(file=>[file,digestBytes(fs.readFileSync('/harness/'+file))]))),input.harnessSourceDigest,'HARNESS_SOURCE_SNAPSHOT_MISMATCH');
- await verifyHarnessDependencies('/harness/node_modules','/harness/package.json','/harness/yarn.lock',input.harnessDependencies.digest);
- assert.equal(await digestCandidateTree('/browser'),input.browserDigest,'BROWSER_ARTIFACT_MISMATCH');
- const observed=await describeCandidateArtifact('/candidate',input.artifact.provenance);assertRuntimeIdentity(input.artifact.identity,observed.identity);
+ const [dependencySeal,browserSeal,candidateSeal]=await Promise.allSettled([
+  verifyHarnessDependencies('/harness/node_modules','/harness/package.json','/harness/yarn.lock',input.harnessDependencies.digest),
+  digestCandidateTree('/browser'),
+  Promise.resolve().then(()=>describeCandidateArtifact('/candidate',input.artifact.provenance)),
+ ]);
+ if(dependencySeal.status==='rejected')throw dependencySeal.reason;
+ if(browserSeal.status==='rejected')throw browserSeal.reason;
+ assert.equal(browserSeal.value,input.browserDigest,'BROWSER_ARTIFACT_MISMATCH');
+ if(candidateSeal.status==='rejected')throw candidateSeal.reason;
+ const observed=candidateSeal.value;assertRuntimeIdentity(input.artifact.identity,observed.identity);
  assertCandidateConfigurationSources('/candidate',read('/harness/scripts/fixtures/exui-configuration-review.json'));
  for(const [name,port] of [['data',4452],['definition',4451]]) {
   const response=await fetch(`http://127.0.0.1:${port}/v3/api-docs`,{redirect:'error'});assert(response.ok);assert.equal(digestBytes(JSON.stringify(await response.json())),input.apiContracts[name]);

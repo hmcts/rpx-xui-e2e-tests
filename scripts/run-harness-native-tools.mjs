@@ -78,22 +78,25 @@ async function providers(input, invocation, directory) {
     input.harnessSourceDigest,
     "HARNESS_SOURCE_SNAPSHOT_MISMATCH",
   );
-  await verifyHarnessDependencies(
-    "/harness/node_modules",
-    path.join(root, "package.json"),
-    path.join(root, "yarn.lock"),
-    input.harnessDependencies.digest,
-  );
-  assert.equal(
-    await digestCandidateTree("/browser"),
-    input.browserDigest,
-    "BROWSER_ARTIFACT_MISMATCH",
-  );
-  const artifact = selectedArtifact(input, invocation),
-    observed = await describeCandidateArtifact(
-      "/candidate",
-      artifact.provenance,
-    );
+  let artifact;
+  const [dependencySeal, browserSeal, candidateSeal] = await Promise.allSettled([
+    verifyHarnessDependencies(
+      "/harness/node_modules",
+      path.join(root, "package.json"),
+      path.join(root, "yarn.lock"),
+      input.harnessDependencies.digest,
+    ),
+    digestCandidateTree("/browser"),
+    (async () => {
+      artifact = selectedArtifact(input, invocation);
+      return describeCandidateArtifact("/candidate", artifact.provenance);
+    })(),
+  ]);
+  if (dependencySeal.status === "rejected") throw dependencySeal.reason;
+  if (browserSeal.status === "rejected") throw browserSeal.reason;
+  assert.equal(browserSeal.value, input.browserDigest, "BROWSER_ARTIFACT_MISMATCH");
+  if (candidateSeal.status === "rejected") throw candidateSeal.reason;
+  const observed = candidateSeal.value;
   assertRuntimeIdentity(artifact.identity, observed.identity);
   assertCandidateConfigurationSources(
     "/candidate",

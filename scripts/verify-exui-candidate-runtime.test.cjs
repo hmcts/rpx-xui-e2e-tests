@@ -635,3 +635,127 @@ test("scope derivation rejects aliased targets, overlap and stale output before 
     }
   }
 });
+
+// Execute the actual caller prefix up to its existing provider/configuration boundary.
+// These tests deliberately fail closed if those unique source boundaries change.
+function providerSealPrefix(kind) {
+  const definitions = {
+    native: ['run-harness-native-tools.mjs', '    "HARNESS_SOURCE_SNAPSHOT_MISMATCH",\n  );\n', '  let server, cookie;\n'],
+    callback: ['recipient-callback-ui-tools.mjs', "input.harnessSourceDigest,'HARNESS_SOURCE_SNAPSHOT_MISMATCH');\n", " for(const [name,port] of"],
+    profile: ['source-profile-jurisdictions-worker.mjs', '  verifyProfileSources(root,input.sources.digest);\n', '  return {browser:input.browser,facet,directory:'],
+  };
+  const [file, before, after] = definitions[kind];
+  const source = fs.readFileSync(path.join(__dirname, file), 'utf8');
+  for (const marker of [before, after]) assert.equal(source.split(marker).length, 2, file + ': unique verification boundary required');
+  const start = source.indexOf(before) + before.length, end = source.indexOf(after);
+  assert(end > start, file + ': verification boundaries out of order');
+  return source.slice(start, end);
+}
+
+function deferredSeal() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+for (const kind of ['native', 'callback', 'profile']) test(`provider root seals overlap and settle safely in actual ${kind} prefix`, async () => {
+  const prefix = providerSealPrefix(kind);
+  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  for (const fault of ['none', 'deps', 'browser', 'candidate', 'all', 'browser-mismatch', 'browser-mismatch-and-candidate-failure', 'identity', 'configuration']) {
+    const seals = Object.fromEntries(['deps', 'browser', 'candidate'].map(name => [name, deferredSeal()]));
+    const started = [], errors = Object.fromEntries(['deps', 'browser', 'candidate'].map(name => [name, new Error(name + ' PRIVATE-CANARY')]));
+    let ready = false, settled = false, configurationCalls = 0;
+    const artifact = { provenance: { sourceMethod: 'git-archive' }, identity: { value: 'expected' }, payloadDigest: 'payload' };
+    const input = { artifact, harnessDependencies: { digest: 'deps' }, browserDigest: 'browser', browser: { digest: 'browser', dependencies: { digest: 'deps' } }, configurations: { baseline: { digest: 'config' } }, sources: { digest: 'source' } };
+    const begin = name => { started.push(name); return seals[name].promise; };
+    const bindings = {
+      input, invocation: {}, invocationId: 'baseline', root: '/harness', path, assert,
+      facet: 'divorce-jurisdiction', browserFacet: true, divorce: null, health: false, membership: false, fault: 'fault',
+      verifyHarnessDependencies: (...args) => { assert.deepEqual(args, ['/harness/node_modules', '/harness/package.json', '/harness/yarn.lock', 'deps']); return begin('deps'); },
+      digestCandidateTree: root => { assert.equal(root, '/browser'); return begin('browser'); },
+      selectedArtifact: () => artifact,
+      describeCandidateArtifact: (root, provenance) => { assert.equal(root, '/candidate'); assert.equal(provenance, artifact.provenance); return begin('candidate'); },
+      assertRuntimeIdentity: (expected, observed) => assert.deepEqual(observed, expected, 'RUNTIME_IDENTITY_MISMATCH'),
+      assertCandidateConfigurationSources: () => { configurationCalls++; if (fault === 'configuration') throw new Error('CONFIGURATION_REJECTED'); }, read: () => ({}),
+      divorceBrowserConfiguration: () => { configurationCalls++; return { digest: fault === 'configuration' ? 'changed' : 'config' }; },
+    };
+    const execute = new AsyncFunction('bindings', `const {${Object.keys(bindings).join(',')}} = bindings;\n${prefix}`);
+    const outcome = execute(bindings).then(() => { settled = true; ready = true; return {}; }, error => { settled = true; return { error }; });
+    await new Promise(setImmediate);
+    assert.deepEqual(started, kind === 'profile' ? ['candidate', 'browser', 'deps'] : ['deps', 'browser', 'candidate'], 'all three seals must start before the first settles');
+    assert.equal(ready, false); assert.equal(configurationCalls, 0);
+    // Reject each read first in its own case; completion must still await the others.
+    const order = fault === 'deps' ? ['deps', 'candidate', 'browser'] : fault === 'browser' ? ['browser', 'candidate', 'deps'] : ['candidate', 'browser', 'deps'];
+    for (const [index, name] of order.entries()) {
+      if (fault === name || fault === 'all' || (name === 'candidate' && fault === 'browser-mismatch-and-candidate-failure')) seals[name].reject(errors[name]);
+      else seals[name].resolve(name === 'candidate' ? { ...artifact, identity: fault === 'identity' ? { value: 'changed' } : artifact.identity } : name === 'deps' ? { digest: 'deps' } : fault.startsWith('browser-mismatch') ? 'changed' : 'browser');
+      if (index < 2) {
+        await new Promise(setImmediate);
+        assert.equal(settled, false, 'failure and success must both wait for every read to settle');
+        assert.equal(ready, false); assert.equal(configurationCalls, 0, 'configuration cannot run before all seals settle');
+      }
+    }
+    const result = await outcome;
+    assert.equal(ready, fault === 'none');
+    if (fault === 'none') assert.equal(configurationCalls, 1);
+    else if (fault === 'configuration') assert.match(result.error.message, kind === 'profile' ? /SOURCE_PROFILE_CONFIG_DRIFT/ : /CONFIGURATION_REJECTED/);
+    else if (fault === 'identity') assert.match(result.error.message, kind === 'profile' ? /SOURCE_PROFILE_ARTIFACT_CHANGED/ : /RUNTIME_IDENTITY_MISMATCH/);
+    else if (fault === 'browser-mismatch' || (fault === 'browser-mismatch-and-candidate-failure' && kind !== 'profile')) assert.match(result.error.message, /BROWSER_ARTIFACT_MISMATCH/);
+    else assert.equal(result.error, errors[fault === 'all' ? kind === 'profile' ? 'candidate' : 'deps' : fault === 'browser-mismatch-and-candidate-failure' ? 'candidate' : fault], 'original failure precedence and error object must survive');
+  }
+});
+
+test('provider root seals leave nonbrowser profile on its single candidate check', async () => {
+  const prefix = providerSealPrefix('profile'), AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  const candidate = deferredSeal(), artifact = { provenance: {}, identity: {}, payloadDigest: 'payload' };
+  let ready = false, configurationCalls = 0;
+  const bindings = {
+    input: { artifact, configurations: { baseline: { digest: 'config' } }, sources: { digest: 'source' } },
+    invocationId: 'baseline', root: '/harness', path, assert, facet: 'jurisdictions', browserFacet: false, divorce: null, health: false, membership: false, fault: 'fault',
+    describeCandidateArtifact: () => candidate.promise,
+    digestCandidateTree: () => assert.fail('nonbrowser profile must not read browser'),
+    verifyHarnessDependencies: () => assert.fail('nonbrowser profile must not read browser dependencies'),
+    sourceProfileJurisdictionConfiguration: () => { configurationCalls++; return { digest: 'config' }; },
+  };
+  const execute = new AsyncFunction('bindings', `const {${Object.keys(bindings).join(',')}} = bindings;\n${prefix}`);
+  const result = execute(bindings).then(() => { ready = true; });
+  await new Promise(setImmediate); assert.equal(ready, false); assert.equal(configurationCalls, 0);
+  candidate.resolve(artifact); await result;
+  assert.equal(ready, true); assert.equal(configurationCalls, 1);
+});
+
+test('provider root seals settle callback reads for missing or null artifact before returning the original failure', async () => {
+  const prefix = providerSealPrefix('callback'), AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+  for (const artifact of [undefined, null]) for (const fault of ['artifact', 'deps', 'browser', 'both', 'browser-mismatch']) {
+    const dependencies = deferredSeal(), browser = deferredSeal(), started = [];
+    const errors = { deps: new Error('DEPENDENCY_BYTES_REJECTED PRIVATE-CANARY'), browser: new Error('BROWSER_READ_REJECTED PRIVATE-CANARY') };
+    let settled = false;
+    const bindings = {
+      input: { artifact, harnessDependencies: { digest: 'deps' }, browserDigest: 'browser' }, assert,
+      verifyHarnessDependencies: () => { started.push('deps'); return dependencies.promise; },
+      digestCandidateTree: () => { started.push('browser'); return browser.promise; },
+      describeCandidateArtifact: () => assert.fail('invalid provenance must not reach candidate verification'),
+      assertRuntimeIdentity: () => assert.fail('invalid artifact must not pass identity verification'),
+      assertCandidateConfigurationSources: () => assert.fail('invalid artifact must not configure providers'), read: () => ({}),
+    };
+    const execute = new AsyncFunction('bindings', `const {${Object.keys(bindings).join(',')}} = bindings;\n${prefix}`);
+    const outcome = execute(bindings).then(() => { settled = true; return {}; }, error => { settled = true; return { error }; });
+    try {
+      await new Promise(setImmediate);
+      assert.deepEqual(started, ['deps', 'browser']);
+      assert.equal(settled, false, 'invalid artifact evaluation must join already-started reads');
+      if (fault === 'browser' || fault === 'both') browser.reject(errors.browser); else browser.resolve(fault === 'browser-mismatch' ? 'changed' : 'browser');
+      await new Promise(setImmediate);
+      assert.equal(settled, false, 'candidate failure must wait for the dependency read too');
+      if (fault === 'deps' || fault === 'both') dependencies.reject(errors.deps); else dependencies.resolve({ digest: 'deps' });
+      const { error } = await outcome;
+      if (fault === 'deps' || fault === 'browser' || fault === 'both') assert.equal(error, errors[fault === 'both' ? 'deps' : fault]);
+      else if (fault === 'browser-mismatch') assert.match(error.message, /BROWSER_ARTIFACT_MISMATCH/);
+      else assert(error instanceof TypeError, 'retain the original missing/null artifact failure');
+    } finally {
+      // Settle fixture reads even when the old unsafe implementation fails the barrier.
+      dependencies.resolve({ digest: 'deps' }); browser.resolve('browser');
+      await outcome;
+    }
+  }
+});

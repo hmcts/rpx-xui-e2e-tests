@@ -24,13 +24,21 @@ async function context(invocationId) {
   assert.equal(input.scope,facet==='ia-wa-positive'?IA_WA_SCOPE:browserFacet?`exui-${facet}-feasibility`:facet==='divorce-wa'?DIVORCE_WA_SCOPE:divorce?DIVORCE_CONSUMERS[divorce].scope:membership?WA_MEMBERSHIP_SCOPE:health?WA_HEALTH_SCOPE:SOURCE_PROFILE_JURISDICTION_SCOPE,'SOURCE_PROFILE_INPUT_INVALID');
   assert(['baseline',fault].includes(invocationId),'SOURCE_PROFILE_INVOCATION_INVALID');
   verifyProfileSources(root,input.sources.digest);
-  const observed=await describeCandidateArtifact('/candidate',input.artifact.provenance);
+  const [candidateSeal,browserSeal,dependencySeal]=await Promise.allSettled([
+    describeCandidateArtifact('/candidate',input.artifact.provenance),
+    ...(browserFacet?[
+      digestCandidateTree('/browser'),
+      Promise.resolve().then(()=>verifyHarnessDependencies('/harness/node_modules','/harness/package.json','/harness/yarn.lock',input.browser.dependencies.digest)),
+    ]:[]),
+  ]);
+  if(candidateSeal.status==='rejected')throw candidateSeal.reason;
+  const observed=candidateSeal.value;
   assert.deepEqual(observed.identity,input.artifact.identity,'SOURCE_PROFILE_ARTIFACT_CHANGED');
   assert.equal(observed.payloadDigest,input.artifact.payloadDigest,'SOURCE_PROFILE_ARTIFACT_CHANGED');
   const mutation=invocationId==='baseline'?null:fault;
   const configuration=facet==='ia-wa-positive'?iaWaConfiguration('/candidate',mutation):browserFacet?divorceBrowserConfiguration('/candidate',facet,mutation):facet==='divorce-wa'?sourceProfileWaMembershipConfiguration('/candidate',mutation,'DIVORCE'):divorce?divorceConsumerConfiguration('/candidate',divorce,mutation):(membership?sourceProfileWaMembershipConfiguration:health?sourceProfileWaHealthConfiguration:sourceProfileJurisdictionConfiguration)('/candidate',mutation);
   assert.equal(configuration.digest,input.configurations[invocationId].digest,'SOURCE_PROFILE_CONFIG_DRIFT');
-  if(browserFacet){assert(input.browser,'DIVORCE_PROFILE_BROWSER_REQUIRED');assert.equal(await digestCandidateTree('/browser'),input.browser.digest,'BROWSER_ARTIFACT_MISMATCH');await verifyHarnessDependencies('/harness/node_modules','/harness/package.json','/harness/yarn.lock',input.browser.dependencies.digest);}
+  if(browserFacet){assert(input.browser,'DIVORCE_PROFILE_BROWSER_REQUIRED');if(browserSeal.status==='rejected')throw browserSeal.reason;assert.equal(browserSeal.value,input.browser.digest,'BROWSER_ARTIFACT_MISMATCH');if(dependencySeal.status==='rejected')throw dependencySeal.reason;}
   return {browser:input.browser,facet,directory:path.join('/output',invocationId),invocationId,mutation,identity:observed.identity,configDigest:configuration.digest,sourceDigest:input.sources.digest};
 }
 export async function executeProfileProof(current,{probe,cookie,readJournal}={}) {
