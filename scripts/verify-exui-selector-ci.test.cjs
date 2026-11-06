@@ -111,6 +111,7 @@ test('actual selector, callback, personal and Complex output calls accept Jenkin
  for(const file of ['run-harness-selector-event-row.mjs','run-harness-recipient-callback-ui.mjs','run-harness-personal-service-cohort.mjs','run-harness-complex-email-cohort.mjs','run-harness-complex-email-mapping.mjs']){
   const f=outputFixture(t),output=path.join(f.job,'native-output/private/phase');
   const actual=await actualOutputCall(f,file,output);assert.equal(actual,file.includes('selector')?output+'-runtime':output,file);assert.equal(fs.statSync(actual).mode&0o777,0o700);assert.equal(fs.readFileSync(path.join(f.harness,'package.json'),'utf8'),'protected');
+  if(file==='run-harness-complex-email-cohort.mjs')await assert.rejects(actualOutputCall(f,file,path.join(f.sourceInputs.javaHome,'new')),/CI_OUTPUT_IMMUTABLE_INPUT_OVERLAP/);
  }
 });
 
