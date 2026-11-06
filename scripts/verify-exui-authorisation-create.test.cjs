@@ -3,8 +3,7 @@ const {test}=require('node:test');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {EventEmitter}=require('node:events');
-const {authorisationCcdFake}=require('./fixtures/exui-authorisation-create.mock.cjs');
+const {authorisationCcdFake,authorisationReadyCcdFake:readyFake}=require('./fixtures/exui-authorisation-create.mock.cjs');
 const temporary=t=>{const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'auth-create-test-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));return directory;};
 const libs=async()=>({...await import('./lib/exui-authorisation-row-fixture.mjs'),...await import('./lib/exui-authorisation-create-runtime.mjs')});
 
@@ -21,13 +20,13 @@ test('fixed complete carrier preserves source date/groups/prerequisites and muta
  assert.throws(()=>api.buildAuthorisationCreateDefinition('remove-read'),/AUTH_CREATE_VARIANT/);
 });
 for(const variant of ['baseline','remove-create'])test(`actual API observer and independent raw replay cover five source actors: ${variant}`,async()=>{
- const api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition(variant));
+ const api=await libs(),fake=readyFake(api.buildAuthorisationCreateDefinition(variant));
  const observation=await api.observeAuthorisationCreate(fake.state,variant,{request:fake.request});const result=api.validateAuthorisationCreateObservation(observation,variant);
  assert.equal(result.actors,5);assert.equal(result.successfulTargetWrites,variant==='baseline'?2:0);assert.equal(result.deniedTargetWrites,variant==='baseline'?3:5);assert.equal(result.healthyControlWrites,4);assert.equal(result.readonlyDenial,'prerequisite-masked');assert.equal(result.catalogueCredit,false);
 });
 test('controlled restored C invalidates the grouped effective-fault oracle',async()=>{
  const api=await libs(),restored=api.buildAuthorisationCreateDefinition('remove-create');restored.sheets.AuthorisationCaseEvent.filter(row=>row.CaseEventID==='serviceOfDocuments'&&['caseworker-privatelaw-courtadmin','caseworker-privatelaw-systemupdate'].includes(row.UserRole)).forEach(row=>row.CRUD='CRU');
- const fake=authorisationCcdFake(restored),observation=await api.observeAuthorisationCreate(fake.state,'remove-create',{request:fake.request});assert.throws(()=>api.validateAuthorisationCreateObservation(observation,'remove-create'),/AUTH_ROW_CREATE_CAPABILITY/);
+ const fake=readyFake(restored),observation=await api.observeAuthorisationCreate(fake.state,'remove-create',{request:fake.request});assert.throws(()=>api.validateAuthorisationCreateObservation(observation,'remove-create'),/AUTH_ROW_CREATE_CAPABILITY/);
 });
 for(const [name,change] of [
  ['missing systemupdate',value=>value.actors.splice(1,1)],['observer membership',value=>value.actors[1].roles.push('caseworker-harness-observer')],
@@ -41,10 +40,10 @@ for(const [name,change] of [
  ['reused after window with renumbered journal',value=>{const a=value.journal.findIndex(row=>row.label==='judge-target-start'),b=value.journal.findIndex(row=>row.label==='judge-after-state');[value.journal[a],value.journal[b]]=[value.journal[b],value.journal[a]];value.journal.forEach((item,i)=>item.sequence=i);}],
  ['implied credit',value=>value.catalogueCredit=true],
 ])test(`raw replay rejects ${name}`,async()=>{
- const api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition());const value=await api.observeAuthorisationCreate(fake.state,'baseline',{request:fake.request});change(value);assert.throws(()=>api.validateAuthorisationCreateObservation(value,'baseline'));
+ const api=await libs(),fake=readyFake(api.buildAuthorisationCreateDefinition());const value=await api.observeAuthorisationCreate(fake.state,'baseline',{request:fake.request});change(value);assert.throws(()=>api.validateAuthorisationCreateObservation(value,'baseline'));
 });
 test('owned fixed SQL retains all five typed dates and rejects substituted rows/version without coercion',async()=>{
- const api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition());let query;
+ const api=await libs(),fake=readyFake(api.buildAuthorisationCreateDefinition());let query;
  const read=rows=>api.readAuthorisationAclDates(fake.state,3,'baseline',{inspect:()=>{},runDocker:(args,sql)=>{assert.deepEqual(args.slice(0,3),['exec','-i',fake.state.namespace]);query=sql;return JSON.stringify(rows);}});
  const rows=api.expectedAuthorisationAclRows(3,'baseline');const result=read(rows);assert.equal(result.sourceDate,'01/09/2024');assert.equal(result.retentionClaim,false);assert.equal(result.activationClaim,false);assert.match(query,/BEGIN READ ONLY/);assert.match(query,/ct.version=3/);
  for(const mutate of [r=>r.pop(),r=>r[0].live_from='2024-09-01',r=>r[0].version=4,r=>r.push(r[0]),r=>r[0].create=false]){const wrong=structuredClone(rows);mutate(wrong);assert.throws(()=>read(wrong),/AUTH_CREATE_STORED_ACL_ROWS/);}
@@ -53,23 +52,18 @@ test('workbook generation executes the actual offline converter and preserves or
  const api=await libs(),root=temporary(t),receipt=api.prepareAuthorisationCreateWorkbook(path.join(root,'fixture'),'baseline');assert.match(receipt.workbookDigest,/^sha256:/);assert.equal(receipt.originalSourceDate,'01/09/2024');const rows=api.validateAuthorisationWorkbook(path.join(root,'fixture/definition.xlsx'),'baseline');assert.equal(rows.length,5);assert(rows.every(row=>row.LiveFrom.type==='n'&&row.LiveFrom.style==='1'));
 });
 test('default source actor API remains three fixed actors; new personas require the explicit standalone helper',async()=>{
- const core=await import('./lib/exui-ccd-runtime.mjs'),api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition());
+ const core=await import('./lib/exui-ccd-runtime.mjs'),api=await libs(),fake=readyFake(api.buildAuthorisationCreateDefinition());
  for(const persona of ['courtadmin','systemupdate','judge','la','readonly']){const actor=core.ccdAuthorisationRowCredentials(fake.state,persona,{request:fake.request});assert.deepEqual(actor.roles,['caseworker','caseworker-harness',`caseworker-privatelaw-${persona}`]);}
  assert.throws(()=>core.ccdAuthorisationRowCredentials(fake.state,'observer',{request:fake.request}),/CCD_AUTH_ROW_FIXED_ACTOR_REQUIRED/);
  assert.throws(()=>core.ccdAuthorisationRowCredentials({...fake.state,fixtureSelection:'nested-prl'},'la',{request:fake.request}),/CCD_AUTH_ROW_BASELINE_CONTEXT_REQUIRED/);
  const original=core.ccdCredentials(fake.state,'systemupdate',{request:fake.request});assert.equal(original.roles,undefined);const details=fake.request(fake.state,5000,'/details',{headers:original.headers});assert.deepEqual(details.body.roles,['caseworker','caseworker-harness','caseworker-harness-systemupdate']);
 });
 test('cancellation between journal requests prevents further calls',async()=>{
- const api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition());let cancelled=false,calls=0;
+ const api=await libs(),fake=readyFake(api.buildAuthorisationCreateDefinition());let cancelled=false,calls=0;
  await assert.rejects(api.observeAuthorisationCreate(fake.state,'baseline',{request:(...args)=>{calls++;if(args[2].includes('/cases')&&args[3]?.method==='POST')cancelled=true;return fake.request(...args);},isCancelled:()=>cancelled}),/AUTH_CREATE_CANCELLED/);
  const count=calls;await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,count);
 });
-const runFakes=()=>{
- const calls=[],signal=new EventEmitter(),source={commit:'1'.repeat(40),sourceDigest:'sha256:'+'2'.repeat(64),files:{}},owner='harness-1234567890abcdef',cid='a'.repeat(64);
- const write=(file,value)=>fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n');
- const removal={owner,cleanupComplete:true,checkedNames:[owner+'-database'],checkedContainerIds:[cid]};
- return {calls,signal,options:{producer:()=>source,prepare:directory=>{calls.push('prepare');fs.mkdirSync(directory);write(path.join(directory,'definition.json'),{});fs.writeFileSync(path.join(directory,'definition.xlsx'),'fake workbook');write(path.join(directory,'binding.json'),{});return {};},start:async output=>{calls.push('start');fs.mkdirSync(output);const state={owner,output,namespace:cid,containers:{database:cid},images:{},fixtureSelection:'event-capability-baseline'};write(path.join(output,'runtime.json'),state);write(path.join(output,'recovery.json'),{owner,output,resources:{database:{name:owner+'-database'}}});write(path.join(output,'creation-attempts.json'),[]);return state;},inspect:()=>{},importDefinition:()=>({version:1}),dates:()=>({}),observe:async()=>({}),replay:()=>({catalogueCredit:false}),finalReplay:()=>({catalogueCredit:false}),cleanup:()=>{calls.push('cleanup');return structuredClone(removal);},signalTarget:signal}};
-};
+const {authorisationRunFakes:runFakes}=require('./fixtures/exui-authorisation-create.mock.cjs');
 for(const failure of ['create-uncertain','cleanup-failed','proof-failed','cancelled'])test(`standalone sequence blocks later resources after ${failure}`,async t=>{
  const {runAuthorisationCreate}=await import('./run-harness-authorisation-create.mjs'),fake=runFakes();
  if(failure==='create-uncertain')fake.options.start=async (output,options)=>{fake.calls.push('start');options.onCreateUncertainty();throw Error('unknown create');};
@@ -125,12 +119,12 @@ for(const mutation of ['epoch','style'])test(`actual workbook projection rejects
  const changed=require('node:child_process').spawnSync('python3',['-B','-c',program,file,mutation],{encoding:'utf8'});assert.equal(changed.status,0,changed.stderr);assert.throws(()=>api.validateAuthorisationWorkbook(file,'baseline'),/AUTH_CREATE_WORKBOOK_PROJECTION/);
 });
 for(const status of [400,500])test(`actual import status response is retained before the importer rejects${status}`,async t=>{
- const api=await libs(),directory=temporary(t),fixture=path.join(directory,'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');const fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition()),observations=[];
+ const api=await libs(),directory=temporary(t),fixture=path.join(directory,'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');const fake=readyFake(api.buildAuthorisationCreateDefinition()),observations=[];
  assert.throws(()=>api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>{if(port===4451)return {status:route==='/import'?status:201,body:route==='/import'&&status===400?'Invalid Name length on CaseEvent; maximum30 characters at row6':{synthetic:'private-status-observation'}};return fake.request(state,port,route,options);},onObservation:entry=>observations.push(entry)}),/AUTH_CREATE_IMPORT_STATUS/);
- assert.equal(observations.length,6);assert.equal(observations.at(-1).kind,'definition-import');assert.equal(observations.at(-1).response.status,status);if(status===400)assert.equal(typeof observations.at(-1).response.body,'string');assert.equal(observations.at(-1).route,'/import');
+ assert.equal(observations.length,9);assert.equal(observations.at(-1).kind,'definition-import');assert.equal(observations.at(-1).response.status,status);if(status===400)assert.equal(typeof observations.at(-1).response.body,'string');assert.equal(observations.at(-1).route,'/import');
 });
 test('a partial failing API journey retains its actual status journal before observation construction fails',async()=>{
- const api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition());let saved=[];
+ const api=await libs(),fake=readyFake(api.buildAuthorisationCreateDefinition());let saved=[];
  await assert.rejects(api.observeAuthorisationCreate(fake.state,'baseline',{onJournal:journal=>{saved=structuredClone(journal);},request:(state,port,route,options)=>{if(port===4452&&route.match(/\/cases\/\d{16}$/)&&!options.method)return {status:500,body:{synthetic:'unusable response'}};return fake.request(state,port,route,options);}}));
  assert(saved.some(row=>row.status===500));assert.equal(saved.at(-1).label,'courtadmin-seed-before-history');assert(saved.every(row=>!JSON.stringify(row).includes('synthetic-token-')));
 });
@@ -174,5 +168,54 @@ test('both generated carriers satisfy the pinned CCD CaseEvent Name thirty-chara
   const control=definition.sheets.CaseEvent.find(row=>row.ID==='harnessAuthorisationControl');
   assert.equal(control.Name,'Authorisation control');assert.equal(control.ID,'harnessAuthorisationControl');
   assert.equal(definition.sheets.CaseEvent.find(row=>row.ID==='serviceOfDocuments').Name,'Service of documents');
+ }
+});
+
+
+test('actual importer registers seven fixture ACL roles and the jurisdiction classification role while source actors remain five',async t=>{
+ const api=await libs(),definition=api.buildAuthorisationCreateDefinition(),fixture=path.join(temporary(t),'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');
+ const required=[...new Set(Object.entries(definition.sheets).filter(([name])=>name.startsWith('Authorisation')).flatMap(([,rows])=>rows.map(row=>row.UserRole)))].sort();
+ assert.equal(required.length,7);const source=definition.sheets.AuthorisationCaseEvent.filter(row=>row.CaseEventID==='serviceOfDocuments'&&row.UserRole.startsWith('caseworker-privatelaw-')).map(row=>row.UserRole);assert.equal(source.length,5);
+ const fake=authorisationCcdFake(definition),journal=[];
+ const imported=api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:fake.request,onObservation:row=>journal.push(row)});
+ assert.equal(imported.imported.status,201);assert.deepEqual([...fake.registeredRoles].sort(),[...required,'caseworker-harness'].sort());
+ assert.deepEqual(journal.filter(row=>row.kind==='role-registration').map(row=>row.role),[...source,'caseworker-harness-observer','caseworker-harness-allowed','caseworker-harness']);
+ assert.deepEqual(journal.map(row=>row.kind),[...[...required,'caseworker-harness'].map(()=>'role-registration'),'definition-import','definition-readback']);
+ const old=authorisationCcdFake(definition),oldJournal=[];
+ assert.throws(()=>api.importAuthorisationCreate(old.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>port===4451&&route==='/api/user-role'&&options.body.role.startsWith('caseworker-harness-')?{status:201,body:{}}:old.request(state,port,route,options),onObservation:row=>oldJournal.push(row)}),/AUTH_CREATE_IMPORT_STATUS/);
+ assert.equal(old.registeredRoles.size,6);assert.equal(oldJournal.at(-1).response.status,400);assert.equal(oldJournal.at(-1).response.body,'Missing AccessProfiles.');
+});
+for(const role of ['caseworker-harness-observer','caseworker-harness-allowed','caseworker-harness'])test('support registry refusal stops before workbook upload for '+role,async t=>{
+ const api=await libs(),definition=api.buildAuthorisationCreateDefinition(),fixture=path.join(temporary(t),'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');const fake=authorisationCcdFake(definition),journal=[];
+ assert.throws(()=>api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>port===4451&&route==='/api/user-role'&&options.body.role===role?{status:403,body:{}}:fake.request(state,port,route,options),onObservation:row=>journal.push(row)}),/AUTH_CREATE_ROLE_REGISTRATION/);
+ assert.equal(journal.at(-1).role,role);assert(!journal.some(row=>row.kind==='definition-import'||row.kind==='definition-readback'));
+});
+for(const mutation of ['missing-support','duplicate-source','missing-classification','duplicate-classification'])test('raw reader rejects coherently pinned '+mutation+' registration journal',async t=>{
+ const api=await libs(),{authorisationPacket}=require('./fixtures/exui-authorisation-create.mock.cjs'),{createHash}=require('node:crypto'),directory=temporary(t),packet=await authorisationPacket(directory),name='baseline-import-requests.json',rows=packet.read(name);
+ if(mutation==='missing-support')rows.splice(5,1);else if(mutation==='missing-classification')rows.splice(7,1);else if(mutation==='duplicate-classification')rows[7].role=rows[0].role;else rows[5].role=rows[0].role;
+ packet.write(name,rows);packet.expected.contexts[0].importRequestsDigest='sha256:'+createHash('sha256').update(fs.readFileSync(path.join(directory,name))).digest('hex');
+ assert.throws(()=>api.readAuthorisationCreatePacket(directory,packet.expected,{inspect:()=>null}),/AUTH_CREATE_IMPORT_(REQUEST_ORDER|REGISTRY_ROLES)/);
+});
+
+for(const version of [-1,0.5,'0',null,Number.MAX_SAFE_INTEGER+1])test('raw replay rejects invalid initial case version '+String(version),async()=>{
+ const api=await libs(),fake=readyFake(api.buildAuthorisationCreateDefinition()),value=await api.observeAuthorisationCreate(fake.state,'baseline',{request:fake.request});
+ value.journal.find(row=>row.label==='courtadmin-seed-before-state').response.version=version;
+ assert.throws(()=>api.validateAuthorisationCreateObservation(value,'baseline'),/AUTH_CREATE_OBSERVER_VERSION/);
+});
+test('actual importer supplies the jurisdiction classification prerequisite for all five actors',async t=>{
+ const api=await libs(),definition=api.buildAuthorisationCreateDefinition(),fixture=path.join(temporary(t),'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');
+ for(const omitBase of [true,false]){
+  const fake=authorisationCcdFake(definition);
+  const imported=api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>omitBase&&route==='/api/user-role'&&options.body.role==='caseworker-harness'?{status:201,body:{}}:fake.request(state,port,route,options)});
+  assert.equal(imported.imported.status,201);
+  const value=await api.observeAuthorisationCreate(fake.state,'baseline',{request:fake.request});
+  assert.equal(value.journal.find(row=>row.label==='courtadmin-seed-before-state').response.version,0);
+  for(const persona of ['courtadmin','systemupdate','judge','la','readonly']){
+   assert.equal(value.journal.find(row=>row.label===persona+'-read').status,omitBase?404:200);
+   assert.equal(value.journal.find(row=>row.label===persona+'-history').status,omitBase?404:200);
+  }
+  assert.equal(fake.registeredRoles.size,omitBase?7:8);
+  if(omitBase)assert.throws(()=>api.validateAuthorisationCreateObservation(value,'baseline'),/AUTH_CREATE_HEALTHY_READ/);
+  else assert.equal(api.validateAuthorisationCreateObservation(value,'baseline').actors,5);
  }
 });

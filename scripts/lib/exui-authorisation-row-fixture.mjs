@@ -99,3 +99,18 @@ export function buildAuthorisationCreateDefinition(variant = 'baseline') {
     adaptations: ['PRLAPPS-to-HarnessNestedPRL', 'PRIVATELAW-to-HARNESS', 'synthetic-bootstrap-observer-and-health-control', 'source-callbacks-omitted-as-in-existing-carrier'],
     ...AUTHORISATION_ROW_NO_CREDIT };
 }
+
+// Separate fixed R-history carrier; the C entrypoint and its accepted variants stay unchanged.
+export function buildAuthorisationReadDefinition(variant = 'baseline') {
+  assert(['baseline', 'remove-read'].includes(variant), 'AUTH_READ_VARIANT');
+  const fixture = buildAuthorisationCreateDefinition();
+  const fragment = deriveAuthorisationRowFixture(variant);
+  fixture.kind = 'non-credit-authorisation-read-definition';
+  fixture.variant = variant;
+  fixture.rawRow = fragment.rawRow;
+  fixture.sourceChange = fragment.change;
+  fixture.sheets.AuthorisationCaseEvent = fixture.sheets.AuthorisationCaseEvent.map(row =>
+    row.CaseEventID === 'serviceOfDocuments' && AUTHORISATION_ROW_ACTORS.includes(row.UserRole)
+      ? fragment.sheets.AuthorisationCaseEvent.find(source => source.UserRole === row.UserRole) : row);
+  return fixture;
+}
