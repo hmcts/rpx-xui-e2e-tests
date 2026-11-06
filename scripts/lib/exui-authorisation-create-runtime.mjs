@@ -11,6 +11,8 @@ import {ccdCredentials,ccdAuthorisationRowCredentials,ccdRequest,verifyCcdContai
 import {digestBytes,writeJsonAtomic} from './exui-evidence-io.mjs';
 
 export const AUTH_CREATE_VARIANTS=Object.freeze(['baseline','remove-create']);
+// Supporting carrier ACL roles are registered, never added to the five source actors.
+const importRoles=Object.freeze([...AUTHORISATION_ROW_ACTORS,'caseworker-harness-observer','caseworker-harness-allowed']);
 const event='serviceOfDocuments',type='HarnessNestedPRL';
 const personas=AUTHORISATION_ROW_ACTORS.map(role=>role.replace('caseworker-privatelaw-',''));
 const roles=persona=>['caseworker','caseworker-harness',`caseworker-privatelaw-${persona}`].sort();
@@ -80,7 +82,7 @@ export function importAuthorisationCreate(state,fixtureDirectory,variant,{reques
  assert.equal(binding.definitionDigest,digestBytes(fs.readFileSync(file)),'AUTH_CREATE_DEFINITION_BYTES');assert.equal(binding.workbookDigest,digestBytes(fs.readFileSync(xlsx)),'AUTH_CREATE_WORKBOOK_BYTES');
  validateAuthorisationWorkbook(xlsx,variant);
  inspect(state);const observer=ccdCredentials(state,'observer',{request});
- for(const role of AUTHORISATION_ROW_ACTORS){const registered=request(state,4451,'/api/user-role',{method:'PUT',headers:observer.headers,body:{role,security_classification:'PUBLIC'}});onObservation({kind:'role-registration',role,port:4451,method:'PUT',route:'/api/user-role',response:clone(registered)});assert([200,201,205].includes(registered.status),'AUTH_CREATE_ROLE_REGISTRATION');}
+ for(const role of importRoles){const registered=request(state,4451,'/api/user-role',{method:'PUT',headers:observer.headers,body:{role,security_classification:'PUBLIC'}});onObservation({kind:'role-registration',role,port:4451,method:'PUT',route:'/api/user-role',response:clone(registered)});assert([200,201,205].includes(registered.status),'AUTH_CREATE_ROLE_REGISTRATION');}
  const imported=request(state,4451,'/import',{method:'POST',headers:observer.headers,file:fs.readFileSync(xlsx).toString('base64')});onObservation({kind:'definition-import',port:4451,method:'POST',route:'/import',workbookDigest:binding.workbookDigest,response:clone(imported)});assert.equal(imported.status,201,'AUTH_CREATE_IMPORT_STATUS');
  const observed=request(state,4451,`/api/data/case-type/${type}`,{headers:observer.headers});onObservation({kind:'definition-readback',port:4451,method:'GET',route:`/api/data/case-type/${type}`,response:clone(observed)});assert.equal(observed.status,200,'AUTH_CREATE_DESCRIPTOR_STATUS');
  const version=validateAuthorisationCreateDescriptor(observed.body,definition);inspect(state);
@@ -241,10 +243,10 @@ export function readAuthorisationCreatePacket(directory,expected,{inspect}={}) {
   for(const identifier of [...names,...ids])assert.equal(inspect(identifier),null,'AUTH_CREATE_PACKET_RESOURCE_SURVIVES');
   assert.deepEqual(observation.binding,{owner:runtime.owner,namespace:runtime.namespace,images:runtime.images},'AUTH_CREATE_PACKET_OBSERVATION_OWNER');
   assert.deepEqual(read(variant+'-requests.json'),observation.journal,'AUTH_CREATE_CAPTURED_JOURNAL_MISMATCH');
-  const importRequests=read(variant+'-import-requests.json');assert.deepEqual(importRequests.map(row=>row.kind),[...AUTHORISATION_ROW_ACTORS.map(()=>'role-registration'),'definition-import','definition-readback'],'AUTH_CREATE_IMPORT_REQUEST_ORDER');
-  assert.deepEqual(importRequests.slice(0,5).map(row=>row.role),AUTHORISATION_ROW_ACTORS,'AUTH_CREATE_IMPORT_SOURCE_ROLES');for(const row of importRequests.slice(0,5)){assert.equal(row.port,4451,'AUTH_CREATE_IMPORT_REQUEST');assert.equal(row.route,'/api/user-role','AUTH_CREATE_IMPORT_REQUEST');assert.equal(row.method,'PUT','AUTH_CREATE_IMPORT_REQUEST');assert([200,201,205].includes(row.response.status),'AUTH_CREATE_IMPORT_REQUEST');}
-  assert.deepEqual(importRequests[5],{kind:'definition-import',port:4451,method:'POST',route:'/import',workbookDigest:binding.workbookDigest,response:imported.imported},'AUTH_CREATE_IMPORT_CAPTURE');
-  assert.deepEqual(importRequests[6],{kind:'definition-readback',port:4451,method:'GET',route:`/api/data/case-type/${type}`,response:imported.observed},'AUTH_CREATE_IMPORT_CAPTURE');
+  const importRequests=read(variant+'-import-requests.json');assert.deepEqual(importRequests.map(row=>row.kind),[...importRoles.map(()=>'role-registration'),'definition-import','definition-readback'],'AUTH_CREATE_IMPORT_REQUEST_ORDER');
+  assert.deepEqual(importRequests.slice(0,importRoles.length).map(row=>row.role),importRoles,'AUTH_CREATE_IMPORT_REGISTRY_ROLES');for(const row of importRequests.slice(0,importRoles.length)){assert.equal(row.port,4451,'AUTH_CREATE_IMPORT_REQUEST');assert.equal(row.route,'/api/user-role','AUTH_CREATE_IMPORT_REQUEST');assert.equal(row.method,'PUT','AUTH_CREATE_IMPORT_REQUEST');assert([200,201,205].includes(row.response.status),'AUTH_CREATE_IMPORT_REQUEST');}
+  assert.deepEqual(importRequests[importRoles.length],{kind:'definition-import',port:4451,method:'POST',route:'/import',workbookDigest:binding.workbookDigest,response:imported.imported},'AUTH_CREATE_IMPORT_CAPTURE');
+  assert.deepEqual(importRequests[importRoles.length+1],{kind:'definition-readback',port:4451,method:'GET',route:`/api/data/case-type/${type}`,response:imported.observed},'AUTH_CREATE_IMPORT_CAPTURE');
   const replay=validateAuthorisationCreateObservation(observation,variant);assert.deepEqual(stage.replay,replay,'AUTH_CREATE_PACKET_REPLAY_MISMATCH');results.push(replay);
  }
  return {kind:'non-credit-authorisation-create-complete-replay',contexts:results,obligationId:AUTHORISATION_ROW_ID,...AUTHORISATION_ROW_NO_CREDIT};

@@ -127,7 +127,7 @@ for(const mutation of ['epoch','style'])test(`actual workbook projection rejects
 for(const status of [400,500])test(`actual import status response is retained before the importer rejects${status}`,async t=>{
  const api=await libs(),directory=temporary(t),fixture=path.join(directory,'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');const fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition()),observations=[];
  assert.throws(()=>api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>{if(port===4451)return {status:route==='/import'?status:201,body:route==='/import'&&status===400?'Invalid Name length on CaseEvent; maximum30 characters at row6':{synthetic:'private-status-observation'}};return fake.request(state,port,route,options);},onObservation:entry=>observations.push(entry)}),/AUTH_CREATE_IMPORT_STATUS/);
- assert.equal(observations.length,6);assert.equal(observations.at(-1).kind,'definition-import');assert.equal(observations.at(-1).response.status,status);if(status===400)assert.equal(typeof observations.at(-1).response.body,'string');assert.equal(observations.at(-1).route,'/import');
+ assert.equal(observations.length,8);assert.equal(observations.at(-1).kind,'definition-import');assert.equal(observations.at(-1).response.status,status);if(status===400)assert.equal(typeof observations.at(-1).response.body,'string');assert.equal(observations.at(-1).route,'/import');
 });
 test('a partial failing API journey retains its actual status journal before observation construction fails',async()=>{
  const api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition());let saved=[];
@@ -175,4 +175,30 @@ test('both generated carriers satisfy the pinned CCD CaseEvent Name thirty-chara
   assert.equal(control.Name,'Authorisation control');assert.equal(control.ID,'harnessAuthorisationControl');
   assert.equal(definition.sheets.CaseEvent.find(row=>row.ID==='serviceOfDocuments').Name,'Service of documents');
  }
+});
+
+
+test('actual importer registers exactly the seven fixture ACL roles while source actors remain five',async t=>{
+ const api=await libs(),definition=api.buildAuthorisationCreateDefinition(),fixture=path.join(temporary(t),'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');
+ const required=[...new Set(Object.entries(definition.sheets).filter(([name])=>name.startsWith('Authorisation')).flatMap(([,rows])=>rows.map(row=>row.UserRole)))].sort();
+ assert.equal(required.length,7);const source=definition.sheets.AuthorisationCaseEvent.filter(row=>row.CaseEventID==='serviceOfDocuments'&&row.UserRole.startsWith('caseworker-privatelaw-')).map(row=>row.UserRole);assert.equal(source.length,5);
+ const fake=authorisationCcdFake(definition),journal=[];
+ const imported=api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:fake.request,onObservation:row=>journal.push(row)});
+ assert.equal(imported.imported.status,201);assert.deepEqual([...fake.registeredRoles].sort(),required);
+ assert.deepEqual(journal.filter(row=>row.kind==='role-registration').map(row=>row.role),[...source,'caseworker-harness-observer','caseworker-harness-allowed']);
+ assert.deepEqual(journal.map(row=>row.kind),[...required.map(()=>'role-registration'),'definition-import','definition-readback']);
+ const old=authorisationCcdFake(definition),oldJournal=[];
+ assert.throws(()=>api.importAuthorisationCreate(old.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>port===4451&&route==='/api/user-role'&&options.body.role.startsWith('caseworker-harness-')?{status:201,body:{}}:old.request(state,port,route,options),onObservation:row=>oldJournal.push(row)}),/AUTH_CREATE_IMPORT_STATUS/);
+ assert.equal(old.registeredRoles.size,5);assert.equal(oldJournal.at(-1).response.status,400);assert.equal(oldJournal.at(-1).response.body,'Missing AccessProfiles.');
+});
+for(const role of ['caseworker-harness-observer','caseworker-harness-allowed'])test('support registry refusal stops before workbook upload for '+role,async t=>{
+ const api=await libs(),definition=api.buildAuthorisationCreateDefinition(),fixture=path.join(temporary(t),'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');const fake=authorisationCcdFake(definition),journal=[];
+ assert.throws(()=>api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>port===4451&&route==='/api/user-role'&&options.body.role===role?{status:403,body:{}}:fake.request(state,port,route,options),onObservation:row=>journal.push(row)}),/AUTH_CREATE_ROLE_REGISTRATION/);
+ assert.equal(journal.at(-1).role,role);assert(!journal.some(row=>row.kind==='definition-import'||row.kind==='definition-readback'));
+});
+for(const mutation of ['missing-support','duplicate-source'])test('raw reader rejects coherently pinned '+mutation+' registration journal',async t=>{
+ const api=await libs(),{authorisationPacket}=require('./fixtures/exui-authorisation-create.mock.cjs'),{createHash}=require('node:crypto'),directory=temporary(t),packet=await authorisationPacket(directory),name='baseline-import-requests.json',rows=packet.read(name);
+ if(mutation==='missing-support')rows.splice(5,1);else rows[5].role=rows[0].role;
+ packet.write(name,rows);packet.expected.contexts[0].importRequestsDigest='sha256:'+createHash('sha256').update(fs.readFileSync(path.join(directory,name))).digest('hex');
+ assert.throws(()=>api.readAuthorisationCreatePacket(directory,packet.expected,{inspect:()=>null}),/AUTH_CREATE_IMPORT_(REQUEST_ORDER|REGISTRY_ROLES)/);
 });
