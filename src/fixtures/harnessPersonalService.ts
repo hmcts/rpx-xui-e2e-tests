@@ -23,7 +23,7 @@ export async function runPersonalService({ page, playwright, variant, step }: {
   let created;try {created=await bootstrapCcdEventCase(actor,seed(empty));} finally {await actor.dispose();}
   expect(created.trigger.status()).toBe(200);expect(created.created.status()).toBe(201);
   const caseId=String(created.body.id);expect(caseId).toMatch(/^\d{16}$/);
-  await switchCcdEventActor(page,"courtadmin");expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
+  expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
   expect((await openServiceOfDocuments(page,caseId)).status()).toBe(200);await waitForCallbackFirstPage(page,caseId);
   await expect(page.getByText("Protected value",{exact:true})).toBeVisible();
   const predecessorLabel=await page.getByText("Protected value",{exact:true}).textContent();
@@ -48,6 +48,7 @@ export async function runPersonalService({ page, playwright, variant, step }: {
   return {heading:(await heading.textContent())!.trim(),path:new URL(page.url()).pathname};
  };
  // Both variants must complete the real persistence control before testing empty input.
+ await switchCcdEventActor(page,"courtadmin");
  const prepared=await prepare(false),{caseId,before}=prepared;
  const filled: Record<string,unknown>={caseId,before};observed.filled=filled;
  const precedesSelector=await group().evaluate(element=>{const sibling=document.getElementById("sodAdditionalRecipients");return Boolean(sibling&&(element.compareDocumentPosition(sibling)&Node.DOCUMENT_POSITION_FOLLOWING));});expect(precedesSelector).toBe(true);
