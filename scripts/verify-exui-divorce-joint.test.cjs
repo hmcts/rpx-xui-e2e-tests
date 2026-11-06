@@ -51,7 +51,7 @@ for(const [reason,context]of [['different-producer',{producer:{commit:'e'.repeat
 test('a fully valid other twelve-invocation request cannot replace the actual wrapper request at the same path',async t=>{
  const first=await jointFixture(t),other=await jointFixture(t);assert.equal((await other.read()).divorceProfileAdmission.joint.status,'included');fs.writeFileSync(first.requestFile,fs.readFileSync(other.requestFile));await assert.rejects(first.read,/NATIVE_REPORT_INVALID_EVIDENCE/);
 });
-test('local joint caller is one thin delegate to the canonical default assurance API',async t=>{
+test('local joint caller explicitly selects the profile in the canonical assurance API',async t=>{
  const {spawnSync}=require('node:child_process'),root=temp(t);fs.mkdirSync(path.join(root,'scripts'));
  fs.copyFileSync(path.join(__dirname,'run-harness-divorce-joint-assurance.mjs'),path.join(root,'scripts/run-harness-divorce-joint-assurance.mjs'));
  fs.writeFileSync(path.join(root,'scripts/run-harness-assurance.mjs'),`import fs from 'node:fs';export async function runHarnessAssurance(job,options){fs.writeFileSync('calls.json',JSON.stringify([{job,options}]));return {nativeStatus:'BLOCKED',profileStatus:'PASS',diagnosticStatus:'passed',exitCode:2,releaseApproval:false};}`);

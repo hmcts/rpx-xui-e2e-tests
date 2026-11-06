@@ -322,6 +322,7 @@ export function publishAssuranceSummary(job, captured, result) {
 export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput, personalOutput } = {}) {
   assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
   Reporter.resetPublicReport("harness");
+  assert(profileOutput === undefined || (typeof profileOutput === 'string' && path.isAbsolute(profileOutput)), 'ASSURANCE_PROFILE_OUTPUT_REQUIRED');
   const job = validateCiJob(read(jobPath).value);
   const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
   const captured = captureAssuranceExpectations(env);
@@ -333,7 +334,7 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
     result = await runAssuranceSequence({
       native: () => runHarnessCi(jobPath, { captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;} }),
       prepare: verdict => { assert(captured.nativeCohortCapture, 'ASSURANCE_PREFLIGHT_REQUIRED'); mainDescriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs); },
-      profile: signal => runDivorceProfileAdmission({ artifactPath: job.candidateManifest, browserRoot: job.browserCache, output: profileOutput ?? path.join(job.output, 'private/divorce-profile'), signal, nativeContext: { binding: captured.nativeCohortCapture.binding, expected: mainDescriptor.expected } }),
+      ...(profileOutput === undefined ? {} : {profile: signal => runDivorceProfileAdmission({ artifactPath: job.candidateManifest, browserRoot: job.browserCache, output: profileOutput, signal, nativeContext: { binding: captured.nativeCohortCapture.binding, expected: mainDescriptor.expected } })}),
       personal: signal => {const reference=verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);return runPersonalServiceAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:personalOutput??path.join(job.output,'private/personal-service'),signal,nativeContext:{native:captured.nativeCohortCapture.binding,capture:captured.personalNativeCapture,expected:{...mainDescriptor.expected,personalServiceNativeBinding:reference}}});},
       descriptor: (verdict, request, personalRequest) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, request, personalRequest),
       collect: (nativeEvidencePath, timing) => runHarnessCollection(env, { profile: aat ? "local-aat" : "harness", nativeEvidencePath, ...timing, signal: cancellation.signal }),
