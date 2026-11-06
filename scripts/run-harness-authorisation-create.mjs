@@ -12,34 +12,36 @@ import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
 import {AUTHORISATION_ROW_NO_CREDIT,AUTHORISATION_ROW_ID} from './lib/exui-authorisation-row-contract.mjs';
-import {prepareAuthorisationCreateWorkbook,importAuthorisationCreate,readAuthorisationAclDates,observeAuthorisationCreate,validateAuthorisationCreateObservation,readAuthorisationCreatePacket,AUTH_CREATE_VARIANTS,prepareAuthorisationReadWorkbook,importAuthorisationRead,readAuthorisationReadAclDates,observeAuthorisationRead,validateAuthorisationReadObservation,readAuthorisationReadPacket,AUTH_READ_VARIANTS} from './lib/exui-authorisation-create-runtime.mjs';
+import {prepareAuthorisationCreateWorkbook,importAuthorisationCreate,readAuthorisationAclDates,observeAuthorisationCreate,validateAuthorisationCreateObservation,readAuthorisationCreatePacket,AUTH_CREATE_VARIANTS,prepareAuthorisationReadWorkbook,importAuthorisationRead,readAuthorisationReadAclDates,observeAuthorisationRead,validateAuthorisationReadObservation,readAuthorisationReadPacket,AUTH_READ_VARIANTS,prepareAuthorisationUpdateWorkbook,importAuthorisationUpdate,readAuthorisationUpdateAclDates,observeAuthorisationUpdate,validateAuthorisationUpdateObservation,readAuthorisationUpdatePacket,AUTH_UPDATE_VARIANTS} from './lib/exui-authorisation-create-runtime.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
 const jsonDigest=value=>digestBytes(JSON.stringify(value,null,2)+'\n');
 const fileDigest=file=>{assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,'AUTH_CREATE_PIN_ALIAS');return digestBytes(fs.readFileSync(file));};
 const read=file=>JSON.parse(fs.readFileSync(file));
 export function authorisationCreateProducer() {
  const git=(...args)=>{const result=spawnSync('git',['-C',root,...args],{encoding:'utf8'});assert.equal(result.status,0,'AUTH_CREATE_GIT');return result.stdout.trim();};
- const files=[...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/lib/exui-authorisation-row-contract.mjs','scripts/lib/exui-authorisation-row-fixture.mjs','scripts/fixtures/ccd/authorisation-row-backing.source.json','scripts/lib/exui-authorisation-create-runtime.mjs','scripts/run-harness-authorisation-create.mjs','scripts/run-harness-authorisation-read.mjs'])].sort();
+ const files=[...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/lib/exui-authorisation-row-contract.mjs','scripts/lib/exui-authorisation-row-fixture.mjs','scripts/fixtures/ccd/authorisation-row-backing.source.json','scripts/lib/exui-authorisation-create-runtime.mjs','scripts/run-harness-authorisation-create.mjs','scripts/run-harness-authorisation-read.mjs','scripts/run-harness-authorisation-update.mjs'])].sort();
  assert.equal(git('status','--porcelain'), '','AUTH_CREATE_CLEAN_PRODUCER');
  const hashes=Object.fromEntries(files.map(relative=>[relative,fileDigest(path.join(root,relative))]));
  return {commit:git('rev-parse','HEAD'),sourceDigest:digestBytes(JSON.stringify(hashes)),files:hashes};
 }
 // One process owns both fixed contexts; no persistent child controller is spawned.
-const CREATE=Symbol('create'),READ=Symbol('read');
+const CREATE=Symbol('create'),READ=Symbol('read'),UPDATE=Symbol('update');
 export const authorisationReadProducer=authorisationCreateProducer;
+export const authorisationUpdateProducer=authorisationCreateProducer;
 export const runAuthorisationCreate=(output,options)=>runFixedContexts(output,CREATE,options);
 export const runAuthorisationRead=(output,options)=>runFixedContexts(output,READ,options);
-async function runFixedContexts(output,dimension,{producer=authorisationCreateProducer,prepare=dimension===READ?prepareAuthorisationReadWorkbook:prepareAuthorisationCreateWorkbook,start=startCcdRuntime,importDefinition=dimension===READ?importAuthorisationRead:importAuthorisationCreate,dates=dimension===READ?readAuthorisationReadAclDates:readAuthorisationAclDates,observe=dimension===READ?observeAuthorisationRead:observeAuthorisationCreate,replay=dimension===READ?validateAuthorisationReadObservation:validateAuthorisationCreateObservation,cleanup=cleanupCiCcd,inspect=verifyCcdContainerIdentity,finalReplay=dimension===READ?readAuthorisationReadPacket:readAuthorisationCreatePacket,inspectRemoved=inspectHostContainer,signalTarget=process}={}) {
+export const runAuthorisationUpdate=(output,options)=>runFixedContexts(output,UPDATE,options);
+async function runFixedContexts(output,dimension,{producer=authorisationCreateProducer,prepare=dimension===READ?prepareAuthorisationReadWorkbook:dimension===UPDATE?prepareAuthorisationUpdateWorkbook:prepareAuthorisationCreateWorkbook,start=startCcdRuntime,importDefinition=dimension===READ?importAuthorisationRead:dimension===UPDATE?importAuthorisationUpdate:importAuthorisationCreate,dates=dimension===READ?readAuthorisationReadAclDates:dimension===UPDATE?readAuthorisationUpdateAclDates:readAuthorisationAclDates,observe=dimension===READ?observeAuthorisationRead:dimension===UPDATE?observeAuthorisationUpdate:observeAuthorisationCreate,replay=dimension===READ?validateAuthorisationReadObservation:dimension===UPDATE?validateAuthorisationUpdateObservation:validateAuthorisationCreateObservation,cleanup=cleanupCiCcd,inspect=verifyCcdContainerIdentity,finalReplay=dimension===READ?readAuthorisationReadPacket:dimension===UPDATE?readAuthorisationUpdatePacket:readAuthorisationCreatePacket,inspectRemoved=inspectHostContainer,signalTarget=process}={}) {
  const started=performance.now(),startedAt=new Date().toISOString();
  assert(typeof output==='string'&&path.isAbsolute(output),'AUTH_CREATE_ABSOLUTE_OUTPUT');
  const directory=createFreshHarnessOutput(output,[root]);assert.equal(directory,output,'AUTH_CREATE_OUTPUT_ALIAS');
  // These pins stay in the controller's memory, independent of later packet files.
- const expected={producer:structuredClone(producer()),images:structuredClone(CCD_IMAGES),contexts:[],...(dimension===READ?{dimension:'read'}:{})};
- const summary={schemaVersion:1,kind:dimension===READ?'non-credit-authorisation-read-milestone':'non-credit-authorisation-create-milestone',obligationId:AUTHORISATION_ROW_ID,status:'BLOCKED',startedAt,elapsedMs:0,verificationMs:0,producer:expected.producer,images:expected.images,variants:[],cancelled:false,cleanupComplete:true,...AUTHORISATION_ROW_NO_CREDIT};
+ const expected={producer:structuredClone(producer()),images:structuredClone(CCD_IMAGES),contexts:[],...(dimension===READ?{dimension:'read'}:dimension===UPDATE?{dimension:'update'}:{})};
+ const summary={schemaVersion:1,kind:dimension===READ?'non-credit-authorisation-read-milestone':dimension===UPDATE?'non-credit-authorisation-update-milestone':'non-credit-authorisation-create-milestone',obligationId:AUTHORISATION_ROW_ID,status:'BLOCKED',startedAt,elapsedMs:0,verificationMs:0,producer:expected.producer,images:expected.images,variants:[],cancelled:false,cleanupComplete:true,...AUTHORISATION_ROW_NO_CREDIT};
  const save=()=>writeJsonAtomic(path.join(directory,'summary.json'),summary);save();let cancelled=false,continuationSafe=true,verificationStarted,phase='preparation';
  const cancel=()=>{cancelled=true;};signalTarget.once('SIGINT',cancel);signalTarget.once('SIGTERM',cancel);
  try{
-  for(const variant of dimension===READ?AUTH_READ_VARIANTS:AUTH_CREATE_VARIANTS){
+  for(const variant of dimension===READ?AUTH_READ_VARIANTS:dimension===UPDATE?AUTH_UPDATE_VARIANTS:AUTH_CREATE_VARIANTS){
    await yieldToSignals();assert(!cancelled&&continuationSafe,'AUTH_CREATE_CONTINUATION_UNSAFE');
    const stage={variant,status:'BLOCKED',cleanupComplete:false,setupMs:0,executionMs:0,cleanupMs:0},context={variant};summary.variants.push(stage);expected.contexts.push(context);save();
    const fixture=path.join(directory,variant+'-fixture'),runtime=path.join(directory,variant+'-runtime');let began=performance.now(),executionStarted=false;

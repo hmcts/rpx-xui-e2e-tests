@@ -5,16 +5,17 @@ import os from 'node:os';
 import {spawnSync} from 'node:child_process';
 import {setImmediate as yieldToSignals} from 'node:timers/promises';
 import {fileURLToPath} from 'node:url';
-import {buildAuthorisationCreateDefinition,buildAuthorisationReadDefinition,AUTHORISATION_CONTROL_EVENT} from './exui-authorisation-row-fixture.mjs';
+import {buildAuthorisationCreateDefinition,buildAuthorisationReadDefinition,buildAuthorisationUpdateDefinition,AUTHORISATION_CONTROL_EVENT} from './exui-authorisation-row-fixture.mjs';
 import {AUTHORISATION_ROW_ACTORS,AUTHORISATION_ROW_NO_CREDIT,AUTHORISATION_ROW_ID} from './exui-authorisation-row-contract.mjs';
 import {ccdCredentials,ccdAuthorisationRowCredentials,ccdRequest,verifyCcdContainerIdentity,docker,validateCcdDefinition} from './exui-ccd-runtime.mjs';
 import {digestBytes,writeJsonAtomic} from './exui-evidence-io.mjs';
 
 export const AUTH_CREATE_VARIANTS=Object.freeze(['baseline','remove-create']);
 export const AUTH_READ_VARIANTS=Object.freeze(['baseline','remove-read']);
-const CREATE=Symbol('create'),READ=Symbol('read');
-const variantsFor=mode=>{assert(mode===CREATE||mode===READ,'AUTH_FIXED_DIMENSION');return mode===READ?AUTH_READ_VARIANTS:AUTH_CREATE_VARIANTS;};
-const definitionFor=(mode,variant)=>{assert(variantsFor(mode).includes(variant),mode===READ?'AUTH_READ_VARIANT':'AUTH_CREATE_VARIANT');return mode===READ?buildAuthorisationReadDefinition(variant):buildAuthorisationCreateDefinition(variant);};
+export const AUTH_UPDATE_VARIANTS=Object.freeze(['baseline','remove-update']);
+const CREATE=Symbol('create'),READ=Symbol('read'),UPDATE=Symbol('update');
+const variantsFor=mode=>{assert(mode===CREATE||mode===READ||mode===UPDATE,'AUTH_FIXED_DIMENSION');return mode===READ?AUTH_READ_VARIANTS:mode===UPDATE?AUTH_UPDATE_VARIANTS:AUTH_CREATE_VARIANTS;};
+const definitionFor=(mode,variant)=>{assert(variantsFor(mode).includes(variant),mode===READ?'AUTH_READ_VARIANT':mode===UPDATE?'AUTH_UPDATE_VARIANT':'AUTH_CREATE_VARIANT');return mode===READ?buildAuthorisationReadDefinition(variant):mode===UPDATE?buildAuthorisationUpdateDefinition(variant):buildAuthorisationCreateDefinition(variant);};
 // Register carrier ACL roles and the actors’ existing HARNESS classification role; actor memberships stay unchanged.
 const importRoles=Object.freeze([...AUTHORISATION_ROW_ACTORS,'caseworker-harness-observer','caseworker-harness-allowed','caseworker-harness']);
 const event='serviceOfDocuments',type='HarnessNestedPRL';
@@ -147,7 +148,7 @@ async function observe(mode,state,variant,{request=ccdRequest,isCancelled=()=>fa
  };
  const cases=[];
  for(const {persona,credential} of actors){
-  const caseId=await create(persona+'-target',persona);await snapshot(persona+'-seed-before',caseId);const seed=journal.find(row=>row.label===persona+'-seed-before-state').response.case_data;const seedData={sodAdditionalRecipients:seed.sodAdditionalRecipients,sodAdditionalRecipientsList:seed.sodAdditionalRecipientsList};const seeder=mode===READ?actors.find(row=>row.persona==='courtadmin'):null;await submit(persona+'-seed-target',seeder?'courtadmin':'observer',seeder?.credential??observer,caseId,event,seedData);await submit(persona+'-seed-control','observer',observer,caseId,AUTHORISATION_CONTROL_EVENT,seedData);
+  const caseId=await create(persona+'-target',persona);await snapshot(persona+'-seed-before',caseId);const seed=journal.find(row=>row.label===persona+'-seed-before-state').response.case_data;const seedData={sodAdditionalRecipients:seed.sodAdditionalRecipients,sodAdditionalRecipientsList:seed.sodAdditionalRecipientsList};const seeder=mode!==CREATE?actors.find(row=>row.persona==='courtadmin'):null;await submit(persona+'-seed-target',seeder?'courtadmin':'observer',seeder?.credential??observer,caseId,event,seedData);await submit(persona+'-seed-control','observer',observer,caseId,AUTHORISATION_CONTROL_EVENT,seedData);
   await snapshot(persona+'-before',caseId);const before=journal.find(row=>row.label===persona+'-before-state').response;
   await call(persona+'-read',persona,credential,4452,`${prefix(credential.userId)}/cases/${caseId}`);
   await call(persona+'-history',persona,credential,4452,`${prefix(credential.userId)}/cases/${caseId}/events`);
@@ -162,11 +163,11 @@ async function observe(mode,state,variant,{request=ccdRequest,isCancelled=()=>fa
   }
   cases.push({persona,caseId,controlId});
  }
- return {schemaVersion:1,kind:mode===READ?'non-credit-authorisation-read-observation':'non-credit-authorisation-create-observation',variant,binding:{owner:state.owner,namespace:state.namespace,images:clone(state.images)},obligationId:AUTHORISATION_ROW_ID,actors:actors.map(({persona,credential,details})=>({persona,userId:credential.userId,roles:credential.roles,details})),observerId:observer.userId,bootstrapId:bootstrap.userId,cases,journal,...AUTHORISATION_ROW_NO_CREDIT};
+ return {schemaVersion:1,kind:mode===READ?'non-credit-authorisation-read-observation':mode===UPDATE?'non-credit-authorisation-update-observation':'non-credit-authorisation-create-observation',variant,binding:{owner:state.owner,namespace:state.namespace,images:clone(state.images)},obligationId:AUTHORISATION_ROW_ID,actors:actors.map(({persona,credential,details})=>({persona,userId:credential.userId,roles:credential.roles,details})),observerId:observer.userId,bootstrapId:bootstrap.userId,cases,journal,...AUTHORISATION_ROW_NO_CREDIT};
 }
 
 function validateObservation(mode,value,variant) {
- assert(variantsFor(mode).includes(variant),'AUTH_CREATE_VARIANT');assert.equal(value?.kind,mode===READ?'non-credit-authorisation-read-observation':'non-credit-authorisation-create-observation','AUTH_CREATE_OBSERVATION_KIND');assert.equal(value.schemaVersion,1,'AUTH_CREATE_SCHEMA');assert.equal(value.variant,variant,'AUTH_CREATE_VARIANT');assert.equal(value.obligationId,AUTHORISATION_ROW_ID,'AUTH_CREATE_OBLIGATION');
+ assert(variantsFor(mode).includes(variant),'AUTH_CREATE_VARIANT');assert.equal(value?.kind,mode===READ?'non-credit-authorisation-read-observation':mode===UPDATE?'non-credit-authorisation-update-observation':'non-credit-authorisation-create-observation','AUTH_CREATE_OBSERVATION_KIND');assert.equal(value.schemaVersion,1,'AUTH_CREATE_SCHEMA');assert.equal(value.variant,variant,'AUTH_CREATE_VARIANT');assert.equal(value.obligationId,AUTHORISATION_ROW_ID,'AUTH_CREATE_OBLIGATION');
  for(const [key,expected] of Object.entries(AUTHORISATION_ROW_NO_CREDIT))assert.equal(value[key],expected,'AUTH_CREATE_NO_CREDIT');
  assert.deepEqual(value.actors.map(row=>row.persona),personas,'AUTH_CREATE_ALL_FIVE_ACTORS');assert.deepEqual(value.cases.map(row=>row.persona),personas,'AUTH_CREATE_ALL_FIVE_CASES');
  const identities=new Map(value.actors.map(actor=>[actor.persona,actor.userId]));identities.set('observer',value.observerId);identities.set('bootstrap',value.bootstrapId);
@@ -198,20 +199,29 @@ function validateObservation(mode,value,variant) {
  for(const {persona,caseId,controlId} of value.cases){
   assert(/^\d{16}$/.test(caseId)&&!caseIds.has(caseId),'AUTH_CREATE_DISTINCT_CASES');caseIds.add(caseId);bootstrap(persona+'-target',persona,caseId);
   const seed=snapshot(persona+'-seed-before',caseId),seedData={sodAdditionalRecipients:seed.state.case_data.sodAdditionalRecipients,sodAdditionalRecipientsList:seed.state.case_data.sodAdditionalRecipientsList};
-  write(persona+'-seed-target',mode===READ?'courtadmin':'observer',caseId,event,seedData,true,{seed:true});write(persona+'-seed-control','observer',caseId,AUTHORISATION_CONTROL_EVENT,seedData,true,{seed:true});
+  write(persona+'-seed-target',mode!==CREATE?'courtadmin':'observer',caseId,event,seedData,true,{seed:true});write(persona+'-seed-control','observer',caseId,AUTHORISATION_CONTROL_EVENT,seedData,true,{seed:true});
   const before=snapshot(persona+'-before',caseId);assert.equal(before.state.state,'JUDICIAL_REVIEW','AUTH_CREATE_SOURCE_STATE');assert.equal(before.state.case_data.protectedValue,markers(persona).protectedValue,'AUTH_CREATE_HEALTHY_MARKER');
   for(const id of [event,AUTHORISATION_CONTROL_EVENT])assert.equal(before.history.filter(row=>row.id===id).length,1,'AUTH_CREATE_SEEDED_HISTORY');
-  const actor=identities.get(persona),read=take(persona+'-read',persona,`${prefix(actor)}/cases/${caseId}`),history=take(persona+'-history',persona,`${prefix(actor)}/cases/${caseId}/events`);assert.equal(read.status,200,'AUTH_CREATE_HEALTHY_READ');assert.deepEqual(read.response.case_data,before.state.case_data,'AUTH_CREATE_HEALTHY_READ');assert.equal(history.status,200,'AUTH_CREATE_HEALTHY_HISTORY');if(mode===READ){
+  const actor=identities.get(persona),read=take(persona+'-read',persona,`${prefix(actor)}/cases/${caseId}`),history=take(persona+'-history',persona,`${prefix(actor)}/cases/${caseId}/events`);assert.equal(read.status,200,'AUTH_CREATE_HEALTHY_READ');assert.deepEqual(read.response.case_data,before.state.case_data,'AUTH_CREATE_HEALTHY_READ');assert.equal(history.status,200,'AUTH_CREATE_HEALTHY_HISTORY');if(mode!==CREATE){
    assert(Array.isArray(history.response),'AUTH_READ_HISTORY_SCHEMA');assert.deepEqual(before.state.case_data,seed.state.case_data,'AUTH_READ_SEED_DATA');assert.equal(before.state.version,seed.state.version+2,'AUTH_READ_SEED_VERSION');assert.deepEqual(before.history.slice(2),seed.history,'AUTH_READ_SEED_HISTORY');assert.equal(before.history[0]?.id,AUTHORISATION_CONTROL_EVENT,'AUTH_READ_SEED_CONTROL');assert.equal(before.history[0]?.user_id,value.observerId,'AUTH_READ_SEED_CONTROL_ACTOR');assert.deepEqual(before.history.map(row=>row.id).sort(),['create',event,AUTHORISATION_CONTROL_EVENT].sort(),'AUTH_READ_SEEDED_HISTORY');
-   const targetReadable=variant==='baseline'||!['courtadmin','systemupdate'].includes(persona);
+   const targetReadable=mode===UPDATE||variant==='baseline'||!['courtadmin','systemupdate'].includes(persona);
    const expectedHistory=before.history.filter(row=>row.id===AUTHORISATION_CONTROL_EVENT||(row.id===event&&targetReadable)||(row.id==='create'&&persona==='courtadmin'));
    assert(expectedHistory.length>0,'AUTH_READ_HEALTHY_HISTORY_CONTROL');assert.deepEqual(history.response,expectedHistory,'AUTH_ROW_READ_CAPABILITY');
    assert.equal(before.history.find(row=>row.id===event).user_id,identities.get('courtadmin'),'AUTH_READ_SEED_ACTOR');
   }else {assert.deepEqual(history.response.filter(row=>[event,AUTHORISATION_CONTROL_EVENT].includes(row.id)),before.history.filter(row=>[event,AUTHORISATION_CONTROL_EVENT].includes(row.id)),'AUTH_CREATE_SOURCE_EVENT_READ');}
   const definition=take(persona+'-update',persona,`/aggregated/caseworkers/${actor}/jurisdictions/HARNESS/case-types?access=update`);assert.equal(definition.status,200,'AUTH_CREATE_UPDATE_ROUTE');assert(Array.isArray(definition.response),'AUTH_CREATE_UPDATE_SCHEMA');const types=definition.response.filter(row=>row.id===type);
-  if(persona==='readonly')assert.deepEqual(types,[],'AUTH_CREATE_READONLY_TYPE_U_MASK');else{assert.equal(types.length,1,'AUTH_CREATE_HEALTHY_UPDATE_TYPE');assert(Array.isArray(types[0].events),'AUTH_CREATE_UPDATE_SCHEMA');const events=types[0].events.map(row=>row.id);assert(events.includes(AUTHORISATION_CONTROL_EVENT),'AUTH_CREATE_UPDATE_CONTROL');assert.equal(events.includes(event),['courtadmin','systemupdate'].includes(persona),'AUTH_CREATE_EVENT_U_BASELINE');}
+  if(persona==='readonly')assert.deepEqual(types,[],'AUTH_CREATE_READONLY_TYPE_U_MASK');else{assert.equal(types.length,1,'AUTH_CREATE_HEALTHY_UPDATE_TYPE');assert(Array.isArray(types[0].events),'AUTH_CREATE_UPDATE_SCHEMA');const events=types[0].events.map(row=>row.id);assert(events.includes(AUTHORISATION_CONTROL_EVENT),'AUTH_CREATE_UPDATE_CONTROL');assert.equal(events.includes(event),['courtadmin','systemupdate'].includes(persona)&&!(mode===UPDATE&&variant==='remove-update'),'AUTH_CREATE_EVENT_U_BASELINE');}
+  if(mode===UPDATE){
+   assert.equal(definition.response.length,persona==='readonly'?0:1,'AUTH_UPDATE_EXACT_TYPES');
+   if(persona!=='readonly'){
+    const body=types[0],source=buildAuthorisationUpdateDefinition(variant),expectedIds=[...(persona==='courtadmin'?['create']:[]),...(['courtadmin','systemupdate'].includes(persona)&&variant==='baseline'?[event]:[]),AUTHORISATION_CONTROL_EVENT];
+    assert.equal(body.jurisdiction?.id,'HARNESS','AUTH_UPDATE_JURISDICTION');assert(Number.isSafeInteger(body.version?.number)&&body.version.number>0,'AUTH_UPDATE_VERSION');
+    assert.deepEqual(body.events.map(row=>row.id),expectedIds,'AUTH_ROW_UPDATE_CAPABILITY');
+    assert.deepEqual(body.events.map(row=>row.name),expectedIds.map(id=>source.sheets.CaseEvent.find(row=>row.ID===id).Name),'AUTH_UPDATE_EVENT_ASSOCIATION');
+   }
+  }
   const changed=clone(before.state.case_data);changed.sodAdditionalRecipientsList[0].value.emailInformation.emailName=`Synthetic ${persona} edited`;changed.sodAdditionalRecipientsList[0].value.emailInformation.emailAddress=`synthetic-auth-${persona}-edited@harness.example.com`;
-  const allowed=(mode===READ||variant==='baseline')&&['courtadmin','systemupdate'].includes(persona);
+  const allowed=(mode!==CREATE||variant==='baseline')&&['courtadmin','systemupdate'].includes(persona);
   write(persona+'-target',persona,caseId,event,{sodAdditionalRecipients:changed.sodAdditionalRecipients,sodAdditionalRecipientsList:changed.sodAdditionalRecipientsList},allowed);const after=snapshot(persona+'-after',caseId);
   if(allowed){updated(before,after,changed,event,persona);successful++;}else{assert.deepEqual(after,before,'AUTH_CREATE_DENIED_NO_WRITE');denied++;}
   if(persona==='readonly')assert.equal(controlId,null,'AUTH_CREATE_READONLY_MASK_EXPLICIT');else{
@@ -220,19 +230,31 @@ function validateObservation(mode,value,variant) {
   }
  }
  assert.equal(used.size,value.journal.length,'AUTH_CREATE_UNEXPECTED_REQUEST');
- return {kind:mode===READ?'non-credit-authorisation-read-replay':'non-credit-authorisation-create-replay',variant,actors:5,successfulTargetWrites:successful,deniedTargetWrites:denied,healthyControlWrites:4,groupedSourceCellFaultObserved:variant===(mode===READ?'remove-read':'remove-create'),readonlyDenial:'prerequisite-masked',remaining:[...(mode===READ?['C-context-in-same-cohort']:['R-fault']),'U-fault','date-controls-and-normative-date-contract','remaining-consumer-source-binding','candidate-UI'],...AUTHORISATION_ROW_NO_CREDIT};
+ return {kind:mode===READ?'non-credit-authorisation-read-replay':mode===UPDATE?'non-credit-authorisation-update-replay':'non-credit-authorisation-create-replay',variant,actors:5,successfulTargetWrites:successful,deniedTargetWrites:denied,healthyControlWrites:4,groupedSourceCellFaultObserved:variant===(mode===READ?'remove-read':mode===UPDATE?'remove-update':'remove-create'),readonlyDenial:'prerequisite-masked',remaining:[...(mode===READ?['C-context-in-same-cohort','U-fault']:mode===UPDATE?['C-context-in-same-cohort','R-context-in-same-cohort']:['R-fault','U-fault']),'date-controls-and-normative-date-contract','remaining-consumer-source-binding','candidate-UI'],...AUTHORISATION_ROW_NO_CREDIT};
+}
+
+// The pinned importer gives this Collection a field-prefixed UUID per import.
+// Bind that one generated identity to its own held readback; never strip descriptor IDs.
+function updateCollectionTypeId(body) {
+ const fields=body.case_fields?.filter(row=>row.id==='sodAdditionalRecipientsList');
+ assert.equal(fields?.length,1,'AUTH_UPDATE_COLLECTION_FIELD');
+ const value=fields[0].field_type;
+ assert.equal(value?.type,'Collection','AUTH_UPDATE_COLLECTION_TYPE');
+ assert.equal(value.collection_field_type?.id,'ServeOrgDetails','AUTH_UPDATE_COLLECTION_ELEMENT');
+ assert.match(value.id,/^sodAdditionalRecipientsList-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/,'AUTH_UPDATE_COLLECTION_GENERATED_ID');
+ return value.id;
 }
 
 // Independent post-cleanup replay of the two fixed private observation packets.
 // This is not a catalogue admission API and never grants runtime/release credit.
 function readPacket(mode,directory,expected,{inspect}={}) {
- assert(typeof inspect==='function','AUTH_CREATE_REMOVAL_OBSERVER_REQUIRED');if(mode===READ)assert.equal(expected.dimension,'read','AUTH_READ_EXPECTED_DIMENSION');assert.equal(fs.realpathSync(directory),directory,'AUTH_CREATE_PACKET_ALIAS');
+ assert(typeof inspect==='function','AUTH_CREATE_REMOVAL_OBSERVER_REQUIRED');if(mode!==CREATE)assert.equal(expected.dimension,mode===READ?'read':'update',mode===READ?'AUTH_READ_EXPECTED_DIMENSION':'AUTH_UPDATE_EXPECTED_DIMENSION');assert.equal(fs.realpathSync(directory),directory,'AUTH_CREATE_PACKET_ALIAS');
  const read=relative=>{const file=path.join(directory,relative);assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,'AUTH_CREATE_PACKET_ALIAS');return JSON.parse(fs.readFileSync(file));};
  const pinned=(relative,wanted)=>{assert(typeof wanted==='string'&&/^sha256:[a-f0-9]{64}$/.test(wanted),'AUTH_CREATE_EXPECTED_PIN_REQUIRED');const file=path.join(directory,relative);assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,'AUTH_CREATE_PACKET_ALIAS');assert.equal(digestBytes(fs.readFileSync(file)),wanted,'AUTH_CREATE_PARENT_PIN_MISMATCH');};
  assert.deepEqual(expected.contexts?.map(row=>row.variant),variantsFor(mode),'AUTH_CREATE_PARENT_CONTEXTS');
  const summary=read('summary.json');assert.deepEqual(summary.producer,expected.producer,'AUTH_CREATE_PACKET_PRODUCER');assert.deepEqual(summary.images,expected.images,'AUTH_CREATE_PACKET_IMAGES');assert.equal(summary.cancelled,false,'AUTH_CREATE_PACKET_CANCELLED');assert.equal(summary.cleanupComplete,true,'AUTH_CREATE_PACKET_CLEANUP');assert.deepEqual(summary.variants.map(row=>row.variant),variantsFor(mode),'AUTH_CREATE_PACKET_COMPLETE');
  for(const flag of Object.keys(AUTHORISATION_ROW_NO_CREDIT))assert.equal(summary[flag],false,'AUTH_CREATE_NO_CREDIT');
- const results=[];
+ const results=[],updateDefinitions=[];
  for(const variant of variantsFor(mode)){
   const held=expected.contexts.find(row=>row.variant===variant);
   for(const name of ['definition.json','definition.xlsx','binding.json'])pinned(`${variant}-fixture/${name}`,held.fixture?.[name]);
@@ -257,9 +279,19 @@ function readPacket(mode,directory,expected,{inspect}={}) {
   assert.deepEqual(importRequests.slice(0,importRoles.length).map(row=>row.role),importRoles,'AUTH_CREATE_IMPORT_REGISTRY_ROLES');for(const row of importRequests.slice(0,importRoles.length)){assert.equal(row.port,4451,'AUTH_CREATE_IMPORT_REQUEST');assert.equal(row.route,'/api/user-role','AUTH_CREATE_IMPORT_REQUEST');assert.equal(row.method,'PUT','AUTH_CREATE_IMPORT_REQUEST');assert([200,201,205].includes(row.response.status),'AUTH_CREATE_IMPORT_REQUEST');}
   assert.deepEqual(importRequests[importRoles.length],{kind:'definition-import',port:4451,method:'POST',route:'/import',workbookDigest:binding.workbookDigest,response:imported.imported},'AUTH_CREATE_IMPORT_CAPTURE');
   assert.deepEqual(importRequests[importRoles.length+1],{kind:'definition-readback',port:4451,method:'GET',route:`/api/data/case-type/${type}`,response:imported.observed},'AUTH_CREATE_IMPORT_CAPTURE');
+  if(mode===UPDATE){const collectionTypeId=updateCollectionTypeId(imported.observed.body);for(const persona of personas){const row=observation.journal.find(item=>item.label===persona+'-update');for(const body of row.response){assert.equal(body.version?.number,imported.version,'AUTH_UPDATE_IMPORTED_VERSION');assert.equal(updateCollectionTypeId(body),collectionTypeId,'AUTH_UPDATE_IMPORTED_COLLECTION_ID');}}}
   const replay=validateObservation(mode,observation,variant);assert.deepEqual(stage.replay,replay,'AUTH_CREATE_PACKET_REPLAY_MISMATCH');results.push(replay);
+  if(mode===UPDATE)updateDefinitions.push({version:imported.version,collectionTypeId:updateCollectionTypeId(imported.observed.body),responses:personas.map(persona=>observation.journal.find(row=>row.label===persona+'-update').response)});
  }
- return {kind:mode===READ?'non-credit-authorisation-read-complete-replay':'non-credit-authorisation-create-complete-replay',contexts:results,obligationId:AUTHORISATION_ROW_ID,...AUTHORISATION_ROW_NO_CREDIT};
+ if(mode===UPDATE){
+  const [baseline,fault]=updateDefinitions;
+  for(const [index,persona] of personas.entries()){
+   const expectedResponse=clone(baseline.responses[index]);
+   for(const body of expectedResponse){body.version.number=fault.version;body.case_fields.find(row=>row.id==='sodAdditionalRecipientsList').field_type.id=fault.collectionTypeId;if(['courtadmin','systemupdate'].includes(persona))body.events=body.events.filter(row=>row.id!==event);}
+   assert.deepEqual(fault.responses[index],expectedResponse,'AUTH_UPDATE_ONLY_TARGET_DESCRIPTOR_REMOVED');
+  }
+ }
+ return {kind:mode===READ?'non-credit-authorisation-read-complete-replay':mode===UPDATE?'non-credit-authorisation-update-complete-replay':'non-credit-authorisation-create-complete-replay',contexts:results,obligationId:AUTHORISATION_ROW_ID,...AUTHORISATION_ROW_NO_CREDIT};
 }
 
 export const prepareAuthorisationCreateWorkbook=(...args)=>prepareWorkbook(CREATE,...args);
@@ -278,3 +310,11 @@ export const readAuthorisationReadAclDates=(...args)=>readAclDates(READ,...args)
 export const observeAuthorisationRead=(...args)=>observe(READ,...args);
 export const validateAuthorisationReadObservation=(...args)=>validateObservation(READ,...args);
 export const readAuthorisationReadPacket=(...args)=>readPacket(READ,...args);
+export const prepareAuthorisationUpdateWorkbook=(...args)=>prepareWorkbook(UPDATE,...args);
+export const validateAuthorisationUpdateWorkbook=(...args)=>validateWorkbook(UPDATE,...args);
+export const importAuthorisationUpdate=(...args)=>importDefinition(UPDATE,...args);
+export const expectedAuthorisationUpdateAclRows=(...args)=>expectedAclRows(UPDATE,...args);
+export const readAuthorisationUpdateAclDates=(...args)=>readAclDates(UPDATE,...args);
+export const observeAuthorisationUpdate=(...args)=>observe(UPDATE,...args);
+export const validateAuthorisationUpdateObservation=(...args)=>validateObservation(UPDATE,...args);
+export const readAuthorisationUpdatePacket=(...args)=>readPacket(UPDATE,...args);
