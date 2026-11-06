@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "repository": "hmcts/prl-ccd-definitions",
+  "revision": "694b9951e94369f1394380506960c4f04f25755d",
+  "rowDigestFormat": "sha256 of recursively key-sorted JSON; array order preserved",
+  "sources": [
+    {
+      "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-prod.json",
+      "fileDigest": "sha256:eeca831c3e65e66a8ff889d50c31f9d44d6ebe5fc18e682c86f378a51630a041",
+      "rows": [
+        {
+          "index": 4,
+          "rowDigest": "sha256:8f19efc4e5bd071e10bdacd1f28b25c2e15cc83ef1954c780858d319f59d1555",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-la",
+            "CRUD": "RU"
+          }
+        },
+        {
+          "index": 6,
+          "rowDigest": "sha256:ed0593bbfd00e772eb2b714061239996051e40130a370a20df181d0a1658591d",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-systemupdate",
+            "CRUD": "CRUD"
+          }
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/AuthorisationCaseType/AuthorisationCaseType-nonprod.json",
+      "fileDigest": "sha256:14432c0c56ba6d1c0ecf5a53e4f303bd50e45c932c14aeb4935afd656c4eb764",
+      "rows": [
+        {
+          "index": 4,
+          "rowDigest": "sha256:8f19efc4e5bd071e10bdacd1f28b25c2e15cc83ef1954c780858d319f59d1555",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-la",
+            "CRUD": "RU"
+          }
+        },
+        {
+          "index": 6,
+          "rowDigest": "sha256:ed0593bbfd00e772eb2b714061239996051e40130a370a20df181d0a1658591d",
+          "row": {
+            "LiveFrom": "01/07/2021",
+            "CaseTypeID": "PRLAPPS",
+            "UserRole": "caseworker-privatelaw-systemupdate",
+            "CRUD": "CRUD"
+          }
+        }
+      ]
+    }
+  ]
+}
