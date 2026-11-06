@@ -428,7 +428,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
           oldTokenDigest: transition.oldTokenDigest, status: upstream.status,
           method: request.method, upstreamPath: ccdRoute.upstreamPath,
         }) + "\n");
-      if(complexEmail){const projected=complexTransportProjection({method:request.method,upstreamPath:ccdRoute.upstreamPath,path:ccdRoute.path,body,response:bytes,status:upstream.status,actorId:actor?.userId,ordinal:complexOrdinal+1});if(projected){complexOrdinal++;fs.appendFileSync(`${output}/complex-email-transport.jsonl`,JSON.stringify(projected)+'\n',{mode:0o600});}}
+      if(complexEmail&&ccdRoute){const projected=complexTransportProjection({method:request.method,upstreamPath:ccdRoute.upstreamPath,path:ccdRoute.path,body,response:bytes,status:upstream.status,actorId:actor?.userId,ordinal:complexOrdinal+1});if(projected){complexOrdinal++;fs.appendFileSync(`${output}/complex-email-transport.jsonl`,JSON.stringify(projected)+'\n',{mode:0o600});}}
       fs.appendFileSync(
         `${output}/ccd-requests.jsonl`,
         JSON.stringify({

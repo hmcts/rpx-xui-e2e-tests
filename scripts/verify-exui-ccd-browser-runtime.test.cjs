@@ -658,3 +658,18 @@ test('Complex opt-in journals ordered fixed business projections without credent
 test('old gateway mode creates no Complex journal or body projection',async t=>{
   await withGateway(t,async({request,output})=>{await request('GET','/data/internal/profile');assert.equal(fs.existsSync(path.join(output,'complex-email-transport.jsonl')),false);});
 });
+
+
+test('Complex journal preserves IDAM passthrough before and after a CCD business request',async t=>{
+  const {SHARED_NESTED_SCOPE}=await import('./lib/exui-shared-nested-scope.mjs');
+  const actor='11111111-1111-4111-8111-111111111111',data={protectedValue:'synthetic-protected-original',sodAdditionalRecipientsList:[]};
+  await withGateway(t,async({request,upstream,output})=>{
+    const details=await request('GET','/details');assert.equal(details.status,200);assert.deepEqual(JSON.parse(details.body),{id:'synthetic-user'});
+    assert.equal(fs.readFileSync(path.join(output,'complex-email-transport.jsonl'),'utf8'),'');
+    const created=await request('POST',`/data/caseworkers/${actor}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases`,'allowed',{data,event:{id:'create'}});assert.equal(created.status,201);
+    const userinfo=await request('GET','/userinfo');assert.equal(userinfo.status,200);assert.deepEqual(JSON.parse(userinfo.body),{id:'synthetic-user'});
+    assert.deepEqual(upstream.map(row=>row.url),['http://127.0.0.1:5000/details',`http://127.0.0.1:4452/caseworkers/${actor}/jurisdictions/HARNESS/case-types/HarnessNestedPRL/cases`,'http://127.0.0.1:5000/userinfo']);
+    const rows=fs.readFileSync(path.join(output,'complex-email-transport.jsonl'),'utf8').trim().split('\n').map(JSON.parse);assert.deepEqual(rows.map(row=>[row.ordinal,row.kind]),[[1,'create']]);
+    assert.equal(fs.existsSync(path.join(output,'gateway-errors.jsonl')),false);
+  },null,async url=>new Response(JSON.stringify(url.endsWith('/cases')?{id:'1793646213983629'}:{id:'synthetic-user'}),{status:url.endsWith('/cases')?201:200}),null,SHARED_NESTED_SCOPE,{complexEmail:true});
+});
