@@ -151,6 +151,8 @@ The native Jenkins wrapper preserves each job directory under `functional-output
 
 Native execution prints fixed phase start/completion messages and a heartbeat every minute while awaiting a phase, derived candidate or CCD startup/cleanup. A heartbeat proves only that the coordinator is still waiting; application coverage requires the validated gate result. Detailed subprocess logs remain private.
 
+If controller termination or resource cleanup cannot be certified, assurance withdraws its report and stops before another stage can start. A later cleanup attempt does not erase an earlier uncertain outcome. Private evidence is retained for recovery.
+
 Raw native evidence and detailed diagnostic failures stay under `functional-output/tests/harness/private/`. Both Jenkins jobs publish one **EXUI Assurance Harness** Odhín report at `functional-output/tests/harness/public/odhin/index.html`.
 
 Run `yarn harness:ci` for a diagnostic-only report locally, or `yarn harness:assurance --input /absolute/job.json` to include independently validated native evidence. One Playwright runner executes the retained framework checks and portable models once. The first screen explains what ran, why it matters, and what remains untested: configuration/service catalogue models, cross-service historical defect replays, and Harness framework checks. Group counts and outcomes come from actual records; Build-time Node/pipeline/TypeScript/lint checks are explained separately, not invented as Playwright rows.

@@ -250,13 +250,18 @@ export async function cleanupCiPhase(
     inspect = inspectContainer,
     remove = (id) => command("docker", ["rm", "-f", id]),
     reconcileMs = 1000,
+    terminate = terminateOwnedChild,
   } = {},
 ) {
-  const terminal = await terminateOwnedChild(resource.child, {
+  const terminal = await terminate(resource.child, {
     graceMs: 10000,
   });
   const handoff = path.join(resource.directory, "container-launch.json");
-  if (!fs.existsSync(handoff)) return;
+  if (!fs.existsSync(handoff)) {
+    assert(terminal.observed === true && terminal.forced === false && terminal.cancelled !== true
+      && (!terminal.started || (Number.isInteger(terminal.code) && !terminal.signal)), 'CI_NO_HANDOFF_TERMINATION_UNCERTAIN');
+    return;
+  }
   const expected =
     resource.expectedContainer ??
     captureCiOwnership(
@@ -326,7 +331,7 @@ export function cleanupCiCcd(
   const recoveryPath = path.join(directory, "recovery.json");
   if (!fs.existsSync(recoveryPath)) {
     assert(
-      !fs.existsSync(path.join(directory, "runtime.json")),
+      !fs.existsSync(path.join(directory, "runtime.json")) && !fs.existsSync(path.join(directory, 'creation-attempts.json')),
       "CI_CCD_RECOVERY_REQUIRED",
     );
     return;
@@ -421,6 +426,12 @@ export function cleanupCiCcd(
   stop(recovered);
   for (const identifier of [...checkedNames, ...checkedContainerIds])
     assert.equal(inspect(identifier), null, "CI_CCD_REMOVAL_INCOMPLETE");
+  const journalPath = path.join(directory, 'creation-attempts.json');
+  if (fs.existsSync(journalPath)) {
+    const attempts = read(journalPath);
+    assert(Array.isArray(attempts) && attempts.every(attempt => attempt.state === 'settled'
+      && /^[a-f0-9]{64}$/.test(attempt.containerId)), 'CI_CCD_CREATE_OUTCOME_UNCERTAIN');
+  }
   return { owner: recovery.owner, cleanupComplete: true, checkedNames, checkedContainerIds };
 }
 

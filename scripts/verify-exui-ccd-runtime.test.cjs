@@ -76,6 +76,22 @@ test('partial startup preserves exclusive recovery owner and resource inventory'
   await assert.rejects(startCcdRuntime(directory,{runDocker:()=>assert.fail('Recovery overwritten')}),/CCD_FRESH_OUTPUT_REQUIRED/);
  }finally{fs.rmSync(parent,{recursive:true,force:true});}
 });
+test('uncertain CCD creation is journaled before execution and cannot become safe from later absence',async t=>{
+ const {startCcdRuntime}=await runtime,{cleanupCiCcd}=await import('./lib/exui-candidate-ci-process.mjs');
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const parent=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'ccd-create-uncertain-')),directory=path.join(parent,'runtime');t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ let unsafe=0,stopped=0;
+ const runDocker=args=>{
+  if(args[0]==='image')return JSON.stringify([{Id:args[2],Architecture:'arm64',RepoDigests:['fixture@'+args[2]]}]);
+  assert.equal(args[0],'create');const journal=JSON.parse(fs.readFileSync(path.join(directory,'creation-attempts.json')));
+  assert.equal(journal.length,1);assert.equal(journal[0].state,'pending');assert.equal(journal[0].service,'database');assert.equal(journal[0].containerId,undefined);
+  throw Error('CONTROLLED_CREATE_TIMEOUT');
+ };
+ await assert.rejects(startCcdRuntime(directory,{runDocker,onCreateUncertainty:()=>unsafe++}),/CONTROLLED_CREATE_TIMEOUT/);
+ assert.equal(unsafe,1);
+ assert.throws(()=>cleanupCiCcd(directory,{inspect:()=>null,stop:()=>stopped++}),/CI_CCD_CREATE_OUTCOME_UNCERTAIN/);
+ assert.equal(stopped,1);assert.equal(JSON.parse(fs.readFileSync(path.join(directory,'creation-attempts.json')))[0].state,'pending');
+});
 
 test('reuse changed owner, image or namespace fails before any service request',async()=>{
  const {loadCcdRuntimeForReuse,CCD_IMAGES}=await runtime;

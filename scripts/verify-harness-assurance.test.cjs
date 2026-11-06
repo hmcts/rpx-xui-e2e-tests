@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const api = () => import("./run-harness-assurance.mjs");
+const passedProfileRequest = Object.freeze({path:'/private/profile.json',digest:'sha256:'+'a'.repeat(64),runId:'divorce-11111111-1111-4111-8111-111111111111'});
 
 test("contradictory native status and missing diagnostic exit cannot become success", async () => {
   const { runAssuranceSequence } = await api();
@@ -11,7 +12,7 @@ test("contradictory native status and missing diagnostic exit cannot become succ
   await assert.rejects(
     () =>
       runAssuranceSequence({
-        native: async () => ({ status: "BLOCKED", exitCode: 0 }),
+        native: async () => ({ status: "BLOCKED", exitCode: 0, continuationSafe: true }),
         descriptor: async () => {
           prepared = true;
         },
@@ -23,7 +24,7 @@ test("contradictory native status and missing diagnostic exit cannot become succ
   await assert.rejects(
     () =>
       runAssuranceSequence({
-        native: async () => ({ status: "PASS", exitCode: 0 }),
+        native: async () => ({ status: "PASS", exitCode: 0, continuationSafe: true }),
         descriptor: async () => "/owned/request.json",
         collect: async () => ({ status: "passed" }),
       }),
@@ -38,7 +39,7 @@ test("blocked native policy remains blocked despite a passing diagnostic collect
   const result = await runAssuranceSequence({
     native: async () => {
       order.push("native");
-      return { status: "BLOCKED", exitCode: 2, phaseTimings };
+      return { status: "BLOCKED", exitCode: 2, continuationSafe: true, phaseTimings };
     },
     descriptor: async (verdict) => {
       assert.equal(verdict.status, "BLOCKED");
@@ -65,7 +66,7 @@ test("nonpassing native execution without complete evidence still publishes diag
   const { runAssuranceSequence } = await api();
   for (const [status, exitCode] of [["BLOCKED", 2], ["FAIL", 1]]) {
     const result = await runAssuranceSequence({
-      native: async () => ({ status, exitCode }),
+      native: async () => ({ status, exitCode, continuationSafe: true }),
       descriptor: async () => { throw Error("INCOMPLETE"); },
       collect: async (file) => {
         assert.equal(file, undefined, "incomplete native evidence must receive no report credit");
@@ -84,7 +85,7 @@ test("nonpassing native execution without complete evidence still publishes diag
 test("passing native outcome with incomplete evidence cannot publish a green report", async () => {
   const { runAssuranceSequence } = await api();
   await assert.rejects(() => runAssuranceSequence({
-    native: async () => ({ status: "PASS", exitCode: 0 }),
+    native: async () => ({ status: "PASS", exitCode: 0, continuationSafe: true }),
     descriptor: async () => { throw Error("INCOMPLETE"); },
     collect: async () => ({ status: "passed", exitCode: 0 }),
   }), /INCOMPLETE/);
@@ -92,7 +93,7 @@ test("passing native outcome with incomplete evidence cannot publish a green rep
 test("diagnostic failure also prevents a passing combined command", async () => {
   const { runAssuranceSequence } = await api();
   const result = await runAssuranceSequence({
-    native: async () => ({ status: "PASS", exitCode: 0 }),
+    native: async () => ({ status: "PASS", exitCode: 0, continuationSafe: true }),
     descriptor: async () => "/owned/request.json",
     collect: async () => ({ status: "failed", exitCode: 1 }),
   });
@@ -104,7 +105,7 @@ test("contradictory diagnostic failure with exit zero is rejected", async () => 
   await assert.rejects(
     () =>
       runAssuranceSequence({
-        native: async () => ({ status: "PASS", exitCode: 0 }),
+        native: async () => ({ status: "PASS", exitCode: 0, continuationSafe: true }),
         descriptor: async () => "/owned/request.json",
         collect: async () => ({ status: "failed", exitCode: 0 }),
       }),
@@ -305,7 +306,7 @@ function fixture(t) {
     root,
     captured,
     job: { output: root, expectedArtifactDigest: digest },
-    verdict: { status: "BLOCKED", exitCode: 2 },
+    verdict: { status: "BLOCKED", exitCode: 2, continuationSafe: true },
     write,
   };
 }
@@ -328,8 +329,9 @@ test('explicit profile output still attempts the strict profile and preserves it
  assert.equal(actual.calls.filter(x=>x==='profile').length,1);
  assert.equal(actual.result.profileStatus,'BLOCKED');
  const collections=actual.calls.filter(x=>x.collect);
- assert.equal(collections.length,1);
- assert.equal(collections[0].collect.divorceProfileAttempt.status,'BLOCKED');
+ assert.equal(collections.length,0);
+ assert.equal(actual.result.diagnosticStatus,'not-run');
+ assert.equal(actual.calls.filter(x=>x==='withdraw').length,2);
  assert.equal(actual.result.exitCode,2);
 });
 test('an invalid explicit profile path cannot silently select main-only execution', async t => {
@@ -479,23 +481,49 @@ test('descriptor retains the preflight hash and actual wrapper request pins with
 
 test('canonical joint sequence runs profile after complete blocked main and collects once with disjoint time', async () => {
  const {runAssuranceSequence}=await api();const order=[];let now=0;const request={path:'/private/profile.json',runId:'profile',digest:'sha256:'+'a'.repeat(64)};
- const result=await runAssuranceSequence({clock:()=>now,native:async()=>{order.push('native');now+=100;return {status:'BLOCKED',exitCode:2,phaseTimings:[]};},prepare:async()=>{order.push('prepare');now+=10;},profile:async()=>{order.push('profile');now+=5000;return {status:'passed',reportRequest:request};},descriptor:async(verdict,actual)=>{order.push('descriptor');assert.equal(verdict.status,'BLOCKED');assert.equal(actual,request);now+=20;return '/private/native.json';},collect:async(file,timing)=>{order.push('collect');assert.equal(file,'/private/native.json');assert.equal(timing.nativeElapsedMs,130);assert.equal(timing.divorceProfileAttempt,undefined);return {status:'passed',exitCode:2,divorceProfileInclusion:'included'};}});
+ const result=await runAssuranceSequence({clock:()=>now,native:async()=>{order.push('native');now+=100;return {status: 'BLOCKED', exitCode: 2, continuationSafe: true,phaseTimings:[]};},prepare:async()=>{order.push('prepare');now+=10;},profile:async()=>{order.push('profile');now+=5000;return {status:'passed',reportRequest:request};},descriptor:async(verdict,actual)=>{order.push('descriptor');assert.equal(verdict.status,'BLOCKED');assert.equal(actual,request);now+=20;return '/private/native.json';},collect:async(file,timing)=>{order.push('collect');assert.equal(file,'/private/native.json');assert.equal(timing.nativeElapsedMs,130);assert.equal(timing.divorceProfileAttempt,undefined);return {status:'passed',exitCode:2,divorceProfileInclusion:'included'};}});
  assert.deepEqual(order,['native','prepare','profile','descriptor','collect']);assert.equal(result.nativeStatus,'BLOCKED');assert.equal(result.profileStatus,'PASS');assert.equal(result.exitCode,2);assert.equal(result.releaseApproval,false);
 });
 
-test('canonical joint profile failures remain explicit despite passing main and diagnostics',async()=>{
+test('every thrown profile failure stops before descriptor or diagnostics, including unobserved termination',async()=>{
  const {runAssuranceSequence}=await api();
- for(const fault of ['setup','execution','admission','cleanup']){let collections=0;
-  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{throw Error('PRIVATE-CANARY-'+fault);},descriptor:async(verdict,request)=>{assert.equal(verdict.status,'PASS');assert.equal(request,undefined);return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');assert.equal(timing.divorceProfileAttempt.reason,'profile-not-admitted');assert(!JSON.stringify(timing).includes('PRIVATE-CANARY'));return {status:'passed',exitCode:0};}});
-  assert.equal(collections,1);assert.equal(result.exitCode,2);assert.equal(result.nativeStatus,'PASS');assert.equal(result.profileStatus,'BLOCKED');
+ for(const fault of ['setup','execution','admission','cleanup','unobserved-termination','pending-create']){const calls=[];
+  const result=await runAssuranceSequence({native:async()=>({status: 'PASS', exitCode: 0, continuationSafe: true}),prepare:async()=>{},profile:async()=>{throw Error('PRIVATE-CANARY-'+fault);},descriptor:async()=>{calls.push('descriptor');return '/private/main.json';},collect:async()=>{calls.push('collect');return {status:'passed',exitCode:0};},withdraw:()=>calls.push('withdraw'),publish:value=>calls.push({published:value})});
+  assert.deepEqual(calls,['withdraw',{published:result}]);assert.equal(result.exitCode,2);assert.equal(result.nativeStatus,'PASS');assert.equal(result.profileStatus,'BLOCKED');assert.equal(result.diagnosticStatus,'not-run');assert(!JSON.stringify(result).includes('PRIVATE-CANARY'));
  }
+});
+test('missing or unsupported profile API results cannot launch downstream work',async()=>{
+ const {runAssuranceSequence}=await api();
+ for(const value of [undefined,null,{}, {status:'failed'}, {status:'passed'}, {status:'passed',reportRequest:{}}, {status:'passed',reportRequest:{...passedProfileRequest,path:'relative'}}, {status:'passed',reportRequest:{...passedProfileRequest,digest:'invalid'}}, {status:'passed',reportRequest:{...passedProfileRequest,digest:{toString:()=>passedProfileRequest.digest}}}, {status:'passed',reportRequest:{...passedProfileRequest,runId:''}}]){
+  const calls=[];const result=await runAssuranceSequence({native:async()=>({status: 'PASS', exitCode: 0, continuationSafe: true}),profile:async()=>value,descriptor:async()=>{calls.push('descriptor');return '/private/native';},collect:async()=>{calls.push('collect');return {status:'passed',exitCode:0};},withdraw:()=>calls.push('withdraw')});
+  assert.deepEqual(calls,['withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');assert.equal(result.profileStatus,'BLOCKED');
+ }
+});
+test('native continuation requires the actual controller authority before any later work',async t=>{
+ const {runAssuranceSequence}=await api(),{runNativeController}=require('./fixtures/exui-native-continuation.mock.cjs');
+ for(const mode of ['no-start','clean-fail','remove-retry','uncertain-create','cancelled']){
+  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'native-continuation-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const controller=await runNativeController(root,mode),calls=[],safe=['no-start','clean-fail'].includes(mode);
+  assert.equal(controller.result.continuationSafe,safe,mode);
+  if(mode==='remove-retry')assert.equal(controller.removals,2);
+  const before=controller.privateResult;
+  const result=await runAssuranceSequence({native:async()=>controller.result,prepare:async()=>calls.push('prepare'),descriptor:async()=>{calls.push('descriptor');return '/native';},collect:async()=>{calls.push('collect');return{status:'passed',exitCode:0};},withdraw:()=>calls.push('withdraw')});
+  assert.deepEqual(calls,safe?['prepare','descriptor','collect']:['withdraw'],mode);
+  assert.equal(fs.readFileSync(path.join(root,'output/private/ci-result.json'),'utf8'),before);
+  if(!safe)assert.equal(result.diagnosticStatus,'not-run');
+ }
+});
+test('missing native continuation authority cannot be inferred from a native verdict',async()=>{
+ const {runAssuranceSequence}=await api(),calls=[];
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>calls.push('prepare'),profile:async()=>calls.push('profile'),descriptor:async()=>calls.push('descriptor'),collect:async()=>calls.push('collect'),withdraw:()=>calls.push('withdraw')});
+ assert.deepEqual(calls,['withdraw']);assert.equal(result.exitCode,2);assert.equal(result.profileStatus,'NOT_RUN');assert.equal(result.diagnosticStatus,'not-run');
 });
 
 test('canonical joint skips ineligible profile and bad profile pins cannot replace main evidence',async()=>{
  const {runAssuranceSequence}=await api();let launches=0,collections=0;
- const skipped=await runAssuranceSequence({native:async()=>({status:'BLOCKED',exitCode:2}),prepare:async()=>{throw Error('PRIVATE-CLEANUP');},profile:async()=>{launches++;},descriptor:async()=>{throw Error('INCOMPLETE');},collect:async(file,timing)=>{collections++;assert.equal(file,undefined);assert.equal(timing.divorceProfileAttempt.status,'NOT_RUN');assert.equal(timing.divorceProfileAttempt.reason,'main-evidence-unavailable');return {status:'passed',exitCode:0};}});assert.equal(launches,0);assert.equal(collections,1);assert.equal(skipped.exitCode,2);
+ const skipped=await runAssuranceSequence({native:async()=>({status: 'BLOCKED', exitCode: 2, continuationSafe: true}),prepare:async()=>{throw Error('PRIVATE-CLEANUP');},profile:async()=>{launches++;},descriptor:async()=>{throw Error('INCOMPLETE');},collect:async(file,timing)=>{collections++;assert.equal(file,undefined);assert.equal(timing.divorceProfileAttempt.status,'NOT_RUN');assert.equal(timing.divorceProfileAttempt.reason,'main-evidence-unavailable');return {status:'passed',exitCode:0};}});assert.equal(launches,0);assert.equal(collections,1);assert.equal(skipped.exitCode,2);
  let descriptors=0;collections=0;
- const mismatch=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>({status:'passed',reportRequest:{path:'/stale/profile'}}),descriptor:async(verdict,request)=>{descriptors++;if(request)throw Error('BAD_PROFILE_PIN');return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');return {status:'passed',exitCode:0};}});assert.equal(descriptors,2);assert.equal(collections,1);assert.equal(mismatch.exitCode,2);
+ const mismatch=await runAssuranceSequence({native:async()=>({status: 'PASS', exitCode: 0, continuationSafe: true}),prepare:async()=>{},profile:async()=>({status:'passed',reportRequest:{...passedProfileRequest,path:'/stale/profile'}}),descriptor:async(verdict,request)=>{descriptors++;if(request)throw Error('BAD_PROFILE_PIN');return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');return {status:'passed',exitCode:0};}});assert.equal(descriptors,2);assert.equal(collections,1);assert.equal(mismatch.exitCode,2);
 });
 
 test('canonical joint cancellation prohibits every later child and withdraws report',async()=>{
@@ -503,7 +531,7 @@ test('canonical joint cancellation prohibits every later child and withdraws rep
  for(const stop of ['preflight','native','prepare','profile','descriptor','collect']){
   const controller=new AbortController(),calls=[];let withdrawn=0;if(stop==='preflight')controller.abort();
   const stage=async name=>{calls.push(name);if(stop===name)controller.abort();};
-  const result=await runAssuranceSequence({signal:controller.signal,withdraw:()=>withdrawn++,native:async()=>{await stage('native');return {status:'PASS',exitCode:0};},prepare:async()=>{await stage('prepare');},profile:async()=>{await stage('profile');return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>{await stage('descriptor');return '/native';},collect:async()=>{await stage('collect');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};}});
+  const result=await runAssuranceSequence({signal:controller.signal,withdraw:()=>withdrawn++,native:async()=>{await stage('native');return {status: 'PASS', exitCode: 0, continuationSafe: true};},prepare:async()=>{await stage('prepare');},profile:async()=>{await stage('profile');return {status:'passed',reportRequest:passedProfileRequest};},descriptor:async()=>{await stage('descriptor');return '/native';},collect:async()=>{await stage('collect');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};}});
   assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');assert.equal(withdrawn,1);const expected=['native','prepare','profile','descriptor','collect'];assert.deepEqual(calls,stop==='preflight'?[]:expected.slice(0,expected.indexOf(stop)+1));
  }
 });
@@ -515,8 +543,8 @@ test('canonical joint publishes whole-command BLOCKED without changing passing m
   const binding={synthetic:'parent-captured-output'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(output,'private/native-cohort-binding.json'),bytes);
   const captured={nativeCohortCapture:{binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}}},job={output};
   const main=JSON.stringify({status:'PASS',phaseResults:[{phase:'family',status:'PASS'}]});fs.writeFileSync(path.join(output,'private/ci-result.json'),main);let published=0,collections=0;
-  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{if(profileFails)throw Error('PRIVATE-CANARY');return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>'/native',collect:async()=>{collections++;return {status:'passed',exitCode:0,divorceProfileInclusion:profileFails?undefined:'included'};},publish:value=>{published++;publishAssuranceSummary(job,captured,value);}});
-  assert.equal(published,1);assert.equal(collections,1);assert.equal(result.exitCode,profileFails?2:0);assert.equal(fs.readFileSync(path.join(output,'private/ci-result.json'),'utf8'),main);
+  const result=await runAssuranceSequence({native:async()=>({status: 'PASS', exitCode: 0, continuationSafe: true}),prepare:async()=>{},profile:async()=>{if(profileFails)throw Error('PRIVATE-CANARY');return {status:'passed',reportRequest:passedProfileRequest};},descriptor:async()=>'/native',collect:async()=>{collections++;return {status:'passed',exitCode:0,divorceProfileInclusion:profileFails?undefined:'included'};},publish:value=>{published++;publishAssuranceSummary(job,captured,value);}});
+  assert.equal(published,1);assert.equal(collections,profileFails?0:1);assert.equal(result.exitCode,profileFails?2:0);assert.equal(fs.readFileSync(path.join(output,'private/ci-result.json'),'utf8'),main);
   const summary=validatePublicSummary(path.join(output,'public/release-assurance-summary.json'));assert.equal(summary.status,profileFails?'BLOCKED':'PASS');assert.equal(summary.releaseApproval,false);
  }
  const foreign=fs.mkdtempSync(path.join(os.tmpdir(),'assurance-unowned-'));t.after(()=>fs.rmSync(foreign,{recursive:true,force:true}));fs.writeFileSync(path.join(foreign,'canary'),'untouched');publishAssuranceSummary({output:foreign},{},{exitCode:2});assert.deepEqual(fs.readdirSync(foreign),['canary']);
@@ -524,7 +552,7 @@ test('canonical joint publishes whole-command BLOCKED without changing passing m
 
 test('canonical joint abort after observed profile cleanup cannot start descriptor or diagnostics',async()=>{
  const {runAssuranceSequence}=await api(),controller=new AbortController(),order=[];
- const result=await runAssuranceSequence({signal:controller.signal,native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{order.push('profile');order.push('cleanup-observed');controller.abort();return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>{order.push('descriptor');},collect:async()=>{order.push('diagnostics');},withdraw:()=>order.push('withdraw')});assert.deepEqual(order,['profile','cleanup-observed','withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');
+ const result=await runAssuranceSequence({signal:controller.signal,native:async()=>({status: 'PASS', exitCode: 0, continuationSafe: true}),prepare:async()=>{},profile:async()=>{order.push('profile');order.push('cleanup-observed');controller.abort();return {status:'passed',reportRequest:passedProfileRequest};},descriptor:async()=>{order.push('descriptor');},collect:async()=>{order.push('diagnostics');},withdraw:()=>order.push('withdraw')});assert.deepEqual(order,['profile','cleanup-observed','withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');
 });
 test('invalid personal-only preflight preserves valid main and DIVORCE facts and overwrites stale PASS summary with BLOCKED',async t=>{
  const {runAssuranceSequence,buildNativeDescriptor,writeNativeDescriptor,publishAssuranceSummary}=await api(),f=fixture(t),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs'),{verifyPersonalNativeCapture}=await import('./lib/exui-personal-service-admission.mjs');
