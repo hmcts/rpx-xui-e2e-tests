@@ -18,16 +18,18 @@ const defaults={start:startCcdRuntime,prepare:prepareComplexEmailImport,import:i
 function git(args){const result=spawnSync('git',args,{cwd:root,encoding:'utf8'});assert.equal(result.status,0,'COMPLEX_MAPPING_SOURCE_GIT');return result.stdout.trim();}
 function sourceIdentity(){assert.equal(git(['status','--porcelain']),'','COMPLEX_MAPPING_SOURCE_CLEAN');return {commit:git(['rev-parse','HEAD']),tree:git(['rev-parse','HEAD^{tree}'])};}
 
-export async function runComplexEmailMappingPair(output,{operations=defaults,isCancelled=()=>false}={}) {
+export async function runComplexEmailMappingPair(output,{operations=defaults,isCancelled=()=>false,complexLifecycle}={}) {
+ assert(complexLifecycle===undefined||['creationStarted','prepared','completed','closed'].every(key=>typeof complexLifecycle[key]==='function'),'COMPLEX_MAPPING_LIFECYCLE');
  const summary={schemaVersion:1,kind:'complex-email-searchable-mapping-feasibility',status:'in-progress',sourceContext:COMPLEX_MAPPING_SOURCE_CONTEXT,scope:'CCD import-generated mappings only; synthetic searchable direct parent; no indexing, query, EXUI or LiveFrom activation claim',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false,cleanupComplete:false,invocations:[]};
  const save=()=>writeJsonAtomic(path.join(output,'receipt.json'),summary);save();
  const mappings=[];
  for(const variant of ['baseline','searchable']) {
   const directory=path.join(output,variant);fs.mkdirSync(directory,{mode:0o700});
   const runtime=path.join(directory,'runtime'),invocation={variant,status:'in-progress',startedAt:new Date().toISOString(),cleanupComplete:false};summary.invocations.push(invocation);save();
-  const start=performance.now();let phase='startup',successfulStart=false,createAttempted=false,cleanupUncertain=false;
+  const start=performance.now();let heldState,heldImport;let phase='startup',successfulStart=false,createAttempted=false,cleanupUncertain=false;
   try {
    assert(!isCancelled(),'COMPLEX_MAPPING_CANCELLED');
+   complexLifecycle?.creationStarted({variant,runtimeDirectory:runtime});
    const state=await operations.start(runtime,{
     platform:'linux/arm64',fixtureSelection:'event-capability-baseline',elasticsearch:true,isCancelled,
     runDocker:(args,input)=>{
@@ -39,7 +41,7 @@ export async function runComplexEmailMappingPair(output,{operations=defaults,isC
       return result;
      }catch(error){if(creating)cleanupUncertain=true;throw error;}
     },
-   });successfulStart=true;
+   });successfulStart=true;heldState=structuredClone(state);
    invocation.owner=state.owner;invocation.namespace=state.namespace;invocation.images=state.images;
    assert.equal(state.images.definition?.id,COMPLEX_MAPPING_SOURCE_CONTEXT.definitionImage,'COMPLEX_MAPPING_DEFINITION_IMAGE');
    phase='pre-import-health';writeJsonAtomic(path.join(directory,'before.json'),operations.observe(state,{beforeImport:true}));
@@ -47,17 +49,20 @@ export async function runComplexEmailMappingPair(output,{operations=defaults,isC
    phase='prepare-import';await operations.prepare(path.join(directory,'fixture'),variant);
    phase='real-import';const imported=await operations.import(state,{fixtureDirectory:path.join(directory,'fixture'),variant});
    assert.equal(imported.status,'import-and-complex-metadata-observed','COMPLEX_MAPPING_IMPORT_REQUIRED');
-   writeJsonAtomic(path.join(directory,'import.json'),imported);
+   writeJsonAtomic(path.join(directory,'import.json'),imported);heldImport=structuredClone(imported);
+   complexLifecycle?.prepared({variant,directory,state:heldState,imported:heldImport});
    assert(!isCancelled(),'COMPLEX_MAPPING_CANCELLED');
    phase='actual-mapping';const observed=operations.observe(state);writeJsonAtomic(path.join(directory,'mapping.json'),observed);
    const mapping=validateComplexEmailMapping(observed,variant);mappings.push(mapping);
    invocation.mappingDigest=digestBytes(JSON.stringify(observed));invocation.status='mapping-observed';
    if(variant==='searchable'){phase='source-fault';summary.fault=compareComplexEmailMappings(mappings[0],mappings[1]);}
+   complexLifecycle?.completed({variant,directory,state:heldState,imported:heldImport,observed});
   } catch(error) {invocation.status='BLOCKED';invocation.failedPhase=phase;invocation.diagnostic=classifyNativeFailure(error);}
   finally {
    const cleanupStarted=performance.now();
    try {const cleanup=operations.cleanup(runtime);if(successfulStart||createAttempted||cleanup!==undefined)assert.equal(cleanup?.cleanupComplete,true,'COMPLEX_MAPPING_CLEANUP_RECEIPT_REQUIRED');assert(!cleanupUncertain,'COMPLEX_MAPPING_CLEANUP_UNCERTAIN');writeJsonAtomic(path.join(directory,'cleanup.json'),cleanup??{cleanupComplete:true,noRecoveryRequired:true});invocation.cleanupComplete=true;}catch(error){cleanupUncertain=true;invocation.cleanupComplete=false;invocation.status='BLOCKED';invocation.cleanupDiagnostic=classifyNativeFailure(error);}
    invocation.cleanupDurationMs=Math.round(performance.now()-cleanupStarted);invocation.durationMs=Math.round(performance.now()-start);invocation.endedAt=new Date().toISOString();save();
+   complexLifecycle?.closed({variant,directory,state:heldState,cleanupComplete:invocation.cleanupComplete,cleanupUncertain,cancelled:isCancelled()});
   }
   if(invocation.status==='BLOCKED'||!invocation.cleanupComplete)break;
  }

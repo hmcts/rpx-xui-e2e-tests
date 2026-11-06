@@ -6,7 +6,7 @@ const path = require('node:path');
 test('fixed application-source verifier rejects missing, extra, drifted and shadowed evidence', () => {
   const result = spawnSync('python3', [path.join(__dirname, 'verify-complex-email-application-source.test.py')], {encoding: 'utf8', timeout: 30000});
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stderr, /Ran 11 tests/);
+  assert.match(result.stderr, /Ran 15 tests/);
 });
 
 test('source verifier CLI fails closed without leaking input paths and requires no private helper', () => {

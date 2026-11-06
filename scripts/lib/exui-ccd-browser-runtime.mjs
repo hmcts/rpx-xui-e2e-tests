@@ -1,3 +1,4 @@
+import {complexTransportProjection} from './exui-complex-email-transport.mjs';
 const SELECTOR_EVENT_SCOPE = "exui-ccd-selector-event-row-pilot";
 import {SHARED_NESTED_SCOPE} from './exui-shared-nested-scope.mjs';
 import {resultTransportRoute,resultSupportingResponse} from './exui-results-ui-contract.mjs';
@@ -178,8 +179,11 @@ function ccdTransportRoute(method, pathname, scope) {
 // CCD owns every baseline case/event response. The explicit callback opt-in adds
 // only the bounded synthetic recipient transport responder, never production PRL logic.
 export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
-  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns", "personalService"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
-  const { recipientCallback, workbasket, resultColumns, personalService } = options;
+  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns", "personalService", "complexEmail"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
+  const { recipientCallback, workbasket, resultColumns, personalService, complexEmail } = options;
+  if(complexEmail!==undefined){assert.equal(complexEmail,true,"COMPLEX_GATEWAY_OPT_IN");assert.equal(scope,SHARED_NESTED_SCOPE,"COMPLEX_GATEWAY_SCOPE");assert.equal(mutation,null,"COMPLEX_GATEWAY_DEFINITION_ONLY");assert([recipientCallback,workbasket,resultColumns,personalService].every(v=>v===undefined),"COMPLEX_GATEWAY_EXCLUSIVE");}
+  let complexOrdinal=0;
+  if(complexEmail)fs.writeFileSync(`${output}/complex-email-transport.jsonl`,'',{flag:'wx',mode:0o600});
   if(personalService!==undefined){assert.equal(personalService,true,'PERSONAL_SERVICE_GATEWAY_OPT_IN');assert.equal(scope,EVENT_CAPABILITY_SCOPE,'PERSONAL_SERVICE_GATEWAY_SCOPE');assert.equal(resultColumns,undefined,'PERSONAL_SERVICE_GATEWAY_EXCLUSIVE');assert.equal(workbasket,undefined,'PERSONAL_SERVICE_GATEWAY_EXCLUSIVE');assert.equal(mutation,null,'PERSONAL_SERVICE_DEFINITION_FAULT_ONLY');}
   if(resultColumns!==undefined){assert.equal(resultColumns,true,"RESULT_UI_GATEWAY_OPT_IN");assert.equal(recipientCallback,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(workbasket,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(mutation,null,"RESULT_UI_BASELINE_ONLY");}
   assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
@@ -424,6 +428,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
           oldTokenDigest: transition.oldTokenDigest, status: upstream.status,
           method: request.method, upstreamPath: ccdRoute.upstreamPath,
         }) + "\n");
+      if(complexEmail){const projected=complexTransportProjection({method:request.method,upstreamPath:ccdRoute.upstreamPath,path:ccdRoute.path,body,response:bytes,status:upstream.status,actorId:actor?.userId,ordinal:complexOrdinal+1});if(projected){complexOrdinal++;fs.appendFileSync(`${output}/complex-email-transport.jsonl`,JSON.stringify(projected)+'\n',{mode:0o600});}}
       fs.appendFileSync(
         `${output}/ccd-requests.jsonl`,
         JSON.stringify({

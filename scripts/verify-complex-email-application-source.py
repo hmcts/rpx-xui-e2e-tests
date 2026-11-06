@@ -9,6 +9,8 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
+import time
 import subprocess
 import sys
 import zipfile
@@ -77,6 +79,60 @@ def compare_output(output, expected):
         'mismatches': [name for name in sorted(set(expected) & set(actual)) if actual[name] != expected[name]],
         'matches': sum(actual.get(name) == hashed for name, hashed in expected.items()),
     }
+
+
+def run_fixed_compiler(command, *, cwd, env, log, receipt, timeout=180, launch=subprocess.Popen):
+    """Own exactly this compiler; bounded observed stop fits the parent grace."""
+    child = None
+    cancelled = False
+    forwarded = False
+    forced = False
+    cancellation_deadline = None
+    def interrupt(_signal, _frame):
+        nonlocal cancelled, forwarded, cancellation_deadline
+        cancelled = True
+        if cancellation_deadline is None: cancellation_deadline = time.monotonic() + 5
+        if child is not None and child.poll() is None and not forwarded:
+            forwarded = True
+            try: child.terminate()
+            except ProcessLookupError: pass
+    previous = {number: signal.getsignal(number) for number in [signal.SIGINT, signal.SIGTERM]}
+    for number in previous: signal.signal(number, interrupt)
+    started = time.monotonic()
+    code = None
+    try:
+        require(not cancelled, 'COMPILER_CANCELLED')
+        child = launch(command, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT)
+        if cancelled: interrupt(signal.SIGTERM, None)
+        while child.poll() is None:
+            now = time.monotonic()
+            if not cancelled and now - started >= timeout: interrupt(signal.SIGTERM, None)
+            if cancelled and now >= cancellation_deadline:
+                if forced: raise ValueError('COMPLEX_APPLICATION_COMPILER_TERMINATION_UNOBSERVED')
+                child.kill()
+                forced = True
+                cancellation_deadline = now + 2
+            try:
+                code = child.wait(timeout=0.1)
+                break
+            except subprocess.TimeoutExpired: pass
+        if code is None: code = child.wait(timeout=0.1)
+    finally:
+        try:
+            if child is not None and child.poll() is None:
+                child.terminate()
+                try: child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=2)
+        finally:
+            for number, handler in previous.items(): signal.signal(number, handler)
+    save(receipt, {'kind': 'fixed-application-compiler-terminal', 'pid': child.pid if child else None,
+                   'started': child is not None, 'observed': True, 'code': code if code is not None and code >= 0 else None,
+                   'signal': -code if code is not None and code < 0 else None, 'cancelled': cancelled, 'forced': forced,
+                   'durationMs': round((time.monotonic() - started) * 1000), **FLAGS})
+    require(not cancelled, 'COMPILER_CANCELLED')
+    return code
 
 
 def verify_definition(args):
@@ -190,8 +246,10 @@ def verify(args):
     actual_inputs.extend({'path': str(source / row['source']), 'digest': row['sourceDigest']} for row in witness['sources'])
     compiler = args.java_home / 'bin/javac'
     environment = {'PATH': str(args.java_home / 'bin') + ':/usr/bin:/bin', 'JAVA_HOME': str(args.java_home), 'LANG': 'en_US.UTF-8'}
-    version = subprocess.run([str(compiler), '-version'], env=environment, capture_output=True, timeout=30, check=False)
-    require(version.returncode == 0 and version.stdout.decode().strip() == witness['compilerVersion'], 'COMPILER_VERSION')
+    with (args.output / 'compiler-version.log').open('x') as version_log:
+        os.fchmod(version_log.fileno(), 0o600)
+        version_code = run_fixed_compiler([str(compiler), '-version'], cwd=source, env=environment, log=version_log, receipt=args.output / 'compiler-version-shutdown.json', timeout=30)
+    require(version_code == 0 and (args.output / 'compiler-version.log').read_text().strip() == witness['compilerVersion'], 'COMPILER_VERSION')
     classes, generated, empty = [args.output / name for name in ['classes', 'generated', 'empty-sourcepath']]
     for directory in [classes, generated, empty]: directory.mkdir(mode=0o700)
     command = [str(compiler), '-g', '-parameters', '-encoding', 'UTF-8', '--release', '21', '-implicit:none',
@@ -209,16 +267,16 @@ def verify(args):
     check_inputs(immutable + actual_inputs)
     with (args.output / 'javac.log').open('x') as log:
         os.fchmod(log.fileno(), 0o600)
-        result = subprocess.run(command, cwd=source, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=180, check=False)
+        compiler_exit = run_fixed_compiler(command, cwd=source, env=environment, log=log, receipt=args.output / 'compiler-shutdown.json')
     observed = compare_output(classes, expected)
     unchanged = True
     try:
         check_inputs(immutable + actual_inputs)
     except ValueError:
         unchanged = False
-    passed = result.returncode == 0 and unchanged and not any(observed[key] for key in ['missing', 'extra', 'mismatches'])
+    passed = compiler_exit == 0 and unchanged and not any(observed[key] for key in ['missing', 'extra', 'mismatches'])
     observed.update({'kind': preexecution['kind'], 'status': 'APPLICATION_CLASS_BYTES_IDENTICAL' if passed else 'BLOCKED',
-                     'compilerExitCode': result.returncode, 'inputsUnchanged': unchanged, 'sourceFiles': 560,
+                     'compilerExitCode': compiler_exit, 'inputsUnchanged': unchanged, 'sourceFiles': 560,
                      'expectedClasses': 635, 'scope': 'eight source-project application modules only; excludes third-party/Boot loader/resources/configuration/original-build provenance/activation/admission', **FLAGS})
     save(args.output / 'result.json', observed)
     return observed

@@ -64,6 +64,88 @@ class ApplicationSourceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'INPUT_DRIFT'):
                     binding.check_inputs([{'path': str(p), 'digest': binding.digest(b'expected')}])
 
+class CompilerOwnershipTests(unittest.TestCase):
+    def test_actual_child_normal_terminal_is_recorded(self):
+        class Child:
+            pid = 42
+            def poll(self): return 0
+            def wait(self, timeout): return 0
+        with tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory) / 'terminal.json'
+            with (Path(directory) / 'log').open('w') as log:
+                code = binding.run_fixed_compiler(['fixed-javac'], cwd=directory, env={}, log=log, receipt=receipt, launch=lambda *a, **k: Child())
+            self.assertEqual(code, 0)
+            import json
+            value = json.loads(receipt.read_text())
+            self.assertTrue(value['observed']); self.assertFalse(value['cancelled']); self.assertFalse(value['forced'])
+
+    def test_spawn_window_interrupt_forwards_then_waits_before_receipt(self):
+        events = []
+        class Child:
+            pid = 43
+            stopped = False
+            def poll(self): return -15 if self.stopped else None
+            def terminate(self): events.append('terminate'); self.stopped = True
+            def wait(self, timeout): events.append('wait'); return -15
+        child = Child()
+        def launch(*a, **k):
+            binding.signal.getsignal(binding.signal.SIGTERM)(binding.signal.SIGTERM, None)
+            events.append('launch-return')
+            return child
+        with tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory) / 'terminal.json'
+            with (Path(directory) / 'log').open('w') as log:
+                with self.assertRaisesRegex(ValueError, 'COMPILER_CANCELLED'):
+                    binding.run_fixed_compiler(['fixed-javac'], cwd=directory, env={}, log=log, receipt=receipt, launch=launch)
+            import json
+            value = json.loads(receipt.read_text())
+            self.assertEqual(events, ['launch-return', 'terminate', 'wait'])
+            self.assertTrue(value['observed']); self.assertTrue(value['cancelled']); self.assertEqual(value['signal'], 15)
+    def test_signal_during_wait_ignoring_term_is_killed_and_observed_within_parent_grace(self):
+        clock = [0.0]
+        events = []
+        class Child:
+            pid = 44
+            killed = False
+            signalled = False
+            def poll(self): return -9 if self.killed else None
+            def terminate(self): events.append('term-ignored')
+            def kill(self): events.append('kill'); self.killed = True
+            def wait(self, timeout):
+                clock[0] += timeout
+                if not self.signalled:
+                    self.signalled = True
+                    binding.signal.getsignal(binding.signal.SIGTERM)(binding.signal.SIGTERM, None)
+                if self.killed: events.append('observed'); return -9
+                raise binding.subprocess.TimeoutExpired('fixed-javac', timeout)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(binding.time, 'monotonic', side_effect=lambda: clock[0]):
+            receipt = Path(directory) / 'terminal.json'
+            with (Path(directory) / 'log').open('w') as log:
+                with self.assertRaisesRegex(ValueError, 'COMPILER_CANCELLED'):
+                    binding.run_fixed_compiler(['fixed-javac'], cwd=directory, env={}, log=log, receipt=receipt, launch=lambda *a, **k: Child())
+            import json
+            value = json.loads(receipt.read_text())
+            self.assertEqual(events, ['term-ignored', 'kill', 'observed'])
+            self.assertLess(value['durationMs'], 8000)
+            self.assertTrue(value['forced']); self.assertTrue(value['observed']); self.assertEqual(value['signal'], 9)
+
+    def test_signal_during_handler_restoration_cannot_return_success(self):
+        class Child:
+            pid = 45
+            def poll(self): return 0
+            def wait(self, timeout): return 0
+        real_signal = binding.signal.signal
+        installed = []
+        def install(number, handler):
+            if callable(handler): installed.append(handler)
+            elif installed: installed[0](number, None)
+            return real_signal(number, handler)
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(binding.signal, 'signal', side_effect=install):
+            with (Path(directory) / 'log').open('w') as log:
+                with self.assertRaisesRegex(ValueError, 'COMPILER_CANCELLED'):
+                    binding.run_fixed_compiler(['fixed-javac'], cwd=directory, env={}, log=log, receipt=Path(directory) / 'terminal.json', launch=lambda *a, **k: Child())
+
+
 class DefinitionImageTests(unittest.TestCase):
     def setUp(self):
         spec = importlib.util.spec_from_file_location('image_binding', Path(__file__).with_name('verify-definition-image-binding.py'))
