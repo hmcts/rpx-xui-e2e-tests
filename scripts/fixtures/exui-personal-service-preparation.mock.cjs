@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{pat
 exports.preparationCancellation=async(t,mode,{old=false}={})=>{
  const root=path.resolve(__dirname,'../..'),dir=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'personal-cancel-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
  for(const name of ['candidate','browser'])fs.mkdirSync(path.join(dir,name));
- const statePath=path.join(dir,'state.mjs');fs.writeFileSync(statePath,`export const state={mode:${JSON.stringify(mode)},abort:new AbortController(),runtime:0,imports:0,cleanup:0};`);
+ const statePath=path.join(dir,'state.mjs');fs.writeFileSync(statePath,`export const state={mode:${JSON.stringify(mode)},abort:new AbortController(),runtime:0,imports:0,cleanup:0,cleanupLookups:0};`);
  const stateUrl=pathToFileURL(statePath).href,sourcePath=path.join(root,'scripts/run-harness-recipient-callback-ui.mjs');
  let source=fs.readFileSync(sourcePath,'utf8');
  if(old)source=source.replace('cancelled||Boolean(signal?.aborted)','cancelled').replace("signal?.addEventListener('abort',cancel,{once:true});",'');
@@ -11,7 +11,7 @@ exports.preparationCancellation=async(t,mode,{old=false}={})=>{
   './lib/exui-harness-dependencies.mjs':`import {state} from ${JSON.stringify(stateUrl)};export async function verifyHarnessDependencies(){await Promise.resolve();if(state.mode==='dependencies')state.abort.abort();return {digest:'sha256:'+'b'.repeat(64)};}`,
   './lib/exui-configuration-catalogue.mjs':`export const assertCandidateConfigurationSources=()=>{};`,
   './lib/exui-ccd-runtime.mjs':`import fs from 'node:fs';import {state} from ${JSON.stringify(stateUrl)};export * from ${JSON.stringify(pathToFileURL(path.join(root,'scripts/lib/exui-ccd-runtime.mjs')).href)};export async function startCcdRuntime(output,options){state.runtime++;state.cancelledAtLaunch=options.isCancelled();fs.mkdirSync(output,{recursive:true});fs.writeFileSync(output+'/recovery.json','{}');if(state.mode==='started')state.abort.abort();return {};}`,
-  './lib/exui-candidate-ci-process.mjs':`import {state} from ${JSON.stringify(stateUrl)};export function cleanupCiCcd(){state.cleanup++;return {cleanupComplete:true};}`,
+  './lib/exui-candidate-ci-process.mjs':`import fs from 'node:fs';import assert from 'node:assert/strict';import {state} from ${JSON.stringify(stateUrl)};export function cleanupCiCcd(directory){state.cleanupLookups++;if(!fs.existsSync(directory+'/recovery.json')){assert(!fs.existsSync(directory+'/runtime.json')&&!fs.existsSync(directory+'/creation-attempts.json'));return;}state.cleanup++;return {cleanupComplete:true};}`,
   './lib/exui-recipient-callback-import.mjs':`import {state} from ${JSON.stringify(stateUrl)};export const validateObservedRecipientCallback=()=>{};export async function prepareRecipientCallbackImport(){state.imports++;throw Error('IMPORT_MUST_NOT_RUN');}export async function importRecipientCallback(){state.imports++;throw Error('IMPORT_MUST_NOT_RUN');}`,
   'node:child_process':`export function spawnSync(command,args){return {status:0,stdout:args.includes('status')?'':'a'.repeat(40)};}`,
  };

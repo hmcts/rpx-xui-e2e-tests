@@ -248,4 +248,11 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/recipient-callback-ui-tools.mjs",
   "src/tests/harness/callback-feasibility/recipient-callback.spec.ts",
   "src/tests/harness/callback-feasibility/selector-event-row.spec.ts",
+  // Complex-email feasibility shares this sealed provider and runner transport.
+  "scripts/lib/exui-feasibility-gateway.mjs",
+  "scripts/lib/exui-complex-email-import.mjs",
+  "scripts/lib/exui-complex-email-classification.mjs",
+  "scripts/lib/exui-complex-email-text.mjs",
+  "src/fixtures/harnessComplexEmail.ts",
+  "src/tests/harness/callback-feasibility/complex-email-text.spec.ts",
 ]);

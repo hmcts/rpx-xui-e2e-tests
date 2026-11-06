@@ -107,7 +107,7 @@ test('coherently moved validation remains outside its trigger window through the
 });
 for(const mode of ['artifact','dependencies','started'])test('latched cancellation during personal '+mode+' preparation prevents later runtime/import/proof and cleans owned startup',async t=>{
  const {preparationCancellation}=require('./fixtures/exui-personal-service-preparation.mock.cjs'),r=await preparationCancellation(t,mode);
- assert.equal(r.state.runtime,mode==='started'?1:0);assert.equal(r.state.imports,0);assert.equal(r.state.cleanup,mode==='started'?1:0);assert(r.error||r.result?.status==='cancelled');if(r.result)assert.equal(r.result.nativeCleanupComplete,true);
+ assert.equal(r.state.runtime,mode==='started'?1:0);assert.equal(r.state.imports,0);assert.equal(r.state.cleanup,mode==='started'?1:0);assert.equal(r.state.cleanupLookups,mode==='artifact'?0:1);assert(r.error||r.result?.status==='cancelled');if(r.result)assert.equal(r.result.nativeCleanupComplete,true);
  const old=await preparationCancellation(t,mode,{old:true});assert(mode==='started'?old.state.imports>0:old.state.runtime>0,'controlled lost-signal mutation must expose the cancellation gap');
 });
 test('synchronous abort during personal child launch is rechecked after the child handle exists',async t=>{

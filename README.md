@@ -194,3 +194,19 @@ The selector phase is mandatory in the standard Harness run; “optional” desc
 Four baseline facets cover email/post with one/two recipients. The three controlled faults remove email data, an optional postal child or the second recipient. A failed baseline stops the fault batch: the report shows actual failed facets and faults **NOT RUN**, never effective faults. This opt-in command leaves the six existing pilot policies, default CCD proofs and Jenkins phase selection unchanged.
 
 The full shared renderer requirement still needs all four complete baselines, all three effective faults and independently bound source/runtime evidence before it can receive credit. This attachment grants no catalogue or release credit. In particular, the source collection PostCode MANDATORY override must block CYA when that child is blank; the distinct root PostalInformation OPTIONAL override does not remove that obligation. A reproduced failure remains an explicit Harness gap; this repository does not change toolkit or CCD product code.
+
+### Optional CCD application-class reproduction
+
+This artifact verifier reproduces all635 Java classes in eight application modules from source commit `120b9a23`, against the reviewed JAR from pinned ARM64 definition image `4c6b17`. It uses a fixed cached Temurin21.0.12 macOS ARM64 compiler, Lombok1.18.46 and MapStruct1.6.3. It never downloads dependencies or grants runtime, catalogue or release credit.
+
+```sh
+python3 scripts/verify-complex-email-application-source.py \
+  --source-archive /absolute/source.tar.gz \
+  --image-jar /absolute/case-definition-store-api.jar \
+  --java-home /absolute/temurin-21.0.12-macos-arm64 \
+  --lombok /absolute/lombok-1.18.46.jar \
+  --mapstruct /absolute/mapstruct-processor-1.6.3.jar \
+  --output /absolute/fresh-private-output
+```
+
+Create the source archive with `git archive --format=tar.gz --prefix=source/ 120b9a232f7b617d03faf68ad2d8e63a0afb0442` from an existing source checkout. Every input must match the tracked [fixed witness](scripts/fixtures/ccd/complex-email-application-class-witnesses.json). The verifier checks the complete class inventory and bytes, including generated classes, and retains private input pins, compiler diagnostics and `result.json`. A missing input or mismatch stops verification. This establishes application Java-class equivalence only; third-party code, resources, configuration, original build provenance and activation behavior remain outside its scope. It is separate from the default CI run.
