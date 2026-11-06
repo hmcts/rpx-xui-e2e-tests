@@ -24,6 +24,13 @@ export function selectorValidationProjection(body, url) {
   };
 }
 
+// Only the fixed synthetic personal-service row is journalled; no arbitrary payloads.
+export function personalServiceValidationProjection(body,url) {
+ let payload;try{payload=JSON.parse(body);}catch{payload={};}
+ const answer=payload?.data?.sodServeToRespondentOptions;
+ return {pageId:['serviceOfDocumentsharnessBefore','serviceOfDocuments2'].includes(url.searchParams.get('pageId'))?url.searchParams.get('pageId'):null,eventId:payload?.event?.id==='serviceOfDocuments'?'serviceOfDocuments':null,answer:answer==null?null:['Yes','No','NotApplicable'].includes(answer)?answer:'invalid-answer'};
+}
+
 export function seedCcdSession(persona, credential, sessionRoot = "/tmp/.sessions") {
   if (!/^[a-z-]+$/.test(persona)) throw new Error("CCD_SESSION_PERSONA_INVALID");
   if (persona.startsWith("transitioning") && !Array.isArray(credential.roles))
@@ -171,8 +178,9 @@ function ccdTransportRoute(method, pathname, scope) {
 // CCD owns every baseline case/event response. The explicit callback opt-in adds
 // only the bounded synthetic recipient transport responder, never production PRL logic.
 export async function startCcdGateway(output, credentials, mutation = null, scope = "exui-ccd-pilot", options = {}) {
-  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
-  const { recipientCallback, workbasket, resultColumns } = options;
+  assert(options && typeof options === "object" && !Array.isArray(options) && Object.keys(options).every(key => ["recipientCallback", "workbasket", "resultColumns", "personalService"].includes(key)), "CCD_GATEWAY_OPTIONS_INVALID");
+  const { recipientCallback, workbasket, resultColumns, personalService } = options;
+  if(personalService!==undefined){assert.equal(personalService,true,'PERSONAL_SERVICE_GATEWAY_OPT_IN');assert.equal(scope,EVENT_CAPABILITY_SCOPE,'PERSONAL_SERVICE_GATEWAY_SCOPE');assert.equal(resultColumns,undefined,'PERSONAL_SERVICE_GATEWAY_EXCLUSIVE');assert.equal(workbasket,undefined,'PERSONAL_SERVICE_GATEWAY_EXCLUSIVE');assert.equal(mutation,null,'PERSONAL_SERVICE_DEFINITION_FAULT_ONLY');}
   if(resultColumns!==undefined){assert.equal(resultColumns,true,"RESULT_UI_GATEWAY_OPT_IN");assert.equal(recipientCallback,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(workbasket,undefined,"RESULT_UI_GATEWAY_EXCLUSIVE");assert.equal(mutation,null,"RESULT_UI_BASELINE_ONLY");}
   assert(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(scope), "CCD_GATEWAY_SCOPE_REQUIRED");
   if (scope === SELECTOR_EVENT_SCOPE) {
@@ -291,6 +299,7 @@ export async function startCcdGateway(output, credentials, mutation = null, scop
         ...([EVENT_CAPABILITY_SCOPE, SELECTOR_EVENT_SCOPE, "exui-ccd-pilot", SHARED_NESTED_SCOPE].includes(scope) && ccdRoute ? { actorId: actor?.userId ?? null } : {}),
         ...(scope === SELECTOR_EVENT_SCOPE && ccdRoute && request.method === "POST" && ccdRoute.upstreamPath === "/case-types/HarnessNestedPRL/validate"
           ? { selectorValidation: selectorValidationProjection(body, url) } : {}),
+        ...(personalService && ccdRoute && request.method==='POST' && ccdRoute.upstreamPath==='/case-types/HarnessNestedPRL/validate' ? {personalService:personalServiceValidationProjection(body,url)} : {}),
       };
       let target;
       if (ccdRoute)

@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "repository": "hmcts/prl-ccd-definitions",
+  "revision": "694b9951e94369f1394380506960c4f04f25755d",
+  "sources": [
+    {
+      "path": "definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json",
+      "fileDigest": "sha256:246b111d163ec15d3e9303c807b9ede7c987133de336bc541a483b0f3bbb90c1",
+      "rows": [
+        {
+          "index": 1,
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodServeToRespondentOptions",
+            "DisplayContext": "MANDATORY",
+            "PageID": 2,
+            "PageDisplayOrder": 2,
+            "PageFieldDisplayOrder": 2,
+            "ShowSummaryChangeOption": "Y"
+          },
+          "rowDigest": "sha256:6629264b979f95397feea71f26bb92827eda2ce08d2465431ca7ed944d4621e1"
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json",
+      "fileDigest": "sha256:685707c79e49ee0b51883c5d06187e38a584ce3e4cd526124f72b3fbfe4a9748",
+      "rows": [
+        {
+          "index": 11,
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "sodServeToRespondentOptions",
+            "Label": "Does this document need to be personally served on the respondent?",
+            "FieldType": "FixedRadioList",
+            "FieldTypeParameter": "YesNoNotApplicable",
+            "SecurityClassification": "Public",
+            "Searchable": "N"
+          },
+          "rowDigest": "sha256:b39564c6e8f60bcd5bfca08bf079d9b76ff2651b2bddc0312aa9ba7af7a070e7"
+        }
+      ]
+    },
+    {
+      "path": "definitions/private-law/json/FixedLists.json",
+      "fileDigest": "sha256:d44be4605dc71a17096e0aee4ae6fbedf4b0a7a522cb793e9b43bb76c4f371c6",
+      "rows": [
+        {
+          "index": 24,
+          "row": {
+            "LiveFrom": "20/08/2021",
+            "ID": "YesNoNotApplicable",
+            "ListElementCode": "Yes",
+            "ListElement": "Yes",
+            "DisplayOrder": 1
+          },
+          "rowDigest": "sha256:00ed46c3ca3ef659c4652f25e294b8826f910cd3a0e637e17a86ffd7ed42c2ec"
+        },
+        {
+          "index": 25,
+          "row": {
+            "LiveFrom": "20/08/2021",
+            "ID": "YesNoNotApplicable",
+            "ListElementCode": "No",
+            "ListElement": "No",
+            "DisplayOrder": 2
+          },
+          "rowDigest": "sha256:e5ec0ad730ed607f0af90496482d36db037ff02a36e774003c60c96100a54171"
+        },
+        {
+          "index": 26,
+          "row": {
+            "LiveFrom": "20/08/2021",
+            "ID": "YesNoNotApplicable",
+            "ListElementCode": "NotApplicable",
+            "ListElement": "Not applicable",
+            "DisplayOrder": 3
+          },
+          "rowDigest": "sha256:ef9225c3ee7fd260c56cd2985f6961fec1525db1e80c23f54933fd7947fa6896"
+        }
+      ]
+    }
+  ]
+}
