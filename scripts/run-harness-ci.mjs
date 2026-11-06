@@ -295,7 +295,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     },
   });
   try {
-    context = await prepareCiJob(job, job.output);
+    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output));
     captureNativeCohort?.(structuredClone(context.nativeCohortCapture));
     capturePersonalNative?.(structuredClone(context.personalNativeCapture));
     assert(!cancelled, "CI_JOB_CANCELLED");

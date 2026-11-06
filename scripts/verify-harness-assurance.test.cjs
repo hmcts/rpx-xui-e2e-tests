@@ -155,7 +155,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
     path.join(root, "scripts/run-harness-ci.mjs"),
-    'import fs from "node:fs"; export async function runHarnessCi() { fs.writeFileSync("native-started", "unexpected"); throw Error("UNEXPECTED_NATIVE_RUN"); }',
+    `import fs from "node:fs"; export {reportNativeProgress} from ${JSON.stringify(pathToFileURL(path.join(__dirname,"run-harness-ci.mjs")).href)}; export async function runHarnessCi() { fs.writeFileSync("native-started", "unexpected"); throw Error("UNEXPECTED_NATIVE_RUN"); }`,
   );
   const reporter = new Reporter({ selection: "harness" });
   const tests = overview.entries.map((entry) => ({
@@ -578,5 +578,46 @@ test('controlled former profile wiring cannot satisfy default personal order',t=
   if(mutation==='unconditional-profile')assert.equal(actual.calls.filter(x=>x==='profile').length,1);
   else assert.equal(actual.calls.filter(x=>x==='personal').length,0,'missing main preparation must prevent personal');
   assert.equal(actual.calls.filter(x=>x.collect).length,0);
+ }
+});
+
+
+test('fixed parent progress exposes only stage lifecycle and preserves closed failure identity',t=>{
+ const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ for(const closedPersonalFailure of [false,true]){
+  const actual=runEntrypoint(fixture(t),{closedPersonalFailure});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
+  assert.deepEqual(actual.progress.map(line=>line.replace(/ \(\d+s elapsed\)\.$/,'')),[
+   '[harness-native] Personal-service preparation, proofs and cleanup: started',
+   '[harness-native] Personal-service preparation, proofs and cleanup: '+(closedPersonalFailure?'stopped; details remain private':'completed'),
+   '[harness-native] Evidence replay and diagnostic report: started',
+   '[harness-native] Evidence replay and diagnostic report: completed']);
+  assert.equal(actual.calls.filter(x=>x==='personal').length,1);assert.equal(actual.calls.filter(x=>x.collect).length,1);
+  assert.doesNotMatch(actual.terminal.stdout+actual.terminal.stderr,/PRIVATE-PROGRESS|https?:|\/personal|\/private/);
+ }
+});
+
+test('controlled old callback omission fails the fixed progress lifecycle expectation',t=>{
+ const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ for(const mutation of ['omit-personal-progress','omit-collector-progress']){
+  const actual=runEntrypoint(fixture(t),{mutation});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
+  assert.equal(actual.calls.filter(x=>x==='personal').length,1);assert.equal(actual.calls.filter(x=>x.collect).length,1);
+  assert.equal(actual.progress.length,2);assert.throws(()=>assert.equal(actual.progress.length,4));
+ }
+});
+
+
+test('actual native preflight rejection reports fixed progress without later runtime launch or private data',async t=>{
+ const {runNativeController}=require('./fixtures/exui-native-continuation.mock.cjs');
+ const messages=[];t.mock.method(console,'log',line=>messages.push(line));
+ const source=fs.readFileSync(path.join(__dirname,'run-harness-ci.mjs'),'utf8');
+ for(const omitProgress of [false,true]){
+  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'native-progress-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const old=source.replace("context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output));",'context = await prepareCiJob(job, job.output);');
+  assert.notEqual(old,source);messages.length=0;const observed=await runNativeController(root,'no-start',omitProgress?old:source);
+  assert.equal(observed.result.status,'BLOCKED');assert.equal(observed.result.continuationSafe,true);assert.deepEqual(observed.calls,[]);
+  const expected=['[harness-native] Native candidate preflight: started','[harness-native] Native candidate preflight: stopped; details remain private'];
+  const actual=messages.map(line=>line.replace(/ \(\d+s elapsed\)\.$/,''));
+  if(omitProgress){assert.deepEqual(actual,[]);assert.throws(()=>assert.deepEqual(actual,expected));}else assert.deepEqual(actual,expected);
+  assert.doesNotMatch(messages.join('\n'),/PRIVATE-PROGRESS|https?:|\/private|\/artifact/);
  }
 });

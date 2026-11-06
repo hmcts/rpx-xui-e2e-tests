@@ -8,14 +8,15 @@ exports.runNativeController=async function runNativeController(root,mode,sourceO
  const source=sourceOverride??fs.readFileSync(path.join(__dirname,'../run-harness-ci.mjs'),'utf8');
  const start=source.indexOf('export async function runHarnessCi('),end=source.indexOf('\nif (\n',start);
  assert(start>=0&&end>start,'NATIVE_FUNCTION_BOUNDARY');
+ const {reportNativeProgress}=await import('../run-harness-ci.mjs');
  let removals=0,cancel;const calls=[];
  const write=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value));};
  const environment={fs,path,assert,ROOT:root,randomUUID:()=> '11111111-1111-4111-8111-111111111111',
   validateCiJob:value=>value,read:file=>JSON.parse(fs.readFileSync(file)),createCiOutput:()=>output,
   blocked:()=>({status:'BLOCKED',exitCode:2}),writeJsonAtomic:write,writeCiPublicSummary:()=>{},
-  writeConfigurationCoverage:()=>{},reportNativeProgress:()=>{},nativePhaseFailure:()=>({code:'CONTROLLED'}),
+  writeConfigurationCoverage:()=>{},reportNativeProgress,nativePhaseFailure:()=>({code:'CONTROLLED'}),
   fixedCiPhasesPassed:()=>false,installCiCancellation:options=>{cancel=options.onCancel;return ()=>{};},
-  prepareCiJob:async()=>{if(mode==='no-start')throw Error('CONTROLLED_PREFLIGHT');return{artifact:{provenance:{platform:'linux/arm64'}},nativeCohortCapture:{}};},
+  prepareCiJob:async()=>{if(mode==='no-start')throw Error('PRIVATE-PROGRESS-PREFLIGHT-CANARY');return{artifact:{provenance:{platform:'linux/arm64'}},nativeCohortCapture:{}};},
   startCcdRuntime:async(directory,options)=>{calls.push('start');if(mode==='uncertain-create'){options.onCreateUncertainty?.();throw Error('CONTROLLED_CREATE_UNCERTAIN');}return{output:directory};},
   importCcdDefinition:()=>{throw Error('CONTROLLED_CLOSED_OPERATION');},
   cleanupCiCcd:()=>{removals++;calls.push('remove');if(mode==='remove-retry'&&removals===1)throw Error('CONTROLLED_UNKNOWN_CID');return{cleanupComplete:true};},
