@@ -5,7 +5,7 @@ import path from 'node:path';
 import {spawnSync} from 'node:child_process';
 import {performance} from 'node:perf_hooks';
 import {fileURLToPath} from 'node:url';
-import {startCcdRuntime} from './lib/exui-ccd-runtime.mjs';
+import {startCcdRuntime,docker} from './lib/exui-ccd-runtime.mjs';
 import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {prepareComplexEmailImport,importComplexEmail} from './lib/exui-complex-email-import.mjs';
 import {observeComplexEmailMapping,validateComplexEmailMapping,compareComplexEmailMappings,COMPLEX_MAPPING_SOURCE_CONTEXT} from './lib/exui-complex-email-mapping.mjs';
@@ -25,10 +25,21 @@ export async function runComplexEmailMappingPair(output,{operations=defaults,isC
  for(const variant of ['baseline','searchable']) {
   const directory=path.join(output,variant);fs.mkdirSync(directory,{mode:0o700});
   const runtime=path.join(directory,'runtime'),invocation={variant,status:'in-progress',startedAt:new Date().toISOString(),cleanupComplete:false};summary.invocations.push(invocation);save();
-  const start=performance.now();let phase='startup';
+  const start=performance.now();let phase='startup',successfulStart=false,createAttempted=false,cleanupUncertain=false;
   try {
    assert(!isCancelled(),'COMPLEX_MAPPING_CANCELLED');
-   const state=await operations.start(runtime,{platform:'linux/arm64',fixtureSelection:'event-capability-baseline',elasticsearch:true,isCancelled});
+   const state=await operations.start(runtime,{
+    platform:'linux/arm64',fixtureSelection:'event-capability-baseline',elasticsearch:true,isCancelled,
+    runDocker:(args,input)=>{
+     assert(!isCancelled(),'COMPLEX_MAPPING_CANCELLED');
+     const creating=args[0]==='create';if(creating)createAttempted=true;
+     try{
+      const result=(operations.docker??docker)(args,input);
+      if(creating)assert(typeof result==='string'&&/^[a-f0-9]{64}$/.test(result),'COMPLEX_MAPPING_CREATE_CID_REQUIRED');
+      return result;
+     }catch(error){if(creating)cleanupUncertain=true;throw error;}
+    },
+   });successfulStart=true;
    invocation.owner=state.owner;invocation.namespace=state.namespace;invocation.images=state.images;
    assert.equal(state.images.definition?.id,COMPLEX_MAPPING_SOURCE_CONTEXT.definitionImage,'COMPLEX_MAPPING_DEFINITION_IMAGE');
    phase='pre-import-health';writeJsonAtomic(path.join(directory,'before.json'),operations.observe(state,{beforeImport:true}));
@@ -45,7 +56,7 @@ export async function runComplexEmailMappingPair(output,{operations=defaults,isC
   } catch(error) {invocation.status='BLOCKED';invocation.failedPhase=phase;invocation.diagnostic=classifyNativeFailure(error);}
   finally {
    const cleanupStarted=performance.now();
-   try {const cleanup=operations.cleanup(runtime);writeJsonAtomic(path.join(directory,'cleanup.json'),cleanup??{cleanupComplete:true,noRecoveryRequired:true});invocation.cleanupComplete=true;}catch(error){invocation.status='BLOCKED';invocation.cleanupDiagnostic=classifyNativeFailure(error);}
+   try {const cleanup=operations.cleanup(runtime);if(successfulStart||createAttempted||cleanup!==undefined)assert.equal(cleanup?.cleanupComplete,true,'COMPLEX_MAPPING_CLEANUP_RECEIPT_REQUIRED');assert(!cleanupUncertain,'COMPLEX_MAPPING_CLEANUP_UNCERTAIN');writeJsonAtomic(path.join(directory,'cleanup.json'),cleanup??{cleanupComplete:true,noRecoveryRequired:true});invocation.cleanupComplete=true;}catch(error){cleanupUncertain=true;invocation.cleanupComplete=false;invocation.status='BLOCKED';invocation.cleanupDiagnostic=classifyNativeFailure(error);}
    invocation.cleanupDurationMs=Math.round(performance.now()-cleanupStarted);invocation.durationMs=Math.round(performance.now()-start);invocation.endedAt=new Date().toISOString();save();
   }
   if(invocation.status==='BLOCKED'||!invocation.cleanupComplete)break;

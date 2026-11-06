@@ -12,7 +12,7 @@ import {assertCandidateConfigurationSources} from './lib/exui-configuration-cata
 import {nativeContainerPlan,inspectNativeApiRuntime,inspectNativeBrowserRuntime} from './lib/exui-native-containers.mjs';
 import {nativeIdentity} from './lib/exui-native-contract.mjs';
 import {runHostInvocation,removeHostResource} from './lib/exui-host-invocation.mjs';
-import {startCcdRuntime,ccdCredentials,ccdRequest,verifyCcdContainerIdentity} from './lib/exui-ccd-runtime.mjs';
+import {startCcdRuntime,docker,ccdCredentials,ccdRequest,verifyCcdContainerIdentity} from './lib/exui-ccd-runtime.mjs';
 import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {prepareRecipientCallbackImport,importRecipientCallback,validateObservedRecipientCallback} from './lib/exui-recipient-callback-import.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
@@ -98,12 +98,23 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
  const receipt={kind:complexEmail?'complex-email-text-ui-feasibility':selector?'selector-event-row-ui-feasibility':'recipient-callback-ui-feasibility',scenario,variant,status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
  const save=()=>{writeJsonAtomic(output+'/receipt.json',receipt);fs.chmodSync(output+'/receipt.json',0o600);};save();
  const resources=new Map();let cancelled=false;const cancel=()=>{cancelled=true;for(const resource of resources.values())if(resource.kind==='process')resource.child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
- let phase='verify-candidate',privateWorkspace;const runtime=output+'/runtime';
+ let phase='verify-candidate',privateWorkspace,successfulStart=false,createAttempted=false,ccdCleanupUncertain=false,nativeCleanupUncertain=false;const runtime=output+'/runtime';
  try {
   const harnessDependencies=await verifyHarnessDependencies(root+'/node_modules',root+'/package.json',root+'/yarn.lock');
   assertCandidateConfigurationSources(artifact.candidateRoot,read(root+'/scripts/fixtures/exui-configuration-review.json'));
   const browserDigest=await digestCandidateTree(browserRoot);
-  phase='start-runtime';const ccd=await startCcdRuntime(runtime,{fixtureSelection:'event-capability-baseline',platform:artifact.provenance.platform,isCancelled:()=>cancelled});
+  phase='start-runtime';const ccd=await startCcdRuntime(runtime,{
+   fixtureSelection:'event-capability-baseline',platform:artifact.provenance.platform,isCancelled:()=>cancelled,
+   runDocker:(args,input)=>{
+    assert(!cancelled,'CALLBACK_UI_CANCELLED');
+    const creating=args[0]==='create';if(creating)createAttempted=true;
+    try{
+     const result=docker(args,input);
+     if(creating)assert(typeof result==='string'&&/^[a-f0-9]{64}$/.test(result),'CALLBACK_UI_CREATE_CID_REQUIRED');
+     return result;
+    }catch(error){if(creating)ccdCleanupUncertain=true;throw error;}
+   },
+  });successfulStart=true;
   let imported,callbackObservedDigests;
   if(complexEmail) {
    phase='import-complex-email';await prepareComplexEmailImport(output+'/fixture',variant);
@@ -139,14 +150,14 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   const observed=read(directory+(complexEmail?'/complex-email-text-observation.json':selector?'/selector-event-row-observation.json':'/callback-ui-observation.json'));
   if(complexEmail) {phase='verify-generated-classification';receipt.classification=readComplexEmailStoredClassification(ccd,imported,observed);}
   receipt.status=(complexEmail?assertComplexEmailUiOutcome:selector?assertSelectorUiOutcome:assertCallbackUiOutcome)(variant,result.terminal,observed,report);
- } catch(error){receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackUiFailureCode(error);receipt.diagnostic=classifyNativeFailure(error);}
+ } catch(error){if(error?.message==='HOST_OWNED_RESOURCE_CLEANUP_FAILED')nativeCleanupUncertain=true;receipt.status=cancelled?'cancelled':'failed';receipt.phase=phase;receipt.failure=callbackUiFailureCode(error);receipt.diagnostic=classifyNativeFailure(error);}
  finally {
-  const cleanup=[];for(const key of [...resources.keys()].reverse()){try{await removeHostResource(resources,key,output);}catch{cleanup.push(key);}}
-  try{receipt.cleanup=fs.existsSync(runtime+'/recovery.json')?cleanupCiCcd(runtime):{cleanupComplete:true};}catch{receipt.cleanup={cleanupComplete:false};}
-  receipt.nativeCleanupComplete=cleanup.length===0;
+  const cleanup=[];for(const key of [...resources.keys()].reverse()){try{await removeHostResource(resources,key,output);}catch{cleanup.push(key);nativeCleanupUncertain=true;break;}}
+  try{assert(cleanup.length===0,'CALLBACK_UI_NATIVE_CLEANUP_REQUIRED');const removed=cleanupCiCcd(runtime);if(successfulStart||createAttempted||removed!==undefined)assert.equal(removed?.cleanupComplete,true,'CALLBACK_UI_CCD_CLEANUP_RECEIPT_REQUIRED');assert(!ccdCleanupUncertain,'CALLBACK_UI_CCD_CLEANUP_UNCERTAIN');receipt.cleanup=removed??{cleanupComplete:true};}catch{ccdCleanupUncertain=true;receipt.cleanup={cleanupComplete:false};}
+  receipt.nativeCleanupComplete=cleanup.length===0&&!nativeCleanupUncertain;
   receipt.workspaceCleanupComplete=!privateWorkspace;
   if(privateWorkspace&&receipt.nativeCleanupComplete&&receipt.cleanup?.cleanupComplete===true){try{fs.rmSync(privateWorkspace,{recursive:true,force:true});receipt.workspaceCleanupComplete=true;}catch{receipt.workspaceCleanupComplete=false;}}
-  if(cleanup.length||receipt.cleanup?.cleanupComplete!==true||!receipt.workspaceCleanupComplete)receipt.status='cleanup-uncertain';
+  if(!receipt.nativeCleanupComplete||receipt.cleanup?.cleanupComplete!==true||!receipt.workspaceCleanupComplete)receipt.status='cleanup-uncertain';
   process.off('SIGINT',cancel);process.off('SIGTERM',cancel);save();
  }
  return receipt;

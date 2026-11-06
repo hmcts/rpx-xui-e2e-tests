@@ -186,3 +186,30 @@ test('complex email new recipients require generated unique IDs with the submitt
  }
  const bad=structuredClone(sent);bad[0].id=saved[0].id;assert.throws(()=>validateComplexEmailRecipientIds(saved,bad),/COMPLEX_EMAIL_NEW_RECIPIENT_ID/);
 });
+
+test('shared feasibility lifecycle requires positive cleanup after start or create in every mode',async t=>{
+ for(const scenario of ['complex-email-text','recipient-callback','selector-event-row'])for(const mode of ['no-start','precreation-missing','started-missing','created-missing','started-incomplete','started-complete','throwing-create-complete','invalid-create-complete']) {
+  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'complex-cleanup-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const observed=await mock.runFeasibilityCleanup(root,mode,scenario),safe=['no-start','precreation-missing','started-complete'].includes(mode);
+  assert.equal(observed.receipt.cleanup.cleanupComplete,safe,scenario+':'+mode);
+  assert.equal(observed.receipt.status==='cleanup-uncertain',!safe,scenario+':'+mode);
+  assert.deepEqual([observed.receipt.runtimeAcceptance,observed.receipt.catalogueCredit,observed.receipt.releaseCredit],[false,false,false]);
+  if(mode==='created-missing')assert(observed.calls.includes('create'));
+ }
+});
+
+test('failed host cleanup stays uncertain after successful final retry and preserves private workspace',async t=>{
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'complex-retry-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const observed=await mock.runFeasibilityCleanup(root,'host-retry');
+ assert(observed.calls.includes('remove-host'));assert.equal(observed.receipt.nativeCleanupComplete,false);
+ assert.equal(observed.receipt.status,'cleanup-uncertain');assert.equal(observed.receipt.workspaceCleanupComplete,false);assert.equal(observed.workspaceExists,true);
+});
+
+
+test('unobserved feasibility host stop retains ownership and prevents CCD or workspace teardown',async t=>{
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'complex-stop-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const observed=await mock.runFeasibilityCleanup(root,'host-stop-failure');
+ assert.equal(observed.retained,2);assert.equal(observed.calls.filter(call=>call==='remove-host').length,1);
+ assert(!observed.calls.includes('cleanup'));assert.equal(observed.receipt.nativeCleanupComplete,false);assert.equal(observed.receipt.cleanup.cleanupComplete,false);
+ assert.equal(observed.receipt.status,'cleanup-uncertain');assert.equal(observed.workspaceExists,true);
+});

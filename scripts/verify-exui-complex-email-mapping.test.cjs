@@ -39,7 +39,7 @@ test('mapping pair stops after baseline setup failure and always verifies cleanu
  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'mapping-pair-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  for(const scenario of ['healthy','baseline-import-failure','cleanup-failure','wrong-image']) {
   const output=path.join(root,scenario);fs.mkdirSync(output);const calls=[];
-  const operations={start:async directory=>{calls.push('start');return {output:directory,owner:'synthetic',namespace:'a'.repeat(64),images:{definition:{id:scenario==='wrong-image'?'sha256:foreign':'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52',architecture:'arm64',repoDigests:[]}}};},prepare:async()=>{},import:async(_state,{variant})=>{calls.push('import-'+variant);if(scenario==='baseline-import-failure')throw Error('SETUP');return {status:'import-and-complex-metadata-observed'};},observe:(_state,{beforeImport}={})=>beforeImport?{}:mock.observed(calls.filter(x=>x==='start').length===1?'baseline':'searchable'),cleanup:()=>{calls.push('cleanup');if(scenario==='cleanup-failure')throw Error('CLEANUP');}};
+  const operations={start:async directory=>{calls.push('start');return {output:directory,owner:'synthetic',namespace:'a'.repeat(64),images:{definition:{id:scenario==='wrong-image'?'sha256:foreign':'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52',architecture:'arm64',repoDigests:[]}}};},prepare:async()=>{},import:async(_state,{variant})=>{calls.push('import-'+variant);if(scenario==='baseline-import-failure')throw Error('SETUP');return {status:'import-and-complex-metadata-observed'};},observe:(_state,{beforeImport}={})=>beforeImport?{}:mock.observed(calls.filter(x=>x==='start').length===1?'baseline':'searchable'),cleanup:()=>{calls.push('cleanup');if(scenario==='cleanup-failure')throw Error('CLEANUP');return{cleanupComplete:true};}};
   const result=await runComplexEmailMappingPair(output,{operations});
   assert.equal(result.status,scenario==='healthy'?'observed':'BLOCKED');
   assert.deepEqual([result.runtimeAcceptance,result.catalogueCredit,result.releaseCredit],[false,false,false]);
@@ -70,6 +70,18 @@ test('mapping pair cancellation never advances to a second owned namespace',asyn
  const {runComplexEmailMappingPair}=await import('./run-harness-complex-email-mapping.mjs');
  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'mapping-cancel-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  let cancelled=false,starts=0,cleanups=0;
- const result=await runComplexEmailMappingPair(root,{isCancelled:()=>cancelled,operations:{start:async()=>{starts++;cancelled=true;return {images:{definition:{id:'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52',architecture:'arm64',repoDigests:[]}}};},observe:()=>({}),cleanup:()=>{cleanups++;},prepare:()=>assert.fail('must not prepare after cancellation')}});
+ const result=await runComplexEmailMappingPair(root,{isCancelled:()=>cancelled,operations:{start:async()=>{starts++;cancelled=true;return {images:{definition:{id:'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52',architecture:'arm64',repoDigests:[]}}};},observe:()=>({}),cleanup:()=>{cleanups++;return{cleanupComplete:true};},prepare:()=>assert.fail('must not prepare after cancellation')}});
  assert.equal(result.status,'BLOCKED');assert.equal(starts,1);assert.equal(cleanups,1);assert.equal(result.cleanupComplete,true);
+});
+
+test('mapping cleanup absence after start or creation cannot advance to another variant',async t=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const {runComplexEmailMappingPair}=await import('./run-harness-complex-email-mapping.mjs');
+ const {cleanupCiCcd}=await import('./lib/exui-candidate-ci-process.mjs');
+ for(const mode of ['started-missing','created-missing','started-incomplete','precreation-missing','throwing-create-complete','invalid-create-complete']) {
+  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'complex-mapping-cleanup-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));let starts=0,creates=0;
+  const operations={start:async(_directory,options)=>{starts++;if(mode==='precreation-missing')throw Error('CONTROLLED_BEFORE_CREATE');if(mode==='created-missing'){(options.runDocker??operations.docker)(['create','synthetic-image']);throw Error('CONTROLLED_AFTER_CREATE');}if(mode==='throwing-create-complete'||mode==='invalid-create-complete'){(options.runDocker??operations.docker)(['create','synthetic-image']);throw Error('CONTROLLED_CREATE_NOT_REJECTED');}return{images:{definition:{id:'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52'}}};},docker:()=>{creates++;if(mode==='throwing-create-complete')throw Error('CONTROLLED_CREATE_FAILURE');return mode==='invalid-create-complete'?'invalid':'a'.repeat(64);},prepare:async()=>{},import:async()=>({status:'import-and-complex-metadata-observed'}),observe:(_s,{beforeImport}={})=>beforeImport?{}:mock.observed(starts===1?'baseline':'searchable'),cleanup:directory=>['throwing-create-complete','invalid-create-complete'].includes(mode)?{cleanupComplete:true}:mode==='started-incomplete'?{cleanupComplete:false}:cleanupCiCcd(directory,{inspect:()=>assert.fail('unexpected Docker'),stop:()=>assert.fail('unexpected Docker')})};
+  const result=await runComplexEmailMappingPair(root,{operations});
+  assert.equal(result.status,'BLOCKED',mode);assert.equal(starts,1,mode);assert.equal(result.cleanupComplete,mode==='precreation-missing',mode);assert.equal(creates,['created-missing','throwing-create-complete','invalid-create-complete'].includes(mode)?1:0);
+ }
 });
