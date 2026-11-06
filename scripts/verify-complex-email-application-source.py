@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Reproduce one fixed CCD application's Java classes; never grants Harness credit."""
 import argparse
+import copy
 import hashlib
 import importlib.util
 import io
@@ -78,7 +79,44 @@ def compare_output(output, expected):
     }
 
 
+def verify_definition(args):
+    require(args.image_jar is None, 'AMBIGUOUS_IMAGE_INPUT')
+    require(all(getattr(args, name).is_absolute() for name in ['source_archive', 'definition_archive', 'java_home', 'lombok', 'mapstruct', 'output']), 'ABSOLUTE_INPUTS_REQUIRED')
+    require(str(args.output) == os.path.normpath(str(args.output)) and not os.path.lexists(args.output), 'FRESH_OUTPUT')
+    require(digest(WITNESS.read_bytes()) == WITNESS_DIGEST, 'WITNESS_SEAL')
+    witness = json.loads(WITNESS.read_bytes())
+    helper_path = ROOT / 'verify-definition-image-binding.py'
+    oci_path = ROOT / 'verify-local-ccd-oci.py'
+    pins = [{'path': str(args.source_archive), 'digest': witness['sourceArchiveDigest']},
+            {'path': str(args.definition_archive), 'digest': 'sha256:4343d615ca395974e5651e7eae06296e4a19ce161c40d5b4ba18bf242eb24eb4'},
+            {'path': str(WITNESS), 'digest': WITNESS_DIGEST}]
+    pins += [{'path': str(args.java_home / row['path']), 'digest': row['digest']} for row in witness['javaFiles']]
+    pins += [{'path': str(getattr(args, row['name'])), 'digest': row['digest']} for row in witness['processors']]
+    pins += [{'path': str(p), 'digest': digest(p.read_bytes())} for p in [helper_path, oci_path, Path(__file__).resolve(), ARCHIVE_HELPER]]
+    check_inputs(pins)
+    prepare_output(args.output, [ROOT.parent, args.java_home, args.source_archive, args.definition_archive, args.lombok, args.mapstruct])
+    save(args.output / 'image-inputs.json', {'immutableInputs': pins, **FLAGS})
+    spec = importlib.util.spec_from_file_location('definition_binding', helper_path)
+    helper = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(helper)
+    jar, association = helper.bind_archive(args.definition_archive, args.output, witness, require, digest)
+    check_inputs(pins)
+    inner = copy.copy(args)
+    inner.definition_archive = None
+    inner.image_jar = jar
+    inner.output = args.output / 'class-proof'
+    result = verify(inner)
+    check_inputs(pins + [{'path': str(jar), 'digest': witness['imageJarDigest']}])
+    association.update({'classProofPreexecutionDigest': digest((inner.output / 'preexecution.json').read_bytes()),
+                        'classProofResultDigest': digest((inner.output / 'result.json').read_bytes()),
+                        'status': result['status'], 'scope': 'fixed original image JAR plus eight application modules; not whole image/runtime/admission', **FLAGS})
+    save(args.output / 'definition-image-binding.json', association)
+    return result
+
+
 def verify(args):
+    if getattr(args, 'definition_archive', None) is not None:
+        return verify_definition(args)
     require(all(getattr(args, name).is_absolute() for name in ['source_archive', 'image_jar', 'java_home', 'lombok', 'mapstruct', 'output']), 'ABSOLUTE_INPUTS_REQUIRED')
     require(digest(WITNESS.read_bytes()) == WITNESS_DIGEST, 'WITNESS_SEAL')
     witness = json.loads(WITNESS.read_bytes())
@@ -188,8 +226,11 @@ def verify(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__, epilog='Uses fixed cached inputs only. No downloads, image builds or Harness credit.')
-    for name in ['source-archive', 'image-jar', 'java-home', 'lombok', 'mapstruct', 'output']:
+    for name in ['source-archive', 'java-home', 'lombok', 'mapstruct', 'output']:
         parser.add_argument('--' + name, type=Path, required=True)
+    image = parser.add_mutually_exclusive_group(required=True)
+    image.add_argument('--image-jar', type=Path)
+    image.add_argument('--definition-archive', type=Path)
     try:
         result = verify(parser.parse_args())
         print(json.dumps({key: result[key] for key in ['status', 'sourceFiles', 'expectedClasses', 'matches', *FLAGS]}))
