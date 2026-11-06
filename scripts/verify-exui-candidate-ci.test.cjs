@@ -1521,3 +1521,100 @@ test('actual callback parent removes baseline and captures fresh fault ownership
   assert.equal(fixedCiPhasesPassed([...prior,{phase:'routing',status:'PASS'}]),false);
   assert.equal(fixedCiPhasesPassed([...prior].reverse().concat({phase:'recipientCallback',status:'PASS'})),false);
 });
+
+function eventPreparationDeferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+const eventPreparationTick = () => new Promise(setImmediate);
+
+test('owned CCD cleanup joins the actual callback import, identity and final cancellation boundary', { timeout: 2000 }, async t => {
+  const source = fs.readFileSync(path.join(__dirname, 'run-harness-ci.mjs'), 'utf8');
+  const before = '  const remove = async (_id, resource) => {', middle = '  const startOwnedCcd = async ', after = '  const eventRuntimeData = ';
+  for (const marker of [before, middle, after]) assert.equal(source.split(marker).length, 2, 'unique actual owned-start/remove boundary');
+  const block = source.slice(source.indexOf(before), source.indexOf(after));
+  for (const fault of ['none', 'import', 'identity', 'startup-unknown']) {
+    const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-owned-import-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const importing = eventPreparationDeferred(), startup = eventPreparationDeferred(), events = [];
+    const expectedError = new Error('controlled-' + fault);
+    const dependencies = {
+      assert, fs, path, privateRoot: root, context: { artifact: { provenance: { platform: 'linux/arm64' } } },
+      docker: () => assert.fail('no actual Docker'), cleanupCiPhase: () => assert.fail('CCD cleanup only'), stopSelectorCiResource: () => assert.fail('CCD cleanup only'),
+      writeJsonAtomic: (file, value) => fs.writeFileSync(file, JSON.stringify(value)),
+      startCcdRuntime: async (directory, options) => {
+        fs.mkdirSync(directory); events.push('start'); await startup.promise;
+        if (fault === 'startup-unknown') { options.onCreateUncertainty(); throw expectedError; }
+        return { output: directory };
+      },
+      importCcdDefinition: () => assert.fail('callback branch expected'), verifyCcdRuntimeIdentity: () => assert.fail('callback branch expected'),
+      importNativeCallbackDefinition: async () => { events.push('import'); await importing.promise; if (fault === 'import') throw expectedError; },
+      verifyNativeCallbackRuntime: () => { events.push('identity'); if (fault === 'identity') throw expectedError; },
+      cleanupCiCcd: () => { events.push('cleanup'); return { cleanupComplete: true }; },
+    };
+    const api = new Function(...Object.keys(dependencies), `let cleanupComplete=true,cancelled=false;const resources=new Map();\n${block}\nreturn {startOwnedCcd,remove,resources,cancel:()=>{cancelled=true;},isClean:()=>cleanupComplete};`)(...Object.values(dependencies));
+    const phase = { name: 'eventCapability' }; api.resources.set(phase.name, phase);
+    const start = api.startOwnedCcd('callback-runtime', 'event-capability-baseline', () => true, phase, 'baseline');
+    const observed = start.then(() => ({}), error => ({ error }));
+    await eventPreparationTick();
+    assert.deepEqual([...api.resources.keys()], ['callback-runtime', 'eventCapability'], 'phase child must remain first in reverse cleanup');
+    startup.resolve(); await eventPreparationTick();
+    if (fault !== 'startup-unknown') assert.deepEqual(events, ['start', 'import']);
+    if (fault === 'none') api.cancel();
+    let removed = false;
+    const removal = api.remove('callback-runtime', api.resources.get('callback-runtime')).then(() => { removed = true; });
+    await eventPreparationTick();
+    if (fault !== 'startup-unknown') { assert.equal(removed, false, 'cleanup must not overtake full import'); assert(!events.includes('cleanup')); }
+    importing.resolve();
+    const result = await observed; await removal;
+    assert.equal(removed, true); assert.equal(events.at(-1), 'cleanup');
+    if (fault === 'none') assert.match(result.error.message, /CI_EVENT_IMPORT_CANCELLED/); else assert.equal(result.error, expectedError);
+    assert.equal(api.resources.has('callback-runtime'), false);
+    assert.equal(api.isClean(), fault !== 'startup-unknown', 'unknown creation remains fail-closed after a settled promise');
+  }
+});
+
+test('owned baseline CCD cleanup joins deferred workbasket import and preserves context or failure', { timeout: 2000 }, async t => {
+  const source = fs.readFileSync(path.join(__dirname, 'run-harness-ci.mjs'), 'utf8');
+  const removeStart = '  const remove = async (_id, resource) => {', removeEnd = '  const startOwnedCcd = async ', start = '      start: async () => {', end = '      stop: () => {';
+  for (const marker of [removeStart, removeEnd, start, end]) assert.equal(source.split(marker).length, 2, 'unique baseline startup/cleanup boundary');
+  const removeCode = source.slice(source.indexOf(removeStart), source.indexOf(removeEnd));
+  const startCode = source.slice(source.indexOf(start), source.indexOf(end)).trim().replace(/^start: /, '').replace(/,$/, '');
+  for (const fault of ['none', 'cancel', 'import', 'identity', 'cleanup']) {
+    const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-baseline-import-'));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const gate = eventPreparationDeferred(), events = [], expectedError = new Error('controlled-' + fault);
+    const context = { artifact: { provenance: { platform: 'linux/arm64' }, identity: {}, candidateRoot: '/candidate' } };
+    const dependencies = {
+      assert, fs, path, context, privateRoot: root, ROOT: path.resolve(__dirname, '..'),
+      docker: () => assert.fail('no Docker'), cleanupCiPhase: () => assert.fail('CCD only'), stopSelectorCiResource: () => assert.fail('CCD only'),
+      writeJsonAtomic: (file, value) => fs.writeFileSync(file, JSON.stringify(value)), digestBytes: () => digest('a'),
+      startCcdRuntime: async directory => { fs.mkdirSync(directory); events.push('start'); return { output: directory, images: { data: { id: 'data-image' }, definition: { id: 'definition-image' } } }; },
+      importCcdDefinition: () => events.push('definition'),
+      importWorkbasketInputs: async () => { events.push('workbasket'); await gate.promise; if (fault === 'import') throw expectedError; return { binding: { workbookDigest: 'workbasket-digest' } }; },
+      verifyCcdRuntimeIdentity: () => { events.push('identity'); if (fault === 'identity') throw expectedError; return { fixtureDigest: 'definition-digest' }; },
+      effectiveCandidateConfiguration: () => ({ config: { jurisdictions: 'SYNTHETIC' } }), ccdRequest: () => ({ status: 200, body: {} }),
+      cleanupCiCcd: () => { events.push('cleanup'); if (fault === 'cleanup') throw expectedError; return { cleanupComplete: true }; },
+    };
+    const api = new Function(...Object.keys(dependencies), `let cancelled=false,cleanupComplete=true;const resources=new Map();\n${removeCode}\nconst start=${startCode};return {start,remove,resources,cancel:()=>{cancelled=true},isClean:()=>cleanupComplete};`)(...Object.values(dependencies));
+    const started = api.start().then(() => ({}), error => ({ error }));
+    await eventPreparationTick(); assert.deepEqual(events, ['start', 'definition', 'workbasket']);
+    if (fault === 'cancel') api.cancel();
+    let removed = false;
+    const removal = api.remove('ccd-runtime', api.resources.get('ccd-runtime')).then(() => { removed = true; return {}; }, error => ({ error }));
+    await eventPreparationTick();
+    assert.equal(removed, false); assert(!events.includes('cleanup'), 'cleanup cannot race workbasket import');
+    gate.resolve(); const result = await started, cleaned = await removal;
+    if (fault === 'import' || fault === 'identity') assert.equal(result.error, expectedError);
+    else if (fault === 'cancel') assert.match(result.error.message, /CI_JOB_CANCELLED/);
+    else {
+      assert.equal(result.error, undefined);
+      assert.deepEqual(context.ccdIdentity.definitionDigests, { HarnessNestedPRL: 'definition-digest', HarnessResultsPRL: 'workbasket-digest' });
+    }
+    if (fault === 'cleanup') { assert.equal(cleaned.error, expectedError); assert.equal(api.isClean(), false); assert(api.resources.has('ccd-runtime')); }
+    else { assert.equal(removed, true); assert.equal(api.resources.has('ccd-runtime'), false); }
+    assert.equal(events.at(-1), 'cleanup');
+  }
+});

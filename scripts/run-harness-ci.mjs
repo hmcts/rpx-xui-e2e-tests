@@ -256,17 +256,19 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
         return docker(args, input);
       },
     })).then(ccd => { resource.successfulStart = true; return ccd; });
-    const ccd = await resource.pendingStart;
-    assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
-    if (callbackVariant === undefined) {
-      importCcdDefinition(ccd);
-      verifyCcdRuntimeIdentity(ccd);
-    } else {
-      await importNativeCallbackDefinition(ccd,callbackVariant);
-      verifyNativeCallbackRuntime(ccd,callbackVariant);
-    }
-    assert(!cancelled && alive(), "CI_EVENT_IMPORT_CANCELLED");
-    return ccd;
+    resource.pendingStart = resource.pendingStart.then(async ccd => {
+      assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+      if (callbackVariant === undefined) {
+        importCcdDefinition(ccd);
+        verifyCcdRuntimeIdentity(ccd);
+      } else {
+        await importNativeCallbackDefinition(ccd,callbackVariant);
+        verifyNativeCallbackRuntime(ccd,callbackVariant);
+      }
+      assert(!cancelled && alive(), "CI_EVENT_IMPORT_CANCELLED");
+      return ccd;
+    });
+    return resource.pendingStart;
   };
   const eventRuntimeData = (ccd, scope = EVENT_CAPABILITY_SCOPE) => {
     assert([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(scope),"CI_SOURCE_RUNTIME_SCOPE_REQUIRED");
@@ -570,50 +572,55 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
             return docker(args, input);
           },
         }).then(ccd => { resource.successfulStart = true; return ccd; });
-        context.ccd = await resource.pendingStart;
-        importCcdDefinition(context.ccd);
-        const workbasketReceipt = await importWorkbasketInputs(context.ccd);
-        const observed = verifyCcdRuntimeIdentity(context.ccd),
-          config = effectiveCandidateConfiguration(
-            context.artifact.candidateRoot,
-          ).config;
-        config.now = false;
-        config.jurisdictions = `${config.jurisdictions},HARNESS`;
-        const apiContracts = Object.fromEntries(
-          [
-            ["data", 4452],
-            ["definition", 4451],
-          ].map(([service, port]) => {
-            const response = ccdRequest(context.ccd, port, "/v3/api-docs");
-            assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
-            return [service, digestBytes(JSON.stringify(response.body))];
-          }),
-        );
-        context.ccdIdentity = {
-          ...context.artifact.identity,
-          configurationDigest: digestBytes(
-            JSON.stringify({
-              config,
-              gatewayDigest: digestBytes(
-                fs.readFileSync(
-                  path.join(ROOT, "scripts/lib/exui-ccd-browser-runtime.mjs"),
-                ),
-              ),
-              mutation: null,
+        resource.pendingStart = resource.pendingStart.then(async ccd => {
+          context.ccd = ccd;
+          assert(!cancelled, "CI_JOB_CANCELLED");
+          importCcdDefinition(context.ccd);
+          const workbasketReceipt = await importWorkbasketInputs(context.ccd);
+          assert(!cancelled, "CI_JOB_CANCELLED");
+          const observed = verifyCcdRuntimeIdentity(context.ccd),
+            config = effectiveCandidateConfiguration(
+              context.artifact.candidateRoot,
+            ).config;
+          config.now = false;
+          config.jurisdictions = `${config.jurisdictions},HARNESS`;
+          const apiContracts = Object.fromEntries(
+            [
+              ["data", 4452],
+              ["definition", 4451],
+            ].map(([service, port]) => {
+              const response = ccdRequest(context.ccd, port, "/v3/api-docs");
+              assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
+              return [service, digestBytes(JSON.stringify(response.body))];
             }),
-          ),
-          definitionDigests: { HarnessNestedPRL: observed.fixtureDigest,
-            HarnessResultsPRL: workbasketReceipt.binding.workbookDigest },
-          dependencyIdentities: Object.fromEntries(
-            ["data", "definition"].map((service) => [
-              service === "data" ? "ccd" : "ccd-definition",
-              {
-                artifactDigest: context.ccd.images[service].id,
-                apiContractDigest: apiContracts[service],
-              },
-            ]),
-          ),
-        };
+          );
+          context.ccdIdentity = {
+            ...context.artifact.identity,
+            configurationDigest: digestBytes(
+              JSON.stringify({
+                config,
+                gatewayDigest: digestBytes(
+                  fs.readFileSync(
+                    path.join(ROOT, "scripts/lib/exui-ccd-browser-runtime.mjs"),
+                  ),
+                ),
+                mutation: null,
+              }),
+            ),
+            definitionDigests: { HarnessNestedPRL: observed.fixtureDigest,
+              HarnessResultsPRL: workbasketReceipt.binding.workbookDigest },
+            dependencyIdentities: Object.fromEntries(
+              ["data", "definition"].map((service) => [
+                service === "data" ? "ccd" : "ccd-definition",
+                {
+                  artifactDigest: context.ccd.images[service].id,
+                  apiContractDigest: apiContracts[service],
+                },
+              ]),
+            ),
+          };
+        });
+        return resource.pendingStart;
       },
       stop: () => {
         const resource = resources.get("ccd-runtime");
