@@ -47,14 +47,16 @@ exports.authorisationCcdFake=definition=>{
 
 exports.authorisationReadyCcdFake=definition=>{const fake=exports.authorisationCcdFake(definition);for(const role of ['caseworker-harness','caseworker-harness-observer','caseworker-harness-allowed'])fake.registeredRoles.add(role);return fake;};
 
-exports.authorisationPacket=async directory=>{
+exports.authorisationPacket=directory=>packetFor(directory,false);
+exports.authorisationReadPacket=directory=>packetFor(directory,true);
+async function packetFor(directory,readMode){
  const fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto');
- const api=await import('../lib/exui-authorisation-create-runtime.mjs'),{buildAuthorisationCreateDefinition}=await import('../lib/exui-authorisation-row-fixture.mjs'),{CCD_IMAGES}=await import('../lib/exui-ccd-runtime.mjs');
+ const runtimeApi=await import('../lib/exui-authorisation-create-runtime.mjs'),api=readMode?{...runtimeApi,AUTH_CREATE_VARIANTS:runtimeApi.AUTH_READ_VARIANTS,prepareAuthorisationCreateWorkbook:runtimeApi.prepareAuthorisationReadWorkbook,importAuthorisationCreate:runtimeApi.importAuthorisationRead,expectedAuthorisationAclRows:runtimeApi.expectedAuthorisationReadAclRows,observeAuthorisationCreate:runtimeApi.observeAuthorisationRead,validateAuthorisationCreateObservation:runtimeApi.validateAuthorisationReadObservation}:runtimeApi,{buildAuthorisationCreateDefinition,buildAuthorisationReadDefinition}=await import('../lib/exui-authorisation-row-fixture.mjs'),{CCD_IMAGES}=await import('../lib/exui-ccd-runtime.mjs');
  const hash=value=>'sha256:'+createHash('sha256').update(value).digest('hex'),write=(name,value)=>fs.writeFileSync(path.join(directory,name),JSON.stringify(value,null,2)+'\n',{mode:0o600});
- const expected={producer:{commit:'1'.repeat(40),sourceDigest:hash('fixed source'),files:{}},images:clone(CCD_IMAGES),contexts:[]},flags={runtimeAcceptance:false,sourceComplete:false,catalogueCredit:false,releaseCredit:false};
+ const expected={producer:{commit:'1'.repeat(40),sourceDigest:hash('fixed source'),files:{}},images:clone(CCD_IMAGES),contexts:[],...(readMode?{dimension:'read'}:{})},flags={runtimeAcceptance:false,sourceComplete:false,catalogueCredit:false,releaseCredit:false};
  const summary={producer:expected.producer,images:expected.images,status:'PASS',cancelled:false,cleanupComplete:true,variants:[],...flags};
  for(const variant of api.AUTH_CREATE_VARIANTS){
-  const definition=buildAuthorisationCreateDefinition(variant),fixture=path.join(directory,variant+'-fixture'),binding=api.prepareAuthorisationCreateWorkbook(fixture,variant);
+  const definition=(readMode?buildAuthorisationReadDefinition:buildAuthorisationCreateDefinition)(variant),fixture=path.join(directory,variant+'-fixture'),binding=api.prepareAuthorisationCreateWorkbook(fixture,variant);
   const runtimePath=path.join(directory,variant+'-runtime');fs.mkdirSync(runtimePath);const owner='harness-'+(variant==='baseline'?'a':'b').repeat(16),containers=Object.fromEntries(Object.keys(CCD_IMAGES).map(service=>[service,hash(variant+':'+service).slice(7)])),images=Object.fromEntries(Object.entries(CCD_IMAGES).map(([service,id])=>[service,{id,architecture:'arm64'}]));
   const runtime={owner,output:runtimePath,namespace:containers.database,containers,images,fixtureSelection:'event-capability-baseline'};
   const recovery={owner,output:runtimePath,resources:Object.fromEntries(Object.entries(CCD_IMAGES).map(([service,image])=>[service,{name:`${owner}-${service}`,image}]))};
@@ -72,4 +74,12 @@ exports.authorisationPacket=async directory=>{
   expected.contexts.push({variant,fixture:Object.fromEntries(['definition.json','definition.xlsx','binding.json'].map(name=>[name,hash(fs.readFileSync(path.join(fixture,name)))])),runtime:clone(runtime),recovery:clone(recovery),removal:clone(summary.variants.at(-1).removal),...Object.fromEntries([[variant+'-runtime/recovery.json','recoveryDigest'],[variant+'-runtime/creation-attempts.json','creationDigest'],[variant+'-import.json','importDigest'],[variant+'-import-requests.json','importRequestsDigest'],[variant+'-stored-acl.json','storedDigest'],[variant+'-observation.json','observationDigest'],[variant+'-requests.json','journalDigest']].map(([file,key])=>[key,hash(fs.readFileSync(path.join(directory,file)))]))});
  }
  write('summary.json',summary);return {expected,write,read:name=>JSON.parse(fs.readFileSync(path.join(directory,name)))};
+};
+
+exports.authorisationRunFakes=()=>{
+ const fs=require('node:fs'),path=require('node:path'),{EventEmitter}=require('node:events');
+ const calls=[],signal=new EventEmitter(),source={commit:'1'.repeat(40),sourceDigest:'sha256:'+'2'.repeat(64),files:{}},owner='harness-1234567890abcdef',cid='a'.repeat(64);
+ const write=(file,value)=>fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n');
+ const removal={owner,cleanupComplete:true,checkedNames:[owner+'-database'],checkedContainerIds:[cid]};
+ return {calls,signal,options:{producer:()=>source,prepare:directory=>{calls.push('prepare');fs.mkdirSync(directory);write(path.join(directory,'definition.json'),{});fs.writeFileSync(path.join(directory,'definition.xlsx'),'fake workbook');write(path.join(directory,'binding.json'),{});return {};},start:async output=>{calls.push('start');fs.mkdirSync(output);const state={owner,output,namespace:cid,containers:{database:cid},images:{},fixtureSelection:'event-capability-baseline'};write(path.join(output,'runtime.json'),state);write(path.join(output,'recovery.json'),{owner,output,resources:{database:{name:owner+'-database'}}});write(path.join(output,'creation-attempts.json'),[]);return state;},inspect:()=>{},importDefinition:()=>({version:1}),dates:()=>({}),observe:async()=>({}),replay:()=>({catalogueCredit:false}),finalReplay:()=>({catalogueCredit:false}),cleanup:()=>{calls.push('cleanup');return structuredClone(removal);},signalTarget:signal}};
 };

@@ -3,7 +3,6 @@ const {test}=require('node:test');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {EventEmitter}=require('node:events');
 const {authorisationCcdFake,authorisationReadyCcdFake:readyFake}=require('./fixtures/exui-authorisation-create.mock.cjs');
 const temporary=t=>{const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'auth-create-test-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));return directory;};
 const libs=async()=>({...await import('./lib/exui-authorisation-row-fixture.mjs'),...await import('./lib/exui-authorisation-create-runtime.mjs')});
@@ -64,12 +63,7 @@ test('cancellation between journal requests prevents further calls',async()=>{
  await assert.rejects(api.observeAuthorisationCreate(fake.state,'baseline',{request:(...args)=>{calls++;if(args[2].includes('/cases')&&args[3]?.method==='POST')cancelled=true;return fake.request(...args);},isCancelled:()=>cancelled}),/AUTH_CREATE_CANCELLED/);
  const count=calls;await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,count);
 });
-const runFakes=()=>{
- const calls=[],signal=new EventEmitter(),source={commit:'1'.repeat(40),sourceDigest:'sha256:'+'2'.repeat(64),files:{}},owner='harness-1234567890abcdef',cid='a'.repeat(64);
- const write=(file,value)=>fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n');
- const removal={owner,cleanupComplete:true,checkedNames:[owner+'-database'],checkedContainerIds:[cid]};
- return {calls,signal,options:{producer:()=>source,prepare:directory=>{calls.push('prepare');fs.mkdirSync(directory);write(path.join(directory,'definition.json'),{});fs.writeFileSync(path.join(directory,'definition.xlsx'),'fake workbook');write(path.join(directory,'binding.json'),{});return {};},start:async output=>{calls.push('start');fs.mkdirSync(output);const state={owner,output,namespace:cid,containers:{database:cid},images:{},fixtureSelection:'event-capability-baseline'};write(path.join(output,'runtime.json'),state);write(path.join(output,'recovery.json'),{owner,output,resources:{database:{name:owner+'-database'}}});write(path.join(output,'creation-attempts.json'),[]);return state;},inspect:()=>{},importDefinition:()=>({version:1}),dates:()=>({}),observe:async()=>({}),replay:()=>({catalogueCredit:false}),finalReplay:()=>({catalogueCredit:false}),cleanup:()=>{calls.push('cleanup');return structuredClone(removal);},signalTarget:signal}};
-};
+const {authorisationRunFakes:runFakes}=require('./fixtures/exui-authorisation-create.mock.cjs');
 for(const failure of ['create-uncertain','cleanup-failed','proof-failed','cancelled'])test(`standalone sequence blocks later resources after ${failure}`,async t=>{
  const {runAuthorisationCreate}=await import('./run-harness-authorisation-create.mjs'),fake=runFakes();
  if(failure==='create-uncertain')fake.options.start=async (output,options)=>{fake.calls.push('start');options.onCreateUncertainty();throw Error('unknown create');};
