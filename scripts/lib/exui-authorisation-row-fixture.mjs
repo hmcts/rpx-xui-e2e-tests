@@ -89,7 +89,7 @@ export function buildAuthorisationCreateDefinition(variant = 'baseline') {
   ];
   const original = fixture.sheets.CaseEvent.find(row => row.ID === event);
   assert(original, 'AUTH_CREATE_SOURCE_EVENT');
-  fixture.sheets.CaseEvent.push({ ...original, ID: AUTHORISATION_CONTROL_EVENT, Name: 'Synthetic authorisation health control' });
+  fixture.sheets.CaseEvent.push({ ...original, ID: AUTHORISATION_CONTROL_EVENT, Name: 'Authorisation control' });
   for (const sheet of ['CaseEventToFields', 'EventToComplexTypes'])
     fixture.sheets[sheet].push(...fixture.sheets[sheet].filter(row => row.CaseEventID === event).map(row => ({ ...row, CaseEventID: AUTHORISATION_CONTROL_EVENT })));
   const common = { LiveFrom: '01/01/2020', CaseTypeID: 'HarnessNestedPRL', CaseEventID: AUTHORISATION_CONTROL_EVENT };

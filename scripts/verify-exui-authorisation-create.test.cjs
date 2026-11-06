@@ -124,10 +124,10 @@ for(const mutation of ['epoch','style'])test(`actual workbook projection rejects
  const file=path.join(fixture,'definition.xlsx'),program="import pathlib,sys,zipfile,io;p=pathlib.Path(sys.argv[1]);z=zipfile.ZipFile(io.BytesIO(p.read_bytes()));entries=[(i,z.read(i)) for i in z.infolist()];z.close();w=zipfile.ZipFile(p,'w');[(w.writestr(i,b.replace(b'<sheets>',b'<workbookPr date1904=\\\"1\\\"/><sheets>') if i.filename=='xl/workbook.xml' and sys.argv[2]=='epoch' else b.replace(b'numFmtId=\\\"14\\\"',b'numFmtId=\\\"0\\\"') if i.filename=='xl/styles.xml' and sys.argv[2]=='style' else b)) for i,b in entries];w.close()";
  const changed=require('node:child_process').spawnSync('python3',['-B','-c',program,file,mutation],{encoding:'utf8'});assert.equal(changed.status,0,changed.stderr);assert.throws(()=>api.validateAuthorisationWorkbook(file,'baseline'),/AUTH_CREATE_WORKBOOK_PROJECTION/);
 });
-test('actual import status response is retained before the importer rejects500',async t=>{
+for(const status of [400,500])test(`actual import status response is retained before the importer rejects${status}`,async t=>{
  const api=await libs(),directory=temporary(t),fixture=path.join(directory,'fixture');api.prepareAuthorisationCreateWorkbook(fixture,'baseline');const fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition()),observations=[];
- assert.throws(()=>api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>{if(port===4451)return {status:route==='/import'?500:201,body:{synthetic:'private-status-observation'}};return fake.request(state,port,route,options);},onObservation:entry=>observations.push(entry)}),/AUTH_CREATE_IMPORT_STATUS/);
- assert.equal(observations.length,6);assert.equal(observations.at(-1).kind,'definition-import');assert.equal(observations.at(-1).response.status,500);assert.equal(observations.at(-1).route,'/import');
+ assert.throws(()=>api.importAuthorisationCreate(fake.state,fixture,'baseline',{inspect:()=>{},request:(state,port,route,options)=>{if(port===4451)return {status:route==='/import'?status:201,body:route==='/import'&&status===400?'Invalid Name length on CaseEvent; maximum30 characters at row6':{synthetic:'private-status-observation'}};return fake.request(state,port,route,options);},onObservation:entry=>observations.push(entry)}),/AUTH_CREATE_IMPORT_STATUS/);
+ assert.equal(observations.length,6);assert.equal(observations.at(-1).kind,'definition-import');assert.equal(observations.at(-1).response.status,status);if(status===400)assert.equal(typeof observations.at(-1).response.body,'string');assert.equal(observations.at(-1).route,'/import');
 });
 test('a partial failing API journey retains its actual status journal before observation construction fails',async()=>{
  const api=await libs(),fake=authorisationCcdFake(api.buildAuthorisationCreateDefinition());let saved=[];
@@ -161,4 +161,18 @@ test('actual-shaped UI event_token and legacy token responses retain hashes inst
  const response=await captured.call('fixed-start','courtadmin',{userId:'synthetic-actor',headers:{}},4452,'/internal/cases/1000000000000001/event-triggers/serviceOfDocuments',{method:'POST',body:{event_token:sent}});
  assert.equal(response.body.event_token,ui);assert.equal(response.body.token,legacy);
  const [row]=captured.journal;for(const value of [ui,legacy,sent])assert(!JSON.stringify(row).includes(value),'JOURNAL_CREDENTIAL_RETAINED');for(const value of [row.tokenDigest,row.eventTokenDigest,row.sentTokenDigest])assert.match(value,/^sha256:[a-f0-9]{64}$/);assert.equal(row.response.event_token,undefined);
+});
+
+
+test('both generated carriers satisfy the pinned CCD CaseEvent Name thirty-character import constraint',async()=>{
+ const api=await libs();
+ // Definition-store120b: SpreadSheetValidationMappingEnum.CASE_EVENT_NAME is30.
+ // The actual9851 import rejected worksheet row6 before any actor proof.
+ for(const variant of ['baseline','remove-create']){
+  const definition=api.buildAuthorisationCreateDefinition(variant);
+  for(const row of definition.sheets.CaseEvent)assert(row.Name.length>0&&row.Name.length<=30,'CCD_CASE_EVENT_NAME_LENGTH');
+  const control=definition.sheets.CaseEvent.find(row=>row.ID==='harnessAuthorisationControl');
+  assert.equal(control.Name,'Authorisation control');assert.equal(control.ID,'harnessAuthorisationControl');
+  assert.equal(definition.sheets.CaseEvent.find(row=>row.ID==='serviceOfDocuments').Name,'Service of documents');
+ }
 });
