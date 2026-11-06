@@ -20,7 +20,7 @@ export const PERSONAL_POLICY='personal-service-parent-bound-pair-v1';
 export const personalDigest=value=>digestBytes(JSON.stringify(value));
 export const serialPlan=plan=>JSON.parse(JSON.stringify(plan));
 export const PERSONAL_RAW_FILES=Object.freeze(['input.json','baseline/personal-service-observation.json','baseline/ccd-requests.jsonl','baseline/report.json','runtime/recipient-callback-import/receipt.json','runtime/recipient-callback-import/personal-service-stored-row-date.json']);
-export const PERSONAL_PRE_FILES=Object.freeze(['input.json','fixture/definition.json','fixture/definition.xlsx','fixture/binding.json','runtime/recipient-callback-import/receipt.json','runtime/recipient-callback-import/personal-service-stored-row-date.json','runtime/recipient-callback-import/runtime-verification.json','runtime/recovery.json']);
+export const PERSONAL_PRE_FILES=Object.freeze(['input.json','fixture/definition.json','fixture/definition.xlsx','fixture/binding.json','runtime/recipient-callback-import/receipt.json','runtime/recipient-callback-import/personal-service-stored-row-date.json','runtime/recipient-callback-import/runtime-verification.json','runtime/recovery.json','runtime/creation-attempts.json']);
 export const PERSONAL_FINAL_FILES=Object.freeze([...new Set([...PERSONAL_RAW_FILES,...PERSONAL_PRE_FILES,'personal-service-observed-terminal.json','baseline/framework-terminal.json','baseline/candidate-write-denial.json','baseline/candidate-lifecycle.json','baseline/manifest.json','baseline/runtime-identity.json','owned-resources.json','personal-service-child-finalization.json'])]);
 const fail='PERSONAL_SERVICE_PARENT_BINDING';
 export function personalFile(directory,name) {
@@ -94,12 +94,24 @@ export function validatePersonalNativeFinalization(binding) {
  }
  return registry;
 }
+// A normally observed parent child plus exact creation/finalization records, never absence alone.
+export function validatePersonalChildClosure(binding,terminal) {
+ assert(terminal?.started===true&&terminal.observed===true&&terminal.forced===false&&terminal.cancelled===false&&terminal.signal===null&&Number.isInteger(terminal.code),'PERSONAL_SERVICE_CLOSURE_TERMINAL');
+ const value=personalJson(binding.directory,'personal-service-child-finalization.json');
+ assert.equal(personalFile(binding.directory,'runtime/creation-attempts.json').digest,binding.files['runtime/creation-attempts.json'],'PERSONAL_SERVICE_CLOSURE_CCD_CHANGED');
+ assert.deepEqual(personalJson(binding.directory,'runtime/creation-attempts.json'),Object.entries(binding.ccd.containers).map(([service,containerId])=>({service,name:binding.ccd.owner+'-'+service,state:'settled',containerId})),'PERSONAL_SERVICE_CLOSURE_CCD_UNSETTLED');
+ const registry=validatePersonalNativeFinalization(binding);
+ const expected=registry.map(row=>({name:row.name,state:'settled',id:row.id}));
+ assert.deepEqual(value,{schemaVersion:1,runId:binding.runId,bindingDigest:personalDigest(binding),cleanupComplete:true,cancelled:false,creationSafe:true,creationAttempts:expected,frameworkTerminal:personalJson(binding.directory,'baseline/framework-terminal.json'),processesSettled:true},'PERSONAL_SERVICE_CLOSURE_UNSETTLED');
+ assert(value.frameworkTerminal.signal===null&&Number.isInteger(value.frameworkTerminal.code),'PERSONAL_SERVICE_CLOSURE_FRAMEWORK');
+ return registry;
+}
 export function validatePersonalInvocation(binding,cohort,completion) {
  const input=readPersonalPrepared(binding,cohort);
  assert.deepEqual(completion.childTerminal,{started:true,observed:true,forced:false,cancelled:false,code:0,signal:null},fail);
  assert.deepEqual(Object.keys(completion.files).sort(),PERSONAL_FINAL_FILES.slice().sort(),fail);assert.deepEqual(personalFiles(binding.directory,PERSONAL_FINAL_FILES),completion.files,fail);
  const framework=personalJson(binding.directory,'personal-service-observed-terminal.json');assert.equal(framework.runId,binding.runId,fail);assert.deepEqual(framework.terminal,personalJson(binding.directory,'baseline/framework-terminal.json'),fail);
- assert.deepEqual(personalJson(binding.directory,'personal-service-child-finalization.json'),{schemaVersion:1,runId:binding.runId,bindingDigest:personalDigest(binding),cleanupComplete:true},fail);
+ validatePersonalChildClosure(binding,completion.childTerminal);
  const result=readPersonalServiceEvidence(binding.directory,{variant:binding.variant,actorId:input.credentials.courtadmin.userId,terminal:framework.terminal,files:Object.fromEntries(PERSONAL_RAW_FILES.map(name=>[name,completion.files[name]])),sourceBinding:input.personalServiceBinding,definitionVersion:input.definition.definitionVersion,owner:input.ccd.owner,namespace:input.ccd.namespace,images:input.ccd.images});
  const registry=validatePersonalNativeFinalization(binding),runtime=personalJson(binding.directory,'baseline/runtime-identity.json'),manifest=personalJson(binding.directory,'baseline/manifest.json');
  assert.deepEqual(manifest,{...binding.manifest,runtimeMetadata:{...binding.manifest.runtimeMetadata,candidateAuthorityIsolation:'separate-container-no-evidence-mount',candidateRuntimeNodeVersion:cohort.artifact.provenance.runtimeNodeVersion,candidateObservedImageId:cohort.nativeRuntime.imageId}},fail);

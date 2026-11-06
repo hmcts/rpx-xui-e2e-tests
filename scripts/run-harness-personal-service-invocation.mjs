@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {personalFile,personalJson,personalDigest,readPersonalPrepared,personalPlan,personalProducer} from './lib/exui-personal-service-invocation-binding.mjs';
-import {runHostInvocation,removeHostResource,inspectHostContainer} from './lib/exui-host-invocation.mjs';
+import {runHostInvocation,removeHostResource,inspectHostContainer,hostDocker} from './lib/exui-host-invocation.mjs';
 import {verifyCcdContainerIdentity} from './lib/exui-ccd-runtime.mjs';
 import {verifyCallbackUiRuntime} from './run-harness-recipient-callback-ui.mjs';
 import {readPersonalServiceDate} from './lib/exui-personal-service-facets.mjs';
@@ -22,15 +22,21 @@ export async function runPersonalInvocation(expectedFile,expectedDigest) {
  assert.deepEqual(verifyCallbackUiRuntime(binding.ccd,personalJson(binding.directory,'runtime/recipient-callback-import/receipt.json'),{writeReceipt:false}),input.callbackObservedDigests,'PERSONAL_SERVICE_CHILD_DESCRIPTOR');
  assert.deepEqual(readPersonalServiceDate(binding.ccd,input.definition.definitionVersion,{writeReceipt:false}),personalJson(binding.directory,'runtime/recipient-callback-import/personal-service-stored-row-date.json'),'PERSONAL_SERVICE_CHILD_DATE');
  const plan=personalPlan(input,binding.handoff);for(const item of [plan.candidate,plan.tools])assert.equal(inspectHostContainer(item.name),null,'PERSONAL_SERVICE_CHILD_NOT_FRESH');
- const resources=new Map();let cancelled=false,terminal,cleanupComplete=false;
+ const resources=new Map(),creationAttempts=[];let cancelled=false,terminal,cleanupComplete=false,creationSafe=true;
+ const invokeDocker=(args,...rest)=>{
+  const attempt=args[0]==='create'?{name:args[args.indexOf('--name')+1],state:'pending',id:null}:undefined;
+  if(attempt)creationAttempts.push(attempt);
+  try{const value=hostDocker(args,...rest);if(attempt){assert(/^[a-f0-9]{64}$/.test(value),'PERSONAL_SERVICE_CREATE_CID');attempt.state='settled';attempt.id=value;}return value;}
+  catch(error){if(attempt||args[0]==='rm')creationSafe=false;throw error;}
+ };
  const cancel=()=>{cancelled=true;for(const resource of resources.values())if(resource.kind==='process')resource.child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
  try{
-  const result=await runHostInvocation({...plan,candidate:{...plan.candidate,launchProcess:binding.candidateProcess},manifest:structuredClone(binding.manifest),payloadDigest:input.artifact.payloadDigest},{resources,isCancelled:()=>cancelled});terminal=result.terminal;
+  const result=await runHostInvocation({...plan,candidate:{...plan.candidate,launchProcess:binding.candidateProcess},manifest:structuredClone(binding.manifest),payloadDigest:input.artifact.payloadDigest},{resources,isCancelled:()=>cancelled,docker:invokeDocker});terminal=result.terminal;
   writeJsonAtomic(path.join(binding.directory,'personal-service-observed-terminal.json'),{runId:input.runId,terminal});
   assert(!cancelled,'PERSONAL_SERVICE_CHILD_CANCELLED');assert.deepEqual(terminal,{code:binding.variant==='baseline'?0:1,signal:null},'PERSONAL_SERVICE_CHILD_FRAMEWORK');
  }finally{
   const errors=[];for(const key of [...resources.keys()].reverse()){try{await removeHostResource(resources,key,binding.directory);}catch(error){errors.push(error);}}
-  cleanupComplete=errors.length===0;writeJsonAtomic(path.join(binding.directory,'personal-service-child-finalization.json'),{schemaVersion:1,runId:input.runId,bindingDigest:personalDigest(binding),cleanupComplete});
+  cleanupComplete=errors.length===0;writeJsonAtomic(path.join(binding.directory,'personal-service-child-finalization.json'),{schemaVersion:1,runId:input.runId,bindingDigest:personalDigest(binding),cleanupComplete,cancelled,creationSafe,creationAttempts,frameworkTerminal:terminal??null,processesSettled:![...resources.values()].some(resource=>resource.kind==='process')});
   process.off('SIGINT',cancel);process.off('SIGTERM',cancel);assert(cleanupComplete,'PERSONAL_SERVICE_CHILD_CLEANUP');
  }
 }

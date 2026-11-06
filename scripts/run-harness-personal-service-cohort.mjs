@@ -6,7 +6,7 @@ import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {PERSONAL_ROOT,PERSONAL_NO_CREDIT,PERSONAL_FINAL_FILES,personalDigest,personalPolicyDigest,personalProducer,personalFiles,personalFile,personalJson,personalChildCommand,capturePersonalPrepared,validatePersonalInvocation,readPersonalCohort} from './lib/exui-personal-service-invocation-binding.mjs';
+import {PERSONAL_ROOT,PERSONAL_NO_CREDIT,PERSONAL_FINAL_FILES,personalDigest,personalPolicyDigest,personalProducer,personalFiles,personalFile,personalJson,personalChildCommand,capturePersonalPrepared,validatePersonalChildClosure,validatePersonalInvocation,readPersonalCohort} from './lib/exui-personal-service-invocation-binding.mjs';
 import {runCallbackUi} from './run-harness-recipient-callback-ui.mjs';
 import {verifyCandidateArtifact,digestCandidateTree} from './lib/exui-candidate-artifact.mjs';
 import {verifyHarnessDependencies} from './lib/exui-harness-dependencies.mjs';
@@ -53,6 +53,7 @@ export async function cleanupPersonalInvocation(binding,terminal,{inspect=inspec
  for(const resource of [binding.plan.candidate,binding.plan.tools])assert.equal(inspect(resource.name),null,'PERSONAL_SERVICE_NATIVE_RESIDUE');
  const state=personalJson(binding.directory,'runtime/runtime.json');assert.deepEqual(state,binding.ccd,'PERSONAL_SERVICE_CCD_STATE_DRIFT');
  assert.equal(personalFile(binding.directory,'runtime/recovery.json').digest,binding.files['runtime/recovery.json'],'PERSONAL_SERVICE_CCD_RECOVERY_DRIFT');
+ assert.equal(personalFile(binding.directory,'runtime/creation-attempts.json').digest,binding.files['runtime/creation-attempts.json'],'PERSONAL_SERVICE_CCD_CREATION_DRIFT');
  cleanupCcd(binding.ccd.output);
  const registry=fs.existsSync(path.join(binding.directory,'owned-resources.json'))?personalJson(binding.directory,'owned-resources.json'):[];
  const names=[...Object.keys(binding.ccd.containers).map(s=>binding.ccd.owner+'-'+s),binding.plan.tools.name,binding.plan.candidate.name];
@@ -69,7 +70,14 @@ async function preflight(candidate,browser) {
  const ccdImages=Object.fromEntries(Object.entries(ccdImagePins(platform)).map(([name,pin])=>{const info=JSON.parse(docker(['image','inspect',pin.reference]))[0];assertCcdImageIdentity(info,pin,platform);return [name,{id:info.Id,architecture:info.Architecture,repoDigests:info.RepoDigests}];}));
  return {schemaVersion:1,runId:'personal-'+randomUUID(),policyDigest:personalPolicyDigest(),producer,candidateManifest:candidate,candidateManifestDigest:personalFile(path.dirname(candidate),path.basename(candidate)).digest,artifact,browser:{root:browserRoot,digest:await digestCandidateTree(browserRoot),image:inspectNativeBrowserRuntime(platform)},dependencies,nativeRuntime:inspectNativeApiRuntime(platform),ccdImages,noCredit:PERSONAL_NO_CREDIT};
 }
-export async function runPersonalCohort({candidate,browser,output,signal,admissionContext}) {
+const closedFailures=new WeakSet();
+export const isPersonalCohortClosedFailure=error=>error instanceof Error&&closedFailures.has(error);
+export async function runPersonalCohort(options) {
+ const closure={safe:true,cleanupUncertain:false};
+ try{return await runPersonalCohortInternal(options,closure);}catch(error){if(closure.safe&&!closure.cleanupUncertain&&!options.signal?.aborted&&error instanceof Error)closedFailures.add(error);throw error;}
+}
+async function runPersonalCohortInternal({candidate,browser,output,signal,admissionContext},closure) {
+ const cleanupBound=async(binding,terminal)=>{try{return await cleanupPersonalInvocation(binding,terminal);}catch(error){closure.cleanupUncertain=true;closure.safe=false;throw error;}};
  assert([candidate,browser,output].every(p=>typeof p==='string'&&path.isAbsolute(p)),fail);
  assert(!signal?.aborted,'PERSONAL_SERVICE_PARENT_CANCELLED');
  const startedAt=new Date().toISOString(),start=performance.now(),cohort=await preflight(candidate,browser);
@@ -78,13 +86,13 @@ export async function runPersonalCohort({candidate,browser,output,signal,admissi
  output=createFreshHarnessOutput(output,[PERSONAL_ROOT,candidate,cohort.artifact.candidateRoot,cohort.browser.root,cohort.dependencies.root??path.join(PERSONAL_ROOT,'node_modules')]);
  writeJsonAtomic(path.join(output,'parent-input.json'),cohort);
  const expected={runId:cohort.runId,inputDigest:personalFile(output,'parent-input.json').digest,bindingDigest:personalDigest(cohort),producer:cohort.producer,artifact:cohort.artifact,invocations:{}};
- const pairCancellation=new AbortController();let cancelled=false;const cancel=()=>{cancelled=true;pairCancellation.abort();};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
+ const pairCancellation=new AbortController();let cancelled=false;const cancel=()=>{cancelled=true;closure.safe=false;pairCancellation.abort();};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
  try{
   for(const variant of ['baseline','optional']){
    assert(!cancelled&&!signal?.aborted,'PERSONAL_SERVICE_PARENT_CANCELLED');assert.deepEqual(personalProducer(),cohort.producer,fail);
    let prepared,binding,terminal,spawned=false,removed=false;
    try{
-    prepared=await runCallbackUi({candidate,browser,output:path.join(output,variant),variant,scenario:'personal-service',preparePersonal:true,signal:pairCancellation.signal});
+    prepared=await runCallbackUi({candidate,browser,output:path.join(output,variant),variant,scenario:'personal-service',preparePersonal:true,signal:pairCancellation.signal,personalLifecycle:{creationStarted:()=>{closure.safe=false;},closed:()=>{if(!closure.cleanupUncertain&&!cancelled&&!signal?.aborted)closure.safe=true;}}});
     assert(prepared?.input,'PERSONAL_SERVICE_PARENT_PREPARATION');binding=capturePersonalPrepared(prepared,cohort);verifyCcdContainerIdentity(binding.ccd);
     for(const resource of [binding.plan.candidate,binding.plan.tools])assert.equal(inspectHostContainer(resource.name),null,'PERSONAL_SERVICE_PARENT_NOT_FRESH');
     const name=variant+'-expected.json';writeJsonAtomic(path.join(output,name),{cohort,binding});fs.chmodSync(path.join(output,name),0o400);
@@ -92,18 +100,18 @@ export async function runPersonalCohort({candidate,browser,output,signal,admissi
     writeJsonAtomic(path.join(output,variant+'-launch.json'),{runId:binding.runId,bindingDigest,command});
     const launchDigest=personalFile(output,variant+'-launch.json').digest;
     assert(!cancelled&&!signal?.aborted,'PERSONAL_SERVICE_PARENT_CANCELLED');const log=fs.openSync(path.join(output,variant+'.log'),'wx',0o600);
-    try{spawned=true;terminal=await executePersonalChild(command,{log,signal:pairCancellation.signal});}finally{fs.closeSync(log);}
+    try{spawned=true;closure.safe=false;terminal=await executePersonalChild(command,{log,signal:pairCancellation.signal});}finally{fs.closeSync(log);}
     writeJsonAtomic(path.join(output,variant+'-terminal.json'),terminal);
     assert.deepEqual(terminal,{started:true,observed:true,forced:false,cancelled:false,code:0,signal:null},'PERSONAL_SERVICE_PARENT_CHILD');
     assert.equal(personalFile(output,name).digest,bindingDigest,fail);assert.equal(personalFile(output,variant+'-launch.json').digest,launchDigest,fail);
     const completion={childTerminal:terminal,files:personalFiles(binding.directory,PERSONAL_FINAL_FILES)};
     validatePersonalInvocation(binding,cohort,completion);writeJsonAtomic(path.join(output,variant+'-completion.json'),completion);
-    const removal=await cleanupPersonalInvocation(binding,terminal);removed=true;writeJsonAtomic(path.join(output,variant+'-removal.json'),removal);
+    validatePersonalChildClosure(binding,terminal);const removal=await cleanupBound(binding,terminal);removed=true;closure.safe=!closure.cleanupUncertain&&!cancelled&&!signal?.aborted;writeJsonAtomic(path.join(output,variant+'-removal.json'),removal);
     expected.invocations[variant]={bindingDigest,launchDigest,completionDigest:personalFile(output,variant+'-completion.json').digest,removalDigest:personalFile(output,variant+'-removal.json').digest,observedTerminal:terminal};
    }finally{
     // An unobserved child can still be using resources: never remove them.
-    if(!spawned&&prepared?.input){cleanupUnlaunchedPersonal(prepared);writeJsonAtomic(path.join(output,variant+'-preparation-cleanup.json'),{childStarted:false,cleanupComplete:true,...PERSONAL_NO_CREDIT});}
-    else if(binding&&!removed&&terminal?.observed){const cleanup=await cleanupPersonalInvocation(binding,terminal);writeJsonAtomic(path.join(output,variant+'-removal.json'),cleanup);}
+    if(!spawned&&prepared?.input){try{cleanupUnlaunchedPersonal(prepared);}catch(error){closure.cleanupUncertain=true;closure.safe=false;throw error;}closure.safe=!closure.cleanupUncertain&&!cancelled&&!signal?.aborted;writeJsonAtomic(path.join(output,variant+'-preparation-cleanup.json'),{childStarted:false,cleanupComplete:true,...PERSONAL_NO_CREDIT});}
+    else if(binding&&!removed&&terminal?.observed){let normalClosure=false;try{validatePersonalChildClosure(binding,terminal);normalClosure=true;}catch{/* Uncertain closure can never authorize another resource launcher. */}const cleanup=await cleanupBound(binding,terminal);closure.safe=normalClosure&&!closure.cleanupUncertain&&!cancelled&&!signal?.aborted;writeJsonAtomic(path.join(output,variant+'-removal.json'),cleanup);}
    }
   }
   assert(!cancelled&&!signal?.aborted,'PERSONAL_SERVICE_PARENT_CANCELLED');assert.deepEqual(personalProducer(),cohort.producer,fail);assert.deepEqual(await verifyCandidateArtifact(candidate),cohort.artifact,fail);assert.equal(await digestCandidateTree(cohort.browser.root),cohort.browser.digest,fail);

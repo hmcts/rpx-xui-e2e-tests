@@ -78,3 +78,19 @@ test('live revalidation preserves parent receipt bytes across harmless CCD array
   live.wizard_pages[0].callback_url_mid_event=null;assert.throws(()=>verifyCallbackUiRuntime(state,imported,{request,inspect:()=>{},writeReceipt:false}),/CALLBACK_UI_IMPORT_DRIFT/);assert.deepEqual(fs.readFileSync(d+'/recipient-callback-import/runtime-verification.json'),held);
  }finally{fs.rmSync(d,{recursive:true,force:true});}
 });
+for(const mode of ['precreation','closed-reader','pending','unknown-create','forced','unobserved','cancelled','signalled','foreign-registry','missing-finalization','cleanup-failure'])test('actual parent closure branding for '+mode,async t=>{
+ const {personalClosure}=require('./fixtures/exui-personal-service-closure.mock.cjs'),r=await personalClosure(t,mode);
+ assert(r.error);assert.equal(r.closed,['precreation','closed-reader'].includes(mode));
+ if(mode==='precreation')assert.equal(r.state.calls.some(x=>x.startsWith('child:')||x==='ccd-cleanup'),false);
+ if(mode==='closed-reader')assert.deepEqual(r.state.calls,['prepare:baseline','child:baseline','ccd-cleanup','prepare:optional','child:optional','ccd-cleanup']);
+ else assert.equal(r.state.calls.includes('prepare:optional'),false);
+});
+test('controlled terminal-plus-absence shortcut wrongly brands a pending creator and is rejected by current parent',async t=>{
+ const {personalClosure}=require('./fixtures/exui-personal-service-closure.mock.cjs');
+ assert.equal((await personalClosure(t,'pending')).closed,false);
+ assert.equal((await personalClosure(t,'pending',{unsafeOld:true})).closed,true,'controlled old-code defect must expose false closure');
+});
+
+test('first parent cleanup failure cannot be erased by successful finally retry',async t=>{
+ const {personalClosure}=require('./fixtures/exui-personal-service-closure.mock.cjs'),r=await personalClosure(t,'cleanup-retry');assert(r.error);assert.equal(r.state.calls.filter(x=>x==='ccd-cleanup').length,2);assert.equal(r.closed,false,'first failed cleanup must stay unsafe');assert.equal(r.state.calls.includes('prepare:optional'),false);
+});

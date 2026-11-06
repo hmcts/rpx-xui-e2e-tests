@@ -76,12 +76,13 @@ export function createCallbackNativeWorkspace() {
  for(const kind of ['sessions','diagnostics']){const directory=stateRoot+'/baseline/'+kind;fs.mkdirSync(directory,{recursive:true,mode:0o777});fs.chmodSync(directory,0o777);}
  return {workspace,stagedHarness,stateRoot};
 }
-export async function runCallbackUi({candidate,browser,output,variant='baseline',scenario='recipient-callback',preparePersonal=false,signal}) {
+export async function runCallbackUi({candidate,browser,output,variant='baseline',scenario='recipient-callback',preparePersonal=false,signal,personalLifecycle}) {
  let cancelled=false;const isCancelled=()=>cancelled||Boolean(signal?.aborted),assertActive=()=>assert(!isCancelled(),'CALLBACK_UI_CANCELLED');assertActive();
  const invocationClock={startedAt:new Date().toISOString(),start:performance.now()};
  assert(['recipient-callback','selector-event-row','personal-service'].includes(scenario),'CALLBACK_UI_SCENARIO');
  const selector=scenario==='selector-event-row',personal=scenario==='personal-service';
  assert(typeof preparePersonal==='boolean'&&(!preparePersonal||personal),'PERSONAL_SERVICE_PREPARATION_SCOPE');
+ assert(personalLifecycle===undefined||preparePersonal&&typeof personalLifecycle.creationStarted==='function'&&typeof personalLifecycle.closed==='function','PERSONAL_SERVICE_LIFECYCLE');
  const personalContract=personal?await import('./lib/exui-personal-service-contract.mjs'):undefined;
  const personalFacets=personal?await import('./lib/exui-personal-service-facets.mjs'):undefined;
  const personalEvidence=personal?await import('./lib/exui-personal-service-evidence.mjs'):undefined;
@@ -91,7 +92,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
  const receipt={kind:personal?'personal-service-ui-feasibility':selector?'selector-event-row-ui-feasibility':'recipient-callback-ui-feasibility',scenario,variant,status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
  const save=()=>{writeJsonAtomic(output+'/receipt.json',receipt);fs.chmodSync(output+'/receipt.json',0o600);};save();
  const resources=new Map();const cancel=()=>{cancelled=true;for(const resource of resources.values())if(resource.kind==='process')resource.child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
- let phase='verify-candidate',privateWorkspace,personalPreexecution,preparedPersonal;const runtime=output+'/runtime';
+ let phase='verify-candidate',privateWorkspace,personalPreexecution,preparedPersonal,creationUncertain=false;const runtime=output+'/runtime';
  try {
   assertActive();const harnessDependencies=await verifyHarnessDependencies(root+'/node_modules',root+'/package.json',root+'/yarn.lock');assertActive();
   assertCandidateConfigurationSources(artifact.candidateRoot,read(root+'/scripts/fixtures/exui-configuration-review.json'));
@@ -103,7 +104,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
    personalPreexecution={schemaVersion:1,kind:'personal-service-preexecution',capturedBeforeCcd:true,producerCommit:git(['rev-parse','HEAD']),files,harnessSourceDigest:digestBytes(JSON.stringify(files)),candidate:artifact,browser:{root:browserRoot,digest:browserDigest},harnessDependencyDigest:harnessDependencies.digest,variant,catalogueCredit:false,releaseCredit:false};
    writeJsonAtomic(output+'/personal-service-preexecution.json',personalPreexecution);
   }
-  assertActive();phase='start-runtime';const ccd=await startCcdRuntime(runtime,{fixtureSelection:'event-capability-baseline',platform:artifact.provenance.platform,isCancelled});assertActive();
+  assertActive();phase='start-runtime';personalLifecycle?.creationStarted();const ccd=await startCcdRuntime(runtime,{fixtureSelection:'event-capability-baseline',platform:artifact.provenance.platform,isCancelled,onCreateUncertainty:()=>{creationUncertain=true;}});assertActive();
   phase='import-callback';const importOptions={variant:(selector||personal)?'binding-omitted':variant,rowFacets:true,...(selector?{selectorEventVariant:variant}:personal?{personalServiceVariant:variant}:{})};assertActive();await prepareRecipientCallbackImport(output+'/fixture',importOptions);assertActive();
   const imported=await importRecipientCallback(ccd,{fixtureDirectory:output+'/fixture',...importOptions});assertActive();receipt.import=imported;save();const callbackObservedDigests=verifyCallbackUiRuntime(ccd,imported);
   phase='verify-row-facets';receipt.facets=personal?{descriptor:personalFacets.validatePersonalServiceDescriptors(imported.observations.definition.body,imported.observations.pages.body,variant),date:personalFacets.readPersonalServiceDate(ccd,imported.observations.definition.body.version.number)}:selector?{descriptor:validateSelectorRowDescriptors(imported.observations.definition.body,imported.observations.pages.body,variant),date:readSelectorStoredDate(ccd,imported.observations.definition.body.version.number)}:{descriptor:validateCallbackRowDescriptors(imported.observations.definition.body,imported.observations.pages.body),date:readCallbackStoredDate(ccd,imported.observations.definition.body.version.number)};save();
@@ -149,6 +150,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   if(cleanup.length||receipt.cleanup?.cleanupComplete!==true||!receipt.workspaceCleanupComplete)receipt.status='cleanup-uncertain';
   if(personal)receipt.timing={startedAt:invocationClock.startedAt,endedAt:new Date().toISOString(),durationMs:Math.round(performance.now()-invocationClock.start),scope:'standalone-invocation-including-preparation-proof-reader-and-cleanup',telemetryOnly:true};
   save();
+  if(preparePersonal&&!creationUncertain&&!isCancelled()&&receipt.nativeCleanupComplete&&receipt.cleanup?.cleanupComplete===true&&receipt.workspaceCleanupComplete&&fs.existsSync(runtime+'/creation-attempts.json')){const attempts=read(runtime+'/creation-attempts.json');if(Array.isArray(attempts)&&attempts.length>0&&attempts.every(item=>item.state==='settled'&&/^[a-f0-9]{64}$/.test(item.containerId)))personalLifecycle?.closed();}
   }
   process.off('SIGINT',cancel);process.off('SIGTERM',cancel);signal?.removeEventListener('abort',cancel);
  }
