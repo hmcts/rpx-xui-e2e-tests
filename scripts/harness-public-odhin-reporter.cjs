@@ -140,6 +140,7 @@ function validateHtml(html, record) {
   if(record.personalServiceAttempt&&record.nativeEvidence?.personalServiceAdmission)throw failure();
   if(Boolean(record.personalServiceAttempt)!==html.includes('id="harness-personal-service-attempt"'))throw failure();
   if(record.personalServiceAttempt&&!html.includes(require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(record.personalServiceAttempt)))throw failure();
+  if (!html.includes(require('./harness-native-report.cjs').renderNativeExecutionInfo(record.nativeEvidence))) throw failure();
   if(record.divorceProfileAttempt&&record.nativeEvidence?.divorceProfileAdmission)throw failure();
   if(Boolean(record.divorceProfileAttempt)!==html.includes('id="harness-divorce-profile-attempt"'))throw failure();
   if(record.divorceProfileAttempt&&!html.includes(require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(record.divorceProfileAttempt)))throw failure();
@@ -702,6 +703,7 @@ class HarnessPublicOdhinReporter {
       const observedWorkers = new Set([...this.results.values()].map((item) => item.workerIndex).filter((index) => index >= 0)).size;
       const nativeDuration = this.nativeElapsedMs === undefined ? 'duration not recorded' : `${(this.nativeElapsedMs / 60000).toFixed(1)} min native run + evidence preparation`;
       runInfo.querySelector('table').insertAdjacentHTML('beforeend', `<tr><th scope="row">Playwright diagnostic workers</th><td>${this.configuredWorkers ?? 'Not recorded'} configured · ${observedWorkers} observed</td></tr><tr><th scope="row">Native execution</th><td>${this.nativeEvidence ? `${this.nativeEvidence.status} · ${nativeDuration}` : 'Not run'}</td></tr>`);
+      runInfo.querySelector('table').insertAdjacentHTML('beforeend', require('./harness-native-report.cjs').renderNativeExecutionInfo(this.nativeEvidence));
       applyPresentation(
         presentation,
         [...this.expected].map(([identity, entry], index) => ({

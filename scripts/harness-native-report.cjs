@@ -265,10 +265,56 @@ function labelFor(proofId, phase) {
   return label;
 }
 function nativeCounts(evidence) {
+  const complete = evidence.phases.every(phase => Array.isArray(phase.invocations));
+  const invocations = [];
+  for (const phase of evidence.phases) {
+    if (phase.invocations === undefined) continue;
+    assert(Array.isArray(phase.invocations), "PUBLIC_ODHIN_NATIVE_INVOCATIONS");
+    const expected = [...new Set([...phase.baselineProofs, ...phase.faults].map(item => item.invocationId))].sort();
+    assert.deepEqual(phase.invocations.map(item => item.invocationId).sort(), expected, "PUBLIC_ODHIN_NATIVE_INVOCATIONS");
+    for (const item of phase.invocations) {
+      assert.deepEqual(Object.keys(item).sort(), ['configuredWorkers', 'invocationId'], "PUBLIC_ODHIN_NATIVE_INVOCATIONS");
+      assert(item.configuredWorkers === null || (Number.isSafeInteger(item.configuredWorkers) && item.configuredWorkers > 0), "PUBLIC_ODHIN_NATIVE_WORKERS");
+      invocations.push(item);
+    }
+  }
   return {
     baselines: evidence.phases.reduce((n, p) => n + p.baselineProofs.length, 0),
     faults: evidence.phases.reduce((n, p) => n + p.faults.length, 0),
+    invocations: complete ? invocations.length : null,
+    workerSlots: complete ? [...new Set(invocations.map(item => item.configuredWorkers).filter(value => value !== null))].sort((a, b) => a - b) : [],
+    workersUnknown: complete ? invocations.filter(item => item.configuredWorkers === null).length : null,
   };
+}
+function renderNativeExecutionInfo(evidence) {
+  const groups = [['Core native', evidence ? nativeCounts(evidence) : null]];
+  if (evidence?.personalServiceAdmission) {
+    const records = evidence.personalServiceAdmission.invocations;
+    let count = {invocations:null, workerSlots:[], workersUnknown:null};
+    if (records !== undefined) {
+      assert(Array.isArray(records), "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+      assert.deepEqual(records.map(item => item.invocationId).sort(), ['baseline', 'optional'], "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+      for (const item of records) {
+        assert.deepEqual(Object.keys(item).sort(), ['configuredWorkers', 'invocationId', 'runId'], "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+        assert(/^ccd-[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(item.runId), "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+        assert(item.configuredWorkers === null || (Number.isSafeInteger(item.configuredWorkers) && item.configuredWorkers > 0), "PUBLIC_ODHIN_PERSONAL_WORKERS");
+      }
+      assert.equal(new Set(records.map(item => item.runId)).size, 2, "PUBLIC_ODHIN_PERSONAL_INVOCATIONS");
+      count = {invocations:records.length, workerSlots:[...new Set(records.map(item => item.configuredWorkers).filter(value => value !== null))].sort((a,b)=>a-b), workersUnknown:records.filter(item=>item.configuredWorkers===null).length};
+    }
+    groups.push(['Personal-service', count]);
+  }
+  return groups.map(([label, count]) => {
+    let workers = 'Not run';
+    if (count) {
+      workers = count.workerSlots.length === 0 ? 'Not recorded' : count.workerSlots.length === 1
+        ? `${count.workerSlots[0]} per invocation${count.workersUnknown ? ' where recorded' : ''}`
+        : `${count.workerSlots.join(', ')} slots per invocation (varies)`;
+      if (count.workersUnknown) workers += ` · ${count.workersUnknown} invocations not recorded`;
+      workers += '<br><small>Configured slots, not concurrent processes. Observed and peak native worker process counts are not recorded.</small>';
+    }
+    return `<tr><th scope="row">${label} Playwright invocations</th><td>${count ? count.invocations ?? 'Not recorded' : 'Not run'}</td></tr><tr><th scope="row">Configured ${label.toLowerCase()} worker slots</th><td>${workers}</td></tr>`;
+  }).join('');
 }
 function scopeCells(label) {
   return `<td>${escape(label.services)}<br><small>${escape(label.jurisdiction)}</small></td><td>${escape(label.caseType)}</td>`;
@@ -432,4 +478,4 @@ function renderNativeEvidence(evidence) {
       "",
     )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}${personalReport}</section>`;
 }
-module.exports = { renderNativeEvidence, nativeCounts, objectDigest };
+module.exports = { renderNativeEvidence, nativeCounts, renderNativeExecutionInfo, objectDigest };

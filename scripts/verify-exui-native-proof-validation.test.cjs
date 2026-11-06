@@ -225,3 +225,28 @@ test('callback checkpoint is closed to its one candidate proof and requires base
  assert.throws(()=>readCallbackBaselineCheckpoint(f.root,f.expected),/NATIVE_CHECKPOINT_CALLBACK_BASELINE_PASSED_REQUIRED/);
  const old=await fixture(t);assert.throws(()=>readCallbackBaselineCheckpoint(old.root,old.expected),/NATIVE_CHECKPOINT_SCOPE_REQUIRED/);
 });
+
+
+test('framework reporter retains only actual configured worker slots, with absence unknown', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'native-worker-config-'));
+  const previous = {context: process.env.EXUI_EVIDENCE_CONTEXT, report: process.env.EXUI_EVIDENCE_REPORT};
+  t.after(() => {
+    for (const [key, value] of [['EXUI_EVIDENCE_CONTEXT', previous.context], ['EXUI_EVIDENCE_REPORT', previous.report]]) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+    fs.rmSync(directory, {recursive:true, force:true});
+  });
+  process.env.EXUI_EVIDENCE_CONTEXT = path.join(directory, 'context.json');
+  fs.writeFileSync(process.env.EXUI_EVIDENCE_CONTEXT, '{}');
+  const {default: Reporter} = await import('./lib/exui-playwright-evidence-reporter.mjs');
+  for (const workers of [1, 2, undefined, 0, 'PRIVATE_WORKER_CANARY']) {
+    process.env.EXUI_EVIDENCE_REPORT = path.join(directory, 'report.json');
+    const reporter = new Reporter();
+    reporter.onBegin({workers, metadata:{token:'PRIVATE_CONFIG_CANARY'}});
+    reporter.onEnd({status:'passed'});
+    const report = JSON.parse(fs.readFileSync(process.env.EXUI_EVIDENCE_REPORT));
+    assert.equal(report.configuredWorkers, workers === 1 || workers === 2 ? workers : null);
+    assert.doesNotMatch(JSON.stringify(report), /PRIVATE_/);
+    fs.unlinkSync(process.env.EXUI_EVIDENCE_REPORT);
+  }
+});

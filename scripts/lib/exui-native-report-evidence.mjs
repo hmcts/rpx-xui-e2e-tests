@@ -89,12 +89,16 @@ function validateRawPaths(directory, run) {
     Array.isArray(run.executionArtifacts) && Array.isArray(run.mutations),
     "EXECUTIONS_REQUIRED",
   );
-  for (const item of run.executionArtifacts) {
+  const invocations = run.executionArtifacts.map((item) => {
     const execution = reference(directory, item);
-    reference(directory, execution.resultArtifact);
-  }
+    const report = reference(directory, execution.resultArtifact);
+    const configuredWorkers = report.configuredWorkers ?? null;
+    fact(configuredWorkers === null || (Number.isSafeInteger(configuredWorkers) && configuredWorkers > 0), "WORKER_CONFIGURATION_INVALID");
+    return {invocationId: execution.invocationId, configuredWorkers};
+  });
   for (const mutation of run.mutations)
     reference(directory, mutation.derivationArtifact);
+  return invocations;
 }
 function phaseProjection(directory, selection, ciPhase, expected) {
   const { phase, policy, terminal } = selection;
@@ -133,7 +137,8 @@ function phaseProjection(directory, selection, ciPhase, expected) {
   ])
     fact(hashPattern.test(pin[field]), "EXPECTED_DIGEST_REQUIRED");
   const run = read(path.join(directory, "run.json")).value;
-  validateRawPaths(directory, run);
+  const invocations = validateRawPaths(directory, run);
+  equal(invocations.map(item => item.invocationId).sort(), nativeInvocations(scopes[phase]).map(item => item.invocationId).sort(), "INVOCATION_INVENTORY_MISMATCH");
   const loaded = loadRunEvidence(path.join(directory, "run.json"), policy);
   const gate = read(path.join(directory, "gate.json"));
   equal(
@@ -248,6 +253,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
     receiptArtifactDigest: pin.receiptArtifactDigest,
     status: ciPhase.status,
     exitCode: ciPhase.exitCode,
+    invocations,
     baselineProofs: loaded.input.results.map((result) => ({
       proofId: result.proofId,
       invocationId: result.invocationId,

@@ -588,6 +588,8 @@ test("dashboard separates diagnostic run info from unexecuted candidate evidence
   assert.match(info.textContent, /Diagnostic execution time/);
   assert.match(info.textContent, /Playwright diagnostic workers.*Not recorded configured · 1 observed/s);
   assert.match(info.textContent, /Native execution.*Not run/s);
+  assert.match(info.textContent, /Core native Playwright invocations.*Not run/s);
+  assert.match(info.textContent, /Configured core native worker slots.*Not run/s);
   assert.ok(root.querySelector('#harness-dashboard-ui'));
   assert.equal(Reporter.validatePublicReport('harness').tests, 116);
 });
@@ -727,6 +729,7 @@ test("overview rejects source-model drift even when every runner check passes", 
 });
 
 async function nativePresentationFixture(blocked = true) {
+  const { nativeInvocations } = await import("./lib/exui-native-contract.mjs");
   const { getReleasePolicy } = await import("./lib/exui-release-policy.mjs");
   const { loadCommittedConfigurationCatalogue } =
     await import("./lib/exui-configuration-runtime-coverage.mjs");
@@ -799,11 +802,12 @@ async function nativePresentationFixture(blocked = true) {
         receiptArtifactDigest: hash,
         status: blocked && phase === "ccd" ? "BLOCKED" : "PASS",
         exitCode: blocked && phase === "ccd" ? 2 : 0,
+        invocations: nativeInvocations(scope).map(item => ({invocationId:item.invocationId, configuredWorkers:null})),
         baselineProofs: policy.obligations
           .flatMap((item) => item.requiredProofIds)
           .map((proofId) => ({
             proofId,
-            invocationId: "baseline",
+            invocationId: phase === "scope" ? (proofId === "wa-org-scope-civil" ? "scope-civil" : "scope-ia") : "baseline",
             status:
               blocked && proofId === "ccd-postal-two-roundtrip"
                 ? "failed"
@@ -816,7 +820,7 @@ async function nativePresentationFixture(blocked = true) {
         faults: policy.mutationDefinitions.map((item) => ({
           mutationId: item.mutationId,
           proofId: item.mutantProofId,
-          invocationId: item.mutationId,
+          invocationId: nativeInvocations(scope).find(invocation => invocation.mutation === item.mutationId).invocationId,
           baselineProofId: item.baselineProofId,
           baselineStatus:
             blocked && item.baselineProofId === "ccd-postal-two-roundtrip"
@@ -1352,4 +1356,61 @@ test('nonadmitted DIVORCE attempts remain visible without invented completion or
  }
  const render=require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt,base={schemaVersion:1,kind:'divorce-profile-attempt',status:'BLOCKED',reason:'profile-not-admitted'};
  for(const bad of [{...base,status:'PASS'},{...base,reason:'PRIVATE-CANARY'},{...base,accepted:1},{...base,durationMs:-1},{...base,status:'NOT_RUN',durationMs:0},{...base,durationMs:'125000'}])assert.throws(()=>render(bad),/DIVORCE_ATTEMPT_INVALID/);
+});
+
+
+test('native execution counts separate31 physical invocations from46 proof records and unknown workers', async () => {
+  const evidence = await nativePresentationFixture(false);
+  const {nativeCounts, renderNativeExecutionInfo} = require('./harness-native-report.cjs');
+  assert.deepEqual(nativeCounts(evidence), {baselines:23, faults:23, invocations:31, workerSlots:[], workersUnknown:31});
+  assert.deepEqual(evidence.phases.map(p=>p.invocations.length), [2,3,7,12,3,2,2]);
+  assert.match(renderNativeExecutionInfo(evidence), /Not recorded · 31 invocations not recorded/);
+  for (const phase of evidence.phases) for (const item of phase.invocations) item.configuredWorkers=1;
+  assert.match(renderNativeExecutionInfo(evidence), /1 per invocation/);
+  evidence.phases[0].invocations[0].configuredWorkers=2;
+  assert.match(renderNativeExecutionInfo(evidence), /1, 2 slots per invocation \(varies\)/);
+  assert.match(renderNativeExecutionInfo(evidence), /Observed and peak native worker process counts are not recorded/);
+  for (const change of [e=>e.phases[0].invocations.push(e.phases[0].invocations[0]),e=>e.phases[0].invocations.pop(),e=>{e.phases[0].invocations[0].invocationId='foreign';},e=>{e.phases[0].invocations[0].configuredWorkers=canary;}]) {
+    const changed=structuredClone(evidence);change(changed);assert.throws(()=>nativeCounts(changed));
+  }
+  for (const phase of evidence.phases) delete phase.invocations;
+  assert.equal(nativeCounts(evidence).invocations,null);
+  assert.match(renderNativeExecutionInfo(evidence), /Core native Playwright invocations<\/th><td>Not recorded/);
+});
+
+test('RunInfo shows core native invocations and configured slots without inventing observed processes', async t => {
+  sandbox(t);
+  const Reporter=api(), reporter=new Reporter({selection:'harness'});
+  reporter.nativeEvidence=await nativePresentationFixture(false);
+  for(const phase of reporter.nativeEvidence.phases)for(const item of phase.invocations)item.configuredWorkers=1;
+  const tests=testsFor();reporter.onBegin({workers:1},{allTests:()=>tests});
+  for(const [index,item] of tests.entries())reporter.onTestEnd(item,result('passed',index));
+  await reporter.onEnd(fullResult());
+  const html=fs.readFileSync(output('harness'),'utf8');
+  assert.match(html,/Core native Playwright invocations<\/th><td>31<\/td>/);
+  assert.match(html,/Configured core native worker slots<\/th><td>1 per invocation/);
+  assert.match(html,/Configured slots, not concurrent processes/);
+  assert.equal(Reporter.validatePublicReport('harness').tests,116);
+});
+
+
+test('personal invocation telemetry is separate from core and historical absence stays unknown', async () => {
+  const evidence=await nativePresentationFixture(false), {renderNativeExecutionInfo,nativeCounts}=require('./harness-native-report.cjs');
+  const before=nativeCounts(evidence);
+  evidence.personalServiceAdmission={invocations:[
+    {invocationId:'baseline',runId:'ccd-11111111-1111-4111-8111-111111111111',configuredWorkers:1},
+    {invocationId:'optional',runId:'ccd-22222222-2222-4222-8222-222222222222',configuredWorkers:1}
+  ]};
+  const html=renderNativeExecutionInfo(evidence);
+  assert.match(html,/Core native Playwright invocations<\/th><td>31<\/td>/);
+  assert.match(html,/Personal-service Playwright invocations<\/th><td>2<\/td>/);
+  assert.match(html,/Configured personal-service worker slots<\/th><td>1 per invocation/);
+  assert.deepEqual(nativeCounts(evidence),before);
+  for(const change of [a=>a.invocations.pop(),a=>a.invocations.push(a.invocations[0]),a=>{a.invocations[1].runId=a.invocations[0].runId;},a=>{a.invocations[1].invocationId='foreign';},a=>{a.invocations[1].configuredWorkers=canary;}]){
+    const modified=structuredClone(evidence);change(modified.personalServiceAdmission);assert.throws(()=>renderNativeExecutionInfo(modified));
+  }
+  evidence.personalServiceAdmission.invocations.forEach(item=>{item.configuredWorkers=null;});
+  assert.match(renderNativeExecutionInfo(evidence),/Not recorded · 2 invocations not recorded/);
+  delete evidence.personalServiceAdmission.invocations;
+  assert.match(renderNativeExecutionInfo(evidence),/Personal-service Playwright invocations<\/th><td>Not recorded<\/td>/);
 });
