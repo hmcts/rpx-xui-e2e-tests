@@ -105,3 +105,32 @@ test('tracked selector preparation cannot use missing cleanup metadata as safe c
   if(mode==='cleanup-retry'){assert.equal(observed.removals,2);assert.equal(observed.calls.filter(x=>x==='prepare').length,1);}
  }
 });
+
+test('actual selector, callback, personal and Complex output calls accept Jenkins private placement without source overlap',async t=>{
+ const {outputFixture,actualOutputCall}=require('./fixtures/exui-private-runtime-output.mock.cjs');
+ for(const file of ['run-harness-selector-event-row.mjs','run-harness-recipient-callback-ui.mjs','run-harness-personal-service-cohort.mjs','run-harness-complex-email-cohort.mjs','run-harness-complex-email-mapping.mjs']){
+  const f=outputFixture(t),output=path.join(f.job,'native-output/private/phase');
+  const actual=await actualOutputCall(f,file,output);assert.equal(actual,file.includes('selector')?output+'-runtime':output,file);assert.equal(fs.statSync(actual).mode&0o777,0o700);assert.equal(fs.readFileSync(path.join(f.harness,'package.json'),'utf8'),'protected');
+ }
+});
+
+test('fixed runtime output protects sealed source directories, full dependencies and actual inputs',async t=>{
+ const {outputFixture}=require('./fixtures/exui-private-runtime-output.mock.cjs'),f=outputFixture(t);
+ const {createFreshHarnessRuntimeOutput:create}=await import('./lib/exui-output-boundary.mjs'),{NATIVE_HARNESS_SOURCE_FILES:files}=await import('./lib/exui-native-sources.mjs');
+ for(const file of files){
+  const top=file.split('/')[0];if(!fs.existsSync(path.join(f.harness,top)))fs.writeFileSync(path.join(f.harness,top),'protected');
+  for(const output of [path.join(f.harness,file),path.join(f.harness,top,'new-output')])assert.throws(()=>create(output,f.harness,[f.candidateRoot,f.browserRoot]));
+ }
+ for(const output of [f.harness,path.dirname(f.harness),path.join(f.harness,'unsealed-dir/new'),path.join(f.harness,'node_modules/new'),path.join(f.candidateRoot,'new'),path.join(f.browserRoot,'new'),f.privateRoot])assert.throws(()=>create(output,f.harness,[f.candidateRoot,f.browserRoot]));
+ assert.equal(fs.readFileSync(path.join(f.harness,'package.json'),'utf8'),'protected');
+ const outside=path.join(f.directory,'external-output');assert.equal(create(outside,f.harness,[f.candidateRoot,f.browserRoot]),outside);
+});
+
+test('fixed runtime output rejects aliases, traversal, unsafe private root and foreign existing output before writes',async t=>{
+ const {outputFixture}=require('./fixtures/exui-private-runtime-output.mock.cjs'),f=outputFixture(t),{createFreshHarnessRuntimeOutput:create}=await import('./lib/exui-output-boundary.mjs');
+ const missing=path.join(f.job,'missing-parent');assert.throws(()=>create(path.join(missing,'new'),f.harness,[]),/CI_RUNTIME_OUTPUT_PRIVATE_REQUIRED/);assert(!fs.existsSync(missing));
+ const output=path.join(f.job,'owned'),target=path.join(f.job,'target'),alias=path.join(f.job,'alias');fs.mkdirSync(target);fs.writeFileSync(path.join(target,'marker'),'preserved');fs.symlinkSync(target,alias);
+ for(const bad of [alias,path.join(alias,'new'),f.job+'/../job/traversal'])assert.throws(()=>create(bad,f.harness,[]));
+ fs.chmodSync(f.privateRoot,0o755);assert.throws(()=>create(output,f.harness,[]));assert(!fs.existsSync(output));fs.chmodSync(f.privateRoot,0o700);
+ fs.mkdirSync(output);fs.writeFileSync(path.join(output,'marker'),'foreign');assert.throws(()=>create(output,f.harness,[]),/FRESH_CI_OUTPUT_REQUIRED/);assert.deepEqual(fs.readdirSync(output),['marker']);assert.equal(fs.readFileSync(path.join(output,'marker'),'utf8'),'foreign');assert.deepEqual(fs.readdirSync(target),['marker']);
+});

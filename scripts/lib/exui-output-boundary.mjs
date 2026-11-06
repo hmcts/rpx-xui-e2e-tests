@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { NATIVE_HARNESS_SOURCE_FILES } from "./exui-native-sources.mjs";
 import { writePublicSummary } from "./exui-evidence-io.mjs";
 function canonicalProspective(file) {
   const missing = [];
@@ -70,6 +71,28 @@ export function createFreshHarnessOutput(output, readonlyRoots = []) {
   fs.mkdirSync(path.join(canonical, "private"), { mode: 0o700 });
   writeHarnessPublicSummary(canonical, { status: "BLOCKED", exitCode: 2 });
   return canonical;
+}
+
+// Native controllers stage sealed source files separately; Jenkins keeps owned
+// runtime evidence in the checkout's private subtree, outside every source root.
+export function createFreshHarnessRuntimeOutput(output, harnessRoot, readonlyInputs = []) {
+  const canonical = canonicalProspective(output), harness = fs.realpathSync(harnessRoot);
+  assert(output === path.resolve(output) && output === canonical && path.resolve(harnessRoot) === harness,
+    "CI_RUNTIME_OUTPUT_ALIAS");
+  if (canonical === harness || canonical.startsWith(harness + path.sep)) {
+    const privateRoot = path.join(harness, "functional-output/tests/harness/private");
+    assert(canonical.startsWith(privateRoot + path.sep), "CI_RUNTIME_OUTPUT_PRIVATE_REQUIRED");
+    for (let parent = path.dirname(canonical); parent !== path.dirname(privateRoot); parent = path.dirname(parent)) {
+      let info;
+      try { info = fs.lstatSync(parent); } catch (error) { if (error.code !== "ENOENT") throw error; }
+      assert(info?.isDirectory() && !info.isSymbolicLink() &&
+        info.uid === process.getuid() && (info.mode & 0o077) === 0, "CI_RUNTIME_OUTPUT_PRIVATE_REQUIRED");
+    }
+  }
+  // Protect complete source directories (including future siblings), root files,
+  // and the complete dependency tree; do not replace them with leaf-only checks.
+  const sourceRoots = [...new Set([...NATIVE_HARNESS_SOURCE_FILES.map(file => file.split("/")[0]), "package.json", "yarn.lock", "node_modules"])];
+  return createFreshHarnessOutput(canonical, [...readonlyInputs, ...sourceRoots.map(file => path.join(harness, file))]);
 }
 
 export function createPrivateSourceDiagnosticOutput(

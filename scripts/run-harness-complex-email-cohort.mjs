@@ -10,7 +10,7 @@ import {fileURLToPath} from 'node:url';
 import {runCallbackUi,CALLBACK_UI_SOURCES} from './run-harness-recipient-callback-ui.mjs';
 import {runComplexEmailMappingPair} from './run-harness-complex-email-mapping.mjs';
 import {verifyCandidateArtifact} from './lib/exui-candidate-artifact.mjs';
-import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
+import {createFreshHarnessRuntimeOutput} from './lib/exui-output-boundary.mjs';
 import {inspectHostContainer,hostDocker} from './lib/exui-host-invocation.mjs';
 import {terminateOwnedChild} from './lib/exui-candidate-runtime.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
@@ -52,7 +52,7 @@ export async function runComplexEmailCohort({candidate,browser,output,sourceInpu
  const browserRun=operations.browser??runCallbackUi,mappingRun=operations.mapping??runComplexEmailMappingPair,sourceRun=operations.source??executeComplexSourceProof;
  try{
   active();expected.producer=producer();const artifact=await(operations.verifyCandidate??verifyCandidateArtifact)(candidate);active();assert.equal(artifact.provenance.platform,'linux/arm64',fail);expected.candidate=artifact;expected.sourcePreparation=(operations.prepareSource??prepareComplexSourceInputs)(sourceInputs);
-  phase='create-output';output=createFreshHarnessOutput(output,[root,path.resolve(candidate),artifact.candidateRoot,fs.realpathSync(browser),...Object.values(sourceInputs)]);expected.directory=output;ownedOutput=output;
+  phase='create-output';output=createFreshHarnessRuntimeOutput(output,root,[path.resolve(candidate),artifact.candidateRoot,fs.realpathSync(browser),...Object.values(sourceInputs)]);expected.directory=output;ownedOutput=output;
   if(admissionContext){assert(/^complex-[a-f0-9-]{36}$/.test(runId)&&/^sha256:[a-f0-9]{64}$/.test(admissionContractDigest),fail);expected.runId=runId;expected.admissionContext=structuredClone(admissionContext);}
   writeJsonAtomic(path.join(output,'parent-input.json'),{producer:expected.producer,candidate:artifact,...(admissionContext?{runId,admissionContext:expected.admissionContext,admissionContractDigest}:{}),...COMPLEX_FLAGS});
   if(admissionContext)expected.inputDigest=complexPin(output,'parent-input.json');

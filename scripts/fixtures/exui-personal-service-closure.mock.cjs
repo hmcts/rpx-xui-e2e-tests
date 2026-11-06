@@ -20,7 +20,7 @@ exports.personalClosure=async(t,mode,{unsafeOld=false}={})=>{
   './lib/exui-ccd-runtime.mjs':`export const verifyCcdContainerIdentity=()=>{};export const ccdImagePins=()=>({});export const assertCcdImageIdentity=()=>{};export const docker=()=>{};`,
   './lib/exui-candidate-ci-process.mjs':`import {state} from ${JSON.stringify(stateUrl)};export const cleanupCiCcd=()=>{state.calls.push('ccd-cleanup');if(state.mode==='cleanup-failure'||state.mode==='cleanup-retry'&&state.calls.filter(x=>x==='ccd-cleanup').length===1)throw Error('CONTROLLED_CLEANUP');};`,
   './lib/exui-host-invocation.mjs':`export const inspectHostContainer=()=>null;export const hostDocker=()=>{};`,
-  './lib/exui-output-boundary.mjs':`export const createFreshHarnessOutput=output=>output;`,
+  './lib/exui-output-boundary.mjs':`export const createFreshHarnessRuntimeOutput=output=>output;`,
  };
  const redirects={};let n=0;for(const [name,body]of Object.entries(stubs)){const file=path.join(dir,'stub-'+n+++'.mjs');fs.writeFileSync(file,body);redirects[name]=pathToFileURL(file).href;}
  let source=fs.readFileSync(path.join(root,'scripts/run-harness-personal-service-cohort.mjs'),'utf8');

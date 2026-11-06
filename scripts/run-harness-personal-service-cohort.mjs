@@ -16,7 +16,7 @@ import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {cleanupNativeOwnership} from './lib/exui-native-ci-ownership.mjs';
 import {inspectHostContainer,hostDocker} from './lib/exui-host-invocation.mjs';
 import {terminateOwnedChild} from './lib/exui-candidate-runtime.mjs';
-import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
+import {createFreshHarnessRuntimeOutput} from './lib/exui-output-boundary.mjs';
 import {writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 const fail='PERSONAL_SERVICE_COHORT';
 // A fixed child only; never execute a command supplied by a packet or environment.
@@ -83,7 +83,7 @@ async function runPersonalCohortInternal({candidate,browser,output,signal,admiss
  const startedAt=new Date().toISOString(),start=performance.now(),cohort=await preflight(candidate,browser);
  if(admissionContext){const {validatePersonalAdmissionContext,personalAdmissionDigest,personalCohortCompatibility}=await import('./lib/exui-personal-service-admission.mjs');cohort.admissionContext=structuredClone(validatePersonalAdmissionContext(admissionContext));cohort.admissionContractDigest=personalAdmissionDigest();assert.equal(personalCohortCompatibility(cohort.admissionContext,cohort).status,'included','PERSONAL_SERVICE_PREFLIGHT_INCOMPATIBLE');}
  assert(!signal?.aborted,'PERSONAL_SERVICE_PARENT_CANCELLED');
- output=createFreshHarnessOutput(output,[PERSONAL_ROOT,candidate,cohort.artifact.candidateRoot,cohort.browser.root,cohort.dependencies.root??path.join(PERSONAL_ROOT,'node_modules')]);
+ output=createFreshHarnessRuntimeOutput(output,PERSONAL_ROOT,[candidate,cohort.artifact.candidateRoot,cohort.browser.root,cohort.dependencies.root??path.join(PERSONAL_ROOT,'node_modules')]);
  writeJsonAtomic(path.join(output,'parent-input.json'),cohort);
  const expected={runId:cohort.runId,inputDigest:personalFile(output,'parent-input.json').digest,bindingDigest:personalDigest(cohort),producer:cohort.producer,artifact:cohort.artifact,invocations:{}};
  const pairCancellation=new AbortController();let cancelled=false;const cancel=()=>{cancelled=true;closure.safe=false;pairCancellation.abort();};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
