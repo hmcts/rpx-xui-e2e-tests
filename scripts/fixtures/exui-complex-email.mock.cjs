@@ -48,7 +48,7 @@ exports.runFeasibilityCleanup = async function(root,mode,scenario='complex-email
  const calls=[],output=path.join(root,'output');let held;
  const fail=()=>{throw Error('CONTROLLED_IMPORT_FAILURE');};
  const context={assert,fs,path,root:repo,process,randomUUID:()=> 'fixed',SELECTOR_EVENT_VARIANTS:['baseline'],CALLBACK_UI_SOURCES:[],writeJsonAtomic,digestBytes,
-  verifyCandidateArtifact:async()=>({candidateRoot:root,provenance:{platform:'linux/arm64'}}),createFreshHarnessOutput:p=>{fs.mkdirSync(p);return p;},
+  verifyCandidateArtifact:async()=>({candidateRoot:root,provenance:{platform:'linux/arm64'}}),createFreshHarnessRuntimeOutput:p=>{fs.mkdirSync(p);return p;},
   verifyHarnessDependencies:async()=>{if(mode==='no-start')throw Error('CONTROLLED_NO_START');return{};},assertCandidateConfigurationSources:()=>{},digestCandidateTree:async()=> 'digest',read:()=>({browsers:[{name:'chromium-headless-shell'}]}),
   startCcdRuntime:async(directory,options)=>{calls.push('start');
    if(mode==='precreation-missing')throw Error('CONTROLLED_BEFORE_CREATE');

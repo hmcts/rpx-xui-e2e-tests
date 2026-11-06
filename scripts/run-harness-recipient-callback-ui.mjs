@@ -20,7 +20,7 @@ import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {validateCallbackRowDescriptors,readCallbackStoredDate} from './lib/exui-recipient-callback-facets.mjs';
 import {canonicalRecipientCallbackPages} from './lib/exui-recipient-callback-fixture.mjs';
-import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
+import {createFreshHarnessRuntimeOutput} from './lib/exui-output-boundary.mjs';
 import {callbackFailureCode} from './lib/exui-recipient-callback-diagnostics.mjs';
 import {SELECTOR_EVENT_VARIANTS} from './lib/exui-selector-event-row-contract.mjs';
 import {validateSelectorRowDescriptors,readSelectorStoredDate,assertSelectorUiOutcome} from './lib/exui-selector-event-row-facets.mjs';
@@ -104,7 +104,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
  const personalEvidence=personal?await import('./lib/exui-personal-service-evidence.mjs'):undefined;
  assert((complexEmail?['baseline','email-type']:selector?SELECTOR_EVENT_VARIANTS:personal?personalContract.PERSONAL_SERVICE_VARIANTS:['baseline','binding-omitted']).includes(variant),'CALLBACK_UI_VARIANT');assert(path.isAbsolute(output)&&!fs.existsSync(output),'CALLBACK_UI_FRESH_OUTPUT');
  assertActive();const artifact=await verifyCandidateArtifact(path.resolve(candidate));assertActive();const browserRoot=fs.realpathSync(browser);
- output=createFreshHarnessOutput(output,[artifact.candidateRoot,path.resolve(candidate),browserRoot,root,path.join(root,'node_modules')]);
+ output=createFreshHarnessRuntimeOutput(output,root,[artifact.candidateRoot,path.resolve(candidate),browserRoot,path.join(root,'node_modules')]);
  const receipt={kind:complexEmail?'complex-email-text-ui-feasibility':personal?'personal-service-ui-feasibility':selector?'selector-event-row-ui-feasibility':'recipient-callback-ui-feasibility',scenario,variant,status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
  const save=()=>{writeJsonAtomic(output+'/receipt.json',receipt);fs.chmodSync(output+'/receipt.json',0o600);};save();
  const resources=new Map();const cancel=()=>{cancelled=true;for(const resource of resources.values())if(resource.kind==='process')resource.child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});

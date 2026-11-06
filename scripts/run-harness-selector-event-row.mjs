@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {classifyNativeFailure} from './lib/exui-native-failure-diagnostics.mjs';
-import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
+import {createFreshHarnessRuntimeOutput} from './lib/exui-output-boundary.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -33,7 +33,7 @@ export async function runSelectorEventPhase({candidate,browser,output}, {signal}
  assert(path.isAbsolute(output),'SELECTOR_JOB_FRESH_OUTPUT');
  const artifact=await verifyCandidateArtifact(candidate),browserRoot=fs.realpathSync(browser);
  const directory=path.resolve(output);assert(!fs.existsSync(directory),'SELECTOR_JOB_FRESH_OUTPUT');
- output=createFreshHarnessOutput(directory+'-runtime',[artifact.candidateRoot,candidate,browserRoot,path.resolve(root),root+'node_modules']);
+ output=createFreshHarnessRuntimeOutput(directory+'-runtime',root,[artifact.candidateRoot,candidate,browserRoot,root+'node_modules']);
  const runtimes=new Map();let child,cancelled=false,cleanupUncertain=false,ownership,context,baseline,expected,priorInput,priorExpected;
  const captures=[],cancel=()=>{cancelled=true;child?.kill('SIGTERM');};signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
  const alive=()=>assert(!cancelled,'SELECTOR_TRANSITION_CANCELLED');
@@ -110,7 +110,7 @@ export async function runSelectorEventPhase({candidate,browser,output}, {signal}
 }
 export async function runSelectorEventRow({candidate,browser,output}) {
  const artifact=await verifyCandidateArtifact(candidate);
- const rootOutput=createFreshHarnessOutput(output,[artifact.candidateRoot,candidate,fs.realpathSync(browser),path.resolve(root),root+'node_modules']);
+ const rootOutput=createFreshHarnessRuntimeOutput(output,root,[artifact.candidateRoot,candidate,fs.realpathSync(browser),root+'node_modules']);
  const controller=new AbortController(),cancel=()=>controller.abort();
  process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
  try{

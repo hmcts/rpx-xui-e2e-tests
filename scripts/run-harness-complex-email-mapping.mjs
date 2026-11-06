@@ -9,7 +9,7 @@ import {startCcdRuntime,docker} from './lib/exui-ccd-runtime.mjs';
 import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {prepareComplexEmailImport,importComplexEmail} from './lib/exui-complex-email-import.mjs';
 import {observeComplexEmailMapping,validateComplexEmailMapping,compareComplexEmailMappings,COMPLEX_MAPPING_SOURCE_CONTEXT} from './lib/exui-complex-email-mapping.mjs';
-import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
+import {createFreshHarnessRuntimeOutput} from './lib/exui-output-boundary.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {classifyNativeFailure} from './lib/exui-native-failure-diagnostics.mjs';
 
@@ -71,7 +71,7 @@ export async function runComplexEmailMappingPair(output,{operations=defaults,isC
 }
 
 export async function runComplexEmailMapping(output) {
- const producer=sourceIdentity();output=createFreshHarnessOutput(output,[root]);
+ const producer=sourceIdentity();output=createFreshHarnessRuntimeOutput(output,root);
  writeJsonAtomic(path.join(output,'preexecution.json'),{kind:'complex-email-mapping-preexecution',producer,sourceContext:COMPLEX_MAPPING_SOURCE_CONTEXT,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false});
  let cancelled=false;const cancel=()=>{cancelled=true;};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);
  try {

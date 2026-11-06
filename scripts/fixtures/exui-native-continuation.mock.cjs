@@ -52,7 +52,7 @@ exports.runSelectorController=async function runSelectorController(root,mode,sou
  const io=await import('../lib/exui-evidence-io.mjs'),processApi=await import('../lib/exui-candidate-ci-process.mjs'),selector=await import('../run-harness-selector-event-row.mjs');
  let removals=0;const calls=[],known={credentials:{},ccd:{},definition:{},definitionImportDigest:'digest',selectorEventBinding:{},apiContracts:{}};
  const values={assert,fs,path,performance,root:repo+'/',SELECTOR_EVENT_MUTATION:'summary-change-hidden',SELECTOR_EVENT_SCOPE:'exui-ccd-selector-event-row-pilot',
-  verifyCandidateArtifact:async()=>({candidateRoot:root,provenance:{platform:'linux/arm64'}}),createFreshHarnessOutput:p=>{fs.mkdirSync(p);return p;},
+  verifyCandidateArtifact:async()=>({candidateRoot:root,provenance:{platform:'linux/arm64'}}),createFreshHarnessRuntimeOutput:p=>{fs.mkdirSync(p);return p;},
   writeJsonAtomic:io.writeJsonAtomic,digestBytes:io.digestBytes,NATIVE_HARNESS_SOURCE_FILES:[],
   verifyHarnessDependencies:async()=>{if(mode==='before-prepare')throw Error('CONTROLLED_PREPARATION_NOT_STARTED');return{};},
   spawnSync:(_command,args)=>({status:0,stdout:args[0]==='status'?'':'a'.repeat(40)}),digestCandidateTree:async()=> 'sha256:'+'b'.repeat(64),inspectNativeApiRuntime:()=>({}),inspectNativeBrowserRuntime:()=>({}),
