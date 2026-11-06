@@ -182,6 +182,8 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "scripts/fixtures/ccd/shared-role-amd64-source-witnesses.json",
   "scripts/verify-shared-role-ccd-source.py",
   "scripts/verify-shared-role-amd64-source.py",
+  "scripts/verify-shared-role-standard-arm-source.py",
+  "scripts/fixtures/ccd/shared-role-standard-arm-source-witnesses.json",
   "scripts/verify-local-ccd-oci.py",
   "scripts/replay-harness-shared-role.mjs",
   "scripts/fixtures/ccd/shared-role-write-collection.source.txt",
