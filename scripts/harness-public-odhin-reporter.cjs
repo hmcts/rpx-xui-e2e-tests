@@ -136,11 +136,11 @@ function inventory(p) {
     }
   }
 }
-function validateHtml(html, record) {
+function validateHtml(html, record, retiringPreviousRun = false) {
   if(record.personalServiceAttempt&&record.nativeEvidence?.personalServiceAdmission)throw failure();
   if(Boolean(record.personalServiceAttempt)!==html.includes('id="harness-personal-service-attempt"'))throw failure();
   if(record.personalServiceAttempt&&!html.includes(require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(record.personalServiceAttempt)))throw failure();
-  if (!html.includes(require('./harness-native-report.cjs').renderNativeExecutionInfo(record.nativeEvidence))) throw failure();
+  if (!retiringPreviousRun && !html.includes(require('./harness-native-report.cjs').renderNativeExecutionInfo(record.nativeEvidence))) throw failure();
   if(record.divorceProfileAttempt&&record.nativeEvidence?.divorceProfileAdmission)throw failure();
   if(Boolean(record.divorceProfileAttempt)!==html.includes('id="harness-divorce-profile-attempt"'))throw failure();
   if(record.divorceProfileAttempt&&!html.includes(require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(record.divorceProfileAttempt)))throw failure();
@@ -234,7 +234,7 @@ function validateHtml(html, record) {
     if (!html.includes(htmlEscape(entry.titlePath.at(-1)))) throw failure();
   }
 }
-function validatePublicReport(selection) {
+function validateOwnedReport(selection, retiringPreviousRun = false) {
   try {
     const p = paths(selection || "harness");
     inventory(p);
@@ -274,18 +274,22 @@ function validatePublicReport(selection) {
       throw failure();
     const html = fs.readFileSync(p.html, "utf8");
     if (digest(html) !== record.sha256) throw failure();
-    validateHtml(html, record);
+    validateHtml(html, record, retiringPreviousRun);
     return record;
   } catch {
     throw failure();
   }
+}
+function validatePublicReport(selection) {
+  return validateOwnedReport(selection);
 }
 function resetPublicReport(selection) {
   try {
     const p = paths(selection);
     inventory(p);
     if (fs.existsSync(p.html)) {
-      validatePublicReport();
+      // Retirement keeps ownership/privacy checks but permits the previous RunInfo layout.
+      validateOwnedReport(undefined, true);
       fs.unlinkSync(p.html);
     }
     if (fs.existsSync(p.record)) fs.unlinkSync(p.record);

@@ -169,6 +169,56 @@ test("combined output validates and reset withdraws only its complete owned repo
   Reporter.resetPublicReport("harness");
 });
 
+test("retirement accepts a prior owned report without new RunInfo rows while current publication rejects it", async (t) => {
+  const root = sandbox(t);
+  const Reporter = await complete();
+  const recordFile = path.join(root, "functional-output/tests/harness/private/public-odhin-harness.json");
+  const record = JSON.parse(fs.readFileSync(recordFile, "utf8"));
+  const rows = require("./harness-native-report.cjs").renderNativeExecutionInfo(record.nativeEvidence);
+  const currentHtml = fs.readFileSync(output(), "utf8");
+  assert(currentHtml.includes(rows));
+  const previousHtml = currentHtml.replace(rows, "");
+  record.sha256 = require("node:crypto").createHash("sha256").update(previousHtml).digest("hex");
+  fs.writeFileSync(output(), previousHtml);
+  fs.writeFileSync(recordFile, JSON.stringify(record));
+  assert.throws(() => Reporter.validatePublicReport("harness"), /PUBLIC_ODHIN/);
+  // No public argument may opt current publication into retirement compatibility.
+  assert.throws(() => Reporter.validatePublicReport("harness", true), /PUBLIC_ODHIN/);
+  Reporter.resetPublicReport("harness");
+  assert(!fs.existsSync(output()));
+  assert(!fs.existsSync(recordFile));
+  await complete();
+  assert.equal(Reporter.validatePublicReport("harness").status, "passed");
+});
+
+test("prior report retirement retains hash, ownership, privacy, metadata and symlink guards", async (t) => {
+  const root = sandbox(t);
+  const Reporter = await complete();
+  const recordFile = path.join(root, "functional-output/tests/harness/private/public-odhin-harness.json");
+  const record = JSON.parse(fs.readFileSync(recordFile, "utf8"));
+  const previousHtml = fs.readFileSync(output(), "utf8").replace(require("./harness-native-report.cjs").renderNativeExecutionInfo(record.nativeEvidence), "");
+  const hash = value => require("node:crypto").createHash("sha256").update(value).digest("hex");
+  for (const scenario of ["hash", "ownership", "privacy", "metadata", "foreign-file", "symlink"]) {
+    const changed = structuredClone(record);
+    let html = previousHtml;
+    if (scenario === "ownership") changed.runId = "00000000-0000-4000-8000-000000000000";
+    if (scenario === "privacy") html += '<script src="https://example.invalid/private.js"></script>';
+    if (scenario === "metadata") changed.tests++;
+    changed.sha256 = hash(scenario === "hash" ? html + "changed" : html);
+    fs.writeFileSync(output(), html);
+    fs.writeFileSync(recordFile, JSON.stringify(changed));
+    const foreign = path.join(path.dirname(output()), "foreign.txt");
+    const outside = path.join(root, "outside.html");
+    if (scenario === "foreign-file") fs.writeFileSync(foreign, canary);
+    if (scenario === "symlink") { fs.writeFileSync(outside, html); fs.unlinkSync(output()); fs.symlinkSync(outside, output()); }
+    assert.throws(() => Reporter.resetPublicReport("harness"), /PUBLIC_ODHIN/, scenario);
+    assert(fs.existsSync(output()), scenario);
+    assert.equal(fs.readFileSync(recordFile, "utf8"), JSON.stringify(changed), scenario);
+    if (scenario === "foreign-file") { assert.equal(fs.readFileSync(foreign, "utf8"), canary); fs.unlinkSync(foreign); }
+    if (scenario === "symlink") { assert.equal(fs.readFileSync(outside, "utf8"), html); fs.unlinkSync(output()); }
+  }
+});
+
 test("global errors remain numeric failed-run facts without copying their messages", async (t) => {
   sandbox(t);
   const Reporter = await complete("harness", [], "failed", 1);
