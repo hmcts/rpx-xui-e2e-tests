@@ -189,6 +189,17 @@ const SOURCE_FILES = [
   "scripts/lib/exui-complex-email-text.mjs",
   "src/fixtures/harnessComplexEmail.ts",
   "src/tests/harness/callback-feasibility/complex-email-text.spec.ts",
+  "scripts/lib/exui-complex-email-admission.mjs",
+  "scripts/run-harness-complex-email-admission.mjs",
+  "scripts/run-harness-complex-email-cohort.mjs",
+  "scripts/lib/exui-complex-email-cohort.mjs",
+  "scripts/run-harness-complex-email-mapping.mjs",
+  "scripts/lib/exui-complex-email-mapping.mjs",
+  "scripts/verify-complex-email-application-source.py",
+  "scripts/replay-complex-email-application-source.py",
+  "scripts/verify-definition-image-binding.py",
+  "scripts/fixtures/ccd/complex-email-application-class-witnesses.json",
+  "scripts/lib/exui-complex-source-inputs.mjs",
 ];
 
 function temporary(t, prefix) {
@@ -285,7 +296,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 248);
+  assert.equal(SOURCE_FILES.length, 259);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

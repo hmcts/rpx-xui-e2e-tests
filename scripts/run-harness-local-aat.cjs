@@ -228,7 +228,7 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, signal } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, signal } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
   if(signal?.aborted){Reporter.resetPublicReport('harness');throw fail();}
@@ -238,7 +238,7 @@ async function runHarnessCollection(
     "functional-output/tests/harness/private",
   );
   const diagnosticSource = Reporter.captureDiagnosticSource();
-  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt });
+  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
   if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
@@ -423,6 +423,7 @@ async function runHarnessCollection(
       status,
       nativeStatus,
       ...(reporter.nativeEvidence?.divorceProfileAdmission?.joint ? {divorceProfileInclusion:reporter.nativeEvidence.divorceProfileAdmission.joint.status} : {}),
+      ...(reporter.nativeEvidence?.complexEmailAdmission?.joint?{complexEmailInclusion:reporter.nativeEvidence.complexEmailAdmission.joint.status}:{}),
       ...(reporter.nativeEvidence?.personalServiceAdmission?.joint?{personalServiceInclusion:reporter.nativeEvidence.personalServiceAdmission.joint.status}:{}),
       ...(reporter.sharedNestedAttemptEvidence?{sharedNestedStatus:reporter.sharedNestedAttemptEvidence.status}:{}),
       exitCode: Math.max(

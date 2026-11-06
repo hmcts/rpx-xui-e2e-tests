@@ -137,6 +137,16 @@ function inventory(p) {
   }
 }
 function validateHtml(html, record, retiringPreviousRun = false) {
+  const complexAdmission = record.nativeEvidence?.complexEmailAdmission;
+  const complexDom = parse(html);
+  const complexPanels = complexDom.querySelectorAll('[id="harness-complex-email-admission"]').length;
+  const complexAttemptPanels = complexDom.querySelectorAll('[id="harness-complex-email-attempt"]').length;
+  if (complexPanels !== (complexAdmission ? 1 : 0) || complexAttemptPanels !== (record.complexEmailAttempt ? 1 : 0)) throw failure();
+  if (complexAdmission && !html.includes(require('./harness-complex-email-report.cjs').renderComplexEmailAdmission(complexAdmission))) throw failure();
+
+  if (record.complexEmailAttempt && record.nativeEvidence?.complexEmailAdmission) throw failure();
+  if (Boolean(record.complexEmailAttempt) !== html.includes('id="harness-complex-email-attempt"')) throw failure();
+  if (record.complexEmailAttempt && !html.includes(require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(record.complexEmailAttempt))) throw failure();
   if(record.personalServiceAttempt&&record.nativeEvidence?.personalServiceAdmission)throw failure();
   if(Boolean(record.personalServiceAttempt)!==html.includes('id="harness-personal-service-attempt"'))throw failure();
   if(record.personalServiceAttempt&&!html.includes(require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(record.personalServiceAttempt)))throw failure();
@@ -354,7 +364,7 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt } = {}) {
+  constructor({ selection, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt } = {}) {
     this.diagnosticSource = diagnosticSource;
     this.nativeElapsedMs = nativeElapsedMs;
     this.phaseTimings = phaseTimings;
@@ -362,6 +372,8 @@ class HarnessPublicOdhinReporter {
     this.divorceProfileAttempt = divorceProfileAttempt;
     if(personalServiceAttempt)require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(personalServiceAttempt);
     this.personalServiceAttempt=personalServiceAttempt;
+    if (complexEmailAttempt) require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(complexEmailAttempt);
+    this.complexEmailAttempt = complexEmailAttempt;
     this.nativeEvidence = null;
     this.compatibilityEvidence = null;
     this.sharedNestedAttemptEvidence = null;
@@ -539,6 +551,7 @@ class HarnessPublicOdhinReporter {
       const counts = Object.fromEntries(statuses.map((status) => [status, 0]));
       if (this.nativeElapsedMs !== undefined && (!this.nativeEvidence || !Number.isSafeInteger(this.nativeElapsedMs) || this.nativeElapsedMs < 0)) this.reject();
       if(this.personalServiceAttempt&&this.nativeEvidence?.personalServiceAdmission)throw failure();
+      if (this.complexEmailAttempt && this.nativeEvidence?.complexEmailAdmission) throw failure();
       if(this.divorceProfileAttempt&&this.nativeEvidence?.divorceProfileAdmission)throw failure();
       if (this.phaseTimings !== undefined) validatePhaseTimings(this.phaseTimings, this.nativeEvidence, this.nativeElapsedMs);
       for (const record of this.results.values()) counts[record.status]++;
@@ -674,10 +687,11 @@ class HarnessPublicOdhinReporter {
         phaseTimings: this.phaseTimings,
         divorceProfileAttempt: this.divorceProfileAttempt,
         personalServiceAttempt:this.personalServiceAttempt,
+        complexEmailAttempt:this.complexEmailAttempt,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.personalServiceAttempt?` / Personal event row ${record.personalServiceAttempt.status}`:""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.personalServiceAttempt?` / Personal event row ${record.personalServiceAttempt.status}`:""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.complexEmailAttempt?` / ComplexTypes ${record.complexEmailAttempt.status}`:''}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
@@ -738,6 +752,7 @@ class HarnessPublicOdhinReporter {
       );
       if (this.compatibilityEvidence) presentation.querySelector("#harness-native-evidence").insertAdjacentHTML("afterend", require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence));
       if(this.personalServiceAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(this.personalServiceAttempt));
+      if (this.complexEmailAttempt) presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend', require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(this.complexEmailAttempt));
       if(this.divorceProfileAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(this.divorceProfileAttempt));
       if(this.sharedNestedAttemptEvidence)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence));
       if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs));

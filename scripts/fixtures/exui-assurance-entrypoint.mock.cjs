@@ -16,6 +16,8 @@ exports.runEntrypoint = function runEntrypoint(fixture, {profileOutput, cancelNa
  const write = (name, bytes) => fs.writeFileSync(path.join(scripts, name), bytes);
  for (const name of ['exui-evidence-io.mjs', 'exui-selector-event-row-evidence.mjs'])
   write('lib/' + name, `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname, '../lib', name)).href)};`);
+ write('lib/exui-complex-email-admission.mjs',"export const verifyComplexNativeCapture=()=>undefined;export const prepareComplexAdmissionInputs=()=>({attempt:{schemaVersion:1,kind:'complex-email-attempt',status:'NOT_RUN',reason:'SOURCE_INPUTS_NOT_CONFIGURED'}});");
+ write('run-harness-complex-email-admission.mjs',"export async function runComplexEmailAdmission(){throw Error('UNEXPECTED_UNCONFIGURED_COMPLEX_RUN');}");
  write('lib/exui-personal-service-admission.mjs','export const verifyPersonalNativeCapture=()=>undefined;');
  write('run-harness-personal-service-admission.mjs',`import fs from 'node:fs';const record=x=>fs.appendFileSync('calls.jsonl',JSON.stringify(x)+'\\n');const closedError=Error('PRIVATE-PROGRESS-ERROR-CANARY');export const isPersonalAdmissionClosedFailure=error=>error===closedError;export async function runPersonalServiceAdmission(options){record('personal');${closedPersonalFailure ? 'throw closedError;' : ''}return {private:'PRIVATE-PROGRESS-RESULT-CANARY',status:'passed',reportRequest:{path:'/personal',digest:'sha256:'+'a'.repeat(64),runId:'personal'}};}`);
  write('lib/exui-divorce-native-binding.mjs', 'export const verifyDivorceNativeCapture=()=>undefined;');
@@ -30,7 +32,8 @@ exports.runEntrypoint = function runEntrypoint(fixture, {profileOutput, cancelNa
  write('harness-public-odhin-reporter.cjs', `const fs=require('node:fs');${append}module.exports={resetPublicReport:()=>record('withdraw')};`);
  const bin = path.join(root, 'bin');fs.mkdirSync(bin);
  fs.writeFileSync(path.join(bin, 'git'), '#!/bin/sh\nprintf "%s\\n" ' + fixture.captured.harnessCommit + '\n', {mode: 0o700});
- const job = path.join(root, 'job.json');fs.writeFileSync(job, JSON.stringify(fixture.job));
+ const candidateManifest=path.join(root,'candidate.json');fs.writeFileSync(candidateManifest,JSON.stringify({provenance:{platform:'linux/arm64'}}));
+ const job = path.join(root, 'job.json');fs.writeFileSync(job, JSON.stringify({...fixture.job,candidateManifest}));
  write('invoke.mjs', `import {runHarnessAssurance} from './run-harness-assurance.mjs';try{console.log(JSON.stringify(await runHarnessAssurance(${JSON.stringify(job)},${JSON.stringify(profileOutput === undefined ? {} : {profileOutput})})));}catch(error){console.log(JSON.stringify({error:error.message}));}`);
  const terminal = spawnSync(process.execPath, [path.join(scripts, 'invoke.mjs')], {cwd: root, encoding: 'utf8', env: {PATH: bin + path.delimiter + process.env.PATH}});
  const callsPath = path.join(root, 'calls.jsonl');

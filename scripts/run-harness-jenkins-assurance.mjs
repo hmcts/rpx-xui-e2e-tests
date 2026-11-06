@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {prepareComplexAdmissionInputs} from './lib/exui-complex-email-admission.mjs';
 import { classifyNativeFailure, formatNativeFailure } from "./lib/exui-native-failure-diagnostics.mjs";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -47,6 +48,7 @@ function safeEnvironment(extra = {}) {
     "HTTPS_PROXY",
     "NO_PROXY",
     "HARNESS_SHARED_ROLE_SOURCE_INPUTS",
+    "HARNESS_COMPLEX_SOURCE_INPUTS",
     "http_proxy",
     "https_proxy",
     "no_proxy",
@@ -316,6 +318,12 @@ async function prepareJob(privateRoot, platform) {
   const candidate = path.join(privateRoot, "candidate");
   const output = path.join(privateRoot, "native-output");
   const jobPath = path.join(privateRoot, "job-input.json");
+  // Provisioning supplies only paths. Invalid specified inputs fail before builds;
+  // unsupported fixed source toolchains remain visible as NOT_RUN in assurance.
+  const complex=prepareComplexAdmissionInputs(process.env.HARNESS_COMPLEX_SOURCE_INPUTS);
+  let complexSourceInputs;
+  if(complex.inputs){complexSourceInputs=path.join(privateRoot,'complex-source-inputs.json');writePrivateJob(complexSourceInputs,complex.inputs);}
+
 
   stage = "webapp master fetch";
   run(
@@ -409,7 +417,7 @@ async function prepareJob(privateRoot, platform) {
   run(process.execPath, ["scripts/observe-harness-worker.mjs"], {
     env: safeEnvironment({ HARNESS_ASSURANCE_INPUT: jobPath }),
   });
-  return { jobPath, output };
+  return { jobPath, output, complexSourceInputs };
 }
 
 export function publishSummary(privateOutput, assuranceExitCode = 0) {
@@ -488,12 +496,12 @@ async function main() {
     privateRoot = createPrivateJobDirectory();
     stage = "pinned runtime provisioning";
     provisionNativeImages(platform);
-    const { jobPath, output } = await prepareJob(privateRoot, platform);
+    const { jobPath, output, complexSourceInputs } = await prepareJob(privateRoot, platform);
     stage = "native candidate and CCD pilots";
     const result = spawnSync(
       process.execPath,
       ["scripts/run-harness-assurance.mjs", "--input", jobPath],
-      { cwd: ROOT, env: safeEnvironment(), stdio: "inherit" },
+      { cwd: ROOT, env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}), stdio: "inherit" },
     );
     exitCode = result.error || result.status === null ? 2 : result.status;
     logNativeCompletion(output);

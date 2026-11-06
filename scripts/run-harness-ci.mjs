@@ -191,7 +191,7 @@ export async function runSelectorCiPhase(job,context,directory,resource,{run=run
  return {directory,...selected,expected:{...selected.expected,receiptArtifactDigest:validated.receiptArtifactDigest}};
 }
 
-export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonalNative} = {}) {
+export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonalNative,captureComplexNative,complexSourceConfiguration} = {}) {
   const job = validateCiJob(read(jobPath));
   const envelope = read(job.candidateManifest);
   assert(
@@ -298,9 +298,10 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     },
   });
   try {
-    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output));
+    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration}));
     captureNativeCohort?.(structuredClone(context.nativeCohortCapture));
     capturePersonalNative?.(structuredClone(context.personalNativeCapture));
+    captureComplexNative?.(structuredClone(context.complexNativeCapture));
     assert(!cancelled, "CI_JOB_CANCELLED");
     writeConfigurationCoverage({
       harnessRoot: ROOT,

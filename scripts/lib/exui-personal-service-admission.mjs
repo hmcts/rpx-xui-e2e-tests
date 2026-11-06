@@ -108,4 +108,4 @@ export function personalNativeJointAdmission(native,personalNative,packet,expect
  const compatibility=personalCohortCompatibility(context,packet.cohort);if(compatibility.status!=='included')return compatibility;
  return {...compatibility,obligationId:PERSONAL_SERVICE_ID,nativeRunId:expected.jobRunId,personalRunId:packet.admission.runId,nativeBindingDigest:expected.personalServiceNativeBinding.digest,requestDigest:expected.personalServiceRequest.digest,inputDigest:packet.admission.inputDigest,contractDigest:packet.admission.contractDigest};
 }
-export function expectedWithoutRequests(expected){const copy=structuredClone(expected);delete copy.divorceProfileRequest;delete copy.personalServiceRequest;return copy;}
+export function expectedWithoutRequests(expected){const copy=structuredClone(expected);delete copy.divorceProfileRequest;delete copy.personalServiceRequest;delete copy.complexEmailRequest;return copy;}

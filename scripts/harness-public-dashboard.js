@@ -70,6 +70,20 @@
       'Completed proof counts unavailable', 'No additional catalogue or release credit', '#harness-personal-service-attempt',
       Number.isSafeInteger(duration) && duration >= 0 ? `Observed attempt interval: ${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'Attempt duration not recorded']);
   }
+  const complex = document.querySelector('#harness-complex-email-admission');
+  if (complex) {
+    const data = complex.dataset;
+    const interval = Number(data.complexDurationMs);
+    const observed = Number.isSafeInteger(interval) && interval >= 0
+      ? `${Math.floor(interval / 60000)}m ${Math.floor(interval % 60000 / 1000)}s` : 'not recorded';
+    supplements.push(['ComplexTypes email address', data.complexStatus,
+      `${data.complexBrowserContexts} browser invocations · ${data.complexMappingContexts} mapping contexts · ${data.complexEffectiveFaults} effective faults`,
+      data.complexInclusion === 'included' ? '1 requirement already included in candidate coverage' : '1 requirement verified separately; excluded from main coverage',
+      '#harness-complex-email-admission', `Cohort interval: ${observed} · source reproduction included · excluded from main native duration`]);
+  }
+  const complexAttempt = document.querySelector('#harness-complex-email-attempt');
+  if (complexAttempt) supplements.push(['ComplexTypes email address', 'NOT_RUN', 'No execution counts',
+    'Requirement remains unaccepted in this run', '#harness-complex-email-attempt']);
   const cards = [
     ['Catalogue runtime evidence', `${accepted} / ${selected}`, `${selected - accepted} awaiting accepted evidence`, '#harness-application-coverage'],
     [supplements.length ? 'Main native proof outcomes' : 'Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${nativeStatus} · ${baselines} baseline · ${faults} deliberate faults${nativeTime}` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],

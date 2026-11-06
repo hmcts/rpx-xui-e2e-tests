@@ -1,3 +1,4 @@
+import {readComplexNativeBinding,readComplexAdmissionPacket,complexNativeJointAdmission,assertComplexOwnership} from './exui-complex-email-admission.mjs';
 import {readPersonalNativeBinding,readPersonalAdmissionPacket,personalNativeJointAdmission} from './exui-personal-service-admission.mjs';
 import {readDivorceProfileAdmissionPacket,divorceNativeJointAdmission} from "./exui-divorce-profile-admission.mjs";
 import {readDivorceNativeBinding} from "./exui-divorce-native-binding.mjs";
@@ -14,7 +15,7 @@ import {
   validateNativeOutcome,
   isKnownPostalBlock,
 } from "./exui-native-proof-validation.mjs";
-import { projectConfigurationCoverage } from "./exui-configuration-runtime-coverage.mjs";
+import { projectConfigurationCoverage, creditComplexEmailRow } from "./exui-configuration-runtime-coverage.mjs";
 import { validateCallbackTransitionEvidence } from "./exui-recipient-callback-transition.mjs";
 import { validateEventTransitionEvidence } from "./exui-ccd-event-transition.mjs";
 import { nativeInvocations } from "./exui-native-contract.mjs";
@@ -465,7 +466,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         catalogueCoverage.divorceProfileAdmission = joint;
       }
     }
-    const personalNative=readPersonalNativeBinding(directory,expected,nativeBinding);
+    const personalNative=(expected.personalServiceRequest||descriptor.value.personalServiceAdmission)?readPersonalNativeBinding(directory,expected,nativeBinding):undefined;
     fact(!expected.personalServiceRequest||descriptor.value.personalServiceAdmission,'PERSONAL_REQUEST_REQUIRED');
     fact(!descriptor.value.personalServiceAdmission||expected.personalServiceRequest,'PERSONAL_REQUEST_REQUIRED');
     const personalPacket=descriptor.value.personalServiceAdmission?readPersonalAdmissionPacket(descriptor.value.personalServiceAdmission,expected.personalServiceRequest):undefined;
@@ -480,6 +481,16 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         fact(accounting.report.coverage.missingCandidateOrCcd.some(row=>(typeof row==='string'?row:row.id)===id),'PERSONAL_NOT_MISSING');
         creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.personalServiceAdmission=joint;
       }
+    }
+    const complexNative=(expected.complexEmailRequest||descriptor.value.complexEmailAdmission)?readComplexNativeBinding(directory,expected,nativeBinding):undefined;
+    fact(!expected.complexEmailRequest||descriptor.value.complexEmailAdmission,'COMPLEX_REQUEST_REQUIRED');
+    fact(!descriptor.value.complexEmailAdmission||expected.complexEmailRequest,'COMPLEX_REQUEST_REQUIRED');
+    const complexPacket=descriptor.value.complexEmailAdmission?await readComplexAdmissionPacket(descriptor.value.complexEmailAdmission,expected.complexEmailRequest):undefined;
+    let complexEmailAdmission;
+    if(complexPacket){
+      assertComplexOwnership(directory,expected,complexPacket,{personalRequestPath:descriptor.value.personalServiceAdmission,profileOwners:profilePacket?Object.values(profilePacket.binding.owners):[]});
+      const joint=complexNativeJointAdmission(nativeBinding,complexNative,complexPacket,expected);complexEmailAdmission={...complexPacket.admission,joint};
+      if(joint.status==='included')creditComplexEmailRow(catalogueCoverage,accounting.catalogue,accounting.report.coverage.missingCandidateOrCcd,complexEmailAdmission);
     }
     const first = expected.phases[0].expected;
     for (const { expected: pin } of expected.phases) {
@@ -526,6 +537,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       catalogueCoverage,
       ...(divorceProfileAdmission ? {divorceProfileAdmission} : {}),
       ...(personalServiceAdmission?{personalServiceAdmission}:{}),
+      ...(complexEmailAdmission?{complexEmailAdmission}:{}),
     };
   } catch (error) {
     // Filesystem/library errors can contain private paths or raw evidence; expose fixed codes only.

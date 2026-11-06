@@ -63,6 +63,21 @@ const familyNames = {
   CMC: "CMC",
   PCS: "Possession",
 };
+function familyRuntimeSummary(id, evidence) {
+  const results = [];
+  if (id === 'PRIVATELAW') {
+    if (evidence?.personalServiceAdmission) results.push(evidence.personalServiceAdmission.joint?.status === 'included'
+      ? 'Personal-service event row: 1 candidate requirement included; bounded nine-key proof, not the full service'
+      : 'Personal-service event row: separate 1/1, not included in main coverage');
+    if (evidence?.complexEmailAdmission) results.push(evidence.complexEmailAdmission.joint?.status === 'included'
+      ? 'ComplexTypes email address: 1 candidate requirement included; bounded seven-attribute proof'
+      : 'ComplexTypes email address: separate 1/1, not included in main coverage');
+  }
+  if (id === 'DIVORCE' && evidence?.divorceProfileAdmission) results.push(evidence.divorceProfileAdmission.joint?.status === 'included'
+    ? 'DIVORCE profile: 1 requirement included in main candidate coverage'
+    : 'Separate profile run: 1/1 accepted; excluded from main cohort count');
+  return results.join('; ') || (evidence ? 'See bounded native proofs above; no per-family profile claim' : 'NOT RUN');
+}
 function groupFor(file) {
   if (file === "src/tests/harness/diagnostic/configuration.spec.ts")
     return "aat";
@@ -248,7 +263,7 @@ async function renderOverview(
           )?.observed.aatOutcome;
           return `${label}: ${observed === "response-passed" ? "response check passed" : observed === "login-setup-blocked" ? "login/setup blocked; response not confirmed" : observed ? "not confirmed" : "not run"}`;
         });
-      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>${family.id === "PRIVATELAW" && nativeEvidence?.personalServiceAdmission ? nativeEvidence.personalServiceAdmission.joint?.status === "included" ? "Personal-service event row: 1 candidate requirement included; bounded nine-key proof, not the full service" : "Personal-service event row: separate 1/1, not included in main coverage" : family.id === "DIVORCE" && nativeEvidence?.divorceProfileAdmission ? nativeEvidence.divorceProfileAdmission.joint?.status === "included" ? "DIVORCE profile: 1 requirement included in main candidate coverage" : "Separate profile run: 1/1 accepted; excluded from main cohort count" : nativeEvidence ? "See bounded native proofs above; no per-family profile claim" : "NOT RUN"}</td></tr>`;
+      return `<tr><th scope="row">${escape(familyNames[family.id])} (${escape(family.id)})</th><td>${family.capabilities.map((key) => capabilities[key]).join(", ")}</td><td>Source/model inventory only</td><td>${profile === "local-aat" ? live.join("; ") || "No family-list probe assigned" : "NOT RUN"}</td><td>${escape(familyRuntimeSummary(family.id, nativeEvidence))}</td></tr>`;
     })
     .join("");
   const runtimeGaps = deployment.gaps.filter((gap) =>
@@ -313,4 +328,5 @@ module.exports = {
   definitions,
   renderOverview,
   familyNames,
+  familyRuntimeSummary,
 };

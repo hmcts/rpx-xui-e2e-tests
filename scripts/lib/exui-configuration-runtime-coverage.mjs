@@ -758,3 +758,14 @@ export function writeConfigurationCoverage(args) {
   writeJsonAtomic(path.join(output, "coverage.json"), projected.report);
   return projected.validationReport;
 }
+
+// One fixed source row, after complete raw admission; mapping contexts and class checks
+// are evidence for the row, never extra catalogue entries or CCD obligations.
+export function creditComplexEmailRow(coverage,catalogue,missing,admission){
+ const id='configuration-shape:9a20dc72fb413cd3bd34d97dc415f55c042088bf6b517cda7fc275215c5f7e39';
+ const sourceKey='prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json';
+ assert.equal(admission.obligationId,id,'COVERAGE_COMPLEX_ROW');assert.equal(admission.joint.status,'included','COVERAGE_COMPLEX_JOINT');assert.equal(admission.joint.obligationId,id,'COVERAGE_COMPLEX_ROW');assert.equal(admission.sourceKey,sourceKey,'COVERAGE_COMPLEX_SOURCE');
+ assert.deepEqual(catalogue.obligations.filter(row=>row.id===id),[{id,family:'PRIVATELAW',kind:'definition-shape',requiredBoundary:'candidate',sourceKeys:[sourceKey]}],'COVERAGE_COMPLEX_ROW');
+ assert.equal(coverage.selected,112,'COVERAGE_COMPLEX_SIZE');assert(!coverage.creditedObligationIds.includes(id),'COVERAGE_COMPLEX_DUPLICATE');assert(missing.some(row=>(typeof row==='string'?row:row.id)===id),'COVERAGE_COMPLEX_NOT_MISSING');
+ coverage.creditedObligationIds.push(id);coverage.candidate++;coverage.missing--;coverage.complexEmailAdmission=admission.joint;return coverage;
+}

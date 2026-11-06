@@ -137,6 +137,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   for (const name of [
     "exui-divorce-native-binding.mjs",
     "exui-personal-service-admission.mjs",
+    "exui-complex-email-admission.mjs",
     "exui-output-boundary.mjs",
     "exui-candidate-ci-inputs.mjs",
     "exui-release-policy.mjs",
@@ -151,6 +152,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
     path.join(root, "scripts/harness-public-odhin-reporter.cjs"),
     `module.exports = require(${JSON.stringify(path.join(__dirname, "harness-public-odhin-reporter.cjs"))});`,
   );
+  fs.writeFileSync(path.join(root,'scripts/run-harness-complex-email-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-complex-email-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-personal-service-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-personal-service-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
@@ -589,7 +591,7 @@ test('invalid personal-only preflight preserves valid main and DIVORCE facts and
  const capsule={held:'personal-only'},capsuleBytes=Buffer.from(JSON.stringify(capsule));fs.writeFileSync(path.join(f.root,'private/personal-service-native-binding.json'),capsuleBytes);f.captured.personalNativeCapture={binding:capsule,reference:{path:'private/personal-service-native-binding.json',digest:digestBytes(capsuleBytes)}};fs.writeFileSync(path.join(f.root,'private/personal-service-native-binding.json'),JSON.stringify({changed:'after-main'}));
  const mainFile=path.join(f.root,'private/ci-result.json'),ci=JSON.parse(fs.readFileSync(mainFile));ci.status='PASS';ci.exitCode=0;for(const phase of ci.phaseResults){phase.status='PASS';phase.exitCode=0;}f.write('ci-result.json',ci);f.write('ccd/controller-terminal.json',{status:'completed',cleanupComplete:true,exitCode:0});f.verdict={status:'PASS',exitCode:0,continuationSafe:true};
  const main=fs.readFileSync(mainFile),requestPath=path.join(f.root,'profile-request.json'),runId='divorce-00000000-0000-4000-8000-000000000001';fs.writeFileSync(requestPath,JSON.stringify({expected:{runId}}));const request={path:requestPath,runId,digest:digestBytes(fs.readFileSync(requestPath))};let profiles=0,personalProofs=0;
- const result=await runAssuranceSequence({native:async()=>f.verdict,prepare:()=>buildNativeDescriptor(f.job,f.captured,f.verdict),profile:async()=>{profiles++;return {status:'passed',reportRequest:request};},personal:async()=>{const {runPersonalServiceAdmission}=await import('./run-harness-personal-service-admission.mjs');return runPersonalServiceAdmission({nativeOutput:f.root,nativeContext:{capture:f.captured.personalNativeCapture}});},descriptor:(v,p,r)=>writeNativeDescriptor(f.job,f.captured,v,undefined,p,r),collect:async(file,timing)=>{assert.equal(typeof file,'string','personal-only corruption must not suppress valid main evidence');const descriptor=JSON.parse(fs.readFileSync(file));assert.equal(descriptor.divorceProfileAdmission,requestPath);assert.equal(descriptor.personalServiceAdmission,undefined);assert.equal(descriptor.expected.personalServiceNativeBinding,undefined);assert.equal(descriptor.expected.personalServiceRequest,undefined);assert.equal(timing.personalServiceAttempt.status,'BLOCKED');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};},publish:value=>publishAssuranceSummary(f.job,f.captured,value)});
+ const result=await runAssuranceSequence({native:async()=>f.verdict,prepare:()=>buildNativeDescriptor(f.job,f.captured,f.verdict),profile:async()=>{profiles++;return {status:'passed',reportRequest:request};},personal:async()=>{const {runPersonalServiceAdmission}=await import('./run-harness-personal-service-admission.mjs');return runPersonalServiceAdmission({nativeOutput:f.root,nativeContext:{capture:f.captured.personalNativeCapture}});},descriptor:(v,p,r)=>writeNativeDescriptor(f.job,f.captured,v,undefined,p,r),collect:async(file,timing)=>{assert.equal(typeof file,'string','personal-only corruption must not suppress valid main evidence');const descriptor=JSON.parse(fs.readFileSync(file));assert.equal(descriptor.divorceProfileAdmission,requestPath);assert.equal(descriptor.personalServiceAdmission,undefined);assert.deepEqual(descriptor.expected.personalServiceNativeBinding,f.captured.personalNativeCapture.reference);assert.equal(descriptor.expected.personalServiceRequest,undefined);assert.equal(timing.personalServiceAttempt.status,'BLOCKED');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};},publish:value=>publishAssuranceSummary(f.job,f.captured,value)});
  assert.equal(profiles,1);assert.equal(personalProofs,0);assert.equal(result.personalStatus,'BLOCKED');assert.equal(result.profileStatus,'PASS');assert.equal(result.exitCode,2);assert.deepEqual(fs.readFileSync(path.join(f.root,'private/ci-result.json')),main);const summary=validatePublicSummary(path.join(f.root,'public/release-assurance-summary.json'));assert.equal(summary.status,'BLOCKED');assert.equal(summary.releaseApproval,false);
 });
 test('late personal capture replacement cannot leave a stale public PASS after collector inclusion',async t=>{
@@ -639,12 +641,25 @@ test('actual native preflight rejection reports fixed progress without later run
  const source=fs.readFileSync(path.join(__dirname,'run-harness-ci.mjs'),'utf8');
  for(const omitProgress of [false,true]){
   const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'native-progress-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
-  const old=source.replace("context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output));",'context = await prepareCiJob(job, job.output);');
+  const old=source.replace("context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration}));",'context = await prepareCiJob(job, job.output, {complexSourceConfiguration});');
   assert.notEqual(old,source);messages.length=0;const observed=await runNativeController(root,'no-start',omitProgress?old:source);
   assert.equal(observed.result.status,'BLOCKED');assert.equal(observed.result.continuationSafe,true);assert.deepEqual(observed.calls,[]);
   const expected=['[harness-native] Native candidate preflight: started','[harness-native] Native candidate preflight: stopped; details remain private'];
   const actual=messages.map(line=>line.replace(/ \(\d+s elapsed\)\.$/,''));
   if(omitProgress){assert.deepEqual(actual,[]);assert.throws(()=>assert.deepEqual(actual,expected));}else assert.deepEqual(actual,expected);
   assert.doesNotMatch(messages.join('\n'),/PRIVATE-PROGRESS|https?:|\/private|\/artifact/);
+ }
+});
+test('unused Complex capsule drift cannot poison the actual main descriptor or NOT_RUN collector',async t=>{
+ const {runAssuranceSequence,buildNativeDescriptor,writeNativeDescriptor}=await api(),{digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ for(const reason of ['SOURCE_INPUTS_NOT_CONFIGURED','SOURCE_PROOF_PLATFORM_UNSUPPORTED'])for(const change of ['missing','changed']){
+  const f=fixture(t),binding={held:'unused-complex'},bytes=Buffer.from(JSON.stringify(binding)),file=path.join(f.root,'private/complex-email-native-binding.json');
+  fs.writeFileSync(file,bytes);f.captured.complexNativeCapture={binding,reference:{path:'private/complex-email-native-binding.json',digest:digestBytes(bytes)}};
+  const held=structuredClone(f.captured.complexNativeCapture.reference);if(change==='missing')fs.unlinkSync(file);else fs.writeFileSync(file,JSON.stringify({foreign:'replacement'}));
+  const original=fs.readFileSync(path.join(f.root,'private/ci-result.json'));let collections=0;
+  const before=buildNativeDescriptor(f.job,f.captured,f.verdict);assert.deepEqual(before.expected.complexEmailNativeBinding,held);assert.equal(before.complexEmailAdmission,undefined);
+  const result=await runAssuranceSequence({native:async()=>f.verdict,prepare:()=>buildNativeDescriptor(f.job,f.captured,f.verdict),complexAttempt:{schemaVersion:1,kind:'complex-email-attempt',status:'NOT_RUN',reason},descriptor:v=>writeNativeDescriptor(f.job,f.captured,v),collect:async(descriptorPath,options)=>{collections++;const descriptor=JSON.parse(fs.readFileSync(descriptorPath));assert.deepEqual(descriptor.expected.complexEmailNativeBinding,held);assert.equal(descriptor.expected.complexEmailRequest,undefined);assert.equal(descriptor.complexEmailAdmission,undefined);assert.equal(options.complexEmailAttempt.reason,reason);return{status:'passed',exitCode:0};}});
+  assert.equal(collections,1);assert.equal(result.complexStatus,'NOT_RUN');assert.equal(result.diagnosticStatus,'passed');assert.deepEqual(fs.readFileSync(path.join(f.root,'private/ci-result.json')),original);
+  assert.throws(()=>buildNativeDescriptor(f.job,f.captured,f.verdict,undefined,undefined,undefined,{path:'/unused-request',digest:'sha256:'+'a'.repeat(64),runId:'complex-00000000-0000-4000-8000-000000000000'}));
  }
 });

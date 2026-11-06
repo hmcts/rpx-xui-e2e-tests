@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import {runComplexEmailAdmission} from './run-harness-complex-email-admission.mjs';
+import {prepareComplexAdmissionInputs,verifyComplexNativeCapture} from './lib/exui-complex-email-admission.mjs';
 import {runPersonalServiceAdmission,isPersonalAdmissionClosedFailure} from './run-harness-personal-service-admission.mjs';
 import {verifyPersonalNativeCapture} from './lib/exui-personal-service-admission.mjs';
 import {runDivorceProfileAdmission} from './run-harness-divorce-profile-admission.mjs';
@@ -33,7 +35,7 @@ function read(file) {
   const bytes = fs.readFileSync(file);
   return { value: JSON.parse(bytes), digest: digestBytes(bytes) };
 }
-export async function runAssuranceSequence({ native, prepare, profile, personal, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, clock = () => performance.now() }) {
+export async function runAssuranceSequence({ native, prepare, profile, personal, complex, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, clock = () => performance.now() }) {
   const finish=value=>{publish(value);return value;};
   if(signal?.aborted){withdraw();return finish({nativeStatus:'NOT_RUN',...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
   const nativeStartedAt = clock();
@@ -43,11 +45,11 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
     withdraw();
     return finish({nativeStatus:verdict.status,...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
   }
-  let nativeElapsedMs = Math.round(clock() - nativeStartedAt), profileRequest, profileAttempt, profileDurationMs, personalRequest, personalAttempt, personalDurationMs, eligible = true, descriptorFailed = false;
+  let nativeElapsedMs = Math.round(clock() - nativeStartedAt), profileRequest, profileAttempt, profileDurationMs, personalRequest, personalAttempt, personalDurationMs, complexRequest, complexAttempt=configuredComplexAttempt, eligible = true, descriptorFailed = false;
   const cancelled = () => {
     if (!signal?.aborted) return false;
     withdraw();
-    return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), ...(personal ? { personalStatus: "NOT_RUN" } : {}), diagnosticStatus: "not-run", exitCode: 2, releaseApproval: false });
+  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), ...(personal ? { personalStatus: "NOT_RUN" } : {}), diagnosticStatus: "not-run", exitCode: 2, releaseApproval: false });
   };
   let stopped = cancelled(); if (stopped) return stopped;
   if (prepare) {
@@ -90,10 +92,18 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
     } else personalAttempt={schemaVersion:1,kind:'personal-service-attempt',status:'NOT_RUN',reason:eligible?'preceding-stage-not-admitted':'main-evidence-unavailable'};
   }
   stopped=cancelled();if(stopped)return stopped;
+  if(complex){
+    if(eligible&&(!profile||profileRequest)&&(!personal||personalRequest)){
+      try{const result=await complex(signal);assert.equal(result?.status,'passed','ASSURANCE_COMPLEX_RESULT_REQUIRED');assert.deepEqual(Object.keys(result.reportRequest??{}).sort(),['digest','path','runId'],'ASSURANCE_COMPLEX_REQUEST_REQUIRED');assert(typeof result.reportRequest.path==='string'&&path.isAbsolute(result.reportRequest.path)&&/^sha256:[a-f0-9]{64}$/.test(result.reportRequest.digest)&&/^complex-[a-f0-9-]{36}$/.test(result.reportRequest.runId),'ASSURANCE_COMPLEX_REQUEST_REQUIRED');complexRequest=result.reportRequest;}
+      catch{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':'NOT_RUN'}:{}),complexStatus:'BLOCKED',diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
+    }else complexAttempt={schemaVersion:1,kind:'complex-email-attempt',status:'NOT_RUN',reason:'preceding-stage-not-admitted'};
+  }
+  stopped=cancelled();if(stopped)return stopped;
   let nativeEvidencePath;
   const descriptorStarted = clock();
-  try { nativeEvidencePath = await descriptor(verdict, profileRequest, personalRequest); }
+  try { nativeEvidencePath = await descriptor(verdict, profileRequest, personalRequest, complexRequest); }
   catch (error) {
+    if(complexRequest){withdraw();return finish({nativeStatus:verdict.status,complexStatus:'BLOCKED',diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
     if (!profile && !personal && verdict.status === "PASS") throw error;
     descriptorFailed = true;
     if (personalRequest) {
@@ -120,14 +130,16 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
     ...(nativeEvidencePath ? { nativeElapsedMs, ...(verdict.phaseTimings ? { phaseTimings: verdict.phaseTimings } : {}) } : {}),
     ...(profileAttempt ? { divorceProfileAttempt: profileAttempt } : {}),
     ...(personalAttempt ? { personalServiceAttempt: personalAttempt } : {}),
+    ...(complexAttempt ? { complexEmailAttempt: complexAttempt } : {}),
   });
   stopped = cancelled(); if (stopped) return stopped;
   assert(["passed", "failed"].includes(diagnostics.status) && [0, 1, 2].includes(diagnostics.exitCode) && (diagnostics.status !== "failed" || diagnostics.exitCode !== 0), "ASSURANCE_DIAGNOSTIC_VERDICT_REQUIRED");
   const profileStatus = profileRequest && diagnostics.divorceProfileInclusion === "included" ? "PASS" : profileAttempt?.status ?? "BLOCKED";
   const personalStatus=personalRequest&&diagnostics.personalServiceInclusion==='included'?'PASS':personalAttempt?.status??'BLOCKED';
-  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus } : {}), ...(personal ? {personalStatus} : {}), diagnosticStatus: diagnostics.status, exitCode: Math.max(verdict.exitCode, diagnostics.exitCode, profileAttempt || personalAttempt || (personalRequest && diagnostics.personalServiceInclusion!=='included') || ((profile || personal) && descriptorFailed) || (profileRequest && diagnostics.divorceProfileInclusion!=='included') ? 2 : 0), releaseApproval: false });
+  const complexStatus=complexRequest&&diagnostics.complexEmailInclusion==='included'?'PASS':complexAttempt?.status??'BLOCKED';
+  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus } : {}), ...(personal ? {personalStatus} : {}), ...((complex||complexAttempt)?{complexStatus}:{}), diagnosticStatus: diagnostics.status, exitCode: Math.max(verdict.exitCode, diagnostics.exitCode, (complexRequest&&diagnostics.complexEmailInclusion!=='included') || profileAttempt || personalAttempt || (personalRequest && diagnostics.personalServiceInclusion!=='included') || ((profile || personal) && descriptorFailed) || (profileRequest && diagnostics.divorceProfileInclusion!=='included') ? 2 : 0), releaseApproval: false });
 }
-export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest) {
+export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest) {
   const root = path.join(job.output, "private");
   assert(fs.realpathSync(root) === root, "ASSURANCE_PRIVATE_ROOT_REQUIRED");
   const result = read(path.join(root, "ci-result.json"));
@@ -275,15 +287,22 @@ export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
     assert.equal(request.digest, divorceProfileRequest.digest, "ASSURANCE_PROFILE_REQUEST_CHANGED");
     assert.equal(request.value.expected.runId, divorceProfileRequest.runId, "ASSURANCE_PROFILE_REQUEST_CHANGED");
   }
-  const personalServiceNativeBinding=personalServiceRequest?verifyPersonalNativeCapture(job.output,captured.personalNativeCapture):undefined;
+  // Keep opaque pre-main references identical across stage contexts, but unused
+  // optional files are not prerequisites for publishing independently valid main evidence.
+  const personalServiceNativeBinding=personalServiceRequest?verifyPersonalNativeCapture(job.output,captured.personalNativeCapture):structuredClone(captured.personalNativeCapture?.reference);
+  const complexEmailNativeBinding=complexEmailRequest?verifyComplexNativeCapture(job.output,captured.complexNativeCapture):structuredClone(captured.complexNativeCapture?.reference);
+  if(complexEmailRequest){assert.deepEqual(Object.keys(complexEmailRequest).sort(),['digest','path','runId'],'ASSURANCE_COMPLEX_REQUEST_INVALID');const request=read(complexEmailRequest.path);assert.equal(request.digest,complexEmailRequest.digest,'ASSURANCE_COMPLEX_REQUEST_CHANGED');assert.equal(request.value.expected.runId,complexEmailRequest.runId,'ASSURANCE_COMPLEX_REQUEST_CHANGED');assert(complexEmailNativeBinding,'ASSURANCE_COMPLEX_PREFLIGHT_REQUIRED');}
   if(personalServiceRequest){assert.deepEqual(Object.keys(personalServiceRequest).sort(),['digest','path','runId'],'ASSURANCE_PERSONAL_REQUEST_INVALID');const request=read(personalServiceRequest.path);assert.equal(request.digest,personalServiceRequest.digest,'ASSURANCE_PERSONAL_REQUEST_CHANGED');assert.equal(request.value.expected.runId,personalServiceRequest.runId,'ASSURANCE_PERSONAL_REQUEST_CHANGED');assert(personalServiceNativeBinding,'ASSURANCE_PERSONAL_PREFLIGHT_REQUIRED');}
   const descriptor = {
     schemaVersion: 1,
     directory: job.output,
+    ...(complexEmailRequest?{complexEmailAdmission:complexEmailRequest.path}:{}),
     ...(personalServiceRequest?{personalServiceAdmission:personalServiceRequest.path}:{}),
     ...(divorceProfileRequest ? {divorceProfileAdmission: divorceProfileRequest.path} : {}),
     ...(sharedRoleSourceInputs ? { sharedRoleAdmission: { candidateArtifactPath: job.candidateManifest, sourceImageInputs: sharedRoleSourceInputs } } : {}),
     expected: {
+      ...(complexEmailNativeBinding?{complexEmailNativeBinding}:{}),
+      ...(complexEmailRequest?{complexEmailRequest:{runId:complexEmailRequest.runId,digest:complexEmailRequest.digest}}:{}),
       ...(personalServiceNativeBinding?{personalServiceNativeBinding}:{}),
       ...(personalServiceRequest?{personalServiceRequest:{runId:personalServiceRequest.runId,digest:personalServiceRequest.digest}}:{}),
       ...(nativeCohortBinding ? {nativeCohortBinding} : {}),
@@ -297,8 +316,8 @@ export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
   };
   return descriptor;
 }
-export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest) {
-  const descriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest);
+export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest) {
+  const descriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest);
   const file = path.join(job.output, "private/native-report-request.json");
   fs.writeFileSync(file, JSON.stringify(descriptor, null, 2) + "\n", {
     flag: "wx",
@@ -324,8 +343,8 @@ export function captureAssuranceExpectations(env = process.env) {
 export function publishAssuranceSummary(job, captured, result) {
   if(!captured.nativeCohortCapture)return;
   verifyDivorceNativeCapture(job.output,captured.nativeCohortCapture);
-  if(result.personalStatus==='PASS'){
-    try{verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);}
+  if(result.personalStatus==='PASS'||result.complexStatus==='PASS'){
+    try{if(result.personalStatus==='PASS')verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);if(result.complexStatus==='PASS')verifyComplexNativeCapture(job.output,captured.complexNativeCapture);}
     catch(error){try{Reporter.resetPublicReport('harness');}finally{writeHarnessPublicSummary(job.output,{status:'BLOCKED',exitCode:2},false);}throw error;}
   }
   assert([0,1,2].includes(result.exitCode),'ASSURANCE_EXIT_REQUIRED');
@@ -337,6 +356,7 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   assert(profileOutput === undefined || (typeof profileOutput === 'string' && path.isAbsolute(profileOutput)), 'ASSURANCE_PROFILE_OUTPUT_REQUIRED');
   const job = validateCiJob(read(jobPath).value);
   const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
+  const complexConfiguration=prepareComplexAdmissionInputs(env.HARNESS_COMPLEX_SOURCE_INPUTS,{host:process.platform,arch:process.arch,runtime:read(job.candidateManifest).value.provenance?.platform});
   const captured = captureAssuranceExpectations(env);
   const { runHarnessCollection } = await import("./run-harness-local-aat.cjs");
   const cancellation = new AbortController(), cancel = () => cancellation.abort();
@@ -344,11 +364,12 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   let result, mainDescriptor, published=false;
   try {
     result = await runAssuranceSequence({
-      native: () => runHarnessCi(jobPath, { captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;} }),
+      native: () => runHarnessCi(jobPath, { captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;}, captureComplexNative:value=>{captured.complexNativeCapture=value;}, complexSourceConfiguration:complexConfiguration }),
       prepare: verdict => { assert(captured.nativeCohortCapture, 'ASSURANCE_PREFLIGHT_REQUIRED'); mainDescriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs); },
       ...(profileOutput === undefined ? {} : {profile: signal => runDivorceProfileAdmission({ artifactPath: job.candidateManifest, browserRoot: job.browserCache, output: profileOutput, signal, nativeContext: { binding: captured.nativeCohortCapture.binding, expected: mainDescriptor.expected } })}),
       personal: signal => reportNativeProgress("Personal-service preparation, proofs and cleanup", () => runPersonalServiceAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:personalOutput??path.join(job.output,'private/personal-service'),signal,nativeOutput:job.output,nativeContext:{native:captured.nativeCohortCapture.binding,capture:captured.personalNativeCapture,expected:mainDescriptor.expected}})),
-      descriptor: (verdict, request, personalRequest) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, request, personalRequest),
+      ...(complexConfiguration.attempt?{complexAttempt:complexConfiguration.attempt}:{complex:signal=>reportNativeProgress('Complex email browser, mapping and source proofs',()=>runComplexEmailAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:path.join(job.output,'private/complex-email'),signal,nativeOutput:job.output,sourceConfiguration:complexConfiguration,nativeContext:{native:captured.nativeCohortCapture.binding,capture:captured.complexNativeCapture,expected:mainDescriptor.expected}}))}),
+      descriptor: (verdict, request, personalRequest, complexRequest) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, request, personalRequest, complexRequest),
       collect: (nativeEvidencePath, timing) => reportNativeProgress("Evidence replay and diagnostic report", () => runHarnessCollection(env, { profile: aat ? "local-aat" : "harness", nativeEvidencePath, ...timing, signal: cancellation.signal })),
       signal: cancellation.signal,
       withdraw: () => Reporter.resetPublicReport('harness'),

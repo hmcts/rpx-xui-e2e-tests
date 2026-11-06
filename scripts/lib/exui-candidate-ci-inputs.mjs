@@ -1,3 +1,4 @@
+import {captureComplexNativeBinding} from './exui-complex-email-admission.mjs';
 import {capturePersonalNativeBinding} from './exui-personal-service-admission.mjs';
 import {captureDivorceNativeBinding} from './exui-divorce-native-binding.mjs';
 import assert from "node:assert/strict";
@@ -152,7 +153,7 @@ export function observeCiToolchain({
   };
 }
 
-export async function prepareCiJob(job, output) {
+export async function prepareCiJob(job, output, {complexSourceConfiguration=null} = {}) {
   const artifact = await verifyCandidateArtifact(job.candidateManifest);
   assert.equal(
     artifact.identity.artifactDigest,
@@ -240,5 +241,6 @@ export async function prepareCiJob(job, output) {
   });
   context.nativeCohortCapture = captureDivorceNativeBinding(context, output);
   context.personalNativeCapture = capturePersonalNativeBinding(context, output, observations.ccdImages);
+  context.complexNativeCapture = captureComplexNativeBinding(context, output, observations.ccdImages, complexSourceConfiguration);
   return context;
 }

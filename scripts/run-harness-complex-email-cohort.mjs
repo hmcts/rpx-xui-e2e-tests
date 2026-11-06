@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import {prepareComplexSourceInputs} from './lib/exui-complex-source-inputs.mjs';
+export {prepareComplexSourceInputs} from './lib/exui-complex-source-inputs.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -12,7 +14,7 @@ import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
 import {inspectHostContainer,hostDocker} from './lib/exui-host-invocation.mjs';
 import {terminateOwnedChild} from './lib/exui-candidate-runtime.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
-import {COMPLEX_FLAGS,createComplexCapture,complexPins,readComplexCohort} from './lib/exui-complex-email-cohort.mjs';
+import {COMPLEX_FLAGS,createComplexCapture,complexPins,complexPin,readComplexCohort} from './lib/exui-complex-email-cohort.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),fail='COMPLEX_COHORT';
 export const COMPLEX_COHORT_SOURCES=Object.freeze([...new Set([...CALLBACK_UI_SOURCES,
  'scripts/lib/exui-complex-email-transport.mjs','scripts/run-harness-complex-email-cohort.mjs','scripts/lib/exui-complex-email-cohort.mjs','scripts/run-harness-complex-email-mapping.mjs','scripts/lib/exui-complex-email-mapping.mjs',
@@ -21,16 +23,6 @@ export function complexProducer(){
  const git=args=>{const r=spawnSync('git',args,{cwd:root,encoding:'utf8'});assert.equal(r.status,0,fail);return r.stdout.trim();};
  assert.equal(git(['status','--porcelain']),'',fail);
  return {commit:git(['rev-parse','HEAD']),tree:git(['rev-parse','HEAD^{tree}']),files:COMPLEX_COHORT_SOURCES.map(name=>{const file=path.join(root,name);assert.equal(fs.realpathSync(file),file,fail);assert(fs.lstatSync(file).isFile(),fail);return [name,digestBytes(fs.readFileSync(file))];})};
-}
-export function prepareComplexSourceInputs(inputs){
- const names=['python','sourceArchive','definitionArchive','javaHome','lombok','mapstruct'];assert.deepEqual(Object.keys(inputs).sort(),names.slice().sort(),fail);
- const prepared=Object.fromEntries(names.map(key=>{const file=inputs[key];assert(path.isAbsolute(file)&&fs.realpathSync(file)===file,fail);const info=fs.lstatSync(file);assert(key==='javaHome'?info.isDirectory():info.isFile(),fail);return [key,{path:file,digest:info.isFile()?digestBytes(fs.readFileSync(file)):null}];}));
- const witnessPath=path.join(root,'scripts/fixtures/ccd/complex-email-application-class-witnesses.json'),bytes=fs.readFileSync(witnessPath);assert.equal(digestBytes(bytes),'sha256:defb7e908eddcc192e389bff882ac868a637b2a02dc884a8c65da54034f8ddb3',fail);const witness=JSON.parse(bytes);
- assert.equal(prepared.sourceArchive.digest,witness.sourceArchiveDigest,fail);assert.equal(prepared.definitionArchive.digest,'sha256:4343d615ca395974e5651e7eae06296e4a19ce161c40d5b4ba18bf242eb24eb4',fail);
- const tools=witness.javaFiles.map(row=>({path:path.join(inputs.javaHome,row.path),digest:row.digest}));
- tools.push(...witness.processors.map(row=>({path:inputs[row.name],digest:row.digest})));
- for(const item of tools){assert.equal(fs.realpathSync(item.path),item.path,fail);assert.equal(digestBytes(fs.readFileSync(item.path)),item.digest,fail);}
- return {prepared,tools};
 }
 export async function executeComplexSourceProof(inputs,output,{signal,log,launch=spawn,terminate=terminateOwnedChild}={}){
  const names=['python','sourceArchive','definitionArchive','javaHome','lombok','mapstruct'];
@@ -50,7 +42,7 @@ export async function executeComplexSourceProof(inputs,output,{signal,log,launch
  }catch(error){if(child){const stopped=await(termination??terminate(child,{graceMs:30_000,killMs:2000}));assert(stopped.observed===true&&!stopped.forced,fail);}throw error;}
  finally{signal?.removeEventListener('abort',cancel);}
 }
-export async function runComplexEmailCohort({candidate,browser,output,sourceInputs,signal},operations={}){
+export async function runComplexEmailCohort({candidate,browser,output,sourceInputs,signal,admissionContext,admissionContractDigest,runId},operations={}){
  let ownedOutput,phase='preflight';
  const controller=new AbortController(),cancel=()=>controller.abort(),expected={contexts:{}},summary={kind:'complex-email-noncredit-cohort',status:'BLOCKED',...COMPLEX_FLAGS};
  process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
@@ -60,8 +52,10 @@ export async function runComplexEmailCohort({candidate,browser,output,sourceInpu
  const browserRun=operations.browser??runCallbackUi,mappingRun=operations.mapping??runComplexEmailMappingPair,sourceRun=operations.source??executeComplexSourceProof;
  try{
   active();expected.producer=producer();const artifact=await(operations.verifyCandidate??verifyCandidateArtifact)(candidate);active();assert.equal(artifact.provenance.platform,'linux/arm64',fail);expected.candidate=artifact;expected.sourcePreparation=(operations.prepareSource??prepareComplexSourceInputs)(sourceInputs);
-  phase='create-output';output=createFreshHarnessOutput(output,[root,path.resolve(candidate),artifact.candidateRoot,fs.realpathSync(browser)]);expected.directory=output;ownedOutput=output;
-  writeJsonAtomic(path.join(output,'parent-input.json'),{producer:expected.producer,candidate:artifact,...COMPLEX_FLAGS});
+  phase='create-output';output=createFreshHarnessOutput(output,[root,path.resolve(candidate),artifact.candidateRoot,fs.realpathSync(browser),...Object.values(sourceInputs)]);expected.directory=output;ownedOutput=output;
+  if(admissionContext){assert(/^complex-[a-f0-9-]{36}$/.test(runId)&&/^sha256:[a-f0-9]{64}$/.test(admissionContractDigest),fail);expected.runId=runId;expected.admissionContext=structuredClone(admissionContext);}
+  writeJsonAtomic(path.join(output,'parent-input.json'),{producer:expected.producer,candidate:artifact,...(admissionContext?{runId,admissionContext:expected.admissionContext,admissionContractDigest}:{}),...COMPLEX_FLAGS});
+  if(admissionContext)expected.inputDigest=complexPin(output,'parent-input.json');
   for(const variant of ['baseline','email-type']){
    active();phase='browser-'+variant;const directory=path.join(output,'browser-'+variant);
    await browserRun({candidate,browser,output:directory,variant,scenario:'complex-email-text',signal:controller.signal,complexLifecycle:createComplexCapture('browser',expected,{active,inspect,ownerEmpty})});
