@@ -10,7 +10,7 @@ exports.parentPacket=async(directory,{content={},apiContracts}={})=>{
  put('parent-input.json',cohort);const expected={runId:cohort.runId,inputDigest:m.personalFile(directory,'parent-input.json').digest,bindingDigest:m.personalDigest(cohort),producer:cohort.producer,artifact:cohort.artifact,invocations:{}};
  const bindings={};
  for(const [index,variant]of ['baseline','optional'].entries()){
-  const p=await packet(variant),dir=path.join(directory,variant),id=String(index+1).repeat(64),runId='ccd-'+String(index+1).repeat(8)+'-1234-1234-1234-'+String(index+1).repeat(12),owner='harness-'+String(index+1).repeat(16);
+  const p=await packet(variant),dir=path.join(directory,variant),id=String(index+1).repeat(64),runId='ccd-'+String(index+1).repeat(8)+'-1234-4234-8234-'+String(index+1).repeat(12),owner='harness-'+String(index+1).repeat(16);
   const workspace=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'exui-callback-native-'));fs.rmSync(workspace,{recursive:true});
   const ccd={ready:true,output:path.join(dir,'runtime'),owner,namespace:id,containers:Object.fromEntries(Object.keys(images).map((s,i)=>[s,s==='database'?id:String(index+1).repeat(60)+(i+1).toString(16).padStart(4,'0')])),images:cohort.ccdImages};
   ccd.namespace=ccd.containers.database;
