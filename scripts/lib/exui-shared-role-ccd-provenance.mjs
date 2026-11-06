@@ -130,3 +130,70 @@ export function bindSharedRoleAmd64Runtime(proof, manifest, importedBytes) {
     jarDigest: proof.jarDigest, sourceCommit: proof.sourceCommit, roleClassInventoryDigest: digestBytes(amd64Bytes),
     definitionImportDigest: digestBytes(importedBytes), runId: manifest.runId, harnessCommit: manifest.harnessCommit, catalogueCredit: false };
 }
+
+const standardArmBytes = fs.readFileSync(new URL('../fixtures/ccd/shared-role-standard-arm-source-witnesses.json', import.meta.url));
+assert.equal(digestBytes(standardArmBytes), 'sha256:bbe1e619ef013131c33c2e3cdf974e623c01e07037b7a81303622859d845433c', 'STANDARD_ROLE_WITNESS_SEAL');
+const standardArm = JSON.parse(standardArmBytes);
+assert.deepEqual(standardArm.roleClasses.slice(0, 6), fixture.roleClasses, 'STANDARD_ROLE_LEGACY_SUBSET');
+assert.equal(standardArm.roleClasses.length, 8, 'STANDARD_ROLE_CLASS_COUNT');
+const standardArmBoundary = 'eight-reviewed-role-consumer-classes; original-standard-ARM-JAR-bytes; no-whole-image-claim';
+const standardArmRecipe = ['-J-Xmx1G', '-J-XX:ActiveProcessorCount=2', '-g', '-parameters', '-encoding', 'UTF-8', '--release', '21', '-implicit:none'];
+
+export function validateSharedRoleStandardArmProof(proof) {
+  exact(proof, ['schemaVersion','kind','boundary','sourceCommit','sourceGitTree','sourceArchiveDigest','originalImage','roleClasses','toolchainDigests','compilerRecipe','processorConfigurationDigest','orderedClasspath','inputManifestDigest','compilerExitCode','inputsUnchanged','sourceComplete','runtimeAcceptance','catalogueCredit','releaseCredit'], 'STANDARD_ROLE_PROOF_SCHEMA');
+  assert.equal(proof.schemaVersion, 1, 'STANDARD_ROLE_PROOF_SCHEMA');
+  assert.equal(proof.kind, 'reproduced-standard-arm-role-source-image', 'STANDARD_ROLE_PROOF_KIND');
+  assert.equal(proof.boundary, standardArmBoundary, 'STANDARD_ROLE_PROOF_BOUNDARY');
+  for (const key of ['sourceCommit','sourceGitTree','sourceArchiveDigest','originalImage','roleClasses','toolchainDigests','processorConfigurationDigest'])
+    assert.deepEqual(proof[key], standardArm[key], 'STANDARD_ROLE_PROOF_INPUT');
+  assert.deepEqual(proof.compilerRecipe, standardArmRecipe, 'STANDARD_ROLE_COMPILER_RECIPE');
+  assert(Array.isArray(proof.orderedClasspath) && proof.orderedClasspath.length > 1, 'STANDARD_ROLE_CLASSPATH');
+  assert.equal(proof.orderedClasspath[0].entry, 'application', 'STANDARD_ROLE_CLASSPATH');
+  const entries = new Set();
+  for (const item of proof.orderedClasspath) {
+    exact(item, ['entry','digest'], 'STANDARD_ROLE_CLASSPATH_SCHEMA');
+    assert(typeof item.entry === 'string' && (item.entry === 'application' || /^BOOT-INF\/lib\/[A-Za-z0-9_.-]+\.jar$/.test(item.entry)), 'STANDARD_ROLE_CLASSPATH');
+    assert(!entries.has(item.entry) && digest(item.digest), 'STANDARD_ROLE_CLASSPATH');
+    entries.add(item.entry);
+  }
+  assert(digest(proof.inputManifestDigest), 'STANDARD_ROLE_INPUT_MANIFEST');
+  assert.equal(proof.compilerExitCode, 0, 'STANDARD_ROLE_COMPILER_FAILED');
+  assert.equal(proof.inputsUnchanged, true, 'STANDARD_ROLE_INPUT_CHANGED');
+  for (const key of ['sourceComplete','runtimeAcceptance','catalogueCredit','releaseCredit']) assert.equal(proof[key], false, 'STANDARD_ROLE_NO_IMPLICIT_CREDIT');
+}
+
+export function reproduceSharedRoleStandardArmSource(inputs) {
+  const keys = ['sourceArchive','baseArchive','javaHome','lombokJar','output'];
+  exact(inputs, keys, 'STANDARD_ROLE_INPUT_SCHEMA');
+  for (const key of keys) assert(typeof inputs[key] === 'string' && path.isAbsolute(inputs[key]), 'STANDARD_ROLE_ABSOLUTE_INPUT_REQUIRED');
+  assert(!fs.existsSync(inputs.output) && fs.realpathSync(path.dirname(inputs.output)) === path.dirname(inputs.output), 'STANDARD_ROLE_FRESH_OUTPUT_REQUIRED');
+  const script = fileURLToPath(new URL('../verify-shared-role-standard-arm-source.py', import.meta.url));
+  const args = [script, ...keys.flatMap(key => ['--' + key.replace(/[A-Z]/g, char => '-' + char.toLowerCase()), inputs[key]])];
+  const result = spawnSync('python3', args, { encoding: 'utf8', timeout: 300000, maxBuffer: 1024 * 1024, env: { PATH: process.env.PATH, HOME: process.env.HOME, PYTHONDONTWRITEBYTECODE: '1' } });
+  assert(!result.error && result.status === 0, 'STANDARD_ROLE_REPRODUCTION_FAILED');
+  assert.equal(JSON.parse(result.stdout).status, 'STANDARD_ROLE_SOURCE_IMAGE_VERIFIED', 'STANDARD_ROLE_REPRODUCTION_INCOMPLETE');
+  const file = path.join(inputs.output, 'source-image-binding.json');
+  assert(fs.lstatSync(file).isFile() && fs.realpathSync(file) === file, 'STANDARD_ROLE_PROOF_FILE_ALIAS');
+  const bytes = fs.readFileSync(file), proof = JSON.parse(bytes);
+  validateSharedRoleStandardArmProof(proof);
+  return { proof, proofDigest: digestBytes(bytes) };
+}
+
+export function bindSharedRoleStandardArmRuntime(proof, manifest, importedBytes) {
+  validateSharedRoleStandardArmProof(proof);
+  validateRunManifest(manifest);
+  assert(['exui-ccd-pilot', 'exui-ccd-event-capability-pilot'].includes(manifest.releaseScopeId), 'STANDARD_ROLE_RUNTIME_SCOPE');
+  assert(Buffer.isBuffer(importedBytes), 'STANDARD_ROLE_IMPORT_REQUIRED');
+  const imported = JSON.parse(importedBytes), actual = manifest.identity.dependencyIdentities.ccd?.artifactDigest;
+  assert.equal(actual, originalImage, 'STANDARD_ROLE_RUNTIME_IMAGE');
+  assert.equal(imported.images?.data?.id, actual, 'STANDARD_ROLE_IMPORT_IMAGE');
+  assert.equal(imported.images.data.architecture, 'arm64', 'STANDARD_ROLE_IMPORT_PLATFORM');
+  assert.equal(digestBytes(importedBytes), manifest.runtimeMetadata.definitionImportDigest, 'STANDARD_ROLE_IMPORT_DIGEST');
+  assert([200, 201].includes(imported.status), 'STANDARD_ROLE_IMPORT_FAILED');
+  assert.equal(imported.fixtureDigest, manifest.identity.definitionDigests.HarnessNestedPRL, 'STANDARD_ROLE_IMPORT_FIXTURE');
+  assert.equal(imported.observedDefinitionDigest, manifest.runtimeMetadata.observedDefinitionDigest, 'STANDARD_ROLE_IMPORT_OBSERVED');
+  assert.equal(String(imported.definitionVersion), manifest.runtimeMetadata.definitionVersion, 'STANDARD_ROLE_IMPORT_VERSION');
+  return { boundary: standardArmBoundary, runtimeImageDigest: actual, jarDigest: originalJar, sourceCommit: proof.sourceCommit,
+    roleClassInventoryDigest: digestBytes(standardArmBytes), definitionImportDigest: digestBytes(importedBytes), runId: manifest.runId,
+    harnessCommit: manifest.harnessCommit, catalogueCredit: false };
+}
