@@ -111,6 +111,9 @@ test("native projection validates all current-policy proofs without turning faul
   assert.equal(result.descriptorDigest, digest(before));
   assert.equal(result.phases.flatMap((p) => p.baselineProofs).length, 23);
   assert.equal(result.phases.flatMap((p) => p.faults).length, 23);
+  assert.deepEqual(result.phases.map(p => p.invocations.length), [2, 3, 7, 12, 3, 2, 2]);
+  assert.equal(result.phases.flatMap(p => p.invocations).length, 31);
+  assert(result.phases.flatMap(p => p.invocations).every(p => p.configuredWorkers === null));
   assert(
     result.phases
       .flatMap((p) => p.faults)
@@ -551,4 +554,33 @@ test('selector phase rejects coherently rehashed unhealthy UI, actor, history an
   f.descriptor.expected.ciResultDigest=write(ciPath,ci);f.save();
   await assert.rejects(()=>readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_/);
  }
+});
+
+
+test('native projection reads configured slots from hashed reports without changing coverage', async t => {
+  const f=await fixture(t), {readNativeReportEvidence}=await load();
+  const before=await readNativeReportEvidence(f.descriptorPath);
+  await rewriteCcd(f,({reports})=>reports.forEach((report,index)=>{report.configuredWorkers=index===0?2:1;}));
+  const after=await readNativeReportEvidence(f.descriptorPath);
+  assert.deepEqual(after.phases.find(p=>p.phase==='ccd').invocations.map(p=>p.configuredWorkers),[2,1,1,1,1,1,1]);
+  assert.deepEqual(after.catalogueCoverage.creditedObligationIds,before.catalogueCoverage.creditedObligationIds);
+  assert(after.phases.filter(p=>p.phase!=='ccd').flatMap(p=>p.invocations).every(item=>item.configuredWorkers===null));
+});
+
+test('native projection rejects invalid worker scalars and duplicate missing or foreign physical invocations', async t => {
+  const {readNativeReportEvidence}=await load();
+  for(const workers of [0,-1,1.5,canary,{workers:1}]){
+    const f=await fixture(t);await rewriteCcd(f,({reports})=>{reports[0].configuredWorkers=workers;});
+    await assert.rejects(readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_WORKER_CONFIGURATION_INVALID/);
+  }
+  for(const action of ['duplicate','missing','foreign']){
+    const f=await fixture(t), dir=path.join(f.directory,'private/family'),run=read(path.join(dir,'run.json'));
+    if(action==='duplicate')run.executionArtifacts.push(run.executionArtifacts[0]);
+    if(action==='missing')run.executionArtifacts.pop();
+    if(action==='foreign'){
+      const ref=run.executionArtifacts[0],execution=read(path.join(dir,ref.path));execution.invocationId='foreign';ref.digest=write(path.join(dir,ref.path),execution);
+    }
+    write(path.join(dir,'run.json'),run);
+    await assert.rejects(readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_INVOCATION_INVENTORY_MISMATCH/);
+  }
 });

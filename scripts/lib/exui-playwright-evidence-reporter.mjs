@@ -5,9 +5,14 @@ import path from 'node:path';
 export default class EvidenceReporter {
   tests = [];
   globalErrors = [];
+  configuredWorkers = null;
 
   constructor() {
     this.context = JSON.parse(fs.readFileSync(process.env.EXUI_EVIDENCE_CONTEXT, 'utf8'));
+  }
+
+  onBegin(config) {
+    this.configuredWorkers = Number.isSafeInteger(config?.workers) && config.workers > 0 ? config.workers : null;
   }
 
   onError() { this.globalErrors.push('FRAMEWORK_GLOBAL_ERROR'); }
@@ -45,7 +50,7 @@ export default class EvidenceReporter {
     const temporary = `${output}.${process.pid}.tmp`;
     fs.writeFileSync(temporary, JSON.stringify({
       schemaVersion: 1, context: this.context, complete: true, status: result.status,
-      tests: this.tests, globalErrors: this.globalErrors
+      tests: this.tests, globalErrors: this.globalErrors, configuredWorkers: this.configuredWorkers
     }) + '\n', { mode: 0o600, flag: 'wx' });
     fs.renameSync(temporary, output);
   }
