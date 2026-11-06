@@ -37,6 +37,10 @@ export async function runAssuranceSequence({ native, prepare, profile, descripto
   const nativeStartedAt = clock();
   const verdict = await native();
   assert(["PASS", "FAIL", "BLOCKED"].includes(verdict.status) && { PASS: 0, FAIL: 1, BLOCKED: 2 }[verdict.status] === verdict.exitCode, "ASSURANCE_NATIVE_VERDICT_REQUIRED");
+  if (verdict.continuationSafe !== true) {
+    withdraw();
+    return finish({nativeStatus:verdict.status,...(profile?{profileStatus:'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
+  }
   let nativeElapsedMs = Math.round(clock() - nativeStartedAt), profileRequest, profileAttempt, profileDurationMs, eligible = true, descriptorFailed = false;
   const cancelled = () => {
     if (!signal?.aborted) return false;

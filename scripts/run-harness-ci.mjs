@@ -215,6 +215,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort} = {}) {
     cancelled = false;
   const privateRoot = path.join(job.output, "private");
   const remove = async (_id, resource) => {
+    try {
     let evidence;
     if (resource.kind === "selector") {
       await stopSelectorCiResource(resource);
@@ -226,6 +227,10 @@ export async function runHarnessCi(jobPath, {captureNativeCohort} = {}) {
     } else await cleanupCiPhase(resource, resource.context ?? context);
     resources.delete(_id);
     return evidence;
+    } catch (error) {
+      cleanupComplete = false;
+      throw error;
+    }
   };
   const startOwnedCcd = async (key, fixtureSelection, alive = () => true, phaseResource, callbackVariant) => {
     assert(callbackVariant === undefined || ["baseline","binding-omitted"].includes(callbackVariant),"CI_CALLBACK_VARIANT_REQUIRED");
@@ -241,6 +246,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort} = {}) {
     resource.pendingStart = Promise.resolve().then(() => startCcdRuntime(directory, {
       fixtureSelection,
       platform: context.artifact.provenance.platform,
+      onCreateUncertainty: () => { cleanupComplete = false; },
       isCancelled: () => cancelled || !alive(),
       runDocker: (args, input) => {
         assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
@@ -548,7 +554,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort} = {}) {
       start: async () => {
         const directory = path.join(privateRoot, "ccd-runtime");
         resources.set("ccd-runtime", { kind: "ccd", directory });
-        context.ccd = await startCcdRuntime(directory, { platform: context.artifact.provenance.platform });
+        context.ccd = await startCcdRuntime(directory, { platform: context.artifact.provenance.platform, onCreateUncertainty: () => { cleanupComplete = false; } });
         importCcdDefinition(context.ccd);
         const workbasketReceipt = await importWorkbasketInputs(context.ccd);
         const observed = verifyCcdRuntimeIdentity(context.ccd),
@@ -637,7 +643,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort} = {}) {
         verdict = blocked();
       }
     uninstall();
-    if (cancelled) verdict = blocked();
+    if (cancelled || !cleanupComplete) verdict = blocked();
     writeJsonAtomic(path.join(privateRoot, "ci-result.json"), {
       classification: "fixed-pilot-suite-no-full-release-approval",
       jobRunId: `ci-${randomUUID()}`,
@@ -652,7 +658,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort} = {}) {
       fixedCiPhasesPassed(phaseResults),
     );
   }
-  return { ...verdict, phaseTimings };
+  return { ...verdict, phaseTimings, continuationSafe: cleanupComplete && !cancelled && resources.size === 0 };
 }
 if (
   process.argv[1] &&
