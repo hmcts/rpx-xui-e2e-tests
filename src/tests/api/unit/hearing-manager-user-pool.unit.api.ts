@@ -28,77 +28,91 @@ const configuredEnv = {
 };
 
 test.describe("Hearing manager user pool unit tests", { tag: "@svc-internal" }, () => {
-  test("falls back to the legacy hearing manager users when no pooled users are configured", () => {
-    expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_ON_USER, {})).toEqual([]);
-    expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_OFF_USER, {})).toEqual([]);
-    expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 3 }, {})).toBe(
-      HEARING_MANAGER_CR84_ON_USER
-    );
-    expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_OFF_USER, { parallelIndex: 3 }, {})).toBe(
-      HEARING_MANAGER_CR84_OFF_USER
-    );
+  test("falls back to the legacy hearing manager users when no pooled users are configured", async () => {
+    await test.step('harness-check:hearing-pool-legacy', async () => {
+      expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_ON_USER, {})).toEqual([]);
+      expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_OFF_USER, {})).toEqual([]);
+      expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 3 }, {})).toBe(
+        HEARING_MANAGER_CR84_ON_USER
+      );
+      expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_OFF_USER, { parallelIndex: 3 }, {})).toBe(
+        HEARING_MANAGER_CR84_OFF_USER
+      );
+    });
   });
 
-  test("returns only fully configured pooled users for the requested CR84 mode", () => {
-    const env = {
-      HEARING_MANAGER_CR84_ON_1_USERNAME: "hearing-on-1@example.test",
-      HEARING_MANAGER_CR84_ON_1_PASSWORD: "secret-1",
-      HEARING_MANAGER_CR84_ON_2_USERNAME: "hearing-on-2@example.test",
-      HEARING_MANAGER_CR84_OFF_1_USERNAME: "hearing-off-1@example.test",
-      HEARING_MANAGER_CR84_OFF_2_PASSWORD: "secret-2"
-    };
+  test("returns only fully configured pooled users for the requested CR84 mode", async () => {
+    await test.step('harness-check:hearing-pool-complete', async () => {
+      const env = {
+        HEARING_MANAGER_CR84_ON_1_USERNAME: "hearing-on-1@example.test",
+        HEARING_MANAGER_CR84_ON_1_PASSWORD: "secret-1",
+        HEARING_MANAGER_CR84_ON_2_USERNAME: "hearing-on-2@example.test",
+        HEARING_MANAGER_CR84_OFF_1_USERNAME: "hearing-off-1@example.test",
+        HEARING_MANAGER_CR84_OFF_2_PASSWORD: "secret-2"
+      };
 
-    expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_ON_USER, env)).toEqual([
-      "HEARING_MANAGER_CR84_ON-1"
-    ]);
-    expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_OFF_USER, env)).toEqual([]);
+      expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_ON_USER, env)).toEqual([
+        "HEARING_MANAGER_CR84_ON-1"
+      ]);
+      expect(getConfiguredHearingManagerUserIdentifiers(HEARING_MANAGER_CR84_OFF_USER, env)).toEqual([]);
+    });
   });
 
-  test("selects configured CR84 ON pooled users by Playwright parallel index", () => {
-    expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 0 }, configuredEnv)).toBe(
-      "HEARING_MANAGER_CR84_ON-1"
-    );
-    expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 1 }, configuredEnv)).toBe(
-      "HEARING_MANAGER_CR84_ON-2"
-    );
-    expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 4 }, configuredEnv)).toBe(
-      "HEARING_MANAGER_CR84_ON-1"
-    );
+  test("selects configured CR84 ON pooled users by Playwright parallel index", async () => {
+    await test.step('harness-check:hearing-pool-parallel-index', async () => {
+      expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 0 }, configuredEnv)).toBe(
+        "HEARING_MANAGER_CR84_ON-1"
+      );
+      expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 1 }, configuredEnv)).toBe(
+        "HEARING_MANAGER_CR84_ON-2"
+      );
+      expect(resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 4 }, configuredEnv)).toBe(
+        "HEARING_MANAGER_CR84_ON-1"
+      );
+    });
   });
 
-  test("honours an explicit zero parallel index over the environment fallback", () => {
-    expect(
-      resolveHearingManagerUserIdentifier(
-        HEARING_MANAGER_CR84_ON_USER,
-        { parallelIndex: 0 },
-        { ...configuredEnv, TEST_PARALLEL_INDEX: "3" }
-      )
-    ).toBe("HEARING_MANAGER_CR84_ON-1");
+  test("honours an explicit zero parallel index over the environment fallback", async () => {
+    await test.step('harness-check:hearing-pool-zero-index', async () => {
+      expect(
+        resolveHearingManagerUserIdentifier(
+          HEARING_MANAGER_CR84_ON_USER,
+          { parallelIndex: 0 },
+          { ...configuredEnv, TEST_PARALLEL_INDEX: "3" }
+        )
+      ).toBe("HEARING_MANAGER_CR84_ON-1");
+    });
   });
 
-  test("tries the selected hearing manager before the remaining configured identities", () => {
-    expect(
-      resolveHearingManagerSessionCandidates(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 2 }, configuredEnv)
-    ).toEqual([
-      "HEARING_MANAGER_CR84_ON-3",
-      "HEARING_MANAGER_CR84_ON-1",
-      "HEARING_MANAGER_CR84_ON-2",
-      "HEARING_MANAGER_CR84_ON-4"
-    ]);
+  test("tries the selected hearing manager before the remaining configured identities", async () => {
+    await test.step('harness-check:hearing-pool-session-order', async () => {
+      expect(
+        resolveHearingManagerSessionCandidates(HEARING_MANAGER_CR84_ON_USER, { parallelIndex: 2 }, configuredEnv)
+      ).toEqual([
+        "HEARING_MANAGER_CR84_ON-3",
+        "HEARING_MANAGER_CR84_ON-1",
+        "HEARING_MANAGER_CR84_ON-2",
+        "HEARING_MANAGER_CR84_ON-4"
+      ]);
+    });
   });
 
-  test("selects configured CR84 OFF pooled users by Playwright worker env when no source is passed", () => {
-    expect(
-      resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_OFF_USER, undefined, {
-        ...configuredEnv,
-        TEST_PARALLEL_INDEX: "2"
-      })
-    ).toBe("HEARING_MANAGER_CR84_OFF-3");
+  test("selects configured CR84 OFF pooled users by Playwright worker env when no source is passed", async () => {
+    await test.step('harness-check:hearing-pool-environment-index', async () => {
+      expect(
+        resolveHearingManagerUserIdentifier(HEARING_MANAGER_CR84_OFF_USER, undefined, {
+          ...configuredEnv,
+          TEST_PARALLEL_INDEX: "2"
+        })
+      ).toBe("HEARING_MANAGER_CR84_OFF-3");
+    });
   });
 
-  test("keeps an already pooled user identifier unchanged", () => {
-    expect(resolveHearingManagerUserIdentifier("HEARING_MANAGER_CR84_OFF-2", { parallelIndex: 3 }, configuredEnv)).toBe(
-      "HEARING_MANAGER_CR84_OFF-2"
-    );
+  test("keeps an already pooled user identifier unchanged", async () => {
+    await test.step('harness-check:hearing-pool-resolved-identity', async () => {
+      expect(resolveHearingManagerUserIdentifier("HEARING_MANAGER_CR84_OFF-2", { parallelIndex: 3 }, configuredEnv)).toBe(
+        "HEARING_MANAGER_CR84_OFF-2"
+      );
+    });
   });
 });

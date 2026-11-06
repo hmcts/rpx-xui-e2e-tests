@@ -45,6 +45,7 @@ function document(entries) {
                       startTime: "2026-11-03T12:00:00.100Z",
                       workerIndex: 0,
                       parallelIndex: 0,
+                      steps: require('./harness-public-check-steps.cjs').methodFor(entry).steps.map(step=>({title:'harness-check:'+step.id,duration:1,steps:[]})),
                       errors: [{ message: canary }],
                       stdout: [canary],
                       attachments: [{ path: canary }],
@@ -270,7 +271,7 @@ test("real renderer combines121 records, labels login setup honestly, and resets
     retries: 0,
     expectedStatus: "passed",
   }));
-  reporter.onBegin({}, { allTests: () => tests });
+  reporter.onBegin({harnessRunnerPhases:["offline","aat"]}, { allTests: () => tests });
   records.forEach((record, index) =>
     reporter.onTestEnd(tests[index], record.observed),
   );
@@ -456,6 +457,8 @@ test("actual controller launches AAT in its fresh private cwd with absolute conf
   assert.equal(report.tests, 121);
   assert.equal(report.counts.passed, 120);
   assert.equal(report.counts.failed, 1);
+  assert.deepEqual(report.diagnosticWorkers.observed,[{phase:"offline",workerIndex:0},{phase:"aat",workerIndex:0}]);
+  assert.deepEqual(report.diagnosticWorkers.runners,[{phase:"offline",configuredWorkers:1},{phase:"aat",configuredWorkers:1}]);
 });
 
 test("live family labels do not trust the separate legacy central arrays", async () => {
@@ -716,4 +719,26 @@ test('collector handles abort plus process signal once and observes diagnostic c
   cp.spawn=()=>{launches++;if(duringSpawn)controller.abort();else setImmediate(()=>{controller.abort();process.emit('SIGTERM');});return child;};delete require.cache[modulePath];
   await assert.rejects(require(modulePath).runHarnessCollection({PATH:process.env.PATH},{signal:controller.signal}),/LOCAL_AAT_INCOMPLETE_OR_INVALID/);assert.equal(launches,1);assert.deepEqual(signals,['SIGTERM']);assert.equal(fs.existsSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html')),false);
  }
+});
+
+test('canonical JSON collector forwards only actual reviewed check scalars and fails passed missing steps',()=>{
+  const {normalizePhase}=api(),helper=require('./harness-public-check-steps.cjs'),entry=fixture.selections.support[0],method=helper.methodFor(entry);
+  const raw=document([entry]),observed=raw.suites[0].suites[0].specs[0].tests[0].results[0];
+  observed.steps=method.steps.map(step=>({title:'harness-check:'+step.id,duration:7,error:undefined,subtitle:canary,location:{file:canary},attachments:[{body:canary}],steps:[{title:canary,duration:1}]}));
+  const phase=normalizePhase(raw,[entry],0,process.cwd());
+  assert.deepEqual(phase.records[0].observed.checkSteps,method.steps.map((step,index)=>({id:step.id,status:'passed',durationMs:7,order:index+1})));
+  assert(!JSON.stringify(phase).includes(canary));assert.equal(phase.records[0].observed.steps,undefined);
+  delete observed.steps;assert.throws(()=>normalizePhase(raw,[entry],0,process.cwd()),/PUBLIC_ODHIN_CHECK/);
+  observed.steps=[{title:'harness-check:foreign',duration:1}];assert.throws(()=>normalizePhase(raw,[entry],0,process.cwd()),/PUBLIC_ODHIN_CHECK/);
+});
+test('canonical JSON failed setup keeps missing check stages unrecorded without fabricating operations',()=>{
+  const {normalizePhase}=api(),entry=fixture.selections.support[0],raw=document([entry]),single=raw.suites[0].suites[0].specs[0].tests[0];
+  single.status='unexpected';single.results[0].status='failed';single.results[0].steps=undefined;single.results[0].errors=[{message:canary}];raw.stats.expected=0;raw.stats.unexpected=1;
+  const phase=normalizePhase(raw,[entry],1,process.cwd());assert.deepEqual(phase.records[0].observed.checkSteps,[]);assert(!JSON.stringify(phase).includes(canary));
+});
+
+test('collector runner identity comes only from fixed selected phase and rejects unknown or wrong phase',()=>{
+ const {normalizePhase}=api(),entry=fixture.selections.support[0],raw=document([entry]);raw.runnerPhase=canary;raw.suites[0].suites[0].specs[0].tests[0].results[0].runnerPhase='aat';
+ assert.equal(normalizePhase(raw,[entry],0,process.cwd(),undefined,'offline').records[0].observed.runnerPhase,'offline');
+ for(const phase of ['aat','direct',canary])assert.throws(()=>normalizePhase(raw,[entry],0,process.cwd(),undefined,phase),/LOCAL_AAT/);
 });

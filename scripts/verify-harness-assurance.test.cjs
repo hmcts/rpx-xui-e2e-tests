@@ -1,3 +1,11 @@
+// Fake presentation events use the independently reviewed literal IDs, not validator output.
+function reviewedFixtureSteps(test) {
+  const path = require('node:path');
+  const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
+  const method = require('./fixtures/harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
+  if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+}
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -170,6 +178,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   const startTime = new Date("2026-11-03T12:00:00Z");
   for (const testCase of tests)
     reporter.onTestEnd(testCase, {
+      steps: reviewedFixtureSteps(testCase),
       status: "passed",
       retry: 0,
       duration: 1,

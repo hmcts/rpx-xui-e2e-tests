@@ -320,8 +320,8 @@ function renderNativeExecutionInfo(evidence) {
 function scopeCells(label) {
   return `<td>${escape(label.services)}<br><small>${escape(label.jurisdiction)}</small></td><td>${escape(label.caseType)}</td>`;
 }
-function proofDetails(label, proof, phase) {
-  return `<details><summary>Evidence and limits</summary><p>${escape(label.lane)}. ${escape(label.limits)}</p><dl><dt>Proof</dt><dd>${escape(proof.proofId)}</dd><dt>Invocation</dt><dd>${escape(proof.invocationId)}</dd><dt>Phase run</dt><dd>${escape(phase.runId)}</dd><dt>Receipt digest</dt><dd>${escape(phase.receiptArtifactDigest)}</dd></dl></details>`;
+function proofDetails(label, proof, phase, method, outcome) {
+  return `<details><summary>Evidence and limits</summary><p><strong>Source-defined method</strong> ${escape(method)}</p><p><strong>Recorded outcome</strong> ${escape(outcome)}</p><p>Per-step execution trace and per-test duration: Not recorded in this evidence.</p><p>${escape(label.lane)}. ${escape(label.limits)}</p><dl><dt>Proof</dt><dd>${escape(proof.proofId)}</dd><dt>Invocation</dt><dd>${escape(proof.invocationId)}</dd>${proof.mutationId ? `<dt>Required failure</dt><dd>${escape(proof.expectedFailureId)}</dd><dt>Observed failure</dt><dd>${escape(proof.observedFailureId || "not established")}</dd>` : ""}<dt>Phase run</dt><dd>${escape(phase.runId)}</dd><dt>Receipt digest</dt><dd>${escape(phase.receiptArtifactDigest)}</dd></dl></details>`;
 }
 function renderNativeEvidence(evidence) {
   if (!evidence) return "";
@@ -469,7 +469,7 @@ function renderNativeEvidence(evidence) {
       const label = labelFor(proof.proofId, phase.phase);
       postalBlocked ||= proof.failureId === "postal-required-fields";
       baselineRows.push(
-        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="baseline"><th scope="row">${escape(label.slice)}<p>${escape(label.behaviour)}</p></th>${scopeCells(label)}<td>${badge(proof.status, proof.status === "passed")} ${proof.failureId ? `<small>Failure: ${escape(proof.failureId)}</small>` : ""}</td><td>${proofDetails(label, proof, phase)}</td></tr>`,
+        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="baseline"><th scope="row">${escape(label.slice)}<p>${escape(label.behaviour)}</p></th>${scopeCells(label)}<td>${badge(proof.status, proof.status === "passed")} ${proof.failureId ? `<small>Failure: ${escape(proof.failureId)}</small>` : ""}</td><td>${proofDetails(label, proof, phase, label.behaviour, proof.status)}</td></tr>`,
       );
     }
     for (const fault of phase.faults) {
@@ -478,7 +478,7 @@ function renderNativeEvidence(evidence) {
         throw new Error("PUBLIC_ODHIN_UNKNOWN_NATIVE_FAULT");
       const observed = fault.outcome === "expected-failure-observed";
       faultRows.push(
-        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="fault"><th scope="row">${escape(label.slice)}<p>${escape(faults[fault.mutationId])}</p></th>${scopeCells(label)}<td>${badge(observed ? "Expected failure observed" : "BLOCKED — invalid witness", observed)}<p>Baseline: ${escape(fault.baselineStatus)}<br>Required failure: ${escape(fault.expectedFailureId)}<br>Observed failure: ${escape(fault.observedFailureId || "not established")}</p></td><td>${proofDetails(label, fault, phase)}</td></tr>`,
+        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="fault"><th scope="row">${escape(label.slice)}<p>${escape(faults[fault.mutationId])}</p></th>${scopeCells(label)}<td>${badge(observed ? "Expected failure observed" : "BLOCKED — invalid witness", observed)}<p>Baseline: ${escape(fault.baselineStatus)}<br>Required failure: ${escape(fault.expectedFailureId)}<br>Observed failure: ${escape(fault.observedFailureId || "not established")}</p></td><td>${proofDetails(label, fault, phase, faults[fault.mutationId], observed ? "Expected failure observed" : "BLOCKED — invalid witness")}</td></tr>`,
       );
     }
   }

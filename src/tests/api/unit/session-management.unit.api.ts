@@ -35,228 +35,250 @@ test.describe('Session management hardening unit tests', { tag: '@svc-internal' 
     };
   };
 
-  test('non-strict UI storage warm-up failure warns without aborting global setup', () => {
-    const warnings: string[] = [];
+  test('non-strict UI storage warm-up failure warns without aborting global setup', async () => {
+    await test.step('harness-check:session-optional-warmup', async () => {
+      const warnings: string[] = [];
 
-    expect(() =>
-      sessionStorageTest.handleUiStorageWarmupFailure(
-        new Error('Timed out waiting for auth cookies'),
-        'FPL_GLOBAL_SEARCH',
-        false,
-        (message) => warnings.push(message)
-      )
-    ).not.toThrow();
+      expect(() =>
+        sessionStorageTest.handleUiStorageWarmupFailure(
+          new Error('Timed out waiting for auth cookies'),
+          'FPL_GLOBAL_SEARCH',
+          false,
+          (message) => warnings.push(message)
+        )
+      ).not.toThrow();
 
-    expect(warnings).toEqual([
-      expect.stringContaining('Unable to warm UI session for FPL_GLOBAL_SEARCH. Timed out waiting for auth cookies'),
-    ]);
+      expect(warnings).toEqual([
+        expect.stringContaining('Unable to warm UI session for FPL_GLOBAL_SEARCH. Timed out waiting for auth cookies'),
+      ]);
+    });
   });
 
-  test('strict UI storage warm-up failure still aborts required session setup', () => {
-    const failure = new Error('Login did not establish session cookies');
+  test('strict UI storage warm-up failure still aborts required session setup', async () => {
+    await test.step('harness-check:session-required-warmup', async () => {
+      const failure = new Error('Login did not establish session cookies');
 
-    expect(() =>
-      sessionStorageTest.handleUiStorageWarmupFailure(failure, 'FPL_GLOBAL_SEARCH', true, () => undefined)
-    ).toThrow(failure);
+      expect(() =>
+        sessionStorageTest.handleUiStorageWarmupFailure(failure, 'FPL_GLOBAL_SEARCH', true, () => undefined)
+      ).toThrow(failure);
+    });
   });
 
   test('IDAM credential flow propagates navigation failures after submitting credentials', async () => {
-    const { usernameInput, passwordInput, submitButton } = buildCredentialLocators();
+    await test.step('harness-check:session-navigation-failure', async () => {
+      const { usernameInput, passwordInput, submitButton } = buildCredentialLocators();
 
-    await expect(
-      sessionStorageTest.completeIdamCredentialFlow(
-        {
-          waitForLoadState: async () => {
-            throw new Error('navigation failed');
-          },
-        } as unknown as Page,
-        { usernameInput, passwordInput, submitButton },
-        'user@example.test',
-        'password'
-      )
-    ).rejects.toThrow('navigation failed');
+      await expect(
+        sessionStorageTest.completeIdamCredentialFlow(
+          {
+            waitForLoadState: async () => {
+              throw new Error('navigation failed');
+            },
+          } as unknown as Page,
+          { usernameInput, passwordInput, submitButton },
+          'user@example.test',
+          'password'
+        )
+      ).rejects.toThrow('navigation failed');
+    });
   });
 
   test('IDAM credential flow completes when navigation reaches DOMContentLoaded', async () => {
-    let loaded = false;
-    const { usernameInput, passwordInput, submitButton } = buildCredentialLocators();
+    await test.step('harness-check:session-navigation-ready', async () => {
+      let loaded = false;
+      const { usernameInput, passwordInput, submitButton } = buildCredentialLocators();
 
-    await expect(
-      sessionStorageTest.completeIdamCredentialFlow(
-        {
-          waitForLoadState: async () => {
-            loaded = true;
-          },
-        } as unknown as Page,
-        { usernameInput, passwordInput, submitButton },
-        'user@example.test',
-        'password'
-      )
-    ).resolves.toBeUndefined();
-    expect(loaded).toBe(true);
+      await expect(
+        sessionStorageTest.completeIdamCredentialFlow(
+          {
+            waitForLoadState: async () => {
+              loaded = true;
+            },
+          } as unknown as Page,
+          { usernameInput, passwordInput, submitButton },
+          'user@example.test',
+          'password'
+        )
+      ).resolves.toBeUndefined();
+      expect(loaded).toBe(true);
+    });
   });
 
-  test('session capture failure markers use the webapp cooldown and are cleared explicitly', () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-capture-failure-unit-'));
-    const failurePath = path.join(tempDir, 'user.storage.json.capture-failed.json');
+  test('session capture failure markers use the webapp cooldown and are cleared explicitly', async () => {
+    await test.step('harness-check:session-cooldown-markers', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-capture-failure-unit-'));
+      const failurePath = path.join(tempDir, 'user.storage.json.capture-failed.json');
 
-    try {
-      expect(sessionStorageTest.resolveSessionCaptureFailureTtlMs({} as NodeJS.ProcessEnv)).toBe(120_000);
-      expect(
-        sessionStorageTest.resolveSessionCaptureFailureTtlMs({
-          PW_SESSION_CAPTURE_FAILURE_TTL_MS: '5000',
-        } as NodeJS.ProcessEnv)
-      ).toBe(5000);
+      try {
+        expect(sessionStorageTest.resolveSessionCaptureFailureTtlMs({} as NodeJS.ProcessEnv)).toBe(120_000);
+        expect(
+          sessionStorageTest.resolveSessionCaptureFailureTtlMs({
+            PW_SESSION_CAPTURE_FAILURE_TTL_MS: '5000',
+          } as NodeJS.ProcessEnv)
+        ).toBe(5000);
 
-      sessionStorageTest.writeSessionCaptureFailure(failurePath, new Error('IDAM unavailable'));
-      expect(sessionStorageTest.recentSessionCaptureFailureMessage(failurePath, 120_000)).toBe(
-        'IDAM unavailable'
-      );
-      expect(
-        sessionStorageTest.recentSessionCaptureFailureMessage(failurePath, 1000, Date.now() + 2000)
-      ).toBeUndefined();
+        sessionStorageTest.writeSessionCaptureFailure(failurePath, new Error('IDAM unavailable'));
+        expect(sessionStorageTest.recentSessionCaptureFailureMessage(failurePath, 120_000)).toBe(
+          'IDAM unavailable'
+        );
+        expect(
+          sessionStorageTest.recentSessionCaptureFailureMessage(failurePath, 1000, Date.now() + 2000)
+        ).toBeUndefined();
 
-      sessionStorageTest.clearSessionCaptureFailure(failurePath);
-      expect(fs.existsSync(failurePath)).toBe(false);
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
+        sessionStorageTest.clearSessionCaptureFailure(failurePath);
+        expect(fs.existsSync(failurePath)).toBe(false);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 
   test('strict storage reuse refreshes when the cached state is no longer authenticated server-side', async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
-    const storagePath = path.join(tempDir, 'storage.json');
+    await test.step('harness-check:session-authenticated-refresh', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
+      const storagePath = path.join(tempDir, 'storage.json');
 
-    try {
-      fs.writeFileSync(
-        storagePath,
-        JSON.stringify({
-          cookies: [
-            { name: 'Idam.Session', value: 'session', expires: Math.floor(Date.now() / 1000) + 600 },
-            { name: '__auth__', value: 'auth', expires: Math.floor(Date.now() / 1000) + 600 },
-          ],
-        })
-      );
+      try {
+        fs.writeFileSync(
+          storagePath,
+          JSON.stringify({
+            cookies: [
+              { name: 'Idam.Session', value: 'session', expires: Math.floor(Date.now() / 1000) + 600 },
+              { name: '__auth__', value: 'auth', expires: Math.floor(Date.now() / 1000) + 600 },
+            ],
+          })
+        );
 
-      const shouldRefresh = await sessionStorageTest.shouldRefreshStorageState(storagePath, 'https://example.test', {
-        ignoreTtl: true,
-        validateAuthenticatedState: async () => false,
-      });
+        const shouldRefresh = await sessionStorageTest.shouldRefreshStorageState(storagePath, 'https://example.test', {
+          ignoreTtl: true,
+          validateAuthenticatedState: async () => false,
+        });
 
-      expect(shouldRefresh).toBe(true);
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
+        expect(shouldRefresh).toBe(true);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 
-  test('storage path is keyed by the resolved runtime email, not just the alias', () => {
-    const firstPath = resolveUiStoragePathForUser('SOLICITOR', { email: 'first@example.test' });
-    const secondPath = resolveUiStoragePathForUser('SOLICITOR', { email: 'second@example.test' });
+  test('storage path is keyed by the resolved runtime email, not just the alias', async () => {
+    await test.step('harness-check:session-email-keyed-path', async () => {
+      const firstPath = resolveUiStoragePathForUser('SOLICITOR', { email: 'first@example.test' });
+      const secondPath = resolveUiStoragePathForUser('SOLICITOR', { email: 'second@example.test' });
 
-    expect(firstPath).not.toBe(secondPath);
-    expect(firstPath).toContain('solicitor-first-example-test');
-    expect(secondPath).toContain('solicitor-second-example-test');
+      expect(firstPath).not.toBe(secondPath);
+      expect(firstPath).toContain('solicitor-first-example-test');
+      expect(secondPath).toContain('solicitor-second-example-test');
+    });
   });
 
-  test('integration session lookup falls back to latest metadata match for a user identifier', () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-session-unit-'));
+  test('integration session lookup falls back to latest metadata match for a user identifier', async () => {
+    await test.step('harness-check:session-metadata-lookup', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'integration-session-unit-'));
 
-    try {
-      const oldStorageFile = path.join(tempDir, 'court_admin-old.json');
-      const currentStorageFile = path.join(tempDir, 'court_admin-current.json');
-      fs.writeFileSync(oldStorageFile, '{"cookies":[]}', 'utf8');
-      fs.writeFileSync(currentStorageFile, '{"cookies":[]}', 'utf8');
-      fs.writeFileSync(
-        oldStorageFile.replace(/\.json$/, '.meta.json'),
-        JSON.stringify({ userIdentifier: 'COURT_ADMIN', email: 'old@example.test', updatedAt: '2026-01-01T00:00:00.000Z' }),
-        'utf8'
-      );
-      fs.writeFileSync(
-        currentStorageFile.replace(/\.json$/, '.meta.json'),
-        JSON.stringify({
-          userIdentifier: 'COURT_ADMIN',
-          email: 'current@example.test',
-          updatedAt: '2026-06-30T00:00:00.000Z',
-        }),
-        'utf8'
-      );
+      try {
+        const oldStorageFile = path.join(tempDir, 'court_admin-old.json');
+        const currentStorageFile = path.join(tempDir, 'court_admin-current.json');
+        fs.writeFileSync(oldStorageFile, '{"cookies":[]}', 'utf8');
+        fs.writeFileSync(currentStorageFile, '{"cookies":[]}', 'utf8');
+        fs.writeFileSync(
+          oldStorageFile.replace(/\.json$/, '.meta.json'),
+          JSON.stringify({ userIdentifier: 'COURT_ADMIN', email: 'old@example.test', updatedAt: '2026-01-01T00:00:00.000Z' }),
+          'utf8'
+        );
+        fs.writeFileSync(
+          currentStorageFile.replace(/\.json$/, '.meta.json'),
+          JSON.stringify({
+            userIdentifier: 'COURT_ADMIN',
+            email: 'current@example.test',
+            updatedAt: '2026-06-30T00:00:00.000Z',
+          }),
+          'utf8'
+        );
 
-      expect(integrationSessionTest.findStorageFileByMetadata('COURT_ADMIN', tempDir)).toBe(currentStorageFile);
+        expect(integrationSessionTest.findStorageFileByMetadata('COURT_ADMIN', tempDir)).toBe(currentStorageFile);
+        expect(
+          integrationSessionTest.resolveSessionStorageFile(
+            'COURT_ADMIN',
+            path.join(tempDir, 'missing.json'),
+            path.join(tempDir, 'legacy.json')
+          )
+        ).toBe(currentStorageFile);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  test('local UI login targets do not fall back to AAT IDAM by default', async () => {
+    await test.step('harness-check:session-local-login-targets', async () => {
       expect(
-        integrationSessionTest.resolveSessionStorageFile(
-          'COURT_ADMIN',
-          path.join(tempDir, 'missing.json'),
-          path.join(tempDir, 'legacy.json')
+        sessionStorageTest.resolveUiLoginTargets('http://localhost:3000/cases', {
+          TEST_ENV: 'local',
+          IDAM_WEB_URL: 'https://idam-web-public.aat.platform.hmcts.net',
+        } as NodeJS.ProcessEnv)
+      ).toEqual(['http://localhost:3000/cases']);
+
+      expect(
+        sessionStorageTest.resolveUiLoginTargets('http://localhost:3000/cases', {
+          TEST_ENV: 'local',
+          IDAM_WEB_URL: 'http://localhost:5000',
+        } as NodeJS.ProcessEnv)
+      ).toEqual(['http://localhost:3000/cases', 'http://localhost:5000/login']);
+    });
+  });
+
+  test('transient browser and XUI-shell failures are classified for one fresh capture retry only', async () => {
+    await test.step('harness-check:session-transient-classification', async () => {
+      expect(
+        sessionStorageTest.isTransientUiSessionCaptureFailure(
+          new Error('browserContext.cookies: Target page, context or browser has been closed')
         )
-      ).toBe(currentStorageFile);
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
-  });
-
-  test('local UI login targets do not fall back to AAT IDAM by default', () => {
-    expect(
-      sessionStorageTest.resolveUiLoginTargets('http://localhost:3000/cases', {
-        TEST_ENV: 'local',
-        IDAM_WEB_URL: 'https://idam-web-public.aat.platform.hmcts.net',
-      } as NodeJS.ProcessEnv)
-    ).toEqual(['http://localhost:3000/cases']);
-
-    expect(
-      sessionStorageTest.resolveUiLoginTargets('http://localhost:3000/cases', {
-        TEST_ENV: 'local',
-        IDAM_WEB_URL: 'http://localhost:5000',
-      } as NodeJS.ProcessEnv)
-    ).toEqual(['http://localhost:3000/cases', 'http://localhost:5000/login']);
-  });
-
-  test('transient browser and XUI-shell failures are classified for one fresh capture retry only', () => {
-    expect(
-      sessionStorageTest.isTransientUiSessionCaptureFailure(
-        new Error('browserContext.cookies: Target page, context or browser has been closed')
-      )
-    ).toBe(true);
-    expect(
-      sessionStorageTest.isTransientUiSessionCaptureFailure(
-        new Error("locator.waitFor: Timeout 120000ms exceeded. waiting for locator('exui-header') to be visible")
-      )
-    ).toBe(true);
-    expect(
-      sessionStorageTest.isTransientUiSessionCaptureFailure(new Error('Login page did not render'))
-    ).toBe(false);
+      ).toBe(true);
+      expect(
+        sessionStorageTest.isTransientUiSessionCaptureFailure(
+          new Error("locator.waitFor: Timeout 120000ms exceeded. waiting for locator('exui-header') to be visible")
+        )
+      ).toBe(true);
+      expect(
+        sessionStorageTest.isTransientUiSessionCaptureFailure(new Error('Login page did not render'))
+      ).toBe(false);
+    });
   });
 
   test('storage reuse refreshes when cached metadata belongs to a different resolved email for the same alias', async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
-    const storagePath = path.join(tempDir, 'storage.json');
+    await test.step('harness-check:session-metadata-identity-refresh', async () => {
+      const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'session-storage-unit-'));
+      const storagePath = path.join(tempDir, 'storage.json');
 
-    try {
-      fs.writeFileSync(
-        storagePath,
-        JSON.stringify({
-          cookies: [
-            { name: 'Idam.Session', value: 'session', expires: Math.floor(Date.now() / 1000) + 600 },
-            { name: '__auth__', value: 'auth', expires: Math.floor(Date.now() / 1000) + 600 },
-          ],
-        })
-      );
-      writeUiStorageMetadata(storagePath, {
-        userIdentifier: 'SOLICITOR',
-        email: 'stale@example.test',
-      });
-
-      const shouldRefresh = await sessionStorageTest.shouldRefreshStorageState(storagePath, 'https://example.test', {
-        ignoreTtl: true,
-        validateAuthenticatedState: async () => true,
-        expectedIdentity: {
+      try {
+        fs.writeFileSync(
+          storagePath,
+          JSON.stringify({
+            cookies: [
+              { name: 'Idam.Session', value: 'session', expires: Math.floor(Date.now() / 1000) + 600 },
+              { name: '__auth__', value: 'auth', expires: Math.floor(Date.now() / 1000) + 600 },
+            ],
+          })
+        );
+        writeUiStorageMetadata(storagePath, {
           userIdentifier: 'SOLICITOR',
-          email: 'fresh@example.test',
-        },
-      });
+          email: 'stale@example.test',
+        });
 
-      expect(shouldRefresh).toBe(true);
-    } finally {
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
+        const shouldRefresh = await sessionStorageTest.shouldRefreshStorageState(storagePath, 'https://example.test', {
+          ignoreTtl: true,
+          validateAuthenticatedState: async () => true,
+          expectedIdentity: {
+            userIdentifier: 'SOLICITOR',
+            email: 'fresh@example.test',
+          },
+        });
+
+        expect(shouldRefresh).toBe(true);
+      } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 });

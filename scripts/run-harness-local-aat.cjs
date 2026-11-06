@@ -4,6 +4,7 @@ const { spawn } = require("node:child_process");
 const crypto = require("node:crypto");
 const Reporter = require("./harness-public-odhin-reporter.cjs");
 const overview = require("./harness-public-overview.cjs");
+const checkMethods = require("./harness-public-check-steps.cjs");
 const fixture = require("./fixtures/harness-public-report-titles.json");
 const AAT_ORIGIN = "https://manage-case.aat.platform.hmcts.net";
 const IDAM_ORIGIN = "https://idam-web-public.aat.platform.hmcts.net";
@@ -27,7 +28,8 @@ const credentialKeys = [
 ];
 const fail = () => new Error("LOCAL_AAT_INCOMPLETE_OR_INVALID");
 const identity = (entry) => JSON.stringify([entry.file, entry.titlePath]);
-function normalizePhase(document, expected, exitCode, root, bounds) {
+function normalizePhase(document, expected, exitCode, root, bounds, runnerPhase=expected.every(entry=>overview.groupFor(entry.file)==='aat')?'aat':'offline') {
+  if(!['offline','aat'].includes(runnerPhase)||expected.some(entry=>(overview.groupFor(entry.file)==='aat')!==(runnerPhase==='aat')))throw fail();
   if (
     ![0, 1].includes(exitCode) ||
     document.config?.rootDir !== root ||
@@ -100,6 +102,8 @@ function normalizePhase(document, expected, exitCode, root, bounds) {
         throw fail();
       seen.add(key);
       const safe = {
+        runnerPhase,
+        checkSteps: checkMethods.validateCheckSteps(registry.get(key),checkMethods.extractCheckSteps(registry.get(key),observed.steps,'json'),observed.status),
         status: observed.status,
         retry: 0,
         duration: observed.duration,
@@ -358,6 +362,7 @@ async function runHarnessCollection(
         terminal.code,
         root,
         { startedAt, finishedAt: Date.now() },
+        phase.name,
       );
       phases.push({
         ...normalized,
@@ -375,7 +380,7 @@ async function runHarnessCollection(
       retries: 0,
       expectedStatus: "passed",
     }));
-    reporter.onBegin({ workers: require("./harness-diagnostic-config.cjs").buildConfig({}).workers }, { allTests: () => tests });
+    reporter.onBegin({ harnessRunnerPhases: phases.map(phase=>phase.name), workers: require("./harness-diagnostic-config.cjs").buildConfig({}).workers }, { allTests: () => tests });
     for (let index = 0; index < records.length; index++)
       reporter.onTestEnd(tests[index], records[index].observed);
     for (const phase of phases)

@@ -1,3 +1,11 @@
+// Fake presentation events use the independently reviewed literal IDs, not validator output.
+function reviewedFixtureSteps(test) {
+  const path = require('node:path');
+  const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
+  const method = require('./fixtures/harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
+  if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+}
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {temp}=require('./fixtures/exui-divorce-cohort-packet.mock.cjs');
 const {createHash}=require('node:crypto');
@@ -15,7 +23,7 @@ test('complete native seven plus raw DIVORCE twelve admits exactly one candidate
  try{
   const Reporter=require('./harness-public-odhin-reporter.cjs'),overview=require('./harness-public-overview.cjs'),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=joined;
   const tests=overview.entries.map(entry=>({location:{file:path.join(reportRoot,entry.file)},titlePath:()=>entry.titlePath,retries:0,expectedStatus:'passed'}));reporter.onBegin({}, {allTests:()=>tests});
-  const startTime=new Date('2026-11-05T12:00:00Z');for(const item of tests)reporter.onTestEnd(item,{status:'passed',retry:0,duration:1,startTime,workerIndex:0,parallelIndex:0});await reporter.onEnd({status:'passed',startTime,duration:1000});
+  const startTime=new Date('2026-11-05T12:00:00Z');for(const item of tests)reporter.onTestEnd(item,{steps:reviewedFixtureSteps(item),status:'passed',retry:0,duration:1,startTime,workerIndex:0,parallelIndex:0});await reporter.onEnd({status:'passed',startTime,duration:1000});
   const recorded=Reporter.validatePublicReport();assert.equal(recorded.tests,tests.length);assert.deepEqual(recorded.nativeEvidence.catalogueCoverage,joined.catalogueCoverage);
   const published=fs.readFileSync(path.join(reportRoot,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.equal((published.match(/id="harness-divorce-profile-admission"/g)||[]).length,1);assert.match(published,/DIVORCE profile: 1 requirement included in main candidate coverage/);assert.match(published,/data-profile-inclusion="included"/);assert.match(published,/Postal proof BLOCKED/);
  }finally{process.chdir(previous);}
