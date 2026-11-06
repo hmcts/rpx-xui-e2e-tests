@@ -504,7 +504,6 @@ export function ccdCredentials(
   persona = "allowed",
   { request = ccdRequest } = {},
 ) {
-  const email = `${persona}@harness.example.com`;
   const sourceRole = Object.hasOwn(sourceActors, persona)
     ? sourceActors[persona]
     : undefined;
@@ -513,6 +512,20 @@ export function ccdCredentials(
       fixtureSelection(state).startsWith("event-capability-"),
       "CCD_SOURCE_ACTOR_SCOPE_REQUIRED",
     );
+  return credentialsForFixedRole(state, persona, sourceRole, request);
+}
+
+// Only the explicit non-credit AuthorisationCaseEvent milestone provisions these
+// five fixed source personas; default registration and persona mapping stay unchanged.
+export function ccdAuthorisationRowCredentials(state, persona, { request = ccdRequest } = {}) {
+  assert.equal(fixtureSelection(state), 'event-capability-baseline', 'CCD_AUTH_ROW_BASELINE_CONTEXT_REQUIRED');
+  const actors = { ...sourceActors, systemupdate: 'caseworker-privatelaw-systemupdate', la: 'caseworker-privatelaw-la' };
+  assert(Object.hasOwn(actors, persona), 'CCD_AUTH_ROW_FIXED_ACTOR_REQUIRED');
+  return credentialsForFixedRole(state, 'authrow-' + persona, actors[persona], request);
+}
+
+function credentialsForFixedRole(state, persona, sourceRole, request) {
+  const email = `${persona}@harness.example.com`;
   const roles = sourceRole
     ? ["caseworker", "caseworker-harness", sourceRole]
     : [

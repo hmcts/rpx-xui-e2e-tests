@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { definitionDigest } from './exui-definition-references.mjs';
+import { buildEventCapabilityFixtures } from './exui-ccd-event-capability.mjs';
 import {
   AUTHORISATION_ROW_ACTORS, AUTHORISATION_ROW_VARIANTS, AUTHORISATION_ROW_NO_CREDIT,
   authorisationRowSource, authorisationRowContract, authorisationSourceRows,
@@ -62,4 +63,39 @@ export function validateAuthorisationRowFault(baseline, mutant, variant) {
   assert.deepEqual(mutant.rawRow, expected, 'AUTH_ROW_ONE_SOURCE_CELL_REQUIRED');
   for (const sheet of ['AuthorisationCaseType', 'AuthorisationCaseState', 'AuthorisationCaseField']) assert.deepEqual(mutant.sheets[sheet], baseline.sheets[sheet], 'AUTH_ROW_BACKING_CHANGED');
   return { ...variantChange(variant), ...AUTHORISATION_ROW_NO_CREDIT };
+}
+
+
+export const AUTHORISATION_CONTROL_EVENT = 'harnessAuthorisationControl';
+// Complete synthetic carrier for the two fixed non-credit observations only.
+// Source actors keep their exact prerequisites; synthetic observer/bootstrap rows
+// are separate, and the original foundation fragment remains non-runnable.
+export function buildAuthorisationCreateDefinition(variant = 'baseline') {
+  assert(['baseline', 'remove-create'].includes(variant), 'AUTH_CREATE_VARIANT');
+  const fragment = deriveAuthorisationRowFixture(variant);
+  const fixture = structuredClone(buildEventCapabilityFixtures().baseline);
+  const actors = new Set(AUTHORISATION_ROW_ACTORS);
+  for (const sheet of ['AuthorisationCaseType', 'AuthorisationCaseState', 'AuthorisationCaseField']) {
+    fixture.sheets[sheet] = [
+      ...fixture.sheets[sheet].filter(row => !actors.has(row.UserRole)),
+      ...fragment.sheets[sheet],
+    ];
+  }
+  fixture.sheets.AuthorisationCaseField.push(...AUTHORISATION_ROW_ACTORS.map(role => ({ LiveFrom: '01/01/2020', CaseTypeID: 'HarnessNestedPRL', CaseFieldID: 'protectedValue', UserRole: role, CRUD: 'R' })));
+  const event = 'serviceOfDocuments';
+  fixture.sheets.AuthorisationCaseEvent = [
+    ...fixture.sheets.AuthorisationCaseEvent.filter(row => !(row.CaseEventID === event && actors.has(row.UserRole))),
+    ...fragment.sheets.AuthorisationCaseEvent,
+  ];
+  const original = fixture.sheets.CaseEvent.find(row => row.ID === event);
+  assert(original, 'AUTH_CREATE_SOURCE_EVENT');
+  fixture.sheets.CaseEvent.push({ ...original, ID: AUTHORISATION_CONTROL_EVENT, Name: 'Synthetic authorisation health control' });
+  for (const sheet of ['CaseEventToFields', 'EventToComplexTypes'])
+    fixture.sheets[sheet].push(...fixture.sheets[sheet].filter(row => row.CaseEventID === event).map(row => ({ ...row, CaseEventID: AUTHORISATION_CONTROL_EVENT })));
+  const common = { LiveFrom: '01/01/2020', CaseTypeID: 'HarnessNestedPRL', CaseEventID: AUTHORISATION_CONTROL_EVENT };
+  fixture.sheets.AuthorisationCaseEvent.push(...[...AUTHORISATION_ROW_ACTORS, 'caseworker-harness-observer'].map(role => ({ ...common, UserRole: role, CRUD: role.endsWith('-readonly') ? 'R' : 'CRU' })));
+  return { kind: 'non-credit-authorisation-create-definition', variant, originalSourceRow: fragment.originalSourceRow,
+    rawRow: fragment.rawRow, sourceChange: fragment.change, sheets: fixture.sheets,
+    adaptations: ['PRLAPPS-to-HarnessNestedPRL', 'PRIVATELAW-to-HARNESS', 'synthetic-bootstrap-observer-and-health-control', 'source-callbacks-omitted-as-in-existing-carrier'],
+    ...AUTHORISATION_ROW_NO_CREDIT };
 }
