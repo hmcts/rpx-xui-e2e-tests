@@ -1,0 +1,31 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const {spawnSync} = require('node:child_process');
+const {pathToFileURL} = require('node:url');
+
+// Execute the production entrypoint with native/profile children replaced, never Docker.
+exports.runEntrypoint = function runEntrypoint(fixture, {profileOutput, cancelNative = false} = {}) {
+ const root = fixture.root, scripts = path.join(root, 'scripts'), lib = path.join(scripts, 'lib');
+ fs.mkdirSync(lib, {recursive: true});
+ fs.copyFileSync(path.join(__dirname, '../run-harness-assurance.mjs'), path.join(scripts, 'run-harness-assurance.mjs'));
+ const write = (name, bytes) => fs.writeFileSync(path.join(scripts, name), bytes);
+ for (const name of ['exui-evidence-io.mjs', 'exui-selector-event-row-evidence.mjs'])
+  write('lib/' + name, `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname, '../lib', name)).href)};`);
+ write('lib/exui-divorce-native-binding.mjs', 'export const verifyDivorceNativeCapture=()=>undefined;');
+ write('lib/exui-output-boundary.mjs', 'export const writeHarnessPublicSummary=()=>{};');
+ write('lib/exui-candidate-ci-inputs.mjs', 'export const validateCiJob=value=>value;');
+ write('lib/exui-release-policy.mjs', `export const getReleasePolicy=()=>({policyDigest:${JSON.stringify(Object.values(fixture.captured.policies)[0].policyDigest)}});`);
+ const append = `const record=x=>fs.appendFileSync('calls.jsonl',JSON.stringify(x)+${JSON.stringify('\n')});`;
+ const record = `import fs from 'node:fs';${append}`;
+ write('run-harness-ci.mjs', `${record}export async function runHarnessCi(file,options){record('native');options.captureNativeCohort({binding:{}});${cancelNative ? "process.emit('SIGTERM');" : ''}return ${JSON.stringify(fixture.verdict)};}`);
+ write('run-harness-divorce-profile-admission.mjs', `${record}export async function runDivorceProfileAdmission(){record('profile');throw Error('CONTROLLED_UNQUALIFIED_PROFILE');}`);
+ write('run-harness-local-aat.cjs', `const fs=require('node:fs');${append}exports.runHarnessCollection=async(env,options)=>{record({collect:options});return {status:'passed',exitCode:0};};`);
+ write('harness-public-odhin-reporter.cjs', `const fs=require('node:fs');${append}module.exports={resetPublicReport:()=>record('withdraw')};`);
+ const bin = path.join(root, 'bin');fs.mkdirSync(bin);
+ fs.writeFileSync(path.join(bin, 'git'), '#!/bin/sh\nprintf "%s\\n" ' + fixture.captured.harnessCommit + '\n', {mode: 0o700});
+ const job = path.join(root, 'job.json');fs.writeFileSync(job, JSON.stringify(fixture.job));
+ write('invoke.mjs', `import {runHarnessAssurance} from './run-harness-assurance.mjs';try{console.log(JSON.stringify(await runHarnessAssurance(${JSON.stringify(job)},${JSON.stringify(profileOutput === undefined ? {} : {profileOutput})})));}catch(error){console.log(JSON.stringify({error:error.message}));}`);
+ const terminal = spawnSync(process.execPath, [path.join(scripts, 'invoke.mjs')], {cwd: root, encoding: 'utf8', env: {PATH: bin + path.delimiter + process.env.PATH}});
+ const callsPath = path.join(root, 'calls.jsonl');
+ return {terminal, result: terminal.stdout.trim() ? JSON.parse(terminal.stdout.trim()) : null, calls: fs.existsSync(callsPath) ? fs.readFileSync(callsPath, 'utf8').trim().split('\n').map(JSON.parse) : []};
+};

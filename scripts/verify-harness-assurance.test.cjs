@@ -307,6 +307,48 @@ function fixture(t) {
     write,
   };
 }
+test('default entrypoint does not attempt the explicitly qualified DIVORCE profile', async t => {
+ const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const actual=runEntrypoint(fixture(t));
+ assert.equal(actual.terminal.status,0,actual.terminal.stderr);
+ assert.equal(actual.result.nativeStatus,'BLOCKED');
+ assert.equal(actual.result.profileStatus,undefined);
+ assert.equal(actual.calls.filter(x=>x==='profile').length,0);
+ const collections=actual.calls.filter(x=>x.collect);
+ assert.equal(collections.length,1);
+ assert.equal(collections[0].collect.divorceProfileAttempt,undefined);
+ assert.equal(actual.result.exitCode,2);
+});
+test('explicit profile output still attempts the strict profile and preserves its failure', async t => {
+ const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const f=fixture(t),actual=runEntrypoint(f,{profileOutput:path.join(f.root,'profile')});
+ assert.equal(actual.terminal.status,0,actual.terminal.stderr);
+ assert.equal(actual.calls.filter(x=>x==='profile').length,1);
+ assert.equal(actual.result.profileStatus,'BLOCKED');
+ const collections=actual.calls.filter(x=>x.collect);
+ assert.equal(collections.length,1);
+ assert.equal(collections[0].collect.divorceProfileAttempt.status,'BLOCKED');
+ assert.equal(actual.result.exitCode,2);
+});
+test('an invalid explicit profile path cannot silently select main-only execution', async t => {
+ const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ for(const profileOutput of ['', 'relative-profile']){
+  const actual=runEntrypoint(fixture(t),{profileOutput});
+  assert.equal(actual.terminal.status,0,actual.terminal.stderr);
+  assert.equal(actual.calls.filter(x=>x==='withdraw').length,1);
+  assert.equal(actual.result.error,'ASSURANCE_PROFILE_OUTPUT_REQUIRED');
+  assert.equal(actual.calls.some(x=>x==='native'||x==='profile'||x.collect),false);
+ }
+});
+test('default entrypoint cancellation withdraws the report and launches no profile or diagnostics', async t => {
+ const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const actual=runEntrypoint(fixture(t),{cancelNative:true});
+ assert.equal(actual.terminal.status,0,actual.terminal.stderr);
+ assert.equal(actual.result.exitCode,2);
+ assert.equal(actual.result.diagnosticStatus,'not-run');
+ assert.equal(actual.calls.filter(x=>x==='withdraw').length,2);
+ assert.equal(actual.calls.some(x=>x==='profile'||x.collect),false);
+});
 test("descriptor binds parent capture before gate and preserves blocked policy for strict raw reader", async (t) => {
   const { writeNativeDescriptor } = await api(),
     f = fixture(t);

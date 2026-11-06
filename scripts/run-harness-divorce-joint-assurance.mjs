@@ -4,7 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {runHarnessAssurance} from './run-harness-assurance.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
-// Local reproduction alias; Jenkins and local callers share one canonical sequence.
+// Explicit qualified profile caller; default Jenkins assurance runs the main scope only.
 export async function runDivorceJointAssurance(jobPath,profileOutput){
  assert.equal(process.cwd(),root,'DIVORCE_JOINT_CWD');assert(path.isAbsolute(jobPath)&&path.isAbsolute(profileOutput),'DIVORCE_JOINT_INPUT');
  return runHarnessAssurance(jobPath,{profileOutput});
