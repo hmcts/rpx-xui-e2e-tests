@@ -1,7 +1,7 @@
 const clone=structuredClone;
 exports.authorisationDefinition=definition=>{
  const acl=rows=>rows.map(row=>({role:row.UserRole,create:row.CRUD.includes('C'),read:row.CRUD.includes('R'),update:row.CRUD.includes('U'),delete:row.CRUD.includes('D')}));
- return {id:'HarnessNestedPRL',version:{number:3},acls:acl(definition.sheets.AuthorisationCaseType),states:[{id:'JUDICIAL_REVIEW',acls:acl(definition.sheets.AuthorisationCaseState)}],events:definition.sheets.CaseEvent.map(row=>({id:row.ID,acls:acl(definition.sheets.AuthorisationCaseEvent.filter(item=>item.CaseEventID===row.ID))})),case_fields:definition.sheets.CaseField.map(row=>({id:row.ID,acls:acl(definition.sheets.AuthorisationCaseField.filter(item=>item.CaseFieldID===row.ID))}))};
+ return {id:'HarnessNestedPRL',version:{number:3},acls:acl(definition.sheets.AuthorisationCaseType),states:[{id:'JUDICIAL_REVIEW',acls:acl(definition.sheets.AuthorisationCaseState)}],events:definition.sheets.CaseEvent.map(row=>({id:row.ID,acls:acl(definition.sheets.AuthorisationCaseEvent.filter(item=>item.CaseEventID===row.ID))})),case_fields:definition.sheets.CaseField.map(row=>({id:row.ID,acls:acl(definition.sheets.AuthorisationCaseField.filter(item=>item.CaseFieldID===row.ID)),...(row.ID==='sodAdditionalRecipientsList'?{field_type:{id:'sodAdditionalRecipientsList-00000000-0000-4000-8000-00000000000'+(definition.variant==='remove-update'?'2':'1'),type:'Collection',collection_field_type:{id:'ServeOrgDetails'}}}:{})}))};
 };
 exports.authorisationCcdFake=definition=>{
  const accounts=new Map(),tokens=new Map(),cases=new Map(),registeredRoles=new Set();let nextActor=1,nextCase=1000000000000000n;
@@ -32,7 +32,7 @@ exports.authorisationCcdFake=definition=>{
    const caseId=String(++nextCase),data=clone(body.data);data.sodAdditionalRecipientsList.forEach((row,index)=>{row.id=`recipient-${caseId}-${index}`;});
    const value={id:caseId,state:'JUDICIAL_REVIEW',version:0,case_data:data,history:[{id:'create',user_id:actor.id}]};cases.set(caseId,value);return copyResponse(201,value);
   }
-  if(route.includes('?access=update'))return copyResponse(200,typeCan(actor,'U')?[{id:'HarnessNestedPRL',events:definition.sheets.CaseEvent.filter(row=>can(actor,row.ID,'U')).map(row=>({id:row.ID}))}]:[]);
+  if(route.includes('?access=update'))return copyResponse(200,typeCan(actor,'U')?[{id:'HarnessNestedPRL',jurisdiction:{id:'HARNESS'},version:{number:3},case_fields:exports.authorisationDefinition(definition).case_fields,events:definition.sheets.CaseEvent.filter(row=>can(actor,row.ID,'U')).map(row=>({id:row.ID,name:row.Name}))}]:[]);
   const caseId=route.match(/\/cases\/(\d{16})/)?.[1],value=cases.get(caseId);if(!value)throw Error('FAKE_MISSING_CASE');
   if(route.startsWith('/internal/')){const event=route.match(/event-triggers\/([^?]+)/)[1];return copyResponse(typeCan(actor,'U')&&can(actor,event,'C')?200:404,{event_token:'synthetic-ui-start-token-'+actor.id});}
   if(method==='POST'&&route.endsWith('/events')){
@@ -47,16 +47,18 @@ exports.authorisationCcdFake=definition=>{
 
 exports.authorisationReadyCcdFake=definition=>{const fake=exports.authorisationCcdFake(definition);for(const role of ['caseworker-harness','caseworker-harness-observer','caseworker-harness-allowed'])fake.registeredRoles.add(role);return fake;};
 
-exports.authorisationPacket=directory=>packetFor(directory,false);
-exports.authorisationReadPacket=directory=>packetFor(directory,true);
-async function packetFor(directory,readMode){
+exports.authorisationPacket=directory=>packetFor(directory,'create');
+exports.authorisationReadPacket=directory=>packetFor(directory,'read');
+exports.authorisationUpdatePacket=directory=>packetFor(directory,'update');
+async function packetFor(directory,dimension){
+ const readMode=dimension==='read',updateMode=dimension==='update';
  const fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto');
- const runtimeApi=await import('../lib/exui-authorisation-create-runtime.mjs'),api=readMode?{...runtimeApi,AUTH_CREATE_VARIANTS:runtimeApi.AUTH_READ_VARIANTS,prepareAuthorisationCreateWorkbook:runtimeApi.prepareAuthorisationReadWorkbook,importAuthorisationCreate:runtimeApi.importAuthorisationRead,expectedAuthorisationAclRows:runtimeApi.expectedAuthorisationReadAclRows,observeAuthorisationCreate:runtimeApi.observeAuthorisationRead,validateAuthorisationCreateObservation:runtimeApi.validateAuthorisationReadObservation}:runtimeApi,{buildAuthorisationCreateDefinition,buildAuthorisationReadDefinition}=await import('../lib/exui-authorisation-row-fixture.mjs'),{CCD_IMAGES}=await import('../lib/exui-ccd-runtime.mjs');
+ const runtimeApi=await import('../lib/exui-authorisation-create-runtime.mjs'),api=readMode?{...runtimeApi,AUTH_CREATE_VARIANTS:runtimeApi.AUTH_READ_VARIANTS,prepareAuthorisationCreateWorkbook:runtimeApi.prepareAuthorisationReadWorkbook,importAuthorisationCreate:runtimeApi.importAuthorisationRead,expectedAuthorisationAclRows:runtimeApi.expectedAuthorisationReadAclRows,observeAuthorisationCreate:runtimeApi.observeAuthorisationRead,validateAuthorisationCreateObservation:runtimeApi.validateAuthorisationReadObservation}:updateMode?{...runtimeApi,AUTH_CREATE_VARIANTS:runtimeApi.AUTH_UPDATE_VARIANTS,prepareAuthorisationCreateWorkbook:runtimeApi.prepareAuthorisationUpdateWorkbook,importAuthorisationCreate:runtimeApi.importAuthorisationUpdate,expectedAuthorisationAclRows:runtimeApi.expectedAuthorisationUpdateAclRows,observeAuthorisationCreate:runtimeApi.observeAuthorisationUpdate,validateAuthorisationCreateObservation:runtimeApi.validateAuthorisationUpdateObservation}:runtimeApi,{buildAuthorisationCreateDefinition,buildAuthorisationReadDefinition,buildAuthorisationUpdateDefinition}=await import('../lib/exui-authorisation-row-fixture.mjs'),{CCD_IMAGES}=await import('../lib/exui-ccd-runtime.mjs');
  const hash=value=>'sha256:'+createHash('sha256').update(value).digest('hex'),write=(name,value)=>fs.writeFileSync(path.join(directory,name),JSON.stringify(value,null,2)+'\n',{mode:0o600});
- const expected={producer:{commit:'1'.repeat(40),sourceDigest:hash('fixed source'),files:{}},images:clone(CCD_IMAGES),contexts:[],...(readMode?{dimension:'read'}:{})},flags={runtimeAcceptance:false,sourceComplete:false,catalogueCredit:false,releaseCredit:false};
+ const expected={producer:{commit:'1'.repeat(40),sourceDigest:hash('fixed source'),files:{}},images:clone(CCD_IMAGES),contexts:[],...(readMode?{dimension:'read'}:updateMode?{dimension:'update'}:{})},flags={runtimeAcceptance:false,sourceComplete:false,catalogueCredit:false,releaseCredit:false};
  const summary={producer:expected.producer,images:expected.images,status:'PASS',cancelled:false,cleanupComplete:true,variants:[],...flags};
  for(const variant of api.AUTH_CREATE_VARIANTS){
-  const definition=(readMode?buildAuthorisationReadDefinition:buildAuthorisationCreateDefinition)(variant),fixture=path.join(directory,variant+'-fixture'),binding=api.prepareAuthorisationCreateWorkbook(fixture,variant);
+  const definition=(readMode?buildAuthorisationReadDefinition:updateMode?buildAuthorisationUpdateDefinition:buildAuthorisationCreateDefinition)(variant),fixture=path.join(directory,variant+'-fixture'),binding=api.prepareAuthorisationCreateWorkbook(fixture,variant);
   const runtimePath=path.join(directory,variant+'-runtime');fs.mkdirSync(runtimePath);const owner='harness-'+(variant==='baseline'?'a':'b').repeat(16),containers=Object.fromEntries(Object.keys(CCD_IMAGES).map(service=>[service,hash(variant+':'+service).slice(7)])),images=Object.fromEntries(Object.entries(CCD_IMAGES).map(([service,id])=>[service,{id,architecture:'arm64'}]));
   const runtime={owner,output:runtimePath,namespace:containers.database,containers,images,fixtureSelection:'event-capability-baseline'};
   const recovery={owner,output:runtimePath,resources:Object.fromEntries(Object.entries(CCD_IMAGES).map(([service,image])=>[service,{name:`${owner}-${service}`,image}]))};

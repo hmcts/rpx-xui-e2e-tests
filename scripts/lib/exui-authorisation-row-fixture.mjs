@@ -101,11 +101,13 @@ export function buildAuthorisationCreateDefinition(variant = 'baseline') {
 }
 
 // Separate fixed R-history carrier; the C entrypoint and its accepted variants stay unchanged.
-export function buildAuthorisationReadDefinition(variant = 'baseline') {
-  assert(['baseline', 'remove-read'].includes(variant), 'AUTH_READ_VARIANT');
+export const buildAuthorisationReadDefinition=(variant='baseline')=>buildPermissionDefinition('read',variant);
+export const buildAuthorisationUpdateDefinition=(variant='baseline')=>buildPermissionDefinition('update',variant);
+function buildPermissionDefinition(dimension,variant) {
+  assert(['baseline', 'remove-'+dimension].includes(variant), dimension==='read'?'AUTH_READ_VARIANT':'AUTH_UPDATE_VARIANT');
   const fixture = buildAuthorisationCreateDefinition();
   const fragment = deriveAuthorisationRowFixture(variant);
-  fixture.kind = 'non-credit-authorisation-read-definition';
+  fixture.kind = 'non-credit-authorisation-'+dimension+'-definition';
   fixture.variant = variant;
   fixture.rawRow = fragment.rawRow;
   fixture.sourceChange = fragment.change;
