@@ -115,93 +115,97 @@ test.describe('Dynamic user support unit tests: pure modules', { tag: '@svc-inte
     clearRuntimeUserCredentials('dynamic-user');
   });
 
-  test('runtime user credentials registry normalizes identifiers', () => {
-    setRuntimeUserCredentials(' dynamic-user ', {
-      email: 'dynamic@example.test',
-      password: 'secret',
-    });
+  test('runtime user credentials registry normalizes identifiers', async () => {
+    await test.step('harness-check:runtime-user-registry', async () => {
+      setRuntimeUserCredentials(' dynamic-user ', {
+        email: 'dynamic@example.test',
+        password: 'secret',
+      });
 
-    expect(getRuntimeUserCredentials('DYNAMIC-USER')).toEqual({
-      email: 'dynamic@example.test',
-      password: 'secret',
-    });
+      expect(getRuntimeUserCredentials('DYNAMIC-USER')).toEqual({
+        email: 'dynamic@example.test',
+        password: 'secret',
+      });
 
-    clearRuntimeUserCredentials('dynamic-user');
-    expect(getRuntimeUserCredentials(' dynamic-user ')).toBeUndefined();
+      clearRuntimeUserCredentials('dynamic-user');
+      expect(getRuntimeUserCredentials(' dynamic-user ')).toBeUndefined();
+    });
   });
 
-  test('runtime user credential env publication mirrors dynamic aliases and restores previous env values', () => {
-    process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME = 'previous@example.test';
-    process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD = 'previous-secret';
+  test('runtime user credential env publication mirrors dynamic aliases and restores previous env values', async () => {
+    await test.step('harness-check:runtime-user-environment', async () => {
+      process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME = 'previous@example.test';
+      process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD = 'previous-secret';
 
-    expect(getRuntimeUserCredentialEnvMapping(' employment_dynamic_caseworker ')).toEqual({
-      username: 'EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME',
-      password: 'EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD',
-    });
-    const divorceSolicitorMapping = getRuntimeUserCredentialEnvMapping(' divorce_solicitor ');
-    expect(divorceSolicitorMapping).toEqual({
-      username: 'DIVORCE_SOLICITOR_USERNAME',
-      password: 'DIVORCE_SOLICITOR_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' booking_ui-ft-on ')).toEqual({
-      username: 'BOOKING_UI_FT_ON_USERNAME',
-      password: 'BOOKING_UI_FT_ON_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' booking_ui-ft-on-1 ')).toEqual({
-      username: 'BOOKING_UI_FT_ON_1_USERNAME',
-      password: 'BOOKING_UI_FT_ON_1_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' booking_ui-ft-on-4 ')).toEqual({
-      username: 'BOOKING_UI_FT_ON_4_USERNAME',
-      password: 'BOOKING_UI_FT_ON_4_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' staff_admin ')).toEqual({
-      username: 'STAFF_ADMIN_USERNAME',
-      password: 'STAFF_ADMIN_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' staff_admin-1 ')).toEqual({
-      username: 'STAFF_ADMIN_1_USERNAME',
-      password: 'STAFF_ADMIN_1_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' staff_admin-4 ')).toEqual({
-      username: 'STAFF_ADMIN_4_USERNAME',
-      password: 'STAFF_ADMIN_4_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_off ')).toEqual({
-      username: 'HEARING_MANAGER_CR84_OFF_USERNAME',
-      password: 'HEARING_MANAGER_CR84_OFF_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_off-1 ')).toEqual({
-      username: 'HEARING_MANAGER_CR84_OFF_1_USERNAME',
-      password: 'HEARING_MANAGER_CR84_OFF_1_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_on ')).toEqual({
-      username: 'HEARING_MANAGER_CR84_ON_USERNAME',
-      password: 'HEARING_MANAGER_CR84_ON_PASSWORD',
-    });
-    expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_on-4 ')).toEqual({
-      username: 'HEARING_MANAGER_CR84_ON_4_USERNAME',
-      password: 'HEARING_MANAGER_CR84_ON_4_PASSWORD',
-    });
+      expect(getRuntimeUserCredentialEnvMapping(' employment_dynamic_caseworker ')).toEqual({
+        username: 'EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME',
+        password: 'EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD',
+      });
+      const divorceSolicitorMapping = getRuntimeUserCredentialEnvMapping(' divorce_solicitor ');
+      expect(divorceSolicitorMapping).toEqual({
+        username: 'DIVORCE_SOLICITOR_USERNAME',
+        password: 'DIVORCE_SOLICITOR_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' booking_ui-ft-on ')).toEqual({
+        username: 'BOOKING_UI_FT_ON_USERNAME',
+        password: 'BOOKING_UI_FT_ON_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' booking_ui-ft-on-1 ')).toEqual({
+        username: 'BOOKING_UI_FT_ON_1_USERNAME',
+        password: 'BOOKING_UI_FT_ON_1_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' booking_ui-ft-on-4 ')).toEqual({
+        username: 'BOOKING_UI_FT_ON_4_USERNAME',
+        password: 'BOOKING_UI_FT_ON_4_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' staff_admin ')).toEqual({
+        username: 'STAFF_ADMIN_USERNAME',
+        password: 'STAFF_ADMIN_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' staff_admin-1 ')).toEqual({
+        username: 'STAFF_ADMIN_1_USERNAME',
+        password: 'STAFF_ADMIN_1_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' staff_admin-4 ')).toEqual({
+        username: 'STAFF_ADMIN_4_USERNAME',
+        password: 'STAFF_ADMIN_4_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_off ')).toEqual({
+        username: 'HEARING_MANAGER_CR84_OFF_USERNAME',
+        password: 'HEARING_MANAGER_CR84_OFF_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_off-1 ')).toEqual({
+        username: 'HEARING_MANAGER_CR84_OFF_1_USERNAME',
+        password: 'HEARING_MANAGER_CR84_OFF_1_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_on ')).toEqual({
+        username: 'HEARING_MANAGER_CR84_ON_USERNAME',
+        password: 'HEARING_MANAGER_CR84_ON_PASSWORD',
+      });
+      expect(getRuntimeUserCredentialEnvMapping(' hearing_manager_cr84_on-4 ')).toEqual({
+        username: 'HEARING_MANAGER_CR84_ON_4_USERNAME',
+        password: 'HEARING_MANAGER_CR84_ON_4_PASSWORD',
+      });
 
-    process.env.DIVORCE_SOLICITOR_USERNAME = 'divorce@example.test';
-    process.env.DIVORCE_SOLICITOR_PASSWORD = 'divorce-secret';
-    expect(resolveRuntimeUserCredentialsFromEnv(divorceSolicitorMapping!)).toEqual({
-      email: 'divorce@example.test',
-      password: 'divorce-secret',
+      process.env.DIVORCE_SOLICITOR_USERNAME = 'divorce@example.test';
+      process.env.DIVORCE_SOLICITOR_PASSWORD = 'divorce-secret';
+      expect(resolveRuntimeUserCredentialsFromEnv(divorceSolicitorMapping!)).toEqual({
+        email: 'divorce@example.test',
+        password: 'divorce-secret',
+      });
+
+      const publishedState = publishRuntimeUserCredentialsToEnv('EMPLOYMENT_DYNAMIC_CASEWORKER', {
+        email: 'dynamic@example.test',
+        password: 'dynamic-secret',
+      });
+
+      expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME).toBe('dynamic@example.test');
+      expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD).toBe('dynamic-secret');
+
+      restoreRuntimeUserCredentialsInEnv(publishedState);
+
+      expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME).toBe('previous@example.test');
+      expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD).toBe('previous-secret');
     });
-
-    const publishedState = publishRuntimeUserCredentialsToEnv('EMPLOYMENT_DYNAMIC_CASEWORKER', {
-      email: 'dynamic@example.test',
-      password: 'dynamic-secret',
-    });
-
-    expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME).toBe('dynamic@example.test');
-    expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD).toBe('dynamic-secret');
-
-    restoreRuntimeUserCredentialsInEnv(publishedState);
-
-    expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_USERNAME).toBe('previous@example.test');
-    expect(process.env.EMPLOYMENT_DYNAMIC_CASEWORKER_PASSWORD).toBe('previous-secret');
   });
 });

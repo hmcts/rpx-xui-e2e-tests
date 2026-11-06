@@ -4,6 +4,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { setImmediate: nextTurn } = require("node:timers/promises");
 const overview = require("./harness-public-overview.cjs");
+const checkMethods = require("./harness-public-check-steps.cjs");
 const fixture = { selections: overview.profiles };
 const Generate = require("odhin-reports-playwright/lib/generate").default;
 const { parse } = require("node-html-parser");
@@ -74,9 +75,26 @@ function validatePhaseTimings(timings, evidence, elapsed) {
   }
   if (total > elapsed + 1000 || (evidence.status === "PASS" && timings.filter(item=>item.label!=="Native evidence and interpreter verification").length !== nativePhaseLabels.length-1)) throw failure();
 }
-function renderPhaseTimings(timings, elapsed) {
+function renderPhaseTimings(timings, elapsed, legacy = false) {
   const duration = (ms) => `${Math.floor(ms / 60000)}m ${Math.floor(ms % 60000 / 1000)}s`;
-  return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. Diagnostic Playwright time and Jenkins checkout/build time are separate.</p></div><strong>${duration(elapsed)} native run and evidence preparation</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr><th scope="row">${htmlEscape(item.label)}</th><td>${['Native evidence and interpreter verification','Selector evidence verification','Selector cohort admission'].includes(item.label)?'Evidence verification':['Selector baseline proof and cleanup','Selector fault proof and cleanup'].includes(item.label) ? 'Proof + setup / cleanup' : proofPhases.has(item.label) ? 'Proof' : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div></section>`;
+  return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. Diagnostic Playwright time and Jenkins checkout/build time are separate.</p></div><strong>${duration(elapsed)} native run and evidence preparation</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr${legacy?'':` data-phase-duration-ms="${item.durationMs}" data-phase-started-at="${item.startedAt}"`}><th scope="row">${htmlEscape(item.label)}</th><td>${['Native evidence and interpreter verification','Selector evidence verification','Selector cohort admission'].includes(item.label)?'Evidence verification':['Selector baseline proof and cleanup','Selector fault proof and cleanup'].includes(item.label) ? 'Proof + setup / cleanup' : proofPhases.has(item.label) ? 'Proof' : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div></section>`;
+}
+
+function workerEvidence(runners, checks) {
+  const observed=[];
+  for (const check of checks) {
+    if (!runners.some(row=>row.phase===check.runnerPhase) || !Number.isSafeInteger(check.workerIndex) || check.workerIndex < -1 || (check.runnerPhase!=='direct' && (overview.groupFor(check.file)==='aat')!==(check.runnerPhase==='aat'))) throw failure();
+    if(check.workerIndex>=0 && !observed.some(row=>row.phase===check.runnerPhase&&row.workerIndex===check.workerIndex)) observed.push({phase:check.runnerPhase,workerIndex:check.workerIndex});
+  }
+  return {schemaVersion:1,runners,observed};
+}
+function renderWorkers(value) {
+  const runners=value.runners.map(row=>`${row.phase}: ${row.configuredWorkers??'Not recorded'} configured`).join(' · ');
+  return `<tr data-harness-diagnostic-workers="true"><th scope="row">Playwright diagnostic workers</th><td>${runners} · ${value.observed.length} observed across ${value.runners.length} runners; not peak parallelism</td></tr>`;
+}
+function validateWorkers(value, checks) {
+  if(!value||Object.keys(value).sort().join()!=='observed,runners,schemaVersion'||value.schemaVersion!==1||!Array.isArray(value.runners)||!['direct','offline','offline,aat'].includes(value.runners.map(row=>row.phase).join())||value.runners.some(row=>Object.keys(row).sort().join()!=='configuredWorkers,phase'||!(row.configuredWorkers===null||Number.isSafeInteger(row.configuredWorkers)&&row.configuredWorkers>0)))throw failure();
+  if(JSON.stringify(value)!==JSON.stringify(workerEvidence(value.runners,checks)))throw failure();
 }
 
 function paths(selection) {
@@ -139,6 +157,26 @@ function inventory(p) {
 function validateHtml(html, record, retiringPreviousRun = false) {
   const complexAdmission = record.nativeEvidence?.complexEmailAdmission;
   const complexDom = parse(html);
+  const entries = fixture.selections[record.selection];
+  const detailMarkers = complexDom.querySelectorAll('[data-harness-check-info], [data-harness-check-steps]');
+  if (retiringPreviousRun && record.checkMethods === undefined) {
+    if (detailMarkers.length) throw failure();
+  } else {
+    checkMethods.validateMethodEvidence(record.checkMethods, entries, record.counts);
+    validateWorkers(record.diagnosticWorkers,record.checkMethods.checks);
+    const workers=complexDom.querySelectorAll('[data-harness-diagnostic-workers]');
+    if(workers.length!==1||workers[0].toString()!==parse(renderWorkers(record.diagnosticWorkers)).toString())throw failure();
+    if (detailMarkers.length !== entries.length * 2) throw failure();
+    record.checkMethods.checks.forEach((check,index) => {
+      const modal = complexDom.querySelector(`#harness-${index}-0`);
+      const info = modal?.querySelector(`#TabRunInfo-harness-${index}-0 [data-harness-check-info]`);
+      const steps = modal?.querySelector(`#TabSteps-harness-${index}-0`);
+      const label = modal?.querySelector('.modal-title label');
+      const expectedInfo = parse(checkMethods.renderInfo(entries[index],check.steps,check.status)).toString();
+      const expectedSteps = parse(checkMethods.renderSteps(entries[index],check.steps,check.status)).toString();
+      if (!info || !steps || label?.textContent.trim() !== check.status || info.toString() !== expectedInfo || steps.innerHTML !== expectedSteps) throw failure();
+    });
+  }
   const complexPanels = complexDom.querySelectorAll('[id="harness-complex-email-admission"]').length;
   const complexAttemptPanels = complexDom.querySelectorAll('[id="harness-complex-email-attempt"]').length;
   if (complexPanels !== (complexAdmission ? 1 : 0) || complexAttemptPanels !== (record.complexEmailAttempt ? 1 : 0)) throw failure();
@@ -163,7 +201,8 @@ function validateHtml(html, record, retiringPreviousRun = false) {
   if (record.nativeElapsedMs !== undefined && (!Number.isSafeInteger(record.nativeElapsedMs) || record.nativeElapsedMs < 0 || !html.includes(`data-native-elapsed-ms="${record.nativeElapsedMs}"`))) throw failure();
   if (record.phaseTimings !== undefined) {
     validatePhaseTimings(record.phaseTimings, record.nativeEvidence, record.nativeElapsedMs);
-    if (!html.includes('id="harness-phase-timings"') || !record.phaseTimings.every((item) => html.includes(htmlEscape(item.label)))) throw failure();
+    const panels = complexDom.querySelectorAll('[id="harness-phase-timings"]');
+    if (panels.length !== 1 || panels[0].toString() !== parse(renderPhaseTimings(record.phaseTimings, record.nativeElapsedMs, retiringPreviousRun && record.checkMethods === undefined)).toString()) throw failure();
   } else if (html.includes('id="harness-phase-timings"')) throw failure();
   if (
     Boolean(record.nativeEvidence) !==
@@ -418,6 +457,8 @@ class HarnessPublicOdhinReporter {
   }
   onBegin(_config, suite) {
     try {
+      this.runnerPhases=_config?.harnessRunnerPhases??['direct'];
+      if(!Array.isArray(this.runnerPhases)||!['direct','offline','offline,aat'].includes(this.runnerPhases.join()))this.reject();
       this.configuredWorkers = Number.isSafeInteger(_config?.workers) && _config.workers > 0 ? _config.workers : null;
       this.diagnosticSource ||= captureDiagnosticSource();
       validateDiagnosticSource(this.diagnosticSource);
@@ -512,11 +553,21 @@ class HarnessPublicOdhinReporter {
       ].includes(this.expected.get(identity).titlePath.at(-1))
     )
       this.reject();
+    const runnerPhase=result.runnerPhase??'direct';
+    if(!this.runnerPhases.includes(runnerPhase)||(runnerPhase!=='direct'&&isAat!==(runnerPhase==='aat')))this.reject();
+    let recordedCheckSteps;
+    try {
+      recordedCheckSteps = checkMethods.validateCheckSteps(this.expected.get(identity), result.checkSteps === undefined
+        ? checkMethods.extractCheckSteps(this.expected.get(identity), result.steps, 'framework')
+        : result.checkSteps, result.status);
+    } catch { this.reject(); }
     this.results.set(identity, {
       ...(isAat ? { aatOutcome: result.aatOutcome } : {}),
       ...(isAat && result.aatOutcome === "service-family-contract-mismatch"
         ? { aatMissingFamilies: [...result.aatMissingFamilies] }
         : {}),
+      checkSteps: recordedCheckSteps,
+      runnerPhase,
       status: result.status,
       retry: 0,
       duration: result.duration,
@@ -624,7 +675,12 @@ class HarnessPublicOdhinReporter {
             errors: [],
             stderr: [],
             stdout: [],
-            steps: [],
+            steps: observed.checkSteps.map(step => ({
+              title: htmlEscape(checkMethods.methodFor(entry).steps.find(declared => declared.id === step.id).label),
+              duration: step.durationMs ?? 0,
+              ...(step.status === 'passed' ? {} : {error:{message:'Recorded stage did not pass'}}),
+              steps: [],
+            })),
             attachments: [],
           },
         );
@@ -676,6 +732,8 @@ class HarnessPublicOdhinReporter {
         selection: this.selection,
         runId: crypto.randomUUID(),
         tests: this.results.size,
+        checkMethods: checkMethods.methodEvidence([...this.expected.values()], this.results),
+        diagnosticWorkers: workerEvidence(this.runnerPhases.map(phase=>({phase,configuredWorkers:this.configuredWorkers})),checkMethods.methodEvidence([...this.expected.values()], this.results).checks),
         counts,
         status: result.status,
         globalErrors: this.globalErrors,
@@ -718,10 +776,17 @@ class HarnessPublicOdhinReporter {
         row.querySelector('th').textContent = to;
       }
       setRunInfo('Total Execution Time', runRows.find((item) => item.querySelector('th')?.textContent.trim() === 'Total Execution Time')?.querySelector('td')?.textContent.trim() || 'Not recorded', 'Diagnostic execution time');
-      const observedWorkers = new Set([...this.results.values()].map((item) => item.workerIndex).filter((index) => index >= 0)).size;
       const nativeDuration = this.nativeElapsedMs === undefined ? 'duration not recorded' : `${(this.nativeElapsedMs / 60000).toFixed(1)} min native run + evidence preparation`;
-      runInfo.querySelector('table').insertAdjacentHTML('beforeend', `<tr><th scope="row">Playwright diagnostic workers</th><td>${this.configuredWorkers ?? 'Not recorded'} configured · ${observedWorkers} observed</td></tr><tr><th scope="row">Native execution</th><td>${this.nativeEvidence ? `${this.nativeEvidence.status} · ${nativeDuration}` : 'Not run'}</td></tr>`);
+      runInfo.querySelector('table').insertAdjacentHTML('beforeend', `${renderWorkers(record.diagnosticWorkers)}<tr><th scope="row">Native execution</th><td>${this.nativeEvidence ? `${this.nativeEvidence.status} · ${nativeDuration}` : 'Not run'}</td></tr>`);
       runInfo.querySelector('table').insertAdjacentHTML('beforeend', require('./harness-native-report.cjs').renderNativeExecutionInfo(this.nativeEvidence));
+      [...this.expected].forEach(([identity,entry],index) => {
+        const observed = this.results.get(identity);
+        const info = presentation.querySelector(`#TabRunInfo-harness-${index}-0`);
+        const steps = presentation.querySelector(`#TabSteps-harness-${index}-0`);
+        if (!info || !steps) this.reject();
+        info.insertAdjacentHTML('beforeend',checkMethods.renderInfo(entry,observed.checkSteps,observed.status));
+        steps.innerHTML = checkMethods.renderSteps(entry,observed.checkSteps,observed.status);
+      });
       applyPresentation(
         presentation,
         [...this.expected].map(([identity, entry], index) => ({

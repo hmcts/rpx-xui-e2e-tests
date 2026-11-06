@@ -584,3 +584,39 @@ test('native projection rejects invalid worker scalars and duplicate missing or 
     await assert.rejects(readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT_INVOCATION_INVENTORY_MISMATCH/);
   }
 });
+
+for (const postalFailure of [false, true]) {
+  test(`native row details distinguish source methods from recorded outcomes and unavailable traces (${postalFailure ? 'postal blocked' : 'passed'})`, async t => {
+    const f = await fixture(t, { postalFailure });
+    const { readNativeReportEvidence } = await load();
+    const evidence = await readNativeReportEvidence(f.descriptorPath);
+    const { renderNativeEvidence } = require('./harness-native-report.cjs');
+    const { escape } = require('./harness-report-coverage.cjs');
+    const html = renderNativeEvidence(evidence);
+    const rows = [...html.matchAll(/<tr data-native-row\b[^>]*>[\s\S]*?<\/tr>/g)].map(match => match[0]);
+    assert.equal(rows.length, 46);
+    const disclosure = 'Per-step execution trace and per-test duration: Not recorded in this evidence.';
+    for (const row of rows) {
+      const details = /<details>[\s\S]*?<\/details>/.exec(row)?.[0];
+      assert(details);
+      const method = /<th scope="row">[\s\S]*?<p>([\s\S]*?)<\/p>/.exec(row)?.[1];
+      assert(method);
+      assert(details.includes(`<strong>Source-defined method</strong> ${method}`));
+      assert.equal(details.split(disclosure).length - 1, 1);
+      assert(details.includes('<strong>Recorded outcome</strong>'));
+    }
+    for (const phase of evidence.phases) {
+      for (const proof of phase.baselineProofs) {
+        const row = rows.find(item => item.includes(`<dd>${escape(proof.proofId)}</dd>`));
+        assert(row.includes(`<strong>Recorded outcome</strong> ${escape(proof.status)}`));
+      }
+      for (const fault of phase.faults) {
+        const row = rows.find(item => item.includes(`<dd>${escape(fault.proofId)}</dd>`));
+        assert(row.includes('<strong>Recorded outcome</strong> ' + (fault.outcome === 'expected-failure-observed' ? 'Expected failure observed' : 'BLOCKED — invalid witness')));
+        assert(row.includes(`<dt>Required failure</dt><dd>${escape(fault.expectedFailureId)}</dd>`));
+        assert(row.includes(`<dt>Observed failure</dt><dd>${escape(fault.observedFailureId || 'not established')}</dd>`));
+      }
+    }
+    assert(!html.includes(canary));
+  });
+}

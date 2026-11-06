@@ -36,43 +36,48 @@ const enhancerTest = enhancerModule.__test__ as {
 };
 
 test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
-  test('derives feature names from Playwright file paths', () => {
-    expect(
-      deriveFeatureName(
-        '/opt/jenkins/workspace/PR/playwright_tests_new/integration/test/caseFileView/caseFileView.positive.spec.ts'
-      )
-    ).toBe('caseFileView');
-    expect(
-      deriveFeatureName(
-        '/opt/jenkins/workspace/PR/playwright_tests_new/integration/test/hearings/hearingDetails.cr84.positive.spec.ts'
-      )
-    ).toBe('hearings');
-    expect(
-      deriveFeatureName(
-        '/opt/jenkins/workspace/S_j_to_z_rpx-xui-e2e-tests_PR-47/src/tests/integration/bookingUI/booking-ui.positive.spec.ts'
-      )
-    ).toBe('bookingUI');
-    expect(deriveFeatureName('src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts')).toBe('hearings');
-    expect(deriveFeatureName('integration/accessRequests/challengedAccessRequest.positive.spec.ts')).toBe(
-      'accessRequests'
-    );
-    expect(deriveFeatureName('/work/rpx-xui-e2e-tests/src/tests/e2e/caseFileView/caseFileView.spec.ts')).toBe(
-      'caseFileView'
-    );
+  test('derives feature names from Playwright file paths', async () => {
+    await test.step('harness-check:report-feature-paths', async () => {
+      expect(
+        deriveFeatureName(
+          '/opt/jenkins/workspace/PR/playwright_tests_new/integration/test/caseFileView/caseFileView.positive.spec.ts'
+        )
+      ).toBe('caseFileView');
+      expect(
+        deriveFeatureName(
+          '/opt/jenkins/workspace/PR/playwright_tests_new/integration/test/hearings/hearingDetails.cr84.positive.spec.ts'
+        )
+      ).toBe('hearings');
+      expect(
+        deriveFeatureName(
+          '/opt/jenkins/workspace/S_j_to_z_rpx-xui-e2e-tests_PR-47/src/tests/integration/bookingUI/booking-ui.positive.spec.ts'
+        )
+      ).toBe('bookingUI');
+      expect(deriveFeatureName('src/tests/integration/hearings/harnessServiceFamilies.positive.spec.ts')).toBe('hearings');
+      expect(deriveFeatureName('integration/accessRequests/challengedAccessRequest.positive.spec.ts')).toBe(
+        'accessRequests'
+      );
+      expect(deriveFeatureName('/work/rpx-xui-e2e-tests/src/tests/e2e/caseFileView/caseFileView.spec.ts')).toBe(
+        'caseFileView'
+      );
+    });
   });
 
-  test('normalizes and sorts grouped feature stats', () => {
-    const stats = enhancerTest.normalizeFeatureStats([
-      { name: 'caseLinking', totalTests: 4, durationMs: 1500, passed: 4 },
-      { name: 'caseFileView', totalTests: 9, durationMs: 3200, passed: 8, failed: 1 },
-    ]);
+  test('normalizes and sorts grouped feature stats', async () => {
+    await test.step('harness-check:report-grouped-statistics', async () => {
+      const stats = enhancerTest.normalizeFeatureStats([
+        { name: 'caseLinking', totalTests: 4, durationMs: 1500, passed: 4 },
+        { name: 'caseFileView', totalTests: 9, durationMs: 3200, passed: 8, failed: 1 },
+      ]);
 
-    expect(stats.map((feature) => feature.name)).toEqual(['caseFileView', 'caseLinking']);
-    expect(enhancerTest.formatDuration(stats[0].durationMs)).toBe('0h 0m 3s 200ms');
+      expect(stats.map((feature) => feature.name)).toEqual(['caseFileView', 'caseLinking']);
+      expect(enhancerTest.formatDuration(stats[0].durationMs)).toBe('0h 0m 3s 200ms');
+    });
   });
 
-  test('replaces raw file summary blocks with inline grouped feature blocks', () => {
-    const baseHtml = `
+  test('replaces raw file summary blocks with inline grouped feature blocks', async () => {
+    await test.step('harness-check:report-grouped-html', async () => {
+      const baseHtml = `
       <!DOCTYPE html>
       <html>
         <body>
@@ -127,52 +132,54 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
         </body>
       </html>`;
 
-    const caseFileView = createEmptyFeatureStat('caseFileView');
-    caseFileView.totalTests = 6;
-    caseFileView.durationMs = 3200;
-    caseFileView.passed = 5;
-    caseFileView.failed = 1;
+      const caseFileView = createEmptyFeatureStat('caseFileView');
+      caseFileView.totalTests = 6;
+      caseFileView.durationMs = 3200;
+      caseFileView.passed = 5;
+      caseFileView.failed = 1;
 
-    const caseLinking = createEmptyFeatureStat('caseLinking');
-    caseLinking.totalTests = 4;
-    caseLinking.durationMs = 1800;
-    caseLinking.passed = 4;
+      const caseLinking = createEmptyFeatureStat('caseLinking');
+      caseLinking.totalTests = 4;
+      caseLinking.durationMs = 1800;
+      caseLinking.passed = 4;
 
-    const nextHtml = enhancerTest.enhanceDashboardHtml(baseHtml, [caseFileView, caseLinking]);
+      const nextHtml = enhancerTest.enhanceDashboardHtml(baseHtml, [caseFileView, caseLinking]);
 
-    expect(nextHtml).toContain('Feature Overview');
-    expect(nextHtml).toContain('caseFileView');
-    expect(nextHtml).toContain('caseLinking');
-    expect(nextHtml).toContain('Largest feature');
-    expect(nextHtml).toContain('Features</div>');
-    expect(nextHtml).toContain('Execution Time');
-    expect(nextHtml).toContain('Passed');
-    expect(nextHtml).toContain('Status by test file');
-    expect(nextHtml).not.toContain('Status by feature');
-    expect(nextHtml).toContain('odhin-dashboard-stack');
-    expect(nextHtml).toContain('odhin-harness-lane-script');
-    expect(nextHtml).toContain('Harness lane');
-    expect(nextHtml).toContain('Harness service/jurisdiction slices');
-    expect(nextHtml).toContain('Central config');
-    expect(nextHtml).toContain('Historic PRL replay');
-    expect(nextHtml).not.toContain('PRIVATELAW / PRLAPPS');
-    expect(nextHtml).not.toContain('DIVORCE / DIVORCE');
-    expect(nextHtml).not.toContain('hearings-privatelaw-prlapps-manager');
-    expect(nextHtml).not.toContain('hearings-disabled-divorce');
-    expect(nextHtml).toContain('data-dashboard-harness-lane');
-    expect(nextHtml).toContain('dataTable.isDataTable');
-    expect(nextHtml).toContain('Accessibility');
-    expect(nextHtml.indexOf('Run info')).toBeLessThan(nextHtml.indexOf('Feature Overview'));
-    expect(nextHtml.indexOf('Global Summary')).toBeLessThan(nextHtml.indexOf('Projects Summary'));
-    expect(nextHtml).toContain("document.getElementById('chart-project').getContext('2d');");
-    expect(nextHtml).toContain("document.getElementById('chart-status').getContext('2d');");
-    expect(nextHtml).not.toContain('id="chart-file"');
-    expect(nextHtml).not.toContain("document.getElementById('chart-file').getContext('2d');");
+      expect(nextHtml).toContain('Feature Overview');
+      expect(nextHtml).toContain('caseFileView');
+      expect(nextHtml).toContain('caseLinking');
+      expect(nextHtml).toContain('Largest feature');
+      expect(nextHtml).toContain('Features</div>');
+      expect(nextHtml).toContain('Execution Time');
+      expect(nextHtml).toContain('Passed');
+      expect(nextHtml).toContain('Status by test file');
+      expect(nextHtml).not.toContain('Status by feature');
+      expect(nextHtml).toContain('odhin-dashboard-stack');
+      expect(nextHtml).toContain('odhin-harness-lane-script');
+      expect(nextHtml).toContain('Harness lane');
+      expect(nextHtml).toContain('Harness service/jurisdiction slices');
+      expect(nextHtml).toContain('Central config');
+      expect(nextHtml).toContain('Historic PRL replay');
+      expect(nextHtml).not.toContain('PRIVATELAW / PRLAPPS');
+      expect(nextHtml).not.toContain('DIVORCE / DIVORCE');
+      expect(nextHtml).not.toContain('hearings-privatelaw-prlapps-manager');
+      expect(nextHtml).not.toContain('hearings-disabled-divorce');
+      expect(nextHtml).toContain('data-dashboard-harness-lane');
+      expect(nextHtml).toContain('dataTable.isDataTable');
+      expect(nextHtml).toContain('Accessibility');
+      expect(nextHtml.indexOf('Run info')).toBeLessThan(nextHtml.indexOf('Feature Overview'));
+      expect(nextHtml.indexOf('Global Summary')).toBeLessThan(nextHtml.indexOf('Projects Summary'));
+      expect(nextHtml).toContain("document.getElementById('chart-project').getContext('2d');");
+      expect(nextHtml).toContain("document.getElementById('chart-status').getContext('2d');");
+      expect(nextHtml).not.toContain('id="chart-file"');
+      expect(nextHtml).not.toContain("document.getElementById('chart-file').getContext('2d');");
+    });
   });
 
   test('waits for DataTables rows before building harness slice summaries', async ({ page }) => {
-    // Synthetic renderer metadata: Project=ui exercises lane classification, not an executed UI proof.
-    const baseHtml = `
+    await test.step('harness-check:report-deferred-rows', async () => {
+      // Synthetic renderer metadata: Project=ui exercises lane classification, not an executed UI proof.
+      const baseHtml = `
       <!DOCTYPE html>
       <html>
         <body>
@@ -241,21 +248,23 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
         </body>
       </html>`;
 
-    const stat = createEmptyFeatureStat('assuranceHarness');
-    stat.totalTests = 2;
-    stat.durationMs = 3000;
-    stat.passed = 2;
+      const stat = createEmptyFeatureStat('assuranceHarness');
+      stat.totalTests = 2;
+      stat.durationMs = 3000;
+      stat.passed = 2;
 
-    await page.setContent(enhancerTest.enhanceDashboardHtml(baseHtml, [stat]));
+      await page.setContent(enhancerTest.enhanceDashboardHtml(baseHtml, [stat]));
 
-    await expect(page.locator('#odhin-harness-filter-summary')).toContainText('Showing 2 of 2 tests in All');
-    await expect(page.locator('#odhin-harness-slice-summary tbody tr')).toHaveCount(2);
-    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Historic PRL replay');
-    await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Central config');
+      await expect(page.locator('#odhin-harness-filter-summary')).toContainText('Showing 2 of 2 tests in All');
+      await expect(page.locator('#odhin-harness-slice-summary tbody tr')).toHaveCount(2);
+      await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Historic PRL replay');
+      await expect(page.locator('#odhin-harness-slice-summary')).toContainText('Central config');
+    });
   });
 
-  test('renders compact feature summary cards when only one feature is present', () => {
-    const baseHtml = `
+  test('renders compact feature summary cards when only one feature is present', async () => {
+    await test.step('harness-check:report-compact-layout', async () => {
+      const baseHtml = `
       <!DOCTYPE html>
       <html>
         <body>
@@ -271,64 +280,71 @@ test.describe('odhin report enhancer', { tag: '@svc-internal' }, () => {
         </body>
       </html>`;
 
-    const accessRequests = createEmptyFeatureStat('accessRequests');
-    accessRequests.totalTests = 21;
-    accessRequests.durationMs = 40000;
-    accessRequests.passed = 21;
+      const accessRequests = createEmptyFeatureStat('accessRequests');
+      accessRequests.totalTests = 21;
+      accessRequests.durationMs = 40000;
+      accessRequests.passed = 21;
 
-    const nextHtml = enhancerTest.enhanceDashboardHtml(baseHtml, [accessRequests]);
+      const nextHtml = enhancerTest.enhanceDashboardHtml(baseHtml, [accessRequests]);
 
-    expect(nextHtml).toContain('Largest feature');
-    expect(nextHtml).toContain('Features</div>');
-    expect(nextHtml).toContain('Feature Overview');
-    expect(nextHtml).toContain('odhin-feature-overview-layout-compact');
-    expect(nextHtml).toContain('odhin-harness-lane-script');
-    expect(nextHtml).toContain('Harness service/jurisdiction slices');
-    expect(nextHtml).not.toContain('id="chart-file"');
-  });
-
-  test('feature overview block keeps feature distribution and outcome columns together', () => {
-    const manageTasks = createEmptyFeatureStat('manageTasks');
-    manageTasks.totalTests = 76;
-    manageTasks.durationMs = 767140;
-    manageTasks.passed = 69;
-    manageTasks.skipped = 7;
-
-    const html = enhancerTest.buildFeatureOverviewBlock([manageTasks]);
-
-    expect(html).toContain('Feature Overview');
-    expect(html).toContain('Largest feature');
-    expect(html).toContain('Execution Time');
-    expect(html).toContain('Skipped');
-    expect(html).toContain('100.00%');
-    expect(html).toContain('odhin-feature-overview-layout-compact');
-  });
-
-  test('feature overview uses balanced layout for medium feature counts', () => {
-    const featureStats = ['manageTasks', 'hearings', 'searchCase', 'accessRequests'].map((name, index) => {
-      const stat = createEmptyFeatureStat(name);
-      stat.totalTests = 10 - index;
-      stat.durationMs = 1000 * (index + 1);
-      stat.passed = stat.totalTests;
-      return stat;
+      expect(nextHtml).toContain('Largest feature');
+      expect(nextHtml).toContain('Features</div>');
+      expect(nextHtml).toContain('Feature Overview');
+      expect(nextHtml).toContain('odhin-feature-overview-layout-compact');
+      expect(nextHtml).toContain('odhin-harness-lane-script');
+      expect(nextHtml).toContain('Harness service/jurisdiction slices');
+      expect(nextHtml).not.toContain('id="chart-file"');
     });
-
-    const html = enhancerTest.buildFeatureOverviewBlock(featureStats);
-
-    expect(html).toContain('odhin-feature-overview-layout-balanced');
-    expect(html).not.toContain('odhin-feature-overview-layout-dense');
   });
 
-  test('adds a Perfetto Results tab with the artifact link', () => {
-    const html = enhancerTest.enhanceDashboardHtml(
-      '<html><body><div class="tab"><button class="main-tablinks">Dashboard</button></div></body></html>',
-      [],
-      ['perfetto.json'],
-      'https://jenkins.example/job/1/artifact/functional-output/tests/playwright-e2e/test-results'
-    );
+  test('feature overview block keeps feature distribution and outcome columns together', async () => {
+    await test.step('harness-check:report-feature-overview', async () => {
+      const manageTasks = createEmptyFeatureStat('manageTasks');
+      manageTasks.totalTests = 76;
+      manageTasks.durationMs = 767140;
+      manageTasks.passed = 69;
+      manageTasks.skipped = 7;
 
-    expect(html).toContain('Perfetto Results');
-    expect(html).toContain('id="TabPerfetto"');
-    expect(html).toContain('https://jenkins.example/job/1/artifact/functional-output/tests/playwright-e2e/test-results/perfetto.json');
+      const html = enhancerTest.buildFeatureOverviewBlock([manageTasks]);
+
+      expect(html).toContain('Feature Overview');
+      expect(html).toContain('Largest feature');
+      expect(html).toContain('Execution Time');
+      expect(html).toContain('Skipped');
+      expect(html).toContain('100.00%');
+      expect(html).toContain('odhin-feature-overview-layout-compact');
+    });
+  });
+
+  test('feature overview uses balanced layout for medium feature counts', async () => {
+    await test.step('harness-check:report-balanced-layout', async () => {
+      const featureStats = ['manageTasks', 'hearings', 'searchCase', 'accessRequests'].map((name, index) => {
+        const stat = createEmptyFeatureStat(name);
+        stat.totalTests = 10 - index;
+        stat.durationMs = 1000 * (index + 1);
+        stat.passed = stat.totalTests;
+        return stat;
+      });
+
+      const html = enhancerTest.buildFeatureOverviewBlock(featureStats);
+
+      expect(html).toContain('odhin-feature-overview-layout-balanced');
+      expect(html).not.toContain('odhin-feature-overview-layout-dense');
+    });
+  });
+
+  test('adds a Perfetto Results tab with the artifact link', async () => {
+    await test.step('harness-check:report-perfetto-link', async () => {
+      const html = enhancerTest.enhanceDashboardHtml(
+        '<html><body><div class="tab"><button class="main-tablinks">Dashboard</button></div></body></html>',
+        [],
+        ['perfetto.json'],
+        'https://jenkins.example/job/1/artifact/functional-output/tests/playwright-e2e/test-results'
+      );
+
+      expect(html).toContain('Perfetto Results');
+      expect(html).toContain('id="TabPerfetto"');
+      expect(html).toContain('https://jenkins.example/job/1/artifact/functional-output/tests/playwright-e2e/test-results/perfetto.json');
+    });
   });
 });

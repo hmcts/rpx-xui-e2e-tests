@@ -16,23 +16,27 @@ const configuredEnv = {
 };
 
 test.describe("PRL solicitor user pool unit tests", { tag: "@svc-internal" }, () => {
-  test("returns configured PRL users in stable identifier order", () => {
-    expect(getConfiguredPrlSolicitorUserIdentifiers(configuredEnv)).toEqual([
-      "PRL_SOLICITOR",
-      "PRL_SOLICITOR2",
-      "PRL_SOLICITOR4"
-    ]);
+  test("returns configured PRL users in stable identifier order", async () => {
+    await test.step('harness-check:prl-pool-order', async () => {
+      expect(getConfiguredPrlSolicitorUserIdentifiers(configuredEnv)).toEqual([
+        "PRL_SOLICITOR",
+        "PRL_SOLICITOR2",
+        "PRL_SOLICITOR4"
+      ]);
+    });
   });
 
-  test("selects configured PRL users by parallel index and preserves fallback", () => {
-    expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, configuredEnv)).toBe("PRL_SOLICITOR");
-    expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 1 }, configuredEnv)).toBe("PRL_SOLICITOR2");
-    expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 2 }, configuredEnv)).toBe("PRL_SOLICITOR4");
-    expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 3 }, configuredEnv)).toBe("PRL_SOLICITOR");
-    expect(resolvePooledUserIdentifier("PRL_SOLICITOR", { parallelIndex: 1 }, configuredEnv)).toBe("PRL_SOLICITOR2");
-    expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, {})).toBe("PRL_SOLICITOR");
-    expect(
-      resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, { ...configuredEnv, TEST_PARALLEL_INDEX: "2" })
-    ).toBe("PRL_SOLICITOR");
+  test("selects configured PRL users by parallel index and preserves fallback", async () => {
+    await test.step('harness-check:prl-pool-index-fallback', async () => {
+      expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, configuredEnv)).toBe("PRL_SOLICITOR");
+      expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 1 }, configuredEnv)).toBe("PRL_SOLICITOR2");
+      expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 2 }, configuredEnv)).toBe("PRL_SOLICITOR4");
+      expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 3 }, configuredEnv)).toBe("PRL_SOLICITOR");
+      expect(resolvePooledUserIdentifier("PRL_SOLICITOR", { parallelIndex: 1 }, configuredEnv)).toBe("PRL_SOLICITOR2");
+      expect(resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, {})).toBe("PRL_SOLICITOR");
+      expect(
+        resolvePrlSolicitorUserIdentifier("PRL_SOLICITOR", { parallelIndex: 0 }, { ...configuredEnv, TEST_PARALLEL_INDEX: "2" })
+      ).toBe("PRL_SOLICITOR");
+    });
   });
 });

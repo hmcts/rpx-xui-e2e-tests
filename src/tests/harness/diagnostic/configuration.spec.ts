@@ -89,140 +89,164 @@ test.describe("Harness environment configuration diagnostics", () => {
   test("external UI configuration exposes the expected EXUI keys", async ({
     anonymousClient,
   }) => {
-    const response =
-      await anonymousClient.get<Record<string, unknown>>("external/config/ui");
-    expect(response.status).toBe(200);
-    for (const key of CONFIGURATION_UI_KEYS) {
-      expect(
-        response.data,
-        `external/config/ui should expose ${key}`,
-      ).toHaveProperty(key);
-    }
+    const response = await test.step('harness-check:environment-ui-configuration-request', async () => {
+      return anonymousClient.get<Record<string, unknown>>("external/config/ui");
+    });
+
+    await test.step('harness-check:environment-ui-configuration-contract', async () => {
+      expect(response.status).toBe(200);
+      for (const key of CONFIGURATION_UI_KEYS) {
+        expect(
+          response.data,
+          `external/config/ui should expose ${key}`,
+        ).toHaveProperty(key);
+      }
+    });
   });
 
   test("api/configuration exposes selected feature flag values", async ({
     apiClient,
   }) => {
-    const response = await apiClient.get<unknown>(
-      "api/configuration?configurationKey=termsAndConditionsEnabled",
-      {
-        throwOnError: false,
-      },
-    );
-    expectExactContractStatus(
-      response.status,
-      "api/configuration?configurationKey=termsAndConditionsEnabled",
-    );
-    expect(["boolean", "string"]).toContain(typeof response.data);
+    const response = await test.step('harness-check:environment-feature-flag-request', async () => {
+      return apiClient.get<unknown>(
+        "api/configuration?configurationKey=termsAndConditionsEnabled",
+        {
+          throwOnError: false,
+        },
+      );
+    });
+
+    await test.step('harness-check:environment-feature-flag-contract', async () => {
+      expectExactContractStatus(
+        response.status,
+        "api/configuration?configurationKey=termsAndConditionsEnabled",
+      );
+      expect(["boolean", "string"]).toContain(typeof response.data);
+    });
   });
 
   test("api/globalSearch/services contains the central must-run service-family set", async ({
     apiClient,
   }) => {
-    const response = await apiClient.get<GlobalSearchService[]>(
-      "api/globalSearch/services",
-      { throwOnError: false },
-    );
-    expectExactContractStatus(response.status, "api/globalSearch/services");
-    const services = expectGlobalSearchServicesOnSuccess({
-      status: response.status,
-      data: response.data,
-    });
-    if (process.env.TEST_ENV === "aat") {
-      expect(
-        compareAatFamilies(
-          "globalSearchServices",
-          services.map((entry) => entry.serviceId),
-        ).matches,
-        "api/globalSearch/services differs from reviewed AAT service-family profile",
-      ).toBe(true);
-    } else {
-      expectCentralMustRunFamiliesPresent(
-        services.map((entry) => entry.serviceId),
-        EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES,
+    const response = await test.step('harness-check:environment-search-families-request', async () => {
+      return apiClient.get<GlobalSearchService[]>(
         "api/globalSearch/services",
+        { throwOnError: false },
       );
-    }
-    for (const service of services) {
-      expect(service.serviceName.trim().length).toBeGreaterThan(0);
-    }
+    });
+
+    await test.step('harness-check:environment-search-families-contract', async () => {
+      expectExactContractStatus(response.status, "api/globalSearch/services");
+      const services = expectGlobalSearchServicesOnSuccess({
+        status: response.status,
+        data: response.data,
+      });
+      if (process.env.TEST_ENV === "aat") {
+        expect(
+          compareAatFamilies(
+            "globalSearchServices",
+            services.map((entry) => entry.serviceId),
+          ).matches,
+          "api/globalSearch/services differs from reviewed AAT service-family profile",
+        ).toBe(true);
+      } else {
+        expectCentralMustRunFamiliesPresent(
+          services.map((entry) => entry.serviceId),
+          EXUI_GLOBAL_SEARCH_SERVICE_FAMILIES,
+          "api/globalSearch/services",
+        );
+      }
+      for (const service of services) {
+        expect(service.serviceName.trim().length).toBeGreaterThan(0);
+      }
+    });
   });
 
   test("api/wa-supported-jurisdiction/get contains the central WA must-run family set", async ({
     apiClient,
   }, testInfo) => {
-    const response = await apiClient.get<string[]>(
-      "api/wa-supported-jurisdiction/get",
-      { throwOnError: false },
-    );
-    expectExactContractStatus(
-      response.status,
-      "api/wa-supported-jurisdiction/get",
-    );
-    const actual = expectStringArrayOnSuccess(
-      {
-        status: response.status,
-        data: response.data,
-      },
-      "api/wa-supported-jurisdiction/get",
-    );
-    await attachMutationEvidence(testInfo);
+    const response = await test.step('harness-check:environment-wa-families-request', async () => {
+      return apiClient.get<string[]>(
+        "api/wa-supported-jurisdiction/get",
+        { throwOnError: false },
+      );
+    });
 
-    if (process.env.TEST_ENV === "aat") {
-      expect(
-        compareAatFamilies(
-          "waSupportedJurisdictions",
-          mutateStringArrayForDemo(actual, "api/wa-supported-jurisdiction/get"),
-        ).matches,
-        "api/wa-supported-jurisdiction/get differs from reviewed AAT service-family profile",
-      ).toBe(true);
-    } else {
-      expectCentralMustRunFamiliesPresent(
-        mutateStringArrayForDemo(actual, "api/wa-supported-jurisdiction/get"),
-        EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
+    await test.step('harness-check:environment-wa-families-contract', async () => {
+      expectExactContractStatus(
+        response.status,
         "api/wa-supported-jurisdiction/get",
       );
-    }
+      const actual = expectStringArrayOnSuccess(
+        {
+          status: response.status,
+          data: response.data,
+        },
+        "api/wa-supported-jurisdiction/get",
+      );
+      await attachMutationEvidence(testInfo);
+
+      if (process.env.TEST_ENV === "aat") {
+        expect(
+          compareAatFamilies(
+            "waSupportedJurisdictions",
+            mutateStringArrayForDemo(actual, "api/wa-supported-jurisdiction/get"),
+          ).matches,
+          "api/wa-supported-jurisdiction/get differs from reviewed AAT service-family profile",
+        ).toBe(true);
+      } else {
+        expectCentralMustRunFamiliesPresent(
+          mutateStringArrayForDemo(actual, "api/wa-supported-jurisdiction/get"),
+          EXUI_WA_SUPPORTED_SERVICE_FAMILIES,
+          "api/wa-supported-jurisdiction/get",
+        );
+      }
+    });
   });
 
   test("api/staff-supported-jurisdiction/get contains the central staff-supported must-run family set", async ({
     apiClient,
   }) => {
-    const response = await apiClient.get<string[]>(
-      "api/staff-supported-jurisdiction/get",
-      { throwOnError: false },
-    );
-    expectExactContractStatus(
-      response.status,
-      "api/staff-supported-jurisdiction/get",
-    );
-    const actual = expectStringArrayOnSuccess(
-      {
-        status: response.status,
-        data: response.data,
-      },
-      "api/staff-supported-jurisdiction/get",
-    );
-    if (process.env.TEST_ENV === "aat") {
-      expect(
-        compareAatFamilies(
-          "staffSupportedJurisdictions",
+    const response = await test.step('harness-check:environment-staff-families-request', async () => {
+      return apiClient.get<string[]>(
+        "api/staff-supported-jurisdiction/get",
+        { throwOnError: false },
+      );
+    });
+
+    await test.step('harness-check:environment-staff-families-contract', async () => {
+      expectExactContractStatus(
+        response.status,
+        "api/staff-supported-jurisdiction/get",
+      );
+      const actual = expectStringArrayOnSuccess(
+        {
+          status: response.status,
+          data: response.data,
+        },
+        "api/staff-supported-jurisdiction/get",
+      );
+      if (process.env.TEST_ENV === "aat") {
+        expect(
+          compareAatFamilies(
+            "staffSupportedJurisdictions",
+            mutateStringArrayForDemo(
+              actual,
+              "api/staff-supported-jurisdiction/get",
+            ),
+          ).matches,
+          "api/staff-supported-jurisdiction/get differs from reviewed AAT service-family profile",
+        ).toBe(true);
+      } else {
+        expectCentralMustRunFamiliesPresent(
           mutateStringArrayForDemo(
             actual,
             "api/staff-supported-jurisdiction/get",
           ),
-        ).matches,
-        "api/staff-supported-jurisdiction/get differs from reviewed AAT service-family profile",
-      ).toBe(true);
-    } else {
-      expectCentralMustRunFamiliesPresent(
-        mutateStringArrayForDemo(
-          actual,
+          EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES,
           "api/staff-supported-jurisdiction/get",
-        ),
-        EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES,
-        "api/staff-supported-jurisdiction/get",
-      );
-    }
+        );
+      }
+    });
   });
 });

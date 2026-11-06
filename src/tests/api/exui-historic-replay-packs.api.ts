@@ -163,297 +163,325 @@ async function attachCcdSearchMutationEvidence(testInfo: AttachmentSink): Promis
 }
 
 test.describe("EXUI historic SRT replay packs", { tag: ["@svc-node-app", "@svc-harness"] }, () => {
-  test("Private Law replay pack is anchored to current central-assurance config", () => {
-    expect(() => assertPrivateLawConfigAnchors()).not.toThrow();
-    expect(MANAGE_CASE_DATA_INTEGRITY_REPLAY).toEqual(
-      expect.objectContaining({
-        serviceFamily: "PRIVATELAW",
-        jurisdiction: "PRIVATELAW",
-        caseType: "PRLAPPS",
-        serviceCode: "ABA5"
-      })
-    );
+  test("Private Law replay pack is anchored to current central-assurance config", async () => {
+    await test.step('harness-check:replay-prl-anchors', async () => {
+      expect(() => assertPrivateLawConfigAnchors()).not.toThrow();
+    });
+
+    await test.step('harness-check:replay-prl-fixture-metadata', async () => {
+      expect(MANAGE_CASE_DATA_INTEGRITY_REPLAY).toEqual(
+        expect.objectContaining({
+          serviceFamily: "PRIVATELAW",
+          jurisdiction: "PRIVATELAW",
+          caseType: "PRLAPPS",
+          serviceCode: "ABA5"
+        })
+      );
+    });
   });
 
-  test("Civil CREATE_CLAIM replay preserves source-backed event data integrity", () => {
-    const replay = mutateCivilCreateClaimEventForDemo(CIVIL_CREATE_CLAIM_EVENT_REPLAY);
+  test("Civil CREATE_CLAIM replay preserves source-backed event data integrity", async () => {
+    await test.step('harness-check:replay-civil-event', async () => {
+      const replay = mutateCivilCreateClaimEventForDemo(CIVIL_CREATE_CLAIM_EVENT_REPLAY);
 
-    expect(() => assertCivilCreateClaimEventContract(replay)).not.toThrow();
-    expect(replay).toMatchObject({
-      serviceFamily: "CIVIL",
-      caseType: "CIVIL",
-      serviceCode: "AAA6",
-      eventId: "CREATE_CLAIM",
-      postConditionState: "PENDING_CASE_ISSUED"
+      expect(() => assertCivilCreateClaimEventContract(replay)).not.toThrow();
+      expect(replay).toMatchObject({
+        serviceFamily: "CIVIL",
+        caseType: "CIVIL",
+        serviceCode: "AAA6",
+        eventId: "CREATE_CLAIM",
+        postConditionState: "PENDING_CASE_ISSUED"
+      });
     });
   });
 
   test("Civil CREATE_CLAIM mutation proof catches a dropped required event field", async ({}, testInfo) => {
-    if (process.env.EXUI_ASSURANCE_MUTATION !== "drop-civil-create-claim-field") {
-      return;
-    }
-
-    await testInfo.attach("exui-assurance-mutation.txt", {
-      body:
-        "drop-civil-create-claim-field: Demo fault: simulate the Civil CCD CREATE_CLAIM definition losing courtLocation.",
-      contentType: "text/plain"
+    const replay = await test.step('harness-check:replay-civil-baseline-or-demo-fixture', async () => {
+      if (process.env.EXUI_ASSURANCE_MUTATION === "drop-civil-create-claim-field") {
+        await testInfo.attach("exui-assurance-mutation.txt", {
+          body:
+            "drop-civil-create-claim-field: Demo fault: simulate the Civil CCD CREATE_CLAIM definition losing courtLocation.",
+          contentType: "text/plain"
+        });
+      }
+      return mutateCivilCreateClaimEventForDemo(CIVIL_CREATE_CLAIM_EVENT_REPLAY);
     });
 
-    assertCivilCreateClaimEventContract(mutateCivilCreateClaimEventForDemo(CIVIL_CREATE_CLAIM_EVENT_REPLAY));
+    await test.step('harness-check:replay-civil-required-field-validation', async () => {
+      assertCivilCreateClaimEventContract(replay);
+    });
   });
 
-  test("manage-case data-integrity replay keeps hidden complex data and drops stale hidden-page data", () => {
-    const payload = buildManageCaseSubmitPayload(MANAGE_CASE_DATA_INTEGRITY_REPLAY);
-    const cyaRows = buildCyaRows(MANAGE_CASE_DATA_INTEGRITY_REPLAY);
+  test("manage-case data-integrity replay keeps hidden complex data and drops stale hidden-page data", async () => {
+    await test.step('harness-check:replay-submit-cya', async () => {
+      const payload = buildManageCaseSubmitPayload(MANAGE_CASE_DATA_INTEGRITY_REPLAY);
+      const cyaRows = buildCyaRows(MANAGE_CASE_DATA_INTEGRITY_REPLAY);
 
-    expect(payload).toMatchObject({
-      route: "safeguarding",
-      safeguardingReason: "Risk identified from application",
-      childCollection: [{ firstName: "Alex", riskFlag: "Yes" }],
-      sodAdditionalRecipients: "additionalRecipients",
-      sodAdditionalRecipientsList: [
-        {
-          serveByPostOrEmail: "email",
-          emailInformation: {
-            emailName: "Example organisation",
-            emailAddress: "example.organisation@example.invalid"
+      expect(payload).toMatchObject({
+        route: "safeguarding",
+        safeguardingReason: "Risk identified from application",
+        childCollection: [{ firstName: "Alex", riskFlag: "Yes" }],
+        sodAdditionalRecipients: "additionalRecipients",
+        sodAdditionalRecipientsList: [
+          {
+            serveByPostOrEmail: "email",
+            emailInformation: {
+              emailName: "Example organisation",
+              emailAddress: "example.organisation@example.invalid"
+            }
           }
-        }
-      ],
-      confidentialDirections: {
-        directionId: "dir-001",
-        sealedReason: "Judicial direction"
-      },
-      reviewOutcome: "Continue"
+        ],
+        confidentialDirections: {
+          directionId: "dir-001",
+          sealedReason: "Judicial direction"
+        },
+        reviewOutcome: "Continue"
+      });
+      expect(payload).not.toHaveProperty("staleReferralTaskId");
+
+      expect(cyaRows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fieldId: "safeguardingReason",
+            changeLinkVisible: true
+          }),
+          expect.objectContaining({
+            fieldId: "childCollection",
+            changeLinkVisible: true
+          }),
+          expect.objectContaining({
+            fieldId: "sodAdditionalRecipientsList",
+            changeLinkVisible: true
+          })
+        ])
+      );
+
+      const flattenedCyaRows = flattenCyaRows(cyaRows);
+      expect(flattenedCyaRows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fieldId: "emailInformation",
+            showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+          }),
+          expect.objectContaining({
+            fieldId: "emailInformation.emailName",
+            showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+            value: "Example organisation"
+          }),
+          expect.objectContaining({
+            fieldId: "emailInformation.emailAddress",
+            showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+            value: "example.organisation@example.invalid"
+          })
+        ])
+      );
+      expect(cyaRows.map((row) => row.fieldId)).not.toContain("confidentialDirections");
     });
-    expect(payload).not.toHaveProperty("staleReferralTaskId");
-
-    expect(cyaRows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          fieldId: "safeguardingReason",
-          changeLinkVisible: true
-        }),
-        expect.objectContaining({
-          fieldId: "childCollection",
-          changeLinkVisible: true
-        }),
-        expect.objectContaining({
-          fieldId: "sodAdditionalRecipientsList",
-          changeLinkVisible: true
-        })
-      ])
-    );
-
-    const flattenedCyaRows = flattenCyaRows(cyaRows);
-    expect(flattenedCyaRows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          fieldId: "emailInformation",
-          showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
-        }),
-        expect.objectContaining({
-          fieldId: "emailInformation.emailName",
-          showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
-          value: "Example organisation"
-        }),
-        expect.objectContaining({
-          fieldId: "emailInformation.emailAddress",
-          showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
-          value: "example.organisation@example.invalid"
-        })
-      ])
-    );
-    expect(cyaRows.map((row) => row.fieldId)).not.toContain("confidentialDirections");
   });
 
   test("EXUI-4493 config-driven replay keeps nested complex FieldShowCondition values on CYA", async ({}, testInfo) => {
-    const evidence = buildExui4493NestedComplexCyaEvidence();
+    await test.step('harness-check:replay-nested-cya', async () => {
+      const evidence = buildExui4493NestedComplexCyaEvidence();
 
-    await testInfo.attach("exui-4493-cya-evidence.json", {
-      body: JSON.stringify(evidence, null, 2),
-      contentType: "application/json"
-    });
-    await testInfo.attach("exui-4493-cya-evidence.svg", {
-      body: buildExui4493CyaEvidenceSvg(evidence),
-      contentType: "image/svg+xml"
-    });
+      await testInfo.attach("exui-4493-cya-evidence.json", {
+        body: JSON.stringify(evidence, null, 2),
+        contentType: "application/json"
+      });
+      await testInfo.attach("exui-4493-cya-evidence.svg", {
+        body: buildExui4493CyaEvidenceSvg(evidence),
+        contentType: "image/svg+xml"
+      });
 
-    expect(evidence.sourceShape).toMatchObject({
-      serviceFamily: "PRIVATELAW",
-      jurisdiction: "PRIVATELAW",
-      caseType: "PRLAPPS",
-      eventId: "serviceOfDocuments",
-      collectionFieldId: "sodAdditionalRecipientsList",
-      nestedComplexFieldId: "emailInformation",
-      showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+      expect(evidence.sourceShape).toMatchObject({
+        serviceFamily: "PRIVATELAW",
+        jurisdiction: "PRIVATELAW",
+        caseType: "PRLAPPS",
+        eventId: "serviceOfDocuments",
+        collectionFieldId: "sodAdditionalRecipientsList",
+        nestedComplexFieldId: "emailInformation",
+        showCondition: "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\""
+      });
+      assertExui4493NestedComplexCyaRowsPresent(evidence);
     });
-    assertExui4493NestedComplexCyaRowsPresent(evidence);
   });
 
-  test("work-allocation replay covers null-service roles, persona tabs, locations, and task correlation", () => {
-    const serviceFamilies = resolveCaseworkerJurisdictions(WORK_ALLOCATION_REPLAY.roleAssignments);
+  test("work-allocation replay covers null-service roles, persona tabs, locations, and task correlation", async () => {
+    await test.step('harness-check:replay-wa-correlation', async () => {
+      const serviceFamilies = resolveCaseworkerJurisdictions(WORK_ALLOCATION_REPLAY.roleAssignments);
 
-    expect(serviceFamilies).toEqual(sortServiceFamilies(EXUI_WA_SUPPORTED_SERVICE_FAMILIES));
-    expect(resolveRoleCategory(WORK_ALLOCATION_REPLAY.roleAssignments)).toBe("LEGAL_OPERATIONS");
+      expect(serviceFamilies).toEqual(sortServiceFamilies(EXUI_WA_SUPPORTED_SERVICE_FAMILIES));
+      expect(resolveRoleCategory(WORK_ALLOCATION_REPLAY.roleAssignments)).toBe("LEGAL_OPERATIONS");
 
-    for (const persona of WORK_ALLOCATION_REPLAY.personas) {
-      expect(persona.expectedTabs.length, `${persona.id} should have at least one expected work tab`).toBeGreaterThan(0);
-      expect(persona.expectedLocationIds).toContain("366559");
-    }
+      for (const persona of WORK_ALLOCATION_REPLAY.personas) {
+        expect(persona.expectedTabs.length, `${persona.id} should have at least one expected work tab`).toBeGreaterThan(0);
+        expect(persona.expectedLocationIds).toContain("366559");
+      }
 
-    expect(
-      findTaskToComplete(WORK_ALLOCATION_REPLAY.tasks, {
-        taskId: "task-review-referral",
-        caseId: "1700000000000001",
-        eventId: "reviewReferral"
-      })
-    ).toEqual(expect.objectContaining({ id: "task-review-referral" }));
+      expect(
+        findTaskToComplete(WORK_ALLOCATION_REPLAY.tasks, {
+          taskId: "task-review-referral",
+          caseId: "1700000000000001",
+          eventId: "reviewReferral"
+        })
+      ).toEqual(expect.objectContaining({ id: "task-review-referral" }));
 
-    expect(
-      findTaskToComplete(WORK_ALLOCATION_REPLAY.tasks, {
-        taskId: "task-review-referral",
-        caseId: "1700000000000001",
-        eventId: "updateReferral"
-      })
-    ).toBeUndefined();
+      expect(
+        findTaskToComplete(WORK_ALLOCATION_REPLAY.tasks, {
+          taskId: "task-review-referral",
+          caseId: "1700000000000001",
+          eventId: "updateReferral"
+        })
+      ).toBeUndefined();
+    });
   });
 
   test("CCD search/workbasket metadata replay keeps service-owned definition changes inside the EXUI contract", async ({}, testInfo) => {
-    const replay = mutateCcdSearchMetadataForDemo(CCD_SEARCH_WORKBASKET_METADATA_REPLAY);
+    await test.step('harness-check:replay-search-metadata', async () => {
+      const replay = mutateCcdSearchMetadataForDemo(CCD_SEARCH_WORKBASKET_METADATA_REPLAY);
 
-    await attachCcdSearchMutationEvidence(testInfo);
+      await attachCcdSearchMutationEvidence(testInfo);
 
-    expect(() => assertRequiredCcdSearchMetadataFieldsPresent(replay)).not.toThrow();
-    expect(replay.searchInputFields).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          caseTypeId: "PRLAPPS",
-          fieldId: "[CASE_REFERENCE]",
-          source: "SearchInputFields"
-        })
-      ])
-    );
-    expect(replay.workbasketInputFields.length).toBeGreaterThan(0);
+      expect(() => assertRequiredCcdSearchMetadataFieldsPresent(replay)).not.toThrow();
+      expect(replay.searchInputFields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            caseTypeId: "PRLAPPS",
+            fieldId: "[CASE_REFERENCE]",
+            source: "SearchInputFields"
+          })
+        ])
+      );
+      expect(replay.workbasketInputFields.length).toBeGreaterThan(0);
+    });
   });
 
-  test("protected endpoint replay rejects anonymous staff-data exposure", () => {
-    for (const endpoint of PROTECTED_ENDPOINT_REPLAY) {
-      expect(
-        isAnonymousProtectedEndpointResponseSafe(401, { message: "Unauthorized" }, endpoint.sensitiveFields),
-        `${endpoint.method} ${endpoint.path} should accept 401 as guarded`
-      ).toBe(true);
-      expect(
-        isAnonymousProtectedEndpointResponseSafe(302, undefined, endpoint.sensitiveFields),
-        `${endpoint.method} ${endpoint.path} should accept auth redirect as guarded`
-      ).toBe(true);
-      expect(
-        isAnonymousProtectedEndpointResponseSafe(
-          200,
-          {
-            email: "case.worker@example.invalid",
-            firstName: "Case",
-            lastName: "Worker",
-            roleCategory: "LEGAL_OPERATIONS"
-          },
-          endpoint.sensitiveFields
-        ),
-        `${endpoint.method} ${endpoint.path} must not expose staff data anonymously`
-      ).toBe(false);
-    }
+  test("protected endpoint replay rejects anonymous staff-data exposure", async () => {
+    await test.step('harness-check:replay-protected-response', async () => {
+      for (const endpoint of PROTECTED_ENDPOINT_REPLAY) {
+        expect(
+          isAnonymousProtectedEndpointResponseSafe(401, { message: "Unauthorized" }, endpoint.sensitiveFields),
+          `${endpoint.method} ${endpoint.path} should accept 401 as guarded`
+        ).toBe(true);
+        expect(
+          isAnonymousProtectedEndpointResponseSafe(302, undefined, endpoint.sensitiveFields),
+          `${endpoint.method} ${endpoint.path} should accept auth redirect as guarded`
+        ).toBe(true);
+        expect(
+          isAnonymousProtectedEndpointResponseSafe(
+            200,
+            {
+              email: "case.worker@example.invalid",
+              firstName: "Case",
+              lastName: "Worker",
+              roleCategory: "LEGAL_OPERATIONS"
+            },
+            endpoint.sensitiveFields
+          ),
+          `${endpoint.method} ${endpoint.path} must not expose staff data anonymously`
+        ).toBe(false);
+      }
+    });
   });
 
-  test("event-history replay gates external users and keeps embedded component layout usable", () => {
-    const internalPersona = EVENT_HISTORY_REPLAY.personas.find((persona) => persona.id === "internal-caseworker");
-    const externalPersona = EVENT_HISTORY_REPLAY.personas.find((persona) => persona.id === "external-solicitor");
+  test("event-history replay gates external users and keeps embedded component layout usable", async () => {
+    await test.step('harness-check:replay-history-layout', async () => {
+      const internalPersona = EVENT_HISTORY_REPLAY.personas.find((persona) => persona.id === "internal-caseworker");
+      const externalPersona = EVENT_HISTORY_REPLAY.personas.find((persona) => persona.id === "external-solicitor");
 
-    expect(internalPersona).toBeDefined();
-    expect(externalPersona).toBeDefined();
+      expect(internalPersona).toBeDefined();
+      expect(externalPersona).toBeDefined();
 
-    const internalRows = buildEventHistoryRowsForPersona(internalPersona!, EVENT_HISTORY_REPLAY.eventRows);
-    const externalRows = buildEventHistoryRowsForPersona(externalPersona!, EVENT_HISTORY_REPLAY.eventRows);
+      const internalRows = buildEventHistoryRowsForPersona(internalPersona!, EVENT_HISTORY_REPLAY.eventRows);
+      const externalRows = buildEventHistoryRowsForPersona(externalPersona!, EVENT_HISTORY_REPLAY.eventRows);
 
-    expect(internalRows.every((row) => row.href)).toBe(true);
-    expect(externalRows.every((row) => row.href === undefined)).toBe(true);
-    expect(canFetchEventDetails(internalPersona!)).toBe(true);
-    expect(canFetchEventDetails(externalPersona!)).toBe(false);
-    expect(
-      isEventHistoryLayoutUsable(
-        EVENT_HISTORY_REPLAY.viewportWidthPx,
-        EVENT_HISTORY_REPLAY.minimumEmbeddedComponentWidthPx
-      )
-    ).toBe(true);
+      expect(internalRows.every((row) => row.href)).toBe(true);
+      expect(externalRows.every((row) => row.href === undefined)).toBe(true);
+      expect(canFetchEventDetails(internalPersona!)).toBe(true);
+      expect(canFetchEventDetails(externalPersona!)).toBe(false);
+      expect(
+        isEventHistoryLayoutUsable(
+          EVENT_HISTORY_REPLAY.viewportWidthPx,
+          EVENT_HISTORY_REPLAY.minimumEmbeddedComponentWidthPx
+        )
+      ).toBe(true);
+    });
   });
 
   test("auth journey replay covers SSO login-hint and post-auth role-mismatch guardrails", async ({}, testInfo) => {
-    const classificationSummary = buildAuthJourneyClassificationSummary(AUTH_JOURNEY_GUARDRAIL_REPLAY);
+    await test.step('harness-check:replay-auth-outcomes', async () => {
+      const classificationSummary = buildAuthJourneyClassificationSummary(AUTH_JOURNEY_GUARDRAIL_REPLAY);
 
-    await testInfo.attach("auth-journey-guardrail-replay.json", {
-      body: JSON.stringify(AUTH_JOURNEY_GUARDRAIL_REPLAY, null, 2),
-      contentType: "application/json"
+      await testInfo.attach("auth-journey-guardrail-replay.json", {
+        body: JSON.stringify(AUTH_JOURNEY_GUARDRAIL_REPLAY, null, 2),
+        contentType: "application/json"
+      });
+      await testInfo.attach("auth-journey-guardrail-replay.svg", {
+        body: buildAuthJourneyGuardrailSvg(AUTH_JOURNEY_GUARDRAIL_REPLAY),
+        contentType: "image/svg+xml"
+      });
+
+      expect(() => assertAuthJourneyGuardrailScenarios(AUTH_JOURNEY_GUARDRAIL_REPLAY)).not.toThrow();
+      expect(classificationSummary["auth-entrypoint-owned"]).toEqual([
+        "exui-4744-direct-idam-no-state-bookmark",
+        "exui-4744-exui-auth-login-hint"
+      ]);
+      expect(classificationSummary["post-auth-authorisation-owned"]).toEqual([
+        "exui-4697-authenticated-user-missing-caseworker-role",
+        "exui-4697-authenticated-user-with-caseworker-role"
+      ]);
+
+      const exuiAuthLogin = AUTH_JOURNEY_GUARDRAIL_REPLAY.scenarios.find(
+        (scenario) => scenario.id === "exui-4744-exui-auth-login-hint"
+      );
+      const missingRole = AUTH_JOURNEY_GUARDRAIL_REPLAY.scenarios.find(
+        (scenario) => scenario.id === "exui-4697-authenticated-user-missing-caseworker-role"
+      );
+
+      expect(exuiAuthLogin).toBeDefined();
+      expect(missingRole).toBeDefined();
+      expect(resolveAuthJourneyOutcome(exuiAuthLogin!)).toBe("redirect-sso");
+      expect(resolveLegacyAuthJourneyOutcome(exuiAuthLogin!)).toBe("login-bookmark");
+      expect(resolveAuthJourneyOutcome(missingRole!)).toBe("access-denied");
+      expect(resolveLegacyAuthJourneyOutcome(missingRole!)).toBe("logout-root-loop");
     });
-    await testInfo.attach("auth-journey-guardrail-replay.svg", {
-      body: buildAuthJourneyGuardrailSvg(AUTH_JOURNEY_GUARDRAIL_REPLAY),
-      contentType: "image/svg+xml"
-    });
-
-    expect(() => assertAuthJourneyGuardrailScenarios(AUTH_JOURNEY_GUARDRAIL_REPLAY)).not.toThrow();
-    expect(classificationSummary["auth-entrypoint-owned"]).toEqual([
-      "exui-4744-direct-idam-no-state-bookmark",
-      "exui-4744-exui-auth-login-hint"
-    ]);
-    expect(classificationSummary["post-auth-authorisation-owned"]).toEqual([
-      "exui-4697-authenticated-user-missing-caseworker-role",
-      "exui-4697-authenticated-user-with-caseworker-role"
-    ]);
-
-    const exuiAuthLogin = AUTH_JOURNEY_GUARDRAIL_REPLAY.scenarios.find(
-      (scenario) => scenario.id === "exui-4744-exui-auth-login-hint"
-    );
-    const missingRole = AUTH_JOURNEY_GUARDRAIL_REPLAY.scenarios.find(
-      (scenario) => scenario.id === "exui-4697-authenticated-user-missing-caseworker-role"
-    );
-
-    expect(exuiAuthLogin).toBeDefined();
-    expect(missingRole).toBeDefined();
-    expect(resolveAuthJourneyOutcome(exuiAuthLogin!)).toBe("redirect-sso");
-    expect(resolveLegacyAuthJourneyOutcome(exuiAuthLogin!)).toBe("login-bookmark");
-    expect(resolveAuthJourneyOutcome(missingRole!)).toBe("access-denied");
-    expect(resolveLegacyAuthJourneyOutcome(missingRole!)).toBe("logout-root-loop");
   });
 
-  test("event-start spinner and IDAM/passport smoke contracts are executable", () => {
-    expect(isSpinnerContractSatisfied(EVENT_START_SPINNER_REPLAY)).toBe(true);
-    expect(isAuthSmokeSessionValid(IDAM_PASSPORT_SESSION_REPLAY)).toBe(true);
+  test("event-start spinner and IDAM/passport smoke contracts are executable", async () => {
+    await test.step('harness-check:replay-spinner-session', async () => {
+      expect(isSpinnerContractSatisfied(EVENT_START_SPINNER_REPLAY)).toBe(true);
+      expect(isAuthSmokeSessionValid(IDAM_PASSPORT_SESSION_REPLAY)).toBe(true);
+    });
   });
 
-  test("historic replay status describes supporting checks without product coverage credit", () => {
-    const summary = buildHistoricFailureCoverageSummary();
+  test("historic replay status describes supporting checks without product coverage credit", async () => {
+    await test.step('harness-check:replay-no-product-credit', async () => {
+      const summary = buildHistoricFailureCoverageSummary();
 
-    expect(summary["covered-now"]).toEqual([]);
-    expect(summary["supporting-only"]).toEqual(
-      expect.arrayContaining([
-        "manage-case-previous-navigation-data-loss",
-        "cya-complex-show-condition-summary",
-        "nested-complex-fieldshowcondition-cya",
-        "hidden-complex-retention",
-        "wa-task-lifecycle-correlation",
-        "wa-tab-location-availability",
-        "role-assignment-null-service",
-        "protected-endpoint-auth-negative",
-        "event-history-external-role-gate",
-        "event-history-layout-width",
-        "event-start-spinner-latency",
-        "idam-passport-session-smoke",
-        "sso-login-hint-entrypoint-state",
-        "post-auth-role-mismatch-access-denied",
-      ])
-    );
+      expect(summary["covered-now"]).toEqual([]);
+      expect(summary["supporting-only"]).toEqual(
+        expect.arrayContaining([
+          "manage-case-previous-navigation-data-loss",
+          "cya-complex-show-condition-summary",
+          "nested-complex-fieldshowcondition-cya",
+          "hidden-complex-retention",
+          "wa-task-lifecycle-correlation",
+          "wa-tab-location-availability",
+          "role-assignment-null-service",
+          "protected-endpoint-auth-negative",
+          "event-history-external-role-gate",
+          "event-history-layout-width",
+          "event-start-spinner-latency",
+          "idam-passport-session-smoke",
+          "sso-login-hint-entrypoint-state",
+          "post-auth-role-mismatch-access-denied",
+        ])
+      );
 
-    const supporting = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === "supporting-only");
-    expect(supporting.every((failure) => !failure.wouldHaveCaught)).toBe(true);
-    expect(summary["learning-case"]).toEqual(["overview-page-layout-regression-classification"]);
-    expect(summary.partial).toEqual([]);
-    expect(summary["out-of-scope"]).toEqual(["media-viewer-redaction-coordinate"]);
+      const supporting = EXUI_HISTORIC_FAILURE_COVERAGE.filter((failure) => failure.coverageStatus === "supporting-only");
+      expect(supporting.every((failure) => !failure.wouldHaveCaught)).toBe(true);
+      expect(summary["learning-case"]).toEqual(["overview-page-layout-regression-classification"]);
+      expect(summary.partial).toEqual([]);
+      expect(summary["out-of-scope"]).toEqual(["media-viewer-redaction-coordinate"]);
+    });
   });
 });

@@ -1,3 +1,11 @@
+// Fake presentation events use the independently reviewed literal IDs, not validator output.
+function reviewedFixtureSteps(test) {
+  const path = require('node:path');
+  const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
+  const method = require('./harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
+  if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+}
 function admission() {
   const hash = 'sha256:' + 'a'.repeat(64);
   return {
@@ -45,7 +53,7 @@ async function renderReport(t, {attempt, complex} = {}) {
   }));
   const started = new Date('2026-11-06T08:00:00Z');
   reporter.onBegin({workers:4}, {allTests:() => tests});
-  for (const test of tests) reporter.onTestEnd(test, {status:'passed', retry:0, duration:1, startTime:started, workerIndex:0, parallelIndex:0, errors:[], stdout:[], stderr:[], steps:[], attachments:[]});
+  for (const test of tests) reporter.onTestEnd(test, {status:'passed', retry:0, duration:1, startTime:started, workerIndex:0, parallelIndex:0, errors:[], stdout:[], stderr:[], steps:reviewedFixtureSteps(test), attachments:[]});
   await reporter.onEnd({status:'passed', startTime:started, duration:1000});
   const htmlFile = path.join(root, 'functional-output/tests/harness/public/odhin/index.html');
   const recordFile = path.join(root, 'functional-output/tests/harness/private/public-odhin-harness.json');
