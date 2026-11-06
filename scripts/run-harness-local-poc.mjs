@@ -66,7 +66,8 @@ if (local) {
 
 function privateReporting(output) {
   return {
-    PLAYWRIGHT_REPORTERS: "list,odhin,junit", PW_TEST_REPORTER: "",
+    PLAYWRIGHT_REPORTERS: "failures,json,odhin,junit", PW_TEST_REPORTER: "",
+    PLAYWRIGHT_JSON_ONLY_FAILURES: "false", PLAYWRIGHT_JUNIT_ONLY_FAILURES: "false",
     PLAYWRIGHT_REPORT_FOLDER: `${output}/odhin-report`, PLAYWRIGHT_REPORT_TARGET: `${output}/odhin-report`,
     PW_ODHIN_OUTPUT: `${output}/odhin-report`, PW_ODHIN_TARGET: `${output}/odhin-report`,
     PW_ODHIN_INDEX: "harness-diagnostic.html", PLAYWRIGHT_REPORT_INDEX_FILENAME: "harness-diagnostic.html",

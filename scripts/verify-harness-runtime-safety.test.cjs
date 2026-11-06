@@ -148,7 +148,9 @@ test('CI reporting overrides cannot send raw Harness artifacts to conventional p
     assert.equal(result.status, 0, result.stderr);
     const calls = readFileSync(join(directory, 'contacts.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
     const reporting = calls.find((call) => call.command === './node_modules/.bin/playwright').reporting;
-    assert.equal(reporting.PLAYWRIGHT_REPORTERS, 'list,odhin,junit');
+    assert.equal(reporting.PLAYWRIGHT_REPORTERS, 'failures,json,odhin,junit');
+    assert.equal(reporting.PLAYWRIGHT_JSON_ONLY_FAILURES, 'false', 'JSON keeps every outcome');
+    assert.equal(reporting.PLAYWRIGHT_JUNIT_ONLY_FAILURES, 'false', 'JUnit keeps every outcome');
     for (const key of outputKeys) assert.ok(reporting[key].startsWith('functional-output/tests/harness/private/'), `${key} stays private`);
     assert.equal(reporting.PW_ODHIN_INDEX, 'harness-diagnostic.html');
     assert.equal(reporting.PLAYWRIGHT_REPORT_INDEX_FILENAME, 'harness-diagnostic.html');
@@ -158,6 +160,8 @@ test('CI reporting overrides cannot send raw Harness artifacts to conventional p
   }, () => {}, {
     ...Object.fromEntries(outputKeys.map((key) => [key, escaped])),
     PLAYWRIGHT_REPORTERS: 'html,../arbitrary-reporter.cjs',
+    PLAYWRIGHT_JSON_ONLY_FAILURES: 'true',
+    PLAYWRIGHT_JUNIT_ONLY_FAILURES: 'true',
     PW_TEST_REPORTER: '../arbitrary-reporter.cjs',
     PW_ODHIN_INDEX: '../../escape-sentinel.html',
     PLAYWRIGHT_REPORT_INDEX_FILENAME: '../../escape-sentinel.html',

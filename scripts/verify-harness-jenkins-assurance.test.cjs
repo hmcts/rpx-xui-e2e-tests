@@ -127,9 +127,9 @@ test('AMD64 provisioning pulls immutable images and removes temporary registry c
   const previous=process.env.AZURE_CONFIG_DIR;process.env.AZURE_CONFIG_DIR=context;
   t.after(()=>{if(previous===undefined)delete process.env.AZURE_CONFIG_DIR;else process.env.AZURE_CONFIG_DIR=previous;fs.rmSync(context,{recursive:true,force:true});});
   const { provisionNativeImages } = await load();
-  const { nativeRuntimeImages } = await import('./lib/exui-native-containers.mjs');
+  const { nativeRuntimeImages, nativeBrowserDonor } = await import('./lib/exui-native-containers.mjs');
   const { ccdImagePins } = await import('./lib/exui-ccd-runtime.mjs');
-  const pins=[...Object.values(nativeRuntimeImages('linux/amd64')),...Object.values(ccdImagePins('linux/amd64'))];
+  const pins=[...Object.values(nativeRuntimeImages('linux/amd64')),nativeBrowserDonor('linux/amd64'),...Object.values(ccdImagePins('linux/amd64'))];
   for(const fail of [false,true]) {
     const present=new Set(),calls=[];let authDirectory;
     const runCommand=(command,args,options={})=>{
@@ -156,7 +156,10 @@ test('AMD64 provisioning pulls immutable images and removes temporary registry c
       assert.fail('unexpected provisioning command');
     };
     if(fail)assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}),/NATIVE_DATA_PINNED_IMAGE_PULL_FAILED_UNKNOWN/);
-    else provisionNativeImages('linux/amd64',{runCommand});
+    else {
+      provisionNativeImages('linux/amd64',{runCommand});
+      assert.deepEqual(calls.filter(call=>call.args[0]==='pull').map(call=>call.args.at(-1)),[...new Set(pins.map(pin=>pin.reference))]);
+    }
     assert(authDirectory);
     assert.equal(fs.existsSync(authDirectory),false);
     assert(calls.every(call=>!JSON.stringify(call.args).includes('synthetic-private-registry-token')));
@@ -179,20 +182,73 @@ test('pin pull diagnostics expose only a fixed cause, never registry output', as
   ]) assert.equal(classifyPinPullFailure(message), expected);
 });
 
-test('browser cache copy uses controller identity without preserving image ownership or widening its private root',async t=>{
+test('browser donor pins match the observed official 1.65 platform manifests while tools pins stay fixed',async()=>{
+ const {nativeBrowserDonor,nativeRuntimeImages}=await import('./lib/exui-native-containers.mjs');
+ const pins=[
+  ['linux/arm64','ccf917390e8eea6cad2bb493313b9d8db2856ed41c24db0a6727eacc766fd273','197b5df7a4651a463469f0e5473b59c0284f3802d915de304f1aeeb39ec03874'],
+  ['linux/amd64','bc4fbb329a25287ed23e9216c97063646abdd1bf2da669a9895fa3e2078b2302','494de4cdb8f7edd16c6512c8bcae447cc477248c5b1c5d458b9fe85c67b04edf'],
+ ];
+ for(const [platform,manifest,config]of pins){
+  assert.deepEqual(nativeBrowserDonor(platform),{reference:`mcr.microsoft.com/playwright@sha256:${manifest}`,manifestDigest:`sha256:${manifest}`,configDigest:`sha256:${config}`});
+  assert.notEqual(nativeRuntimeImages(platform).browser.manifestDigest,`sha256:${manifest}`);
+ }
+ assert.equal(nativeRuntimeImages('linux/amd64').browser.manifestDigest,'sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0');
+ assert.throws(()=>nativeBrowserDonor('linux/ppc64le'),/UNSUPPORTED_NATIVE_PLATFORM/);
+});
+
+function fakeBrowser(root, platform, { revision = '1254', executable = true, architecture = platform } = {}) {
+ const relative = `chromium_headless_shell-${revision}/chrome-headless-shell-${platform === 'linux/arm64' ? 'linux-arm64' : 'linux64'}/chrome-headless-shell`;
+ const file = path.join(root, 'browser-cache', relative);
+ fs.mkdirSync(path.dirname(file), {recursive:true});
+ const bytes=Buffer.alloc(20);bytes.set([0x7f,0x45,0x4c,0x46]);bytes.writeUInt16LE(architecture==='linux/arm64'?183:62,18);
+ fs.writeFileSync(file,bytes,{mode:executable?0o755:0o644});
+ return relative;
+}
+
+for(const platform of ['linux/amd64','linux/arm64']) test(`browser donor copy verifies ${platform} identity and receipts without changing tools runtime`,async t=>{
  const {prepareBrowserCache}=await load();
+ const {nativeBrowserDonor,nativeRuntimeImages}=await import('./lib/exui-native-containers.mjs');
+ const pin=nativeBrowserDonor(platform);
  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'browser-copy-owner-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
- let observed;
- const browser=prepareBrowserCache(root,'linux/amd64',{runCommand:(command,args)=>{
-  assert.equal(command,'docker');observed=args;
-  const output=path.join(root,'browser-cache');fs.writeFileSync(path.join(output,'synthetic-browser'),'fixture');fs.chmodSync(output,0o755);
+ const calls=[];
+ const browser=await prepareBrowserCache(root,platform,{runCommand:(command,args)=>{
+  assert.equal(command,'docker');calls.push(args);
+  if(args[0]==='image')return JSON.stringify([{Id:pin.configDigest,Os:'linux',Architecture:platform.split('/')[1],RepoDigests:[pin.reference]}]);
+  assert.equal(args[0],'run');fakeBrowser(root,platform);
  }});
+ assert.deepEqual(calls[0],['image','inspect',pin.reference]);
+ const observed=calls[1];
  assert.equal(observed[observed.indexOf('--user')+1],`${process.getuid()}:${process.getgid()}`);
  assert.equal(observed[observed.indexOf('--network')+1],'none');
  assert(observed.includes('--read-only'));assert(observed.includes('no-new-privileges'));
+ assert.equal(observed[observed.indexOf('--entrypoint')+1],'/bin/sh');
+ assert(observed.includes(pin.reference));assert(!observed.includes(nativeRuntimeImages(platform).browser.reference));
  assert.match(observed.at(-1),/cp -a --no-preserve=ownership/);
  assert.equal(browser,path.join(root,'browser-cache'));assert.equal(fs.statSync(browser).mode&0o777,0o755);
  assert.equal(fs.statSync(root).mode&0o777,0o700);
+ const receipt=JSON.parse(fs.readFileSync(path.join(root,'browser-cache-receipt.json')));
+ assert.equal(receipt.platform,platform);assert.equal(receipt.playwrightVersion,'1.65.0');assert.equal(receipt.revision,'1254');
+ assert.equal(receipt.kind,'browser-cache-preparation');
+ assert.deepEqual(receipt.donor,pin);assert.equal(receipt.executableBytes,20);
+ const {digestCandidateTree}=await import('./lib/exui-candidate-artifact.mjs');assert.equal(receipt.cacheDigest,await digestCandidateTree(browser));
+ assert.equal(fs.statSync(path.join(root,'browser-cache-receipt.json')).mode&0o777,0o600);
+});
+
+test('browser donor rejects wrong platform, identity, revision and missing executable before acceptance',async t=>{
+ const {prepareBrowserCache}=await load();
+ const {nativeBrowserDonor}=await import('./lib/exui-native-containers.mjs');
+ const platform='linux/amd64',pin=nativeBrowserDonor(platform);
+ for(const [fault,reason] of [['platform',/NATIVE_RUNTIME_PLATFORM_MISMATCH/],['digest',/NATIVE_RUNTIME_IMAGE_MISMATCH/],['provenance',/NATIVE_RUNTIME_PROVENANCE_REQUIRED/],['revision',/ENOENT/],['missing',/NATIVE_BROWSER_CACHE_REQUIRED/],['not-executable',/NATIVE_BROWSER_EXECUTABLE_REQUIRED/],['binary-platform',/NATIVE_BROWSER_PLATFORM_MISMATCH/]]) {
+  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'browser-copy-negative-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  let copied=false;
+  await assert.rejects(prepareBrowserCache(root,platform,{runCommand:(_command,args)=>{
+   if(args[0]==='image')return JSON.stringify([{Id:fault==='digest'?'sha256:wrong':pin.configDigest,Os:'linux',Architecture:fault==='platform'?'arm64':'amd64',RepoDigests:fault==='provenance'?[]:[pin.reference]}]);
+   copied=true;
+   if(fault!=='missing')fakeBrowser(root,platform,{revision:fault==='revision'?'1248':'1254',executable:fault!=='not-executable',architecture:fault==='binary-platform'?'linux/arm64':platform});
+  }}),reason);
+  assert.equal(copied,!['platform','digest','provenance'].includes(fault));
+  assert.equal(fs.existsSync(path.join(root,'browser-cache-receipt.json')),false);
+ }
 });
 
 test('native completion exposes assertion codes while withholding multiline private differences',async t=>{

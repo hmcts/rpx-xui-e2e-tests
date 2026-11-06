@@ -1,5 +1,6 @@
 /* global module, require, process */
 const path = require('node:path');
+const { fullMachineReporters } = require('./harness-reporting.cjs');
 const { existsSync } = require('node:fs');
 
 const selections = Object.freeze({
@@ -42,7 +43,7 @@ function buildConfig(env = process.env) {
     throw new Error('DIAGNOSTIC_INSTALLED_TOOLKIT_REQUIRED');
   }
   const output = `functional-output/tests/harness/private/diagnostics/${selection}`;
-  const reporter = [[env.CI ? 'dot' : 'list']];
+  const reporter = [['failures'], ...fullMachineReporters(output, env)];
   if (env.EXUI_DIAGNOSTIC_ODHIN === '1') {
     reporter.push(['./src/tests/common/reporters/odhin-adaptive.reporter.cjs', {
       outputFolder: `${output}/odhin-report`, indexFilename: 'harness-diagnostic.html',
@@ -52,7 +53,6 @@ function buildConfig(env = process.env) {
       testOutput: 'only-on-failure', apiLogs: 'summary', lightweight: true
     }]);
   }
-  if (env.CI) reporter.push(['junit', { outputFile: `${output}/junit.xml` }]);
   return {
     testDir: '.', testMatch: [...selections[selection]],
     outputDir: `${output}/test-results`, reporter,

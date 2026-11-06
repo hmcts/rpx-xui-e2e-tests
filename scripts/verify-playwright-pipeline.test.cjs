@@ -216,10 +216,20 @@ corepack() {
   });
 }
 
-test('Jenkins native assurance builds exact webapp master in a private, script-disabled job', () => {
+test('Jenkins native assurance builds exact webapp master in a private, script-disabled job', async () => {
   const source = readFileSync('scripts/run-harness-jenkins-assurance.mjs', 'utf8');
   assert.match(source, /hmcts\/rpx-xui-webapp\.git/);
-  assert.match(source, /ARM64_BROWSER_RUNTIME/);
+  const { nativeRuntimeImages, nativeBrowserDonor } = await import('./lib/exui-native-containers.mjs');
+  assert.equal(nativeRuntimeImages('linux/arm64').browser.reference,
+    'mcr.microsoft.com/playwright@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f');
+  assert.equal(nativeRuntimeImages('linux/amd64').browser.reference,
+    'mcr.microsoft.com/playwright@sha256:ee15712262f017b8157421b212b12099146645f44b1bc5c0514cbbe6a229b1d0');
+  for (const platform of ['linux/arm64', 'linux/amd64'])
+    assert.notEqual(nativeBrowserDonor(platform).reference, nativeRuntimeImages(platform).browser.reference);
+  assert.match(source, /const native = \{ \.\.\.nativeRuntimeImages\(platform\), browserDonor: nativeBrowserDonor\(platform\) \}/);
+  assert.match(source, /const donor = nativeBrowserDonor\(platform\)/);
+  assert.match(source, /assertNativeRuntimeImage\(inspected\[0\], donor, platform\)/);
+  assert.match(source, /"\/bin\/sh",\s*donor\.reference,/);
   assert.match(source, /cp -a --no-preserve=ownership \/ms-playwright\/\. \/browser\//);
   assert.doesNotMatch(source, /chromium\.executablePath/);
   assert.match(source, /"--branch", "master"/);
@@ -391,4 +401,11 @@ test('Jenkins report-management wrapper pins Node before reset or validation', (
       }
     }
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('Harness unit runner places its serialization flag before test filenames', () => {
+  const command = JSON.parse(readFileSync('package.json', 'utf8')).scripts['harness:unit'];
+  assert.deepEqual(command.trim().split(/\s+/).slice(0, 3),
+    ['node', '--test', '--test-concurrency=1'],
+    'Node options after a test filename become file patterns and allow fixed-port tests to race');
 });

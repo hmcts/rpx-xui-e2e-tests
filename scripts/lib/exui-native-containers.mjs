@@ -59,6 +59,14 @@ export function nativeRuntimeImages(platform) {
     },
   };
 }
+// Browser bytes are independent of the pinned tools image.
+export function nativeBrowserDonor(platform) {
+  assert(["linux/arm64", "linux/amd64"].includes(platform), "UNSUPPORTED_NATIVE_PLATFORM");
+  const [manifestDigest, configDigest] = platform === "linux/arm64"
+    ? ["sha256:ccf917390e8eea6cad2bb493313b9d8db2856ed41c24db0a6727eacc766fd273", "sha256:197b5df7a4651a463469f0e5473b59c0284f3802d915de304f1aeeb39ec03874"]
+    : ["sha256:bc4fbb329a25287ed23e9216c97063646abdd1bf2da669a9895fa3e2078b2302", "sha256:494de4cdb8f7edd16c6512c8bcae447cc477248c5b1c5d458b9fe85c67b04edf"];
+  return { reference: `mcr.microsoft.com/playwright@${manifestDigest}`, manifestDigest, configDigest };
+}
 export function assertNativeRuntimeImage(info, pin, platform) {
   assert.equal(
     `${info.Os}/${info.Architecture}`,
