@@ -1,0 +1,287 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+  "sourceGitTree": "5b4b765f015949e62fc2f4fb9fa61ff8fdbb1300",
+  "sourceArchiveDigest": "sha256:1ee713ac9a171a705304078d344b89a59605312237d0ea0a6078e1f30d6d3944",
+  "originalImage": {
+    "imageId": "sha256:230af88ec4791950396e7a78f2dc330018d1a259242e317f4374ec5a384d30c0",
+    "manifestDigest": "sha256:2b1b4208520244122d1ebfdc4fbdf7d1120fc0a1bacecb9bba06583762571e9b",
+    "configDigest": "sha256:58a53f7013ff354a312ff4e35a5b2af81d3094600ff30622262c5100554f57da",
+    "archiveDigest": "sha256:184a3664f57676c3147211ebcbb5cc162eac795efc15f9a55d9e7df512fb8591",
+    "jarDigest": "sha256:1c3afe85796f549b29c14378f22ba9b3069488d04ad93b42983d8a6e79db06fc",
+    "sourceBuildCommit": "5c5ff0b941dcbc7e661e8aa9e38dc51d7c30ffb3",
+    "platform": "linux/arm64",
+    "rootfsDiffIds": [
+      "sha256:378b3db0974f7a5a8767b6329ad310983bc712d0e400ff5faa294f95f869cc8c",
+      "sha256:8fa10c0194df9b7c054c90dbe482585f768a54428fc90a5b78a0066a123b1bba",
+      "sha256:4840c7c54023c867f19564429c89ddae4e9589c83dce82492183a7e9f7dab1fa",
+      "sha256:114dde0fefebbca13165d0da9c500a66190e497a82a53dcaabc3172d630be1e9",
+      "sha256:4d049f83d9cf21d1f5cc0e11deaf36df02790d0e60c1a3829538fb4b61685368",
+      "sha256:af5aa97ebe6ce1604747ec1e21af7136ded391bcabe4acef882e718a87c86bcc",
+      "sha256:6f1cdceb6a3146f0ccb986521156bef8a422cdbb0863396f7f751f575ba308f4",
+      "sha256:bd3cdfae1d3fdd83a2231d608969b38b82349777c2fff9a7c12d54f8ac5c9b38",
+      "sha256:4cde6b0bb6f50a5f255eef7b2a42162c661cf776b803225dcac9a659e396bb6b",
+      "sha256:1a73b54f556b477f0a8b939d13c504a3b4f4db71f7a09c63afbc10acb3de5849",
+      "sha256:6e7fbcf090d09b73a4aa85f9dce690d0ace73877c150b7c56955487b6e7a822a",
+      "sha256:33b37ab0b0901175c2699d81c10b0c887f0dff944de74763cca00c155904d6fb",
+      "sha256:30454271831509fcaad734870505d99f8f86be7e8fdc8d67a4200ce378f4739d",
+      "sha256:6b57004b257099ebdfb78b761adfd3e914c92a3b98720654d1b6adf8db7a5fd9",
+      "sha256:d158ea8045f143047fcecdeeed136e4d8bdc214a031a4903e1fac84562664c52",
+      "sha256:293db29cdf5f4f1ee77cc0e58c1b1162a8f3e28718fe82e2721d9ac3c2212858",
+      "sha256:de9b32010cd5ac7f11541dd8dbde42321e22ccf4dd87a99a2734d7d5f59636d0",
+      "sha256:af71566f208dec3827a20a851365d3239f28e117851f09a32d8aabc32f7c8d8c",
+      "sha256:dd87a726c676da388bae138a028514ed5dcc92bb56eec4749d9da715822c8c65",
+      "sha256:b4c757196c050531069320b37fe6297e2329af78cb38b65d7dd6889f5f05db92",
+      "sha256:99da4c4903e275f47a7c5b12e4c91c4e9697004d05516d337142239e5c115d94",
+      "sha256:24eb32ad9f9e75c5b7f6ba60e3905a03eecde50c25add72f174414411f3c63e4",
+      "sha256:35515299ec950037d3da5db9ed54f8605c858e438ff01d2dae0d3867e908c6a8",
+      "sha256:4dd5eb7aa15992442e658aa679a625bfe4a00aca7480d1d924bedfb8849628de",
+      "sha256:e84030d2f270ad9f354ce22a18f1e7bf4fbdf5918672c0b6c0b2354685ecf83c",
+      "sha256:cda8aa10c7ef0d43b43ad68385fba7dbbc647745fb39e4c2755ef6427f36f714",
+      "sha256:15058730e91461eb98dcaccce2d8214c7cb89f227e5f3f48accb17767eedc9bb",
+      "sha256:aa81c814ce74cbd1aa897ef67e1fdefa3121de36642484200b7b0bd38a156053",
+      "sha256:cdcffa7d6e0ab967808e1ab65caabe24d2f18f0842488388624b7551b136a7e6",
+      "sha256:50d5a11d8c7a8cf83875d68e0c2b9c6677a7d3dc99480a91b37e3c5424df113c",
+      "sha256:6720c0227d8383b9eb13101bb4888032327e2ffd9aa55d2ca6963d7e4d944d5d",
+      "sha256:93dfcaa6b60770d734c363116c0e5b62ec01b54d3d4b6fc97ab3931aa0001cab",
+      "sha256:580cc0fc988df96f8851e48be2dd2eb1cdb4e0ea0e079b025476602edf578341",
+      "sha256:f97cf8ad3b1131065ab3ae1a06b8eb8ba4cbcd694f7bfe9db6586b8a45fad694",
+      "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+      "sha256:bda76eb90fce20c0be79dad7add5c0b837b1bc55c35a41221a0a9095bb1e589e",
+      "sha256:339ebe9c3c28203a1f43c8bd68d65dc6c88e91787203ba429462874e3c25b507",
+      "sha256:38a6d5c17adca070eeda857acffaaec7abe73c505b9e9bc1c4ba21193cad7561",
+      "sha256:55fd701039a1f95b22edb00ce19275ee9f8258155e335a32669e69f53e911ea4"
+    ]
+  },
+  "toolchainDigests": {
+    "/bin/javac": "sha256:ee7be919e8bc4f364a1de24c245eea5ff8bb8f5560c8eb182ad3e89007adb152",
+    "/bin/java": "sha256:34b9c157bedcebafc6033b8beaa72c2ff14e2b697e33f45aa959a8373d6581a0",
+    "/lib/modules": "sha256:a7f216b5c4f946d84f4c64aaa921f30f2c8aaf2c12feddf1058e3b5ad01ac858",
+    "/release": "sha256:9f83d93dbf2ea22bc92e88cc81e537d404e133a15f866a128f1cf5af50817e15",
+    "lombok-1.18.46.jar": "sha256:01f7b1a015e33e2b62d5f5f37053306357ab1415fd181fcba7794f5d198c1126"
+  },
+  "processorConfigurationDigest": "sha256:cef77f6e12c36c1efc67602e98e6012c742c9a2ccc552dc0df3334b670a024ef",
+  "kind": "fixed-authorisation-standard-arm-source-witness",
+  "obligationId": "configuration-shape:66ff76e7342bbf62e584059136d4c1f97a25a7078e74549a5c4665d9e0e57142",
+  "consumerClasses": [
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/casedataaccesscontrol/RoleBasedCaseDataAccessControl.java",
+      "sourceDigest": "sha256:924bfc7e7a3cb1fc7fd2e2cc0f0b367e9fe74bfa1c56b4d9579d873aeb93bc84",
+      "classDigest": "sha256:03da70722b7340df2eb5ae73f520468eacbb49177005736de3730c5b052fb3c2",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/casedataaccesscontrol/RoleBasedCaseDataAccessControl.class",
+          "digest": "sha256:03da70722b7340df2eb5ae73f520468eacbb49177005736de3730c5b052fb3c2"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/getcase/AuthorisedGetCaseOperation.java",
+      "sourceDigest": "sha256:aa1ccfe12139f25e4bdc70356f62f2de669c8214987a6f78e8d666d4e309d363",
+      "classDigest": "sha256:64d9e6d740c11390e141be268e70ca48205cd2356e75764e5841c57e2d8d5da0",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/getcase/AuthorisedGetCaseOperation.class",
+          "digest": "sha256:64d9e6d740c11390e141be268e70ca48205cd2356e75764e5841c57e2d8d5da0"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/createevent/AuthorisedCreateEventOperation.java",
+      "sourceDigest": "sha256:42f64793bd2b54e3c620bd0deb395e69c17e6f56882af6468fb78cbd8f48ce1b",
+      "classDigest": "sha256:c5dd87eeea1c87a6b90af29dc1ec9db6127eb2319d6eda742fec25664d2c401d",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/createevent/AuthorisedCreateEventOperation.class",
+          "digest": "sha256:c5dd87eeea1c87a6b90af29dc1ec9db6127eb2319d6eda742fec25664d2c401d"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/startevent/AuthorisedStartEventOperation.java",
+      "sourceDigest": "sha256:713464a1fcbcdc42d69871d08d1d3e74bdb471fa8466d63fd3e50694b9e4844d",
+      "classDigest": "sha256:74b6fb05a63d7ecfcd9a6309bacd1b76378da75c926e2b6f578619122e53e090",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/startevent/AuthorisedStartEventOperation.class",
+          "digest": "sha256:74b6fb05a63d7ecfcd9a6309bacd1b76378da75c926e2b6f578619122e53e090"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/security/idam/IdamRepository.java",
+      "sourceDigest": "sha256:040239d94928028c0b328466e5be995428cef25eba68f652e647be5048c93e7f",
+      "classDigest": "sha256:a2a892fdd5dc5f95598f727127d8818fd51277275999174cdfcb8214ad5cae6d",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/security/idam/IdamRepository.class",
+          "digest": "sha256:a2a892fdd5dc5f95598f727127d8818fd51277275999174cdfcb8214ad5cae6d"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/security/JwtGrantedAuthoritiesConverter.java",
+      "sourceDigest": "sha256:0dd4f2700bab9195c1cbd853b37c05238b5c7225e1518dfff7600fb38191d421",
+      "classDigest": "sha256:26d06d0f85c694cdf339bbe2b123908972d46ebe651a437af8d2cc87d8f34e40",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/security/JwtGrantedAuthoritiesConverter.class",
+          "digest": "sha256:26d06d0f85c694cdf339bbe2b123908972d46ebe651a437af8d2cc87d8f34e40"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/getevents/AuthorisedGetEventsOperation.java",
+      "sourceDigest": "sha256:a486d3f6514fb418fa16f1457873fdd3c34099b84e1fe6a7d254adda6b436b6c",
+      "classDigest": "sha256:be3d46c489dc8d58152828962586d678a467c1429a6af7d716f7c7ca92221d28",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/getevents/AuthorisedGetEventsOperation.class",
+          "digest": "sha256:be3d46c489dc8d58152828962586d678a467c1429a6af7d716f7c7ca92221d28"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/common/AccessControlServiceImpl.java",
+      "sourceDigest": "sha256:209904745066ab13ded2790183a99b98f36fb90ab8b52689ac49d441df88cc16",
+      "classDigest": "sha256:cecd2c81efce49c29b14b1397c956939df41ddcb39c31df03bee04b9154eb94a",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/common/AccessControlServiceImpl.class",
+          "digest": "sha256:cecd2c81efce49c29b14b1397c956939df41ddcb39c31df03bee04b9154eb94a"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/common/AccessControlService.java",
+      "sourceDigest": "sha256:6e43869e37972bf6640b265fc57b7a21d17f46f7d3b0c1646ad115f7edf356a6",
+      "classDigest": "sha256:34712005852337e024a3fe31a0c42ea2be5d6c87477c875cc087d864aa9d7e64",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/common/AccessControlService.class",
+          "digest": "sha256:34712005852337e024a3fe31a0c42ea2be5d6c87477c875cc087d864aa9d7e64"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/model/definition/AccessControlList.java",
+      "sourceDigest": "sha256:408a15f336166e467c95779ac204878125326262759f96468b1449a68a6566e0",
+      "classDigest": "sha256:910654b513734755e710c43e4b1bc96631c01d1379c14cbfbc7e5d558c50f04c",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/model/definition/AccessControlList.class",
+          "digest": "sha256:910654b513734755e710c43e4b1bc96631c01d1379c14cbfbc7e5d558c50f04c"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/model/casedataaccesscontrol/AccessProfile.java",
+      "sourceDigest": "sha256:c32ca9c39a9f36edf472278d19d57906e3b2989d12bff23ce41e18c6d3906200",
+      "classDigest": "sha256:f5a81f73f6092cd63945da582049cabb66064e0f12e995126730df817090b2be",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/model/casedataaccesscontrol/AccessProfile$AccessProfileBuilder.class",
+          "digest": "sha256:c0bddbca90db8fb4120ef73a81068a2f73133b3fe31eda90bfa2ece33997fe85"
+        },
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/model/casedataaccesscontrol/AccessProfile.class",
+          "digest": "sha256:f5a81f73f6092cd63945da582049cabb66064e0f12e995126730df817090b2be"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/endpoint/std/EventsEndpoint.java",
+      "sourceDigest": "sha256:b43e900d47fd42fb7c9158a05d967bac123f5d370ff7c3204bd62c6bee9db076",
+      "classDigest": "sha256:2dd859c5bab0e74ad3e87bc5b04370fa1b6db455258b2bf07b3deeea5abf7e17",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/endpoint/std/EventsEndpoint.class",
+          "digest": "sha256:2dd859c5bab0e74ad3e87bc5b04370fa1b6db455258b2bf07b3deeea5abf7e17"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/endpoint/ui/QueryEndpoint.java",
+      "sourceDigest": "sha256:e08963d6a3451c492fa99fd34a45ef95edd8c866eeadda8854da9826e09bfa68",
+      "classDigest": "sha256:e968eb843503d1d1cfdc2d7d0eea0034c1bcb4b9f8e738f063cc176efb02e9fb",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/endpoint/ui/QueryEndpoint.class",
+          "digest": "sha256:e968eb843503d1d1cfdc2d7d0eea0034c1bcb4b9f8e738f063cc176efb02e9fb"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/aggregated/AuthorisedGetCaseTypesOperation.java",
+      "sourceDigest": "sha256:3c9bdd39fe098af2213ab75213e5c29960b5826f763916f63273a755634b898a",
+      "classDigest": "sha256:575df722879823ba18b36707d6105ff244a2c9bd7eedc22a027d5cc4b80353da",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/aggregated/AuthorisedGetCaseTypesOperation.class",
+          "digest": "sha256:575df722879823ba18b36707d6105ff244a2c9bd7eedc22a027d5cc4b80353da"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/aggregated/AbstractAuthorisedCaseViewOperation.java",
+      "sourceDigest": "sha256:f359ebe8142622f8f6f67d32f94ecb5bd6a9953fd14f897c60aa6b06265f67c5",
+      "classDigest": "sha256:eda7b3cb263d747932c1c2d77b8b4fb572e963f9e222da77f273e6737145f808",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/aggregated/AbstractAuthorisedCaseViewOperation.class",
+          "digest": "sha256:eda7b3cb263d747932c1c2d77b8b4fb572e963f9e222da77f273e6737145f808"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/aggregated/AuthorisedGetCaseViewOperation.java",
+      "sourceDigest": "sha256:23b33f8e70b8c306683c5314328be2059212fbd2384688e9aa762d64493cddaa",
+      "classDigest": "sha256:017ebd7fbf07d25e84c7e495e85bbd6ec5e9b93c567a81debeacc4b0e7c31342",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/aggregated/AuthorisedGetCaseViewOperation.class",
+          "digest": "sha256:017ebd7fbf07d25e84c7e495e85bbd6ec5e9b93c567a81debeacc4b0e7c31342"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/aggregated/AuthorisedGetEventTriggerOperation.java",
+      "sourceDigest": "sha256:9f205a7066f55fad909bd00ccbdf5a288141a3b40702ac12f97b27e5f988e93a",
+      "classDigest": "sha256:d2c0e9c50b8ae1b9f2d12d52c450cc31cc2d24222cfaba9442a53019863dabab",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/aggregated/AuthorisedGetEventTriggerOperation.class",
+          "digest": "sha256:d2c0e9c50b8ae1b9f2d12d52c450cc31cc2d24222cfaba9442a53019863dabab"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/domain/service/common/CaseAccessService.java",
+      "sourceDigest": "sha256:45a496711e6622309077eddd07fad9526ac91d5999b488e8d3d89063cdaf2159",
+      "classDigest": "sha256:30da83b2f9432b4aef56fe7da437ffdd0084269e0631acec776a8074ce48c6b1",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/domain/service/common/CaseAccessService.class",
+          "digest": "sha256:30da83b2f9432b4aef56fe7da437ffdd0084269e0631acec776a8074ce48c6b1"
+        }
+      ]
+    },
+    {
+      "sourcePath": "src/main/java/uk/gov/hmcts/ccd/data/user/DefaultUserRepository.java",
+      "sourceDigest": "sha256:f854e1a89261a77e91ac1fa022add534c7f82948e4b1270c8cff57eb5d8758a3",
+      "classDigest": "sha256:c44dccf9934e4cd75c380d8e0264ce66a84753ce770bb39a5eda7d2a7f18f0bf",
+      "classes": [
+        {
+          "path": "BOOT-INF/classes/uk/gov/hmcts/ccd/data/user/DefaultUserRepository.class",
+          "digest": "sha256:c44dccf9934e4cd75c380d8e0264ce66a84753ce770bb39a5eda7d2a7f18f0bf"
+        }
+      ]
+    }
+  ],
+  "helperDigests": {
+    "scripts/verify-shared-role-standard-arm-source.py": "sha256:64f5e6ec21a72199116710a0a3f0580ce1957e55a46195b14d95344f015bc21c",
+    "scripts/verify-shared-role-ccd-source.py": "sha256:f8fa555ad126b1fd520338715bbf6f69ef3174df573718aa420de50043a22e46",
+    "scripts/verify-local-ccd-oci.py": "sha256:42886b7492159e5acc66ca4e74de6f895f866eb0922b3fdb1fed0df1b234aa4d",
+    "scripts/verify-complex-email-application-source.py": "sha256:01fcb77f2bdb67aa566a3d5ac9970c37d72e772857a4720493e3dc0f61a36e18"
+  }
+}
