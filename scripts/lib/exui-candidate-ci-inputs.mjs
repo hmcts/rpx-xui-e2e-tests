@@ -1,3 +1,4 @@
+import {capturePersonalNativeBinding} from './exui-personal-service-admission.mjs';
 import {captureDivorceNativeBinding} from './exui-divorce-native-binding.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -238,5 +239,6 @@ export async function prepareCiJob(job, output) {
     playwrightVersion: dependencies.playwrightVersion,
   });
   context.nativeCohortCapture = captureDivorceNativeBinding(context, output);
+  context.personalNativeCapture = capturePersonalNativeBinding(context, output, observations.ccdImages);
   return context;
 }

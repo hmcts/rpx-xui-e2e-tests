@@ -1,3 +1,4 @@
+import {readPersonalNativeBinding,readPersonalAdmissionPacket,personalNativeJointAdmission} from './exui-personal-service-admission.mjs';
 import {readDivorceProfileAdmissionPacket,divorceNativeJointAdmission} from "./exui-divorce-profile-admission.mjs";
 import {readDivorceNativeBinding} from "./exui-divorce-native-binding.mjs";
 import {validateSelectorEventEvidence} from './exui-selector-event-row-evidence.mjs';
@@ -458,6 +459,22 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         catalogueCoverage.divorceProfileAdmission = joint;
       }
     }
+    const personalNative=readPersonalNativeBinding(directory,expected,nativeBinding);
+    fact(!expected.personalServiceRequest||descriptor.value.personalServiceAdmission,'PERSONAL_REQUEST_REQUIRED');
+    fact(!descriptor.value.personalServiceAdmission||expected.personalServiceRequest,'PERSONAL_REQUEST_REQUIRED');
+    const personalPacket=descriptor.value.personalServiceAdmission?readPersonalAdmissionPacket(descriptor.value.personalServiceAdmission,expected.personalServiceRequest):undefined;
+    let personalServiceAdmission;
+    if(personalPacket){
+      const joint=personalNativeJointAdmission(nativeBinding,personalNative,personalPacket,expected);personalServiceAdmission={...personalPacket.admission,joint};
+      if(joint.status==='included'){
+        const id=joint.obligationId,rows=accounting.catalogue.obligations.filter(row=>row.id===id);
+        fact(rows.length===1&&rows[0].family==='PRIVATELAW'&&rows[0].kind==='definition-shape'&&rows[0].requiredBoundary==='candidate','PERSONAL_CATALOGUE_ROW');
+        equal(rows[0].sourceKeys,[personalPacket.admission.sourceKey],'PERSONAL_CATALOGUE_SOURCE');
+        fact(catalogueCoverage.selected===112&&!creditedObligationIds.includes(id),'PERSONAL_DUPLICATE_CREDIT');
+        fact(accounting.report.coverage.missingCandidateOrCcd.some(row=>(typeof row==='string'?row:row.id)===id),'PERSONAL_NOT_MISSING');
+        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.personalServiceAdmission=joint;
+      }
+    }
     const first = expected.phases[0].expected;
     for (const { expected: pin } of expected.phases) {
       equal(
@@ -502,6 +519,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       phases,
       catalogueCoverage,
       ...(divorceProfileAdmission ? {divorceProfileAdmission} : {}),
+      ...(personalServiceAdmission?{personalServiceAdmission}:{}),
     };
   } catch (error) {
     // Filesystem/library errors can contain private paths or raw evidence; expose fixed codes only.

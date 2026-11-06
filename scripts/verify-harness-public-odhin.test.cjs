@@ -1273,6 +1273,7 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
   '#harness-shared-nested-attempt':{dataset:{attemptStatus:'BLOCKED',attemptBaselinesCompleted:'4',attemptBaselinesPassed:'2',attemptBaselinesFailed:'2',attemptFaultsCompleted:'0',attemptFaultsNotRun:'3'}},
   '#harness-divorce-profile-admission':{dataset:{profileStatus:'PASS',profileBaselines:'6',profileFaults:'6',profileAccepted:'1',profileSelected:'1',profileDurationMs:'125000'}},
   '#harness-applicant-compatibility':{dataset:{compatibilityStatus:'PASS',compatibilityBaselines:'1',compatibilityFaults:'3'}},
+  '#harness-personal-service-admission':{dataset:{personalStatus:'PASS',personalBaselines:'1',personalEffectiveFaults:'1',personalAccepted:'1',personalTotal:'1',personalInclusion:'included',personalDurationMs:'247013'}},
  };
  const render=(supplements,main=true)=>{
   const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
@@ -1290,6 +1291,9 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
  assert.match(text(links[0]),/BLOCKED/);assert.match(text(links[0]),/4 baseline facets completed/);assert.match(text(links[0]),/2 passed.*2 failed/);assert.match(text(links[0]),/0 effective faults.*3 not run/);
  assert.match(text(links[1]),/6 baseline.*6 effective faults/);assert.match(text(links[1]),/1 \/ 1.*separate/);
  assert.match(text(links[2]),/1 baseline.*3 effective faults/);assert.match(text(links[2]),/Corrected local ARM64 CCD/);
+ assert.match(text(links[3]),/PASS.*1 baseline.*1 effective fault/);assert.match(text(links[3]),/already included in main candidate coverage/);assert.match(text(links[3]),/Personal pair interval: 4m 7s.*excluded from main native duration/);
+ const separatePersonal=render({'#harness-personal-service-admission':{dataset:{...panels['#harness-personal-service-admission'].dataset,personalInclusion:'separate'}}});assert.match(text(separatePersonal.children[4]),/1 \/ 1 requirement accepted in this separate run/);assert.equal(separatePersonal.children[0].children[1].textContent,'35 / 112');
+ const failedPersonal=render({'#harness-personal-service-attempt':{dataset:{personalAttemptStatus:'BLOCKED',personalAttemptDurationMs:'1234'}}});assert.match(text(failedPersonal.children[4]),/BLOCKED.*Completed proof counts unavailable.*No additional catalogue/);assert.doesNotMatch(text(failedPersonal.children[4]),/1 baseline|1 effective fault/);assert.match(text(failedPersonal.children[4]),/Observed attempt interval: 0m 1s/);
  assert.match(text(metrics.children[1]),/1\.0 min main native \+ evidence verification/);
  assert.match(text(links[1]),/Separate profile interval: 2m 5s.*excluded from main native duration/);
  assert.match(text(summary),/Separate execution counts and durations/);assert.match(text(summary),/Supplementary requirements enter the catalogue total only when jointly admitted/);assert.doesNotMatch(text(summary),/excluded from the main totals/);

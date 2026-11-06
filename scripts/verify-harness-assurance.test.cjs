@@ -135,6 +135,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   );
   for (const name of [
     "exui-divorce-native-binding.mjs",
+    "exui-personal-service-admission.mjs",
     "exui-output-boundary.mjs",
     "exui-candidate-ci-inputs.mjs",
     "exui-release-policy.mjs",
@@ -149,6 +150,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
     path.join(root, "scripts/harness-public-odhin-reporter.cjs"),
     `module.exports = require(${JSON.stringify(path.join(__dirname, "harness-public-odhin-reporter.cjs"))});`,
   );
+  fs.writeFileSync(path.join(root,'scripts/run-harness-personal-service-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-personal-service-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
     path.join(root, "scripts/run-harness-ci.mjs"),
@@ -481,4 +483,20 @@ test('canonical joint publishes whole-command BLOCKED without changing passing m
 test('canonical joint abort after observed profile cleanup cannot start descriptor or diagnostics',async()=>{
  const {runAssuranceSequence}=await api(),controller=new AbortController(),order=[];
  const result=await runAssuranceSequence({signal:controller.signal,native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{order.push('profile');order.push('cleanup-observed');controller.abort();return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>{order.push('descriptor');},collect:async()=>{order.push('diagnostics');},withdraw:()=>order.push('withdraw')});assert.deepEqual(order,['profile','cleanup-observed','withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');
+});
+test('invalid personal-only preflight preserves valid main and DIVORCE facts and overwrites stale PASS summary with BLOCKED',async t=>{
+ const {runAssuranceSequence,buildNativeDescriptor,writeNativeDescriptor,publishAssuranceSummary}=await api(),f=fixture(t),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs'),{verifyPersonalNativeCapture}=await import('./lib/exui-personal-service-admission.mjs');
+ const native={held:'native-preflight'},nativeBytes=Buffer.from(JSON.stringify(native));fs.writeFileSync(path.join(f.root,'private/native-cohort-binding.json'),nativeBytes);f.captured.nativeCohortCapture={binding:native,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(nativeBytes)}};
+ publishAssuranceSummary(f.job,f.captured,{exitCode:0});
+ const capsule={held:'personal-only'},capsuleBytes=Buffer.from(JSON.stringify(capsule));fs.writeFileSync(path.join(f.root,'private/personal-service-native-binding.json'),capsuleBytes);f.captured.personalNativeCapture={binding:capsule,reference:{path:'private/personal-service-native-binding.json',digest:digestBytes(capsuleBytes)}};fs.writeFileSync(path.join(f.root,'private/personal-service-native-binding.json'),JSON.stringify({changed:'after-main'}));
+ const mainFile=path.join(f.root,'private/ci-result.json'),ci=JSON.parse(fs.readFileSync(mainFile));ci.status='PASS';ci.exitCode=0;for(const phase of ci.phaseResults){phase.status='PASS';phase.exitCode=0;}f.write('ci-result.json',ci);f.write('ccd/controller-terminal.json',{status:'completed',cleanupComplete:true,exitCode:0});f.verdict={status:'PASS',exitCode:0};
+ const main=fs.readFileSync(mainFile),requestPath=path.join(f.root,'profile-request.json'),runId='divorce-00000000-0000-4000-8000-000000000001';fs.writeFileSync(requestPath,JSON.stringify({expected:{runId}}));const request={path:requestPath,runId,digest:digestBytes(fs.readFileSync(requestPath))};let profiles=0,personalProofs=0;
+ const result=await runAssuranceSequence({native:async()=>f.verdict,prepare:()=>buildNativeDescriptor(f.job,f.captured,f.verdict),profile:async()=>{profiles++;return {status:'passed',reportRequest:request};},personal:async()=>{verifyPersonalNativeCapture(f.root,f.captured.personalNativeCapture);personalProofs++;throw Error('must not launch');},descriptor:(v,p,r)=>writeNativeDescriptor(f.job,f.captured,v,undefined,p,r),collect:async(file,timing)=>{assert.equal(typeof file,'string','personal-only corruption must not suppress valid main evidence');const descriptor=JSON.parse(fs.readFileSync(file));assert.equal(descriptor.divorceProfileAdmission,requestPath);assert.equal(descriptor.personalServiceAdmission,undefined);assert.equal(descriptor.expected.personalServiceNativeBinding,undefined);assert.equal(descriptor.expected.personalServiceRequest,undefined);assert.equal(timing.personalServiceAttempt.status,'BLOCKED');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};},publish:value=>publishAssuranceSummary(f.job,f.captured,value)});
+ assert.equal(profiles,1);assert.equal(personalProofs,0);assert.equal(result.personalStatus,'BLOCKED');assert.equal(result.profileStatus,'PASS');assert.equal(result.exitCode,2);assert.deepEqual(fs.readFileSync(path.join(f.root,'private/ci-result.json')),main);const summary=validatePublicSummary(path.join(f.root,'public/release-assurance-summary.json'));assert.equal(summary.status,'BLOCKED');assert.equal(summary.releaseApproval,false);
+});
+test('late personal capture replacement cannot leave a stale public PASS after collector inclusion',async t=>{
+ const {publishAssuranceSummary}=await api(),f=fixture(t),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs');
+ const binding={held:'native'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(f.root,'private/native-cohort-binding.json'),bytes);f.captured.nativeCohortCapture={binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}};publishAssuranceSummary(f.job,f.captured,{exitCode:0});
+ f.captured.personalNativeCapture={binding:{held:'personal'},reference:{path:'private/personal-service-native-binding.json',digest:'sha256:'+'a'.repeat(64)}};fs.writeFileSync(path.join(f.root,'private/personal-service-native-binding.json'),JSON.stringify({late:'change'}));
+ assert.throws(()=>publishAssuranceSummary(f.job,f.captured,{exitCode:0,personalStatus:'PASS'}));assert.equal(validatePublicSummary(path.join(f.root,'public/release-assurance-summary.json')).status,'BLOCKED');
 });

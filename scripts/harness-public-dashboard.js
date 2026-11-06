@@ -52,6 +52,24 @@
       'Corrected local ARM64 CCD · No main catalogue credit',
       '#harness-applicant-compatibility']);
   }
+  const personal = document.querySelector('#harness-personal-service-admission');
+  if (personal) {
+    const data = personal.dataset;
+    const duration = data.personalDurationMs === undefined ? null : Number(data.personalDurationMs);
+    const pairTime = Number.isSafeInteger(duration) && duration >= 0
+      ? `${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'not recorded';
+    supplements.push(['Personal-service event row', data.personalStatus,
+      `${data.personalBaselines} baseline · ${data.personalEffectiveFaults} effective fault`,
+      data.personalInclusion === 'included' ? `${data.personalAccepted} requirement already included in main candidate coverage` : `${data.personalAccepted} / ${data.personalTotal} requirement accepted in this separate run`,
+      '#harness-personal-service-admission', `Personal pair interval: ${pairTime} · excluded from main native duration`]);
+  }
+  const personalAttempt = document.querySelector('#harness-personal-service-attempt');
+  if (personalAttempt) {
+    const duration = Number(personalAttempt.dataset.personalAttemptDurationMs);
+    supplements.push(['Personal-service event row not admitted', personalAttempt.dataset.personalAttemptStatus,
+      'Completed proof counts unavailable', 'No additional catalogue or release credit', '#harness-personal-service-attempt',
+      Number.isSafeInteger(duration) && duration >= 0 ? `Observed attempt interval: ${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'Attempt duration not recorded']);
+  }
   const cards = [
     ['Catalogue runtime evidence', `${accepted} / ${selected}`, `${selected - accepted} awaiting accepted evidence`, '#harness-application-coverage'],
     [supplements.length ? 'Main native proof outcomes' : 'Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${nativeStatus} · ${baselines} baseline · ${faults} deliberate faults${nativeTime}` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],

@@ -161,6 +161,25 @@ const SOURCE_FILES = [
   "scripts/run-harness-divorce-profile.mjs",
   "scripts/run-harness-divorce-profile-admission.mjs",
   "scripts/lib/exui-divorce-profile-admission.mjs",
+  "scripts/lib/exui-candidate-ci-process.mjs",
+  "scripts/run-harness-selector-event-row.mjs",
+  "scripts/lib/exui-personal-service-admission.mjs",
+  "scripts/run-harness-personal-service-admission.mjs",
+  "scripts/run-harness-personal-service-cohort.mjs",
+  "scripts/run-harness-personal-service-invocation.mjs",
+  "scripts/lib/exui-personal-service-invocation-binding.mjs",
+  "scripts/lib/exui-personal-service-contract.mjs",
+  "scripts/lib/exui-personal-service-evidence.mjs",
+  "scripts/lib/exui-personal-service-facets.mjs",
+  "scripts/fixtures/ccd/personal-service.source.json",
+  "src/fixtures/harnessPersonalService.ts",
+  "src/tests/harness/callback-feasibility/personal-service.spec.ts",
+  "scripts/run-harness-recipient-callback-ui.mjs",
+  "src/fixtures/harnessCallback.ts",
+  "playwright.callback-feasibility.config.mjs",
+  "scripts/recipient-callback-ui-tools.mjs",
+  "src/tests/harness/callback-feasibility/recipient-callback.spec.ts",
+  "src/tests/harness/callback-feasibility/selector-event-row.spec.ts",
 ];
 
 function temporary(t, prefix) {
@@ -257,7 +276,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 220);
+  assert.equal(SOURCE_FILES.length, 239);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

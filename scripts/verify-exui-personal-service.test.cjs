@@ -67,17 +67,18 @@ test('personal-service validation journal exposes only bounded answer and route,
  assert.deepEqual(p(JSON.stringify({event:{id:'serviceOfDocuments'},data:{sodServeToRespondentOptions:'No',secret:'not-retained'}}),u),{eventId:'serviceOfDocuments',pageId:'serviceOfDocuments2',answer:'No'});
  assert.equal(p(JSON.stringify({data:{sodServeToRespondentOptions:'not-retained'}}),u).answer,'invalid-answer');assert.equal(p('broken',u).eventId,null);
 });
-test('default native staged closure executes existing import without loading dedicated personal-service files',async()=>{
+test('integrated native staged closure seals personal admission dependencies and preserves existing selector import',async()=>{
  const {NATIVE_HARNESS_SOURCE_FILES}=await import('./lib/exui-native-sources.mjs');const {CALLBACK_UI_SOURCES}=await import('./run-harness-recipient-callback-ui.mjs');
  const personal=['scripts/lib/exui-personal-service-contract.mjs','scripts/lib/exui-personal-service-facets.mjs','scripts/lib/exui-personal-service-evidence.mjs','scripts/fixtures/ccd/personal-service.source.json','src/fixtures/harnessPersonalService.ts','src/tests/harness/callback-feasibility/personal-service.spec.ts'];
- for(const file of personal){assert(CALLBACK_UI_SOURCES.includes(file));assert(!NATIVE_HARNESS_SOURCE_FILES.includes(file));}
+ for(const file of personal){assert(CALLBACK_UI_SOURCES.includes(file));assert(NATIVE_HARNESS_SOURCE_FILES.includes(file));}
  const root=temporary();try{
   const staged=path.join(root,'harness');for(const file of NATIVE_HARNESS_SOURCE_FILES){const dest=path.join(staged,file);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.copyFileSync(path.resolve(__dirname,'..',file),dest);}
   fs.symlinkSync(fs.realpathSync(path.join(__dirname,'../node_modules')),path.join(staged,'node_modules'));
   const {pathToFileURL}=require('node:url');const m=await import(pathToFileURL(path.join(staged,'scripts/lib/exui-recipient-callback-import.mjs')));
   assert(!/^import .* from ['"].*exui-personal-service/m.test(fs.readFileSync(path.join(__dirname,'run-harness-recipient-callback-ui.mjs'),'utf8')));
   const result=await m.prepareRecipientCallbackImport(path.join(root,'fixture'),{variant:'binding-omitted',rowFacets:true,selectorEventVariant:'baseline'});assert.equal(result.selectorEventBinding.variant,'baseline');assert.equal(result.personalServiceBinding,undefined);
-  await assert.rejects(m.prepareRecipientCallbackImport(path.join(root,'personal'),{variant:'binding-omitted',rowFacets:true,personalServiceVariant:'baseline'}),{code:'ERR_MODULE_NOT_FOUND'});assert(!fs.existsSync(path.join(root,'personal')));
+  const personalResult=await m.prepareRecipientCallbackImport(path.join(root,'personal'),{variant:'binding-omitted',rowFacets:true,personalServiceVariant:'baseline'});assert.equal(personalResult.personalServiceBinding.variant,'baseline');
+  const admission=await import(pathToFileURL(path.join(staged,'scripts/lib/exui-personal-service-admission.mjs')));assert.equal(admission.personalAdmissionContract().catalogueSize,112);fs.unlinkSync(path.join(staged,'scripts/fixtures/ccd/personal-service.source.json'));assert.throws(()=>admission.personalAdmissionContract(),{code:'ENOENT'});
  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 

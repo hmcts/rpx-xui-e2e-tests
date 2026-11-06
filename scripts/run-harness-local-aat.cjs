@@ -228,7 +228,7 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, signal } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, signal } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
   if(signal?.aborted){Reporter.resetPublicReport('harness');throw fail();}
@@ -238,7 +238,7 @@ async function runHarnessCollection(
     "functional-output/tests/harness/private",
   );
   const diagnosticSource = Reporter.captureDiagnosticSource();
-  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt });
+  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
   if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
@@ -423,11 +423,13 @@ async function runHarnessCollection(
       status,
       nativeStatus,
       ...(reporter.nativeEvidence?.divorceProfileAdmission?.joint ? {divorceProfileInclusion:reporter.nativeEvidence.divorceProfileAdmission.joint.status} : {}),
+      ...(reporter.nativeEvidence?.personalServiceAdmission?.joint?{personalServiceInclusion:reporter.nativeEvidence.personalServiceAdmission.joint.status}:{}),
       ...(reporter.sharedNestedAttemptEvidence?{sharedNestedStatus:reporter.sharedNestedAttemptEvidence.status}:{}),
       exitCode: Math.max(
         reporter.nativeEvidence?.exitCode || 0,
         reporter.sharedNestedAttemptEvidence?.status==="BLOCKED"?2:0,
         divorceProfileAttempt?2:0,
+        personalServiceAttempt?2:0,
         status === "passed" ? 0 : 1,
       ),
     };

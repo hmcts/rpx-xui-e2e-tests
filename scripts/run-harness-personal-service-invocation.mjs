@@ -15,6 +15,7 @@ export async function runPersonalInvocation(expectedFile,expectedDigest) {
  const bytes=personalFile(parent,name);assert.equal(bytes.digest,expectedDigest,'PERSONAL_SERVICE_CHILD_EXPECTATION');
  const {binding,cohort}=JSON.parse(bytes.bytes);assert.equal(name,binding.variant+'-expected.json','PERSONAL_SERVICE_CHILD_VARIANT');
  assert.equal(binding.directory,path.join(parent,binding.variant),'PERSONAL_SERVICE_CHILD_DIRECTORY');
+ if(cohort.admissionContext){const m=await import('./lib/exui-personal-service-admission.mjs');assert.equal(cohort.admissionContractDigest,m.personalAdmissionDigest(),'PERSONAL_SERVICE_CHILD_ADMISSION_CONTRACT');assert.equal(m.personalCohortCompatibility(cohort.admissionContext,cohort).status,'included','PERSONAL_SERVICE_CHILD_ADMISSION_CONTEXT');}
  const input=readPersonalPrepared(binding,cohort,{live:true});assert.deepEqual(personalProducer(),cohort.producer,'PERSONAL_SERVICE_CHILD_SOURCE');
  assert.deepEqual(await verifyCandidateArtifact(cohort.candidateManifest),cohort.artifact,'PERSONAL_SERVICE_CHILD_CANDIDATE');assert.equal(await digestCandidateTree(cohort.browser.root),cohort.browser.digest,'PERSONAL_SERVICE_CHILD_BROWSER');
  verifyCcdContainerIdentity(binding.ccd);

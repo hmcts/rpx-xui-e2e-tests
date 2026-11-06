@@ -287,6 +287,12 @@ function renderNativeEvidence(evidence) {
     assert.equal(joint.nativeRunId, evidence.jobRunId, "NATIVE_REPORT_PROFILE_JOIN");
     assert.equal(evidence.catalogueCoverage.creditedObligationIds.filter(id => id === joint.obligationId).length, 1, "NATIVE_REPORT_PROFILE_JOIN");
   }
+  const {PERSONAL_SERVICE_ID,renderPersonalServiceAdmission}=require('./harness-personal-service-report.cjs');
+  const personal=evidence.personalServiceAdmission;
+  if(personal?.joint?.status==='included'){
+    assert.equal(personal.producerCommit,evidence.source.harnessCommit,'NATIVE_REPORT_PERSONAL_JOIN');assert.equal(personal.candidateArtifactDigest,evidence.source.candidateArtifactDigest,'NATIVE_REPORT_PERSONAL_JOIN');assert.equal(personal.candidateCommit,evidence.source.webappCommit,'NATIVE_REPORT_PERSONAL_JOIN');assert.equal(personal.joint.nativeRunId,evidence.jobRunId,'NATIVE_REPORT_PERSONAL_JOIN');assert.deepEqual(evidence.catalogueCoverage.personalServiceAdmission,personal.joint,'NATIVE_REPORT_PERSONAL_JOIN');
+  }
+  const personalReport=personal?renderPersonalServiceAdmission(personal):'';
   const divorceProfile = evidence.divorceProfileAdmission ? require("./harness-divorce-profile-report.cjs").renderDivorceProfileAdmission(evidence.divorceProfileAdmission) : "";
   if (
     evidence.kind !== "native-policy-proof-outcomes" ||
@@ -313,6 +319,7 @@ function renderNativeEvidence(evidence) {
       coverage.creditedObligationIds.length ||
     !coverage.phaseReferences ||
     coverage.creditedObligationIds.some((id) => {
+      if(id===PERSONAL_SERVICE_ID)return personal?.joint?.status!=="included";
       if (id === "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce") return evidence.divorceProfileAdmission?.joint?.status !== "included";
       const phase =
         id === "configuration-shared:role-policy" ? "ccd" :
@@ -361,6 +368,7 @@ function renderNativeEvidence(evidence) {
   const profileId = "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce";
   assert.equal(coverage.creditedObligationIds.includes(profileId), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
   assert.equal(Boolean(coverage.divorceProfileAdmission), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
+  assert.equal(coverage.creditedObligationIds.includes(PERSONAL_SERVICE_ID),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');assert.equal(Boolean(coverage.personalServiceAdmission),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');
   const roleCredited = coverage.creditedObligationIds.includes("configuration-shared:role-policy");
   const role = coverage.sharedRoleAdmission;
   if (roleCredited !== Boolean(role) || (role && (
@@ -422,6 +430,6 @@ function renderNativeEvidence(evidence) {
     .map(([id, label]) => `<option value="${id}">${label}</option>`)
     .join(
       "",
-    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}</section>`;
+    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}${personalReport}</section>`;
 }
 module.exports = { renderNativeEvidence, nativeCounts, objectDigest };
