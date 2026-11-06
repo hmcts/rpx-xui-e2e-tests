@@ -222,6 +222,8 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     } else if (resource.kind === "ccd") {
       await resource.pendingStart?.catch(() => {});
       evidence = cleanupCiCcd(resource.directory);
+      if (resource.successfulStart || resource.createAttempted)
+        assert.equal(evidence?.cleanupComplete, true, "CI_CCD_CLEANUP_RECEIPT_REQUIRED");
       if (evidence)
         writeJsonAtomic(path.join(resource.directory, "cleanup-verification.json"), evidence);
     } else await cleanupCiPhase(resource, resource.context ?? context);
@@ -250,9 +252,10 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       isCancelled: () => cancelled || !alive(),
       runDocker: (args, input) => {
         assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+        if (args[0] === "create") resource.createAttempted = true;
         return docker(args, input);
       },
-    }));
+    })).then(ccd => { resource.successfulStart = true; return ccd; });
     const ccd = await resource.pendingStart;
     assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
     if (callbackVariant === undefined) {
@@ -554,8 +557,19 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       },
       start: async () => {
         const directory = path.join(privateRoot, "ccd-runtime");
-        resources.set("ccd-runtime", { kind: "ccd", directory });
-        context.ccd = await startCcdRuntime(directory, { platform: context.artifact.provenance.platform, onCreateUncertainty: () => { cleanupComplete = false; } });
+        const resource = { kind: "ccd", directory };
+        resources.set("ccd-runtime", resource);
+        resource.pendingStart = startCcdRuntime(directory, {
+          platform: context.artifact.provenance.platform,
+          onCreateUncertainty: () => { cleanupComplete = false; },
+          isCancelled: () => cancelled,
+          runDocker: (args, input) => {
+            assert(!cancelled, "CI_JOB_CANCELLED");
+            if (args[0] === "create") resource.createAttempted = true;
+            return docker(args, input);
+          },
+        }).then(ccd => { resource.successfulStart = true; return ccd; });
+        context.ccd = await resource.pendingStart;
         importCcdDefinition(context.ccd);
         const workbasketReceipt = await importWorkbasketInputs(context.ccd);
         const observed = verifyCcdRuntimeIdentity(context.ccd),

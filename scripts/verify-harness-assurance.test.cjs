@@ -514,6 +514,33 @@ test('native continuation requires the actual controller authority before any la
   if(!safe)assert.equal(result.diagnosticStatus,'not-run');
  }
 });
+test('started or create-attempted CCD requires a cleanup receipt before any downstream collector',async t=>{
+ const {runAssuranceSequence,buildNativeDescriptor}=await api(),{runNativeController}=require('./fixtures/exui-native-continuation.mock.cjs');
+ for(const phase of ['main','event','callback'])for(const state of ['started-missing','created-missing','started-incomplete','precreation-missing']){
+  const mode=phase+'-'+state,root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'native-missing-cleanup-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const controller=await runNativeController(root,mode),safe=state==='precreation-missing',calls=[];
+  assert.equal(controller.result.continuationSafe,safe,mode);assert.equal(JSON.parse(controller.privateResult).cleanupComplete,safe,mode);
+  assert(controller.calls.includes('start'),mode);assert.equal(controller.calls.includes('create'),state==='created-missing',mode);assert(controller.removals>0,mode);
+  const job=JSON.parse(fs.readFileSync(path.join(root,'job.json'),'utf8'));
+  const result=await runAssuranceSequence({native:async()=>controller.result,
+   prepare:()=>{calls.push('prepare');return buildNativeDescriptor(job,{},controller.result);},
+   personal:async()=>{calls.push('personal');throw Error('UNEXPECTED_PERSONAL');},
+   descriptor:()=>{calls.push('descriptor');return buildNativeDescriptor(job,{},controller.result);},
+   collect:async()=>{calls.push('collect');return{status:'passed',exitCode:0};},withdraw:()=>calls.push('withdraw')});
+  assert.deepEqual(calls,safe?['prepare','descriptor','collect']:['withdraw'],mode);assert.equal(result.exitCode,2);
+  if(!safe)assert.equal(result.diagnosticStatus,'not-run');
+ }
+});
+
+test('initial CCD startup observes cancellation and dispatches no later create',async t=>{
+ const {runNativeController}=require('./fixtures/exui-native-continuation.mock.cjs');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'native-start-cancel-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const observed=await runNativeController(root,'cancel-after-create');
+ assert.equal(observed.result.continuationSafe,false);assert.equal(observed.result.status,'BLOCKED');
+ assert(observed.calls.includes('runtime-cancelled:true'));assert(observed.calls.includes('cancel-error:CI_JOB_CANCELLED'));
+ assert.equal(observed.calls.filter(call=>call==='create').length,1);assert.equal(observed.removals,1);
+});
+
 test('missing native continuation authority cannot be inferred from a native verdict',async()=>{
  const {runAssuranceSequence}=await api(),calls=[];
  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>calls.push('prepare'),profile:async()=>calls.push('profile'),descriptor:async()=>calls.push('descriptor'),collect:async()=>calls.push('collect'),withdraw:()=>calls.push('withdraw')});

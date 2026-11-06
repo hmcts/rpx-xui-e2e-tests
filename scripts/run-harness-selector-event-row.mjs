@@ -34,7 +34,7 @@ export async function runSelectorEventPhase({candidate,browser,output}, {signal}
  const artifact=await verifyCandidateArtifact(candidate),browserRoot=fs.realpathSync(browser);
  const directory=path.resolve(output);assert(!fs.existsSync(directory),'SELECTOR_JOB_FRESH_OUTPUT');
  output=createFreshHarnessOutput(directory+'-runtime',[artifact.candidateRoot,candidate,browserRoot,path.resolve(root),root+'node_modules']);
- const runtimes=new Map();let child,cancelled=false,ownership,context,baseline,expected,priorInput,priorExpected;
+ const runtimes=new Map();let child,cancelled=false,cleanupUncertain=false,ownership,context,baseline,expected,priorInput,priorExpected;
  const captures=[],cancel=()=>{cancelled=true;child?.kill('SIGTERM');};signal?.addEventListener('abort',cancel,{once:true});if(signal?.aborted)cancel();
  const alive=()=>assert(!cancelled,'SELECTOR_TRANSITION_CANCELLED');
  const summary={phaseTimings:[],kind:'standalone-selector-event-row-pilot',status:'BLOCKED',nativeRuntimeAcceptance:false,catalogueCredit:false,releaseCredit:false,cleanupComplete:false};let phase='verify-inputs';
@@ -44,7 +44,7 @@ export async function runSelectorEventPhase({candidate,browser,output}, {signal}
  timing={label:'Selector CCD baseline preparation',...phaseStarted};
  const persist=()=>writeJsonAtomic(path.join(output,'summary.json'),summary);persist();
  const runtimePath=variant=>path.join(output,`selector-${variant}-runtime`);
- const removeRuntime=variant=>{const removed=cleanupCiCcd(runtimePath(variant));runtimes.delete(variant);return removed;};
+ const removeRuntime=variant=>{try{const removed=cleanupCiCcd(runtimePath(variant));assert.equal(removed?.cleanupComplete,true,'SELECTOR_CCD_CLEANUP_RECEIPT_REQUIRED');runtimes.delete(variant);return removed;}catch(error){cleanupUncertain=true;throw error;}};
  const actors=credentials=>Object.fromEntries(Object.entries(credentials).map(([name,value])=>[name,{userId:value.userId,roles:value.roles??[]}]));
  const captureBefore=(input,handoff,known)=>{
   assert.deepEqual(actors(input.credentials),actors(known.credentials),'SELECTOR_PARENT_ACTORS');
@@ -101,7 +101,7 @@ export async function runSelectorEventPhase({candidate,browser,output}, {signal}
     }
     if(ownership)await cleanupNativeOwnership(ownership,{inspect:inspectHostContainer,remove:id=>hostDocker(['rm','-f',id])});
     for(const variant of [...runtimes.keys()].reverse())removeRuntime(variant);
-   });clean=!stopped.forced;
+   });clean=!stopped.forced&&!cleanupUncertain;
   }catch{clean=false;}
   finishTiming(clean?'completed':'stopped');summary.cleanupComplete=clean;if(!clean){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;}signal?.removeEventListener('abort',cancel);persist();
  }

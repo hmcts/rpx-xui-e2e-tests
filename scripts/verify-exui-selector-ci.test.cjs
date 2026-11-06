@@ -92,3 +92,16 @@ test('selector early preparation failure emits the allowed stopped preparation i
  assert(Number.isSafeInteger(last.durationMs)&&last.durationMs>=0);assert(Date.parse(last.startedAt)>=before&&Date.parse(last.startedAt)<=Date.now());
  assert(!observed.some(item=>item.label==='Selector Page2 preparation, proofs and cleanup'));
 });
+
+test('tracked selector preparation cannot use missing cleanup metadata as safe continuation',async t=>{
+ const {runSelectorController}=require('./fixtures/exui-native-continuation.mock.cjs'),{stopSelectorCiResource}=await import('./run-harness-ci.mjs');
+ for(const mode of ['prepare-missing','prepare-complete','before-prepare','cleanup-retry']){
+  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'selector-missing-cleanup-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const observed=await runSelectorController(root,mode),safe=['prepare-complete','before-prepare'].includes(mode);
+  assert.equal(observed.result.status,'BLOCKED');assert.equal(observed.result.cleanupComplete,safe,mode);assert.equal(observed.result.nativeRuntimeAcceptance,false);
+  const resource={controller:new AbortController(),completion:Promise.resolve(observed.result)};
+  if(safe)await stopSelectorCiResource(resource);else await assert.rejects(stopSelectorCiResource(resource),/CLEANUP_INCOMPLETE/,mode);
+  if(mode==='before-prepare')assert.deepEqual(observed.calls,[]);
+  if(mode==='cleanup-retry'){assert.equal(observed.removals,2);assert.equal(observed.calls.filter(x=>x==='prepare').length,1);}
+ }
+});
