@@ -115,14 +115,14 @@ class DefinitionImageTests(unittest.TestCase):
     def test_fixed_definition_wrapper_does_not_replace_data_pins(self):
         oci = self.image.load_oci()
         @contextlib.contextmanager
-        def fake(_archive, index, manifest):
+        def fake(_archive, index, manifest, **_options):
             yield {'indexDigest': index, 'manifestDigest': manifest, 'configDigest': 'sha256:7725e2475ded2180df9eaef000f8043c20a28d231cd4d41bbc3d2360bfdd61ca'}
         with mock.patch.object(oci, '_layout', side_effect=fake) as shared:
             with oci.definition_layout(Path('/fixed')) as value: self.assertEqual(value['indexDigest'], 'sha256:4c6b17b06d347d650fb8d26542716e1d723b7c8b8d44eee69908299cc8f4af52')
             with oci.layout(Path('/data')): pass
             self.assertEqual(shared.call_args_list[1].args[1:], (oci.BASE_INDEX, oci.BASE_MANIFEST))
         @contextlib.contextmanager
-        def foreign(*_args): yield {'indexDigest': oci.BASE_INDEX, 'manifestDigest': oci.BASE_MANIFEST, 'configDigest': oci.BASE}
+        def foreign(*_args, **_options): yield {'indexDigest': oci.BASE_INDEX, 'manifestDigest': oci.BASE_MANIFEST, 'configDigest': oci.BASE}
         with mock.patch.object(oci, '_layout', side_effect=foreign):
             with self.assertRaisesRegex(ValueError, 'DEFINITION_IMAGE'):
                 with oci.definition_layout(Path('/wrong')): pass
@@ -140,6 +140,31 @@ class DefinitionImageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'IMAGE_LAUNCH_TARGET'):
                     self.image.bind_archive(archive, root, witness, binding.require, lambda _data: self.image.ARCHIVE_DIGEST)
             self.assertFalse((root / 'original-case-definition-store-api.jar').exists())
+
+    def test_definition_docker_envelope_is_exact_and_not_data_authority(self):
+        oci = self.image.load_oci()
+        config = 'sha256:7725e2475ded2180df9eaef000f8043c20a28d231cd4d41bbc3d2360bfdd61ca'
+        layers = ['sha256:' + 'a' * 64, 'sha256:' + 'b' * 64]
+        manifest = {'config': {'digest': config}, 'layers': [{'digest': p} for p in layers]}
+        record = [{'Config': 'blobs/sha256/' + config[7:], 'RepoTags': None, 'Layers': ['blobs/sha256/' + p[7:] for p in layers]}]
+        oci.validate_definition_envelope(record, manifest)
+        import copy
+        for field, value, code in [('Config', 'blobs/sha256/' + 'f' * 64, 'CONFIG'),
+                                   ('Layers', list(reversed(record[0]['Layers'])), 'LAYERS'),
+                                   ('RepoTags', ['trusted-looking:latest'], 'FIELDS')]:
+            changed = copy.deepcopy(record); changed[0][field] = value
+            with self.assertRaisesRegex(ValueError, 'DEFINITION_DOCKER_' + code): oci.validate_definition_envelope(changed, manifest)
+        changed = copy.deepcopy(record); changed[0]['Extra'] = 'unknown'
+        with self.assertRaisesRegex(ValueError, 'DEFINITION_DOCKER_FIELDS'): oci.validate_definition_envelope(changed, manifest)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ['manifest.json', 'unknown.json']:
+                archive = self.layer(root, name + '.tar', [(name, b'[]', tarfile.REGTYPE)])
+                with self.assertRaisesRegex(ValueError, 'LOCAL_OCI_EXTRA_ENTRY'):
+                    with oci.layout(archive): pass
+            unknown = root / 'unknown.json.tar'
+            with self.assertRaisesRegex(ValueError, 'LOCAL_OCI_EXTRA_ENTRY'):
+                with oci.definition_layout(unknown): pass
 
     def test_archive_mode_cannot_accept_supplied_jar_or_reuse_cached_proof(self):
         from types import SimpleNamespace
