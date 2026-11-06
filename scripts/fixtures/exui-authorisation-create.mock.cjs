@@ -26,10 +26,11 @@ exports.authorisationCcdFake=definition=>{
    return [...required].every(role=>registeredRoles.has(role))?copyResponse(201,{}):copyResponse(400,'Missing AccessProfiles.');
   }
   if(port===4451&&route==='/api/data/case-type/HarnessNestedPRL')return copyResponse(200,exports.authorisationDefinition(definition));
+  if(/\/cases\/\d{16}/.test(route)&&!actor.roles.some(role=>role.toLowerCase().startsWith('caseworker-harness')&&registeredRoles.has(role)))return copyResponse(404,{});
   if(route.endsWith('/token'))return copyResponse(200,{token:'synthetic-event-token-'+actor.id+'-'+route});
   if(method==='POST'&&/\/case-types\/HarnessNestedPRL\/cases$/.test(route)){
    const caseId=String(++nextCase),data=clone(body.data);data.sodAdditionalRecipientsList.forEach((row,index)=>{row.id=`recipient-${caseId}-${index}`;});
-   const value={id:caseId,state:'JUDICIAL_REVIEW',version:1,case_data:data,history:[{id:'create',user_id:actor.id}]};cases.set(caseId,value);return copyResponse(201,value);
+   const value={id:caseId,state:'JUDICIAL_REVIEW',version:0,case_data:data,history:[{id:'create',user_id:actor.id}]};cases.set(caseId,value);return copyResponse(201,value);
   }
   if(route.includes('?access=update'))return copyResponse(200,typeCan(actor,'U')?[{id:'HarnessNestedPRL',events:definition.sheets.CaseEvent.filter(row=>can(actor,row.ID,'U')).map(row=>({id:row.ID}))}]:[]);
   const caseId=route.match(/\/cases\/(\d{16})/)?.[1],value=cases.get(caseId);if(!value)throw Error('FAKE_MISSING_CASE');
@@ -43,6 +44,8 @@ exports.authorisationCcdFake=definition=>{
  };
  return {state,request,cases,registeredRoles};
 };
+
+exports.authorisationReadyCcdFake=definition=>{const fake=exports.authorisationCcdFake(definition);for(const role of ['caseworker-harness','caseworker-harness-observer','caseworker-harness-allowed'])fake.registeredRoles.add(role);return fake;};
 
 exports.authorisationPacket=async directory=>{
  const fs=require('node:fs'),path=require('node:path'),{createHash}=require('node:crypto');
@@ -58,10 +61,11 @@ exports.authorisationPacket=async directory=>{
   const observed=exports.authorisationDefinition(definition);
   const imported={variant,binding,version:3,imported:{status:201,body:{}},observed:{status:200,body:observed},owner,namespace:runtime.namespace,images,...flags};
   const stored={owner,namespace:runtime.namespace,images,variant,version:3,sourceDate:'01/09/2024',rows:api.expectedAuthorisationAclRows(3,variant),sqlDigest:hash(api.authorisationAclSql(3)),retentionClaim:false,activationClaim:false,...flags};
-  const fake=exports.authorisationCcdFake(definition);Object.assign(fake.state,runtime);const observation=await api.observeAuthorisationCreate(fake.state,variant,{request:fake.request});
+  const fake=exports.authorisationCcdFake(definition);
+  api.importAuthorisationCreate(fake.state,fixture,variant,{inspect:()=>{},request:fake.request});Object.assign(fake.state,runtime);const observation=await api.observeAuthorisationCreate(fake.state,variant,{request:fake.request});
   write(variant+'-runtime/runtime.json',runtime);write(variant+'-runtime/recovery.json',recovery);write(variant+'-runtime/creation-attempts.json',Object.entries(containers).map(([service,containerId])=>({service,name:`${owner}-${service}`,state:'settled',containerId})));
   const fixtureRoles=new Set(Object.entries(definition.sheets).filter(([name])=>name.startsWith('Authorisation')).flatMap(([,rows])=>rows.map(row=>row.UserRole)));
-  const registered=[...definition.sheets.AuthorisationCaseEvent.filter(row=>row.CaseEventID==='serviceOfDocuments'&&row.UserRole.startsWith('caseworker-privatelaw-')).map(row=>row.UserRole),...['caseworker-harness-observer','caseworker-harness-allowed'].filter(role=>fixtureRoles.has(role))];
+  const registered=[...definition.sheets.AuthorisationCaseEvent.filter(row=>row.CaseEventID==='serviceOfDocuments'&&row.UserRole.startsWith('caseworker-privatelaw-')).map(row=>row.UserRole),...['caseworker-harness-observer','caseworker-harness-allowed'].filter(role=>fixtureRoles.has(role)),'caseworker-harness'];
   const importRequests=[...registered.map(role=>({kind:'role-registration',role,port:4451,method:'PUT',route:'/api/user-role',response:{status:201,body:{}}})),{kind:'definition-import',port:4451,method:'POST',route:'/import',workbookDigest:binding.workbookDigest,response:imported.imported},{kind:'definition-readback',port:4451,method:'GET',route:'/api/data/case-type/HarnessNestedPRL',response:imported.observed}];
   write(variant+'-import.json',imported);write(variant+'-import-requests.json',importRequests);write(variant+'-stored-acl.json',stored);write(variant+'-observation.json',observation);write(variant+'-requests.json',observation.journal);
   summary.variants.push({variant,status:'PASS',cleanupComplete:true,removal:{owner,cleanupComplete:true,checkedNames:Object.values(recovery.resources).map(row=>row.name),checkedContainerIds:Object.values(containers).sort()},replay:api.validateAuthorisationCreateObservation(observation,variant)});

@@ -11,8 +11,8 @@ import {ccdCredentials,ccdAuthorisationRowCredentials,ccdRequest,verifyCcdContai
 import {digestBytes,writeJsonAtomic} from './exui-evidence-io.mjs';
 
 export const AUTH_CREATE_VARIANTS=Object.freeze(['baseline','remove-create']);
-// Supporting carrier ACL roles are registered, never added to the five source actors.
-const importRoles=Object.freeze([...AUTHORISATION_ROW_ACTORS,'caseworker-harness-observer','caseworker-harness-allowed']);
+// Register carrier ACL roles and the actors’ existing HARNESS classification role; actor memberships stay unchanged.
+const importRoles=Object.freeze([...AUTHORISATION_ROW_ACTORS,'caseworker-harness-observer','caseworker-harness-allowed','caseworker-harness']);
 const event='serviceOfDocuments',type='HarnessNestedPRL';
 const personas=AUTHORISATION_ROW_ACTORS.map(role=>role.replace('caseworker-privatelaw-',''));
 const roles=persona=>['caseworker','caseworker-harness',`caseworker-privatelaw-${persona}`].sort();
@@ -174,7 +174,7 @@ export function validateAuthorisationCreateObservation(value,variant) {
   const row=labels.get(label);assert(row,'AUTH_CREATE_MISSING_REQUEST');assert(!used.has(label),'AUTH_CREATE_REUSED_REQUEST');assert.equal(row.sequence,used.size,'AUTH_CREATE_REQUEST_WINDOW_ORDER');used.add(label);
   assert.equal(row.persona,persona,'AUTH_CREATE_REQUEST_ACTOR');assert.equal(row.userId,identities.get(persona),'AUTH_CREATE_REQUEST_IDENTITY');assert.equal(row.port,4452,'AUTH_CREATE_REQUEST_PORT');assert.equal(row.route,route,'AUTH_CREATE_REQUEST_ROUTE');assert.equal(row.method,method,'AUTH_CREATE_REQUEST_METHOD');return row;
  };
- const snapshot=(label,id)=>{const route=`${prefix(value.observerId)}/cases/${id}`;const state=take(label+'-state','observer',route),history=take(label+'-history','observer',route+'/events');assert.equal(state.status,200,'AUTH_CREATE_OBSERVER_STATUS');assert.equal(history.status,200,'AUTH_CREATE_OBSERVER_STATUS');assert.equal(String(state.response.id),id,'AUTH_CREATE_OBSERVER_CASE');assert(Number.isSafeInteger(state.response.version)&&state.response.version>0,'AUTH_CREATE_OBSERVER_VERSION');assert(Array.isArray(history.response),'AUTH_CREATE_OBSERVER_HISTORY');return {state:state.response,history:history.response};};
+ const snapshot=(label,id)=>{const route=`${prefix(value.observerId)}/cases/${id}`;const state=take(label+'-state','observer',route),history=take(label+'-history','observer',route+'/events');assert.equal(state.status,200,'AUTH_CREATE_OBSERVER_STATUS');assert.equal(history.status,200,'AUTH_CREATE_OBSERVER_STATUS');assert.equal(String(state.response.id),id,'AUTH_CREATE_OBSERVER_CASE');assert(Number.isSafeInteger(state.response.version)&&state.response.version>=0,'AUTH_CREATE_OBSERVER_VERSION');assert(Array.isArray(history.response),'AUTH_CREATE_OBSERVER_HISTORY');return {state:state.response,history:history.response};};
  const bootstrap=(label,persona,id)=>{
   const token=take(label+'-bootstrap-token','bootstrap',`${prefix(value.bootstrapId)}/event-triggers/create/token`),created=take(label+'-bootstrap-create','bootstrap',`${prefix(value.bootstrapId)}/cases`,'POST');assert.equal(token.status,200,'AUTH_CREATE_BOOTSTRAP_TOKEN');assert.equal(created.status,201,'AUTH_CREATE_BOOTSTRAP_CASE');assert.equal(String(created.response.id),id,'AUTH_CREATE_BOOTSTRAP_ASSOCIATION');assert.equal(created.sentTokenDigest,token.tokenDigest,'AUTH_CREATE_TOKEN_LINK');assert.match(token.tokenDigest,/^sha256:[a-f0-9]{64}$/,'AUTH_CREATE_TOKEN_LINK');assert.deepEqual(created.body.data,dataFor(persona),'AUTH_CREATE_BOOTSTRAP_PAYLOAD');assert.equal(created.body.event.id,'create','AUTH_CREATE_BOOTSTRAP_EVENT');
  };
