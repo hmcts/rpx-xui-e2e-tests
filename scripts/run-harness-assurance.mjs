@@ -55,11 +55,19 @@ export async function runAssuranceSequence({ native, prepare, profile, descripto
       const started = clock();
       try {
         const result = await profile(signal);
+        assert(result && typeof result === 'object' && !Array.isArray(result), 'ASSURANCE_PROFILE_RESULT_REQUIRED');
         assert.equal(result.status, "passed", "ASSURANCE_PROFILE_RESULT_REQUIRED");
-        assert(result.reportRequest, "ASSURANCE_PROFILE_REQUEST_REQUIRED");
+        assert(result.reportRequest && typeof result.reportRequest === 'object' && !Array.isArray(result.reportRequest), "ASSURANCE_PROFILE_REQUEST_REQUIRED");
+        assert.deepEqual(Object.keys(result.reportRequest).sort(), ['digest','path','runId'], 'ASSURANCE_PROFILE_REQUEST_REQUIRED');
+        assert(typeof result.reportRequest.path === 'string' && path.isAbsolute(result.reportRequest.path)
+          && typeof result.reportRequest.digest === 'string' && /^sha256:[a-f0-9]{64}$/.test(result.reportRequest.digest)
+          && typeof result.reportRequest.runId === 'string' && result.reportRequest.runId.length > 0, 'ASSURANCE_PROFILE_REQUEST_REQUIRED');
         profileRequest = result.reportRequest;
       } catch {
-        profileAttempt = { schemaVersion: 1, kind: "divorce-profile-attempt", status: "BLOCKED", reason: "profile-not-admitted" };
+        const stopped = cancelled(); if (stopped) return stopped;
+        // The profile API has no trusted failure result proving child termination/cleanup.
+        withdraw();
+        return finish({nativeStatus:verdict.status,profileStatus:'BLOCKED',diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
       } finally {
         profileDurationMs = Math.round(clock() - started);
         if(profileAttempt)profileAttempt.durationMs = profileDurationMs;

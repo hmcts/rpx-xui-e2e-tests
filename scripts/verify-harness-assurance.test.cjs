@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const api = () => import("./run-harness-assurance.mjs");
+const passedProfileRequest = Object.freeze({path:'/private/profile.json',digest:'sha256:'+'a'.repeat(64),runId:'divorce-11111111-1111-4111-8111-111111111111'});
 
 test("contradictory native status and missing diagnostic exit cannot become success", async () => {
   const { runAssuranceSequence } = await api();
@@ -326,8 +327,9 @@ test('explicit profile output still attempts the strict profile and preserves it
  assert.equal(actual.calls.filter(x=>x==='profile').length,1);
  assert.equal(actual.result.profileStatus,'BLOCKED');
  const collections=actual.calls.filter(x=>x.collect);
- assert.equal(collections.length,1);
- assert.equal(collections[0].collect.divorceProfileAttempt.status,'BLOCKED');
+ assert.equal(collections.length,0);
+ assert.equal(actual.result.diagnosticStatus,'not-run');
+ assert.equal(actual.calls.filter(x=>x==='withdraw').length,2);
  assert.equal(actual.result.exitCode,2);
 });
 test('an invalid explicit profile path cannot silently select main-only execution', async t => {
@@ -481,11 +483,18 @@ test('canonical joint sequence runs profile after complete blocked main and coll
  assert.deepEqual(order,['native','prepare','profile','descriptor','collect']);assert.equal(result.nativeStatus,'BLOCKED');assert.equal(result.profileStatus,'PASS');assert.equal(result.exitCode,2);assert.equal(result.releaseApproval,false);
 });
 
-test('canonical joint profile failures remain explicit despite passing main and diagnostics',async()=>{
+test('every thrown profile failure stops before descriptor or diagnostics, including unobserved termination',async()=>{
  const {runAssuranceSequence}=await api();
- for(const fault of ['setup','execution','admission','cleanup']){let collections=0;
-  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{throw Error('PRIVATE-CANARY-'+fault);},descriptor:async(verdict,request)=>{assert.equal(verdict.status,'PASS');assert.equal(request,undefined);return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');assert.equal(timing.divorceProfileAttempt.reason,'profile-not-admitted');assert(!JSON.stringify(timing).includes('PRIVATE-CANARY'));return {status:'passed',exitCode:0};}});
-  assert.equal(collections,1);assert.equal(result.exitCode,2);assert.equal(result.nativeStatus,'PASS');assert.equal(result.profileStatus,'BLOCKED');
+ for(const fault of ['setup','execution','admission','cleanup','unobserved-termination','pending-create']){const calls=[];
+  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{throw Error('PRIVATE-CANARY-'+fault);},descriptor:async()=>{calls.push('descriptor');return '/private/main.json';},collect:async()=>{calls.push('collect');return {status:'passed',exitCode:0};},withdraw:()=>calls.push('withdraw'),publish:value=>calls.push({published:value})});
+  assert.deepEqual(calls,['withdraw',{published:result}]);assert.equal(result.exitCode,2);assert.equal(result.nativeStatus,'PASS');assert.equal(result.profileStatus,'BLOCKED');assert.equal(result.diagnosticStatus,'not-run');assert(!JSON.stringify(result).includes('PRIVATE-CANARY'));
+ }
+});
+test('missing or unsupported profile API results cannot launch downstream work',async()=>{
+ const {runAssuranceSequence}=await api();
+ for(const value of [undefined,null,{}, {status:'failed'}, {status:'passed'}, {status:'passed',reportRequest:{}}, {status:'passed',reportRequest:{...passedProfileRequest,path:'relative'}}, {status:'passed',reportRequest:{...passedProfileRequest,digest:'invalid'}}, {status:'passed',reportRequest:{...passedProfileRequest,digest:{toString:()=>passedProfileRequest.digest}}}, {status:'passed',reportRequest:{...passedProfileRequest,runId:''}}]){
+  const calls=[];const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),profile:async()=>value,descriptor:async()=>{calls.push('descriptor');return '/private/native';},collect:async()=>{calls.push('collect');return {status:'passed',exitCode:0};},withdraw:()=>calls.push('withdraw')});
+  assert.deepEqual(calls,['withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');assert.equal(result.profileStatus,'BLOCKED');
  }
 });
 
@@ -493,7 +502,7 @@ test('canonical joint skips ineligible profile and bad profile pins cannot repla
  const {runAssuranceSequence}=await api();let launches=0,collections=0;
  const skipped=await runAssuranceSequence({native:async()=>({status:'BLOCKED',exitCode:2}),prepare:async()=>{throw Error('PRIVATE-CLEANUP');},profile:async()=>{launches++;},descriptor:async()=>{throw Error('INCOMPLETE');},collect:async(file,timing)=>{collections++;assert.equal(file,undefined);assert.equal(timing.divorceProfileAttempt.status,'NOT_RUN');assert.equal(timing.divorceProfileAttempt.reason,'main-evidence-unavailable');return {status:'passed',exitCode:0};}});assert.equal(launches,0);assert.equal(collections,1);assert.equal(skipped.exitCode,2);
  let descriptors=0;collections=0;
- const mismatch=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>({status:'passed',reportRequest:{path:'/stale/profile'}}),descriptor:async(verdict,request)=>{descriptors++;if(request)throw Error('BAD_PROFILE_PIN');return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');return {status:'passed',exitCode:0};}});assert.equal(descriptors,2);assert.equal(collections,1);assert.equal(mismatch.exitCode,2);
+ const mismatch=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>({status:'passed',reportRequest:{...passedProfileRequest,path:'/stale/profile'}}),descriptor:async(verdict,request)=>{descriptors++;if(request)throw Error('BAD_PROFILE_PIN');return '/private/main.json';},collect:async(file,timing)=>{collections++;assert.equal(file,'/private/main.json');assert.equal(timing.divorceProfileAttempt.status,'BLOCKED');return {status:'passed',exitCode:0};}});assert.equal(descriptors,2);assert.equal(collections,1);assert.equal(mismatch.exitCode,2);
 });
 
 test('canonical joint cancellation prohibits every later child and withdraws report',async()=>{
@@ -501,7 +510,7 @@ test('canonical joint cancellation prohibits every later child and withdraws rep
  for(const stop of ['preflight','native','prepare','profile','descriptor','collect']){
   const controller=new AbortController(),calls=[];let withdrawn=0;if(stop==='preflight')controller.abort();
   const stage=async name=>{calls.push(name);if(stop===name)controller.abort();};
-  const result=await runAssuranceSequence({signal:controller.signal,withdraw:()=>withdrawn++,native:async()=>{await stage('native');return {status:'PASS',exitCode:0};},prepare:async()=>{await stage('prepare');},profile:async()=>{await stage('profile');return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>{await stage('descriptor');return '/native';},collect:async()=>{await stage('collect');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};}});
+  const result=await runAssuranceSequence({signal:controller.signal,withdraw:()=>withdrawn++,native:async()=>{await stage('native');return {status:'PASS',exitCode:0};},prepare:async()=>{await stage('prepare');},profile:async()=>{await stage('profile');return {status:'passed',reportRequest:passedProfileRequest};},descriptor:async()=>{await stage('descriptor');return '/native';},collect:async()=>{await stage('collect');return {status:'passed',exitCode:0,divorceProfileInclusion:'included'};}});
   assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');assert.equal(withdrawn,1);const expected=['native','prepare','profile','descriptor','collect'];assert.deepEqual(calls,stop==='preflight'?[]:expected.slice(0,expected.indexOf(stop)+1));
  }
 });
@@ -513,8 +522,8 @@ test('canonical joint publishes whole-command BLOCKED without changing passing m
   const binding={synthetic:'parent-captured-output'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(output,'private/native-cohort-binding.json'),bytes);
   const captured={nativeCohortCapture:{binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}}},job={output};
   const main=JSON.stringify({status:'PASS',phaseResults:[{phase:'family',status:'PASS'}]});fs.writeFileSync(path.join(output,'private/ci-result.json'),main);let published=0,collections=0;
-  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{if(profileFails)throw Error('PRIVATE-CANARY');return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>'/native',collect:async()=>{collections++;return {status:'passed',exitCode:0,divorceProfileInclusion:profileFails?undefined:'included'};},publish:value=>{published++;publishAssuranceSummary(job,captured,value);}});
-  assert.equal(published,1);assert.equal(collections,1);assert.equal(result.exitCode,profileFails?2:0);assert.equal(fs.readFileSync(path.join(output,'private/ci-result.json'),'utf8'),main);
+  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{if(profileFails)throw Error('PRIVATE-CANARY');return {status:'passed',reportRequest:passedProfileRequest};},descriptor:async()=>'/native',collect:async()=>{collections++;return {status:'passed',exitCode:0,divorceProfileInclusion:profileFails?undefined:'included'};},publish:value=>{published++;publishAssuranceSummary(job,captured,value);}});
+  assert.equal(published,1);assert.equal(collections,profileFails?0:1);assert.equal(result.exitCode,profileFails?2:0);assert.equal(fs.readFileSync(path.join(output,'private/ci-result.json'),'utf8'),main);
   const summary=validatePublicSummary(path.join(output,'public/release-assurance-summary.json'));assert.equal(summary.status,profileFails?'BLOCKED':'PASS');assert.equal(summary.releaseApproval,false);
  }
  const foreign=fs.mkdtempSync(path.join(os.tmpdir(),'assurance-unowned-'));t.after(()=>fs.rmSync(foreign,{recursive:true,force:true}));fs.writeFileSync(path.join(foreign,'canary'),'untouched');publishAssuranceSummary({output:foreign},{},{exitCode:2});assert.deepEqual(fs.readdirSync(foreign),['canary']);
@@ -522,5 +531,5 @@ test('canonical joint publishes whole-command BLOCKED without changing passing m
 
 test('canonical joint abort after observed profile cleanup cannot start descriptor or diagnostics',async()=>{
  const {runAssuranceSequence}=await api(),controller=new AbortController(),order=[];
- const result=await runAssuranceSequence({signal:controller.signal,native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{order.push('profile');order.push('cleanup-observed');controller.abort();return {status:'passed',reportRequest:{path:'/profile'}};},descriptor:async()=>{order.push('descriptor');},collect:async()=>{order.push('diagnostics');},withdraw:()=>order.push('withdraw')});assert.deepEqual(order,['profile','cleanup-observed','withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');
+ const result=await runAssuranceSequence({signal:controller.signal,native:async()=>({status:'PASS',exitCode:0}),prepare:async()=>{},profile:async()=>{order.push('profile');order.push('cleanup-observed');controller.abort();return {status:'passed',reportRequest:passedProfileRequest};},descriptor:async()=>{order.push('descriptor');},collect:async()=>{order.push('diagnostics');},withdraw:()=>order.push('withdraw')});assert.deepEqual(order,['profile','cleanup-observed','withdraw']);assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'not-run');
 });
