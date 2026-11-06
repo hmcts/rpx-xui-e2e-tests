@@ -37,7 +37,8 @@ export function callbackUiFailureCode(error) {
  if(error?.code==='EACCES')return 'CALLBACK_UI_FILE_PERMISSION';
  return 'CALLBACK_UI_PHASE_FAILED';
 }
-export function verifyCallbackUiRuntime(state, imported, {request=ccdRequest, inspect=verifyCcdContainerIdentity}={}) {
+export function verifyCallbackUiRuntime(state, imported, {request=ccdRequest, inspect=verifyCcdContainerIdentity,writeReceipt=true}={}) {
+ assert.equal(typeof writeReceipt,'boolean','CALLBACK_UI_VERIFICATION_WRITE_MODE');
  inspect(state);
  // The callback derivative has its own sealed receipt; never read baseline definition-import.json.
  const retained=read(path.join(state.output,'recipient-callback-import/receipt.json'));
@@ -49,7 +50,7 @@ export function verifyCallbackUiRuntime(state, imported, {request=ccdRequest, in
  const observer=ccdCredentials(state,'observer',{request});const observed={};
  const verification={kind:'recipient-callback-runtime-verification',status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,observations:{}};
  const verificationPath=path.join(state.output,'recipient-callback-import/runtime-verification.json');
- const saveVerification=()=>fs.writeFileSync(verificationPath,JSON.stringify(verification,null,2)+'\n',{mode:0o600});
+ const saveVerification=()=>{if(writeReceipt)fs.writeFileSync(verificationPath,JSON.stringify(verification,null,2)+'\n',{mode:0o600});};
  for(const [name,route] of [['definition','/api/data/case-type/HarnessNestedPRL'],['pages','/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments']]){
   const response=request(state,4451,route,{headers:observer.headers});verification.observations[name]=response;saveVerification();
   if(response.status!==200){verification.status='readback-failed';verification.failedDescriptor=name;saveVerification();throw Error('CALLBACK_UI_IMPORT_READBACK_FAILED');}

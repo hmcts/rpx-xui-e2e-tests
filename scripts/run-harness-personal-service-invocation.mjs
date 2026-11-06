@@ -18,7 +18,7 @@ export async function runPersonalInvocation(expectedFile,expectedDigest) {
  const input=readPersonalPrepared(binding,cohort,{live:true});assert.deepEqual(personalProducer(),cohort.producer,'PERSONAL_SERVICE_CHILD_SOURCE');
  assert.deepEqual(await verifyCandidateArtifact(cohort.candidateManifest),cohort.artifact,'PERSONAL_SERVICE_CHILD_CANDIDATE');assert.equal(await digestCandidateTree(cohort.browser.root),cohort.browser.digest,'PERSONAL_SERVICE_CHILD_BROWSER');
  verifyCcdContainerIdentity(binding.ccd);
- assert.deepEqual(verifyCallbackUiRuntime(binding.ccd,personalJson(binding.directory,'runtime/recipient-callback-import/receipt.json')),input.callbackObservedDigests,'PERSONAL_SERVICE_CHILD_DESCRIPTOR');
+ assert.deepEqual(verifyCallbackUiRuntime(binding.ccd,personalJson(binding.directory,'runtime/recipient-callback-import/receipt.json'),{writeReceipt:false}),input.callbackObservedDigests,'PERSONAL_SERVICE_CHILD_DESCRIPTOR');
  assert.deepEqual(readPersonalServiceDate(binding.ccd,input.definition.definitionVersion,{writeReceipt:false}),personalJson(binding.directory,'runtime/recipient-callback-import/personal-service-stored-row-date.json'),'PERSONAL_SERVICE_CHILD_DATE');
  const plan=personalPlan(input,binding.handoff);for(const item of [plan.candidate,plan.tools])assert.equal(inspectHostContainer(item.name),null,'PERSONAL_SERVICE_CHILD_NOT_FRESH');
  const resources=new Map();let cancelled=false,terminal,cleanupComplete=false;

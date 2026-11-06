@@ -65,3 +65,16 @@ test('retained CCD inspection rejects coherently rehashed foreign owner or stopp
 for(const phase of ['before','after'])for(const field of ['Entrypoint','Cmd'])test(`event scope without optional plan process rejects wrong ${phase} ${field}`,async()=>{
  const d=tmp();try{const p=await parentPacket(d),m=await api(),b=p.bindings.baseline;assert.equal(b.plan.candidate.launchProcess,undefined);m.validatePersonalNativeFinalization(b);const lifecycle=m.personalJson(b.directory,'baseline/candidate-lifecycle.json');lifecycle[phase].Config[field]=['foreign-process'];p.put('baseline/baseline/candidate-lifecycle.json',lifecycle);assert.throws(()=>m.validatePersonalNativeFinalization(b),/OCI_CONTAINER_(ENTRYPOINT|COMMAND)_MISMATCH/);}finally{fs.rmSync(d,{recursive:true,force:true});}
 });
+test('live revalidation preserves parent receipt bytes across harmless CCD array ordering and still rejects semantic drift',async()=>{
+ const {verifyCallbackUiRuntime}=await import('./run-harness-recipient-callback-ui.mjs'),{deriveRecipientCallbackFixture}=await import('./lib/exui-recipient-callback-fixture.mjs'),{binding}=deriveRecipientCallbackFixture(),d=tmp();
+ try{
+  fs.mkdirSync(d+'/recipient-callback-import');const state={output:d,owner:'harness-fixture',namespace:'owned-fixture',images:{data:{id:'fixed'}}};
+  const definition={id:'HarnessNestedPRL',version:{number:2},events:[{id:binding.eventId}]},pages={case_type_id:'HarnessNestedPRL',event_id:binding.eventId,wizard_pages:[{id:'serviceOfDocuments2',wizard_page_fields:[{case_field_id:binding.fieldId,order:8},{case_field_id:'protectedValue',order:2}],callback_url_mid_event:binding.normalizedUrl}]};
+  const imported={kind:'recipient-callback-import-feasibility',status:'import-and-callback-descriptor-observed',owner:state.owner,namespace:state.namespace,images:state.images,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false,seal:{binding},observations:{definition:{status:200,body:definition},pages:{status:200,body:pages}}};
+  fs.writeFileSync(d+'/recipient-callback-import/receipt.json',JSON.stringify(imported));let live=structuredClone(pages),calls=0;
+  const request=(_state,_port,route)=>{calls++;if(route==='/testing-support/accounts')return {status:201,body:{}};if(route==='/o/token')return {status:200,body:{access_token:'synthetic-fixture'}};if(route==='/details')return {status:200,body:{id:'fixture-observer'}};if(route==='/testing-support/lease')return {status:200,body:'fixture-service'};return {status:200,body:route.includes('/wizard-page-structure/')?live:definition};};
+  const expected=verifyCallbackUiRuntime(state,imported,{request,inspect:()=>{}}),held=fs.readFileSync(d+'/recipient-callback-import/runtime-verification.json');const oldCalls=calls;live.wizard_pages[0].wizard_page_fields.reverse();
+  assert.deepEqual(verifyCallbackUiRuntime(state,imported,{request,inspect:()=>{},writeReceipt:false}),expected);assert(calls>oldCalls);assert.deepEqual(fs.readFileSync(d+'/recipient-callback-import/runtime-verification.json'),held);
+  live.wizard_pages[0].callback_url_mid_event=null;assert.throws(()=>verifyCallbackUiRuntime(state,imported,{request,inspect:()=>{},writeReceipt:false}),/CALLBACK_UI_IMPORT_DRIFT/);assert.deepEqual(fs.readFileSync(d+'/recipient-callback-import/runtime-verification.json'),held);
+ }finally{fs.rmSync(d,{recursive:true,force:true});}
+});
