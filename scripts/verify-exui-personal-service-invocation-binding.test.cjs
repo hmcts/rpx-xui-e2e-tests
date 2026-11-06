@@ -94,3 +94,10 @@ test('controlled terminal-plus-absence shortcut wrongly brands a pending creator
 test('first parent cleanup failure cannot be erased by successful finally retry',async t=>{
  const {personalClosure}=require('./fixtures/exui-personal-service-closure.mock.cjs'),r=await personalClosure(t,'cleanup-retry');assert(r.error);assert.equal(r.state.calls.filter(x=>x==='ccd-cleanup').length,2);assert.equal(r.closed,false,'first failed cleanup must stay unsafe');assert.equal(r.state.calls.includes('prepare:optional'),false);
 });
+
+for(const [platform,runtimeArchitecture] of [['linux/arm64','arm64'],['linux/amd64','x64']])test('personal cohort accepts exact Node runtime architecture for '+platform,async()=>{
+ const d=tmp();try{const p=await parentPacket(d,{platform,runtimeArchitecture}),m=await api();const result=m.readPersonalCohort(d,p.expected);assert.equal(result.status,'fresh-cohort-ready-for-independent-review');assert.equal(result.catalogueCredit,false);}finally{fs.rmSync(d,{recursive:true,force:true});}
+});
+for(const [platform,runtimeArchitecture] of [['linux/arm64','x64'],['linux/amd64','arm64'],['linux/amd64','amd64']])test('personal cohort rejects mismatched Node architecture '+runtimeArchitecture+' for '+platform,async()=>{
+ const d=tmp();try{const p=await parentPacket(d,{platform,runtimeArchitecture}),m=await api();assert.throws(()=>m.readPersonalCohort(d,p.expected),/PERSONAL_SERVICE_PARENT_BINDING/);}finally{fs.rmSync(d,{recursive:true,force:true});}
+});
