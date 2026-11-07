@@ -87,6 +87,11 @@ export async function reportNativeProgress(label, operation) {
   }
 }
 
+export function appendPrivateEventLifecycleTimings(target, diagnostic) {
+  if (diagnostic?.kind === "private-event-runtime-lifecycle-timings" && diagnostic.proofAuthority === false && diagnostic.catalogueCredit === false && Array.isArray(diagnostic.records))
+    target.push(...diagnostic.records);
+}
+
 export function fixedCiPhasesPassed(results) {
   const phases = ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback', 'selectorEventRow'];
   return results.length === phases.length && results.every((result, index) => result.phase === phases[index] && result.status === 'PASS');
@@ -562,8 +567,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
           if (name === "eventCapability") {
             try {
               const diagnostic = read(path.join(directory, "event-runtime-lifecycle-timings.json"));
-              if (diagnostic?.kind === "private-event-runtime-lifecycle-timings" && diagnostic.proofAuthority === false && diagnostic.catalogueCredit === false && Array.isArray(diagnostic.records))
-                eventRuntimeLifecycleTimings = diagnostic.records;
+              appendPrivateEventLifecycleTimings(eventRuntimeLifecycleTimings, diagnostic);
             } catch { /* Optional lifecycle diagnostics do not affect phase outcomes. */ }
           }
           await remove(name, resource);

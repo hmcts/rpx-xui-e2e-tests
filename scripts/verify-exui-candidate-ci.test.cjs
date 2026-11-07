@@ -23,6 +23,28 @@ const job = {
   output: "/outputs/fresh",
 };
 
+test("support only: collector retains private lifecycle timings without granting proof authority", async () => {
+  const { appendPrivateEventLifecycleTimings } = await load();
+  const row = { sequence: 1, durationMs: 12 };
+  const records = [];
+  appendPrivateEventLifecycleTimings(records, {
+    kind: "private-event-runtime-lifecycle-timings",
+    proofAuthority: false,
+    catalogueCredit: false,
+    records: [row],
+  });
+  assert.deepEqual(records, [row]);
+  for (const diagnostic of [
+    { kind: "private-event-runtime-lifecycle-timings", proofAuthority: true, catalogueCredit: false, records: [row] },
+    { kind: "private-event-runtime-lifecycle-timings", proofAuthority: false, catalogueCredit: true, records: [row] },
+    { kind: "other", proofAuthority: false, catalogueCredit: false, records: [row] },
+    { kind: "private-event-runtime-lifecycle-timings", proofAuthority: false, catalogueCredit: false, records: {} },
+  ]) {
+    appendPrivateEventLifecycleTimings(records, diagnostic);
+  }
+  assert.deepEqual(records, [row]);
+});
+
 test("support only: actual CI phase accounting waits for controlled process completion and validated receipt transport", async () => {
   const { executeCiProcess } = await load();
   const directory = fs.mkdtempSync(
