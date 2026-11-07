@@ -38,6 +38,7 @@ export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
   "src/tests/harness/st-cic-profile/global-search.spec.ts",
   "scripts/lib/exui-divorce-native-binding.mjs",
   "scripts/lib/exui-candidate-ci-inputs.mjs",
+  "scripts/lib/exui-event-runtime-timing.mjs",
   "scripts/run-harness-ci.mjs",
   "scripts/run-harness-assurance.mjs",
   "scripts/run-harness-divorce-joint-assurance.mjs",

@@ -180,6 +180,7 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
       return { schemaVersion: 1, scope: 'assurance-start-to-report-snapshot', clock: 'monotonic', startedAt: assuranceStartedAt, elapsedMs: Math.round(elapsed) };
     }),
     ...(nativeEvidencePath ? { nativeElapsedMs, ...(verdict.phaseTimings ? { phaseTimings: verdict.phaseTimings } : {}) } : {}),
+    ...(nativeEvidencePath && Array.isArray(verdict.eventRuntimePreparationTimings) ? { eventRuntimePreparationTimings: verdict.eventRuntimePreparationTimings } : {}),
     ...(profileAttempt ? { divorceProfileAttempt: profileAttempt } : {}),
     ...(personalAttempt ? { personalServiceAttempt: personalAttempt } : {}),
     ...(complexAttempt ? { complexEmailAttempt: complexAttempt } : {}),

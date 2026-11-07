@@ -341,6 +341,7 @@ test("support only: independently recognized postal blockage permits the event s
 
 test("support only: actual event parent captures all eleven fault runtimes before ACK and rejects partial preparation", async (t) => {
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
+  const { timeEventRuntimePreparation } = await import('./lib/exui-event-runtime-timing.mjs');
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
   const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS } = await import("./lib/exui-ccd-event-capability.mjs");
   const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
@@ -350,7 +351,8 @@ test("support only: actual event parent captures all eleven fault runtimes befor
     const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "parent-event-"));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
-    const calls = [], resource = { expectedContainer: { invocations: ["baseline"] } };
+    const calls = [], preparationTimings = [], resource = { expectedContainer: { invocations: ["baseline"] } };
+    let fakeTime = 0;
     let cancelled = false;
     const step = name => { calls.push(name); if (stoppedAt === name) throw Error("controlled-" + name); };
     const request = { runId: "synthetic-run", baselineNamespace: "old" };
@@ -358,6 +360,7 @@ test("support only: actual event parent captures all eleven fault runtimes befor
     const handoff = { input, expected: { harnessCommit: "commit", harnessSourceDigest: digest("a") }, handoff: {}, isTerminated: () => cancelled };
     const deps = {
       assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {}, cancelled: false,
+      timeEventRuntimePreparation: (records, entry) => timeEventRuntimePreparation(records, entry, { clock: () => fakeTime += 1, timestamp: () => `time-${fakeTime}` }),
       EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS, eventCapabilityFaultVariant,
       resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
@@ -367,15 +370,20 @@ test("support only: actual event parent captures all eleven fault runtimes befor
         assert.equal(name, "event-baseline-runtime"); assert.equal(owned, "owned-baseline");
         step("ccd-removed"); return { cleanupComplete: true };
       },
-      startOwnedCcd: async (name, fixture, alive, owner) => {
+      startOwnedCcd: async (name, fixture, alive, owner, _callbackVariant, onTiming) => {
         const variant = fixture.slice("event-capability-".length);
         assert(["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `shape-${id.slice(10)}-mutant`)].includes(variant));
         assert.equal(name, `event-${variant}-runtime`);
         assert.equal(owner, resource); assert.equal(alive(), true);
-        step("start-" + variant);
-        if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
-        return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
+        const runtime = await onTiming("startup", async () => {
+          step("start-" + variant);
+          if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
+          return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
           containers: { database: variant, data: variant === "read-mutant" && stoppedAt === "reused-cid" ? "mutant-data" : variant + "-data" } };
+        });
+        await onTiming("definition-import", () => undefined);
+        await onTiming("identity-verification", () => undefined);
+        return runtime;
       },
       eventRuntimeData: ccd => ({ ccd, definition: { fixtureDigest: digest("c") } }),
       selectEventCapabilityRuntime: (baseline, invocation, record) => {
@@ -403,15 +411,55 @@ test("support only: actual event parent captures all eleven fault runtimes befor
         return publishEventCapabilityRuntime(output, record);
       },
     };
+    deps.eventRuntimePreparationTimings = preparationTimings;
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
     if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
     else await run(request, handoff);
+    const faultInvocations=[EVENT_CAPABILITY_MUTATION,COURTADMIN_READ_MUTATION,READONLY_READ_MUTATION,READONLY_UPDATE_MUTATION,COURTADMIN_UPDATE_MUTATION,...SOURCE_SHAPE_MUTATIONS];
+    const preparationSteps=['startup','definition-import','identity-verification','runtime-observation','ownership-capture','transition-identity'];
+    if(stoppedAt===null){
+      assert.deepEqual(preparationTimings.map(({runId,invocationId,step,status})=>({runId,invocationId,step,status})),faultInvocations.flatMap(invocationId=>preparationSteps.map(step=>({runId:request.runId,invocationId,step,status:'completed'}))));
+    }else if(stoppedAt==='start-mutant'){
+      assert.deepEqual(preparationTimings.map(({invocationId,step,status})=>({invocationId,step,status})),[{invocationId:EVENT_CAPABILITY_MUTATION,step:'startup',status:'failed'}]);
+    }else if(stoppedAt==='owned-mutant'){
+      assert.deepEqual(preparationTimings.map(({invocationId,step,status})=>({invocationId,step,status})),[
+        ...preparationSteps.slice(0,4).map(step=>({invocationId:EVENT_CAPABILITY_MUTATION,step,status:'completed'})),
+        {invocationId:EVENT_CAPABILITY_MUTATION,step:'ownership-capture',status:'failed'},
+      ]);
+    }else if(stoppedAt?.startsWith('start-')){
+      assert.equal(preparationTimings.at(-1)?.step,'startup');assert.equal(preparationTimings.at(-1)?.status,'failed');
+    }else if(stoppedAt?.startsWith('owned-')){
+      assert.equal(preparationTimings.at(-1)?.step,'ownership-capture');assert.equal(preparationTimings.at(-1)?.status,'failed');
+    }else assert.equal(preparationTimings.some(row=>row.status==='failed'),false);
     for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
     const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "start-courtadmin-update-mutant", "owned-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.flatMap(id => [`start-shape-${id.slice(10)}-mutant`, `owned-shape-${id.slice(10)}-mutant`]), "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant", "ack-readonly-update-mutant", "ack-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `ack-shape-${id.slice(10)}-mutant`)];
     const count = stoppedAt === "cancel-after-read" ? 7 : stoppedAt?.startsWith("reused-") ? 6 : order.indexOf(stoppedAt) + 1;
     assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0, count));
   }
+});
+
+test('private event preparation timings preserve substep order and record failed work', async () => {
+ const {timeEventRuntimePreparation}=await import('./lib/exui-event-runtime-timing.mjs');
+ const records=[];let tick=0;
+ const options={clock:()=>tick+=10,timestamp:()=>`time-${tick}`};
+ await timeEventRuntimePreparation(records,{runId:'run-1',invocationId:'fault-1',step:'startup',action:async()=>{}},options);
+ await assert.rejects(timeEventRuntimePreparation(records,{runId:'run-1',invocationId:'fault-1',step:'definition-import',action:async()=>{throw Error('private failure');}},options),/private failure/);
+ assert.deepEqual(records.map(({runId,invocationId,step,status,durationMs})=>({runId,invocationId,step,status,durationMs})),[
+  {runId:'run-1',invocationId:'fault-1',step:'startup',status:'completed',durationMs:10},
+  {runId:'run-1',invocationId:'fault-1',step:'definition-import',status:'failed',durationMs:10},
+ ]);
+});
+
+test('private event preparation timing failures never replace or suppress proof actions', async () => {
+ const {timeEventRuntimePreparation}=await import('./lib/exui-event-runtime-timing.mjs');
+ const value={proof:'result'}, expectedError=Error('proof failed');let actions=0;
+ const unavailable=[];
+ assert.equal(timeEventRuntimePreparation(unavailable,{runId:'run',invocationId:'fault',step:'startup',action:()=>{actions++;return value;}},{clock:()=>{throw Error('clock failed');},timestamp:()=>{throw Error('timestamp failed');}}),value);
+ const brokenRecords=new Proxy([],{set(){throw Error('record storage failed');},get(target,key){if(key==='push')return ()=>{throw Error('record failed');};return Reflect.get(target,key);}});
+ assert.equal(timeEventRuntimePreparation(brokenRecords,{runId:'run',invocationId:'fault',step:'startup',action:()=>{actions++;return value;}},{clock:(()=>{let n=0;return()=>n++;})(),timestamp:()=> '2026-11-07T00:00:00.000Z'}),value);
+ assert.throws(()=>timeEventRuntimePreparation(unavailable,{runId:'run',invocationId:'fault',step:'startup',action:()=>{actions++;throw expectedError;}},{clock:()=>{throw Error('clock failed');},timestamp:()=> '2026-11-07T00:00:00.000Z'}),error=>error===expectedError);
+ assert.equal(actions,3);
 });
 
 test("support only: receipt consumption uses independent expected identity and re-evaluates raw evidence", async () => {
@@ -1531,6 +1579,7 @@ function eventPreparationDeferred() {
 const eventPreparationTick = () => new Promise(setImmediate);
 
 test('owned CCD cleanup joins the actual callback import, identity and final cancellation boundary', { timeout: 2000 }, async t => {
+  const {timeEventRuntimePreparation}=await import('./lib/exui-event-runtime-timing.mjs');
   const source = fs.readFileSync(path.join(__dirname, 'run-harness-ci.mjs'), 'utf8');
   const before = '  const remove = async (_id, resource) => {', middle = '  const startOwnedCcd = async ', after = '  const eventRuntimeData = ';
   for (const marker of [before, middle, after]) assert.equal(source.split(marker).length, 2, 'unique actual owned-start/remove boundary');
@@ -1538,7 +1587,8 @@ test('owned CCD cleanup joins the actual callback import, identity and final can
   for (const fault of ['none', 'import', 'identity', 'startup-unknown']) {
     const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-owned-import-'));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-    const importing = eventPreparationDeferred(), startup = eventPreparationDeferred(), events = [];
+    const importing = eventPreparationDeferred(), startup = eventPreparationDeferred(), events = [], timings = [];
+    let fakeTime=0;
     const expectedError = new Error('controlled-' + fault);
     const dependencies = {
       assert, fs, path, privateRoot: root, context: { artifact: { provenance: { platform: 'linux/arm64' } } },
@@ -1552,11 +1602,12 @@ test('owned CCD cleanup joins the actual callback import, identity and final can
       importCcdDefinition: () => assert.fail('callback branch expected'), verifyCcdRuntimeIdentity: () => assert.fail('callback branch expected'),
       importNativeCallbackDefinition: async () => { events.push('import'); await importing.promise; if (fault === 'import') throw expectedError; },
       verifyNativeCallbackRuntime: () => { events.push('identity'); if (fault === 'identity') throw expectedError; },
+      timeEventRuntimePreparation: (_records,entry) => timeEventRuntimePreparation(timings,{runId:'test-run',invocationId:'callback-runtime',...entry},{clock:()=>fakeTime+=1,timestamp:()=>`time-${fakeTime}`}),
       cleanupCiCcd: () => { events.push('cleanup'); return { cleanupComplete: true }; },
     };
     const api = new Function(...Object.keys(dependencies), `let cleanupComplete=true,cancelled=false;const resources=new Map();\n${block}\nreturn {startOwnedCcd,remove,resources,cancel:()=>{cancelled=true;},isClean:()=>cleanupComplete};`)(...Object.values(dependencies));
     const phase = { name: 'eventCapability' }; api.resources.set(phase.name, phase);
-    const start = api.startOwnedCcd('callback-runtime', 'event-capability-baseline', () => true, phase, 'baseline');
+    const start = api.startOwnedCcd('callback-runtime', 'event-capability-baseline', () => true, phase, 'baseline',(step,action)=>dependencies.timeEventRuntimePreparation([], {runId:'test-run',invocationId:'callback-runtime',step,action}));
     const observed = start.then(() => ({}), error => ({ error }));
     await eventPreparationTick();
     assert.deepEqual([...api.resources.keys()], ['callback-runtime', 'eventCapability'], 'phase child must remain first in reverse cleanup');
@@ -1570,6 +1621,11 @@ test('owned CCD cleanup joins the actual callback import, identity and final can
     importing.resolve();
     const result = await observed; await removal;
     assert.equal(removed, true); assert.equal(events.at(-1), 'cleanup');
+    assert.deepEqual(timings.map(({step,status})=>({step,status})),[
+      {step:'startup',status:fault==='startup-unknown'?'failed':'completed'},
+      ...(fault==='startup-unknown'?[]:[{step:'definition-import',status:fault==='import'?'failed':'completed'}]),
+      ...(fault==='startup-unknown'||fault==='import'?[]:[{step:'identity-verification',status:fault==='identity'?'failed':'completed'}]),
+    ]);
     if (fault === 'none') assert.match(result.error.message, /CI_EVENT_IMPORT_CANCELLED/); else assert.equal(result.error, expectedError);
     assert.equal(api.resources.has('callback-runtime'), false);
     assert.equal(api.isClean(), fault !== 'startup-unknown', 'unknown creation remains fail-closed after a settled promise');
