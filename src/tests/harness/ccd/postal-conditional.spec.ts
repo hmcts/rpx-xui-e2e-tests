@@ -21,6 +21,7 @@ test(
     await test.step("harness-detail:postal-open-create", async () => {
       await page.goto("/cases/case-create/HARNESS/HarnessNestedPRL/create");
     });
+
     await test.step("harness-detail:postal-select-two-recipients", async () => {
       await page.getByRole("button", { name: "Add new", exact: true }).click();
       await page.getByLabel("Post", { exact: true }).check();
@@ -36,6 +37,7 @@ test(
     const address1 = page.locator('input[id$="AddressLine1"]');
     const address2 = page.locator('input[id$="AddressLine2"]');
     const postcodes = page.locator('input[id$="PostCode"]');
+
     await test.step("harness-detail:postal-check-conditional-fields", async () => {
       await expect(names).toHaveCount(2);
       await expect(names.first()).toBeVisible();
@@ -137,6 +139,7 @@ test(
         expect(submitted.status()).toBe(201);
         return await observeCcd(String((await submitted.json()).id));
       });
+
     await test.step("harness-detail:postal-write-readback-artifact", async () => {
       fs.writeFileSync(
         `${process.env.EXUI_CCD_EVIDENCE}/postal-readback.json`,
