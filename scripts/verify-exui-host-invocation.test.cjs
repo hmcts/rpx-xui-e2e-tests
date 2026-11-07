@@ -13,6 +13,7 @@ function fixture(fault) {
   const owner = "candidate-11111111-1111-4111-8111-111111111111";
   const containers = new Map(),
     calls = [],
+    inspectCalls = [],
     resources = new Map();
   let next = 0;
   const lookup = (key) =>
@@ -20,6 +21,7 @@ function fixture(fault) {
       (x) => x.Id === key || x.Name === "/" + key,
     ) ?? null;
   const inspect = (key) => {
+    inspectCalls.push(key);
     const value = lookup(key);
     return value ? structuredClone(value) : null;
   };
@@ -91,8 +93,11 @@ function fixture(fault) {
       if (
         fault !== "startup-cancel" &&
         info.Config.Labels["exui.harness.service"] === "browser-provider"
-      )
-        write("provider-ready.json", {});
+      ) {
+        if (fault === "provider-exits-before-ready") setTimeout(() => { info.State.Running = false; }, 250);
+        else if (fault === "delayed-provider-ready") setTimeout(() => write("provider-ready.json", {}), 1250);
+        else write("provider-ready.json", {});
+      }
       return "";
     }
     if (op === "logs") return "diagnostic-only";
@@ -179,11 +184,36 @@ function fixture(fault) {
     inspect,
     runProof,
     calls,
+    inspectCalls,
     write,
     containers,
     dispose: () => fs.rmSync(output, { recursive: true, force: true }),
   };
 }
+test("support only: provider readiness polls its file frequently without spawning inspect every 100ms", async () => {
+  const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
+  const f = fixture("delayed-provider-ready");
+  try {
+    const result = await runHostInvocation(f.spec, f);
+    assert.equal(result.terminal.code, 0);
+    assert(f.inspectCalls.filter(key => key === "1".repeat(64)).length <= 8);
+    assert.equal(f.containers.size, 0);
+  } finally {
+    f.dispose();
+  }
+});
+test("support only: provider health failure is detected within the one-second inspection interval", async () => {
+  const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
+  const f = fixture("provider-exits-before-ready");
+  const started = Date.now();
+  try {
+    await assert.rejects(runHostInvocation(f.spec, f), /HOST_PROVIDER_STARTUP_EXIT/);
+    assert(Date.now() - started < 2000);
+    assert.equal(f.containers.size, 0);
+  } finally {
+    f.dispose();
+  }
+});
 test("support only: real shared engine observes separate API lifetime and final cleanup before returning framework terminal", async () => {
   const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
   const f = fixture();
@@ -432,7 +462,7 @@ test("support only: provider-startup cancellation removes only the registered To
   const { EventEmitter } = require("node:events");
   const f = fixture("startup-cancel"),
     target = new EventEmitter();
-  let exit;
+  let exit, cancelled = false;
   const timings = [];
   target.stderr = { write: () => {} };
   target.exit = (code) => {
@@ -441,13 +471,13 @@ test("support only: provider-startup cancellation removes only the registered To
   const uninstall = installCancellationCleanup({
     resources: f.resources,
     target,
-    onCancel: () => {},
+    onCancel: () => { cancelled = true; },
     remove: (key) => removeHostResource(f.resources, key, f.spec.output, f),
   });
   try {
-    const running = runHostInvocation(f.spec, { ...f, onLifecycleTiming: record => timings.push(record) });
+    const running = runHostInvocation(f.spec, { ...f, isCancelled: () => cancelled, onLifecycleTiming: record => timings.push(record) });
     target.emit("SIGTERM");
-    await assert.rejects(running, /PROVIDER_STARTUP_EXIT/);
+    await assert.rejects(running, /HOST_INVOCATION_CANCELLED/);
     assert.equal(exit, 2);
     assert.equal(f.containers.size, 0);
     assert.equal(f.calls.filter((x) => x[0] === "create").length, 1);

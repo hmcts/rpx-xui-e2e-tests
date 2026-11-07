@@ -145,11 +145,19 @@ const resourcesProbe =
 const runtimeProbe =
   "console.log(JSON.stringify({nodeVersion:process.version,platform:process.platform,architecture:process.arch,osRelease:require('fs').readFileSync('/etc/os-release','utf8')}))";
 const writeProbe = `const fs=require('fs');const paths=${JSON.stringify(WRITE_DENIAL_PATHS)};const attempts=paths.map(path=>{try{fs.mkdirSync(require('path').dirname(path),{recursive:true});fs.writeFileSync(path,'candidate-must-not-author-evidence');return {path,denied:false};}catch(error){return {path,denied:['EROFS','EACCES','ENOENT'].includes(error.code),code:error.code};}});console.log(JSON.stringify({attempts,controllerSourceVisible:fs.existsSync('/harness/playwright.harness.config.ts')}));`;
-async function waitForReady(file, id, inspect) {
+async function waitForReady(file, id, inspect, isCancelled) {
   const until = Date.now() + 180000;
+  let lastInspection = 0;
   while (Date.now() < until) {
-    assert(inspect(id)?.State.Running, "HOST_PROVIDER_STARTUP_EXIT");
-    if (fs.existsSync(file)) return;
+    assert(!isCancelled(), "HOST_INVOCATION_CANCELLED");
+    if (fs.existsSync(file)) {
+      assert(inspect(id)?.State.Running, "HOST_PROVIDER_STARTUP_EXIT");
+      return;
+    }
+    if (Date.now() - lastInspection >= 1000) {
+      assert(inspect(id)?.State.Running, "HOST_PROVIDER_STARTUP_EXIT");
+      lastInspection = Date.now();
+    }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw Error("HOST_PROVIDER_STARTUP_TIMEOUT");
@@ -210,6 +218,7 @@ export async function runHostInvocation(
       path.join(directory, "provider-ready.json"),
       tools.id,
       inspect,
+      isCancelled,
     ));
     checkCancellation();
     timeProviderStage(3, () => assertOwnedContainer(inspect(tools.id), { ...tools, running: true }));
