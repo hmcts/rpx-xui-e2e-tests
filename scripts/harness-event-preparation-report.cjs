@@ -16,11 +16,30 @@ const faults = [
 const steps = ['startup','definition-import','identity-verification','runtime-observation','ownership-capture','transition-identity'];
 const lifecycleInvocations = ['baseline','ccd-enable-judge-event','ccd-remove-courtadmin-recipient-read','ccd-remove-readonly-recipient-read','ccd-enable-readonly-recipient-update','ccd-remove-courtadmin-event-create','ccd-shape-recipient-collection','ccd-shape-case-field-recipient-selector','ccd-shape-required-delivery-radio','ccd-shape-conditional-email-complex','ccd-shape-postal-recipient-name','ccd-shape-optional-postal-line-two'];
 const lifecycleSteps = ['browser-provider-setup','candidate-runtime-setup','application-readiness','playwright-proof','post-proof-resource-observation','candidate-graceful-shutdown','provider-graceful-shutdown','resource-cleanup'];
+const providerSetupSteps = ['provider-container-create','provider-container-start','provider-readiness','provider-ownership-check','provider-egress-probes'];
 const failure = () => new Error('PUBLIC_EVENT_PREPARATION_TIMINGS_INVALID');
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
 const phaseStatus = evidence => evidence?.phases?.find(phase => phase.phase === 'eventCapability')?.status;
 const digestRunId = value => typeof value === 'string' && /^(?:ccd|candidate)-[a-f0-9-]{36}$/.test(value);
 const validTimestamp = value => typeof value === 'string' && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+
+function validateProviderSetupDetails(details, status, durationMs) {
+  assert(Array.isArray(details) && details.length === providerSetupSteps.length);
+  let incomplete = false, failed = 0, elapsed = 0;
+  details.forEach((item, index) => {
+    assert(exactKeys(item, ['step','status','durationMs']));
+    assert.equal(item.step, providerSetupSteps[index]);
+    if (item.status === 'not-run') { assert.equal(item.durationMs, null); incomplete = true; return; }
+    assert(['completed','failed'].includes(item.status) && !incomplete);
+    assert(Number.isSafeInteger(item.durationMs) && item.durationMs >= 0 && item.durationMs <= 7_200_000);
+    if (item.status === 'failed') { failed++; incomplete = true; }
+    elapsed += item.durationMs;
+  });
+  assert(failed <= 1);
+  assert(status !== 'completed' || details.every(item => item.status === 'completed'));
+  assert(elapsed <= durationMs + details.length);
+  return details;
+}
 
 function validateEventRuntimePreparationTimings(records, evidence) {
   try {
@@ -147,7 +166,7 @@ function validateEventRuntimeLifecycleTimings(records, evidence) {
     let runId,prior=-1,failedAt;
     const invocations=lifecycleInvocations.map(id=>({id,steps:lifecycleSteps.map(name=>({name,status:'not-run',durationMs:null}))}));
     records.forEach((row,index)=>{
-      assert(exactKeys(row,['sequence','runId','invocationId','step','status','startedAt','durationMs']));
+      assert(exactKeys(row,row.step==='browser-provider-setup'?['sequence','runId','invocationId','step','status','startedAt','durationMs',...(Object.hasOwn(row,'details')?['details']:[])]:['sequence','runId','invocationId','step','status','startedAt','durationMs']));
       assert.equal(row.sequence,index+1);
       if(runId===undefined)runId=row.runId;
       assert.equal(row.runId,runId);
@@ -162,7 +181,7 @@ function validateEventRuntimeLifecycleTimings(records, evidence) {
         if(failedAt===undefined)failedAt=invocationIndex;
         else assert(row.step==='resource-cleanup'&&invocationIndex===failedAt);
       }
-      invocations[invocationIndex].steps[stepIndex]={name:row.step,status:row.status,durationMs:row.durationMs};
+      invocations[invocationIndex].steps[stepIndex]={name:row.step,status:row.status,durationMs:row.durationMs,...(row.details===undefined?{}:{details:validateProviderSetupDetails(row.details,row.status,row.durationMs)})};
     });
     const all=invocations.flatMap(x=>x.steps),completedSteps=all.filter(x=>x.status==='completed').length,failedSteps=all.filter(x=>x.status==='failed').length,totalSteps=all.length;
     return {schemaVersion:1,phaseStatus:nativeStatus,status:failedSteps?'failed':completedSteps===totalSteps?'complete':completedSteps?'partial':'not-run',completedSteps,failedSteps,totalSteps,invocations};
@@ -183,13 +202,14 @@ function validateEventRuntimeLifecycleSummary(value,evidence) {
     value.invocations.forEach((invocation,index)=>{
       assert(exactKeys(invocation,['id','steps']));assert.equal(invocation.id,lifecycleInvocations[index]);assert.equal(invocation.steps.length,lifecycleSteps.length);
       invocation.steps.forEach((step,stepIndex)=>{
-        assert(exactKeys(step,['name','status','durationMs']));assert.equal(step.name,lifecycleSteps[stepIndex]);
+        assert(exactKeys(step,step.name==='browser-provider-setup'?['name','status','durationMs',...(Object.hasOwn(step,'details')?['details']:[])]:['name','status','durationMs']));assert.equal(step.name,lifecycleSteps[stepIndex]);
           if(step.status==='not-run'){assert.equal(step.durationMs,null);if(firstFailure===undefined)gap=true;}
         else {
           assert(['completed','failed'].includes(step.status));assert(Number.isSafeInteger(step.durationMs)&&step.durationMs>=0&&step.durationMs<=7_200_000);
             if(step.status==='failed'){failed++;if(firstFailure===undefined)firstFailure=index;else assert(index===firstFailure&&step.name==='resource-cleanup'&&!cleanupSeen);}
             else {if(firstFailure!==undefined){assert(index===firstFailure&&step.name==='resource-cleanup'&&!cleanupSeen);cleanupSeen=true;}else assert(!gap);complete++;}
-        }
+      }
+      if (Object.hasOwn(step,'details')) validateProviderSetupDetails(step.details,step.status,step.durationMs);
       });
     });
     assert.equal(complete,value.completedSteps);assert.equal(failed,value.failedSteps);
@@ -201,8 +221,8 @@ function validateEventRuntimeLifecycleSummary(value,evidence) {
 
 function renderEventRuntimeLifecycleTimings(value) {
   const status=value.status==='complete'?'Every recorded invocation reached cleanup':value.status==='failed'?`${value.completedSteps} timed stages completed; one stage failed`:value.status==='partial'?`${value.completedSteps} stage timings were recorded; later stages did not run`:value.status==='unavailable'?'Lifecycle timings are unavailable; proof outcomes are unchanged':'No lifecycle timings were recorded';
-  const rows=value.invocations.map(invocation=>`<tr><th scope="row">${invocation.id==='baseline'?'Baseline':invocation.id.replace(/^ccd-/,'').replaceAll('-',' ')}</th>${invocation.steps.map(step=>`<td data-step-status="${step.status}">${step.status==='not-run'?'Not recorded':`${step.status==='failed'?'Failed':'Completed'} · ${step.durationMs} ms`}</td>`).join('')}</tr>`).join('');
-  return `<section id="harness-event-runtime-lifecycle" aria-labelledby="harness-event-runtime-lifecycle-title"><h2 id="harness-event-runtime-lifecycle-title">Source-event browser and candidate lifecycle timings</h2><p>${status} (${value.completedSteps}/${value.totalSteps}; event phase outcome ${value.phaseStatus}). The 12 rows cover one baseline and 11 fault scenarios. These diagnostic durations include the browser-provider and candidate setup/probes, application readiness request, Playwright proof, post-proof resource observations, candidate shutdown, provider shutdown, and owned-resource cleanup. The longer intervals include provider and candidate work, so they are not browser-only timings. These nested substeps are non-additive to the event phase and provide no catalogue credit; lifecycle timing availability never changes proof status.</p><div class="table-responsive"><table class="table"><thead><tr><th>Invocation</th>${lifecycleSteps.map(x=>`<th>${x.replaceAll('-',' ')}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  const rows=value.invocations.map(invocation=>`<tr><th scope="row">${invocation.id==='baseline'?'Baseline':invocation.id.replace(/^ccd-/,'').replaceAll('-',' ')}</th>${invocation.steps.map(step=>`<td data-step-status="${step.status}">${step.status==='not-run'?'Not recorded':`${step.status==='failed'?'Failed':'Completed'} · ${step.durationMs} ms`}${step.details?`<small class="harness-provider-breakdown">Provider setup breakdown:<br>${step.details.map(detail=>`${detail.step.replaceAll('-',' ')} · ${detail.status==='not-run'?'not run':`${detail.status} · ${detail.durationMs} ms`}`).join('<br>')}</small>`:''}</td>`).join('')}</tr>`).join('');
+  return `<section id="harness-event-runtime-lifecycle" aria-labelledby="harness-event-runtime-lifecycle-title"><h2 id="harness-event-runtime-lifecycle-title">Source-event browser and candidate lifecycle timings</h2><p>${status} (${value.completedSteps}/${value.totalSteps}; event phase outcome ${value.phaseStatus}). The 12 rows cover one baseline and 11 fault scenarios. These diagnostic durations include the browser-provider and candidate setup/probes, application readiness request, Playwright proof, post-proof resource observations, candidate shutdown, provider shutdown, and owned-resource cleanup. The longer intervals include provider and candidate work, so they are not browser-only timings. Browser-provider setup is broken down into container create/start, readiness, ownership, and egress checks; its aggregate also includes resource registration and registry writes. These nested substeps are non-additive to the aggregate or event phase and provide no catalogue credit; lifecycle timing availability never changes proof status.</p><div class="table-responsive"><table class="table"><thead><tr><th>Invocation</th>${lifecycleSteps.map(x=>`<th>${x.replaceAll('-',' ')}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 module.exports={validateEventRuntimePreparationTimings,validateEventPreparationSummary,unavailableEventPreparationSummary,renderEventPreparationTimings,validateEventRuntimeLifecycleTimings,validateEventRuntimeLifecycleSummary,unavailableEventRuntimeLifecycleTimings,renderEventRuntimeLifecycleTimings};

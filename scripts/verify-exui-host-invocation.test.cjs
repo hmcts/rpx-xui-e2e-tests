@@ -238,6 +238,14 @@ test("support only: source-event host invocation reports ordered provider, candi
       ["provider-graceful-shutdown", "completed"],
       ["resource-cleanup", "completed"],
     ]);
+    assert.deepEqual(timings[0].details.map(({ step, status }) => [step, status]), [
+      ["provider-container-create", "completed"],
+      ["provider-container-start", "completed"],
+      ["provider-readiness", "completed"],
+      ["provider-ownership-check", "completed"],
+      ["provider-egress-probes", "completed"],
+    ]);
+    assert(timings[0].details.every(row => Number.isSafeInteger(row.durationMs) && row.durationMs >= 0));
     for (const timing of timings) {
       assert.equal(timing.invocationId, "baseline");
       assert.equal(timing.runId, f.spec.owner);
@@ -425,6 +433,7 @@ test("support only: provider-startup cancellation removes only the registered To
   const f = fixture("startup-cancel"),
     target = new EventEmitter();
   let exit;
+  const timings = [];
   target.stderr = { write: () => {} };
   target.exit = (code) => {
     exit = code;
@@ -436,12 +445,19 @@ test("support only: provider-startup cancellation removes only the registered To
     remove: (key) => removeHostResource(f.resources, key, f.spec.output, f),
   });
   try {
-    const running = runHostInvocation(f.spec, f);
+    const running = runHostInvocation(f.spec, { ...f, onLifecycleTiming: record => timings.push(record) });
     target.emit("SIGTERM");
     await assert.rejects(running, /PROVIDER_STARTUP_EXIT/);
     assert.equal(exit, 2);
     assert.equal(f.containers.size, 0);
     assert.equal(f.calls.filter((x) => x[0] === "create").length, 1);
+    assert.deepEqual(timings[0].details.map(({step,status}) => [step,status]), [
+      ["provider-container-create", "completed"],
+      ["provider-container-start", "completed"],
+      ["provider-readiness", "failed"],
+      ["provider-ownership-check", "not-run"],
+      ["provider-egress-probes", "not-run"],
+    ]);
   } finally {
     uninstall();
     f.dispose();

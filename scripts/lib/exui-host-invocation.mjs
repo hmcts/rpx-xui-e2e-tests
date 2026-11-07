@@ -11,13 +11,15 @@ import { terminateOwnedChild } from "./exui-candidate-runtime.mjs";
 import { writeJsonAtomic } from "./exui-evidence-io.mjs";
 import { performance } from "node:perf_hooks";
 
-function timeLifecycle(onTiming, runId, invocationId, step, action) {
+const PROVIDER_SETUP_STEPS = ['provider-container-create','provider-container-start','provider-readiness','provider-ownership-check','provider-egress-probes'];
+
+function timeLifecycle(onTiming, runId, invocationId, step, action, details) {
   if (typeof onTiming !== "function") return action();
   let startedAt, started;
   try { startedAt = new Date().toISOString(); started = performance.now(); } catch { /* Diagnostics never control proof. */ }
   const record = (status) => {
     if (startedAt === undefined || started === undefined) return;
-    try { onTiming({ runId, invocationId, step, status, startedAt, durationMs: Math.max(0, Math.round(performance.now() - started)) }); } catch { /* Diagnostics never control proof. */ }
+    try { onTiming({ runId, invocationId, step, status, startedAt, durationMs: Math.max(0, Math.round(performance.now() - started)), ...(details ? {details:details()} : {}) }); } catch { /* Diagnostics never control proof. */ }
   };
   try {
     const result = action();
@@ -171,7 +173,11 @@ export async function runHostInvocation(
     assert(!isCancelled(), "HOST_INVOCATION_CANCELLED");
   checkCancellation();
   const { directory, output, owner, invocationId } = spec;
-  const timed = (step, action) => timeLifecycle(onLifecycleTiming, owner, invocationId, step, action);
+  const timed = (step, action, details) => timeLifecycle(onLifecycleTiming, owner, invocationId, step, action, details);
+  const providerDetails = typeof onLifecycleTiming === 'function' ? PROVIDER_SETUP_STEPS.map(step => ({step,status:'not-run',durationMs:null})) : undefined;
+  const timeProviderStage = (index, action) => providerDetails ? timeLifecycle(record => {
+    providerDetails[index] = {step:PROVIDER_SETUP_STEPS[index],status:record.status,durationMs:record.durationMs};
+  }, owner, invocationId, PROVIDER_SETUP_STEPS[index], action) : action();
   const toolsName = `${owner}-${invocationId}-tools`,
     candidateName = `${owner}-${invocationId}-candidate`;
   const tools = resource(toolsName, {
@@ -193,18 +199,21 @@ export async function runHostInvocation(
   try {
     await timed("browser-provider-setup", async () => {
     register(tools);
-    tools.id = docker(namedArguments(spec.tools.args, toolsName));
-    assert(/^[a-f0-9]{64}$/.test(tools.id), "HOST_TOOLS_CID_REQUIRED");
+    timeProviderStage(0, () => {
+      tools.id = docker(namedArguments(spec.tools.args, toolsName));
+      assert(/^[a-f0-9]{64}$/.test(tools.id), "HOST_TOOLS_CID_REQUIRED");
+    });
     created(tools);
     saveRegistry(output, resources);
-    docker(["start", tools.id]);
-    await waitForReady(
+    timeProviderStage(1, () => docker(["start", tools.id]));
+    await timeProviderStage(2, () => waitForReady(
       path.join(directory, "provider-ready.json"),
       tools.id,
       inspect,
-    );
+    ));
     checkCancellation();
-    assertOwnedContainer(inspect(tools.id), { ...tools, running: true });
+    timeProviderStage(3, () => assertOwnedContainer(inspect(tools.id), { ...tools, running: true }));
+    timeProviderStage(4, () => {
     const probes = JSON.parse(
       docker([
         "exec",
@@ -219,6 +228,7 @@ export async function runHostInvocation(
       "HOST_NAMESPACE_EGRESS_AVAILABLE",
     );
     });
+    }, () => providerDetails);
     const namespace = spec.namespace ?? tools.id;
     candidate = resource(candidateName, {
       owner,
