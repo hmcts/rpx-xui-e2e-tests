@@ -331,3 +331,16 @@ test("held receipt reopens actual JUnit and stderr bytes instead of trusting evi
     assert.equal(f.api.readHeldBuildSelfChecks(held).status, "passed");
   }
 });
+
+test("configured self-check concurrency 2 is explicit and retains one byte-bound structured run", async (t) => {
+  const f = await fixture(t);
+  const result = await f.api.runConfiguredSelfChecks({ testConcurrency: 2 });
+  assert.equal(result.status, "passed");
+  const argv = JSON.parse(fs.readFileSync(f.argvPath));
+  assert.deepEqual(argv.args.slice(0, 2), ["--test", "--test-concurrency=2"]);
+  assert.deepEqual(argv.args.slice(-2), f.unitFiles);
+  assert.equal(
+    f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks()).counts.tests,
+    2,
+  );
+});

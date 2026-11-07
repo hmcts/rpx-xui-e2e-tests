@@ -41,6 +41,10 @@ exports.buildSelfCheckFixture = async (t, { failed = false } = {}) => {
     path.join(source, "scripts/harness-self-check-reporter.mjs"),
     path.join(root, "scripts/harness-self-check-reporter.mjs"),
   );
+  fs.copyFileSync(
+    path.join(source, "scripts/fixtures/exui-self-check-fixed-port-lock.cjs"),
+    path.join(root, "scripts/fixtures/exui-self-check-fixed-port-lock.cjs"),
+  );
   const spy = path.join(parent, "child-process.mjs");
   fs.writeFileSync(
     spy,

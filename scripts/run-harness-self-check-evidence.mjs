@@ -9,7 +9,8 @@ import { terminateOwnedChild } from "./lib/exui-candidate-runtime.mjs";
 import { validateSelfCheckOutcome } from "./harness-self-check-reporter.mjs";
 const root = fs.realpathSync(fileURLToPath(new URL("../", import.meta.url)));
 const reporter = "scripts/harness-self-check-reporter.mjs",
-  collector = "scripts/run-harness-self-check-evidence.mjs";
+  collector = "scripts/run-harness-self-check-evidence.mjs",
+  fixedPortHelper = "scripts/fixtures/exui-self-check-fixed-port-lock.cjs";
 const hash = (bytes) =>
   "sha256:" + createHash("sha256").update(bytes).digest("hex");
 const fail = "HARNESS_SELF_CHECK_EVIDENCE_INVALID";
@@ -29,6 +30,7 @@ function sourceSnapshot(files) {
     ...files,
     reporter,
     collector,
+    fixedPortHelper,
     "package.json",
     ".gitignore",
     "scripts/fixtures/harness-unit-files.json",
@@ -46,11 +48,17 @@ function sourceSnapshot(files) {
   };
 }
 // Component API only: explicit source-owned files; no default suite or CI publication.
-export async function collectNodeSelfCheckEvidence({ files, output, signal }) {
+export async function collectNodeSelfCheckEvidence({
+  files,
+  output,
+  signal,
+  testConcurrency = 1,
+}) {
   const started = performance.now(),
     startedAt = new Date().toISOString();
   assert(process.versions.node.split(".")[0] === "24", fail);
   assert(!signal?.aborted, fail);
+  assert(testConcurrency === 1 || testConcurrency === 2, fail);
   assert(
     Array.isArray(files) &&
       files.length > 0 &&
@@ -84,6 +92,9 @@ export async function collectNodeSelfCheckEvidence({ files, output, signal }) {
   const before = sourceSnapshot(files);
   fs.mkdirSync(output, { mode: 0o700 });
   fs.chmodSync(output, 0o700);
+  const fixedPortDirectory = path.join(output, "fixed-port-lock");
+  fs.mkdirSync(fixedPortDirectory, { mode: 0o700 });
+  fs.chmodSync(fixedPortDirectory, 0o700);
   const save = (name, value) =>
     fs.writeFileSync(
       path.join(output, name),
@@ -94,6 +105,7 @@ export async function collectNodeSelfCheckEvidence({ files, output, signal }) {
   save("source-input.json", {
     runId,
     nodeVersion: process.version,
+    ...(testConcurrency === 2 ? { testConcurrency } : {}),
     files,
     before,
   });
@@ -118,7 +130,7 @@ export async function collectNodeSelfCheckEvidence({ files, output, signal }) {
       process.execPath,
       [
         "--test",
-        "--test-concurrency=1",
+        "--test-concurrency=" + testConcurrency,
         "--test-reporter=" + path.join(root, reporter),
         "--test-reporter-destination=stdout",
         "--test-reporter=junit",
@@ -132,6 +144,7 @@ export async function collectNodeSelfCheckEvidence({ files, output, signal }) {
           PATH: process.env.PATH,
           HOME: process.env.HOME,
           TMPDIR: process.env.TMPDIR,
+          HARNESS_SELF_CHECK_FIXED_PORT_LOCK: fixedPortDirectory,
         },
       },
     );
@@ -160,6 +173,9 @@ export async function collectNodeSelfCheckEvidence({ files, output, signal }) {
     cancelled: signal?.aborted ?? false,
     ...terminal,
   };
+  // Uncertain cleanup cannot release the fixture lease or publish successful evidence.
+  ownedDirectory(fixedPortDirectory);
+  assert(fs.readdirSync(fixedPortDirectory).length === 0, fail);
   let summary;
   try {
     assert(fs.statSync(summaryPath).size <= 16 * 1024, fail);
@@ -391,7 +407,22 @@ function validateRequest(request, expected) {
     evidence = JSON.parse(bytes["self-check-evidence.json"]),
     files = readConfiguredUnitFiles(),
     current = sourceSnapshot(files);
-  exact(input, ["runId", "nodeVersion", "files", "before"]);
+  exact(input, [
+    "runId",
+    "nodeVersion",
+    "files",
+    "before",
+    ...(Object.hasOwn(input, "testConcurrency") ? ["testConcurrency"] : []),
+  ]);
+  assert(
+    input.testConcurrency === undefined ||
+      input.testConcurrency === 1 ||
+      input.testConcurrency === 2,
+    fail,
+  );
+  const fixedPortDirectory = path.join(request.directory, "fixed-port-lock");
+  ownedDirectory(fixedPortDirectory);
+  assert(fs.readdirSync(fixedPortDirectory).length === 0, fail);
   same(input.files, files);
   exact(input.before, [
     "commit",
@@ -484,7 +515,10 @@ function validateRequest(request, expected) {
     releaseApproval: false,
   };
 }
-export async function runConfiguredSelfChecks({ signal } = {}) {
+export async function runConfiguredSelfChecks({
+  signal,
+  testConcurrency = 1,
+} = {}) {
   const directory = buildPrivateRoot(true),
     requestPath = path.join(directory, "current-request.json");
   if (fs.existsSync(requestPath)) {
@@ -498,6 +532,7 @@ export async function runConfiguredSelfChecks({ signal } = {}) {
     files,
     output,
     signal,
+    testConcurrency,
   });
   if (evidence.sourceUnchanged) {
     const request = {

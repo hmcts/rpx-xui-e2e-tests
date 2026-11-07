@@ -1,3 +1,4 @@
+require("./fixtures/exui-self-check-fixed-port-lock.cjs").installFixedPortHooks("provider");
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

@@ -5,7 +5,7 @@ const test = require("node:test"),
   path = require("node:path");
 const { sources } = require("./fixtures/exui-self-check-evidence.mock.cjs");
 const root = path.resolve(__dirname, "..");
-async function run(t, name, signal, controller) {
+async function run(t, name, signal, controller, testConcurrency = 1) {
   const folder = fs.mkdtempSync(
       path.join(root, "scripts/fixtures/self-check-owned-"),
     ),
@@ -40,6 +40,7 @@ async function run(t, name, signal, controller) {
       files: [path.relative(root, file)],
       output,
       signal,
+      testConcurrency,
     });
   return { m, result, output, ready };
 }
@@ -354,4 +355,330 @@ test("every per-file summary is complete and additive outcome counters agree wit
     { ...file.data, counts: { ...counts, passed: 0, todo: 1 } },
   ])
     assert.equal((await collect([{ ...file, data }, global])).complete, false);
+});
+
+// Pure fixture tests substitute only TCP vacancy observations; actual five provider
+// test files retain real probes and real fixed-port authority in the full run.
+function fakeFixedPortVacancy(t) {
+  const net = require("node:net"),
+    { EventEmitter } = require("node:events");
+  const original = net.createConnection;
+  net.createConnection = ({ host, port }) => {
+    assert.equal(host, "127.0.0.1");
+    assert([3100, 3101, 3102, 3103, 3104].includes(port));
+    const socket = new EventEmitter();
+    socket.destroy = () => {};
+    socket.setTimeout = () =>
+      queueMicrotask(() =>
+        socket.emit(
+          "error",
+          Object.assign(new Error("fixture refusal"), { code: "ECONNREFUSED" }),
+        ),
+      );
+    return socket;
+  };
+  t.after(() => {
+    net.createConnection = original;
+  });
+}
+
+test("fixed-port lease serializes holders and never deletes foreign replacement ownership", async (t) => {
+  fakeFixedPortVacancy(t);
+  const {
+    acquireFixedPortLock,
+  } = require("./fixtures/exui-self-check-fixed-port-lock.cjs");
+  const directory = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "self-check-lock-"),
+  );
+  fs.chmodSync(directory, 0o700);
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const first = await acquireFixedPortLock({ directory, timeoutMs: 1000 });
+  let acquired = false;
+  const pending = acquireFixedPortLock({ directory, timeoutMs: 1000 }).then(
+    (lease) => {
+      acquired = true;
+      return lease;
+    },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  assert.equal(acquired, false);
+  await first.release();
+  const second = await pending;
+  assert.equal(acquired, true);
+  const token = path.join(directory, "fixed-ports.lock");
+  fs.unlinkSync(token);
+  fs.writeFileSync(token, "foreign", { mode: 0o600, flag: "wx" });
+  await assert.rejects(second.release(), /SELF_CHECK_FIXED_PORT_LOCK/);
+  assert.equal(fs.readFileSync(token, "utf8"), "foreign");
+});
+test("fixed-port lease rejects bounded wait, cancellation and aliased roots without stale removal", async (t) => {
+  fakeFixedPortVacancy(t);
+  const {
+    acquireFixedPortLock,
+  } = require("./fixtures/exui-self-check-fixed-port-lock.cjs");
+  const directory = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "self-check-lock-"),
+  );
+  fs.chmodSync(directory, 0o700);
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const held = await acquireFixedPortLock({ directory, timeoutMs: 1000 });
+  const bytes = fs.readFileSync(path.join(directory, "fixed-ports.lock"));
+  await assert.rejects(
+    acquireFixedPortLock({ directory, timeoutMs: 20 }),
+    /SELF_CHECK_FIXED_PORT_LOCK/,
+  );
+  const controller = new AbortController();
+  const waiting = acquireFixedPortLock({
+    directory,
+    timeoutMs: 1000,
+    signal: controller.signal,
+  });
+  controller.abort();
+  await assert.rejects(waiting, /SELF_CHECK_FIXED_PORT_LOCK/);
+  assert.deepEqual(
+    fs.readFileSync(path.join(directory, "fixed-ports.lock")),
+    bytes,
+  );
+  const alias = directory + "-alias";
+  fs.symlinkSync(directory, alias);
+  t.after(() => fs.unlinkSync(alias));
+  await assert.rejects(
+    acquireFixedPortLock({ directory: alias }),
+    /SELF_CHECK_FIXED_PORT_LOCK/,
+  );
+  await held.release();
+});
+test("fixed-port release requires refused fixed destinations and fails closed on connected or unknown probe", async (t) => {
+  fakeFixedPortVacancy(t);
+  const {
+    acquireFixedPortLock,
+  } = require("./fixtures/exui-self-check-fixed-port-lock.cjs");
+  const net = require("node:net"),
+    { EventEmitter } = require("node:events");
+  const directory = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "self-check-lock-"),
+  );
+  fs.chmodSync(directory, 0o700);
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const lease = await acquireFixedPortLock({ directory });
+  const original = net.createConnection;
+  net.createConnection = () => {
+    const socket = new EventEmitter();
+    socket.destroy = () => {};
+    socket.setTimeout = () => queueMicrotask(() => socket.emit("connect"));
+    return socket;
+  };
+  try {
+    await assert.rejects(lease.release(), /SELF_CHECK_FIXED_PORT_LOCK/);
+  } finally {
+    net.createConnection = original;
+  }
+  assert(fs.existsSync(path.join(directory, "fixed-ports.lock")));
+  net.createConnection = () => {
+    const socket = new EventEmitter();
+    socket.destroy = () => {};
+    socket.setTimeout = () => queueMicrotask(() => socket.emit("timeout"));
+    return socket;
+  };
+  try {
+    await assert.rejects(lease.release(), /SELF_CHECK_FIXED_PORT_LOCK/);
+  } finally {
+    net.createConnection = original;
+  }
+  assert(fs.existsSync(path.join(directory, "fixed-ports.lock")));
+  await lease.release();
+  assert.equal(fs.existsSync(path.join(directory, "fixed-ports.lock")), false);
+  await assert.rejects(lease.release());
+});
+test("parallel collector preserves both file outcomes and pins fixed-port fixture bytes", async (t) => {
+  const folder = fs.mkdtempSync(
+    path.join(root, "scripts/fixtures/self-check-owned-"),
+  );
+  const privateRoot = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "self-check-parallel-"),
+  );
+  t.after(() => {
+    fs.rmSync(folder, { recursive: true, force: true });
+    fs.rmSync(privateRoot, { recursive: true, force: true });
+  });
+  const files = ["one.cjs", "two.cjs"].map((name) => {
+    const file = path.join(folder, name);
+    fs.writeFileSync(file, sources.fixedPortParallel);
+    return path.relative(root, file);
+  });
+  const { collectNodeSelfCheckEvidence } =
+    await import("./run-harness-self-check-evidence.mjs");
+  const result = await collectNodeSelfCheckEvidence({
+    files,
+    output: path.join(privateRoot, "evidence"),
+    testConcurrency: 2,
+  });
+  assert.equal(result.status, "passed");
+  assert.equal(result.selectedFiles, 2);
+  assert.equal(result.counts.tests, 2);
+  const input = JSON.parse(
+    fs.readFileSync(path.join(privateRoot, "evidence/source-input.json")),
+  );
+  assert.equal(input.testConcurrency, 2);
+  assert(
+    input.before.entries.some(
+      ([name]) =>
+        name === "scripts/fixtures/exui-self-check-fixed-port-lock.cjs",
+    ),
+  );
+  assert.deepEqual(
+    fs.readdirSync(path.join(privateRoot, "evidence/fixed-port-lock")),
+    [],
+  );
+  for (const bad of [0, 3, 4, "2", null]) {
+    const target = path.join(privateRoot, "invalid-" + String(bad));
+    await assert.rejects(
+      collectNodeSelfCheckEvidence({
+        files,
+        output: target,
+        testConcurrency: bad,
+      }),
+    );
+    assert.equal(fs.existsSync(target), false);
+  }
+});
+test("unreleased holder cannot publish self-check evidence after a successful Node exit", async (t) => {
+  const folder = fs.mkdtempSync(
+    path.join(root, "scripts/fixtures/self-check-owned-"),
+  );
+  const privateRoot = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "self-check-unreleased-"),
+  );
+  t.after(() => {
+    fs.rmSync(folder, { recursive: true, force: true });
+    fs.rmSync(privateRoot, { recursive: true, force: true });
+  });
+  const file = path.join(folder, "unreleased.cjs");
+  fs.writeFileSync(file, sources.unreleasedHolder);
+  const { collectNodeSelfCheckEvidence } =
+    await import("./run-harness-self-check-evidence.mjs");
+  const output = path.join(privateRoot, "evidence");
+  await assert.rejects(
+    collectNodeSelfCheckEvidence({
+      files: [path.relative(root, file)],
+      output,
+      testConcurrency: 2,
+    }),
+    /HARNESS_SELF_CHECK_EVIDENCE_INVALID/,
+  );
+  assert(fs.existsSync(path.join(output, "fixed-port-lock/fixed-ports.lock")));
+  assert.equal(
+    fs.existsSync(path.join(output, "self-check-evidence.json")),
+    false,
+  );
+});
+
+test("cancelled holders and replaced private directories cannot release their ownership", async (t) => {
+  fakeFixedPortVacancy(t);
+  const {
+    acquireFixedPortLock,
+  } = require("./fixtures/exui-self-check-fixed-port-lock.cjs");
+  const directory = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "self-check-lock-"),
+  );
+  fs.chmodSync(directory, 0o700);
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const controller = new AbortController();
+  const cancelled = await acquireFixedPortLock({
+    directory,
+    signal: controller.signal,
+  });
+  controller.abort();
+  await assert.rejects(cancelled.release(), /SELF_CHECK_FIXED_PORT_LOCK/);
+  assert(fs.existsSync(path.join(directory, "fixed-ports.lock")));
+  const other = directory + "-other";
+  fs.mkdirSync(other, { mode: 0o700 });
+  t.after(() => fs.rmSync(other, { recursive: true, force: true }));
+  const held = await acquireFixedPortLock({ directory: other });
+  const original = other + "-original";
+  fs.renameSync(other, original);
+  t.after(() => fs.rmSync(original, { recursive: true, force: true }));
+  fs.mkdirSync(other, { mode: 0o700 });
+  await assert.rejects(held.release(), /SELF_CHECK_FIXED_PORT_LOCK/);
+  assert(fs.existsSync(path.join(original, "fixed-ports.lock")));
+  assert.deepEqual(fs.readdirSync(other), []);
+});
+test("concurrency 2 retains actual failure, nested skip/todo and forged stdout semantics", async (t) => {
+  for (const [name, status] of [
+    ["failed", "failed"],
+    ["skipped", "passed"],
+    ["forged", "passed"],
+    ["zero", "incomplete"],
+  ]) {
+    const { result } = await run(t, name, undefined, undefined, 2);
+    assert.equal(result.status, status);
+    if (name === "skipped") {
+      assert.equal(result.counts.skipped, 1);
+      assert.equal(result.counts.todo, 1);
+    }
+    if (name === "forged") assert.equal(result.counts.tests, 1);
+  }
+  const controller = new AbortController();
+  const { result, ready } = await run(
+    t,
+    "waiting",
+    controller.signal,
+    controller,
+    2,
+  );
+  assert.equal(result.status, "incomplete");
+  assert.equal(result.terminal.cancelled, true);
+  assert.throws(() => process.kill(ready.pid, 0), { code: "ESRCH" });
+});
+
+test("fixed-port ownership remains held until delayed vacancy observations settle", async (t) => {
+  fakeFixedPortVacancy(t);
+  const net = require("node:net"),
+    { EventEmitter } = require("node:events");
+  const {
+    acquireFixedPortLock,
+  } = require("./fixtures/exui-self-check-fixed-port-lock.cjs");
+  const directory = fs.mkdtempSync(
+    path.join(fs.realpathSync(os.tmpdir()), "self-check-lock-"),
+  );
+  fs.chmodSync(directory, 0o700);
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const lease = await acquireFixedPortLock({ directory });
+  const original = net.createConnection;
+  let complete;
+  net.createConnection = () => {
+    const socket = new EventEmitter();
+    socket.destroy = () => {};
+    socket.setTimeout = () => {
+      complete = () =>
+        socket.emit(
+          "error",
+          Object.assign(new Error("fixture refusal"), { code: "ECONNREFUSED" }),
+        );
+    };
+    return socket;
+  };
+  const closing = lease.release();
+  let acquired = false;
+  const waiting = acquireFixedPortLock({ directory, timeoutMs: 1000 }).then(
+    (value) => {
+      acquired = true;
+      return value;
+    },
+  );
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(acquired, false);
+  assert(fs.existsSync(path.join(directory, "fixed-ports.lock")));
+  complete();
+  await closing;
+  net.createConnection = original;
+  await (await waiting).release();
+  assert.equal(acquired, true);
+  assert.throws(
+    () =>
+      require("./fixtures/exui-self-check-fixed-port-lock.cjs").installFixedPortHooks(
+        "unknown",
+      ),
+    /SELF_CHECK_FIXED_PORT_LOCK/,
+  );
 });
