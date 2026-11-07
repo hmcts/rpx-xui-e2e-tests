@@ -27,6 +27,23 @@ function fixture(fault) {
   };
   const write = (name, value) =>
     fs.writeFileSync(path.join(directory, name), JSON.stringify(value));
+  const providerInitializationTimings = {
+    schemaVersion: 1,
+    proofAuthority: false,
+    catalogueCredit: false,
+    status: "complete",
+    steps: [
+      "harness-source-validation",
+      "dependency-seal",
+      "browser-seal",
+      "candidate-seal",
+      "candidate-identity",
+      "configuration-source-validation",
+      "ccd-contract-validation",
+      "persona-session-preparation",
+      "gateway-startup",
+    ].map((step) => ({ step, status: "completed", durationMs: 1 })),
+  };
   const mounts = (service) => [
     {
       source: "/" + service,
@@ -96,7 +113,11 @@ function fixture(fault) {
       ) {
         if (fault === "provider-exits-before-ready") setTimeout(() => { info.State.Running = false; }, 250);
         else if (fault === "delayed-provider-ready") setTimeout(() => write("provider-ready.json", {}), 1250);
-        else write("provider-ready.json", {});
+        else {
+          if (fault === "provider-initialization-timing")
+            write("provider-initialization-timings.json", providerInitializationTimings);
+          write("provider-ready.json", {});
+        }
       }
       return "";
     }
@@ -282,6 +303,24 @@ test("support only: source-event host invocation reports ordered provider, candi
       assert(Number.isFinite(Date.parse(timing.startedAt)));
       assert(Number.isSafeInteger(timing.durationMs) && timing.durationMs >= 0);
     }
+  } finally {
+    f.dispose();
+  }
+});
+test("support only: provider readiness carries private non-credit initializer timings when present", async () => {
+  const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
+  const f = fixture("provider-initialization-timing");
+  const timings = [];
+  try {
+    const result = await runHostInvocation(f.spec, {
+      ...f,
+      onLifecycleTiming: (record) => timings.push(record),
+    });
+    assert.equal(result.terminal.code, 0);
+    const readiness = timings[0].details.find((row) => row.step === "provider-readiness");
+    assert.equal(readiness.initialization.proofAuthority, false);
+    assert.equal(readiness.initialization.catalogueCredit, false);
+    assert.equal(readiness.initialization.steps.length, 9);
   } finally {
     f.dispose();
   }

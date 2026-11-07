@@ -183,9 +183,9 @@ export async function runHostInvocation(
   const { directory, output, owner, invocationId } = spec;
   const timed = (step, action, details) => timeLifecycle(onLifecycleTiming, owner, invocationId, step, action, details);
   const providerDetails = typeof onLifecycleTiming === 'function' ? PROVIDER_SETUP_STEPS.map(step => ({step,status:'not-run',durationMs:null})) : undefined;
-  const timeProviderStage = (index, action) => providerDetails ? timeLifecycle(record => {
-    providerDetails[index] = {step:PROVIDER_SETUP_STEPS[index],status:record.status,durationMs:record.durationMs};
-  }, owner, invocationId, PROVIDER_SETUP_STEPS[index], action) : action();
+  const timeProviderStage = (index, action, details) => providerDetails ? timeLifecycle(record => {
+    providerDetails[index] = {step:PROVIDER_SETUP_STEPS[index],status:record.status,durationMs:record.durationMs,...(record.details?{initialization:record.details}:{})};
+  }, owner, invocationId, PROVIDER_SETUP_STEPS[index], action, details) : action();
   const toolsName = `${owner}-${invocationId}-tools`,
     candidateName = `${owner}-${invocationId}-candidate`;
   const tools = resource(toolsName, {
@@ -219,7 +219,10 @@ export async function runHostInvocation(
       tools.id,
       inspect,
       isCancelled,
-    ));
+    ), () => {
+      try { return read(path.join(directory, "provider-initialization-timings.json")); }
+      catch { return undefined; }
+    });
     checkCancellation();
     timeProviderStage(3, () => assertOwnedContainer(inspect(tools.id), { ...tools, running: true }));
     timeProviderStage(4, () => {

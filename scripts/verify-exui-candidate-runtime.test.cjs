@@ -641,7 +641,7 @@ test("scope derivation rejects aliased targets, overlap and stale output before 
 // These tests deliberately fail closed if those unique source boundaries change.
 function providerSealPrefix(kind) {
   const definitions = {
-    native: ['run-harness-native-tools.mjs', '    "HARNESS_SOURCE_SNAPSHOT_MISMATCH",\n  );\n', '  let server, cookie;\n'],
+    native: ['run-harness-native-tools.mjs', '  let artifact;\n', '  let server, cookie;\n'],
     callback: ['recipient-callback-ui-tools.mjs', "input.harnessSourceDigest,'HARNESS_SOURCE_SNAPSHOT_MISMATCH');\n", " for(const [name,port] of"],
     profile: ['source-profile-jurisdictions-worker.mjs', '  verifyProfileSources(root,input.sources.digest);\n', '  return {browser:input.browser,facet,directory:'],
   };
@@ -670,7 +670,7 @@ for (const kind of ['native', 'callback', 'profile']) test(`provider root seals 
     const input = { artifact, harnessDependencies: { digest: 'deps' }, browserDigest: 'browser', browser: { digest: 'browser', dependencies: { digest: 'deps' } }, configurations: { baseline: { digest: 'config' } }, sources: { digest: 'source' } };
     const begin = name => { started.push(name); return seals[name].promise; };
     const bindings = {
-      input, invocation: {}, invocationId: 'baseline', root: '/harness', path, assert,
+      input, invocation: {}, invocationId: 'baseline', root: '/harness', path, assert, time: (_step, action) => action(),
       facet: 'divorce-jurisdiction', browserFacet: true, divorce: null, health: false, membership: false, fault: 'fault', stCicApi: () => false,
       verifyHarnessDependencies: (...args) => { assert.deepEqual(args, ['/harness/node_modules', '/harness/package.json', '/harness/yarn.lock', 'deps']); return begin('deps'); },
       digestCandidateTree: root => { assert.equal(root, '/browser'); return begin('browser'); },

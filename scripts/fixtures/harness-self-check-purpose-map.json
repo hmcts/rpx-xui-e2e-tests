@@ -223,6 +223,13 @@
       "purpose": "Checks host-invocation lifetimes, observed framework terminals and completion of final owned cleanup."
     },
     {
+      "file": "scripts/verify-exui-provider-readiness-timing.test.cjs",
+      "id": "unit-provider-readiness-timing",
+      "label": "Provider readiness timing",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks diagnostic initializer substep ordering, failure handling and non-credit reporting without changing provider proof outcomes."
+    },
+    {
       "file": "scripts/verify-exui-routing-runtime.test.cjs",
       "id": "unit-routing-runtime",
       "label": "Routing runtime",

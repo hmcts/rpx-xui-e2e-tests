@@ -26,6 +26,7 @@
   "scripts/verify-exui-candidate-ci.test.cjs",
   "scripts/verify-exui-native-isolation.test.cjs",
   "scripts/verify-exui-host-invocation.test.cjs",
+  "scripts/verify-exui-provider-readiness-timing.test.cjs",
   "scripts/verify-exui-routing-runtime.test.cjs",
   "scripts/verify-exui-deployment-profiles.test.cjs",
   "scripts/verify-exui-producer-finalization.test.cjs",

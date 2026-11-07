@@ -17,6 +17,7 @@ const steps = ['startup','definition-import','identity-verification','runtime-ob
 const lifecycleInvocations = ['baseline','ccd-enable-judge-event','ccd-remove-courtadmin-recipient-read','ccd-remove-readonly-recipient-read','ccd-enable-readonly-recipient-update','ccd-remove-courtadmin-event-create','ccd-shape-recipient-collection','ccd-shape-case-field-recipient-selector','ccd-shape-required-delivery-radio','ccd-shape-conditional-email-complex','ccd-shape-postal-recipient-name','ccd-shape-optional-postal-line-two'];
 const lifecycleSteps = ['browser-provider-setup','candidate-runtime-setup','application-readiness','playwright-proof','post-proof-resource-observation','candidate-graceful-shutdown','provider-graceful-shutdown','resource-cleanup'];
 const providerSetupSteps = ['provider-container-create','provider-container-start','provider-readiness','provider-ownership-check','provider-egress-probes'];
+const providerInitializationSteps = ['harness-source-validation','dependency-seal','browser-seal','candidate-seal','candidate-identity','configuration-source-validation','ccd-contract-validation','persona-session-preparation','gateway-startup'];
 const failure = () => new Error('PUBLIC_EVENT_PREPARATION_TIMINGS_INVALID');
 const exactKeys = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...keys].sort());
 const phaseStatus = evidence => evidence?.phases?.find(phase => phase.phase === 'eventCapability')?.status;
@@ -27,18 +28,53 @@ function validateProviderSetupDetails(details, status, durationMs) {
   assert(Array.isArray(details) && details.length === providerSetupSteps.length);
   let incomplete = false, failed = 0, elapsed = 0;
   details.forEach((item, index) => {
-    assert(exactKeys(item, ['step','status','durationMs']));
+    assert(exactKeys(item, ['step','status','durationMs',...(Object.hasOwn(item,'initialization')?['initialization']:[])]));
     assert.equal(item.step, providerSetupSteps[index]);
     if (item.status === 'not-run') { assert.equal(item.durationMs, null); incomplete = true; return; }
     assert(['completed','failed'].includes(item.status) && !incomplete);
     assert(Number.isSafeInteger(item.durationMs) && item.durationMs >= 0 && item.durationMs <= 7_200_000);
     if (item.status === 'failed') { failed++; incomplete = true; }
     elapsed += item.durationMs;
+    if (Object.hasOwn(item,'initialization')) {
+      assert.equal(item.step,'provider-readiness');
+      validateProviderInitialization(item.initialization,item.durationMs);
+    }
   });
   assert(failed <= 1);
   assert(status !== 'completed' || details.every(item => item.status === 'completed'));
   assert(elapsed <= durationMs + details.length);
   return details;
+}
+
+function validateProviderInitialization(value, readinessDurationMs) {
+  assert(exactKeys(value,['schemaVersion','proofAuthority','catalogueCredit','status','steps']));
+  assert.equal(value.schemaVersion,1);
+  assert.equal(value.proofAuthority,false);
+  assert.equal(value.catalogueCredit,false);
+  assert(['complete','partial','failed','not-run'].includes(value.status));
+  assert(Array.isArray(value.steps)&&value.steps.length<=providerInitializationSteps.length);
+  let prior=-1,failed=0;
+  for(const row of value.steps){
+    assert(exactKeys(row,['step','status','durationMs']));
+    const index=providerInitializationSteps.indexOf(row.step);
+    assert(index>prior);prior=index;
+    assert(['completed','failed'].includes(row.status));
+    assert(Number.isSafeInteger(row.durationMs)&&row.durationMs>=0&&row.durationMs<=7_200_000);
+    assert(row.durationMs<=readinessDurationMs+1000);
+    if(row.status==='failed')failed++;
+  }
+  if (failed) {
+    const failedSeals = value.steps.some((row,index) => index < 3 && row.status === 'failed');
+    const failedSequential = value.steps.some((row,index) => index >= 3 && row.status === 'failed');
+    if (failedSeals) assert(value.steps.every(row => providerInitializationSteps.indexOf(row.step) < 3));
+    if (failedSequential) {
+      assert(!failedSeals);
+      assert.equal(value.steps.filter(row => row.status === 'failed').length,1);
+      assert.equal(value.steps.at(-1).status,'failed');
+    }
+  }
+  assert.equal(value.status,failed?'failed':value.steps.length===providerInitializationSteps.length?'complete':value.steps.length?'partial':'not-run');
+  return value;
 }
 
 function validateEventRuntimePreparationTimings(records, evidence) {
@@ -221,8 +257,8 @@ function validateEventRuntimeLifecycleSummary(value,evidence) {
 
 function renderEventRuntimeLifecycleTimings(value) {
   const status=value.status==='complete'?'Every recorded invocation reached cleanup':value.status==='failed'?`${value.completedSteps} timed stages completed; one stage failed`:value.status==='partial'?`${value.completedSteps} stage timings were recorded; later stages did not run`:value.status==='unavailable'?'Lifecycle timings are unavailable; proof outcomes are unchanged':'No lifecycle timings were recorded';
-  const rows=value.invocations.map(invocation=>`<tr><th scope="row">${invocation.id==='baseline'?'Baseline':invocation.id.replace(/^ccd-/,'').replaceAll('-',' ')}</th>${invocation.steps.map(step=>`<td data-step-status="${step.status}">${step.status==='not-run'?'Not recorded':`${step.status==='failed'?'Failed':'Completed'} · ${step.durationMs} ms`}${step.details?`<small class="harness-provider-breakdown">Provider setup breakdown:<br>${step.details.map(detail=>`${detail.step.replaceAll('-',' ')} · ${detail.status==='not-run'?'not run':`${detail.status} · ${detail.durationMs} ms`}`).join('<br>')}</small>`:''}</td>`).join('')}</tr>`).join('');
-  return `<section id="harness-event-runtime-lifecycle" aria-labelledby="harness-event-runtime-lifecycle-title"><h2 id="harness-event-runtime-lifecycle-title">Source-event browser and candidate lifecycle timings</h2><p>${status} (${value.completedSteps}/${value.totalSteps}; event phase outcome ${value.phaseStatus}). The 12 rows cover one baseline and 11 fault scenarios. These diagnostic durations include the browser-provider and candidate setup/probes, application readiness request, Playwright proof, post-proof resource observations, candidate shutdown, provider shutdown, and owned-resource cleanup. The longer intervals include provider and candidate work, so they are not browser-only timings. Browser-provider setup is broken down into container create/start, readiness, ownership, and egress checks; its aggregate also includes resource registration and registry writes. These nested substeps are non-additive to the aggregate or event phase and provide no catalogue credit; lifecycle timing availability never changes proof status.</p><div class="table-responsive"><table class="table"><thead><tr><th>Invocation</th>${lifecycleSteps.map(x=>`<th>${x.replaceAll('-',' ')}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  const rows=value.invocations.map(invocation=>`<tr><th scope="row">${invocation.id==='baseline'?'Baseline':invocation.id.replace(/^ccd-/,'').replaceAll('-',' ')}</th>${invocation.steps.map(step=>`<td data-step-status="${step.status}">${step.status==='not-run'?'Not recorded':`${step.status==='failed'?'Failed':'Completed'} · ${step.durationMs} ms`}${step.details?`<small class="harness-provider-breakdown">Provider setup breakdown:<br>${step.details.map(detail=>`${detail.step.replaceAll('-',' ')} · ${detail.status==='not-run'?'not run':`${detail.status} · ${detail.durationMs} ms`}${detail.initialization?`<br><span>Provider initializer breakdown (${detail.initialization.status}; no proof or catalogue credit):</span><br>${detail.initialization.steps.map(item=>`${item.step.replaceAll('-',' ')} · ${item.status} · ${item.durationMs} ms`).join('<br>')}`:''}`).join('<br>')}</small>`:''}</td>`).join('')}</tr>`).join('');
+  return `<section id="harness-event-runtime-lifecycle" aria-labelledby="harness-event-runtime-lifecycle-title"><h2 id="harness-event-runtime-lifecycle-title">Source-event browser and candidate lifecycle timings</h2><p>${status} (${value.completedSteps}/${value.totalSteps}; event phase outcome ${value.phaseStatus}). The 12 rows cover one baseline and 11 fault scenarios. These diagnostic durations include the browser-provider and candidate setup/probes, application readiness request, Playwright proof, post-proof resource observations, candidate shutdown, provider shutdown, and owned-resource cleanup. The longer intervals include provider and candidate work, so they are not browser-only timings. Browser-provider setup is broken down into container create/start, readiness, ownership, and egress checks; its aggregate also includes resource registration and registry writes. Dependency, browser, and candidate seals run concurrently and are displayed in a stable order. These nested substeps are non-additive to the aggregate or event phase and provide no catalogue credit; lifecycle timing availability never changes proof status.</p><div class="table-responsive"><table class="table"><thead><tr><th>Invocation</th>${lifecycleSteps.map(x=>`<th>${x.replaceAll('-',' ')}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 module.exports={validateEventRuntimePreparationTimings,validateEventPreparationSummary,unavailableEventPreparationSummary,renderEventPreparationTimings,validateEventRuntimeLifecycleTimings,validateEventRuntimeLifecycleSummary,unavailableEventRuntimeLifecycleTimings,renderEventRuntimeLifecycleTimings};
