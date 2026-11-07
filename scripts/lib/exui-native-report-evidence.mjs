@@ -1,3 +1,5 @@
+import {readSharedRoleArtifact} from './exui-shared-role-artifacts.mjs';
+import {sharedRoleObservationBinding,replaySharedRoleDenial} from './exui-shared-role-observations.mjs';
 import businessScalars from './exui-business-scalar-detail.cjs';
 import {assertMandatoryEmailIntent,readMandatoryEmailNativeBinding} from './exui-mandatory-email-event-contract.mjs';
 import {readMandatoryEmailAdmissionPacket,mandatoryEmailNativeJointAdmission,creditMandatoryEmailRows} from './exui-mandatory-email-event-admission.mjs';
@@ -107,6 +109,24 @@ function validateRawPaths(directory, run) {
   for (const mutation of run.mutations)
     reference(directory, mutation.derivationArtifact);
   return invocations;
+}
+function denialDisplay(directory, execution, report, test, manifest) {
+  const selected={baseline:'ccd-role-policy','ccd-broaden-access':'ccd-access-broadened','ccd-write-then-deny':'ccd-write-then-deny'};
+  equal(selected[execution.invocationId],test.proofId,'DENIAL_DISPLAY_INVOCATION');
+  fact(test.businessScalars===undefined,'DENIAL_DISPLAY_SEALED_ROLE_ONLY');
+  const raw=name=>readSharedRoleArtifact(directory,execution,name,'exui-ccd-pilot');
+  const role=name=>JSON.parse(raw(name));
+  const heldManifest=role('manifest.json'),context=role('context.json'),personas=role('personas.json'),observation=role('policy-observation.json');
+  equal(context,report.context,'DENIAL_DISPLAY_FRAMEWORK_CONTEXT');
+  for(const key of ['runId','harnessCommit','releaseScopeId','policyDigest'])equal(heldManifest[key],manifest[key],'DENIAL_DISPLAY_SOURCE');
+  equal(heldManifest.identity,execution.identity,'DENIAL_DISPLAY_IDENTITY');
+  for(const key of ['harnessSourceDigest','definitionImportDigest','observedDefinitionDigest','definitionVersion','ccdNamespace'])equal(heldManifest.runtimeMetadata[key],manifest.runtimeMetadata[key],'DENIAL_DISPLAY_RUNTIME_BINDING');
+  const binding=sharedRoleObservationBinding(heldManifest,context),actorId=personas?.credentials?.denied?.userId;
+  fact(typeof actorId==='string'&&actorId.length>0&&actorId.length<=256,'DENIAL_DISPLAY_ACTOR');
+  const mutation=execution.invocationId==='baseline'?null:execution.invocationId;
+  replaySharedRoleDenial(observation,{binding,actorId,mutation});
+  if(mutation==='ccd-write-then-deny')equal(raw('fault-actions.jsonl').toString().trim().split('\n').map(line=>JSON.parse(line)),[{mutation,caseId:observation.caseId,status:201}],'SHARED_ROLE_FAULT_WRITE_APPLICATION');
+  return businessScalars.projectDenialObservation(test.proofId,observation);
 }
 function phaseProjection(directory, selection, ciPhase, expected) {
   const { phase, policy, terminal } = selection;
@@ -262,7 +282,9 @@ function phaseProjection(directory, selection, ciPhase, expected) {
           projected = {schemaVersion:1, availability:'unavailable', reason:'INVALID_STAGE_TELEMETRY'};
       }
       const detail = stageTelemetry.readPostalDetail(test.proofId, test.recordedDetail, {...test,recordedExecution:projected});
-      const scalars=businessScalars.readDetail(test.proofId,test.businessScalars,test);
+      const scalars=phase==='ccd'&&['ccd-role-policy','ccd-access-broadened','ccd-write-then-deny'].includes(test.proofId)
+        ? denialDisplay(directory,execution,report,test,loaded.input.manifest)
+        : businessScalars.readDetail(test.proofId,test.businessScalars,test);
       if (projected !== undefined || detail !== undefined || scalars !== undefined) display.set(execution.invocationId + '/' + test.proofId, {
         ...(projected === undefined ? {} : {recordedExecution:projected}),
         ...(detail === undefined ? {} : {recordedDetail:detail}),

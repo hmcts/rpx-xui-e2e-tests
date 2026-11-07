@@ -3,7 +3,14 @@ const attachmentName = "harness-business-scalars-v1";
 const contentType = "application/vnd.hmcts.harness-business-scalars+json";
 const nested = ["ccd-nested-roundtrip", "ccd-child-loss"];
 const scope = ["wa-org-scope-ia", "wa-scope-broadened"];
+const denial = ["ccd-role-policy", "ccd-access-broadened", "ccd-write-then-deny"];
 const contracts = {
+  denial: [
+    ["deniedReadStatus", "Denied actor read HTTP status", [403,404]],
+    ["protectedMarkerPresent", "Protected marker visible to denied actor", false],
+    ["deniedWriteStatus", "Denied actor write HTTP status", [403,404]],
+    ["stateUnchanged", "Independent case and history readback unchanged", true],
+  ],
   nested: [
     ["emptyRecipientCount", "Normalized empty recipient count", 0],
     [
@@ -29,7 +36,7 @@ const contracts = {
   ],
 };
 const kind = (proof) =>
-  nested.includes(proof) ? "nested" : scope.includes(proof) ? "scope" : null;
+  nested.includes(proof) ? "nested" : scope.includes(proof) ? "scope" : denial.includes(proof) ? "denial" : null;
 const exact = (value, keys) =>
   value &&
   !Array.isArray(value) &&
@@ -43,9 +50,9 @@ const enumSet = (value, allowed) =>
 function validScalar(key, value) {
   if (["emptyRecipientCount", "recipientCount"].includes(key))
     return Number.isSafeInteger(value) && value >= 0 && value <= 32;
-  if (["emptySubmitStatus", "submitStatus", "responseStatus"].includes(key))
+  if (["emptySubmitStatus", "submitStatus", "responseStatus", "deniedReadStatus", "deniedWriteStatus"].includes(key))
     return Number.isSafeInteger(value) && value >= 100 && value <= 599;
-  if (key === "emailAddressPresent") return typeof value === "boolean";
+  if (["emailAddressPresent", "protectedMarkerPresent", "stateUnchanged"].includes(key)) return typeof value === "boolean";
   if (key === "emailAddressState")
     return ["absent", "null", "empty", "nonempty"].includes(value);
   if (key === "emptyCollectionState")
@@ -119,6 +126,22 @@ function readDetail(proof, value, result) {
     return unavailable();
   }
 }
+// Values are derived only after the native reader has replayed the unchanged sealed role oracle.
+function projectDenialObservation(proof, observation) {
+  assert(denial.includes(proof), "BUSINESS_DENIAL_PROOF");
+  assert(observation && typeof observation.complete === 'boolean', "BUSINESS_DENIAL_COMPLETE");
+  assert(validScalar('deniedReadStatus',observation.deniedRead) && observation.deniedReadResponse?.status===observation.deniedRead, "BUSINESS_DENIAL_READ_STATUS");
+  const markers=observation.deniedReadResponse.presentMarkers;
+  assert(Array.isArray(markers) && markers.length<=4 && new Set(markers).size===markers.length && markers.every(x=>['protected-original','denied-write','transition-written','revoked-write'].includes(x)), "BUSINESS_DENIAL_MARKERS");
+  const field=value=>({state:'recorded',value});
+  const scalars={deniedReadStatus:field(observation.deniedRead),protectedMarkerPresent:field(markers.includes('protected-original')),deniedWriteStatus:{state:'not-reached'},stateUnchanged:{state:'not-reached'}};
+  if(observation.complete){
+    assert(proof!=='ccd-access-broadened' && validScalar('deniedWriteStatus',observation.deniedWrite) && observation.before?.state && Array.isArray(observation.before.history) && observation.after?.state && Array.isArray(observation.after.history), "BUSINESS_DENIAL_READBACK");
+    scalars.deniedWriteStatus=field(observation.deniedWrite);
+    scalars.stateUnchanged=field(require('node:util').isDeepStrictEqual(observation.after,observation.before));
+  }else assert(proof==='ccd-access-broadened' && !Object.hasOwn(observation,'deniedWrite') && !Object.hasOwn(observation,'after'), "BUSINESS_DENIAL_EARLY_STAGE");
+  return validateDetail(proof,{schemaVersion:1,availability:'recorded',scalars});
+}
 function createCapture(proof, binding) {
   assert(
     exact(binding, ["runId", "invocationId", "testId", "retry"]) &&
@@ -131,7 +154,7 @@ function createCapture(proof, binding) {
   );
   const { testId } = binding;
   assert(
-    kind(proof) &&
+    kind(proof) && !denial.includes(proof) &&
       typeof testId === "string" &&
       testId.length > 0 &&
       testId.length <= 256,
@@ -268,7 +291,7 @@ function createCapture(proof, binding) {
   };
 }
 function extractAttachment(proof, binding, attachments, result) {
-  if (!kind(proof)) return undefined;
+  if (!nested.includes(proof) && !scope.includes(proof)) return undefined;
   try {
     const selected = attachments.filter((a) => a.name === attachmentName);
     assert.equal(selected.length, 1, "BUSINESS_SCALAR_ATTACHMENT_COUNT");
@@ -306,6 +329,7 @@ const methods = (proof) => {
 module.exports = {
   attachmentName,
   contentType,
+  projectDenialObservation,
   createCapture,
   createIaCapture,
   extractAttachment,
@@ -314,14 +338,14 @@ module.exports = {
   methods,
 };
 
-// Only these four display rows cross this readback boundary. No raw paths or
+// Only these seven fixed display rows cross this readback boundary. No raw paths or
 // test payloads enter the public projection.
 function scalarProjection(evidence) {
   assert(evidence && typeof evidence.jobRunId === 'string' && /^sha256:[a-f0-9]{64}$/.test(evidence.descriptorDigest),'BUSINESS_SCALAR_SOURCE');
   const source=evidence.source;
   assert(exact(source,['harnessCommit','harnessSourceDigest','candidateArtifactDigest','webappCommit'])&&/^[a-f0-9]{40}$/.test(source.harnessCommit)&&/^[a-f0-9]{40}$/.test(source.webappCommit)&&[source.harnessSourceDigest,source.candidateArtifactDigest].every(x=>/^sha256:[a-f0-9]{64}$/.test(x)),'BUSINESS_SCALAR_SOURCE');
-  const rows=[...nested,...scope].map(proofId=>{
-    const phase=evidence.phases.find(p=>p.phase===(nested.includes(proofId)?'ccd':'scope'));
+  const rows=[...nested,...scope,...denial].map(proofId=>{
+    const phase=evidence.phases.find(p=>p.phase===(scope.includes(proofId)?'scope':'ccd'));
     const matches=[...phase.baselineProofs,...phase.faults].filter(p=>p.proofId===proofId);assert.equal(matches.length,1,'BUSINESS_SCALAR_OWNER');
     const proof=matches[0];if(proof.businessScalars!==undefined)validateDetail(proofId,proof.businessScalars);
     return {phase:phase.phase,phaseRunId:phase.runId,receiptArtifactDigest:phase.receiptArtifactDigest,proofId,invocationId:proof.invocationId,...(proof.businessScalars===undefined?{}:{businessScalars:structuredClone(proof.businessScalars)})};

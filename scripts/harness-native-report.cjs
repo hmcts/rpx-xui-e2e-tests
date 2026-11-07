@@ -380,11 +380,11 @@ function recordedBusinessScalars(proof) {
   const value=proof.businessScalars;
   if(value===undefined)return '';
   const scalars=require('./lib/exui-business-scalar-detail.cjs');scalars.validateDetail(proof.proofId,value);
-  const note=value.availability==='unavailable'?'Business scalar observations: unavailable. No values or statuses are inferred.':'Business scalar observations: expected values are source-defined; actually observed values come from the selected framework capture. No extra proof PASS or catalogue credit is inferred. Not reached means the capture point was not attempted; No observation means it was attempted without a usable observation.';
+  const note=value.availability==='unavailable'?'Business scalar observations: unavailable. No values or statuses are inferred.':`Business scalar observations: expected values are source-defined; actual values come from ${['ccd-role-policy','ccd-access-broadened','ccd-write-then-deny'].includes(proof.proofId)?'sealed CCD policy observations after the unchanged role replay':'the selected framework capture'}. No extra proof PASS or catalogue credit is inferred. Not reached means the capture point was not attempted; No observation means it was attempted without a usable observation.`;
   const text=v=>typeof v==='boolean'?(v?'Yes':'No'):Array.isArray(v)?v.join(', '):String(v);
   const rows=value.availability==='unavailable'?'':scalars.methods(proof.proofId).map(([key,label,expected])=>{
     const field=value.scalars[key],recorded=field.state==='recorded';
-    const match=recorded&&(key==='emptyCollectionState'?expected.includes(field.value):key==='responseStatus'?field.value>=200&&field.value<300:require('node:util').isDeepStrictEqual(field.value,expected));
+    const match=recorded&&(['emptyCollectionState','deniedReadStatus','deniedWriteStatus'].includes(key)?expected.includes(field.value):key==='responseStatus'?field.value>=200&&field.value<300:require('node:util').isDeepStrictEqual(field.value,expected));
     return `<tr><th scope="row">${escape(label)}</th><td>${escape(text(expected))}</td><td>${recorded?escape(text(field.value)):field.state==='not-reached'?'Not reached':'No observation'}</td><td>${recorded?(match?'Matches displayed expectation':'Differs from displayed expectation'):'No comparison recorded'}</td></tr>`;
   }).join('');
   return `<p data-native-business-note="${escape(proof.proofId)}">${escape(note)}</p>${rows?`<table data-native-business-scalars="${escape(proof.proofId)}"><thead><tr><th>Business scalar</th><th>Source-defined expected</th><th>Actually observed</th><th>Scalar interpretation</th></tr></thead><tbody>${rows}</tbody></table>`:''}`;

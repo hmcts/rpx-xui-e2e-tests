@@ -1879,20 +1879,32 @@ test('business scalar tables reject coherent observed rewrites swapped proof own
 
 });
 
-test('current scalar intent authenticates raw absence and rejects missing null or invented values for old producers',async t=>{
+test('current scalar intent binds absent historical attachments and required sealed denial observations',async t=>{
  const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),packet=await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
  const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),bytes=fs.readFileSync(file),html=fs.readFileSync(output(),'utf8'),record=Reporter.validatePublicReport();
- assert(record.nativeBusinessScalarHeld);assert(record.nativeEvidence.phases.every(p=>[...p.baselineProofs,...p.faults].every(proof=>proof.businessScalars===undefined)));assert(!html.includes(packet.descriptorPath));
+ assert(record.nativeBusinessScalarHeld);assert(record.nativeEvidence.phases.every(p=>[...p.baselineProofs,...p.faults].every(proof=>['ccd-role-policy','ccd-access-broadened','ccd-write-then-deny'].includes(proof.proofId)?proof.businessScalars?.availability==='recorded':proof.businessScalars===undefined)));assert(!html.includes(packet.descriptorPath));
  for(const mode of ['missing','null','invented']){const value=JSON.parse(bytes),page=require('node-html-parser').parse(html);if(mode==='missing')delete value.nativeBusinessScalarHeld;if(mode==='null')value.nativeBusinessScalarHeld=null;
   if(mode==='invented'){value.nativeEvidence.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip').businessScalars=require('./fixtures/exui-business-scalar-detail.mock.cjs').recorded('ccd-nested-roundtrip');page.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(value.nativeEvidence));}
   const changed=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,mode);fs.writeFileSync(file,bytes);fs.writeFileSync(output(),html);
  }
- Reporter.validatePublicReport();const legacy=JSON.parse(bytes);delete legacy.nativeBusinessScalarHeld;fs.writeFileSync(file,JSON.stringify(legacy));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));
+ Reporter.validatePublicReport();const legacy=JSON.parse(bytes);delete legacy.nativeBusinessScalarHeld;for(const phase of legacy.nativeEvidence.phases)for(const proof of [...phase.baselineProofs,...phase.faults])delete proof.businessScalars;const oldPage=require('node-html-parser').parse(html);oldPage.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(legacy.nativeEvidence));const oldHtml=oldPage.toString();legacy.sha256=require('node:crypto').createHash('sha256').update(oldHtml).digest('hex');fs.writeFileSync(output(),oldHtml);fs.writeFileSync(file,JSON.stringify(legacy));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));
 });
 test('no Native current intent is explicit null; omission is retirement-only and never starts a metadata child',async t=>{
  const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
  const cp=require('node:child_process'),original=cp.spawnSync;let count=0;try{cp.spawnSync=()=>{count++;throw Error('NO_NATIVE_CHILD');};const record=Reporter.validatePublicReport();assert.equal(record.nativeBusinessScalarHeld,null);assert.equal(record.nativeEvidence,null);
  if(process.env.SELF_CHECK_COMPAT_NODE20){const code=`const cp=require('node:child_process');let calls=0;cp.spawnSync=()=>{calls++;throw Error('NO_METADATA_CHILD');};const value=require(${JSON.stringify(reporterPath)}).validatePublicReport('harness');if(value.nativeBusinessScalarHeld!==null||value.nativeEvidence!==null||calls)throw Error('NO_NATIVE_INTENT');console.log(JSON.stringify({node:process.version,metadataChildren:calls}));`;const result=JSON.parse(cp.execFileSync(process.env.SELF_CHECK_COMPAT_NODE20,['-e',code],{cwd:root,encoding:'utf8'}));assert.match(result.node,/^v20\./);assert.equal(result.metadataChildren,0);t.diagnostic(JSON.stringify(result));}
  const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json');delete record.nativeBusinessScalarHeld;fs.writeFileSync(file,JSON.stringify(record));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert.equal(count,0);assert(!fs.existsSync(output()));}finally{cp.spawnSync=original;}
+});
+
+
+test('sealed denial scalar rows remain expected-observed comparisons and cannot be removed or coherently changed',async t=>{
+ sandbox(t);const Reporter=api(),reporter=new Reporter({selection:'harness'});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());Reporter.validatePublicReport();
+ const file=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(file),html=fs.readFileSync(output(),'utf8'),record=JSON.parse(original),{parse}=require('node-html-parser');
+ const dom=parse(html),table=dom.querySelector('[data-native-business-scalars="ccd-role-policy"]');assert(table);assert.match(table.textContent,/403, 404.*403.*Matches displayed expectation/s);assert.match(dom.querySelector('[data-native-business-note="ccd-role-policy"]').textContent,/sealed CCD policy observations after the unchanged role replay/);
+ for(const mode of ['change','drop']){
+  const value=JSON.parse(original),proof=value.nativeEvidence.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-role-policy');if(mode==='change')proof.businessScalars.scalars.deniedReadStatus.value=404;else delete proof.businessScalars;
+  const page=parse(html);page.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(value.nativeEvidence));const bytes=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(bytes).digest('hex');fs.writeFileSync(output(),bytes);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,mode);fs.writeFileSync(output(),html);fs.writeFileSync(file,original);
+ }
 });

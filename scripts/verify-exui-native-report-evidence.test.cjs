@@ -697,3 +697,41 @@ test('untrusted scalar shape is unavailable and old absent data keeps exact old 
  for(const phase of evidence.phases)for(const proof of [...phase.baselineProofs,...phase.faults])delete proof.businessScalars;
  assert(!render(evidence).includes('data-native-business-'));assert(!render(evidence).includes('Business scalar observations:'));
 });
+
+
+test('denial business display is replayed from sealed role observations before finite projection',async t=>{
+ const packet=await require('./fixtures/exui-native-report-packet.mock.cjs').fixture(t),reader=await import('./lib/exui-native-report-evidence.mjs'),evidence=await reader.readNativeReportEvidence(packet.descriptorPath);
+ const phase=evidence.phases.find(p=>p.phase==='ccd'),proofs=[...phase.baselineProofs,...phase.faults];
+ for(const [id,status,visible,unchanged]of [['ccd-role-policy',403,false,true],['ccd-access-broadened',200,true,null],['ccd-write-then-deny',403,false,false]]){
+  const proof=proofs.find(p=>p.proofId===id),v=proof.businessScalars;assert.equal(v.availability,'recorded');assert.equal(v.scalars.deniedReadStatus.value,status);assert.equal(v.scalars.protectedMarkerPresent.value,visible);assert.deepEqual(v.scalars.stateUnchanged,unchanged===null?{state:'not-reached'}:{state:'recorded',value:unchanged});
+ }
+ assert.equal(evidence.source.harnessCommit,packet.descriptor.expected.harnessCommit);assert.equal(evidence.catalogueCoverage.selected,112);assert.equal(evidence.releaseApproval,false);
+ const rows=require('./lib/exui-business-scalar-detail.cjs').scalarProjection(evidence).rows;assert.equal(rows.length,7);assert.equal(new Set(rows.map(p=>p.proofId)).size,7);
+});
+
+
+test('current denial display rejects absent or coherently resealed malformed role evidence',async t=>{
+ const reader=await load();
+ for(const fault of ['all-missing','policy-missing','actor','read-status','foreign-context','fault-application']){
+  const f=await fixture(t);await reader.readNativeReportEvidence(f.descriptorPath);
+  await rewriteCcd(f,({executions})=>{
+   const execution=executions.find(x=>x.invocationId===(fault==='fault-application'?'ccd-write-then-deny':'baseline'));
+   if(fault==='all-missing'){delete execution.sharedRoleArtifacts;return;}
+   if(fault==='policy-missing'){execution.sharedRoleArtifacts=execution.sharedRoleArtifacts.filter(r=>!r.path.endsWith('/policy-observation.json'));return;}
+   const name=fault==='foreign-context'?'context.json':fault==='fault-application'?'fault-actions.jsonl':'policy-observation.json',ref=execution.sharedRoleArtifacts.find(r=>r.path.endsWith('/'+name)),file=path.join(f.directory,'private/ccd',ref.path);
+   if(fault==='fault-application'){const actions=JSON.parse(fs.readFileSync(file,'utf8'));actions.status=200;const bytes=JSON.stringify(actions)+'\n';fs.writeFileSync(file,bytes);ref.digest=digest(bytes);return;}
+   const value=read(file);if(fault==='actor')value.actor.id='foreign-unit-actor';if(fault==='read-status')value.deniedRead=200;if(fault==='foreign-context')value.invocationId='ccd-broaden-access';ref.digest=write(file,value);
+  });
+  await assert.rejects(()=>reader.readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT/,fault);
+ }
+});
+
+
+test('actual denial reporter emitted reports pass sealed-role projection for all three proof IDs',async t=>{
+ const packet=await require('./fixtures/exui-native-report-packet.mock.cjs').fixture(t,{actualDenialReporter:true}),reader=await load(),evidence=await reader.readNativeReportEvidence(packet.descriptorPath);
+ const phase=evidence.phases.find(p=>p.phase==='ccd'),rows=[...phase.baselineProofs,...phase.faults];
+ for(const[id,invocation]of [['ccd-role-policy','baseline'],['ccd-access-broadened','ccd-broaden-access'],['ccd-write-then-deny','ccd-write-then-deny']]){
+  const report=JSON.parse(require('node:fs').readFileSync(require('node:path').join(packet.directory,'private','ccd',invocation,'report.json'),'utf8'));
+  assert.equal(Object.hasOwn(report.tests.find(p=>p.proofId===id),'businessScalars'),false);assert.equal(rows.find(p=>p.proofId===id).businessScalars.availability,'recorded');
+ }
+});

@@ -12,7 +12,7 @@ const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 function write(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});const bytes=JSON.stringify(value);fs.writeFileSync(file,bytes);return digest(bytes);}
 async function fixture(
   t,
-  { postalFailure = false, unknownFailure = false, sourceDigest, candidate, recordedStages = false, postalDetail = false, businessScalars = false } = {},
+  { postalFailure = false, unknownFailure = false, sourceDigest, candidate, recordedStages = false, postalDetail = false, businessScalars = false, actualDenialReporter = false } = {},
 ) {
   const root = fs.mkdtempSync(
     path.join(fs.realpathSync(os.tmpdir()), "native-report-"),
@@ -96,6 +96,7 @@ async function fixture(
               definitionImportDigest: importDigest,
               observedDefinitionDigest: imported.observedDefinitionDigest,
               definitionVersion: "1",
+              ccdNamespace: "unit-ccd-namespace",
             }
           : {}),
       },
@@ -162,6 +163,24 @@ async function fixture(
         runnerExitCode: status === "passed" ? 0 : 1,
         unexpectedGlobalErrors: [],
       };
+      if(phase==='ccd'&&['baseline','ccd-broaden-access','ccd-write-then-deny'].includes(invocation.invocationId)){
+        const {sharedRoleArtifactNames}=await import('../lib/exui-shared-role-artifacts.mjs');
+        const {sharedRoleObservationBinding,replaySharedRoleDenial}=await import('../lib/exui-shared-role-observations.mjs');
+        const roleManifest={...manifest,identity:changedIdentity,runtimeMetadata:{...manifest.runtimeMetadata,ccdNamespace:'unit-ccd-namespace'}};
+        const roleContext={runId:manifest.runId,invocationId:invocation.invocationId,identity:changedIdentity,harnessCommit:manifest.harnessCommit,releaseScopeId,policyDigest:policy.policyDigest,harnessSourceState:'clean',harnessSourceDigest:event.expected.harnessSourceDigest};
+        const actorId='unit-denied-actor',roleBinding=sharedRoleObservationBinding(roleManifest,roleContext),mutation=invocation.invocationId==='baseline'?null:invocation.invocationId;
+        const observation=require('./exui-business-scalar-detail.mock.cjs').sealedDenialObservation({binding:roleBinding,mutation,actorId});
+        replaySharedRoleDenial(observation,{binding:roleBinding,mutation,actorId});
+        const roleValues={'manifest.json':roleManifest,'context.json':roleContext,'personas.json':{credentials:{denied:{userId:actorId}}},'policy-observation.json':observation,'role-revocation-observation.json':{syntheticUnusedRoleArtifact:true}};
+        execution.sharedRoleArtifacts=sharedRoleArtifactNames(invocation.invocationId,releaseScopeId).map(name=>{
+          const relative=invocation.invocationId+'/'+name;
+          if(name==='ccd-requests.jsonl'||name==='fault-actions.jsonl'){
+            const bytes=name==='ccd-requests.jsonl'?'':JSON.stringify({mutation,caseId:observation.caseId,status:201})+'\n',file=path.join(dir,relative);
+            fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,bytes);return {path:relative,digest:digest(bytes)};
+          }
+          return put(relative,roleValues[name]);
+        });
+      }
       execution.resultArtifact = put(invocation.invocationId + "/report.json", {
         schemaVersion: 1,
         context: {
@@ -180,6 +199,10 @@ async function fixture(
         globalErrors: [],
         privateCanary: canary,
       });
+      if(actualDenialReporter&&phase==='ccd'&&['baseline','ccd-broaden-access','ccd-write-then-deny'].includes(invocation.invocationId)){
+        const emitted=await require('./exui-business-scalar-detail.mock.cjs').emitActualDenialReport({contextPath:path.join(dir,invocation.invocationId,'context.json'),reportPath:path.join(dir,invocation.invocationId,'report.json'),tests,status});
+        execution.resultArtifact=put(invocation.invocationId+'/report.json',emitted);
+      }
       run.executionArtifacts.push(
         put(invocation.invocationId + "/execution.json", execution),
       );

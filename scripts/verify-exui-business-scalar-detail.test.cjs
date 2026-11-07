@@ -42,13 +42,13 @@ test('passed partial and early scope failure with fabricated later query observa
  const good=mock.recorded('wa-scope-broadened');assert.equal(api.readDetail('wa-scope-broadened',good,{status:'failed',failureId:'organisation-scope'}).availability,'recorded');good.scalars.responseStatus={state:'recorded',value:200};assert.equal(api.readDetail('wa-scope-broadened',good,{status:'failed',failureId:'organisation-scope'}).availability,'unavailable');
 });
 
-test('fixed same-reader child joins four raw scalar rows with no CLI args or resource side effects',async t=>{
+test('fixed same-reader child joins seven raw scalar rows with no CLI args or resource side effects',async t=>{
  const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),cp=require('node:child_process'),f=await require('./fixtures/exui-native-report-packet.mock.cjs').fixture(t,{businessScalars:true});
  const reader=await import('./lib/exui-native-report-evidence.mjs'),evidence=await reader.readNativeReportEvidence(f.descriptorPath),held={path:f.descriptorPath,digest:evidence.descriptorDigest};
  const snapshot=dir=>fs.readdirSync(dir).sort().flatMap(name=>{const file=path.join(dir,name);return fs.statSync(file).isDirectory()?snapshot(file):[[file,crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]];});const before=snapshot(f.directory),spawn=cp.spawnSync;let count=0,resources;
  try{cp.spawnSync=(command,args,options)=>{count++;assert.equal(command,process.execPath);assert.deepEqual(args.slice(0,2),['--input-type=module','--eval']);assert.equal(args.length,3);assert(!options.shell);assert.equal(options.env.NODE_OPTIONS,undefined);assert.equal(options.env.NODE_DISABLE_COMPILE_CACHE,'1');assert.equal(options.timeout,20*1000);assert.equal(options.maxBuffer,32*1024);assert(Buffer.byteLength(options.input)<=32*1024);
  const result=spawn(command,[...args.slice(0,2),args[2]+";process.stderr.write(JSON.stringify({resourceTypes:process.getActiveResourcesInfo(),argvLength:process.argv.length}));"],options);const observed=JSON.parse(result.stderr);assert.equal(observed.argvLength,1);resources=observed.resourceTypes;assert(!resources.some(name=>/TCP|UDP|PROCESS|MESSAGEPORT/i.test(name)));return result;};api.assertHeldProjection(held,evidence);}finally{cp.spawnSync=spawn;}
- assert.equal(count,1);assert.deepEqual(snapshot(f.directory),before);assert.equal(api.scalarProjection(evidence).rows.length,4);assert(Array.isArray(resources));
+ assert.equal(count,1);assert.deepEqual(snapshot(f.directory),before);assert.equal(api.scalarProjection(evidence).rows.length,7);assert(Array.isArray(resources));
  t.diagnostic(JSON.stringify({fixedChildInvocations:count,argvLength:1,resourceTypes:resources,ownedFixtureBytesUnchanged:true,rawReplayPhases:['scope','ccd']}));
  if(process.env.SELF_CHECK_COMPAT_NODE20){
   const code=`const assert=require('node:assert/strict'),cp=require('node:child_process');let calls=0;cp.spawnSync=()=>{calls++;throw Error('NO_NODE20_CHILD');};const api=require(${JSON.stringify(path.join(__dirname,'lib/exui-business-scalar-detail.cjs'))}),v=JSON.parse(require('node:fs').readFileSync(0,'utf8'));api.assertHeldProjection(v.held,v.evidence,{retiringPreviousRun:true});assert.equal(api.readDetail('ccd-child-loss',undefined),undefined);assert.throws(()=>api.assertHeldProjection(v.held,v.evidence),/^Error: PUBLIC_BUSINESS_SCALAR_RAW_INVALID$/);assert.equal(calls,0);console.log(JSON.stringify({node:process.version,childCalls:calls}));`;
@@ -57,4 +57,33 @@ test('fixed same-reader child joins four raw scalar rows with no CLI args or res
 
  for(const change of [v=>v.jobRunId='ci-00000000-0000-4000-8000-000000000000',v=>v.source.webappCommit='f'.repeat(40),v=>v.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip').invocationId='foreign']){const changed=structuredClone(evidence);change(changed);assert.throws(()=>api.assertHeldProjection(held,changed),/^Error: PUBLIC_BUSINESS_SCALAR_RAW_INVALID$/);}
  const noOutput=()=>({status:0,signal:null,stdout:'{"schemaVersion":1,"ok":true,"projection":{},"extra":"PRIVATE"}',stderr:'PRIVATE'});try{cp.spawnSync=noOutput;assert.throws(()=>api.assertHeldProjection(held,evidence),/^Error: PUBLIC_BUSINESS_SCALAR_RAW_INVALID$/);cp.spawnSync=()=>({error:Error('PRIVATE'),status:null,signal:'SIGKILL',stdout:'',stderr:'PRIVATE'});assert.throws(()=>api.assertHeldProjection(held,evidence),/^Error: PUBLIC_BUSINESS_SCALAR_RAW_INVALID$/);}finally{cp.spawnSync=spawn;}
+});
+
+
+test('denial display uses actual status marker and state observations with constant expected literals',()=>{
+ for(const [proof,status,marker,unchanged]of [['ccd-role-policy',403,false,true],['ccd-access-broadened',200,true,null],['ccd-write-then-deny',403,false,false]]){
+  const observed=mock.denialObservation(proof),value=api.projectDenialObservation(proof,observed);api.validateDetail(proof,value);assert.throws(()=>api.createCapture(proof,mock.binding),/BUSINESS_SCALAR_CAPTURE_ID/,'denial is read-only projection, not a new producer channel');
+  assert.deepEqual(value.scalars.deniedReadStatus,{state:'recorded',value:status});assert.deepEqual(value.scalars.protectedMarkerPresent,{state:'recorded',value:marker});
+  assert.deepEqual(value.scalars.deniedWriteStatus,unchanged===null?{state:'not-reached'}:{state:'recorded',value:403});assert.deepEqual(value.scalars.stateUnchanged,unchanged===null?{state:'not-reached'}:{state:'recorded',value:unchanged});
+  const expected=Object.fromEntries(api.methods(proof).map(([key,_label,want])=>[key,want]));assert.deepEqual(expected,{deniedReadStatus:[403,404],protectedMarkerPresent:false,deniedWriteStatus:[403,404],stateUnchanged:true});
+  assert(!JSON.stringify(value).includes('PRIVATE'));assert(!JSON.stringify(value).includes('case_data'));assert(!JSON.stringify(value).includes('history'));
+ }
+});
+test('denial display never invents attempted write observations or accepts malformed raw scalars',()=>{
+ for(const mutate of [v=>delete v.deniedRead,v=>v.deniedRead=600,v=>v.deniedReadResponse.status=404,v=>delete v.deniedWrite,v=>delete v.after]){
+  const observed=mock.denialObservation('ccd-role-policy');mutate(observed);assert.throws(()=>api.projectDenialObservation('ccd-role-policy',observed));
+ }
+ const value=api.projectDenialObservation('ccd-access-broadened',mock.denialObservation('ccd-access-broadened'));assert.throws(()=>api.validateDetail('ccd-access-broadened',{...value,scalars:{...value.scalars,privateBody:{state:'recorded',value:'PRIVATE'}}}));
+ assert.throws(()=>api.projectDenialObservation('undeclared-proof',mock.denialObservation('ccd-role-policy')));
+});
+
+
+test('actual denial reporter leaves sealed-role transport absent while original attachment channels remain strict',async t=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),root=fs.mkdtempSync(path.join(os.tmpdir(),'denial-caller-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const contextPath=path.join(root,'context.json');fs.writeFileSync(contextPath,JSON.stringify({runId:'unit',invocationId:'baseline'}));
+ for(const[proofId,failureId]of [['ccd-role-policy',null],['ccd-access-broadened','denied-data-isolation'],['ccd-write-then-deny','denied-state-integrity'],['ccd-nested-roundtrip',null],['wa-org-scope-ia',null]]){
+  const report=await mock.emitActualDenialReport({contextPath,reportPath:path.join(root,'report.json'),tests:[{proofId,status:failureId?'failed':'passed',failureId}],status:failureId?'failed':'passed'}),row=report.tests[0];
+  assert.equal(row.failureId,failureId);assert.equal(row.unattributedErrors,0);assert.deepEqual(report.globalErrors,[]);
+  if(proofId==='ccd-nested-roundtrip'||proofId==='wa-org-scope-ia')assert.equal(row.businessScalars.availability,'unavailable');else assert.equal(Object.hasOwn(row,'businessScalars'),false);
+ }
 });
