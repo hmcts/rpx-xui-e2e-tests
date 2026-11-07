@@ -9,6 +9,23 @@ import {
 } from "./exui-oci-runtime.mjs";
 import { terminateOwnedChild } from "./exui-candidate-runtime.mjs";
 import { writeJsonAtomic } from "./exui-evidence-io.mjs";
+import { performance } from "node:perf_hooks";
+
+function timeLifecycle(onTiming, runId, invocationId, step, action) {
+  if (typeof onTiming !== "function") return action();
+  let startedAt, started;
+  try { startedAt = new Date().toISOString(); started = performance.now(); } catch { /* Diagnostics never control proof. */ }
+  const record = (status) => {
+    if (startedAt === undefined || started === undefined) return;
+    try { onTiming({ runId, invocationId, step, status, startedAt, durationMs: Math.max(0, Math.round(performance.now() - started)) }); } catch { /* Diagnostics never control proof. */ }
+  };
+  try {
+    const result = action();
+    return result && typeof result.then === "function"
+      ? result.then(value => { record("completed"); return value; }, error => { record("failed"); throw error; })
+      : (record("completed"), result);
+  } catch (error) { record("failed"); throw error; }
+}
 
 export function hostDocker(args, options = {}) {
   const result = spawnSync("docker", args, {
@@ -147,12 +164,14 @@ export async function runHostInvocation(
     spawnProof = spawn,
     isCancelled = () => false,
     eventSerialV3 = false,
+    onLifecycleTiming,
   } = {},
 ) {
   const checkCancellation = () =>
     assert(!isCancelled(), "HOST_INVOCATION_CANCELLED");
   checkCancellation();
   const { directory, output, owner, invocationId } = spec;
+  const timed = (step, action) => timeLifecycle(onLifecycleTiming, owner, invocationId, step, action);
   const toolsName = `${owner}-${invocationId}-tools`,
     candidateName = `${owner}-${invocationId}-candidate`;
   const tools = resource(toolsName, {
@@ -162,7 +181,7 @@ export async function runHostInvocation(
     namespace: spec.namespace,
     mounts: spec.tools.mounts,
   });
-  let candidate;
+  let candidate, runtime;
   const started = Date.now();
   const v3Creators = [];
   // Opt-in receipts derive code0 from the existing guarded synchronous create contract.
@@ -172,6 +191,7 @@ export async function runHostInvocation(
     saveRegistry(output, resources);
   };
   try {
+    await timed("browser-provider-setup", async () => {
     register(tools);
     tools.id = docker(namedArguments(spec.tools.args, toolsName));
     assert(/^[a-f0-9]{64}$/.test(tools.id), "HOST_TOOLS_CID_REQUIRED");
@@ -198,6 +218,7 @@ export async function runHostInvocation(
       probes.length === 2 && probes.every((value) => value === false),
       "HOST_NAMESPACE_EGRESS_AVAILABLE",
     );
+    });
     const namespace = spec.namespace ?? tools.id;
     candidate = resource(candidateName, {
       owner,
@@ -209,6 +230,7 @@ export async function runHostInvocation(
         ? { launchProcess: spec.candidate.launchProcess }
         : {}),
     });
+    await timed("candidate-runtime-setup", async () => {
     register(candidate);
     candidate.id = docker(
       namedArguments(spec.candidate.arguments(namespace), candidateName),
@@ -221,7 +243,7 @@ export async function runHostInvocation(
       ...candidate,
       running: true,
     });
-    const runtime = JSON.parse(
+    runtime = JSON.parse(
       docker(["exec", candidate.id, spec.candidate.node, "-e", runtimeProbe]),
     );
     assert.equal(runtime.platform, "linux", "HOST_CANDIDATE_RUNTIME_OS");
@@ -268,6 +290,8 @@ export async function runHostInvocation(
       observedImageId: spec.candidate.image,
       runtime,
     });
+    });
+    await timed("application-readiness", () =>
     docker(
       [
         "exec",
@@ -278,7 +302,7 @@ export async function runHostInvocation(
         "let ready=false;for(let i=0;i<120;i++){try{if((await fetch('http://127.0.0.1:3100/external/config/ui')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,250));}if(!ready)process.exit(2)",
       ],
       { timeout: 35000 },
-    );
+    ));
     assertOwnedContainer(inspect(candidate.id), {
       ...candidate,
       running: true,
@@ -308,50 +332,56 @@ export async function runHostInvocation(
           resources.delete(proofKey);
         }
       });
-    const terminal = await execute();
-    checkCancellation();
-    assertOwnedContainer(inspect(candidate.id), {
-      ...candidate,
-      running: true,
+    const terminal = await timed("playwright-proof", execute);
+    let measured;
+    await timed("post-proof-resource-observation", () => {
+      checkCancellation();
+      assertOwnedContainer(inspect(candidate.id), {
+        ...candidate,
+        running: true,
+      });
+      measured = {
+        candidate: JSON.parse(
+          docker([
+            "exec",
+            candidate.id,
+            spec.candidate.node,
+            "-e",
+            resourcesProbe,
+          ]),
+        ),
+        browserProvider: JSON.parse(
+          docker(["exec", tools.id, "node", "-e", resourcesProbe]),
+        ),
+      };
     });
-    const measured = {
-      candidate: JSON.parse(
-        docker([
-          "exec",
-          candidate.id,
-          spec.candidate.node,
-          "-e",
-          resourcesProbe,
-        ]),
-      ),
-      browserProvider: JSON.parse(
-        docker(["exec", tools.id, "node", "-e", resourcesProbe]),
-      ),
-    };
-    const lifecycle = await stopCandidateAndObserve({
+    const lifecycle = await timed("candidate-graceful-shutdown", () => stopCandidateAndObserve({
       inspect: () => inspect(candidate.id),
       signal: () => {
         docker(["kill", "--signal", "SIGTERM", candidate.id]);
         return true;
       },
       wait: () => docker(["wait", candidate.id]),
-    });
+    }));
     checkCancellation();
     assertOwnedContainer(lifecycle.after, { ...candidate, running: false });
     writeJsonAtomic(
       path.join(directory, "candidate-lifecycle.json"),
       lifecycle,
     );
-    docker(["kill", "--signal", "SIGTERM", tools.id]);
-    const providerWait = docker(["wait", tools.id]);
-    const toolFinal = inspect(tools.id);
-    assertOwnedContainer(toolFinal, { ...tools, running: false });
-    assert.equal(toolFinal.State.ExitCode, 0, "HOST_PROVIDER_SHUTDOWN_FAILED");
-    assert.equal(
-      read(path.join(directory, "provider-stopped.json")).closed,
-      true,
-      "HOST_PROVIDER_SHUTDOWN_FAILED",
-    );
+    let providerWait, toolFinal;
+    await timed("provider-graceful-shutdown", () => {
+      docker(["kill", "--signal", "SIGTERM", tools.id]);
+      providerWait = docker(["wait", tools.id]);
+      toolFinal = inspect(tools.id);
+      assertOwnedContainer(toolFinal, { ...tools, running: false });
+      assert.equal(toolFinal.State.ExitCode, 0, "HOST_PROVIDER_SHUTDOWN_FAILED");
+      assert.equal(
+        read(path.join(directory, "provider-stopped.json")).closed,
+        true,
+        "HOST_PROVIDER_SHUTDOWN_FAILED",
+      );
+    });
     for (const file of [
       path.join(spec.diagnostics, "network-rejections.jsonl"),
       path.join(directory, "provider-rejections.jsonl"),
@@ -378,6 +408,7 @@ export async function runHostInvocation(
       creators:v3Creators,
     }}:{}) };
   } finally {
+    const finishCleanup = async () => {
     const errors = [];
     for (const value of [candidate, tools])
       if (value) {
@@ -404,5 +435,7 @@ export async function runHostInvocation(
       }
     if (errors.length)
       throw new AggregateError(errors, "HOST_OWNED_RESOURCE_CLEANUP_FAILED");
+    };
+    await timed("resource-cleanup", finishCleanup);
   }
 }

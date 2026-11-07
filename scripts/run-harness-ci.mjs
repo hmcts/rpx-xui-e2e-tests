@@ -211,7 +211,8 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
   const resources = new Map(),
     phaseResults = [],
     phaseTimings = [],
-    eventRuntimePreparationTimings = [];
+    eventRuntimePreparationTimings = [],
+    eventRuntimeLifecycleTimings = [];
   let failedPhase, phaseTerminal, phaseFailure;
   let context, mandatoryEmailCapture,
     verdict = blocked(),
@@ -558,6 +559,13 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
           }, child);
           throw error;
         } finally {
+          if (name === "eventCapability") {
+            try {
+              const diagnostic = read(path.join(directory, "event-runtime-lifecycle-timings.json"));
+              if (diagnostic?.kind === "private-event-runtime-lifecycle-timings" && diagnostic.proofAuthority === false && diagnostic.catalogueCredit === false && Array.isArray(diagnostic.records))
+                eventRuntimeLifecycleTimings = diagnostic.records;
+            } catch { /* Optional lifecycle diagnostics do not affect phase outcomes. */ }
+          }
           await remove(name, resource);
         }
       },
@@ -704,7 +712,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       fixedCiPhasesPassed(phaseResults),
     );
   }
-  return { ...verdict, phaseTimings, eventRuntimePreparationTimings, continuationSafe: cleanupComplete && !cancelled && resources.size === 0 };
+  return { ...verdict, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, continuationSafe: cleanupComplete && !cancelled && resources.size === 0 };
 }
 if (
   process.argv[1] &&

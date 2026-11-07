@@ -330,6 +330,15 @@ function validateHtml(html, record, retiringPreviousRun = false) {
     const panels = complexDom.querySelectorAll('[id="harness-event-preparation-timings"]');
     if (panels.length !== 1 || panels[0].toString() !== parse(eventPreparationReport.renderEventPreparationTimings(record.eventPreparationTimings)).toString()) throw failure();
   } else if (html.includes('id="harness-event-preparation-timings"')) throw failure();
+  if (record.eventRuntimeLifecycleTimings !== undefined) {
+    const expected = eventPreparationReport.validateEventRuntimeLifecycleTimings(record.eventRuntimeLifecycleTimings, record.nativeEvidence);
+    if (!record.eventRuntimeLifecycleSummary || JSON.stringify(expected) !== JSON.stringify(record.eventRuntimeLifecycleSummary)) throw failure();
+  }
+  if (record.eventRuntimeLifecycleSummary !== undefined) {
+    eventPreparationReport.validateEventRuntimeLifecycleSummary(record.eventRuntimeLifecycleSummary, record.nativeEvidence);
+    const panels = complexDom.querySelectorAll('[id="harness-event-runtime-lifecycle"]');
+    if (panels.length !== 1 || panels[0].toString() !== parse(eventPreparationReport.renderEventRuntimeLifecycleTimings(record.eventRuntimeLifecycleSummary)).toString()) throw failure();
+  } else if (html.includes('id="harness-event-runtime-lifecycle"')) throw failure();
   if (
     Boolean(record.nativeEvidence) !==
       html.includes('id="harness-native-evidence"') ||
@@ -583,7 +592,7 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource, assuranceTiming, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming, buildSelfCheckHeld } = {}) {
+  constructor({ selection, diagnosticSource, assuranceTiming, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming, buildSelfCheckHeld } = {}) {
     this.buildSelfCheckHeld = buildSelfCheckHeld === undefined ? undefined : structuredClone(buildSelfCheckHeld);
     this.buildSelfChecks = undefined;
     this.diagnosticSource = diagnosticSource;
@@ -593,6 +602,8 @@ class HarnessPublicOdhinReporter {
     this.phaseTimings = phaseTimings;
     this.eventRuntimePreparationTimings = eventRuntimePreparationTimings === undefined ? undefined : structuredClone(eventRuntimePreparationTimings);
     this.eventPreparationTimings = undefined;
+    this.eventRuntimeLifecycleTimings = eventRuntimeLifecycleTimings === undefined ? undefined : structuredClone(eventRuntimeLifecycleTimings);
+    this.eventRuntimeLifecycleSummary = undefined;
     if(divorceProfileAttempt)require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(divorceProfileAttempt);
     this.divorceProfileAttempt = divorceProfileAttempt;
     if(personalServiceAttempt)require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(personalServiceAttempt);
@@ -811,6 +822,13 @@ class HarnessPublicOdhinReporter {
         try { this.eventPreparationTimings = eventPreparationReport.validateEventRuntimePreparationTimings(this.eventRuntimePreparationTimings, this.nativeEvidence); }
         catch { this.eventPreparationTimings = eventPreparationReport.unavailableEventPreparationSummary(this.nativeEvidence); }
       }
+      if (this.eventRuntimeLifecycleTimings !== undefined) {
+        try {
+          this.eventRuntimeLifecycleSummary = eventPreparationReport.validateEventRuntimeLifecycleTimings(this.eventRuntimeLifecycleTimings, this.nativeEvidence);
+          eventPreparationReport.validateEventRuntimeLifecycleSummary(this.eventRuntimeLifecycleSummary, this.nativeEvidence);
+        }
+        catch { this.eventRuntimeLifecycleSummary = eventPreparationReport.unavailableEventRuntimeLifecycleTimings(this.nativeEvidence); }
+      }
       for (const record of this.results.values()) counts[record.status]++;
       if (
         result.status === "passed" &&
@@ -956,6 +974,7 @@ class HarnessPublicOdhinReporter {
         nativeElapsedMs: this.nativeElapsedMs,
         phaseTimings: this.phaseTimings,
         ...(this.eventPreparationTimings === undefined ? {} : {eventPreparationTimings: this.eventPreparationTimings}),
+        ...(this.eventRuntimeLifecycleSummary === undefined ? {} : {eventRuntimeLifecycleSummary: this.eventRuntimeLifecycleSummary}),
         ...(this.mandatoryEmailTiming === undefined ? {} : {mandatoryEmailTiming: this.mandatoryEmailTiming}),
         divorceProfileAttempt: this.divorceProfileAttempt,
         personalServiceAttempt:this.personalServiceAttempt,
@@ -1040,6 +1059,7 @@ class HarnessPublicOdhinReporter {
       if(this.sharedNestedAttemptEvidence)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence));
       if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs, false, false, Boolean(this.nativeEvidence?.mandatoryEmailAdmission)));
       if (this.eventPreparationTimings !== undefined) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", eventPreparationReport.renderEventPreparationTimings(this.eventPreparationTimings));
+      if (this.eventRuntimeLifecycleSummary !== undefined) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", eventPreparationReport.renderEventRuntimeLifecycleTimings(this.eventRuntimeLifecycleSummary));
       presentation
         .querySelector("head")
         .insertAdjacentHTML(

@@ -176,6 +176,7 @@ export async function runNativeHostPhase(output, stagedHarness, {eventSerialV3=f
     pendingReceipt,
     executions = [],
     identities = [],
+    lifecycleTimings = [],
     verdict = { status: "BLOCKED", exitCode: 2 };
   const remove = async (key) => {
     try {
@@ -358,7 +359,22 @@ export async function runNativeHostPhase(output, stagedHarness, {eventSerialV3=f
       const plan = nativeContainerPlan(invocationInput, handoff, invocation.invocationId);
       const { terminal, v3Finalization } = await runHostInvocation(
         { ...plan, manifest: current, payloadDigest: artifact.payloadDigest },
-        { resources, isCancelled: () => Boolean(interrupted), eventSerialV3 },
+        {
+          resources,
+          isCancelled: () => Boolean(interrupted),
+          eventSerialV3,
+          ...(input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? {
+            onLifecycleTiming: (timing) => {
+              try {
+                lifecycleTimings.push({
+                  sequence: lifecycleTimings.length + 1,
+                  runId: input.runId,
+                  ...timing,
+                });
+              } catch { /* Diagnostic collection never changes proof execution. */ }
+            },
+          } : {}),
+        },
       );
       const report = read(path.join(directory, "report.json"));
       writeJsonAtomic(path.join(directory, "execution.json"), {
@@ -426,6 +442,17 @@ export async function runNativeHostPhase(output, stagedHarness, {eventSerialV3=f
       }
     uninstall();
     try {
+      if (input.releaseScopeId === EVENT_CAPABILITY_SCOPE) {
+        try {
+          writeJsonAtomic(path.join(output, "event-runtime-lifecycle-timings.json"), {
+            schemaVersion: 1,
+            kind: "private-event-runtime-lifecycle-timings",
+            proofAuthority: false,
+            catalogueCredit: false,
+            records: lifecycleTimings,
+          });
+        } catch { /* Optional diagnostics cannot invalidate runtime evidence. */ }
+      }
       if (interrupted) {
         verdict = { status: "BLOCKED", exitCode: 2 };
         invalidate(output, interrupted, cleanupErrors.length === 0);

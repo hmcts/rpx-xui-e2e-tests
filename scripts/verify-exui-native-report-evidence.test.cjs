@@ -131,6 +131,17 @@ test("native projection validates all current-policy proofs without turning faul
   );
 });
 
+test("private lifecycle timing sidecar is ignored by the sealed native evidence projection",async t=>{
+  const f=await fixture(t),{readNativeReportEvidence}=await load();
+  const before=await readNativeReportEvidence(f.descriptorPath);
+  const sidecar=path.join(f.directory,'private/eventCapability/event-runtime-lifecycle-timings.json');
+  fs.writeFileSync(sidecar,JSON.stringify({schemaVersion:1,kind:'private-event-runtime-lifecycle-timings',proofAuthority:false,catalogueCredit:false,records:[]}));
+  const after=await readNativeReportEvidence(f.descriptorPath);
+  assert.equal(before.status,'PASS');assert.equal(after.status,'PASS');
+  assert.equal(after.descriptorDigest,before.descriptorDigest);
+  assert.equal(after.releaseApproval,false);
+});
+
 test("postal baseline failure remains BLOCKED and its wrong-assertion fault is not credited", async (t) => {
   const f = await fixture(t, { postalFailure: true });
   const result = await (

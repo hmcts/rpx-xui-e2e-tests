@@ -216,6 +216,61 @@ test("support only: real shared engine observes separate API lifetime and final 
     f.dispose();
   }
 });
+
+test("support only: source-event host invocation reports ordered provider, candidate, readiness, proof and shutdown/cleanup timings", async () => {
+  const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
+  const f = fixture();
+  const timings = [];
+  try {
+    const result = await runHostInvocation(f.spec, {
+      ...f,
+      onLifecycleTiming: (record) => timings.push(record),
+    });
+    assert.equal(result.terminal.code, 0);
+    assert.equal(f.containers.size, 0);
+    assert.deepEqual(timings.map(({ step, status }) => [step, status]), [
+      ["browser-provider-setup", "completed"],
+      ["candidate-runtime-setup", "completed"],
+      ["application-readiness", "completed"],
+      ["playwright-proof", "completed"],
+      ["post-proof-resource-observation", "completed"],
+      ["candidate-graceful-shutdown", "completed"],
+      ["provider-graceful-shutdown", "completed"],
+      ["resource-cleanup", "completed"],
+    ]);
+    for (const timing of timings) {
+      assert.equal(timing.invocationId, "baseline");
+      assert.equal(timing.runId, f.spec.owner);
+      assert(Number.isFinite(Date.parse(timing.startedAt)));
+      assert(Number.isSafeInteger(timing.durationMs) && timing.durationMs >= 0);
+    }
+  } finally {
+    f.dispose();
+  }
+});
+
+test("support only: lifecycle timing records a proof failure and cleanup without changing the error", async () => {
+  const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
+  const f = fixture("proof-client-error");
+  const timings = [];
+  try {
+    await assert.rejects(
+      runHostInvocation(f.spec, { ...f, onLifecycleTiming: (record) => timings.push(record) }),
+      /known proof child failed/,
+    );
+    assert.equal(f.containers.size, 0);
+    assert.deepEqual(timings.map(({ step, status }) => [step, status]), [
+      ["browser-provider-setup", "completed"],
+      ["candidate-runtime-setup", "completed"],
+      ["application-readiness", "completed"],
+      ["playwright-proof", "failed"],
+      ["resource-cleanup", "completed"],
+    ]);
+  } finally {
+    f.dispose();
+  }
+});
+
 for (const fault of [
   "create-timeout",
   "write-capability",
