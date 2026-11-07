@@ -59,12 +59,14 @@ export async function runComplexEmailCohort({candidate,browser,output,sourceInpu
   let sourcePhase='source-input-verification',firstFailure;
   const noteFailure=(stage,error)=>{firstFailure??={stage,error};controller.abort();};
   for(const variant of ['baseline','email-type']){
-   active();const directory=path.join(output,'browser-'+variant);
+   active();phase='browser-'+variant;const directory=path.join(output,'browser-'+variant);
    await browserRun({candidate,browser,output:directory,variant,scenario:'complex-email-text',signal:controller.signal,complexLifecycle:createComplexCapture('browser',expected,{active,inspect,ownerEmpty})});
    active();assert(expected.contexts['browser-'+variant]?.closed?.observedAbsent===true,fail);
   }
+  phase='mapping-pair';
   active();const mapping=path.join(output,'mapping');fs.mkdirSync(mapping,{mode:0o700});
   const sourceOutput=path.join(output,'source-proof'),{prepared,tools}=expected.sourcePreparation;
+  phase=sourcePhase;
   try{for(const item of [...Object.values(prepared),...tools])if(item.digest!==null)assert.equal(digestBytes(fs.readFileSync(item.path)),item.digest,fail);}catch(error){throw Object.assign(error,{failedStage:sourcePhase});}
   assert.deepEqual(producer(),expected.producer,fail);
   active();sourcePhase='source-proof';const log=fs.openSync(path.join(output,'source-proof.log'),'wx',0o600);

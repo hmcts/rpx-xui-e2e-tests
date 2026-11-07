@@ -106,6 +106,10 @@ test('Complex source failure aborts and joins runtime work before returning with
  const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs'),{result,calls}=await sequenceFixture('source-fails');
  assert.equal(result.result.status,'BLOCKED');assert.equal(result.result.failedStage,'source-proof');assert(calls.includes('runtime-joined-after-abort'));assert(!calls.includes('reader'));
 });
+test('browser proof failures retain their actual stage after the output directory is prepared',async()=>{
+ const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs'),{result,calls}=await sequenceFixture('email-browser-fails');
+ assert.equal(result.result.status,'BLOCKED');assert.equal(result.result.failedStage,'browser-email-type');assert(!calls.includes('mapping'));assert(!calls.includes('reader'));
+});
 test('blocked mapping aborts and joins source compilation before returning without raw admission',async()=>{
  const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs'),{result,calls}=await sequenceFixture('mapping-blocked');
  assert.equal(result.result.status,'BLOCKED');assert.equal(result.result.failedStage,'mapping-pair');assert(calls.includes('compiler-joined-after-abort'));assert(!calls.includes('reader'));
