@@ -25,6 +25,7 @@ exports.buildSelfCheckFixture = async (t, { failed = false } = {}) => {
     path.join(root, "scripts/fixtures/harness-unit-files.json"),
     JSON.stringify(unitFiles),
   );
+  fs.writeFileSync(path.join(root,'scripts/fixtures/harness-self-check-purpose-map.json'),JSON.stringify({schemaVersion:1,groups:[{id:'fixture-checks',label:'Synthetic fixture checks',purpose:'Source-defined tiny unit fixture purposes, not application coverage.'}],files:unitFiles.map((file,index)=>({file,id:'unit-fixture-'+index,label:index===0?'Pipeline fixture':'Tiny Node fixture',group:'fixture-checks',purpose:index===0?'Checks one synthetic pipeline fixture.':'Checks the selected tiny Node fixture body.'}))}));
   fs.writeFileSync(
     path.join(root, ".gitignore"),
     "/.harness-build-self-check/\n",
@@ -97,15 +98,20 @@ function assertControl(){if(process.env.SELF_CHECK_HELD_READBACK_TEST_CONTROL!==
 exports.fixturePublicReporter = f => {
   const {Module}=require('node:module'),source=path.resolve(__dirname,'..');
   const file=path.join(f.root,'scripts/harness-public-odhin-reporter.cjs');
+  const compile=(name,body)=>{const target=path.join(f.root,'scripts',name);fs.writeFileSync(target,body);const mod=new Module(target,module);mod.filename=target;mod.paths=Module._nodeModulePaths(source);mod._compile(body,target);require.cache[target]=mod;return mod.exports;};
+  const helperFile=path.join(f.root,'scripts/harness-build-self-check-report.cjs');
+  const relocate=body=>body.replace(/require\((["'])(\.\/[^"']+)\1\)/g,(_all,_quote,name)=>'require('+JSON.stringify(name==='./harness-build-self-check-report.cjs'?helperFile:path.resolve(source,name))+')').replace(/import\((["'])(\.\/[^"']+)\1\)/g,(_all,_quote,name)=>'import('+JSON.stringify(pathToFileURL(path.resolve(source,name)).href)+')');
+  const helper=compile('harness-build-self-check-report.cjs',relocate(fs.readFileSync(path.join(source,'harness-build-self-check-report.cjs'),'utf8')));
+  const overviewFile=path.join(f.root,'scripts/harness-public-overview.cjs');compile('harness-public-overview.cjs',relocate(fs.readFileSync(path.join(source,'harness-public-overview.cjs'),'utf8')));
   let text=fs.readFileSync(path.join(source,'harness-public-odhin-reporter.cjs'),'utf8');
   if(process.env.SELF_CHECK_HELD_READBACK_TEST_CONTROL!==undefined){assertControl();const guard="      if(!require('node:util').isDeepStrictEqual(actual,record.buildSelfChecks))throw failure();";if(text.split(guard).length!==2)throw Error('EXACT_HELD_COMPARISON_REQUIRED');text=text.replace(guard,'');}
-  text=text.replace(/require\((["'])(\.\/[^"']+)\1\)/g,(_all,_quote,name)=>'require('+JSON.stringify(name==='./run-harness-self-check-evidence.mjs'?path.join(f.root,'scripts',name):path.resolve(source,name))+')');
+  text=text.replace(/require\((["'])(\.\/[^"']+)\1\)/g,(_all,_quote,name)=>'require('+JSON.stringify(name==='./run-harness-self-check-evidence.mjs'?path.join(f.root,'scripts',name):name==='./harness-build-self-check-report.cjs'?helperFile:name==='./harness-public-overview.cjs'?overviewFile:path.resolve(source,name))+')');
   text=text.replace(/import\((["'])(\.\/[^"']+)\1\)/g,(_all,_quote,name)=>'import('+JSON.stringify(pathToFileURL(name==='./run-harness-self-check-evidence.mjs'?path.join(f.root,'scripts',name):path.resolve(source,name)).href)+')');
   text=text.replaceAll('__dirname',JSON.stringify(source));
   fs.writeFileSync(file,text);
   const loaded=new Module(file,module);loaded.filename=file;loaded.paths=Module._nodeModulePaths(source);loaded._compile(text,file);
   require.cache[file]=loaded;
-  return {Reporter:loaded.exports,reporterFile:file,collection(){
+  return {Reporter:loaded.exports,helper,reporterFile:file,collection(){
     const target=path.join(f.root,'scripts/run-harness-local-aat.cjs');
     const body=fs.readFileSync(path.join(source,'run-harness-local-aat.cjs'),'utf8').replace(/require\((["'])(\.\/[^"']+)\1\)/g,(_all,_quote,name)=>'require('+JSON.stringify(name==='./harness-public-odhin-reporter.cjs'?file:path.resolve(source,name))+')');
     const mod=new Module(target,module);mod.filename=target;mod.paths=Module._nodeModulePaths(source);mod._compile(body,target);return mod.exports;

@@ -6,6 +6,7 @@ import stageTelemetry from './exui-native-stage-telemetry.cjs';
 export default class EvidenceReporter {
   tests = [];
   stages = new stageTelemetry.NativeStageRecorder();
+  postalDetail = new stageTelemetry.PostalDetailRecorder();
   globalErrors = [];
   configuredWorkers = null;
 
@@ -19,8 +20,8 @@ export default class EvidenceReporter {
 
   onError() { this.globalErrors.push('FRAMEWORK_GLOBAL_ERROR'); }
 
-  onStepBegin(test, result, step) { this.stages.begin(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); }
-  onStepEnd(test, result, step) { this.stages.end(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); }
+  onStepBegin(test, result, step) { this.stages.begin(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); this.postalDetail.begin(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); }
+  onStepEnd(test, result, step) { this.stages.end(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); this.postalDetail.end(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); }
 
   onTestEnd(test, result) {
     const proofs = test.annotations.filter((annotation) => annotation.type === 'harness-proof');
@@ -38,6 +39,7 @@ export default class EvidenceReporter {
     visit(result.steps);
     const attributed = result.errors.length === 1 && assertions.length === 1 &&
       assertions[0].error.message === result.errors[0].message && assertions[0].error.stack === result.errors[0].stack;
+    const detail = this.postalDetail.finish(proofs[0]?.description, result);
     this.tests.push({
       proofId: proofs[0]?.description ?? null,
       expectedStatus: test.expectedStatus,
@@ -45,7 +47,8 @@ export default class EvidenceReporter {
       retry: result.retry,
       failureId: attributed ? assertions[0].id : null,
       unattributedErrors: attributed ? 0 : result.errors.length,
-      recordedExecution: this.stages.finish(proofs[0]?.description, result)
+      recordedExecution: this.stages.finish(proofs[0]?.description, result),
+      ...(detail === undefined ? {} : {recordedDetail:detail})
     });
   }
 

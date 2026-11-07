@@ -207,7 +207,7 @@ test("pure event validation rejects missing duplicate malformed contradictory su
       cancelled: false,
       forced: false,
     },
-    1,
+    ["/private/fixture.cjs"],
   );
   assert.equal(cancelledOutcome.reason, "TESTS_CANCELLED");
   assert.equal(cancelledOutcome.counts.cancelled, 1);
@@ -245,7 +245,7 @@ test("pure event validation rejects missing duplicate malformed contradictory su
           cancelled: false,
           forced: false,
         },
-        1,
+        ["/private/fixture.cjs"],
       ).status,
       "incomplete",
     );
@@ -261,7 +261,7 @@ test("pure event validation rejects missing duplicate malformed contradictory su
         cancelled: false,
         forced: false,
       },
-      1,
+      ["/private/fixture.cjs"],
     ).status,
     "incomplete",
   );
@@ -709,4 +709,19 @@ test("actual configured CLI selects two file workers while component API default
   assert.deepEqual(component.args.slice(0, 2), ["--test", "--test-concurrency=1"]);
   assert.deepEqual(component.args.slice(-2), f.unitFiles);
   assert.equal((fs.readFileSync(f.callsPath, "utf8").match(/spawn/g) ?? []).length, 2);
+});
+
+
+test('file summaries bind exact selected identities and reconcile all Node counters without adding durations',async()=>{
+ const api=await import(process.env.SELF_CHECK_FILE_SUMMARY_TEST_MODULE??'./harness-self-check-reporter.mjs');
+ const counts={tests:1,passed:1,failed:0,cancelled:0,skipped:0,todo:0,suites:0,topLevel:1},a={type:'test:summary',data:{file:'/private/a.cjs',entryFile:'/private/a.cjs',counts,success:true,duration_ms:70}},b={type:'test:summary',data:{file:'/private/b.cjs',entryFile:'/private/b.cjs',counts:{...counts,tests:2,passed:1,skipped:1},success:true,duration_ms:60}},global={type:'test:summary',data:{counts:{...counts,tests:3,passed:2,skipped:1,topLevel:2},success:true,duration_ms:100}};
+ const summary=await api.summarizeNodeTestEvents((async function*(){yield b;yield a;yield global;})());assert(Array.isArray(summary.fileSummaries));assert.equal(summary.fileSummaries.length,2);
+ const terminal={started:true,observed:true,forced:false,cancelled:false,code:0,signal:null},expected=['/private/a.cjs','/private/b.cjs'];
+ const outcome=api.validateSelfCheckOutcome(summary,terminal,expected);assert.equal(outcome.status,'passed');assert.deepEqual(outcome.fileResults.map(row=>row.file),expected);assert.equal(outcome.counts.tests,3);assert.equal(outcome.nodeDurationMs,100);assert.equal(outcome.fileResults.reduce((n,row)=>n+row.nodeDurationMs,0),130);
+ for(const mutate of [s=>{s.fileSummaries[0].file='/private/foreign.cjs';},s=>{s.fileSummaries[0].file='/private/./b.cjs';},s=>{s.fileSummaries[0].file=s.fileSummaries[1].file;},s=>{s.fileSummaries.pop();},s=>{delete s.fileSummaries;},s=>{s.fileSummaries[0].nodeDurationMs=-1;},s=>{s.fileSummaries[0].counts.suites++;},s=>{s.fileSummaries[0].extra='PRIVATE_CANARY';}]){const changed=structuredClone(summary);mutate(changed);assert.equal(api.validateSelfCheckOutcome(changed,terminal,expected).status,'incomplete');}
+});
+test('actual two-file Node summaries retain parent tests in both modes without JUnit-derived counts',async t=>{
+ const folder=fs.mkdtempSync(path.join(root,'scripts/fixtures/self-check-owned-')),privateRoot=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'self-check-file-detail-'));t.after(()=>{fs.rmSync(folder,{recursive:true,force:true});fs.rmSync(privateRoot,{recursive:true,force:true});});
+ const files=['parent.cjs','plain.cjs'].map((name,index)=>{const file=path.join(folder,name);fs.writeFileSync(file,index===0?sources.nestedParent:sources.passed);return path.relative(root,file);});const api=await import('./run-harness-self-check-evidence.mjs');
+ for(const testConcurrency of [1,2]){const output=path.join(privateRoot,'mode-'+testConcurrency),value=await api.collectNodeSelfCheckEvidence({files,output,testConcurrency});assert.equal(value.status,'passed');assert.equal(value.counts.tests,3);assert.equal(value.counts.passed,3);assert.equal(value.fileResults.length,2);assert.deepEqual(value.fileResults.map(row=>row.counts.tests),[2,1]);assert.deepEqual(value.fileResults.map(row=>row.file),files.map(file=>path.join(root,file)));const summary=JSON.parse(fs.readFileSync(path.join(output,'structured-summary.json')));assert.equal(summary.fileSummaries.length,2);assert.equal(summary.counts.tests,3);assert(!JSON.stringify(summary).includes('private nested canary'));assert(!JSON.stringify(summary).includes('private parent canary'));}
 });

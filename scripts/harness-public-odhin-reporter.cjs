@@ -188,15 +188,27 @@ function inventory(p) {
   }
 }
 function validateHtml(html, record, retiringPreviousRun = false) {
-  const legacyBuild=retiringPreviousRun&&!Object.hasOwn(record,'buildSelfCheckHeld')&&(record.buildSelfChecks===undefined||!Object.hasOwn(record.buildSelfChecks,'configuredFileWorkers'));
-  if(!legacyBuild){
+  const legacyUnboundBuild=retiringPreviousRun&&!Object.hasOwn(record,'buildSelfCheckHeld')&&(record.buildSelfChecks===undefined||!Object.hasOwn(record.buildSelfChecks,'configuredFileWorkers'));
+  const legacyBoundBuild=retiringPreviousRun&&record.buildSelfChecks?.schemaVersion===1&&Object.hasOwn(record,'buildSelfCheckHeld')&&record.buildSelfCheckHeld!==null&&Object.hasOwn(record.buildSelfChecks,'configuredFileWorkers');
+  const legacyBuild=legacyUnboundBuild||legacyBoundBuild;
+  if(!legacyUnboundBuild){
     if(!Object.hasOwn(record,'buildSelfCheckHeld'))throw failure();
     if(record.buildSelfChecks===undefined){if(record.buildSelfCheckHeld!==null)throw failure();}
     else{
-      // Build collection/replay already requires qualified Node24; the diagnostics-only path does not.
-      if(process.versions.node.split('.')[0]!=='24'||record.buildSelfCheckHeld===null)throw failure();
-      const actual=require('./run-harness-self-check-evidence.mjs').readHeldBuildSelfChecks(record.buildSelfCheckHeld);
-      if(!require('node:util').isDeepStrictEqual(actual,record.buildSelfChecks))throw failure();
+      const held=record.buildSelfCheckHeld;
+      if(!held||typeof held!=='object'||Array.isArray(held)||Object.keys(held).sort().join(',')!=='digest,path'||
+        typeof held.path!=='string'||!path.isAbsolute(held.path)||path.normalize(held.path)!==held.path||
+        path.dirname(held.path)!==path.join(process.cwd(),'.harness-build-self-check')||
+        !/^held-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.json$/.test(path.basename(held.path))||
+        typeof held.digest!=='string'||!/^sha256:[a-f0-9]{64}$/.test(held.digest))throw failure();
+      // A subsequent genuine Build run replaces current-request.json. Retirement
+      // validates only this exact self-contained owned presentation for deletion.
+      if(!retiringPreviousRun){
+        // Build collection/replay requires qualified Node24; diagnostics-only does not.
+        if(process.versions.node.split('.')[0]!=='24')throw failure();
+        const actual=require('./run-harness-self-check-evidence.mjs').readHeldBuildSelfChecks(held);
+        if(!require('node:util').isDeepStrictEqual(actual,record.buildSelfChecks))throw failure();
+      }
     }
   }
   validateAssuranceTiming(record.assuranceTiming);
@@ -211,6 +223,12 @@ function validateHtml(html, record, retiringPreviousRun = false) {
   const mandatoryReport = require('./harness-mandatory-email-report.cjs');
   const mandatoryAdmission = record.nativeEvidence?.mandatoryEmailAdmission;
   mandatoryReport.validateMandatoryEmailTiming(record.mandatoryEmailTiming, mandatoryAdmission);
+  const expectedBuild=parse(buildReport.renderBuildSelfCheckDetails(record.buildSelfChecks,buildOptions));
+  for(const selector of ['[data-build-self-check-files]','[data-build-self-check-file]','[data-build-self-check-group]']){
+    const all=buildDom.querySelectorAll(selector),owned=buildDetails[0]?.querySelectorAll(selector)??[];
+    if(all.length!==expectedBuild.querySelectorAll(selector).length||all.length!==owned.length||all.some((node,index)=>node!==owned[index]))throw failure();
+  }
+
   const complexAdmission = record.nativeEvidence?.complexEmailAdmission;
   const complexDom = parse(html);
   const infos = [...complexDom.querySelectorAll('.info-box-header')].filter(header => header.textContent.trim() === 'Run info');
@@ -223,8 +241,8 @@ function validateHtml(html, record, retiringPreviousRun = false) {
 
   const nodeWorkers=complexDom.querySelectorAll('[data-build-node-workers]');
   const namedNodeWorkerRows=complexDom.querySelectorAll('tr').filter(row=>row.querySelector('th')?.textContent.trim()==='Configured Node file workers');
-  if(namedNodeWorkerRows.length!==(legacyBuild?0:1+(record.buildSelfChecks===undefined?0:1)))throw failure();
-  if(!(legacyBuild&&nodeWorkers.length===0) && (nodeWorkers.length!==1 || !timingRows.includes(nodeWorkers[0]) || nodeWorkers[0].toString()!==parse(buildReport.renderBuildSelfCheckWorkers(record.buildSelfChecks,buildOptions)).toString()))throw failure();
+  if(namedNodeWorkerRows.length!==(legacyUnboundBuild?0:1+(record.buildSelfChecks===undefined?0:1)))throw failure();
+  if(!(legacyUnboundBuild&&nodeWorkers.length===0) && (nodeWorkers.length!==1 || !timingRows.includes(nodeWorkers[0]) || nodeWorkers[0].toString()!==parse(buildReport.renderBuildSelfCheckWorkers(record.buildSelfChecks,buildOptions)).toString()))throw failure();
   if (record.assuranceTiming !== undefined || timingRows.some(row => ['Harness elapsed to report','Harness preparation → report snapshot'].includes(row.querySelector('th')?.textContent.trim()))) {
     const expectedTiming = assuranceRunInfo(record.assuranceTiming);
     if(timingRows.some(row => ['Harness elapsed to report','Harness preparation → report snapshot','Assurance started at','Preparation started at','Assurance timing scope'].includes(row.querySelector('th')?.textContent.trim()) && !expectedTiming.some(([label]) => label === row.querySelector('th')?.textContent.trim()))) throw failure();
@@ -336,6 +354,14 @@ function validateHtml(html, record, retiringPreviousRun = false) {
     if(expectedRows.length!==observedRows.length)throw failure();
     const previousTable=table=>{const copy=parse(table.toString()).firstChild;copy.removeAttribute('data-native-stage-proof');copy.querySelectorAll('tr').forEach(row=>row.childNodes.filter(node=>node.tagName==='TH'||node.tagName==='TD')[3]?.remove());copy.querySelectorAll('thead th')[3].textContent='Recorded outcome';return copy;};
     const previousNote=note=>{const copy=parse(note.toString()).firstChild;copy.removeAttribute('data-native-stage-note');copy.textContent=copy.textContent.split(' Expected contracts below')[0];return copy;};
+    const postalSelectors=['[data-native-postal-detail]','[data-native-postal-note]','[data-native-postal-heading]'];
+    for(const selector of postalSelectors) if(!sameNodes(complexDom.querySelectorAll(selector),nativePresentation.querySelectorAll(selector)))throw failure();
+    const postalHeader='Order|Source-defined group method|Group kind|Recorded outcome|Observed duration';
+    if(complexDom.querySelectorAll('table').filter(table=>table.querySelectorAll('thead th').map(cell=>cell.textContent).join('|')===postalHeader).length!==nativePresentation.querySelectorAll('[data-native-postal-detail]').length)throw failure();
+    const postalNote=node=>node.textContent.startsWith('Actual framework group events,')||node.textContent.startsWith('Postal action/check groups: unavailable.');
+    if(complexDom.querySelectorAll('p').filter(postalNote).length!==nativePresentation.querySelectorAll('[data-native-postal-note]').length)throw failure();
+    if(complexDom.querySelectorAll('h4').filter(node=>node.textContent==='Recorded postal action/check groups').length!==nativePresentation.querySelectorAll('[data-native-postal-heading]').length)throw failure();
+    let scopedPostal=0;
     let scopedTables=0,scopedNotes=0;
     expectedRows.forEach((row,index)=>{
       const actual=observedRows[index],expectedOwners=row.querySelectorAll('details'),owners=actual.querySelectorAll('details');
@@ -343,12 +369,18 @@ function validateHtml(html, record, retiringPreviousRun = false) {
       const owner=owners[0],expectedOwner=expectedOwners[0],ids=owner.querySelectorAll('dl'),expectedIds=expectedOwner.querySelectorAll('dl');
       // Proof, invocation, fault relation, phase run and receipt are the held owner identity.
       if(!sameNodes(ids,expectedIds)||ids.length!==1)throw failure();
+      for(const selector of postalSelectors){
+        const observed=owner.querySelectorAll(selector),expected=expectedOwner.querySelectorAll(selector);
+        if(!sameNodes(observed,expected)||observed.some(node=>node.parentNode!==owner))throw failure();
+        scopedPostal+=observed.length;
+      }
       const targetTables=expectedOwner.querySelectorAll('[data-native-stage-proof]'),targetNotes=expectedOwner.querySelectorAll('[data-native-stage-note]');
       const tables=legacy?owner.querySelectorAll('table').filter(table=>table.querySelectorAll('thead th').map(cell=>cell.textContent).join('|')===oldHeader):owner.querySelectorAll('[data-native-stage-proof]');
       const notes=legacy?owner.querySelectorAll('p').filter(note=>note.textContent.startsWith('Observed test duration:')):owner.querySelectorAll('[data-native-stage-note]');
       if(tables.some(table=>table.parentNode!==owner)||notes.some(note=>note.parentNode!==owner)||!sameNodes(tables,legacy?targetTables.map(previousTable):targetTables)||!sameNodes(notes,legacy?targetNotes.map(previousNote):targetNotes))throw failure();
       scopedTables+=tables.length;scopedNotes+=notes.length;
     });
+    if(scopedPostal!==postalSelectors.reduce((n,selector)=>n+complexDom.querySelectorAll(selector).length,0))throw failure();
     if(scopedTables!==(legacy?oldTables.length:actualTables.length)||scopedNotes!==(legacy?wantedNotes.length:actualNotes.length)||scopedTables!==allStageTables.length||scopedNotes!==allStageNotes.length)throw failure();
     if (
       !html.includes(`data-native-status="${record.nativeEvidence.status}"`) ||

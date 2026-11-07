@@ -366,3 +366,18 @@ test('CLI bridge preserves repeated-cancellation settlement and incomplete resul
   finally{clearInterval(poll);clearTimeout(deadline);if(child.exitCode===null&&child.signalCode===null){child.kill('SIGTERM');await terminal;}}
  }
 });
+
+test('configured purpose map covers the exact source-owned selection with unique stable IDs',()=>{
+ const api=require('./harness-build-self-check-report.cjs'),map=api.readSelfCheckPurposeMap(),selected=require('./fixtures/harness-unit-files.json');assert.deepEqual(map.files.map(row=>row.file),selected);assert.equal(map.files.length,selected.length);assert.equal(new Set(map.files.map(row=>row.id)).size,selected.length);assert.equal(new Set(map.groups.map(row=>row.id)).size,map.groups.length);for(const row of map.files){assert(map.groups.some(group=>group.id===row.group));assert(row.purpose.startsWith('Checks '));assert(!row.purpose.includes('PRIVATE_CANARY'));}
+});
+test('actual configured file projection binds safe IDs counts metadata digest and sealed workers',async t=>{
+ const f=await fixture(t);await f.api.runConfiguredSelfChecks({testConcurrency:2});const value=f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks());assert.equal(value.schemaVersion,2);assert.equal(value.configuredFileWorkers,2);assert.deepEqual(value.fileResults.map(row=>row.id),['unit-fixture-0','unit-fixture-1']);assert.deepEqual(value.fileResults.map(row=>row.counts.tests),[1,1]);for(const key of Object.keys(value.counts))assert.equal(value.fileResults.reduce((n,row)=>n+row.counts[key],0),value.counts[key]);assert(!JSON.stringify(value).includes(f.root));assert(!JSON.stringify(value).includes('synthetic unit'));const bytes=fs.readFileSync(path.join(f.root,'scripts/fixtures/harness-self-check-purpose-map.json'));assert.equal(value.purposeMapDigest,'sha256:'+require('node:crypto').createHash('sha256').update(bytes).digest('hex'));
+});
+test('coherently resealed per-file counts or swapped identities cannot replace the actual Node summary',async t=>{
+ for(const change of [e=>{e.fileResults[0].counts.tests++;e.fileResults[0].counts.passed++;e.counts.tests++;e.counts.passed++;},e=>{[e.fileResults[0].file,e.fileResults[1].file]=[e.fileResults[1].file,e.fileResults[0].file];}]){
+  const f=await fixture(t);await f.api.runConfiguredSelfChecks();const requestPath=path.join(f.privateRoot,'current-request.json'),request=JSON.parse(fs.readFileSync(requestPath)),file=path.join(request.directory,'self-check-evidence.json'),value=JSON.parse(fs.readFileSync(file));change(value);fs.writeFileSync(file,JSON.stringify(value));request.files['self-check-evidence.json']='sha256:'+require('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');fs.writeFileSync(requestPath,JSON.stringify(request));assert.throws(()=>f.api.holdBuildSelfChecks(),/^Error: HARNESS_SELF_CHECK_EVIDENCE_INVALID$/);
+ }
+});
+test('purpose map drift and incomplete selection reject before another unit spawn and never reuse old pass',async t=>{
+ const f=await fixture(t);await f.api.runConfiguredSelfChecks();const held=f.api.holdBuildSelfChecks(),mapFile=path.join(f.root,'scripts/fixtures/harness-self-check-purpose-map.json'),original=fs.readFileSync(mapFile),map=JSON.parse(original),before=fs.readFileSync(f.callsPath);map.files[0].purpose='Changed source purpose';fs.writeFileSync(mapFile,JSON.stringify(map));assert.throws(()=>f.api.readHeldBuildSelfChecks(held),/^Error: HARNESS_SELF_CHECK_EVIDENCE_INVALID$/);map.files.pop();fs.writeFileSync(mapFile,JSON.stringify(map));await assert.rejects(()=>f.api.runConfiguredSelfChecks(),/^AssertionError/);assert.deepEqual(fs.readFileSync(f.callsPath),before);assert.equal(fs.existsSync(path.join(f.privateRoot,'current-request.json')),false);fs.writeFileSync(mapFile,original);
+});

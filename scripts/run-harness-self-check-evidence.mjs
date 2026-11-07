@@ -8,6 +8,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { terminateOwnedChild } from "./lib/exui-candidate-runtime.mjs";
 import { validateSelfCheckOutcome } from "./harness-self-check-reporter.mjs";
 const root = fs.realpathSync(fileURLToPath(new URL("../", import.meta.url)));
+const summaryLimit = 256 * 1024;
+const purposeMapFile = "scripts/fixtures/harness-self-check-purpose-map.json";
 const reporter = "scripts/harness-self-check-reporter.mjs",
   collector = "scripts/run-harness-self-check-evidence.mjs",
   fixedPortHelper = "scripts/fixtures/exui-self-check-fixed-port-lock.cjs";
@@ -31,6 +33,7 @@ function sourceSnapshot(files) {
     reporter,
     collector,
     fixedPortHelper,
+    purposeMapFile,
     "package.json",
     ".gitignore",
     "scripts/fixtures/harness-unit-files.json",
@@ -178,7 +181,7 @@ export async function collectNodeSelfCheckEvidence({
   assert(fs.readdirSync(fixedPortDirectory).length === 0, fail);
   let summary;
   try {
-    assert(fs.statSync(summaryPath).size <= 16 * 1024, fail);
+    assert(fs.statSync(summaryPath).size <= summaryLimit, fail);
     summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
   } catch {
     summary = { complete: false, reason: "SUMMARY_MISSING" };
@@ -190,11 +193,11 @@ export async function collectNodeSelfCheckEvidence({
   const outcome = validateSelfCheckOutcome(
     summary,
     observedTerminal,
-    files.length,
+    files.map(file=>path.join(root,file)),
   );
   const { entries, ...source } = before;
   const result = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "harness-self-check-evidence",
     runId,
     ...outcome,
@@ -342,9 +345,18 @@ const sourceBinding = (value) => ({
   scope: value.scope,
   selectionDigest: value.selectionDigest,
 });
+function configuredPurposeMap(files,expectedDigest){
+  const file=path.join(root,purposeMapFile);assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,fail);
+  const bytes=fs.readFileSync(file),value=JSON.parse(bytes);assert(hash(bytes)===expectedDigest,fail);
+  exact(value,['schemaVersion','groups','files']);assert(value.schemaVersion===1&&Array.isArray(value.groups)&&Array.isArray(value.files),fail);
+  same(value.files.map(row=>row.file),files);assert(new Set(value.files.map(row=>row.id)).size===files.length,fail);
+  const groups=new Set();for(const row of value.groups){exact(row,['id','label','purpose']);assert(/^[a-z0-9-]+$/.test(row.id)&&!groups.has(row.id),fail);groups.add(row.id);for(const key of ['label','purpose'])assert(typeof row[key]==='string'&&row[key].length>0&&row[key].length<=400,fail);}
+  for(const row of value.files){exact(row,['file','id','label','group','purpose']);assert(/^unit-[a-z0-9-]+$/.test(row.id)&&groups.has(row.group),fail);for(const key of ['label','purpose'])assert(typeof row[key]==='string'&&row[key].length>0&&row[key].length<=400,fail);}
+  return{digest:hash(bytes),ids:new Map(value.files.map(row=>[row.file,row.id]))};
+}
 function parseSummary(bytes) {
   try {
-    assert(bytes.length <= 16 * 1024, fail);
+    assert(bytes.length <= summaryLimit, fail);
     return JSON.parse(bytes);
   } catch {
     return { complete: false, reason: "SUMMARY_MISSING" };
@@ -399,7 +411,7 @@ function validateRequest(request, expected) {
     assert(/^sha256:[a-f0-9]{64}$/.test(request.files[name]), fail);
     bytes[name] = ownedBytes(
       path.join(request.directory, name),
-      name === "structured-summary.json" ? 16 * 1024 : 64 * 1024 * 1024,
+      name === "structured-summary.json" ? summaryLimit : 64 * 1024 * 1024,
     );
     assert(hash(bytes[name]) === request.files[name], fail);
   }
@@ -442,7 +454,7 @@ function validateRequest(request, expected) {
   const outcome = validateSelfCheckOutcome(
     parseSummary(bytes["structured-summary.json"]),
     evidence.terminal,
-    files.length,
+    files.map(file=>path.join(root,file)),
   );
   exact(evidence.terminal, [
     "started",
@@ -472,7 +484,7 @@ function validateRequest(request, expected) {
     fail,
   );
   same(evidence, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "harness-self-check-evidence",
     runId: request.runId,
     ...outcome,
@@ -496,8 +508,9 @@ function validateRequest(request, expected) {
     catalogueCredit: false,
     releaseApproval: false,
   });
+  const purpose=configuredPurposeMap(files,input.before.entries.find(([file])=>file===purposeMapFile)?.[1]);
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: "harness-build-self-checks",
     runId: evidence.runId,
     status: evidence.status,
@@ -505,6 +518,8 @@ function validateRequest(request, expected) {
     nodeVersion: evidence.nodeVersion,
     selectedFiles: evidence.selectedFiles,
     configuredFileWorkers: input.testConcurrency ?? 1,
+    purposeMapDigest: purpose.digest,
+    fileResults: evidence.fileResults===null?null:evidence.fileResults.map(row=>({id:purpose.ids.get(path.relative(root,row.file)),counts:row.counts,nodeDurationMs:row.nodeDurationMs})),
     source: evidence.source,
     counts: evidence.counts,
     nodeDurationMs: evidence.nodeDurationMs,
@@ -529,6 +544,7 @@ export async function runConfiguredSelfChecks({
   const files = readConfiguredUnitFiles(),
     output = path.join(directory, "run-" + randomUUID()),
     build = selfCheckBuildIdentity();
+  configuredPurposeMap(files,hash(fs.readFileSync(path.join(root,purposeMapFile))));
   const evidence = await collectNodeSelfCheckEvidence({
     files,
     output,

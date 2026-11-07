@@ -3,7 +3,7 @@ const test = require("node:test"),
   assert = require("node:assert/strict");
 const api = require("./harness-build-self-check-report.cjs");
 const fixture = () => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   kind: "harness-build-self-checks",
   runId: "self-check-00000000-0000-4000-8000-000000000001",
   status: "passed",
@@ -11,6 +11,8 @@ const fixture = () => ({
   nodeVersion: "v24.21.0",
   selectedFiles: 2,
   configuredFileWorkers: 1,
+  purposeMapDigest:'sha256:'+require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync(require('node:path').join(__dirname,'fixtures/harness-self-check-purpose-map.json'))).digest('hex'),
+  fileResults:[{id:'unit-native-stage-telemetry',counts:{tests:10,passed:9,failed:0,cancelled:0,skipped:1,todo:0,suites:1,topLevel:2},nodeDurationMs:20},{id:'unit-worker-capabilities',counts:{tests:11,passed:11,failed:0,cancelled:0,skipped:0,todo:0,suites:1,topLevel:1},nodeDurationMs:25}],
   source: {
     commit: "a".repeat(40),
     state: "clean",
@@ -53,7 +55,9 @@ test("finite Build projection has separate summary/details with honest unknown a
     "evidence and admission guards",
     "runtime orchestration and cleanup contracts",
     "not the full Build or lint result",
-    "No per-feature counts",
+    "source descriptions, not application/service coverage",
+    "not per-assertion events",
+    "are not summed",
     "Node final-summary duration",
     "not add to diagnostic tests",
   ])
@@ -79,6 +83,16 @@ test("malformed or promoted public self-check fields reject without raw diagnost
     (v) => (v.configuredFileWorkers = null),
     (v) => (v.configuredFileWorkers = 3),
     (v) => (v.configuredFileWorkers = "2"),
+    (v) => delete v.fileResults,
+    (v) => (v.fileResults=null),
+    (v) => v.fileResults.pop(),
+    (v) => v.fileResults.reverse(),
+    (v) => (v.fileResults[0].id="PRIVATE_CANARY"),
+    (v) => (v.fileResults[0].id=v.fileResults[1].id),
+    (v) => (v.fileResults[0].nodeDurationMs=NaN),
+    (v) => (v.fileResults[0].counts.passed++),
+    (v) => (v.purposeMapDigest="sha256:"+"f".repeat(64)),
+    (v) => (v.schemaVersion=1),
   ]) {
     const value = fixture();
     change(value);
@@ -121,6 +135,7 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
   });
   await reporter.prepareBuildSelfChecks(held);
   const projected=reporter.buildSelfChecks;
+  const reportApi=local.helper;
   await reporter.onBegin({ projects: [] }, { allTests: () => tests });
   for (let index = 0; index < tests.length; index++)
     await reporter.onTestEnd(tests[index], {
@@ -164,18 +179,35 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
   const fresh=JSON.parse(require('node:child_process').execFileSync(process.execPath,['-e',`const r=require(${JSON.stringify(local.reporterFile)}).validatePublicReport('harness');console.log(JSON.stringify({tests:r.buildSelfChecks.counts.tests,workers:r.buildSelfChecks.configuredFileWorkers}));`],{cwd:f.root,encoding:'utf8',env:{...process.env,NODE_PATH:path.resolve(__dirname,'../node_modules')}}));assert.deepEqual(fresh,{tests:2,workers:1});assert.equal(fs.readFileSync(f.callsPath,'utf8').split('spawn').length-1,1,'readback must not run the CLI or a second unit collection');
 
   assert(!html.includes(held.path));
-  for(const change of [v=>{v.buildSelfChecks.counts.tests++;v.buildSelfChecks.counts.passed++;},v=>{delete v.buildSelfCheckHeld;},v=>{v.buildSelfCheckHeld=null;},v=>{v.buildSelfCheckHeld.digest='sha256:'+'f'.repeat(64);},v=>{v.buildSelfChecks.configuredFileWorkers=2;},v=>{v.buildSelfChecks.runId='self-check-11111111-1111-4111-8111-111111111111';},v=>{v.buildSelfChecks.source.selectionDigest='sha256:'+'f'.repeat(64);},v=>{delete v.buildSelfChecks;}]){
+  for(const change of [v=>{v.buildSelfChecks.counts.tests++;v.buildSelfChecks.counts.passed++;},v=>{delete v.buildSelfCheckHeld;},v=>{v.buildSelfCheckHeld=null;},v=>{v.buildSelfCheckHeld.digest='sha256:'+'f'.repeat(64);},v=>{v.buildSelfChecks.configuredFileWorkers=2;},v=>{v.buildSelfChecks.runId='self-check-11111111-1111-4111-8111-111111111111';},v=>{v.buildSelfChecks.source.selectionDigest='sha256:'+'f'.repeat(64);},v=>{delete v.buildSelfChecks;},v=>{delete v.buildSelfChecks.fileResults;},v=>{v.buildSelfChecks.fileResults[0].counts.tests++;v.buildSelfChecks.fileResults[0].counts.passed++;v.buildSelfChecks.counts.tests++;v.buildSelfChecks.counts.passed++;},v=>{v.buildSelfChecks.fileResults.reverse();}]){
     const value=JSON.parse(recordBytes);change(value);
     const page=require('node-html-parser').parse(html);
-    page.querySelector('#harness-build-self-check-summary').replaceWith(api.renderBuildSelfCheckSummary(value.buildSelfChecks));
-    page.querySelector('#harness-build-self-check-details').replaceWith(api.renderBuildSelfCheckDetails(value.buildSelfChecks));
-    page.querySelector('[data-build-node-workers]').replaceWith(api.renderBuildSelfCheckWorkers(value.buildSelfChecks));
+    try {
+    page.querySelector('#harness-build-self-check-summary').replaceWith(reportApi.renderBuildSelfCheckSummary(value.buildSelfChecks));
+    page.querySelector('#harness-build-self-check-details').replaceWith(reportApi.renderBuildSelfCheckDetails(value.buildSelfChecks));
+    page.querySelector('[data-build-node-workers]').replaceWith(reportApi.renderBuildSelfCheckWorkers(value.buildSelfChecks));
+    } catch(error){assert.match(error.message,/HARNESS_BUILD_SELF_CHECK_REPORT_INVALID/);}
     const forged=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(forged).digest('hex');fs.writeFileSync(htmlPath,forged);fs.writeFileSync(recordPath,JSON.stringify(value));
     assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
     fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,recordBytes);
   }
 
   assert(html.includes("2 Node tests"));
+  // Rehashing HTML does not transfer a file/group to another presentation owner.
+  for(const mutate of [
+    page=>{const row=page.querySelector('[data-build-self-check-file]');page.querySelector('body').appendChild(row.clone());},
+    page=>{const row=page.querySelector('[data-build-self-check-file]');row.remove();page.querySelector('body').appendChild(row);},
+    page=>{const group=page.querySelector('[data-build-self-check-group]');page.querySelector('body').appendChild(group.clone());},
+    page=>{page.querySelector('[data-build-self-check-files]').setAttribute('data-build-self-check-map','sha256:'+'f'.repeat(64));},
+    page=>{const row=page.querySelector('[data-build-self-check-file]');row.querySelectorAll('td')[0].set_content('999');},
+  ]){
+    const page=require('node-html-parser').parse(html);mutate(page);const changed=page.toString();
+    const value=JSON.parse(recordBytes);value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');
+    fs.writeFileSync(htmlPath,changed);fs.writeFileSync(recordPath,JSON.stringify(value));
+    assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+    assert.throws(()=>Reporter.resetPublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+  }
+  fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,recordBytes);
   for(const name of ['current-request.json']){
     const file=path.join(f.privateRoot,name),original=fs.readFileSync(file);fs.appendFileSync(file,' ');assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);fs.writeFileSync(file,original);
   }
@@ -188,7 +220,7 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
     html.replace("2 Node tests", "999 Node tests"),
     html.replace(
       "</body>",
-      api.renderBuildSelfCheckSummary(projected) + "</body>",
+      reportApi.renderBuildSelfCheckSummary(projected) + "</body>",
     ),
     html.replace("2 selected files", "3 selected files"),
     html.replace(
@@ -260,7 +292,48 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
     !fs.existsSync(htmlPath),
     "invalid mandatory held receipt must withdraw prior public HTML before any collection",
   );
-});
+
+  // A new genuine unit run replaces current-request.json; old A must remain
+  // invalid for adoption but its exact owned presentation must be retireable.
+  fs.writeFileSync(htmlPath, html);
+  fs.writeFileSync(recordPath, recordBytes);
+  await f.api.runConfiguredSelfChecks();
+  assert.throws(()=>Reporter.validatePublicReport("harness"), /^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+  for(const change of [
+    v=>{v.buildSelfCheckHeld.extra=true;},
+    v=>{v.buildSelfCheckHeld.path=path.join(root,'foreign',path.basename(held.path));},
+    v=>{v.buildSelfCheckHeld.path=path.dirname(held.path)+'/alias/../'+path.basename(held.path);},
+    v=>{v.buildSelfCheckHeld.path=path.join(path.dirname(held.path),'held-invalid.json');},
+    v=>{v.buildSelfCheckHeld.digest='invalid';},
+    v=>{v.buildSelfCheckHeld=null;},
+    v=>{delete v.buildSelfCheckHeld;},
+    v=>{v.buildSelfChecks.counts.passed++;},
+  ]){
+    const changed=JSON.parse(recordBytes);change(changed);
+    fs.writeFileSync(recordPath,JSON.stringify(changed));
+    assert.throws(()=>Reporter.resetPublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+    assert(fs.existsSync(htmlPath),'invalid presentation must not be deleted');
+  }
+  fs.writeFileSync(recordPath,recordBytes);
+  if(process.env.SELF_CHECK_COMPAT_NODE20){
+    const code=`const Module=require('node:module'),load=Module._load;let calls=0;Module._load=function(name,...args){if(name.endsWith('run-harness-self-check-evidence.mjs')){calls++;throw Error('RETIREMENT_MUST_NOT_REQUIRE_ESM');}return load.call(this,name,...args);};require(${JSON.stringify(local.reporterFile)}).resetPublicReport('harness');console.log(JSON.stringify({calls}));`;
+    const result=JSON.parse(require('node:child_process').execFileSync(process.env.SELF_CHECK_COMPAT_NODE20,['-e',code],{cwd:f.root,encoding:'utf8',env:{...process.env,NODE_PATH:path.resolve(__dirname,'../node_modules')}}));
+    assert.deepEqual(result,{calls:0});assert(!fs.existsSync(htmlPath));
+    fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,recordBytes);
+  }
+  Reporter.resetPublicReport("harness");
+  assert(!fs.existsSync(htmlPath));
+  assert(!fs.existsSync(recordPath));
+  const nextReporter=new Reporter({selection:'harness',diagnosticSource:source});
+  await nextReporter.prepareBuildSelfChecks(f.api.holdBuildSelfChecks());
+  await nextReporter.onBegin({projects:[]},{allTests:()=>tests});
+  for(let index=0;index<tests.length;index++)await nextReporter.onTestEnd(tests[index],{
+    status:'passed',retry:0,duration:2,startTime:new Date('2026-11-06T10:00:00Z'),workerIndex:0,parallelIndex:0,
+    steps:methods.methodFor(entries[index]).steps.map(step=>({title:'harness-check:'+step.id,category:'test.step',duration:1,steps:reviewedCsrfDetailChildren(step.id)})),
+  });
+  await nextReporter.onEnd({status:'passed',startTime:new Date('2026-11-06T10:00:00Z'),duration:1000});
+  const next=Reporter.validatePublicReport('harness');
+  assert.equal(next.tests,116);assert.notEqual(next.buildSelfChecks.runId,record.buildSelfChecks.runId);});
 
 test("fallback held transport accepts only an explicit complete pair", () => {
   assert.equal(api.buildSelfCheckReporterOption({}), undefined);
@@ -416,6 +489,7 @@ test("top Build measure leaves missing and incomplete counters unrecorded and re
     status: "incomplete",
     reason: "SUMMARY_MISSING",
     counts: null,
+    fileResults: null,
     nodeDurationMs: null,
   };
   for (const [value, status] of [
@@ -441,6 +515,8 @@ test("top Build measure leaves missing and incomplete counters unrecorded and re
     reason: "TESTS_CANCELLED",
     counts: { ...fixture().counts, passed: 19, cancelled: 1 },
   };
+  cancelled.fileResults[1].counts.passed--;
+  cancelled.fileResults[1].counts.cancelled++;
   const observed = buildDashboard(api.renderBuildSelfCheckSummary(cancelled));
   assert.match(
     observed.text(observed.metrics),
@@ -488,8 +564,18 @@ test('only exact aggregate-only legacy Build report retires and never authentica
  const local=mock.fixturePublicReporter(f),Reporter=local.Reporter,source=Reporter.captureDiagnosticSource(),reporter=new Reporter({selection:'harness',diagnosticSource:source});await reporter.prepareBuildSelfChecks(f.api.holdBuildSelfChecks());
  const entries=require('./harness-public-overview.cjs').profiles.harness,methods=require('./harness-public-check-steps.cjs'),tests=entries.map(entry=>({location:{file:path.join(f.root,entry.file)},titlePath:()=>entry.titlePath,retries:0,expectedStatus:'passed'}));reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,{status:'passed',retry:0,duration:2,startTime:new Date('2026-11-06T10:00:00Z'),workerIndex:0,parallelIndex:0,steps:methods.methodFor(entries[index]).steps.map(step=>({title:'harness-check:'+step.id,category:'test.step',duration:1,steps:reviewedCsrfDetailChildren(step.id)}))}));await reporter.onEnd({status:'passed',startTime:new Date('2026-11-06T10:00:00Z'),duration:1000});
  const htmlPath=path.join(f.root,'functional-output/tests/harness/public/odhin/index.html'),recordPath=path.join(f.root,'functional-output/tests/harness/private/public-odhin-harness.json'),value=JSON.parse(fs.readFileSync(recordPath)),page=require('node-html-parser').parse(fs.readFileSync(htmlPath,'utf8'));
+ // The immediately previous bound aggregate-only format is retirement-only too.
+ const oldBound=structuredClone(value);oldBound.buildSelfChecks.schemaVersion=1;delete oldBound.buildSelfChecks.fileResults;delete oldBound.buildSelfChecks.purposeMapDigest;
+ const oldPage=require('node-html-parser').parse(page.toString());
+ oldPage.querySelector('#harness-build-self-check-summary').replaceWith(local.helper.renderBuildSelfCheckSummary(oldBound.buildSelfChecks,{retiringPreviousRun:true}));
+ oldPage.querySelector('#harness-build-self-check-details').replaceWith(local.helper.renderBuildSelfCheckDetails(oldBound.buildSelfChecks,{retiringPreviousRun:true}));
+ const oldHtml=oldPage.toString();oldBound.sha256=require('node:crypto').createHash('sha256').update(oldHtml).digest('hex');
+ fs.writeFileSync(htmlPath,oldHtml);fs.writeFileSync(recordPath,JSON.stringify(oldBound));
+ assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+ const badBound=structuredClone(oldBound);badBound.buildSelfCheckHeld.path=path.join(f.root,'foreign',path.basename(oldBound.buildSelfCheckHeld.path));fs.writeFileSync(recordPath,JSON.stringify(badBound));assert.throws(()=>Reporter.resetPublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+ fs.writeFileSync(recordPath,JSON.stringify(oldBound));Reporter.resetPublicReport('harness');assert(!fs.existsSync(htmlPath));
  // Synthetic exact previous presentation: remove only the two new rows and private binding fields.
- const rows=page.querySelectorAll('tr').filter(row=>row.querySelector('th')?.textContent==='Configured Node file workers');assert.equal(rows.length,2);rows.forEach(row=>row.remove());delete value.buildSelfCheckHeld;delete value.buildSelfChecks.configuredFileWorkers;const html=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');const record=JSON.stringify(value);fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,record);
+ const rows=page.querySelectorAll('tr').filter(row=>row.querySelector('th')?.textContent==='Configured Node file workers');assert.equal(rows.length,2);rows.forEach(row=>row.remove());delete value.buildSelfCheckHeld;delete value.buildSelfChecks.configuredFileWorkers;value.buildSelfChecks.schemaVersion=1;delete value.buildSelfChecks.fileResults;delete value.buildSelfChecks.purposeMapDigest;page.querySelector('#harness-build-self-check-summary').replaceWith(local.helper.renderBuildSelfCheckSummary(value.buildSelfChecks,{retiringPreviousRun:true}));page.querySelector('#harness-build-self-check-details').replaceWith(local.helper.renderBuildSelfCheckDetails(value.buildSelfChecks,{retiringPreviousRun:true}));const html=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');const record=JSON.stringify(value);fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,record);
  assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
  if(process.env.SELF_CHECK_COMPAT_NODE20){const code=`const Module=require('node:module'),load=Module._load;let calls=0;Module._load=function(name,...args){if(name.endsWith('run-harness-self-check-evidence.mjs')){calls++;throw Error('LEGACY_MUST_NOT_REQUIRE_ESM');}return load.call(this,name,...args);};require(${JSON.stringify(local.reporterFile)}).resetPublicReport('harness');console.log(JSON.stringify({calls,removed:!require('node:fs').existsSync(${JSON.stringify(htmlPath)})}));`;const result=JSON.parse(require('node:child_process').execFileSync(process.env.SELF_CHECK_COMPAT_NODE20,['-e',code],{cwd:f.root,encoding:'utf8',env:{...process.env,NODE_PATH:path.resolve(__dirname,'../node_modules')}}));assert.deepEqual(result,{calls:0,removed:true});fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,record);}
  const changed=html.replace('2 Node tests','999 Node tests'),tampered=JSON.parse(record);tampered.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(htmlPath,changed);fs.writeFileSync(recordPath,JSON.stringify(tampered));assert.throws(()=>Reporter.resetPublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);

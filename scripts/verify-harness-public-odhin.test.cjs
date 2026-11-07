@@ -1810,3 +1810,23 @@ test('mandatory email public panel binds strict two-ID inclusion and recorded ca
  const page=parse(html),value=JSON.parse(originalRecord);delete value.mandatoryEmailTiming;page.querySelector('#harness-mandatory-email-admission').replaceWith(require('./harness-mandatory-email-report.cjs').renderMandatoryEmailAdmission(value.nativeEvidence.mandatoryEmailAdmission));reseal(page,value);assert.equal(Reporter.validatePublicReport().mandatoryEmailTiming,undefined);assert.match(fs.readFileSync(output(),'utf8'),/Admission call elapsed: Not recorded/);
  fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,originalRecord);Reporter.resetPublicReport('harness');
 });
+
+test('postal actual detail validates exact table note and proof owner against coherent HTML rewrites',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=await nativePresentationFixture(false);
+ const phase=reporter.nativeEvidence.phases.find(p=>p.phase==='ccd'),postal=phase.baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip');
+ postal.recordedDetail={schemaVersion:1,availability:'recorded',scope:'postal-action-check-groups',testDurationMs:90,groups:require('./fixtures/exui-native-stage-telemetry.mock.cjs').postalGroups.map((groupId,i)=>({ordinal:i+1,groupId,outcome:'completed-without-reported-error',durationMs:i+1}))};
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(file),html=fs.readFileSync(output(),'utf8');
+ assert.equal(Reporter.validatePublicReport().nativeEvidence.status,'PASS');assert(!html.includes(canary));
+ for(const fault of ['duration','outcome','method','table-move','note-move','orphan','unmarked-orphan','duplicate','missing']){
+  const page=require('node-html-parser').parse(html),value=JSON.parse(original),table=page.querySelector('[data-native-postal-detail]'),owner=table.parentNode,other=page.querySelector('[data-native-kind="baseline"] details');
+  if(fault==='duration')table.querySelector('tbody tr td:nth-child(5)').textContent='99999 ms';
+  if(fault==='outcome')table.querySelector('tbody tr td:nth-child(4)').textContent='Passed';
+  if(fault==='method')table.querySelector('tbody tr td:nth-child(2)').textContent='PRIVATE_COOKIE';
+  if(fault==='table-move'){table.remove();other.insertAdjacentHTML('beforeend',table.toString());}
+  if(fault==='note-move'){const note=owner.querySelector('[data-native-postal-note]');note.remove();other.insertAdjacentHTML('beforeend',note.toString());}
+  if(['orphan','unmarked-orphan','duplicate'].includes(fault)){const copy=require('node-html-parser').parse(table.toString()).firstChild;if(fault==='unmarked-orphan')copy.removeAttribute('data-native-postal-detail');(fault==='duplicate'?owner:page.querySelector('#harness-native-evidence')).insertAdjacentHTML('beforeend',copy.toString());}
+  if(fault==='missing')table.remove();
+  const changed=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,fault);fs.writeFileSync(output(),html);fs.writeFileSync(file,original);
+ }
+});

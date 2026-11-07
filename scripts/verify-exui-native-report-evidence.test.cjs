@@ -657,3 +657,30 @@ test('native named-stage explanations do not assign later journey assertions to 
  assert.match(labels['noc-session-routing'],/first primary-session verification POST/);assert.match(labels['noc-session-routing'],/Later fresh-session and cache checks are outside/);assert.match(labels['source-shape-recipient-collection'],/exactly two recipient entries/);assert.match(labels['source-shape-recipient-collection'],/fault branch.*array/);assert.match(labels['postal-required-fields'],/postcode-lookup controls/);assert.match(labels['postal-required-fields'],/Manual-address PostCode requiredness is outside/);
  for(const id of ['case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two']){assert.match(labels['source-shape-'+id],/flag must be true/);assert.match(labels['source-shape-'+id],/Earlier .* checks are outside this named stage/);}
 });
+
+test('bound postal action detail projects finite baseline and real fault prefix without changing gate inputs',async t=>{
+ const f=await fixture(t,{postalDetail:true});const evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),phase=evidence.phases.find(p=>p.phase==='ccd'),baseline=phase.baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip'),fault=phase.faults.find(p=>p.proofId==='ccd-postal-child-loss');
+ assert.equal(evidence.status,'PASS');assert.equal(baseline.recordedDetail.groups.length,12);assert.equal(fault.observedFailureId,'postal-persistence');assert.equal(fault.recordedDetail.groups.at(-1).outcome,'reported-error');
+ const before=JSON.stringify(evidence),html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.equal(JSON.stringify(evidence),before);assert.match(html,/Recorded postal action\/check groups/);assert.match(html,/Source-defined group method/);assert(!html.includes('PRIVATE_'));
+ // Raw display bytes remain in the original result seal; no alternate discovery.
+ const dir=path.join(f.directory,'private/ccd'),run=read(path.join(dir,'run.json')),execution=read(path.join(dir,run.executionArtifacts[0].path));fs.appendFileSync(path.join(dir,execution.resultArtifact.path),' ');await assert.rejects((await load()).readNativeReportEvidence(f.descriptorPath),/DIGEST/);
+});
+test('postal malformed detail is unavailable and legacy absence renders exactly no new table',async t=>{
+ const f=await fixture(t,{postalDetail:'invalid'}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),baseline=evidence.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip');
+ assert.equal(evidence.status,'PASS');assert.equal(baseline.recordedDetail.availability,'unavailable');const render=require('./harness-native-report.cjs').renderNativeEvidence;assert(!render(evidence).includes('PRIVATE_CANARY'));
+ delete baseline.recordedDetail;evidence.phases.find(p=>p.phase==='ccd').faults.forEach(p=>delete p.recordedDetail);assert(!render(evidence).includes('Postal action/check groups:'));assert(!render(evidence).includes('data-native-postal-detail'));
+});
+test('postal named-fault contradiction and passed partial display are unavailable without changing proof IDs',()=>{
+ const {readPostalDetail}=require('./lib/exui-native-stage-telemetry.cjs'),groups=require('./fixtures/exui-native-stage-telemetry.mock.cjs').postalGroups;
+ const v={schemaVersion:1,availability:'recorded',scope:'postal-action-check-groups',testDurationMs:10,groups:groups.slice(0,5).map((groupId,i)=>({ordinal:i+1,groupId,outcome:i===4?'reported-error':'completed-without-reported-error',durationMs:1}))};
+ assert.equal(readPostalDetail('ccd-postal-child-loss',v,{status:'failed',failureId:'postal-persistence'}).availability,'unavailable');
+ assert.equal(readPostalDetail('ccd-postal-two-roundtrip',v,{status:'passed'}).availability,'unavailable');
+ assert.equal(readPostalDetail('ccd-postal-child-loss',v,{status:'failed',failureId:'postal-required-fields',recordedExecution:{availability:'recorded',testDurationMs:10,stages:[{stageId:'postal-required-fields',instance:1,outcome:'reported-error',durationMs:2}]}}).availability,'unavailable');
+});
+
+test('postal required-field early failure renders later detail groups Not recorded while remaining BLOCKED',async t=>{
+ const f=await fixture(t,{postalDetail:true,postalFailure:true}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),phase=evidence.phases.find(p=>p.phase==='ccd'),postal=phase.baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip');
+ assert.equal(evidence.status,'BLOCKED');assert.equal(postal.failureId,'postal-required-fields');assert.equal(postal.recordedDetail.groups.length,5);
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence),dom=require('node-html-parser').parse(html),rows=dom.querySelector('[data-native-postal-detail="ccd-postal-two-roundtrip"]').querySelectorAll('tbody tr');
+ assert.equal(rows.length,12);assert.equal(rows[4].querySelectorAll('td')[3].textContent,'reported error');assert(rows.slice(5).every(row=>row.querySelectorAll('td')[3].textContent==='Not recorded'));assert.match(html,/Postal proof BLOCKED/);
+});

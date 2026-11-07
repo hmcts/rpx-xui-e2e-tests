@@ -260,12 +260,16 @@ function phaseProjection(directory, selection, ciPhase, expected) {
             (test.failureId && !failed.some(s => s.stageId === test.failureId)))
           projected = {schemaVersion:1, availability:'unavailable', reason:'INVALID_STAGE_TELEMETRY'};
       }
-      if (projected !== undefined) display.set(execution.invocationId + '/' + test.proofId, projected);
+      const detail = stageTelemetry.readPostalDetail(test.proofId, test.recordedDetail, {...test,recordedExecution:projected});
+      if (projected !== undefined || detail !== undefined) display.set(execution.invocationId + '/' + test.proofId, {
+        ...(projected === undefined ? {} : {recordedExecution:projected}),
+        ...(detail === undefined ? {} : {recordedDetail:detail})
+      });
     }
   }
   const recorded = result => {
     const value = display.get(result.invocationId + '/' + result.proofId);
-    return value === undefined ? {} : {recordedExecution:value};
+    return value === undefined ? {} : value;
   };
   // Raw failure text is private, even when it happens to be a valid identifier.
   const failureIds = new Set([

@@ -9,7 +9,7 @@ const countKeys = [
   "suites",
   "topLevel",
 ];
-const invalid = (reason) => ({ schemaVersion: 1, complete: false, reason });
+const invalid = (reason) => ({ schemaVersion: 2, complete: false, reason });
 const integer = (value) => Number.isSafeInteger(value) && value >= 0;
 const validCounts = (counts) =>
   counts &&
@@ -30,7 +30,7 @@ export async function summarizeNodeTestEvents(source) {
     declaredTests = 0,
     duplicateFile = false,
     invalidFile = false;
-  const files = new Set();
+  const files = new Set(), fileSummaries = [];
   const additiveKeys = countKeys;
   const fileTotals = Object.fromEntries(additiveKeys.map((key) => [key, 0]));
   for await (const event of source) {
@@ -48,6 +48,7 @@ export async function summarizeNodeTestEvents(source) {
       }
       duplicateFile ||= files.has(data.file);
       files.add(data.file);
+      fileSummaries.push({file:data.file,counts:{...data.counts},nodeDurationMs:data.duration_ms});
       declaredTests += data.counts.tests;
       for (const key of additiveKeys) fileTotals[key] += data.counts[key];
     } else if (
@@ -84,7 +85,7 @@ export async function summarizeNodeTestEvents(source) {
   )
     return invalid("FILE_SUMMARY_INVALID");
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     complete: true,
     nodeVersion: process.version,
     success: global.success,
@@ -92,6 +93,7 @@ export async function summarizeNodeTestEvents(source) {
     nodeDurationMs: global.duration_ms,
     fileCount: files.size,
     declaredTests,
+    fileSummaries,
   };
 }
 export function validateSelfCheckOutcome(summary, terminal, expectedFiles) {
@@ -100,6 +102,7 @@ export function validateSelfCheckOutcome(summary, terminal, expectedFiles) {
     reason,
     counts: null,
     nodeDurationMs: null,
+    fileResults: null,
   });
   if (
     terminal?.started !== true ||
@@ -132,10 +135,11 @@ export function validateSelfCheckOutcome(summary, terminal, expectedFiles) {
         "nodeDurationMs",
         "fileCount",
         "declaredTests",
+        "fileSummaries",
       ]
         .sort()
         .join(",") ||
-    summary.schemaVersion !== 1 ||
+    summary.schemaVersion !== 2 ||
     summary.nodeVersion !== process.version ||
     !validCounts(summary.counts) ||
     !validOutcome(summary.counts, summary.success) ||
@@ -145,14 +149,18 @@ export function validateSelfCheckOutcome(summary, terminal, expectedFiles) {
     !integer(summary.declaredTests)
   )
     return incomplete("SUMMARY_INVALID");
-  if (!integer(expectedFiles) || expectedFiles === 0)
+  if (!Array.isArray(expectedFiles) || expectedFiles.length === 0 || new Set(expectedFiles).size !== expectedFiles.length || expectedFiles.some(file=>typeof file!=="string"))
     return incomplete("FILE_SELECTION_UNCONFIRMED");
   if (summary.declaredTests === 0) return incomplete("NO_DECLARED_TESTS");
   if (
-    summary.fileCount !== expectedFiles ||
+    summary.fileCount !== expectedFiles.length ||
     summary.declaredTests !== summary.counts.tests
   )
     return incomplete("FILE_SELECTION_UNCONFIRMED");
+  if (!Array.isArray(summary.fileSummaries) || summary.fileSummaries.length !== expectedFiles.length ||
+    new Set(summary.fileSummaries.map(row=>row?.file)).size !== expectedFiles.length ||
+    summary.fileSummaries.some(row=>!row || Object.keys(row).sort().join()!=='counts,file,nodeDurationMs' || !expectedFiles.includes(row.file) || !validCounts(row.counts) || !Number.isFinite(row.nodeDurationMs) || row.nodeDurationMs<0) ||
+    countKeys.some(key=>summary.fileSummaries.reduce((sum,row)=>sum+row.counts[key],0)!==summary.counts[key])) return incomplete('FILE_SELECTION_UNCONFIRMED');
   if (!(
     (terminal.code === 0 && summary.success === true) ||
     (terminal.code === 1 && summary.success === false)
@@ -168,6 +176,7 @@ export function validateSelfCheckOutcome(summary, terminal, expectedFiles) {
     reason: summary.counts.cancelled > 0 ? "TESTS_CANCELLED" : null,
     counts: summary.counts,
     nodeDurationMs: summary.nodeDurationMs,
+    fileResults: expectedFiles.map(file=>structuredClone(summary.fileSummaries.find(row=>row.file===file))),
   };
 }
 export default async function* reporter(source) {
