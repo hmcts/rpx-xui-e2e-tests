@@ -248,6 +248,7 @@ test("actual timed parent forwards only explicit held receipt flags to the assur
       "--input",
       "/private/tmp/synthetic-job.json",
       "--parent-timing",
+      "--mandatory-email",
       ...(held
         ? [
             "--build-self-check-held",
