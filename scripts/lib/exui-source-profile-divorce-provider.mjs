@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import {handleProfileSystemAuth} from './exui-profile-system-auth-provider.mjs';
 import {isDeepStrictEqual} from 'node:util';
 
 // Fixed synthetic transport responses, independent of consumer oracle/configuration code.
@@ -13,16 +14,10 @@ function send(response,body) {response.writeHead(200,{'content-type':'applicatio
 export async function handleDivorceProvider(request,response,{facet,journal,output}) {
  const method=request.method,path=request.url;
  const auth=method==='POST'&&path==='/o/token';
- const possible=auth||facet==='staff'&&(path.startsWith('/refdata/internal/staff/usersByServiceName?')||path==='/am/role-assignments/query')||facet==='mapping'&&(path.startsWith('/refdata/location/')||['/refdata/judicial/users/search','/refdata/judicial/users','/am/bookings/query'].includes(path));
+ if(auth)return handleProfileSystemAuth(request,response);
+ const possible=facet==='staff'&&(path.startsWith('/refdata/internal/staff/usersByServiceName?')||path==='/am/role-assignments/query')||facet==='mapping'&&(path.startsWith('/refdata/location/')||['/refdata/judicial/users/search','/refdata/judicial/users','/am/bookings/query'].includes(path));
  if(!possible)return false;
  const raw=await boundedBody(request);if(raw===null)return false;
- if(auth) {
-  const actual=[...new URLSearchParams(raw)].sort(),expected=Object.entries({grant_type:'password',password:'synthetic-password',username:'synthetic-user',scope:'openid profile roles manage-user create-user search-user',client_id:'xuiwebapp',client_secret:'synthetic-client-value'}).sort();
-  if(!isDeepStrictEqual(actual,expected))return false;
-  // The candidate's route-credential cache decodes JWT expiry on the warm request.
-  const token=['eyJhbGciOiJub25lIn0',Buffer.from(JSON.stringify({sub:'synthetic-user',exp:4102444800})).toString('base64url'),'synthetic'].join('.');
-  send(response,{access_token:token});return true;
- }
  let body;if(method==='POST')try{body=JSON.parse(raw);}catch{return false;}
  else if(raw!=='')return false;
  const record={method,path,...(method==='POST'?{body}:{})};let result;

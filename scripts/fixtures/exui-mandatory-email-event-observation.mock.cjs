@@ -1,0 +1,15 @@
+// Synthetic observations only; never physical or catalogue evidence.
+exports.packet=async(variant,row)=>{
+  const {deriveMandatoryEmailEventRows}=await import('../lib/exui-mandatory-email-event-rows.mjs');
+  const derivation=deriveMandatoryEmailEventRows(variant),optional=variant!=='baseline',actorId='synthetic-courtadmin';
+  const data={protectedValue:'mandatory-email-control',sodAdditionalRecipients:['additionalRecipients'],sodAdditionalRecipientsList:[{id:'11111111-1111-4111-8111-111111111111',value:{serveByPostOrEmail:'email',emailInformation:{emailName:'Synthetic mandatory recipient',emailAddress:'mandatory@harness.example.com'},postalInformation:{postalName:null,postalAddress:{AddressLine1:null,AddressLine2:null,AddressLine3:null,PostTown:null,County:null,PostCode:null,Country:null}}}}]};
+  const control=id=>{const before={state:{id,jurisdiction:'HARNESS',case_type_id:'HarnessNestedPRL',state:'JUDICIAL_REVIEW',version:1,last_modified:'2026-11-06T10:00:00Z',case_data:structuredClone(data)},history:[]};const after=structuredClone(before);after.state.version++;after.history.push({id:'serviceOfDocuments',case_type_id:'HarnessNestedPRL',state_id:'JUDICIAL_REVIEW',user_id:actorId});return{caseId:id,before,after,submission:{method:'POST',path:`/data/cases/${id}/events`,status:201,eventId:'serviceOfDocuments'}};};
+  const filled=control('1234567890123456'),empty=control('2234567890123456');
+  Object.assign(empty,{inputValue:'',inputId:'sodAdditionalRecipientsList_0_emailInformation_'+(row==='name'?'emailName':'emailAddress'),path:`/cases/case-details/HARNESS/HarnessNestedPRL/${empty.caseId}/trigger/serviceOfDocuments/serviceOfDocuments2`,cya:optional?'Check your answers':null,error:null});
+  if(optional)empty.after.state.case_data.sodAdditionalRecipientsList[0].value.emailInformation[row==='name'?'emailName':'emailAddress']='';
+  else {empty.after=structuredClone(empty.before);empty.submission=null;empty.error={forId:empty.inputId,text:(row==='name'?'Name':'Email address')+' is required'};}
+  const observed={schemaVersion:1,kind:'mandatory-email-event-observation',variant,row,sourceBinding:derivation.binding,credit:{runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false},controls:{nameLabel:variant==='name-optional'?'Name (Optional)':'Name',addressLabel:variant==='address-optional'?'Email address (Optional)':'Email address',nameBeforeAddress:true,inactivePost:true,emailRestored:true},filled,empty,completed:!optional,faultEffective:optional};
+  const failure=`MANDATORY_EMAIL_${row.toUpperCase()}_REQUIRED_DENIAL`;
+  const specs=(optional?[row]:['name','address']).map(r=>({title:`source event row requires email ${r} and preserves a filled value`,tests:[{results:[{retry:0,status:optional?'failed':'passed',errors:optional?[{message:failure}]:[],...(optional?{error:{message:failure}}:{}),steps:optional?[{title:`harness-assertion:source-email-${r}-required`,error:{message:failure}}]:[]}]}]}));
+  return{observed,derivation,actorId,terminal:{code:optional?1:0,signal:null},report:{errors:[],stats:{skipped:0,expected:optional?0:2,unexpected:optional?1:0},suites:[{specs}]}};
+};

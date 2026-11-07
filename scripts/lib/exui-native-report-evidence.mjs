@@ -1,3 +1,12 @@
+import {readSharedRoleArtifact} from './exui-shared-role-artifacts.mjs';
+import {sharedRoleObservationBinding,replaySharedRoleDenial} from './exui-shared-role-observations.mjs';
+import businessScalars from './exui-business-scalar-detail.cjs';
+import {assertMandatoryEmailIntent,readMandatoryEmailNativeBinding} from './exui-mandatory-email-event-contract.mjs';
+import {readMandatoryEmailAdmissionPacket,mandatoryEmailNativeJointAdmission,creditMandatoryEmailRows} from './exui-mandatory-email-event-admission.mjs';
+import stageTelemetry from './exui-native-stage-telemetry.cjs';
+import {assertStCicOwnership,assertMandatoryEmailOwnership} from './exui-st-cic-ownership.mjs';
+import {readStCicNativeBinding,readStCicProfileAdmissionPacket} from './exui-st-cic-profile-admission.mjs';
+import {stCicNativeJointAdmission} from './exui-st-cic-native-joint.mjs';
 import {readComplexNativeBinding,readComplexAdmissionPacket,complexNativeJointAdmission,assertComplexOwnership} from './exui-complex-email-admission.mjs';
 import {readPersonalNativeBinding,readPersonalAdmissionPacket,personalNativeJointAdmission} from './exui-personal-service-admission.mjs';
 import {readDivorceProfileAdmissionPacket,divorceNativeJointAdmission} from "./exui-divorce-profile-admission.mjs";
@@ -7,7 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { digestBytes, loadRunEvidence } from "./exui-evidence-io.mjs";
+import { digestBytes, loadRunEvidence, readEvidenceArtifact } from "./exui-evidence-io.mjs";
 import { getReleasePolicy } from "./exui-release-policy.mjs";
 import { validatePromotionReceipt } from "./exui-release-evidence.mjs";
 import {
@@ -100,6 +109,24 @@ function validateRawPaths(directory, run) {
   for (const mutation of run.mutations)
     reference(directory, mutation.derivationArtifact);
   return invocations;
+}
+function denialDisplay(directory, execution, report, test, manifest) {
+  const selected={baseline:'ccd-role-policy','ccd-broaden-access':'ccd-access-broadened','ccd-write-then-deny':'ccd-write-then-deny'};
+  equal(selected[execution.invocationId],test.proofId,'DENIAL_DISPLAY_INVOCATION');
+  fact(test.businessScalars===undefined,'DENIAL_DISPLAY_SEALED_ROLE_ONLY');
+  const raw=name=>readSharedRoleArtifact(directory,execution,name,'exui-ccd-pilot');
+  const role=name=>JSON.parse(raw(name));
+  const heldManifest=role('manifest.json'),context=role('context.json'),personas=role('personas.json'),observation=role('policy-observation.json');
+  equal(context,report.context,'DENIAL_DISPLAY_FRAMEWORK_CONTEXT');
+  for(const key of ['runId','harnessCommit','releaseScopeId','policyDigest'])equal(heldManifest[key],manifest[key],'DENIAL_DISPLAY_SOURCE');
+  equal(heldManifest.identity,execution.identity,'DENIAL_DISPLAY_IDENTITY');
+  for(const key of ['harnessSourceDigest','definitionImportDigest','observedDefinitionDigest','definitionVersion','ccdNamespace'])equal(heldManifest.runtimeMetadata[key],manifest.runtimeMetadata[key],'DENIAL_DISPLAY_RUNTIME_BINDING');
+  const binding=sharedRoleObservationBinding(heldManifest,context),actorId=personas?.credentials?.denied?.userId;
+  fact(typeof actorId==='string'&&actorId.length>0&&actorId.length<=256,'DENIAL_DISPLAY_ACTOR');
+  const mutation=execution.invocationId==='baseline'?null:execution.invocationId;
+  replaySharedRoleDenial(observation,{binding,actorId,mutation});
+  if(mutation==='ccd-write-then-deny')equal(raw('fault-actions.jsonl').toString().trim().split('\n').map(line=>JSON.parse(line)),[{mutation,caseId:observation.caseId,status:201}],'SHARED_ROLE_FAULT_WRITE_APPLICATION');
+  return businessScalars.projectDenialObservation(test.proofId,observation);
 }
 function phaseProjection(directory, selection, ciPhase, expected) {
   const { phase, policy, terminal } = selection;
@@ -240,6 +267,35 @@ function phaseProjection(directory, selection, ciPhase, expected) {
       canonical(path.join(directory, execution.invocationId, file));
   }
   validateNativePhaseFinalization(directory, loaded.input.executions, terminal);
+  // Display telemetry is read from the same digest-bound reports only AFTER
+  // proof replay and finalization. It never enters the release proof inputs.
+  const display = new Map();
+  for (const ref of run.executionArtifacts) {
+    const {value: execution} = readEvidenceArtifact(directory, ref);
+    const {value: report} = readEvidenceArtifact(directory, execution.resultArtifact);
+    for (const test of report.tests) {
+      let projected = stageTelemetry.readStageTelemetry(test.proofId, test.recordedExecution);
+      if (projected?.availability === 'recorded') {
+        const failed = projected.stages.filter(s => s.outcome === 'reported-error');
+        if ((test.status === 'passed' && failed.length) ||
+            (test.failureId && !failed.some(s => s.stageId === test.failureId)))
+          projected = {schemaVersion:1, availability:'unavailable', reason:'INVALID_STAGE_TELEMETRY'};
+      }
+      const detail = stageTelemetry.readPostalDetail(test.proofId, test.recordedDetail, {...test,recordedExecution:projected});
+      const scalars=phase==='ccd'&&['ccd-role-policy','ccd-access-broadened','ccd-write-then-deny'].includes(test.proofId)
+        ? denialDisplay(directory,execution,report,test,loaded.input.manifest)
+        : businessScalars.readDetail(test.proofId,test.businessScalars,test);
+      if (projected !== undefined || detail !== undefined || scalars !== undefined) display.set(execution.invocationId + '/' + test.proofId, {
+        ...(projected === undefined ? {} : {recordedExecution:projected}),
+        ...(detail === undefined ? {} : {recordedDetail:detail}),
+        ...(scalars === undefined ? {} : {businessScalars:scalars})
+      });
+    }
+  }
+  const recorded = result => {
+    const value = display.get(result.invocationId + '/' + result.proofId);
+    return value === undefined ? {} : value;
+  };
   // Raw failure text is private, even when it happens to be a valid identifier.
   const failureIds = new Set([
     "postal-required-fields",
@@ -260,6 +316,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
       invocationId: result.invocationId,
       status: result.outcome,
       failureId: publicFailure(result.failureId),
+      ...recorded(result),
     })),
     faults: policy.mutationDefinitions.map((definition) => {
       const witness = loaded.input.mutations.find(
@@ -301,6 +358,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
         baselineStatus: witness.baselineResult.outcome,
         expectedFailureId: definition.expectedFailureId,
         observedFailureId: publicFailure(mutant.failureId),
+        ...recorded(mutant),
         outcome:
           changed &&
           witness.baselineResult.outcome === "passed" &&
@@ -342,6 +400,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       "CI_RESULT_DIGEST_MISMATCH",
     );
     const ci = result.value;
+    const mandatorySelected=assertMandatoryEmailIntent(ci,expected,descriptor.value,directory);
     equal(
       ci.classification,
       "fixed-pilot-suite-no-full-release-approval",
@@ -482,15 +541,43 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.personalServiceAdmission=joint;
       }
     }
+    fact(!expected.stCicProfileRequest||descriptor.value.stCicProfileAdmission,'ST_CIC_REQUEST_REQUIRED');
+    fact(!descriptor.value.stCicProfileAdmission||expected.stCicProfileRequest,'ST_CIC_REQUEST_REQUIRED');
+    const stCicNative=(expected.stCicProfileRequest||descriptor.value.stCicProfileAdmission)?readStCicNativeBinding(directory,expected,nativeBinding):undefined;
+    const stCicPacket=descriptor.value.stCicProfileAdmission?readStCicProfileAdmissionPacket(descriptor.value.stCicProfileAdmission,expected.stCicProfileRequest):undefined;
+    let stCicProfileAdmission;
+    const mandatoryNative=mandatorySelected?readMandatoryEmailNativeBinding(directory,expected,nativeBinding):undefined;
+    const mandatoryPacket=mandatorySelected?readMandatoryEmailAdmissionPacket(descriptor.value.mandatoryEmailAdmission,expected.mandatoryEmailRequest):undefined;
+    let mandatoryEmailAdmission;
     const complexNative=(expected.complexEmailRequest||descriptor.value.complexEmailAdmission)?readComplexNativeBinding(directory,expected,nativeBinding):undefined;
     fact(!expected.complexEmailRequest||descriptor.value.complexEmailAdmission,'COMPLEX_REQUEST_REQUIRED');
     fact(!descriptor.value.complexEmailAdmission||expected.complexEmailRequest,'COMPLEX_REQUEST_REQUIRED');
     const complexPacket=descriptor.value.complexEmailAdmission?await readComplexAdmissionPacket(descriptor.value.complexEmailAdmission,expected.complexEmailRequest):undefined;
     let complexEmailAdmission;
     if(complexPacket){
-      assertComplexOwnership(directory,expected,complexPacket,{personalRequestPath:descriptor.value.personalServiceAdmission,profileOwners:profilePacket?Object.values(profilePacket.binding.owners):[]});
+      assertComplexOwnership(directory,expected,complexPacket,{personalRequestPath:descriptor.value.personalServiceAdmission,profileOwners:[...(profilePacket?Object.values(profilePacket.binding.owners):[]),...(stCicPacket?Object.values(stCicPacket.binding.owners):[]),...(mandatoryPacket?mandatoryPacket.packets.flatMap(p=>[p.binding.runId,p.binding.ccd.owner]):[])]});
       const joint=complexNativeJointAdmission(nativeBinding,complexNative,complexPacket,expected);complexEmailAdmission={...complexPacket.admission,joint};
       if(joint.status==='included')creditComplexEmailRow(catalogueCoverage,accounting.catalogue,accounting.report.coverage.missingCandidateOrCcd,complexEmailAdmission);
+    }
+    if(stCicPacket){
+      assertStCicOwnership(directory,expected,{stCicRequestPath:descriptor.value.stCicProfileAdmission,divorceRequestPath:descriptor.value.divorceProfileAdmission,personalRequestPath:descriptor.value.personalServiceAdmission,complexRequestPath:descriptor.value.complexEmailAdmission,complexPacket,mandatoryRequestPath:descriptor.value.mandatoryEmailAdmission});
+      const joint=stCicNativeJointAdmission(nativeBinding,stCicNative,stCicPacket,expected);
+      stCicProfileAdmission={...stCicPacket.admission,joint};
+      if(joint.status==='included'){
+        const id=joint.obligationId,rows=accounting.catalogue.obligations.filter(row=>row.id===id);
+        fact(rows.length===1&&rows[0].family==='ST_CIC'&&rows[0].kind==='configuration-profile'&&rows[0].requiredBoundary==='candidate','ST_CIC_CATALOGUE_ROW');
+        equal(rows[0].sourceKeys,joint.sourceKeys,'ST_CIC_CATALOGUE_SOURCE');
+        fact(catalogueCoverage.selected===112&&!creditedObligationIds.includes(id),'ST_CIC_DUPLICATE_CREDIT');
+        fact(accounting.report.coverage.missingCandidateOrCcd.some(row=>(typeof row==='string'?row:row.id)===id),'ST_CIC_NOT_MISSING');
+        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.stCicProfileAdmission=joint;
+      }
+    }
+    if(mandatoryPacket){
+      assertMandatoryEmailOwnership(directory,expected,{mandatoryRequestPath:descriptor.value.mandatoryEmailAdmission,stCicRequestPath:descriptor.value.stCicProfileAdmission,divorceRequestPath:descriptor.value.divorceProfileAdmission,personalRequestPath:descriptor.value.personalServiceAdmission,complexRequestPath:descriptor.value.complexEmailAdmission,complexPacket});
+      // Reopen the held main capsule after every companion raw replay and ownership read.
+      readMandatoryEmailNativeBinding(directory,expected,nativeBinding);
+      const joint=mandatoryEmailNativeJointAdmission(nativeBinding,mandatoryNative,mandatoryPacket,expected);mandatoryEmailAdmission={...mandatoryPacket.admission,joint};
+      if(joint.status==='included')creditMandatoryEmailRows(catalogueCoverage,accounting.catalogue,accounting.report.coverage.missingCandidateOrCcd,mandatoryEmailAdmission);
     }
     const first = expected.phases[0].expected;
     for (const { expected: pin } of expected.phases) {
@@ -537,7 +624,9 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       catalogueCoverage,
       ...(divorceProfileAdmission ? {divorceProfileAdmission} : {}),
       ...(personalServiceAdmission?{personalServiceAdmission}:{}),
+      ...(stCicProfileAdmission?{stCicProfileAdmission}:{}),
       ...(complexEmailAdmission?{complexEmailAdmission}:{}),
+      ...(mandatoryEmailAdmission?{mandatoryEmailAdmission}:{}),
     };
   } catch (error) {
     // Filesystem/library errors can contain private paths or raw evidence; expose fixed codes only.
@@ -548,4 +637,29 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         : "NATIVE_REPORT_INVALID_EVIDENCE",
     );
   }
+}
+
+// Current business-scalar readback only. Reuse the maintained synchronous phase
+// replay for the two selected phases; no other phase/companion admission runs.
+export function readHeldBusinessScalarProjection(held) {
+  try {
+    fact(held && Object.keys(held).sort().join() === 'digest,path' && hashPattern.test(held.digest), 'SCALAR_HELD_REFERENCE');
+    const descriptor=read(held.path);
+    equal(digestBytes(descriptor.bytes),held.digest,'SCALAR_DESCRIPTOR_DIGEST');
+    const {directory,expected}=descriptor.value;
+    fact(descriptor.value.schemaVersion===1,'DESCRIPTOR_SCHEMA_REQUIRED');canonical(directory,true);
+    fact(new RegExp('^ci-'+uuid+'$').test(expected.jobRunId)&&/^[a-f0-9]{40}$/.test(expected.harnessCommit)&&hashPattern.test(expected.candidateArtifactDigest)&&hashPattern.test(expected.ciResultDigest),'SCALAR_SOURCE_IDENTITY');
+    equal(expected.phases.map(p=>p.phase),Object.keys(scopes),'PHASE_SELECTION_REQUIRED');
+    const result=read(path.join(directory,'private/ci-result.json'));equal(digestBytes(result.bytes),expected.ciResultDigest,'CI_RESULT_DIGEST_MISMATCH');
+    const ci=result.value;equal(ci.jobRunId,expected.jobRunId,'CI_JOB_MISMATCH');equal(ci.classification,'fixed-pilot-suite-no-full-release-approval','CI_CLASSIFICATION_REQUIRED');fact(ci.cleanupComplete===true,'CI_CLEANUP_INCOMPLETE');
+    equal(ci.phaseResults.map(p=>p.phase),Object.keys(scopes),'CI_PHASE_SELECTION_REQUIRED');
+    const first=expected.phases[0].expected;
+    const phases=['scope','ccd'].map(phase=>{
+      const index=expected.phases.findIndex(p=>p.phase===phase),selection=expected.phases[index],pin=selection.expected;
+      for(const field of ['harnessSourceDigest','harnessDependencyDigest','browserDigest'])equal(pin[field],first[field],'SCALAR_SOURCE_TOOLCHAIN');
+      for(const field of ['artifactDigest','webappCommit','dependencyLockDigest','toolkitVersion','toolkitDigest'])equal(pin.identity[field],first.identity[field],'SCALAR_CANDIDATE');
+      return phaseProjection(canonical(path.join(directory,'private',phase),true),selection,ci.phaseResults[index],expected);
+    });
+    return businessScalars.scalarProjection({descriptorDigest:held.digest,jobRunId:ci.jobRunId,source:{harnessCommit:expected.harnessCommit,harnessSourceDigest:first.harnessSourceDigest,candidateArtifactDigest:expected.candidateArtifactDigest,webappCommit:first.identity.webappCommit},phases});
+  }catch{throw Error('PUBLIC_BUSINESS_SCALAR_RAW_INVALID');}
 }

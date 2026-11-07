@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "repository": "hmcts/prl-ccd-definitions",
+  "revision": "694b9951e94369f1394380506960c4f04f25755d",
+  "sources": [
+    {
+      "path": "definitions/private-law/json/CaseEventToComplexTypes/ServiceOfDocuments/AdditionalRecipients/CaseEventToComplexTypes.json",
+      "fileDigest": "sha256:74d798a7a4898843685274d5b92b35e74bdda339a1bb478d81b17a006bd55f59",
+      "rows": [
+        {
+          "index": 13,
+          "rowDigest": "sha256:84fc6347ddd5f5250fa841380bf5329337ce5b70c864926e2c3d11515cfcec3d",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "emailInformation.emailAddress",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "4",
+            "DisplayContext": "MANDATORY"
+          }
+        },
+        {
+          "index": 14,
+          "rowDigest": "sha256:15be218a2ec9b5e16174ad6b350558a2f777ff9f2776ce6541cc5889624bd4b4",
+          "row": {
+            "LiveFrom": "01/09/2024",
+            "CaseTypeID": "PRLAPPS",
+            "ID": "ServeOrgDetails",
+            "CaseEventID": "serviceOfDocuments",
+            "CaseFieldID": "sodAdditionalRecipientsList",
+            "ListElementCode": "emailInformation.emailName",
+            "FieldShowCondition": "sodAdditionalRecipientsList.serveByPostOrEmail=\"email\"",
+            "EventElementLabel": " ",
+            "FieldDisplayOrder": "3",
+            "DisplayContext": "MANDATORY"
+          }
+        }
+      ]
+    }
+  ]
+}

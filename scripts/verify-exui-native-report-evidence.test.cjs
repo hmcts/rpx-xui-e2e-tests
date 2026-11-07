@@ -593,7 +593,7 @@ for (const postalFailure of [false, true]) {
     const { renderNativeEvidence } = require('./harness-native-report.cjs');
     const { escape } = require('./harness-report-coverage.cjs');
     const html = renderNativeEvidence(evidence);
-    const rows = [...html.matchAll(/<tr data-native-row\b[^>]*>[\s\S]*?<\/tr>/g)].map(match => match[0]);
+    const rows = require('node-html-parser').parse(html).querySelectorAll('[data-native-row]').map(row => row.toString());
     assert.equal(rows.length, 46);
     const disclosure = 'Per-step execution trace and per-test duration: Not recorded in this evidence.';
     for (const row of rows) {
@@ -620,3 +620,118 @@ for (const postalFailure of [false, true]) {
     assert(!html.includes(canary));
   });
 }
+
+test('digest-bound native stage telemetry preserves repeated baseline and expected-fault execution detail without changing acceptance',async t=>{
+ const f=await fixture(t,{recordedStages:true});const evidence=await (await load()).readNativeReportEvidence(f.descriptorPath);
+ assert.equal(evidence.status,'PASS');assert.equal(evidence.releaseApproval,false);
+ const phase=evidence.phases.find(p=>p.phase==='family'),baseline=phase.baselineProofs[0],fault=phase.faults[0];
+ assert.equal(baseline.recordedExecution.stages.length,8);assert.equal(baseline.recordedExecution.testDurationMs,90);
+ assert.equal(fault.recordedExecution.stages.length,1);assert.equal(fault.recordedExecution.stages[0].outcome,'reported-error');assert.equal(fault.outcome,'expected-failure-observed');
+ const {renderNativeEvidence}=require('./harness-native-report.cjs'),untouched=JSON.stringify(evidence);const html=renderNativeEvidence(evidence);
+ assert.match(html,/Source-defined expected contract/);assert.match(html,/Recorded group outcome/);assert.match(html,/seven declared service families/);assert.match(html,/not separately recorded requests/);assert.match(html,/Trace not captured/);assert.equal(JSON.stringify(evidence),untouched);
+ assert.match(html,/Recorded named assertion stages/);assert.match(html,/Observed test duration: 90 ms/);assert.match(html,/not additive/);assert.match(html,/reported error/);assert.doesNotMatch(html,/PRIVATE_cookie_canary/);
+ const tampered=structuredClone(evidence);tampered.phases[0].baselineProofs[0].recordedExecution.stages[0].stageId='PRIVATE_cookie_canary';assert.throws(()=>renderNativeEvidence(tampered),/PUBLIC_NATIVE_STAGE/);
+});
+test('malformed raw native telemetry becomes explicitly unavailable with no raw label publication or new verdict',async t=>{
+ const f=await fixture(t,{recordedStages:'invalid'});const evidence=await (await load()).readNativeReportEvidence(f.descriptorPath);
+ assert.equal(evidence.status,'PASS');assert.equal(evidence.phases[0].baselineProofs[0].recordedExecution.availability,'unavailable');
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.match(html,/unavailable \(INVALID_STAGE_TELEMETRY\)/);assert(!html.includes('PRIVATE_cookie_canary'));
+});
+
+test('empty recorded stages and parent-inconsistent duration are unavailable in independently replayed raw evidence',async t=>{
+ for(const recordedStages of ['empty','oversized']){
+ const f=await fixture(t,{recordedStages});const evidence=await(await load()).readNativeReportEvidence(f.descriptorPath);
+ assert.equal(evidence.status,'PASS');const telemetry=evidence.phases[0].baselineProofs[0].recordedExecution;assert.equal(telemetry.availability,'unavailable');assert.equal(telemetry.reason,'INVALID_STAGE_TELEMETRY');
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.match(html,/unavailable \(INVALID_STAGE_TELEMETRY\)/);
+ }
+});
+
+test('native expected-stage explanations cover exactly the unchanged finite recorded-stage vocabulary',()=>{
+ const telemetry=fs.readFileSync(path.join(__dirname,'lib/exui-native-stage-telemetry.cjs'),'utf8'),renderer=fs.readFileSync(path.join(__dirname,'harness-native-report.cjs'),'utf8');
+ const allowed=JSON.parse(telemetry.match(/const allowed = (\{[\s\S]*?\n\});/)[1].replace(/,\s*([}\]])/g,'$1')),expected=JSON.parse(renderer.match(/const nativeStageExpectations=(\{[\s\S]*?\n\});/)[1]);
+ const ids=[...new Set(Object.values(allowed).flat().concat(['recipient-collection','case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two'].map(id=>'source-shape-'+id)))].sort();assert.deepEqual(Object.keys(expected).sort(),ids);assert(Object.values(expected).every(value=>typeof value==='string'&&value.length>30&&!value.includes(canary)));
+});
+
+test('native named-stage explanations do not assign later journey assertions to the recorded group',()=>{
+ const file=process.env.HARNESS_STAGE_LABEL_CONTROL??path.join(__dirname,'harness-native-report.cjs'),source=fs.readFileSync(file,'utf8'),labels=JSON.parse(source.match(/const nativeStageExpectations=(\{[\s\S]*?\n\});/)[1]);
+ assert.match(labels['noc-session-routing'],/first primary-session verification POST/);assert.match(labels['noc-session-routing'],/Later fresh-session and cache checks are outside/);assert.match(labels['source-shape-recipient-collection'],/exactly two recipient entries/);assert.match(labels['source-shape-recipient-collection'],/fault branch.*array/);assert.match(labels['postal-required-fields'],/postcode-lookup controls/);assert.match(labels['postal-required-fields'],/Manual-address PostCode requiredness is outside/);
+ for(const id of ['case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two']){assert.match(labels['source-shape-'+id],/flag must be true/);assert.match(labels['source-shape-'+id],/Earlier .* checks are outside this named stage/);}
+});
+
+test('bound postal action detail projects finite baseline and real fault prefix without changing gate inputs',async t=>{
+ const f=await fixture(t,{postalDetail:true});const evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),phase=evidence.phases.find(p=>p.phase==='ccd'),baseline=phase.baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip'),fault=phase.faults.find(p=>p.proofId==='ccd-postal-child-loss');
+ assert.equal(evidence.status,'PASS');assert.equal(baseline.recordedDetail.groups.length,12);assert.equal(fault.observedFailureId,'postal-persistence');assert.equal(fault.recordedDetail.groups.at(-1).outcome,'reported-error');
+ const before=JSON.stringify(evidence),html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.equal(JSON.stringify(evidence),before);assert.match(html,/Recorded postal action\/check groups/);assert.match(html,/Source-defined group method/);assert(!html.includes('PRIVATE_'));
+ // Raw display bytes remain in the original result seal; no alternate discovery.
+ const dir=path.join(f.directory,'private/ccd'),run=read(path.join(dir,'run.json')),execution=read(path.join(dir,run.executionArtifacts[0].path));fs.appendFileSync(path.join(dir,execution.resultArtifact.path),' ');await assert.rejects((await load()).readNativeReportEvidence(f.descriptorPath),/DIGEST/);
+});
+test('postal malformed detail is unavailable and legacy absence renders exactly no new table',async t=>{
+ const f=await fixture(t,{postalDetail:'invalid'}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),baseline=evidence.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip');
+ assert.equal(evidence.status,'PASS');assert.equal(baseline.recordedDetail.availability,'unavailable');const render=require('./harness-native-report.cjs').renderNativeEvidence;assert(!render(evidence).includes('PRIVATE_CANARY'));
+ delete baseline.recordedDetail;evidence.phases.find(p=>p.phase==='ccd').faults.forEach(p=>delete p.recordedDetail);assert(!render(evidence).includes('Postal action/check groups:'));assert(!render(evidence).includes('data-native-postal-detail'));
+});
+test('postal named-fault contradiction and passed partial display are unavailable without changing proof IDs',()=>{
+ const {readPostalDetail}=require('./lib/exui-native-stage-telemetry.cjs'),groups=require('./fixtures/exui-native-stage-telemetry.mock.cjs').postalGroups;
+ const v={schemaVersion:1,availability:'recorded',scope:'postal-action-check-groups',testDurationMs:10,groups:groups.slice(0,5).map((groupId,i)=>({ordinal:i+1,groupId,outcome:i===4?'reported-error':'completed-without-reported-error',durationMs:1}))};
+ assert.equal(readPostalDetail('ccd-postal-child-loss',v,{status:'failed',failureId:'postal-persistence'}).availability,'unavailable');
+ assert.equal(readPostalDetail('ccd-postal-two-roundtrip',v,{status:'passed'}).availability,'unavailable');
+ assert.equal(readPostalDetail('ccd-postal-child-loss',v,{status:'failed',failureId:'postal-required-fields',recordedExecution:{availability:'recorded',testDurationMs:10,stages:[{stageId:'postal-required-fields',instance:1,outcome:'reported-error',durationMs:2}]}}).availability,'unavailable');
+});
+
+test('postal required-field early failure renders later detail groups Not recorded while remaining BLOCKED',async t=>{
+ const f=await fixture(t,{postalDetail:true,postalFailure:true}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),phase=evidence.phases.find(p=>p.phase==='ccd'),postal=phase.baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip');
+ assert.equal(evidence.status,'BLOCKED');assert.equal(postal.failureId,'postal-required-fields');assert.equal(postal.recordedDetail.groups.length,5);
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence),dom=require('node-html-parser').parse(html),rows=dom.querySelector('[data-native-postal-detail="ccd-postal-two-roundtrip"]').querySelectorAll('tbody tr');
+ assert.equal(rows.length,12);assert.equal(rows[4].querySelectorAll('td')[3].textContent,'reported error');assert(rows.slice(5).every(row=>row.querySelectorAll('td')[3].textContent==='Not recorded'));assert.match(html,/Postal proof BLOCKED/);
+});
+
+test('sealed business scalars distinguish actual nested child loss and IA query not reached without changing authority',async t=>{
+ const f=await fixture(t,{businessScalars:true}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),ccd=evidence.phases.find(p=>p.phase==='ccd'),scope=evidence.phases.find(p=>p.phase==='scope'),base=ccd.baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip'),fault=ccd.faults.find(p=>p.proofId==='ccd-child-loss'),iaFault=scope.faults[0];
+ assert.equal(evidence.status,'PASS');assert.equal(base.businessScalars.scalars.recipientCount.value,1);assert.equal(fault.businessScalars.scalars.recipientCount.value,1);assert.equal(fault.businessScalars.scalars.emailAddressPresent.value,false);assert.equal(fault.observedFailureId,'nested-persistence');assert.equal(iaFault.businessScalars.scalars.responseStatus.state,'not-reached');
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.match(html,/Actually observed/);assert.match(html,/Not reached/);assert.match(html,/Differs from displayed expectation/);assert(!html.includes('PRIVATE_'));
+ const raw=path.join(f.directory,'private/ccd'),run=read(path.join(raw,'run.json')),exec=read(path.join(raw,run.executionArtifacts[0].path));fs.appendFileSync(path.join(raw,exec.resultArtifact.path),' ');await assert.rejects((await load()).readNativeReportEvidence(f.descriptorPath),/DIGEST/);
+});
+test('untrusted scalar shape is unavailable and old absent data keeps exact old scalar rendering',async t=>{
+ const f=await fixture(t,{businessScalars:'invalid'}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),render=require('./harness-native-report.cjs').renderNativeEvidence;
+ assert.equal(evidence.status,'PASS');assert.match(render(evidence),/Business scalar observations: unavailable/);assert(!render(evidence).includes('PRIVATE_TOKEN'));
+ for(const phase of evidence.phases)for(const proof of [...phase.baselineProofs,...phase.faults])delete proof.businessScalars;
+ assert(!render(evidence).includes('data-native-business-'));assert(!render(evidence).includes('Business scalar observations:'));
+});
+
+
+test('denial business display is replayed from sealed role observations before finite projection',async t=>{
+ const packet=await require('./fixtures/exui-native-report-packet.mock.cjs').fixture(t),reader=await import('./lib/exui-native-report-evidence.mjs'),evidence=await reader.readNativeReportEvidence(packet.descriptorPath);
+ const phase=evidence.phases.find(p=>p.phase==='ccd'),proofs=[...phase.baselineProofs,...phase.faults];
+ for(const [id,status,visible,unchanged]of [['ccd-role-policy',403,false,true],['ccd-access-broadened',200,true,null],['ccd-write-then-deny',403,false,false]]){
+  const proof=proofs.find(p=>p.proofId===id),v=proof.businessScalars;assert.equal(v.availability,'recorded');assert.equal(v.scalars.deniedReadStatus.value,status);assert.equal(v.scalars.protectedMarkerPresent.value,visible);assert.deepEqual(v.scalars.stateUnchanged,unchanged===null?{state:'not-reached'}:{state:'recorded',value:unchanged});
+ }
+ assert.equal(evidence.source.harnessCommit,packet.descriptor.expected.harnessCommit);assert.equal(evidence.catalogueCoverage.selected,112);assert.equal(evidence.releaseApproval,false);
+ const rows=require('./lib/exui-business-scalar-detail.cjs').scalarProjection(evidence).rows;assert.equal(rows.length,7);assert.equal(new Set(rows.map(p=>p.proofId)).size,7);
+});
+
+
+test('current denial display rejects absent or coherently resealed malformed role evidence',async t=>{
+ const reader=await load();
+ for(const fault of ['all-missing','policy-missing','actor','read-status','foreign-context','fault-application']){
+  const f=await fixture(t);await reader.readNativeReportEvidence(f.descriptorPath);
+  await rewriteCcd(f,({executions})=>{
+   const execution=executions.find(x=>x.invocationId===(fault==='fault-application'?'ccd-write-then-deny':'baseline'));
+   if(fault==='all-missing'){delete execution.sharedRoleArtifacts;return;}
+   if(fault==='policy-missing'){execution.sharedRoleArtifacts=execution.sharedRoleArtifacts.filter(r=>!r.path.endsWith('/policy-observation.json'));return;}
+   const name=fault==='foreign-context'?'context.json':fault==='fault-application'?'fault-actions.jsonl':'policy-observation.json',ref=execution.sharedRoleArtifacts.find(r=>r.path.endsWith('/'+name)),file=path.join(f.directory,'private/ccd',ref.path);
+   if(fault==='fault-application'){const actions=JSON.parse(fs.readFileSync(file,'utf8'));actions.status=200;const bytes=JSON.stringify(actions)+'\n';fs.writeFileSync(file,bytes);ref.digest=digest(bytes);return;}
+   const value=read(file);if(fault==='actor')value.actor.id='foreign-unit-actor';if(fault==='read-status')value.deniedRead=200;if(fault==='foreign-context')value.invocationId='ccd-broaden-access';ref.digest=write(file,value);
+  });
+  await assert.rejects(()=>reader.readNativeReportEvidence(f.descriptorPath),/NATIVE_REPORT/,fault);
+ }
+});
+
+
+test('actual denial reporter emitted reports pass sealed-role projection for all three proof IDs',async t=>{
+ const packet=await require('./fixtures/exui-native-report-packet.mock.cjs').fixture(t,{actualDenialReporter:true}),reader=await load(),evidence=await reader.readNativeReportEvidence(packet.descriptorPath);
+ const phase=evidence.phases.find(p=>p.phase==='ccd'),rows=[...phase.baselineProofs,...phase.faults];
+ for(const[id,invocation]of [['ccd-role-policy','baseline'],['ccd-access-broadened','ccd-broaden-access'],['ccd-write-then-deny','ccd-write-then-deny']]){
+  const report=JSON.parse(require('node:fs').readFileSync(require('node:path').join(packet.directory,'private','ccd',invocation,'report.json'),'utf8'));
+  assert.equal(Object.hasOwn(report.tests.find(p=>p.proofId===id),'businessScalars'),false);assert.equal(rows.find(p=>p.proofId===id).businessScalars.availability,'recorded');
+ }
+});

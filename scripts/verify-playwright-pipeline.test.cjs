@@ -38,9 +38,8 @@ test('the Build lint command requires Harness support checks and preserves their
     const success = execute(0);
     assert.equal(success.status, 0, success.stderr);
     const calls = readFileSync(callsFile, 'utf8').trim().split('\n');
-    assert.equal(calls[0], 'yarn:harness:unit');
-    assert.ok(calls.length > 1 && calls.slice(1).some((call) => call.startsWith('node:')),
-      'passing Harness support checks must allow downstream validation to run');
+    assert.deepEqual(calls,['yarn:harness:unit','yarn:tsc -p tsconfig.json','node:./node_modules/eslint/bin/eslint.js .'],
+      'units run once; downstream TypeScript and ESLint each remain consequential');
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -100,7 +99,7 @@ node() {
     printf '%s\\n' 'report:validate' >> "$CALLS_FILE"
     [[ "$FAIL_COMMAND" != validate ]] || return 23
       elif [[ "$1" == scripts/run-harness-jenkins-assurance.mjs ]]; then
-        [[ "$#" == 1 ]] || return 96
+        [[ "$#" == 2 && "$2" == --require-build-self-checks ]] || return 96
         printf '%s\n' 'native-assurance:run' >> "$CALLS_FILE"
         [[ "$FAIL_COMMAND" != native-assurance ]] || return 23
   else
@@ -119,7 +118,6 @@ corepack() {
 `);
       const expectedCalls = [
         'nvm:source', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
-        'worker:observe', 'corepack:yarn test:setup:playwright-install-chromium', 'browser:preflight',
         'native-assurance:run', 'report:validate'
       ];
       const cases = [
@@ -130,12 +128,9 @@ corepack() {
         { fail: 'package-manager', status: 23, through: 4 },
         { fail: '--version', status: 23, through: 5 },
         { fail: 'yarn-version', status: 1, through: 5 },
-        { fail: 'worker', status: 23, through: 6 },
-        { fail: 'test:setup:playwright-install-chromium', status: 23, through: 7 },
-        { fail: 'browser', status: 1, through: 8 },
-        { fail: 'native-assurance', status: 23, through: 9 },
-        { fail: 'validate', status: 23, through: 10 },
-        { fail: '', status: 0, through: 10 }
+        { fail: 'native-assurance', status: 23, through: 6 },
+        { fail: 'validate', status: 23, through: 7 },
+        { fail: '', status: 0, through: 7 }
       ];
       for (const { fail, status, through } of cases) {
         rmSync(calls, { force: true });
@@ -159,12 +154,15 @@ corepack() {
     } finally { rmSync(directory, { recursive: true, force: true }); }
   });
 
-  test(`${pipeline}: native candidate and CCD assurance follows browser preflight`, () => {
+  test(`${pipeline}: preparation owner includes browser preflight before native child`, () => {
     const source = readFileSync(pipeline, 'utf8');
-    const browserCheck = source.indexOf('scripts/verify-playwright-browsers.cjs chromium');
+    const owner = readFileSync('scripts/run-harness-jenkins-assurance.mjs','utf8');
+    const browserCheck = owner.indexOf("['scripts/verify-playwright-browsers.cjs','chromium']");
     const assurance = source.indexOf('node scripts/run-harness-jenkins-assurance.mjs');
     const validation = source.indexOf('scripts/manage-harness-public-reports.cjs --validate');
-    assert.ok(browserCheck >= 0 && assurance > browserCheck && validation > assurance);
+    assert.ok(assurance >= 0 && validation > assurance);
+    assert.ok(owner.indexOf('const snapshotAssuranceTiming = createPreparationTimingSnapshot()') < browserCheck && browserCheck < owner.indexOf('const result = await runTimedAssuranceChild'));
+    assert.doesNotMatch(source, /corepack yarn test:setup:playwright-install-chromium|node scripts\/observe-harness-worker\.mjs\n/);
     assert.doesNotMatch(source, /corepack yarn harness:ci/,
       'the combined run must execute diagnostics once, after native evidence');
     assert.doesNotMatch(source, /corepack yarn harness:(?:candidate|assurance)/,
@@ -403,9 +401,13 @@ test('Jenkins report-management wrapper pins Node before reset or validation', (
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
-test('Harness unit runner places its serialization flag before test filenames', () => {
-  const command = JSON.parse(readFileSync('package.json', 'utf8')).scripts['harness:unit'];
-  assert.deepEqual(command.trim().split(/\s+/).slice(0, 3),
-    ['node', '--test', '--test-concurrency=1'],
-    'Node options after a test filename become file patterns and allow fixed-port tests to race');
+test('Harness unit runner places its serialization flag before test filenames', async t => {
+  const command=JSON.parse(readFileSync('package.json','utf8')).scripts['harness:unit'];
+  assert.equal(command,'node scripts/run-harness-self-check-evidence.mjs');
+  const {buildSelfCheckFixture}=require('./fixtures/exui-build-self-check.mock.cjs');
+  const f=await buildSelfCheckFixture(t);assert.equal((await f.api.runConfiguredSelfChecks()).status,'passed');
+  const argv=JSON.parse(readFileSync(f.argvPath,'utf8')).args;
+  assert.deepEqual(argv.slice(0,2),['--test','--test-concurrency=1']);
+  assert(argv.indexOf('--test-concurrency=1')<argv.indexOf(f.unitFiles[0]));
+  assert.equal(argv.filter(file=>file==='scripts/verify-playwright-pipeline.test.cjs').length,1);
 });

@@ -14,11 +14,13 @@ exports.runEntrypoint = function runEntrypoint(fixture, {profileOutput, cancelNa
  if(mutation==='omit-collector-progress')source=source.replace(/^(      collect: \(nativeEvidencePath, timing\) => )reportNativeProgress\("Evidence replay and diagnostic report", \(\) => (.*)\),$/m,'$1$2,');
  fs.writeFileSync(path.join(scripts,'run-harness-assurance.mjs'),source);
  const write = (name, bytes) => fs.writeFileSync(path.join(scripts, name), bytes);
- for (const name of ['exui-evidence-io.mjs', 'exui-selector-event-row-evidence.mjs'])
+ for (const name of ['exui-evidence-io.mjs', 'exui-selector-event-row-evidence.mjs', 'exui-candidate-artifact.mjs'])
   write('lib/' + name, `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname, '../lib', name)).href)};`);
  write('lib/exui-complex-email-admission.mjs',"export const verifyComplexNativeCapture=()=>undefined;export const prepareComplexAdmissionInputs=()=>({attempt:{schemaVersion:1,kind:'complex-email-attempt',status:'NOT_RUN',reason:'SOURCE_INPUTS_NOT_CONFIGURED'}});");
  write('run-harness-complex-email-admission.mjs',"export async function runComplexEmailAdmission(){throw Error('UNEXPECTED_UNCONFIGURED_COMPLEX_RUN');}");
  write('lib/exui-personal-service-admission.mjs','export const verifyPersonalNativeCapture=()=>undefined;');
+ write('run-harness-st-cic-profile-admission.mjs','export const runStCicProfileAdmission=()=>{throw Error("UNEXPECTED_ST_CIC_RUN");};');
+ write('lib/exui-st-cic-profile-admission.mjs','export const verifyStCicNativeCapture=()=>{throw Error("UNEXPECTED_ST_CIC_CAPTURE");};');
  write('run-harness-personal-service-admission.mjs',`import fs from 'node:fs';const record=x=>fs.appendFileSync('calls.jsonl',JSON.stringify(x)+'\\n');const closedError=Error('PRIVATE-PROGRESS-ERROR-CANARY');export const isPersonalAdmissionClosedFailure=error=>error===closedError;export async function runPersonalServiceAdmission(options){record('personal');${closedPersonalFailure ? 'throw closedError;' : ''}return {private:'PRIVATE-PROGRESS-RESULT-CANARY',status:'passed',reportRequest:{path:'/personal',digest:'sha256:'+'a'.repeat(64),runId:'personal'}};}`);
  write('lib/exui-divorce-native-binding.mjs', 'export const verifyDivorceNativeCapture=()=>undefined;');
  write('lib/exui-output-boundary.mjs', 'export const writeHarnessPublicSummary=()=>{};');

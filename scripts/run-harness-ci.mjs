@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {verifyMandatoryEmailNativeCapture} from './lib/exui-mandatory-email-event-contract.mjs';
 import {runSelectorEventPhase} from './run-harness-selector-event-row.mjs';
 import {SELECTOR_EVENT_SCOPE} from './lib/exui-selector-event-row-contract.mjs';
 import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence.mjs';
@@ -191,7 +192,8 @@ export async function runSelectorCiPhase(job,context,directory,resource,{run=run
  return {directory,...selected,expected:{...selected.expected,receiptArtifactDigest:validated.receiptArtifactDigest}};
 }
 
-export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonalNative,captureComplexNative,complexSourceConfiguration} = {}) {
+export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonalNative,captureComplexNative,captureStCicNative,captureMandatoryEmailNative,complexSourceConfiguration} = {}) {
+  assert(captureMandatoryEmailNative===undefined||typeof captureMandatoryEmailNative==='function','MANDATORY_EMAIL_CAPTURE_CALLBACK');
   const job = validateCiJob(read(jobPath));
   const envelope = read(job.candidateManifest);
   assert(
@@ -209,7 +211,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     phaseResults = [],
     phaseTimings = [];
   let failedPhase, phaseTerminal, phaseFailure;
-  let context,
+  let context, mandatoryEmailCapture,
     verdict = blocked(),
     cleanupComplete = true,
     cancelled = false;
@@ -300,8 +302,10 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     },
   });
   try {
-    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration}));
+    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration,stCicProfile:captureStCicNative!==undefined,mandatoryEmail:captureMandatoryEmailNative!==undefined}));
+    if(captureMandatoryEmailNative!==undefined){mandatoryEmailCapture=structuredClone(context.mandatoryEmailNativeCapture);verifyMandatoryEmailNativeCapture(job.output,mandatoryEmailCapture);captureMandatoryEmailNative(structuredClone(mandatoryEmailCapture));}
     captureNativeCohort?.(structuredClone(context.nativeCohortCapture));
+    captureStCicNative?.(structuredClone(context.stCicNativeCapture));
     capturePersonalNative?.(structuredClone(context.personalNativeCapture));
     captureComplexNative?.(structuredClone(context.complexNativeCapture));
     assert(!cancelled, "CI_JOB_CANCELLED");
@@ -674,6 +678,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       exitCode: verdict.exitCode,
       cleanupComplete,
       phaseResults,
+      ...(mandatoryEmailCapture?{mandatoryEmailNativeBinding:structuredClone(mandatoryEmailCapture.reference)}:{}),
     });
     writeCiPublicSummary(
       job.output,

@@ -17,7 +17,9 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
   fs.writeFileSync(preload, `
     const fs = require('node:fs');
     const path = require('node:path');
-    require('node:child_process').spawnSync = (command, args) => {
+    process.umask(0o022);
+    require('node:child_process').spawnSync = (command, args, options) => {
+      if (command === 'corepack' || (args[0] && ['scripts/observe-harness-worker.mjs','scripts/verify-playwright-browsers.cjs'].includes(args[0]))) { fs.appendFileSync(path.join(${JSON.stringify(root)},'host-preparation.txt'), JSON.stringify({command:command==='corepack'?'corepack':args[0],args:command==='corepack'?args:args.slice(1),environmentMatches:options.env===process.env,browserPath:options.env.PLAYWRIGHT_BROWSERS_PATH,downloadHost:options.env.PLAYWRIGHT_DOWNLOAD_HOST,extraCa:options.env.NODE_EXTRA_CA_CERTS,stdio:options.stdio??'pipe',umask:process.umask()})+'\\n'); return {status:0,stdout:''}; }
       if (command === 'docker' && args[0] === 'version')
         return {status: 0, stdout: JSON.stringify({Os: 'linux', Arch: 'arm64'})};
       if (command === 'docker' && args[0] === 'image') {
@@ -25,17 +27,22 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
         return {status: 0, stdout: JSON.stringify([{Id: digest, Os: 'linux', Architecture: 'arm64', RepoDigests: [reference.includes('@') ? reference : 'registry/image@' + digest]}])};
       }
       if (command === 'git' && args[0] === 'clone') {
+        fs.writeFileSync(path.join(${JSON.stringify(root)},'private-work-umask.txt'),String(process.umask()));
         fs.writeFileSync(path.join(path.dirname(args.at(-1)), 'preparation-evidence.txt'), 'child failed');
       }
       return {status: 1, stdout: ''};
     };
     require('node:module').syncBuiltinESMExports();
   `);
+  const extraCa=path.join(root,"fixture-ca.pem");fs.writeFileSync(extraCa,"");
   const result = spawnSync(process.execPath, ["--require", preload, "scripts/run-harness-jenkins-assurance.mjs"], {
-    cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8", timeout: 30_000,
+    cwd: root, env: { PATH: process.env.PATH,PLAYWRIGHT_BROWSERS_PATH:"/private/fixture-browser",PLAYWRIGHT_DOWNLOAD_HOST:"https://fixture.invalid",NODE_EXTRA_CA_CERTS:extraCa }, encoding: "utf8", timeout: 30_000,
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 2, result.stderr);
+  const inherited={environmentMatches:true,browserPath:'/private/fixture-browser',downloadHost:'https://fixture.invalid',extraCa,umask:0o022};
+  assert.deepEqual(fs.readFileSync(path.join(root,'host-preparation.txt'),'utf8').trim().split('\n').map(line=>JSON.parse(line)),[{command:'scripts/observe-harness-worker.mjs',args:[],stdio:'pipe',...inherited},{command:'corepack',args:['yarn','test:setup:playwright-install-chromium'],stdio:'inherit',...inherited},{command:'scripts/verify-playwright-browsers.cjs',args:['chromium'],stdio:'inherit',...inherited}]);
+  assert.equal(fs.readFileSync(path.join(root,'private-work-umask.txt'),'utf8'),String(0o077));
   const privateRoot = path.join(root, "functional-output/tests/harness/private/native-ci");
   const jobs = fs.readdirSync(privateRoot);
   assert.equal(jobs.length, 1);
@@ -331,3 +338,61 @@ test('Jenkins overall failure cannot publish a passing main-only summary',async 
  assert.equal(publishSummary(root,2),'BLOCKED');assert.equal(validatePublicSummary(target).status,'BLOCKED');assert.equal(validatePublicSummary(target).receiptAvailable,false);assert.equal(validatePublicSummary(path.join(root,'public/release-assurance-summary.json')).status,'PASS');
  assert.equal(publishSummary(root,0),'PASS');assert.equal(validatePublicSummary(target).releaseApproval,false);assert.throws(()=>publishSummary(root,7),/ASSURANCE_EXIT_REQUIRED/);
 });
+
+test('preparation owner includes setup and candidate build on its monotonic clock and samples only once',async()=>{
+ const {createPreparationTimingSnapshot}=await load();let now=100;const snapshot=createPreparationTimingSnapshot({clock:()=>now,startedAt:'2026-11-06T12:00:00.000Z'});now+=329000;now+=10480;
+ assert.deepEqual(snapshot(),{schemaVersion:2,scope:'harness-preparation-start-to-report-snapshot',clock:'monotonic',startedAt:'2026-11-06T12:00:00.000Z',elapsedMs:339480});assert.throws(snapshot,/TIMING/);
+ for(const bad of [-1,NaN,Infinity,Number.MAX_SAFE_INTEGER+1]){let clock=0;const invalid=createPreparationTimingSnapshot({clock:()=>clock});clock=bad;assert.throws(invalid,/TIMING/);}
+ let zero=0;assert.equal(createPreparationTimingSnapshot({clock:()=>zero})().elapsedMs,0);
+});
+
+test('owned timing child uses finite one-shot IPC and waits for actual terminal, rejecting foreign or duplicate traffic',async()=>{
+ const {runTimedAssuranceChild}=await load(),{EventEmitter}=require('node:events');
+ for(const fault of [null,'wrong-token','unknown','duplicate-ready','duplicate-request','disconnect','signal','error']){
+  const child=new EventEmitter(),signals=new EventEmitter(),sent=[],kills=[];let sampled=0,withdrawn=0,settled=false;
+  child.send=(message,done)=>{sent.push(message);done?.();};child.kill=signal=>{kills.push(signal);return true;};
+  const result=runTimedAssuranceChild('/private/job.json',{snapshotAssuranceTiming:()=>{sampled++;return {schemaVersion:2};},signals,withdraw:()=>{withdrawn++;},forkChild:(file,args,options)=>{assert.equal(file,'scripts/run-harness-assurance.mjs');assert(args.includes('--parent-timing'));assert.deepEqual(options.stdio,['inherit','inherit','inherit','ipc']);assert.deepEqual(options.execArgv,[]);assert.equal(options.env.NODE_OPTIONS,undefined);return child;}}).then(value=>{settled=true;return value;});
+  child.emit('message',{kind:'harness-preparation-ready'});const token=sent[0].token;
+  if(fault==='unknown')child.emit('message',{kind:'foreign',token});
+  else if(fault==='duplicate-ready')child.emit('message',{kind:'harness-preparation-ready'});
+  else if(fault==='disconnect')child.emit('disconnect');
+  else if(fault==='signal')signals.emit('SIGTERM');
+  else if(fault==='error')child.emit('error',Error('PRIVATE-CANARY'));
+  else {child.emit('message',{kind:'harness-preparation-snapshot',token:fault==='wrong-token'?'stale':token});if(fault==='duplicate-request')child.emit('message',{kind:'harness-preparation-snapshot',token});}
+  await Promise.resolve();assert.equal(settled,false,'publication must wait for observed child close');child.emit('close',0,null);const terminal=await result;
+  assert.equal(terminal.status,fault?2:0);assert.equal(withdrawn,fault?1:0);assert.equal(sampled,[null,'duplicate-request'].includes(fault)?1:0);assert.equal(kills.length,fault?1:0);assert.equal(signals.listenerCount('SIGTERM'),0);assert.equal(child.listenerCount('message'),0);
+ }
+});
+
+test('actual small owned Node IPC child receives preparation interval from the live parent owner',async t=>{
+ const {runTimedAssuranceChild,createPreparationTimingSnapshot}=await load(),{fork}=require('node:child_process');
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'preparation-ipc-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const receipt=path.join(root,'result.json'),script=path.join(root,'child.mjs');
+ fs.writeFileSync(script,`import fs from 'node:fs';import {connectPreparationTiming} from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-assurance.mjs')).href)};const snapshot=await connectPreparationTiming();fs.writeFileSync(${JSON.stringify(receipt)},JSON.stringify(await snapshot()));process.disconnect();`);
+ let now=0;const snapshotAssuranceTiming=createPreparationTimingSnapshot({clock:()=>now,startedAt:'2026-11-06T12:00:00.000Z'});now=329350;
+ const terminal=await runTimedAssuranceChild('/private/job.json',{snapshotAssuranceTiming,withdraw:()=>assert.fail('small IPC run withdrew'),forkChild:(_file,_args,options)=>fork(script,[],{...options,stdio:['ignore','ignore','ignore','ipc']})});
+ assert.equal(terminal.status,0);assert.equal(JSON.parse(fs.readFileSync(receipt)).elapsedMs,329350);assert.equal(JSON.parse(fs.readFileSync(receipt)).schemaVersion,2);
+});
+
+test('owned timing child bounds missing readiness and forwards repeated cancellation once until terminal',async t=>{
+ const {runTimedAssuranceChild}=await load(),{EventEmitter}=require('node:events');t.mock.timers.enable({apis:['setTimeout']});
+ const child=new EventEmitter(),signals=new EventEmitter(),kills=[];child.kill=signal=>{kills.push(signal);return true;};child.send=()=>assert.fail('missing readiness cannot initialize');let withdrawals=0;
+ const terminal=runTimedAssuranceChild('/private/job.json',{snapshotAssuranceTiming:()=>assert.fail('no snapshot'),signals,withdraw:()=>{withdrawals++;},forkChild:()=>child});
+ t.mock.timers.tick(5*1000);signals.emit('SIGTERM');signals.emit('SIGTERM');signals.emit('SIGINT');assert.deepEqual(kills,['SIGTERM']);child.emit('close',null,'SIGTERM');assert.equal((await terminal).status,2);assert.equal(withdrawals,1);assert.equal(signals.listenerCount('SIGTERM'),0);
+});
+
+test('ST_CIC CLI bridge opts the fake child in exactly once without altering timing or cancellation closure',async()=>{
+ const {runTimedAssuranceChild}=await load(),{EventEmitter}=require('node:events');
+ for(const enableStCic of [undefined,false,true])for(const enableMandatoryEmail of [undefined,false,true])for(const cancel of [false,true])for(const buildSelfCheckHeld of [undefined,{path:'/private/held.json',digest:'sha256:'+'a'.repeat(64)}]){
+  const child=new EventEmitter(),signals=new EventEmitter(),sent=[];let argsSeen,kills=0,withdrawn=0,settled=false;
+  child.send=(value,done)=>{sent.push(value);done?.();};child.kill=()=>{kills++;return true;};
+  const pending=runTimedAssuranceChild('/private/job.json',{...(enableStCic===undefined?{}:{enableStCic}),...(enableMandatoryEmail===undefined?{}:{enableMandatoryEmail}),buildSelfCheckHeld,snapshotAssuranceTiming:()=>({schemaVersion:2}),signals,withdraw:()=>{withdrawn++;},forkChild:(file,args,options)=>{argsSeen=args;assert.equal(file,'scripts/run-harness-assurance.mjs');assert.deepEqual(options.execArgv,[]);assert.equal(options.env.NODE_OPTIONS,undefined);return child;}}).then(value=>{settled=true;return value;});
+  assert.deepEqual(argsSeen,['--input','/private/job.json','--parent-timing',...(enableStCic?['--st-cic']:[]),...(enableMandatoryEmail?['--mandatory-email']:[]),...(buildSelfCheckHeld?['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest]:[])]);
+  child.emit('message',{kind:'harness-preparation-ready'});child.emit('message',{kind:'harness-preparation-snapshot',token:sent[0].token});
+  if(cancel)signals.emit('SIGTERM');await Promise.resolve();assert.equal(settled,false);child.emit('close',cancel?null:0,cancel?'SIGTERM':null);
+  assert.equal((await pending).status,cancel?2:0);assert.equal(kills,cancel?1:0);assert.equal(withdrawn,cancel?1:0);assert.equal(signals.listenerCount('SIGTERM'),0);
+ }
+ for(const enableStCic of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableStCic,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid opt-in must never fork')}),/HARNESS_ST_CIC_ENABLE_REQUIRED/);
+});
+
+test('mandatory-email Jenkins opt-in is a strict boolean before any child allocation',async()=>{const {runTimedAssuranceChild}=await load();for(const enableMandatoryEmail of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableMandatoryEmail,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid opt-in must never fork')}),/HARNESS_MANDATORY_EMAIL_ENABLE_REQUIRED/);});

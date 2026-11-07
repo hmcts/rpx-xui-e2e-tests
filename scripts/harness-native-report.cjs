@@ -8,6 +8,8 @@ const workbasketSource = require("./fixtures/ccd/workbasket-input.source.json").
 const workbasketRows = new Set(workbasketSource.rows.map(({ row }) => "configuration-shape:" +
   objectDigest(canonical({ source: "prl-ccd-definitions:" + workbasketSource.path, row }))));
 const { escape } = require("./harness-report-coverage.cjs");
+const { ST_CIC_PROFILE_ID, renderStCicProfileAdmission, renderStCicExecutionInfo } = require('./harness-st-cic-profile-report.cjs');
+const mandatoryReport = require('./harness-mandatory-email-report.cjs');
 
 // Reviewed labels describe the fixed proof, never infer per-service execution from a PASS.
 const proofs = {
@@ -182,7 +184,7 @@ proofs["routing-create-redirect-fallback"] = {
   slice: "PCS external create and local fallback",
   behaviour:
     "Route an external PCS create event to its configured destination; preserve local dispatch when the external destination is absent or the event is local.",
-  services: "Private Law (synthetic PCS routing fixture)",
+  services: "Synthetic PCS routing fixture",
   jurisdiction: "PCS",
   caseType: "PCS (synthetic case type)",
   lane: "Actual EXUI Node + Angular with synthetic CCD providers",
@@ -194,7 +196,7 @@ proofs["routing-noc-session-cache"] = {
   slice: "PCS NoC route by requested case",
   behaviour:
     "Resolve the NoC destination for each requested case ID and use the matching case type cached in that session; retain central fallback for unmapped cases.",
-  services: "Private Law (synthetic PCS routing fixture)",
+  services: "Synthetic PCS routing fixture",
   jurisdiction: "PCS",
   caseType: "PCS and unmapped synthetic cases",
   lane: "Actual EXUI Node + Angular with synthetic CCD providers",
@@ -287,6 +289,7 @@ function nativeCounts(evidence) {
   };
 }
 function renderNativeExecutionInfo(evidence) {
+  const stCicInfo = evidence && Object.hasOwn(evidence, 'stCicProfileAdmission') ? renderStCicExecutionInfo(evidence.stCicProfileAdmission) : '';
   const groups = [['Core native', evidence ? nativeCounts(evidence) : null]];
   if (evidence?.personalServiceAdmission) {
     const records = evidence.personalServiceAdmission.invocations;
@@ -315,16 +318,104 @@ function renderNativeExecutionInfo(evidence) {
       workers += '<br><small>Configured slots, not concurrent processes. Observed and peak native worker process counts are not recorded.</small>';
     }
     return `<tr><th scope="row">${label} Playwright invocations</th><td>${count ? count.invocations ?? 'Not recorded' : 'Not run'}</td></tr><tr><th scope="row">Configured ${label.toLowerCase()} worker slots</th><td>${workers}</td></tr>`;
-  }).join('');
+  }).join('') + stCicInfo + (evidence && Object.hasOwn(evidence, 'mandatoryEmailAdmission') ? mandatoryReport.renderMandatoryEmailExecutionInfo(evidence.mandatoryEmailAdmission) : '');
 }
 function scopeCells(label) {
   return `<td>${escape(label.services)}<br><small>${escape(label.jurisdiction)}</small></td><td>${escape(label.caseType)}</td>`;
 }
-function proofDetails(label, proof, phase, method, outcome) {
-  return `<details><summary>Evidence and limits</summary><p><strong>Source-defined method</strong> ${escape(method)}</p><p><strong>Recorded outcome</strong> ${escape(outcome)}</p><p>Per-step execution trace and per-test duration: Not recorded in this evidence.</p><p>${escape(label.lane)}. ${escape(label.limits)}</p><dl><dt>Proof</dt><dd>${escape(proof.proofId)}</dd><dt>Invocation</dt><dd>${escape(proof.invocationId)}</dd>${proof.mutationId ? `<dt>Required failure</dt><dd>${escape(proof.expectedFailureId)}</dd><dt>Observed failure</dt><dd>${escape(proof.observedFailureId || "not established")}</dd>` : ""}<dt>Phase run</dt><dd>${escape(phase.runId)}</dd><dt>Receipt digest</dt><dd>${escape(phase.receiptArtifactDigest)}</dd></dl></details>`;
+// Static source-defined expectations; never independently captured response values.
+const nativeStageExpectations={
+  "family-membership": "The Work Allocation service selector contains exactly the seven declared service families.",
+  "family-filter": "For the selected family, the captured task-search parameters contain jurisdiction IN that family. The event instance is not a captured family label.",
+  "organisation-scope": "The visible service-filter values equal only the declared organisation family.",
+  "location-selection": "The selected location is visible, is clicked for removal and is then absent.",
+  "organisation-scope-query": "The actual location-search request serviceIds equals the declared organisation family.",
+  "location-search-results": "The sole declared hearing-centre suggestion is visible and can be selected and added.",
+  "nested-persistence": "Persisted nested recipient values match the two values submitted by the journey.",
+  "revoked-data-isolation": "A read using revoked credentials is denied with 403 or 404 and does not expose the protected marker.",
+  "revoked-state-integrity": "The complete case state after revoked operations equals its state before them.",
+  "denied-data-isolation": "A denied actor receives 403 or 404 and cannot read the protected marker.",
+  "denied-state-integrity": "Denied operations leave the complete case state unchanged.",
+  "postal-required-fields": "Both blank postcode-lookup controls show errors and Check your answers remains hidden. Manual-address PostCode requiredness is outside this named assertion.",
+  "postal-persistence": "Readback contains both submitted postal recipients and their expected address values.",
+  "workbasket-page-load": "Navigate to the candidate case-list page; this named stage records navigation, not every later assertion.",
+  "workbasket-navigation": "The navigation response has the declared status, HARNESS jurisdiction and HarnessResultsPRL case type.",
+  "workbasket-source-field": "The descriptor fields match the source workbasket rows and the declared field is usable.",
+  "courtadmin-update-persistence": "The four email/post recipient scenarios retain their permitted updates through persisted readback.",
+  "event-capability-isolation": "The denied event is absent from triggers and options; direct start/submit are 404 and case state is unchanged.",
+  "courtadmin-recipient-read-projection": "The four recipient scenarios expose the declared single recipient field and expected projected values to courtadmin.",
+  "readonly-recipient-read-projection": "The four recipient scenarios expose the declared single recipient field and expected projected values to readonly.",
+  "readonly-update-isolation": "Readonly updates remain denied across all four recipient scenarios without changing case data or history.",
+  "event-redirect": "The observed arrival matches the fixed create-entry route, method and expected identity parameter.",
+  "noc-session-routing": "The first primary-session verification POST journal equals the fixed expected request. Later fresh-session and cache checks are outside this named assertion.",
+  "recipient-callback-identity": "The manifest and context match the recipient-callback scope and selected invocation.",
+  "recipient-callback-binding": "The callback journal contains the declared business-rejected outcome; other later callback actions are outside this named assertion.",
+  "selector-event-identity": "The manifest and context match the selector-event scope and selected invocation.",
+  "selector-event-summary-row": "The declared selector event row is present in the candidate summary contract.",
+  "source-shape-recipient-collection": "The final assertion requires exactly two recipient entries; the declared fault branch instead checks that the observed value is an array. Earlier sibling and persistence checks are outside this named stage.",
+  "source-shape-case-field-recipient-selector": "The final recipient-selector source-contract flag must be true. Earlier label and persistence checks are outside this named stage.",
+  "source-shape-required-delivery-radio": "The final delivery-radio source-contract flag must be true. Earlier required-field and persistence checks are outside this named stage.",
+  "source-shape-conditional-email-complex": "The final conditional-email source-contract flag must be true. Earlier conditional-field and persistence checks are outside this named stage.",
+  "source-shape-postal-recipient-name": "The final postal-recipient-name source-contract flag must be true. Earlier label and persistence checks are outside this named stage.",
+  "source-shape-optional-postal-line-two": "The final optional AddressLine2 source-contract flag must be true. Earlier label and filled-persistence checks are outside this named stage."
+};
+function recordedStages(proof) {
+  const value = proof.recordedExecution;
+  if (value === undefined) return '<p>Per-step execution trace and per-test duration: Not recorded in this evidence.</p>';
+  require('./lib/exui-native-stage-telemetry.cjs').assertStageTelemetry(proof.proofId, value);
+  if (value.availability === 'unavailable') return `<p>Recorded named assertion stages: unavailable (${escape(value.reason)}). No trace or duration is inferred.</p>`;
+  return `<h4>Recorded named assertion stages</h4><p data-native-stage-note="${escape(proof.proofId)}">Observed test duration: ${value.testDurationMs} ms. Named-stage durations can overlap and are not additive; this is a subset of the journey, not every action or assertion. Expected contracts below describe source assertions; they are not separately recorded requests, values or assertion results. Trace not captured.</p><table data-native-stage-proof="${escape(proof.proofId)}"><thead><tr><th>Order</th><th>Assertion stage</th><th>Instance</th><th>Source-defined expected contract</th><th>Recorded group outcome</th><th>Observed duration</th></tr></thead><tbody>${value.stages.map(s => `<tr><td>${s.ordinal}</td><td>${escape(s.stageId.replace(/-/g,' '))}</td><td>${s.instance}</td><td>${escape(nativeStageExpectations[s.stageId] ?? (()=>{throw Error('PUBLIC_NATIVE_STAGE_EXPECTATION_UNKNOWN');})())}</td><td>${escape(s.outcome.replace(/-/g,' '))}</td><td>${s.durationMs} ms</td></tr>`).join('')}</tbody></table>`;
 }
-function renderNativeEvidence(evidence) {
+function recordedPostalDetail(proof) {
+  const value=proof.recordedDetail;
+  // Exact historical rendering remains unchanged when no actual detail exists.
+  if(value === undefined) return '';
+  const telemetry=require('./lib/exui-native-stage-telemetry.cjs');
+  telemetry.assertPostalDetail(proof.proofId,value);
+  if(value.availability === 'unavailable') return `<p data-native-postal-note="${escape(proof.proofId)}">Postal action/check groups: unavailable. No events or durations are inferred.</p>`;
+  const methods=telemetry.postalGroupMethods();
+  return `<h4 data-native-postal-heading="${escape(proof.proofId)}">Recorded postal action/check groups</h4><p data-native-postal-note="${escape(proof.proofId)}">Actual framework group events, not a complete click or request trace. Static methods describe source operations; completion without reported error is not a separate proof PASS. Later unobserved groups are Not recorded. Group durations may overlap other timings and must not be added.</p><table data-native-postal-detail="${escape(proof.proofId)}"><thead><tr><th>Order</th><th>Source-defined group method</th><th>Group kind</th><th>Recorded outcome</th><th>Observed duration</th></tr></thead><tbody>${methods.map((method,i)=>{const event=value.groups[i];return `<tr><td>${i+1}</td><td>${escape(method.label)}</td><td>${escape(method.kind)}</td><td>${event?escape(event.outcome.replace(/-/g,' ')):'Not recorded'}</td><td>${event?event.durationMs+' ms':'Not recorded'}</td></tr>`;}).join('')}</tbody></table>`;
+}
+function recordedBusinessScalars(proof) {
+  const value=proof.businessScalars;
+  if(value===undefined)return '';
+  const scalars=require('./lib/exui-business-scalar-detail.cjs');scalars.validateDetail(proof.proofId,value);
+  const note=value.availability==='unavailable'?'Business scalar observations: unavailable. No values or statuses are inferred.':`Business scalar observations: expected values are source-defined; actual values come from ${['ccd-role-policy','ccd-access-broadened','ccd-write-then-deny'].includes(proof.proofId)?'sealed CCD policy observations after the unchanged role replay':'the selected framework capture'}. No extra proof PASS or catalogue credit is inferred. Not reached means the capture point was not attempted; No observation means it was attempted without a usable observation.`;
+  const text=v=>typeof v==='boolean'?(v?'Yes':'No'):Array.isArray(v)?v.join(', '):String(v);
+  const rows=value.availability==='unavailable'?'':scalars.methods(proof.proofId).map(([key,label,expected])=>{
+    const field=value.scalars[key],recorded=field.state==='recorded';
+    const match=recorded&&(['emptyCollectionState','deniedReadStatus','deniedWriteStatus'].includes(key)?expected.includes(field.value):key==='responseStatus'?field.value>=200&&field.value<300:require('node:util').isDeepStrictEqual(field.value,expected));
+    return `<tr><th scope="row">${escape(label)}</th><td>${escape(text(expected))}</td><td>${recorded?escape(text(field.value)):field.state==='not-reached'?'Not reached':'No observation'}</td><td>${recorded?(match?'Matches displayed expectation':'Differs from displayed expectation'):'No comparison recorded'}</td></tr>`;
+  }).join('');
+  return `<p data-native-business-note="${escape(proof.proofId)}">${escape(note)}</p>${rows?`<table data-native-business-scalars="${escape(proof.proofId)}"><thead><tr><th>Business scalar</th><th>Source-defined expected</th><th>Actually observed</th><th>Scalar interpretation</th></tr></thead><tbody>${rows}</tbody></table>`:''}`;
+}
+function proofDetails(label, proof, phase, method, outcome) {
+  return `<details><summary>Evidence and limits</summary><p><strong>Source-defined method</strong> ${escape(method)}</p><p><strong>Recorded outcome</strong> ${escape(outcome)}</p>${recordedStages(proof)}${recordedPostalDetail(proof)}${recordedBusinessScalars(proof)}<p>${escape(label.lane)}. ${escape(label.limits)}</p><dl><dt>Proof</dt><dd>${escape(proof.proofId)}</dd><dt>Invocation</dt><dd>${escape(proof.invocationId)}</dd>${proof.mutationId ? `<dt>Required failure</dt><dd>${escape(proof.expectedFailureId)}</dd><dt>Observed failure</dt><dd>${escape(proof.observedFailureId || "not established")}</dd>` : ""}<dt>Phase run</dt><dd>${escape(phase.runId)}</dd><dt>Receipt digest</dt><dd>${escape(phase.receiptArtifactDigest)}</dd></dl></details>`;
+}
+function renderNativeEvidence(evidence, mandatoryEmailTiming) {
   if (!evidence) return "";
+  const mandatory = evidence.mandatoryEmailAdmission;
+  const mandatoryPanel = Object.hasOwn(evidence, 'mandatoryEmailAdmission') ? mandatoryReport.renderMandatoryEmailAdmission(mandatory, mandatoryEmailTiming) : '';
+  mandatoryReport.validateMandatoryEmailTiming(mandatoryEmailTiming, mandatory);
+  if (mandatory) assert.equal(evidence.catalogueCoverage.selected, mandatory.catalogueSize, 'NATIVE_REPORT_MANDATORY_JOIN');
+  if (mandatory?.joint.status === 'included') {
+    assert.equal(mandatory.producerCommit, evidence.source.harnessCommit, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.equal(mandatory.producerDigest, evidence.source.harnessSourceDigest, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.equal(mandatory.candidateArtifactDigest, evidence.source.candidateArtifactDigest, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.equal(mandatory.joint.nativeRunId, evidence.jobRunId, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.deepEqual(evidence.catalogueCoverage.mandatoryEmailAdmission, mandatory.joint, 'NATIVE_REPORT_MANDATORY_JOIN');
+  }
+  const stCic = evidence.stCicProfileAdmission;
+  const stCicReport = Object.hasOwn(evidence, 'stCicProfileAdmission') ? renderStCicProfileAdmission(stCic) : '';
+  if (stCic?.joint.status === 'included') {
+    assert.equal(stCic.producerCommit, evidence.source.harnessCommit, 'NATIVE_REPORT_ST_CIC_JOIN');
+    assert.equal(stCic.candidateArtifactDigest, evidence.source.candidateArtifactDigest, 'NATIVE_REPORT_ST_CIC_JOIN');
+    assert.equal(stCic.candidateCommit, evidence.source.webappCommit, 'NATIVE_REPORT_ST_CIC_JOIN');
+    assert.equal(stCic.joint.nativeRunId, evidence.jobRunId, 'NATIVE_REPORT_ST_CIC_JOIN');
+    assert.equal(stCic.joint.catalogueDigest, evidence.catalogueCoverage.catalogueDigest, 'NATIVE_REPORT_ST_CIC_JOIN');
+    assert.equal(evidence.catalogueCoverage.selected, stCic.catalogueSize, 'NATIVE_REPORT_ST_CIC_JOIN');
+    assert.deepEqual(evidence.catalogueCoverage.stCicProfileAdmission, stCic.joint, 'NATIVE_REPORT_ST_CIC_JOIN');
+  }
   if (evidence.divorceProfileAdmission?.joint?.status === "included") {
     const profile = evidence.divorceProfileAdmission, joint = profile.joint;
     assert.equal(profile.producerCommit, evidence.source.harnessCommit, "NATIVE_REPORT_PROFILE_JOIN");
@@ -376,6 +467,8 @@ function renderNativeEvidence(evidence) {
       coverage.creditedObligationIds.length ||
     !coverage.phaseReferences ||
     coverage.creditedObligationIds.some((id) => {
+      if (mandatoryReport.MANDATORY_EMAIL_IDS.includes(id)) return mandatory?.joint.status !== 'included';
+      if (id === ST_CIC_PROFILE_ID) return stCic?.joint.status !== 'included';
       if(id===PERSONAL_SERVICE_ID)return personal?.joint?.status!=="included";
       if (id === COMPLEX_EMAIL_ID) return complex?.joint?.status !== 'included';
       if (id === "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce") return evidence.divorceProfileAdmission?.joint?.status !== "included";
@@ -429,6 +522,10 @@ function renderNativeEvidence(evidence) {
   assert.equal(coverage.creditedObligationIds.includes(PERSONAL_SERVICE_ID),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');assert.equal(Boolean(coverage.personalServiceAdmission),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');
   assert.equal(coverage.creditedObligationIds.includes(COMPLEX_EMAIL_ID), complex?.joint?.status === 'included', 'NATIVE_REPORT_COMPLEX_JOIN');
   assert.equal(Boolean(coverage.complexEmailAdmission), complex?.joint?.status === 'included', 'NATIVE_REPORT_COMPLEX_JOIN');
+  assert.equal(coverage.creditedObligationIds.includes(ST_CIC_PROFILE_ID), stCic?.joint.status === 'included', 'NATIVE_REPORT_ST_CIC_JOIN');
+  assert.equal(Object.hasOwn(coverage, 'stCicProfileAdmission'), stCic?.joint.status === 'included', 'NATIVE_REPORT_ST_CIC_JOIN');
+  for (const id of mandatoryReport.MANDATORY_EMAIL_IDS) assert.equal(coverage.creditedObligationIds.filter(value => value === id).length, mandatory?.joint.status === 'included' ? 1 : 0, 'NATIVE_REPORT_MANDATORY_JOIN');
+  assert.equal(Object.hasOwn(coverage, 'mandatoryEmailAdmission'), mandatory?.joint.status === 'included', 'NATIVE_REPORT_MANDATORY_JOIN');
   const roleCredited = coverage.creditedObligationIds.includes("configuration-shared:role-policy");
   const role = coverage.sharedRoleAdmission;
   if (roleCredited !== Boolean(role) || (role && (
@@ -469,7 +566,7 @@ function renderNativeEvidence(evidence) {
       const label = labelFor(proof.proofId, phase.phase);
       postalBlocked ||= proof.failureId === "postal-required-fields";
       baselineRows.push(
-        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="baseline"><th scope="row">${escape(label.slice)}<p>${escape(label.behaviour)}</p></th>${scopeCells(label)}<td>${badge(proof.status, proof.status === "passed")} ${proof.failureId ? `<small>Failure: ${escape(proof.failureId)}</small>` : ""}</td><td>${proofDetails(label, proof, phase, label.behaviour, proof.status)}</td></tr>`,
+        `<tbody data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="baseline"><tr data-native-phase="${escape(phase.phase)}"><th scope="row">${escape(label.slice)}<p>${escape(label.behaviour)}</p></th>${scopeCells(label)}<td>${badge(proof.status, proof.status === "passed")} ${proof.failureId ? `<small>Failure: ${escape(proof.failureId)}</small>` : ""}</td><td>Evidence and limits below</td></tr><tr class="harness-native-detail"><td colspan="5">${proofDetails(label, proof, phase, label.behaviour, proof.status)}</td></tr></tbody>`,
       );
     }
     for (const fault of phase.faults) {
@@ -478,18 +575,18 @@ function renderNativeEvidence(evidence) {
         throw new Error("PUBLIC_ODHIN_UNKNOWN_NATIVE_FAULT");
       const observed = fault.outcome === "expected-failure-observed";
       faultRows.push(
-        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="fault"><th scope="row">${escape(label.slice)}<p>${escape(faults[fault.mutationId])}</p></th>${scopeCells(label)}<td>${badge(observed ? "Expected failure observed" : "BLOCKED — invalid witness", observed)}<p>Baseline: ${escape(fault.baselineStatus)}<br>Required failure: ${escape(fault.expectedFailureId)}<br>Observed failure: ${escape(fault.observedFailureId || "not established")}</p></td><td>${proofDetails(label, fault, phase, faults[fault.mutationId], observed ? "Expected failure observed" : "BLOCKED — invalid witness")}</td></tr>`,
+        `<tbody data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="fault"><tr data-native-phase="${escape(phase.phase)}"><th scope="row">${escape(label.slice)}<p>${escape(faults[fault.mutationId])}</p></th>${scopeCells(label)}<td>${badge(observed ? "Expected failure observed" : "BLOCKED — invalid witness", observed)}<p>Baseline: ${escape(fault.baselineStatus)}<br>Required failure: ${escape(fault.expectedFailureId)}<br>Observed failure: ${escape(fault.observedFailureId || "not established")}</p></td><td>Evidence and limits below</td></tr><tr class="harness-native-detail"><td colspan="5">${proofDetails(label, fault, phase, faults[fault.mutationId], observed ? "Expected failure observed" : "BLOCKED — invalid witness")}</td></tr></tbody>`,
       );
     }
   }
   const table = (id, title, rows) =>
-    `<section data-native-table="${id}"><h3>${title}</h3><div class="table-responsive"><table class="table harness-native-table"><thead><tr><th>Slice / tested behaviour</th><th>Service / jurisdiction</th><th>Actual case type</th><th>Result</th><th>Evidence</th></tr></thead><tbody>${rows.join("")}</tbody></table></div></section>`;
-  return `<section id="harness-native-evidence" data-native-status="${escape(evidence.status)}" data-native-evidence-sha256="${objectDigest(evidence)}"><h2>Actual candidate and CCD evidence ${badge(evidence.status, evidence.status === "PASS")}</h2><p>${count.baselines} baseline proof results + ${count.faults} deliberate fault checks, counted separately from diagnostic tests. Expected failures demonstrate that a check detects a declared fault; they are not product test failures. Invalid witnesses provide no fault-detection credit.</p>${postalBlocked ? '<div class="alert alert-danger" data-native-postal-blocked><strong>Postal proof BLOCKED.</strong> The second recipient reached Check your answers with its required postcode blank. Later postal navigation/persistence and the intended postal-persistence fault check are not established.</div>' : ""}<div class="harness-filters"><label>Native slice<select data-native-filter="phase"><option value="">All native slices</option>${Object.entries(
+    `<section data-native-table="${id}"><h3>${title}</h3><div class="table-responsive"><table class="table harness-native-table"><thead><tr><th>Slice / tested behaviour</th><th>Service / jurisdiction</th><th>Actual case type</th><th>Result</th><th>Evidence</th></tr></thead>${rows.join("")}</table></div></section>`;
+  return `<section id="harness-native-evidence" data-native-status="${escape(evidence.status)}" data-native-evidence-sha256="${objectDigest(evidence)}"><h2>Actual candidate and CCD evidence ${badge(evidence.status, evidence.status === "PASS")}</h2><p>Core native: ${count.baselines} baseline proof results + ${count.faults} deliberate fault checks, counted separately from diagnostic tests. Optional profile executions are reported in their own sections and are not included in these core totals. Expected failures demonstrate that a check detects a declared fault; they are not product test failures. Invalid witnesses provide no fault-detection credit.</p>${postalBlocked ? '<div class="alert alert-danger" data-native-postal-blocked><strong>Postal proof BLOCKED.</strong> The second recipient reached Check your answers with its required postcode blank. Later postal navigation/persistence and the intended postal-persistence fault check are not established.</div>' : ""}<div class="harness-filters"><label>Native slice<select data-native-filter="phase"><option value="">All native slices</option>${Object.entries(
     phaseLabels,
   )
     .map(([id, label]) => `<option value="${id}">${label}</option>`)
     .join(
       "",
-    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}${personalReport}${complexReport}</section>`;
+    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}${personalReport}${complexReport}${stCicReport}${mandatoryPanel}</section>`;
 }
 module.exports = { renderNativeEvidence, nativeCounts, renderNativeExecutionInfo, objectDigest };

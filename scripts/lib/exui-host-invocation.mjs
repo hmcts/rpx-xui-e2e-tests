@@ -146,6 +146,7 @@ export async function runHostInvocation(
     runProof,
     spawnProof = spawn,
     isCancelled = () => false,
+    eventSerialV3 = false,
   } = {},
 ) {
   const checkCancellation = () =>
@@ -163,6 +164,9 @@ export async function runHostInvocation(
   });
   let candidate;
   const started = Date.now();
+  const v3Creators = [];
+  // Opt-in receipts derive code0 from the existing guarded synchronous create contract.
+  const created = value => { if(eventSerialV3) v3Creators.push({name:value.name,id:value.id,terminal:{started:true,observed:true,forced:false,cancelled:false,code:0,signal:null}}); };
   const register = (value) => {
     resources.set(value.name, value);
     saveRegistry(output, resources);
@@ -171,6 +175,7 @@ export async function runHostInvocation(
     register(tools);
     tools.id = docker(namedArguments(spec.tools.args, toolsName));
     assert(/^[a-f0-9]{64}$/.test(tools.id), "HOST_TOOLS_CID_REQUIRED");
+    created(tools);
     saveRegistry(output, resources);
     docker(["start", tools.id]);
     await waitForReady(
@@ -209,6 +214,7 @@ export async function runHostInvocation(
       namedArguments(spec.candidate.arguments(namespace), candidateName),
     );
     assert(/^[a-f0-9]{64}$/.test(candidate.id), "HOST_CANDIDATE_CID_REQUIRED");
+    created(candidate);
     saveRegistry(output, resources);
     docker(["start", candidate.id]);
     assertOwnedContainer(inspect(candidate.id), {
@@ -337,7 +343,7 @@ export async function runHostInvocation(
       lifecycle,
     );
     docker(["kill", "--signal", "SIGTERM", tools.id]);
-    docker(["wait", tools.id]);
+    const providerWait = docker(["wait", tools.id]);
     const toolFinal = inspect(tools.id);
     assertOwnedContainer(toolFinal, { ...tools, running: false });
     assert.equal(toolFinal.State.ExitCode, 0, "HOST_PROVIDER_SHUTDOWN_FAILED");
@@ -365,7 +371,12 @@ export async function runHostInvocation(
         "separate API and browser/controller containers in owned network-none namespace",
       perContainerLimits: { memoryBytes: 4294967296, cpus: 2, pids: 256 },
     });
-    return { terminal, runtime, lifecycle };
+    if(eventSerialV3) assert(String(toolFinal.State.ExitCode)===providerWait && terminal.signal===null,'HOST_V3_TERMINAL_REQUIRED');
+    return { terminal, runtime, lifecycle, ...(eventSerialV3?{v3Finalization:{
+      host:{started:true,observed:true,forced:false,cancelled:false,code:terminal.code,signal:terminal.signal},
+      fixture:{started:true,observed:true,forced:false,cancelled:false,code:toolFinal.State.ExitCode,signal:null},
+      creators:v3Creators,
+    }}:{}) };
   } finally {
     const errors = [];
     for (const value of [candidate, tools])
