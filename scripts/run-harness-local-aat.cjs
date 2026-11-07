@@ -235,7 +235,7 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, snapshotAssuranceTiming, signal, buildSelfCheckHeld } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming, snapshotAssuranceTiming, signal, buildSelfCheckHeld } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
   if (snapshotAssuranceTiming !== undefined && typeof snapshotAssuranceTiming !== "function") throw fail();
@@ -246,9 +246,10 @@ async function runHarnessCollection(
     "functional-output/tests/harness/private",
   );
   const diagnosticSource = Reporter.captureDiagnosticSource();
-  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
+  const timingSnapshot = mandatoryEmailTiming === undefined ? undefined : structuredClone(mandatoryEmailTiming);
+  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming: timingSnapshot });
   if(buildSelfCheckHeld!==undefined)await reporter.prepareBuildSelfChecks(buildSelfCheckHeld);
   if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
     const verificationStartedAt=new Date().toISOString(),verificationStarted=performance.now();
@@ -261,6 +262,7 @@ async function runHarnessCollection(
     if(nativeElapsedMs!==undefined)reporter.nativeElapsedMs=nativeElapsedMs+verificationMs;
     if(phaseTimings!==undefined)reporter.phaseTimings=[...phaseTimings,{label:'Native evidence and interpreter verification',status:'completed',startedAt:verificationStartedAt,durationMs:verificationMs}];
   }
+  require('./harness-mandatory-email-report.cjs').validateMandatoryEmailTiming(timingSnapshot, reporter.nativeEvidence?.mandatoryEmailAdmission);
   if(signal?.aborted){Reporter.resetPublicReport('harness');throw fail();}
   fs.mkdirSync(privateRoot, { recursive: true, mode: 0o700 });
   const runRoot = fs.mkdtempSync(path.join(privateRoot, ".local-aat-"));
@@ -446,6 +448,7 @@ async function runHarnessCollection(
       ...(reporter.nativeEvidence?.complexEmailAdmission?.joint?{complexEmailInclusion:reporter.nativeEvidence.complexEmailAdmission.joint.status}:{}),
       ...(reporter.nativeEvidence?.personalServiceAdmission?.joint?{personalServiceInclusion:reporter.nativeEvidence.personalServiceAdmission.joint.status}:{}),
       ...(reporter.nativeEvidence?.stCicProfileAdmission?.joint?{stCicProfileInclusion:reporter.nativeEvidence.stCicProfileAdmission.joint.status}:{}),
+      ...(reporter.nativeEvidence?.mandatoryEmailAdmission?.joint?{mandatoryEmailInclusion:reporter.nativeEvidence.mandatoryEmailAdmission.joint.status}:{}),
       ...(reporter.sharedNestedAttemptEvidence?{sharedNestedStatus:reporter.sharedNestedAttemptEvidence.status}:{}),
       exitCode: Math.max(
         reporter.nativeEvidence?.exitCode || 0,

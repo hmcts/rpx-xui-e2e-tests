@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import {runMandatoryEmailAdmission} from './run-harness-mandatory-email-event-admission.mjs';
+import {verifyMandatoryEmailNativeCapture} from './lib/exui-mandatory-email-event-contract.mjs';
 import {runStCicProfileAdmission} from './run-harness-st-cic-profile-admission.mjs';
 import {verifyStCicNativeCapture} from './lib/exui-st-cic-profile-admission.mjs';
 import {runComplexEmailAdmission} from './run-harness-complex-email-admission.mjs';
@@ -39,9 +41,10 @@ function read(file) {
   const bytes = fs.readFileSync(file);
   return { value: JSON.parse(bytes), digest: digestBytes(bytes) };
 }
-export async function runAssuranceSequence({ native, prepare, profile, personal, complex, stCic, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, snapshotAssuranceTiming, clock = () => performance.now() }) {
-  const finish=value=>{publish(value);return value;};
-  let stCicStarted=false;
+export async function runAssuranceSequence({ native, prepare, profile, personal, complex, stCic, mandatoryEmail, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, snapshotAssuranceTiming, clock = () => performance.now() }) {
+  assert(mandatoryEmail===undefined||typeof mandatoryEmail==='function','ASSURANCE_MANDATORY_CALLBACK_REQUIRED');
+  let stCicStarted=false,mandatoryStarted=false;
+  const finish=value=>{if(mandatoryEmail&&!Object.hasOwn(value,'mandatoryEmailStatus'))value={...value,mandatoryEmailStatus:mandatoryStarted?'BLOCKED':'NOT_RUN'};publish(value);return value;};
   if(signal?.aborted){withdraw();return finish({nativeStatus:'NOT_RUN',...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
   const nativeStartedAt = clock(), assuranceStartedAt = new Date().toISOString();
   const verdict = await native();
@@ -50,17 +53,20 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
     withdraw();
     return finish({nativeStatus:verdict.status,...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
   }
+  let mandatoryMainRunId,mandatoryRequest,mandatoryEmailTiming,mandatoryCollectedStatus,mandatoryCollectionStarted=false;
+  const mandatoryDiagnosticStatus=()=>['passed','failed'].includes(mandatoryCollectedStatus)?mandatoryCollectedStatus:mandatoryCollectionStarted?'incomplete':'not-run';
   let nativeElapsedMs = Math.round(clock() - nativeStartedAt), profileRequest, profileAttempt, profileDurationMs, personalRequest, personalAttempt, personalDurationMs, complexRequest, stCicRequest, complexAttempt=configuredComplexAttempt, eligible = true, descriptorFailed = false;
   const cancelled = () => {
     if (!signal?.aborted) return false;
     withdraw();
-  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), ...(personal ? { personalStatus: "NOT_RUN" } : {}), ...(stCic?{stCicStatus:stCicStarted?"BLOCKED":"NOT_RUN"}:{}),diagnosticStatus: "not-run", exitCode: 2, releaseApproval: false });
+  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), ...(personal ? { personalStatus: "NOT_RUN" } : {}), ...(stCic?{stCicStatus:stCicStarted?"BLOCKED":"NOT_RUN"}:{}),diagnosticStatus: mandatoryEmail?mandatoryDiagnosticStatus():"not-run", exitCode: 2, releaseApproval: false });
   };
   const blockStCic=status=>{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...((complex||complexAttempt)?{complexStatus:complexRequest?'PASS':complexAttempt?.status??'NOT_RUN'}:{}),stCicStatus:status,diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});};
+  const blockMandatory=()=>{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...((complex||complexAttempt)?{complexStatus:complexRequest?'PASS':complexAttempt?.status??'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicRequest?'PASS':stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:mandatoryDiagnosticStatus(),exitCode:2,releaseApproval:false});};
   let stopped = cancelled(); if (stopped) return stopped;
   if (prepare) {
     const started = clock();
-    try { await prepare(verdict); } catch { eligible = false; }
+    try { const prepared=await prepare(verdict);if(mandatoryEmail){assert(typeof prepared?.jobRunId==='string'&&/^ci-[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(prepared?.jobRunId),'ASSURANCE_MANDATORY_MAIN_ID_REQUIRED');mandatoryMainRunId=prepared.jobRunId;} } catch { eligible = false; }
     nativeElapsedMs += Math.round(clock() - started);
   }
   stopped = cancelled(); if (stopped) return stopped;
@@ -120,10 +126,26 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
     finally{nativeElapsedMs+=Math.round(clock()-started);}
   }
   stopped=cancelled();if(stopped)return stopped;
+  if(mandatoryEmail){
+    if(!eligible||!mandatoryMainRunId||(profile&&!profileRequest)||(personal&&!personalRequest)||(complex&&!complexRequest)||(stCic&&!stCicRequest))return blockMandatory();
+    const started=clock(),startedAt=new Date().toISOString();mandatoryStarted=true;
+    try{
+      const result=await mandatoryEmail(signal),request=result?.reportRequest;
+      assert(result?.admission?.status==='passed','ASSURANCE_MANDATORY_RESULT_REQUIRED');
+      assert(request&&typeof request==='object'&&!Array.isArray(request),'ASSURANCE_MANDATORY_REQUEST_REQUIRED');
+      assert.deepEqual(Object.keys(request).sort(),['digest','path','runId'],'ASSURANCE_MANDATORY_REQUEST_REQUIRED');
+      assert(typeof request.path==='string'&&path.isAbsolute(request.path)&&path.normalize(request.path)===request.path&&typeof request.digest==='string'&&/^sha256:[a-f0-9]{64}$/.test(request.digest)&&typeof request.runId==='string'&&/^mandatory-admission-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(request.runId),'ASSURANCE_MANDATORY_REQUEST_REQUIRED');
+      assert.equal(result.admission.runId,request.runId,'ASSURANCE_MANDATORY_REQUEST_REQUIRED');
+      mandatoryRequest=structuredClone(request);const elapsedMs=Math.round(clock()-started);assert(Number.isSafeInteger(elapsedMs)&&elapsedMs>=0,'ASSURANCE_MANDATORY_TIMING_REQUIRED');
+      mandatoryEmailTiming={schemaVersion:1,scope:'mandatory-email-admission-call',clock:'monotonic',startedAt,elapsedMs,mainRunId:mandatoryMainRunId,mandatoryRunId:mandatoryRequest.runId,requestDigest:mandatoryRequest.digest};
+    }catch{return blockMandatory();}
+  }
+  stopped=cancelled();if(stopped)return stopped;
   let nativeEvidencePath;
   const descriptorStarted = clock();
-  try { nativeEvidencePath = await descriptor(verdict, profileRequest, personalRequest, complexRequest,...(stCic?[stCicRequest]:[])); }
+  try { nativeEvidencePath = await descriptor(verdict, profileRequest, personalRequest, complexRequest,...(stCic||mandatoryEmail?[stCicRequest]:[]),...(mandatoryEmail?[structuredClone(mandatoryRequest),structuredClone(mandatoryEmailTiming)]:[])); }
   catch (error) {
+    if(mandatoryEmail)return blockMandatory();
     if(stCic)return blockStCic('BLOCKED');
     if(complexRequest){withdraw();return finish({nativeStatus:verdict.status,complexStatus:'BLOCKED',...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
     if (!profile && !personal && verdict.status === "PASS") throw error;
@@ -146,11 +168,12 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
   if(personal && typeof nativeEvidencePath!=='string'){
     descriptorFailed=true;personalRequest=undefined;personalAttempt={schemaVersion:1,kind:'personal-service-attempt',status:'BLOCKED',reason:'main-evidence-unavailable',...(personalDurationMs===undefined?{}:{durationMs:personalDurationMs})};
   }
+  if(mandatoryEmail&&(typeof nativeEvidencePath!=='string'||!path.isAbsolute(nativeEvidencePath)||path.normalize(nativeEvidencePath)!==nativeEvidencePath))return blockMandatory();
   if(stCic&&(typeof nativeEvidencePath!=='string'||!path.isAbsolute(nativeEvidencePath)||path.normalize(nativeEvidencePath)!==nativeEvidencePath))return blockStCic('BLOCKED');
   nativeElapsedMs += Math.round(clock() - descriptorStarted);
   stopped = cancelled(); if (stopped) return stopped;
   let diagnostics;
-  try{diagnostics = await collect(nativeEvidencePath, {
+  try{if(mandatoryEmail)mandatoryCollectionStarted=true;diagnostics = await collect(nativeEvidencePath, {
     snapshotAssuranceTiming: snapshotAssuranceTiming ?? (() => {
       const endedAt = clock(), elapsed = endedAt - nativeStartedAt;
       assert(Number.isFinite(nativeStartedAt) && Number.isFinite(endedAt) && Number.isFinite(elapsed) && elapsed >= 0 && Number.isSafeInteger(Math.round(elapsed)), 'ASSURANCE_TIMING_INVALID');
@@ -160,16 +183,20 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
     ...(profileAttempt ? { divorceProfileAttempt: profileAttempt } : {}),
     ...(personalAttempt ? { personalServiceAttempt: personalAttempt } : {}),
     ...(complexAttempt ? { complexEmailAttempt: complexAttempt } : {}),
-  });}catch(error){if(stCic)return blockStCic('BLOCKED');throw error;}
+    ...(mandatoryEmailTiming?{mandatoryEmailTiming:structuredClone(mandatoryEmailTiming)}:{}),
+  });}catch(error){if(mandatoryEmail)return blockMandatory();if(stCic)return blockStCic('BLOCKED');throw error;}
+  if(mandatoryEmail)mandatoryCollectedStatus=diagnostics?.status;
   stopped = cancelled(); if (stopped) return stopped;
   assert(["passed", "failed"].includes(diagnostics.status) && [0, 1, 2].includes(diagnostics.exitCode) && (diagnostics.status !== "failed" || diagnostics.exitCode !== 0), "ASSURANCE_DIAGNOSTIC_VERDICT_REQUIRED");
   const profileStatus = profileRequest && diagnostics.divorceProfileInclusion === "included" ? "PASS" : profileAttempt?.status ?? "BLOCKED";
   const personalStatus=personalRequest&&diagnostics.personalServiceInclusion==='included'?'PASS':personalAttempt?.status??'BLOCKED';
   const complexStatus=complexRequest&&diagnostics.complexEmailInclusion==='included'?'PASS':complexAttempt?.status??'BLOCKED';
   const stCicStatus=stCicRequest&&diagnostics.stCicProfileInclusion==='included'?'PASS':'BLOCKED';
-  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus } : {}), ...(personal ? {personalStatus} : {}), ...((complex||complexAttempt)?{complexStatus}:{}), ...(stCic?{stCicStatus}:{}), diagnosticStatus: diagnostics.status, exitCode: Math.max(verdict.exitCode, diagnostics.exitCode, (stCic&&stCicStatus!=='PASS') || (complexRequest&&diagnostics.complexEmailInclusion!=='included') || profileAttempt || personalAttempt || (personalRequest && diagnostics.personalServiceInclusion!=='included') || ((profile || personal) && descriptorFailed) || (profileRequest && diagnostics.divorceProfileInclusion!=='included') ? 2 : 0), releaseApproval: false });
+  const mandatoryEmailStatus=mandatoryRequest&&diagnostics.mandatoryEmailInclusion==='included'?'PASS':'BLOCKED';
+  if(mandatoryEmail&&mandatoryEmailStatus!=='PASS')withdraw();
+  return finish({ nativeStatus: verdict.status, ...(mandatoryEmail?{mandatoryEmailStatus}:{}), ...(profile ? { profileStatus } : {}), ...(personal ? {personalStatus} : {}), ...((complex||complexAttempt)?{complexStatus}:{}), ...(stCic?{stCicStatus}:{}), diagnosticStatus: diagnostics.status, exitCode: Math.max(verdict.exitCode, diagnostics.exitCode, (mandatoryEmail&&mandatoryEmailStatus!=='PASS') || (stCic&&stCicStatus!=='PASS') || (complexRequest&&diagnostics.complexEmailInclusion!=='included') || profileAttempt || personalAttempt || (personalRequest && diagnostics.personalServiceInclusion!=='included') || ((profile || personal) && descriptorFailed) || (profileRequest && diagnostics.divorceProfileInclusion!=='included') ? 2 : 0), releaseApproval: false });
 }
-export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest) {
+export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest, mandatoryEmailRequest) {
   const root = path.join(job.output, "private");
   assert(fs.realpathSync(root) === root, "ASSURANCE_PRIVATE_ROOT_REQUIRED");
   const result = read(path.join(root, "ci-result.json"));
@@ -325,16 +352,22 @@ export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
   if(personalServiceRequest){assert.deepEqual(Object.keys(personalServiceRequest).sort(),['digest','path','runId'],'ASSURANCE_PERSONAL_REQUEST_INVALID');const request=read(personalServiceRequest.path);assert.equal(request.digest,personalServiceRequest.digest,'ASSURANCE_PERSONAL_REQUEST_CHANGED');assert.equal(request.value.expected.runId,personalServiceRequest.runId,'ASSURANCE_PERSONAL_REQUEST_CHANGED');assert(personalServiceNativeBinding,'ASSURANCE_PERSONAL_PREFLIGHT_REQUIRED');}
   const stCicNativeBinding=stCicProfileRequest?verifyStCicNativeCapture(job.output,captured.stCicNativeCapture):structuredClone(captured.stCicNativeCapture?.reference);
   if(stCicProfileRequest){assert.deepEqual(Object.keys(stCicProfileRequest).sort(),['digest','path','runId'],'ASSURANCE_ST_CIC_REQUEST_INVALID');const request=read(stCicProfileRequest.path);assert.equal(request.digest,stCicProfileRequest.digest,'ASSURANCE_ST_CIC_REQUEST_CHANGED');assert.equal(request.value.expected.runId,stCicProfileRequest.runId,'ASSURANCE_ST_CIC_REQUEST_CHANGED');assert(stCicNativeBinding,'ASSURANCE_ST_CIC_PREFLIGHT_REQUIRED');}
+  const mandatorySelected=captured.mandatoryEmailNativeCapture!==undefined||Object.hasOwn(result.value,'mandatoryEmailNativeBinding')||mandatoryEmailRequest!==undefined;
+  let mandatoryEmailNativeBinding;
+  if(mandatorySelected){mandatoryEmailNativeBinding=verifyMandatoryEmailNativeCapture(job.output,captured.mandatoryEmailNativeCapture);assert.deepEqual(result.value.mandatoryEmailNativeBinding,mandatoryEmailNativeBinding,'ASSURANCE_MANDATORY_PREFLIGHT_REQUIRED');}
+  if(mandatoryEmailRequest!==undefined){assert.deepEqual(Object.keys(mandatoryEmailRequest??{}).sort(),['digest','path','runId'],'ASSURANCE_MANDATORY_REQUEST_INVALID');assert(typeof mandatoryEmailRequest.path==='string'&&path.isAbsolute(mandatoryEmailRequest.path)&&path.normalize(mandatoryEmailRequest.path)===mandatoryEmailRequest.path&&typeof mandatoryEmailRequest.digest==='string'&&/^sha256:[a-f0-9]{64}$/.test(mandatoryEmailRequest.digest)&&typeof mandatoryEmailRequest.runId==='string'&&/^mandatory-admission-[a-f0-9-]{36}$/.test(mandatoryEmailRequest.runId),'ASSURANCE_MANDATORY_REQUEST_INVALID');const request=read(mandatoryEmailRequest.path);assert.equal(request.digest,mandatoryEmailRequest.digest,'ASSURANCE_MANDATORY_REQUEST_CHANGED');assert.equal(request.value.expected.runId,mandatoryEmailRequest.runId,'ASSURANCE_MANDATORY_REQUEST_CHANGED');assert(mandatoryEmailNativeBinding,'ASSURANCE_MANDATORY_PREFLIGHT_REQUIRED');}
   const descriptor = {
     schemaVersion: 1,
     directory: job.output,
+    ...(mandatoryEmailRequest===undefined?{}:{mandatoryEmailAdmission:mandatoryEmailRequest.path}),
     ...(stCicProfileRequest?{stCicProfileAdmission:stCicProfileRequest.path}:{}),
     ...(complexEmailRequest?{complexEmailAdmission:complexEmailRequest.path}:{}),
     ...(personalServiceRequest?{personalServiceAdmission:personalServiceRequest.path}:{}),
     ...(divorceProfileRequest ? {divorceProfileAdmission: divorceProfileRequest.path} : {}),
     ...(sharedRoleSourceInputs ? { sharedRoleAdmission: { candidateArtifactPath: job.candidateManifest, sourceImageInputs: sharedRoleSourceInputs } } : {}),
     expected: {
-      ...(stCicNativeBinding?{stCicNativeBinding}:{}),
+      ...(mandatoryEmailNativeBinding?{mandatoryEmailNativeBinding}:{}),
+      ...(mandatoryEmailRequest===undefined?{}:{mandatoryEmailRequest:{runId:mandatoryEmailRequest.runId,digest:mandatoryEmailRequest.digest}}),      ...(stCicNativeBinding?{stCicNativeBinding}:{}),
       ...(stCicProfileRequest?{stCicProfileRequest:{runId:stCicProfileRequest.runId,digest:stCicProfileRequest.digest}}:{}),
       ...(complexEmailNativeBinding?{complexEmailNativeBinding}:{}),
       ...(complexEmailRequest?{complexEmailRequest:{runId:complexEmailRequest.runId,digest:complexEmailRequest.digest}}:{}),
@@ -351,8 +384,8 @@ export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
   };
   return descriptor;
 }
-export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest) {
-  const descriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest);
+export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest, mandatoryEmailRequest) {
+  const descriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest, mandatoryEmailRequest);
   const file = path.join(job.output, "private/native-report-request.json");
   fs.writeFileSync(file, JSON.stringify(descriptor, null, 2) + "\n", {
     flag: "wx",
@@ -378,14 +411,14 @@ export function captureAssuranceExpectations(env = process.env) {
 export function publishAssuranceSummary(job, captured, result) {
   if(!captured.nativeCohortCapture)return;
   verifyDivorceNativeCapture(job.output,captured.nativeCohortCapture);
-  if(result.personalStatus==='PASS'||result.complexStatus==='PASS'||result.stCicStatus==='PASS'){
-    try{if(result.personalStatus==='PASS')verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);if(result.complexStatus==='PASS')verifyComplexNativeCapture(job.output,captured.complexNativeCapture);if(result.stCicStatus==='PASS')verifyStCicNativeCapture(job.output,captured.stCicNativeCapture);}
+  if(result.personalStatus==='PASS'||result.complexStatus==='PASS'||result.stCicStatus==='PASS'||result.mandatoryEmailStatus==='PASS'){
+    try{if(result.mandatoryEmailStatus==='PASS')verifyMandatoryEmailNativeCapture(job.output,captured.mandatoryEmailNativeCapture);if(result.personalStatus==='PASS')verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);if(result.complexStatus==='PASS')verifyComplexNativeCapture(job.output,captured.complexNativeCapture);if(result.stCicStatus==='PASS')verifyStCicNativeCapture(job.output,captured.stCicNativeCapture);}
     catch(error){try{Reporter.resetPublicReport('harness');}finally{writeHarnessPublicSummary(job.output,{status:'BLOCKED',exitCode:2},false);}throw error;}
   }
   assert([0,1,2].includes(result.exitCode),'ASSURANCE_EXIT_REQUIRED');
   writeHarnessPublicSummary(job.output,{status:['PASS','FAIL','BLOCKED'][result.exitCode],exitCode:result.exitCode},result.exitCode===0);
 }
-export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput, personalOutput, stCicOutput, snapshotAssuranceTiming, buildSelfCheckHeld } = {}) {
+export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput, personalOutput, stCicOutput, mandatoryEmailOutput, snapshotAssuranceTiming, buildSelfCheckHeld } = {}) {
   assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
   Reporter.resetPublicReport("harness");
   if(buildSelfCheckHeld!==undefined)buildSelfCheckHeld=structuredClone(buildSelfCheckHeld);
@@ -393,6 +426,14 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   assert(profileOutput === undefined || (typeof profileOutput === 'string' && path.isAbsolute(profileOutput)), 'ASSURANCE_PROFILE_OUTPUT_REQUIRED');
   assert(stCicOutput===undefined||(typeof stCicOutput==='string'&&path.isAbsolute(stCicOutput)),'ASSURANCE_ST_CIC_OUTPUT_REQUIRED');
   const job = validateCiJob(read(jobPath).value);
+  if(mandatoryEmailOutput!==undefined){
+    assert(typeof mandatoryEmailOutput==='string'&&path.isAbsolute(mandatoryEmailOutput)&&path.normalize(mandatoryEmailOutput)===mandatoryEmailOutput,'ASSURANCE_MANDATORY_OUTPUT_REQUIRED');
+    assert.equal(fs.realpathSync(path.dirname(mandatoryEmailOutput)),path.dirname(mandatoryEmailOutput),'ASSURANCE_MANDATORY_OUTPUT_ALIAS');
+    const candidateRoot=fs.realpathSync(read(job.candidateManifest).value.candidateRoot),siblings=[profileOutput,stCicOutput,personalOutput].filter(value=>value!==undefined);
+    for(const sibling of siblings){assert(typeof sibling==='string'&&path.isAbsolute(sibling)&&path.normalize(sibling)===sibling,'ASSURANCE_MANDATORY_OUTPUT_ALIAS');assert.equal(fs.realpathSync(path.dirname(sibling)),path.dirname(sibling),'ASSURANCE_MANDATORY_OUTPUT_ALIAS');}
+    for(const other of [ROOT,fs.realpathSync(path.join(ROOT,'node_modules')),fs.realpathSync(job.candidateManifest),candidateRoot,fs.realpathSync(job.browserCache),job.output,...siblings])assert(mandatoryEmailOutput!==other&&!mandatoryEmailOutput.startsWith(other+path.sep)&&!other.startsWith(mandatoryEmailOutput+path.sep),'ASSURANCE_MANDATORY_OUTPUT_OVERLAP');
+    await assertFreshCandidateDerivationOutput({baseline:{candidateRoot},manifestPath:job.candidateManifest,output:mandatoryEmailOutput});
+  }
   const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
   const complexConfiguration=prepareComplexAdmissionInputs(env.HARNESS_COMPLEX_SOURCE_INPUTS,{host:process.platform,arch:process.arch,runtime:read(job.candidateManifest).value.provenance?.platform});
   const captured = captureAssuranceExpectations(env);
@@ -402,13 +443,18 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   let result, mainDescriptor, published=false;
   try {
     result = await runAssuranceSequence({
-      native: () => runHarnessCi(jobPath, { ...(stCicOutput===undefined?{}:{captureStCicNative:value=>{captured.stCicNativeCapture=value;}}), captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;}, captureComplexNative:value=>{captured.complexNativeCapture=value;}, complexSourceConfiguration:complexConfiguration }),
-      prepare: verdict => { assert(captured.nativeCohortCapture, 'ASSURANCE_PREFLIGHT_REQUIRED'); mainDescriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs); },
+      native: () => runHarnessCi(jobPath, { ...(mandatoryEmailOutput===undefined?{}:{captureMandatoryEmailNative:value=>{captured.mandatoryEmailNativeCapture=structuredClone(value);}}), ...(stCicOutput===undefined?{}:{captureStCicNative:value=>{captured.stCicNativeCapture=value;}}), captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;}, captureComplexNative:value=>{captured.complexNativeCapture=value;}, complexSourceConfiguration:complexConfiguration }),
+      prepare: verdict => { assert(captured.nativeCohortCapture, 'ASSURANCE_PREFLIGHT_REQUIRED'); mainDescriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs);return mandatoryEmailOutput===undefined?undefined:{jobRunId:mainDescriptor.expected.jobRunId}; },
       ...(profileOutput === undefined ? {} : {profile: signal => runDivorceProfileAdmission({ artifactPath: job.candidateManifest, browserRoot: job.browserCache, output: profileOutput, signal, nativeContext: { binding: captured.nativeCohortCapture.binding, expected: mainDescriptor.expected } })}),
       personal: signal => reportNativeProgress("Personal-service preparation, proofs and cleanup", () => runPersonalServiceAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:personalOutput??path.join(job.output,'private/personal-service'),signal,nativeOutput:job.output,nativeContext:{native:captured.nativeCohortCapture.binding,capture:captured.personalNativeCapture,expected:mainDescriptor.expected}})),
       ...(complexConfiguration.attempt?{complexAttempt:complexConfiguration.attempt}:{complex:signal=>reportNativeProgress('Complex email browser, mapping and source proofs',()=>runComplexEmailAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:path.join(job.output,'private/complex-email'),signal,nativeOutput:job.output,sourceConfiguration:complexConfiguration,nativeContext:{native:captured.nativeCohortCapture.binding,capture:captured.complexNativeCapture,expected:mainDescriptor.expected}}))}),
       ...(stCicOutput===undefined?{}:{stCic:signal=>reportNativeProgress('ST_CIC profile configuration proofs',()=>runStCicProfileAdmission({artifactPath:job.candidateManifest,browserRoot:job.browserCache,output:stCicOutput,signal,admissionContext:{native:captured.nativeCohortCapture.binding,capture:captured.stCicNativeCapture,expected:mainDescriptor.expected}}))}),
-      descriptor: (verdict, request, personalRequest, complexRequest, stCicRequest) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, request, personalRequest, complexRequest, stCicRequest),
+      ...(mandatoryEmailOutput===undefined?{}:{mandatoryEmail:signal=>reportNativeProgress('Mandatory email source-row proofs and cleanup',()=>runMandatoryEmailAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:mandatoryEmailOutput,signal,admissionContext:{native:captured.nativeCohortCapture.binding,capture:captured.mandatoryEmailNativeCapture,expected:mainDescriptor.expected}}))}),
+      descriptor: (verdict, request, personalRequest, complexRequest, stCicRequest, mandatoryRequest, mandatoryTiming) => {
+        const file=writeNativeDescriptor(job,captured,verdict,sharedRoleSourceInputs,request,personalRequest,complexRequest,stCicRequest,mandatoryRequest);
+        if(mandatoryTiming)fs.writeFileSync(path.join(job.output,'private/mandatory-email-phase-timing.json'),JSON.stringify(mandatoryTiming,null,2)+'\n',{flag:'wx',mode:0o600});
+        return file;
+      },
       collect: (nativeEvidencePath, timing) => reportNativeProgress("Evidence replay and diagnostic report", () => runHarnessCollection(env, { profile: aat ? "local-aat" : "harness", nativeEvidencePath, ...timing, signal: cancellation.signal, buildSelfCheckHeld })),
       signal: cancellation.signal,
       snapshotAssuranceTiming,
@@ -471,10 +517,10 @@ export function parseAssuranceCli(argv) {
     assert(typeof buildSelfCheckHeld.path === 'string' && path.isAbsolute(buildSelfCheckHeld.path) && path.normalize(buildSelfCheckHeld.path) === buildSelfCheckHeld.path && /^sha256:[a-f0-9]{64}$/.test(buildSelfCheckHeld.digest), 'ASSURANCE_SELF_CHECK_ARGUMENTS');
     args = args.slice(0, marker);
   }
-  assert(args.length >= 2 && args.length <= 5 && args[0] === '--input' && path.isAbsolute(args[1])
+  assert(args.length >= 2 && args.length <= 6 && args[0] === '--input' && path.isAbsolute(args[1])
     && new Set(args.slice(2)).size === args.length - 2
-    && args.slice(2).every(flag => ['--aat','--parent-timing','--st-cic'].includes(flag)), 'ASSURANCE_INPUT_REQUIRED');
-  return {jobPath:args[1],aat:args.includes('--aat'),parentTiming:args.includes('--parent-timing'),stCic:args.includes('--st-cic'),...(buildSelfCheckHeld===undefined?{}:{buildSelfCheckHeld})};
+    && args.slice(2).every(flag => ['--aat','--parent-timing','--st-cic','--mandatory-email'].includes(flag)), 'ASSURANCE_INPUT_REQUIRED');
+  return {jobPath:args[1],aat:args.includes('--aat'),parentTiming:args.includes('--parent-timing'),stCic:args.includes('--st-cic'),...(args.includes('--mandatory-email')?{mandatoryEmail:true}:{}),...(buildSelfCheckHeld===undefined?{}:{buildSelfCheckHeld})};
 }
 export async function createStCicCliOutput(jobPath) {
   const job = validateCiJob(read(jobPath).value);
@@ -510,6 +556,28 @@ export async function createStCicCliOutput(jobPath) {
   }
 }
 
+// Fixed mandatory-email CLI ownership only; no caller-chosen allocator settings.
+export async function createMandatoryEmailCliOutput(jobPath){
+  const job=validateCiJob(read(jobPath).value),parent=path.dirname(jobPath),receipt=path.join(parent,'mandatory-email-cli-output.json');
+  assert.equal(fs.realpathSync(parent),parent,'ASSURANCE_MANDATORY_OUTPUT_ALIAS');
+  assert(fs.lstatSync(receipt,{throwIfNoEntry:false})===undefined,'ASSURANCE_MANDATORY_OUTPUT_ALREADY_OWNED');
+  const artifact=read(job.candidateManifest).value;assert(typeof artifact.candidateRoot==='string'&&path.isAbsolute(artifact.candidateRoot),'ASSURANCE_MANDATORY_CANDIDATE_ROOT_REQUIRED');
+  const candidateRoot=fs.realpathSync(artifact.candidateRoot),temporaryRoot=fs.realpathSync(os.tmpdir());
+  const readonly=[ROOT,fs.realpathSync(path.join(ROOT,'node_modules')),fs.realpathSync(jobPath),fs.realpathSync(job.candidateManifest),fs.realpathSync(job.browserCache),candidateRoot,job.output];
+  assert.equal(path.normalize(job.output),job.output,'ASSURANCE_MANDATORY_OUTPUT_ALIAS');assert.equal(fs.realpathSync(path.dirname(job.output)),path.dirname(job.output),'ASSURANCE_MANDATORY_OUTPUT_ALIAS');
+  const sibling=path.join(parent,'st-cic-cli-output.json');
+  if(fs.lstatSync(sibling,{throwIfNoEntry:false})!==undefined){const owned=read(sibling).value;assert.deepEqual(Object.keys(owned).sort(),['schemaVersion','kind','directory','output'].sort(),'ASSURANCE_MANDATORY_SIBLING_INVALID');assert.equal(owned.schemaVersion,1,'ASSURANCE_MANDATORY_SIBLING_INVALID');assert.equal(owned.kind,'st-cic-cli-owned-output','ASSURANCE_MANDATORY_SIBLING_INVALID');assert(typeof owned.directory==='string'&&path.isAbsolute(owned.directory)&&fs.realpathSync(owned.directory)===owned.directory&&owned.output===path.join(owned.directory,'profile'),'ASSURANCE_MANDATORY_SIBLING_INVALID');readonly.push(owned.directory);}
+  for(const input of readonly)assert(temporaryRoot!==input&&!temporaryRoot.startsWith(input+path.sep),'ASSURANCE_MANDATORY_TEMP_INPUT_OVERLAP');
+  const directory=fs.mkdtempSync(path.join(temporaryRoot,'harness-mandatory-email-cli-')),output=path.join(directory,'mandatory-email');
+  try{
+    fs.chmodSync(directory,0o700);
+    for(const input of readonly)assert(output!==input&&!output.startsWith(input+path.sep)&&!input.startsWith(output+path.sep),'ASSURANCE_MANDATORY_OUTPUT_OVERLAP');
+    await assertFreshCandidateDerivationOutput({baseline:{candidateRoot},manifestPath:job.candidateManifest,output});
+    fs.writeFileSync(receipt,JSON.stringify({schemaVersion:1,kind:'mandatory-email-cli-owned-output',directory,output},null,2)+'\n',{flag:'wx',mode:0o600});
+    return output;
+  }catch(error){try{fs.rmdirSync(directory);}catch{/* Preserve any unexpected contents. */}throw error;}
+}
+
 if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
@@ -519,6 +587,7 @@ if (
     Reporter.resetPublicReport('harness');
     const cli = parseAssuranceCli(process.argv.slice(2));
     const stCicOutput = cli.stCic ? await createStCicCliOutput(cli.jobPath) : undefined;
+    const mandatoryEmailOutput=cli.mandatoryEmail?await createMandatoryEmailCliOutput(cli.jobPath):undefined;
     if(cli.parentTiming) {
       parentDisconnected = () => process.kill(process.pid,'SIGTERM');
       process.once('disconnect',parentDisconnected);
@@ -527,6 +596,7 @@ if (
     const result = await runHarnessAssurance(cli.jobPath, {
       aat: cli.aat,
       ...(stCicOutput === undefined ? {} : {stCicOutput}),
+      ...(mandatoryEmailOutput===undefined?{}:{mandatoryEmailOutput}),
       ...(cli.buildSelfCheckHeld === undefined ? {} : {buildSelfCheckHeld:cli.buildSelfCheckHeld}),
       ...(parentSnapshot ? {snapshotAssuranceTiming:parentSnapshot} : {}),
     });

@@ -9,6 +9,7 @@ const workbasketRows = new Set(workbasketSource.rows.map(({ row }) => "configura
   objectDigest(canonical({ source: "prl-ccd-definitions:" + workbasketSource.path, row }))));
 const { escape } = require("./harness-report-coverage.cjs");
 const { ST_CIC_PROFILE_ID, renderStCicProfileAdmission, renderStCicExecutionInfo } = require('./harness-st-cic-profile-report.cjs');
+const mandatoryReport = require('./harness-mandatory-email-report.cjs');
 
 // Reviewed labels describe the fixed proof, never infer per-service execution from a PASS.
 const proofs = {
@@ -317,7 +318,7 @@ function renderNativeExecutionInfo(evidence) {
       workers += '<br><small>Configured slots, not concurrent processes. Observed and peak native worker process counts are not recorded.</small>';
     }
     return `<tr><th scope="row">${label} Playwright invocations</th><td>${count ? count.invocations ?? 'Not recorded' : 'Not run'}</td></tr><tr><th scope="row">Configured ${label.toLowerCase()} worker slots</th><td>${workers}</td></tr>`;
-  }).join('') + stCicInfo;
+  }).join('') + stCicInfo + (evidence && Object.hasOwn(evidence, 'mandatoryEmailAdmission') ? mandatoryReport.renderMandatoryEmailExecutionInfo(evidence.mandatoryEmailAdmission) : '');
 }
 function scopeCells(label) {
   return `<td>${escape(label.services)}<br><small>${escape(label.jurisdiction)}</small></td><td>${escape(label.caseType)}</td>`;
@@ -368,8 +369,19 @@ function recordedStages(proof) {
 function proofDetails(label, proof, phase, method, outcome) {
   return `<details><summary>Evidence and limits</summary><p><strong>Source-defined method</strong> ${escape(method)}</p><p><strong>Recorded outcome</strong> ${escape(outcome)}</p>${recordedStages(proof)}<p>${escape(label.lane)}. ${escape(label.limits)}</p><dl><dt>Proof</dt><dd>${escape(proof.proofId)}</dd><dt>Invocation</dt><dd>${escape(proof.invocationId)}</dd>${proof.mutationId ? `<dt>Required failure</dt><dd>${escape(proof.expectedFailureId)}</dd><dt>Observed failure</dt><dd>${escape(proof.observedFailureId || "not established")}</dd>` : ""}<dt>Phase run</dt><dd>${escape(phase.runId)}</dd><dt>Receipt digest</dt><dd>${escape(phase.receiptArtifactDigest)}</dd></dl></details>`;
 }
-function renderNativeEvidence(evidence) {
+function renderNativeEvidence(evidence, mandatoryEmailTiming) {
   if (!evidence) return "";
+  const mandatory = evidence.mandatoryEmailAdmission;
+  const mandatoryPanel = Object.hasOwn(evidence, 'mandatoryEmailAdmission') ? mandatoryReport.renderMandatoryEmailAdmission(mandatory, mandatoryEmailTiming) : '';
+  mandatoryReport.validateMandatoryEmailTiming(mandatoryEmailTiming, mandatory);
+  if (mandatory) assert.equal(evidence.catalogueCoverage.selected, mandatory.catalogueSize, 'NATIVE_REPORT_MANDATORY_JOIN');
+  if (mandatory?.joint.status === 'included') {
+    assert.equal(mandatory.producerCommit, evidence.source.harnessCommit, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.equal(mandatory.producerDigest, evidence.source.harnessSourceDigest, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.equal(mandatory.candidateArtifactDigest, evidence.source.candidateArtifactDigest, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.equal(mandatory.joint.nativeRunId, evidence.jobRunId, 'NATIVE_REPORT_MANDATORY_JOIN');
+    assert.deepEqual(evidence.catalogueCoverage.mandatoryEmailAdmission, mandatory.joint, 'NATIVE_REPORT_MANDATORY_JOIN');
+  }
   const stCic = evidence.stCicProfileAdmission;
   const stCicReport = Object.hasOwn(evidence, 'stCicProfileAdmission') ? renderStCicProfileAdmission(stCic) : '';
   if (stCic?.joint.status === 'included') {
@@ -432,6 +444,7 @@ function renderNativeEvidence(evidence) {
       coverage.creditedObligationIds.length ||
     !coverage.phaseReferences ||
     coverage.creditedObligationIds.some((id) => {
+      if (mandatoryReport.MANDATORY_EMAIL_IDS.includes(id)) return mandatory?.joint.status !== 'included';
       if (id === ST_CIC_PROFILE_ID) return stCic?.joint.status !== 'included';
       if(id===PERSONAL_SERVICE_ID)return personal?.joint?.status!=="included";
       if (id === COMPLEX_EMAIL_ID) return complex?.joint?.status !== 'included';
@@ -488,6 +501,8 @@ function renderNativeEvidence(evidence) {
   assert.equal(Boolean(coverage.complexEmailAdmission), complex?.joint?.status === 'included', 'NATIVE_REPORT_COMPLEX_JOIN');
   assert.equal(coverage.creditedObligationIds.includes(ST_CIC_PROFILE_ID), stCic?.joint.status === 'included', 'NATIVE_REPORT_ST_CIC_JOIN');
   assert.equal(Object.hasOwn(coverage, 'stCicProfileAdmission'), stCic?.joint.status === 'included', 'NATIVE_REPORT_ST_CIC_JOIN');
+  for (const id of mandatoryReport.MANDATORY_EMAIL_IDS) assert.equal(coverage.creditedObligationIds.filter(value => value === id).length, mandatory?.joint.status === 'included' ? 1 : 0, 'NATIVE_REPORT_MANDATORY_JOIN');
+  assert.equal(Object.hasOwn(coverage, 'mandatoryEmailAdmission'), mandatory?.joint.status === 'included', 'NATIVE_REPORT_MANDATORY_JOIN');
   const roleCredited = coverage.creditedObligationIds.includes("configuration-shared:role-policy");
   const role = coverage.sharedRoleAdmission;
   if (roleCredited !== Boolean(role) || (role && (
@@ -549,6 +564,6 @@ function renderNativeEvidence(evidence) {
     .map(([id, label]) => `<option value="${id}">${label}</option>`)
     .join(
       "",
-    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}${personalReport}${complexReport}${stCicReport}</section>`;
+    )}</select></label><label>Evidence kind<select data-native-filter="kind"><option value="">Baseline and deliberate faults</option><option value="baseline">Baseline proofs</option><option value="fault">Deliberate fault checks</option></select></label></div><p data-native-count role="status">${count.baselines} baseline results and ${count.faults} deliberate fault checks</p>${table("baseline", "Baseline proofs", baselineRows)}${table("fault", "Deliberate fault checks", faultRows)}<details class="harness-native-identity"><summary>Native run and source identity</summary><dl><dt>Job run</dt><dd>${escape(evidence.jobRunId)}</dd><dt>Harness producer commit</dt><dd>${escape(evidence.source.harnessCommit)}</dd><dt>Harness source digest</dt><dd>${escape(evidence.source.harnessSourceDigest)}</dd><dt>EXUI source commit</dt><dd>${escape(evidence.source.webappCommit)}</dd><dt>Candidate artifact digest</dt><dd>${escape(evidence.source.candidateArtifactDigest)}</dd><dt>Explicit evidence descriptor digest</dt><dd>${escape(evidence.descriptorDigest)}</dd></dl><p>Validated from the supplied independent expectations, private raw reports, receipts and process finalization. This is a separate execution from the diagnostic tests. No timing, live deployment identity, full profile coverage or release approval is inferred for this main cohort.</p></details>${divorceProfile}${personalReport}${complexReport}${stCicReport}${mandatoryPanel}</section>`;
 }
 module.exports = { renderNativeEvidence, nativeCounts, renderNativeExecutionInfo, objectDigest };

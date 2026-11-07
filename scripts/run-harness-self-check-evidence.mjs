@@ -504,6 +504,7 @@ function validateRequest(request, expected) {
     reason: evidence.reason,
     nodeVersion: evidence.nodeVersion,
     selectedFiles: evidence.selectedFiles,
+    configuredFileWorkers: input.testConcurrency ?? 1,
     source: evidence.source,
     counts: evidence.counts,
     nodeDurationMs: evidence.nodeDurationMs,
@@ -654,10 +655,7 @@ export function readHeldBuildSelfChecks(held) {
     throw Error(fail);
   }
 }
-if (
-  process.argv[1] &&
-  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-) {
+async function selfCheckMain() {
   const cancellation = new AbortController(),
     cancel = () => cancellation.abort();
   process.on("SIGINT", cancel);
@@ -666,6 +664,7 @@ if (
     assert(process.argv.length === 2, fail);
     const result = await runConfiguredSelfChecks({
       signal: cancellation.signal,
+      testConcurrency: 2,
     });
     console.log(
       `[harness-self-checks] ${result.status}; tests ${result.counts?.tests ?? "not recorded"}; no application or release credit.`,
@@ -679,4 +678,10 @@ if (
     process.removeListener("SIGINT", cancel);
     process.removeListener("SIGTERM", cancel);
   }
+}
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
+  void selfCheckMain();
 }

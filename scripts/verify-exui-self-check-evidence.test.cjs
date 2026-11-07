@@ -682,3 +682,31 @@ test("fixed-port ownership remains held until delayed vacancy observations settl
     /SELF_CHECK_FIXED_PORT_LOCK/,
   );
 });
+
+test("actual configured CLI selects two file workers while component API defaults stay one", async (t) => {
+  const { buildSelfCheckFixture } = require("./fixtures/exui-build-self-check.mock.cjs");
+  const { spawnSync } = require("node:child_process");
+  const f = await buildSelfCheckFixture(t);
+  const observed = spawnSync(process.execPath, [f.modulePath], {
+    cwd: f.root,
+    env: { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: process.env.TMPDIR },
+    encoding: "utf8",
+    timeout: 10 * 1000,
+  });
+  assert.equal(observed.error, undefined);
+  assert.equal(observed.status, 0, observed.stderr);
+  assert.equal(observed.signal, null);
+  const cli = JSON.parse(fs.readFileSync(f.argvPath));
+  assert.equal(cli.command, process.execPath);
+  assert.deepEqual(cli.args.slice(0, 2), ["--test", "--test-concurrency=2"]);
+  assert.deepEqual(cli.args.slice(-2), f.unitFiles);
+  assert.equal((fs.readFileSync(f.callsPath, "utf8").match(/spawn/g) ?? []).length, 1);
+  assert.equal(f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks()).counts.tests, 2);
+
+  const direct = await f.api.runConfiguredSelfChecks();
+  assert.equal(direct.status, "passed");
+  const component = JSON.parse(fs.readFileSync(f.argvPath));
+  assert.deepEqual(component.args.slice(0, 2), ["--test", "--test-concurrency=1"]);
+  assert.deepEqual(component.args.slice(-2), f.unitFiles);
+  assert.equal((fs.readFileSync(f.callsPath, "utf8").match(/spawn/g) ?? []).length, 2);
+});

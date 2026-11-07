@@ -98,19 +98,19 @@ function validatePhaseTimings(timings, evidence, elapsed) {
   }
   if (total > elapsed + 1000 || (evidence.status === "PASS" && timings.filter(item=>item.label!=="Native evidence and interpreter verification").length !== nativePhaseLabels.length-1)) throw failure();
 }
-function renderPhaseTimings(timings, elapsed, legacy = false, previousLabels = false) {
+function renderPhaseTimings(timings, elapsed, legacy = false, previousLabels = false, mandatorySelected = false) {
   const duration = (ms) => `${Math.floor(ms / 60000)}m ${Math.floor(ms % 60000 / 1000)}s`;
   const difference = elapsed - timings.reduce((sum, item) => sum + item.durationMs, 0);
   const unitemized = difference < 0
     ? `Unitemized recorded interval: Not recorded (listed phases exceed the interval by ${-difference} ms within the 1-second rounding tolerance).`
     : `Unitemized recorded interval: ${duration(difference)} (${difference} ms).`;
   const disclosure = previousLabels ? '' : `<p data-native-unitemized="${difference < 0 ? 'unknown' : difference}">${unitemized} Derived as recorded native interval minus listed phase durations; includes preflight and controller work, and ST_CIC when attached. This is not an exact ST_CIC or per-facet duration or additional proof evidence.</p>`;
-  return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. ${previousLabels ? 'Diagnostic Playwright time and Jenkins checkout/build time are separate.' : 'Recorded interval includes core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, diagnostics and Build self-checks. Jenkins checkout/build time is separate.'}</p></div><strong>${duration(elapsed)} ${previousLabels ? 'main native + evidence verification' : 'recorded native interval'}</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr${legacy?'':` data-phase-duration-ms="${item.durationMs}" data-phase-started-at="${item.startedAt}"`}><th scope="row">${htmlEscape(item.label)}</th><td>${['Native evidence and interpreter verification','Selector evidence verification','Selector cohort admission'].includes(item.label)?'Evidence verification':['Selector baseline proof and cleanup','Selector fault proof and cleanup'].includes(item.label) ? 'Proof + setup / cleanup' : proofPhases.has(item.label) ? 'Proof' : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div>${disclosure}</section>`;
+  return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. ${previousLabels ? 'Diagnostic Playwright time and Jenkins checkout/build time are separate.' : `Recorded interval includes core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, ${mandatorySelected ? 'mandatory email admission, ' : ''}diagnostics and Build self-checks. Jenkins checkout/build time is separate.`}</p></div><strong>${duration(elapsed)} ${previousLabels ? 'main native + evidence verification' : 'recorded native interval'}</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr${legacy?'':` data-phase-duration-ms="${item.durationMs}" data-phase-started-at="${item.startedAt}"`}><th scope="row">${htmlEscape(item.label)}</th><td>${['Native evidence and interpreter verification','Selector evidence verification','Selector cohort admission'].includes(item.label)?'Evidence verification':['Selector baseline proof and cleanup','Selector fault proof and cleanup'].includes(item.label) ? 'Proof + setup / cleanup' : proofPhases.has(item.label) ? 'Proof' : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div>${disclosure}</section>`;
 }
 
 function nativeIntervalInfo(record, previous = false) {
   const duration = record.nativeElapsedMs === undefined ? 'duration not recorded' : `${(record.nativeElapsedMs / 60000).toFixed(1)} min`;
-  return [previous ? 'Main native + evidence verification' : 'Recorded native interval', record.nativeEvidence ? `${record.nativeEvidence.status} · ${duration}${previous ? '' : ' · Core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, diagnostics and Build self-checks'}` : 'Not run'];
+  return [previous ? 'Main native + evidence verification' : 'Recorded native interval', record.nativeEvidence ? `${record.nativeEvidence.status} · ${duration}${previous ? '' : ` · Core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, ${record.nativeEvidence.mandatoryEmailAdmission ? 'mandatory email admission, ' : ''}diagnostics and Build self-checks`}` : 'Not run'];
 }
 
 function workerEvidence(runners, checks) {
@@ -188,19 +188,43 @@ function inventory(p) {
   }
 }
 function validateHtml(html, record, retiringPreviousRun = false) {
+  const legacyBuild=retiringPreviousRun&&!Object.hasOwn(record,'buildSelfCheckHeld')&&(record.buildSelfChecks===undefined||!Object.hasOwn(record.buildSelfChecks,'configuredFileWorkers'));
+  if(!legacyBuild){
+    if(!Object.hasOwn(record,'buildSelfCheckHeld'))throw failure();
+    if(record.buildSelfChecks===undefined){if(record.buildSelfCheckHeld!==null)throw failure();}
+    else{
+      // Build collection/replay already requires qualified Node24; the diagnostics-only path does not.
+      if(process.versions.node.split('.')[0]!=='24'||record.buildSelfCheckHeld===null)throw failure();
+      const actual=require('./run-harness-self-check-evidence.mjs').readHeldBuildSelfChecks(record.buildSelfCheckHeld);
+      if(!require('node:util').isDeepStrictEqual(actual,record.buildSelfChecks))throw failure();
+    }
+  }
   validateAssuranceTiming(record.assuranceTiming);
   const buildReport=require('./harness-build-self-check-report.cjs');
-  buildReport.validateBuildSelfChecks(record.buildSelfChecks);
+  const buildOptions={retiringPreviousRun:legacyBuild};
+  buildReport.validateBuildSelfChecks(record.buildSelfChecks,buildOptions);
   const buildDom=parse(html),buildSummary=buildDom.querySelectorAll('[id="harness-build-self-check-summary"]'),buildDetails=buildDom.querySelectorAll('[id="harness-build-self-check-details"]');
   if(!(retiringPreviousRun&&record.buildSelfChecks===undefined&&buildSummary.length===0&&buildDetails.length===0)){
-    if(buildSummary.length!==1||buildDetails.length!==1||buildSummary[0].toString()!==parse(buildReport.renderBuildSelfCheckSummary(record.buildSelfChecks)).toString()||buildDetails[0].toString()!==parse(buildReport.renderBuildSelfCheckDetails(record.buildSelfChecks)).toString())throw failure();
+    if(buildSummary.length!==1||buildDetails.length!==1||buildSummary[0].toString()!==parse(buildReport.renderBuildSelfCheckSummary(record.buildSelfChecks,buildOptions)).toString()||buildDetails[0].toString()!==parse(buildReport.renderBuildSelfCheckDetails(record.buildSelfChecks,buildOptions)).toString())throw failure();
   }
   if(record.buildSelfChecks!==undefined&&record.buildSelfChecks.source.commit!==record.diagnosticSource?.commit)throw failure();
+  const mandatoryReport = require('./harness-mandatory-email-report.cjs');
+  const mandatoryAdmission = record.nativeEvidence?.mandatoryEmailAdmission;
+  mandatoryReport.validateMandatoryEmailTiming(record.mandatoryEmailTiming, mandatoryAdmission);
   const complexAdmission = record.nativeEvidence?.complexEmailAdmission;
   const complexDom = parse(html);
   const infos = [...complexDom.querySelectorAll('.info-box-header')].filter(header => header.textContent.trim() === 'Run info');
   if (infos.length !== 1 || complexDom.querySelectorAll('[id="harness-public-run"]').length !== 1) throw failure();
   const timingRows = infos[0].parentNode.querySelectorAll('tr');
+  const mandatoryLabels = ['Mandatory email standalone executions', 'Mandatory email execution detail'];
+  const mandatoryRows = complexDom.querySelectorAll('tr').filter(row => mandatoryLabels.includes(row.querySelector('th')?.textContent.trim()));
+  const expectedMandatoryRows = mandatoryAdmission ? parse(mandatoryReport.renderMandatoryEmailExecutionInfo(mandatoryAdmission)).querySelectorAll('tr') : [];
+  if (mandatoryRows.length !== expectedMandatoryRows.length || mandatoryRows.some((row,index) => !timingRows.includes(row) || row.toString() !== expectedMandatoryRows[index].toString())) throw failure();
+
+  const nodeWorkers=complexDom.querySelectorAll('[data-build-node-workers]');
+  const namedNodeWorkerRows=complexDom.querySelectorAll('tr').filter(row=>row.querySelector('th')?.textContent.trim()==='Configured Node file workers');
+  if(namedNodeWorkerRows.length!==(legacyBuild?0:1+(record.buildSelfChecks===undefined?0:1)))throw failure();
+  if(!(legacyBuild&&nodeWorkers.length===0) && (nodeWorkers.length!==1 || !timingRows.includes(nodeWorkers[0]) || nodeWorkers[0].toString()!==parse(buildReport.renderBuildSelfCheckWorkers(record.buildSelfChecks,buildOptions)).toString()))throw failure();
   if (record.assuranceTiming !== undefined || timingRows.some(row => ['Harness elapsed to report','Harness preparation → report snapshot'].includes(row.querySelector('th')?.textContent.trim()))) {
     const expectedTiming = assuranceRunInfo(record.assuranceTiming);
     if(timingRows.some(row => ['Harness elapsed to report','Harness preparation → report snapshot','Assurance started at','Preparation started at','Assurance timing scope'].includes(row.querySelector('th')?.textContent.trim()) && !expectedTiming.some(([label]) => label === row.querySelector('th')?.textContent.trim()))) throw failure();
@@ -212,7 +236,7 @@ function validateHtml(html, record, retiringPreviousRun = false) {
 
   {
     const previous = nativeIntervalInfo(record, true);
-    const known = [nativeIntervalInfo(record), ...(retiringPreviousRun ? [previous, ['Native execution', previous[1]]] : [])];
+    const known = [nativeIntervalInfo(record), ...(retiringPreviousRun && !mandatoryAdmission ? [previous, ['Native execution', previous[1]]] : [])];
     const rows = timingRows.filter(row => ['Recorded native interval','Main native + evidence verification','Native execution'].includes(row.querySelector('th')?.textContent.trim()));
     if (rows.length !== 1 || rows[0].querySelectorAll('th').length !== 1 || rows[0].querySelectorAll('td').length !== 1 || !known.some(([label,value]) => rows[0].querySelector('th').textContent === label && rows[0].querySelector('td').textContent === value)) throw failure();
   }
@@ -244,6 +268,8 @@ function validateHtml(html, record, retiringPreviousRun = false) {
   const childPanels=complexDom.querySelectorAll('[data-harness-check-details]').length;
   const declaredChildPanels=entries.filter(entry=>checkDetails.declarationsFor(entry).length).length;
   if(childPanels!==(record.detailEvidence===undefined&&retiringPreviousRun?0:declaredChildPanels))throw failure();
+  const mandatoryPanels = complexDom.querySelectorAll('[id="harness-mandatory-email-admission"]');
+  if (mandatoryPanels.length !== (mandatoryAdmission ? 1 : 0) || (mandatoryAdmission && (mandatoryPanels[0].parentNode?.getAttribute('id') !== 'harness-native-evidence' || mandatoryPanels[0].toString() !== parse(mandatoryReport.renderMandatoryEmailAdmission(mandatoryAdmission, record.mandatoryEmailTiming)).toString()))) throw failure();
   const complexPanels = complexDom.querySelectorAll('[id="harness-complex-email-admission"]').length;
   const complexAttemptPanels = complexDom.querySelectorAll('[id="harness-complex-email-attempt"]').length;
   if (complexPanels !== (complexAdmission ? 1 : 0) || complexAttemptPanels !== (record.complexEmailAttempt ? 1 : 0)) throw failure();
@@ -269,8 +295,8 @@ function validateHtml(html, record, retiringPreviousRun = false) {
   if (record.phaseTimings !== undefined) {
     validatePhaseTimings(record.phaseTimings, record.nativeEvidence, record.nativeElapsedMs);
     const panels = complexDom.querySelectorAll('[id="harness-phase-timings"]');
-    const knownPanels = [renderPhaseTimings(record.phaseTimings, record.nativeElapsedMs)];
-    if (retiringPreviousRun) knownPanels.push(renderPhaseTimings(record.phaseTimings, record.nativeElapsedMs, record.checkMethods === undefined, true));
+    const knownPanels = [renderPhaseTimings(record.phaseTimings, record.nativeElapsedMs, false, false, Boolean(record.nativeEvidence?.mandatoryEmailAdmission))];
+    if (retiringPreviousRun && !mandatoryAdmission) knownPanels.push(renderPhaseTimings(record.phaseTimings, record.nativeElapsedMs, record.checkMethods === undefined, true));
     if (panels.length !== 1 || !knownPanels.some(value => panels[0].toString() === parse(value).toString())) throw failure();
   } else if (html.includes('id="harness-phase-timings"')) throw failure();
   if (
@@ -293,7 +319,7 @@ function validateHtml(html, record, retiringPreviousRun = false) {
       throw failure();
   }
   if (record.nativeEvidence) {
-    const nativePresentation=parse(require("./harness-native-report.cjs").renderNativeEvidence(record.nativeEvidence));
+    const nativePresentation=parse(require("./harness-native-report.cjs").renderNativeEvidence(record.nativeEvidence, record.mandatoryEmailTiming));
     const nativePanels=complexDom.querySelectorAll('[id="harness-native-evidence"]');
     if(nativePanels.length!==1)throw failure();
     const wantedTables=nativePresentation.querySelectorAll('[data-native-stage-proof]'),actualTables=nativePanels[0].querySelectorAll('[data-native-stage-proof]');
@@ -500,12 +526,13 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource, assuranceTiming, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, buildSelfCheckHeld } = {}) {
+  constructor({ selection, diagnosticSource, assuranceTiming, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming, buildSelfCheckHeld } = {}) {
     this.buildSelfCheckHeld = buildSelfCheckHeld === undefined ? undefined : structuredClone(buildSelfCheckHeld);
     this.buildSelfChecks = undefined;
     this.diagnosticSource = diagnosticSource;
     this.assuranceTiming = assuranceTiming;
     this.nativeElapsedMs = nativeElapsedMs;
+    this.mandatoryEmailTiming = mandatoryEmailTiming === undefined ? undefined : structuredClone(mandatoryEmailTiming);
     this.phaseTimings = phaseTimings;
     if(divorceProfileAttempt)require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(divorceProfileAttempt);
     this.divorceProfileAttempt = divorceProfileAttempt;
@@ -542,7 +569,7 @@ class HarnessPublicOdhinReporter {
     this.nativeEvidence = await readNativeReportEvidence(descriptorPath);
     // Validate all display labels before starting collection, never silently omit an unknown proof.
     require("./harness-native-report.cjs").renderNativeEvidence(
-      this.nativeEvidence,
+      this.nativeEvidence, this.mandatoryEmailTiming,
     );
   }
   async prepareCompatibilityEvidence(descriptorPath) {
@@ -710,6 +737,7 @@ class HarnessPublicOdhinReporter {
       this.ended = true;
       const counts = Object.fromEntries(statuses.map((status) => [status, 0]));
       validateAssuranceTiming(this.assuranceTiming);
+      require('./harness-mandatory-email-report.cjs').validateMandatoryEmailTiming(this.mandatoryEmailTiming, this.nativeEvidence?.mandatoryEmailAdmission);
       if (this.nativeElapsedMs !== undefined && (!this.nativeEvidence || !Number.isSafeInteger(this.nativeElapsedMs) || this.nativeElapsedMs < 0)) this.reject();
       if(this.personalServiceAttempt&&this.nativeEvidence?.personalServiceAdmission)throw failure();
       if (this.complexEmailAttempt && this.nativeEvidence?.complexEmailAdmission) throw failure();
@@ -850,6 +878,7 @@ class HarnessPublicOdhinReporter {
         status: result.status,
         globalErrors: this.globalErrors,
         buildSelfChecks: this.buildSelfChecks,
+        buildSelfCheckHeld: this.buildSelfCheckHeld===undefined?null:structuredClone(this.buildSelfCheckHeld),
         diagnosticSource: this.diagnosticSource,
         nativeEvidence: this.nativeEvidence,
         compatibilityEvidence: this.compatibilityEvidence,
@@ -857,6 +886,7 @@ class HarnessPublicOdhinReporter {
         assuranceTiming: this.assuranceTiming,
         nativeElapsedMs: this.nativeElapsedMs,
         phaseTimings: this.phaseTimings,
+        ...(this.mandatoryEmailTiming === undefined ? {} : {mandatoryEmailTiming: this.mandatoryEmailTiming}),
         divorceProfileAttempt: this.divorceProfileAttempt,
         personalServiceAttempt:this.personalServiceAttempt,
         complexEmailAttempt:this.complexEmailAttempt,
@@ -894,6 +924,7 @@ class HarnessPublicOdhinReporter {
       runInfo.querySelector('table').insertAdjacentHTML('beforeend', `${renderWorkers(record.diagnosticWorkers)}<tr><th scope="row">${nativeLabel}</th><td>${nativeValue}</td></tr>`);
       runInfo.querySelector('table').insertAdjacentHTML('beforeend', assuranceRunInfo(this.assuranceTiming).map(([label, value]) => `<tr><th scope="row">${label}</th><td>${htmlEscape(value)}</td></tr>`).join(''));
       runInfo.querySelector('table').insertAdjacentHTML('beforeend', require('./harness-native-report.cjs').renderNativeExecutionInfo(this.nativeEvidence));
+      runInfo.querySelector('table').insertAdjacentHTML('beforeend', require('./harness-build-self-check-report.cjs').renderBuildSelfCheckWorkers(this.buildSelfChecks));
       [...this.expected].forEach(([identity,entry],index) => {
         const observed = this.results.get(identity);
         const info = presentation.querySelector(`#TabRunInfo-harness-${index}-0`);
@@ -931,12 +962,13 @@ class HarnessPublicOdhinReporter {
           },
         ),
       );
+      if (this.nativeEvidence?.mandatoryEmailAdmission) presentation.querySelector('#harness-mandatory-email-admission').replaceWith(require('./harness-mandatory-email-report.cjs').renderMandatoryEmailAdmission(this.nativeEvidence.mandatoryEmailAdmission, this.mandatoryEmailTiming));
       if (this.compatibilityEvidence) presentation.querySelector("#harness-native-evidence").insertAdjacentHTML("afterend", require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence));
       if(this.personalServiceAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(this.personalServiceAttempt));
       if (this.complexEmailAttempt) presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend', require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(this.complexEmailAttempt));
       if(this.divorceProfileAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(this.divorceProfileAttempt));
       if(this.sharedNestedAttemptEvidence)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence));
-      if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs));
+      if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs, false, false, Boolean(this.nativeEvidence?.mandatoryEmailAdmission)));
       presentation
         .querySelector("head")
         .insertAdjacentHTML(

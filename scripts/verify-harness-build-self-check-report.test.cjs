@@ -10,6 +10,7 @@ const fixture = () => ({
   reason: null,
   nodeVersion: "v24.21.0",
   selectedFiles: 2,
+  configuredFileWorkers: 1,
   source: {
     commit: "a".repeat(40),
     state: "clean",
@@ -74,6 +75,10 @@ test("malformed or promoted public self-check fields reject without raw diagnost
     (v) => (v.status = "unknown"),
     (v) => (v.reason = "PRIVATE_CANARY"),
     (v) => (v.selectedFiles = 0),
+    (v) => delete v.configuredFileWorkers,
+    (v) => (v.configuredFileWorkers = null),
+    (v) => (v.configuredFileWorkers = 3),
+    (v) => (v.configuredFileWorkers = "2"),
   ]) {
     const value = fixture();
     change(value);
@@ -89,17 +94,18 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
   const fs = require("node:fs"),
     path = require("node:path"),
     os = require("node:os");
-  const Reporter = require("./harness-public-odhin-reporter.cjs");
-  const source = Reporter.captureDiagnosticSource();
-  const root = fs.mkdtempSync(
-    path.join(fs.realpathSync(os.tmpdir()), "self-check-public-"),
-  );
+  const f=await require('./fixtures/exui-build-self-check.mock.cjs').buildSelfCheckFixture(t);
+  await f.api.runConfiguredSelfChecks();
+  const held=f.api.holdBuildSelfChecks();
+  const local=require('./fixtures/exui-build-self-check.mock.cjs').fixturePublicReporter(f),Reporter=local.Reporter;
+  const root=f.root;
   const previous = process.cwd();
   process.chdir(root);
   t.after(() => {
     process.chdir(previous);
-    fs.rmSync(root, { recursive: true, force: true });
+
   });
+  const source=Reporter.captureDiagnosticSource();
   const entries = require("./harness-public-overview.cjs").profiles.harness;
   const methods = require("./harness-public-check-steps.cjs");
   const tests = entries.map((entry, index) => ({
@@ -113,9 +119,8 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
     selection: "harness",
     diagnosticSource: source,
   });
-  const projected = fixture();
-  projected.source.commit = source.commit;
-  reporter.buildSelfChecks = projected;
+  await reporter.prepareBuildSelfChecks(held);
+  const projected=reporter.buildSelfChecks;
   await reporter.onBegin({ projects: [] }, { allTests: () => tests });
   for (let index = 0; index < tests.length; index++)
     await reporter.onTestEnd(tests[index], {
@@ -149,19 +154,46 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
     recordBytes = fs.readFileSync(recordPath),
     record = JSON.parse(recordBytes);
   assert.equal(Reporter.validatePublicReport("harness").tests, 116);
-  assert(html.includes("21 Node tests"));
+  assert.deepEqual(record.buildSelfCheckHeld,held);
+  if(process.env.SELF_CHECK_COMPAT_NODE20){
+    const code=`const Module=require('node:module'),load=Module._load;let calls=0;Module._load=function(name,...args){if(name.endsWith('run-harness-self-check-evidence.mjs'))calls++;return load.call(this,name,...args);};let rejected=false;try{require(${JSON.stringify(local.reporterFile)}).validatePublicReport('harness');}catch(e){if(e.message!=='PUBLIC_ODHIN_INVALID_OR_INCOMPLETE')throw e;rejected=true;}console.log(JSON.stringify({rejected,calls,node:process.version}));`;
+    const observed=JSON.parse(require('node:child_process').execFileSync(process.env.SELF_CHECK_COMPAT_NODE20,['-e',code],{cwd:f.root,encoding:'utf8',env:{...process.env,NODE_PATH:path.resolve(__dirname,'../node_modules')}}));assert.equal(observed.rejected,true);assert.equal(observed.calls,0);assert.match(observed.node,/^v20\./);
+  }
+
+  assert.equal(record.buildSelfChecks.configuredFileWorkers,1);
+  const fresh=JSON.parse(require('node:child_process').execFileSync(process.execPath,['-e',`const r=require(${JSON.stringify(local.reporterFile)}).validatePublicReport('harness');console.log(JSON.stringify({tests:r.buildSelfChecks.counts.tests,workers:r.buildSelfChecks.configuredFileWorkers}));`],{cwd:f.root,encoding:'utf8',env:{...process.env,NODE_PATH:path.resolve(__dirname,'../node_modules')}}));assert.deepEqual(fresh,{tests:2,workers:1});assert.equal(fs.readFileSync(f.callsPath,'utf8').split('spawn').length-1,1,'readback must not run the CLI or a second unit collection');
+
+  assert(!html.includes(held.path));
+  for(const change of [v=>{v.buildSelfChecks.counts.tests++;v.buildSelfChecks.counts.passed++;},v=>{delete v.buildSelfCheckHeld;},v=>{v.buildSelfCheckHeld=null;},v=>{v.buildSelfCheckHeld.digest='sha256:'+'f'.repeat(64);},v=>{v.buildSelfChecks.configuredFileWorkers=2;},v=>{v.buildSelfChecks.runId='self-check-11111111-1111-4111-8111-111111111111';},v=>{v.buildSelfChecks.source.selectionDigest='sha256:'+'f'.repeat(64);},v=>{delete v.buildSelfChecks;}]){
+    const value=JSON.parse(recordBytes);change(value);
+    const page=require('node-html-parser').parse(html);
+    page.querySelector('#harness-build-self-check-summary').replaceWith(api.renderBuildSelfCheckSummary(value.buildSelfChecks));
+    page.querySelector('#harness-build-self-check-details').replaceWith(api.renderBuildSelfCheckDetails(value.buildSelfChecks));
+    page.querySelector('[data-build-node-workers]').replaceWith(api.renderBuildSelfCheckWorkers(value.buildSelfChecks));
+    const forged=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(forged).digest('hex');fs.writeFileSync(htmlPath,forged);fs.writeFileSync(recordPath,JSON.stringify(value));
+    assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+    fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,recordBytes);
+  }
+
+  assert(html.includes("2 Node tests"));
+  for(const name of ['current-request.json']){
+    const file=path.join(f.privateRoot,name),original=fs.readFileSync(file);fs.appendFileSync(file,' ');assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);fs.writeFileSync(file,original);
+  }
+  const selected=path.join(f.root,f.unitFiles[1]),selectedBytes=fs.readFileSync(selected);fs.appendFileSync(selected,'\n// late selected source change');assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);fs.writeFileSync(selected,selectedBytes);
   assert(!html.includes(root));
   assert(html.includes("NOT RUN"));
   for (const changed of [
-    html.replace("21 Node tests", "999 Node tests"),
+    html.replace('Configured Node file workers</th><td>1 maximum','Configured Node file workers</th><td>2 maximum'),
+    html.replace('</body>','<table><tr><th>Configured Node file workers</th><td>999 observed</td></tr></table></body>'),
+    html.replace("2 Node tests", "999 Node tests"),
     html.replace(
       "</body>",
       api.renderBuildSelfCheckSummary(projected) + "</body>",
     ),
     html.replace("2 selected files", "3 selected files"),
     html.replace(
-      'data-build-self-check-tests="21"',
-      'data-build-self-check-tests="22"',
+      'data-build-self-check-tests="2"',
+      'data-build-self-check-tests="3"',
     ),
   ]) {
     fs.writeFileSync(htmlPath, changed);
@@ -189,9 +221,9 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
   const relocated = fs
     .readFileSync(sourceFile, "utf8")
     .replace(/(["'])(\.\/[^"']+)\1/g, (_match, quote, relative) =>
-      JSON.stringify(pathToFileURL(path.resolve(__dirname, relative)).href),
+      JSON.stringify(pathToFileURL(relative==='./harness-public-odhin-reporter.cjs'?local.reporterFile:path.resolve(__dirname, relative)).href),
     );
-  fs.mkdirSync(path.join(root, "scripts"));
+  fs.mkdirSync(path.join(root, "scripts"),{recursive:true});
   const callerFile = path.join(root, "scripts/run-harness-assurance.mjs");
   fs.writeFileSync(callerFile, relocated);
   const { runHarnessAssurance } = await import(pathToFileURL(callerFile).href);
@@ -213,7 +245,7 @@ test("actual public reporter round-trips distinct Build counts and rejects visib
   fs.writeFileSync(recordPath, recordBytes);
   assert.equal(Reporter.validatePublicReport("harness").tests, 116);
   await assert.rejects(
-    require("./run-harness-local-aat.cjs").runHarnessCollection(
+    local.collection().runHarnessCollection(
       {},
       {
         buildSelfCheckHeld: {
@@ -449,4 +481,17 @@ test("top Build measure leaves missing and incomplete counters unrecorded and re
     );
     assert.match(view.text(measure), /Not recorded/);
   }
+});
+
+test('only exact aggregate-only legacy Build report retires and never authenticates as current',async t=>{
+ const fs=require('node:fs'),path=require('node:path'),previous=process.cwd(),mock=require('./fixtures/exui-build-self-check.mock.cjs'),f=await mock.buildSelfCheckFixture(t);await f.api.runConfiguredSelfChecks();process.chdir(f.root);t.after(()=>process.chdir(previous));
+ const local=mock.fixturePublicReporter(f),Reporter=local.Reporter,source=Reporter.captureDiagnosticSource(),reporter=new Reporter({selection:'harness',diagnosticSource:source});await reporter.prepareBuildSelfChecks(f.api.holdBuildSelfChecks());
+ const entries=require('./harness-public-overview.cjs').profiles.harness,methods=require('./harness-public-check-steps.cjs'),tests=entries.map(entry=>({location:{file:path.join(f.root,entry.file)},titlePath:()=>entry.titlePath,retries:0,expectedStatus:'passed'}));reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,{status:'passed',retry:0,duration:2,startTime:new Date('2026-11-06T10:00:00Z'),workerIndex:0,parallelIndex:0,steps:methods.methodFor(entries[index]).steps.map(step=>({title:'harness-check:'+step.id,category:'test.step',duration:1,steps:reviewedCsrfDetailChildren(step.id)}))}));await reporter.onEnd({status:'passed',startTime:new Date('2026-11-06T10:00:00Z'),duration:1000});
+ const htmlPath=path.join(f.root,'functional-output/tests/harness/public/odhin/index.html'),recordPath=path.join(f.root,'functional-output/tests/harness/private/public-odhin-harness.json'),value=JSON.parse(fs.readFileSync(recordPath)),page=require('node-html-parser').parse(fs.readFileSync(htmlPath,'utf8'));
+ // Synthetic exact previous presentation: remove only the two new rows and private binding fields.
+ const rows=page.querySelectorAll('tr').filter(row=>row.querySelector('th')?.textContent==='Configured Node file workers');assert.equal(rows.length,2);rows.forEach(row=>row.remove());delete value.buildSelfCheckHeld;delete value.buildSelfChecks.configuredFileWorkers;const html=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');const record=JSON.stringify(value);fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,record);
+ assert.throws(()=>Reporter.validatePublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+ if(process.env.SELF_CHECK_COMPAT_NODE20){const code=`const Module=require('node:module'),load=Module._load;let calls=0;Module._load=function(name,...args){if(name.endsWith('run-harness-self-check-evidence.mjs')){calls++;throw Error('LEGACY_MUST_NOT_REQUIRE_ESM');}return load.call(this,name,...args);};require(${JSON.stringify(local.reporterFile)}).resetPublicReport('harness');console.log(JSON.stringify({calls,removed:!require('node:fs').existsSync(${JSON.stringify(htmlPath)})}));`;const result=JSON.parse(require('node:child_process').execFileSync(process.env.SELF_CHECK_COMPAT_NODE20,['-e',code],{cwd:f.root,encoding:'utf8',env:{...process.env,NODE_PATH:path.resolve(__dirname,'../node_modules')}}));assert.deepEqual(result,{calls:0,removed:true});fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,record);}
+ const changed=html.replace('2 Node tests','999 Node tests'),tampered=JSON.parse(record);tampered.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(htmlPath,changed);fs.writeFileSync(recordPath,JSON.stringify(tampered));assert.throws(()=>Reporter.resetPublicReport('harness'),/^Error: PUBLIC_ODHIN_INVALID_OR_INCOMPLETE$/);
+ fs.writeFileSync(htmlPath,html);fs.writeFileSync(recordPath,record);Reporter.resetPublicReport('harness');assert(!fs.existsSync(htmlPath));assert(!fs.existsSync(recordPath));
 });

@@ -344,3 +344,25 @@ test("configured self-check concurrency 2 is explicit and retains one byte-bound
     2,
   );
 });
+
+
+test('configured Node file-worker maximum comes from sealed input for modes1and2',async t=>{
+ for(const testConcurrency of [1,2]){const f=await fixture(t);await f.api.runConfiguredSelfChecks({testConcurrency});const held=f.api.holdBuildSelfChecks(),value=f.api.readHeldBuildSelfChecks(held);assert.equal(value.configuredFileWorkers,testConcurrency);const argv=JSON.parse(fs.readFileSync(f.argvPath));assert.equal(argv.args[1],'--test-concurrency='+testConcurrency);const request=JSON.parse(fs.readFileSync(path.join(f.privateRoot,'current-request.json')));const input=path.join(request.directory,'source-input.json'),data=JSON.parse(fs.readFileSync(input));data.testConcurrency=testConcurrency===1?2:1;fs.writeFileSync(input,JSON.stringify(data));assert.throws(()=>f.api.readHeldBuildSelfChecks(held),/^Error: HARNESS_SELF_CHECK_EVIDENCE_INVALID$/);}
+});
+test('unchanged CLI completes actual tiny configured pass failure and invalid invocation after sync bridge',async t=>{
+ const {spawnSync}=require('node:child_process');for(const failed of [false,true]){const f=await fixture(t,{failed});const actual=spawnSync(process.execPath,[f.modulePath],{cwd:f.root,env:{PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR},encoding:'utf8',timeout:10000});assert.equal(actual.signal,null);assert.equal(actual.status,failed?1:0,actual.stderr);assert.match(actual.stdout,failed?/failed; tests 2/:/passed; tests 2/);assert.equal(f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks()).status,failed?'failed':'passed');}
+ const f=await fixture(t),invalid=spawnSync(process.execPath,[f.modulePath,'--unknown'],{cwd:f.root,encoding:'utf8',timeout:10000});assert.equal(invalid.status,2);assert.equal(invalid.signal,null);assert.match(invalid.stderr,/Evidence incomplete/);
+});
+
+
+test('CLI bridge preserves repeated-cancellation settlement and incomplete result',async t=>{
+ const {spawn}=require('node:child_process');
+ {
+  const f=await fixture(t),ready=path.join(f.parent,'ready.json');
+  fs.writeFileSync(path.join(f.root,f.unitFiles[1]),`const{test}=require('node:test'),fs=require('node:fs');test('owned pending fixture',async()=>{fs.writeFileSync(${JSON.stringify(ready)},'ready');await new Promise(r=>setTimeout(r,5000));});`);
+  const child=spawn(process.execPath,[f.modulePath],{cwd:f.root,env:{PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR},stdio:'ignore'});let poll,deadline;
+  const terminal=new Promise((resolve,reject)=>{child.once('error',reject);child.once('close',(code,signal)=>resolve({code,signal}));});
+  try{await new Promise((resolve,reject)=>{poll=setInterval(()=>{if(fs.existsSync(ready)){clearInterval(poll);resolve();}},10);deadline=setTimeout(()=>reject(Error('OWNED_CLI_NOT_READY')),5000);});clearTimeout(deadline);child.kill('SIGTERM');child.kill('SIGTERM');const actual=await terminal;assert.deepEqual(actual,{code:2,signal:null});const request=JSON.parse(fs.readFileSync(path.join(f.privateRoot,'current-request.json'))),evidence=JSON.parse(fs.readFileSync(path.join(request.directory,'self-check-evidence.json')));assert.equal(evidence.status,'incomplete');assert.equal(evidence.terminal.observed,true);assert.equal(evidence.terminal.cancelled,true);assert.equal(evidence.terminal.forced,false);}
+  finally{clearInterval(poll);clearTimeout(deadline);if(child.exitCode===null&&child.signalCode===null){child.kill('SIGTERM');await terminal;}}
+ }
+});

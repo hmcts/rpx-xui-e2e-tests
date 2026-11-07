@@ -80,6 +80,19 @@
       valid ? data.stCicInclusion === 'included' ? '1 requirement already included once in candidate coverage' : 'Separate packet; no requirement added to candidate coverage' : 'Admission counts not recorded',
       '#harness-st-cic-profile-admission', 'ST_CIC duration not recorded separately; no per-facet durations or traces recorded']);
   }
+  const mandatoryEmail = document.querySelector('#harness-mandatory-email-admission');
+  if (mandatoryEmail) {
+    const data = mandatoryEmail.dataset;
+    const valid = data.mandatoryEmailStatus === 'PASS' && data.mandatoryEmailBaselines === '2' && data.mandatoryEmailEffectiveFaults === '2' && data.mandatoryEmailExecutions === '3' &&
+      ((data.mandatoryEmailInclusion === 'included' && data.mandatoryEmailCredited === '2') || (data.mandatoryEmailInclusion === 'separate' && data.mandatoryEmailCredited === '0'));
+    const rawTime = mandatoryEmail.querySelector('[data-mandatory-email-timing]')?.dataset.mandatoryEmailTiming;
+    const duration = typeof rawTime === 'string' && /^(0|[1-9][0-9]*)$/.test(rawTime) ? Number(rawTime) : null;
+    const time = Number.isSafeInteger(duration) && duration >= 0 ? `${Math.floor(duration / 60000)}m ${Math.floor(duration % 60000 / 1000)}s` : 'Not recorded';
+    supplements.push(['Mandatory email source rows', valid ? 'PASS' : 'Not recorded',
+      valid ? '2 baseline results · 2 named fault results · 3 executions' : 'Execution counts not recorded',
+      valid ? data.mandatoryEmailInclusion === 'included' ? '2 requirements already included once each in candidate coverage' : 'Separate packet; no requirements added to candidate coverage' : 'Admission counts not recorded',
+      '#harness-mandatory-email-admission', `Admission call elapsed: ${valid ? time : 'Not recorded'} · excluded from recorded native interval; no per-proof durations recorded`]);
+  }
   const personalAttempt = document.querySelector('#harness-personal-service-attempt');
   if (personalAttempt) {
     const duration = Number(personalAttempt.dataset.personalAttemptDurationMs);
@@ -103,7 +116,7 @@
     'Requirement remains unaccepted in this run', '#harness-complex-email-attempt']);
   const cards = [
     ['Catalogue runtime evidence', `${accepted} / ${selected}`, `${selected - accepted} awaiting accepted evidence`, '#harness-application-coverage'],
-    [supplements.length ? 'Main native proof outcomes' : 'Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${nativeStatus} · ${baselines} baseline · ${faults} deliberate faults${nativeTime} · Core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, diagnostics and Build self-checks` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],
+    [supplements.length ? 'Main native proof outcomes' : 'Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${nativeStatus} · ${baselines} baseline · ${faults} deliberate faults${nativeTime} · Core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, ${mandatoryEmail ? 'mandatory email admission, ' : ''}diagnostics and Build self-checks` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],
     ['Diagnostic tests', String(diagnosticTotal), `${diagnosticPassRate} pass rate · ${diagnosticAttention} need attention · ${diagnosticTime}`, '#TabTests'],
     ['Release approval', 'Unavailable', 'Catalogue and deployment gaps remain', '#harness-application-coverage'],
   ];

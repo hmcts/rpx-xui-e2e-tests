@@ -145,6 +145,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   );
   for (const name of [
     "exui-divorce-native-binding.mjs",
+    "exui-mandatory-email-event-contract.mjs",
     "exui-personal-service-admission.mjs",
     "exui-complex-email-admission.mjs",
     "exui-output-boundary.mjs",
@@ -165,6 +166,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   fs.writeFileSync(path.join(root,'scripts/run-harness-complex-email-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-complex-email-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-personal-service-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-personal-service-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
+  fs.writeFileSync(path.join(root,'scripts/run-harness-mandatory-email-event-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-mandatory-email-event-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-st-cic-profile-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/lib/exui-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'lib/exui-st-cic-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
@@ -221,112 +223,9 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   assert.equal(fs.existsSync(path.join(root, "native-started")), false);
   assert.equal(fs.readFileSync(unrelated, "utf8"), "preserve");
 });
-function fixture(t) {
-  const root = fs.mkdtempSync(
-    path.join(fs.realpathSync(os.tmpdir()), "assurance-descriptor-"),
-  );
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  fs.mkdirSync(path.join(root, "private"));
-  const digest = "sha256:" + "a".repeat(64),
-    commit = "b".repeat(40);
-  const phases = ["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"];
-  const captured = { harnessCommit: commit, policies: {} };
-  const write = (file, value) => {
-    const bytes = JSON.stringify(value);
-    fs.writeFileSync(path.join(root, "private", file), bytes);
-    return (
-      "sha256:" +
-      require("node:crypto").createHash("sha256").update(bytes).digest("hex")
-    );
-  };
-  for (const phase of phases) {
-    fs.mkdirSync(path.join(root, "private", phase));
-    captured.policies[phase] = { policyDigest: digest };
-    const routingInterpreter =
-      phase === "routing"
-        ? { contract: { pinDigest: digest }, implementation: { apiBundle: { digest } } }
-        : undefined;
-    const pre = {
-      harnessCommit: commit,
-      identity: { artifactDigest: digest },
-      policyDigest: digest,
-      ...(routingInterpreter ? { routingInterpreter } : {}),
-    };
-    write(`${phase}/independent-preexecution.json`, {
-      ...pre,
-      capturedBeforeGate: true,
-      capturedAt: "2026-11-03T12:00:00Z",
-    });
-    const transition =
-      phase === "eventCapability"
-        ? {
-            path: "independent-transition.json",
-            digest: write(`${phase}/independent-transition.json`, {
-              capturedBeforeFault: true,
-            }),
-          }
-        : undefined;
-    const callbackTransition = phase === "recipientCallback"
-      ? { path: "independent-callback-transition.json", digest: write(`${phase}/independent-callback-transition.json`, {
-          capturedBeforeFault: true,
-        }) }
-      : undefined;
-    let selectorAuthority;
-    if(phase==='selectorEventRow'){
-      selectorAuthority={...pre,
-        selectorEventCapture:{path:'independent-selector-capture.json',digest:write(`${phase}/independent-selector-capture.json`,{schemaVersion:1})},
-        selectorControllerTerminal:{path:'independent-controller-terminal.json',digest:write(`${phase}/independent-controller-terminal.json`,{schemaVersion:1,terminal:{code:0,signal:null}})}};
-      write(`${phase}/independent-selector-admission.json`,{schemaVersion:1,completedAfterController:true,expected:selectorAuthority});
-    }
-    write(`${phase}/promotion-expected.json`, {
-      ...(transition ? { eventTransition: transition } : {}),
-      ...(callbackTransition ? { callbackTransition } : {}),
-      ...pre,
-      ...(selectorAuthority??{}),
-      receiptArtifactDigest: digest,
-      evidenceManifestDigest: digest,
-    });
-    write(`${phase}/controller-terminal.json`, {
-      status: "completed",
-      cleanupComplete: true,
-      exitCode: phase === "ccd" ? 2 : 0,
-    });
-  }
-  write("ci-result.json", {
-    jobRunId: "ci-example",
-    status: "BLOCKED",
-    exitCode: 2,
-    cleanupComplete: true,
-    phaseResults: phases.map((phase) => ({
-      phase,
-      status: phase === "ccd" ? "BLOCKED" : "PASS",
-      exitCode: phase === "ccd" ? 2 : 0,
-      receiptArtifactDigest: digest,
-      ...(phase === "eventCapability"
-        ? {
-            eventTransition: JSON.parse(
-              fs.readFileSync(
-                path.join(root, "private", phase, "promotion-expected.json"),
-              ),
-            ).eventTransition,
-          }
-        : phase === "recipientCallback" ? {
-            callbackTransition: JSON.parse(fs.readFileSync(
-              path.join(root, "private", phase, "promotion-expected.json"),
-            )).callbackTransition,
-          } : {}),
-    })),
-  });
-  return {
-    root,
-    captured,
-    job: { output: root, expectedArtifactDigest: digest },
-    verdict: { status: "BLOCKED", exitCode: 2, continuationSafe: true },
-    write,
-  };
-}
+const {descriptorFixture:fixture}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
 test('default entrypoint does not attempt the explicitly qualified DIVORCE profile', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  const actual=runEntrypoint(fixture(t));
  assert.equal(actual.terminal.status,0,actual.terminal.stderr);
  assert.equal(actual.result.nativeStatus,'BLOCKED');
@@ -339,7 +238,7 @@ test('default entrypoint does not attempt the explicitly qualified DIVORCE profi
  assert.equal(actual.result.exitCode,2);
 });
 test('explicit profile output still attempts the strict profile and preserves its failure', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  const f=fixture(t),actual=runEntrypoint(f,{profileOutput:path.join(f.root,'profile')});
  assert.equal(actual.terminal.status,0,actual.terminal.stderr);
  assert.equal(actual.calls.filter(x=>x==='profile').length,1);
@@ -351,7 +250,7 @@ test('explicit profile output still attempts the strict profile and preserves it
  assert.equal(actual.result.exitCode,2);
 });
 test('an invalid explicit profile path cannot silently select main-only execution', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const profileOutput of ['', 'relative-profile']){
   const actual=runEntrypoint(fixture(t),{profileOutput});
   assert.equal(actual.terminal.status,0,actual.terminal.stderr);
@@ -361,7 +260,7 @@ test('an invalid explicit profile path cannot silently select main-only executio
  }
 });
 test('default entrypoint cancellation withdraws the report and launches no profile or diagnostics', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  const actual=runEntrypoint(fixture(t),{cancelNative:true});
  assert.equal(actual.terminal.status,0,actual.terminal.stderr);
  assert.equal(actual.result.exitCode,2);
@@ -614,7 +513,7 @@ test('late personal capture replacement cannot leave a stale public PASS after c
  assert.throws(()=>publishAssuranceSummary(f.job,f.captured,{exitCode:0,personalStatus:'PASS'}));assert.equal(validatePublicSummary(path.join(f.root,'public/release-assurance-summary.json')).status,'BLOCKED');
 });
 test('controlled former profile wiring cannot satisfy default personal order',t=>{
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const mutation of ['unconditional-profile','profile-only-preparation']){
   const actual=runEntrypoint(fixture(t),{mutation});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
   if(mutation==='unconditional-profile')assert.equal(actual.calls.filter(x=>x==='profile').length,1);
@@ -625,7 +524,7 @@ test('controlled former profile wiring cannot satisfy default personal order',t=
 
 
 test('fixed parent progress exposes only stage lifecycle and preserves closed failure identity',t=>{
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const closedPersonalFailure of [false,true]){
   const actual=runEntrypoint(fixture(t),{closedPersonalFailure});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
   assert.deepEqual(actual.progress.map(line=>line.replace(/ \(\d+s elapsed\)\.$/,'')),[
@@ -639,7 +538,7 @@ test('fixed parent progress exposes only stage lifecycle and preserves closed fa
 });
 
 test('controlled old callback omission fails the fixed progress lifecycle expectation',t=>{
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const mutation of ['omit-personal-progress','omit-collector-progress']){
   const actual=runEntrypoint(fixture(t),{mutation});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
   assert.equal(actual.calls.filter(x=>x==='personal').length,1);assert.equal(actual.calls.filter(x=>x.collect).length,1);
@@ -813,11 +712,14 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
  const manifest=path.join(root,'candidate.json'),jobPath=path.join(jobDirectory,'job.json'),output=path.join(jobDirectory,'native-output');
  fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify({schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)}));
  const launch=(flags,{tmpdir,preload}={})=>spawnSync(process.execPath,[...(preload?['--require',preload]:[]),'scripts/run-harness-assurance.mjs','--input',jobPath,...flags],{cwd:source,env:{PATH:process.env.PATH,...(tmpdir?{TMPDIR:tmpdir}:{})},encoding:'utf8',timeout:10_000});
- for(const flags of [[],['--st-cic','--aat']]){
+ for(const flags of [[],['--mandatory-email'],['--st-cic','--mandatory-email','--aat']]){
   const terminal=launch(flags);assert.equal(terminal.status,0,terminal.stderr);assert.equal(terminal.signal,null);
   const receipt=flags.includes('--st-cic')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'st-cic-cli-output.json'))):undefined;
   if(receipt)t.after(()=>fs.rmSync(receipt.directory,{recursive:true,force:true}));
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{})}});
+  const mandatoryReceipt=flags.includes('--mandatory-email')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'mandatory-email-cli-output.json'))):undefined;
+  if(mandatoryReceipt)t.after(()=>fs.rmSync(mandatoryReceipt.directory,{recursive:true,force:true}));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{})}});
+  if(mandatoryReceipt)fs.unlinkSync(path.join(jobDirectory,'mandatory-email-cli-output.json'));
   fs.unlinkSync(path.join(source,'cli-call.json'));
  }
  const terminal=launch(['--st-cic']);assert.equal(terminal.status,2);assert.match(terminal.stderr,/BLOCKED/);assert.equal(fs.existsSync(path.join(source,'cli-call.json')),false);assert.equal(fs.existsSync(output),false);
@@ -825,11 +727,11 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
  const allocations=path.join(root,'allocations.txt'),preload=path.join(root,'count-allocation.cjs');
  fs.writeFileSync(preload,`const fs=require('node:fs'),actual=fs.mkdtempSync;fs.mkdtempSync=(...args)=>{fs.appendFileSync(${JSON.stringify(allocations)},'called');return actual(...args);};`);
  const badTmp=path.join(fakeDeps,'tmp');fs.mkdirSync(badTmp);const dependencyBefore=fs.readdirSync(fakeDeps).sort();
- const unsafe=launch(['--st-cic'],{tmpdir:badTmp,preload});assert.equal(unsafe.status,2,unsafe.stderr);
+ for(const flag of ['--st-cic','--mandatory-email']){const unsafe=launch([flag],{tmpdir:badTmp,preload});assert.equal(unsafe.status,2,unsafe.stderr);}
  assert.equal(fs.existsSync(allocations),false,'reject before any mkdtemp under dependency input');assert.deepEqual(fs.readdirSync(fakeDeps).sort(),dependencyBefore);assert.deepEqual(fs.readdirSync(badTmp),[]);
  assert.equal(fs.existsSync(path.join(source,'cli-call.json')),false);assert.equal(fs.existsSync(path.join(jobDirectory,'st-cic-cli-output.json')),false);
  fs.unlinkSync(path.join(source,'node_modules'));const safeTmp=path.join(root,'safe-tmp');fs.mkdirSync(safeTmp);
- const missing=launch(['--st-cic'],{tmpdir:safeTmp,preload});assert.equal(missing.status,2,missing.stderr);assert.equal(fs.existsSync(allocations),false,'missing dependency root must fail before allocation');assert.deepEqual(fs.readdirSync(safeTmp),[]);
+ for(const flag of ['--st-cic','--mandatory-email']){const missing=launch([flag],{tmpdir:safeTmp,preload});assert.equal(missing.status,2,missing.stderr);}assert.equal(fs.existsSync(allocations),false,'missing dependency root must fail before allocation');assert.deepEqual(fs.readdirSync(safeTmp),[]);
 });
 
 test('combined assurance CLI preserves ST_CIC and the explicit held Build receipt without accepting malformed suffixes',async()=>{
