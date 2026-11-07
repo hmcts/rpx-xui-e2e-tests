@@ -349,6 +349,20 @@ test("support only: fixed event imports retain exact selected prepared workbook 
   );
 });
 
+test("support only: default role registration batches ordered HTTP requests and stops at the first rejected status",{timeout:10000},async t=>{
+ const {registerCcdUserRoles}=await runtime,{spawn,spawnSync}=require('node:child_process'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),state={containers:{client:'a'.repeat(64)}},roles=['caseworker','caseworker-harness','ccd-import'],log=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'ccd-role-batch-')),'requests.jsonl');
+ const serverSource=`const http=require('node:http'),fs=require('node:fs'),path=require('node:path');let statuses=[201,200,205,201,403,201];const server=http.createServer(async(req,res)=>{let raw='';for await(const chunk of req)raw+=chunk;fs.appendFileSync(process.argv[1],JSON.stringify({method:req.method,headers:req.headers,body:JSON.parse(raw)})+'\\n');res.statusCode=statuses.shift();res.end('ok');});server.listen(0,'127.0.0.1',()=>console.log('PORT='+server.address().port));`;
+ const server=spawn(process.execPath,['-e',serverSource,log],{stdio:['ignore','pipe','pipe']}),serverClosed=new Promise(resolve=>server.once('close',resolve));t.after(async()=>{if(server.exitCode===null)server.kill('SIGTERM');await serverClosed;fs.rmSync(path.dirname(log),{recursive:true,force:true});});
+ const port=await new Promise((resolve,reject)=>{server.once('error',reject);server.stdout.once('data',chunk=>resolve(Number(/PORT=(\d+)/.exec(chunk.toString())?.[1])));});assert(Number.isInteger(port)&&port>0);
+ const runDocker=(args,input,options)=>{assert.deepEqual(args.slice(0,6),['exec','-i',state.containers.client,'node','--input-type=module','-e']);assert.equal(options.timeout,180000);const body=JSON.parse(input);body.url=`http://127.0.0.1:${port}/api/user-role`;const result=spawnSync(process.execPath,args.slice(4),{input:JSON.stringify(body),encoding:'utf8',timeout:5000});if(result.error||result.status!==0)throw result.error??new Error(result.stderr);return result.stdout.trim();};
+ assert.deepEqual(registerCcdUserRoles(state,roles,{headers:{Authorization:'synthetic'},runDocker}),[201,200,205]);
+ assert.deepEqual(registerCcdUserRoles(state,roles,{headers:{Authorization:'synthetic'},runDocker}),[201,403]);
+ const requested=fs.readFileSync(log,'utf8').trim().split('\n').map(JSON.parse);
+ assert.deepEqual(requested.map(item=>item.body),[...roles,...roles.slice(0,2)].map(role=>({role,security_classification:'PUBLIC'})));
+ assert(requested.every(item=>item.method==='PUT'&&item.headers.authorization==='synthetic'&&item.headers['content-type']==='application/json'));
+ assert.throws(()=>registerCcdUserRoles(state,roles,{headers:{},runDocker:()=>JSON.stringify({statuses:[]})}),/CCD_ROLE_BATCH_RESULT_REQUIRED/);
+});
+
 for (const variant of ["baseline", "mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", "shape-recipient-collection-mutant"])
   test(
     "support only: real import function with fake transport validates source ACLs for " +

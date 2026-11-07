@@ -147,8 +147,8 @@ function fixtureSelection(
   return requested;
 }
 
-export function docker(args,input) {
- const result=spawnSync('docker',args,{input,encoding:'utf8',maxBuffer:32*1024*1024,timeout:90000});
+export function docker(args,input,options={}) {
+ const result=spawnSync('docker',args,{input,encoding:'utf8',maxBuffer:32*1024*1024,timeout:options.timeout??90000});
  if(result.error||result.status!==0) throw new Error(`DOCKER_COMMAND_FAILED ${args.slice(0,2).join(' ')} ${result.error?.message||result.stderr}`);
  return result.stdout.trim();
 }
@@ -171,6 +171,21 @@ export function ccdRequest(state,port,route,options={}) {
  if(![4451,4452,4453,4502,5000,...(state?.elasticsearch === true ? [9200] : [])].includes(port)||!route.startsWith('/')) throw new Error('INVALID_CCD_REQUEST_DESTINATION');
  const result=JSON.parse(docker(['exec','-i',state.containers.client,'node','--input-type=module','-e',transport],JSON.stringify({url:`http://127.0.0.1:${port}${route}`,...options})));
  try {result.body=JSON.parse(result.body);}catch{} return result;
+}
+const roleRegistrationTransport = `let raw='';for await(const chunk of process.stdin)raw+=chunk;const input=JSON.parse(raw),statuses=[];for(const role of input.roles){const response=await fetch(input.url,{method:'PUT',headers:{...input.headers,'content-type':'application/json'},body:JSON.stringify({role,security_classification:'PUBLIC'}),signal:AbortSignal.timeout(15000)});await response.text();statuses.push(response.status);if(![200,201,205].includes(response.status))break;}console.log(JSON.stringify({statuses}));`;
+export function registerCcdUserRoles(state,roles,{headers,request=ccdRequest,runDocker=docker}={}) {
+ if(request!==ccdRequest) {
+  const statuses=[];
+  for(const role of roles) {
+   const status=request(state,4451,'/api/user-role',{method:'PUT',headers,body:{role,security_classification:'PUBLIC'}}).status;
+   statuses.push(status);
+   if(![200,201,205].includes(status))break;
+  }
+  return statuses;
+ }
+ const observed=JSON.parse(runDocker(['exec','-i',state.containers.client,'node','--input-type=module','-e',roleRegistrationTransport],JSON.stringify({url:'http://127.0.0.1:4451/api/user-role',headers,roles}),{timeout:3*60_000}));
+ assert(Array.isArray(observed.statuses)&&observed.statuses.length>0&&observed.statuses.length<=roles.length,'CCD_ROLE_BATCH_RESULT_REQUIRED');
+ return observed.statuses;
 }
 const save=(state)=>fs.writeFileSync(path.join(state.output,'runtime.json'),JSON.stringify(state,null,2)+'\n');
 export async function startCcdRuntime(output,{runDocker=docker,request=ccdRequest,fixtureSelection:selection='nested-prl',isCancelled=()=>false,onCreateUncertainty=()=>{},platform='linux/arm64',elasticsearch=false,localCcdProfile,beforeCreate,inspectBeforeCreate=inspectHostContainer}={}) {
@@ -740,7 +755,7 @@ export function importCcdDefinition(
   const { file, binding } = prepared;
   verifyCcdContainerIdentity(state, inspectContainer);
   const observer = ccdCredentials(state, "observer", { request });
-  for (const role of [
+  const roles = [
     "caseworker",
     "caseworker-harness",
     "caseworker-harness-allowed",
@@ -748,15 +763,10 @@ export function importCcdDefinition(
     "caseworker-harness-denied",
     "ccd-import",
     ...(selection === "nested-prl" ? [] : Object.values(sourceActors)),
-  ]) {
-    const registered = request(state, 4451, "/api/user-role", {
-      method: "PUT",
-      headers: observer.headers,
-      body: { role, security_classification: "PUBLIC" },
-    });
-    if (![200, 201, 205].includes(registered.status))
-      throw new Error(`CCD_ROLE_FAILED_${registered.status}`);
-  }
+  ];
+  for (const status of registerCcdUserRoles(state,roles,{headers:observer.headers,request,runDocker}))
+    if (![200, 201, 205].includes(status))
+      throw new Error(`CCD_ROLE_FAILED_${status}`);
   const imported = request(state, 4451, "/import", {
     method: "POST",
     headers: observer.headers,
