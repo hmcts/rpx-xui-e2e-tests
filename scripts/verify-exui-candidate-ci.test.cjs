@@ -339,7 +339,7 @@ test("support only: independently recognized postal blockage permits the event s
   }
 });
 
-test("support only: actual event parent captures all eight fault runtimes before ACK and rejects partial preparation", async (t) => {
+test("support only: actual event parent captures all eleven fault runtimes before ACK and rejects partial preparation", async (t) => {
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
   const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS } = await import("./lib/exui-ccd-event-capability.mjs");
