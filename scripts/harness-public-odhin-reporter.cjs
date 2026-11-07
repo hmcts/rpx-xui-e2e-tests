@@ -206,7 +206,7 @@ function validateHtml(html, record, retiringPreviousRun = false) {
       if(!retiringPreviousRun){
         // Build collection/replay requires qualified Node24; diagnostics-only does not.
         if(process.versions.node.split('.')[0]!=='24')throw failure();
-        const actual=require('./run-harness-self-check-evidence.mjs').readHeldBuildSelfChecks(held);
+        const actual=require('./harness-build-self-check-report.cjs').readHeldBuildSelfChecksForReport(held);
         if(!require('node:util').isDeepStrictEqual(actual,record.buildSelfChecks))throw failure();
       }
     }

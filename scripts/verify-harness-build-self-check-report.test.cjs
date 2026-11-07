@@ -599,3 +599,65 @@ test('append-only purpose map retirement preserves genuine old schema2 report wh
  const forged=JSON.parse(oldRecord);forged.buildSelfChecks.purposeMapDigest='sha256:'+require('node:crypto').createHash('sha256').update(JSON.stringify({...map,files:map.files.slice(0,2)})).digest('hex');fs.writeFileSync(file,JSON.stringify(forged));assert.throws(()=>Reporter.resetPublicReport('harness'),/PUBLIC_ODHIN/);fs.writeFileSync(file,oldRecord);assert.deepEqual(fs.readFileSync(html),oldHtml);
  Reporter.resetPublicReport('harness');assert(!fs.existsSync(html));await publish(heldB);assert.equal(Reporter.validatePublicReport('harness').buildSelfChecks.selectedFiles,3);
 });
+
+
+test('genuine held Build readback survives installed Playwright transforms and rejects raw drift', async t => {
+  const fs = require('node:fs'), path = require('node:path'), cp = require('node:child_process');
+  const mock = require('./fixtures/exui-build-self-check.mock.cjs');
+  const f = await mock.buildSelfCheckFixture(t);
+  await f.api.runConfiguredSelfChecks();
+  const held = f.api.holdBuildSelfChecks(), expected = f.api.readHeldBuildSelfChecks(held);
+  const local = mock.fixturePublicReporter(f);
+  const helper = path.join(f.root, 'scripts/harness-build-self-check-report.cjs');
+  const transform = path.resolve(__dirname, '../node_modules/playwright/lib/common/index.js');
+  const callsBefore = fs.readFileSync(f.callsPath, 'utf8');
+  const program = `const assert=require('node:assert/strict');const fs=require('node:fs');const held=${JSON.stringify(held)};const helper=require(${JSON.stringify(helper)});require(${JSON.stringify(transform)}).transform.installTransformIfNeeded();const actual=helper.readHeldBuildSelfChecksForReport(held);assert.deepEqual(actual,${JSON.stringify(expected)});console.log('INSTALLED_TRANSFORM_HELD_READBACK_PASSED');`;
+  const result = cp.spawnSync(process.execPath, ['-e', program], { cwd:f.root, encoding:'utf8', timeout:20*1000 });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout.trim(), 'INSTALLED_TRANSFORM_HELD_READBACK_PASSED');
+  assert.equal(fs.readFileSync(f.callsPath, 'utf8'), callsBefore, 'metadata read never invokes the collector CLI or its owned test child');
+  for (const fault of ['digest', 'path', 'raw']) {
+    const value = structuredClone(held), request = JSON.parse(fs.readFileSync(JSON.parse(fs.readFileSync(held.path)).requestPath));
+    const raw = path.join(request.directory, 'raw-junit.xml'), before = fs.readFileSync(raw);
+    if (fault === 'digest') value.digest = 'sha256:'+'f'.repeat(64);
+    if (fault === 'path') value.path = path.join(path.dirname(held.path), 'held-00000000-0000-4000-8000-000000000000.json');
+    if (fault === 'raw') fs.appendFileSync(raw, ' ');
+    try { assert.throws(() => local.helper.readHeldBuildSelfChecksForReport(value), /HARNESS_BUILD_SELF_CHECK_REPORT_INVALID/, fault); }
+    finally { fs.writeFileSync(raw, before); }
+  }
+  assert.deepEqual(local.helper.readHeldBuildSelfChecksForReport(held), expected);
+});
+
+
+test('held Build metadata transport is fixed bounded and rejects malformed or interrupted child output', async t => {
+  const fs = require('node:fs'), path = require('node:path'), cp = require('node:child_process');
+  const mock = require('./fixtures/exui-build-self-check.mock.cjs'), f = await mock.buildSelfCheckFixture(t);
+  await f.api.runConfiguredSelfChecks();
+  const held = f.api.holdBuildSelfChecks(), expected = f.api.readHeldBuildSelfChecks(held), local = mock.fixturePublicReporter(f);
+  const original = cp.spawnSync, healthy = {status:0,signal:null,stdout:JSON.stringify({schemaVersion:1,value:expected})};
+  let reply = healthy, calls = 0;
+  try {
+    cp.spawnSync = (command, argv, options) => {
+      calls++;
+      assert.equal(command, process.execPath);assert.deepEqual(argv.slice(0,2), ['--input-type=module','-e']);assert.equal(argv.length,3);
+      assert(argv[2].includes('readHeldBuildSelfChecks'));assert(!argv[2].includes(held.path));
+      assert.deepEqual(JSON.parse(options.input),held);assert.equal(options.cwd,f.root);
+      assert.equal(options.timeout,20*1000);assert.equal(options.maxBuffer,256*1024);assert.equal(options.shell,undefined);
+      assert.deepEqual(Object.keys(options.env).sort(),['NODE_DISABLE_COMPILE_CACHE','PATH',...['HOME','TMPDIR'].filter(key=>process.env[key]!==undefined)].sort());
+      for(const key of ['HOME','TMPDIR'])assert.equal(options.env[key],process.env[key]);
+      return reply;
+    };
+    assert.deepEqual(local.helper.readHeldBuildSelfChecksForReport(held),expected);
+    for (const bad of [
+      {...healthy,error:Error('private canary')}, {...healthy,status:1,stderr:'private canary'},
+      {...healthy,signal:'SIGTERM'}, {...healthy,stdout:'not JSON'},
+      {...healthy,stdout:JSON.stringify({schemaVersion:1,value:expected,extra:true})},
+      {...healthy,stdout:JSON.stringify({schemaVersion:2,value:expected})},
+      {...healthy,stdout:JSON.stringify({schemaVersion:1,value:{...expected,selectedFiles:0}})},
+      {...healthy,stdout:'x'.repeat(256*1024+1)},
+    ]) {
+      reply=bad;assert.throws(()=>local.helper.readHeldBuildSelfChecksForReport(held),e=>e.message==='HARNESS_BUILD_SELF_CHECK_REPORT_INVALID');
+    }
+    const before=calls;assert.throws(()=>local.helper.readHeldBuildSelfChecksForReport({...held,extra:true}),/HARNESS_BUILD_SELF_CHECK_REPORT_INVALID/);assert.equal(calls,before);
+  } finally { cp.spawnSync=original; }
+});
