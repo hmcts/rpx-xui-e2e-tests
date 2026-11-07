@@ -191,6 +191,38 @@ function renderBuildSelfCheckWorkers(value,options){
   validateBuildSelfChecks(value,options);
   return `<tr data-build-node-workers="true"><th scope="row">Configured Node file workers</th><td>${value===undefined?'Not recorded (Build self-checks not collected)':value.configuredFileWorkers===undefined?'Not recorded':value.configuredFileWorkers+' maximum; not observed concurrency or Playwright workers'}</td></tr>`;
 }
+// Playwright transforms .mjs CJS requires and cannot compile import.meta. Read
+// through the SAME fixed ESM reader in a bounded native Node metadata process.
+function readHeldBuildSelfChecksForReport(held) {
+  try {
+    const path = require('node:path');
+    assert.equal(process.versions.node.split('.')[0], '24');
+    exact(held, ['path', 'digest']);
+    assert(typeof held.path === 'string' && path.isAbsolute(held.path) &&
+      path.normalize(held.path) === held.path &&
+      path.dirname(held.path) === path.resolve(__dirname, '../.harness-build-self-check') &&
+      /^held-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.json$/.test(path.basename(held.path)) &&
+      typeof held.digest === 'string' && /^sha256:[a-f0-9]{64}$/.test(held.digest));
+    const input = JSON.stringify(held);
+    assert(Buffer.byteLength(input) <= 4 * 1024);
+    const reader = require('node:url').pathToFileURL(path.join(__dirname, 'run-harness-self-check-evidence.mjs')).href;
+    const program = `import fs from 'node:fs';import {readHeldBuildSelfChecks} from ${JSON.stringify(reader)};const value=readHeldBuildSelfChecks(JSON.parse(fs.readFileSync(0,'utf8')));process.stdout.write(JSON.stringify({schemaVersion:1,value}));`;
+    const result = require('node:child_process').spawnSync(process.execPath, ['--input-type=module', '-e', program], {
+      cwd:path.resolve(__dirname, '..'), input, encoding:'utf8',
+      env:{PATH:process.env.PATH ?? '', ...Object.fromEntries(['HOME','TMPDIR'].filter(key=>process.env[key]!==undefined).map(key=>[key,process.env[key]])), NODE_DISABLE_COMPILE_CACHE:'1'},
+      timeout:20 * 1000, maxBuffer:256 * 1024, windowsHide:true,
+    });
+    assert(!result.error && result.status === 0 && result.signal === null);
+    assert(typeof result.stdout === 'string' && Buffer.byteLength(result.stdout) <= 256 * 1024);
+    const envelope = JSON.parse(result.stdout);
+    exact(envelope, ['schemaVersion', 'value']);
+    assert.equal(envelope.schemaVersion, 1);
+    validateBuildSelfChecks(envelope.value);
+    return envelope.value;
+  } catch {
+    throw Error('HARNESS_BUILD_SELF_CHECK_REPORT_INVALID');
+  }
+}
 function buildSelfCheckReporterOption(env) {
   const file = env.HARNESS_BUILD_SELF_CHECK_PATH,
     digest = env.HARNESS_BUILD_SELF_CHECK_DIGEST;
@@ -211,4 +243,5 @@ module.exports = {
   renderBuildSelfCheckDetails,
   renderBuildSelfCheckWorkers,
   buildSelfCheckReporterOption,
+  readHeldBuildSelfChecksForReport,
 };
