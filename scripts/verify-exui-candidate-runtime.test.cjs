@@ -760,3 +760,27 @@ test('provider root seals settle callback reads for missing or null artifact bef
     }
   }
 });
+
+test('standalone candidate launch emits browser identity from verified dependencies before host execution',async()=>{
+ const source=fs.readFileSync(path.join(__dirname,'run-harness-candidate.mjs'),'utf8'),open='async function launch() {',close='\n}\ntry {\n  await launch();';
+ assert.equal(source.split(open).length,2,'actual launch entry is unique');assert.equal(source.split(close).length,2,'actual launch/CLI boundary is unique');
+ const body=source.slice(source.indexOf(open)+open.length,source.indexOf(close)),AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+ for(const [version,platform,rejectDependencies]of [['1.65.0','linux/arm64',false],['1.66.2','linux/amd64',false],['1.65.0','linux/arm64',true]]){
+  const calls=[],writes=[],copies=[],artifact={candidateRoot:'/fixture/candidate',provenance:{platform}},dependencies={digest:'sha256:'+'d'.repeat(64),playwrightVersion:version},fakeProcess={env:{PATH:'controlled-fake-path'}},browsers={browsers:[{name:'chromium-headless-shell',revision:'1254'}]};
+  const bindings={root:'/harness',path,process:fakeProcess,console:{log:()=>calls.push('log')},arg:key=>({'--candidate':'/fixture/artifact.json','--browser':'/fixture/browser','--output':'/fixture/output'}[key]),getReleasePolicy:scope=>assert.equal(scope,'exui-wa-family-pilot'),
+   verifyCandidateArtifact:async file=>{assert.equal(file,'/fixture/artifact.json');calls.push('candidate-verified');return artifact;},
+   assertCandidateConfigurationSources:async(candidate,review)=>{assert.equal(candidate,artifact.candidateRoot);assert.deepEqual(review,{});calls.push('configuration-verified');},ROUTING_SCOPE:'exui-decentralised-routing-pilot',assertRoutingInterpreter:()=>assert.fail('unselected routing'),verifyHearingPublicationMutant:()=>assert.fail('unselected hearing'),
+   fs:{realpathSync:file=>file,readFileSync:file=>file.endsWith('exui-configuration-review.json')?'{}':file.endsWith('browsers.json')?JSON.stringify(browsers):'controlled source bytes',existsSync:file=>{assert.equal(file,'/fixture/browser/controlled-browser');return true;},mkdtempSync:prefix=>{assert.equal(prefix,'/fixture/tmp/exui-harness-sources-');calls.push('stage-created');return '/fixture/staged';},chmodSync:()=>{},mkdirSync:()=>{},copyFileSync:(from,to)=>copies.push([from,to])},os:{tmpdir:()=>'/fixture/tmp'},
+   createFreshHarnessOutput:(output,readOnly)=>{assert.equal(output,'/fixture/output');assert.deepEqual(readOnly,['/fixture/candidate','/fixture/artifact.json','/fixture/browser','/harness/node_modules']);return output;},
+   spawnSync:(command,args)=>{assert.equal(command,'git');return {status:0,stdout:args[0]==='rev-parse'?'b'.repeat(40)+'\n':''};},
+   browserExecutable:(value,selectedPlatform)=>{assert.deepEqual(value,browsers);assert.equal(selectedPlatform,platform);return 'controlled-browser';},digestCandidateTree:async root=>{assert.equal(root,'/fixture/browser');calls.push('browser-verified');return 'sha256:'+'c'.repeat(64);},
+   verifyHarnessDependencies:async(...args)=>{assert.deepEqual(args,['/harness/node_modules','/harness/package.json','/harness/yarn.lock']);calls.push('dependencies-verified');if(rejectDependencies)throw Error('CONTROLLED_DEPENDENCY_REJECTION');return dependencies;},
+   HARNESS_SOURCE_FILES:['scripts/run-harness-candidate.mjs','package.json'],digestBytes:()=> 'sha256:'+'e'.repeat(64),randomUUID:()=> '00000000-0000-4000-8000-000000000000',
+   writeJsonAtomic:(file,value)=>{assert.equal(file,'/fixture/output/input.json');assert.strictEqual(value.harnessDependencies,dependencies);assert(calls.includes('dependencies-verified'));writes.push(structuredClone(value));calls.push('input-written');},
+   runNativeHostPhase:async(output,stage)=>{assert.equal(output,'/fixture/output');assert.equal(stage,'/fixture/staged');assert.equal(writes.length,1);assert.equal(copies.length,2);calls.push('host');return {exitCode:0};}
+  };
+  const launch=new AsyncFunction('bindings',`const {${Object.keys(bindings).join(',')}}=bindings;\n${body}`);
+  if(rejectDependencies){await assert.rejects(launch(bindings),/CONTROLLED_DEPENDENCY_REJECTION/);assert.deepEqual(writes,[]);assert.deepEqual(copies,[]);assert(!calls.includes('host'));continue;}
+  await launch(bindings);assert.equal(fakeProcess.exitCode,0);assert.equal(writes[0].browserVersion,['playwright',version,'chromium','1254',...platform.split('/')].join('-'));assert.equal(writes[0].harnessDependencies.playwrightVersion,version);assert(calls.indexOf('dependencies-verified')<calls.indexOf('input-written'));assert(calls.indexOf('input-written')<calls.indexOf('host'));
+ }
+});

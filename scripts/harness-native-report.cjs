@@ -553,7 +553,7 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
       const label = labelFor(proof.proofId, phase.phase);
       postalBlocked ||= proof.failureId === "postal-required-fields";
       baselineRows.push(
-        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="baseline"><th scope="row">${escape(label.slice)}<p>${escape(label.behaviour)}</p></th>${scopeCells(label)}<td>${badge(proof.status, proof.status === "passed")} ${proof.failureId ? `<small>Failure: ${escape(proof.failureId)}</small>` : ""}</td><td>${proofDetails(label, proof, phase, label.behaviour, proof.status)}</td></tr>`,
+        `<tbody data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="baseline"><tr data-native-phase="${escape(phase.phase)}"><th scope="row">${escape(label.slice)}<p>${escape(label.behaviour)}</p></th>${scopeCells(label)}<td>${badge(proof.status, proof.status === "passed")} ${proof.failureId ? `<small>Failure: ${escape(proof.failureId)}</small>` : ""}</td><td>Evidence and limits below</td></tr><tr class="harness-native-detail"><td colspan="5">${proofDetails(label, proof, phase, label.behaviour, proof.status)}</td></tr></tbody>`,
       );
     }
     for (const fault of phase.faults) {
@@ -562,12 +562,12 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
         throw new Error("PUBLIC_ODHIN_UNKNOWN_NATIVE_FAULT");
       const observed = fault.outcome === "expected-failure-observed";
       faultRows.push(
-        `<tr data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="fault"><th scope="row">${escape(label.slice)}<p>${escape(faults[fault.mutationId])}</p></th>${scopeCells(label)}<td>${badge(observed ? "Expected failure observed" : "BLOCKED — invalid witness", observed)}<p>Baseline: ${escape(fault.baselineStatus)}<br>Required failure: ${escape(fault.expectedFailureId)}<br>Observed failure: ${escape(fault.observedFailureId || "not established")}</p></td><td>${proofDetails(label, fault, phase, faults[fault.mutationId], observed ? "Expected failure observed" : "BLOCKED — invalid witness")}</td></tr>`,
+        `<tbody data-native-row data-native-phase="${escape(phase.phase)}" data-native-kind="fault"><tr data-native-phase="${escape(phase.phase)}"><th scope="row">${escape(label.slice)}<p>${escape(faults[fault.mutationId])}</p></th>${scopeCells(label)}<td>${badge(observed ? "Expected failure observed" : "BLOCKED — invalid witness", observed)}<p>Baseline: ${escape(fault.baselineStatus)}<br>Required failure: ${escape(fault.expectedFailureId)}<br>Observed failure: ${escape(fault.observedFailureId || "not established")}</p></td><td>Evidence and limits below</td></tr><tr class="harness-native-detail"><td colspan="5">${proofDetails(label, fault, phase, faults[fault.mutationId], observed ? "Expected failure observed" : "BLOCKED — invalid witness")}</td></tr></tbody>`,
       );
     }
   }
   const table = (id, title, rows) =>
-    `<section data-native-table="${id}"><h3>${title}</h3><div class="table-responsive"><table class="table harness-native-table"><thead><tr><th>Slice / tested behaviour</th><th>Service / jurisdiction</th><th>Actual case type</th><th>Result</th><th>Evidence</th></tr></thead><tbody>${rows.join("")}</tbody></table></div></section>`;
+    `<section data-native-table="${id}"><h3>${title}</h3><div class="table-responsive"><table class="table harness-native-table"><thead><tr><th>Slice / tested behaviour</th><th>Service / jurisdiction</th><th>Actual case type</th><th>Result</th><th>Evidence</th></tr></thead>${rows.join("")}</table></div></section>`;
   return `<section id="harness-native-evidence" data-native-status="${escape(evidence.status)}" data-native-evidence-sha256="${objectDigest(evidence)}"><h2>Actual candidate and CCD evidence ${badge(evidence.status, evidence.status === "PASS")}</h2><p>Core native: ${count.baselines} baseline proof results + ${count.faults} deliberate fault checks, counted separately from diagnostic tests. Optional profile executions are reported in their own sections and are not included in these core totals. Expected failures demonstrate that a check detects a declared fault; they are not product test failures. Invalid witnesses provide no fault-detection credit.</p>${postalBlocked ? '<div class="alert alert-danger" data-native-postal-blocked><strong>Postal proof BLOCKED.</strong> The second recipient reached Check your answers with its required postcode blank. Later postal navigation/persistence and the intended postal-persistence fault check are not established.</div>' : ""}<div class="harness-filters"><label>Native slice<select data-native-filter="phase"><option value="">All native slices</option>${Object.entries(
     phaseLabels,
   )

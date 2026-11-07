@@ -1830,3 +1830,11 @@ test('postal actual detail validates exact table note and proof owner against co
   const changed=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,fault);fs.writeFileSync(output(),html);fs.writeFileSync(file,original);
  }
 });
+
+test('native proof owner groups contain one counted summary and one full-width semantic detail row',async()=>{
+ const {renderNativeEvidence}=require(process.env.NATIVE_DETAIL_RENDERER_TEST_MODULE??'./harness-native-report.cjs'),{parse}=require('node-html-parser'),evidence=await nativePresentationFixture(false),dom=parse(renderNativeEvidence(evidence));
+ const owners=dom.querySelectorAll('[data-native-row]');assert.equal(owners.length,46);
+ assert.equal(dom.querySelectorAll('[data-native-table="baseline"] tr[data-native-phase]').length,23);
+ assert.equal(dom.querySelectorAll('[data-native-table="fault"] tr[data-native-phase]').length,23);
+ for(const owner of owners){assert.equal(owner.tagName,'TBODY');const rows=owner.children;assert.equal(rows.length,2);assert(rows.every(row=>row.tagName==='TR'));assert.equal(rows[0].children.length,5);assert.equal(rows[0].getAttribute('data-native-phase'),owner.getAttribute('data-native-phase'));assert.equal(rows[1].hasAttribute('data-native-phase'),false);assert.equal(rows[1].children.length,1);assert.equal(rows[1].children[0].getAttribute('colspan'),'5');assert.equal(rows[0].querySelectorAll('details').length,0);assert.equal(rows[1].querySelectorAll('details').length,1);assert.equal(owner.querySelectorAll('details dl').length,1);}
+});

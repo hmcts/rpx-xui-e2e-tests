@@ -593,7 +593,7 @@ for (const postalFailure of [false, true]) {
     const { renderNativeEvidence } = require('./harness-native-report.cjs');
     const { escape } = require('./harness-report-coverage.cjs');
     const html = renderNativeEvidence(evidence);
-    const rows = [...html.matchAll(/<tr data-native-row\b[^>]*>[\s\S]*?<\/tr>/g)].map(match => match[0]);
+    const rows = require('node-html-parser').parse(html).querySelectorAll('[data-native-row]').map(row => row.toString());
     assert.equal(rows.length, 46);
     const disclosure = 'Per-step execution trace and per-test duration: Not recorded in this evidence.';
     for (const row of rows) {

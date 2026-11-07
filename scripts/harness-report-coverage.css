@@ -295,9 +295,45 @@
   margin-top: 1rem;
 }
 .harness-native-table {
-  min-width: 950px;
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
 }
-.harness-native-table th:first-child {
+.harness-native-table > tbody > tr > :is(th, td) {
+  overflow-wrap: anywhere;
+}
+.harness-native-detail > td {
+  padding: 0.75rem;
+}
+.harness-native-detail table {
+  width: 100%;
+  table-layout: fixed;
+  overflow-wrap: normal;
+}
+.harness-native-detail [data-native-postal-detail] th:nth-child(1) { width: 6%; }
+.harness-native-detail [data-native-postal-detail] th:nth-child(2) { width: 34%; }
+.harness-native-detail [data-native-postal-detail] th:nth-child(3) { width: 18%; }
+.harness-native-detail [data-native-postal-detail] th:nth-child(4) { width: 26%; }
+.harness-native-detail [data-native-postal-detail] th:nth-child(5) { width: 16%; }
+.harness-native-detail [data-native-stage-proof] th:nth-child(1) { width: 6%; }
+.harness-native-detail [data-native-stage-proof] th:nth-child(2) { width: 22%; }
+.harness-native-detail [data-native-stage-proof] th:nth-child(3) { width: 8%; }
+.harness-native-detail [data-native-stage-proof] th:nth-child(4) { width: 40%; }
+.harness-native-detail [data-native-stage-proof] th:nth-child(5) { width: 16%; }
+.harness-native-detail [data-native-stage-proof] th:nth-child(6) { width: 8%; }
+@media (max-width: 600px) {
+  .harness-native-detail table { font-size: 12px; }
+  .harness-native-detail table th,
+  .harness-native-detail table td { padding: 0.35rem 0.2rem; }
+  .harness-native-detail table th { overflow-wrap: anywhere; }
+  .harness-native-detail [data-native-stage-proof] td { overflow-wrap: anywhere; }
+  .harness-native-detail [data-native-postal-detail] th:nth-child(1) { width: 8%; }
+  .harness-native-detail [data-native-postal-detail] th:nth-child(2) { width: 28%; }
+  .harness-native-detail [data-native-postal-detail] th:nth-child(3) { width: 22%; }
+  .harness-native-detail [data-native-postal-detail] th:nth-child(4) { width: 24%; }
+  .harness-native-detail [data-native-postal-detail] th:nth-child(5) { width: 18%; }
+}
+.harness-native-table > thead > tr > th:first-child {
   width: 30%;
 }
 .harness-native-table th p {
