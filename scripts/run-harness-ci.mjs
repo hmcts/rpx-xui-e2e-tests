@@ -91,6 +91,28 @@ export function fixedCiPhasesPassed(results) {
   return results.length === phases.length && results.every((result, index) => result.phase === phases[index] && result.status === 'PASS');
 }
 
+export async function startEventCapabilityFaults(invocations, start, alive) {
+  const started = [], cancellation = new AbortController();
+  for (let index = 0; index < invocations.length; index += 2) {
+    const batch = invocations.slice(index, index + 2);
+    const results = await Promise.allSettled(batch.map(async invocation => {
+      try {
+        if (!alive()) throw new Error("CI_EVENT_TRANSITION_CANCELLED");
+        const result = await start(invocation, () => alive() && !cancellation.signal.aborted);
+        if (!alive() || cancellation.signal.aborted) throw new Error("CI_EVENT_TRANSITION_CANCELLED");
+        return result;
+      } catch (error) {
+        cancellation.abort();
+        throw error;
+      }
+    }));
+    const failed = results.find(result => result.status === "rejected");
+    if (failed) throw failed.reason;
+    started.push(...results.map(result => result.value));
+  }
+  return started;
+}
+
 export async function runFixedCiPilots(operations) {
   const progress = operations.progress ?? ((_label, operation) => operation());
   const results = [];
@@ -408,11 +430,14 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
                 const removalFile = path.join(directory, "baseline-removal.json");
                 writeJsonAtomic(removalFile, removal);
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
-                const records = [], faults = [], states = [handoff.input.ccd];
-                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS]) {
-                  assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                const invocationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
+                const runtimes = await startEventCapabilityFaults(invocationIds, async (invocationId, faultAlive) => {
                   const variant = eventCapabilityFaultVariant(invocationId);
-                  const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
+                  return { invocationId, variant, fault: eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, faultAlive, resource)) };
+                }, alive);
+                const records = [], faults = [], states = [handoff.input.ccd];
+                for (const { invocationId, variant, fault } of runtimes) {
+                  assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                   const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId,
                     requestDigest: digestBytes(JSON.stringify(request)), ...fault };
                   const selected = selectEventCapabilityRuntime(handoff.input, invocationId, record);

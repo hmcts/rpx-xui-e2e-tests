@@ -339,7 +339,7 @@ test("support only: independently recognized postal blockage permits the event s
   }
 });
 
-test("support only: actual event parent captures all eight fault runtimes before ACK and rejects partial preparation", async (t) => {
+test("support only: actual event parent captures all eleven fault runtimes before ACK and rejects partial preparation", async (t) => {
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
   const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS } = await import("./lib/exui-ccd-event-capability.mjs");
@@ -359,6 +359,7 @@ test("support only: actual event parent captures all eight fault runtimes before
     const deps = {
       assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {}, cancelled: false,
       EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS, eventCapabilityFaultVariant,
+      startEventCapabilityFaults: async (invocations, start, alive) => { const values = []; for (const invocation of invocations) { if (!alive()) throw Error("CI_EVENT_TRANSITION_CANCELLED"); values.push(await start(invocation, alive)); } return values; },
       resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
       readEventBaselineCheckpoint: () => { step("checkpoint"); return { checkpointDigest: digest("b") }; },
@@ -408,8 +409,10 @@ test("support only: actual event parent captures all eight fault runtimes before
     else await run(request, handoff);
     for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "start-courtadmin-update-mutant", "owned-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.flatMap(id => [`start-shape-${id.slice(10)}-mutant`, `owned-shape-${id.slice(10)}-mutant`]), "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant", "ack-readonly-update-mutant", "ack-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `ack-shape-${id.slice(10)}-mutant`)];
-    const count = stoppedAt === "cancel-after-read" ? 7 : stoppedAt?.startsWith("reused-") ? 6 : order.indexOf(stoppedAt) + 1;
+    const starts = ["start-mutant", "start-read-mutant", "start-readonly-read-mutant", "start-readonly-update-mutant", "start-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `start-shape-${id.slice(10)}-mutant`)];
+    const owned = ["owned-mutant", "owned-read-mutant", "owned-readonly-read-mutant", "owned-readonly-update-mutant", "owned-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `owned-shape-${id.slice(10)}-mutant`)];
+    const order = ["checkpoint", "native-removed", "ccd-removed", ...starts, ...owned, "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant", "ack-readonly-update-mutant", "ack-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `ack-shape-${id.slice(10)}-mutant`)];
+    const count = stoppedAt === "reused-owner" || stoppedAt === "reused-cid" ? order.indexOf("owned-read-mutant") : (stoppedAt === "cancel-after-read" ? order.indexOf("start-read-mutant") : order.indexOf(stoppedAt)) + 1;
     assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0, count));
   }
 });
@@ -1520,6 +1523,36 @@ test('actual callback parent removes baseline and captures fresh fault ownership
   assert.equal(fixedCiPhasesPassed([...prior,{phase:'recipientCallback',status:'PASS'},{phase:'selectorEventRow',status:'BLOCKED'}]),false);
   assert.equal(fixedCiPhasesPassed([...prior,{phase:'routing',status:'PASS'}]),false);
   assert.equal(fixedCiPhasesPassed([...prior].reverse().concat({phase:'recipientCallback',status:'PASS'})),false);
+});
+
+test('event fault runtimes start two at a time and retain canonical evidence order', async () => {
+  const { startEventCapabilityFaults } = await import('./run-harness-ci.mjs');
+  const invocations = Array.from({ length: 11 }, (_, index) => `fault-${index}`), starts = [];
+  let active = 0, maximum = 0;
+  const results = await startEventCapabilityFaults(invocations, async invocation => {
+    starts.push(invocation); maximum = Math.max(maximum, ++active);
+    await new Promise(resolve => setImmediate(resolve));
+    active--; return { invocation };
+  }, () => true);
+  assert.deepEqual(starts, invocations);
+  assert.deepEqual(results.map(result => result.invocation), invocations);
+  assert.equal(maximum, 2);
+  assert.equal(active, 0);
+});
+
+test('event fault startup cancels and joins its sibling before refusing later faults', async () => {
+  const { startEventCapabilityFaults } = await import('./run-harness-ci.mjs');
+  const started = [], expected = new Error('controlled event startup failure');
+  let siblingJoined = false;
+  await assert.rejects(startEventCapabilityFaults(['first', 'sibling', 'later'], async (invocation, alive) => {
+    started.push(invocation);
+    if (invocation === 'first') { await new Promise(resolve => setImmediate(resolve)); throw expected; }
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(alive(), false, 'a sibling observes the latched cancellation');
+    siblingJoined = true; return 'settled';
+  }, () => true), error => error === expected);
+  assert.deepEqual(started, ['first', 'sibling']);
+  assert.equal(siblingJoined, true, 'failure waits for the in-flight sibling to settle');
 });
 
 function eventPreparationDeferred() {
