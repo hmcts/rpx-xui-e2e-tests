@@ -44,7 +44,7 @@ export async function executeComplexSourceProof(inputs,output,{signal,log,launch
 }
 export async function runComplexEmailCohort({candidate,browser,output,sourceInputs,signal,admissionContext,admissionContractDigest,runId},operations={}){
  let ownedOutput,phase='preflight';
- const controller=new AbortController(),cancel=()=>controller.abort(),expected={contexts:{}},summary={kind:'complex-email-noncredit-cohort',status:'BLOCKED',...COMPLEX_FLAGS};
+ const controller=new AbortController();let cancelled=false;const cancel=()=>{cancelled=true;controller.abort();},expected={contexts:{}},summary={kind:'complex-email-noncredit-cohort',status:'BLOCKED',...COMPLEX_FLAGS};
  process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
  const active=()=>assert(!controller.signal.aborted&&!signal?.aborted,'COMPLEX_COHORT_CANCELLED');
  const producer=operations.producer??complexProducer,inspect=operations.inspect??inspectHostContainer;
@@ -56,25 +56,30 @@ export async function runComplexEmailCohort({candidate,browser,output,sourceInpu
   if(admissionContext){assert(/^complex-[a-f0-9-]{36}$/.test(runId)&&/^sha256:[a-f0-9]{64}$/.test(admissionContractDigest),fail);expected.runId=runId;expected.admissionContext=structuredClone(admissionContext);}
   writeJsonAtomic(path.join(output,'parent-input.json'),{producer:expected.producer,candidate:artifact,...(admissionContext?{runId,admissionContext:expected.admissionContext,admissionContractDigest}:{}),...COMPLEX_FLAGS});
   if(admissionContext)expected.inputDigest=complexPin(output,'parent-input.json');
+  let sourcePhase='source-input-verification',firstFailure;
+  const noteFailure=(stage,error)=>{firstFailure??={stage,error};controller.abort();};
   for(const variant of ['baseline','email-type']){
-   active();phase='browser-'+variant;const directory=path.join(output,'browser-'+variant);
+   active();const directory=path.join(output,'browser-'+variant);
    await browserRun({candidate,browser,output:directory,variant,scenario:'complex-email-text',signal:controller.signal,complexLifecycle:createComplexCapture('browser',expected,{active,inspect,ownerEmpty})});
    active();assert(expected.contexts['browser-'+variant]?.closed?.observedAbsent===true,fail);
   }
-  active();phase='mapping-pair';const mapping=path.join(output,'mapping');fs.mkdirSync(mapping,{mode:0o700});
-  await mappingRun(mapping,{isCancelled:()=>controller.signal.aborted,complexLifecycle:createComplexCapture('mapping',expected,{active,inspect,ownerEmpty})});
-  active();assert(['mapping-baseline','mapping-searchable'].every(key=>expected.contexts[key]?.closed?.observedAbsent),fail);
+  active();const mapping=path.join(output,'mapping');fs.mkdirSync(mapping,{mode:0o700});
+  const sourceOutput=path.join(output,'source-proof'),{prepared,tools}=expected.sourcePreparation;
+  try{for(const item of [...Object.values(prepared),...tools])if(item.digest!==null)assert.equal(digestBytes(fs.readFileSync(item.path)),item.digest,fail);}catch(error){throw Object.assign(error,{failedStage:sourcePhase});}
   assert.deepEqual(producer(),expected.producer,fail);
-  phase='source-input-verification';const sourceOutput=path.join(output,'source-proof'),log=fs.openSync(path.join(output,'source-proof.log'),'wx',0o600);
-  try{
-   const {prepared,tools}=expected.sourcePreparation;for(const item of [...Object.values(prepared),...tools])if(item.digest!==null)assert.equal(digestBytes(fs.readFileSync(item.path)),item.digest,fail);
-   active();phase='source-proof';const terminal=await sourceRun(sourceInputs,sourceOutput,{signal:controller.signal,log});active();
-   assert(terminal.started===true&&Number.isSafeInteger(terminal.pid)&&terminal.pid>0&&terminal.observed===true&&terminal.forced===false&&!terminal.cancelled&&terminal.code===0&&terminal.signal===null,fail);
-   expected.sourceProof={directory:sourceOutput,prepared,tools,terminal,files:complexPins(sourceOutput,['definition-image-binding.json','image-inputs.json','class-proof/preexecution.json','class-proof/result.json','class-proof/compiler-shutdown.json','class-proof/compiler-version-shutdown.json'])};
-  }finally{fs.closeSync(log);}
-  active();assert.deepEqual(producer(),expected.producer,fail);
+  active();sourcePhase='source-proof';const log=fs.openSync(path.join(output,'source-proof.log'),'wx',0o600);
+  const source=async()=>{try{
+    const terminal=await sourceRun(sourceInputs,sourceOutput,{signal:controller.signal,log});active();
+    assert(terminal.started===true&&Number.isSafeInteger(terminal.pid)&&terminal.pid>0&&terminal.observed===true&&terminal.forced===false&&!terminal.cancelled&&terminal.code===0&&terminal.signal===null,fail);
+    expected.sourceProof={directory:sourceOutput,prepared,tools,terminal,files:complexPins(sourceOutput,['definition-image-binding.json','image-inputs.json','class-proof/preexecution.json','class-proof/result.json','class-proof/compiler-shutdown.json','class-proof/compiler-version-shutdown.json'])};
+  }catch(error){noteFailure(sourcePhase,error);throw error;}finally{fs.closeSync(log);}};
+  const runtime=async()=>{try{const result=await mappingRun(mapping,{isCancelled:()=>controller.signal.aborted,complexLifecycle:createComplexCapture('mapping',expected,{active,inspect,ownerEmpty})});assert.equal(result?.status,'observed',fail);active();assert(['mapping-baseline','mapping-searchable'].every(key=>expected.contexts[key]?.closed?.observedAbsent),fail);}catch(error){noteFailure('mapping-pair',error);throw error;}};
+  const outcomes=await Promise.allSettled([source(),runtime()]);
+  if(firstFailure)throw Object.assign(firstFailure.error,{failedStage:firstFailure.stage});
+  const rejected=outcomes.find(outcome=>outcome.status==='rejected');if(rejected)throw rejected.reason;
+  phase='runtime-join';active();assert.deepEqual(producer(),expected.producer,fail);
   phase='raw-reader';await new Promise(resolve=>setImmediate(resolve));active();const verdict=(operations.read??readComplexCohort)(output,expected,{active,inspect,ownerEmpty});await new Promise(resolve=>setImmediate(resolve));active();Object.assign(summary,verdict);
- }catch{summary.failedStage=phase;summary.status=controller.signal.aborted||signal?.aborted?'CANCELLED':'BLOCKED';}
+ }catch(error){summary.failedStage=error.failedStage??phase;summary.status=cancelled||signal?.aborted?'CANCELLED':'BLOCKED';}
  finally{process.off('SIGINT',cancel);process.off('SIGTERM',cancel);signal?.removeEventListener('abort',cancel);}
  if(ownedOutput)writeJsonAtomic(path.join(ownedOutput,'complex-cohort-result.json'),summary);
  return {result:summary,expected};
