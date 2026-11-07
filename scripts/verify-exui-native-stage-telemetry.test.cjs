@@ -143,10 +143,10 @@ test("actual browser-free Playwright1.65 events preserve completed/skipped/error
     ),
     report = path.join(privateRoot, "report.json"),
     context = path.join(privateRoot, "context.json");
-  fs.writeFileSync(context, "{}", { mode: 0o600 });
+  fs.writeFileSync(context, JSON.stringify({runId:"synthetic-event-run",invocationId:"synthetic-event-invocation"}), { mode: 0o600 });
   fs.writeFileSync(
     path.join(dir, "smoke.spec.cjs"),
-    require("./fixtures/exui-native-stage-telemetry.mock.cjs").browserFreeSpec + require("./fixtures/exui-native-stage-telemetry.mock.cjs").postalBrowserFreeSpec,
+    require("./fixtures/exui-native-stage-telemetry.mock.cjs").browserFreeSpec + require("./fixtures/exui-native-stage-telemetry.mock.cjs").postalBrowserFreeSpec + require("./fixtures/exui-native-stage-telemetry.mock.cjs").scalarBrowserFreeSpec,
   );
   const config = path.join(dir, "playwright.config.cjs");
   fs.writeFileSync(
@@ -188,7 +188,7 @@ test("actual browser-free Playwright1.65 events preserve completed/skipped/error
   assert(!terminal.error);
   const raw = JSON.parse(fs.readFileSync(report));
   assert.deepEqual(raw.globalErrors, []);
-  assert.equal(raw.tests.length, 8);
+  assert.equal(raw.tests.length, 11);
   const [healthy, fault, unknown] = raw.tests;
   assert.equal(healthy.status, "passed");
   assert.equal(healthy.recordedExecution.stages.length, 9);
@@ -214,6 +214,9 @@ test("actual browser-free Playwright1.65 events preserve completed/skipped/error
   assert.equal(actionFault.failureId,null);assert.equal(actionFault.unattributedErrors,1);assert.equal(actionFault.recordedDetail.groups.length,1);
   assert.equal(skipped.recordedDetail.groups[0].outcome,'skipped');assert.equal(skipped.recordedDetail.groups[1].outcome,'reported-error');
   assert.equal(wholeSkip.status,'skipped');assert.equal(wholeSkip.recordedDetail.availability,'unavailable');
+  const [scalar,missingScalar]=raw.tests.slice(8);
+  assert.equal(scalar.failureId,'nested-persistence');assert.equal(scalar.businessScalars.scalars.recipientCount.value,1);assert.equal(scalar.businessScalars.scalars.emailAddressPresent.value,false);assert.equal(missingScalar.businessScalars.availability,'unavailable');
+  const measuredIa=raw.tests[10];assert.equal(measuredIa.failureId,'organisation-scope');assert.deepEqual(measuredIa.businessScalars.scalars.visibleServices.value,['IA','CIVIL']);assert.equal(measuredIa.businessScalars.scalars.responseStatus.state,'not-reached');
   assert.equal(require("@playwright/test/package.json").version, "1.65.0");
 });
 test("finite stage catalogue covers exactly the current core baseline and mutation proof inventory", async () => {

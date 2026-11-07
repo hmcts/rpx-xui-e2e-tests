@@ -211,9 +211,15 @@ function validateHtml(html, record, retiringPreviousRun = false) {
       }
     }
   }
+  const hasBusiness=record.nativeEvidence?.phases.some(p=>[...p.baselineProofs,...p.faults].some(proof=>proof.businessScalars!==undefined));
+  if(!Object.hasOwn(record,'nativeBusinessScalarHeld')){
+    if(!retiringPreviousRun||hasBusiness)throw failure();
+  }else if(record.nativeEvidence){
+    require('./lib/exui-business-scalar-detail.cjs').assertHeldProjection(record.nativeBusinessScalarHeld,record.nativeEvidence,{retiringPreviousRun});
+  }else if(record.nativeBusinessScalarHeld!==null)throw failure();
   validateAssuranceTiming(record.assuranceTiming);
   const buildReport=require('./harness-build-self-check-report.cjs');
-  const buildOptions={retiringPreviousRun:legacyBuild};
+  const buildOptions={retiringPreviousRun};
   buildReport.validateBuildSelfChecks(record.buildSelfChecks,buildOptions);
   const buildDom=parse(html),buildSummary=buildDom.querySelectorAll('[id="harness-build-self-check-summary"]'),buildDetails=buildDom.querySelectorAll('[id="harness-build-self-check-details"]');
   if(!(retiringPreviousRun&&record.buildSelfChecks===undefined&&buildSummary.length===0&&buildDetails.length===0)){
@@ -354,6 +360,12 @@ function validateHtml(html, record, retiringPreviousRun = false) {
     if(expectedRows.length!==observedRows.length)throw failure();
     const previousTable=table=>{const copy=parse(table.toString()).firstChild;copy.removeAttribute('data-native-stage-proof');copy.querySelectorAll('tr').forEach(row=>row.childNodes.filter(node=>node.tagName==='TH'||node.tagName==='TD')[3]?.remove());copy.querySelectorAll('thead th')[3].textContent='Recorded outcome';return copy;};
     const previousNote=note=>{const copy=parse(note.toString()).firstChild;copy.removeAttribute('data-native-stage-note');copy.textContent=copy.textContent.split(' Expected contracts below')[0];return copy;};
+    const businessSelectors=['[data-native-business-scalars]','[data-native-business-note]'];
+    for(const selector of businessSelectors)if(!sameNodes(complexDom.querySelectorAll(selector),nativePresentation.querySelectorAll(selector)))throw failure();
+    const businessHeader='Business scalar|Source-defined expected|Actually observed|Scalar interpretation';
+    if(complexDom.querySelectorAll('table').filter(table=>table.querySelectorAll('thead th').map(cell=>cell.textContent).join('|')===businessHeader).length!==nativePresentation.querySelectorAll('[data-native-business-scalars]').length)throw failure();
+    if(complexDom.querySelectorAll('p').filter(node=>node.textContent.startsWith('Business scalar observations:')).length!==nativePresentation.querySelectorAll('[data-native-business-note]').length)throw failure();
+    let scopedBusiness=0;
     const postalSelectors=['[data-native-postal-detail]','[data-native-postal-note]','[data-native-postal-heading]'];
     for(const selector of postalSelectors) if(!sameNodes(complexDom.querySelectorAll(selector),nativePresentation.querySelectorAll(selector)))throw failure();
     const postalHeader='Order|Source-defined group method|Group kind|Recorded outcome|Observed duration';
@@ -369,6 +381,11 @@ function validateHtml(html, record, retiringPreviousRun = false) {
       const owner=owners[0],expectedOwner=expectedOwners[0],ids=owner.querySelectorAll('dl'),expectedIds=expectedOwner.querySelectorAll('dl');
       // Proof, invocation, fault relation, phase run and receipt are the held owner identity.
       if(!sameNodes(ids,expectedIds)||ids.length!==1)throw failure();
+      for(const selector of businessSelectors){
+        const observed=owner.querySelectorAll(selector),expected=expectedOwner.querySelectorAll(selector);
+        if(!sameNodes(observed,expected)||observed.some(node=>node.parentNode!==owner))throw failure();
+        scopedBusiness+=observed.length;
+      }
       for(const selector of postalSelectors){
         const observed=owner.querySelectorAll(selector),expected=expectedOwner.querySelectorAll(selector);
         if(!sameNodes(observed,expected)||observed.some(node=>node.parentNode!==owner))throw failure();
@@ -380,6 +397,7 @@ function validateHtml(html, record, retiringPreviousRun = false) {
       if(tables.some(table=>table.parentNode!==owner)||notes.some(note=>note.parentNode!==owner)||!sameNodes(tables,legacy?targetTables.map(previousTable):targetTables)||!sameNodes(notes,legacy?targetNotes.map(previousNote):targetNotes))throw failure();
       scopedTables+=tables.length;scopedNotes+=notes.length;
     });
+    if(scopedBusiness!==businessSelectors.reduce((n,selector)=>n+complexDom.querySelectorAll(selector).length,0))throw failure();
     if(scopedPostal!==postalSelectors.reduce((n,selector)=>n+complexDom.querySelectorAll(selector).length,0))throw failure();
     if(scopedTables!==(legacy?oldTables.length:actualTables.length)||scopedNotes!==(legacy?wantedNotes.length:actualNotes.length)||scopedTables!==allStageTables.length||scopedNotes!==allStageNotes.length)throw failure();
     if (
@@ -573,6 +591,7 @@ class HarnessPublicOdhinReporter {
     if (complexEmailAttempt) require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(complexEmailAttempt);
     this.complexEmailAttempt = complexEmailAttempt;
     this.nativeEvidence = null;
+    this.nativeBusinessScalarHeld = null;
     this.compatibilityEvidence = null;
     this.sharedNestedAttemptEvidence = null;
     this.selection = selection;
@@ -599,6 +618,10 @@ class HarnessPublicOdhinReporter {
     const { readNativeReportEvidence } =
       await import("./lib/exui-native-report-evidence.mjs");
     this.nativeEvidence = await readNativeReportEvidence(descriptorPath);
+    {
+      this.nativeBusinessScalarHeld={path:path.resolve(descriptorPath),digest:this.nativeEvidence.descriptorDigest};
+      require('./lib/exui-business-scalar-detail.cjs').validateHeldReference(this.nativeBusinessScalarHeld,this.nativeEvidence);
+    }
     // Validate all display labels before starting collection, never silently omit an unknown proof.
     require("./harness-native-report.cjs").renderNativeEvidence(
       this.nativeEvidence, this.mandatoryEmailTiming,
@@ -913,6 +936,7 @@ class HarnessPublicOdhinReporter {
         buildSelfCheckHeld: this.buildSelfCheckHeld===undefined?null:structuredClone(this.buildSelfCheckHeld),
         diagnosticSource: this.diagnosticSource,
         nativeEvidence: this.nativeEvidence,
+        nativeBusinessScalarHeld:structuredClone(this.nativeBusinessScalarHeld),
         compatibilityEvidence: this.compatibilityEvidence,
         sharedNestedAttemptEvidence:this.sharedNestedAttemptEvidence,
         assuranceTiming: this.assuranceTiming,

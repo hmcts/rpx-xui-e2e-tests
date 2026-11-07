@@ -38,3 +38,20 @@ test('synthetic postal explicit skipped group',{annotation:{type:'harness-proof'
 });
 test('synthetic postal whole skip',{annotation:{type:'harness-proof',description:'ccd-postal-two-roundtrip'}},async()=>{test.skip(true,'PRIVATE_SKIP');});
 `;
+exports.scalarBrowserFreeSpec = `
+const business=require('../../lib/exui-business-scalar-detail.cjs');
+const context=JSON.parse(require('fs').readFileSync(process.env.EXUI_EVIDENCE_CONTEXT,'utf8'));
+test('synthetic actual scalar attachment',{annotation:{type:'harness-proof',description:'ccd-child-loss'}},async({},info)=>{
+ const c=business.createCapture('ccd-child-loss',{runId:context.runId,invocationId:context.invocationId,testId:info.testId,retry:info.retry});
+ try{c.nestedPopulated({state:{case_data:{sodAdditionalRecipientsList:[{value:{emailInformation:{}}}]}}});await test.step('harness-assertion:nested-persistence',async()=>expect(false,'PRIVATE_VALUE').toBe(true));}
+ finally{await c.publish(info);}
+});
+test('synthetic missing scalar attachment',{annotation:{type:'harness-proof',description:'wa-scope-broadened'}},async()=>{await test.step('harness-assertion:organisation-scope',async()=>expect(1).toBe(2));});
+`;
+exports.scalarBrowserFreeSpec += `
+test('synthetic measured IA scope mismatch',{annotation:{type:'harness-proof',description:'wa-scope-broadened'}},async({},info)=>{
+ const c=business.createCapture('wa-scope-broadened',{runId:context.runId,invocationId:context.invocationId,testId:info.testId,retry:info.retry});
+ try{await test.step('harness-assertion:organisation-scope',async()=>{const actual=['IA','CIVIL'];c.record('visibleServices',actual);expect(actual,'PRIVATE_SCOPE').toEqual(['IA']);});}
+ finally{await c.publish(info);}
+});
+`;

@@ -684,3 +684,16 @@ test('postal required-field early failure renders later detail groups Not record
  const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence),dom=require('node-html-parser').parse(html),rows=dom.querySelector('[data-native-postal-detail="ccd-postal-two-roundtrip"]').querySelectorAll('tbody tr');
  assert.equal(rows.length,12);assert.equal(rows[4].querySelectorAll('td')[3].textContent,'reported error');assert(rows.slice(5).every(row=>row.querySelectorAll('td')[3].textContent==='Not recorded'));assert.match(html,/Postal proof BLOCKED/);
 });
+
+test('sealed business scalars distinguish actual nested child loss and IA query not reached without changing authority',async t=>{
+ const f=await fixture(t,{businessScalars:true}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),ccd=evidence.phases.find(p=>p.phase==='ccd'),scope=evidence.phases.find(p=>p.phase==='scope'),base=ccd.baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip'),fault=ccd.faults.find(p=>p.proofId==='ccd-child-loss'),iaFault=scope.faults[0];
+ assert.equal(evidence.status,'PASS');assert.equal(base.businessScalars.scalars.recipientCount.value,1);assert.equal(fault.businessScalars.scalars.recipientCount.value,1);assert.equal(fault.businessScalars.scalars.emailAddressPresent.value,false);assert.equal(fault.observedFailureId,'nested-persistence');assert.equal(iaFault.businessScalars.scalars.responseStatus.state,'not-reached');
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.match(html,/Actually observed/);assert.match(html,/Not reached/);assert.match(html,/Differs from displayed expectation/);assert(!html.includes('PRIVATE_'));
+ const raw=path.join(f.directory,'private/ccd'),run=read(path.join(raw,'run.json')),exec=read(path.join(raw,run.executionArtifacts[0].path));fs.appendFileSync(path.join(raw,exec.resultArtifact.path),' ');await assert.rejects((await load()).readNativeReportEvidence(f.descriptorPath),/DIGEST/);
+});
+test('untrusted scalar shape is unavailable and old absent data keeps exact old scalar rendering',async t=>{
+ const f=await fixture(t,{businessScalars:'invalid'}),evidence=await(await load()).readNativeReportEvidence(f.descriptorPath),render=require('./harness-native-report.cjs').renderNativeEvidence;
+ assert.equal(evidence.status,'PASS');assert.match(render(evidence),/Business scalar observations: unavailable/);assert(!render(evidence).includes('PRIVATE_TOKEN'));
+ for(const phase of evidence.phases)for(const proof of [...phase.baselineProofs,...phase.faults])delete proof.businessScalars;
+ assert(!render(evidence).includes('data-native-business-'));assert(!render(evidence).includes('Business scalar observations:'));
+});

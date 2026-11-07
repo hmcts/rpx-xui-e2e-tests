@@ -12,6 +12,8 @@ const MUTATION = 'hearing-amendments-use-enabled-map';
 const PHASE = 'hearingPublication';
 const INVOCATIONS = ['baseline', MUTATION];
 const SOURCE_FILES = [
+  "scripts/lib/exui-business-scalar-detail.cjs",
+  "scripts/lib/exui-business-scalar-detail.d.cts",
   "scripts/fixtures/ccd/mandatory-email-event-rows.source.json",
   "scripts/lib/exui-mandatory-email-event-rows.mjs",
   "scripts/lib/exui-mandatory-email-event-validation.mjs",
@@ -336,7 +338,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 300);
+  assert.equal(SOURCE_FILES.length, 302);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

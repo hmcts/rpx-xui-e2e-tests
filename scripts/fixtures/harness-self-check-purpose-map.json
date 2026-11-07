@@ -1026,6 +1026,13 @@
       "label": "Event v3 controller",
       "group": "runtime-lifecycle",
       "purpose": "Checks serial v3 controller acknowledgement/completion/retirement order and cancellation before the next fault."
+    },
+    {
+      "file": "scripts/verify-exui-business-scalar-detail.test.cjs",
+      "id": "unit-business-scalar-detail",
+      "label": "Business scalar report detail",
+      "group": "report-delivery",
+      "purpose": "Checks finite object-derived nested and IA scope scalar capture, sealed attachment identity, privacy, unavailable states and report readback; synthetic observations are not native acceptance."
     }
   ]
 }

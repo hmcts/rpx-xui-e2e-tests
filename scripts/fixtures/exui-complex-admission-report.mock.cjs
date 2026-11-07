@@ -43,8 +43,7 @@ async function renderReport(t, {attempt, complex} = {}) {
   const reporter = new Reporter({selection:'harness', complexEmailAttempt:attempt});
   if (complex) {
     const f = await require('./exui-native-report-packet.mock.cjs').fixture(t);
-    const {readNativeReportEvidence} = await import('../lib/exui-native-report-evidence.mjs');
-    reporter.nativeEvidence = await readNativeReportEvidence(f.descriptorPath);
+    await reporter.prepareNativeEvidence(f.descriptorPath);
     reporter.nativeEvidence.complexEmailAdmission = complex;
   }
   const tests = require('../harness-public-overview.cjs').profiles.harness.map((entry, index) => ({

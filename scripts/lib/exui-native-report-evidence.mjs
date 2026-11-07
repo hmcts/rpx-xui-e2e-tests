@@ -1,3 +1,4 @@
+import businessScalars from './exui-business-scalar-detail.cjs';
 import {assertMandatoryEmailIntent,readMandatoryEmailNativeBinding} from './exui-mandatory-email-event-contract.mjs';
 import {readMandatoryEmailAdmissionPacket,mandatoryEmailNativeJointAdmission,creditMandatoryEmailRows} from './exui-mandatory-email-event-admission.mjs';
 import stageTelemetry from './exui-native-stage-telemetry.cjs';
@@ -261,9 +262,11 @@ function phaseProjection(directory, selection, ciPhase, expected) {
           projected = {schemaVersion:1, availability:'unavailable', reason:'INVALID_STAGE_TELEMETRY'};
       }
       const detail = stageTelemetry.readPostalDetail(test.proofId, test.recordedDetail, {...test,recordedExecution:projected});
-      if (projected !== undefined || detail !== undefined) display.set(execution.invocationId + '/' + test.proofId, {
+      const scalars=businessScalars.readDetail(test.proofId,test.businessScalars,test);
+      if (projected !== undefined || detail !== undefined || scalars !== undefined) display.set(execution.invocationId + '/' + test.proofId, {
         ...(projected === undefined ? {} : {recordedExecution:projected}),
-        ...(detail === undefined ? {} : {recordedDetail:detail})
+        ...(detail === undefined ? {} : {recordedDetail:detail}),
+        ...(scalars === undefined ? {} : {businessScalars:scalars})
       });
     }
   }
@@ -612,4 +615,29 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         : "NATIVE_REPORT_INVALID_EVIDENCE",
     );
   }
+}
+
+// Current business-scalar readback only. Reuse the maintained synchronous phase
+// replay for the two selected phases; no other phase/companion admission runs.
+export function readHeldBusinessScalarProjection(held) {
+  try {
+    fact(held && Object.keys(held).sort().join() === 'digest,path' && hashPattern.test(held.digest), 'SCALAR_HELD_REFERENCE');
+    const descriptor=read(held.path);
+    equal(digestBytes(descriptor.bytes),held.digest,'SCALAR_DESCRIPTOR_DIGEST');
+    const {directory,expected}=descriptor.value;
+    fact(descriptor.value.schemaVersion===1,'DESCRIPTOR_SCHEMA_REQUIRED');canonical(directory,true);
+    fact(new RegExp('^ci-'+uuid+'$').test(expected.jobRunId)&&/^[a-f0-9]{40}$/.test(expected.harnessCommit)&&hashPattern.test(expected.candidateArtifactDigest)&&hashPattern.test(expected.ciResultDigest),'SCALAR_SOURCE_IDENTITY');
+    equal(expected.phases.map(p=>p.phase),Object.keys(scopes),'PHASE_SELECTION_REQUIRED');
+    const result=read(path.join(directory,'private/ci-result.json'));equal(digestBytes(result.bytes),expected.ciResultDigest,'CI_RESULT_DIGEST_MISMATCH');
+    const ci=result.value;equal(ci.jobRunId,expected.jobRunId,'CI_JOB_MISMATCH');equal(ci.classification,'fixed-pilot-suite-no-full-release-approval','CI_CLASSIFICATION_REQUIRED');fact(ci.cleanupComplete===true,'CI_CLEANUP_INCOMPLETE');
+    equal(ci.phaseResults.map(p=>p.phase),Object.keys(scopes),'CI_PHASE_SELECTION_REQUIRED');
+    const first=expected.phases[0].expected;
+    const phases=['scope','ccd'].map(phase=>{
+      const index=expected.phases.findIndex(p=>p.phase===phase),selection=expected.phases[index],pin=selection.expected;
+      for(const field of ['harnessSourceDigest','harnessDependencyDigest','browserDigest'])equal(pin[field],first[field],'SCALAR_SOURCE_TOOLCHAIN');
+      for(const field of ['artifactDigest','webappCommit','dependencyLockDigest','toolkitVersion','toolkitDigest'])equal(pin.identity[field],first.identity[field],'SCALAR_CANDIDATE');
+      return phaseProjection(canonical(path.join(directory,'private',phase),true),selection,ci.phaseResults[index],expected);
+    });
+    return businessScalars.scalarProjection({descriptorDigest:held.digest,jobRunId:ci.jobRunId,source:{harnessCommit:expected.harnessCommit,harnessSourceDigest:first.harnessSourceDigest,candidateArtifactDigest:expected.candidateArtifactDigest,webappCommit:first.identity.webappCommit},phases});
+  }catch{throw Error('PUBLIC_BUSINESS_SCALAR_RAW_INVALID');}
 }

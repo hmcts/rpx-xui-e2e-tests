@@ -376,8 +376,21 @@ function recordedPostalDetail(proof) {
   const methods=telemetry.postalGroupMethods();
   return `<h4 data-native-postal-heading="${escape(proof.proofId)}">Recorded postal action/check groups</h4><p data-native-postal-note="${escape(proof.proofId)}">Actual framework group events, not a complete click or request trace. Static methods describe source operations; completion without reported error is not a separate proof PASS. Later unobserved groups are Not recorded. Group durations may overlap other timings and must not be added.</p><table data-native-postal-detail="${escape(proof.proofId)}"><thead><tr><th>Order</th><th>Source-defined group method</th><th>Group kind</th><th>Recorded outcome</th><th>Observed duration</th></tr></thead><tbody>${methods.map((method,i)=>{const event=value.groups[i];return `<tr><td>${i+1}</td><td>${escape(method.label)}</td><td>${escape(method.kind)}</td><td>${event?escape(event.outcome.replace(/-/g,' ')):'Not recorded'}</td><td>${event?event.durationMs+' ms':'Not recorded'}</td></tr>`;}).join('')}</tbody></table>`;
 }
+function recordedBusinessScalars(proof) {
+  const value=proof.businessScalars;
+  if(value===undefined)return '';
+  const scalars=require('./lib/exui-business-scalar-detail.cjs');scalars.validateDetail(proof.proofId,value);
+  const note=value.availability==='unavailable'?'Business scalar observations: unavailable. No values or statuses are inferred.':'Business scalar observations: expected values are source-defined; actually observed values come from the selected framework capture. No extra proof PASS or catalogue credit is inferred. Not reached means the capture point was not attempted; No observation means it was attempted without a usable observation.';
+  const text=v=>typeof v==='boolean'?(v?'Yes':'No'):Array.isArray(v)?v.join(', '):String(v);
+  const rows=value.availability==='unavailable'?'':scalars.methods(proof.proofId).map(([key,label,expected])=>{
+    const field=value.scalars[key],recorded=field.state==='recorded';
+    const match=recorded&&(key==='emptyCollectionState'?expected.includes(field.value):key==='responseStatus'?field.value>=200&&field.value<300:require('node:util').isDeepStrictEqual(field.value,expected));
+    return `<tr><th scope="row">${escape(label)}</th><td>${escape(text(expected))}</td><td>${recorded?escape(text(field.value)):field.state==='not-reached'?'Not reached':'No observation'}</td><td>${recorded?(match?'Matches displayed expectation':'Differs from displayed expectation'):'No comparison recorded'}</td></tr>`;
+  }).join('');
+  return `<p data-native-business-note="${escape(proof.proofId)}">${escape(note)}</p>${rows?`<table data-native-business-scalars="${escape(proof.proofId)}"><thead><tr><th>Business scalar</th><th>Source-defined expected</th><th>Actually observed</th><th>Scalar interpretation</th></tr></thead><tbody>${rows}</tbody></table>`:''}`;
+}
 function proofDetails(label, proof, phase, method, outcome) {
-  return `<details><summary>Evidence and limits</summary><p><strong>Source-defined method</strong> ${escape(method)}</p><p><strong>Recorded outcome</strong> ${escape(outcome)}</p>${recordedStages(proof)}${recordedPostalDetail(proof)}<p>${escape(label.lane)}. ${escape(label.limits)}</p><dl><dt>Proof</dt><dd>${escape(proof.proofId)}</dd><dt>Invocation</dt><dd>${escape(proof.invocationId)}</dd>${proof.mutationId ? `<dt>Required failure</dt><dd>${escape(proof.expectedFailureId)}</dd><dt>Observed failure</dt><dd>${escape(proof.observedFailureId || "not established")}</dd>` : ""}<dt>Phase run</dt><dd>${escape(phase.runId)}</dd><dt>Receipt digest</dt><dd>${escape(phase.receiptArtifactDigest)}</dd></dl></details>`;
+  return `<details><summary>Evidence and limits</summary><p><strong>Source-defined method</strong> ${escape(method)}</p><p><strong>Recorded outcome</strong> ${escape(outcome)}</p>${recordedStages(proof)}${recordedPostalDetail(proof)}${recordedBusinessScalars(proof)}<p>${escape(label.lane)}. ${escape(label.limits)}</p><dl><dt>Proof</dt><dd>${escape(proof.proofId)}</dd><dt>Invocation</dt><dd>${escape(proof.invocationId)}</dd>${proof.mutationId ? `<dt>Required failure</dt><dd>${escape(proof.expectedFailureId)}</dd><dt>Observed failure</dt><dd>${escape(proof.observedFailureId || "not established")}</dd>` : ""}<dt>Phase run</dt><dd>${escape(phase.runId)}</dd><dt>Receipt digest</dt><dd>${escape(phase.receiptArtifactDigest)}</dd></dl></details>`;
 }
 function renderNativeEvidence(evidence, mandatoryEmailTiming) {
   if (!evidence) return "";

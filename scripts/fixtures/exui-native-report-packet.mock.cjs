@@ -12,7 +12,7 @@ const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 function write(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});const bytes=JSON.stringify(value);fs.writeFileSync(file,bytes);return digest(bytes);}
 async function fixture(
   t,
-  { postalFailure = false, unknownFailure = false, sourceDigest, candidate, recordedStages = false, postalDetail = false } = {},
+  { postalFailure = false, unknownFailure = false, sourceDigest, candidate, recordedStages = false, postalDetail = false, businessScalars = false } = {},
 ) {
   const root = fs.mkdtempSync(
     path.join(fs.realpathSync(os.tmpdir()), "native-report-"),
@@ -139,6 +139,7 @@ async function fixture(
           retry: 0,
           failureId,
           unattributedErrors: 0,
+          ...(businessScalars && ['ccd-nested-roundtrip','ccd-child-loss','wa-org-scope-ia','wa-scope-broadened'].includes(proofId)?{businessScalars:businessScalars==='invalid'?{schemaVersion:1,availability:'recorded',PRIVATE_TOKEN:'secret'}:require('./exui-business-scalar-detail.mock.cjs').recorded(proofId)}:{}),
           ...(postalDetail && ['ccd-postal-two-roundtrip','ccd-postal-child-loss'].includes(proofId) ? {recordedDetail:{
             schemaVersion:1,availability:'recorded',scope:'postal-action-check-groups',testDurationMs:90,
             groups:require('./exui-native-stage-telemetry.mock.cjs').postalGroups.slice(0,postal?5:12).map((id,index)=>({ordinal:index+1,groupId:postalDetail==='invalid'?'PRIVATE_CANARY':id,outcome:status==='failed'&&index===(postal?4:11)?'reported-error':'completed-without-reported-error',durationMs:index+1}))
@@ -322,3 +323,27 @@ async function fixture(
 }
 
 module.exports={fixture};
+
+// Publication tests must prepare the real strict packet, including absence of
+// scalar observations. Never mint a synthetic held reference for a view model.
+module.exports.preparePublication = async (t,reporter,options={}) => {
+ const packet=await fixture(t,options);
+ await reporter.prepareNativeEvidence(packet.descriptorPath);
+ return packet;
+};
+
+// Existing full-reader profile seam, only for source-owned synthetic profile
+// fixtures. The actual reporter/prepare body changes only this import literal.
+module.exports.reporterForReaderOptions = (t,readerOptions) => {
+ const {Module}=require('node:module'),{pathToFileURL}=require('node:url');
+ const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'strict-reader-options-'));
+ const key='harness-fixture-reader-'+randomUUID();globalThis[key]=readerOptions;
+ t.after(()=>{delete globalThis[key];fs.rmSync(root,{recursive:true,force:true});});
+ const reader=pathToFileURL(path.join(__dirname,'../lib/exui-native-report-evidence.mjs')).href,wrapper=path.join(root,'reader.mjs');
+ fs.writeFileSync(wrapper,`import{readNativeReportEvidence as actual}from${JSON.stringify(reader)};export const readNativeReportEvidence=path=>actual(path,globalThis[${JSON.stringify(key)}]);`);
+ const file=path.join(__dirname,'../harness-public-odhin-reporter.cjs'),source=fs.readFileSync(file,'utf8'),literal='"./lib/exui-native-report-evidence.mjs"',relocated=JSON.stringify(pathToFileURL(wrapper).href);
+ assert.equal(source.split(literal).length,2,'EXACT_SINGLE_READER_IMPORT');
+ const body=source.replace(literal,relocated);assert.equal(body.replace(relocated,literal),source,'ONLY_READER_IMPORT_RELOCATION');
+ const loaded=new Module(file,module);loaded.filename=file;loaded.paths=Module._nodeModulePaths(path.dirname(file));loaded._compile(body,file);
+ return loaded.exports;
+};

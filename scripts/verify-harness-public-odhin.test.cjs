@@ -906,7 +906,7 @@ test("same Odhín document separates native baselines and faults from diagnostic
     { label: "Scope fault candidate preparation", status: "completed", startedAt: "2026-11-05T10:02:20.000Z", durationMs: 158000 },
   ] });
   // Presentation fixture only: the descriptor reader's raw/expected boundary has its own tests.
-  reporter.nativeEvidence = await nativePresentationFixture();
+  await require("./fixtures/exui-native-report-packet.mock.cjs").preparePublication(t,reporter,{postalFailure:true});
   const entries = require("./harness-public-overview.cjs").profiles[
     "local-aat"
   ];
@@ -1203,7 +1203,7 @@ test("HTML integrity binds the full native projection and diagnostic source, not
   const root = sandbox(t),
     Reporter = api();
   const reporter = new Reporter({ selection: "harness" });
-  reporter.nativeEvidence = await nativePresentationFixture();
+  await require("./fixtures/exui-native-report-packet.mock.cjs").preparePublication(t,reporter,{postalFailure:true});
   const tests = testsFor();
   reporter.onBegin({}, { allTests: () => tests });
   tests.forEach((item, index) =>
@@ -1278,7 +1278,7 @@ test("callback presentation cannot credit a missing phase, wrong source row or e
 
 test('supplementary compatibility evidence stays outside primary counts and is bound into the one public report',async(t)=>{
  const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});
- reporter.nativeEvidence=await nativePresentationFixture(false);
+ await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
  const primary=structuredClone(reporter.nativeEvidence),hash='sha256:'+'a'.repeat(64);
  reporter.compatibilityEvidence={schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,dataImageDigest:hash,profileDigest:hash,descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
@@ -1315,7 +1315,7 @@ test("native headline shows the actual status and reserves green for passing evi
 
 test('separately admitted DIVORCE profile stays outside main totals in the same report',async t=>{
  const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),hash='sha256:'+'a'.repeat(64);
- reporter.nativeEvidence=await nativePresentationFixture(true);const primary=structuredClone(reporter.nativeEvidence);
+ await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter,{postalFailure:true});const primary=structuredClone(reporter.nativeEvidence);
  reporter.nativeEvidence.divorceProfileAdmission={schemaVersion:1,kind:'divorce-profile-admission',status:'passed',obligationId:'configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce',boundary:'candidate',family:'DIVORCE',baselineProofs:6,effectiveFaults:6,selected:1,accepted:1,catalogueSize:112,releaseCredit:false,releaseApproval:false,runId:'divorce-00000000-0000-4000-8000-000000000001',producerCommit:'e'.repeat(40),candidateCommit:'f'.repeat(40),...Object.fromEntries(['producerDigest','candidateArtifactDigest','inputDigest','bindingDigest','receiptDigest','terminalDigest','launchDigest','cleanupDigest','contractDigest'].map(key=>[key,hash]))};
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  const record=Reporter.validatePublicReport();assert.equal(record.tests,tests.length);assert.deepEqual(record.nativeEvidence.catalogueCoverage,primary.catalogueCoverage);assert.deepEqual(record.nativeEvidence.source,primary.source);assert.equal(record.nativeEvidence.status,primary.status);
@@ -1404,7 +1404,7 @@ test('seven-phase dashboard includes selector setup, execution, evidence and cle
  const labels=['WA family','Scope fault candidate preparation','WA organisation scope','CCD runtime startup','CCD configuration and access','CCD runtime cleanup','Source event CCD runtime startup','CCD source event permissions','Source event CCD runtime cleanup','Application routing','Recipient callback CCD runtime startup','Recipient callback validation and persistence','Recipient callback CCD runtime cleanup','Selector CCD baseline preparation','Selector baseline proof and cleanup','Selector CCD fault preparation','Selector fault proof and cleanup','Selector evidence verification','Selector final cleanup','Selector cohort admission'];
  const passed=new Set(['WA family','WA organisation scope','CCD configuration and access','CCD source event permissions','Application routing','Recipient callback validation and persistence','Selector evidence verification','Selector cohort admission']);
  const phaseTimings=labels.map((label,index)=>({label,status:passed.has(label)?'PASS':'completed',startedAt:new Date(Date.UTC(2026,10,5,12,0,index)).toISOString(),durationMs:1000}));
- const reporter=new Reporter({selection:'harness',nativeElapsedMs:20000,phaseTimings});reporter.nativeEvidence=await nativePresentationFixture(false);
+ const reporter=new Reporter({selection:'harness',nativeElapsedMs:20000,phaseTimings});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  assert.equal(Reporter.validatePublicReport('harness').status,'passed');
  const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),table=dom.querySelector('#harness-phase-timings');
@@ -1463,7 +1463,7 @@ test('native execution counts separate31 physical invocations from46 proof recor
 test('RunInfo shows core native invocations and configured slots without inventing observed processes', async t => {
   sandbox(t);
   const Reporter=api(), reporter=new Reporter({selection:'harness'});
-  reporter.nativeEvidence=await nativePresentationFixture(false);
+  await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
   for(const phase of reporter.nativeEvidence.phases)for(const item of phase.invocations)item.configuredWorkers=1;
   const tests=testsFor();reporter.onBegin({workers:1},{allTests:()=>tests});
   for(const [index,item] of tests.entries())reporter.onTestEnd(item,result('passed',index));
@@ -1510,7 +1510,7 @@ function assuranceDashboard(data={}) {
 }
 
 test('assurance timing is persisted and visibly bound without changing diagnostic or native evidence',async t=>{
- sandbox(t);const Reporter=api(),timing=assuranceTimingFixture(),native=await nativePresentationFixture(false),reporter=new Reporter({selection:'harness',assuranceTiming:timing,nativeElapsedMs:180});reporter.nativeEvidence=native;
+ sandbox(t);const Reporter=api(),timing=assuranceTimingFixture(),reporter=new Reporter({selection:'harness',assuranceTiming:timing,nativeElapsedMs:180});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);const native=reporter.nativeEvidence;
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  const record=Reporter.validatePublicReport(),dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));
  assert.deepEqual(record.assuranceTiming,timing);assert.deepEqual(record.nativeEvidence,native);assert.equal(record.tests,116);assert.equal(record.counts.passed,116);
@@ -1672,7 +1672,7 @@ test('diagnostic worker observations distinguish equal indexes across trusted ru
 });
 test('native recorded stages remain visible and bound in the public report without changing diagnostic or catalogue totals',async t=>{
  const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});
- reporter.nativeEvidence=await nativePresentationFixture(false);
+ await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
  const {NativeStageRecorder}=require('./lib/exui-native-stage-telemetry.cjs');const recorder=new NativeStageRecorder(),r={duration:91},s={category:'test.step',title:'harness-assertion:family-membership',duration:3,annotations:[]};
  recorder.begin('wa-family-options',r,s);recorder.end('wa-family-options',r,s);
  reporter.nativeEvidence.phases.find(p=>p.phase==='family').baselineProofs[0].recordedExecution=recorder.finish('wa-family-options',r);
@@ -1703,7 +1703,7 @@ test('native PCS routing rows retain their synthetic service attribution', async
 test('native interval unitemized difference is exact telemetry and tolerated negative rounding stays unknown',async t=>{
  sandbox(t);const Reporter=api();
  for(const [elapsed,duration,expected] of [[2500,1000,'Unitemized recorded interval: 0m 1s (1500 ms).'],[999,1000,'Unitemized recorded interval: Not recorded (listed phases exceed the interval by 1 ms within the 1-second rounding tolerance).'],[0,1000,'Unitemized recorded interval: Not recorded (listed phases exceed the interval by 1000 ms within the 1-second rounding tolerance).']]){
-  const reporter=new Reporter({selection:'harness',nativeElapsedMs:elapsed,phaseTimings:[{label:'CCD runtime startup',status:'completed',startedAt:'2026-11-06T12:00:00.000Z',durationMs:duration}]});reporter.nativeEvidence=await nativePresentationFixture();
+  const reporter=new Reporter({selection:'harness',nativeElapsedMs:elapsed,phaseTimings:[{label:'CCD runtime startup',status:'completed',startedAt:'2026-11-06T12:00:00.000Z',durationMs:duration}]});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter,{postalFailure:true});
   const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());Reporter.validatePublicReport();
   const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),remainder=dom.querySelector('[data-native-unitemized]');assert(remainder.textContent.startsWith(expected));assert.equal(remainder.getAttribute('data-native-unitemized'),elapsed<duration?'unknown':String(elapsed-duration));
   const recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(recordFile),html=fs.readFileSync(output(),'utf8');remainder.textContent='ST_CIC exact duration: 1 second';const changed=dom.toString(),record=JSON.parse(original);record.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(recordFile,JSON.stringify(record));fs.writeFileSync(output(),changed);assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(recordFile,original);fs.writeFileSync(output(),html);Reporter.resetPublicReport('harness');
@@ -1712,8 +1712,8 @@ test('native interval unitemized difference is exact telemetry and tolerated neg
 
 test('native interval RunInfo binds unrecorded and not-run states and rejects coherent false-native rows',async t=>{
  sandbox(t);const Reporter=api();
- for(const native of [undefined,await nativePresentationFixture(false)]){
-  const reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=native;
+ for(const selected of [false,true]){
+  const reporter=new Reporter({selection:'harness'});if(selected)await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);const native=reporter.nativeEvidence;
   const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());Reporter.validatePublicReport();
   const recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),record=fs.readFileSync(recordFile),html=fs.readFileSync(output(),'utf8');
   const current=require('node-html-parser').parse(html).querySelector('.testcase-run-info-table').querySelectorAll('tr').find(row=>row.querySelector('th')?.textContent==='Recorded native interval');assert.match(current.querySelector('td').textContent,native?/PASS · duration not recorded/:/^Not run$/);
@@ -1756,7 +1756,7 @@ test('exact owned historical check report can retire without inferred CSRF detai
 });
 
 test('exact prior native stage tables may retire but changed legacy outcomes cannot authorize removal',async t=>{
- const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=await nativePresentationFixture(false);reporter.nativeEvidence.phases[0].baselineProofs[0].recordedExecution={schemaVersion:1,availability:'recorded',scope:'named-assertion-stages',testDurationMs:91,stages:[{stageId:'family-membership',instance:1,ordinal:1,outcome:'completed-without-reported-error',durationMs:3}]};
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);reporter.nativeEvidence.phases[0].baselineProofs[0].recordedExecution={schemaVersion:1,availability:'recorded',scope:'named-assertion-stages',testDurationMs:91,stages:[{stageId:'family-membership',instance:1,ordinal:1,outcome:'completed-without-reported-error',durationMs:3}]};
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
  const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),value=JSON.parse(fs.readFileSync(file)),page=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));delete value.detailEvidence;page.querySelectorAll('[data-harness-check-details]').forEach(node=>node.remove());page.querySelectorAll('[data-native-stage-proof]').forEach(table=>{table.removeAttribute('data-native-stage-proof');table.querySelectorAll('tr').forEach(row=>row.childNodes.filter(node=>node.tagName==='TH'||node.tagName==='TD')[3]?.remove());table.querySelectorAll('thead th')[3].textContent='Recorded outcome';});page.querySelectorAll('[data-native-stage-note]').forEach(note=>{note.removeAttribute('data-native-stage-note');note.textContent=note.textContent.split(' Expected contracts below')[0];});
  const oldHtml=page.toString(),write=html=>{value.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(file,JSON.stringify(value));};write(oldHtml);assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);
@@ -1769,7 +1769,7 @@ test('fresh detail evidence cannot be removed and coherently downgraded to the e
  delete record.detailEvidence;page.querySelector(`#TabSteps-harness-${index}-0`).innerHTML=require('./harness-public-check-steps.cjs').renderSteps(entry,check.steps,check.status);const html=page.toString();record.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(file,JSON.stringify(record));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);
 });
 test('native recorded table and note must stay in their exact proof and invocation details owner',async t=>{
- const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=await nativePresentationFixture(false);reporter.nativeEvidence.phases[0].baselineProofs[0].recordedExecution={schemaVersion:1,availability:'recorded',scope:'named-assertion-stages',testDurationMs:91,stages:[{stageId:'family-membership',instance:1,ordinal:1,outcome:'completed-without-reported-error',durationMs:3}]};const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);reporter.nativeEvidence.phases[0].baselineProofs[0].recordedExecution={schemaVersion:1,availability:'recorded',scope:'named-assertion-stages',testDurationMs:91,stages:[{stageId:'family-membership',instance:1,ordinal:1,outcome:'completed-without-reported-error',durationMs:3}]};const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
  const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(file),html=fs.readFileSync(output(),'utf8');
  for(const fault of ['table','note','both','orphan','proof-alias','invocation-alias']){const page=require('node-html-parser').parse(html),value=JSON.parse(original),rows=page.querySelectorAll('[data-native-kind="baseline"]');if(['table','both','orphan'].includes(fault)){const table=rows[0].querySelector('[data-native-stage-proof]'),text=table.toString();table.remove();(fault==='orphan'?rows[0]:rows[1].querySelector('details')).insertAdjacentHTML('beforeend',text);}if(['note','both'].includes(fault)){const note=rows[0].querySelector('[data-native-stage-note]'),text=note.toString();note.remove();rows[1].querySelector('details').insertAdjacentHTML('afterbegin',text);}if(fault==='proof-alias')rows[0].querySelector('details dl dd').textContent=rows[1].querySelector('details dl dd').textContent;if(fault==='invocation-alias')rows[0].querySelectorAll('details dl dd')[1].textContent='foreign-invocation';const changed=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,fault);fs.writeFileSync(output(),html);fs.writeFileSync(file,original);}
 });
@@ -1788,7 +1788,7 @@ test('mandatory email public panel binds strict two-ID inclusion and recorded ca
  const labels=['WA family','Scope fault candidate preparation','WA organisation scope','CCD runtime startup','CCD configuration and access','CCD runtime cleanup','Source event CCD runtime startup','CCD source event permissions','Source event CCD runtime cleanup','Application routing','Recipient callback CCD runtime startup','Recipient callback validation and persistence','Recipient callback CCD runtime cleanup','Selector CCD baseline preparation','Selector baseline proof and cleanup','Selector CCD fault preparation','Selector fault proof and cleanup','Selector evidence verification','Selector final cleanup','Selector cohort admission'];
  const passed=new Set(['WA family','WA organisation scope','CCD configuration and access','CCD source event permissions','Application routing','Recipient callback validation and persistence','Selector evidence verification','Selector cohort admission']);
  const phaseTimings=labels.map((label,index)=>({label,status:passed.has(label)?'PASS':'completed',startedAt:new Date(Date.UTC(2026,10,7,0,0,index)).toISOString(),durationMs:1000}));
- const reporter=new Reporter({selection:'harness',nativeElapsedMs:60000,phaseTimings,mandatoryEmailTiming:timing});timing.elapsedMs=999999;reporter.nativeEvidence=evidence;
+ const reporter=new Reporter({selection:'harness',nativeElapsedMs:60000,phaseTimings,mandatoryEmailTiming:timing});timing.elapsedMs=999999;await reporter.prepareNativeEvidence(f.main.descriptorPath);
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  const record=Reporter.validatePublicReport(),recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),originalRecord=fs.readFileSync(recordFile),html=fs.readFileSync(output(),'utf8'),parse=require('node-html-parser').parse;
  assert.deepEqual(record.phaseTimings,phaseTimings); assert.equal(record.nativeElapsedMs,60000);assert.equal(record.mandatoryEmailTiming.elapsedMs,222227);assert.deepEqual(record.nativeEvidence,evidence);assert.equal(record.nativeEvidence.catalogueCoverage.selected,112);
@@ -1812,7 +1812,7 @@ test('mandatory email public panel binds strict two-ID inclusion and recorded ca
 });
 
 test('postal actual detail validates exact table note and proof owner against coherent HTML rewrites',async t=>{
- const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=await nativePresentationFixture(false);
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
  const phase=reporter.nativeEvidence.phases.find(p=>p.phase==='ccd'),postal=phase.baselineProofs.find(p=>p.proofId==='ccd-postal-two-roundtrip');
  postal.recordedDetail={schemaVersion:1,availability:'recorded',scope:'postal-action-check-groups',testDurationMs:90,groups:require('./fixtures/exui-native-stage-telemetry.mock.cjs').postalGroups.map((groupId,i)=>({ordinal:i+1,groupId,outcome:'completed-without-reported-error',durationMs:i+1}))};
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
@@ -1837,4 +1837,49 @@ test('native proof owner groups contain one counted summary and one full-width s
  assert.equal(dom.querySelectorAll('[data-native-table="baseline"] tr[data-native-phase]').length,23);
  assert.equal(dom.querySelectorAll('[data-native-table="fault"] tr[data-native-phase]').length,23);
  for(const owner of owners){assert.equal(owner.tagName,'TBODY');const rows=owner.children;assert.equal(rows.length,2);assert(rows.every(row=>row.tagName==='TR'));assert.equal(rows[0].children.length,5);assert.equal(rows[0].getAttribute('data-native-phase'),owner.getAttribute('data-native-phase'));assert.equal(rows[1].hasAttribute('data-native-phase'),false);assert.equal(rows[1].children.length,1);assert.equal(rows[1].children[0].getAttribute('colspan'),'5');assert.equal(rows[0].querySelectorAll('details').length,0);assert.equal(rows[1].querySelectorAll('details').length,1);assert.equal(owner.querySelectorAll('details dl').length,1);}
+});
+
+test('business scalar tables reject coherent observed rewrites swapped proof ownership and orphans',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),packet=await require('./fixtures/exui-native-report-packet.mock.cjs').fixture(t,{businessScalars:true});await reporter.prepareNativeEvidence(packet.descriptorPath);
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(file),html=fs.readFileSync(output(),'utf8');assert.equal(Reporter.validatePublicReport().nativeEvidence.status,'PASS');assert(!html.includes(packet.descriptorPath));
+ for(const fault of ['value','status','note','move','orphan','unmarked-orphan','duplicate','missing','record-value','coherent-record','missing-held','wrong-held','crossjob-held','withdraw-all','withdraw-all-null','withdraw-values','null-held']){
+  const page=require('node-html-parser').parse(html),value=JSON.parse(original),table=page.querySelector('[data-native-business-scalars]'),owner=table.parentNode;
+  if(fault==='value')table.querySelector('tbody tr td:nth-child(3)').textContent='99';
+  if(fault==='status')table.querySelector('tbody tr td:nth-child(4)').textContent='PASS';
+  if(fault==='note')owner.querySelector('[data-native-business-note]').textContent='Business scalar observations: All services proved';
+  if(fault==='move'){table.remove();page.querySelectorAll('[data-native-row] details').find(d=>d!==owner).insertAdjacentHTML('beforeend',table.toString());}
+  if(['orphan','unmarked-orphan','duplicate'].includes(fault)){const copy=require('node-html-parser').parse(table.toString()).firstChild;if(fault==='unmarked-orphan')copy.removeAttribute('data-native-business-scalars');(fault==='duplicate'?owner:page.querySelector('#harness-native-evidence')).insertAdjacentHTML('beforeend',copy.toString());}
+  if(fault==='missing')table.remove();
+  if(fault==='record-value'){const phase=value.nativeEvidence.phases.find(p=>p.phase==='ccd');phase.baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip').businessScalars.scalars.recipientCount.value=2;}
+  if(fault==='coherent-record'){value.nativeEvidence.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip').businessScalars.scalars.recipientCount.value=2;page.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(value.nativeEvidence));}
+  if(fault==='withdraw-values'){for(const phase of value.nativeEvidence.phases)for(const proof of [...phase.baselineProofs,...phase.faults])delete proof.businessScalars;page.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(value.nativeEvidence));}
+  if(fault==='withdraw-all'){for(const phase of value.nativeEvidence.phases)for(const proof of [...phase.baselineProofs,...phase.faults])delete proof.businessScalars;delete value.nativeBusinessScalarHeld;page.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(value.nativeEvidence));}
+  if(fault==='withdraw-all-null'){for(const phase of value.nativeEvidence.phases)for(const proof of [...phase.baselineProofs,...phase.faults])delete proof.businessScalars;value.nativeBusinessScalarHeld=null;page.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(value.nativeEvidence));}
+  if(fault==='null-held')value.nativeBusinessScalarHeld=null;
+  if(fault==='missing-held')delete value.nativeBusinessScalarHeld;
+  if(fault==='wrong-held')value.nativeBusinessScalarHeld.digest='sha256:'+'f'.repeat(64);
+  if(fault==='crossjob-held'){const foreign=await require('./fixtures/exui-native-report-packet.mock.cjs').fixture(t,{businessScalars:true});value.nativeBusinessScalarHeld={path:foreign.descriptorPath,digest:'sha256:'+require('node:crypto').createHash('sha256').update(fs.readFileSync(foreign.descriptorPath)).digest('hex')};}
+  const modified=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(modified).digest('hex');fs.writeFileSync(output(),modified);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,fault);fs.writeFileSync(output(),html);fs.writeFileSync(file,original);
+ }
+ const run=JSON.parse(fs.readFileSync(path.join(packet.directory,'private/ccd/run.json'))),execution=JSON.parse(fs.readFileSync(path.join(packet.directory,'private/ccd',run.executionArtifacts[0].path))),raw=path.join(packet.directory,'private/ccd',execution.resultArtifact.path),bytes=fs.readFileSync(raw);fs.appendFileSync(raw,' ');assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(raw,bytes);Reporter.validatePublicReport();fs.unlinkSync(raw);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));
+
+});
+
+test('current scalar intent authenticates raw absence and rejects missing null or invented values for old producers',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),packet=await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),bytes=fs.readFileSync(file),html=fs.readFileSync(output(),'utf8'),record=Reporter.validatePublicReport();
+ assert(record.nativeBusinessScalarHeld);assert(record.nativeEvidence.phases.every(p=>[...p.baselineProofs,...p.faults].every(proof=>proof.businessScalars===undefined)));assert(!html.includes(packet.descriptorPath));
+ for(const mode of ['missing','null','invented']){const value=JSON.parse(bytes),page=require('node-html-parser').parse(html);if(mode==='missing')delete value.nativeBusinessScalarHeld;if(mode==='null')value.nativeBusinessScalarHeld=null;
+  if(mode==='invented'){value.nativeEvidence.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip').businessScalars=require('./fixtures/exui-business-scalar-detail.mock.cjs').recorded('ccd-nested-roundtrip');page.querySelector('#harness-native-evidence').replaceWith(require('./harness-native-report.cjs').renderNativeEvidence(value.nativeEvidence));}
+  const changed=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,mode);fs.writeFileSync(file,bytes);fs.writeFileSync(output(),html);
+ }
+ Reporter.validatePublicReport();const legacy=JSON.parse(bytes);delete legacy.nativeBusinessScalarHeld;fs.writeFileSync(file,JSON.stringify(legacy));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));
+});
+test('no Native current intent is explicit null; omission is retirement-only and never starts a metadata child',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const cp=require('node:child_process'),original=cp.spawnSync;let count=0;try{cp.spawnSync=()=>{count++;throw Error('NO_NATIVE_CHILD');};const record=Reporter.validatePublicReport();assert.equal(record.nativeBusinessScalarHeld,null);assert.equal(record.nativeEvidence,null);
+ if(process.env.SELF_CHECK_COMPAT_NODE20){const code=`const cp=require('node:child_process');let calls=0;cp.spawnSync=()=>{calls++;throw Error('NO_METADATA_CHILD');};const value=require(${JSON.stringify(reporterPath)}).validatePublicReport('harness');if(value.nativeBusinessScalarHeld!==null||value.nativeEvidence!==null||calls)throw Error('NO_NATIVE_INTENT');console.log(JSON.stringify({node:process.version,metadataChildren:calls}));`;const result=JSON.parse(cp.execFileSync(process.env.SELF_CHECK_COMPAT_NODE20,['-e',code],{cwd:root,encoding:'utf8'}));assert.match(result.node,/^v20\./);assert.equal(result.metadataChildren,0);t.diagnostic(JSON.stringify(result));}
+ const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json');delete record.nativeBusinessScalarHeld;fs.writeFileSync(file,JSON.stringify(record));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert.equal(count,0);assert(!fs.existsSync(output()));}finally{cp.spawnSync=original;}
 });

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import stageTelemetry from './exui-native-stage-telemetry.cjs';
+import businessScalars from './exui-business-scalar-detail.cjs';
 
 // Only structured framework events can attribute an assertion; console text cannot.
 export default class EvidenceReporter {
@@ -40,8 +41,10 @@ export default class EvidenceReporter {
     const attributed = result.errors.length === 1 && assertions.length === 1 &&
       assertions[0].error.message === result.errors[0].message && assertions[0].error.stack === result.errors[0].stack;
     const detail = this.postalDetail.finish(proofs[0]?.description, result);
+    const scalars=businessScalars.extractAttachment(proofs[0]?.description,{runId:this.context.runId,invocationId:this.context.invocationId,testId:test.id,retry:result.retry},result.attachments ?? [],{status:result.status,failureId:attributed?assertions[0].id:null});
     this.tests.push({
       proofId: proofs[0]?.description ?? null,
+      ...(scalars === undefined ? {} : {businessScalars:scalars}),
       expectedStatus: test.expectedStatus,
       status: result.status,
       retry: result.retry,
