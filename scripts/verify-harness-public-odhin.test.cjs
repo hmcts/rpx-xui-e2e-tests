@@ -72,7 +72,7 @@ function result(status = "passed", index = 0, selection = "harness") {
       ...(status==='skipped'?[]:require('./harness-public-check-steps.cjs').methodFor(require('./harness-public-overview.cjs').profiles[selection][index]).steps.map((step,ordinal,list)=>({
         title:'harness-check:'+step.id, category:'test.step', duration:status==='timedOut'&&ordinal===list.length-1?-1:1,
         ...(status==='failed'&&ordinal===list.length-1?{error:{message:canary}}:{}),
-        location:{file:canary},steps:[{title:canary,category:'expect',duration:0}],
+        location:{file:canary},steps:step.id==='auth-basic-csrf'?['csrf-present','csrf-absent'].map((id,index)=>({title:'harness-detail:'+id,category:'test.step',duration:status==='timedOut'&&index===1?-1:1,...(status==='failed'&&index===1?{error:{message:canary}}:{}),steps:[]})):[{title:canary,category:'expect',duration:0}],
       }))),
       { title: canary, location: { file: canary }, steps: [{ title: canary }] },
     ],
@@ -94,12 +94,14 @@ async function complete(
   statuses = [],
   finalStatus = "passed",
   globalErrors = 0,
+  assuranceTiming,
 ) {
   const Reporter = api();
   const reporter = new Reporter({
     selection,
     outputFolder: canary,
     release: canary,
+    assuranceTiming,
   });
   const tests = testsFor(selection);
   await reporter.onBegin(
@@ -347,7 +349,7 @@ test("actual renderer write failure cannot leave a validated public report", asy
   t.after(() => {
     fsExtra.outputFileSync = original;
   });
-  await assert.rejects(() => complete(), /PUBLIC_ODHIN/);
+  await assert.rejects(() => complete("harness", [], "passed", 0, assuranceTimingFixture()), /PUBLIC_ODHIN/);
   assert.equal(fired, true);
   assert.ok(!fs.existsSync(output()));
   assert.throws(() => api().validatePublicReport("harness"), /PUBLIC_ODHIN/);
@@ -375,7 +377,7 @@ test("public publication failure withdraws the matching private record and new H
     fs.openSync = originalOpen;
     fs.writeFileSync = originalWrite;
   });
-  await assert.rejects(() => complete(), /PUBLIC_ODHIN/);
+  await assert.rejects(() => complete("harness", [], "passed", 0, assuranceTimingFixture()), /PUBLIC_ODHIN/);
   assert.equal(fired, true);
   assert.ok(!fs.existsSync(output()));
   assert.ok(
@@ -642,7 +644,7 @@ test("dashboard separates diagnostic run info from unexecuted candidate evidence
   assert.match(info.textContent, /Execution environment.*Local Harness diagnostics only/s);
   assert.match(info.textContent, /Diagnostic execution time/);
   assert.match(info.textContent, /Playwright diagnostic workers.*direct: Not recorded configured · 1 observed across 1 runners; not peak parallelism/s);
-  assert.match(info.textContent, /Native execution.*Not run/s);
+  assert.match(info.textContent, /Recorded native interval.*Not run/s);
   assert.match(info.textContent, /Core native Playwright invocations.*Not run/s);
   assert.match(info.textContent, /Configured core native worker slots.*Not run/s);
   assert.ok(root.querySelector('#harness-dashboard-ui'));
@@ -926,7 +928,7 @@ test("same Odhín document separates native baselines and faults from diagnostic
   const html = fs.readFileSync(output(), "utf8");
   const dom = require("node-html-parser").parse(html);
   assert.equal(dom.querySelector('#harness-public-run').getAttribute('data-native-elapsed-ms'), '1920000');
-  assert.match(dom.querySelector('.testcase-run-info-table').textContent, /32\.0 min native run \+ evidence preparation/);
+  assert.match(dom.querySelector('.testcase-run-info-table').textContent, /Recorded native interval.*32\.0 min/s);
   assert.equal(dom.querySelectorAll('#harness-phase-timings tbody tr').length, 2);
   assert.match(dom.querySelector('#harness-phase-timings').textContent, /WA family.*2m 20s.*Scope fault candidate preparation.*2m 38s/s);
   assert.match(
@@ -1333,6 +1335,7 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
   '#harness-divorce-profile-admission':{dataset:{profileStatus:'PASS',profileBaselines:'6',profileFaults:'6',profileAccepted:'1',profileSelected:'1',profileDurationMs:'125000'}},
   '#harness-applicant-compatibility':{dataset:{compatibilityStatus:'PASS',compatibilityBaselines:'1',compatibilityFaults:'3'}},
   '#harness-personal-service-admission':{dataset:{personalStatus:'PASS',personalBaselines:'1',personalEffectiveFaults:'1',personalAccepted:'1',personalTotal:'1',personalInclusion:'included',personalDurationMs:'247013'}},
+  '#harness-st-cic-profile-admission':{dataset:{stCicStatus:'PASS',stCicInclusion:'included',stCicBaselines:'5',stCicEffectiveFaults:'5',stCicExecutions:'10',stCicCredited:'1'}},
  };
  const render=(supplements,main=true)=>{
   const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
@@ -1342,7 +1345,7 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
  };
  const text=node=>[node.textContent||'',...node.children.map(text)].join(' ');
  const plain=render({});assert.equal(plain.children[1].children[0].textContent,'Native proof outcomes');assert(!plain.children.some(x=>x.className==='report-supplement-summary'));
- const metrics=render(panels),summary=metrics.children[4];
+ const metrics=render(panels),summary=metrics.children[5];
  assert.equal(metrics.children[0].children[1].textContent,'35 / 112');assert.equal(metrics.children[1].children[1].textContent,'2 + 2');assert.equal(metrics.children[2].children[1].textContent,'116');assert.equal(metrics.children[3].children[1].textContent,'Unavailable');
  assert.equal(metrics.children[1].children[0].textContent,'Main native proof outcomes');assert.equal(summary.className,'report-supplement-summary');
  const links=summary.children.find(x=>x.className==='report-supplement-links').children;
@@ -1350,18 +1353,21 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
  assert.match(text(links[0]),/BLOCKED/);assert.match(text(links[0]),/4 baseline facets completed/);assert.match(text(links[0]),/2 passed.*2 failed/);assert.match(text(links[0]),/0 effective faults.*3 not run/);
  assert.match(text(links[1]),/6 baseline.*6 effective faults/);assert.match(text(links[1]),/1 \/ 1.*separate/);
  assert.match(text(links[2]),/1 baseline.*3 effective faults/);assert.match(text(links[2]),/Corrected local ARM64 CCD/);
- assert.match(text(links[3]),/PASS.*1 baseline.*1 effective fault/);assert.match(text(links[3]),/already included in main candidate coverage/);assert.match(text(links[3]),/Personal pair interval: 4m 7s.*excluded from main native duration/);
- const separatePersonal=render({'#harness-personal-service-admission':{dataset:{...panels['#harness-personal-service-admission'].dataset,personalInclusion:'separate'}}});assert.match(text(separatePersonal.children[4]),/1 \/ 1 requirement accepted in this separate run/);assert.equal(separatePersonal.children[0].children[1].textContent,'35 / 112');
- const failedPersonal=render({'#harness-personal-service-attempt':{dataset:{personalAttemptStatus:'BLOCKED',personalAttemptDurationMs:'1234'}}});assert.match(text(failedPersonal.children[4]),/BLOCKED.*Completed proof counts unavailable.*No additional catalogue/);assert.doesNotMatch(text(failedPersonal.children[4]),/1 baseline|1 effective fault/);assert.match(text(failedPersonal.children[4]),/Observed attempt interval: 0m 1s/);
- assert.match(text(metrics.children[1]),/1\.0 min main native \+ evidence verification/);
- assert.match(text(links[1]),/Separate profile interval: 2m 5s.*excluded from main native duration/);
+ assert.match(text(links[3]),/PASS.*1 baseline.*1 effective fault/);assert.match(text(links[3]),/already included in main candidate coverage/);assert.match(text(links[3]),/Personal pair interval: 4m 7s.*excluded from recorded native interval/);
+ assert.match(text(links[4]),/ST_CIC.*5 baseline.*5 effective fault.*10 standalone executions/);assert.match(text(links[4]),/1 requirement already included once/);assert.equal(links[4].href,'#harness-st-cic-profile-admission');assert.match(text(links[4]),/duration not recorded/);
+ const stCicPanel=panels['#harness-st-cic-profile-admission'];const separateStCic=render({'#harness-st-cic-profile-admission':{dataset:{...stCicPanel.dataset,stCicInclusion:'separate',stCicCredited:'0'}}});assert.match(text(separateStCic.children[5]),/Separate packet; no requirement added/);assert.equal(separateStCic.children[0].children[1].textContent,'35 / 112');
+ const invalidStCic=render({'#harness-st-cic-profile-admission':{dataset:{...stCicPanel.dataset,stCicExecutions:'11'}}});assert.match(text(invalidStCic.children[5]),/Not recorded.*Execution counts not recorded/);assert.doesNotMatch(text(invalidStCic.children[5]),/5 baseline|10 standalone/);assert.doesNotMatch(text(metrics),/View evidence|View Build evidence/);
+ const separatePersonal=render({'#harness-personal-service-admission':{dataset:{...panels['#harness-personal-service-admission'].dataset,personalInclusion:'separate'}}});assert.match(text(separatePersonal.children[5]),/1 \/ 1 requirement accepted in this separate run/);assert.equal(separatePersonal.children[0].children[1].textContent,'35 / 112');
+ const failedPersonal=render({'#harness-personal-service-attempt':{dataset:{personalAttemptStatus:'BLOCKED',personalAttemptDurationMs:'1234'}}});assert.match(text(failedPersonal.children[5]),/BLOCKED.*Completed proof counts unavailable.*No additional catalogue/);assert.doesNotMatch(text(failedPersonal.children[5]),/1 baseline|1 effective fault/);assert.match(text(failedPersonal.children[5]),/Observed attempt interval: 0m 1s/);
+ assert.match(text(metrics.children[1]),/1\.0 min recorded native interval/);
+ assert.match(text(links[1]),/Separate profile interval: 2m 5s.*excluded from recorded native interval/);
  assert.match(text(summary),/Separate execution counts and durations/);assert.match(text(summary),/Supplementary requirements enter the catalogue total only when jointly admitted/);assert.doesNotMatch(text(summary),/excluded from the main totals/);
- const unknown=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:undefined}}});assert.match(text(unknown.children[4]),/Separate profile interval: not recorded/);
- const included=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileInclusion:'included'}}});assert.match(text(included.children[4]),/already included in main candidate coverage/);assert.match(text(included.children[4]),/2m 5s.*excluded from main native duration/);assert.equal(included.children[0].children[1].textContent,'35 / 112');
- const zero=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:'0'}}});assert.match(text(zero.children[4]),/Separate profile interval: 0m 0s/);
+ const unknown=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:undefined}}});assert.match(text(unknown.children[5]),/Separate profile interval: not recorded/);
+ const included=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileInclusion:'included'}}});assert.match(text(included.children[5]),/already included in main candidate coverage/);assert.match(text(included.children[5]),/2m 5s.*excluded from recorded native interval/);assert.equal(included.children[0].children[1].textContent,'35 / 112');
+ const zero=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:'0'}}});assert.match(text(zero.children[5]),/Separate profile interval: 0m 0s/);
  const standalone=render({'#harness-shared-nested-attempt':panels['#harness-shared-nested-attempt']},false);
- assert.equal(standalone.children[1].children[1].textContent,'Not run');assert.equal(standalone.children[1].dataset.nativeStatus,'NOT_RUN');assert.equal(standalone.children[2].children[1].textContent,'116');assert.match(text(standalone.children[4]),/BLOCKED/);
- for(const [selector,panel]of Object.entries(panels)){const one=render({[selector]:panel});assert.equal(one.children[4].children.find(x=>x.className==='report-supplement-links').children.length,1);}
+ assert.equal(standalone.children[1].children[1].textContent,'Not run');assert.equal(standalone.children[1].dataset.nativeStatus,'NOT_RUN');assert.equal(standalone.children[2].children[1].textContent,'116');assert.match(text(standalone.children[5]),/BLOCKED/);
+ for(const [selector,panel]of Object.entries(panels)){const one=render({[selector]:panel});assert.equal(one.children[5].children.find(x=>x.className==='report-supplement-links').children.length,1);}
  const css=fs.readFileSync(path.join(__dirname,'harness-report-coverage.css'),'utf8');assert.match(css,/\.report-supplement-summary[^{]*\{[^}]*grid-column:\s*1 \/ -1/);assert.match(css,/\.report-supplement-links[^{]*\{[^}]*minmax/);
 });
 
@@ -1397,7 +1403,8 @@ test('seven-phase dashboard includes selector setup, execution, evidence and cle
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  assert.equal(Reporter.validatePublicReport('harness').status,'passed');
  const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),table=dom.querySelector('#harness-phase-timings');
- assert.equal(table.querySelectorAll('tbody tr').length,20);assert.match(table.textContent,/0m 20s native run/);
+ assert.match(table.textContent,/Unitemized recorded interval: 0m 0s \(0 ms\)/);assert.match(table.textContent,/preflight and controller work.*ST_CIC when attached/);assert.match(table.textContent,/not an exact ST_CIC or per-facet duration/);
+ assert.equal(table.querySelectorAll('tbody tr').length,20);assert.match(table.textContent,/0m 20s recorded native interval/);
  for(const label of labels.slice(-7))assert.equal(table.querySelectorAll('tbody tr').filter(row=>row.textContent.includes(label)).length,1);
  assert.match(table.textContent,/Selector baseline proof and cleanupProof \+ setup \/ cleanup/);
  assert(!table.textContent.includes('Selector Page2 preparation, proofs and cleanup'));
@@ -1406,7 +1413,15 @@ test('seven-phase dashboard includes selector setup, execution, evidence and cle
   const changed=JSON.parse(originalRecord);mutate(changed);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(recordFile,originalRecord);
  }
  const page=require('node-html-parser').parse(originalHtml),panel=page.querySelector('#harness-phase-timings');panel.insertAdjacentHTML('afterend',panel.toString());const duplicate=page.toString(),changed=JSON.parse(originalRecord);changed.sha256=require('node:crypto').createHash('sha256').update(duplicate).digest('hex');fs.writeFileSync(output(),duplicate);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(output(),originalHtml);fs.writeFileSync(recordFile,originalRecord);
- const legacy=require('node-html-parser').parse(originalHtml),prior=JSON.parse(originalRecord);legacy.querySelectorAll('[data-harness-check-info]').forEach(node=>node.remove());legacy.querySelectorAll('[data-harness-check-steps]').forEach(node=>{node.parentNode.innerHTML='';});legacy.querySelectorAll('[data-phase-duration-ms]').forEach(node=>{node.removeAttribute('data-phase-duration-ms');node.removeAttribute('data-phase-started-at');});delete prior.checkMethods;delete prior.diagnosticWorkers;const oldHtml=legacy.toString();prior.sha256=require('node:crypto').createHash('sha256').update(oldHtml).digest('hex');fs.writeFileSync(output(),oldHtml);fs.writeFileSync(recordFile,JSON.stringify(prior));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert.equal(fs.existsSync(output()),false);
+ for(const action of ['value','duplicate']){
+  const tampered=require('node-html-parser').parse(originalHtml),nativeRow=tampered.querySelector('.testcase-run-info-table').querySelectorAll('tr').find(row=>row.querySelector('th')?.textContent==='Recorded native interval');if(action==='value')nativeRow.querySelector('td').textContent='PASS · ST_CIC took exactly 20 seconds';else nativeRow.insertAdjacentHTML('afterend',nativeRow.toString());
+  const html=tampered.toString(),rec=JSON.parse(originalRecord);rec.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,JSON.stringify(rec));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(output(),originalHtml);fs.writeFileSync(recordFile,originalRecord);
+ }
+ const preceding=require('node-html-parser').parse(originalHtml),precedingRecord=JSON.parse(originalRecord),precedingPanel=preceding.querySelector('#harness-phase-timings');
+ precedingPanel.querySelector('[data-native-unitemized]').remove();precedingPanel.querySelector('.harness-phase-heading strong').textContent='0m 20s main native + evidence verification';precedingPanel.querySelector('.harness-phase-heading p').textContent='Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. Diagnostic Playwright time and Jenkins checkout/build time are separate.';
+ const precedingRow=preceding.querySelector('.testcase-run-info-table').querySelectorAll('tr').find(row=>row.querySelector('th')?.textContent==='Recorded native interval');precedingRow.querySelector('th').textContent='Main native + evidence verification';precedingRow.querySelector('td').textContent='PASS · 0.3 min';
+ const precedingHtml=preceding.toString();precedingRecord.sha256=require('node:crypto').createHash('sha256').update(precedingHtml).digest('hex');fs.writeFileSync(output(),precedingHtml);fs.writeFileSync(recordFile,JSON.stringify(precedingRecord));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));fs.writeFileSync(output(),originalHtml);fs.writeFileSync(recordFile,originalRecord);
+ const legacy=require('node-html-parser').parse(originalHtml),prior=JSON.parse(originalRecord);legacy.querySelectorAll('[data-harness-check-info]').forEach(node=>node.remove());legacy.querySelectorAll('[data-harness-check-steps]').forEach(node=>{node.parentNode.innerHTML='';});legacy.querySelectorAll('[data-phase-duration-ms]').forEach(node=>{node.removeAttribute('data-phase-duration-ms');node.removeAttribute('data-phase-started-at');});delete prior.checkMethods;delete prior.detailEvidence;delete prior.diagnosticWorkers;const oldPanel=legacy.querySelector('#harness-phase-timings');oldPanel.querySelector('[data-native-unitemized]').remove();oldPanel.querySelector('.harness-phase-heading strong').textContent='0m 20s main native + evidence verification';oldPanel.querySelector('.harness-phase-heading p').textContent='Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. Diagnostic Playwright time and Jenkins checkout/build time are separate.';const oldHtml=legacy.toString();prior.sha256=require('node:crypto').createHash('sha256').update(oldHtml).digest('hex');fs.writeFileSync(output(),oldHtml);fs.writeFileSync(recordFile,JSON.stringify(prior));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert.equal(fs.existsSync(output()),false);
 
 });
 
@@ -1477,6 +1492,100 @@ test('personal invocation telemetry is separate from core and historical absence
   assert.match(renderNativeExecutionInfo(evidence),/Personal-service Playwright invocations<\/th><td>Not recorded<\/td>/);
 });
 
+function assuranceTimingFixture(overrides={}) {
+ return {schemaVersion:1,scope:'assurance-start-to-report-snapshot',clock:'monotonic',startedAt:'2026-11-06T12:00:00.000Z',elapsedMs:10480,...overrides};
+}
+function assuranceDashboard(data={}) {
+ if(data.getAttribute)data=Object.fromEntries(['assuranceElapsedMs','assuranceScope','assuranceClock','assuranceVersion','assuranceStartedAt'].map(name=>[name,data.getAttribute('data-'+name.replace(/[A-Z]/g,letter=>'-'+letter.toLowerCase()))]));
+ const make=()=>({dataset:{},children:[],attributes:{},classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(name,value){this.attributes[name]=value}});
+ const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
+ const elements={'#harness-public-run':{dataset:{nativeElapsedMs:'180',...data}},'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}};
+ require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8'),{document:{createElement:make,querySelector:selector=>elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'39'}}]:[]}});
+ return metrics.children;
+}
+
+test('assurance timing is persisted and visibly bound without changing diagnostic or native evidence',async t=>{
+ sandbox(t);const Reporter=api(),timing=assuranceTimingFixture(),native=await nativePresentationFixture(false),reporter=new Reporter({selection:'harness',assuranceTiming:timing,nativeElapsedMs:180});reporter.nativeEvidence=native;
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
+ const record=Reporter.validatePublicReport(),dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));
+ assert.deepEqual(record.assuranceTiming,timing);assert.deepEqual(record.nativeEvidence,native);assert.equal(record.tests,116);assert.equal(record.counts.passed,116);
+ const run=dom.querySelector('#harness-public-run');assert.equal(run.getAttribute('data-assurance-elapsed-ms'),'10480');assert.equal(run.getAttribute('data-assurance-scope'),timing.scope);assert.equal(run.getAttribute('data-assurance-started-at'),timing.startedAt);
+ const info=dom.querySelector('.testcase-run-info-table');assert.match(info.textContent,/Harness elapsed to report.*0m 10\.480s/s);assert.match(info.textContent,/Recorded native interval.*PASS.*0\.0 min/s);assert.match(info.textContent,/Includes selected assurance phases, evidence verification and diagnostics/);assert.match(info.textContent,/Excludes report sealing\/publication after snapshot, wrapper bookkeeping and Jenkins checkout\/build\/queue/);
+ const cards=assuranceDashboard(run);assert.equal(cards[4].children[0].textContent,'Harness elapsed to report');assert.equal(cards[4].children[1].textContent,'0m 10.480s');assert.equal(cards[4].className,'report-metric report-supplement-summary report-assurance-elapsed');assert.match(cards[4].children[2].textContent,/Excludes report sealing\/publication after snapshot/);assert.equal(cards[0].children[1].textContent,'39 / 112');assert.equal(cards[2].children[1].textContent,'116');
+});
+
+test('assurance timing missing and zero remain distinct without native or diagnostic fallback',async t=>{
+ sandbox(t);
+ for(const timing of [undefined,assuranceTimingFixture({elapsedMs:0})]){
+  const Reporter=await complete('harness',[],'passed',0,timing),record=Reporter.validatePublicReport(),dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));
+  assert.deepEqual(record.assuranceTiming,timing);const info=dom.querySelector('.testcase-run-info-table');const row=info.querySelectorAll('tr').find(item=>item.querySelector('th')?.textContent==='Harness elapsed to report');assert.equal(row.querySelector('td').textContent,timing?'0m 0.000s':'Not recorded');
+  const cards=assuranceDashboard(dom.querySelector('#harness-public-run'));assert.equal(cards[4].children[1].textContent,timing?'0m 0.000s':'Not recorded');
+ }
+ for(const data of [{assuranceElapsedMs:''},{assuranceElapsedMs:'10480',assuranceScope:'wrong',assuranceClock:'monotonic',assuranceVersion:'1'}])assert.equal(assuranceDashboard(data)[4].children[1].textContent,'Not recorded');
+});
+
+test('assurance timing rejects hostile or noninteger optional telemetry before publication',async t=>{
+ sandbox(t);
+ const values=[null,'10480',{},assuranceTimingFixture({elapsedMs:-1}),assuranceTimingFixture({elapsedMs:0.5}),assuranceTimingFixture({elapsedMs:NaN}),assuranceTimingFixture({elapsedMs:Infinity}),assuranceTimingFixture({elapsedMs:'10480'}),assuranceTimingFixture({elapsedMs:Number.MAX_SAFE_INTEGER+1}),assuranceTimingFixture({scope:canary}),assuranceTimingFixture({clock:'wall'}),assuranceTimingFixture({schemaVersion:2}),assuranceTimingFixture({startedAt:'invalid'}),assuranceTimingFixture({startedAt:'2026-11-06T12:00:00Z'}),assuranceTimingFixture({path:canary})];
+ for(const value of values){await assert.rejects(complete('harness',[],'passed',0,value),/PUBLIC_ODHIN/);assert(!fs.existsSync(output()));}
+});
+
+test('assurance timing rejects private or coherently resealed visible HTML tampering',async t=>{
+ sandbox(t);const Reporter=await complete('harness',[],'passed',0,assuranceTimingFixture()),recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),originalRecord=fs.readFileSync(recordFile),originalHtml=fs.readFileSync(output(),'utf8');
+ for(const mutation of ['private-elapsed','private-delete','private-date','attribute','duplicate-attribute','attribute-start','visible-value','scope-note','duplicate-run','duplicate-row','duplicate-header']){
+  const record=JSON.parse(originalRecord),dom=require('node-html-parser').parse(originalHtml);
+  if(mutation==='private-elapsed')record.assuranceTiming.elapsedMs++;
+  else if(mutation==='private-delete')delete record.assuranceTiming;
+  else if(mutation==='private-date')record.assuranceTiming.startedAt=canary;
+  else {
+   if(mutation==='attribute')dom.querySelector('#harness-public-run').setAttribute('data-assurance-elapsed-ms','10481');
+   else if(mutation==='attribute-start')dom.querySelector('#harness-public-run').setAttribute('data-assurance-started-at','2026-11-06T12:00:01.000Z');
+   else if(mutation==='duplicate-run')dom.querySelector('body').insertAdjacentHTML('afterbegin',dom.querySelector('#harness-public-run').toString());
+   else if(mutation==='duplicate-header')dom.querySelector('#TabDashboard').insertAdjacentHTML('beforeend','<div class="info-box-header">Run info</div>');
+   else if(mutation==='duplicate-row'){const table=dom.querySelector('.testcase-run-info-table');const row=table.querySelectorAll('tr').find(item=>item.querySelector('th')?.textContent==='Harness elapsed to report');table.insertAdjacentHTML('beforeend',row.toString());}
+   else if(mutation!=='duplicate-attribute'){const label=mutation==='visible-value'?'Harness elapsed to report':'Assurance timing scope';const row=dom.querySelector('.testcase-run-info-table').querySelectorAll('tr').find(item=>item.querySelector('th')?.textContent===label);row.querySelector('td').textContent='tampered';}
+   const html=mutation==='duplicate-attribute'?originalHtml.replace('data-assurance-elapsed-ms="10480"','data-assurance-elapsed-ms="10480" data-assurance-elapsed-ms="10480"'):dom.toString();fs.writeFileSync(output(),html);record.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');
+  }
+  fs.writeFileSync(recordFile,JSON.stringify(record));assert.throws(()=>Reporter.validatePublicReport(),{message:'PUBLIC_ODHIN_INVALID_OR_INCOMPLETE'});fs.writeFileSync(recordFile,originalRecord);fs.writeFileSync(output(),originalHtml);
+ }
+ Reporter.validatePublicReport();
+});
+
+test('assurance timing old absent record retires and subsequent reports cannot reuse stale duration',async t=>{
+ sandbox(t);const Reporter=await complete(),recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),record=JSON.parse(fs.readFileSync(recordFile)),dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));
+ for(const row of dom.querySelector('.testcase-run-info-table').querySelectorAll('tr')){
+  const label=row.querySelector('th')?.textContent;
+  if(['Harness elapsed to report','Assurance timing scope','Assurance started at'].includes(label))row.remove();
+  if(label==='Main native + evidence verification')row.querySelector('th').textContent='Native execution';
+ }
+ const html=dom.toString();record.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(recordFile,JSON.stringify(record));fs.writeFileSync(output(),html);Reporter.validatePublicReport();Reporter.resetPublicReport('harness');
+ await complete('harness',[],'passed',0,assuranceTimingFixture());assert.equal(Reporter.validatePublicReport().assuranceTiming.elapsedMs,10480);await complete();assert.equal(Reporter.validatePublicReport().assuranceTiming,undefined);assert.match(require('node-html-parser').parse(fs.readFileSync(output(),'utf8')).querySelector('.testcase-run-info-table').textContent,/Harness elapsed to report.*Not recorded/s);
+});
+
+test('preparation version2 timing retains distinct labels and exact visible binding while version1 stays scoped',async t=>{
+ sandbox(t);const timing=assuranceTimingFixture({schemaVersion:2,scope:'harness-preparation-start-to-report-snapshot',elapsedMs:329350});
+ const Reporter=await complete('harness',[],'passed',0,timing),record=Reporter.validatePublicReport();assert.deepEqual(record.assuranceTiming,timing);
+ const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),run=dom.querySelector('#harness-public-run');assert.equal(run.getAttribute('data-assurance-version'),'2');
+ const info=dom.querySelector('.testcase-run-info-table');assert.match(info.textContent,/Harness preparation → report snapshot.*5m 29\.350s/s);assert.match(info.textContent,/candidate build/i);assert.match(info.textContent,/earlier Jenkins shell\/bootstrap/);assert.match(info.textContent,/after snapshot/);
+ const cards=assuranceDashboard(run);assert.equal(cards[4].children[0].textContent,'Harness preparation → report snapshot');assert.equal(cards[4].children[1].textContent,'5m 29.350s');assert.match(cards[4].children[2].textContent,/candidate build/i);
+});
+
+test('preparation timing rejects version/scope mismatch and coherently resealed legacy labels or altered visible binding',async t=>{
+ sandbox(t);const timing=assuranceTimingFixture({schemaVersion:2,scope:'harness-preparation-start-to-report-snapshot'});
+ for(const invalid of [{...timing,schemaVersion:1},{...timing,schemaVersion:3},{...timing,scope:'assurance-start-to-report-snapshot'},{...timing,extra:1}])await assert.rejects(complete('harness',[],'passed',0,invalid),/PUBLIC_ODHIN/);
+ const Reporter=await complete('harness',[],'passed',0,timing),recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),originalRecord=fs.readFileSync(recordFile),originalHtml=fs.readFileSync(output(),'utf8');
+ for(const mutation of ['version','scope','value','start','legacy-row','duplicate-row']){
+  const record=JSON.parse(originalRecord),dom=require('node-html-parser').parse(originalHtml),table=dom.querySelector('.testcase-run-info-table'),row=table.querySelectorAll('tr').find(item=>item.querySelector('th')?.textContent==='Harness preparation → report snapshot');
+  if(mutation==='version')dom.querySelector('#harness-public-run').setAttribute('data-assurance-version','1');
+  else if(mutation==='scope')dom.querySelector('#harness-public-run').setAttribute('data-assurance-scope','assurance-start-to-report-snapshot');
+  else if(mutation==='value')row.querySelector('td').textContent='0m 0.000s';
+  else if(mutation==='start')table.querySelectorAll('tr').find(item=>item.querySelector('th')?.textContent==='Preparation started at').querySelector('td').textContent='Not recorded';
+  else table.insertAdjacentHTML('beforeend',mutation==='legacy-row'?'<tr><th>Harness elapsed to report</th><td>0m 0.000s</td></tr>':row.toString());
+  const html=dom.toString();fs.writeFileSync(output(),html);record.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(recordFile,JSON.stringify(record));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(recordFile,originalRecord);fs.writeFileSync(output(),originalHtml);
+ }
+ Reporter.validatePublicReport();await complete('harness',[],'passed',0,assuranceTimingFixture());assert.equal(Reporter.validatePublicReport().assuranceTiming.schemaVersion,1);await complete();assert.equal(Reporter.validatePublicReport().assuranceTiming,undefined);
+});
+
 test('public detail shows reviewed method and only actually recorded named check steps, never raw diagnostics', async t => {
   sandbox(t);const Reporter=api(),reporter=new Reporter({selection:'harness'}),tests=testsFor();
   const methodsFile=path.join(__dirname,'fixtures/harness-public-check-methods.json');
@@ -1486,7 +1595,7 @@ test('public detail shows reviewed method and only actually recorded named check
   reporter.onBegin({}, {allTests:()=>tests});
   for(let index=0;index<tests.length;index++) {
     const observed=result(index===1?'failed':'passed',index);
-    if(index===0)observed.steps=(first?.steps??[{id}]).map(step=>({title:'harness-check:'+step.id,category:'test.step',duration:7,startTime:new Date(),location:{file:canary},attachments:[{body:canary}],steps:[{title:canary,category:'expect',duration:1}]}));
+    if(index===0)observed.steps=(first?.steps??[{id}]).map(step=>({title:'harness-check:'+step.id,category:'test.step',duration:7,startTime:new Date(),location:{file:canary},attachments:[{body:canary}],steps:step.id==='auth-basic-csrf'?['csrf-present','csrf-absent'].map(id=>({title:'harness-detail:'+id,category:'test.step',duration:2,steps:[]})):[{title:canary,category:'expect',duration:1}]}));
     if(index===1)observed.steps=[];
     reporter.onTestEnd(tests[index],observed);
   }
@@ -1510,7 +1619,7 @@ test('public method visibility covers every116diagnostic identity and coherent r
   for(const [index,entry] of titles.harness.entries()) {
     const modal=dom.querySelector(`#harness-${index}-0`),info=modal.querySelector('[data-harness-check-info]'),steps=modal.querySelector('[data-harness-check-steps]');
     assert(info.textContent.includes(helper.methodFor(entry).purpose));assert(info.textContent.includes(helper.methodFor(entry).boundary));
-    assert.equal(steps.querySelectorAll('[data-check-step-id]').length,helper.methodFor(entry).steps.length);assert(steps.querySelectorAll('tbody tr').every(row=>row.querySelector('td').textContent==='passed'));
+    assert.equal(steps.querySelectorAll('[data-check-step-id]').length,helper.methodFor(entry).steps.length);assert(steps.querySelectorAll('[data-check-step-id]').every(row=>row.querySelector('td').textContent==='passed'));
   }
   for(const mutate of [
     (page)=>{page.querySelector('[data-harness-check-info]').querySelector('p').textContent='This proves all deployed service behaviour';},
@@ -1539,7 +1648,7 @@ test('owned legacy report without method records can retire but cannot pass curr
   sandbox(t);const Reporter=await complete(),recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),record=JSON.parse(fs.readFileSync(recordFile)),page=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));
   page.querySelectorAll('[data-harness-check-info]').forEach(node=>node.remove());
   page.querySelectorAll('[data-harness-check-steps]').forEach(node=>{node.parentNode.innerHTML='<div class="row m-0 p-0"><div class="col m-0 p-0"></div></div>';});
-  delete record.checkMethods;const html=page.toString();record.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,JSON.stringify(record));
+  delete record.checkMethods;delete record.detailEvidence;const html=page.toString();record.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,JSON.stringify(record));
   assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert.equal(fs.existsSync(output()),false);
 });
 
@@ -1555,4 +1664,114 @@ test('diagnostic worker observations distinguish equal indexes across trusted ru
 
  for(const phase of ['foreign',canary]){const invalid=new Reporter({selection:'local-aat'});invalid.onBegin({workers:1,harnessRunnerPhases:['offline','aat']},{allTests:()=>tests});assert.throws(()=>invalid.onTestEnd(tests[0],{...result('passed',0,'local-aat'),runnerPhase:phase}),/PUBLIC_ODHIN/);}
  const invalid=new Reporter({selection:'local-aat'});invalid.onBegin({workers:1,harnessRunnerPhases:['offline','aat']},{allTests:()=>tests});assert.throws(()=>invalid.onTestEnd(tests[0],{...result('passed',0,'local-aat'),runnerPhase:'aat'}),/PUBLIC_ODHIN/);
+});
+test('native recorded stages remain visible and bound in the public report without changing diagnostic or catalogue totals',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});
+ reporter.nativeEvidence=await nativePresentationFixture(false);
+ const {NativeStageRecorder}=require('./lib/exui-native-stage-telemetry.cjs');const recorder=new NativeStageRecorder(),r={duration:91},s={category:'test.step',title:'harness-assertion:family-membership',duration:3,annotations:[]};
+ recorder.begin('wa-family-options',r,s);recorder.end('wa-family-options',r,s);
+ reporter.nativeEvidence.phases.find(p=>p.phase==='family').baselineProofs[0].recordedExecution=recorder.finish('wa-family-options',r);
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const before=Reporter.validatePublicReport();assert.equal(before.nativeEvidence.status,'PASS');assert.equal(before.nativeEvidence.phases[0].baselineProofs[0].recordedExecution.testDurationMs,91);
+ const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(file);
+ const html=fs.readFileSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.match(html,/Observed test duration: 91 ms/);assert.match(html,/Recorded named assertion stages/);
+ const changed=JSON.parse(original);changed.nativeEvidence.phases[0].baselineProofs[0].recordedExecution.stages[0].durationMs=999;fs.writeFileSync(file,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);
+ fs.writeFileSync(file,original);
+ for(const mutate of [page=>page.querySelector('[data-native-stage-proof] tbody tr td:nth-child(4)').textContent='Fabricated observed value',page=>page.querySelector('[data-native-stage-proof] tbody tr td:nth-child(5)').textContent='completed',page=>page.querySelector('[data-native-stage-note]').textContent='Every action and request passed',page=>page.querySelector('[data-native-stage-proof]').insertAdjacentHTML('afterend',page.querySelector('[data-native-stage-proof]').toString())]){const page=require('node-html-parser').parse(html),value=JSON.parse(original);mutate(page);const modified=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(modified).digest('hex');fs.writeFileSync(output(),modified);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(output(),html);fs.writeFileSync(file,original);}
+ fs.writeFileSync(file,original);const restored=Reporter.validatePublicReport();assert.deepEqual(restored.nativeEvidence.catalogueCoverage,before.nativeEvidence.catalogueCoverage);assert.equal(restored.tests,116);assert.equal(restored.tests,before.tests);assert.deepEqual(restored.counts,before.counts);for(const mutate of [x=>x.stages=[],x=>{x.testDurationMs=1;x.stages[0].durationMs=1000;}]){const invalid=structuredClone(before.nativeEvidence);mutate(invalid.phases[0].baselineProofs[0].recordedExecution);assert.throws(()=>require('./harness-native-report.cjs').renderNativeEvidence(invalid),/PUBLIC_NATIVE_STAGE/);}
+});
+
+test('native PCS routing rows retain their synthetic service attribution', async () => {
+  const { parse } = require('node-html-parser');
+  const { renderNativeEvidence } = require('./harness-native-report.cjs');
+  const evidence = await nativePresentationFixture(false);
+  const rows = parse(renderNativeEvidence(evidence)).querySelectorAll('tr[data-native-phase="routing"]');
+  assert.equal(rows.length, 4);
+  for (const row of rows) {
+    const service = row.querySelector('td').textContent;
+    assert.match(service, /Synthetic PCS routing fixture/);
+    assert.doesNotMatch(service, /Private Law/);
+  }
+});
+
+
+test('native interval unitemized difference is exact telemetry and tolerated negative rounding stays unknown',async t=>{
+ sandbox(t);const Reporter=api();
+ for(const [elapsed,duration,expected] of [[2500,1000,'Unitemized recorded interval: 0m 1s (1500 ms).'],[999,1000,'Unitemized recorded interval: Not recorded (listed phases exceed the interval by 1 ms within the 1-second rounding tolerance).'],[0,1000,'Unitemized recorded interval: Not recorded (listed phases exceed the interval by 1000 ms within the 1-second rounding tolerance).']]){
+  const reporter=new Reporter({selection:'harness',nativeElapsedMs:elapsed,phaseTimings:[{label:'CCD runtime startup',status:'completed',startedAt:'2026-11-06T12:00:00.000Z',durationMs:duration}]});reporter.nativeEvidence=await nativePresentationFixture();
+  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());Reporter.validatePublicReport();
+  const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),remainder=dom.querySelector('[data-native-unitemized]');assert(remainder.textContent.startsWith(expected));assert.equal(remainder.getAttribute('data-native-unitemized'),elapsed<duration?'unknown':String(elapsed-duration));
+  const recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(recordFile),html=fs.readFileSync(output(),'utf8');remainder.textContent='ST_CIC exact duration: 1 second';const changed=dom.toString(),record=JSON.parse(original);record.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(recordFile,JSON.stringify(record));fs.writeFileSync(output(),changed);assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(recordFile,original);fs.writeFileSync(output(),html);Reporter.resetPublicReport('harness');
+ }
+});
+
+test('native interval RunInfo binds unrecorded and not-run states and rejects coherent false-native rows',async t=>{
+ sandbox(t);const Reporter=api();
+ for(const native of [undefined,await nativePresentationFixture(false)]){
+  const reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=native;
+  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());Reporter.validatePublicReport();
+  const recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),record=fs.readFileSync(recordFile),html=fs.readFileSync(output(),'utf8');
+  const current=require('node-html-parser').parse(html).querySelector('.testcase-run-info-table').querySelectorAll('tr').find(row=>row.querySelector('th')?.textContent==='Recorded native interval');assert.match(current.querySelector('td').textContent,native?/PASS · duration not recorded/:/^Not run$/);
+  for(const mutation of ['false-value','duplicate','duplicate-old-label','missing','old-label']){
+   const dom=require('node-html-parser').parse(html),row=dom.querySelector('.testcase-run-info-table').querySelectorAll('tr').find(item=>item.querySelector('th')?.textContent==='Recorded native interval');
+   if(mutation==='false-value')row.querySelector('td').textContent='PASS · 123.4 min · Fabricated native execution';
+   if(mutation==='duplicate'||mutation==='duplicate-old-label')row.insertAdjacentHTML('afterend',mutation==='duplicate'?row.toString():row.toString().replace('Recorded native interval','Native execution'));
+   if(mutation==='missing')row.remove();if(mutation==='old-label')row.querySelector('th').textContent='Main native + evidence verification';
+   const changed=dom.toString(),rec=JSON.parse(record);rec.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(recordFile,JSON.stringify(rec));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,record);
+  }
+  for(const label of ['Main native + evidence verification','Native execution']){
+   const dom=require('node-html-parser').parse(html),row=dom.querySelector('.testcase-run-info-table').querySelectorAll('tr').find(item=>item.querySelector('th')?.textContent==='Recorded native interval');row.querySelector('th').textContent=label;row.querySelector('td').textContent=native?'PASS · duration not recorded':'Not run';const changed=dom.toString(),rec=JSON.parse(record);rec.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(recordFile,JSON.stringify(rec));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,record);
+  }
+  Reporter.resetPublicReport('harness');
+ }
+});
+
+test('finite CSRF detail record binds actual child outcomes to its parent and exact public presentation',async t=>{
+ sandbox(t);const Reporter=await complete(),recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(recordFile),html=fs.readFileSync(output(),'utf8'),record=Reporter.validatePublicReport(),dom=require('node-html-parser').parse(html);
+ assert.equal(record.checkMethods.checks.flatMap(row=>row.steps).length,119);assert.equal(record.detailEvidence.checks.length,1);assert.deepEqual(record.detailEvidence.checks[0].details.map(row=>[row.id,row.parentId,row.status,row.durationMs,row.order]),[['csrf-present','auth-basic-csrf','passed',1,1],['csrf-absent','auth-basic-csrf','passed',1,2]]);assert.equal(dom.querySelectorAll('[data-check-detail-id]').length,2);assert.match(dom.querySelector('[data-harness-check-details]').textContent,/Source-defined expected assertion/);assert(!html.includes(canary));
+ for(const mutate of [
+  (page)=>{page.querySelector('[data-check-detail-id] td:nth-child(3)').textContent='failed';},
+  (page)=>{page.querySelector('[data-harness-check-details]').insertAdjacentHTML('beforeend',page.querySelector('[data-check-detail-id]').toString());},
+  (page)=>{page.querySelector('[data-harness-check-details]').setAttribute('data-harness-check-details','foreign');},
+  (_page,value)=>{value.detailEvidence.checks[0].details[0].id='foreign';},
+  (page,value)=>{value.detailEvidence.checks[0].details[0].durationMs=999;page.querySelector('[data-check-detail-id] td:nth-child(4)').textContent='999 ms';},
+  (_page,value)=>{value.detailEvidence.checks[0].details.pop();},
+  (_page,value)=>{value.detailEvidence.checks[0].details[0].Authorization=canary;},
+  (_page,value)=>{delete value.detailEvidence;},
+ ]){const page=require('node-html-parser').parse(html),value=JSON.parse(original);mutate(page,value);const changed=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(recordFile,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,original);}
+ Reporter.validatePublicReport();
+});
+test('passed CSRF group cannot infer missing children; failed setup and historical absence have no child PASS',async t=>{
+ sandbox(t);const Reporter=api(),tests=testsFor(),index=titles.harness.findIndex(entry=>entry.titlePath.at(-1)==='extractCsrf parses token and returns undefined when missing');assert(index>=0);
+ for(const children of [[],[{title:'harness-detail:csrf-present',category:'test.step',duration:1}],undefined]){const reporter=new Reporter({selection:'harness'});reporter.onBegin({}, {allTests:()=>tests});const observed=result('passed',index);observed.steps[0].steps=children;assert.throws(()=>reporter.onTestEnd(tests[index],observed),/PUBLIC_ODHIN/);}
+ const reporter=new Reporter({selection:'harness'});reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>{const observed=result(i===index?'failed':'passed',i);if(i===index)observed.steps=[];reporter.onTestEnd(item,observed);});await reporter.onEnd(fullResult('failed'));const value=Reporter.validatePublicReport(),page=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));assert.deepEqual(value.detailEvidence.checks[0].details,[]);assert.equal(page.querySelectorAll('[data-check-detail-id]').length,0);assert.match(page.querySelector('[data-harness-check-details]').textContent,/Not recorded/);
+});
+test('exact owned historical check report can retire without inferred CSRF details',async t=>{
+ sandbox(t);const Reporter=await complete(),recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),value=JSON.parse(fs.readFileSync(recordFile)),page=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));delete value.detailEvidence;page.querySelectorAll('[data-harness-check-details]').forEach(node=>node.remove());const html=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(recordFile,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));
+});
+
+test('exact prior native stage tables may retire but changed legacy outcomes cannot authorize removal',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=await nativePresentationFixture(false);reporter.nativeEvidence.phases[0].baselineProofs[0].recordedExecution={schemaVersion:1,availability:'recorded',scope:'named-assertion-stages',testDurationMs:91,stages:[{stageId:'family-membership',instance:1,ordinal:1,outcome:'completed-without-reported-error',durationMs:3}]};
+ const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),value=JSON.parse(fs.readFileSync(file)),page=require('node-html-parser').parse(fs.readFileSync(output(),'utf8'));delete value.detailEvidence;page.querySelectorAll('[data-harness-check-details]').forEach(node=>node.remove());page.querySelectorAll('[data-native-stage-proof]').forEach(table=>{table.removeAttribute('data-native-stage-proof');table.querySelectorAll('tr').forEach(row=>row.childNodes.filter(node=>node.tagName==='TH'||node.tagName==='TD')[3]?.remove());table.querySelectorAll('thead th')[3].textContent='Recorded outcome';});page.querySelectorAll('[data-native-stage-note]').forEach(note=>{note.removeAttribute('data-native-stage-note');note.textContent=note.textContent.split(' Expected contracts below')[0];});
+ const oldHtml=page.toString(),write=html=>{value.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(file,JSON.stringify(value));};write(oldHtml);assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);
+ for(const fault of ['table','note','both','orphan','proof-alias','invocation-alias','extra-note']){const legacy=require('node-html-parser').parse(oldHtml),rows=legacy.querySelectorAll('[data-native-kind="baseline"]');if(['table','both','orphan'].includes(fault)){const table=rows[0].querySelectorAll('table').find(node=>node.querySelectorAll('thead th').map(cell=>cell.textContent).join('|')==='Order|Assertion stage|Instance|Recorded outcome|Observed duration'),text=table.toString();table.remove();(fault==='orphan'?rows[0]:rows[1].querySelector('details')).insertAdjacentHTML('beforeend',text);}if(['note','both'].includes(fault)){const note=rows[0].querySelectorAll('p').find(node=>node.textContent.startsWith('Observed test duration:')),text=note.toString();note.remove();rows[1].querySelector('details').insertAdjacentHTML('afterbegin',text);}if(fault==='proof-alias')rows[0].querySelector('details dl dd').textContent=rows[1].querySelector('details dl dd').textContent;if(fault==='invocation-alias')rows[0].querySelectorAll('details dl dd')[1].textContent='foreign-invocation';if(fault==='extra-note')legacy.querySelector('#harness-native-evidence').insertAdjacentHTML('beforeend','<p>Observed test duration: 999 ms.</p>');write(legacy.toString());assert.throws(()=>Reporter.resetPublicReport('harness'),/PUBLIC_ODHIN/,fault);write(oldHtml);}
+ const changed=require('node-html-parser').parse(oldHtml),oldTable=changed.querySelectorAll('table').find(table=>table.querySelectorAll('thead th').map(node=>node.textContent).join('|')==='Order|Assertion stage|Instance|Recorded outcome|Observed duration');oldTable.querySelector('tbody td:nth-child(4)').textContent='Fabricated';write(changed.toString());assert.throws(()=>Reporter.resetPublicReport('harness'),/PUBLIC_ODHIN/);write(oldHtml);Reporter.resetPublicReport('harness');assert(!fs.existsSync(output()));
+});
+
+test('fresh detail evidence cannot be removed and coherently downgraded to the exact Not recorded panel',async t=>{
+ sandbox(t);const Reporter=await complete(),file=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),record=JSON.parse(fs.readFileSync(file)),page=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),index=record.checkMethods.checks.findIndex(check=>check.steps.some(step=>step.id==='auth-basic-csrf')),entry=require('./harness-public-overview.cjs').profiles.harness[index],check=record.checkMethods.checks[index];
+ delete record.detailEvidence;page.querySelector(`#TabSteps-harness-${index}-0`).innerHTML=require('./harness-public-check-steps.cjs').renderSteps(entry,check.steps,check.status);const html=page.toString();record.sha256=require('node:crypto').createHash('sha256').update(html).digest('hex');fs.writeFileSync(output(),html);fs.writeFileSync(file,JSON.stringify(record));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);
+});
+test('native recorded table and note must stay in their exact proof and invocation details owner',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=await nativePresentationFixture(false);reporter.nativeEvidence.phases[0].baselineProofs[0].recordedExecution={schemaVersion:1,availability:'recorded',scope:'named-assertion-stages',testDurationMs:91,stages:[{stageId:'family-membership',instance:1,ordinal:1,outcome:'completed-without-reported-error',durationMs:3}]};const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));await reporter.onEnd(fullResult());
+ const file=path.join(root,'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(file),html=fs.readFileSync(output(),'utf8');
+ for(const fault of ['table','note','both','orphan','proof-alias','invocation-alias']){const page=require('node-html-parser').parse(html),value=JSON.parse(original),rows=page.querySelectorAll('[data-native-kind="baseline"]');if(['table','both','orphan'].includes(fault)){const table=rows[0].querySelector('[data-native-stage-proof]'),text=table.toString();table.remove();(fault==='orphan'?rows[0]:rows[1].querySelector('details')).insertAdjacentHTML('beforeend',text);}if(['note','both'].includes(fault)){const note=rows[0].querySelector('[data-native-stage-note]'),text=note.toString();note.remove();rows[1].querySelector('details').insertAdjacentHTML('afterbegin',text);}if(fault==='proof-alias')rows[0].querySelector('details dl dd').textContent=rows[1].querySelector('details dl dd').textContent;if(fault==='invocation-alias')rows[0].querySelectorAll('details dl dd')[1].textContent='foreign-invocation';const changed=page.toString();value.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(output(),changed);fs.writeFileSync(file,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,fault);fs.writeFileSync(output(),html);fs.writeFileSync(file,original);}
+});
+
+test('canonical detail input bytes are rechecked after awaited rendering before any current publication',async t=>{
+ const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),tests=testsFor(),Capture=require('./harness-public-detail-recorder.cjs'),directory=path.join(root,'detail-phase');fs.mkdirSync(directory);const request=Capture.preparePhase(directory,'offline',root),index=titles.harness.findIndex(entry=>entry.titlePath.at(-1)==='extractCsrf parses token and returns undefined when missing'),names=['HARNESS_DETAIL_REQUEST_PATH','HARNESS_DETAIL_REQUEST_DIGEST'],previous=names.map(name=>process.env[name]);
+ try{process.env.HARNESS_DETAIL_REQUEST_PATH=request.path;process.env.HARNESS_DETAIL_REQUEST_DIGEST=request.digest;const recorder=new Capture();recorder.onBegin({}, {allTests:()=>[tests[index]]});recorder.onTestEnd(tests[index],result('passed',index));recorder.onEnd();}finally{names.forEach((name,i)=>{if(previous[i]===undefined)delete process.env[name];else process.env[name]=previous[i];});}
+ const jsonFile=path.join(directory,'playwright.json'),bytes='{"fixtureOnly":true}\n';fs.writeFileSync(jsonFile,bytes);reporter.detailPhaseCaptures=[Capture.holdPhase(request,jsonFile,'sha256:'+require('node:crypto').createHash('sha256').update(bytes).digest('hex'))];reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,i)=>reporter.onTestEnd(item,result('passed',i)));
+ const overview=require('./harness-public-overview.cjs'),render=overview.renderOverview;try{overview.renderOverview=async(...args)=>{const html=await render(...args);fs.appendFileSync(jsonFile,' ');return html;};await assert.rejects(reporter.onEnd(fullResult()),/PUBLIC_ODHIN/);assert(!fs.existsSync(output()));}finally{overview.renderOverview=render;}
 });

@@ -5,6 +5,8 @@ const crypto = require("node:crypto");
 const Reporter = require("./harness-public-odhin-reporter.cjs");
 const overview = require("./harness-public-overview.cjs");
 const checkMethods = require("./harness-public-check-steps.cjs");
+const checkDetails = require("./harness-public-check-details.cjs");
+const detailCapture = require("./harness-public-detail-recorder.cjs");
 const fixture = require("./fixtures/harness-public-report-titles.json");
 const AAT_ORIGIN = "https://manage-case.aat.platform.hmcts.net";
 const IDAM_ORIGIN = "https://idam-web-public.aat.platform.hmcts.net";
@@ -111,6 +113,7 @@ function normalizePhase(document, expected, exitCode, root, bounds, runnerPhase=
         workerIndex: observed.workerIndex,
         parallelIndex: observed.parallelIndex,
       };
+      safe.jsonCheckDetails=checkDetails.extractDetails(registry.get(key),observed.steps,'json',safe.checkSteps,safe.status);
       if (spec.file === "src/tests/harness/diagnostic/configuration.spec.ts") {
         const stack =
           typeof observed.error?.stack === "string" ? observed.error.stack : "";
@@ -232,9 +235,10 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, signal } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, snapshotAssuranceTiming, signal, buildSelfCheckHeld } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
+  if (snapshotAssuranceTiming !== undefined && typeof snapshotAssuranceTiming !== "function") throw fail();
   if(signal?.aborted){Reporter.resetPublicReport('harness');throw fail();}
   const root = process.cwd();
   const privateRoot = path.join(
@@ -245,6 +249,7 @@ async function runHarnessCollection(
   const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt });
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
+  if(buildSelfCheckHeld!==undefined)await reporter.prepareBuildSelfChecks(buildSelfCheckHeld);
   if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
     const verificationStartedAt=new Date().toISOString(),verificationStarted=performance.now();
     if(nativeEvidencePath !== undefined) await reporter.prepareNativeEvidence(nativeEvidencePath);
@@ -303,6 +308,7 @@ async function runHarnessCollection(
       const output = path.join(runRoot, phase.name);
       fs.mkdirSync(output, { mode: 0o700 });
       const jsonFile = path.join(output, "playwright.json");
+      const detailRequest=detailCapture.preparePhase(output,phase.name,root);
       const log = fs.openSync(path.join(output, "process.log"), "wx", 0o600);
       let terminal;
       const startedAt = Date.now();
@@ -315,12 +321,12 @@ async function runHarnessCollection(
               "test",
               "--config",
               path.join(root, phase.config),
-              "--reporter=json",
+              `--reporter=json,${path.join(root,'scripts/harness-public-detail-recorder.cjs')}`,
               `--output=${path.join(output, "test-results")}`,
             ],
             {
               cwd: phase.name === "aat" ? output : root,
-              env: { ...phase.env, PLAYWRIGHT_JSON_OUTPUT_FILE: jsonFile },
+              env: { ...phase.env, PLAYWRIGHT_JSON_OUTPUT_FILE: jsonFile, HARNESS_DETAIL_REQUEST_PATH:detailRequest.path, HARNESS_DETAIL_REQUEST_DIGEST:detailRequest.digest },
               stdio: ["ignore", log, log],
             },
           );
@@ -364,8 +370,11 @@ async function runHarnessCollection(
         { startedAt, finishedAt: Date.now() },
         phase.name,
       );
+      const heldDetails=detailCapture.holdPhase(detailRequest,jsonFile,'sha256:'+crypto.createHash('sha256').update(bytes).digest('hex'));
+      detailCapture.bindPhase(normalized,heldDetails);
       phases.push({
         ...normalized,
+        detailCapture:heldDetails,
         name: phase.name,
         exitCode: terminal.code,
         jsonDigest: crypto.createHash("sha256").update(bytes).digest("hex"),
@@ -380,6 +389,7 @@ async function runHarnessCollection(
       retries: 0,
       expectedStatus: "passed",
     }));
+    reporter.detailPhaseCaptures=structuredClone(phases.map(phase=>phase.detailCapture));
     reporter.onBegin({ harnessRunnerPhases: phases.map(phase=>phase.name), workers: require("./harness-diagnostic-config.cjs").buildConfig({}).workers }, { allTests: () => tests });
     for (let index = 0; index < records.length; index++)
       reporter.onTestEnd(tests[index], records[index].observed);
@@ -414,6 +424,11 @@ async function runHarnessCollection(
       }) + "\n",
       { flag: "wx", mode: 0o600 },
     );
+    if (snapshotAssuranceTiming !== undefined) {
+      reporter.assuranceTiming = await snapshotAssuranceTiming();
+      if (reporter.assuranceTiming === undefined) throw fail();
+    }
+    detailCapture.verifyCaptures(reporter.detailPhaseCaptures);
     await reporter.onEnd({
       status,
       startTime: new Date(start),
@@ -430,9 +445,11 @@ async function runHarnessCollection(
       ...(reporter.nativeEvidence?.divorceProfileAdmission?.joint ? {divorceProfileInclusion:reporter.nativeEvidence.divorceProfileAdmission.joint.status} : {}),
       ...(reporter.nativeEvidence?.complexEmailAdmission?.joint?{complexEmailInclusion:reporter.nativeEvidence.complexEmailAdmission.joint.status}:{}),
       ...(reporter.nativeEvidence?.personalServiceAdmission?.joint?{personalServiceInclusion:reporter.nativeEvidence.personalServiceAdmission.joint.status}:{}),
+      ...(reporter.nativeEvidence?.stCicProfileAdmission?.joint?{stCicProfileInclusion:reporter.nativeEvidence.stCicProfileAdmission.joint.status}:{}),
       ...(reporter.sharedNestedAttemptEvidence?{sharedNestedStatus:reporter.sharedNestedAttemptEvidence.status}:{}),
       exitCode: Math.max(
         reporter.nativeEvidence?.exitCode || 0,
+        reporter.buildSelfChecks===undefined||reporter.buildSelfChecks.status==='passed'?0:reporter.buildSelfChecks.status==='failed'?1:2,
         reporter.sharedNestedAttemptEvidence?.status==="BLOCKED"?2:0,
         divorceProfileAttempt?2:0,
         personalServiceAttempt?2:0,

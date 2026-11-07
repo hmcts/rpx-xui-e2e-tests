@@ -1,3 +1,5 @@
+import {captureV3ExecutionArtifacts,writeV3Completion,waitV3Ack,writeV3ProofStart,writeV3File,waitV3ParentRetirement} from './exui-event-v3-host-writer.mjs';
+import {readEventBaselineCheckpoint} from './exui-native-proof-validation.mjs';
 import {SELECTOR_EVENT_SCOPE,selectorEventMutation} from './exui-selector-event-row-contract.mjs';
 import {selectorTransitionRequest,waitForSelectorRuntime,waitForSelectorBaselineCapture} from './exui-selector-event-row-transition.mjs';
 import {selectorObservationReferences} from './exui-selector-event-row-observations.mjs';
@@ -162,11 +164,13 @@ function derivations(input, output, policy, identities, artifactDerivation) {
   }
   return mutations;
 }
-export async function runNativeHostPhase(output, stagedHarness) {
+export async function runNativeHostPhase(output, stagedHarness, {eventSerialV3=false}={}) {
   const input = read(path.join(output, "input.json")),
     policy = getReleasePolicy(input.releaseScopeId),
     resources = new Map(),
     cleanupErrors = [];
+  assert(typeof eventSerialV3==='boolean'&&(!eventSerialV3||(input.releaseScopeId===EVENT_CAPABILITY_SCOPE&&input.only===undefined)),'EVENT_V3_OPT_IN_SCOPE');
+  assert.deepEqual(input.eventSerialV3,eventSerialV3?{schemaVersion:3,experimental:true}:undefined,'EVENT_V3_MODE_BINDING');
   let interrupted,
     manifest,
     pendingReceipt,
@@ -253,6 +257,11 @@ export async function runNativeHostPhase(output, stagedHarness) {
         : input.releaseScopeId === EVENT_CAPABILITY_SCOPE && invocation.mutation
         ? await waitForEventCapabilityRuntime(input, output, { invocationId: invocation.invocationId, isCancelled: () => Boolean(interrupted) })
         : input;
+      let v3Ack=null,v3Proof=null;
+      if(eventSerialV3&&invocation.mutation){
+        v3Ack=await waitV3Ack(output,invocationInput,invocation.invocationId,{isCancelled:()=>Boolean(interrupted)});
+        v3Proof=writeV3ProofStart(output,invocationInput,invocation.invocationId,v3Ack);
+      }
       const directory = path.join(output, invocation.invocationId);
       fs.mkdirSync(directory, { mode: 0o700, ...([APPLICANT_RESULTS_SCOPE,SELECTOR_EVENT_SCOPE].includes(input.releaseScopeId)||([EVENT_CAPABILITY_SCOPE,CALLBACK_SCOPE].includes(input.releaseScopeId)&&invocation.mutation)?{recursive:true}:{}) });
       const artifact = selectedArtifact(invocationInput, invocation),
@@ -347,9 +356,9 @@ export async function runNativeHostPhase(output, stagedHarness) {
         harnessSourceDigest: input.harnessSourceDigest,
       });
       const plan = nativeContainerPlan(invocationInput, handoff, invocation.invocationId);
-      const { terminal } = await runHostInvocation(
+      const { terminal, v3Finalization } = await runHostInvocation(
         { ...plan, manifest: current, payloadDigest: artifact.payloadDigest },
-        { resources, isCancelled: () => Boolean(interrupted) },
+        { resources, isCancelled: () => Boolean(interrupted), eventSerialV3 },
       );
       const report = read(path.join(directory, "report.json"));
       writeJsonAtomic(path.join(directory, "execution.json"), {
@@ -363,9 +372,13 @@ export async function runNativeHostPhase(output, stagedHarness) {
         resultArtifact: ref(output, path.join(directory, "report.json")),
         ...(input.releaseScopeId===SHARED_NESTED_SCOPE?{sharedNestedArtifacts:captureSharedNestedArtifacts(output,invocation.invocationId)}:{}),
         ...(["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE].includes(input.releaseScopeId) ? {
-          sharedRoleArtifacts: captureSharedRoleArtifacts(output, invocation.invocationId, input.releaseScopeId),
+          ...(eventSerialV3?captureV3ExecutionArtifacts(output,invocation.invocationId):{sharedRoleArtifacts: captureSharedRoleArtifacts(output, invocation.invocationId, input.releaseScopeId)}),
         } : {}),
       });
+      if(eventSerialV3){
+        const checkpoint=invocation.invocationId==='baseline'?readEventBaselineCheckpoint(output,read(path.join(output,'independent-preexecution.json'))).checkpointDigest:null;
+        writeV3Completion(output,{input:invocationInput,id:invocation.invocationId,ack:v3Ack,proof:v3Proof,checkpointDigest:checkpoint,facts:v3Finalization});
+      }
       manifest ??= current;
       executions.push(ref(output, path.join(directory, "execution.json")));
       identities.push({ invocationId: invocation.invocationId, identity,
@@ -386,6 +399,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
         writeJsonAtomic(path.join(output, "event-transition-request.json"), eventCapabilityTransitionRequest(input));
       if(input.releaseScopeId===SHARED_NESTED_SCOPE&&invocation.invocationId==='baseline'&&(report.status!=='passed'||report.globalErrors.length))throw Error('SHARED_NESTED_BASELINE_UNSATISFIED');
     }
+    if(eventSerialV3)await waitV3ParentRetirement(output,input,{isCancelled:()=>Boolean(interrupted)});
     const mutations = derivations(
       input,
       output,
@@ -432,9 +446,10 @@ export async function runNativeHostPhase(output, stagedHarness) {
           exitCode: verdict.exitCode,
           cleanupComplete: cleanupErrors.length === 0,
         });
-        writeHarnessPublicSummary(output, verdict, Boolean(pendingReceipt) && cleanupErrors.length === 0);
+        if(eventSerialV3) writeV3File(output,'v3/host-result.json',{schemaVersion:3,status:verdict.status,exitCode:verdict.exitCode,cleanupComplete:cleanupErrors.length===0,experimental:true,sourceComplete:false,semanticReplay:false,nativeAuthority:false,runtimeAcceptance:false,catalogueCredit:false,releaseApproval:false,promotionAllowed:false});
+        else writeHarnessPublicSummary(output, verdict, Boolean(pendingReceipt) && cleanupErrors.length === 0);
         // All mandatory cleanup and output work precedes the machine receipt.
-        if (pendingReceipt && cleanupErrors.length === 0)
+        if (!eventSerialV3 && pendingReceipt && cleanupErrors.length === 0)
           writeJsonAtomic(path.join(output, "gate.json"), pendingReceipt);
       }
     } catch (error) {
@@ -446,7 +461,7 @@ export async function runNativeHostPhase(output, stagedHarness) {
           cleanupComplete: cleanupErrors.length === 0,
         });
       } catch { /* Preserve the original finalization error and attempt the other safe output. */ }
-      try { writeHarnessPublicSummary(output, verdict); } catch { /* Best effort; the producer still rejects. */ }
+      try { if(!eventSerialV3)writeHarnessPublicSummary(output, verdict); } catch { /* Best effort; the producer still rejects. */ }
       throw error;
     }
   }

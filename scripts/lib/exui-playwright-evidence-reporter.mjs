@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import stageTelemetry from './exui-native-stage-telemetry.cjs';
 
 // Only structured framework events can attribute an assertion; console text cannot.
 export default class EvidenceReporter {
   tests = [];
+  stages = new stageTelemetry.NativeStageRecorder();
   globalErrors = [];
   configuredWorkers = null;
 
@@ -16,6 +18,9 @@ export default class EvidenceReporter {
   }
 
   onError() { this.globalErrors.push('FRAMEWORK_GLOBAL_ERROR'); }
+
+  onStepBegin(test, result, step) { this.stages.begin(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); }
+  onStepEnd(test, result, step) { this.stages.end(test.annotations.find(a => a.type === 'harness-proof')?.description, result, step); }
 
   onTestEnd(test, result) {
     const proofs = test.annotations.filter((annotation) => annotation.type === 'harness-proof');
@@ -39,7 +44,8 @@ export default class EvidenceReporter {
       status: result.status,
       retry: result.retry,
       failureId: attributed ? assertions[0].id : null,
-      unattributedErrors: attributed ? 0 : result.errors.length
+      unattributedErrors: attributed ? 0 : result.errors.length,
+      recordedExecution: this.stages.finish(proofs[0]?.description, result)
     });
   }
 

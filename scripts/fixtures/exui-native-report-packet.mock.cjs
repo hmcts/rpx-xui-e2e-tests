@@ -12,7 +12,7 @@ const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 function write(file,value){fs.mkdirSync(path.dirname(file),{recursive:true});const bytes=JSON.stringify(value);fs.writeFileSync(file,bytes);return digest(bytes);}
 async function fixture(
   t,
-  { postalFailure = false, unknownFailure = false, sourceDigest, candidate } = {},
+  { postalFailure = false, unknownFailure = false, sourceDigest, candidate, recordedStages = false } = {},
 ) {
   const root = fs.mkdtempSync(
     path.join(fs.realpathSync(os.tmpdir()), "native-report-"),
@@ -139,6 +139,10 @@ async function fixture(
           retry: 0,
           failureId,
           unattributedErrors: 0,
+          ...(recordedStages && phase === 'family' ? {recordedExecution: {
+            schemaVersion:1, availability:'recorded', scope:'named-assertion-stages', testDurationMs:recordedStages==='oversized'?1:90,
+            stages: recordedStages==='empty'?[]:(definition ? ['family-membership'] : ['family-membership',...Array(7).fill('family-filter')]).map((id,index)=>({ordinal:index+1,stageId:recordedStages==='invalid'?'PRIVATE_cookie_canary':id,instance:id==='family-filter'?index:1,outcome:definition?'reported-error':'completed-without-reported-error',durationMs:recordedStages==='oversized'?1000:index+2}))
+          }} : {}),
         };
       });
       const status = tests.some((p) => p.status === "failed")

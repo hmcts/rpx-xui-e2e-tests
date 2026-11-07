@@ -9,6 +9,12 @@ const { fullMachineReporters } = require("./scripts/harness-reporting.cjs") as {
   fullMachineReporters: (output: string) => [string, Record<string, unknown>][];
 };
 
+const { buildSelfCheckReporterOption } =
+  require("./scripts/harness-build-self-check-report.cjs") as {
+    buildSelfCheckReporterOption: (
+      env: NodeJS.ProcessEnv,
+    ) => { path: string; digest: string } | undefined;
+  };
 // One runner, one report: retain the focused local configs without executing them twice.
 export default defineConfig({
   ...support,
@@ -22,7 +28,13 @@ export default defineConfig({
   reporter: [
     ["failures"],
     ...fullMachineReporters("functional-output/tests/harness/private/ci"),
-    ["./scripts/harness-public-odhin-reporter.cjs", { selection: "harness" }],
+    [
+      "./scripts/harness-public-odhin-reporter.cjs",
+      {
+        selection: "harness",
+        buildSelfCheckHeld: buildSelfCheckReporterOption(process.env),
+      },
+    ],
     [
       "./src/tests/common/reporters/odhin-adaptive.reporter.cjs",
       {

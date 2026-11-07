@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import {runStCicProfileAdmission} from './run-harness-st-cic-profile-admission.mjs';
+import {verifyStCicNativeCapture} from './lib/exui-st-cic-profile-admission.mjs';
 import {runComplexEmailAdmission} from './run-harness-complex-email-admission.mjs';
 import {prepareComplexAdmissionInputs,verifyComplexNativeCapture} from './lib/exui-complex-email-admission.mjs';
 import {runPersonalServiceAdmission,isPersonalAdmissionClosedFailure} from './run-harness-personal-service-admission.mjs';
@@ -10,11 +12,13 @@ import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { runHarnessCi, reportNativeProgress } from "./run-harness-ci.mjs";
 import { validateCiJob } from "./lib/exui-candidate-ci-inputs.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
+import {assertFreshCandidateDerivationOutput} from "./lib/exui-candidate-artifact.mjs";
 import { digestBytes } from "./lib/exui-evidence-io.mjs";
 import Reporter from "./harness-public-odhin-reporter.cjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -35,22 +39,24 @@ function read(file) {
   const bytes = fs.readFileSync(file);
   return { value: JSON.parse(bytes), digest: digestBytes(bytes) };
 }
-export async function runAssuranceSequence({ native, prepare, profile, personal, complex, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, clock = () => performance.now() }) {
+export async function runAssuranceSequence({ native, prepare, profile, personal, complex, stCic, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, snapshotAssuranceTiming, clock = () => performance.now() }) {
   const finish=value=>{publish(value);return value;};
-  if(signal?.aborted){withdraw();return finish({nativeStatus:'NOT_RUN',...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
-  const nativeStartedAt = clock();
+  let stCicStarted=false;
+  if(signal?.aborted){withdraw();return finish({nativeStatus:'NOT_RUN',...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
+  const nativeStartedAt = clock(), assuranceStartedAt = new Date().toISOString();
   const verdict = await native();
   assert(["PASS", "FAIL", "BLOCKED"].includes(verdict.status) && { PASS: 0, FAIL: 1, BLOCKED: 2 }[verdict.status] === verdict.exitCode, "ASSURANCE_NATIVE_VERDICT_REQUIRED");
   if (verdict.continuationSafe !== true) {
     withdraw();
-    return finish({nativeStatus:verdict.status,...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
+    return finish({nativeStatus:verdict.status,...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
   }
-  let nativeElapsedMs = Math.round(clock() - nativeStartedAt), profileRequest, profileAttempt, profileDurationMs, personalRequest, personalAttempt, personalDurationMs, complexRequest, complexAttempt=configuredComplexAttempt, eligible = true, descriptorFailed = false;
+  let nativeElapsedMs = Math.round(clock() - nativeStartedAt), profileRequest, profileAttempt, profileDurationMs, personalRequest, personalAttempt, personalDurationMs, complexRequest, stCicRequest, complexAttempt=configuredComplexAttempt, eligible = true, descriptorFailed = false;
   const cancelled = () => {
     if (!signal?.aborted) return false;
     withdraw();
-  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), ...(personal ? { personalStatus: "NOT_RUN" } : {}), diagnosticStatus: "not-run", exitCode: 2, releaseApproval: false });
+  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), ...(personal ? { personalStatus: "NOT_RUN" } : {}), ...(stCic?{stCicStatus:stCicStarted?"BLOCKED":"NOT_RUN"}:{}),diagnosticStatus: "not-run", exitCode: 2, releaseApproval: false });
   };
+  const blockStCic=status=>{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...((complex||complexAttempt)?{complexStatus:complexRequest?'PASS':complexAttempt?.status??'NOT_RUN'}:{}),stCicStatus:status,diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});};
   let stopped = cancelled(); if (stopped) return stopped;
   if (prepare) {
     const started = clock();
@@ -75,7 +81,7 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
         const stopped = cancelled(); if (stopped) return stopped;
         // The profile API has no trusted failure result proving child termination/cleanup.
         withdraw();
-        return finish({nativeStatus:verdict.status,profileStatus:'BLOCKED',...(personal?{personalStatus:'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
+        return finish({nativeStatus:verdict.status,profileStatus:'BLOCKED',...(personal?{personalStatus:'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
       } finally {
         profileDurationMs = Math.round(clock() - started);
         if(profileAttempt)profileAttempt.durationMs = profileDurationMs;
@@ -87,7 +93,7 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
     if (eligible && (!profile || profileRequest)) {
       const started = clock();
       try { const result = await personal(signal); assert.equal(result.status,'passed','ASSURANCE_PERSONAL_RESULT_REQUIRED'); assert(result.reportRequest&&typeof result.reportRequest==='object'&&!Array.isArray(result.reportRequest),'ASSURANCE_PERSONAL_REQUEST_REQUIRED'); assert.deepEqual(Object.keys(result.reportRequest).sort(),['digest','path','runId'],'ASSURANCE_PERSONAL_REQUEST_REQUIRED');assert(typeof result.reportRequest.path==='string'&&path.isAbsolute(result.reportRequest.path)&&typeof result.reportRequest.digest==='string'&&/^sha256:[a-f0-9]{64}$/.test(result.reportRequest.digest)&&typeof result.reportRequest.runId==='string'&&result.reportRequest.runId.length>0,'ASSURANCE_PERSONAL_REQUEST_REQUIRED'); personalRequest=result.reportRequest; }
-      catch(error) { if(!isPersonalAdmissionClosedFailure(error)){withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':'NOT_RUN'}:{}),personalStatus:'BLOCKED',diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});} personalAttempt={schemaVersion:1,kind:'personal-service-attempt',status:'BLOCKED',reason:'personal-service-not-admitted'}; }
+      catch(error) { if(!isPersonalAdmissionClosedFailure(error)){withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':'NOT_RUN'}:{}),personalStatus:'BLOCKED',...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});} personalAttempt={schemaVersion:1,kind:'personal-service-attempt',status:'BLOCKED',reason:'personal-service-not-admitted'}; }
       finally {personalDurationMs=Math.round(clock()-started);if(personalAttempt)personalAttempt.durationMs=personalDurationMs;}
     } else personalAttempt={schemaVersion:1,kind:'personal-service-attempt',status:'NOT_RUN',reason:eligible?'preceding-stage-not-admitted':'main-evidence-unavailable'};
   }
@@ -95,15 +101,31 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
   if(complex){
     if(eligible&&(!profile||profileRequest)&&(!personal||personalRequest)){
       try{const result=await complex(signal);assert.equal(result?.status,'passed','ASSURANCE_COMPLEX_RESULT_REQUIRED');assert.deepEqual(Object.keys(result.reportRequest??{}).sort(),['digest','path','runId'],'ASSURANCE_COMPLEX_REQUEST_REQUIRED');assert(typeof result.reportRequest.path==='string'&&path.isAbsolute(result.reportRequest.path)&&/^sha256:[a-f0-9]{64}$/.test(result.reportRequest.digest)&&/^complex-[a-f0-9-]{36}$/.test(result.reportRequest.runId),'ASSURANCE_COMPLEX_REQUEST_REQUIRED');complexRequest=result.reportRequest;}
-      catch{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':'NOT_RUN'}:{}),complexStatus:'BLOCKED',diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
+      catch{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':'NOT_RUN'}:{}),complexStatus:'BLOCKED',...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
     }else complexAttempt={schemaVersion:1,kind:'complex-email-attempt',status:'NOT_RUN',reason:'preceding-stage-not-admitted'};
+  }
+  stopped=cancelled();if(stopped)return stopped;
+  if(stCic){
+    if(!eligible||(profile&&!profileRequest)||(personal&&!personalRequest)||(complex&&!complexRequest))return blockStCic('NOT_RUN');
+    const started=clock();stCicStarted=true;
+    try{
+      const result=await stCic(signal);
+      assert(result&&typeof result==='object'&&!Array.isArray(result)&&result.status==='passed','ASSURANCE_ST_CIC_RESULT_REQUIRED');
+      const request=result.reportRequest;
+      assert(request&&typeof request==='object'&&!Array.isArray(request),'ASSURANCE_ST_CIC_REQUEST_REQUIRED');
+      assert.deepEqual(Object.keys(request).sort(),['digest','path','runId'],'ASSURANCE_ST_CIC_REQUEST_REQUIRED');
+      assert(typeof request.path==='string'&&path.isAbsolute(request.path)&&path.normalize(request.path)===request.path&&typeof request.digest==='string'&&/^sha256:[a-f0-9]{64}$/.test(request.digest)&&typeof request.runId==='string'&&/^st-cic-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(request.runId),'ASSURANCE_ST_CIC_REQUEST_REQUIRED');
+      stCicRequest=structuredClone(request);
+    }catch{return blockStCic('BLOCKED');}
+    finally{nativeElapsedMs+=Math.round(clock()-started);}
   }
   stopped=cancelled();if(stopped)return stopped;
   let nativeEvidencePath;
   const descriptorStarted = clock();
-  try { nativeEvidencePath = await descriptor(verdict, profileRequest, personalRequest, complexRequest); }
+  try { nativeEvidencePath = await descriptor(verdict, profileRequest, personalRequest, complexRequest,...(stCic?[stCicRequest]:[])); }
   catch (error) {
-    if(complexRequest){withdraw();return finish({nativeStatus:verdict.status,complexStatus:'BLOCKED',diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
+    if(stCic)return blockStCic('BLOCKED');
+    if(complexRequest){withdraw();return finish({nativeStatus:verdict.status,complexStatus:'BLOCKED',...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
     if (!profile && !personal && verdict.status === "PASS") throw error;
     descriptorFailed = true;
     if (personalRequest) {
@@ -124,22 +146,30 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
   if(personal && typeof nativeEvidencePath!=='string'){
     descriptorFailed=true;personalRequest=undefined;personalAttempt={schemaVersion:1,kind:'personal-service-attempt',status:'BLOCKED',reason:'main-evidence-unavailable',...(personalDurationMs===undefined?{}:{durationMs:personalDurationMs})};
   }
+  if(stCic&&(typeof nativeEvidencePath!=='string'||!path.isAbsolute(nativeEvidencePath)||path.normalize(nativeEvidencePath)!==nativeEvidencePath))return blockStCic('BLOCKED');
   nativeElapsedMs += Math.round(clock() - descriptorStarted);
   stopped = cancelled(); if (stopped) return stopped;
-  const diagnostics = await collect(nativeEvidencePath, {
+  let diagnostics;
+  try{diagnostics = await collect(nativeEvidencePath, {
+    snapshotAssuranceTiming: snapshotAssuranceTiming ?? (() => {
+      const endedAt = clock(), elapsed = endedAt - nativeStartedAt;
+      assert(Number.isFinite(nativeStartedAt) && Number.isFinite(endedAt) && Number.isFinite(elapsed) && elapsed >= 0 && Number.isSafeInteger(Math.round(elapsed)), 'ASSURANCE_TIMING_INVALID');
+      return { schemaVersion: 1, scope: 'assurance-start-to-report-snapshot', clock: 'monotonic', startedAt: assuranceStartedAt, elapsedMs: Math.round(elapsed) };
+    }),
     ...(nativeEvidencePath ? { nativeElapsedMs, ...(verdict.phaseTimings ? { phaseTimings: verdict.phaseTimings } : {}) } : {}),
     ...(profileAttempt ? { divorceProfileAttempt: profileAttempt } : {}),
     ...(personalAttempt ? { personalServiceAttempt: personalAttempt } : {}),
     ...(complexAttempt ? { complexEmailAttempt: complexAttempt } : {}),
-  });
+  });}catch(error){if(stCic)return blockStCic('BLOCKED');throw error;}
   stopped = cancelled(); if (stopped) return stopped;
   assert(["passed", "failed"].includes(diagnostics.status) && [0, 1, 2].includes(diagnostics.exitCode) && (diagnostics.status !== "failed" || diagnostics.exitCode !== 0), "ASSURANCE_DIAGNOSTIC_VERDICT_REQUIRED");
   const profileStatus = profileRequest && diagnostics.divorceProfileInclusion === "included" ? "PASS" : profileAttempt?.status ?? "BLOCKED";
   const personalStatus=personalRequest&&diagnostics.personalServiceInclusion==='included'?'PASS':personalAttempt?.status??'BLOCKED';
   const complexStatus=complexRequest&&diagnostics.complexEmailInclusion==='included'?'PASS':complexAttempt?.status??'BLOCKED';
-  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus } : {}), ...(personal ? {personalStatus} : {}), ...((complex||complexAttempt)?{complexStatus}:{}), diagnosticStatus: diagnostics.status, exitCode: Math.max(verdict.exitCode, diagnostics.exitCode, (complexRequest&&diagnostics.complexEmailInclusion!=='included') || profileAttempt || personalAttempt || (personalRequest && diagnostics.personalServiceInclusion!=='included') || ((profile || personal) && descriptorFailed) || (profileRequest && diagnostics.divorceProfileInclusion!=='included') ? 2 : 0), releaseApproval: false });
+  const stCicStatus=stCicRequest&&diagnostics.stCicProfileInclusion==='included'?'PASS':'BLOCKED';
+  return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus } : {}), ...(personal ? {personalStatus} : {}), ...((complex||complexAttempt)?{complexStatus}:{}), ...(stCic?{stCicStatus}:{}), diagnosticStatus: diagnostics.status, exitCode: Math.max(verdict.exitCode, diagnostics.exitCode, (stCic&&stCicStatus!=='PASS') || (complexRequest&&diagnostics.complexEmailInclusion!=='included') || profileAttempt || personalAttempt || (personalRequest && diagnostics.personalServiceInclusion!=='included') || ((profile || personal) && descriptorFailed) || (profileRequest && diagnostics.divorceProfileInclusion!=='included') ? 2 : 0), releaseApproval: false });
 }
-export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest) {
+export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest) {
   const root = path.join(job.output, "private");
   assert(fs.realpathSync(root) === root, "ASSURANCE_PRIVATE_ROOT_REQUIRED");
   const result = read(path.join(root, "ci-result.json"));
@@ -293,14 +323,19 @@ export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
   const complexEmailNativeBinding=complexEmailRequest?verifyComplexNativeCapture(job.output,captured.complexNativeCapture):structuredClone(captured.complexNativeCapture?.reference);
   if(complexEmailRequest){assert.deepEqual(Object.keys(complexEmailRequest).sort(),['digest','path','runId'],'ASSURANCE_COMPLEX_REQUEST_INVALID');const request=read(complexEmailRequest.path);assert.equal(request.digest,complexEmailRequest.digest,'ASSURANCE_COMPLEX_REQUEST_CHANGED');assert.equal(request.value.expected.runId,complexEmailRequest.runId,'ASSURANCE_COMPLEX_REQUEST_CHANGED');assert(complexEmailNativeBinding,'ASSURANCE_COMPLEX_PREFLIGHT_REQUIRED');}
   if(personalServiceRequest){assert.deepEqual(Object.keys(personalServiceRequest).sort(),['digest','path','runId'],'ASSURANCE_PERSONAL_REQUEST_INVALID');const request=read(personalServiceRequest.path);assert.equal(request.digest,personalServiceRequest.digest,'ASSURANCE_PERSONAL_REQUEST_CHANGED');assert.equal(request.value.expected.runId,personalServiceRequest.runId,'ASSURANCE_PERSONAL_REQUEST_CHANGED');assert(personalServiceNativeBinding,'ASSURANCE_PERSONAL_PREFLIGHT_REQUIRED');}
+  const stCicNativeBinding=stCicProfileRequest?verifyStCicNativeCapture(job.output,captured.stCicNativeCapture):structuredClone(captured.stCicNativeCapture?.reference);
+  if(stCicProfileRequest){assert.deepEqual(Object.keys(stCicProfileRequest).sort(),['digest','path','runId'],'ASSURANCE_ST_CIC_REQUEST_INVALID');const request=read(stCicProfileRequest.path);assert.equal(request.digest,stCicProfileRequest.digest,'ASSURANCE_ST_CIC_REQUEST_CHANGED');assert.equal(request.value.expected.runId,stCicProfileRequest.runId,'ASSURANCE_ST_CIC_REQUEST_CHANGED');assert(stCicNativeBinding,'ASSURANCE_ST_CIC_PREFLIGHT_REQUIRED');}
   const descriptor = {
     schemaVersion: 1,
     directory: job.output,
+    ...(stCicProfileRequest?{stCicProfileAdmission:stCicProfileRequest.path}:{}),
     ...(complexEmailRequest?{complexEmailAdmission:complexEmailRequest.path}:{}),
     ...(personalServiceRequest?{personalServiceAdmission:personalServiceRequest.path}:{}),
     ...(divorceProfileRequest ? {divorceProfileAdmission: divorceProfileRequest.path} : {}),
     ...(sharedRoleSourceInputs ? { sharedRoleAdmission: { candidateArtifactPath: job.candidateManifest, sourceImageInputs: sharedRoleSourceInputs } } : {}),
     expected: {
+      ...(stCicNativeBinding?{stCicNativeBinding}:{}),
+      ...(stCicProfileRequest?{stCicProfileRequest:{runId:stCicProfileRequest.runId,digest:stCicProfileRequest.digest}}:{}),
       ...(complexEmailNativeBinding?{complexEmailNativeBinding}:{}),
       ...(complexEmailRequest?{complexEmailRequest:{runId:complexEmailRequest.runId,digest:complexEmailRequest.digest}}:{}),
       ...(personalServiceNativeBinding?{personalServiceNativeBinding}:{}),
@@ -316,8 +351,8 @@ export function buildNativeDescriptor(job, captured, verdict, sharedRoleSourceIn
   };
   return descriptor;
 }
-export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest) {
-  const descriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest);
+export function writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest) {
+  const descriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, divorceProfileRequest, personalServiceRequest, complexEmailRequest, stCicProfileRequest);
   const file = path.join(job.output, "private/native-report-request.json");
   fs.writeFileSync(file, JSON.stringify(descriptor, null, 2) + "\n", {
     flag: "wx",
@@ -343,17 +378,20 @@ export function captureAssuranceExpectations(env = process.env) {
 export function publishAssuranceSummary(job, captured, result) {
   if(!captured.nativeCohortCapture)return;
   verifyDivorceNativeCapture(job.output,captured.nativeCohortCapture);
-  if(result.personalStatus==='PASS'||result.complexStatus==='PASS'){
-    try{if(result.personalStatus==='PASS')verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);if(result.complexStatus==='PASS')verifyComplexNativeCapture(job.output,captured.complexNativeCapture);}
+  if(result.personalStatus==='PASS'||result.complexStatus==='PASS'||result.stCicStatus==='PASS'){
+    try{if(result.personalStatus==='PASS')verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);if(result.complexStatus==='PASS')verifyComplexNativeCapture(job.output,captured.complexNativeCapture);if(result.stCicStatus==='PASS')verifyStCicNativeCapture(job.output,captured.stCicNativeCapture);}
     catch(error){try{Reporter.resetPublicReport('harness');}finally{writeHarnessPublicSummary(job.output,{status:'BLOCKED',exitCode:2},false);}throw error;}
   }
   assert([0,1,2].includes(result.exitCode),'ASSURANCE_EXIT_REQUIRED');
   writeHarnessPublicSummary(job.output,{status:['PASS','FAIL','BLOCKED'][result.exitCode],exitCode:result.exitCode},result.exitCode===0);
 }
-export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput, personalOutput } = {}) {
+export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput, personalOutput, stCicOutput, snapshotAssuranceTiming, buildSelfCheckHeld } = {}) {
   assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
   Reporter.resetPublicReport("harness");
+  if(buildSelfCheckHeld!==undefined)buildSelfCheckHeld=structuredClone(buildSelfCheckHeld);
+  if(buildSelfCheckHeld!==undefined){const{readHeldBuildSelfChecks}=await import('./run-harness-self-check-evidence.mjs');readHeldBuildSelfChecks(buildSelfCheckHeld);}
   assert(profileOutput === undefined || (typeof profileOutput === 'string' && path.isAbsolute(profileOutput)), 'ASSURANCE_PROFILE_OUTPUT_REQUIRED');
+  assert(stCicOutput===undefined||(typeof stCicOutput==='string'&&path.isAbsolute(stCicOutput)),'ASSURANCE_ST_CIC_OUTPUT_REQUIRED');
   const job = validateCiJob(read(jobPath).value);
   const sharedRoleSourceInputs = env.HARNESS_SHARED_ROLE_SOURCE_INPUTS ? read(env.HARNESS_SHARED_ROLE_SOURCE_INPUTS).value : undefined;
   const complexConfiguration=prepareComplexAdmissionInputs(env.HARNESS_COMPLEX_SOURCE_INPUTS,{host:process.platform,arch:process.arch,runtime:read(job.candidateManifest).value.provenance?.platform});
@@ -364,14 +402,16 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   let result, mainDescriptor, published=false;
   try {
     result = await runAssuranceSequence({
-      native: () => runHarnessCi(jobPath, { captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;}, captureComplexNative:value=>{captured.complexNativeCapture=value;}, complexSourceConfiguration:complexConfiguration }),
+      native: () => runHarnessCi(jobPath, { ...(stCicOutput===undefined?{}:{captureStCicNative:value=>{captured.stCicNativeCapture=value;}}), captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;}, captureComplexNative:value=>{captured.complexNativeCapture=value;}, complexSourceConfiguration:complexConfiguration }),
       prepare: verdict => { assert(captured.nativeCohortCapture, 'ASSURANCE_PREFLIGHT_REQUIRED'); mainDescriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs); },
       ...(profileOutput === undefined ? {} : {profile: signal => runDivorceProfileAdmission({ artifactPath: job.candidateManifest, browserRoot: job.browserCache, output: profileOutput, signal, nativeContext: { binding: captured.nativeCohortCapture.binding, expected: mainDescriptor.expected } })}),
       personal: signal => reportNativeProgress("Personal-service preparation, proofs and cleanup", () => runPersonalServiceAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:personalOutput??path.join(job.output,'private/personal-service'),signal,nativeOutput:job.output,nativeContext:{native:captured.nativeCohortCapture.binding,capture:captured.personalNativeCapture,expected:mainDescriptor.expected}})),
       ...(complexConfiguration.attempt?{complexAttempt:complexConfiguration.attempt}:{complex:signal=>reportNativeProgress('Complex email browser, mapping and source proofs',()=>runComplexEmailAdmission({candidate:job.candidateManifest,browser:job.browserCache,output:path.join(job.output,'private/complex-email'),signal,nativeOutput:job.output,sourceConfiguration:complexConfiguration,nativeContext:{native:captured.nativeCohortCapture.binding,capture:captured.complexNativeCapture,expected:mainDescriptor.expected}}))}),
-      descriptor: (verdict, request, personalRequest, complexRequest) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, request, personalRequest, complexRequest),
-      collect: (nativeEvidencePath, timing) => reportNativeProgress("Evidence replay and diagnostic report", () => runHarnessCollection(env, { profile: aat ? "local-aat" : "harness", nativeEvidencePath, ...timing, signal: cancellation.signal })),
+      ...(stCicOutput===undefined?{}:{stCic:signal=>reportNativeProgress('ST_CIC profile configuration proofs',()=>runStCicProfileAdmission({artifactPath:job.candidateManifest,browserRoot:job.browserCache,output:stCicOutput,signal,admissionContext:{native:captured.nativeCohortCapture.binding,capture:captured.stCicNativeCapture,expected:mainDescriptor.expected}}))}),
+      descriptor: (verdict, request, personalRequest, complexRequest, stCicRequest) => writeNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs, request, personalRequest, complexRequest, stCicRequest),
+      collect: (nativeEvidencePath, timing) => reportNativeProgress("Evidence replay and diagnostic report", () => runHarnessCollection(env, { profile: aat ? "local-aat" : "harness", nativeEvidencePath, ...timing, signal: cancellation.signal, buildSelfCheckHeld })),
       signal: cancellation.signal,
+      snapshotAssuranceTiming,
       withdraw: () => Reporter.resetPublicReport('harness'),
       publish: value => {published=true;publishAssuranceSummary(job,captured,value);},
     });
@@ -383,20 +423,112 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   }
 }
 
+// Only the explicitly owned parent IPC channel supplies preparation timing.
+export async function connectPreparationTiming(channel = process, { timeoutMs = 5 * 1000 } = {}) {
+  assert(channel.connected && typeof channel.send === 'function', 'ASSURANCE_PARENT_TIMING_UNAVAILABLE');
+  let invalid = false, disposed = false;
+  const idleViolation = () => { invalid = true; if(channel === process) process.kill(process.pid,'SIGTERM'); };
+  const watchIdle = () => channel.on('message',idleViolation);
+  function exchange(message, kind, validate, succeeded) {
+    return new Promise((resolve, reject) => {
+      const cleanup = () => { clearTimeout(timer); channel.removeListener('message', onMessage); channel.removeListener('disconnect', failed); };
+      const failed = () => { cleanup(); reject(new Error('ASSURANCE_PARENT_TIMING_UNAVAILABLE')); };
+      const onMessage = value => {
+        try { assert(value?.kind === kind); const result = validate(value); cleanup(); succeeded(); resolve(result); } catch { failed(); }
+      };
+      const timer = setTimeout(failed, timeoutMs);
+      channel.on('message', onMessage); channel.once('disconnect', failed);
+      try { channel.send(message, error => { if (error) failed(); }); } catch { failed(); }
+    });
+  }
+  const token = await exchange({kind:'harness-preparation-ready'}, 'harness-preparation-init', value => {
+    assert.deepEqual(Object.keys(value).sort(), ['kind','token']);
+    assert(typeof value.token === 'string' && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(value.token)); return value.token;
+  }, watchIdle);
+  let requested = false;
+  const snapshot = async () => {
+    assert(!invalid && !disposed && !requested && channel.connected, 'ASSURANCE_PARENT_TIMING_UNAVAILABLE'); requested = true;
+    channel.removeListener('message',idleViolation);
+    const timing = await exchange({kind:'harness-preparation-snapshot',token}, 'harness-preparation-timing', value => {
+      assert.deepEqual(Object.keys(value).sort(), ['kind','timing','token']); assert.equal(value.token, token);
+      Reporter.validateAssuranceTiming(value.timing); assert.equal(value.timing?.schemaVersion,2);
+      return value.timing;
+    }, watchIdle);
+    assert(!invalid, 'ASSURANCE_PARENT_TIMING_UNAVAILABLE'); return timing;
+  };
+  snapshot.dispose = () => { disposed = true; channel.removeListener('message',idleViolation); };
+  return snapshot;
+}
+
+// CLI-only ownership: the direct API keeps its existing optional output contract.
+export function parseAssuranceCli(argv) {
+  let args = argv.filter(value => value !== '--');
+  let buildSelfCheckHeld;
+  const marker = args.indexOf('--build-self-check-held');
+  if (marker !== -1) {
+    assert(marker === args.length - 4 && args[marker + 2] === '--build-self-check-digest', 'ASSURANCE_SELF_CHECK_ARGUMENTS');
+    buildSelfCheckHeld = {path:args[marker + 1],digest:args[marker + 3]};
+    assert(typeof buildSelfCheckHeld.path === 'string' && path.isAbsolute(buildSelfCheckHeld.path) && path.normalize(buildSelfCheckHeld.path) === buildSelfCheckHeld.path && /^sha256:[a-f0-9]{64}$/.test(buildSelfCheckHeld.digest), 'ASSURANCE_SELF_CHECK_ARGUMENTS');
+    args = args.slice(0, marker);
+  }
+  assert(args.length >= 2 && args.length <= 5 && args[0] === '--input' && path.isAbsolute(args[1])
+    && new Set(args.slice(2)).size === args.length - 2
+    && args.slice(2).every(flag => ['--aat','--parent-timing','--st-cic'].includes(flag)), 'ASSURANCE_INPUT_REQUIRED');
+  return {jobPath:args[1],aat:args.includes('--aat'),parentTiming:args.includes('--parent-timing'),stCic:args.includes('--st-cic'),...(buildSelfCheckHeld===undefined?{}:{buildSelfCheckHeld})};
+}
+export async function createStCicCliOutput(jobPath) {
+  const job = validateCiJob(read(jobPath).value);
+  const parent = path.dirname(jobPath);
+  assert.equal(fs.realpathSync(parent), parent, 'ASSURANCE_ST_CIC_OUTPUT_ALIAS');
+  const receipt = path.join(parent, 'st-cic-cli-output.json');
+  assert(!fs.existsSync(receipt), 'ASSURANCE_ST_CIC_OUTPUT_ALREADY_OWNED');
+  const artifact = read(job.candidateManifest).value;
+  assert(typeof artifact.candidateRoot === 'string' && path.isAbsolute(artifact.candidateRoot), 'ASSURANCE_ST_CIC_CANDIDATE_ROOT_REQUIRED');
+  const candidateRoot = fs.realpathSync(artifact.candidateRoot);
+  const readonly = [ROOT,fs.realpathSync(path.join(ROOT,'node_modules')),fs.realpathSync(jobPath),fs.realpathSync(job.candidateManifest),fs.realpathSync(job.browserCache),candidateRoot];
+  assert.equal(path.normalize(job.output), job.output, 'ASSURANCE_ST_CIC_OUTPUT_ALIAS');
+  assert.equal(fs.realpathSync(path.dirname(job.output)), path.dirname(job.output), 'ASSURANCE_ST_CIC_OUTPUT_ALIAS');
+  const temporaryRoot = fs.realpathSync(os.tmpdir());
+  for (const input of [...readonly,job.output])
+    assert(temporaryRoot !== input && !temporaryRoot.startsWith(input + path.sep), 'ASSURANCE_ST_CIC_TEMP_INPUT_OVERLAP');
+  const directory = fs.mkdtempSync(path.join(temporaryRoot, 'harness-st-cic-cli-'));
+  const output = path.join(directory, 'profile');
+  try {
+    fs.chmodSync(directory, 0o700);
+    for (const input of [...readonly,job.output])
+      assert(output !== input && !output.startsWith(input + path.sep) && !input.startsWith(output + path.sep), 'ASSURANCE_ST_CIC_OUTPUT_OVERLAP');
+    // Metadata-only preflight; normal native/admission paths still fully verify it.
+    await assertFreshCandidateDerivationOutput({baseline:{candidateRoot},manifestPath:job.candidateManifest,output});
+    // The owning private job retains this path for independent readback/retirement.
+    // Never delete executed evidence on return: admission descriptors still refer to it.
+    fs.writeFileSync(receipt, JSON.stringify({schemaVersion:1,kind:'st-cic-cli-owned-output',directory,output},null,2)+'\n', {flag:'wx',mode:0o600});
+    return output;
+  } catch (error) {
+    // Only the empty directory just allocated here is eligible for immediate removal.
+    try { fs.rmdirSync(directory); } catch { /* preserve unexpected contents */ }
+    throw error;
+  }
+}
+
 if (
   process.argv[1] &&
   path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
+  let parentSnapshot, parentDisconnected;
   try {
-    const args = process.argv.slice(2).filter((value) => value !== "--");
-    assert(
-      (args.length === 2 || (args.length === 3 && args[2] === "--aat")) &&
-        args[0] === "--input" &&
-        path.isAbsolute(args[1]),
-      "ASSURANCE_INPUT_REQUIRED",
-    );
-    const result = await runHarnessAssurance(args[1], {
-      aat: args.includes("--aat"),
+    Reporter.resetPublicReport('harness');
+    const cli = parseAssuranceCli(process.argv.slice(2));
+    const stCicOutput = cli.stCic ? await createStCicCliOutput(cli.jobPath) : undefined;
+    if(cli.parentTiming) {
+      parentDisconnected = () => process.kill(process.pid,'SIGTERM');
+      process.once('disconnect',parentDisconnected);
+      parentSnapshot = await connectPreparationTiming();
+    }
+    const result = await runHarnessAssurance(cli.jobPath, {
+      aat: cli.aat,
+      ...(stCicOutput === undefined ? {} : {stCicOutput}),
+      ...(cli.buildSelfCheckHeld === undefined ? {} : {buildSelfCheckHeld:cli.buildSelfCheckHeld}),
+      ...(parentSnapshot ? {snapshotAssuranceTiming:parentSnapshot} : {}),
     });
     console.log(
       `[harness-assurance] Native ${result.nativeStatus}; diagnostics ${result.diagnosticStatus}; full release approval unavailable.`,
@@ -407,5 +539,9 @@ if (
       "[harness-assurance] BLOCKED: native execution or evidence incomplete; inspect private diagnostics.",
     );
     process.exitCode = 2;
+  } finally {
+    parentSnapshot?.dispose();
+    if(parentDisconnected)process.removeListener('disconnect',parentDisconnected);
+    if (process.connected) process.disconnect();
   }
 }

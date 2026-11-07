@@ -1,10 +1,11 @@
+const {reviewedCsrfDetailChildren}=require('./fixtures/harness-reviewed-csrf-details.mock.cjs');
 // Fake presentation events use the independently reviewed literal IDs, not validator output.
 function reviewedFixtureSteps(test) {
   const path = require('node:path');
   const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
   const method = require('./fixtures/harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
   if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
-  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:reviewedCsrfDetailChildren(id)}));
 }
 const test=require('node:test'),assert=require('node:assert/strict');
 test('fixed personal admission contract covers precisely nine keys without activation or dependency credit',async()=>{
@@ -126,9 +127,9 @@ test('synchronous abort during personal child launch is rechecked after the chil
  await old.executePersonalChild(personalChildCommand('/tmp/baseline-expected.json',hash),{signal:oldController.signal,launch:()=>{oldController.abort();queueMicrotask(()=>oldChild.emit('exit',0,null));return oldChild;},terminate:async()=>{oldTerminated=true;return {observed:true,forced:false};}});assert.equal(oldTerminated,false,'removing the post-spawn check must reproduce the lost stop');
 });
 
-test('native proof imports stay sealed while the three established collector edges retain separate diagnostic provenance',async()=>{
+test('native proof imports stay sealed while the explicit collector edges retain separate diagnostic provenance',async()=>{
  const {NATIVE_HARNESS_SOURCE_FILES:files}=await import('./lib/exui-native-sources.mjs'),ts=require('typescript'),root=path.resolve(__dirname,'..');
- const boundary=[['scripts/run-harness-assurance.mjs','scripts/harness-public-odhin-reporter.cjs'],['scripts/run-harness-assurance.mjs','scripts/run-harness-local-aat.cjs'],['scripts/run-harness-shared-nested.mjs','scripts/run-harness-local-aat.cjs']];
+ const boundary=[['scripts/run-harness-assurance.mjs','scripts/harness-public-odhin-reporter.cjs'],['scripts/run-harness-assurance.mjs','scripts/run-harness-self-check-evidence.mjs'],['scripts/run-harness-assurance.mjs','scripts/run-harness-local-aat.cjs'],['scripts/run-harness-shared-nested.mjs','scripts/run-harness-local-aat.cjs']];
  const observed=[];
  for(const file of files.filter(name=>/\.[cm]?js$/.test(name))){
   const source=ts.createSourceFile(file,fs.readFileSync(path.join(root,file),'utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
@@ -192,3 +193,11 @@ test('personal invocation telemetry uses held pair identities and hashed configu
  for(const value of [0,-1,1.5,'2',null]){pin=saveWorkers(value);assert.throws(()=>x.m.readPersonalAdmissionPacket(x.requestPath,pin),/PERSONAL_SERVICE_CONFIGURED_WORKERS/);}
  pin=saveWorkers(2);const report=read(reportFile);report.config.workers=3;x.write(reportFile,report);assert.throws(()=>x.m.readPersonalAdmissionPacket(x.requestPath,pin),'changed report without held completion pin must reject');
 });
+
+ test('parent context projection removes ST_CIC request but retains all other held bindings', async () => {
+ const {expectedWithoutRequests}=await import('./lib/exui-personal-service-admission.mjs');
+ const held={jobRunId:'held-run',stCicNativeBinding:{path:'private/st-cic-native-binding.json',digest:'held-digest'},unknownFutureBinding:{mustRemain:true}};
+ const input={...structuredClone(held),stCicProfileRequest:{path:'request.json',digest:'request-digest'}};
+ assert.deepEqual(expectedWithoutRequests(input),held);
+ assert.ok(input.stCicProfileRequest,'projection must not mutate the held input');
+ });

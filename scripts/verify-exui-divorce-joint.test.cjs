@@ -1,10 +1,11 @@
+const {reviewedCsrfDetailChildren}=require('./fixtures/harness-reviewed-csrf-details.mock.cjs');
 // Fake presentation events use the independently reviewed literal IDs, not validator output.
 function reviewedFixtureSteps(test) {
   const path = require('node:path');
   const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
   const method = require('./fixtures/harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
   if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
-  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:reviewedCsrfDetailChildren(id)}));
 }
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {temp}=require('./fixtures/exui-divorce-cohort-packet.mock.cjs');

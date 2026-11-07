@@ -60,3 +60,6 @@ securebydesign-ui-idle-waits.md
 /unneeded_suppressions
 /new_vulnerabilities
 /active_suppressions
+
+# Private build-unit evidence; never publish as ordinary report output.
+/.harness-build-self-check/

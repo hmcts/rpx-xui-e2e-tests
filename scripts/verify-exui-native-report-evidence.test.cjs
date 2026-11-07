@@ -620,3 +620,40 @@ for (const postalFailure of [false, true]) {
     assert(!html.includes(canary));
   });
 }
+
+test('digest-bound native stage telemetry preserves repeated baseline and expected-fault execution detail without changing acceptance',async t=>{
+ const f=await fixture(t,{recordedStages:true});const evidence=await (await load()).readNativeReportEvidence(f.descriptorPath);
+ assert.equal(evidence.status,'PASS');assert.equal(evidence.releaseApproval,false);
+ const phase=evidence.phases.find(p=>p.phase==='family'),baseline=phase.baselineProofs[0],fault=phase.faults[0];
+ assert.equal(baseline.recordedExecution.stages.length,8);assert.equal(baseline.recordedExecution.testDurationMs,90);
+ assert.equal(fault.recordedExecution.stages.length,1);assert.equal(fault.recordedExecution.stages[0].outcome,'reported-error');assert.equal(fault.outcome,'expected-failure-observed');
+ const {renderNativeEvidence}=require('./harness-native-report.cjs'),untouched=JSON.stringify(evidence);const html=renderNativeEvidence(evidence);
+ assert.match(html,/Source-defined expected contract/);assert.match(html,/Recorded group outcome/);assert.match(html,/seven declared service families/);assert.match(html,/not separately recorded requests/);assert.match(html,/Trace not captured/);assert.equal(JSON.stringify(evidence),untouched);
+ assert.match(html,/Recorded named assertion stages/);assert.match(html,/Observed test duration: 90 ms/);assert.match(html,/not additive/);assert.match(html,/reported error/);assert.doesNotMatch(html,/PRIVATE_cookie_canary/);
+ const tampered=structuredClone(evidence);tampered.phases[0].baselineProofs[0].recordedExecution.stages[0].stageId='PRIVATE_cookie_canary';assert.throws(()=>renderNativeEvidence(tampered),/PUBLIC_NATIVE_STAGE/);
+});
+test('malformed raw native telemetry becomes explicitly unavailable with no raw label publication or new verdict',async t=>{
+ const f=await fixture(t,{recordedStages:'invalid'});const evidence=await (await load()).readNativeReportEvidence(f.descriptorPath);
+ assert.equal(evidence.status,'PASS');assert.equal(evidence.phases[0].baselineProofs[0].recordedExecution.availability,'unavailable');
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.match(html,/unavailable \(INVALID_STAGE_TELEMETRY\)/);assert(!html.includes('PRIVATE_cookie_canary'));
+});
+
+test('empty recorded stages and parent-inconsistent duration are unavailable in independently replayed raw evidence',async t=>{
+ for(const recordedStages of ['empty','oversized']){
+ const f=await fixture(t,{recordedStages});const evidence=await(await load()).readNativeReportEvidence(f.descriptorPath);
+ assert.equal(evidence.status,'PASS');const telemetry=evidence.phases[0].baselineProofs[0].recordedExecution;assert.equal(telemetry.availability,'unavailable');assert.equal(telemetry.reason,'INVALID_STAGE_TELEMETRY');
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(evidence);assert.match(html,/unavailable \(INVALID_STAGE_TELEMETRY\)/);
+ }
+});
+
+test('native expected-stage explanations cover exactly the unchanged finite recorded-stage vocabulary',()=>{
+ const telemetry=fs.readFileSync(path.join(__dirname,'lib/exui-native-stage-telemetry.cjs'),'utf8'),renderer=fs.readFileSync(path.join(__dirname,'harness-native-report.cjs'),'utf8');
+ const allowed=JSON.parse(telemetry.match(/const allowed = (\{[\s\S]*?\n\});/)[1].replace(/,\s*([}\]])/g,'$1')),expected=JSON.parse(renderer.match(/const nativeStageExpectations=(\{[\s\S]*?\n\});/)[1]);
+ const ids=[...new Set(Object.values(allowed).flat().concat(['recipient-collection','case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two'].map(id=>'source-shape-'+id)))].sort();assert.deepEqual(Object.keys(expected).sort(),ids);assert(Object.values(expected).every(value=>typeof value==='string'&&value.length>30&&!value.includes(canary)));
+});
+
+test('native named-stage explanations do not assign later journey assertions to the recorded group',()=>{
+ const file=process.env.HARNESS_STAGE_LABEL_CONTROL??path.join(__dirname,'harness-native-report.cjs'),source=fs.readFileSync(file,'utf8'),labels=JSON.parse(source.match(/const nativeStageExpectations=(\{[\s\S]*?\n\});/)[1]);
+ assert.match(labels['noc-session-routing'],/first primary-session verification POST/);assert.match(labels['noc-session-routing'],/Later fresh-session and cache checks are outside/);assert.match(labels['source-shape-recipient-collection'],/exactly two recipient entries/);assert.match(labels['source-shape-recipient-collection'],/fault branch.*array/);assert.match(labels['postal-required-fields'],/postcode-lookup controls/);assert.match(labels['postal-required-fields'],/Manual-address PostCode requiredness is outside/);
+ for(const id of ['case-field-recipient-selector','required-delivery-radio','conditional-email-complex','postal-recipient-name','optional-postal-line-two']){assert.match(labels['source-shape-'+id],/flag must be true/);assert.match(labels['source-shape-'+id],/Earlier .* checks are outside this named stage/);}
+});

@@ -48,7 +48,7 @@ test('Complex dashboard activity preserves main totals and the main duration', (
     vm.runInNewContext(script, {document});
     assert.equal(metrics.children[0].children[1].textContent, `${included ? 39 : 38} / 112`);
     assert.equal(metrics.children[1].children[1].textContent, '2 + 2');
-    assert(metrics.children[1].children[2].textContent.includes('1.0 min main native'));
+    assert(metrics.children[1].children[2].textContent.includes('1.0 min recorded native interval'));
     const text = node => [node.textContent || '', ...node.children.map(text)].join(' ');
     assert(text(metrics).includes('2 browser invocations · 2 mapping contexts · 2 effective faults'));
     assert(text(metrics).includes('4m 25s'));
