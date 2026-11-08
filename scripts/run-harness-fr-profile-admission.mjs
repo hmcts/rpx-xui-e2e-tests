@@ -36,7 +36,7 @@ export async function runFrProfileAdmission({artifactPath,browserRoot=null,outpu
    const directory=path.join(output,facet),signalTarget=new EventEmitter();signalTarget.stderr=process.stderr;signalTarget.exit=()=>{};
    const cancel=()=>signalTarget.emit('SIGTERM');signal?.addEventListener('abort',cancel,{once:true});
    let receipt;try{receipt=await runFacet({artifactPath,output:directory,facet,browserRoot:null,signal},{signalTarget});}finally{signal?.removeEventListener('abort',cancel);}
-   assert.equal(receipt.status,'feasibility-observed',fail);assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
+   if(receipt.status!=='feasibility-observed'){const code=receipt.failure?.code,error=new Error(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(code??'')?code:fail);if(receipt.failure?.diagnostic)error.frProfileDiagnostic=receipt.failure.diagnostic;throw error;}assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
    assert(/^[a-f0-9]{40}$/.test(receipt.harnessCommit),fail);assert.deepEqual(Object.keys(receipt.sources.files).sort(),Object.keys(binding.producer.files).sort(),fail);
    assert.deepEqual(receipt.runtime,runtime,fail);producers.push({commit:receipt.harnessCommit,files:receipt.sources.files,sourceDigest:nativeInventoryDigest(receipt.sources.files)});runtimes.push(receipt.runtime);
    const raw=read(path.join(directory,'profile-feasibility.json'));
@@ -50,7 +50,7 @@ export async function runFrProfileAdmission({artifactPath,browserRoot=null,outpu
   writeJsonAtomic(path.join(output,'fr-profile-cohort.json'),profile);writeJsonAtomic(path.join(output,'fr-profile-admission.json'),admission);
   const requestPath=path.join(output,'admission-request.json');writeJsonAtomic(requestPath,{schemaVersion:1,kind:'fr-profile-admission-request',directory:output,runId:profile.runId,cohortDigest:profile.cohortDigest,nativeBindingDigest:profile.nativeBindingDigest,profileDigest:digestBytes(read(path.join(output,'fr-profile-cohort.json'))),admissionDigest:digestBytes(read(path.join(output,'fr-profile-admission.json')))});
   return {...admission,reportRequest:{path:requestPath,digest:digestBytes(read(requestPath)),runId:profile.runId}};
- }catch(error){throw new Error(error?.message?.startsWith('FR_PROFILE_')?error.message:fail);}
+ }catch(error){const code=error?.message?.startsWith('FR_PROFILE_')?error.message:fail,failure=new Error(code);if(code==='FR_PROFILE_OBSERVATIONS'&&error?.frProfileDiagnostic)failure.frProfileDiagnostic=error.frProfileDiagnostic;throw failure;}
 }
 
 export function readFrProfileAdmissionPacket(requestPath,requestPin,nativeContext,catalogue=loadCommittedConfigurationCatalogue().catalogue){

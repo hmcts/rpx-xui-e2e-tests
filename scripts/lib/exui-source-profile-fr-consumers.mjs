@@ -6,7 +6,7 @@ import { frProfileConfiguration as projectFrProfileConfiguration, FR_PROFILE_FAC
 import { SOURCE_JURISDICTIONS, profileJurisdictionRows, sourceProfileJurisdictionConfiguration } from './exui-source-profile-jurisdictions.mjs';
 
 export { FR_PROFILE_FACETS };
-const staff='ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS';
+const staff='ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS';
 const roles=['hearing-centre-admin','case-manager','ctsc','tribunal-caseworker','hmcts-legal-operations','task-supervisor','hmcts-admin','national-business-centre','senior-tribunal-caseworker','case-allocator','regional-centre-admin'];
 const mappings=Object.freeze([
  {path:'/workallocation/findPerson',body:{searchOptions:{searchTerm:'Synthetic',userRole:'Judicial',services:['FR']}}},
@@ -52,6 +52,15 @@ export function frProfileEvidence(facet,mutation=null){
   for(let i=0;i<mappings.length;i++)observations.push(observation(mappings[i].path,bodies[i],[1,2,3,4,5,7,8][i]));
  }
  return {observations,journal,mutation,catalogueCredit:false};
+}
+
+export function frJurisdictionFilterDiagnostic(observations){
+ const expectedIds=frProfileEvidence('fr-jurisdiction').observations[0].body.map(row=>row.id).sort();
+ const observedRows=observations?.[0]?.body;
+ assert(Array.isArray(observedRows)&&observedRows.every(row=>row&&typeof row.id==='string'&&/^[A-Z][A-Z0-9_]{0,31}$/.test(row.id)),'FR_PROFILE_OBSERVATIONS');
+ const observedIds=observedRows.map(row=>row.id).sort();
+ assert.equal(new Set(observedIds).size,observedIds.length,'FR_PROFILE_OBSERVATIONS');
+ return {schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds,unexpectedIds:observedIds.filter(id=>!expectedIds.includes(id)),missingIds:expectedIds.filter(id=>!observedIds.includes(id))};
 }
 
 export function validateFrProfileObservations(facet,observations,journal,mutation=null){

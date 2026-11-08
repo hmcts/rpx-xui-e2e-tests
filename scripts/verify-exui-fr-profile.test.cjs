@@ -18,7 +18,7 @@ test('FR profile is the exact candidate-bound jurisdiction, staff and ABA2 oblig
 
 test('FR source projection rejects drift and each mutation changes only its declared capability',async()=>{
  const {frProfileConfiguration,FR_PROFILE_FACETS}=await import('./lib/exui-fr-profile-contract.mjs');
- const config={jurisdictions:'DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,HRS,CIVIL,CMC,PRIVATELAW,PCS',globalSearchServices:'IA',waSupportedJurisdictions:'IA',staffSupportedJurisdictions:'ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS',serviceRefDataMapping:[{service:'FR',serviceCodes:['ABA2']},{service:'IA',serviceCodes:['BFA1']}],services:{hearings:{hearingsJurisdictions:'SSCS,PRIVATELAW,CIVIL,IA'}}};
+ const config={jurisdictions:'DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,HRS,CIVIL,CMC,PRIVATELAW,PCS',globalSearchServices:'IA',waSupportedJurisdictions:'IA',staffSupportedJurisdictions:'ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS',serviceRefDataMapping:[{service:'FR',serviceCodes:['ABA2']},{service:'IA',serviceCodes:['BFA1']}],services:{hearings:{hearingsJurisdictions:'SSCS,PRIVATELAW,CIVIL,IA'}}};
  for(const {facet,fault} of FR_PROFILE_FACETS){
   const baseline=frProfileConfiguration(config,facet),mutant=frProfileConfiguration(config,facet,fault);
   assert.deepEqual(baseline.config,config);
@@ -60,8 +60,10 @@ test('FR ABA2 mapping proof checks the actual consumers and its exact one-code f
  }
 });
 
-test('FR admission credits one exact profile only after all facets and same-candidate native join',async()=>{
+test('FR admission credits one exact profile only after all facets and same-candidate native join',async t=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),root=fs.realpathSync(fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fr-admission-failure-test-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  const admission=await import('./lib/exui-fr-profile-admission.mjs');
+ const {runFrProfileAdmission}=await import('./run-harness-fr-profile-admission.mjs');
  const {FR_PROFILE_FACETS,FR_PROFILE_ID,frProfileContract,frProfileContractDigest}=await import('./lib/exui-fr-profile-contract.mjs');
  const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
  const {NATIVE_HARNESS_SOURCE_FILES}=await import('./lib/exui-native-sources.mjs');
@@ -69,6 +71,7 @@ test('FR admission credits one exact profile only after all facets and same-cand
  const {catalogue}=await import('./lib/exui-configuration-runtime-coverage.mjs').then(module=>module.loadCommittedConfigurationCatalogue());
  const hash=letter=>'sha256:'+String(letter).slice(-1).repeat(64),commit='a'.repeat(40),artifactDigest=hash('b'),runtime={reference:'example.invalid/candidate@sha256:'+('c'.repeat(64)),imageId:hash('d'),platform:'linux/arm64'};
  const candidate={identity:{artifactDigest,webappCommit:frProfileContract().consumerRevision},payloadDigest:hash('e'),provenance:{webappCommit:frProfileContract().consumerRevision,platform:'linux/arm64'}};
+ const artifact={identity:candidate.identity,payloadDigest:candidate.payloadDigest,provenance:candidate.provenance};
  const files=Object.fromEntries(NATIVE_HARNESS_SOURCE_FILES.map((name,index)=>[name,hash(String(index%9+1))])),producer={commit,files,sourceDigest:nativeInventoryDigest(files)};
  const catalogueDigest=digestBytes(JSON.stringify(catalogue.obligations));
  const profile={schemaVersion:1,kind:'fr-profile-cohort',status:'validated-for-admission',runId:'fr-00000000-0000-4000-8000-000000000001',obligationId:FR_PROFILE_ID,family:'FR',contract:frProfileContract(),contractDigest:frProfileContractDigest(),candidate,producer,sourceDefault:{revision:frProfileContract().sourceRevision,digest:frProfileContract().sourceDigest},runtime,nativeBindingDigest:hash('1'),catalogueDigest,cohortDigest:hash('2'),facets:FR_PROFILE_FACETS.map((item,index)=>({facet:item.facet,receiptDigest:hash(String(index+3)),baseline:{status:'observed',configDigest:hash(String(index+6)),observationsDigest:hash(String(index+9)),journalDigest:hash(String(index+2))},fault:{status:'expected-fault-observed',configDigest:hash(String(index+4)),observationsDigest:hash(String(index+7)),journalDigest:hash(String(index+1))}}))};
@@ -85,6 +88,8 @@ test('FR admission credits one exact profile only after all facets and same-cand
  assert.equal(admission.admitFrProfile(profile,oldCatalogue,catalogue).accepted,0);
  const wrongCatalogue={...catalogue,obligations:catalogue.obligations.filter(item=>item.id!==FR_PROFILE_ID)};
  assert.throws(()=>admission.admitFrProfile(profile,nativeContext,wrongCatalogue),/FR_PROFILE_ADMISSION_INVALID/);
+ const blockedDiagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds:['FR'],observedIds:['FR','ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};
+ await assert.rejects(runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output:path.join(root,'blocked'),nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet:async()=>({status:'failed',failure:{code:'FR_PROFILE_OBSERVATIONS',diagnostic:blockedDiagnostic}})}),error=>{assert.equal(error.message,'FR_PROFILE_OBSERVATIONS');assert.deepEqual(error.frProfileDiagnostic,blockedDiagnostic);return true;});
 });
 
 test('FR runtime probes call only the declared candidate consumers with FR and ABA2 evidence',async t=>{
@@ -108,6 +113,14 @@ test('FR runtime probes call only the declared candidate consumers with FR and A
   if(facet==='fr-mapping')assert(saved.journal.every(row=>!JSON.stringify(row).includes('DIVORCE')&& !JSON.stringify(row).includes('ABA1')));
   if(facet==='fr-staff')assert(saved.observations[1].body.some(row=>row.service==='FR')===!mutation);
  }
+});
+
+test('FR jurisdiction diagnostics identify unexpected configured-list results without copying response rows',async()=>{
+ const {frProfileEvidence,frJurisdictionFilterDiagnostic}=await import('./lib/exui-source-profile-fr-consumers.mjs');
+ const expected=frProfileEvidence('fr-jurisdiction').observations[0].body;
+ const diagnostic=frJurisdictionFilterDiagnostic([{body:[...expected,{id:'ST_CIC'},{id:'UNREVIEWED'}]}]);
+ assert.deepEqual(diagnostic,{schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds:expected.map(row=>row.id).sort(),observedIds:[...expected.map(row=>row.id),'ST_CIC','UNREVIEWED'].sort(),unexpectedIds:['ST_CIC','UNREVIEWED'],missingIds:[]});
+ assert.throws(()=>frJurisdictionFilterDiagnostic([{body:[{id:'private-user@example.invalid'}]}]),/FR_PROFILE_OBSERVATIONS/);
 });
 
 test('FR runner and raw reader pin one request, catalogue and native binding with separate cohorts receiving zero credit',async t=>{
@@ -154,8 +167,8 @@ test('FR synthetic staff provider answers only the source-defined family list',a
   const handled=await handleDivorceProvider(request,response,{facet:'staff',family:'FR',journal,output:root});
   return {handled,body:body?JSON.parse(body):undefined};
  };
- const exact='ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS';
- const expected=await invoke(exact),wrong=await invoke(`${exact},PCS`);
+ const exact='ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS';
+ const expected=await invoke(exact),wrong=await invoke(exact.replace(',PCS',''));
  assert.equal(expected.handled,true);assert.deepEqual(expected.body.map(row=>row.ccd_service_name),['FR','IA']);assert.equal(wrong.handled,false);
 });
 

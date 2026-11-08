@@ -697,6 +697,23 @@ test('ST_CIC CLI bridge allocates owned external output and rejects stale or ali
  assert.equal(fs.existsSync(receipt),false);assert.equal(fs.existsSync(output),false);
 });
 
+test('FR CLI bridge allocates owned external output outside functional and candidate inputs',async t=>{
+ const {createFrProfileCliOutput}=await api();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'fr-cli-output-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const candidate=path.join(root,'candidate'),browser=path.join(root,'browser');fs.mkdirSync(candidate);fs.mkdirSync(browser);
+ const manifest=path.join(root,'candidate.json'),jobPath=path.join(root,'job.json'),output=path.join(root,'functional-output/tests/harness/private/native-output');fs.mkdirSync(path.dirname(output),{recursive:true});
+ const job={schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)};
+ fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify(job));
+ const created=await createFrProfileCliOutput(jobPath),directory=path.dirname(created);t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert.equal(path.basename(created),'profile');assert.equal(fs.statSync(directory).mode&0o777,0o700);
+ assert.equal(created.includes(`${path.sep}functional-output${path.sep}`),false);assert.equal(fs.existsSync(created),false);assert.equal(fs.existsSync(output),false);
+ const receipt=path.join(root,'fr-profile-cli-output.json');assert.equal(fs.statSync(receipt).mode&0o777,0o600);
+ assert.deepEqual(JSON.parse(fs.readFileSync(receipt)),{schemaVersion:1,kind:'fr-profile-cli-owned-output',directory,output:created});
+ await assert.rejects(()=>createFrProfileCliOutput(jobPath),/ASSURANCE_FR_PROFILE_OUTPUT_ALREADY_OWNED/);
+ fs.unlinkSync(receipt);const alias=path.join(root,'alias');fs.symlinkSync(root,alias);job.output=path.join(alias,'functional-output/tests/harness/private/native-output');fs.writeFileSync(jobPath,JSON.stringify(job));
+ await assert.rejects(()=>createFrProfileCliOutput(jobPath),/ASSURANCE_FR_PROFILE_OUTPUT_ALIAS/);assert.equal(fs.existsSync(receipt),false);
+});
+
 test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisions before the fake assurance boundary',async t=>{
  const {spawnSync}=require('node:child_process');
  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'st-cic-cli-entry-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
@@ -721,8 +738,11 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
   if(receipt)t.after(()=>fs.rmSync(receipt.directory,{recursive:true,force:true}));
   const mandatoryReceipt=flags.includes('--mandatory-email')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'mandatory-email-cli-output.json'))):undefined;
   if(mandatoryReceipt)t.after(()=>fs.rmSync(mandatoryReceipt.directory,{recursive:true,force:true}));
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{}),...(flags.includes('--fr-profile')?{frProfileOutput:path.join(output,'private/fr-profile')}:{})}});
+  const frReceipt=flags.includes('--fr-profile')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'fr-profile-cli-output.json'))):undefined;
+  if(frReceipt)t.after(()=>fs.rmSync(frReceipt.directory,{recursive:true,force:true}));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{}),...(frReceipt?{frProfileOutput:frReceipt.output}:{})}});
   if(mandatoryReceipt)fs.unlinkSync(path.join(jobDirectory,'mandatory-email-cli-output.json'));
+  if(frReceipt)fs.unlinkSync(path.join(jobDirectory,'fr-profile-cli-output.json'));
   fs.unlinkSync(path.join(source,'cli-call.json'));
  }
  const terminal=launch(['--st-cic']);assert.equal(terminal.status,2);assert.match(terminal.stderr,/BLOCKED/);assert.equal(fs.existsSync(path.join(source,'cli-call.json')),false);assert.equal(fs.existsSync(output),false);
@@ -730,11 +750,11 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
  const allocations=path.join(root,'allocations.txt'),preload=path.join(root,'count-allocation.cjs');
  fs.writeFileSync(preload,`const fs=require('node:fs'),actual=fs.mkdtempSync;fs.mkdtempSync=(...args)=>{fs.appendFileSync(${JSON.stringify(allocations)},'called');return actual(...args);};`);
  const badTmp=path.join(fakeDeps,'tmp');fs.mkdirSync(badTmp);const dependencyBefore=fs.readdirSync(fakeDeps).sort();
- for(const flag of ['--st-cic','--mandatory-email']){const unsafe=launch([flag],{tmpdir:badTmp,preload});assert.equal(unsafe.status,2,unsafe.stderr);}
+ for(const flag of ['--st-cic','--mandatory-email','--fr-profile']){const unsafe=launch([flag],{tmpdir:badTmp,preload});assert.equal(unsafe.status,2,unsafe.stderr);}
  assert.equal(fs.existsSync(allocations),false,'reject before any mkdtemp under dependency input');assert.deepEqual(fs.readdirSync(fakeDeps).sort(),dependencyBefore);assert.deepEqual(fs.readdirSync(badTmp),[]);
  assert.equal(fs.existsSync(path.join(source,'cli-call.json')),false);assert.equal(fs.existsSync(path.join(jobDirectory,'st-cic-cli-output.json')),false);
  fs.unlinkSync(path.join(source,'node_modules'));const safeTmp=path.join(root,'safe-tmp');fs.mkdirSync(safeTmp);
- for(const flag of ['--st-cic','--mandatory-email']){const missing=launch([flag],{tmpdir:safeTmp,preload});assert.equal(missing.status,2,missing.stderr);}assert.equal(fs.existsSync(allocations),false,'missing dependency root must fail before allocation');assert.deepEqual(fs.readdirSync(safeTmp),[]);
+ for(const flag of ['--st-cic','--mandatory-email','--fr-profile']){const missing=launch([flag],{tmpdir:safeTmp,preload});assert.equal(missing.status,2,missing.stderr);}assert.equal(fs.existsSync(allocations),false,'missing dependency root must fail before allocation');assert.deepEqual(fs.readdirSync(safeTmp),[]);
 });
 
 test('combined assurance CLI preserves ST_CIC and the explicit held Build receipt without accepting malformed suffixes',async()=>{
@@ -757,7 +777,20 @@ test('FR profile request is pinned into the collector only after a completed adm
 });
 
 test('failed FR profile attempt blocks publication and never creates a report request',async()=>{
- const {runAssuranceSequence}=await api();let descriptors=0,collections=0,withdrawals=0;
- const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{throw Error('private failure');},descriptor:async()=>{descriptors++;return'/private/native.json';},collect:async()=>{collections++;return{status:'passed',exitCode:0};},withdraw:()=>withdrawals++});
- assert.equal(result.frProfileStatus,'BLOCKED');assert.equal(result.exitCode,2);assert.equal(descriptors,0);assert.equal(collections,0);assert.equal(withdrawals,1);assert(!JSON.stringify(result).includes('private failure'));
+ const {runAssuranceSequence}=await api(),{SOURCE_JURISDICTIONS}=await import('./lib/exui-source-profile-jurisdictions.mjs');let descriptors=0,collections=0,withdrawals=0;
+ const expectedIds=[...SOURCE_JURISDICTIONS].sort(),diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds:[...expectedIds,'ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};let publication;
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{const error=Error('FR_PROFILE_OBSERVATIONS');error.frProfileDiagnostic=diagnostic;throw error;},descriptor:async()=>{descriptors++;return'/private/native.json';},collect:async()=>{collections++;return{status:'passed',exitCode:0};},withdraw:()=>withdrawals++,publish:value=>publication=value});
+ assert.equal(result.frProfileStatus,'BLOCKED');assert.equal(result.frProfileAttempt.reason,'FR_PROFILE_OBSERVATIONS');assert.equal(result.exitCode,2);assert.equal(descriptors,0);assert.equal(collections,0);assert.equal(withdrawals,1);
+ assert.deepEqual(result.frProfileAttempt.diagnostic,diagnostic);assert.deepEqual(publication.frProfileAttempt.diagnostic,diagnostic);
+ const opaque=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{throw Error('private failure');},descriptor:async()=>assert.fail('blocked FR may not create a descriptor'),collect:async()=>assert.fail('blocked FR may not collect')});
+ assert.equal(opaque.frProfileAttempt.reason,'FR_PROFILE_RUN_INVALID');assert(!JSON.stringify(opaque).includes('private failure'));
+});
+
+test('public release summary preserves bounded FR mismatch details while remaining blocked',async t=>{
+ const {publishAssuranceSummary}=await api(),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs'),{SOURCE_JURISDICTIONS}=await import('./lib/exui-source-profile-jurisdictions.mjs');
+ const output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-fr-summary-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'));
+ const binding={synthetic:'parent-captured-output'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(output,'private/native-cohort-binding.json'),bytes);
+ const expectedIds=[...SOURCE_JURISDICTIONS].sort(),diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds:[...expectedIds,'ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};
+ publishAssuranceSummary({output},{nativeCohortCapture:{binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}}},{exitCode:2,frProfileAttempt:{diagnostic}});
+ const summary=validatePublicSummary(path.join(output,'public/release-assurance-summary.json'));assert.equal(summary.status,'BLOCKED');assert.equal(summary.releaseApproval,false);assert.deepEqual(summary.frProfileDiagnostic,diagnostic);
 });

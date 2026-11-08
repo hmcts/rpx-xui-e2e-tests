@@ -59,6 +59,19 @@ test('worker result requires real healthy omission observations and independent 
   worker.code='PRIVATE_CREDENTIAL_CANARY';write('profile-worker-result.json',worker);assert.throws(()=>validateProfileInvocationResult({...context,terminal:{code:2,signal:null}}),/SOURCE_PROFILE_WORKER_RESULT/);
 });
 
+test('failed FR jurisdiction replay carries only the bounded expected and observed identifier summary',async t=>{
+ const {validateProfileInvocationResult}=await import('./run-harness-source-profile-jurisdictions.mjs');
+ const {FR_PROFILE_FACETS,frProfileEvidence}=await import('./lib/exui-source-profile-fr-consumers.mjs');
+ const directory=temporary(t),identity={artifactDigest:'sha256:'+'a'.repeat(64)},configDigest='sha256:'+'b'.repeat(64),sourceDigest='sha256:'+'c'.repeat(64),facet='fr-jurisdiction';
+ const worker={schemaVersion:1,status:'failed',invocationId:'baseline',mutation:null,code:'FR_PROFILE_OBSERVATIONS',identity,configDigest,sourceDigest,runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false};
+ fs.writeFileSync(path.join(directory,'profile-worker-result.json'),JSON.stringify(worker));
+ const observed=frProfileEvidence(facet).observations;observed[0].body.push({id:'ST_CIC'},{id:'UNREVIEWED'});fs.writeFileSync(path.join(directory,'profile-fr-observations.json'),JSON.stringify({observations:observed}));
+ assert.throws(()=>validateProfileInvocationResult({directory,invocationId:'baseline',mutation:null,identity,configDigest,sourceDigest,terminal:{code:2,signal:null},facet}),error=>{
+  assert.equal(error.message,'FR_PROFILE_OBSERVATIONS');assert.deepEqual(error.frProfileDiagnostic,{schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds:frProfileEvidence(facet).observations[0].body.map(row=>row.id).sort(),observedIds:observed[0].body.map(row=>row.id).sort(),unexpectedIds:['ST_CIC','UNREVIEWED'],missingIds:[]});return true;
+ });
+ assert.deepEqual(FR_PROFILE_FACETS.map(row=>row.facet),['fr-jurisdiction','fr-staff','fr-mapping']);
+});
+
 test('worker distinguishes intended omission from transport failure without retaining credentials', async t => {
   const {executeProfileProof}=await import('./source-profile-jurisdictions-worker.mjs');const directory=temporary(t);
   const current={directory,invocationId:'source-profile-drop-divorce-jurisdiction',mutation:'source-profile-drop-divorce-jurisdiction',identity:{},configDigest:'digest',sourceDigest:'digest'};

@@ -52,4 +52,8 @@ test('actual full API rejects mandatory collisions and aliases before the explic
  for(const stCicOutput of [selected,path.join(selected,'nested'),f.owned,path.join(alias,'st-cic')]){await assert.rejects(()=>f.api.runHarnessAssurance(f.jobPath,{mandatoryEmailOutput:selected,stCicOutput,env:{}}));assert.equal(f.calls(),'');}
  for(const frProfileOutput of [null,false,'relative',f.candidate,f.nativeOutput,existing,path.join(alias,'fr-profile'),path.join(f.nativeOutput,'private/other-profile')]){await assert.rejects(()=>f.api.runHarnessAssurance(f.jobPath,{mandatoryEmailOutput:selected,frProfileOutput,env:{}}));assert.equal(f.calls(),'');}
  await assert.rejects(()=>f.api.runHarnessAssurance(f.jobPath,{mandatoryEmailOutput:selected,env:{}}),/CONTROLLED_NATIVE_BOUNDARY/);assert.equal(f.calls(),'native');assert.equal(fs.existsSync(selected),false,'API metadata checks do not precreate the companion output');
+ const frProfileOutput=await f.api.createFrProfileCliOutput(f.jobPath);
+ await assert.rejects(()=>f.api.runHarnessAssurance(f.jobPath,{mandatoryEmailOutput:selected,frProfileOutput,env:{}}),/CONTROLLED_NATIVE_BOUNDARY/);
+ assert.equal(f.calls(),'nativenative');assert.equal(fs.existsSync(frProfileOutput),false,'API metadata checks do not precreate the FR output');
+ fs.rmSync(path.dirname(frProfileOutput),{recursive:true,force:true});fs.unlinkSync(path.join(path.dirname(f.jobPath),'fr-profile-cli-output.json'));
 });

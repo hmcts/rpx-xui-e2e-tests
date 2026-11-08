@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { effectiveCandidateConfiguration, CANDIDATE_URL } from './exui-candidate-runtime.mjs';
-import { digestBytes } from './exui-evidence-io.mjs';
+import { digestBytes, SOURCE_JURISDICTIONS } from './exui-evidence-io.mjs';
 
 export const SOURCE_PROFILE_JURISDICTION_SCOPE = 'exui-source-profile-jurisdictions-feasibility';
 export const SOURCE_PROFILE_JURISDICTION_FAULT = 'source-profile-drop-divorce-jurisdiction';
 export const SOURCE_PROFILE_FAMILIES = ['CMC', 'FR', 'DIVORCE'];
-export const SOURCE_JURISDICTIONS = ['DIVORCE','PROBATE','FR','PUBLICLAW','IA','SSCS','EMPLOYMENT','HRS','CIVIL','CMC','PRIVATELAW','PCS'];
+export { SOURCE_JURISDICTIONS };
 const accesses = ['read','create','default'];
 const revision = '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0';
 const source = JSON.parse(fs.readFileSync(new URL('../fixtures/exui-configuration-source.json',import.meta.url))).sources.find(item=>item.repository==='rpx-xui-webapp'&&item.path==='config/default.json');

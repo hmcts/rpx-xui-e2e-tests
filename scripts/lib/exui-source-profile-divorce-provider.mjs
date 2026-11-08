@@ -22,7 +22,7 @@ export async function handleDivorceProvider(request,response,{facet,journal,outp
  else if(raw!=='')return false;
  const record={method,path,...(method==='POST'?{body}:{})};let result;
  if(facet==='staff') {
-  const configuredStaffCsv=family==='FR'?staffCsv.split(',').filter(id=>id!=='PCS').join(','):staffCsv;
+  const configuredStaffCsv=staffCsv;
   for(const csv of [configuredStaffCsv,configuredStaffCsv.split(',').filter(id=>id!==family).join(',')]) {
    const families=csv.split(',').includes(family)?[family,'IA']:['IA'];
    if(method==='GET'&&path===`/refdata/internal/staff/usersByServiceName?ccd_service_names=${csv}&page_size=100000`)result=families.map(user);

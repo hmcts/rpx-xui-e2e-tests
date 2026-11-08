@@ -24,7 +24,7 @@ import {verifyHarnessDependencies} from './lib/exui-harness-dependencies.mjs';
 import {stCicFacet,stCicProfileConfiguration,assertStCicProfileArtifact} from './lib/exui-st-cic-profile-contract.mjs';
 import {validateStCicConsumerObservations,validateStCicWaHealth} from './lib/exui-st-cic-profile-consumers.mjs';
 import {frProfileConfiguration,FR_PROFILE_FACETS} from './lib/exui-fr-profile-contract.mjs';
-import {validateFrProfileObservations,probeFrProfileConsumers} from './lib/exui-source-profile-fr-consumers.mjs';
+import {validateFrProfileObservations,probeFrProfileConsumers,frJurisdictionFilterDiagnostic} from './lib/exui-source-profile-fr-consumers.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
 const read=file=>JSON.parse(fs.readFileSync(file));
 const stCicApi=facet=>['st-cic-global-search','st-cic-wa','st-cic-staff','st-cic-mapping','st-cic-wa-health'].includes(facet);
@@ -77,7 +77,9 @@ export function validateProfileInvocationResult({directory,invocationId,mutation
     assert.equal(typeof worker.code,'string','SOURCE_PROFILE_WORKER_RESULT');
     assert.deepEqual(worker,{...expected,status:'failed',code:profileFailureCode({message:worker.code})},'SOURCE_PROFILE_WORKER_RESULT');
     assert.deepEqual(terminal,{code:2,signal:null},'SOURCE_PROFILE_FRAMEWORK_TERMINAL');
-    throw Error(worker.code);
+    const error=Error(worker.code);
+    if(facet==='fr-jurisdiction'&&invocationId==='baseline'&&worker.code==='FR_PROFILE_OBSERVATIONS')error.frProfileDiagnostic=frJurisdictionFilterDiagnostic(read(path.join(directory,'profile-fr-observations.json')).observations);
+    throw error;
   }
   assert.deepEqual(worker,expected,'SOURCE_PROFILE_WORKER_RESULT');
   assert.deepEqual(terminal,{code:mutation?1:0,signal:null},'SOURCE_PROFILE_FRAMEWORK_TERMINAL');
@@ -226,7 +228,7 @@ export async function runSourceProfileFeasibility({artifactPath,output,facet='ju
     assert.deepEqual(owned.map(item=>item.name).sort(),ids.flatMap(id=>['candidate','tools'].map(service=>`${receipt.owner}-${id}-${service}`)).sort(),'SOURCE_PROFILE_CLEANUP_REQUIRED');
     assert(owned.every(item=>item.kind==='container'&&item.owner===receipt.owner&&item.image===(item.service==='browser-provider'&&browser?browser.image:runtime.imageId)&&item.removed===true&&/^[a-f0-9]{64}$/.test(item.id))&&new Set(owned.map(item=>item.id)).size===4,'SOURCE_PROFILE_CLEANUP_REQUIRED');
     receipt.status='feasibility-observed';
-  } catch(error) {receipt.status=cancelled?'cancelled':'failed';receipt.failure={phase,code:profileFailureCode(error)};}
+  } catch(error) {receipt.status=cancelled?'cancelled':'failed';receipt.failure={phase,code:profileFailureCode(error),...(error.frProfileDiagnostic?{diagnostic:error.frProfileDiagnostic}:{})};}
   finally {
     for(const key of [...resources.keys()].reverse())try{await remove(key);}catch{/* Retained explicitly in cleanup evidence. */}
     finishCleanup();

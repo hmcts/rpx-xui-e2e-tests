@@ -156,7 +156,7 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
         assert.deepEqual(Object.keys(request).sort(),['digest','path','runId'],'ASSURANCE_FR_PROFILE_REQUEST_REQUIRED');
         assert(typeof request.path==='string'&&path.isAbsolute(request.path)&&path.normalize(request.path)===request.path&&typeof request.digest==='string'&&/^sha256:[a-f0-9]{64}$/.test(request.digest)&&typeof request.runId==='string'&&/^fr-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(request.runId),'ASSURANCE_FR_PROFILE_REQUEST_REQUIRED');
         frProfileRequest=structuredClone(request);frProfileAccepted=result.accepted;
-      }catch{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicRequest?'PASS':stCicStarted?'BLOCKED':'NOT_RUN'}:{}),...(mandatoryEmail?{mandatoryEmailStatus:mandatoryRequest?'PASS':mandatoryDiagnosticStatus()}:{}),frProfileStatus:'BLOCKED',diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
+      }catch(error){const code=String(error?.message??'').split(/[\r\n]/,1)[0],reason=/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(code)?code:'FR_PROFILE_RUN_INVALID',diagnostic=error?.frProfileDiagnostic;frProfileAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason,...(diagnostic?{diagnostic}: {})};withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicRequest?'PASS':stCicStarted?'BLOCKED':'NOT_RUN'}:{}),...(mandatoryEmail?{mandatoryEmailStatus:mandatoryRequest?'PASS':mandatoryDiagnosticStatus()}:{}),frProfileStatus:'BLOCKED',frProfileAttempt,diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
       finally{nativeElapsedMs+=Math.round(clock()-started);}
     }
   }
@@ -445,7 +445,7 @@ export function publishAssuranceSummary(job, captured, result) {
     catch(error){try{Reporter.resetPublicReport('harness');}finally{writeHarnessPublicSummary(job.output,{status:'BLOCKED',exitCode:2},false);}throw error;}
   }
   assert([0,1,2].includes(result.exitCode),'ASSURANCE_EXIT_REQUIRED');
-  writeHarnessPublicSummary(job.output,{status:['PASS','FAIL','BLOCKED'][result.exitCode],exitCode:result.exitCode},result.exitCode===0);
+  writeHarnessPublicSummary(job.output,{status:['PASS','FAIL','BLOCKED'][result.exitCode],exitCode:result.exitCode,...(result.frProfileAttempt?.diagnostic?{frProfileDiagnostic:result.frProfileAttempt.diagnostic}:{})},result.exitCode===0);
 }
 export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput, personalOutput, stCicOutput, mandatoryEmailOutput, frProfileOutput, snapshotAssuranceTiming, buildSelfCheckHeld } = {}) {
   assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
@@ -456,11 +456,11 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   assert(stCicOutput===undefined||(typeof stCicOutput==='string'&&path.isAbsolute(stCicOutput)),'ASSURANCE_ST_CIC_OUTPUT_REQUIRED');
   assert(frProfileOutput===undefined||(typeof frProfileOutput==='string'&&path.isAbsolute(frProfileOutput)),'ASSURANCE_FR_PROFILE_OUTPUT_REQUIRED');
   const job = validateCiJob(read(jobPath).value);
-  assert(frProfileOutput===undefined||frProfileOutput===path.join(job.output,'private/fr-profile'),'ASSURANCE_FR_PROFILE_OUTPUT_REQUIRED');
+  if(frProfileOutput!==undefined)await verifyFrProfileCliOutput(jobPath,job,frProfileOutput);
   if(mandatoryEmailOutput!==undefined){
     assert(typeof mandatoryEmailOutput==='string'&&path.isAbsolute(mandatoryEmailOutput)&&path.normalize(mandatoryEmailOutput)===mandatoryEmailOutput,'ASSURANCE_MANDATORY_OUTPUT_REQUIRED');
     assert.equal(fs.realpathSync(path.dirname(mandatoryEmailOutput)),path.dirname(mandatoryEmailOutput),'ASSURANCE_MANDATORY_OUTPUT_ALIAS');
-    const candidateRoot=fs.realpathSync(read(job.candidateManifest).value.candidateRoot),siblings=[profileOutput,stCicOutput,personalOutput].filter(value=>value!==undefined);
+    const candidateRoot=fs.realpathSync(read(job.candidateManifest).value.candidateRoot),siblings=[profileOutput,stCicOutput,personalOutput,frProfileOutput].filter(value=>value!==undefined);
     for(const sibling of siblings){assert(typeof sibling==='string'&&path.isAbsolute(sibling)&&path.normalize(sibling)===sibling,'ASSURANCE_MANDATORY_OUTPUT_ALIAS');assert.equal(fs.realpathSync(path.dirname(sibling)),path.dirname(sibling),'ASSURANCE_MANDATORY_OUTPUT_ALIAS');}
     for(const other of [ROOT,fs.realpathSync(path.join(ROOT,'node_modules')),fs.realpathSync(job.candidateManifest),candidateRoot,fs.realpathSync(job.browserCache),job.output,...siblings])assert(mandatoryEmailOutput!==other&&!mandatoryEmailOutput.startsWith(other+path.sep)&&!other.startsWith(mandatoryEmailOutput+path.sep),'ASSURANCE_MANDATORY_OUTPUT_OVERLAP');
     await assertFreshCandidateDerivationOutput({baseline:{candidateRoot},manifestPath:job.candidateManifest,output:mandatoryEmailOutput});
@@ -590,6 +590,45 @@ export async function createStCicCliOutput(jobPath) {
   }
 }
 
+function assertFrProfileCliReceipt(jobPath,output){
+  const parent=path.dirname(jobPath),receiptPath=path.join(parent,'fr-profile-cli-output.json');
+  assert.equal(fs.realpathSync(parent),parent,'ASSURANCE_FR_PROFILE_OUTPUT_ALIAS');
+  const owned=read(receiptPath).value;
+  assert.deepEqual(Object.keys(owned).sort(),['schemaVersion','kind','directory','output'].sort(),'ASSURANCE_FR_PROFILE_OUTPUT_INVALID');
+  assert.equal(owned.schemaVersion,1,'ASSURANCE_FR_PROFILE_OUTPUT_INVALID');
+  assert.equal(owned.kind,'fr-profile-cli-owned-output','ASSURANCE_FR_PROFILE_OUTPUT_INVALID');
+  assert(typeof owned.directory==='string'&&path.isAbsolute(owned.directory)&&path.normalize(owned.directory)===owned.directory&&fs.realpathSync(owned.directory)===owned.directory,'ASSURANCE_FR_PROFILE_OUTPUT_ALIAS');
+  assert.equal(owned.output,path.join(owned.directory,'profile'),'ASSURANCE_FR_PROFILE_OUTPUT_INVALID');
+  assert.equal(output,owned.output,'ASSURANCE_FR_PROFILE_OUTPUT_INVALID');
+  return owned;
+}
+async function verifyFrProfileCliOutput(jobPath,job,output){
+  const owned=assertFrProfileCliReceipt(jobPath,output),temporaryRoot=fs.realpathSync(os.tmpdir());
+  assert(owned.directory.startsWith(temporaryRoot+path.sep),'ASSURANCE_FR_PROFILE_OUTPUT_ALIAS');
+  const artifact=read(job.candidateManifest).value,candidateRoot=fs.realpathSync(artifact.candidateRoot);
+  const inputs=[ROOT,fs.realpathSync(path.join(ROOT,'node_modules')),fs.realpathSync(jobPath),fs.realpathSync(job.candidateManifest),fs.realpathSync(job.browserCache),candidateRoot,job.output];
+  for(const input of inputs)assert(owned.output!==input&&!owned.output.startsWith(input+path.sep)&&!input.startsWith(owned.output+path.sep),'ASSURANCE_FR_PROFILE_OUTPUT_OVERLAP');
+  await assertFreshCandidateDerivationOutput({baseline:{candidateRoot},manifestPath:job.candidateManifest,output});
+}
+export async function createFrProfileCliOutput(jobPath){
+  const job=validateCiJob(read(jobPath).value),parent=path.dirname(jobPath),receipt=path.join(parent,'fr-profile-cli-output.json');
+  assert.equal(fs.realpathSync(parent),parent,'ASSURANCE_FR_PROFILE_OUTPUT_ALIAS');
+  assert(!fs.existsSync(receipt),'ASSURANCE_FR_PROFILE_OUTPUT_ALREADY_OWNED');
+  const artifact=read(job.candidateManifest).value;assert(typeof artifact.candidateRoot==='string'&&path.isAbsolute(artifact.candidateRoot),'ASSURANCE_FR_PROFILE_CANDIDATE_ROOT_REQUIRED');
+  const candidateRoot=fs.realpathSync(artifact.candidateRoot),temporaryRoot=fs.realpathSync(os.tmpdir());
+  const readonly=[ROOT,fs.realpathSync(path.join(ROOT,'node_modules')),fs.realpathSync(jobPath),fs.realpathSync(job.candidateManifest),fs.realpathSync(job.browserCache),candidateRoot,job.output];
+  assert.equal(path.normalize(job.output),job.output,'ASSURANCE_FR_PROFILE_OUTPUT_ALIAS');assert.equal(fs.realpathSync(path.dirname(job.output)),path.dirname(job.output),'ASSURANCE_FR_PROFILE_OUTPUT_ALIAS');
+  for(const input of readonly)assert(temporaryRoot!==input&&!temporaryRoot.startsWith(input+path.sep),'ASSURANCE_FR_PROFILE_TEMP_INPUT_OVERLAP');
+  const directory=fs.mkdtempSync(path.join(temporaryRoot,'harness-fr-profile-cli-')),output=path.join(directory,'profile');
+  try{
+    fs.chmodSync(directory,0o700);
+    for(const input of readonly)assert(output!==input&&!output.startsWith(input+path.sep)&&!input.startsWith(output+path.sep),'ASSURANCE_FR_PROFILE_OUTPUT_OVERLAP');
+    await assertFreshCandidateDerivationOutput({baseline:{candidateRoot},manifestPath:job.candidateManifest,output});
+    fs.writeFileSync(receipt,JSON.stringify({schemaVersion:1,kind:'fr-profile-cli-owned-output',directory,output},null,2)+'\n',{flag:'wx',mode:0o600});
+    return output;
+  }catch(error){try{fs.rmdirSync(directory);}catch{/* Preserve unexpected contents. */}throw error;}
+}
+
 // Fixed mandatory-email CLI ownership only; no caller-chosen allocator settings.
 export async function createMandatoryEmailCliOutput(jobPath){
   const job=validateCiJob(read(jobPath).value),parent=path.dirname(jobPath),receipt=path.join(parent,'mandatory-email-cli-output.json');
@@ -622,7 +661,7 @@ if (
     const cli = parseAssuranceCli(process.argv.slice(2));
     const stCicOutput = cli.stCic ? await createStCicCliOutput(cli.jobPath) : undefined;
     const mandatoryEmailOutput=cli.mandatoryEmail?await createMandatoryEmailCliOutput(cli.jobPath):undefined;
-    const frProfileOutput=cli.frProfile?path.join(validateCiJob(read(cli.jobPath).value).output,'private/fr-profile'):undefined;
+    const frProfileOutput=cli.frProfile?await createFrProfileCliOutput(cli.jobPath):undefined;
     if(cli.parentTiming) {
       parentDisconnected = () => process.kill(process.pid,'SIGTERM');
       process.once('disconnect',parentDisconnected);
@@ -636,6 +675,7 @@ if (
       ...(cli.buildSelfCheckHeld === undefined ? {} : {buildSelfCheckHeld:cli.buildSelfCheckHeld}),
       ...(parentSnapshot ? {snapshotAssuranceTiming:parentSnapshot} : {}),
     });
+    if(result.frProfileAttempt?.status==='BLOCKED'){const diagnostic=result.frProfileAttempt.diagnostic;console.error(`[harness-assurance] FR profile blocked (${result.frProfileAttempt.reason})${diagnostic?`; expected ${diagnostic.expectedIds.length} jurisdictions, observed ${diagnostic.observedIds.length}${diagnostic.unexpectedIds.length?`; unexpected: ${diagnostic.unexpectedIds.join(', ')}`:''}${diagnostic.missingIds.length?`; missing: ${diagnostic.missingIds.join(', ')}`:''}`:''}.`);}
     console.log(
       `[harness-assurance] Native ${result.nativeStatus}; diagnostics ${result.diagnosticStatus}; full release approval unavailable.`,
     );

@@ -8,7 +8,7 @@ export const FR_PROFILE_FACETS=Object.freeze([
  {facet:'fr-mapping',fault:'source-profile-change-fr-code'},
 ].map(Object.freeze));
 const familyList='DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,HRS,CIVIL,CMC,PRIVATELAW,PCS';
-const staffList='ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS';
+const staffList='ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS';
 const credits={runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false,releaseApproval:false};
 const hasFamily=(value,family)=>typeof value==='string'&&value.split(',').map(item=>item.trim()).includes(family);
 
