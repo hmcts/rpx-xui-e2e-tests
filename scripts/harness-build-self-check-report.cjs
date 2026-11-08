@@ -54,7 +54,7 @@ function validateBuildSelfChecks(value, {retiringPreviousRun=false} = {}) {
       ...(value.schemaVersion===2?["fileResults","purposeMapDigest"]:[]),
     ]);
     assert(value.schemaVersion===2 || retiringPreviousRun && value.schemaVersion===1);
-    assert(value.schemaVersion===1&&retiringPreviousRun&&!Object.hasOwn(value,"configuredFileWorkers") || value.configuredFileWorkers===1 || value.configuredFileWorkers===2);
+    assert(value.schemaVersion===1&&retiringPreviousRun&&!Object.hasOwn(value,"configuredFileWorkers") || [1,2,4,8].includes(value.configuredFileWorkers));
     assert.equal(value.kind, "harness-build-self-checks");
     assert(
       typeof value.runId === "string" &&

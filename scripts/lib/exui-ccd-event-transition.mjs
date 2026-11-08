@@ -21,7 +21,7 @@ import {
 } from "./exui-ccd-event-capability.mjs";
 
 const mutationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
-// Allow three minutes per serial fault import, capped at thirty minutes for the batch.
+// Allow three minutes per fault runtime, capped at thirty minutes for the batch.
 const transitionTimeoutMs = Math.min(mutationIds.length * 3 * 60_000, 30 * 60_000);
 
 const digest = (value) => /^sha256:[a-f0-9]{64}$/.test(value ?? "");

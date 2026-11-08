@@ -35,6 +35,21 @@ const fixture = () => {
   return { input, state, definition, credentials };
 };
 
+test("source event fault stacks stay owned through browser proof and clean up at the phase boundary", () => {
+  const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
+  const start = source.indexOf("const records = [], faults = [], states = [handoff.input.ccd];");
+  const end = source.indexOf("const transition = {", start);
+  const cleanup = source.indexOf("for (const [id, resource] of [...resources].reverse())");
+  assert(start >= 0 && end > start);
+  const loop = source.slice(start, end);
+  assert.match(loop, /offset\s*\+=\s*2/);
+  assert.match(loop, /Promise\.allSettled\(batch\.map/);
+  assert.doesNotMatch(loop, /await remove\(/);
+  assert.match(loop, /for\s*\(const result of settled\)/);
+  assert(cleanup > end);
+  assert.match(source.slice(cleanup, cleanup + 150), /await remove\(id, resource\)/);
+});
+
 test("support only: event fault runtime is a fresh namespace bound to the exact baseline and one definition variant", async () => {
   const { eventCapabilityTransitionRequest, selectEventCapabilityRuntime } = await load();
   const { input, state, definition, credentials } = fixture();
@@ -199,7 +214,7 @@ test("support only: event scope has fixed eleven-proof baseline and eleven defin
   assert.throws(() => seedAppCcdSessions(credentials, (name) => name, scope), /CCD_SOURCE_ACTOR_ROLES_REQUIRED/);
 });
 
-test("support only: default ACK allowance covers the complete serial fault batch beyond six minutes", async (t) => {
+test("support only: default ACK allowance covers all two-at-a-time fault batches beyond the old two-fault deadline", async (t) => {
   const { eventCapabilityTransitionRequest, publishEventCapabilityRuntime, waitForEventCapabilityRuntime } = await load();
   const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "event-batch-deadline-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -212,8 +227,8 @@ test("support only: default ACK allowance covers the complete serial fault batch
   };
   t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: 0 });
   const pending = waitForEventCapabilityRuntime(input, root).then(value => ({ value }), error => ({ error }));
-  // Ten sequential 37-second preparations publish no ACK until the whole batch is captured.
-  for (let i = 0; i < 10; i++) { t.mock.timers.tick(37_000); await Promise.resolve(); }
+  // Six two-runtime batches publish no ACK until all eleven faults are captured.
+  for (let i = 0; i < 6; i++) { t.mock.timers.tick(37_000); await Promise.resolve(); }
   publishEventCapabilityRuntime(root, record);
   t.mock.timers.tick(10);
   const result = await pending;

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import process from "node:process";
+import path from "node:path";
 
 import diagnosticConfig from "./harness-diagnostic-config.cjs";
 import { writePublicSummary } from "./lib/exui-evidence-io.mjs";
@@ -11,7 +12,8 @@ const heldPresent=heldPath.length>0||heldDigest.length>0;
 const allowedHeld=arg=>arg.startsWith('--build-self-check=')||arg.startsWith('--build-self-check-sha256=');
 const native = args.filter((arg) => arg.startsWith("--native-evidence="));
 const selected = args.filter((arg) => arg.startsWith("--selection="));
-if ((heldPresent&&(heldPath.length!==1||heldDigest.length!==1||!heldPath[0].slice('--build-self-check='.length)||!/^sha256:[a-f0-9]{64}$/.test(heldDigest[0].slice('--build-self-check-sha256='.length)))) || native.length > 1 || native.some(arg => !arg.slice("--native-evidence=".length)) || selected.length > 1 || args.some((arg) => !switches.has(arg) && !arg.startsWith("--selection=") && !arg.startsWith("--native-evidence=") && !allowedHeld(arg))) {
+const profileAttempts=args.filter(arg=>arg.startsWith('--profile-attempts='));
+if ((heldPresent&&(heldPath.length!==1||heldDigest.length!==1||!heldPath[0].slice('--build-self-check='.length)||!/^sha256:[a-f0-9]{64}$/.test(heldDigest[0].slice('--build-self-check-sha256='.length)))) || native.length > 1 || native.some(arg => !arg.slice("--native-evidence=".length)) || selected.length > 1 || profileAttempts.length>1 || profileAttempts.some(arg=>!path.isAbsolute(arg.slice('--profile-attempts='.length))) || args.some((arg) => !switches.has(arg) && !arg.startsWith("--selection=") && !arg.startsWith("--native-evidence=") && !arg.startsWith('--profile-attempts=') && !allowedHeld(arg))) {
   console.error("[harness-diagnostic] BLOCKED: diagnostic POC only; candidate/release execution requires an isolated candidate runner.");
   process.exit(2);
 }
@@ -103,6 +105,7 @@ try {
       ...(mode === "environment" ? (local ? localEnv : process.env) : offlineEnv),
       ...(runCi ? { CI: "true" } : {}),
       ...(heldPresent?{HARNESS_BUILD_SELF_CHECK_PATH:heldPath[0].slice('--build-self-check='.length),HARNESS_BUILD_SELF_CHECK_DIGEST:heldDigest[0].slice('--build-self-check-sha256='.length)}:{}),
+      ...(profileAttempts.length?{HARNESS_PROFILE_ATTEMPTS_PATH:profileAttempts[0].slice('--profile-attempts='.length)}:{}),
       ...(mode !== "environment" && !runCi ? { TEST_URL: "http://127.0.0.1:3455", TEST_ENV: "local" } : {}),
       ...privateReporting(output),
       EXUI_DIAGNOSTIC_SELECTION: mode,

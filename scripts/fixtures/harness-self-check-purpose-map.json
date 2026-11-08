@@ -1047,6 +1047,13 @@
       "label": "Business scalar report detail",
       "group": "report-delivery",
       "purpose": "Checks finite object-derived nested and IA scope scalar capture, sealed attachment identity, privacy, unavailable states and report readback; synthetic observations are not native acceptance."
+    },
+    {
+      "file": "scripts/verify-exui-cmc-profile.test.cjs",
+      "id": "unit-cmc-profile",
+      "label": "CMC jurisdiction profile",
+      "group": "evidence-admission",
+      "purpose": "Checks the source-backed CMC jurisdiction selection, its effective CMC-only fault, same-candidate admission and cleanup-gated blocked reporting without catalogue credit."
     }
   ]
 }

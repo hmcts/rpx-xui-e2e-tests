@@ -37,7 +37,7 @@ export function frProfileEvidence(facet,mutation=null){
  if(facet==='fr-jurisdiction'){
   const ids=mutation?SOURCE_JURISDICTIONS.filter(id=>id!=='FR'):SOURCE_JURISDICTIONS;
   for(let repeat=0;repeat<2;repeat++)for(const access of ['create','read','default'])observations.push({access,status:200,body:profileJurisdictionRows(access).filter(row=>ids.includes(row.id))});
-  journal=['create','read','default'].map(access=>({method:'GET',path:'/aggregated/caseworkers/harness-supervisor/jurisdictions',access}));
+  journal=[0,1].flatMap(()=>['create','read','default'].map(access=>({method:'GET',path:'/aggregated/caseworkers/harness-supervisor/jurisdictions',access})));
  }else if(facet==='fr-staff'){
   const supported=mutation?familyList.filter(id=>id!=='FR'):familyList;
   observations.push(observation('/api/staff-supported-jurisdiction/get',supported,0));
@@ -65,7 +65,17 @@ export function frJurisdictionFilterDiagnostic(observations){
 
 export function validateFrProfileObservations(facet,observations,journal,mutation=null){
  const selected=select(facet,mutation),expected=frProfileEvidence(facet,mutation);
- assert.deepEqual(observations,expected.observations,'FR_PROFILE_OBSERVATIONS');
+ if(facet==='fr-jurisdiction'){
+  assert.equal(observations.length,6,'FR_PROFILE_OBSERVATIONS');
+  for(const observation of observations)frJurisdictionFilterDiagnostic([observation]);
+  for(const access of ['create','read','default']){
+   const pair=observations.filter(item=>item.access===access);
+   assert.equal(pair.length,2,'FR_PROFILE_ACCESS_PARTITION');
+   assert(pair.every(item=>item.status===200),'FR_PROFILE_TRANSPORT');
+   assert.deepEqual(pair[0].body,pair[1].body,'FR_PROFILE_CACHE_CHANGED');
+   assert.equal(pair[0].body.some(row=>row.id==='FR'),!mutation,'FR_PROFILE_MEMBERSHIP');
+  }
+ }else assert.deepEqual(observations,expected.observations,'FR_PROFILE_OBSERVATIONS');
  assert.deepEqual(journal,expected.journal,'FR_PROFILE_JOURNAL');
  if(mutation)throw Error(facet==='fr-mapping'?'FR_PROFILE_MAPPING_ASSERTION':'FR_PROFILE_MEMBERSHIP_ASSERTION');
  return {facet,family:'FR',capability:facet==='fr-jurisdiction'?'jurisdictions':facet==='fr-staff'?'staffSupportedJurisdictions':'serviceRefDataMapping',catalogueCredit:false};

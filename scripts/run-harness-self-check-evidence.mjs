@@ -16,6 +16,23 @@ const reporter = "scripts/harness-self-check-reporter.mjs",
 const hash = (bytes) =>
   "sha256:" + createHash("sha256").update(bytes).digest("hex");
 const fail = "HARNESS_SELF_CHECK_EVIDENCE_INVALID";
+async function terminateSelfCheckTree(child) {
+  if (process.platform === "win32") return terminateOwnedChild(child);
+  // Node's process-isolated test workers outlive the CLI parent unless its group is signalled.
+  child.kill = (signal) => {
+    try {
+      return process.kill(-child.pid, signal);
+    } catch (error) {
+      if (error.code === "ESRCH") return false;
+      throw error;
+    }
+  };
+  try {
+    return await terminateOwnedChild(child);
+  } finally {
+    delete child.kill;
+  }
+}
 function sourceSnapshot(files) {
   const commit = execFileSync("git", ["rev-parse", "HEAD"], {
     cwd: root,
@@ -61,7 +78,7 @@ export async function collectNodeSelfCheckEvidence({
     startedAt = new Date().toISOString();
   assert(process.versions.node.split(".")[0] === "24", fail);
   assert(!signal?.aborted, fail);
-  assert(testConcurrency === 1 || testConcurrency === 2, fail);
+  assert([1, 2, 4, 8].includes(testConcurrency), fail);
   assert(
     Array.isArray(files) &&
       files.length > 0 &&
@@ -108,7 +125,7 @@ export async function collectNodeSelfCheckEvidence({
   save("source-input.json", {
     runId,
     nodeVersion: process.version,
-    ...(testConcurrency === 2 ? { testConcurrency } : {}),
+    ...(testConcurrency === 1 ? {} : { testConcurrency }),
     files,
     before,
   });
@@ -123,7 +140,7 @@ export async function collectNodeSelfCheckEvidence({
     rejectTermination = reject;
   });
   const abort = () => {
-    stop ??= terminateOwnedChild(child).catch(() => {
+    stop ??= terminateSelfCheckTree(child).catch(() => {
       rejectTermination(new Error(fail));
       return { observed: false, forced: true };
     });
@@ -142,6 +159,7 @@ export async function collectNodeSelfCheckEvidence({
       ],
       {
         cwd: root,
+        detached: process.platform !== "win32",
         stdio: ["ignore", out, err],
         env: {
           PATH: process.env.PATH,
@@ -429,7 +447,9 @@ function validateRequest(request, expected) {
   assert(
     input.testConcurrency === undefined ||
       input.testConcurrency === 1 ||
-      input.testConcurrency === 2,
+    input.testConcurrency === 2 ||
+      input.testConcurrency === 4 ||
+      input.testConcurrency === 8,
     fail,
   );
   const fixedPortDirectory = path.join(request.directory, "fixed-port-lock");
@@ -680,7 +700,7 @@ async function selfCheckMain() {
     assert(process.argv.length === 2, fail);
     const result = await runConfiguredSelfChecks({
       signal: cancellation.signal,
-      testConcurrency: 2,
+      testConcurrency: 8,
     });
     console.log(
       `[harness-self-checks] ${result.status}; tests ${result.counts?.tests ?? "not recorded"}; no application or release credit.`,

@@ -1,0 +1,32 @@
+const assert=require('node:assert/strict');
+const {escape}=require('./harness-report-coverage.cjs');
+const sourceJurisdictions=['CMC','CIVIL','DIVORCE','EMPLOYMENT','FR','HRS','IA','PCS','PRIVATELAW','PROBATE','PUBLICLAW','SSCS'].sort();
+const diagnosedConsumerRevision='20c6ec129fc1e81061c733e164198ec63a33e71a';
+
+function renderCmcProfileAttempt(value){
+ const fail='CMC_ATTEMPT_INVALID';
+ assert.deepEqual(Object.keys(value??{}).sort(),['schemaVersion','kind','status','reason',...(value?.diagnostic?['consumerRevision','diagnostic']:[])].sort(),fail);
+ assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'cmc-profile-attempt',fail);assert.equal(value.status,'BLOCKED',fail);assert(/^(?:CMC_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(value.reason),fail);
+ let mismatch='';
+ if(value.diagnostic){
+  const d=value.diagnostic,ids=list=>Array.isArray(list)&&list.length<=32&&list.every(id=>typeof id==='string'&&/^[A-Z][A-Z0-9_]{0,31}$/.test(id))&&new Set(list).size===list.length&&[...list].sort().every((id,index)=>id===list[index]);
+  assert.deepEqual(Object.keys(d).sort(),['schemaVersion','kind','reasonCode','expectedIds','observedIds','missingIds','unexpectedIds'].sort(),fail);
+  assert.equal(d.schemaVersion,1,fail);assert.equal(d.kind,'cmc-jurisdiction-filter-diagnostic',fail);assert.equal(d.reasonCode,value.reason,fail);
+  for(const key of ['expectedIds','observedIds','missingIds','unexpectedIds'])assert(ids(d[key]),fail);
+  assert([JSON.stringify(sourceJurisdictions),JSON.stringify(sourceJurisdictions.filter(id=>id!=='CMC'))].includes(JSON.stringify(d.expectedIds)),fail);
+  assert.deepEqual(d.missingIds,d.expectedIds.filter(id=>!d.observedIds.includes(id)),fail);assert.deepEqual(d.unexpectedIds,d.observedIds.filter(id=>!d.expectedIds.includes(id)),fail);
+  assert.equal(value.consumerRevision,diagnosedConsumerRevision,fail);
+  mismatch=`<dl><dt>Expected jurisdiction rows${d.reasonCode==='CMC_PROFILE_FAULT_NOT_EFFECTIVE'?' after removing CMC':''}</dt><dd>${d.expectedIds.length}: ${d.expectedIds.map(escape).join(', ')}</dd><dt>Observed on the candidate route</dt><dd>${d.observedIds.length}: ${d.observedIds.map(escape).join(', ')}</dd><dt>Unexpected rows</dt><dd>${d.unexpectedIds.length}: ${d.unexpectedIds.map(escape).join(', ')||'none'}</dd><dt>Missing rows</dt><dd>${d.missingIds.length}: ${d.missingIds.map(escape).join(', ')||'none'}</dd></dl><h3>What the pinned source suggests</h3><p>Source review of candidate ${escape(diagnosedConsumerRevision.slice(0,7))} found a path consistent with the observed rows: the proxy response interceptor passes UTF-8 text to the <code>/aggregated</code> jurisdiction filter, and that filter returns non-array input unchanged. See <code>api/lib/middleware/proxy.ts:106–112</code>, <code>api/proxy.config.ts:96–104</code> and <code>api/amendedJurisdictions/index.ts:25–28</code>.</p><p><strong>This is a source explanation, not additional runtime evidence.</strong> The runtime finding remains the captured jurisdiction mismatch above.</p>`;
+ }
+ return `<section id="harness-cmc-profile-attempt" data-profile-attempt-status="BLOCKED" class="odhin-thin-border p-3 mt-3" aria-labelledby="harness-cmc-profile-attempt-title"><h2 id="harness-cmc-profile-attempt-title">CMC profile: blocked</h2><p><strong>${escape(value.reason)}</strong> The profile stopped before admission. Its isolated runtime cleanup was verified, but completed proof counts are unavailable and whole-profile completion is not inferred. It earns no catalogue or release credit.</p>${mismatch}<p>The main native evidence is reported separately. This profile covers only the candidate CMC jurisdictions route; it does not prove staff, Work Allocation, hearings, CCD authorisations, or production CMC readiness.</p></section>`;
+}
+
+function renderFrProfileAttempt(value){
+ const fail='FR_ATTEMPT_INVALID',sourceJurisdictions=['CIVIL','CMC','DIVORCE','EMPLOYMENT','FR','HRS','IA','PCS','PRIVATELAW','PROBATE','PUBLICLAW','SSCS'];
+ assert.deepEqual(Object.keys(value??{}).sort(),['schemaVersion','kind','status','reason',...(value?.diagnostic?['diagnostic']:[])].sort(),fail);
+ assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'fr-profile-attempt',fail);assert.equal(value.status,'BLOCKED',fail);assert(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(value.reason),fail);
+ let mismatch='';if(value.diagnostic){const d=value.diagnostic,ids=list=>Array.isArray(list)&&list.length<=32&&list.every(id=>typeof id==='string'&&/^[A-Z][A-Z0-9_]{0,31}$/.test(id))&&new Set(list).size===list.length&&[...list].sort().every((id,index)=>id===list[index]);assert.deepEqual(Object.keys(d).sort(),['schemaVersion','kind','reasonCode','expectedIds','observedIds','missingIds','unexpectedIds'].sort(),fail);assert.equal(d.schemaVersion,1,fail);assert.equal(d.kind,'fr-jurisdiction-filter-diagnostic',fail);assert.equal(d.reasonCode,value.reason,fail);for(const key of ['expectedIds','observedIds','missingIds','unexpectedIds'])assert(ids(d[key]),fail);assert.deepEqual(d.expectedIds,sourceJurisdictions,fail);assert.deepEqual(d.missingIds,d.expectedIds.filter(id=>!d.observedIds.includes(id)),fail);assert.deepEqual(d.unexpectedIds,d.observedIds.filter(id=>!d.expectedIds.includes(id)),fail);mismatch=`<dl><dt>Expected jurisdiction rows</dt><dd>${d.expectedIds.length}: ${d.expectedIds.map(escape).join(', ')}</dd><dt>Observed on the candidate route</dt><dd>${d.observedIds.length}: ${d.observedIds.map(escape).join(', ')}</dd><dt>Unexpected rows</dt><dd>${d.unexpectedIds.length}: ${d.unexpectedIds.map(escape).join(', ')||'none'}</dd><dt>Missing rows</dt><dd>${d.missingIds.length}: ${d.missingIds.map(escape).join(', ')||'none'}</dd></dl>`;}
+ return `<section id="harness-fr-profile-attempt" data-profile-attempt-status="BLOCKED" class="odhin-thin-border p-3 mt-3" aria-labelledby="harness-fr-profile-attempt-title"><h2 id="harness-fr-profile-attempt-title">FR profile: blocked</h2><p><strong>${escape(value.reason)}</strong> The candidate profile did not complete admission. This attempt earns no catalogue or release credit.</p>${mismatch}<p>The profile intended to check jurisdiction membership, staff-supported membership and the FR reference-data mapping to ABA2. A blocked attempt does not mean those slices passed. Cleanup and candidate/native binding are reported only when independently verified.</p></section>`;
+}
+
+module.exports={renderCmcProfileAttempt,renderFrProfileAttempt};

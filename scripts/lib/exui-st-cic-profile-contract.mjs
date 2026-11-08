@@ -12,7 +12,7 @@ export const ST_CIC_PROFILE_FACETS = Object.freeze([
 ].map(Object.freeze));
 export const stCicProfileContract = () => ({
   schemaVersion: 1, obligationId: ST_CIC_PROFILE_ID, profile: 'config/default.json', family: 'ST_CIC',
-  sourceKey: 'rpx-xui-webapp:config/default.json', sourceRevision: '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0',
+  sourceKey: 'rpx-xui-webapp:config/default.json', sourceRevision: '20c6ec129fc1e81061c733e164198ec63a33e71a',
   sourceDigest: 'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
   consumerRevision: '20c6ec129fc1e81061c733e164198ec63a33e71a',
   capabilities: ['globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping'],

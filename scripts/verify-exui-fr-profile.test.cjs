@@ -35,9 +35,15 @@ test('FR source projection rejects drift and each mutation changes only its decl
  assert.throws(()=>frProfileConfiguration({...config,serviceRefDataMapping:[{service:'FR',serviceCodes:['ABA1']}]},'fr-mapping'),'FR_PROFILE_SOURCE_INVALID');
 });
 
-test('FR jurisdiction and staff observations require exact source membership and effective faults',async()=>{
+test('FR jurisdiction obligation checks FR membership and leaves other jurisdiction rows out of scope',async()=>{
  const {frProfileEvidence,validateFrProfileObservations,FR_PROFILE_FACETS}=await import('./lib/exui-source-profile-fr-consumers.mjs');
- for(const {facet,fault} of FR_PROFILE_FACETS.filter(item=>item.facet!=='fr-mapping')){
+ for(const {facet,fault} of FR_PROFILE_FACETS.filter(item=>item.facet==='fr-jurisdiction')){
+  const baseline=frProfileEvidence(facet),mutant=frProfileEvidence(facet,fault);
+  for(const evidence of [baseline,mutant])for(const observation of evidence.observations)observation.body.push({id:'ST_CIC',name:'Synthetic out-of-scope ST_CIC'},{id:'UNREVIEWED',name:'Synthetic out-of-scope UNREVIEWED'});
+  assert.equal(validateFrProfileObservations(facet,baseline.observations,baseline.journal).catalogueCredit,false);
+  assert.throws(()=>validateFrProfileObservations(facet,mutant.observations,mutant.journal,fault),/FR_PROFILE_MEMBERSHIP_ASSERTION/);
+ }
+ for(const {facet,fault} of FR_PROFILE_FACETS.filter(item=>item.facet==='fr-staff')){
   const baseline=frProfileEvidence(facet),mutant=frProfileEvidence(facet,fault);
   assert.equal(validateFrProfileObservations(facet,baseline.observations,baseline.journal).catalogueCredit,false);
   const assertion=facet==='fr-mapping'?'FR_PROFILE_MAPPING_ASSERTION':'FR_PROFILE_MEMBERSHIP_ASSERTION';
@@ -88,8 +94,9 @@ test('FR admission credits one exact profile only after all facets and same-cand
  assert.equal(admission.admitFrProfile(profile,oldCatalogue,catalogue).accepted,0);
  const wrongCatalogue={...catalogue,obligations:catalogue.obligations.filter(item=>item.id!==FR_PROFILE_ID)};
  assert.throws(()=>admission.admitFrProfile(profile,nativeContext,wrongCatalogue),/FR_PROFILE_ADMISSION_INVALID/);
- const blockedDiagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds:['FR'],observedIds:['FR','ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};
- await assert.rejects(runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output:path.join(root,'blocked'),nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet:async()=>({status:'failed',failure:{code:'FR_PROFILE_OBSERVATIONS',diagnostic:blockedDiagnostic}})}),error=>{assert.equal(error.message,'FR_PROFILE_OBSERVATIONS');assert.deepEqual(error.frProfileDiagnostic,blockedDiagnostic);return true;});
+ const blockedDiagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds:['FR'],observedIds:['FR','ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};let failedFacets=0;
+ await assert.rejects(runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output:path.join(root,'blocked'),nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet:async()=>{failedFacets++;return{status:'failed',cleanup:{complete:true},privateStateRemoved:true,failure:{code:'FR_PROFILE_OBSERVATIONS',diagnostic:blockedDiagnostic}};}}),error=>{assert.equal(error.message,'FR_PROFILE_OBSERVATIONS');assert.deepEqual(error.frProfileDiagnostic,blockedDiagnostic);return true;});
+ assert.equal(failedFacets,2);
 });
 
 test('FR runtime probes call only the declared candidate consumers with FR and ABA2 evidence',async t=>{
@@ -100,7 +107,7 @@ test('FR runtime probes call only the declared candidate consumers with FR and A
   const request=async(url,options)=>{
    assert.equal(new URL(url).origin,'http://127.0.0.1:3100');
    const index=calls++,body=expected.observations[index].body;
-   if(facet==='fr-jurisdiction'){const access=expected.observations[index].access;if(!journal.some(row=>row.access===access))journal.push(expected.journal.find(row=>row.access===access));}
+   if(facet==='fr-jurisdiction')journal.push(expected.journal[index]);
    else if(facet==='fr-staff'&&index===1)journal=structuredClone(expected.journal);
    else if(facet==='fr-mapping'&&index>0)journal=structuredClone(expected.journal.slice(0,expected.observations[index].outboundCount));
    return {status:200,headers:{getSetCookie:()=>index===0?['XSRF-TOKEN=synthetic-token; Path=/']:[]},json:async()=>structuredClone(body)};
@@ -110,6 +117,7 @@ test('FR runtime probes call only the declared candidate consumers with FR and A
   assert.equal(calls,facet==='fr-jurisdiction'?6:facet==='fr-staff'?3:8);
   const saved=JSON.parse(fs.readFileSync(path.join(output,'profile-fr-observations.json')));
   assert.deepEqual(saved.journal,expected.journal);
+  if(facet==='fr-jurisdiction')assert.deepEqual(saved.journal.map(row=>row.access),['create','read','default','create','read','default']);
   if(facet==='fr-mapping')assert(saved.journal.every(row=>!JSON.stringify(row).includes('DIVORCE')&& !JSON.stringify(row).includes('ABA1')));
   if(facet==='fr-staff')assert(saved.observations[1].body.some(row=>row.service==='FR')===!mutation);
  }
@@ -137,17 +145,25 @@ test('FR runner and raw reader pin one request, catalogue and native binding wit
  const candidate={identity:{artifactDigest:hash('b'),webappCommit:frProfileContract().consumerRevision},payloadDigest:hash('e'),provenance:{webappCommit:frProfileContract().consumerRevision,platform:'linux/arm64'}};
  const binding={producer,candidate,runtime,sourceDefault:{path:'config/default.json',revision:frProfileContract().sourceRevision,digest:frProfileContract().sourceDigest},catalogue:{obligationsDigest:digestBytes(JSON.stringify(catalogue.obligations))}};
  const nativeContext={binding,expected:{harnessCommit:commit,candidateArtifactDigest:candidate.identity.artifactDigest,jobRunId:'ci-00000000-0000-4000-8000-000000000001',nativeCohortBinding:{digest:hash('7')}}};
- const artifact={identity:candidate.identity,payloadDigest:candidate.payloadDigest,provenance:candidate.provenance};let activeArtifact=artifact;
+ const artifact={identity:candidate.identity,payloadDigest:candidate.payloadDigest,provenance:candidate.provenance};let activeArtifact=artifact,active=0,maxActive=0,startedFacets=[];
  const runFacet=async({output,facet})=>{
+  active++;maxActive=Math.max(maxActive,active);startedFacets.push(facet);
+  try{
+  await new Promise(resolve=>setTimeout(resolve,15));
   fs.mkdirSync(output,{recursive:true});const fault=FR_PROFILE_FACETS.find(item=>item.facet===facet).fault;
   const row=(invocationId,status,code)=>({invocationId,status,code,configDigest:hash(invocationId==='baseline'?'1':'2'),observationsDigest:hash('3'),journalDigest:hash('4')});
   const receipt={status:'feasibility-observed',cleanup:{complete:true},privateStateRemoved:true,artifact:activeArtifact.identity,harnessCommit:commit,sources:{files},runtime,configuration:{baseline:{digest:hash('1')},[fault]:{digest:hash('2')}},invocations:[row('baseline','observed',null),row(fault,'expected-fault-observed',`FR_PROFILE_${facet==='fr-mapping'?'MAPPING':'MEMBERSHIP'}_ASSERTION`)]};
   fs.writeFileSync(path.join(output,'profile-feasibility.json'),JSON.stringify(receipt));return receipt;
+  }finally{active--;}
  };
  const output=path.join(root,'cohort'),result=await runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output,nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet});
+ assert.equal(maxActive,2);assert.equal(startedFacets.length,FR_PROFILE_FACETS.length);
  assert.equal(result.accepted,1);assert.deepEqual(Object.keys(result.reportRequest).sort(),['digest','path','runId']);
  const packet=readFrProfileAdmissionPacket(result.reportRequest.path,{runId:result.reportRequest.runId,digest:result.reportRequest.digest},nativeContext,catalogue);
  assert.equal(packet.joint.status,'included');assert.equal(packet.admission.accepted,1);
+ active=0;maxActive=0;startedFacets=[];let gateReached=false;
+ const scheduledOutput=path.join(root,'scheduled'),scheduled=await runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output:scheduledOutput,nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet,beforeNextBatch:async()=>{gateReached=true;assert.equal(active,0);assert.deepEqual(startedFacets,['fr-jurisdiction']);}});
+ assert.equal(gateReached,true);assert.equal(maxActive,2);assert.deepEqual(startedFacets,FR_PROFILE_FACETS.map(item=>item.facet));assert.equal(scheduled.accepted,1);
  const foreignArtifact={...artifact,identity:{...artifact.identity,artifactDigest:hash('9')}};
  activeArtifact=foreignArtifact;
  const separateOutput=path.join(root,'separate'),separateResult=await runFrProfileAdmission({artifactPath:path.join(root,'foreign-candidate.json'),output:separateOutput,nativeContext},{verifyArtifact:async()=>foreignArtifact,inspectRuntime:()=>runtime,runFacet});

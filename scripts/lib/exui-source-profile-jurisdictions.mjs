@@ -9,7 +9,7 @@ export const SOURCE_PROFILE_JURISDICTION_FAULT = 'source-profile-drop-divorce-ju
 export const SOURCE_PROFILE_FAMILIES = ['CMC', 'FR', 'DIVORCE'];
 export { SOURCE_JURISDICTIONS };
 const accesses = ['read','create','default'];
-const revision = '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0';
+const revision = '20c6ec129fc1e81061c733e164198ec63a33e71a';
 const source = JSON.parse(fs.readFileSync(new URL('../fixtures/exui-configuration-source.json',import.meta.url))).sources.find(item=>item.repository==='rpx-xui-webapp'&&item.path==='config/default.json');
 
 export function sourceProfileJurisdictionConfiguration(candidateRoot, mutation = null) {

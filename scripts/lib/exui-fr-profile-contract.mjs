@@ -14,7 +14,7 @@ const hasFamily=(value,family)=>typeof value==='string'&&value.split(',').map(it
 
 export function frProfileContract(){
  return {schemaVersion:1,kind:'source-defined-family-profile',obligationId:FR_PROFILE_ID,profile:'config/default.json',family:'FR',
-  sourceRevision:'3734db2bb8f4f6de62db3b42ade9ef6538b65eb0',sourceDigest:'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
+  sourceRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',sourceDigest:'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
   consumerRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',
   claim:'Candidate default configuration selects FR jurisdiction and staff support and maps FR to ABA2 through the tested EXUI consumers.',
   capabilities:['jurisdictions','staffSupportedJurisdictions','serviceRefDataMapping'],facets:structuredClone(FR_PROFILE_FACETS),

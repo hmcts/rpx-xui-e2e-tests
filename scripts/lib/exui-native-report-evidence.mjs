@@ -11,6 +11,7 @@ import {readComplexNativeBinding,readComplexAdmissionPacket,complexNativeJointAd
 import {readPersonalNativeBinding,readPersonalAdmissionPacket,personalNativeJointAdmission} from './exui-personal-service-admission.mjs';
 import {readDivorceProfileAdmissionPacket,divorceNativeJointAdmission} from "./exui-divorce-profile-admission.mjs";
 import {readFrProfileAdmissionPacket} from "../run-harness-fr-profile-admission.mjs";
+import {readCmcProfileAdmissionPacket} from "../run-harness-cmc-profile-admission.mjs";
 import {readDivorceNativeBinding} from "./exui-divorce-native-binding.mjs";
 import {validateSelectorEventEvidence} from './exui-selector-event-row-evidence.mjs';
 import fs from "node:fs";
@@ -542,6 +543,22 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.frProfileAdmission=frPacket.joint;
       }
     }
+    fact(!expected.cmcProfileRequest||descriptor.value.cmcProfileAdmission,'CMC_PROFILE_REQUEST_REQUIRED');
+    fact(!descriptor.value.cmcProfileAdmission||expected.cmcProfileRequest,'CMC_PROFILE_REQUEST_REQUIRED');
+    if(descriptor.value.cmcProfileAdmission)fact(nativeBinding,'CMC_PROFILE_NATIVE_BINDING_REQUIRED');
+    const cmcPacket=descriptor.value.cmcProfileAdmission?readCmcProfileAdmissionPacket(descriptor.value.cmcProfileAdmission,expected.cmcProfileRequest,{binding:nativeBinding,expected},accounting.catalogue):undefined;
+    let cmcProfileAdmission;
+    if(cmcPacket){
+      cmcProfileAdmission={...cmcPacket.admission,joint:cmcPacket.joint};
+      if(cmcPacket.joint.status==='included'){
+        const id=cmcPacket.joint.obligationId,rows=accounting.catalogue.obligations.filter(row=>row.id===id);
+        fact(rows.length===1&&rows[0].family==='CMC'&&rows[0].kind==='configuration-profile'&&rows[0].requiredBoundary==='candidate','CMC_PROFILE_CATALOGUE_ROW');
+        equal(rows[0].sourceKeys,cmcPacket.joint.sourceKeys,'CMC_PROFILE_CATALOGUE_SOURCE');
+        fact(catalogueCoverage.selected===112&&!creditedObligationIds.includes(id),'CMC_PROFILE_DUPLICATE_CREDIT');
+        fact(accounting.report.coverage.missingCandidateOrCcd.some(row=>(typeof row==='string'?row:row.id)===id),'CMC_PROFILE_NOT_MISSING');
+        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.cmcProfileAdmission=cmcPacket.joint;
+      }
+    }
     const personalNative=(expected.personalServiceRequest||descriptor.value.personalServiceAdmission)?readPersonalNativeBinding(directory,expected,nativeBinding):undefined;
     fact(!expected.personalServiceRequest||descriptor.value.personalServiceAdmission,'PERSONAL_REQUEST_REQUIRED');
     fact(!descriptor.value.personalServiceAdmission||expected.personalServiceRequest,'PERSONAL_REQUEST_REQUIRED');
@@ -641,6 +658,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       catalogueCoverage,
       ...(divorceProfileAdmission ? {divorceProfileAdmission} : {}),
       ...(frProfileAdmission?{frProfileAdmission}:{}),
+      ...(cmcProfileAdmission?{cmcProfileAdmission}:{}),
       ...(personalServiceAdmission?{personalServiceAdmission}:{}),
       ...(stCicProfileAdmission?{stCicProfileAdmission}:{}),
       ...(complexEmailAdmission?{complexEmailAdmission}:{}),

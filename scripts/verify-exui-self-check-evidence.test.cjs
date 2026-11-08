@@ -1,10 +1,23 @@
 const test = require("node:test"),
   assert = require("node:assert/strict"),
+  execFileSync = require("node:child_process").execFileSync,
   fs = require("node:fs"),
   os = require("node:os"),
   path = require("node:path");
 const { sources } = require("./fixtures/exui-self-check-evidence.mock.cjs");
 const root = path.resolve(__dirname, "..");
+function assertNoLiveProcess(pid) {
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    assert.equal(error.code, "ESRCH");
+    return;
+  }
+  const state = execFileSync("ps", ["-o", "stat=", "-p", String(pid)], {
+    encoding: "utf8",
+  }).trim();
+  assert(!state || state.startsWith("Z"), `process ${pid} remains active`);
+}
 async function run(t, name, signal, controller, testConcurrency = 1) {
   const folder = fs.mkdtempSync(
       path.join(root, "scripts/fixtures/self-check-owned-"),
@@ -121,10 +134,7 @@ test("owned interruption is joined and never represented as a completed pass", a
     controller,
   );
   assert(ready, "real test body started before cancellation");
-  assert.throws(
-    () => process.kill(ready.pid, 0),
-    (error) => error.code === "ESRCH",
-  );
+  assertNoLiveProcess(ready.pid);
   assert.equal(result.status, "incomplete");
   assert.equal(result.terminal.cancelled, true);
   assert.equal(result.terminal.observed, true);
@@ -530,7 +540,7 @@ test("parallel collector preserves both file outcomes and pins fixed-port fixtur
     fs.readdirSync(path.join(privateRoot, "evidence/fixed-port-lock")),
     [],
   );
-  for (const bad of [0, 3, 4, "2", null]) {
+  for (const bad of [0, 3, 5, 6, 7, 9, "2", null]) {
     const target = path.join(privateRoot, "invalid-" + String(bad));
     await assert.rejects(
       collectNodeSelfCheckEvidence({
@@ -628,7 +638,7 @@ test("concurrency 2 retains actual failure, nested skip/todo and forged stdout s
   );
   assert.equal(result.status, "incomplete");
   assert.equal(result.terminal.cancelled, true);
-  assert.throws(() => process.kill(ready.pid, 0), { code: "ESRCH" });
+  assertNoLiveProcess(ready.pid);
 });
 
 test("fixed-port ownership remains held until delayed vacancy observations settle", async (t) => {
@@ -683,7 +693,7 @@ test("fixed-port ownership remains held until delayed vacancy observations settl
   );
 });
 
-test("actual configured CLI selects two file workers while component API defaults stay one", async (t) => {
+test("actual configured CLI selects eight file workers while component API defaults stay one", async (t) => {
   const { buildSelfCheckFixture } = require("./fixtures/exui-build-self-check.mock.cjs");
   const { spawnSync } = require("node:child_process");
   const f = await buildSelfCheckFixture(t);
@@ -698,7 +708,7 @@ test("actual configured CLI selects two file workers while component API default
   assert.equal(observed.signal, null);
   const cli = JSON.parse(fs.readFileSync(f.argvPath));
   assert.equal(cli.command, process.execPath);
-  assert.deepEqual(cli.args.slice(0, 2), ["--test", "--test-concurrency=2"]);
+  assert.deepEqual(cli.args.slice(0, 2), ["--test", "--test-concurrency=8"]);
   assert.deepEqual(cli.args.slice(-2), f.unitFiles);
   assert.equal((fs.readFileSync(f.callsPath, "utf8").match(/spawn/g) ?? []).length, 1);
   assert.equal(f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks()).counts.tests, 2);

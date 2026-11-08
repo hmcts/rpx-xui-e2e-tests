@@ -459,6 +459,11 @@ export function publishSummary(privateOutput, assuranceExitCode = 0) {
   return status;
 }
 
+export function diagnosticFallbackArguments(output,buildSelfCheckHeld){
+  const profileAttempts=path.join(output,'private','assurance-profile-attempts.json');
+  return ["scripts/run-harness-local-poc.mjs","--ci","--odhin",...(fs.existsSync(profileAttempts)?["--profile-attempts="+profileAttempts]:[]),...(buildSelfCheckHeld===undefined?[]:["--build-self-check="+buildSelfCheckHeld.path,"--build-self-check-sha256="+buildSelfCheckHeld.digest])];
+}
+
 function reportIsValid() {
   const result = spawnSync(
     process.execPath,
@@ -518,12 +523,13 @@ export function createPreparationTimingSnapshot({clock = () => performance.now()
   };
 }
 
-export function runTimedAssuranceChild(jobPath, {snapshotAssuranceTiming, enableStCic = false, enableFrProfile = false, env = safeEnvironment(), forkChild = fork, signals = process, withdraw = () => Reporter.resetPublicReport('harness'), buildSelfCheckHeld} = {}) {
+export function runTimedAssuranceChild(jobPath, {snapshotAssuranceTiming, enableStCic = false, enableFrProfile = false, enableCmcProfile = false, env = safeEnvironment(), forkChild = fork, signals = process, withdraw = () => Reporter.resetPublicReport('harness'), buildSelfCheckHeld} = {}) {
   assert(typeof snapshotAssuranceTiming === 'function', 'HARNESS_PREPARATION_TIMING_REQUIRED');
   assert(typeof enableStCic === 'boolean', 'HARNESS_ST_CIC_ENABLE_REQUIRED');
   assert(typeof enableFrProfile === 'boolean', 'HARNESS_FR_PROFILE_ENABLE_REQUIRED');
+  assert(typeof enableCmcProfile === 'boolean', 'HARNESS_CMC_PROFILE_ENABLE_REQUIRED');
   const token = randomUUID();
-  const child = forkChild('scripts/run-harness-assurance.mjs', ['--input',jobPath,'--parent-timing','--mandatory-email',...(enableStCic ? ['--st-cic'] : []),...(enableFrProfile?['--fr-profile']:[]),...(buildSelfCheckHeld===undefined?[]:['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest])], {execPath:process.execPath,execArgv:[],cwd:ROOT,env,stdio:['inherit','inherit','inherit','ipc']});
+  const child = forkChild('scripts/run-harness-assurance.mjs', ['--input',jobPath,'--parent-timing','--mandatory-email',...(enableStCic ? ['--st-cic'] : []),...(enableFrProfile?['--fr-profile']:[]),...(enableCmcProfile?['--cmc-profile']:[]),...(buildSelfCheckHeld===undefined?[]:['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest])], {execPath:process.execPath,execArgv:[],cwd:ROOT,env,stdio:['inherit','inherit','inherit','ipc']});
   return new Promise((resolve,reject) => {
     let state = 'ready', failed = false, cancelling = false;
     const cancel = signal => { failed = true; if (!cancelling) { cancelling = true; child.kill(signal); } };
@@ -588,6 +594,7 @@ async function main({requireBuildSelfChecks=false}={}) {
     const result = await runTimedAssuranceChild(jobPath, {
       enableStCic: false,
       enableFrProfile: true,
+      enableCmcProfile: true,
       snapshotAssuranceTiming,
       buildSelfCheckHeld,
       env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}),
@@ -626,7 +633,7 @@ async function main({requireBuildSelfChecks=false}={}) {
     console.error("[harness-assurance] Combined Odhín report unavailable; generating diagnostics-only coverage.");
     const fallback = spawnSync(
       process.execPath,
-      ["scripts/run-harness-local-poc.mjs", "--ci", "--odhin",...(buildSelfCheckHeld===undefined?[]:["--build-self-check="+buildSelfCheckHeld.path,"--build-self-check-sha256="+buildSelfCheckHeld.digest])],
+      diagnosticFallbackArguments(path.join(privateRoot,"native-output"),buildSelfCheckHeld),
       { cwd: ROOT, env: safeEnvironment(), stdio: "inherit" },
     );
     if (fallback.error || fallback.status !== 0 || !reportIsValid()) {

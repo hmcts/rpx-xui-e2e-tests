@@ -168,6 +168,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-mandatory-email-event-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-mandatory-email-event-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-st-cic-profile-admission.mjs')).href)};`);
+  fs.writeFileSync(path.join(root,'scripts/run-harness-cmc-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-cmc-profile-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-fr-profile-admission.mjs'), `export const runFrProfileAdmission=()=>{throw Error('UNEXPECTED_FR_PROFILE_RUN');};`);
   fs.writeFileSync(path.join(root,'scripts/lib/exui-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'lib/exui-st-cic-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
@@ -668,8 +669,8 @@ test('late ST_CIC capture replacement withdraws a stale public PASS',async t=>{
 
 test('ST_CIC CLI bridge parses only finite opt-in flags and preserves legacy arguments',async()=>{
  const {parseAssuranceCli}=await api();
- assert.deepEqual(parseAssuranceCli(['--input','/private/job.json']),{jobPath:'/private/job.json',aat:false,parentTiming:false,stCic:false,frProfile:false});
- assert.deepEqual(parseAssuranceCli(['--','--input','/private/job.json','--st-cic','--aat','--parent-timing','--fr-profile']),{jobPath:'/private/job.json',aat:true,parentTiming:true,stCic:true,frProfile:true});
+ assert.deepEqual(parseAssuranceCli(['--input','/private/job.json']),{jobPath:'/private/job.json',aat:false,parentTiming:false,stCic:false,frProfile:false,cmcProfile:false});
+ assert.deepEqual(parseAssuranceCli(['--','--input','/private/job.json','--st-cic','--aat','--parent-timing','--fr-profile','--cmc-profile']),{jobPath:'/private/job.json',aat:true,parentTiming:true,stCic:true,frProfile:true,cmcProfile:true});
  for(const args of [['--input','relative'],['--input','/private/job.json','--st-cic','--st-cic'],['--input','/private/job.json','--fr-profile','--fr-profile'],['--input','/private/job.json','--unknown'],['--input','/private/job.json','--st-cic-output','/foreign'],['--input','/private/job.json','--aat','--aat']])assert.throws(()=>parseAssuranceCli(args),/ASSURANCE_INPUT_REQUIRED/);
 });
 
@@ -714,6 +715,23 @@ test('FR CLI bridge allocates owned external output outside functional and candi
  await assert.rejects(()=>createFrProfileCliOutput(jobPath),/ASSURANCE_FR_PROFILE_OUTPUT_ALIAS/);assert.equal(fs.existsSync(receipt),false);
 });
 
+test('CMC CLI bridge allocates a separately owned output outside functional and candidate inputs',async t=>{
+ const {createCmcProfileCliOutput}=await api();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'cmc-cli-output-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const candidate=path.join(root,'candidate'),browser=path.join(root,'browser');fs.mkdirSync(candidate);fs.mkdirSync(browser);
+ const manifest=path.join(root,'candidate.json'),jobPath=path.join(root,'job.json'),output=path.join(root,'functional-output/tests/harness/private/native-output');fs.mkdirSync(path.dirname(output),{recursive:true});
+ const job={schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)};
+ fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify(job));
+ const created=await createCmcProfileCliOutput(jobPath),directory=path.dirname(created);t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert.equal(path.basename(created),'profile');assert.equal(fs.statSync(directory).mode&0o777,0o700);
+ assert.equal(created.includes(`${path.sep}functional-output${path.sep}`),false);assert.equal(fs.existsSync(created),false);assert.equal(fs.existsSync(output),false);
+ const receipt=path.join(root,'cmc-profile-cli-output.json');assert.equal(fs.statSync(receipt).mode&0o777,0o600);
+ assert.deepEqual(JSON.parse(fs.readFileSync(receipt)),{schemaVersion:1,kind:'cmc-profile-cli-owned-output',directory,output:created});
+ await assert.rejects(()=>createCmcProfileCliOutput(jobPath),/ASSURANCE_CMC_PROFILE_OUTPUT_ALREADY_OWNED/);
+ fs.unlinkSync(receipt);const alias=path.join(root,'alias');fs.symlinkSync(root,alias);job.output=path.join(alias,'functional-output/tests/harness/private/native-output');fs.writeFileSync(jobPath,JSON.stringify(job));
+ await assert.rejects(()=>createCmcProfileCliOutput(jobPath),/ASSURANCE_CMC_PROFILE_OUTPUT_ALIAS/);assert.equal(fs.existsSync(receipt),false);
+});
+
 test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisions before the fake assurance boundary',async t=>{
  const {spawnSync}=require('node:child_process');
  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'st-cic-cli-entry-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
@@ -732,7 +750,7 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
  const manifest=path.join(root,'candidate.json'),jobPath=path.join(jobDirectory,'job.json'),output=path.join(jobDirectory,'native-output');
  fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify({schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)}));
  const launch=(flags,{tmpdir,preload}={})=>spawnSync(process.execPath,[...(preload?['--require',preload]:[]),'scripts/run-harness-assurance.mjs','--input',jobPath,...flags],{cwd:source,env:{PATH:process.env.PATH,...(tmpdir?{TMPDIR:tmpdir}:{})},encoding:'utf8',timeout:10_000});
- for(const flags of [[],['--mandatory-email'],['--st-cic','--mandatory-email','--aat'],['--fr-profile']]){
+ for(const flags of [[],['--mandatory-email'],['--st-cic','--mandatory-email','--aat'],['--fr-profile'],['--cmc-profile']]){
   const terminal=launch(flags);assert.equal(terminal.status,0,`${flags.join(' ')}: ${terminal.stderr}`);assert.equal(terminal.signal,null);
   const receipt=flags.includes('--st-cic')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'st-cic-cli-output.json'))):undefined;
   if(receipt)t.after(()=>fs.rmSync(receipt.directory,{recursive:true,force:true}));
@@ -740,9 +758,12 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
   if(mandatoryReceipt)t.after(()=>fs.rmSync(mandatoryReceipt.directory,{recursive:true,force:true}));
   const frReceipt=flags.includes('--fr-profile')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'fr-profile-cli-output.json'))):undefined;
   if(frReceipt)t.after(()=>fs.rmSync(frReceipt.directory,{recursive:true,force:true}));
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{}),...(frReceipt?{frProfileOutput:frReceipt.output}:{})}});
+  const cmcReceipt=flags.includes('--cmc-profile')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'cmc-profile-cli-output.json'))):undefined;
+  if(cmcReceipt)t.after(()=>fs.rmSync(cmcReceipt.directory,{recursive:true,force:true}));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{}),...(frReceipt?{frProfileOutput:frReceipt.output}:{}),...(cmcReceipt?{cmcProfileOutput:cmcReceipt.output}:{})}});
   if(mandatoryReceipt)fs.unlinkSync(path.join(jobDirectory,'mandatory-email-cli-output.json'));
   if(frReceipt)fs.unlinkSync(path.join(jobDirectory,'fr-profile-cli-output.json'));
+  if(cmcReceipt)fs.unlinkSync(path.join(jobDirectory,'cmc-profile-cli-output.json'));
   fs.unlinkSync(path.join(source,'cli-call.json'));
  }
  const terminal=launch(['--st-cic']);assert.equal(terminal.status,2);assert.match(terminal.stderr,/BLOCKED/);assert.equal(fs.existsSync(path.join(source,'cli-call.json')),false);assert.equal(fs.existsSync(output),false);
@@ -759,9 +780,9 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
 
 test('combined assurance CLI preserves ST_CIC and the explicit held Build receipt without accepting malformed suffixes',async()=>{
  const {parseAssuranceCli}=await api(),held={path:'/private/held.json',digest:'sha256:'+'a'.repeat(64)};
- for(const flags of [[],['--st-cic'],['--aat','--parent-timing','--st-cic'],['--fr-profile'],['--st-cic','--fr-profile']]){
+ for(const flags of [[],['--st-cic'],['--aat','--parent-timing','--st-cic'],['--fr-profile'],['--st-cic','--fr-profile'],['--cmc-profile'],['--fr-profile','--cmc-profile']]){
   const cli=parseAssuranceCli(['--input','/private/job.json',...flags,'--build-self-check-held',held.path,'--build-self-check-digest',held.digest]);
-  assert.deepEqual(cli,{jobPath:'/private/job.json',aat:flags.includes('--aat'),parentTiming:flags.includes('--parent-timing'),stCic:flags.includes('--st-cic'),frProfile:flags.includes('--fr-profile'),buildSelfCheckHeld:held});
+  assert.deepEqual(cli,{jobPath:'/private/job.json',aat:flags.includes('--aat'),parentTiming:flags.includes('--parent-timing'),stCic:flags.includes('--st-cic'),frProfile:flags.includes('--fr-profile'),cmcProfile:flags.includes('--cmc-profile'),buildSelfCheckHeld:held});
  }
  for(const suffix of [['--build-self-check-held','relative.json','--build-self-check-digest',held.digest],['--build-self-check-held',held.path,'--build-self-check-digest','bad'],['--build-self-check-held',held.path,'--build-self-check-digest',held.digest,'--st-cic'],['--build-self-check-digest',held.digest]]){
   assert.throws(()=>parseAssuranceCli(['--input','/private/job.json','--st-cic',...suffix]));
@@ -788,9 +809,13 @@ test('failed FR profile attempt blocks publication and never creates a report re
 
 test('public release summary preserves bounded FR mismatch details while remaining blocked',async t=>{
  const {publishAssuranceSummary}=await api(),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs'),{SOURCE_JURISDICTIONS}=await import('./lib/exui-source-profile-jurisdictions.mjs');
- const output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-fr-summary-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'));
+ const output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-fr-summary-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'),{mode:0o700});
  const binding={synthetic:'parent-captured-output'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(output,'private/native-cohort-binding.json'),bytes);
- const expectedIds=[...SOURCE_JURISDICTIONS].sort(),diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds:[...expectedIds,'ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};
- publishAssuranceSummary({output},{nativeCohortCapture:{binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}}},{exitCode:2,frProfileAttempt:{diagnostic}});
+ const expectedIds=[...SOURCE_JURISDICTIONS].sort(),diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds:[...expectedIds,'ST_CIC'].sort(),unexpectedIds:['ST_CIC'],missingIds:[]};
+ const frProfileAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_OBSERVATIONS',diagnostic};
+ const cmcProfileAttempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_OBSERVATIONS',consumerRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',diagnostic:{...diagnostic,kind:'cmc-jurisdiction-filter-diagnostic',reasonCode:'CMC_PROFILE_OBSERVATIONS',observedIds:[...expectedIds,'ST_CIC','UNREVIEWED'].sort(),unexpectedIds:['ST_CIC','UNREVIEWED']}};
+ publishAssuranceSummary({output},{nativeCohortCapture:{binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}}},{exitCode:2,frProfileAttempt,cmcProfileAttempt});
  const summary=validatePublicSummary(path.join(output,'public/release-assurance-summary.json'));assert.equal(summary.status,'BLOCKED');assert.equal(summary.releaseApproval,false);assert.deepEqual(summary.frProfileDiagnostic,diagnostic);
+ const profileAttemptsPath=path.join(output,'private','assurance-profile-attempts.json'),packet=JSON.parse(fs.readFileSync(profileAttemptsPath));assert.equal(fs.statSync(profileAttemptsPath).mode&0o777,0o600);assert.deepEqual(packet,{schemaVersion:1,kind:'assurance-profile-attempts',frProfileAttempt,cmcProfileAttempt});
+ const options=require('./harness-profile-attempt-report.cjs').buildProfileAttemptReporterOption({HARNESS_PROFILE_ATTEMPTS_PATH:profileAttemptsPath});assert.deepEqual(options,{frProfileAttempt,cmcProfileAttempt});
 });

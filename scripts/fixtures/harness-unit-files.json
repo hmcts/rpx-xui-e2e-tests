@@ -143,5 +143,6 @@
   "scripts/verify-exui-event-v3-judge-ui-capture.test.cjs",
   "scripts/verify-exui-event-v3-host-writer.test.cjs",
   "scripts/verify-exui-event-v3-controller.test.cjs",
-  "scripts/verify-exui-business-scalar-detail.test.cjs"
+  "scripts/verify-exui-business-scalar-detail.test.cjs",
+  "scripts/verify-exui-cmc-profile.test.cjs"
 ]

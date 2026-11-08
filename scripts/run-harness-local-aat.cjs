@@ -235,7 +235,7 @@ function phaseEnvironment(env, runRoot) {
 }
 async function runHarnessCollection(
   env = process.env,
-  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming, snapshotAssuranceTiming, signal, buildSelfCheckHeld } = {},
+  { profile = "harness", nativeEvidencePath, compatibilityEvidencePath, sharedNestedAttemptPath, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, cmcProfileAttempt, mandatoryEmailTiming, snapshotAssuranceTiming, signal, buildSelfCheckHeld } = {},
 ) {
   if (!["harness", "local-aat"].includes(profile)) throw fail();
   if (snapshotAssuranceTiming !== undefined && typeof snapshotAssuranceTiming !== "function") throw fail();
@@ -249,7 +249,7 @@ async function runHarnessCollection(
   // Reset validates fixed ancestry before the producer creates its private child output.
   Reporter.resetPublicReport("harness");
   const timingSnapshot = mandatoryEmailTiming === undefined ? undefined : structuredClone(mandatoryEmailTiming);
-  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming: timingSnapshot });
+  const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, cmcProfileAttempt, mandatoryEmailTiming: timingSnapshot });
   if(buildSelfCheckHeld!==undefined)await reporter.prepareBuildSelfChecks(buildSelfCheckHeld);
   if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
     const verificationStartedAt=new Date().toISOString(),verificationStarted=performance.now();

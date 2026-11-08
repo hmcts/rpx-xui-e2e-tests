@@ -333,12 +333,12 @@ test("held receipt reopens actual JUnit and stderr bytes instead of trusting evi
   }
 });
 
-test("configured self-check concurrency 2 is explicit and retains one byte-bound structured run", async (t) => {
+test("configured self-check concurrency 8 is explicit and retains one byte-bound structured run", async (t) => {
   const f = await fixture(t);
-  const result = await f.api.runConfiguredSelfChecks({ testConcurrency: 2 });
+  const result = await f.api.runConfiguredSelfChecks({ testConcurrency: 8 });
   assert.equal(result.status, "passed");
   const argv = JSON.parse(fs.readFileSync(f.argvPath));
-  assert.deepEqual(argv.args.slice(0, 2), ["--test", "--test-concurrency=2"]);
+  assert.deepEqual(argv.args.slice(0, 2), ["--test", "--test-concurrency=8"]);
   assert.deepEqual(argv.args.slice(-2), f.unitFiles);
   assert.equal(
     f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks()).counts.tests,
@@ -347,8 +347,8 @@ test("configured self-check concurrency 2 is explicit and retains one byte-bound
 });
 
 
-test('configured Node file-worker maximum comes from sealed input for modes1and2',async t=>{
- for(const testConcurrency of [1,2]){const f=await fixture(t);await f.api.runConfiguredSelfChecks({testConcurrency});const held=f.api.holdBuildSelfChecks(),value=f.api.readHeldBuildSelfChecks(held);assert.equal(value.configuredFileWorkers,testConcurrency);const argv=JSON.parse(fs.readFileSync(f.argvPath));assert.equal(argv.args[1],'--test-concurrency='+testConcurrency);const request=JSON.parse(fs.readFileSync(path.join(f.privateRoot,'current-request.json')));const input=path.join(request.directory,'source-input.json'),data=JSON.parse(fs.readFileSync(input));data.testConcurrency=testConcurrency===1?2:1;fs.writeFileSync(input,JSON.stringify(data));assert.throws(()=>f.api.readHeldBuildSelfChecks(held),/^Error: HARNESS_SELF_CHECK_EVIDENCE_INVALID$/);}
+test('configured Node file-worker maximum comes from sealed input for modes1and2and4and8',async t=>{
+ for(const testConcurrency of [1,2,4,8]){const f=await fixture(t);await f.api.runConfiguredSelfChecks({testConcurrency});const held=f.api.holdBuildSelfChecks(),value=f.api.readHeldBuildSelfChecks(held);assert.equal(value.configuredFileWorkers,testConcurrency);const argv=JSON.parse(fs.readFileSync(f.argvPath));assert.equal(argv.args[1],'--test-concurrency='+testConcurrency);const request=JSON.parse(fs.readFileSync(path.join(f.privateRoot,'current-request.json')));const input=path.join(request.directory,'source-input.json'),data=JSON.parse(fs.readFileSync(input));data.testConcurrency=testConcurrency===1?2:1;fs.writeFileSync(input,JSON.stringify(data));assert.throws(()=>f.api.readHeldBuildSelfChecks(held),/^Error: HARNESS_SELF_CHECK_EVIDENCE_INVALID$/);}
 });
 test('unchanged CLI completes actual tiny configured pass failure and invalid invocation after sync bridge',async t=>{
  const {spawnSync}=require('node:child_process');for(const failed of [false,true]){const f=await fixture(t,{failed});const actual=spawnSync(process.execPath,[f.modulePath],{cwd:f.root,env:{PATH:process.env.PATH,HOME:process.env.HOME,TMPDIR:process.env.TMPDIR},encoding:'utf8',timeout:10000});assert.equal(actual.signal,null);assert.equal(actual.status,failed?1:0,actual.stderr);assert.match(actual.stdout,failed?/failed; tests 2/:/passed; tests 2/);assert.equal(f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks()).status,failed?'failed':'passed');}
@@ -372,7 +372,7 @@ test('configured purpose map covers the exact source-owned selection with unique
  const api=require('./harness-build-self-check-report.cjs'),map=api.readSelfCheckPurposeMap(),selected=require('./fixtures/harness-unit-files.json');assert.deepEqual(map.files.map(row=>row.file),selected);assert.equal(map.files.length,selected.length);assert.equal(new Set(map.files.map(row=>row.id)).size,selected.length);assert.equal(new Set(map.groups.map(row=>row.id)).size,map.groups.length);for(const row of map.files){assert(map.groups.some(group=>group.id===row.group));assert(row.purpose.startsWith('Checks '));assert(!row.purpose.includes('PRIVATE_CANARY'));}
 });
 test('actual configured file projection binds safe IDs counts metadata digest and sealed workers',async t=>{
- const f=await fixture(t);await f.api.runConfiguredSelfChecks({testConcurrency:2});const value=f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks());assert.equal(value.schemaVersion,2);assert.equal(value.configuredFileWorkers,2);assert.deepEqual(value.fileResults.map(row=>row.id),['unit-fixture-0','unit-fixture-1']);assert.deepEqual(value.fileResults.map(row=>row.counts.tests),[1,1]);for(const key of Object.keys(value.counts))assert.equal(value.fileResults.reduce((n,row)=>n+row.counts[key],0),value.counts[key]);assert(!JSON.stringify(value).includes(f.root));assert(!JSON.stringify(value).includes('synthetic unit'));const bytes=fs.readFileSync(path.join(f.root,'scripts/fixtures/harness-self-check-purpose-map.json'));assert.equal(value.purposeMapDigest,'sha256:'+require('node:crypto').createHash('sha256').update(bytes).digest('hex'));
+ const f=await fixture(t);await f.api.runConfiguredSelfChecks({testConcurrency:8});const value=f.api.readHeldBuildSelfChecks(f.api.holdBuildSelfChecks());assert.equal(value.schemaVersion,2);assert.equal(value.configuredFileWorkers,8);assert.deepEqual(value.fileResults.map(row=>row.id),['unit-fixture-0','unit-fixture-1']);assert.deepEqual(value.fileResults.map(row=>row.counts.tests),[1,1]);for(const key of Object.keys(value.counts))assert.equal(value.fileResults.reduce((n,row)=>n+row.counts[key],0),value.counts[key]);assert(!JSON.stringify(value).includes(f.root));assert(!JSON.stringify(value).includes('synthetic unit'));const bytes=fs.readFileSync(path.join(f.root,'scripts/fixtures/harness-self-check-purpose-map.json'));assert.equal(value.purposeMapDigest,'sha256:'+require('node:crypto').createHash('sha256').update(bytes).digest('hex'));
 });
 test('coherently resealed per-file counts or swapped identities cannot replace the actual Node summary',async t=>{
  for(const change of [e=>{e.fileResults[0].counts.tests++;e.fileResults[0].counts.passed++;e.counts.tests++;e.counts.passed++;},e=>{[e.fileResults[0].file,e.fileResults[1].file]=[e.fileResults[1].file,e.fileResults[0].file];}]){

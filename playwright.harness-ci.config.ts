@@ -15,6 +15,9 @@ const { buildSelfCheckReporterOption } =
       env: NodeJS.ProcessEnv,
     ) => { path: string; digest: string } | undefined;
   };
+const { buildProfileAttemptReporterOption } = require("./scripts/harness-profile-attempt-report.cjs") as {
+  buildProfileAttemptReporterOption: (env: NodeJS.ProcessEnv) => Record<string, unknown>;
+};
 // One runner, one report: retain the focused local configs without executing them twice.
 export default defineConfig({
   ...support,
@@ -33,6 +36,7 @@ export default defineConfig({
       {
         selection: "harness",
         buildSelfCheckHeld: buildSelfCheckReporterOption(process.env),
+        ...buildProfileAttemptReporterOption(process.env),
       },
     ],
     [

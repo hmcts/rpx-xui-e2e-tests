@@ -193,6 +193,11 @@ const SOURCE_FILES = [
   "scripts/lib/exui-source-profile-divorce-consumers.mjs",
   "scripts/lib/exui-source-profile-divorce-provider.mjs",
   "scripts/lib/exui-fr-profile-contract.mjs",
+  "scripts/lib/exui-cmc-profile-contract.mjs",
+  "scripts/lib/exui-cmc-profile-consumer.mjs",
+  "scripts/lib/exui-cmc-profile-admission.mjs",
+  "scripts/run-harness-cmc-profile-admission.mjs",
+  "scripts/verify-exui-cmc-profile.test.cjs",
   "scripts/lib/exui-source-profile-fr-consumers.mjs",
   "scripts/lib/exui-fr-profile-admission.mjs",
   "scripts/run-harness-fr-profile-admission.mjs",
@@ -344,7 +349,7 @@ test('support only: native allowlists admit the Hearing pair and reject wrong sc
 
 test('support only: exact shared closure and Hearing selector collect one API proof without execution', async t => {
   const { HARNESS_SOURCE_FILES } = await import('./lib/exui-candidate-runtime.mjs');
-  assert.equal(SOURCE_FILES.length, 308);
+  assert.equal(SOURCE_FILES.length, 313);
   assert.deepEqual([...HARNESS_SOURCE_FILES].sort(), [...SOURCE_FILES].sort());
   const root = temporary(t, 'hearing-collection-');
   const { manifest } = completeRun();

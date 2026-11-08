@@ -249,6 +249,7 @@ test("support only: fixed pilot order stops on a validated failure and always cl
   const { runFixedCiPilots } = await load();
   for (const failed of [null, "family", "scope", "ccd", "startup", "eventCapability", "eventStartup", "routing", "recipientCallback", "callbackStartup", "selectorEventRow"]) {
     const calls = [];
+    const eventRuntimes = new Set();
     const operations = {
       phase: async (name) => {
         calls.push(name);
@@ -269,9 +270,11 @@ test("support only: fixed pilot order stops on a validated failure and always cl
       },
       startEvent: async () => {
         calls.push("startEvent");
+        eventRuntimes.add("baseline");
+        if (failed === "eventStartup") eventRuntimes.add("partially-started-fault");
         if (failed === "eventStartup") throw Error("startup");
       },
-      stopEvent: async () => calls.push("stopEvent"),
+      stopEvent: async () => { calls.push("stopEvent"); eventRuntimes.clear(); },
       startCallback: async () => {calls.push("startCallback");if(failed === "callbackStartup") throw Error("startup");},
       stopCallback: async () => calls.push("stopCallback"),
     };
@@ -310,6 +313,7 @@ test("support only: fixed pilot order stops on a validated failure and always cl
                     : ["eventCapability", "stopEvent", ...(failed === "eventCapability" ? [] : ["routing", ...(failed === "routing" ? [] : ["startCallback", ...(failed === "callbackStartup" ? [] : ["recipientCallback"]), "stopCallback", ...(["callbackStartup","recipientCallback"].includes(failed)?[]:["selectorEventRow"])])])]),
                 ],
     );
+    assert.equal(eventRuntimes.size, 0, "event phase cleanup releases baseline and partially started fault runtimes");
   }
 });
 
@@ -366,6 +370,8 @@ test("support only: actual event parent captures all eleven fault runtimes befor
   const { timeEventRuntimePreparation } = await import('./lib/exui-event-runtime-timing.mjs');
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
   const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS } = await import("./lib/exui-ccd-event-capability.mjs");
+  const faultInvocations=[EVENT_CAPABILITY_MUTATION,COURTADMIN_READ_MUTATION,READONLY_READ_MUTATION,READONLY_UPDATE_MUTATION,COURTADMIN_UPDATE_MUTATION,...SOURCE_SHAPE_MUTATIONS];
+  const faultVariants=faultInvocations.map(eventCapabilityFaultVariant);
   const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
   const callback = source.match(/onEventTransition: (async \(request, handoff\) => \{[\s\S]*?)\n\s*\},\n\s*\} : \{\}\)/)?.[1];
   assert(callback, "actual parent transition callback exists");
@@ -374,7 +380,9 @@ test("support only: actual event parent captures all eleven fault runtimes befor
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
     const calls = [], preparationTimings = [], resource = { expectedContainer: { invocations: ["baseline"] } };
+    const resources = new Map([["event-baseline-runtime", "owned-baseline"]]);
     let fakeTime = 0;
+    let activeStarts = 0, maxActiveStarts = 0;
     let cancelled = false;
     const step = name => { calls.push(name); if (stoppedAt === name) throw Error("controlled-" + name); };
     const request = { runId: "synthetic-run", baselineNamespace: "old" };
@@ -384,28 +392,41 @@ test("support only: actual event parent captures all eleven fault runtimes befor
       assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {}, cancelled: false,
       timeEventRuntimePreparation: (records, entry) => timeEventRuntimePreparation(records, entry, { clock: () => fakeTime += 1, timestamp: () => `time-${fakeTime}` }),
       EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS, eventCapabilityFaultVariant,
-      resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
+      resources,
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
       readEventBaselineCheckpoint: () => { step("checkpoint"); return { checkpointDigest: digest("b") }; },
       assertEventBaselineRemoved: () => { step("native-removed"); return { removed: ["native"] }; },
       remove: async (name, owned) => {
-        assert.equal(name, "event-baseline-runtime"); assert.equal(owned, "owned-baseline");
-        step("ccd-removed"); return { cleanupComplete: true };
+        if (name === "event-baseline-runtime") {
+          assert.equal(owned, "owned-baseline");
+          step("ccd-removed");
+        } else {
+          assert.match(name, /^event-.+-runtime$/);
+          resources.delete(name);
+        }
+        return { cleanupComplete: true };
       },
       startOwnedCcd: async (name, fixture, alive, owner, _callbackVariant, onTiming) => {
-        const variant = fixture.slice("event-capability-".length);
-        assert(["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `shape-${id.slice(10)}-mutant`)].includes(variant));
-        assert.equal(name, `event-${variant}-runtime`);
-        assert.equal(owner, resource); assert.equal(alive(), true);
-        const runtime = await onTiming("startup", async () => {
-          step("start-" + variant);
-          if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
-          return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
-          containers: { database: variant, data: variant === "read-mutant" && stoppedAt === "reused-cid" ? "mutant-data" : variant + "-data" } };
-        });
-        await onTiming("definition-import", () => undefined);
-        await onTiming("identity-verification", () => undefined);
-        return runtime;
+        activeStarts++;
+        maxActiveStarts = Math.max(maxActiveStarts, activeStarts);
+        try {
+          const variant = fixture.slice("event-capability-".length);
+          assert(["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `shape-${id.slice(10)}-mutant`)].includes(variant));
+          assert.equal(name, `event-${variant}-runtime`);
+          assert.equal(owner, resource); assert.equal(alive(), true);
+          const runtime = await onTiming("startup", async () => {
+            step("start-" + variant);
+            if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
+            return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
+            containers: { database: variant, data: variant === "read-mutant" && stoppedAt === "reused-cid" ? "mutant-data" : variant + "-data" } };
+          });
+          await onTiming("definition-import", () => undefined);
+          await onTiming("identity-verification", () => undefined);
+          resources.set(name, runtime);
+          return runtime;
+        } finally {
+          activeStarts--;
+        }
       },
       eventRuntimeData: ccd => ({ ccd, definition: { fixtureDigest: digest("c") } }),
       selectEventCapabilityRuntime: (baseline, invocation, record) => {
@@ -420,6 +441,7 @@ test("support only: actual event parent captures all eleven fault runtimes befor
       },
       publishEventCapabilityRuntime: (output, record) => {
         step("ack-" + eventCapabilityFaultVariant(record.invocationId));
+        assert.equal(resources.size, 1 + faultVariants.length, "all fault CCD stacks stay live through browser ACK");
         const captured = JSON.parse(fs.readFileSync(path.join(output, "independent-transition.json")));
         assert.deepEqual(resource.expectedContainer.invocations, ["baseline", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS]);
         assert.equal(resource.eventTransition.digest, digestBytes(fs.readFileSync(path.join(output, "independent-transition.json"))));
@@ -437,27 +459,49 @@ test("support only: actual event parent captures all eleven fault runtimes befor
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
     if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
     else await run(request, handoff);
-    const faultInvocations=[EVENT_CAPABILITY_MUTATION,COURTADMIN_READ_MUTATION,READONLY_READ_MUTATION,READONLY_UPDATE_MUTATION,COURTADMIN_UPDATE_MUTATION,...SOURCE_SHAPE_MUTATIONS];
     const preparationSteps=['startup','definition-import','identity-verification','runtime-observation','ownership-capture','transition-identity'];
     if(stoppedAt===null){
-      assert.deepEqual(preparationTimings.map(({runId,invocationId,step,status})=>({runId,invocationId,step,status})),faultInvocations.flatMap(invocationId=>preparationSteps.map(step=>({runId:request.runId,invocationId,step,status:'completed'}))));
-    }else if(stoppedAt==='start-mutant'){
-      assert.deepEqual(preparationTimings.map(({invocationId,step,status})=>({invocationId,step,status})),[{invocationId:EVENT_CAPABILITY_MUTATION,step:'startup',status:'failed'}]);
-    }else if(stoppedAt==='owned-mutant'){
-      assert.deepEqual(preparationTimings.map(({invocationId,step,status})=>({invocationId,step,status})),[
-        ...preparationSteps.slice(0,4).map(step=>({invocationId:EVENT_CAPABILITY_MUTATION,step,status:'completed'})),
-        {invocationId:EVENT_CAPABILITY_MUTATION,step:'ownership-capture',status:'failed'},
+      assert.equal(maxActiveStarts, 2, "exactly two fault runtime preparations overlap");
+      for(const invocationId of faultInvocations)
+        assert.deepEqual(preparationTimings.filter(row=>row.invocationId===invocationId).map(({runId,step,status})=>({runId,step,status})),preparationSteps.map(step=>({runId:request.runId,step,status:'completed'})));
+    }else if(stoppedAt?.startsWith('start-')||stoppedAt?.startsWith('owned-')){
+      const variant=stoppedAt.slice(stoppedAt.indexOf('-')+1).replace(/^(shape-.+-mutant|.+-mutant)$/,'$1');
+      const invocationId=faultInvocations.find(id=>eventCapabilityFaultVariant(id)===variant);
+      assert(invocationId,'the injected fault belongs to a scheduled runtime');
+      const rows=preparationTimings.filter(row=>row.invocationId===invocationId);
+      if(stoppedAt.startsWith('start-'))assert.deepEqual(rows.map(({step,status})=>({step,status})),[{step:'startup',status:'failed'}]);
+      else assert.deepEqual(rows.map(({step,status})=>({step,status})),[
+        ...preparationSteps.slice(0,4).map(step=>({step,status:'completed'})),
+        {step:'ownership-capture',status:'failed'},
       ]);
-    }else if(stoppedAt?.startsWith('start-')){
-      assert.equal(preparationTimings.at(-1)?.step,'startup');assert.equal(preparationTimings.at(-1)?.status,'failed');
-    }else if(stoppedAt?.startsWith('owned-')){
-      assert.equal(preparationTimings.at(-1)?.step,'ownership-capture');assert.equal(preparationTimings.at(-1)?.status,'failed');
     }else assert.equal(preparationTimings.some(row=>row.status==='failed'),false);
     for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "start-courtadmin-update-mutant", "owned-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.flatMap(id => [`start-shape-${id.slice(10)}-mutant`, `owned-shape-${id.slice(10)}-mutant`]), "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant", "ack-readonly-update-mutant", "ack-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `ack-shape-${id.slice(10)}-mutant`)];
-    const count = stoppedAt === "cancel-after-read" ? 7 : stoppedAt?.startsWith("reused-") ? 6 : order.indexOf(stoppedAt) + 1;
-    assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0, count));
+    const order = ["checkpoint", "native-removed", "ccd-removed"];
+    for(let offset=0;offset<faultVariants.length;offset+=2){
+      const batch=faultVariants.slice(offset,offset+2);
+      order.push(...batch.map(variant=>`start-${variant}`),...batch.map(variant=>`owned-${variant}`));
+    }
+    order.push(...faultVariants.map(variant=>`ack-${variant}`));
+    let expectedCalls=order;
+    if(stoppedAt!==null){
+      expectedCalls=order.slice(0,3);
+      if(stoppedAt==='cancel-after-read'||stoppedAt.startsWith('reused-')){
+        expectedCalls.push(...faultVariants.slice(0,2).map(variant=>`start-${variant}`));
+        expectedCalls.push(`owned-${faultVariants[0]}`);
+        if(stoppedAt==='cancel-after-read')expectedCalls.push(`owned-${faultVariants[1]}`);
+      }else if(stoppedAt.startsWith('start-')||stoppedAt.startsWith('owned-')){
+        const variant=stoppedAt.slice(stoppedAt.indexOf('-')+1);
+        const index=faultVariants.indexOf(variant),batchStart=Math.floor(index/2)*2,batch=faultVariants.slice(batchStart,batchStart+2);
+        expectedCalls.push(...batch.map(value => `start-${value}`));
+        expectedCalls.push(...batch.filter(value=>!stoppedAt.startsWith('start-')||value!==variant).map(value=>`owned-${value}`));
+        if(batchStart>0)expectedCalls=[...order.slice(0,3),...order.slice(3,3+(batchStart/2)*4),...expectedCalls.slice(3)];
+      }else{
+        const stoppingIndex=order.indexOf(stoppedAt);
+        expectedCalls=order.slice(0,stoppingIndex+1);
+      }
+    }
+    assert.deepEqual(calls,expectedCalls,`stoppedAt=${stoppedAt}`);
   }
 });
 

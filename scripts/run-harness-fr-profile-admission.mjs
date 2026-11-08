@@ -18,10 +18,11 @@ const fail='FR_PROFILE_RUN_INVALID';
 const read=file=>{assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,fail);return fs.readFileSync(file);};
 
 // Runs three isolated source-profile slices against one immutable candidate, then binds their raw receipts to the held native cohort.
-export async function runFrProfileAdmission({artifactPath,browserRoot=null,output,signal,nativeContext},{runFacet=runSourceProfileFeasibility,verifyArtifact=verifyCandidateArtifact,inspectRuntime=inspectNativeApiRuntime}={}){
+export async function runFrProfileAdmission({artifactPath,browserRoot=null,output,signal,nativeContext},{runFacet=runSourceProfileFeasibility,verifyArtifact=verifyCandidateArtifact,inspectRuntime=inspectNativeApiRuntime,beforeNextBatch}={}){
  assert([artifactPath,output].every(value=>typeof value==='string'&&path.isAbsolute(value)),fail);
  assert(browserRoot===null||typeof browserRoot==='string'&&path.isAbsolute(browserRoot),fail);
  assert(nativeContext?.binding&&nativeContext?.expected,fail);
+ assert(beforeNextBatch===undefined||typeof beforeNextBatch==='function',fail);
  assert(!fs.existsSync(output),fail);assert.equal(fs.realpathSync(path.dirname(output)),path.dirname(output),fail);
  const artifact=await verifyArtifact(artifactPath);assertFrProfileArtifact(artifact);
  const binding=nativeContext.binding,expected=nativeContext.expected;
@@ -31,18 +32,33 @@ export async function runFrProfileAdmission({artifactPath,browserRoot=null,outpu
  assert(!signal?.aborted,fail);fs.mkdirSync(output,{mode:0o700});assert.equal(fs.realpathSync(output),output,fail);
  const facets=[],producers=[],runtimes=[];
  try{
-  for(const {facet,fault} of FR_PROFILE_FACETS){
+  const runFacetAdmission=async({facet,fault})=>{
    assert(!signal?.aborted,fail);
    const directory=path.join(output,facet),signalTarget=new EventEmitter();signalTarget.stderr=process.stderr;signalTarget.exit=()=>{};
    const cancel=()=>signalTarget.emit('SIGTERM');signal?.addEventListener('abort',cancel,{once:true});
    let receipt;try{receipt=await runFacet({artifactPath,output:directory,facet,browserRoot:null,signal},{signalTarget});}finally{signal?.removeEventListener('abort',cancel);}
-   if(receipt.status!=='feasibility-observed'){const code=receipt.failure?.code,error=new Error(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(code??'')?code:fail);if(receipt.failure?.diagnostic)error.frProfileDiagnostic=receipt.failure.diagnostic;throw error;}assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
+   if(receipt.status!=='feasibility-observed'){
+    assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
+    const code=receipt.failure?.code,error=new Error(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(code??'')?code:fail);if(receipt.failure?.diagnostic)error.frProfileDiagnostic=receipt.failure.diagnostic;throw error;
+   }
+   assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
    assert(/^[a-f0-9]{40}$/.test(receipt.harnessCommit),fail);assert.deepEqual(Object.keys(receipt.sources.files).sort(),Object.keys(binding.producer.files).sort(),fail);
-   assert.deepEqual(receipt.runtime,runtime,fail);producers.push({commit:receipt.harnessCommit,files:receipt.sources.files,sourceDigest:nativeInventoryDigest(receipt.sources.files)});runtimes.push(receipt.runtime);
+   assert.deepEqual(receipt.runtime,runtime,fail);const producer={commit:receipt.harnessCommit,files:receipt.sources.files,sourceDigest:nativeInventoryDigest(receipt.sources.files)};
    const raw=read(path.join(directory,'profile-feasibility.json'));
    const baseline=receipt.invocations.find(row=>row.invocationId==='baseline'),effectiveFault=receipt.invocations.find(row=>row.invocationId===fault);
    assert(baseline&&effectiveFault,fail);
-   facets.push({facet,fault,receiptDigest:digestBytes(raw),baseline:{status:baseline.status,configDigest:receipt.configuration.baseline.digest,observationsDigest:baseline.observationsDigest,journalDigest:baseline.journalDigest},fault:{status:effectiveFault.status,configDigest:receipt.configuration[fault].digest,observationsDigest:effectiveFault.observationsDigest,journalDigest:effectiveFault.journalDigest}});
+   return {facet:{facet,fault,receiptDigest:digestBytes(raw),baseline:{status:baseline.status,configDigest:receipt.configuration.baseline.digest,observationsDigest:baseline.observationsDigest,journalDigest:baseline.journalDigest},fault:{status:effectiveFault.status,configDigest:receipt.configuration[fault].digest,observationsDigest:effectiveFault.observationsDigest,journalDigest:effectiveFault.journalDigest}},producer,runtime:receipt.runtime};
+  };
+  const appendBatch=async selected=>{
+   const batch=await Promise.allSettled(selected.map(runFacetAdmission));
+   const failed=batch.find(result=>result.status==='rejected');if(failed)throw failed.reason;
+   for(const result of batch.map(item=>item.value)){facets.push(result.facet);producers.push(result.producer);runtimes.push(result.runtime);}
+  };
+  // One FR facet can share the Jenkins 8-CPU worker with the 4-CPU CMC proof; afterward two FR facets fill it.
+  let offset=0;
+  if(beforeNextBatch){await appendBatch(FR_PROFILE_FACETS.slice(0,1));offset=1;await beforeNextBatch();}
+  for(;offset<FR_PROFILE_FACETS.length;offset+=2){
+   await appendBatch(FR_PROFILE_FACETS.slice(offset,offset+2));
   }
   assert(producers.every(row=>JSON.stringify(row)===JSON.stringify(producers[0])),fail);assert(runtimes.every(row=>JSON.stringify(row)===JSON.stringify(runtimes[0])),fail);
   const contract=frProfileContract(),catalogue=loadCommittedConfigurationCatalogue().catalogue,profile={schemaVersion:1,kind:'fr-profile-cohort',status:'validated-for-admission',runId:'fr-'+randomUUID(),obligationId:contract.obligationId,family:'FR',contract,contractDigest:frProfileContractDigest(),candidate:{identity:artifact.identity,payloadDigest:artifact.payloadDigest,provenance:artifact.provenance},producer:producers[0],sourceDefault:{revision:contract.sourceRevision,digest:contract.sourceDigest},runtime:runtimes[0],facets,nativeBindingDigest:expected.nativeCohortBinding?.digest??digestBytes(JSON.stringify(binding)),catalogueDigest:digestBytes(JSON.stringify(catalogue.obligations)),cohortDigest:digestBytes(JSON.stringify(facets))};

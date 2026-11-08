@@ -1,5 +1,9 @@
 const { test } = require("node:test"),
-  assert = require("node:assert/strict");
+  assert = require("node:assert/strict"),
+  fs = require("node:fs"),
+  os = require("node:os"),
+  path = require("node:path"),
+  { pathToFileURL } = require("node:url");
 const mock = require("./fixtures/exui-mandatory-email-event.mock.cjs");
 const modules = async () => ({
   producer: await import("./lib/exui-mandatory-email-event-rows.mjs"),
@@ -137,16 +141,26 @@ test("typed date observations retain exact version/source leaf identities with n
     );
 });
 test("producer and independent reader reject coherent but unapproved source snapshot changes", async () => {
-  const fs = require("node:fs"),
-    path = require("node:path");
-  const file = path.join(
-      __dirname,
-      "fixtures/ccd/mandatory-email-event-rows.source.json",
-    ),
-    before = fs.readFileSync(file),
-    { producer, reader } = await modules();
-  const baseline = producer.deriveMandatoryEmailEventRows();
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "mandatory-email-source-"));
   try {
+    fs.cpSync(path.join(__dirname, "lib"), path.join(root, "lib"), { recursive: true });
+    for (const relative of [
+      "fixtures/ccd/mandatory-email-event-rows.source.json",
+      "fixtures/ccd/event-capability.source.json",
+      "fixtures/exui-configuration-source.json",
+    ]) {
+      const destination = path.join(root, relative);
+      fs.mkdirSync(path.dirname(destination), { recursive: true });
+      fs.copyFileSync(path.join(__dirname, relative), destination);
+    }
+    const isolated = `?isolated=${Date.now()}`;
+    const [{ deriveMandatoryEmailEventRows }, reader] = await Promise.all([
+      import(pathToFileURL(path.join(root, "lib/exui-mandatory-email-event-rows.mjs")).href + isolated),
+      import(pathToFileURL(path.join(root, "lib/exui-mandatory-email-event-validation.mjs")).href + isolated),
+    ]);
+    const file = path.join(root, "fixtures/ccd/mandatory-email-event-rows.source.json"),
+      before = fs.readFileSync(file),
+      baseline = deriveMandatoryEmailEventRows();
     const changed = JSON.parse(before);
     changed.sources[0].rows[0].row.EventElementLabel = "Changed source label";
     changed.sources[0].rows[0].rowDigest = (
@@ -154,15 +168,14 @@ test("producer and independent reader reject coherent but unapproved source snap
     ).definitionDigest(changed.sources[0].rows[0].row);
     fs.writeFileSync(file, JSON.stringify(changed, null, 2) + "\n");
     assert.throws(
-      () => producer.deriveMandatoryEmailEventRows(),
+      () => deriveMandatoryEmailEventRows(),
       "new source must be deliberately reviewed",
     );
     assert.throws(
       () => reader.validateMandatoryEmailEventDerivation(baseline, "baseline"),
       "reader must independently bind the actual pinned source",
     );
-  } finally {
     fs.writeFileSync(file, before);
-  }
-  assert.deepEqual(fs.readFileSync(file), before);
+    assert.deepEqual(fs.readFileSync(file), before);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

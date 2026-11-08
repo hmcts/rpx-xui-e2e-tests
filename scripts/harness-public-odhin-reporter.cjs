@@ -310,6 +310,11 @@ function validateHtml(html, record, retiringPreviousRun = false) {
   if(record.divorceProfileAttempt&&record.nativeEvidence?.divorceProfileAdmission)throw failure();
   if(Boolean(record.divorceProfileAttempt)!==html.includes('id="harness-divorce-profile-attempt"'))throw failure();
   if(record.divorceProfileAttempt&&!html.includes(require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(record.divorceProfileAttempt)))throw failure();
+  if(Boolean(record.cmcProfileAttempt)!==html.includes('id="harness-cmc-profile-attempt"'))throw failure();
+  if(record.cmcProfileAttempt&&!html.includes(require('./harness-cmc-profile-report.cjs').renderCmcProfileAttempt(record.cmcProfileAttempt)))throw failure();
+  if(Boolean(record.frProfileAttempt)!==html.includes('id="harness-fr-profile-attempt"'))throw failure();
+  if(record.frProfileAttempt&&!html.includes(require('./harness-cmc-profile-report.cjs').renderFrProfileAttempt(record.frProfileAttempt)))throw failure();
+  if(record.frProfileAttempt&&record.nativeEvidence?.frProfileAdmission)throw failure();
   if(Boolean(record.sharedNestedAttemptEvidence)!==html.includes('id="harness-shared-nested-attempt"'))throw failure();
   if(record.sharedNestedAttemptEvidence&&!html.includes(require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(record.sharedNestedAttemptEvidence)))throw failure();
   if (Boolean(record.compatibilityEvidence) !== html.includes('id="harness-applicant-compatibility"')) throw failure();
@@ -592,7 +597,7 @@ function validateDiagnosticSource(source) {
     throw failure();
 }
 class HarnessPublicOdhinReporter {
-  constructor({ selection, diagnosticSource, assuranceTiming, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, mandatoryEmailTiming, buildSelfCheckHeld } = {}) {
+  constructor({ selection, diagnosticSource, assuranceTiming, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, frProfileAttempt, cmcProfileAttempt, mandatoryEmailTiming, buildSelfCheckHeld } = {}) {
     this.buildSelfCheckHeld = buildSelfCheckHeld === undefined ? undefined : structuredClone(buildSelfCheckHeld);
     this.buildSelfChecks = undefined;
     this.diagnosticSource = diagnosticSource;
@@ -610,6 +615,10 @@ class HarnessPublicOdhinReporter {
     this.personalServiceAttempt=personalServiceAttempt;
     if (complexEmailAttempt) require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(complexEmailAttempt);
     this.complexEmailAttempt = complexEmailAttempt;
+    if(cmcProfileAttempt)require('./harness-cmc-profile-report.cjs').renderCmcProfileAttempt(cmcProfileAttempt);
+    this.cmcProfileAttempt=cmcProfileAttempt;
+    if(frProfileAttempt)require('./harness-cmc-profile-report.cjs').renderFrProfileAttempt(frProfileAttempt);
+    this.frProfileAttempt=frProfileAttempt;
     this.nativeEvidence = null;
     this.nativeBusinessScalarHeld = null;
     this.compatibilityEvidence = null;
@@ -817,6 +826,7 @@ class HarnessPublicOdhinReporter {
       if(this.personalServiceAttempt&&this.nativeEvidence?.personalServiceAdmission)throw failure();
       if (this.complexEmailAttempt && this.nativeEvidence?.complexEmailAdmission) throw failure();
       if(this.divorceProfileAttempt&&this.nativeEvidence?.divorceProfileAdmission)throw failure();
+      if(this.cmcProfileAttempt&&this.nativeEvidence?.cmcProfileAdmission)throw failure();
       if (this.phaseTimings !== undefined) validatePhaseTimings(this.phaseTimings, this.nativeEvidence, this.nativeElapsedMs);
       if (this.eventRuntimePreparationTimings !== undefined) {
         try { this.eventPreparationTimings = eventPreparationReport.validateEventRuntimePreparationTimings(this.eventRuntimePreparationTimings, this.nativeEvidence); }
@@ -979,10 +989,12 @@ class HarnessPublicOdhinReporter {
         divorceProfileAttempt: this.divorceProfileAttempt,
         personalServiceAttempt:this.personalServiceAttempt,
         complexEmailAttempt:this.complexEmailAttempt,
+        cmcProfileAttempt:this.cmcProfileAttempt,
+        frProfileAttempt:this.frProfileAttempt,
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}${assuranceTimingAttributes(record.assuranceTiming)}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.personalServiceAttempt?` / Personal event row ${record.personalServiceAttempt.status}`:""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.complexEmailAttempt?` / ComplexTypes ${record.complexEmailAttempt.status}`:''}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}${assuranceTimingAttributes(record.assuranceTiming)}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.personalServiceAttempt?` / Personal event row ${record.personalServiceAttempt.status}`:""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.complexEmailAttempt?` / ComplexTypes ${record.complexEmailAttempt.status}`:''}${record.cmcProfileAttempt?` / CMC profile ${record.cmcProfileAttempt.status}`:''}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,
@@ -1056,6 +1068,8 @@ class HarnessPublicOdhinReporter {
       if(this.personalServiceAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-personal-service-report.cjs').renderPersonalServiceAttempt(this.personalServiceAttempt));
       if (this.complexEmailAttempt) presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend', require('./harness-complex-email-report.cjs').renderComplexEmailAttempt(this.complexEmailAttempt));
       if(this.divorceProfileAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-divorce-profile-report.cjs').renderDivorceProfileAttempt(this.divorceProfileAttempt));
+      if(this.cmcProfileAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-cmc-profile-report.cjs').renderCmcProfileAttempt(this.cmcProfileAttempt));
+      if(this.frProfileAttempt)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-cmc-profile-report.cjs').renderFrProfileAttempt(this.frProfileAttempt));
       if(this.sharedNestedAttemptEvidence)presentation.querySelector('#TabDashboard').insertAdjacentHTML('beforeend',require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(this.sharedNestedAttemptEvidence));
       if (this.phaseTimings) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", renderPhaseTimings(this.phaseTimings, this.nativeElapsedMs, false, false, Boolean(this.nativeEvidence?.mandatoryEmailAdmission)));
       if (this.eventPreparationTimings !== undefined) presentation.querySelector("#TabDashboard").insertAdjacentHTML("beforeend", eventPreparationReport.renderEventPreparationTimings(this.eventPreparationTimings));

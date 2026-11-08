@@ -671,7 +671,7 @@ for (const kind of ['native', 'callback', 'profile']) test(`provider root seals 
     const begin = name => { started.push(name); return seals[name].promise; };
     const bindings = {
       input, invocation: {}, invocationId: 'baseline', root: '/harness', path, assert, time: (_step, action) => action(),
-      facet: 'divorce-jurisdiction', fr: false, browserFacet: true, divorce: null, health: false, membership: false, fault: 'fault', stCicApi: () => false,
+      facet: 'divorce-jurisdiction', fr: false, cmc: false, browserFacet: true, divorce: null, health: false, membership: false, fault: 'fault', stCicApi: () => false,
       verifyHarnessDependencies: (...args) => { assert.deepEqual(args, ['/harness/node_modules', '/harness/package.json', '/harness/yarn.lock', 'deps']); return begin('deps'); },
       digestCandidateTree: root => { assert.equal(root, '/browser'); return begin('browser'); },
       selectedArtifact: () => artifact,
@@ -712,7 +712,7 @@ test('provider root seals leave nonbrowser profile on its single candidate check
   let ready = false, configurationCalls = 0;
   const bindings = {
     input: { artifact, configurations: { baseline: { digest: 'config' } }, sources: { digest: 'source' } },
-    invocationId: 'baseline', root: '/harness', path, assert, facet: 'jurisdictions', fr: false, browserFacet: false, divorce: null, health: false, membership: false, fault: 'fault', stCicApi: () => false,
+    invocationId: 'baseline', root: '/harness', path, assert, facet: 'jurisdictions', fr: false, cmc: false, browserFacet: false, divorce: null, health: false, membership: false, fault: 'fault', stCicApi: () => false,
     describeCandidateArtifact: () => candidate.promise,
     digestCandidateTree: () => assert.fail('nonbrowser profile must not read browser'),
     verifyHarnessDependencies: () => assert.fail('nonbrowser profile must not read browser dependencies'),

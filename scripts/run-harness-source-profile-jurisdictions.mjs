@@ -25,11 +25,14 @@ import {stCicFacet,stCicProfileConfiguration,assertStCicProfileArtifact} from '.
 import {validateStCicConsumerObservations,validateStCicWaHealth} from './lib/exui-st-cic-profile-consumers.mjs';
 import {frProfileConfiguration,FR_PROFILE_FACETS} from './lib/exui-fr-profile-contract.mjs';
 import {validateFrProfileObservations,probeFrProfileConsumers,frJurisdictionFilterDiagnostic} from './lib/exui-source-profile-fr-consumers.mjs';
+import {cmcProfileConfiguration,CMC_PROFILE_FACET} from './lib/exui-cmc-profile-contract.mjs';
+import {validateCmcProfileObservations,cmcJurisdictionFilterDiagnostic} from './lib/exui-cmc-profile-consumer.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
 const read=file=>JSON.parse(fs.readFileSync(file));
 const stCicApi=facet=>['st-cic-global-search','st-cic-wa','st-cic-staff','st-cic-mapping','st-cic-wa-health'].includes(facet);
 const stCicAssertion=facet=>`ST_CIC_${facet.slice(7).replaceAll('-','_').toUpperCase()}_ASSERTION`;
 export const facetSettings=facet=>{
+ if(facet===CMC_PROFILE_FACET.facet)return {scope:'exui-cmc-jurisdiction-feasibility',fault:CMC_PROFILE_FACET.fault,configuration:(root,mutation)=>cmcProfileConfiguration(root,mutation)};
  if(stCicApi(facet))return {scope:`exui-${facet}-feasibility`,fault:stCicFacet(facet).fault,configuration:(root,mutation)=>stCicProfileConfiguration(root,facet,mutation)};
  if(facet.startsWith('fr-')){const selected=FR_PROFILE_FACETS.find(item=>item.facet===facet);assert(selected,'SOURCE_PROFILE_INPUT_INVALID');return {scope:`exui-${facet}-feasibility`,fault:selected.fault,configuration:(root,mutation)=>frProfileConfiguration(sourceProfileJurisdictionConfiguration(root).config,facet,mutation)};}
  assert(['jurisdictions','wa-health','wa-membership','divorce-staff','divorce-mapping','divorce-wa','divorce-jurisdiction','divorce-global-search','ia-wa-positive'].includes(facet),'SOURCE_PROFILE_INPUT_INVALID');
@@ -71,7 +74,7 @@ export function profileInvocationPlan({owner,invocationId,artifact,runtime,confi
 export function validateProfileInvocationResult({directory,invocationId,mutation,identity,configDigest,sourceDigest,terminal,facet='jurisdictions',candidateRoot}) {
   const {fault}=facetSettings(facet),ids=['baseline',fault];
   assert(ids.includes(invocationId)&&mutation===(invocationId==='baseline'?null:fault),'SOURCE_PROFILE_INVOCATION_INVALID');
-  const expected={schemaVersion:1,status:mutation?'expected-fault-observed':'observed',invocationId,mutation,code:mutation?(stCicApi(facet)?stCicAssertion(facet):facet.startsWith('fr-')?facet==='fr-mapping'?'FR_PROFILE_MAPPING_ASSERTION':'FR_PROFILE_MEMBERSHIP_ASSERTION':facet==='ia-wa-positive'?'SOURCE_PROFILE_IA_WA_ASSERTION':facet==='divorce-staff'?'SOURCE_PROFILE_DIVORCE_STAFF_ASSERTION':facet==='divorce-mapping'?'SOURCE_PROFILE_DIVORCE_MAPPING_ASSERTION':facet==='divorce-global-search'?'DIVORCE_PROFILE_GLOBAL_ASSERTION':['wa-membership','divorce-wa'].includes(facet)?'SOURCE_PROFILE_WA_MEMBERSHIP_ASSERTION':facet==='wa-health'?'SOURCE_PROFILE_WA_HEALTH_ASSERTION':'SOURCE_PROFILE_JURISDICTION_ASSERTION'):null,identity,configDigest,sourceDigest,...credits};
+  const expected={schemaVersion:1,status:mutation?'expected-fault-observed':'observed',invocationId,mutation,code:mutation?(stCicApi(facet)?stCicAssertion(facet):facet.startsWith('fr-')?facet==='fr-mapping'?'FR_PROFILE_MAPPING_ASSERTION':'FR_PROFILE_MEMBERSHIP_ASSERTION':facet===CMC_PROFILE_FACET.facet?'CMC_PROFILE_MEMBERSHIP_ASSERTION':facet==='ia-wa-positive'?'SOURCE_PROFILE_IA_WA_ASSERTION':facet==='divorce-staff'?'SOURCE_PROFILE_DIVORCE_STAFF_ASSERTION':facet==='divorce-mapping'?'SOURCE_PROFILE_DIVORCE_MAPPING_ASSERTION':facet==='divorce-global-search'?'DIVORCE_PROFILE_GLOBAL_ASSERTION':['wa-membership','divorce-wa'].includes(facet)?'SOURCE_PROFILE_WA_MEMBERSHIP_ASSERTION':facet==='wa-health'?'SOURCE_PROFILE_WA_HEALTH_ASSERTION':'SOURCE_PROFILE_JURISDICTION_ASSERTION'):null,identity,configDigest,sourceDigest,...credits};
   const worker=read(path.join(directory,'profile-worker-result.json'));
   if(worker.status==='failed') {
     assert.equal(typeof worker.code,'string','SOURCE_PROFILE_WORKER_RESULT');
@@ -79,6 +82,7 @@ export function validateProfileInvocationResult({directory,invocationId,mutation
     assert.deepEqual(terminal,{code:2,signal:null},'SOURCE_PROFILE_FRAMEWORK_TERMINAL');
     const error=Error(worker.code);
     if(facet==='fr-jurisdiction'&&invocationId==='baseline'&&worker.code==='FR_PROFILE_OBSERVATIONS')error.frProfileDiagnostic=frJurisdictionFilterDiagnostic(read(path.join(directory,'profile-fr-observations.json')).observations);
+    if(facet==='cmc-jurisdiction'&&(worker.code==='CMC_PROFILE_OBSERVATIONS'||worker.code==='CMC_PROFILE_FAULT_NOT_EFFECTIVE'))error.cmcProfileDiagnostic=cmcJurisdictionFilterDiagnostic(read(path.join(directory,'cmc-profile-observations.json')).observations,mutation);
     throw error;
   }
   assert.deepEqual(worker,expected,'SOURCE_PROFILE_WORKER_RESULT');
@@ -124,6 +128,14 @@ export function validateProfileInvocationResult({directory,invocationId,mutation
     let failure;try{validateDivorceConsumerObservations(facet.slice(8),data.observations,journal,mutation);}catch(error){failure=error;}
     const named=facet==='divorce-staff'?'SOURCE_PROFILE_DIVORCE_STAFF_ASSERTION':'SOURCE_PROFILE_DIVORCE_MAPPING_ASSERTION';
     if(mutation){if(failure?.message!==named)throw failure??Error('SOURCE_PROFILE_FAULT_NOT_EFFECTIVE');}else if(failure)throw failure;
+    return {...expected,observationsDigest:digestBytes(fs.readFileSync(file)),journalDigest:digestBytes(fs.readFileSync(journalFile))};
+  }
+  if(facet===CMC_PROFILE_FACET.facet){
+    const file=path.join(directory,'cmc-profile-observations.json'),data=read(file),journalFile=path.join(directory,'profile-jurisdiction-destinations.json'),journal=read(journalFile);
+    assert.deepEqual(Object.keys(data).sort(),['catalogueCredit','journal','mutation','observations'],'SOURCE_PROFILE_OBSERVATION_BINDING');
+    assert.equal(data.mutation,mutation,'SOURCE_PROFILE_OBSERVATION_BINDING');assert.equal(data.catalogueCredit,false,'SOURCE_PROFILE_OBSERVATION_BINDING');assert.deepEqual(data.journal,journal,'CMC_PROFILE_JOURNAL');
+    let failure;try{validateCmcProfileObservations(data.observations,journal,mutation);}catch(error){failure=error;}
+    if(mutation){if(failure?.message!=='CMC_PROFILE_MEMBERSHIP_ASSERTION')throw failure??Error('CMC_PROFILE_FAULT_NOT_EFFECTIVE');}else if(failure)throw failure;
     return {...expected,observationsDigest:digestBytes(fs.readFileSync(file)),journalDigest:digestBytes(fs.readFileSync(journalFile))};
   }
   if(facet.startsWith('fr-')) {
@@ -202,7 +214,7 @@ export async function runSourceProfileFeasibility({artifactPath,output,facet='ju
   save();
   try {
     const configurations=Object.fromEntries(ids.map(id=>[id,configuration(artifact.candidateRoot,id==='baseline'?null:fault)]));
-    const expected=structuredClone(configurations.baseline.config);if(facet==='st-cic-global-search')expected.globalSearchServices=expected.globalSearchServices.split(',').filter(id=>id!=='ST_CIC').join(',');else if(facet==='st-cic-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='ST_CIC').join(',');else if(facet==='st-cic-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='ST_CIC'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='st-cic-wa-health')expected.feature.workAllocationEnabled=true;else if(facet==='st-cic-wa')expected.waSupportedJurisdictions=expected.waSupportedJurisdictions.split(',').filter(id=>id!=='ST_CIC').join(',');else if(facet==='divorce-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');else if(facet==='divorce-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='DIVORCE'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='fr-jurisdiction')expected.jurisdictions=expected.jurisdictions.split(',').filter(id=>id!=='FR').join(',');else if(facet==='fr-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='FR').join(',');else if(facet==='fr-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='FR'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='ia-wa-positive')expected.waSupportedJurisdictions=expected.waSupportedJurisdictions.split(',').filter(id=>id!=='IA').join(',');else if(facet==='divorce-wa')expected.waSupportedJurisdictions+=',DIVORCE';else if(facet==='divorce-global-search')expected.globalSearchServices=expected.globalSearchServices.split(',').filter(id=>id!=='DIVORCE').join(',');else if(facet==='wa-membership')expected.waSupportedJurisdictions+=',CMC';else if(facet==='wa-health')expected.feature.workAllocationEnabled=true;else expected.jurisdictions=expected.jurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');
+    const expected=structuredClone(configurations.baseline.config);if(facet==='st-cic-global-search')expected.globalSearchServices=expected.globalSearchServices.split(',').filter(id=>id!=='ST_CIC').join(',');else if(facet==='st-cic-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='ST_CIC').join(',');else if(facet==='st-cic-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='ST_CIC'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='st-cic-wa-health')expected.feature.workAllocationEnabled=true;else if(facet==='st-cic-wa')expected.waSupportedJurisdictions=expected.waSupportedJurisdictions.split(',').filter(id=>id!=='ST_CIC').join(',');else if(facet==='divorce-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');else if(facet==='divorce-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='DIVORCE'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='fr-jurisdiction')expected.jurisdictions=expected.jurisdictions.split(',').filter(id=>id!=='FR').join(',');else if(facet==='cmc-jurisdiction')expected.jurisdictions=expected.jurisdictions.split(',').filter(id=>id!=='CMC').join(',');else if(facet==='fr-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='FR').join(',');else if(facet==='fr-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='FR'?{...row,serviceCodes:['ZZZ1']}:row);else if(facet==='ia-wa-positive')expected.waSupportedJurisdictions=expected.waSupportedJurisdictions.split(',').filter(id=>id!=='IA').join(',');else if(facet==='divorce-wa')expected.waSupportedJurisdictions+=',DIVORCE';else if(facet==='divorce-global-search')expected.globalSearchServices=expected.globalSearchServices.split(',').filter(id=>id!=='DIVORCE').join(',');else if(facet==='wa-membership')expected.waSupportedJurisdictions+=',CMC';else if(facet==='wa-health')expected.feature.workAllocationEnabled=true;else expected.jurisdictions=expected.jurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');
     assert.deepEqual(configurations[fault].config,expected,'SOURCE_PROFILE_CONFIG_DRIFT');
     assert.equal(configurations.baseline.config.feature.workAllocationEnabled,false,'SOURCE_PROFILE_WA_DEFAULT');
     phase='verify-runtime';const runtime=inspectRuntime(artifact.provenance.platform);
@@ -228,7 +240,7 @@ export async function runSourceProfileFeasibility({artifactPath,output,facet='ju
     assert.deepEqual(owned.map(item=>item.name).sort(),ids.flatMap(id=>['candidate','tools'].map(service=>`${receipt.owner}-${id}-${service}`)).sort(),'SOURCE_PROFILE_CLEANUP_REQUIRED');
     assert(owned.every(item=>item.kind==='container'&&item.owner===receipt.owner&&item.image===(item.service==='browser-provider'&&browser?browser.image:runtime.imageId)&&item.removed===true&&/^[a-f0-9]{64}$/.test(item.id))&&new Set(owned.map(item=>item.id)).size===4,'SOURCE_PROFILE_CLEANUP_REQUIRED');
     receipt.status='feasibility-observed';
-  } catch(error) {receipt.status=cancelled?'cancelled':'failed';receipt.failure={phase,code:profileFailureCode(error),...(error.frProfileDiagnostic?{diagnostic:error.frProfileDiagnostic}:{})};}
+  } catch(error) {receipt.status=cancelled?'cancelled':'failed';receipt.failure={phase,code:profileFailureCode(error),...(error.frProfileDiagnostic?{diagnostic:error.frProfileDiagnostic}:{}),...(error.cmcProfileDiagnostic?{diagnostic:error.cmcProfileDiagnostic}:{})};}
   finally {
     for(const key of [...resources.keys()].reverse())try{await remove(key);}catch{/* Retained explicitly in cleanup evidence. */}
     finishCleanup();
