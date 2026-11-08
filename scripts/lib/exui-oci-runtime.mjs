@@ -524,7 +524,15 @@ export function assertOwnedContainerAuthority(
     "OCI_CONTAINER_PUBLISHED_PORT",
   );
   const actual = info.Mounts.filter((item) => item.Type !== "tmpfs")
-    .map((item) => [item.Type === "volume" ? item.Name : item.Source, item.Destination, item.RW, item.Type])
+    .map((item) => {
+      let source = item.Type === "volume" ? item.Name : item.Source;
+      // Docker Desktop reports host binds beneath /host_mnt; accept only a declared exact source.
+      if (item.Type === "bind" && process.platform === "darwin") {
+        const declared = mounts.find((expected) => (expected.type ?? "bind") === "bind" && item.Source === `/host_mnt${expected.source}`);
+        if (declared) source = declared.source;
+      }
+      return [source, item.Destination, item.RW, item.Type];
+    })
     .sort();
   assert.deepEqual(
     actual,

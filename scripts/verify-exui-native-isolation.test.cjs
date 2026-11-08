@@ -5,6 +5,14 @@ const os = require("node:os");
 const path = require("node:path");
 const sha = (c) => "sha256:" + c.repeat(64);
 
+test('Docker Desktop bind source translation is accepted only for a declared macOS path', { skip: process.platform !== 'darwin' }, async () => {
+  const { assertOwnedContainerAuthority } = await import('./lib/exui-oci-runtime.mjs');
+  const expected = { owner: 'ccd-11111111-1111-4111-8111-111111111111', service: 'candidate', image: sha('a'), namespace: 'b'.repeat(64), mounts: [{ source: '/private/tmp/sealed', target: '/candidate', writable: false }] };
+  const info = { Name: `/${expected.owner}-baseline-candidate`, Image: expected.image, Config: { Labels: { 'exui.harness.owner': expected.owner, 'exui.harness.service': expected.service } }, HostConfig: { NetworkMode: `container:${expected.namespace}`, ReadonlyRootfs: true, Init: true, Privileged: false, PidMode: '', CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges'], PidsLimit: 256, Memory: 4294967296, NanoCpus: 2000000000, PortBindings: {} }, Mounts: [{ Type: 'bind', Source: '/host_mnt/private/tmp/sealed', Destination: '/candidate', RW: false }] };
+  assert.doesNotThrow(() => assertOwnedContainerAuthority(info, expected));
+  assert.throws(() => assertOwnedContainerAuthority({ ...info, Mounts: [{ ...info.Mounts[0], Source: '/host_mnt/private/tmp/other' }] }, expected), /OCI_CONTAINER_MOUNT_MISMATCH/);
+});
+
 test("support only: native API gets sealed application and narrow state, with no evidence, source or Docker socket authority", async () => {
   const { candidateArchiveArguments } =
     await import("./lib/exui-oci-runtime.mjs");
