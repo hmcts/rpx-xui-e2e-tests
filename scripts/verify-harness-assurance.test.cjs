@@ -168,6 +168,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-mandatory-email-event-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-mandatory-email-event-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-st-cic-profile-admission.mjs')).href)};`);
+  fs.writeFileSync(path.join(root,'scripts/run-harness-fr-profile-admission.mjs'), `export const runFrProfileAdmission=()=>{throw Error('UNEXPECTED_FR_PROFILE_RUN');};`);
   fs.writeFileSync(path.join(root,'scripts/lib/exui-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'lib/exui-st-cic-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
     path.join(root, "scripts/run-harness-ci.mjs"),
@@ -667,9 +668,9 @@ test('late ST_CIC capture replacement withdraws a stale public PASS',async t=>{
 
 test('ST_CIC CLI bridge parses only finite opt-in flags and preserves legacy arguments',async()=>{
  const {parseAssuranceCli}=await api();
- assert.deepEqual(parseAssuranceCli(['--input','/private/job.json']),{jobPath:'/private/job.json',aat:false,parentTiming:false,stCic:false});
- assert.deepEqual(parseAssuranceCli(['--','--input','/private/job.json','--st-cic','--aat','--parent-timing']),{jobPath:'/private/job.json',aat:true,parentTiming:true,stCic:true});
- for(const args of [['--input','relative'],['--input','/private/job.json','--st-cic','--st-cic'],['--input','/private/job.json','--unknown'],['--input','/private/job.json','--st-cic-output','/foreign'],['--input','/private/job.json','--aat','--aat']])assert.throws(()=>parseAssuranceCli(args),/ASSURANCE_INPUT_REQUIRED/);
+ assert.deepEqual(parseAssuranceCli(['--input','/private/job.json']),{jobPath:'/private/job.json',aat:false,parentTiming:false,stCic:false,frProfile:false});
+ assert.deepEqual(parseAssuranceCli(['--','--input','/private/job.json','--st-cic','--aat','--parent-timing','--fr-profile']),{jobPath:'/private/job.json',aat:true,parentTiming:true,stCic:true,frProfile:true});
+ for(const args of [['--input','relative'],['--input','/private/job.json','--st-cic','--st-cic'],['--input','/private/job.json','--fr-profile','--fr-profile'],['--input','/private/job.json','--unknown'],['--input','/private/job.json','--st-cic-output','/foreign'],['--input','/private/job.json','--aat','--aat']])assert.throws(()=>parseAssuranceCli(args),/ASSURANCE_INPUT_REQUIRED/);
 });
 
 test('ST_CIC CLI bridge allocates owned external output and rejects stale or aliased inputs before execution',async t=>{
@@ -706,19 +707,21 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
  const edited=original.replace(needle,"const result = await (async (jobPath, options) => { fs.writeFileSync(path.join(ROOT,'cli-call.json'),JSON.stringify({jobPath,options})); return {nativeStatus:'PASS',diagnosticStatus:'passed',exitCode:0}; })(cli.jobPath, {");
  fs.writeFileSync(path.join(scripts,'run-harness-assurance.mjs'),edited);
  for(const name of fs.readdirSync(__dirname))if(name!=='run-harness-assurance.mjs')fs.symlinkSync(path.join(__dirname,name),path.join(scripts,name));
+ fs.unlinkSync(path.join(scripts,'run-harness-fr-profile-admission.mjs'));
+ fs.writeFileSync(path.join(scripts,'run-harness-fr-profile-admission.mjs'),"export const runFrProfileAdmission=()=>{throw Error('UNEXPECTED_FR_PROFILE_RUN');};");
  const fakeDeps=path.join(root,'fake-deps');fs.mkdirSync(fakeDeps);fs.symlinkSync(fakeDeps,path.join(source,'node_modules'));
  const candidate=path.join(root,'candidate'),browser=path.join(root,'browser');fs.mkdirSync(candidate);fs.mkdirSync(browser);
  const jobDirectory=path.join(source,'functional-output/tests/harness/private/native-ci/job');fs.mkdirSync(jobDirectory,{recursive:true,mode:0o700});
  const manifest=path.join(root,'candidate.json'),jobPath=path.join(jobDirectory,'job.json'),output=path.join(jobDirectory,'native-output');
  fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify({schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)}));
  const launch=(flags,{tmpdir,preload}={})=>spawnSync(process.execPath,[...(preload?['--require',preload]:[]),'scripts/run-harness-assurance.mjs','--input',jobPath,...flags],{cwd:source,env:{PATH:process.env.PATH,...(tmpdir?{TMPDIR:tmpdir}:{})},encoding:'utf8',timeout:10_000});
- for(const flags of [[],['--mandatory-email'],['--st-cic','--mandatory-email','--aat']]){
-  const terminal=launch(flags);assert.equal(terminal.status,0,terminal.stderr);assert.equal(terminal.signal,null);
+ for(const flags of [[],['--mandatory-email'],['--st-cic','--mandatory-email','--aat'],['--fr-profile']]){
+  const terminal=launch(flags);assert.equal(terminal.status,0,`${flags.join(' ')}: ${terminal.stderr}`);assert.equal(terminal.signal,null);
   const receipt=flags.includes('--st-cic')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'st-cic-cli-output.json'))):undefined;
   if(receipt)t.after(()=>fs.rmSync(receipt.directory,{recursive:true,force:true}));
   const mandatoryReceipt=flags.includes('--mandatory-email')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'mandatory-email-cli-output.json'))):undefined;
   if(mandatoryReceipt)t.after(()=>fs.rmSync(mandatoryReceipt.directory,{recursive:true,force:true}));
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{})}});
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{}),...(flags.includes('--fr-profile')?{frProfileOutput:path.join(output,'private/fr-profile')}:{})}});
   if(mandatoryReceipt)fs.unlinkSync(path.join(jobDirectory,'mandatory-email-cli-output.json'));
   fs.unlinkSync(path.join(source,'cli-call.json'));
  }
@@ -736,12 +739,25 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
 
 test('combined assurance CLI preserves ST_CIC and the explicit held Build receipt without accepting malformed suffixes',async()=>{
  const {parseAssuranceCli}=await api(),held={path:'/private/held.json',digest:'sha256:'+'a'.repeat(64)};
- for(const flags of [[],['--st-cic'],['--aat','--parent-timing','--st-cic']]){
+ for(const flags of [[],['--st-cic'],['--aat','--parent-timing','--st-cic'],['--fr-profile'],['--st-cic','--fr-profile']]){
   const cli=parseAssuranceCli(['--input','/private/job.json',...flags,'--build-self-check-held',held.path,'--build-self-check-digest',held.digest]);
-  assert.deepEqual(cli,{jobPath:'/private/job.json',aat:flags.includes('--aat'),parentTiming:flags.includes('--parent-timing'),stCic:flags.includes('--st-cic'),buildSelfCheckHeld:held});
+  assert.deepEqual(cli,{jobPath:'/private/job.json',aat:flags.includes('--aat'),parentTiming:flags.includes('--parent-timing'),stCic:flags.includes('--st-cic'),frProfile:flags.includes('--fr-profile'),buildSelfCheckHeld:held});
  }
  for(const suffix of [['--build-self-check-held','relative.json','--build-self-check-digest',held.digest],['--build-self-check-held',held.path,'--build-self-check-digest','bad'],['--build-self-check-held',held.path,'--build-self-check-digest',held.digest,'--st-cic'],['--build-self-check-digest',held.digest]]){
   assert.throws(()=>parseAssuranceCli(['--input','/private/job.json','--st-cic',...suffix]));
  }
  assert.throws(()=>parseAssuranceCli(['--input','/private/job.json','--st-cic','--st-cic','--build-self-check-held',held.path,'--build-self-check-digest',held.digest]));
+});
+
+test('FR profile request is pinned into the collector only after a completed admission',async()=>{
+ const {runAssuranceSequence}=await api(),request={path:'/private/fr/admission-request.json',digest:'sha256:'+'f'.repeat(64),runId:'fr-22222222-2222-4222-8222-222222222222'},order=[];
+ let observed;
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{order.push('fr');return{status:'passed',accepted:0,reportRequest:request};},descriptor:async(...args)=>{order.push('descriptor');observed=args.at(-1);return'/private/native.json';},collect:async(_file,timing)=>{order.push('collect');assert.deepEqual(timing.frProfileRequest,request);return{status:'passed',exitCode:0,frProfileInclusion:'separate'};}});
+ assert.deepEqual(order,['fr','descriptor','collect']);assert.deepEqual(observed,request);assert.equal(result.frProfileStatus,'SEPARATE');assert.equal(result.exitCode,2);
+});
+
+test('failed FR profile attempt blocks publication and never creates a report request',async()=>{
+ const {runAssuranceSequence}=await api();let descriptors=0,collections=0,withdrawals=0;
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{throw Error('private failure');},descriptor:async()=>{descriptors++;return'/private/native.json';},collect:async()=>{collections++;return{status:'passed',exitCode:0};},withdraw:()=>withdrawals++});
+ assert.equal(result.frProfileStatus,'BLOCKED');assert.equal(result.exitCode,2);assert.equal(descriptors,0);assert.equal(collections,0);assert.equal(withdrawals,1);assert(!JSON.stringify(result).includes('private failure'));
 });

@@ -93,6 +93,7 @@
   "scripts/verify-exui-shared-nested-wiring.test.cjs",
   "scripts/verify-exui-shared-nested-report.test.cjs",
   "scripts/verify-exui-divorce-profile.test.cjs",
+  "scripts/verify-exui-fr-profile.test.cjs",
   "scripts/verify-exui-divorce-joint.test.cjs",
   "scripts/verify-exui-selector-ci.test.cjs",
   "scripts/verify-exui-personal-service.test.cjs",

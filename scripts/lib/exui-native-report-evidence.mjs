@@ -10,6 +10,7 @@ import {stCicNativeJointAdmission} from './exui-st-cic-native-joint.mjs';
 import {readComplexNativeBinding,readComplexAdmissionPacket,complexNativeJointAdmission,assertComplexOwnership} from './exui-complex-email-admission.mjs';
 import {readPersonalNativeBinding,readPersonalAdmissionPacket,personalNativeJointAdmission} from './exui-personal-service-admission.mjs';
 import {readDivorceProfileAdmissionPacket,divorceNativeJointAdmission} from "./exui-divorce-profile-admission.mjs";
+import {readFrProfileAdmissionPacket} from "../run-harness-fr-profile-admission.mjs";
 import {readDivorceNativeBinding} from "./exui-divorce-native-binding.mjs";
 import {validateSelectorEventEvidence} from './exui-selector-event-row-evidence.mjs';
 import fs from "node:fs";
@@ -525,6 +526,22 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         catalogueCoverage.divorceProfileAdmission = joint;
       }
     }
+    fact(!expected.frProfileRequest||descriptor.value.frProfileAdmission,"FR_PROFILE_REQUEST_REQUIRED");
+    fact(!descriptor.value.frProfileAdmission||expected.frProfileRequest,"FR_PROFILE_REQUEST_REQUIRED");
+    if(descriptor.value.frProfileAdmission)fact(nativeBinding,"FR_PROFILE_NATIVE_BINDING_REQUIRED");
+    const frPacket=descriptor.value.frProfileAdmission?readFrProfileAdmissionPacket(descriptor.value.frProfileAdmission,expected.frProfileRequest,{binding:nativeBinding,expected},accounting.catalogue):undefined;
+    let frProfileAdmission;
+    if(frPacket){
+      frProfileAdmission={...frPacket.admission,joint:frPacket.joint};
+      if(frPacket.joint.status==='included'){
+        const id=frPacket.joint.obligationId,rows=accounting.catalogue.obligations.filter(row=>row.id===id);
+        fact(rows.length===1&&rows[0].family==='FR'&&rows[0].kind==='configuration-profile'&&rows[0].requiredBoundary==='candidate','FR_PROFILE_CATALOGUE_ROW');
+        equal(rows[0].sourceKeys,frPacket.joint.sourceKeys,'FR_PROFILE_CATALOGUE_SOURCE');
+        fact(catalogueCoverage.selected===112&&!creditedObligationIds.includes(id),'FR_PROFILE_DUPLICATE_CREDIT');
+        fact(accounting.report.coverage.missingCandidateOrCcd.some(row=>(typeof row==='string'?row:row.id)===id),'FR_PROFILE_NOT_MISSING');
+        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.frProfileAdmission=frPacket.joint;
+      }
+    }
     const personalNative=(expected.personalServiceRequest||descriptor.value.personalServiceAdmission)?readPersonalNativeBinding(directory,expected,nativeBinding):undefined;
     fact(!expected.personalServiceRequest||descriptor.value.personalServiceAdmission,'PERSONAL_REQUEST_REQUIRED');
     fact(!descriptor.value.personalServiceAdmission||expected.personalServiceRequest,'PERSONAL_REQUEST_REQUIRED');
@@ -623,6 +640,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       phases,
       catalogueCoverage,
       ...(divorceProfileAdmission ? {divorceProfileAdmission} : {}),
+      ...(frProfileAdmission?{frProfileAdmission}:{}),
       ...(personalServiceAdmission?{personalServiceAdmission}:{}),
       ...(stCicProfileAdmission?{stCicProfileAdmission}:{}),
       ...(complexEmailAdmission?{complexEmailAdmission}:{}),

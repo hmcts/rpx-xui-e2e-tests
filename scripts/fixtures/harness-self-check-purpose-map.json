@@ -692,6 +692,13 @@
       "purpose": "Checks the fixed DIVORCE profile pairs and exact browser/API observation contracts."
     },
     {
+      "file": "scripts/verify-exui-fr-profile.test.cjs",
+      "id": "unit-fr-profile",
+      "label": "FR profile",
+      "group": "evidence-admission",
+      "purpose": "Checks FR jurisdiction, staff and ABA2 consumer slices, effective faults, raw evidence integrity and same-candidate catalogue admission."
+    },
+    {
       "file": "scripts/verify-exui-divorce-joint.test.cjs",
       "id": "unit-divorce-joint",
       "label": "Divorce joint",

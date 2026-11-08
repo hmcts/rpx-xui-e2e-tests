@@ -10,7 +10,7 @@ import {stCicFacet as validateStCicFacet} from './exui-st-cic-profile-contract.m
 import { profileJurisdictionRows } from './exui-source-profile-jurisdictions.mjs';
 
 // Transport fixtures only. Filtering, authenticated UID rewriting and session caching remain candidate code.
-export async function startProfileJurisdictionProviders(output,{seed=seedSyntheticSession,start=startProviderSeams,health=false,membership=false,divorce=null,iaPositive=false,membershipFamily='CMC',browserFacet=null,stCicFacet=null}={}) {
+export async function startProfileJurisdictionProviders(output,{seed=seedSyntheticSession,start=startProviderSeams,health=false,membership=false,divorce=null,frFacet=null,iaPositive=false,membershipFamily='CMC',browserFacet=null,stCicFacet=null}={}) {
   if(stCicFacet!==null)validateStCicFacet(stCicFacet);
   const server=await start(output);
   try {
@@ -35,6 +35,7 @@ export async function startProfileJurisdictionProviders(output,{seed=seedSynthet
       [{case_id:'3333444455556666',case_jurisdiction:'IA',case_type:'HarnessMembershipIA',event_id:'profileRouteIA'},'membership-ia-route'],
     ].map(([body,marker])=>membershipFamily==='DIVORCE'&&body.case_jurisdiction==='CMC'?[{...body,case_jurisdiction:'DIVORCE',case_type:'HarnessMembershipDIVORCE'},marker.replace('cmc','divorce')]:[body,marker]);
     if(divorce)fs.writeFileSync(`${output}/profile-divorce-destinations.json`,'[]',{mode:0o600});
+    if(frFacet)fs.writeFileSync(`${output}/profile-fr-destinations.json`,'[]',{mode:0o600});
     const route='/aggregated/caseworkers/harness-supervisor/jurisdictions';
     const accesses=new Map([[route,'default'],[`${route}?access=read`,'read'],[`${route}?access=create`,'create']]);
     server.removeListener('request',original);
@@ -48,6 +49,7 @@ export async function startProfileJurisdictionProviders(output,{seed=seedSynthet
       if(stCicFacet&&stCicFacet!=='st-cic-wa-health'&&await handleStCicProvider(request,response,{facet:stCicFacet,journal,output,support}))return;
       if(browserFacet&&await handleDivorceBrowserProvider(request,response,{facet:browserFacet,journal,output,support}))return;
       if(divorce&&await handleDivorceProvider(request,response,{facet:divorce,journal,output}))return;
+      if(frFacet&&await handleDivorceProvider(request,response,{facet:frFacet==='fr-staff'?'staff':'mapping',family:'FR',serviceCode:'ABA2',journal,output}))return;
       if((membership||iaPositive)&&request.method==='POST'&&request.url==='/task/search-for-completable') {
         let raw='',size=0,body;
         for await(const chunk of request){size+=chunk.length;if(size<=4096)raw+=chunk;}
@@ -60,7 +62,8 @@ export async function startProfileJurisdictionProviders(output,{seed=seedSynthet
         }
       }
       const access=accesses.get(request.url);
-      if(!stCicFacet&&!membership&&!divorce&&!iaPositive&&browserFacet!=='divorce-global-search'&&request.method==='GET'&&access) {
+      if(frFacet==='fr-jurisdiction'&&request.method==='GET'&&access){journal.push({method:'GET',path:url.pathname,access});fs.writeFileSync(`${output}/profile-fr-destinations.json`,JSON.stringify(journal),{mode:0o600});response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify(profileJurisdictionRows(access)));return;}
+      if(!stCicFacet&&!membership&&!divorce&&!frFacet&&!iaPositive&&browserFacet!=='divorce-global-search'&&request.method==='GET'&&access) {
         journal.push({method:'GET',path:url.pathname,access});
         fs.writeFileSync(`${output}/profile-jurisdiction-destinations.json`,JSON.stringify(journal),{mode:0o600});
         response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify(profileJurisdictionRows(access)));return;

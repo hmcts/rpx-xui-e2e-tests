@@ -1,0 +1,83 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {EventEmitter} from 'node:events';
+import {randomUUID} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {verifyCandidateArtifact} from './lib/exui-candidate-artifact.mjs';
+import {inspectNativeApiRuntime} from './lib/exui-native-containers.mjs';
+import {nativeInventoryDigest} from './lib/exui-divorce-native-binding.mjs';
+import {FR_PROFILE_FACETS,frProfileContract,frProfileContractDigest,assertFrProfileArtifact} from './lib/exui-fr-profile-contract.mjs';
+import {admitFrProfile,frNativeProfileCompatibility} from './lib/exui-fr-profile-admission.mjs';
+import {loadCommittedConfigurationCatalogue} from './lib/exui-configuration-runtime-coverage.mjs';
+import {runSourceProfileFeasibility} from './run-harness-source-profile-jurisdictions.mjs';
+const root=fileURLToPath(new URL('../',import.meta.url)).replace(/\/$/,'');
+const fail='FR_PROFILE_RUN_INVALID';
+const read=file=>{assert(fs.lstatSync(file).isFile()&&fs.realpathSync(file)===file,fail);return fs.readFileSync(file);};
+
+// Runs three isolated source-profile slices against one immutable candidate, then binds their raw receipts to the held native cohort.
+export async function runFrProfileAdmission({artifactPath,browserRoot=null,output,signal,nativeContext},{runFacet=runSourceProfileFeasibility,verifyArtifact=verifyCandidateArtifact,inspectRuntime=inspectNativeApiRuntime}={}){
+ assert([artifactPath,output].every(value=>typeof value==='string'&&path.isAbsolute(value)),fail);
+ assert(browserRoot===null||typeof browserRoot==='string'&&path.isAbsolute(browserRoot),fail);
+ assert(nativeContext?.binding&&nativeContext?.expected,fail);
+ assert(!fs.existsSync(output),fail);assert.equal(fs.realpathSync(path.dirname(output)),path.dirname(output),fail);
+ const artifact=await verifyArtifact(artifactPath);assertFrProfileArtifact(artifact);
+ const binding=nativeContext.binding,expected=nativeContext.expected;
+ assert.equal(binding.producer.commit,expected.harnessCommit,fail);
+ assert.equal(binding.candidate.identity.artifactDigest,expected.candidateArtifactDigest,fail);
+ const runtime=inspectRuntime(artifact.provenance.platform);
+ assert(!signal?.aborted,fail);fs.mkdirSync(output,{mode:0o700});assert.equal(fs.realpathSync(output),output,fail);
+ const facets=[],producers=[],runtimes=[];
+ try{
+  for(const {facet,fault} of FR_PROFILE_FACETS){
+   assert(!signal?.aborted,fail);
+   const directory=path.join(output,facet),signalTarget=new EventEmitter();signalTarget.stderr=process.stderr;signalTarget.exit=()=>{};
+   const cancel=()=>signalTarget.emit('SIGTERM');signal?.addEventListener('abort',cancel,{once:true});
+   let receipt;try{receipt=await runFacet({artifactPath,output:directory,facet,browserRoot:null,signal},{signalTarget});}finally{signal?.removeEventListener('abort',cancel);}
+   assert.equal(receipt.status,'feasibility-observed',fail);assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
+   assert(/^[a-f0-9]{40}$/.test(receipt.harnessCommit),fail);assert.deepEqual(Object.keys(receipt.sources.files).sort(),Object.keys(binding.producer.files).sort(),fail);
+   assert.deepEqual(receipt.runtime,runtime,fail);producers.push({commit:receipt.harnessCommit,files:receipt.sources.files,sourceDigest:nativeInventoryDigest(receipt.sources.files)});runtimes.push(receipt.runtime);
+   const raw=read(path.join(directory,'profile-feasibility.json'));
+   const baseline=receipt.invocations.find(row=>row.invocationId==='baseline'),effectiveFault=receipt.invocations.find(row=>row.invocationId===fault);
+   assert(baseline&&effectiveFault,fail);
+   facets.push({facet,fault,receiptDigest:digestBytes(raw),baseline:{status:baseline.status,configDigest:receipt.configuration.baseline.digest,observationsDigest:baseline.observationsDigest,journalDigest:baseline.journalDigest},fault:{status:effectiveFault.status,configDigest:receipt.configuration[fault].digest,observationsDigest:effectiveFault.observationsDigest,journalDigest:effectiveFault.journalDigest}});
+  }
+  assert(producers.every(row=>JSON.stringify(row)===JSON.stringify(producers[0])),fail);assert(runtimes.every(row=>JSON.stringify(row)===JSON.stringify(runtimes[0])),fail);
+  const contract=frProfileContract(),catalogue=loadCommittedConfigurationCatalogue().catalogue,profile={schemaVersion:1,kind:'fr-profile-cohort',status:'validated-for-admission',runId:'fr-'+randomUUID(),obligationId:contract.obligationId,family:'FR',contract,contractDigest:frProfileContractDigest(),candidate:{identity:artifact.identity,payloadDigest:artifact.payloadDigest,provenance:artifact.provenance},producer:producers[0],sourceDefault:{revision:contract.sourceRevision,digest:contract.sourceDigest},runtime:runtimes[0],facets,nativeBindingDigest:expected.nativeCohortBinding?.digest??digestBytes(JSON.stringify(binding)),catalogueDigest:digestBytes(JSON.stringify(catalogue.obligations)),cohortDigest:digestBytes(JSON.stringify(facets))};
+  const admission=admitFrProfile(profile,nativeContext,catalogue);
+  writeJsonAtomic(path.join(output,'fr-profile-cohort.json'),profile);writeJsonAtomic(path.join(output,'fr-profile-admission.json'),admission);
+  const requestPath=path.join(output,'admission-request.json');writeJsonAtomic(requestPath,{schemaVersion:1,kind:'fr-profile-admission-request',directory:output,runId:profile.runId,cohortDigest:profile.cohortDigest,nativeBindingDigest:profile.nativeBindingDigest,profileDigest:digestBytes(read(path.join(output,'fr-profile-cohort.json'))),admissionDigest:digestBytes(read(path.join(output,'fr-profile-admission.json')))});
+  return {...admission,reportRequest:{path:requestPath,digest:digestBytes(read(requestPath)),runId:profile.runId}};
+ }catch(error){throw new Error(error?.message?.startsWith('FR_PROFILE_')?error.message:fail);}
+}
+
+export function readFrProfileAdmissionPacket(requestPath,requestPin,nativeContext,catalogue=loadCommittedConfigurationCatalogue().catalogue){
+ assert(typeof requestPath==='string'&&path.isAbsolute(requestPath)&&path.normalize(requestPath)===requestPath,fail);
+ const requestBytes=read(requestPath),request=JSON.parse(requestBytes),directory=request.directory;
+ assert.deepEqual(Object.keys(request).sort(),['admissionDigest','cohortDigest','directory','kind','nativeBindingDigest','profileDigest','runId','schemaVersion'].sort(),fail);
+ assert.equal(request.schemaVersion,1,fail);assert.equal(request.kind,'fr-profile-admission-request',fail);
+ if(requestPin){assert.deepEqual(Object.keys(requestPin).sort(),['digest','runId'],fail);assert.equal(digestBytes(requestBytes),requestPin.digest,fail);assert.equal(request.runId,requestPin.runId,fail);}
+ assert(path.isAbsolute(directory)&&path.normalize(directory)===directory&&fs.realpathSync(directory)===directory,fail);
+ const profileBytes=read(path.join(directory,'fr-profile-cohort.json')),admissionBytes=read(path.join(directory,'fr-profile-admission.json'));
+ assert.equal(digestBytes(profileBytes),request.profileDigest,fail);assert.equal(digestBytes(admissionBytes),request.admissionDigest,fail);
+ const profile=JSON.parse(profileBytes),stored=JSON.parse(admissionBytes);
+ assert.equal(digestBytes(JSON.stringify(profile.facets)),profile.cohortDigest,fail);
+ assert.equal(profile.runId,request.runId,fail);assert.equal(profile.cohortDigest,request.cohortDigest,fail);assert.equal(profile.nativeBindingDigest,request.nativeBindingDigest,fail);
+ for(const row of profile.facets){
+  const raw=read(path.join(directory,row.facet,'profile-feasibility.json'));assert.equal(digestBytes(raw),row.receiptDigest,fail);
+  const receipt=JSON.parse(raw),definition=FR_PROFILE_FACETS.find(item=>item.facet===row.facet);
+  assert(definition,fail);assert.equal(receipt.status,'feasibility-observed',fail);assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
+  assert.deepEqual(receipt.artifact,profile.candidate.identity,fail);assert.equal(receipt.harnessCommit,profile.producer.commit,fail);
+  assert.deepEqual(receipt.sources.files,profile.producer.files,fail);assert.equal(nativeInventoryDigest(receipt.sources.files),profile.producer.sourceDigest,fail);assert.deepEqual(receipt.runtime,profile.runtime,fail);
+  const baseline=receipt.invocations.find(item=>item.invocationId==='baseline'),fault=receipt.invocations.find(item=>item.invocationId===definition.fault);
+  for(const [actual,expected] of [[baseline,row.baseline],[fault,row.fault]]){
+   assert(actual,fail);assert.equal(actual.status,expected.status,fail);assert.equal(actual.configDigest,expected.configDigest,fail);assert.equal(actual.observationsDigest,expected.observationsDigest,fail);assert.equal(actual.journalDigest,expected.journalDigest,fail);
+  }
+ }
+ const admission=admitFrProfile(profile,nativeContext,catalogue);assert.deepEqual(stored,admission,fail);
+ const joint=frNativeProfileCompatibility(nativeContext,profile);assert.equal(stored.accepted,joint.status==='included'?1:0,fail);assert.deepEqual(stored.joint,joint,fail);
+ return {admission,joint,profile};
+}
+

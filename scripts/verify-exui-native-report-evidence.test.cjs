@@ -720,6 +720,22 @@ test('denial business display is replayed from sealed role observations before f
  const rows=require('./lib/exui-business-scalar-detail.cjs').scalarProjection(evidence).rows;assert.equal(rows.length,7);assert.equal(new Set(rows.map(p=>p.proofId)).size,7);
 });
 
+test('FR report explains the three candidate slices and credits one exact catalogue row',async t=>{
+ const packet=await fixture(t),evidence=await(await load()).readNativeReportEvidence(packet.descriptorPath),render=require('./harness-native-report.cjs').renderNativeEvidence;
+ const id='configuration-profile:51928e898baad9d4eea1dab7b8a57f8c3af624e735f0b3df5ee6863ca0061c49',sourceKeys=['rpx-xui-webapp:config/default.json','rpx-xui-webapp:config/default.json'];
+ const joint={policy:'fr-native-candidate-joint-v1',status:'included',obligationId:id,sourceKeys,nativeRunId:evidence.jobRunId,profileRunId:'fr-11111111-1111-4111-8111-111111111111',nativeBindingDigest:hash('a'),catalogueDigest:evidence.catalogueCoverage.catalogueDigest,cohortDigest:hash('b'),contractDigest:hash('c'),releaseCredit:false,releaseApproval:false};
+ evidence.catalogueCoverage.creditedObligationIds.push(id);evidence.catalogueCoverage.candidate++;evidence.catalogueCoverage.missing--;evidence.catalogueCoverage.frProfileAdmission=joint;
+ evidence.frProfileAdmission={status:'passed',accepted:1,obligationId:id,runId:joint.profileRunId,candidateArtifactDigest:evidence.source.candidateArtifactDigest,candidateCommit:evidence.source.webappCommit,producerCommit:evidence.source.harnessCommit,producerDigest:evidence.source.harnessSourceDigest,catalogueDigest:evidence.catalogueCoverage.catalogueDigest,contractDigest:joint.contractDigest,cohortDigest:joint.cohortDigest,joint};
+ const html=render(evidence);assert.match(html,/FR configuration profile: 1 requirement included/);assert.match(html,/FR reference-data mapping to ABA2/);assert.match(html,/synthetic sessions and reference providers/i);assert.match(html,/No release approval/);
+});
+
+test('separate FR candidate evidence is shown without catalogue credit',async t=>{
+ const packet=await fixture(t),evidence=await(await load()).readNativeReportEvidence(packet.descriptorPath),render=require('./harness-native-report.cjs').renderNativeEvidence;
+ const id='configuration-profile:51928e898baad9d4eea1dab7b8a57f8c3af624e735f0b3df5ee6863ca0061c49';
+ evidence.frProfileAdmission={status:'passed',accepted:0,obligationId:id,runId:'fr-11111111-1111-4111-8111-111111111111',candidateArtifactDigest:evidence.source.candidateArtifactDigest,candidateCommit:evidence.source.webappCommit,producerCommit:evidence.source.harnessCommit,producerDigest:evidence.source.harnessSourceDigest,catalogueDigest:evidence.catalogueCoverage.catalogueDigest,contractDigest:hash('c'),cohortDigest:hash('b'),joint:{policy:'fr-native-candidate-joint-v1',status:'separate',obligationId:id,reason:'different-candidate',releaseCredit:false,releaseApproval:false}};
+ const html=render(evidence);assert.match(html,/FR configuration profile: not included in this native run/);assert.match(html,/adds no catalogue credit/);assert.equal(evidence.catalogueCoverage.creditedObligationIds.includes(id),false);
+});
+
 
 test('current denial display rejects absent or coherently resealed malformed role evidence',async t=>{
  const reader=await load();

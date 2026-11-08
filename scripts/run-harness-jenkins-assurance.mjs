@@ -517,11 +517,12 @@ export function createPreparationTimingSnapshot({clock = () => performance.now()
   };
 }
 
-export function runTimedAssuranceChild(jobPath, {snapshotAssuranceTiming, enableStCic = false, env = safeEnvironment(), forkChild = fork, signals = process, withdraw = () => Reporter.resetPublicReport('harness'), buildSelfCheckHeld} = {}) {
+export function runTimedAssuranceChild(jobPath, {snapshotAssuranceTiming, enableStCic = false, enableFrProfile = false, env = safeEnvironment(), forkChild = fork, signals = process, withdraw = () => Reporter.resetPublicReport('harness'), buildSelfCheckHeld} = {}) {
   assert(typeof snapshotAssuranceTiming === 'function', 'HARNESS_PREPARATION_TIMING_REQUIRED');
   assert(typeof enableStCic === 'boolean', 'HARNESS_ST_CIC_ENABLE_REQUIRED');
+  assert(typeof enableFrProfile === 'boolean', 'HARNESS_FR_PROFILE_ENABLE_REQUIRED');
   const token = randomUUID();
-  const child = forkChild('scripts/run-harness-assurance.mjs', ['--input',jobPath,'--parent-timing','--mandatory-email',...(enableStCic ? ['--st-cic'] : []),...(buildSelfCheckHeld===undefined?[]:['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest])], {execPath:process.execPath,execArgv:[],cwd:ROOT,env,stdio:['inherit','inherit','inherit','ipc']});
+  const child = forkChild('scripts/run-harness-assurance.mjs', ['--input',jobPath,'--parent-timing','--mandatory-email',...(enableStCic ? ['--st-cic'] : []),...(enableFrProfile?['--fr-profile']:[]),...(buildSelfCheckHeld===undefined?[]:['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest])], {execPath:process.execPath,execArgv:[],cwd:ROOT,env,stdio:['inherit','inherit','inherit','ipc']});
   return new Promise((resolve,reject) => {
     let state = 'ready', failed = false, cancelling = false;
     const cancel = signal => { failed = true; if (!cancelling) { cancelling = true; child.kill(signal); } };
@@ -585,6 +586,7 @@ async function main({requireBuildSelfChecks=false}={}) {
     stage = "native candidate and CCD pilots";
     const result = await runTimedAssuranceChild(jobPath, {
       enableStCic: false,
+      enableFrProfile: true,
       snapshotAssuranceTiming,
       buildSelfCheckHeld,
       env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}),

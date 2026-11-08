@@ -20,6 +20,7 @@ exports.runEntrypoint = function runEntrypoint(fixture, {profileOutput, cancelNa
  write('run-harness-complex-email-admission.mjs',"export async function runComplexEmailAdmission(){throw Error('UNEXPECTED_UNCONFIGURED_COMPLEX_RUN');}");
  write('lib/exui-personal-service-admission.mjs','export const verifyPersonalNativeCapture=()=>undefined;');
  write('run-harness-st-cic-profile-admission.mjs','export const runStCicProfileAdmission=()=>{throw Error("UNEXPECTED_ST_CIC_RUN");};');
+ write('run-harness-fr-profile-admission.mjs','export const runFrProfileAdmission=()=>{throw Error("UNEXPECTED_FR_PROFILE_RUN");};');
  write('lib/exui-st-cic-profile-admission.mjs','export const verifyStCicNativeCapture=()=>{throw Error("UNEXPECTED_ST_CIC_CAPTURE");};');
  write('run-harness-personal-service-admission.mjs',`import fs from 'node:fs';const record=x=>fs.appendFileSync('calls.jsonl',JSON.stringify(x)+'\\n');const closedError=Error('PRIVATE-PROGRESS-ERROR-CANARY');export const isPersonalAdmissionClosedFailure=error=>error===closedError;export async function runPersonalServiceAdmission(options){record('personal');${closedPersonalFailure ? 'throw closedError;' : ''}return {private:'PRIVATE-PROGRESS-RESULT-CANARY',status:'passed',reportRequest:{path:'/personal',digest:'sha256:'+'a'.repeat(64),runId:'personal'}};}`);
  write('lib/exui-divorce-native-binding.mjs', 'export const verifyDivorceNativeCapture=()=>undefined;');

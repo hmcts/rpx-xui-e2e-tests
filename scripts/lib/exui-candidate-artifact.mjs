@@ -7,10 +7,10 @@ import path from 'node:path';
 const hash = (value) => `sha256:${createHash('sha256').update(value).digest('hex')}`;
 // Bound per-file buffering while avoiding stream setup for the many small dependency files.
 const MAX_BUFFERED_FILE_BYTES = 1024 * 1024;
-const MAX_PENDING_ENTRIES = 4;
+const MAX_PENDING_ENTRIES = 16;
 const inside = (root, target) => target === root || target.startsWith(`${root}${path.sep}`);
 
-// Four pending entries overlap I/O while preserving the sealed transcript and error order.
+// Sixteen pending entries overlap I/O while preserving the sealed transcript and error order.
 export async function digestCandidateTree(directory, replacements = new Map()) {
   const root = await realpath(directory);
   const digest = createHash('sha256');

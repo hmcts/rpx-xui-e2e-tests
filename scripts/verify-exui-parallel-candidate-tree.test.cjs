@@ -32,15 +32,16 @@ for(const fault of ['escape','dangling','unsupported','missing','directory']) te
   assert.deepEqual(await error(next),await error(old));assert.equal(next.active.size,0);
 });
 
-test('four-file cap permits overlap, out-of-order completion preserves transcript',{timeout:1000},async t=>{
-  const nodes=flatNodes(),gates=new Map([...nodes.keys()].filter(Boolean).map(k=>[k,deferred()])),started=deferred();let count=0;
-  const next=await fakeModule(t,parallel,nodes,{read:async key=>{if(++count===4)started.resolve();await gates.get(key).promise;return Buffer.from(key);}});
+test('sixteen-file cap permits overlap, out-of-order completion preserves transcript',{timeout:2500},async t=>{
+  const nodes=flatNodes(20),gates=new Map([...nodes.keys()].filter(Boolean).map(k=>[k,deferred()])),started=deferred();let count=0;
+  const next=await fakeModule(t,parallel,nodes,{read:async key=>{if(++count===16)started.resolve();await gates.get(key).promise;return Buffer.from(key);}});
   const running=next.api.digestCandidateTree(next.root);
-  // Root metadata occupies a FIFO slot until drained; four regular reads still overlap.
-  await started.promise;await new Promise(resolve=>setImmediate(resolve));assert.equal(next.maxActive,4);assert.equal(count,4);
-  for(const key of [...gates.keys()].reverse())gates.get(key).resolve();
+  // Root metadata occupies a FIFO slot until drained; sixteen regular reads still overlap.
+  const reachedCap=await Promise.race([started.promise.then(()=>true),new Promise(resolve=>setTimeout(()=>resolve(false),250))]);
+  try { assert.equal(reachedCap,true);assert.equal(next.maxActive,16);assert.equal(count,16); }
+  finally { for(const gate of gates.values())gate.resolve(); }
   const observed=await running;const old=await fakeModule(t,original,nodes);
-  assert.equal(observed,await old.api.digestCandidateTree(old.root));assert.equal(next.maxActive,4);assert.equal(next.active.size,0);assert.deepEqual(next.transcript,old.transcript);
+  assert.equal(observed,await old.api.digestCandidateTree(old.root));assert.equal(next.maxActive,16);assert.equal(next.active.size,0);assert.deepEqual(next.transcript,old.transcript);
 });
 
 test('later read failure waits for earlier pending read and chooses first DFS failure',async t=>{

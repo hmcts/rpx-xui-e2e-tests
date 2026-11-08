@@ -11,7 +11,7 @@ const user=family=>({ccd_service_name:family,staff_profile:{id:`profile-${family
 const role=family=>({actorId:`profile-${family.toLowerCase()}`,roleCategory:family==='DIVORCE'?'ADMIN':'LEGAL_OPERATIONS',attributes:{jurisdiction:family}});
 async function boundedBody(request) {let raw='',size=0;for await(const chunk of request){size+=chunk.length;if(size<=4096)raw+=chunk;}return size<=4096?raw:null;}
 function send(response,body) {response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify(body));}
-export async function handleDivorceProvider(request,response,{facet,journal,output}) {
+export async function handleDivorceProvider(request,response,{facet,journal,output,family='DIVORCE',serviceCode='ABA1'}) {
  const method=request.method,path=request.url;
  const auth=method==='POST'&&path==='/o/token';
  if(auth)return handleProfileSystemAuth(request,response);
@@ -22,13 +22,14 @@ export async function handleDivorceProvider(request,response,{facet,journal,outp
  else if(raw!=='')return false;
  const record={method,path,...(method==='POST'?{body}:{})};let result;
  if(facet==='staff') {
-  for(const csv of [staffCsv,'ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,FR,PROBATE,HRS,PCS']) {
-   const families=csv.includes('DIVORCE')?['DIVORCE','IA']:['IA'];
+  const configuredStaffCsv=family==='FR'?staffCsv.split(',').filter(id=>id!=='PCS').join(','):staffCsv;
+  for(const csv of [configuredStaffCsv,configuredStaffCsv.split(',').filter(id=>id!==family).join(',')]) {
+   const families=csv.split(',').includes(family)?[family,'IA']:['IA'];
    if(method==='GET'&&path===`/refdata/internal/staff/usersByServiceName?ccd_service_names=${csv}&page_size=100000`)result=families.map(user);
    if(method==='POST'&&path==='/am/role-assignments/query'&&isDeepStrictEqual(body,{attributes:{jurisdiction:csv.split(',')},roleName:roleNames,roleType:['ORGANISATION']})&&request.headers.pagenumber==='0'&&request.headers.size==='100000')result={roleAssignmentResponse:families.map(role)};
   }
  } else {
-  for(const code of ['ABA1','ZZZ1']) {
+  for(const code of [...new Set([serviceCode,'ZZZ1'])]) {
    if(method==='POST'&&path==='/refdata/judicial/users/search'&&isDeepStrictEqual(body,{searchString:'Synthetic',serviceCode:code}))result=[person(code)];
    if(method==='POST'&&path==='/refdata/judicial/users'&&isDeepStrictEqual(body,{sidam_ids:['profile-judge'],serviceCode:code}))result=[person(code)];
    if(method==='GET'&&path===`/refdata/location/court-venues/services?service_code=${code}`)result={court_venues:[location(code)]};
@@ -37,5 +38,5 @@ export async function handleDivorceProvider(request,response,{facet,journal,outp
   if(method==='POST'&&path==='/am/bookings/query'&&isDeepStrictEqual(body,{queryRequest:{userIds:['profile-judge']}}))result={bookings:[{id:'booking-100001',locationId:'100001'},{id:'booking-100002',locationId:'100002'}]};
  }
  if(result===undefined)return false;
- journal.push(record);fs.writeFileSync(`${output}/profile-divorce-destinations.json`,JSON.stringify(journal),{mode:0o600});send(response,result);return true;
+ journal.push(record);fs.writeFileSync(`${output}/${family==='FR'?'profile-fr':'profile-divorce'}-destinations.json`,JSON.stringify(journal),{mode:0o600});send(response,result);return true;
 }
