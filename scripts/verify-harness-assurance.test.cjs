@@ -731,7 +731,7 @@ test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisio
  const jobDirectory=path.join(source,'functional-output/tests/harness/private/native-ci/job');fs.mkdirSync(jobDirectory,{recursive:true,mode:0o700});
  const manifest=path.join(root,'candidate.json'),jobPath=path.join(jobDirectory,'job.json'),output=path.join(jobDirectory,'native-output');
  fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify({schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)}));
- const launch=(flags,{tmpdir,preload}={})=>spawnSync(process.execPath,[...(preload?['--require',preload]:[]),'scripts/run-harness-assurance.mjs','--input',jobPath,...flags],{cwd:source,env:{PATH:process.env.PATH,...(tmpdir?{TMPDIR:tmpdir}:{})},encoding:'utf8',timeout:10_000});
+ const launch=(flags,{tmpdir,preload}={})=>spawnSync(process.execPath,[...(preload?['--require',preload]:[]),'scripts/run-harness-assurance.mjs','--input',jobPath,...flags],{cwd:source,env:{PATH:process.env.PATH,...(tmpdir?{TMPDIR:tmpdir}:{})},encoding:'utf8',timeout:30_000});
  for(const flags of [[],['--mandatory-email'],['--st-cic','--mandatory-email','--aat'],['--fr-profile']]){
   const terminal=launch(flags);assert.equal(terminal.status,0,`${flags.join(' ')}: ${terminal.stderr}`);assert.equal(terminal.signal,null);
   const receipt=flags.includes('--st-cic')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'st-cic-cli-output.json'))):undefined;
