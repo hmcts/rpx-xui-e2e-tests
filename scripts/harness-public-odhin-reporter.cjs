@@ -7,6 +7,7 @@ const overview = require("./harness-public-overview.cjs");
 const checkMethods = require("./harness-public-check-steps.cjs");
 const checkDetails = require("./harness-public-check-details.cjs");
 const eventPreparationReport = require("./harness-event-preparation-report.cjs");
+const { calculateNativePhaseIntervals } = require("./lib/native-phase-intervals.cjs");
 const fixture = { selections: overview.profiles };
 const Generate = require("odhin-reports-playwright/lib/generate").default;
 const { parse } = require("node-html-parser");
@@ -86,7 +87,6 @@ function assuranceRunInfo(timing) {
 function validatePhaseTimings(timings, evidence, elapsed) {
   if (!Array.isArray(timings) || !timings.length || !evidence || !Number.isSafeInteger(elapsed)) throw failure();
   let prior = -1;
-  let total = 0;
   for (const item of timings) {
     const index = nativePhaseLabels.indexOf(item.label);
     if (index <= prior || !["PASS", "FAIL", "BLOCKED", "completed", "stopped"].includes(item.status) ||
@@ -95,17 +95,20 @@ function validatePhaseTimings(timings, evidence, elapsed) {
     const phase = evidence.phases.find((row) => row.phase === proofPhases.get(item.label));
     if (phase && item.status !== phase.status) throw failure();
     prior = index;
-    total += item.durationMs;
   }
-  if (total > elapsed + 1000 || (evidence.status === "PASS" && timings.filter(item=>item.label!=="Native evidence and interpreter verification").length !== nativePhaseLabels.length-1)) throw failure();
+  const { coveredMs: covered, overlapPairs } = calculateNativePhaseIntervals(timings);
+  if (overlapPairs.some((pair) => pair.join("|") !== "WA family|Scope fault candidate preparation")) throw failure();
+  if (evidence.status === "PASS" && timings.filter(item=>item.label!=="Native evidence and interpreter verification").length !== nativePhaseLabels.length-1) throw failure();
+  if (covered > elapsed + 1000) throw failure();
 }
 function renderPhaseTimings(timings, elapsed, legacy = false, previousLabels = false, mandatorySelected = false, previousKinds = false) {
   const duration = (ms) => `${Math.floor(ms / 60000)}m ${Math.floor(ms % 60000 / 1000)}s`;
-  const difference = elapsed - timings.reduce((sum, item) => sum + item.durationMs, 0);
+  const { coveredMs: covered, overlapMs: overlap } = calculateNativePhaseIntervals(timings);
+  const difference = elapsed - covered;
   const unitemized = difference < 0
-    ? `Unitemized recorded interval: Not recorded (listed phases exceed the interval by ${-difference} ms within the 1-second rounding tolerance).`
+    ? `Unitemized recorded interval: Not recorded (listed phase intervals exceed the recorded interval by ${-difference} ms).`
     : `Unitemized recorded interval: ${duration(difference)} (${difference} ms).`;
-  const disclosure = previousLabels ? '' : `<p data-native-unitemized="${difference < 0 ? 'unknown' : difference}">${unitemized} Derived as recorded native interval minus listed phase durations; includes preflight and controller work, and ST_CIC when attached. This is not an exact ST_CIC or per-facet duration or additional proof evidence.</p>`;
+  const disclosure = previousLabels ? '' : `<p data-native-unitemized="${difference < 0 ? 'unknown' : difference}" data-native-overlap-ms="${overlap}">Recorded phase overlap: ${duration(overlap)} (${overlap} ms). ${unitemized} Unitemized time uses the union of recorded phase intervals; it includes preflight and controller work, and ST_CIC when attached. Overlapping phase durations are not additive. This is not an exact ST_CIC or per-facet duration or additional proof evidence.</p>`;
   return `<section id="harness-phase-timings" aria-labelledby="harness-phase-timings-title"><div class="harness-phase-heading"><div><h2 id="harness-phase-timings-title">What ran during native assurance</h2><p>Native controller timings and collector evidence checks, in execution order. These are timing telemetry, not additional catalogue credit. ${previousLabels ? 'Diagnostic Playwright time and Jenkins checkout/build time are separate.' : `Recorded interval includes core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, ${mandatorySelected ? 'mandatory email admission, ' : ''}diagnostics and Build self-checks. Jenkins checkout/build time is separate.`}</p></div><strong>${duration(elapsed)} ${previousLabels ? 'main native + evidence verification' : 'recorded native interval'}</strong></div><div class="table-responsive"><table class="table"><thead><tr><th>Phase</th><th>Kind</th><th>Outcome</th><th>Started (UTC)</th><th>Duration</th></tr></thead><tbody>${timings.map((item) => `<tr${legacy?'':` data-phase-duration-ms="${item.durationMs}" data-phase-started-at="${item.startedAt}"`}><th scope="row">${htmlEscape(item.label)}</th><td>${['Native evidence and interpreter verification','Selector evidence verification','Selector cohort admission'].includes(item.label)?'Evidence verification':['Selector baseline proof and cleanup','Selector fault proof and cleanup'].includes(item.label) ? 'Proof + setup / cleanup' : proofPhases.has(item.label) ? (previousKinds ? 'Proof' : 'Proof + setup / cleanup') : 'Setup / cleanup'}</td><td><span class="harness-phase-status" data-status="${item.status}">${item.status}</span></td><td>${item.startedAt.slice(0, 19).replace('T', ' ')} UTC</td><td>${duration(item.durationMs)}</td></tr>`).join('')}</tbody></table></div>${disclosure}</section>`;
 }
 

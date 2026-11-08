@@ -293,7 +293,7 @@ test("support only: fixed pilot order stops on a validated failure and always cl
     assert.deepEqual(
       calls,
       failed === "family"
-        ? ["family"]
+        ? ["family", "derive"]
         : failed === "scope"
           ? ["family", "derive", "scope"]
           : failed === "startup"
@@ -315,6 +315,35 @@ test("support only: fixed pilot order stops on a validated failure and always cl
     );
     assert.equal(eventRuntimes.size, 0, "event phase cleanup releases baseline and partially started fault runtimes");
   }
+});
+
+test("support only: scope fault preparation overlaps the WA family proof and both finish before scope starts", async () => {
+  const { runFixedCiPilots } = await load();
+  const started = [], finished = [];
+  let finishFamily, finishDerive;
+  const pending = runFixedCiPilots({
+    phase: async (name) => {
+      started.push(name);
+      if (name === "family") await new Promise((resolve) => { finishFamily = resolve; });
+      if (name === "scope") assert.deepEqual(new Set(finished), new Set(["family", "derive"]));
+      finished.push(name);
+      return { status: "PASS", exitCode: 0 };
+    },
+    derive: async () => {
+      started.push("derive");
+      await new Promise((resolve) => { finishDerive = resolve; });
+      finished.push("derive");
+    },
+    start: async () => {}, stop: async () => {}, startEvent: async () => {}, stopEvent: async () => {},
+    startCallback: async () => {}, stopCallback: async () => {},
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const overlapped = started.includes("family") && started.includes("derive") && !started.includes("scope");
+  finishFamily();
+  await new Promise((resolve) => setImmediate(resolve));
+  finishDerive?.();
+  await pending;
+  assert(overlapped, "family proof and scope preparation should both be active before either gate is released");
 });
 
 test("support only: stale output is rejected without replacing historical evidence", async () => {
@@ -1563,15 +1592,17 @@ test('native progress reports waiting and terminal verdict without exposing oper
  const {runFixedCiPilots}=await load();
  const messages=[];t.mock.method(console,'log',message=>messages.push(message));
  t.mock.timers.enable({apis:['setInterval']});
- let release;const pending=new Promise(resolve=>{release=resolve;});
- const run=runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:()=>pending});
+ let releaseFamily,releaseDerive;const family=new Promise(resolve=>{releaseFamily=resolve;}),derivation=new Promise(resolve=>{releaseDerive=resolve;});
+ const run=runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:()=>family,derive:()=>derivation});
  assert.match(messages[0],/WA family: started/);
+ assert.match(messages[1],/Scope fault candidate preparation: started/);
  t.mock.timers.tick(60_000);
- assert.match(messages[1],/WA family: still running/);
- assert.equal(messages.length,2);
- release({status:'FAIL',exitCode:1,private:'PRIVATE-CANARY'});
+ assert.match(messages[2],/WA family: still running/);
+ assert.match(messages[3],/Scope fault candidate preparation: still running/);
+ assert.equal(messages.length,4);
+ releaseFamily({status:'FAIL',exitCode:1,private:'PRIVATE-CANARY'});releaseDerive();
  assert.equal((await run).exitCode,1);
- assert.match(messages.at(-1),/WA family: FAIL/);
+ assert(messages.some(message=>/WA family: FAIL/.test(message)));
  const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
  assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
 });
@@ -1579,8 +1610,8 @@ test('native progress reports waiting and terminal verdict without exposing oper
 test('native progress stops heartbeat after a rejected operation and keeps the error private',async t=>{
  const {runFixedCiPilots}=await load();const messages=[];
  t.mock.method(console,'log',message=>messages.push(message));t.mock.timers.enable({apis:['setInterval']});
- await assert.rejects(runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:async()=>{throw Error('PRIVATE-CANARY');}}),/PRIVATE-CANARY/);
- assert.match(messages.at(-1),/WA family: stopped/);
+ await assert.rejects(runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:async()=>{throw Error('PRIVATE-CANARY');},derive:async()=>{}}),/PRIVATE-CANARY/);
+ assert(messages.some(message=>/WA family: stopped/.test(message)));
  const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
  assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
 });

@@ -1399,6 +1399,15 @@ test('selector catalogue credit requires its exact successful phase and cannot d
  assert.equal((html.match(/data-native-phase="selectorEventRow" data-native-kind="baseline"/g)||[]).length,1);assert.equal((html.match(/data-native-phase="selectorEventRow" data-native-kind="fault"/g)||[]).length,1);
 });
 
+test('native phase interval accounting excludes overlapped durations from elapsed coverage',()=>{
+ const {calculateNativePhaseIntervals}=require('./lib/native-phase-intervals.cjs');
+ assert.deepEqual(calculateNativePhaseIntervals([
+  {label:'WA family',startedAt:'2026-11-05T12:00:00.000Z',durationMs:1000},
+  {label:'Scope fault candidate preparation',startedAt:'2026-11-05T12:00:00.500Z',durationMs:1000},
+  {label:'WA organisation scope',startedAt:'2026-11-05T12:00:02.000Z',durationMs:1000},
+ ]),{coveredMs:2500,overlapMs:500,overlapPairs:[['WA family','Scope fault candidate preparation']]});
+});
+
 test('seven-phase dashboard includes selector setup, execution, evidence and cleanup timings exactly once',async t=>{
  sandbox(t);const Reporter=api();
  const labels=['WA family','Scope fault candidate preparation','WA organisation scope','CCD runtime startup','CCD configuration and access','CCD runtime cleanup','Source event CCD runtime startup','CCD source event permissions','Source event CCD runtime cleanup','Application routing','Recipient callback CCD runtime startup','Recipient callback validation and persistence','Recipient callback CCD runtime cleanup','Selector CCD baseline preparation','Selector baseline proof and cleanup','Selector CCD fault preparation','Selector fault proof and cleanup','Selector evidence verification','Selector final cleanup','Selector cohort admission'];
@@ -1408,7 +1417,7 @@ test('seven-phase dashboard includes selector setup, execution, evidence and cle
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  assert.equal(Reporter.validatePublicReport('harness').status,'passed');
  const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),table=dom.querySelector('#harness-phase-timings');
- assert.match(table.textContent,/Unitemized recorded interval: 0m 0s \(0 ms\)/);assert.match(table.textContent,/preflight and controller work.*ST_CIC when attached/);assert.match(table.textContent,/not an exact ST_CIC or per-facet duration/);
+ assert.match(table.textContent,/Recorded phase overlap: 0m 0s \(0 ms\)/);assert.match(table.textContent,/Unitemized recorded interval: 0m 0s \(0 ms\)/);assert.match(table.textContent,/preflight and controller work.*ST_CIC when attached/);assert.match(table.textContent,/not an exact ST_CIC or per-facet duration/);
  assert.equal(table.querySelectorAll('tbody tr').length,20);assert.match(table.textContent,/0m 20s recorded native interval/);
  for(const label of labels.slice(-7))assert.equal(table.querySelectorAll('tbody tr').filter(row=>row.textContent.includes(label)).length,1);
  assert.match(table.textContent,/Selector baseline proof and cleanupProof \+ setup \/ cleanup/);
@@ -1715,10 +1724,10 @@ test('native PCS routing rows retain their synthetic service attribution', async
 
 test('native interval unitemized difference is exact telemetry and tolerated negative rounding stays unknown',async t=>{
  sandbox(t);const Reporter=api();
- for(const [elapsed,duration,expected] of [[2500,1000,'Unitemized recorded interval: 0m 1s (1500 ms).'],[999,1000,'Unitemized recorded interval: Not recorded (listed phases exceed the interval by 1 ms within the 1-second rounding tolerance).'],[0,1000,'Unitemized recorded interval: Not recorded (listed phases exceed the interval by 1000 ms within the 1-second rounding tolerance).']]){
+ for(const [elapsed,duration,expected] of [[2500,1000,'Unitemized recorded interval: 0m 1s (1500 ms).'],[999,1000,'Unitemized recorded interval: Not recorded (listed phase intervals exceed the recorded interval by 1 ms).'],[0,1000,'Unitemized recorded interval: Not recorded (listed phase intervals exceed the recorded interval by 1000 ms).']]){
   const reporter=new Reporter({selection:'harness',nativeElapsedMs:elapsed,phaseTimings:[{label:'CCD runtime startup',status:'completed',startedAt:'2026-11-06T12:00:00.000Z',durationMs:duration}]});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter,{postalFailure:true});
   const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());Reporter.validatePublicReport();
-  const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),remainder=dom.querySelector('[data-native-unitemized]');assert(remainder.textContent.startsWith(expected));assert.equal(remainder.getAttribute('data-native-unitemized'),elapsed<duration?'unknown':String(elapsed-duration));
+  const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),remainder=dom.querySelector('[data-native-unitemized]');assert(remainder.textContent.startsWith(`Recorded phase overlap: 0m 0s (0 ms). ${expected}`));assert.equal(remainder.getAttribute('data-native-unitemized'),elapsed<duration?'unknown':String(elapsed-duration));
   const recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),original=fs.readFileSync(recordFile),html=fs.readFileSync(output(),'utf8');remainder.textContent='ST_CIC exact duration: 1 second';const changed=dom.toString(),record=JSON.parse(original);record.sha256=require('node:crypto').createHash('sha256').update(changed).digest('hex');fs.writeFileSync(recordFile,JSON.stringify(record));fs.writeFileSync(output(),changed);assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(recordFile,original);fs.writeFileSync(output(),html);Reporter.resetPublicReport('harness');
  }
 });
