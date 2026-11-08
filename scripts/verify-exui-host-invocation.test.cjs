@@ -413,6 +413,43 @@ test("support only: missing CID and absent planned name leaves unknown create ou
   }
 });
 
+test("support only: candidate volume cleanup removes only the exact owned local volume", async () => {
+  const { removeHostResource } = await import("./lib/exui-host-invocation.mjs");
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), "host-volume-cleanup-"));
+  const owner = "ccd-11111111-1111-4111-8111-111111111111", name = "harness-candidate-11111111-1111-4111-8111-111111111111";
+  const volume = { Name: name, Driver: "local", Labels: { "exui.harness.owner": owner, "exui.harness.service": "candidate-input" } };
+  const resources = new Map([[`volume:${name}`, { kind: "volume", name, owner, receipt: { schemaVersion: 1, name, owner, status: "ready" } }]]), calls = [];
+  let present = true;
+  try {
+    await removeHostResource(resources, `volume:${name}`, output, {
+      inspectVolume: () => present ? volume : null,
+      docker: args => { calls.push(args); present = false; return name; },
+    });
+    assert.deepEqual(calls, [["volume", "rm", name]]);
+    assert.equal(resources.size, 0);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(output, "candidate-volume-receipt.json"))).cleanupComplete, true);
+    assert.throws(() => removeHostResource(new Map([[name, { kind: "volume", name, owner: "foreign", receipt: {} }]]), name, output, {
+      inspectVolume: () => volume,
+      docker: () => assert.fail("foreign volume must not be removed"),
+    }), /HOST_VOLUME_OWNER_MISMATCH/);
+  } finally { fs.rmSync(output, { recursive: true, force: true }); }
+});
+
+test("support only: successful empty Docker inspect output cannot certify resource absence", async () => {
+  const { inspectHostContainer, inspectHostVolume } = await import("./lib/exui-host-invocation.mjs");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "empty-docker-inspect-")), previousPath = process.env.PATH;
+  try {
+    const docker = path.join(directory, "docker");
+    fs.writeFileSync(docker, "#!/bin/sh\nprintf '[]\\n'\n", { mode: 0o755 });
+    process.env.PATH = `${directory}:${previousPath}`;
+    assert.throws(() => inspectHostContainer("owned-name"), /HOST_DOCKER_INSPECTION_CARDINALITY/);
+    assert.throws(() => inspectHostVolume("owned-volume"), /HOST_VOLUME_INSPECTION_CARDINALITY/);
+  } finally {
+    process.env.PATH = previousPath;
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("support only: default proof-client branch observes actual spawned child exit and removes process authority", async () => {
   const { runHostInvocation } = await import("./lib/exui-host-invocation.mjs");
   const { spawn } = require("node:child_process");

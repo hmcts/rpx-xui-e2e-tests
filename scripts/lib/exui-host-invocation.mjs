@@ -58,7 +58,38 @@ export function inspectHostContainer(id) {
     return null;
   if (result.error || result.status !== 0)
     throw Error("HOST_DOCKER_INSPECTION_FAILED");
-  return JSON.parse(result.stdout)[0];
+  const values = JSON.parse(result.stdout);
+  assert.equal(values.length, 1, "HOST_DOCKER_INSPECTION_CARDINALITY");
+  return values[0];
+}
+export function inspectHostVolume(name) {
+  const result = spawnSync("docker", ["volume", "inspect", name], {
+    env: { PATH: process.env.PATH }, encoding: "utf8", timeout: 10000, killSignal: "SIGKILL",
+  });
+  if (result.status === 1 && /no such volume/i.test(result.stderr)) return null;
+  if (result.error || result.status !== 0) throw Error("HOST_VOLUME_INSPECTION_FAILED");
+  const values = JSON.parse(result.stdout);
+  assert.equal(values.length, 1, "HOST_VOLUME_INSPECTION_CARDINALITY");
+  return values[0];
+}
+export function assertOwnedCandidateCopy(info, { owner, image, sourceRoot, volumeName }) {
+  assert.equal(info.Name, `/${owner}-candidate-copy`, "HOST_VOLUME_COPY_NAME");
+  assert.equal(info.Image, image, "HOST_VOLUME_COPY_IMAGE");
+  assert.equal(info.Config.Labels?.["exui.harness.owner"], owner, "HOST_VOLUME_COPY_OWNER");
+  assert.equal(info.Config.Labels?.["exui.harness.service"], "candidate-input-copy", "HOST_VOLUME_COPY_SERVICE");
+  assert.equal(info.HostConfig.NetworkMode, "none", "HOST_VOLUME_COPY_NETWORK");
+  assert.equal(info.HostConfig.ReadonlyRootfs, true, "HOST_VOLUME_COPY_ROOTFS");
+  assert.equal(info.HostConfig.Privileged || false, false, "HOST_VOLUME_COPY_PRIVILEGED");
+  assert.equal(info.HostConfig.PidsLimit, 256, "HOST_VOLUME_COPY_PID_LIMIT");
+  assert.equal(info.HostConfig.Memory, 4294967296, "HOST_VOLUME_COPY_MEMORY_LIMIT");
+  assert.equal(info.HostConfig.NanoCpus, 2000000000, "HOST_VOLUME_COPY_CPU_LIMIT");
+  assert.deepEqual(info.HostConfig.PortBindings || {}, {}, "HOST_VOLUME_COPY_PUBLISHED_PORT");
+  assert.equal(info.HostConfig.Tmpfs?.["/tmp"], "rw,nosuid,size=512m", "HOST_VOLUME_COPY_TMPFS");
+  assert(info.HostConfig.CapDrop?.includes("ALL"), "HOST_VOLUME_COPY_CAPABILITIES");
+  assert(info.HostConfig.SecurityOpt?.some(value => /^no-new-privileges(?::true)?$/.test(value)), "HOST_VOLUME_COPY_ESCALATION");
+  assert.deepEqual(info.Config.Entrypoint, ["/bin/sh"], "HOST_VOLUME_COPY_ENTRYPOINT");
+  assert.deepEqual(info.Config.Cmd, ["-ec", "cp -a /source/. /candidate/"], "HOST_VOLUME_COPY_COMMAND");
+  assert.deepEqual(info.Mounts.filter(item => item.Type !== "tmpfs").map(item => [item.Type === "volume" ? item.Name : item.Source, item.Destination, item.RW, item.Type]).sort(), [[sourceRoot, "/source", false, "bind"], [volumeName, "/candidate", true, "volume"]].sort(), "HOST_VOLUME_COPY_MOUNTS");
 }
 export const WRITE_DENIAL_PATHS = [
   "/output/report.json",
@@ -86,10 +117,36 @@ export function removeHostResource(
   resources,
   key,
   output,
-  { docker = hostDocker, inspect = inspectHostContainer } = {},
+  { docker = hostDocker, inspect = inspectHostContainer, inspectVolume = inspectHostVolume } = {},
 ) {
   const resource = resources.get(key);
   if (!resource) return;
+  if (resource.kind === "volume") {
+    const volume = inspectVolume(resource.name);
+    if (volume) {
+      assert.equal(volume.Name, resource.name, "HOST_VOLUME_NAME_MISMATCH");
+      assert.equal(volume.Driver, "local", "HOST_VOLUME_DRIVER_MISMATCH");
+      assert.equal(volume.Labels?.["exui.harness.owner"], resource.owner, "HOST_VOLUME_OWNER_MISMATCH");
+      assert.equal(volume.Labels?.["exui.harness.service"], "candidate-input", "HOST_VOLUME_SERVICE_MISMATCH");
+      writeJsonAtomic(path.join(output, "candidate-volume-receipt.json"), { ...resource.receipt, status: "removing" });
+      docker(["volume", "rm", resource.name]);
+    }
+    assert.equal(inspectVolume(resource.name), null, "HOST_VOLUME_REMOVAL_INCOMPLETE");
+    resource.removed = true;
+    writeJsonAtomic(path.join(output, "candidate-volume-receipt.json"), { ...resource.receipt, status: "removed", cleanupComplete: true });
+    resources.delete(key);
+    return;
+  }
+  if (resource.kind === "volume-copy") {
+    const info = inspect(resource.name);
+    if (info) {
+      assertOwnedCandidateCopy(info, resource);
+      docker(["rm", "-f", "-v", info.Id]);
+      assert.equal(inspect(info.Id), null, "HOST_VOLUME_COPY_REMOVAL");
+    }
+    resources.delete(key);
+    return;
+  }
   if (resource.kind === "process")
     return terminateOwnedChild(resource.child).then((terminal) => {
       assert(!terminal.forced, "HOST_PROOF_CLIENT_FORCED");

@@ -38,6 +38,8 @@ const arg = (key) => {
 };
 async function launch() {
   const releaseScopeId = arg("--scope") ?? "exui-ccd-pilot";
+  const candidateVolumeExperiment = process.argv.includes("--candidate-volume-experiment");
+  assert(process.argv.filter(value => value.startsWith("--candidate-volume-experiment")).every(value => value === "--candidate-volume-experiment") && process.argv.filter(value => value === "--candidate-volume-experiment").length <= 1 && (!candidateVolumeExperiment || releaseScopeId === EVENT_CAPABILITY_SCOPE), "CANDIDATE_VOLUME_EXPERIMENT_SCOPE");
   const eventSerialV3=process.argv.includes('--event-serial-v3');
   assert(process.argv.filter(arg=>arg.startsWith('--event-serial-v3')).every(arg=>arg==='--event-serial-v3')&&process.argv.filter(arg=>arg==='--event-serial-v3').length<=1&&(!eventSerialV3||releaseScopeId===EVENT_CAPABILITY_SCOPE),'EVENT_V3_OPT_IN_SCOPE');
   if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(releaseScopeId))
@@ -190,6 +192,7 @@ async function launch() {
     artifact,
     browserRoot,
     releaseScopeId,
+    ...(candidateVolumeExperiment ? { candidateVolumeExperiment: true } : {}),
     ccd,
     credentials,
     definition,
