@@ -118,11 +118,11 @@ test('actual case-view capture waits for control and every marker before observi
  const rows=recipients('email',2,'courtadmin'),control='synthetic-courtadmin-original',caseId='1234567890123456',calls=[],rendered=new Set();
  let readbackStatus=200;
  const response={status:()=>readbackStatus,json:async()=>{calls.push('captured-readback');return {tabs:[{fields:[{id:'protectedValue',value:control},{id:'sodAdditionalRecipientsList',value:rows}]}]};}};
- const request={method:()=> 'GET',url:()=>`http://127.0.0.1:3100/data/internal/cases/${caseId}`,response:async()=>response};
- const page={waitForEvent:async(event,options)=>{assert.equal(event,'requestfinished');assert.equal(options.timeout,30000);assert(options.predicate(request));return request;},goto:async target=>assert.equal(target,`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}`),getByText:(marker,options)=>{assert.deepEqual(options,{exact:true});return {waitFor:async options=>{assert.deepEqual(options,{state:'visible'});calls.push('wait:'+marker);rendered.add(marker);},isVisible:async()=>{calls.push('read:'+marker);return rendered.has(marker);}};}};
+ const page={request:{get:async(url,options)=>{assert.equal(url,`http://127.0.0.1:3100/data/internal/cases/${caseId}`);assert.deepEqual(options,{maxRedirects:0,maxRetries:0,headers:{experimental:'true',Accept:'application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-case-view.v2+json;charset=UTF-8'}});calls.push('request');return response;}},goto:async target=>{assert.equal(target,`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}`);calls.push('goto');},getByText:(marker,options)=>{assert.deepEqual(options,{exact:true});return {waitFor:async options=>{assert.deepEqual(options,{state:'visible'});calls.push('wait:'+marker);rendered.add(marker);},isVisible:async()=>{calls.push('read:'+marker);return rendered.has(marker);}};}};
  const observed=await exports.observeCcdEventReadback(page,caseId,rows.map(row=>row.value));
  assert.equal(observed.controlVisible,true);assert.deepEqual(observed.visible,[true,true]);assert.deepEqual(observed.projected,rows);
- assert(calls.indexOf('captured-readback')<calls.indexOf('wait:'+control));
+ assert(calls.indexOf('captured-readback')<calls.indexOf('goto'));
+ assert(calls.indexOf('goto')<calls.indexOf('wait:'+control));
  readbackStatus=403;
  await assert.rejects(()=>exports.observeCcdEventReadback(page,caseId,rows.map(row=>row.value)),/CCD_READBACK_STATUS_403/);
  for(const marker of [control,...rows.flatMap(row=>[row.value.emailInformation.emailName,row.value.emailInformation.emailAddress])])assert(calls.indexOf('wait:'+marker)<calls.indexOf('read:'+marker));

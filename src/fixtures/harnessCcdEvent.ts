@@ -178,16 +178,20 @@ export async function observeCcdEventReadback(
     postalInformation?: { postalName: string; postalAddress: { AddressLine1: string; PostCode: string } };
   }>,
 ) {
-  const finished = page.waitForEvent("requestfinished", {
-    predicate: request => request.method() === "GET" &&
-      new URL(request.url()).origin === "http://127.0.0.1:3100" &&
-      new URL(request.url()).pathname === `/data/internal/cases/${caseId}`,
-    timeout: 30_000,
-  });
-  await page.goto(`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}`);
-  const response = await (await finished).response();
-  if (response?.status() !== 200) throw new Error(`CCD_READBACK_STATUS_${response?.status()}`);
+  const response = await page.request.get(
+    `http://127.0.0.1:3100/data/internal/cases/${caseId}`,
+    {
+      maxRedirects: 0,
+      maxRetries: 0,
+      headers: {
+        experimental: "true",
+        Accept: "application/vnd.uk.gov.hmcts.ccd-data-store-api.ui-case-view.v2+json;charset=UTF-8",
+      },
+    },
+  );
+  if (response.status() !== 200) throw new Error(`CCD_READBACK_STATUS_${response.status()}`);
   const body = await response.json();
+  await page.goto(`/cases/case-details/HARNESS/HarnessNestedPRL/${caseId}`);
   const fields: Array<{id: string; value?: unknown}> = body.tabs.flatMap(
     (tab: {fields: Array<{id: string; value?: unknown}>}) => tab.fields,
   );
