@@ -80,6 +80,7 @@ export function assertOwnedCandidateCopy(info, { owner, image, sourceRoot, volum
   assert.equal(info.HostConfig.NetworkMode, "none", "HOST_VOLUME_COPY_NETWORK");
   assert.equal(info.HostConfig.ReadonlyRootfs, true, "HOST_VOLUME_COPY_ROOTFS");
   assert.equal(info.HostConfig.Privileged || false, false, "HOST_VOLUME_COPY_PRIVILEGED");
+  assert.deepEqual(info.HostConfig.CapAdd || [], ["CHOWN"], "HOST_VOLUME_COPY_CAPABILITIES_ADDED");
   assert.equal(info.HostConfig.PidsLimit, 256, "HOST_VOLUME_COPY_PID_LIMIT");
   assert.equal(info.HostConfig.Memory, 4294967296, "HOST_VOLUME_COPY_MEMORY_LIMIT");
   assert.equal(info.HostConfig.NanoCpus, 2000000000, "HOST_VOLUME_COPY_CPU_LIMIT");
@@ -88,7 +89,8 @@ export function assertOwnedCandidateCopy(info, { owner, image, sourceRoot, volum
   assert(info.HostConfig.CapDrop?.includes("ALL"), "HOST_VOLUME_COPY_CAPABILITIES");
   assert(info.HostConfig.SecurityOpt?.some(value => /^no-new-privileges(?::true)?$/.test(value)), "HOST_VOLUME_COPY_ESCALATION");
   assert.deepEqual(info.Config.Entrypoint, ["/bin/sh"], "HOST_VOLUME_COPY_ENTRYPOINT");
-  assert.deepEqual(info.Config.Cmd, ["-ec", "cp -a /source/. /candidate/"], "HOST_VOLUME_COPY_COMMAND");
+  assert.equal(info.Config.User, "", "HOST_VOLUME_COPY_USER");
+  assert.deepEqual(info.Config.Cmd, ["-ec", 'cp -a /source/. /candidate/ && chown -R "$1:$2" /candidate', "volume-copy", String(process.getuid()), String(process.getgid())], "HOST_VOLUME_COPY_COMMAND");
   assert.deepEqual(info.Mounts.filter(item => item.Type !== "tmpfs").map(item => [item.Type === "volume" ? item.Name : item.Source, item.Destination, item.RW, item.Type]).sort(), [[sourceRoot, "/source", false, "bind"], [volumeName, "/candidate", true, "volume"]].sort(), "HOST_VOLUME_COPY_MOUNTS");
 }
 export const WRITE_DENIAL_PATHS = [
