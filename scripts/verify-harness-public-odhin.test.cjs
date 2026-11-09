@@ -161,6 +161,33 @@ test("diagnostics-only fallback report retains blocked CMC and FR profile outcom
   assert.match(html, /FR profile: blocked/);
   assert.match(html, /ST_CIC, UNREVIEWED/);
 });
+test("FR profile report accepts the reviewed drop-FR fault expectation", async (t) => {
+  sandbox(t);
+  const jurisdictions = ["CIVIL", "CMC", "DIVORCE", "EMPLOYMENT", "FR", "HRS", "IA", "PCS", "PRIVATELAW", "PROBATE", "PUBLICLAW", "SSCS"];
+  const expectedIds = jurisdictions.filter((id) => id !== "FR");
+  const observedIds = [...jurisdictions, "ST_CIC", "UNREVIEWED"].sort();
+  const attempt = {
+    schemaVersion: 1,
+    kind: "fr-profile-attempt",
+    status: "BLOCKED",
+    reason: "FR_PROFILE_MEMBERSHIP",
+    diagnostic: {
+      schemaVersion: 1,
+      kind: "fr-jurisdiction-filter-diagnostic",
+      reasonCode: "FR_PROFILE_MEMBERSHIP",
+      expectedIds,
+      observedIds,
+      missingIds: [],
+      unexpectedIds: ["FR", "ST_CIC", "UNREVIEWED"],
+    },
+  };
+  const Reporter = await complete("harness", [], "passed", 0, undefined, { frProfileAttempt: attempt });
+  const report = Reporter.validatePublicReport("harness");
+  const html = fs.readFileSync(output(), "utf8");
+  assert.deepEqual(report.frProfileAttempt, attempt);
+  assert.match(html, /Expected jurisdiction rows after removing FR/);
+  assert.match(html, /FR, ST_CIC, UNREVIEWED/);
+});
 function output() {
   return path.join(
     process.cwd(),
