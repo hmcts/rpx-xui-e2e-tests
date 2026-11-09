@@ -13,6 +13,7 @@ const faults = [
   ['postal-recipient-name-shape','Postal recipient name shape','ccd-shape-postal-recipient-name'],
   ['optional-postal-line-two-shape','Optional second postal line shape','ccd-shape-optional-postal-line-two'],
 ];
+const preparationBatches = [[0,1],[2,3],[4,5],[6,7],[8,9],[10]].map(batch=>batch.map(index=>faults[index][2]));
 const steps = ['startup','definition-import','identity-verification','runtime-observation','ownership-capture','transition-identity'];
 const lifecycleInvocations = ['baseline','ccd-enable-judge-event','ccd-remove-courtadmin-recipient-read','ccd-remove-readonly-recipient-read','ccd-enable-readonly-recipient-update','ccd-remove-courtadmin-event-create','ccd-shape-recipient-collection','ccd-shape-case-field-recipient-selector','ccd-shape-required-delivery-radio','ccd-shape-conditional-email-complex','ccd-shape-postal-recipient-name','ccd-shape-optional-postal-line-two'];
 const lifecycleSteps = ['browser-provider-setup','candidate-runtime-setup','application-readiness','playwright-proof','post-proof-resource-observation','candidate-graceful-shutdown','provider-graceful-shutdown','resource-cleanup'];
@@ -88,7 +89,8 @@ function validateEventRuntimePreparationTimings(records, evidence) {
       key, label,
       steps: steps.map(name => ({name,status:'not-run',durationMs:null})),
     }));
-    let priorFaultStep = -1;
+    let priorBatch = -1;
+    const lastStepByFault = new Map(), failedFaults = new Set();
     records.forEach((row,index) => {
       assert(exactKeys(row,['sequence','runId','invocationId','step','status','startedAt','durationMs']));
       assert.equal(row.sequence,index+1);
@@ -100,20 +102,18 @@ function validateEventRuntimePreparationTimings(records, evidence) {
       assert(['completed','failed'].includes(row.status));
       const faultIndex=faults.findIndex(([, , invocationId])=>invocationId===row.invocationId);
       const stepIndex=steps.indexOf(row.step);
-      const order=faultIndex*steps.length+stepIndex;
-      assert(faultIndex>=0&&stepIndex>=0&&order>priorFaultStep);
-      priorFaultStep=order;
+      const batchIndex=preparationBatches.findIndex(batch=>batch.includes(row.invocationId));
+      assert(faultIndex>=0&&stepIndex>=0&&batchIndex>=priorBatch&&!failedFaults.has(faultIndex));
+      assert.equal(stepIndex,(lastStepByFault.get(faultIndex)??-1)+1);
+      priorBatch=batchIndex;
       const expectedFault=faults[faultIndex], expectedStep=steps[stepIndex];
       assert.equal(row.invocationId,expectedFault[2]);
       assert.equal(row.step,expectedStep);
-      assert(row.status!=='failed'||index===records.length-1);
+      lastStepByFault.set(faultIndex,stepIndex);
+      if(row.status==='failed')failedFaults.add(faultIndex);
       scenarios[faultIndex].steps[stepIndex]={name:expectedStep,status:row.status,durationMs:row.durationMs};
     });
-    let firstGap=false;
-    for(const scenario of scenarios)for(const step of scenario.steps){
-      if(firstGap){step.status='not-run';step.durationMs=null;}
-      if(step.status==='not-run'||step.status==='failed')firstGap=true;
-    }
+    for(const scenario of scenarios){let gap=false;for(const step of scenario.steps){if(gap){assert.equal(step.status,'not-run');assert.equal(step.durationMs,null);}if(step.status==='not-run'||step.status==='failed')gap=true;}}
     const visibleSteps=scenarios.flatMap(scenario=>scenario.steps);
     const completedSteps=visibleSteps.filter(step=>step.status==='completed').length;
     const failedSteps=visibleSteps.filter(step=>step.status==='failed').length;
@@ -155,26 +155,29 @@ function validateEventPreparationSummary(value,evidence) {
     assert(Number.isSafeInteger(value.completedSteps)&&value.completedSteps>=0);
     assert(Number.isSafeInteger(value.failedSteps)&&value.failedSteps>=0);
     assert.equal(value.scenarios.length,faults.length);
-    let completed=0,failed=0,seenIncomplete=false;
-    value.scenarios.forEach((scenario,index)=>{
-      assert(exactKeys(scenario,['key','label','steps']));
-      assert.deepEqual([scenario.key,scenario.label],faults[index].slice(0,2));
-      assert.equal(scenario.steps.length,steps.length);
-      scenario.steps.forEach((step,stepIndex)=>{
-        assert(exactKeys(step,['name','status','durationMs']));
-        assert.equal(step.name,steps[stepIndex]);
-        if(step.status==='not-run'){
-          assert.equal(step.durationMs,null);seenIncomplete=true;
-        }else{
-          assert(['completed','failed'].includes(step.status));
-          assert(Number.isSafeInteger(step.durationMs)&&step.durationMs>=0&&step.durationMs<=7_200_000);
-          assert(!seenIncomplete);
-          if(step.status==='failed'){
-            failed++;
-            seenIncomplete=true;
-          }else completed++;
-        }
-      });
+    let completed=0,failed=0,batchBlocked=false;
+    preparationBatches.forEach(batch=>{
+      let batchIncomplete=false;
+      for(const invocationId of batch){
+        const index=faults.findIndex(([, , id])=>id===invocationId),scenario=value.scenarios[index];
+        assert(exactKeys(scenario,['key','label','steps']));
+        assert.deepEqual([scenario.key,scenario.label],faults[index].slice(0,2));
+        assert.equal(scenario.steps.length,steps.length);
+        let seenIncomplete=batchBlocked;
+        scenario.steps.forEach((step,stepIndex)=>{
+          assert(exactKeys(step,['name','status','durationMs']));
+          assert.equal(step.name,steps[stepIndex]);
+          if(step.status==='not-run'){
+            assert.equal(step.durationMs,null);seenIncomplete=true;batchIncomplete=true;
+          }else{
+            assert(['completed','failed'].includes(step.status));
+            assert(Number.isSafeInteger(step.durationMs)&&step.durationMs>=0&&step.durationMs<=7_200_000);
+            assert(!seenIncomplete);
+            if(step.status==='failed'){failed++;seenIncomplete=true;batchIncomplete=true;}else completed++;
+          }
+        });
+      }
+      if(batchIncomplete)batchBlocked=true;
     });
     assert.equal(completed,value.completedSteps);assert.equal(failed,value.failedSteps);
     assert.equal(value.status,value.status==='unavailable'?'unavailable':failed?'failed':completed===value.totalSteps?'complete':completed?'partial':'not-run');
