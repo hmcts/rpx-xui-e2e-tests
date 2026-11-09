@@ -457,6 +457,7 @@ test("support only: actual event parent captures all eleven fault runtimes befor
           });
           await onTiming("definition-import", () => undefined);
           await onTiming("identity-verification", () => undefined);
+          if (!alive()) throw new Error("CI_EVENT_IMPORT_CANCELLED");
           resources.set(name, runtime);
           return runtime;
         } finally {
@@ -492,8 +493,9 @@ test("support only: actual event parent captures all eleven fault runtimes befor
     };
     deps.eventRuntimePreparationTimings = preparationTimings;
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
-    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
+    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_(?:TRANSITION|IMPORT)_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
     else await run(request, handoff);
+    assert.equal(activeStarts, 0, "the callback waits for every started runtime to settle");
     const preparationSteps=['startup','definition-import','identity-verification','runtime-observation','ownership-capture','transition-identity'];
     if(stoppedAt===null){
       assert.equal(maxActiveStarts, 2, "exactly two fault runtime preparations overlap");
@@ -512,29 +514,33 @@ test("support only: actual event parent captures all eleven fault runtimes befor
     }else assert.equal(preparationTimings.some(row=>row.status==='failed'),false);
     for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed"];
-    for(let offset=0;offset<faultVariants.length;offset+=2){
-      const batch=faultVariants.slice(offset,offset+2);
-      order.push(...batch.map(variant=>`start-${variant}`),...batch.map(variant=>`owned-${variant}`));
-    }
-    order.push(...faultVariants.map(variant=>`ack-${variant}`));
-    let expectedCalls=order;
-    if(stoppedAt!==null){
-      expectedCalls=order.slice(0,3);
-      if(stoppedAt==='cancel-after-read'||stoppedAt.startsWith('reused-')){
-        expectedCalls.push(...faultVariants.slice(0,2).map(variant=>`start-${variant}`));
-        expectedCalls.push(`owned-${faultVariants[0]}`);
-        if(stoppedAt==='cancel-after-read')expectedCalls.push(`owned-${faultVariants[1]}`);
-      }else if(stoppedAt.startsWith('start-')||stoppedAt.startsWith('owned-')){
-        const variant=stoppedAt.slice(stoppedAt.indexOf('-')+1);
-        const index=faultVariants.indexOf(variant),batchStart=Math.floor(index/2)*2,batch=faultVariants.slice(batchStart,batchStart+2);
-        expectedCalls.push(...batch.map(value => `start-${value}`));
-        expectedCalls.push(...batch.filter(value=>!stoppedAt.startsWith('start-')||value!==variant).map(value=>`owned-${value}`));
-        if(batchStart>0)expectedCalls=[...order.slice(0,3),...order.slice(3,3+(batchStart/2)*4),...expectedCalls.slice(3)];
-      }else{
-        const stoppingIndex=order.indexOf(stoppedAt);
-        expectedCalls=order.slice(0,stoppingIndex+1);
+    const preflight = ["checkpoint", "native-removed", "ccd-removed"];
+    let expectedCalls = preflight;
+    if (preflight.includes(stoppedAt)) {
+      expectedCalls = preflight.slice(0, preflight.indexOf(stoppedAt) + 1);
+    } else if (stoppedAt !== null) {
+      const variant = stoppedAt === "cancel-after-read" || stoppedAt.startsWith("reused-")
+        ? "read-mutant"
+        : stoppedAt.slice(stoppedAt.indexOf("-") + 1);
+      const index = faultVariants.indexOf(variant);
+      assert(index >= 0, "the injected fault belongs to a scheduled runtime");
+      const batchStart = Math.floor(index / 2) * 2;
+      for (let offset = 0; offset < batchStart; offset += 2) {
+        const previous = faultVariants.slice(offset, offset + 2);
+        expectedCalls.push(...previous.map(value => `start-${value}`), ...previous.map(value => `owned-${value}`));
       }
+      const batch = faultVariants.slice(batchStart, batchStart + 2);
+      expectedCalls.push(...batch.map(value => `start-${value}`));
+      if (stoppedAt.startsWith("owned-"))
+        expectedCalls.push(...batch.slice(0, index - batchStart + 1).map(value => `owned-${value}`));
+      else if (stoppedAt.startsWith("reused-"))
+        expectedCalls.push(...batch.slice(0, index - batchStart).map(value => `owned-${value}`));
+    } else {
+      for (let offset = 0; offset < faultVariants.length; offset += 2) {
+        const batch = faultVariants.slice(offset, offset + 2);
+        expectedCalls.push(...batch.map(variant => `start-${variant}`), ...batch.map(variant => `owned-${variant}`));
+      }
+      expectedCalls.push(...faultVariants.map(variant => `ack-${variant}`));
     }
     assert.deepEqual(calls,expectedCalls,`stoppedAt=${stoppedAt}`);
   }

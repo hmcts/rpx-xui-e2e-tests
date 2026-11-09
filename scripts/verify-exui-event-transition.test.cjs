@@ -44,8 +44,9 @@ test("source event fault stacks stay owned through browser proof and clean up at
   const loop = source.slice(start, end);
   assert.match(loop, /offset\s*\+=\s*2/);
   assert.match(loop, /Promise\.allSettled\(batch\.map/);
+  assert.match(loop, /for\s*\(const \{ invocationId, fault, record, selected \} of prepared\.map/);
+  assert(loop.indexOf("if (failure) throw failure.reason;") < loop.indexOf('timeFaultStep(invocationId, "ownership-capture"'));
   assert.doesNotMatch(loop, /await remove\(/);
-  assert.match(loop, /for\s*\(const result of settled\)/);
   assert(cleanup > end);
   assert.match(source.slice(cleanup, cleanup + 150), /await remove\(id, resource\)/);
 });

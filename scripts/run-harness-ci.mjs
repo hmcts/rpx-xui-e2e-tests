@@ -439,7 +439,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
                 const invocationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
                 for (let offset = 0; offset < invocationIds.length; offset += 2) {
                   const batch = invocationIds.slice(offset, offset + 2);
-                  const settled = await Promise.allSettled(batch.map(async invocationId => {
+                  const prepared = await Promise.allSettled(batch.map(async invocationId => {
                     assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                     const variant = eventCapabilityFaultVariant(invocationId);
                     const ccd = await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource, undefined,
@@ -448,6 +448,11 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
                     const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId,
                       requestDigest: digestBytes(JSON.stringify(request)), ...fault };
                     const selected = selectEventCapabilityRuntime(handoff.input, invocationId, record);
+                    return { invocationId, fault, record, selected };
+                  }));
+                  const failure = prepared.find(result => result.status === "rejected");
+                  if (failure) throw failure.reason;
+                  for (const { invocationId, fault, record, selected } of prepared.map(result => result.value)) {
                     for (const state of states) {
                       assert.notEqual(fault.ccd.owner, state.owner, "CI_EVENT_FAULT_OWNER_REUSE");
                       assert.notEqual(fault.ccd.namespace, state.namespace, "CI_EVENT_FAULT_NAMESPACE_REUSE");
@@ -455,16 +460,10 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
                     }
                     states.push(fault.ccd);
                     const faultOwnership = timeFaultStep(invocationId, "ownership-capture", () => captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory, invocationId));
-                    return { record, fault: { invocationId, identity: timeFaultStep(invocationId, "transition-identity", () => eventIdentity(fault)),
-                      runtimeRecord: { path: `${invocationId}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") } },
-                      invocations: faultOwnership.invocations };
-                  }));
-                  const failure = settled.find(result => result.status === "rejected");
-                  if (failure) throw failure.reason;
-                  for (const result of settled) {
-                    records.push(result.value.record);
-                    faults.push(result.value.fault);
-                    resource.expectedContainer.invocations.push(...result.value.invocations);
+                    records.push(record);
+                    faults.push({ invocationId, identity: timeFaultStep(invocationId, "transition-identity", () => eventIdentity(fault)),
+                      runtimeRecord: { path: `${invocationId}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") } });
+                    resource.expectedContainer.invocations.push(...faultOwnership.invocations);
                   }
                 }
                 const transition = {
