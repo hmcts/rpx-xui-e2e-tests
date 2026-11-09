@@ -582,6 +582,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
   let clock=0, expectedVerificationMs=25;
   t.mock.method(performance,"now",()=>clock);
   let profileInclusion,personalInclusion;
+  const frProfileAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_MEMBERSHIP'};let expectedFrProfileAttempt=frProfileAttempt;
   let nativeStatus = "BLOCKED",
     nativeExitCode = 2;
   Reporter.prototype.prepareNativeEvidence = async function (descriptor) {
@@ -598,6 +599,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
   };
   Reporter.prototype.onEnd = async function () {
     calls.push("render");
+    assert.deepEqual(this.frProfileAttempt,expectedFrProfileAttempt);
     assert.equal(this.results.size, 116);
     assert.equal(this.diagnosticSource.state, "unavailable");
     assert.equal(this.phaseTimings.length, 2);
@@ -639,7 +641,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
     nativeExitCode = code;
     const result = await runHarnessCollection(
       { PATH: "/bin", SOLICITOR_PASSWORD: canary },
-      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json", nativeElapsedMs:1000, phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}] },
+      { profile: "harness", nativeEvidencePath: "/explicit/descriptor.json", frProfileAttempt, nativeElapsedMs:1000, phaseTimings:[{label:"WA family",status:"completed",durationMs:1000,startedAt:new Date().toISOString()}] },
     );
     assert.deepEqual(result, {
       status: "passed",
@@ -651,6 +653,7 @@ test("credential-free collection runs only116 offline tests and preserves every 
     calls,
     Array(3).fill(["validate-native", "offline", "render"]).flat(),
   );
+  expectedFrProfileAttempt=undefined;
   for (const inclusion of ['separate','included']) {
     profileInclusion=inclusion;
     const result=await runHarnessCollection({}, {nativeEvidencePath:'/explicit/descriptor.json',nativeElapsedMs:1000,phaseTimings:[{label:'WA family',status:'completed',durationMs:1000,startedAt:new Date().toISOString()}]});

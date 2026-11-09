@@ -39,7 +39,7 @@ export async function runFrProfileAdmission({artifactPath,browserRoot=null,outpu
    let receipt;try{receipt=await runFacet({artifactPath,output:directory,facet,browserRoot:null,signal},{signalTarget});}finally{signal?.removeEventListener('abort',cancel);}
    if(receipt.status!=='feasibility-observed'){
     assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
-    const code=receipt.failure?.code,error=new Error(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(code??'')?code:fail);if(receipt.failure?.diagnostic)error.frProfileDiagnostic=receipt.failure.diagnostic;throw error;
+    const code=receipt.failure?.code,error=new Error(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(code??'')?code:fail);error.frProfileCleanupVerified=true;error.frProfileAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:error.message,...(receipt.failure?.diagnostic?{diagnostic:receipt.failure.diagnostic}:{})};if(receipt.failure?.diagnostic)error.frProfileDiagnostic=receipt.failure.diagnostic;throw error;
    }
    assert.equal(receipt.cleanup?.complete,true,fail);assert.equal(receipt.privateStateRemoved,true,fail);
    assert(/^[a-f0-9]{40}$/.test(receipt.harnessCommit),fail);assert.deepEqual(Object.keys(receipt.sources.files).sort(),Object.keys(binding.producer.files).sort(),fail);
@@ -51,7 +51,7 @@ export async function runFrProfileAdmission({artifactPath,browserRoot=null,outpu
   };
   const appendBatch=async selected=>{
    const batch=await Promise.allSettled(selected.map(runFacetAdmission));
-   const failed=batch.find(result=>result.status==='rejected');if(failed)throw failed.reason;
+   const failures=batch.filter(result=>result.status==='rejected');if(failures.length)throw failures.find(result=>result.reason?.frProfileCleanupVerified!==true)?.reason??failures[0].reason;
    for(const result of batch.map(item=>item.value)){facets.push(result.facet);producers.push(result.producer);runtimes.push(result.runtime);}
   };
   // One FR facet can share the Jenkins 8-CPU worker with the 4-CPU CMC proof; afterward two FR facets fill it.
@@ -66,7 +66,7 @@ export async function runFrProfileAdmission({artifactPath,browserRoot=null,outpu
   writeJsonAtomic(path.join(output,'fr-profile-cohort.json'),profile);writeJsonAtomic(path.join(output,'fr-profile-admission.json'),admission);
   const requestPath=path.join(output,'admission-request.json');writeJsonAtomic(requestPath,{schemaVersion:1,kind:'fr-profile-admission-request',directory:output,runId:profile.runId,cohortDigest:profile.cohortDigest,nativeBindingDigest:profile.nativeBindingDigest,profileDigest:digestBytes(read(path.join(output,'fr-profile-cohort.json'))),admissionDigest:digestBytes(read(path.join(output,'fr-profile-admission.json')))});
   return {...admission,reportRequest:{path:requestPath,digest:digestBytes(read(requestPath)),runId:profile.runId}};
- }catch(error){const code=error?.message?.startsWith('FR_PROFILE_')?error.message:fail,failure=new Error(code);if(code==='FR_PROFILE_OBSERVATIONS'&&error?.frProfileDiagnostic)failure.frProfileDiagnostic=error.frProfileDiagnostic;throw failure;}
+ }catch(error){const code=error?.message?.startsWith('FR_PROFILE_')||error?.message?.startsWith('SOURCE_PROFILE_')?error.message:fail,failure=new Error(code);if(['FR_PROFILE_OBSERVATIONS','FR_PROFILE_MEMBERSHIP'].includes(code)&&error?.frProfileDiagnostic)failure.frProfileDiagnostic=error.frProfileDiagnostic;if(error?.frProfileCleanupVerified===true&&error.frProfileAttempt?.kind==='fr-profile-attempt'&&error.frProfileAttempt.reason===code){failure.frProfileCleanupVerified=true;failure.frProfileAttempt=error.frProfileAttempt;}throw failure;}
 }
 
 export function readFrProfileAdmissionPacket(requestPath,requestPin,nativeContext,catalogue=loadCommittedConfigurationCatalogue().catalogue){

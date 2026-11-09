@@ -54,6 +54,30 @@ test('FR jurisdiction obligation checks FR membership and leaves other jurisdict
  }
 });
 
+test('FR live membership mismatch keeps its specific diagnostic code',async()=>{
+ const {profileFailureCode}=await import('./lib/exui-source-profile-sources.mjs');
+ assert.equal(profileFailureCode(new Error('FR_PROFILE_MEMBERSHIP')),'FR_PROFILE_MEMBERSHIP');
+});
+
+test('FR mutation mismatch reports expected and observed jurisdiction ids',async t=>{
+ const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const {validateProfileInvocationResult}=await import('./run-harness-source-profile-jurisdictions.mjs');
+ const {frProfileEvidence,FR_PROFILE_FACETS}=await import('./lib/exui-source-profile-fr-consumers.mjs');
+ const directory=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fr-membership-diagnostic-'));t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const facet='fr-jurisdiction',mutation=FR_PROFILE_FACETS.find(item=>item.facet===facet).fault,identity={webappCommit:'a'.repeat(40)},configDigest='sha256:'+'b'.repeat(64),sourceDigest='sha256:'+'c'.repeat(64);
+ const observations=frProfileEvidence(facet,mutation).observations;observations[0].body.push({id:'FR'},{id:'ST_CIC'},{id:'UNREVIEWED'});
+ fs.writeFileSync(path.join(directory,'profile-worker-result.json'),JSON.stringify({schemaVersion:1,status:'failed',invocationId:mutation,mutation,code:'FR_PROFILE_MEMBERSHIP',identity,configDigest,sourceDigest,runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false}));
+ fs.writeFileSync(path.join(directory,'profile-fr-observations.json'),JSON.stringify({observations}));
+ assert.throws(()=>validateProfileInvocationResult({directory,invocationId:mutation,mutation,identity,configDigest,sourceDigest,terminal:{code:2,signal:null},facet}),error=>{
+  assert.equal(error.message,'FR_PROFILE_MEMBERSHIP');
+  assert.equal(error.frProfileDiagnostic.reasonCode,'FR_PROFILE_MEMBERSHIP');
+  assert(!error.frProfileDiagnostic.expectedIds.includes('FR'));
+  assert(error.frProfileDiagnostic.observedIds.includes('FR'));
+  assert.deepEqual(error.frProfileDiagnostic.unexpectedIds,['FR','ST_CIC','UNREVIEWED']);
+  return true;
+ });
+});
+
 test('FR ABA2 mapping proof checks the actual consumers and its exact one-code fault',async()=>{
  const {frProfileEvidence,validateFrProfileObservations,FR_PROFILE_FACETS}=await import('./lib/exui-source-profile-fr-consumers.mjs');
  const {fault}=FR_PROFILE_FACETS.find(item=>item.facet==='fr-mapping');
@@ -95,8 +119,9 @@ test('FR admission credits one exact profile only after all facets and same-cand
  const wrongCatalogue={...catalogue,obligations:catalogue.obligations.filter(item=>item.id!==FR_PROFILE_ID)};
  assert.throws(()=>admission.admitFrProfile(profile,nativeContext,wrongCatalogue),/FR_PROFILE_ADMISSION_INVALID/);
  const blockedDiagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds:['FR'],observedIds:['FR','ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};let failedFacets=0;
- await assert.rejects(runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output:path.join(root,'blocked'),nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet:async()=>{failedFacets++;return{status:'failed',cleanup:{complete:true},privateStateRemoved:true,failure:{code:'FR_PROFILE_OBSERVATIONS',diagnostic:blockedDiagnostic}};}}),error=>{assert.equal(error.message,'FR_PROFILE_OBSERVATIONS');assert.deepEqual(error.frProfileDiagnostic,blockedDiagnostic);return true;});
+ await assert.rejects(runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output:path.join(root,'blocked'),nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet:async()=>{failedFacets++;return{status:'failed',cleanup:{complete:true},privateStateRemoved:true,failure:{code:'FR_PROFILE_OBSERVATIONS',diagnostic:blockedDiagnostic}};}}),error=>{assert.equal(error.message,'FR_PROFILE_OBSERVATIONS');assert.equal(error.frProfileCleanupVerified,true);assert.equal(error.frProfileAttempt.status,'BLOCKED');assert.deepEqual(error.frProfileDiagnostic,blockedDiagnostic);assert.deepEqual(error.frProfileAttempt.diagnostic,blockedDiagnostic);return true;});
  assert.equal(failedFacets,2);
+ await assert.rejects(runFrProfileAdmission({artifactPath:path.join(root,'candidate.json'),output:path.join(root,'unclean-sibling'),nativeContext},{verifyArtifact:async()=>artifact,inspectRuntime:()=>runtime,runFacet:async({facet})=>({status:'failed',cleanup:{complete:facet==='fr-jurisdiction'},privateStateRemoved:facet==='fr-jurisdiction',failure:{code:'FR_PROFILE_OBSERVATIONS',diagnostic:blockedDiagnostic}})}),error=>{assert.equal(error.frProfileCleanupVerified,undefined);assert.equal(error.frProfileAttempt,undefined);return true;});
 });
 
 test('FR runtime probes call only the declared candidate consumers with FR and ABA2 evidence',async t=>{

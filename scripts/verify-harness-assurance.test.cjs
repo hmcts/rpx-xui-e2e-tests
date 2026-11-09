@@ -807,6 +807,12 @@ test('failed FR profile attempt blocks publication and never creates a report re
  assert.equal(opaque.frProfileAttempt.reason,'FR_PROFILE_RUN_INVALID');assert(!JSON.stringify(opaque).includes('private failure'));
 });
 
+test('FR cleanup-attested profile failure is reported while release remains blocked',async()=>{
+ const {runAssuranceSequence}=await api(),order=[],diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_MEMBERSHIP',expectedIds:['CIVIL'],observedIds:['CIVIL','FR'],unexpectedIds:['FR'],missingIds:[]};
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),cmcProfile:async()=>{const error=Error('CMC_PROFILE_FAULT_NOT_EFFECTIVE');error.cmcProfileCleanupVerified=true;error.cmcProfileAttempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:error.message};throw error;},frProfile:async()=>{order.push('fr');const error=Error('FR_PROFILE_MEMBERSHIP');error.frProfileCleanupVerified=true;error.frProfileDiagnostic=diagnostic;error.frProfileAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:error.message,diagnostic};throw error;},descriptor:async(_verdict,_profile,_personal,_complex,_stCic,_mandatory,_mandatoryTiming,frRequest,cmcRequest)=>{order.push('descriptor');assert.equal(frRequest,undefined);assert.equal(cmcRequest,undefined);return'/private/native.json';},collect:async(file,timing)=>{order.push('collect');assert.equal(file,'/private/native.json');assert.deepEqual(timing.frProfileAttempt.diagnostic,diagnostic);assert.equal(timing.cmcProfileAttempt.reason,'CMC_PROFILE_FAULT_NOT_EFFECTIVE');return{status:'passed',exitCode:0};}});
+ assert.deepEqual(order,['fr','descriptor','collect']);assert.equal(result.frProfileStatus,'BLOCKED');assert.equal(result.cmcProfileStatus,'BLOCKED');assert.equal(result.diagnosticStatus,'passed');assert.equal(result.exitCode,2);assert.equal(result.releaseApproval,false);
+});
+
 test('public release summary preserves bounded FR mismatch details while remaining blocked',async t=>{
  const {publishAssuranceSummary}=await api(),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs'),{SOURCE_JURISDICTIONS}=await import('./lib/exui-source-profile-jurisdictions.mjs');
  const output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-fr-summary-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'),{mode:0o700});

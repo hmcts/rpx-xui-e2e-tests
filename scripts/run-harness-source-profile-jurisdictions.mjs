@@ -81,7 +81,7 @@ export function validateProfileInvocationResult({directory,invocationId,mutation
     assert.deepEqual(worker,{...expected,status:'failed',code:profileFailureCode({message:worker.code})},'SOURCE_PROFILE_WORKER_RESULT');
     assert.deepEqual(terminal,{code:2,signal:null},'SOURCE_PROFILE_FRAMEWORK_TERMINAL');
     const error=Error(worker.code);
-    if(facet==='fr-jurisdiction'&&invocationId==='baseline'&&worker.code==='FR_PROFILE_OBSERVATIONS')error.frProfileDiagnostic=frJurisdictionFilterDiagnostic(read(path.join(directory,'profile-fr-observations.json')).observations);
+    if(facet==='fr-jurisdiction'&&['FR_PROFILE_OBSERVATIONS','FR_PROFILE_MEMBERSHIP'].includes(worker.code))error.frProfileDiagnostic=frJurisdictionFilterDiagnostic(read(path.join(directory,'profile-fr-observations.json')).observations,mutation);
     if(facet==='cmc-jurisdiction'&&(worker.code==='CMC_PROFILE_OBSERVATIONS'||worker.code==='CMC_PROFILE_FAULT_NOT_EFFECTIVE'))error.cmcProfileDiagnostic=cmcJurisdictionFilterDiagnostic(read(path.join(directory,'cmc-profile-observations.json')).observations,mutation);
     throw error;
   }

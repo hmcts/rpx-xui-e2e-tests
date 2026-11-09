@@ -54,13 +54,13 @@ export function frProfileEvidence(facet,mutation=null){
  return {observations,journal,mutation,catalogueCredit:false};
 }
 
-export function frJurisdictionFilterDiagnostic(observations){
- const expectedIds=frProfileEvidence('fr-jurisdiction').observations[0].body.map(row=>row.id).sort();
+export function frJurisdictionFilterDiagnostic(observations,mutation=null){
+ const expectedIds=frProfileEvidence('fr-jurisdiction',mutation).observations[0].body.map(row=>row.id).sort();
  const observedRows=observations?.[0]?.body;
  assert(Array.isArray(observedRows)&&observedRows.every(row=>row&&typeof row.id==='string'&&/^[A-Z][A-Z0-9_]{0,31}$/.test(row.id)),'FR_PROFILE_OBSERVATIONS');
  const observedIds=observedRows.map(row=>row.id).sort();
  assert.equal(new Set(observedIds).size,observedIds.length,'FR_PROFILE_OBSERVATIONS');
- return {schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds,unexpectedIds:observedIds.filter(id=>!expectedIds.includes(id)),missingIds:expectedIds.filter(id=>!observedIds.includes(id))};
+ return {schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:mutation?'FR_PROFILE_MEMBERSHIP':'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds,unexpectedIds:observedIds.filter(id=>!expectedIds.includes(id)),missingIds:expectedIds.filter(id=>!observedIds.includes(id))};
 }
 
 export function validateFrProfileObservations(facet,observations,journal,mutation=null){
