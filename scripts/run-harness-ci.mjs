@@ -379,7 +379,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
             "--scope", scopes[name],
           );
         else args.push("--scope", scopes[name]);
-        if (name === "eventCapability" && process.env.HARNESS_CANDIDATE_VOLUME_EXPERIMENT === "1")
+        if (name === "eventCapability")
           args.push("--candidate-volume-experiment");
         if (name === "scope")
           args.push(

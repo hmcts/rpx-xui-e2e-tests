@@ -51,7 +51,6 @@ function safeEnvironment(extra = {}) {
     "NO_PROXY",
     "HARNESS_SHARED_ROLE_SOURCE_INPUTS",
     "HARNESS_COMPLEX_SOURCE_INPUTS",
-    "HARNESS_CANDIDATE_VOLUME_EXPERIMENT",
     "http_proxy",
     "https_proxy",
     "no_proxy",

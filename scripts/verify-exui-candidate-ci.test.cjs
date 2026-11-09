@@ -15,6 +15,13 @@ const load = async () =>
     ])),
   );
 const digest = (c) => "sha256:" + c.repeat(64);
+
+test("native event capability always uses the verified candidate volume path", () => {
+  const source = fs.readFileSync(path.resolve("scripts/run-harness-ci.mjs"), "utf8");
+  assert.match(source, /if \(name === "eventCapability"\)\s*args\.push\("--candidate-volume-experiment"\);/);
+  assert.doesNotMatch(source, /HARNESS_CANDIDATE_VOLUME_EXPERIMENT/);
+});
+
 const job = {
   schemaVersion: 1,
   candidateManifest: "/inputs/candidate.json",
