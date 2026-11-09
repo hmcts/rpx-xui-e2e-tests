@@ -825,3 +825,10 @@ test('public release summary preserves bounded FR mismatch details while remaini
  const profileAttemptsPath=path.join(output,'private','assurance-profile-attempts.json'),packet=JSON.parse(fs.readFileSync(profileAttemptsPath));assert.equal(fs.statSync(profileAttemptsPath).mode&0o777,0o600);assert.deepEqual(packet,{schemaVersion:1,kind:'assurance-profile-attempts',frProfileAttempt,cmcProfileAttempt});
  const options=require('./harness-profile-attempt-report.cjs').buildProfileAttemptReporterOption({HARNESS_PROFILE_ATTEMPTS_PATH:profileAttemptsPath});assert.deepEqual(options,{frProfileAttempt,cmcProfileAttempt});
 });
+
+test('blocked profile attempts remain available to diagnostics when native capture is absent',async t=>{
+ const {publishAssuranceSummary}=await api(),output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-profile-attempts-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'),{mode:0o700});
+ const attempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_FAULT_NOT_EFFECTIVE'};
+ publishAssuranceSummary({output},{},{exitCode:2,cmcProfileAttempt:attempt});
+ const file=path.join(output,'private','assurance-profile-attempts.json');assert.equal(fs.statSync(file).mode&0o777,0o600);assert.deepEqual(JSON.parse(fs.readFileSync(file,'utf8')),{schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:attempt});
+});

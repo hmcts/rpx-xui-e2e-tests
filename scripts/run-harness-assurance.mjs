@@ -499,12 +499,6 @@ export function captureAssuranceExpectations(env = process.env) {
   };
 }
 export function publishAssuranceSummary(job, captured, result) {
-  if(!captured.nativeCohortCapture)return;
-  verifyDivorceNativeCapture(job.output,captured.nativeCohortCapture);
-  if(result.personalStatus==='PASS'||result.complexStatus==='PASS'||result.stCicStatus==='PASS'||result.mandatoryEmailStatus==='PASS'){
-    try{if(result.mandatoryEmailStatus==='PASS')verifyMandatoryEmailNativeCapture(job.output,captured.mandatoryEmailNativeCapture);if(result.personalStatus==='PASS')verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);if(result.complexStatus==='PASS')verifyComplexNativeCapture(job.output,captured.complexNativeCapture);if(result.stCicStatus==='PASS')verifyStCicNativeCapture(job.output,captured.stCicNativeCapture);}
-    catch(error){try{Reporter.resetPublicReport('harness');}finally{writeHarnessPublicSummary(job.output,{status:'BLOCKED',exitCode:2},false);}throw error;}
-  }
   assert([0,1,2].includes(result.exitCode),'ASSURANCE_EXIT_REQUIRED');
   const attempts=Object.fromEntries(['frProfileAttempt','cmcProfileAttempt'].filter(key=>result[key]?.status==='BLOCKED').map(key=>[key,result[key]]));
   if(Object.keys(attempts).length){
@@ -513,6 +507,12 @@ export function publishAssuranceSummary(job, captured, result) {
     assert(!fs.existsSync(file),'ASSURANCE_PROFILE_ATTEMPTS_ALREADY_EXISTS');
     fs.writeFileSync(file,JSON.stringify({schemaVersion:1,kind:'assurance-profile-attempts',...attempts},null,2)+'\n',{flag:'wx',mode:0o600});
     assert.equal(fs.statSync(file).mode&0o777,0o600,'ASSURANCE_PROFILE_ATTEMPTS_PRIVATE_FILE_REQUIRED');
+  }
+  if(!captured.nativeCohortCapture)return;
+  verifyDivorceNativeCapture(job.output,captured.nativeCohortCapture);
+  if(result.personalStatus==='PASS'||result.complexStatus==='PASS'||result.stCicStatus==='PASS'||result.mandatoryEmailStatus==='PASS'){
+    try{if(result.mandatoryEmailStatus==='PASS')verifyMandatoryEmailNativeCapture(job.output,captured.mandatoryEmailNativeCapture);if(result.personalStatus==='PASS')verifyPersonalNativeCapture(job.output,captured.personalNativeCapture);if(result.complexStatus==='PASS')verifyComplexNativeCapture(job.output,captured.complexNativeCapture);if(result.stCicStatus==='PASS')verifyStCicNativeCapture(job.output,captured.stCicNativeCapture);}
+    catch(error){try{Reporter.resetPublicReport('harness');}finally{writeHarnessPublicSummary(job.output,{status:'BLOCKED',exitCode:2},false);}throw error;}
   }
   writeHarnessPublicSummary(job.output,{status:['PASS','FAIL','BLOCKED'][result.exitCode],exitCode:result.exitCode,...(result.frProfileAttempt?.diagnostic?{frProfileDiagnostic:result.frProfileAttempt.diagnostic}:{})},result.exitCode===0);
 }
