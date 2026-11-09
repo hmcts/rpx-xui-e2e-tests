@@ -405,24 +405,32 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
                 writeJsonAtomic(removalFile, removal);
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const records = [], faults = [], states = [handoff.input.ccd];
-                for (const invocationId of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS]) {
-                  assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
-                  const variant = eventCapabilityFaultVariant(invocationId);
-                  const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
-                  const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId,
-                    requestDigest: digestBytes(JSON.stringify(request)), ...fault };
-                  const selected = selectEventCapabilityRuntime(handoff.input, invocationId, record);
-                  for (const state of states) {
-                    assert.notEqual(fault.ccd.owner, state.owner, "CI_EVENT_FAULT_OWNER_REUSE");
-                    assert.notEqual(fault.ccd.namespace, state.namespace, "CI_EVENT_FAULT_NAMESPACE_REUSE");
-                    assert(Object.values(fault.ccd.containers).every(id => !Object.values(state.containers).includes(id)), "CI_EVENT_FAULT_CID_REUSE");
+                const invocationIds = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
+                for (let offset = 0; offset < invocationIds.length; offset += 2) {
+                  const batch = invocationIds.slice(offset, offset + 2);
+                  const prepared = await Promise.allSettled(batch.map(async invocationId => {
+                    assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
+                    const variant = eventCapabilityFaultVariant(invocationId);
+                    const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
+                    const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId,
+                      requestDigest: digestBytes(JSON.stringify(request)), ...fault };
+                    return { invocationId, fault, record, selected: selectEventCapabilityRuntime(handoff.input, invocationId, record) };
+                  }));
+                  const failure = prepared.find(result => result.status === "rejected");
+                  if (failure) throw failure.reason;
+                  for (const { invocationId, fault, record, selected } of prepared.map(result => result.value)) {
+                    for (const state of states) {
+                      assert.notEqual(fault.ccd.owner, state.owner, "CI_EVENT_FAULT_OWNER_REUSE");
+                      assert.notEqual(fault.ccd.namespace, state.namespace, "CI_EVENT_FAULT_NAMESPACE_REUSE");
+                      assert(Object.values(fault.ccd.containers).every(id => !Object.values(state.containers).includes(id)), "CI_EVENT_FAULT_CID_REUSE");
+                    }
+                    states.push(fault.ccd);
+                    const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory, invocationId);
+                    resource.expectedContainer.invocations.push(...faultOwnership.invocations);
+                    records.push(record);
+                    faults.push({ invocationId, identity: eventIdentity(fault),
+                      runtimeRecord: { path: `${invocationId}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") } });
                   }
-                  states.push(fault.ccd);
-                  const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory, invocationId);
-                  resource.expectedContainer.invocations.push(...faultOwnership.invocations);
-                  records.push(record);
-                  faults.push({ invocationId, identity: eventIdentity(fault),
-                    runtimeRecord: { path: `${invocationId}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") } });
                 }
                 const transition = {
                   schemaVersion: 2, runId: handoff.input.runId, releaseScopeId: EVENT_CAPABILITY_SCOPE,
