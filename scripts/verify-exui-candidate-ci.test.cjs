@@ -339,10 +339,12 @@ test("support only: independently recognized postal blockage permits the event s
   }
 });
 
-test("support only: actual event parent captures all eight fault runtimes before ACK and rejects partial preparation", async (t) => {
+test("support only: actual event parent prepares fault runtimes in pairs before ACK and rejects partial preparation", async (t) => {
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
   const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS } = await import("./lib/exui-ccd-event-capability.mjs");
+  const faultInvocations = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
+  const faultVariants = faultInvocations.map(eventCapabilityFaultVariant);
   const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
   const callback = source.match(/onEventTransition: (async \(request, handoff\) => \{[\s\S]*?)\n\s*\},\n\s*\} : \{\}\)/)?.[1];
   assert(callback, "actual parent transition callback exists");
@@ -351,6 +353,7 @@ test("support only: actual event parent captures all eight fault runtimes before
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
     const calls = [], resource = { expectedContainer: { invocations: ["baseline"] } };
+    let activeStarts = 0, maxActiveStarts = 0;
     let cancelled = false;
     const step = name => { calls.push(name); if (stoppedAt === name) throw Error("controlled-" + name); };
     const request = { runId: "synthetic-run", baselineNamespace: "old" };
@@ -373,9 +376,14 @@ test("support only: actual event parent captures all eight fault runtimes before
         assert.equal(name, `event-${variant}-runtime`);
         assert.equal(owner, resource); assert.equal(alive(), true);
         step("start-" + variant);
-        if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
-        return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
-          containers: { database: variant, data: variant === "read-mutant" && stoppedAt === "reused-cid" ? "mutant-data" : variant + "-data" } };
+        activeStarts++;
+        maxActiveStarts = Math.max(maxActiveStarts, activeStarts);
+        try {
+          await new Promise(resolve => setTimeout(resolve, 5));
+          if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
+          return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
+            containers: { database: variant, data: variant === "read-mutant" && stoppedAt === "reused-cid" ? "mutant-data" : variant + "-data" } };
+        } finally { activeStarts--; }
       },
       eventRuntimeData: ccd => ({ ccd, definition: { fixtureDigest: digest("c") } }),
       selectEventCapabilityRuntime: (baseline, invocation, record) => {
@@ -406,11 +414,42 @@ test("support only: actual event parent captures all eight fault runtimes before
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
     if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
     else await run(request, handoff);
+    assert.equal(activeStarts, 0, "the callback waits for every started runtime to settle");
+    if (stoppedAt === null) assert.equal(maxActiveStarts, 2, "two independent CCD runtimes are prepared concurrently");
     for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed", "start-mutant", "owned-mutant", "start-read-mutant", "owned-read-mutant", "start-readonly-read-mutant", "owned-readonly-read-mutant", "start-readonly-update-mutant", "owned-readonly-update-mutant", "start-courtadmin-update-mutant", "owned-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.flatMap(id => [`start-shape-${id.slice(10)}-mutant`, `owned-shape-${id.slice(10)}-mutant`]), "ack-mutant", "ack-read-mutant", "ack-readonly-read-mutant", "ack-readonly-update-mutant", "ack-courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `ack-shape-${id.slice(10)}-mutant`)];
-    const count = stoppedAt === "cancel-after-read" ? 7 : stoppedAt?.startsWith("reused-") ? 6 : order.indexOf(stoppedAt) + 1;
-    assert.deepEqual(calls, stoppedAt === null ? order : order.slice(0, count));
+    const order = ["checkpoint", "native-removed", "ccd-removed"];
+    for (let offset = 0; offset < faultVariants.length; offset += 2) {
+      const batch = faultVariants.slice(offset, offset + 2);
+      order.push(...batch.map(variant => `start-${variant}`), ...batch.map(variant => `owned-${variant}`));
+    }
+    order.push(...faultVariants.map(variant => `ack-${variant}`));
+    let expectedCalls = order;
+    if (stoppedAt !== null) {
+      if (["checkpoint", "native-removed", "ccd-removed"].includes(stoppedAt)) {
+        expectedCalls = order.slice(0, ["checkpoint", "native-removed", "ccd-removed"].indexOf(stoppedAt) + 1);
+      } else {
+        expectedCalls = order.slice(0, 3);
+      }
+      if (stoppedAt === "cancel-after-read" || stoppedAt.startsWith("reused-")) {
+        expectedCalls.push(...faultVariants.slice(0, 2).map(variant => `start-${variant}`));
+        expectedCalls.push(...faultVariants.slice(0, stoppedAt === "reused-owner" || stoppedAt === "reused-cid" ? 1 : 2).map(variant => `owned-${variant}`));
+      } else if (stoppedAt.startsWith("start-") || stoppedAt.startsWith("owned-")) {
+        const variant = stoppedAt.slice(stoppedAt.indexOf("-") + 1);
+        const invocationIndex = faultVariants.indexOf(variant);
+        assert(invocationIndex >= 0, "the injected fault belongs to a scheduled runtime");
+        const batchStart = Math.floor(invocationIndex / 2) * 2;
+        for (let offset = 0; offset < batchStart; offset += 2) {
+          const previous = faultVariants.slice(offset, offset + 2);
+          expectedCalls.push(...previous.map(value => `start-${value}`), ...previous.map(value => `owned-${value}`));
+        }
+        const batch = faultVariants.slice(batchStart, batchStart + 2);
+        expectedCalls.push(...batch.map(value => `start-${value}`));
+        if (stoppedAt.startsWith("owned-"))
+          expectedCalls.push(...batch.slice(0, invocationIndex - batchStart + 1).map(value => `owned-${value}`));
+      }
+    }
+    assert.deepEqual(calls, expectedCalls, `stoppedAt=${stoppedAt}`);
   }
 });
 
