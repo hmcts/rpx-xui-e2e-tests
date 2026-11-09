@@ -101,7 +101,8 @@ export async function runFixedCiPilots(operations) {
   const progress = operations.progress ?? ((_label, operation) => operation());
   const results = [];
   const timings = [];
-  const timed = async (label, operation) => {
+  const deferredTimings = [];
+  const timed = async (label, operation, { deferReport = false } = {}) => {
     const startedAt = new Date().toISOString();
     const started = performance.now();
     let status = "stopped", nested;
@@ -114,15 +115,15 @@ export async function runFixedCiPilots(operations) {
       const selectorFallback = label === "Selector Page2 preparation, proofs and cleanup" && nested == null;
       const item = { label: selectorFallback ? "Selector CCD baseline preparation" : label,
         status: selectorFallback ? "stopped" : status, startedAt, durationMs: Math.round(performance.now() - started) };
-      for(const row of nested ?? [item]) {timings.push(row);operations.onTiming?.(row);}
+      for(const row of nested ?? [item]) {timings.push(row);if(deferReport)deferredTimings.push(row);else operations.onTiming?.(row);}
     }
   };
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
-  const phase = async (name) => {
+  const phase = async (name, options) => {
     checkCancellation();
     const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence", selectorEventRow: "Selector Page2 preparation, proofs and cleanup" };
-    const result = await timed(labels[name], () => operations.phase(name));
+    const result = await timed(labels[name], () => operations.phase(name), options);
     checkCancellation();
     results.push({ phase: name, ...result });
     return result;
@@ -131,10 +132,24 @@ export async function runFixedCiPilots(operations) {
     const exitCode = Math.max(...results.map((item) => item.exitCode));
     return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results, timings };
   };
-  let result = await phase("family");
-  if (result.exitCode !== 0) return { ...result, results, timings };
-  checkCancellation();
-  await timed("Scope fault candidate preparation", () => operations.derive());
+  const familyRun = phase("family", { deferReport: true });
+  let scopePreparation;
+  try {
+    checkCancellation();
+    scopePreparation = timed("Scope fault candidate preparation", () => operations.derive(), { deferReport: true });
+  } catch (error) {
+    await Promise.allSettled([familyRun]);
+    throw error;
+  }
+  const [familyOutcome, scopeOutcome] = await Promise.allSettled([familyRun, scopePreparation]);
+  const overlappedTimings = deferredTimings;
+  overlappedTimings.sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt) || (a.label === "WA family" ? -1 : 1));
+  timings.splice(0, overlappedTimings.length, ...overlappedTimings);
+  for (const item of overlappedTimings) operations.onTiming?.(item);
+  if (familyOutcome.status === "rejected") throw familyOutcome.reason;
+  if (familyOutcome.value.exitCode !== 0) return { ...familyOutcome.value, results, timings };
+  if (scopeOutcome.status === "rejected") throw scopeOutcome.reason;
+  let result = familyOutcome.value;
   checkCancellation();
   result = await phase("scope");
   if (result.exitCode !== 0) return { ...result, results, timings };
