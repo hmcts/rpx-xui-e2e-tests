@@ -17,6 +17,31 @@ const titles = {
 };
 const canary = "PRIVATE_AUTH_cookie_QuerySecret_7f38";
 
+test("native stage timing artifact is safe, ordered and explicit that it grants no proof credit", t => {
+  const root = sandbox(t), reporter = require(reporterPath), file = path.join(root, "native-stage-timings.json");
+  const start = "2026-11-09T03:00:00.000Z";
+  const value = {
+    schemaVersion: 1, kind: "native-stage-timings", proofAuthority: false, catalogueCredit: false,
+    jobRunId: "ci-12345678-1234-4234-9234-123456789abc",
+    phaseTimings: [
+      { label: "WA family", status: "PASS", startedAt: start, durationMs: 2000 },
+      { label: "Scope fault candidate preparation", status: "completed", startedAt: "2026-11-09T03:00:01.000Z", durationMs: 1000 },
+    ],
+  };
+  fs.writeFileSync(file, JSON.stringify(value));
+  assert.deepEqual(reporter.validateNativeStageTimings(file), value);
+  for (const mutate of [
+    row => { row.proofAuthority = true; },
+    row => { row.jobRunId = "ci-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; },
+    row => { row.phaseTimings[1].label = "CCD runtime startup"; },
+    row => { row.phaseTimings[1].startedAt = "not-a-date"; },
+    row => { row.phaseTimings[0].unexpected = "private"; },
+  ]) {
+    const invalid = structuredClone(value); mutate(invalid); fs.writeFileSync(file, JSON.stringify(invalid));
+    assert.throws(() => reporter.validateNativeStageTimings(file), /PUBLIC_ODHIN_INVALID_OR_INCOMPLETE/);
+  }
+});
+
 function sandbox(t) {
   const previous = process.cwd();
   const root = fs.mkdtempSync(

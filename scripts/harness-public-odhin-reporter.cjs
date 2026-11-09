@@ -101,6 +101,27 @@ function validatePhaseTimings(timings, evidence, elapsed) {
   if (evidence.status === "PASS" && timings.filter(item=>item.label!=="Native evidence and interpreter verification").length !== nativePhaseLabels.length-1) throw failure();
   if (covered > elapsed + 1000) throw failure();
 }
+function validateNativeStageTimingsDocument(value) {
+  if (!value || Object.keys(value).sort().join(",") !== "catalogueCredit,jobRunId,kind,phaseTimings,proofAuthority,schemaVersion" ||
+    value.schemaVersion !== 1 || value.kind !== "native-stage-timings" || value.proofAuthority !== false || value.catalogueCredit !== false ||
+    !/^ci-[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value.jobRunId) || !Array.isArray(value.phaseTimings) || value.phaseTimings.length > nativePhaseLabels.length) throw failure();
+  let prior = -1;
+  for (const item of value.phaseTimings) {
+    const index = nativePhaseLabels.indexOf(item?.label);
+    if (!item || Object.keys(item).sort().join(",") !== "durationMs,label,startedAt,status" || index <= prior ||
+      !["PASS", "FAIL", "BLOCKED", "completed", "stopped"].includes(item.status) ||
+      !Number.isSafeInteger(item.durationMs) || item.durationMs < 0 || item.durationMs > 7_200_000 ||
+      typeof item.startedAt !== "string" || !Number.isFinite(Date.parse(item.startedAt)) || new Date(item.startedAt).toISOString() !== item.startedAt) throw failure();
+    prior = index;
+  }
+  if (calculateNativePhaseIntervals(value.phaseTimings).overlapPairs.some(pair => pair.join("|") !== "WA family|Scope fault candidate preparation")) throw failure();
+  return value;
+}
+function validateNativeStageTimings(file) {
+  const value = JSON.parse(fs.readFileSync(file, "utf8"));
+  validateNativeStageTimingsDocument(value);
+  return value;
+}
 function renderPhaseTimings(timings, elapsed, legacy = false, previousLabels = false, mandatorySelected = false, previousKinds = false) {
   const duration = (ms) => `${Math.floor(ms / 60000)}m ${Math.floor(ms % 60000 / 1000)}s`;
   const { coveredMs: covered, overlapMs: overlap } = calculateNativePhaseIntervals(timings);
@@ -1115,6 +1136,7 @@ class HarnessPublicOdhinReporter {
   }
 }
 HarnessPublicOdhinReporter.validateAssuranceTiming = validateAssuranceTiming;
+HarnessPublicOdhinReporter.validateNativeStageTimings = validateNativeStageTimings;
 HarnessPublicOdhinReporter.captureDiagnosticSource = captureDiagnosticSource;
 HarnessPublicOdhinReporter.validatePublicReport = validatePublicReport;
 HarnessPublicOdhinReporter.resetPublicReport = resetPublicReport;

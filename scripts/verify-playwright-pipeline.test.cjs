@@ -175,6 +175,7 @@ corepack() {
     assert.deepEqual(archived, [
       'functional-output/tests/harness/public/release-assurance-summary.json',
       'functional-output/tests/harness/public/native-ci-capabilities.json',
+      'functional-output/tests/harness/public/native-stage-timings.json',
       'functional-output/tests/harness/public/odhin/index.html'
     ]);
     assert.ok(source.indexOf('manage-harness-public-reports.cjs --reset') < source.indexOf('try {'));
@@ -182,6 +183,9 @@ corepack() {
     const workerValidation = source.indexOf('observe-harness-worker.mjs --validate', source.indexOf('finally {'));
     const workerArchive = source.indexOf("artifacts: 'functional-output/tests/harness/public/native-ci-capabilities.json'");
     assert.ok(workerValidation >= 0 && workerValidation < workerArchive);
+    const timingValidation = source.indexOf('manage-harness-public-reports.cjs --validate-stage-timings', source.indexOf('finally {'));
+    const timingArchive = source.indexOf("artifacts: 'functional-output/tests/harness/public/native-stage-timings.json'");
+    assert.ok(timingValidation >= 0 && timingValidation < timingArchive);
     assert.doesNotMatch(source, /harness:assurance|harness:candidate/);
     const validation = source.indexOf('manage-harness-public-reports.cjs --validate', source.indexOf('finally {'));
     const publication = source.indexOf("reportDir: 'functional-output/tests/harness/public/odhin'");

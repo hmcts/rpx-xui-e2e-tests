@@ -987,6 +987,7 @@ test("support only: independently declared artifact mismatch initializes BLOCKED
       /DECLARED_ARTIFACT_DIGEST_MISMATCH/,
     );
     assert.deepEqual(fs.readdirSync(path.join(output, "public")), [
+      "native-stage-timings.json",
       "release-assurance-summary.json",
     ]);
     const unreviewedOutput = path.join(directory, "unreviewed-configuration");

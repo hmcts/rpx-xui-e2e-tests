@@ -151,7 +151,7 @@ test('actual prepareCiJob rejects nonboolean opt-in before any preparation', asy
   }
 });
 
-async function relay({ optIn, callbackThrows = false }) {
+async function relay({ optIn, callbackThrows = false, timingWriteThrows = false }) {
   const p = await preparation();
   const capture = name => ({ binding: { name, nested: { digest: pin } }, reference: { path: name, digest: pin } });
   const context = { nativeCohortCapture: capture('common'), stCicNativeCapture: capture('st-cic'), personalNativeCapture: capture('personal'), complexNativeCapture: capture('complex') };
@@ -175,7 +175,7 @@ async function relay({ optIn, callbackThrows = false }) {
       writeConfigurationCoverage: () => { events.push('coverage-boundary'); throw Error('STOP_AFTER_CAPTURE_BOUNDARY'); },
     },
     './lib/exui-native-failure-diagnostics.mjs': { nativePhaseFailure: () => ({ classification: 'controlled-unit-boundary' }) },
-    './lib/exui-evidence-io.mjs': { writeJsonAtomic: (file, value) => writes.push({ file, value }) },
+    './lib/exui-evidence-io.mjs': { writeJsonAtomic: (file, value) => { writes.push({ file, value }); if (timingWriteThrows && file.endsWith('/public/native-stage-timings.json')) throw Error('TIMING_WRITE_FAILED'); } },
   });
   const options = {
     captureNativeCohort: () => events.push('common'),
@@ -198,6 +198,7 @@ async function relay({ optIn, callbackThrows = false }) {
   assert.equal(failure.value.message, callbackThrows ? 'CONTROLLED_CAPTURE_CALLBACK_FAILURE' : 'STOP_AFTER_CAPTURE_BOUNDARY');
   const final = writes.find(row => row.file.endsWith('/ci-result.json'));
   assert.deepEqual(final.value.phaseResults, []);
+  assert.equal(writes.find(row => row.file.endsWith('/public/native-stage-timings.json')).value.catalogueCredit, false);
   return events;
 }
 
@@ -211,4 +212,8 @@ test('actual runHarnessCi leaves ST_CIC disabled when no callback is supplied', 
 
 test('actual runHarnessCi does not advance after capture callback failure', async () => {
   assert.deepEqual(await relay({ optIn: true, callbackThrows: true }), ['prepare', 'common', 'st-cic', 'uninstall', 'summary']);
+});
+
+test('native timing artifact write failure cannot mask the CI result or prevent its private record', async () => {
+  assert.deepEqual(await relay({ optIn: false, timingWriteThrows: true }), ['prepare', 'common', 'personal', 'complex', 'coverage-boundary', 'uninstall', 'summary']);
 });

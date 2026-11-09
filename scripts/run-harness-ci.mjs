@@ -728,9 +728,22 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     } catch {
       /* Private timing diagnostics do not determine proof outcomes. */
     }
+    const jobRunId = `ci-${randomUUID()}`;
+    try {
+      writeJsonAtomic(path.join(job.output, "public", "native-stage-timings.json"), {
+        schemaVersion: 1,
+        kind: "native-stage-timings",
+        proofAuthority: false,
+        catalogueCredit: false,
+        jobRunId,
+        phaseTimings,
+      });
+    } catch {
+      /* Public timing diagnostics do not determine proof outcomes. */
+    }
     writeJsonAtomic(path.join(privateRoot, "ci-result.json"), {
       classification: "fixed-pilot-suite-no-full-release-approval",
-      jobRunId: `ci-${randomUUID()}`,
+      jobRunId,
       status: verdict.status,
       exitCode: verdict.exitCode,
       cleanupComplete,
