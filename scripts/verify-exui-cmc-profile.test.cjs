@@ -54,14 +54,16 @@ test('CMC candidate probe requires repeatable read/create/default rows and effec
  }finally{require('node:fs').rmSync(root,{recursive:true,force:true});}
 });
 
-test('CMC membership proof accepts unclaimed jurisdiction rows and isolates the CMC fault',async()=>{
+test('CMC jurisdiction proof rejects unconfigured IDs and ignores unrelated row metadata',async()=>{
  const {validateCmcProfileObservations,validateCmcProfileContrast,cmcProfileEvidence}=await import('./lib/exui-cmc-profile-consumer.mjs');
  const {CMC_PROFILE_FACET}=await import('./lib/exui-cmc-profile-contract.mjs');
  const baseline=cmcProfileEvidence(),fault=cmcProfileEvidence(CMC_PROFILE_FACET.fault),extra=structuredClone(baseline.observations),extraFault=structuredClone(fault.observations);
  for(const observations of [extra,extraFault])for(const observation of observations)observation.body.push({id:'ST_CIC',name:'Synthetic unconfigured',caseTypes:[]},{id:'UNREVIEWED',name:'Synthetic unreviewed',caseTypes:[]});
  assert.equal(validateCmcProfileObservations(baseline.observations,baseline.journal).capability,'jurisdictions');
- assert.doesNotThrow(()=>validateCmcProfileObservations(extra,baseline.journal));
- assert.throws(()=>validateCmcProfileObservations(extraFault,fault.journal,CMC_PROFILE_FACET.fault),/CMC_PROFILE_MEMBERSHIP_ASSERTION/);
+ const metadataOnly=structuredClone(baseline.observations);for(const observation of metadataOnly)for(const row of observation.body)row.name='Runtime label';assert.doesNotThrow(()=>validateCmcProfileObservations(metadataOnly,baseline.journal));
+ const malformed=structuredClone(baseline.observations);for(const observation of malformed)observation.body.push({name:'Missing jurisdiction ID'});assert.throws(()=>validateCmcProfileObservations(malformed,baseline.journal),/CMC_PROFILE_OBSERVATIONS/);
+ assert.throws(()=>validateCmcProfileObservations(extra,baseline.journal),/CMC_PROFILE_OBSERVATIONS/);
+ assert.throws(()=>validateCmcProfileObservations(extraFault,fault.journal,CMC_PROFILE_FACET.fault),/CMC_PROFILE_OBSERVATIONS/);
  assert.doesNotThrow(()=>validateCmcProfileContrast(extra,extraFault));
  const changed=structuredClone(extraFault);changed[0].body=changed[0].body.filter(row=>row.id!=='FR');
  assert.throws(()=>validateCmcProfileContrast(extra,changed),/CMC_PROFILE_FAULT_SCOPE/);

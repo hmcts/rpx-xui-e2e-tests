@@ -35,13 +35,14 @@ test('FR source projection rejects drift and each mutation changes only its decl
  assert.throws(()=>frProfileConfiguration({...config,serviceRefDataMapping:[{service:'FR',serviceCodes:['ABA1']}]},'fr-mapping'),'FR_PROFILE_SOURCE_INVALID');
 });
 
-test('FR jurisdiction obligation checks FR membership and leaves other jurisdiction rows out of scope',async()=>{
+test('FR jurisdiction obligation requires exact candidate IDs without constraining row metadata',async()=>{
  const {frProfileEvidence,validateFrProfileObservations,FR_PROFILE_FACETS}=await import('./lib/exui-source-profile-fr-consumers.mjs');
  for(const {facet,fault} of FR_PROFILE_FACETS.filter(item=>item.facet==='fr-jurisdiction')){
   const baseline=frProfileEvidence(facet),mutant=frProfileEvidence(facet,fault);
+  const metadataOnly=structuredClone(baseline.observations);for(const observation of metadataOnly)for(const row of observation.body)row.name='Runtime label';assert.doesNotThrow(()=>validateFrProfileObservations(facet,metadataOnly,baseline.journal));
   for(const evidence of [baseline,mutant])for(const observation of evidence.observations)observation.body.push({id:'ST_CIC',name:'Synthetic out-of-scope ST_CIC'},{id:'UNREVIEWED',name:'Synthetic out-of-scope UNREVIEWED'});
-  assert.equal(validateFrProfileObservations(facet,baseline.observations,baseline.journal).catalogueCredit,false);
-  assert.throws(()=>validateFrProfileObservations(facet,mutant.observations,mutant.journal,fault),/FR_PROFILE_MEMBERSHIP_ASSERTION/);
+  assert.throws(()=>validateFrProfileObservations(facet,baseline.observations,baseline.journal),/FR_PROFILE_MEMBERSHIP/);
+  assert.throws(()=>validateFrProfileObservations(facet,mutant.observations,mutant.journal,fault),/FR_PROFILE_MEMBERSHIP/);
  }
  for(const {facet,fault} of FR_PROFILE_FACETS.filter(item=>item.facet==='fr-staff')){
   const baseline=frProfileEvidence(facet),mutant=frProfileEvidence(facet,fault);

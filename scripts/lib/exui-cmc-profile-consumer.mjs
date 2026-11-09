@@ -9,7 +9,9 @@ const accesses=['read','create','default'];
 
 export function cmcJurisdictionFilterDiagnostic(observations,mutation=null){
  assert(Array.isArray(observations)&&observations[0]?.access==='read'&&Array.isArray(observations[0].body),'CMC_PROFILE_DIAGNOSTIC_INVALID');
- const expectedIds=SOURCE_JURISDICTIONS.filter(id=>mutation!==CMC_PROFILE_FACET.fault||id!=='CMC').sort(),observedIds=observations[0].body.map(row=>row?.id).filter(id=>typeof id==='string').sort();
+ const expectedIds=SOURCE_JURISDICTIONS.filter(id=>mutation!==CMC_PROFILE_FACET.fault||id!=='CMC').sort(),observedIds=observations[0].body.map(row=>row?.id);
+ assert(observedIds.every(id=>typeof id==='string'&&/^[A-Z][A-Z0-9_]{0,31}$/.test(id)),'CMC_PROFILE_OBSERVATIONS');
+ observedIds.sort();assert.equal(new Set(observedIds).size,observedIds.length,'CMC_PROFILE_OBSERVATIONS');
  return {schemaVersion:1,kind:'cmc-jurisdiction-filter-diagnostic',reasonCode:mutation?'CMC_PROFILE_FAULT_NOT_EFFECTIVE':'CMC_PROFILE_OBSERVATIONS',expectedIds,observedIds,missingIds:expectedIds.filter(id=>!observedIds.includes(id)),unexpectedIds:observedIds.filter(id=>!expectedIds.includes(id))};
 }
 
@@ -30,6 +32,8 @@ export function validateCmcProfileObservations(observations,journal,mutation=nul
    assert(pair.every(item=>item.status===200&&Array.isArray(item.body)),'CMC_PROFILE_OBSERVATIONS');
    assert.deepEqual(pair[0].body,pair[1].body,'CMC_PROFILE_CACHE_CHANGED');
    assert.equal(pair[0].body.filter(row=>row?.id==='CMC').length,mutation?0:1,mutation?'CMC_PROFILE_FAULT_NOT_EFFECTIVE':'CMC_PROFILE_OBSERVATIONS');
+   const diagnostic=cmcJurisdictionFilterDiagnostic([{access:'read',body:pair[0].body}],mutation);
+   assert.deepEqual(diagnostic.observedIds,diagnostic.expectedIds,'CMC_PROFILE_OBSERVATIONS');
   }
  }catch(error){
   try{error.cmcProfileDiagnostic=cmcJurisdictionFilterDiagnostic(observations,mutation);}catch{}

@@ -74,6 +74,8 @@ export function validateFrProfileObservations(facet,observations,journal,mutatio
    assert(pair.every(item=>item.status===200),'FR_PROFILE_TRANSPORT');
    assert.deepEqual(pair[0].body,pair[1].body,'FR_PROFILE_CACHE_CHANGED');
    assert.equal(pair[0].body.some(row=>row.id==='FR'),!mutation,'FR_PROFILE_MEMBERSHIP');
+   const diagnostic=frJurisdictionFilterDiagnostic([pair[0]],mutation);
+   assert.deepEqual(diagnostic.observedIds,diagnostic.expectedIds,'FR_PROFILE_MEMBERSHIP');
   }
  }else assert.deepEqual(observations,expected.observations,'FR_PROFILE_OBSERVATIONS');
  assert.deepEqual(journal,expected.journal,'FR_PROFILE_JOURNAL');
