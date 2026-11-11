@@ -1,6 +1,11 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 
+test('FR and CMC consumer contracts are pinned to the locally verified candidate',async()=>{
+ const [fr,cmc]=await Promise.all([import('./lib/exui-fr-profile-contract.mjs'),import('./lib/exui-cmc-profile-contract.mjs')]);
+ for(const contract of [fr.frProfileContract(),cmc.cmcProfileContract()])assert.equal(contract.consumerRevision,'e47ccdf14eba61dce892bd49d9a460d55775f202');
+});
+
 test('FR profile is the exact candidate-bound jurisdiction, staff and ABA2 obligation',async()=>{
  const contract=await import('./lib/exui-fr-profile-contract.mjs');
  const catalogue=await import('./lib/exui-configuration-runtime-coverage.mjs');

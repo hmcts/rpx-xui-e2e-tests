@@ -15,7 +15,7 @@ const hasFamily=(value,family)=>typeof value==='string'&&value.split(',').map(it
 export function frProfileContract(){
  return {schemaVersion:1,kind:'source-defined-family-profile',obligationId:FR_PROFILE_ID,profile:'config/default.json',family:'FR',
   sourceRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',sourceDigest:'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
-  consumerRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',
+  consumerRevision:'e47ccdf14eba61dce892bd49d9a460d55775f202',
   claim:'Candidate default configuration selects FR jurisdiction and staff support and maps FR to ABA2 through the tested EXUI consumers.',
   capabilities:['jurisdictions','staffSupportedJurisdictions','serviceRefDataMapping'],facets:structuredClone(FR_PROFILE_FACETS),
   noClaims:['globalSearchServices','waSupportedJurisdictions','services.hearings.hearingsJurisdictions','services.hearings.*.caseTypes','deployed overlays','CCD definitions or authorisations','production role/ref-data correctness','full FR case journey'],

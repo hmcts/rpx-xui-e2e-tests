@@ -9,7 +9,7 @@ const credits={runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfi
 export function cmcProfileContract(){
  return {schemaVersion:1,kind:'source-defined-family-profile',obligationId:CMC_PROFILE_ID,profile:'config/default.json',family:'CMC',
   sourceRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',sourceDigest:'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
-  consumerRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',claim:'Candidate default configuration selects CMC in the jurisdiction list served by the EXUI candidate.',
+  consumerRevision:'e47ccdf14eba61dce892bd49d9a460d55775f202',claim:'Candidate default configuration selects CMC in the jurisdiction list served by the EXUI candidate.',
   capabilities:['jurisdictions'],facets:[CMC_PROFILE_FACET],
   noClaims:['staffSupportedJurisdictions','globalSearchServices','waSupportedJurisdictions','serviceRefDataMapping','hearings jurisdictions or case types','deployed overlays','CCD definitions or authorisations','production CMC readiness','full CMC case journey'],
   syntheticBoundary:'Synthetic session and jurisdiction rows; candidate EXUI route and candidate configuration are real.',...credits};
