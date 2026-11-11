@@ -813,6 +813,14 @@ test('FR cleanup-attested profile failure is reported while release remains bloc
  assert.deepEqual(order,['fr','descriptor','collect']);assert.equal(result.frProfileStatus,'BLOCKED');assert.equal(result.cmcProfileStatus,'BLOCKED');assert.equal(result.diagnosticStatus,'passed');assert.equal(result.exitCode,2);assert.equal(result.releaseApproval,false);
 });
 
+test('a blocked companion CMC admission produces a valid blocked FR report attempt',async()=>{
+ const {runAssuranceSequence}=await api();
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),cmcProfile:async()=>{const error=Error('CMC_PROFILE_CONSUMER_INVALID');throw error;},frProfile:async()=>assert.fail('FR admission must not continue after companion CMC blocks'),profile:async()=>({status:'passed',reportRequest:{path:'/private/main.json',digest:'sha256:'+'a'.repeat(64),runId:'main-123'}}),descriptor:async()=>assert.fail('blocked profile must not create a descriptor'),collect:async()=>assert.fail('blocked profile must not collect')});
+ assert.equal(result.exitCode,2);
+ assert.equal(result.frProfileAttempt.reason,'FR_PROFILE_COMPANION_BLOCKED');
+ assert.doesNotThrow(()=>require('./harness-cmc-profile-report.cjs').renderFrProfileAttempt(result.frProfileAttempt));
+});
+
 test('public release summary preserves bounded FR mismatch details while remaining blocked',async t=>{
  const {publishAssuranceSummary}=await api(),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs'),{SOURCE_JURISDICTIONS}=await import('./lib/exui-source-profile-jurisdictions.mjs');
  const output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-fr-summary-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'),{mode:0o700});

@@ -195,7 +195,7 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
         else{
           const code=String(error?.message??'').split(/[\r\n]/,1)[0],reason=/^(?:CMC_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(code)?code:'CMC_PROFILE_RUN_INVALID';
           cmcProfileAttempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason};withdraw();
-          return finish({nativeStatus:verdict.status,...(frProfile?{frProfileStatus:'BLOCKED',frProfileAttempt:{schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'companion-cmc-admission-blocked'}}:{}),cmcProfileStatus:'BLOCKED',cmcProfileAttempt,diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
+          return finish({nativeStatus:verdict.status,...(frProfile?{frProfileStatus:'BLOCKED',frProfileAttempt:{schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_COMPANION_BLOCKED'}}:{}),cmcProfileStatus:'BLOCKED',cmcProfileAttempt,diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});
         }
       }finally{if(!pairedCmc)nativeElapsedMs+=Math.round(clock()-started);}
     }
