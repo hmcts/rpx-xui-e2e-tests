@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict');
 const {escape}=require('./harness-report-coverage.cjs');
 const sourceJurisdictions=['CMC','CIVIL','DIVORCE','EMPLOYMENT','FR','HRS','IA','PCS','PRIVATELAW','PROBATE','PUBLICLAW','SSCS'].sort();
-const diagnosedConsumerRevision='20c6ec129fc1e81061c733e164198ec63a33e71a';
+const diagnosedConsumerRevision='e47ccdf14eba61dce892bd49d9a460d55775f202';
 
 function renderCmcProfileAttempt(value){
  const fail='CMC_ATTEMPT_INVALID';
