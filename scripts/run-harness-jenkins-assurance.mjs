@@ -502,7 +502,14 @@ export function logNativeCompletion(output) {
           const reason = /^(?:CMC|FR|SOURCE)_PROFILE_[A-Z0-9_]{1,100}$/.test(packet[key].reason ?? "")
             ? ` (${packet[key].reason})`
             : "";
-          return `${family} profile BLOCKED${reason}`;
+          const diagnostic = packet[key].diagnostic;
+          const validIds = (ids) => Array.isArray(ids) && ids.length <= 128 && ids.every(id => typeof id === "string" && /^[A-Z][A-Z0-9_]{0,31}$/.test(id));
+          const details = diagnostic?.kind === `${family.toLowerCase()}-jurisdiction-filter-diagnostic` &&
+            diagnostic.reasonCode === packet[key].reason &&
+            [diagnostic.expectedIds, diagnostic.observedIds, diagnostic.unexpectedIds, diagnostic.missingIds].every(validIds)
+            ? `; expected ${diagnostic.expectedIds.length} jurisdictions, observed ${diagnostic.observedIds.length}${diagnostic.unexpectedIds.length ? `; unexpected: ${diagnostic.unexpectedIds.join(", ")}` : ""}${diagnostic.missingIds.length ? `; missing: ${diagnostic.missingIds.join(", ")}` : ""}`
+            : "";
+          return `${family} profile BLOCKED${reason}${details}`;
         })
         .join(", ");
     } catch {
