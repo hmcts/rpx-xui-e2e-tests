@@ -67,7 +67,7 @@ async function fixture(t) {
       producerBuild: candidate.producerBuild,
       invocationId: candidate.invocationId,
       buildRuntime: {
-        nodeVersion: "v24.22.1",
+        nodeVersion: "v24.22.2",
         platform: "linux",
         architecture: "arm64",
       },
@@ -158,7 +158,7 @@ test("unverified or mismatched producer metadata cannot substitute for this invo
     { invocationId: "a1ef376d-98ee-4462-9ab2-5aa1acfa580a" },
     {
       buildRuntime: {
-        nodeVersion: "v24.22.1",
+        nodeVersion: "v24.22.2",
         platform: "linux",
         architecture: "x64",
       },

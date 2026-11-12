@@ -645,7 +645,7 @@ test("support only: observed daemon architecture and pinned image inventory cont
   };
   const observed = observeCiToolchain({
     run,
-    controller: { os: "darwin", architecture: "arm64", node: "v24.22.1" },
+    controller: { os: "darwin", architecture: "arm64", node: "v24.22.2" },
   });
   assert.equal(observed.docker.architecture, "arm64");
   assert.equal(observed.browserRuntime.image, ARM64_BROWSER_RUNTIME);

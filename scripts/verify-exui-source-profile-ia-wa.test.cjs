@@ -134,7 +134,7 @@ async function controller(t, extraMutation = false) {
   const {runSourceProfileFeasibility}=await import('./run-harness-source-profile-jurisdictions.mjs');
   const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
   const parent=temporary(t),candidateRoot=path.join(parent,'candidate');fs.mkdirSync(candidateRoot);
-  const artifact={candidateRoot,identity:{artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.1'}};
+  const artifact={candidateRoot,identity:{artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.2'}};
   const artifactPath=path.join(parent,'artifact.json');fs.writeFileSync(artifactPath,JSON.stringify(artifact));
   const output=path.join(parent,'output'),image='sha256:'+'c'.repeat(64),seen=[];let resourceId=0;
   const result=await runSourceProfileFeasibility({artifactPath,output,facet:'ia-wa-positive'},{
