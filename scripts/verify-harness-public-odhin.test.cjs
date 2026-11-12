@@ -26,6 +26,10 @@ test("native stage timing artifact is safe, ordered and explicit that it grants 
     phaseTimings: [
       { label: "WA family", status: "PASS", startedAt: start, durationMs: 2000 },
       { label: "Scope fault candidate preparation", status: "completed", startedAt: "2026-11-09T03:00:01.000Z", durationMs: 1000 },
+      { label: "WA organisation scope", status: "PASS", startedAt: "2026-11-09T03:00:03.000Z", durationMs: 2000 },
+      { label: "CCD runtime startup", status: "completed", startedAt: "2026-11-09T03:00:04.999Z", durationMs: 1000 },
+      { label: "Selector CCD baseline preparation", status: "completed", startedAt: "2026-11-09T03:00:06.000Z", durationMs: 2000 },
+      { label: "Selector baseline proof and cleanup", status: "completed", startedAt: "2026-11-09T03:00:07.999Z", durationMs: 1000 },
     ],
   };
   fs.writeFileSync(file, JSON.stringify(value));
@@ -36,6 +40,7 @@ test("native stage timing artifact is safe, ordered and explicit that it grants 
     row => { row.phaseTimings[1].label = "CCD runtime startup"; },
     row => { row.phaseTimings[1].startedAt = "not-a-date"; },
     row => { row.phaseTimings[0].unexpected = "private"; },
+    row => { row.phaseTimings[2].durationMs = 3002; },
   ]) {
     const invalid = structuredClone(value); mutate(invalid); fs.writeFileSync(file, JSON.stringify(invalid));
     assert.throws(() => reporter.validateNativeStageTimings(file), /PUBLIC_ODHIN_INVALID_OR_INCOMPLETE/);
@@ -212,6 +217,33 @@ test("FR profile report accepts the reviewed drop-FR fault expectation", async (
   assert.deepEqual(report.frProfileAttempt, attempt);
   assert.match(html, /Expected jurisdiction rows after removing FR/);
   assert.match(html, /FR, ST_CIC, UNREVIEWED/);
+});
+test("FR baseline membership failure retains its observation diagnostic", async (t) => {
+  sandbox(t);
+  const expectedIds = ["CIVIL", "CMC", "DIVORCE", "EMPLOYMENT", "FR", "HRS", "IA", "PCS", "PRIVATELAW", "PROBATE", "PUBLICLAW", "SSCS"];
+  const attempt = {
+    schemaVersion: 1,
+    kind: "fr-profile-attempt",
+    status: "BLOCKED",
+    reason: "FR_PROFILE_MEMBERSHIP",
+    diagnostic: {
+      schemaVersion: 1,
+      kind: "fr-jurisdiction-filter-diagnostic",
+      reasonCode: "FR_PROFILE_OBSERVATIONS",
+      expectedIds,
+      observedIds: [...expectedIds, "ST_CIC", "UNREVIEWED"].sort(),
+      missingIds: [],
+      unexpectedIds: ["ST_CIC", "UNREVIEWED"],
+    },
+  };
+  const Reporter = await complete("harness", [], "passed", 0, undefined, { frProfileAttempt: attempt });
+  const report = Reporter.validatePublicReport("harness");
+  const html = fs.readFileSync(output(), "utf8");
+  assert.deepEqual(report.frProfileAttempt, attempt);
+  assert.match(html, /FR_PROFILE_MEMBERSHIP/);
+  assert.match(html, /Diagnostic classification: <code>FR_PROFILE_OBSERVATIONS<\/code>/);
+  assert.match(html, /Expected jurisdiction rows/);
+  assert.match(html, /ST_CIC, UNREVIEWED/);
 });
 function output() {
   return path.join(
@@ -1434,6 +1466,8 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
   '#harness-applicant-compatibility':{dataset:{compatibilityStatus:'PASS',compatibilityBaselines:'1',compatibilityFaults:'3'}},
   '#harness-personal-service-admission':{dataset:{personalStatus:'PASS',personalBaselines:'1',personalEffectiveFaults:'1',personalAccepted:'1',personalTotal:'1',personalInclusion:'included',personalDurationMs:'247013'}},
   '#harness-st-cic-profile-admission':{dataset:{stCicStatus:'PASS',stCicInclusion:'included',stCicBaselines:'5',stCicEffectiveFaults:'5',stCicExecutions:'10',stCicCredited:'1'}},
+  '#harness-fr-profile-attempt':{dataset:{profileAttemptStatus:'BLOCKED'}},
+  '#harness-cmc-profile-attempt':{dataset:{profileAttemptStatus:'BLOCKED'}},
  };
  const render=(supplements,main=true)=>{
   const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
@@ -1453,6 +1487,8 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
  assert.match(text(links[2]),/1 baseline.*3 effective faults/);assert.match(text(links[2]),/Corrected local ARM64 CCD/);
  assert.match(text(links[3]),/PASS.*1 baseline.*1 effective fault/);assert.match(text(links[3]),/already included in main candidate coverage/);assert.match(text(links[3]),/Personal pair interval: 4m 7s.*excluded from recorded native interval/);
  assert.match(text(links[4]),/ST_CIC.*5 baseline.*5 effective fault.*10 standalone executions/);assert.match(text(links[4]),/1 requirement already included once/);assert.equal(links[4].href,'#harness-st-cic-profile-admission');assert.match(text(links[4]),/duration not recorded/);
+ assert.equal(links[5].href,'#harness-fr-profile-attempt');assert.match(text(links[5]),/FR profile attempt.*BLOCKED.*Completed proof counts unavailable.*No catalogue or release credit/);
+ assert.equal(links[6].href,'#harness-cmc-profile-attempt');assert.match(text(links[6]),/CMC profile attempt.*BLOCKED.*Completed proof counts unavailable.*No catalogue or release credit/);
  const mandatoryData={mandatoryEmailStatus:'PASS',mandatoryEmailInclusion:'included',mandatoryEmailBaselines:'2',mandatoryEmailEffectiveFaults:'2',mandatoryEmailExecutions:'3',mandatoryEmailCredited:'2'};
  const mandatoryPanel=(data=mandatoryData,ms='222227')=>({dataset:data,querySelector:()=>({dataset:{mandatoryEmailTiming:ms}})});
  const mandatory=render({'#harness-mandatory-email-admission':mandatoryPanel()});assert.match(text(mandatory.children[5]),/2 baseline results.*2 named fault results.*3 executions/);assert.match(text(mandatory.children[5]),/2 requirements already included once each/);assert.match(text(mandatory.children[5]),/3m 42s/);assert.equal(mandatory.children[0].children[1].textContent,'35 / 112');assert.equal(mandatory.children[1].children[1].textContent,'2 + 2');assert.match(text(mandatory.children[1]),/mandatory email admission, diagnostics/);assert.doesNotMatch(text(plain.children[1]),/mandatory email/);
@@ -1510,12 +1546,12 @@ test('seven-phase dashboard includes selector setup, execution, evidence and cle
  sandbox(t);const Reporter=api();
  const labels=['WA family','Scope fault candidate preparation','WA organisation scope','CCD runtime startup','CCD configuration and access','CCD runtime cleanup','Source event CCD runtime startup','CCD source event permissions','Source event CCD runtime cleanup','Application routing','Recipient callback CCD runtime startup','Recipient callback validation and persistence','Recipient callback CCD runtime cleanup','Selector CCD baseline preparation','Selector baseline proof and cleanup','Selector CCD fault preparation','Selector fault proof and cleanup','Selector evidence verification','Selector final cleanup','Selector cohort admission'];
  const passed=new Set(['WA family','WA organisation scope','CCD configuration and access','CCD source event permissions','Application routing','Recipient callback validation and persistence','Selector evidence verification','Selector cohort admission']);
- const phaseTimings=labels.map((label,index)=>({label,status:passed.has(label)?'PASS':'completed',startedAt:new Date(Date.UTC(2026,10,5,12,0,0)+(index===0?0:index===1?500:1500+(index-2)*1000)).toISOString(),durationMs:1000}));
+ const phaseTimings=labels.map((label,index)=>({label,status:passed.has(label)?'PASS':'completed',startedAt:new Date(Date.UTC(2026,10,5,12,0,0)+(index===0?0:index===1?500:1500+(index-2)*1000)-(index===3||index===14?1:0)).toISOString(),durationMs:1000}));
  const reporter=new Reporter({selection:'harness',nativeElapsedMs:20000,phaseTimings});await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  assert.equal(Reporter.validatePublicReport('harness').status,'passed');
  const dom=require('node-html-parser').parse(fs.readFileSync(output(),'utf8')),table=dom.querySelector('#harness-phase-timings');
- assert.match(table.textContent,/Recorded phase overlap: 0m 0s \(500 ms\)/);assert.match(table.textContent,/Unitemized recorded interval: 0m 0s \(500 ms\)/);assert.match(table.textContent,/preflight and controller work.*ST_CIC when attached/);assert.match(table.textContent,/not an exact ST_CIC or per-facet duration/);assert.equal(table.querySelector('[data-native-overlap-ms]').getAttribute('data-native-overlap-ms'),'500');
+ assert.match(table.textContent,/Recorded phase overlap: 0m 0s \(502 ms\)/);assert.match(table.textContent,/Unitemized recorded interval: 0m 0s \(502 ms\)/);assert.match(table.textContent,/preflight and controller work.*ST_CIC when attached/);assert.match(table.textContent,/not an exact ST_CIC or per-facet duration/);assert.equal(table.querySelector('[data-native-overlap-ms]').getAttribute('data-native-overlap-ms'),'502');
  assert.equal(table.querySelectorAll('tbody tr').length,20);assert.match(table.textContent,/0m 20s recorded native interval/);
  for(const label of labels.slice(-7))assert.equal(table.querySelectorAll('tbody tr').filter(row=>row.textContent.includes(label)).length,1);
  assert.match(table.textContent,/Selector baseline proof and cleanupProof \+ setup \/ cleanup/);
@@ -1524,7 +1560,7 @@ test('seven-phase dashboard includes selector setup, execution, evidence and cle
  assert(!table.textContent.includes('parallel input seals'),'no unrecorded segment is invented');
  assert(!table.textContent.includes('Selector Page2 preparation, proofs and cleanup'));
  const recordFile=path.join(process.cwd(),'functional-output/tests/harness/private/public-odhin-harness.json'),originalRecord=fs.readFileSync(recordFile),originalHtml=fs.readFileSync(output(),'utf8');
- for(const mutate of [r=>r.phaseTimings[0].durationMs=1001,r=>r.phaseTimings[1].status='stopped',r=>r.phaseTimings[0].startedAt='2026-11-05T12:00:00.001Z',r=>r.phaseTimings[2].startedAt='2026-11-05T12:00:00.000Z',r=>r.phaseTimings.splice(1,1)]){
+ for(const mutate of [r=>r.phaseTimings[0].durationMs=1001,r=>r.phaseTimings[1].status='stopped',r=>r.phaseTimings[0].startedAt='2026-11-05T12:00:00.001Z',r=>r.phaseTimings[2].startedAt='2026-11-05T12:00:00.000Z',r=>r.phaseTimings[2].durationMs=2002,r=>r.phaseTimings.splice(1,1)]){
   const changed=JSON.parse(originalRecord);mutate(changed);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(recordFile,originalRecord);
  }
  const page=require('node-html-parser').parse(originalHtml),panel=page.querySelector('#harness-phase-timings');panel.insertAdjacentHTML('afterend',panel.toString());const duplicate=page.toString(),changed=JSON.parse(originalRecord);changed.sha256=require('node:crypto').createHash('sha256').update(duplicate).digest('hex');fs.writeFileSync(output(),duplicate);fs.writeFileSync(recordFile,JSON.stringify(changed));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/);fs.writeFileSync(output(),originalHtml);fs.writeFileSync(recordFile,originalRecord);

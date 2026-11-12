@@ -2,15 +2,25 @@
 
 Full EXUI release approval remains unavailable. Supporting checks and a passing bounded pilot cannot substitute for the source/runtime/owner obligations below.
 
-## Latest local native run (PR #271)
+## Latest local native run (synchronized Harness branch)
 
-The native candidate job at `dab05c2397b5a032388a268b2b3dcc559eb79964` passed with a validated receipt and **34 of 112** catalogue obligations accepted: 17 candidate obligations and 17 CCD obligations, leaving 78 awaiting evidence. This packet includes the source-bound `postalInformation.postalName` rendering and persistence proof and its detected label fault. Its public summary reports `releaseApproval: false`; Jenkins acceptance for this revision is not yet verified. The local packet alone does not demonstrate an increase over the 34 previously reported for PR #270 below. Counts must be compared using the validated packets, rather than inferred from the number of added tests.
+The latest locally replayed native candidate run used Harness commit `04089a28eb7eb90d55c91767a33606538418cb39` and sealed webapp candidate `e47ccdf14eba61dce892bd49d9a460d55775f202` (toolkit `7.4.26`), after syncing Harness master at `e50327f`. Its seven candidate/CCD pilot phases passed and cleanup completed. The validated evidence accepts **40 of 112** catalogue obligations: **23 candidate** and **17 CCD**, leaving **72 awaiting evidence**. This is bounded runtime evidence, not full EXUI release approval; `releaseApproval` is false.
+
+That native packet includes the personal-service row, ST_CIC profile and two mandatory-email rows; do not add them again. Separate FR and CMC jurisdiction-profile attempts on the same candidate were blocked: each expected 12 rows and observed 14, including unexpected `ST_CIC` and `UNREVIEWED`. They earn no catalogue credit because the baseline did not match; the fault phases were not run. Cleanup completed.
+
+The native timing artifact has 20 controller stages and a **36m 59.121s phase envelope**; the covered interval union is **36m 59.090s**. This is not whole assurance wall time. Jenkins queue, checkout and build are outside it. A fresh diagnostic collection passed **116/116** checks, which add no catalogue coverage. The single Odhín report was regenerated and validated with Node 24 from that diagnostic run plus the native packet. It does not include the separate blocked FR/CMC attempt details: those attempt objects were not supplied to that report collection. The PR #276 report changes add tested rendering for those outcomes, but a full-flow report containing them still needs to be generated and validated. AAT endpoint probes and Jenkins acceptance were not run for this revision.
 
 ## Previous bounded run (PR #270)
 
 The exact-head `8915171cd9cfdeb25b07d75ee73da15244650fc2` native and AAT local run accepted runtime evidence for **34 of 112** source-catalogue obligations. Its 121 diagnostics passed, and its separate native record contains 20 baseline and 20 deliberate-fault outcomes. The native run plus evidence preparation took 34m55s locally; the diagnostic Playwright collection took 22.8s. Jenkins PR #270 build #7 passed at that head. These are distinct measures and neither one is a full-release approval.
 
-The remaining **78 catalogue obligations** still need exact candidate or CCD evidence. The checked-in deployment-profile/key gaps and unreviewed preview-family cells also remain outside the 112-object catalogue. Earlier receipts below explain individual proof history; they must not be read as the current run's combined result. The current Odhín dashboard and public summary are the run-specific source of accepted counts.
+The remaining **72 catalogue obligations** still need exact candidate or CCD evidence. The checked-in deployment-profile/key gaps and unreviewed preview-family cells also remain outside the 112-object catalogue. Earlier receipts below explain individual proof history; they must not be read as the current run's combined result. The current Odhín dashboard and public summary are the run-specific source of accepted counts.
+
+## Live source-discovery follow-up
+
+A separate read-only source diagnostic against the sealed webapp source at `e47ccdf14eba61dce892bd49d9a460d55775f202` and pinned PRL definitions at `694b9951e94369f1394380506960c4f04f25755d` confirmed the 1,475-file definition inventory against its pinned Git tree with zero inventory differences. It built a graph of 30,035 rows and 74,141 edges, but reported 165,416 unresolved semantic/reference gaps. Those are graph gaps, not 165,416 uncovered catalogue requirements; they prevent safe dependency-based narrowing.
+
+That diagnostic is **not runtime evidence** and awards no credit. It returned 13 source/catalogue reconciliation errors, including webapp/deployment-source revision drift and a routing obligation identity that changes with the source revision. Its candidate-derived denominator was 113 while the reviewed catalogue remains 112, so it must not be merged into the native report. Reconcile the approved source revisions and make the routing obligation identity stable or explicitly versioned before using live discovery to change the catalogue or select focused runtime work.
 
 ## Follow-up after PR #254
 

@@ -84,6 +84,19 @@ function assuranceRunInfo(timing) {
     ['Assurance timing scope', preparation ? 'Harness preparation start → report snapshot. Includes runtime, input, candidate build and browser preparation, selected assurance phases, evidence verification and diagnostics. Excludes earlier Jenkins shell/bootstrap, checkout/build/queue outside this invocation and report sealing/validation/publication after snapshot.' : assuranceTimingNote],
   ];
 }
+function validatePhaseOverlaps(timings) {
+  const { overlapPairs } = calculateNativePhaseIntervals(timings);
+  for (const [left, right] of overlapPairs) {
+    const pair = `${left}|${right}`;
+    const toleratedMs = pair === "WA family|Scope fault candidate preparation" ? Infinity :
+      ["WA organisation scope|CCD runtime startup", "Selector CCD baseline preparation|Selector baseline proof and cleanup"].includes(pair) ? 1000 : -1;
+    const first = timings.find((item) => item.label === left);
+    const second = timings.find((item) => item.label === right);
+    const overlapMs = Math.min(Date.parse(first.startedAt) + first.durationMs, Date.parse(second.startedAt) + second.durationMs) -
+      Math.max(Date.parse(first.startedAt), Date.parse(second.startedAt));
+    if (overlapMs > toleratedMs) throw failure();
+  }
+}
 function validatePhaseTimings(timings, evidence, elapsed) {
   if (!Array.isArray(timings) || !timings.length || !evidence || !Number.isSafeInteger(elapsed)) throw failure();
   let prior = -1;
@@ -96,8 +109,8 @@ function validatePhaseTimings(timings, evidence, elapsed) {
     if (phase && item.status !== phase.status) throw failure();
     prior = index;
   }
-  const { coveredMs: covered, overlapPairs } = calculateNativePhaseIntervals(timings);
-  if (overlapPairs.some((pair) => pair.join("|") !== "WA family|Scope fault candidate preparation")) throw failure();
+  const { coveredMs: covered } = calculateNativePhaseIntervals(timings);
+  validatePhaseOverlaps(timings);
   if (evidence.status === "PASS" && timings.filter(item=>item.label!=="Native evidence and interpreter verification").length !== nativePhaseLabels.length-1) throw failure();
   if (covered > elapsed + 1000) throw failure();
 }
@@ -114,7 +127,7 @@ function validateNativeStageTimingsDocument(value) {
       typeof item.startedAt !== "string" || !Number.isFinite(Date.parse(item.startedAt)) || new Date(item.startedAt).toISOString() !== item.startedAt) throw failure();
     prior = index;
   }
-  if (calculateNativePhaseIntervals(value.phaseTimings).overlapPairs.some(pair => pair.join("|") !== "WA family|Scope fault candidate preparation")) throw failure();
+  validatePhaseOverlaps(value.phaseTimings);
   return value;
 }
 function validateNativeStageTimings(file) {

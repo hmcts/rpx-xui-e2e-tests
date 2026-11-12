@@ -114,6 +114,10 @@
   const complexAttempt = document.querySelector('#harness-complex-email-attempt');
   if (complexAttempt) supplements.push(['ComplexTypes email address', 'NOT_RUN', 'No execution counts',
     'Requirement remains unaccepted in this run', '#harness-complex-email-attempt']);
+  for (const [id, label] of [['#harness-fr-profile-attempt', 'FR'], ['#harness-cmc-profile-attempt', 'CMC']]) {
+    const attempt = document.querySelector(id);
+    if (attempt) supplements.push([`${label} profile attempt`, attempt.dataset.profileAttemptStatus, 'Completed proof counts unavailable', 'No catalogue or release credit', id]);
+  }
   const cards = [
     ['Catalogue runtime evidence', `${accepted} / ${selected}`, `${selected - accepted} awaiting accepted evidence`, '#harness-application-coverage'],
     [supplements.length ? 'Main native proof outcomes' : 'Native proof outcomes', native ? `${baselines} + ${faults}` : 'Not run', native ? `${nativeStatus} · ${baselines} baseline · ${faults} deliberate faults${nativeTime} · Core native, attached ST_CIC and evidence verification; excludes personal-service, ComplexTypes, DIVORCE, ${mandatoryEmail ? 'mandatory email admission, ' : ''}diagnostics and Build self-checks` : 'Candidate and CCD checks not attached', native ? '#harness-native-evidence' : null],
