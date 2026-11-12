@@ -191,7 +191,7 @@ for(const platform of ['linux/arm64','linux/amd64'])for(const [facet,fault] of a
   const {executeProfileProof}=await import('./source-profile-jurisdictions-worker.mjs');
   const {validateStCicConsumerObservations,validateStCicWaHealth}=await import('./lib/exui-st-cic-profile-consumers.mjs');
   const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
-  const published='20c6ec129fc1e81061c733e164198ec63a33e71a';
+  const published='1a986f4dc87e6ea4598e30c042bf2b3072122b75';
   for(const scenario of ['valid','foreign-commit','foreign-method','extra-config-delta','failed-terminal']) {
     const parent=temporary(t),candidateRoot=path.join(parent,'candidate');fs.mkdirSync(candidateRoot);
     const artifact={candidateRoot,identity:{webappCommit:scenario==='foreign-commit'?'26d17ebea1b7b470b6cc11409564ce296e8ec621':published,artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{sourceMethod:scenario==='foreign-method'?'working-tree':'git-archive',webappCommit:scenario==='foreign-commit'?'26d17ebea1b7b470b6cc11409564ce296e8ec621':published,platform,runtimeNodeVersion:'v24.22.2'}};

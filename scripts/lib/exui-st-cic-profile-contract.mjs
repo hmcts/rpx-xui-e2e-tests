@@ -14,7 +14,7 @@ export const stCicProfileContract = () => ({
   schemaVersion: 1, obligationId: ST_CIC_PROFILE_ID, profile: 'config/default.json', family: 'ST_CIC',
   sourceKey: 'rpx-xui-webapp:config/default.json', sourceRevision: '20c6ec129fc1e81061c733e164198ec63a33e71a',
   sourceDigest: 'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
-  consumerRevision: '20c6ec129fc1e81061c733e164198ec63a33e71a',
+  consumerRevision: '1a986f4dc87e6ea4598e30c042bf2b3072122b75',
   capabilities: ['globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping'],
   facets: structuredClone(ST_CIC_PROFILE_FACETS),
   dispositions: ['ST_CIC absent from jurisdictions: no jurisdiction selector/filter/cache credit',

@@ -11,14 +11,14 @@ const temp = t => { const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmp
 test('fixed ST_CIC contract identifies one published consumer and five no-credit facets', async () => {
   const m = await contract(), value = m.stCicProfileContract();
   assert.equal(value.obligationId, 'configuration-profile:31fed7b5d70bd2e333287f0b982632381576d11fbc15d71e90f27c14d986983b');
-  assert.equal(value.consumerRevision, '20c6ec129fc1e81061c733e164198ec63a33e71a');
+  assert.equal(value.consumerRevision, '1a986f4dc87e6ea4598e30c042bf2b3072122b75');
   assert.equal(value.sourceKey, 'rpx-xui-webapp:config/default.json');
   assert.deepEqual(value.capabilities, ['globalSearchServices','waSupportedJurisdictions','staffSupportedJurisdictions','serviceRefDataMapping']);
   assert.equal(value.facets.length, 5); assert.equal(new Set(value.facets.map(row => row.fault)).size, 5);
   for (const key of ['runtimeAcceptance','catalogueCredit','wholeProfileSatisfied','releaseCredit','releaseApproval']) assert.equal(value[key], false);
   const artifact = { provenance: { sourceMethod: 'git-archive', webappCommit: value.consumerRevision }, identity: { webappCommit: value.consumerRevision } };
   m.assertStCicProfileArtifact(artifact);
-  for (const mutate of [a => a.provenance.webappCommit = '26d17ebea1b7b470b6cc11409564ce296e8ec621', a => a.identity.webappCommit = 'foreign', a => a.provenance.sourceMethod = 'working-tree']) { const bad = structuredClone(artifact); mutate(bad); assert.throws(() => m.assertStCicProfileArtifact(bad), /ST_CIC_CONSUMER_INVALID/); }
+  for (const mutate of [a => a.provenance.webappCommit = '20c6ec129fc1e81061c733e164198ec63a33e71a', a => a.identity.webappCommit = 'foreign', a => a.provenance.sourceMethod = 'working-tree']) { const bad = structuredClone(artifact); mutate(bad); assert.throws(() => m.assertStCicProfileArtifact(bad), /ST_CIC_CONSUMER_INVALID/); }
   assert.throws(() => m.stCicFacet('divorce-staff'), /ST_CIC_FACET_INVALID/);
   assert.throws(() => m.stCicFacet('st-cic-staff', 'source-profile-drop-divorce-staff'), /ST_CIC_FAULT_INVALID/);
 });

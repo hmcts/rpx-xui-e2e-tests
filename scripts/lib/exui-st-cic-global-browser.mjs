@@ -11,7 +11,7 @@ export function readStCicGlobalBrowserEvidence(directory,mutation,{candidateRoot
  const get=name=>read(path.join(directory,name)),manifest=get('manifest.json');
  assert.deepEqual(get('runtime-identity.json').identity,manifest.identity,'ST_CIC_BROWSER_IDENTITY');
  if(identity!==undefined)assert.deepEqual(manifest.identity,identity,'ST_CIC_BROWSER_IDENTITY');
- assert.equal(manifest.identity.webappCommit,'20c6ec129fc1e81061c733e164198ec63a33e71a','ST_CIC_BROWSER_IDENTITY');
+ assert.equal(manifest.identity.webappCommit,'1a986f4dc87e6ea4598e30c042bf2b3072122b75','ST_CIC_BROWSER_IDENTITY');
  try{validateDivorceFlagEvidence(get('profile-browser-flags.json'));}catch{throw Error('ST_CIC_BROWSER_FLAGS');}
  assert.deepEqual(get('profile-browser-terminal.json'),{code:0,signal:null},'ST_CIC_BROWSER_TERMINAL');
  const report=get('profile-browser-report.json'),specs=[];const visit=suite=>{specs.push(...(suite.specs??[]));for(const child of suite.suites??[])visit(child);};for(const suite of report.suites??[])visit(suite);

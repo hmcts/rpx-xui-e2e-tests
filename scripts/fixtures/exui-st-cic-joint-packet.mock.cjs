@@ -9,7 +9,7 @@ async function jointPacket(t){
  const root=path.resolve(__dirname,'../..'),bindingApi=await import('../lib/exui-divorce-native-binding.mjs'),m=await import('../lib/exui-st-cic-profile-admission.mjs');
  const {NATIVE_HARNESS_SOURCE_FILES}=await import('../lib/exui-native-sources.mjs');
  const files=Object.fromEntries(NATIVE_HARNESS_SOURCE_FILES.map(name=>[name,digest(fs.readFileSync(path.join(root,name)))])),sourceDigest=bindingApi.nativeInventoryDigest(files);
- const identity=structuredClone(require('./exui-release-evidence.mock.cjs').completeRun().manifest.identity);identity.webappCommit='20c6ec129fc1e81061c733e164198ec63a33e71a';
+ const identity=structuredClone(require('./exui-release-evidence.mock.cjs').completeRun().manifest.identity);identity.webappCommit='1a986f4dc87e6ea4598e30c042bf2b3072122b75';
  const runtime={reference:'synthetic-api@'+hash('8'),imageId:hash('8'),platform:'linux/arm64'},browser={image:hash('9'),digest:hash('b'),dependencies:{digest:hash('a'),playwrightVersion:'1.65.0'}};
  const c=await completeCohort(t,{resourceIdBase:10000,content:{artifact:{identity,provenance:{sourceMethod:'git-archive',webappCommit:identity.webappCommit,sourceTree:'d'.repeat(40),platform:'linux/arm64',runtimeNodeVersion:'v24.22.2'}},producer:{commit:'b'.repeat(40),files},runtime,browser}}),binding=read(path.join(c.directory,'cohort-input.json'));
  const f=await nativeFixture(t,{sourceDigest,candidate:binding.artifact});
