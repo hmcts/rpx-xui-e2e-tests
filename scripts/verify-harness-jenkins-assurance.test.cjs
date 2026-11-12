@@ -324,6 +324,15 @@ test('native completion logs all seven fixed phases and rejects foreign phase na
  result.phaseResults.push({phase:'PRIVATE-CANARY\nforeign',status:'PASS'});write();logNativeCompletion(root);assert.equal(messages.length,2);
 });
 
+test('native completion separates core success from blocked profile gates',async t=>{
+ const {logNativeCompletion}=await load();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'native-profile-code-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'),{mode:0o700});
+ fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'PASS',phaseResults:[],cleanupComplete:true}));
+ fs.writeFileSync(path.join(root,'private/assurance-profile-attempts.json'),JSON.stringify({schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:{status:'BLOCKED',reason:'CMC_PROFILE_CONSUMER_INVALID'},frProfileAttempt:{status:'BLOCKED',reason:'FR_PROFILE_COMPANION_BLOCKED'}}),{mode:0o600});
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);
+ assert.equal(messages.length,1);assert.match(messages[0],/Native core PASS/);assert.match(messages[0],/profile gates: CMC profile BLOCKED \(CMC_PROFILE_CONSUMER_INVALID\), FR profile BLOCKED \(FR_PROFILE_COMPANION_BLOCKED\)/);
+});
+
 test('Jenkins overall failure cannot publish a passing main-only summary',async t=>{
  const {publishSummary}=await load();const {writeHarnessPublicSummary}=await import('./lib/exui-output-boundary.mjs'),{validatePublicSummary}=await import('./lib/exui-evidence-io.mjs');
  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'jenkins-overall-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));writeHarnessPublicSummary(root,{status:'PASS',exitCode:0},true);
