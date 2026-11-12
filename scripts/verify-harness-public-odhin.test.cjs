@@ -1605,6 +1605,7 @@ test('blocked CMC profile observations are visible without catalogue credit',asy
  assert.throws(()=>render({...attempt,consumerRevision:'f'.repeat(40)}),/CMC_ATTEMPT_INVALID/);
  const faultAttempt={...attempt,reason:'CMC_PROFILE_FAULT_NOT_EFFECTIVE',diagnostic:{...attempt.diagnostic,reasonCode:'CMC_PROFILE_FAULT_NOT_EFFECTIVE',expectedIds:expectedIds.filter(id=>id!=='CMC'),unexpectedIds:['CMC','ST_CIC','UNREVIEWED']}};
  const faultHtml=render(faultAttempt);assert.match(faultHtml,/Expected jurisdiction rows after removing CMC/);assert.match(faultHtml,/CMC, ST_CIC, UNREVIEWED/);
+  assert.throws(()=>render({...faultAttempt,diagnostic:{...faultAttempt.diagnostic,expectedIds,unexpectedIds:['ST_CIC','UNREVIEWED']}}),/CMC_ATTEMPT_INVALID/);
 });
 
 

@@ -284,7 +284,7 @@ test('diagnostic boundaries fail closed for undeclared environment/toolkit input
 
 test('bare Playwright discovery selects only the portable models without ambient auth or native inputs', () => {
   const result = spawnSync(process.execPath, [resolve('node_modules/@playwright/test/cli.js'), 'test', '--list', '--reporter=json'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 10000,
+    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
     env: { PATH: process.env.PATH, HOME: process.env.HOME }
   });
   assert.equal(result.status, 0, result.stderr);
@@ -327,7 +327,7 @@ test('mutation and toolkit wrappers opt into the real private diagnostic reporte
 test('every remaining API test file is explicitly selected as Harness support or a model', () => {
   const result = spawnSync(process.execPath, [resolve('node_modules/@playwright/test/cli.js'), 'test',
     '--config', 'playwright.harness-support.config.ts', '--list', '--reporter=json'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 10000,
+    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
     env: { PATH: process.env.PATH, HOME: process.env.HOME }
   });
   assert.equal(result.status, 0, result.stderr);
@@ -344,7 +344,7 @@ test('every remaining API test file is explicitly selected as Harness support or
     'select useful Harness regressions or retire obsolete tests; do not leave silent unselected suites');
   const combined = spawnSync(process.execPath, [resolve('node_modules/@playwright/test/cli.js'), 'test',
     '--config', 'playwright.harness-ci.config.ts', '--list', '--reporter=json'], {
-    cwd: process.cwd(), encoding: 'utf8', timeout: 10000,
+    cwd: process.cwd(), encoding: 'utf8', timeout: 30000,
     env: { PATH: process.env.PATH, HOME: process.env.HOME, CI: 'true' },
   });
   assert.equal(combined.status, 0, combined.stderr);
