@@ -6,6 +6,13 @@ const { spawnSync } = require('node:child_process');
 const { test } = require('node:test');
 const { buildConfig, selections } = require('./harness-diagnostic-config.cjs');
 
+test('Harness package engine and nvmrc require the same exact Node runtime', () => {
+  const expected = readFileSync('.nvmrc', 'utf8').trim();
+  const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+  assert.equal(expected, '24.22.2');
+  assert.equal(pkg.engines.node, expected);
+});
+
 test('ESLint excludes generated Harness candidate artifacts', () => {
   const config = readFileSync('eslint.config.mjs', 'utf8');
   assert.match(config, /"functional-output"/);
