@@ -23,6 +23,25 @@ test('fixed ST_CIC contract identifies one published consumer and five no-credit
   assert.throws(() => m.stCicFacet('st-cic-staff', 'source-profile-drop-divorce-staff'), /ST_CIC_FAULT_INVALID/);
 });
 
+test('candidate search route witness binds the current compiled guard and lazy module', async t => {
+  const { stCicFallbackWitness } = await import('./lib/exui-st-cic-profile-cohort.mjs');
+  const root = temp(t), write = (name, value) => {
+    const file = path.join(root, name);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, value);
+  };
+  write('node_modules/@hmcts/rpx-xui-common-lib/fesm2022/hmcts-rpx-xui-common-lib.mjs', 'initialize(this.clientId, this.context, { useReport: true });this.featureToggleService.getValueOnce(feature, true);return this.ready.pipe(filter((ready) => ready), map(() => this.client.variation(feature, defaultValue)));');
+  write('dist/rpx-exui/browser/main-ALQTUOMS.js', 'import{Hd as Zt}from"./chunk-RKYWQYLM.js";{path:"search",canActivate:[W,J,Zt],loadChildren:()=>import("./chunk-T45DLEUB.js").then(o=>o.SearchModule),data:{title:"Search cases",needsFeaturesEnabled:["feature-global-search"],featureDisabledRedirect:"/"}}');
+  write('dist/rpx-exui/browser/chunk-RKYWQYLM.js', 'baseUrl:{default:"https://app.launchdarkly.com"};h=[i,"/sdk/evalx/",e,"/context"].join("");Hgi as Hd;Hgi=(()=>{class t{constructor(e,i){this.featureToggleService=e,this.router=i}canActivate(e){return vs([...e.data.needsFeaturesEnabled.map(i=>this.featureToggleService.getValueOnce(i,!0))])');
+  const witness = stCicFallbackWitness(root);
+  assert.deepEqual(witness.route, {
+    path: '/search',
+    main: { path: 'dist/rpx-exui/browser/main-ALQTUOMS.js', digest: witness.route.main.digest },
+    guard: { path: 'dist/rpx-exui/browser/chunk-RKYWQYLM.js', digest: witness.route.guard.digest },
+    localAlias: 'Zt', moduleExport: 'Hd', guardSymbol: 'Hgi'
+  });
+});
+
 test('each declared configuration fault changes exactly its setting and never a neighbour', async t => {
   const m = await contract();
   const source = JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/exui-configuration-source.json'))).sources.find(row => row.path === 'config/default.json').document;

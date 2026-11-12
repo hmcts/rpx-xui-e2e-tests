@@ -23,13 +23,14 @@ export function stCicProducerBinding(sourceRoot=root){
 export function stCicFallbackWitness(candidateRoot){
  const relative='node_modules/@hmcts/rpx-xui-common-lib/fesm2022/hmcts-rpx-xui-common-lib.mjs',bytes=fs.readFileSync(path.join(candidateRoot,relative)),source=bytes.toString();
  assert(source.includes('initialize(this.clientId, this.context, { useReport: true })')&&source.includes('this.featureToggleService.getValueOnce(feature, true)')&&source.includes('return this.ready.pipe(filter((ready) => ready), map(() => this.client.variation(feature, defaultValue)));'),'ST_CIC_COHORT_FLAG_FALLBACK');
- const mainPath='dist/rpx-exui/browser/main-HYPXLXEP.js',guardPath='dist/rpx-exui/browser/chunk-LZSBXBQ2.js';
+ const mainPath='dist/rpx-exui/browser/main-ALQTUOMS.js',guardPath='dist/rpx-exui/browser/chunk-RKYWQYLM.js';
  const main=fs.readFileSync(path.join(candidateRoot,mainPath)),guard=fs.readFileSync(path.join(candidateRoot,guardPath));
- const route='{path:"search",canActivate:[H,Z,Xt],loadChildren:()=>import("./chunk-DILEIFDO.js").then(o=>o.SearchModule),data:{title:"Search cases",needsFeaturesEnabled:["feature-global-search"],featureDisabledRedirect:"/"}}';
- assert(main.toString().includes(route)&&/import\{[^}]*Bd as Xt[^}]*\}from"\.\/chunk-LZSBXBQ2\.js"/.test(main.toString()),'ST_CIC_COHORT_FLAG_ROUTE');
+ const route='{path:"search",canActivate:[W,J,Zt],loadChildren:()=>import("./chunk-T45DLEUB.js").then(o=>o.SearchModule),data:{title:"Search cases",needsFeaturesEnabled:["feature-global-search"],featureDisabledRedirect:"/"}}';
+ assert(main.toString().includes(route)&&/import\{[^}]*\bHd as Zt\b[^}]*\}from"\.\/chunk-RKYWQYLM\.js"/.test(main.toString()),'ST_CIC_COHORT_FLAG_ROUTE');
  assert(guard.toString().includes('baseUrl:{default:"https://app.launchdarkly.com"}')&&guard.toString().includes('h=[i,"/sdk/evalx/",e,"/context"].join("")'),'ST_CIC_COHORT_FLAG_ENDPOINT');
- assert(guard.toString().includes('ugi as Bd')&&guard.toString().includes('ugi=(()=>{class t{constructor(e,i){this.featureToggleService=e,this.router=i}canActivate(e){return vs([...e.data.needsFeaturesEnabled.map(i=>this.featureToggleService.getValueOnce(i,!0))])'),'ST_CIC_COHORT_FLAG_ROUTE');
- return {path:relative,digest:digestBytes(bytes),flag:'feature-global-search',guardDefault:true,evaluationRequest:{origin:'https://app.launchdarkly.com',method:'REPORT',path:'/sdk/evalx/synthetic-flags/context'},evaluationFlags:{},liveProvider:false,route:{path:'/search',main:{path:mainPath,digest:digestBytes(main)},guard:{path:guardPath,digest:digestBytes(guard)},localAlias:'Xt',moduleExport:'Bd',guardSymbol:'ugi'}};
+ assert(guard.toString().includes('Hgi as Hd'),'ST_CIC_COHORT_FLAG_ROUTE');
+ assert(guard.toString().includes('this.featureToggleService=e,this.router=i')&&guard.toString().includes('canActivate(e){return vs([...e.data.needsFeaturesEnabled.map(i=>this.featureToggleService.getValueOnce(i,!0))])'),'ST_CIC_COHORT_FLAG_ROUTE');
+ return {path:relative,digest:digestBytes(bytes),flag:'feature-global-search',guardDefault:true,evaluationRequest:{origin:'https://app.launchdarkly.com',method:'REPORT',path:'/sdk/evalx/synthetic-flags/context'},evaluationFlags:{},liveProvider:false,route:{path:'/search',main:{path:mainPath,digest:digestBytes(main)},guard:{path:guardPath,digest:digestBytes(guard)},localAlias:'Zt',moduleExport:'Hd',guardSymbol:'Hgi'}};
 }
 const candidateConfiguration=(candidateRoot,facet,mutation=null)=>facetSettings(facet).configuration(candidateRoot,mutation);
 export function stCicConfigurationBindings(candidateRoot){
