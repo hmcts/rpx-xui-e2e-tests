@@ -2,7 +2,7 @@ import semver from "semver";
 import yaml from "js-yaml";
 
 export const CANDIDATE_BUILD_IMAGE =
-  "node@sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea";
+  "node@sha256:0bab91d6a954a4a75de4a887edfda7386ed8711aa8b1eb5fb309ee0f0a2c544f";
 
 export function candidateBuildPlatform(platform) {
   if (platform === "linux/arm64")
@@ -11,7 +11,7 @@ export function candidateBuildPlatform(platform) {
     return {
       platform,
       nodeArchitecture: "x64",
-      imageReference: "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02",
+      imageReference: "node@sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0",
     };
   throw new Error("UNSUPPORTED_CANDIDATE_BUILD_PLATFORM");
 }

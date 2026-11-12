@@ -19,6 +19,7 @@ set -e
 export CI=true
 export NVM_DIR='/home/jenkinsssh/.nvm'
 source /opt/nvm/nvm.sh
+nvm install
 nvm use
 export PATH="$HOME/.local/bin:$PATH"
 node -e 'const expected = require("node:fs").readFileSync(".nvmrc", "utf8").trim(); if (process.versions.node !== expected) { console.error("Node version does not match .nvmrc"); process.exit(1); } console.log("Harness Node: " + process.versions.node);'

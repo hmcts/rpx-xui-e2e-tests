@@ -2,14 +2,14 @@ const assert = require("node:assert/strict");
 const { test } = require("node:test");
 const load = () => import("./lib/exui-candidate-build.mjs");
 const manifest = {
-  engines: { node: ">=24.22.1" },
+  engines: { node: ">=24.22.2" },
   packageManager: "yarn@4.17.1",
 };
 const yarnrc =
   "nodeLinker: node-modules\nyarnPath: .yarn/releases/yarn-4.17.1.cjs\n";
 const image = { platform: "linux/arm64" };
 const runtime = {
-  nodeVersion: "v24.22.1",
+  nodeVersion: "v24.22.2",
   platform: "linux",
   architecture: "arm64",
   osRelease: "ID=debian\nVERSION_CODENAME=bookworm\n",
@@ -18,9 +18,13 @@ const runtime = {
 test("committed source contract selects its own Yarn release and a pinned Node24 Debian image", async () => {
   const api = await load();
   assert.match(api.CANDIDATE_BUILD_IMAGE, /^node@sha256:[a-f0-9]{64}$/);
+  assert.equal(
+    api.CANDIDATE_BUILD_IMAGE,
+    "node@sha256:0bab91d6a954a4a75de4a887edfda7386ed8711aa8b1eb5fb309ee0f0a2c544f",
+  );
   const contract = api.readCandidateBuildContract(manifest, yarnrc);
   assert.deepEqual(contract, {
-    nodeEngine: ">=24.22.1",
+    nodeEngine: ">=24.22.2",
     yarnVersion: "4.17.1",
     yarnPath: ".yarn/releases/yarn-4.17.1.cjs",
   });
@@ -30,7 +34,7 @@ test("committed source contract selects its own Yarn release and a pinned Node24
 test("observed Node below the committed source engine cannot build", async () => {
   const api = await load();
   const contract = api.readCandidateBuildContract(manifest, yarnrc);
-  for (const nodeVersion of ["v20.20.2", "v24.20.0", "v24.22.0"])
+  for (const nodeVersion of ["v20.20.2", "v24.20.0", "v24.22.0", "v24.22.1"])
     assert.throws(
       () =>
         api.assertCandidateBuildRuntime(contract, image, {
@@ -49,7 +53,7 @@ test("AMD64 build target requires observed x64 Node and selects the pinned index
   const api = await load();
   const contract = api.readCandidateBuildContract(manifest, yarnrc);
   const target = api.candidateBuildPlatform("linux/amd64");
-  assert.equal(target.imageReference, "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02");
+  assert.equal(target.imageReference, "node@sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0");
   api.assertCandidateBuildRuntime(contract, { platform: target.platform }, { ...runtime, architecture: "x64" });
   assert.throws(() => api.assertCandidateBuildRuntime(contract, { platform: target.platform }, runtime), /BUILD_PLATFORM_MISMATCH/);
   assert.throws(() => api.candidateBuildPlatform("linux/ppc64le"), /UNSUPPORTED_CANDIDATE_BUILD_PLATFORM/);

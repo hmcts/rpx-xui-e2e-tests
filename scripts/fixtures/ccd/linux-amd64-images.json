@@ -42,10 +42,10 @@
     "indexDigest": "sha256:40e8c839f86c404f9bd1c456bb83f11b205f2cd95d753b34c2d074e89ecee786"
   },
   "client": {
-    "reference": "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02",
-    "manifestDigest": "sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02",
-    "configDigest": "sha256:8279a176db0ac2d89d4d3ef16063c1990ee00ea98d81e0937ed38117feab7fed",
+    "reference": "node@sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0",
+    "manifestDigest": "sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0",
+    "configDigest": "sha256:4ec989dc9e69bc7f2cdede4d6755b81f34d697447daba63c72d81d3b48011800",
     "platform": "linux/amd64",
-    "indexDigest": "sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea"
+    "indexDigest": "sha256:8fa96264f302f58bbb13aa7339c541547b56975766ce956c875da149452a3e40"
   }
 }

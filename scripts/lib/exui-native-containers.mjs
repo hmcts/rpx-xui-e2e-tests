@@ -43,11 +43,11 @@ export function nativeRuntimeImages(platform) {
   return {
     api: {
       reference:
-        "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02",
+        "node@sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0",
       manifestDigest:
-        "sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02",
+        "sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0",
       configDigest:
-        "sha256:8279a176db0ac2d89d4d3ef16063c1990ee00ea98d81e0937ed38117feab7fed",
+        "sha256:4ec989dc9e69bc7f2cdede4d6755b81f34d697447daba63c72d81d3b48011800",
     },
     browser: {
       reference:

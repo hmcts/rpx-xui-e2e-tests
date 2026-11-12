@@ -6,7 +6,7 @@ import path from 'node:path';
 import { parse } from 'node-html-parser';
 import { reportTests } from './benchmark-harness-transform.mjs';
 
-assert.equal(process.versions.node, '24.21.0');
+assert.equal(process.versions.node, '24.22.2');
 const output = mkdtempSync(path.join(tmpdir(), 'harness-reporting-'));
 let ids;
 const observations = [];
