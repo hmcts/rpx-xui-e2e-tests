@@ -14,7 +14,7 @@ async function jointFixture(t,{profileContext={}}={}){
  const files=Object.fromEntries(DIVORCE_COHORT_FILES.map(name=>[name,digest(fs.readFileSync(path.join(__dirname,'../..',name)))]));
  const nativeFiles=Object.fromEntries(NATIVE_HARNESS_SOURCE_FILES.map(name=>[name,files[name]])),sourceDigest=bindingApi.nativeInventoryDigest(nativeFiles);
  const identity=structuredClone(require('./exui-release-evidence.mock.cjs').completeRun().manifest.identity);identity.webappCommit=contract.divorceProfileContract().consumerRevision;
- const candidate={identity,payloadDigest:hash('c'),provenance:{webappCommit:identity.webappCommit,platform:'linux/arm64',runtimeNodeVersion:'v24.22.1',sourceTree:'d'.repeat(40)}};
+ const candidate={identity,payloadDigest:hash('c'),provenance:{webappCommit:identity.webappCommit,platform:'linux/arm64',runtimeNodeVersion:'v24.22.2',sourceTree:'d'.repeat(40)}};
  const f=await fixture(t,{postalFailure:true,sourceDigest,candidate});
  const runtime={reference:'synthetic-api@'+hash('8'),imageId:hash('8'),platform:'linux/arm64'},browser={image:hash('9'),digest:hash('b')},dependencies={digest:hash('a'),playwrightVersion:'1.62.1'};
  for(const item of [f.event,f.callback,f.selector]){

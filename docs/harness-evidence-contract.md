@@ -14,10 +14,11 @@ Exit codes are 0 for PASS, 1 for coherent product FAIL, and 2 for BLOCKED eviden
 
 ## Archive candidate preparation
 
-The archive producer uses pinned Linux/arm64 Node 24.22.1 on Debian 12 (Bookworm). Cache the exact image separately before running; the producer does not pull images or packages:
+The Harness controller, archive producer, native API helper and CCD client use Node 24.22.2. The Linux/arm64 and Linux/amd64 Docker images are pinned to platform-specific Node 24.22.2 Bookworm digests. Cache the exact images separately before running; the producer does not pull images or packages:
 
 ```bash
-docker pull --platform linux/arm64 node@sha256:d862bb5d082c5ae0210ac07e8c0344cb8cf7bef6d78e9b8c50c179da923108ea
+docker pull --platform linux/arm64 node@sha256:0bab91d6a954a4a75de4a887edfda7386ed8711aa8b1eb5fb309ee0f0a2c544f
+docker pull --platform linux/amd64 node@sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0
 yarn harness:candidate:prepare --source /path/to/rpx-xui-webapp --commit 76bf7a840fa71af466961de87294973023b2f0f3 --cache /path/to/seeded-yarn-cache --output /path/to/fresh-candidate
 ```
 

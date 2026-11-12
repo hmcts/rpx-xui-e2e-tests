@@ -89,7 +89,7 @@ test('staff vectors require both user and role markers and warm cache without ad
 async function controller(t,facet,extraMutation=false){
  const m=await load(),{runSourceProfileFeasibility}=await import('./run-harness-source-profile-jurisdictions.mjs'),{digestBytes}=await import('./lib/exui-evidence-io.mjs');
  const parent=temp(t),candidateRoot=path.join(parent,'candidate');fs.mkdirSync(candidateRoot);
- const artifact={candidateRoot,identity:{artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.1'}};
+ const artifact={candidateRoot,identity:{artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.2'}};
  const artifactPath=path.join(parent,'artifact.json');fs.writeFileSync(artifactPath,JSON.stringify(artifact));
  const output=path.join(parent,'output'),image='sha256:'+'c'.repeat(64),seen=[],fault=m.DIVORCE_CONSUMERS[facet].fault;let resourceId=0;
  const result=await runSourceProfileFeasibility({artifactPath,output,facet:`divorce-${facet}`},{

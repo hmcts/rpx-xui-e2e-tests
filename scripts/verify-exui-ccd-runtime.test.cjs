@@ -689,6 +689,9 @@ const state=JSON.parse(fs.readFileSync(${JSON.stringify(path.join(output, "runti
 test('AMD64 CCD image records bind each immutable manifest and reject relabelled state',async()=>{
  const {ccdImagePins,assertCcdImageIdentity,ccdRuntimeImageIds,CCD_IMAGES}=await runtime;
  const pins=ccdImagePins('linux/amd64');
+ assert.equal(pins.client.reference,'node@sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0');
+ assert.equal(pins.client.configDigest,'sha256:4ec989dc9e69bc7f2cdede4d6755b81f34d697447daba63c72d81d3b48011800');
+ assert.equal(pins.client.indexDigest,'sha256:8fa96264f302f58bbb13aa7339c541547b56975766ce956c875da149452a3e40');
  assert.deepEqual(Object.keys(pins).sort(),Object.keys(CCD_IMAGES).sort());
  const state={platform:'linux/amd64',images:{}};
  for(const [service,pin] of Object.entries(pins)) {
@@ -703,6 +706,13 @@ test('AMD64 CCD image records bind each immutable manifest and reject relabelled
  assert.throws(()=>ccdRuntimeImageIds({...state,platform:'linux/arm64'}),/CCD_IMAGE_IDENTITY/);
  assert.throws(()=>ccdRuntimeImageIds({...state,images:{}}),/CCD_IMAGE_IDENTITY/);
  assert.throws(()=>ccdImagePins('linux/s390x'),/UNSUPPORTED_CCD_PLATFORM/);
+});
+
+test('ARM64 CCD helper uses the pinned Node 24.22.2 runtime image',async()=>{
+ const {ccdImagePins}=await runtime;
+ const client=ccdImagePins('linux/arm64').client;
+ assert.equal(client.reference,'sha256:0bab91d6a954a4a75de4a887edfda7386ed8711aa8b1eb5fb309ee0f0a2c544f');
+ assert.equal(client.manifestDigest,client.reference);
 });
 
 test('AMD64 startup uses TCP readiness, synthetic databases and one exact local token issuer',async t=>{

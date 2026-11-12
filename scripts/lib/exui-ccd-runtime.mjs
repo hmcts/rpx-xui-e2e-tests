@@ -31,7 +31,7 @@ export const CCD_IMAGES = {
  s2s:'sha256:beb0c921e1c42151e24f7a8957c52c382ee41189ba015ba0cd681f582cff7117',
  idam:'sha256:c52d1d8891a215c5358640f8e17754fd828789c5bc3a87ba5ebb1c49341e253f',
  database:'sha256:19edba91a88d4a3d532e11d16c8cfa4b0e26e67d1b90467220cd5672c6cbd0f7',
- client:'sha256:c0122351f25f04facee976f9db7214789eabadb489f4e4aea9cd00a0d6af77c4'
+ client:'sha256:0bab91d6a954a4a75de4a887edfda7386ed8711aa8b1eb5fb309ee0f0a2c544f'
 };
 export function ccdImagePins(platform = 'linux/arm64', { elasticsearch = false } = {}) {
   assert.equal(typeof elasticsearch, 'boolean', 'CCD_ELASTICSEARCH_SELECTION_REQUIRED');

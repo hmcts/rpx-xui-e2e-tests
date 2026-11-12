@@ -200,7 +200,7 @@ test("support only: native recovery plans bind declared artifacts/runtime and re
     const artifact = {
       candidateRoot: path.join(root, "candidate"),
       identity: { artifactDigest: sha("a") },
-      provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.1" },
+      provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.2" },
     };
     const nativeRuntime = { imageId: sha("b"), platform: "linux/arm64" };
     const input = {
@@ -624,7 +624,7 @@ async function eventOwnershipFixture(t) {
       fs.mkdirSync(path.join(state, id, kind), { recursive: true });
   fs.writeFileSync(path.join(root, "candidate/config/default.json"), JSON.stringify({ services: { idam: {} }, feature: {} }));
   fs.writeFileSync(path.join(root, "stage/scripts/lib/exui-runtime-network-guard.cjs"), "guard");
-  const artifact = { candidateRoot: path.join(root, "candidate"), identity: { artifactDigest: sha("a") }, provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.1" } };
+  const artifact = { candidateRoot: path.join(root, "candidate"), identity: { artifactDigest: sha("a") }, provenance: { platform: "linux/arm64", runtimeNodeVersion: "v24.22.2" } };
   const input = {
     releaseScopeId: "exui-ccd-event-capability-pilot",
     runId: "ccd-11111111-1111-4111-8111-111111111111",
@@ -778,8 +778,10 @@ test("support only: event fault candidate arguments cannot be selected under an 
 
 test("native AMD64 image admission binds platform, manifest and config identity", async () => {
   const { nativeRuntimeImages, assertNativeRuntimeImage } = await import("./lib/exui-native-containers.mjs");
+  assert.equal(nativeRuntimeImages("linux/arm64").api.reference, "node@sha256:0bab91d6a954a4a75de4a887edfda7386ed8711aa8b1eb5fb309ee0f0a2c544f");
   const images = nativeRuntimeImages("linux/amd64");
-  assert.equal(images.api.reference, "node@sha256:0925478b811e8890f5508ad2a75135933310effd45492696ecf7c111c8339d02");
+  assert.equal(images.api.reference, "node@sha256:6b9d4ea31e614e29f364bf75758458731eb1e105b80c99667438dd6b3fe262e0");
+  assert.equal(images.api.configDigest, "sha256:4ec989dc9e69bc7f2cdede4d6755b81f34d697447daba63c72d81d3b48011800");
   assert.match(images.browser.reference, /^mcr.microsoft.com\/playwright@sha256:/);
   for (const pin of Object.values(images)) {
     const info = { Id: pin.manifestDigest, Os: "linux", Architecture: "amd64", RepoDigests: [pin.reference] };

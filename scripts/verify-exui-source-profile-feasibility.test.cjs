@@ -28,7 +28,7 @@ test('feasibility factory binds exact process/config and isolates candidate evid
   const {profileInvocationPlan}=await import('./run-harness-source-profile-jurisdictions.mjs');
   const parent=temporary(t),paths={};for(const name of ['output','sources','candidate','sessions','diagnostics']){paths[name]=path.join(parent,name);fs.mkdirSync(paths[name]);}
   fs.mkdirSync(path.join(paths.sources,'scripts/lib'),{recursive:true});fs.writeFileSync(path.join(paths.sources,'scripts/lib/exui-runtime-network-guard.cjs'),'guard');
-  const artifact={candidateRoot:paths.candidate,identity:{webappCommit:'a'.repeat(40)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.1'}};
+  const artifact={candidateRoot:paths.candidate,identity:{webappCommit:'a'.repeat(40)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.2'}};
   const config={jurisdictions:'CMC,FR',feature:{workAllocationEnabled:false}};
   const spec=profileInvocationPlan({owner:'candidate-11111111-1111-4111-8111-111111111111',invocationId:'source-profile-drop-divorce-jurisdiction',artifact,runtime:{imageId:'sha256:'+'c'.repeat(64),platform:'linux/arm64'},config,...paths});
   assert.equal(spec.tools.args[spec.tools.args.indexOf('--network')+1],'none');
@@ -87,7 +87,7 @@ async function controller(t,{failProof=false,failCleanup=false,cancel=false,miss
   const {SOURCE_JURISDICTIONS,profileJurisdictionRows,SOURCE_PROFILE_JURISDICTION_FAULT}=await import('./lib/exui-source-profile-jurisdictions.mjs');
   const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
   const parent=temporary(t),candidateRoot=path.join(parent,'candidate');fs.mkdirSync(candidateRoot);
-  const artifact={candidateRoot,identity:{artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.1'}};
+  const artifact={candidateRoot,identity:{artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{platform:'linux/arm64',runtimeNodeVersion:'v24.22.2'}};
   const artifactPath=path.join(parent,'artifact.json');fs.writeFileSync(artifactPath,JSON.stringify(artifact));
   const output=path.join(parent,'output'),image='sha256:'+'c'.repeat(64),sessions=[];
   const {EventEmitter}=require('node:events');const signalTarget=new EventEmitter();signalTarget.stderr={write:()=>{}};let signalExitStateRemoved;signalTarget.exit=()=>{signalExitStateRemoved=!fs.existsSync(stateRoot);};

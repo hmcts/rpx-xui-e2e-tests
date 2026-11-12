@@ -194,7 +194,7 @@ for(const platform of ['linux/arm64','linux/amd64'])for(const [facet,fault] of a
   const published='20c6ec129fc1e81061c733e164198ec63a33e71a';
   for(const scenario of ['valid','foreign-commit','foreign-method','extra-config-delta','failed-terminal']) {
     const parent=temporary(t),candidateRoot=path.join(parent,'candidate');fs.mkdirSync(candidateRoot);
-    const artifact={candidateRoot,identity:{webappCommit:scenario==='foreign-commit'?'26d17ebea1b7b470b6cc11409564ce296e8ec621':published,artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{sourceMethod:scenario==='foreign-method'?'working-tree':'git-archive',webappCommit:scenario==='foreign-commit'?'26d17ebea1b7b470b6cc11409564ce296e8ec621':published,platform,runtimeNodeVersion:'v24.22.1'}};
+    const artifact={candidateRoot,identity:{webappCommit:scenario==='foreign-commit'?'26d17ebea1b7b470b6cc11409564ce296e8ec621':published,artifactDigest:'sha256:'+'a'.repeat(64)},payloadDigest:'sha256:'+'b'.repeat(64),provenance:{sourceMethod:scenario==='foreign-method'?'working-tree':'git-archive',webappCommit:scenario==='foreign-commit'?'26d17ebea1b7b470b6cc11409564ce296e8ec621':published,platform,runtimeNodeVersion:'v24.22.2'}};
     const artifactPath=path.join(parent,'artifact.json'),output=path.join(parent,'output');fs.writeFileSync(artifactPath,JSON.stringify(artifact));
     const source=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/exui-configuration-source.json'))).sources.find(row=>row.path==='config/default.json').document;
     const image='sha256:'+'c'.repeat(64),signalTarget=new EventEmitter();signalTarget.stderr={write:()=>{}};signalTarget.exit=()=>{};let calls=0,id=0;

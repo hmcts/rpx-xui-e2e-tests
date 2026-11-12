@@ -55,7 +55,7 @@ for (const pipeline of ['Jenkinsfile_CNP', 'Jenkinsfile_nightly']) {
     try {
       mkdirSync(join(directory, 'scripts'));
       mkdirSync(join(directory, 'node_modules/@playwright/test'), { recursive: true });
-      writeFileSync(join(directory, '.nvmrc'), '24.21.0\n');
+      writeFileSync(join(directory, '.nvmrc'), '24.22.2\n');
       writeFileSync(join(directory, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.18.1' }));
       writeFileSync(join(directory, 'scripts/verify-playwright-browsers.cjs'), readFileSync('scripts/verify-playwright-browsers.cjs'));
       writeFileSync(join(directory, 'node_modules/@playwright/test/index.js'), `exports.chromium={executablePath:()=>process.env.MISSING_BROWSER==='1'?'/missing/browser':process.execPath,launch:async()=>({close:async()=>{}})};`);
@@ -78,8 +78,9 @@ source() {
 [[ "$FAIL_COMMAND" != source ]] || return 23
 nvm() {
   printf 'nvm:%s\\n' "$*" >> "$CALLS_FILE"
-  [[ "$*" == use ]] || return 96
-  [[ "$FAIL_COMMAND" != use ]] || return 23
+  [[ "$*" == install || "$*" == use ]] || return 96
+  [[ "$*" != install || "$FAIL_COMMAND" != install ]] || return 23
+  [[ "$*" != use || "$FAIL_COMMAND" != use ]] || return 23
 }
 node() {
   if [[ "$1" == -e ]]; then
@@ -117,20 +118,21 @@ corepack() {
 }
 `);
       const expectedCalls = [
-        'nvm:source', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
+        'nvm:source', 'nvm:install', 'nvm:use', 'node:version', 'node:package-manager', 'corepack:yarn --version',
         'native-assurance:run', 'report:validate'
       ];
       const cases = [
         { fail: 'source', status: 23, through: 1 },
-        { fail: 'use', status: 23, through: 2 },
-        { fail: 'node-exit', status: 23, through: 3 },
-        { fail: 'node-version', status: 1, through: 3 },
-        { fail: 'package-manager', status: 23, through: 4 },
-        { fail: '--version', status: 23, through: 5 },
-        { fail: 'yarn-version', status: 1, through: 5 },
-        { fail: 'native-assurance', status: 23, through: 6 },
-        { fail: 'validate', status: 23, through: 7 },
-        { fail: '', status: 0, through: 7 }
+        { fail: 'install', status: 23, through: 2 },
+        { fail: 'use', status: 23, through: 3 },
+        { fail: 'node-exit', status: 23, through: 4 },
+        { fail: 'node-version', status: 1, through: 4 },
+        { fail: 'package-manager', status: 23, through: 5 },
+        { fail: '--version', status: 23, through: 6 },
+        { fail: 'yarn-version', status: 1, through: 6 },
+        { fail: 'native-assurance', status: 23, through: 7 },
+        { fail: 'validate', status: 23, through: 8 },
+        { fail: '', status: 0, through: 8 }
       ];
       for (const { fail, status, through } of cases) {
         rmSync(calls, { force: true });
@@ -139,7 +141,7 @@ corepack() {
           env: {
             PATH: directory, HOME: process.env.HOME, FAKE_NVM: fakeNvm,
             REAL_NODE: process.execPath, CALLS_FILE: calls, FAIL_COMMAND: fail,
-            FAKE_NODE_VERSION: fail === 'node-version' ? '22.0.0' : '24.21.0',
+            FAKE_NODE_VERSION: fail === 'node-version' ? '22.0.0' : '24.22.2',
             FAKE_YARN_VERSION: fail === 'yarn-version' ? '1.22.0' : '4.18.1',
             MISSING_BROWSER: fail === 'browser' ? '1' : '0'
           }
@@ -149,6 +151,7 @@ corepack() {
         assert.deepEqual(invoked, expectedCalls.slice(0, through), fail || 'success');
       }
       assert.match(command, /export CI=true/, 'both reporter selections must be explicit in Jenkins');
+      assert.match(command, /nvm install\s+nvm use/, 'the exact .nvmrc runtime must be installed when missing');
       assert.ok(command.startsWith('#!/usr/bin/env bash\n'), 'Jenkins must see the Bash shebang at the first script character');
       assert.equal(spawnSync('/bin/bash', ['-n'], { input: command, encoding: 'utf8' }).status, 0);
     } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -380,7 +383,7 @@ test('Jenkins report-management wrapper pins Node before reset or validation', (
       [[ "$#" == 1 && "$1" == /opt/nvm/nvm.sh ]] || return 96
       [[ "$FAIL_AT" != source ]] || return 23
     }
-    nvm() { [[ "$*" == use && "$NVM_DIR" == /home/jenkinsssh/.nvm ]] || return 96; [[ "$FAIL_AT" != use ]] || return 23; }
+    nvm() { [[ "$*" == install || "$*" == use ]] && [[ "$NVM_DIR" == /home/jenkinsssh/.nvm ]] || return 96; [[ "$*" != install || "$FAIL_AT" != install ]] || return 23; [[ "$*" != use || "$FAIL_AT" != use ]] || return 23; }
     node() {
       if [[ "$1" == -e ]]; then
         "$REAL_NODE" -e 'if(process.env.FAIL_AT === "version") Object.defineProperty(process.versions,"node",{value:"0.0.0"}); eval(process.argv[1]);' "$2"
@@ -391,7 +394,7 @@ test('Jenkins report-management wrapper pins Node before reset or validation', (
     }
     `);
     for (const command of ['scripts/manage-harness-public-reports.cjs --reset', 'scripts/manage-harness-public-reports.cjs --validate']) {
-      for (const [failAt, expected] of [['source',23],['use',23],['version',1],['command',23],['',0]]) {
+      for (const [failAt, expected] of [['source',23],['install',23],['use',23],['version',1],['command',23],['',0]]) {
         const calls = join(directory, 'calls');
         rmSync(calls, { force: true });
         const result = spawnSync('/bin/bash', ['-c', 'builtin source "$1"; shift; builtin source "$1" "${@:2}"', 'report-wrapper', bootstrap, actual, ...command.split(' ')], {

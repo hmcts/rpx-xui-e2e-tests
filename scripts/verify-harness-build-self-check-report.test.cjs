@@ -8,7 +8,7 @@ const fixture = () => ({
   runId: "self-check-00000000-0000-4000-8000-000000000001",
   status: "passed",
   reason: null,
-  nodeVersion: "v24.21.0",
+  nodeVersion: "v24.22.2",
   selectedFiles: 2,
   configuredFileWorkers: 1,
   purposeMapDigest:'sha256:'+require('node:crypto').createHash('sha256').update(require('node:fs').readFileSync(require('node:path').join(__dirname,'fixtures/harness-self-check-purpose-map.json'))).digest('hex'),

@@ -117,7 +117,7 @@ function fixture(fault) {
       if (script.includes("net.connect")) return "[false,false]";
       if (script.includes("osRelease"))
         return JSON.stringify({
-          nodeVersion: "v24.22.1",
+          nodeVersion: "v24.22.2",
           platform: "linux",
           architecture: "arm64",
           osRelease: "ID=debian\nVERSION_CODENAME=bookworm\n",
@@ -153,7 +153,7 @@ function fixture(fault) {
     candidate: {
       image,
       node: "/candidate/runtime/node",
-      expectedNodeVersion: "v24.22.1",
+      expectedNodeVersion: "v24.22.2",
       mounts: mounts("candidate"),
       arguments: () => ["create"],
     },
