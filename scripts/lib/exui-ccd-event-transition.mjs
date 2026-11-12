@@ -284,7 +284,9 @@ export function selectEventCapabilityRuntime(input, invocationId, record) {
   assert.notEqual(record.ccd.namespace, input.ccd.namespace, "EVENT_TRANSITION_NAMESPACE_REUSE");
   assert.notEqual(record.ccd.owner, input.ccd.owner, "EVENT_TRANSITION_OWNER_REUSE");
   assert.deepEqual(record.ccd.images, input.ccd.images, "EVENT_TRANSITION_IMAGE_DRIFT");
-  assert.deepEqual(record.apiContracts, input.apiContracts, "EVENT_TRANSITION_API_DRIFT");
+  const changedContracts = ["data", "definition"].filter(service => record.apiContracts?.[service] !== input.apiContracts?.[service]);
+  assert.deepEqual(record.apiContracts, input.apiContracts,
+    `EVENT_TRANSITION_API_DRIFT_${changedContracts.length ? changedContracts.join("_").toUpperCase() : "SHAPE"}`);
   assert.equal(record.definition.fixtureDigest, binding()[variant].workbookDigest, "EVENT_TRANSITION_FAULT_DEFINITION");
   assert(digest(record.definition.observedDefinitionDigest), "EVENT_TRANSITION_OBSERVED_DEFINITION");
   assert.notEqual(record.definition.observedDefinitionDigest, input.definition.observedDefinitionDigest, "EVENT_TRANSITION_DEFINITION_UNCHANGED");

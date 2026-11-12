@@ -308,6 +308,8 @@ test('native diagnostics preserve known failures and owned source lines without 
   assert.match(output,/EVENT_TRANSITION_ACK_TIMEOUT/);assert.match(output,/"baselineReport":true/);assert.match(output,/"code":2/);
   assert.doesNotMatch(output,/PRIVATE-CANARY|credentials|\/private|message|stack/);
  }
+ for(const reason of ['EVENT_TRANSITION_API_DRIFT_DATA','EVENT_TRANSITION_API_DRIFT_DEFINITION','EVENT_TRANSITION_API_DRIFT_DATA_DEFINITION','EVENT_TRANSITION_API_DRIFT_SHAPE'])
+  assert.deepEqual(classifyNativeFailure(new Error(reason)),{reason});
  assert.deepEqual(classifyNativeFailure({message:'PRIVATE_UPPERCASE_CANARY',code:'PRIVATE_CODE',stack:'Error\n at /foreign/exui-native-host.mjs:25:1'}),{reason:'NATIVE_OPERATION_FAILED'});
  assert.match(formatNativeFailure(nativePhaseFailure(new Error('CI_EVENT_TRANSITION_CANCELLED'), 'eventCapability', {code:2,signal:null}, {}, {reason:'EVENT_TRANSITION_ACK_TIMEOUT'})), /CI_EVENT_TRANSITION_CANCELLED.*EVENT_TRANSITION_ACK_TIMEOUT/);
  const forged=formatNativeFailure({reason:'PRIVATE_UPPERCASE_CANARY',code:'PRIVATE_CODE',source:'PRIVATE_SOURCE',line:1,phase:'PRIVATE_PHASE',terminal:{code:'PRIVATE_CODE',signal:'PRIVATE_SIGNAL'},artifacts:{run:'PRIVATE_PATH'},child:{reason:'PRIVATE_CHILD'}});
