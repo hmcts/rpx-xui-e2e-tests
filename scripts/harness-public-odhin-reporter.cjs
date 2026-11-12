@@ -252,7 +252,7 @@ function validateHtml(html, record, retiringPreviousRun = false) {
     /(?:screenshots|videos|traces)\//.test(html)
   )
     throw failure();
-  const marker = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}>`;
+  const marker = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}" data-diagnostic-elapsed-ms="${record.duration}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}>`;
   if (
     !html.includes(marker) ||
     !html.includes("no release credit") ||
@@ -749,7 +749,7 @@ class HarnessPublicOdhinReporter {
         startTime: result.startTime.toISOString(),
         duration: result.duration,
       };
-      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.personalServiceAttempt?` / Personal event row ${record.personalServiceAttempt.status}`:""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.complexEmailAttempt?` / ComplexTypes ${record.complexEmailAttempt.status}`:''}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
+      const banner = `<section id="harness-public-run" data-selection="${record.selection}" data-status="${record.status}" data-run-id="${record.runId}" data-diagnostic-elapsed-ms="${record.duration}"${record.nativeElapsedMs === undefined ? '' : ` data-native-elapsed-ms="${record.nativeElapsedMs}"`}><div class="alert alert-secondary rounded-0 m-0 py-2 small"><strong>Diagnostics ${record.status}${record.nativeEvidence ? ` / Native ${record.nativeEvidence.status}` : ""}${record.personalServiceAttempt?` / Personal event row ${record.personalServiceAttempt.status}`:""}${record.divorceProfileAttempt?` / DIVORCE profile ${record.divorceProfileAttempt.status}`:""}${record.complexEmailAttempt?` / ComplexTypes ${record.complexEmailAttempt.status}`:''}${record.sharedNestedAttemptEvidence?` / Additional nested attempt ${record.sharedNestedAttemptEvidence.status}`:''}.</strong> ${record.nativeEvidence ? "Separate native execution attached;" : "Supporting diagnostics only;"} no release credit. Global errors: ${record.globalErrors}. Detailed diagnostics remain private.</div></section>`;
       html = html.replace(
         '<body id="body-content">',
         `<body id="body-content">${banner}`,

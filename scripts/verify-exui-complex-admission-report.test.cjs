@@ -36,23 +36,46 @@ test('Complex dashboard activity preserves main totals and the main duration', (
   const script = fs.readFileSync(path.join(__dirname, 'harness-public-dashboard.js'), 'utf8');
   for (const included of [false, true]) {
     const make = () => ({dataset:{}, children:[], classList:{add() {}}, append(...rows) {this.children.push(...rows);}, setAttribute() {}});
-    const metrics = make();metrics.replaceChildren = () => {metrics.children = [];};
+    const metrics = make();metrics.replaceChildren = () => {metrics.children = [];};metrics.after = item => {metrics.following = item};
     metrics.querySelector = selector => ({textContent:selector.includes('metric-0') ? '116' : selector.includes('metric-1') ? '100%' : '0'});
     const elements = {
       '#harness-application-coverage':{dataset:{runtimeObligations:'112'}}, '.report-metrics':metrics,
-      '#harness-public-run':{dataset:{nativeElapsedMs:'60000'}},
+      '#harness-public-run':{dataset:{nativeElapsedMs:'60000',diagnosticElapsedMs:'6100'}},
       '#harness-native-evidence':{dataset:{nativeStatus:'PASS'}, querySelectorAll:() => [{}, {}]},
       '#harness-complex-email-admission':{dataset:{complexStatus:'PASS', complexBrowserContexts:'2', complexMappingContexts:'2', complexEffectiveFaults:'2', complexDurationMs:'265374', complexInclusion:included ? 'included' : 'separate'}},
     };
-    const document = {createElement:make, querySelector:selector => elements[selector] || null, querySelectorAll:() => [{dataset:{catalogueAccepted:included ? '39' : '38'}}]};
+    const dashboard={after:item=>{metrics.following=item}};
+    const document = {createElement:make, querySelector:selector => selector==='#TabDashboard'?dashboard:elements[selector] || null, querySelectorAll:() => [{dataset:{catalogueAccepted:included ? '39' : '38'}}]};
     vm.runInNewContext(script, {document});
-    assert.equal(metrics.children[0].children[1].textContent, `${included ? 39 : 38} / 112`);
-    assert.equal(metrics.children[1].children[1].textContent, '2 + 2');
-    assert(metrics.children[1].children[2].textContent.includes('1.0 min main native'));
+    assert.equal(metrics.following.children[0].children[1].textContent, `${included ? 39 : 38} / 112`);
+    assert.equal(metrics.following.children[1].children[1].textContent, '2 + 2');
+    assert.equal(metrics.following.children[4].children[1].textContent, '0h 1m 6s 100ms');
+    assert(metrics.following.children[1].children[2].textContent.includes('1.0 min main native'));
     const text = node => [node.textContent || '', ...node.children.map(text)].join(' ');
-    assert(text(metrics).includes('2 browser invocations · 2 mapping contexts · 2 effective faults'));
-    assert(text(metrics).includes('4m 25s'));
+    assert(text(metrics.following).includes('2 browser invocations · 2 mapping contexts · 2 effective faults'));
+    assert(text(metrics.following).includes('4m 25s'));
   }
+});
+
+test('keeps the Odhín summary first and reports measured Harness runtime separately', () => {
+  const script=fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8');
+  const make=()=>({dataset:{},children:[],classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(){}});
+  const labels=['Tests in this run','Pass rate','Needs attention','Execution time'];
+  const originalCards=labels.map(label=>({className:'report-metric',children:[{textContent:label},{textContent:'5s'},{textContent:'Total elapsed time'}]}));
+  const metrics=make();metrics.children.push(...originalCards);
+  metrics.replaceChildren=(...items)=>{metrics.children=items};
+  metrics.querySelector=selector=>selector==='.metric-3'?originalCards[3]:{textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'};
+  metrics.after=item=>{metrics.following=item};
+  const dashboard={after:item=>{metrics.following=item}};
+  const document={createElement:make,querySelector:selector=>selector==='#TabDashboard'?dashboard:({'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-public-run':{dataset:{nativeElapsedMs:'1920000',diagnosticElapsedMs:'6100'}},'#harness-native-evidence':{dataset:{nativeStatus:'BLOCKED'},querySelectorAll:()=>[]}})[selector]||null,querySelectorAll:()=>[]};
+  vm.runInNewContext(script,{document});
+  assert.deepEqual(metrics.children,originalCards);
+  assert.equal(originalCards[3].children[0].textContent,'Diagnostic duration');
+  assert.equal(originalCards[3].children[2].textContent,'Playwright diagnostics only; Harness timing below');
+  assert.equal(metrics.following.className,'report-metrics harness-assurance-summary');
+  const timing=metrics.following.children.find(card=>card.children[0]?.textContent==='Measured Harness execution');
+  assert.equal(timing.children[1].textContent,'0h 32m 6s 100ms');
+  assert.match(timing.children[2].textContent,/Native run \+ evidence preparation \+ diagnostics; excludes Jenkins setup/);
 });
 
 

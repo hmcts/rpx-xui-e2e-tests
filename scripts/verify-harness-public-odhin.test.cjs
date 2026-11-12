@@ -926,6 +926,7 @@ test("same Odhín document separates native baselines and faults from diagnostic
   const html = fs.readFileSync(output(), "utf8");
   const dom = require("node-html-parser").parse(html);
   assert.equal(dom.querySelector('#harness-public-run').getAttribute('data-native-elapsed-ms'), '1920000');
+  assert.equal(dom.querySelector('#harness-public-run').getAttribute('data-diagnostic-elapsed-ms'), '1000');
   assert.match(dom.querySelector('.testcase-run-info-table').textContent, /32\.0 min native run \+ evidence preparation/);
   assert.equal(dom.querySelectorAll('#harness-phase-timings tbody tr').length, 2);
   assert.match(dom.querySelector('#harness-phase-timings').textContent, /WA family.*2m 20s.*Scope fault candidate preparation.*2m 38s/s);
@@ -1297,11 +1298,14 @@ test("native headline shows the actual status and reserves green for passing evi
  const script = fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8');
  const make = () => ({dataset:{},children:[],classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(){}});
  for (const status of [null,'PASS','FAIL','BLOCKED']) {
-  const metrics=make(); metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
+  const metrics=make(); metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};metrics.after=item=>{metrics.following=item};
+  const originalCard={className:'original-odhin-summary'};metrics.children.push(originalCard);
   const native=status?{dataset:{nativeStatus:status},querySelectorAll:()=>[{},{}]}:null;
-  const document={createElement:make,querySelector:selector=>({'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':native})[selector]||null,querySelectorAll:()=>[]};
+  const dashboard={after:item=>{metrics.following=item}};
+  const document={createElement:make,querySelector:selector=>selector==='#TabDashboard'?dashboard:({'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':native})[selector]||null,querySelectorAll:()=>[]};
   vm.runInNewContext(script,{document});
-  const card=metrics.children[1];
+  const card=metrics.following.children[1];
+  assert.equal(metrics.children[0],originalCard);
   assert.equal(card.dataset.nativeStatus,status||'NOT_RUN');
   assert.equal(card.children[1].textContent,status?'2 + 2':'Not run');
   assert.ok(card.children[2].textContent.includes(status||'Candidate and CCD checks not attached'));
@@ -1335,33 +1339,34 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
   '#harness-personal-service-admission':{dataset:{personalStatus:'PASS',personalBaselines:'1',personalEffectiveFaults:'1',personalAccepted:'1',personalTotal:'1',personalInclusion:'included',personalDurationMs:'247013'}},
  };
  const render=(supplements,main=true)=>{
-  const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
-  const elements={'#harness-public-run':{dataset:{nativeElapsedMs:'60000'}},'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,...(main?{'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}}:{}),...supplements};
+  const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};metrics.after=item=>{metrics.following=item};
+  const elements={'#harness-public-run':{dataset:{nativeElapsedMs:'60000',diagnosticElapsedMs:'6100'}},'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,...(main?{'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}}:{}),...supplements};
+  elements['#TabDashboard']={after:item=>{metrics.following=item}};
   const document={createElement:make,querySelector:selector=>elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'35'}}]:[]};
   vm.runInNewContext(script,{document});return metrics;
  };
  const text=node=>[node.textContent||'',...node.children.map(text)].join(' ');
- const plain=render({});assert.equal(plain.children[1].children[0].textContent,'Native proof outcomes');assert(!plain.children.some(x=>x.className==='report-supplement-summary'));
- const metrics=render(panels),summary=metrics.children[4];
- assert.equal(metrics.children[0].children[1].textContent,'35 / 112');assert.equal(metrics.children[1].children[1].textContent,'2 + 2');assert.equal(metrics.children[2].children[1].textContent,'116');assert.equal(metrics.children[3].children[1].textContent,'Unavailable');
- assert.equal(metrics.children[1].children[0].textContent,'Main native proof outcomes');assert.equal(summary.className,'report-supplement-summary');
+ const plain=render({});assert.equal(plain.following.children[1].children[0].textContent,'Native proof outcomes');assert(!plain.following.children.some(x=>x.className==='report-supplement-summary'));
+ const metrics=render(panels),content=metrics.following,summary=content.children[5];
+ assert.equal(content.children[0].children[1].textContent,'35 / 112');assert.equal(content.children[1].children[1].textContent,'2 + 2');assert.equal(content.children[2].children[1].textContent,'116');assert.equal(content.children[3].children[1].textContent,'Unavailable');
+ assert.equal(content.children[1].children[0].textContent,'Main native proof outcomes');assert.equal(content.children[4].children[1].textContent,'0h 1m 6s 100ms');assert.equal(summary.className,'report-supplement-summary');
  const links=summary.children.find(x=>x.className==='report-supplement-links').children;
  assert.deepEqual(links.map(x=>x.href),Object.keys(panels));
  assert.match(text(links[0]),/BLOCKED/);assert.match(text(links[0]),/4 baseline facets completed/);assert.match(text(links[0]),/2 passed.*2 failed/);assert.match(text(links[0]),/0 effective faults.*3 not run/);
  assert.match(text(links[1]),/6 baseline.*6 effective faults/);assert.match(text(links[1]),/1 \/ 1.*separate/);
  assert.match(text(links[2]),/1 baseline.*3 effective faults/);assert.match(text(links[2]),/Corrected local ARM64 CCD/);
  assert.match(text(links[3]),/PASS.*1 baseline.*1 effective fault/);assert.match(text(links[3]),/already included in main candidate coverage/);assert.match(text(links[3]),/Personal pair interval: 4m 7s.*excluded from main native duration/);
- const separatePersonal=render({'#harness-personal-service-admission':{dataset:{...panels['#harness-personal-service-admission'].dataset,personalInclusion:'separate'}}});assert.match(text(separatePersonal.children[4]),/1 \/ 1 requirement accepted in this separate run/);assert.equal(separatePersonal.children[0].children[1].textContent,'35 / 112');
- const failedPersonal=render({'#harness-personal-service-attempt':{dataset:{personalAttemptStatus:'BLOCKED',personalAttemptDurationMs:'1234'}}});assert.match(text(failedPersonal.children[4]),/BLOCKED.*Completed proof counts unavailable.*No additional catalogue/);assert.doesNotMatch(text(failedPersonal.children[4]),/1 baseline|1 effective fault/);assert.match(text(failedPersonal.children[4]),/Observed attempt interval: 0m 1s/);
- assert.match(text(metrics.children[1]),/1\.0 min main native \+ evidence verification/);
+ const separatePersonal=render({'#harness-personal-service-admission':{dataset:{...panels['#harness-personal-service-admission'].dataset,personalInclusion:'separate'}}});assert.match(text(separatePersonal.following.children[5]),/1 \/ 1 requirement accepted in this separate run/);assert.equal(separatePersonal.following.children[0].children[1].textContent,'35 / 112');
+ const failedPersonal=render({'#harness-personal-service-attempt':{dataset:{personalAttemptStatus:'BLOCKED',personalAttemptDurationMs:'1234'}}});assert.match(text(failedPersonal.following.children[5]),/BLOCKED.*Completed proof counts unavailable.*No additional catalogue/);assert.doesNotMatch(text(failedPersonal.following.children[5]),/1 baseline|1 effective fault/);assert.match(text(failedPersonal.following.children[5]),/Observed attempt interval: 0m 1s/);
+ assert.match(text(content.children[1]),/1\.0 min main native \+ evidence verification/);
  assert.match(text(links[1]),/Separate profile interval: 2m 5s.*excluded from main native duration/);
  assert.match(text(summary),/Separate execution counts and durations/);assert.match(text(summary),/Supplementary requirements enter the catalogue total only when jointly admitted/);assert.doesNotMatch(text(summary),/excluded from the main totals/);
- const unknown=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:undefined}}});assert.match(text(unknown.children[4]),/Separate profile interval: not recorded/);
- const included=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileInclusion:'included'}}});assert.match(text(included.children[4]),/already included in main candidate coverage/);assert.match(text(included.children[4]),/2m 5s.*excluded from main native duration/);assert.equal(included.children[0].children[1].textContent,'35 / 112');
- const zero=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:'0'}}});assert.match(text(zero.children[4]),/Separate profile interval: 0m 0s/);
+ const unknown=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:undefined}}});assert.match(text(unknown.following.children[5]),/Separate profile interval: not recorded/);
+ const included=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileInclusion:'included'}}});assert.match(text(included.following.children[5]),/already included in main candidate coverage/);assert.match(text(included.following.children[5]),/2m 5s.*excluded from main native duration/);assert.equal(included.following.children[0].children[1].textContent,'35 / 112');
+ const zero=render({'#harness-divorce-profile-admission':{dataset:{...panels['#harness-divorce-profile-admission'].dataset,profileDurationMs:'0'}}});assert.match(text(zero.following.children[5]),/Separate profile interval: 0m 0s/);
  const standalone=render({'#harness-shared-nested-attempt':panels['#harness-shared-nested-attempt']},false);
- assert.equal(standalone.children[1].children[1].textContent,'Not run');assert.equal(standalone.children[1].dataset.nativeStatus,'NOT_RUN');assert.equal(standalone.children[2].children[1].textContent,'116');assert.match(text(standalone.children[4]),/BLOCKED/);
- for(const [selector,panel]of Object.entries(panels)){const one=render({[selector]:panel});assert.equal(one.children[4].children.find(x=>x.className==='report-supplement-links').children.length,1);}
+ assert.equal(standalone.following.children[1].children[1].textContent,'Not run');assert.equal(standalone.following.children[1].dataset.nativeStatus,'NOT_RUN');assert.equal(standalone.following.children[2].children[1].textContent,'116');assert.match(text(standalone.following.children[5]),/BLOCKED/);
+ for(const [selector,panel]of Object.entries(panels)){const one=render({[selector]:panel});assert.equal(one.following.children[5].children.find(x=>x.className==='report-supplement-links').children.length,1);}
  const css=fs.readFileSync(path.join(__dirname,'harness-report-coverage.css'),'utf8');assert.match(css,/\.report-supplement-summary[^{]*\{[^}]*grid-column:\s*1 \/ -1/);assert.match(css,/\.report-supplement-links[^{]*\{[^}]*minmax/);
 });
 

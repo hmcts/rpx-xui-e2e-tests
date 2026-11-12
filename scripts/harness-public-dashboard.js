@@ -16,8 +16,19 @@
   const baselines = native?.querySelectorAll('[data-native-table="baseline"] tr[data-native-phase]').length || 0;
   const faults = native?.querySelectorAll('[data-native-table="fault"] tr[data-native-phase]').length || 0;
   const nativeElapsed = Number(run?.dataset.nativeElapsedMs);
-  const nativeTime = Number.isFinite(nativeElapsed) && nativeElapsed > 0
+  const nativeTime = Number.isSafeInteger(nativeElapsed) && nativeElapsed > 0
     ? ` · ${(nativeElapsed / 60000).toFixed(1)} min main native + evidence verification` : '';
+  const diagnosticElapsed = Number(run?.dataset.diagnosticElapsedMs);
+  const hasDiagnosticElapsed = /^\d+$/.test(run?.dataset.diagnosticElapsedMs || '') && Number.isSafeInteger(diagnosticElapsed);
+  const hasNativeElapsed = native && /^\d+$/.test(run?.dataset.nativeElapsedMs || '') && Number.isSafeInteger(nativeElapsed);
+  const measuredElapsed = hasDiagnosticElapsed && hasNativeElapsed && Number.isSafeInteger(nativeElapsed + diagnosticElapsed)
+    ? nativeElapsed + diagnosticElapsed : null;
+  const diagnosticOnlyElapsed = !native && hasDiagnosticElapsed ? diagnosticElapsed : null;
+  const formatDuration = ms => `${Math.floor(ms / 3600000)}h ${Math.floor(ms % 3600000 / 60000)}m ${Math.floor(ms % 60000 / 1000)}s ${ms % 1000}ms`;
+  const runtimeDuration = native ? measuredElapsed : diagnosticOnlyElapsed;
+  const runtimeDetail = native
+    ? runtimeDuration === null ? 'Native or diagnostic duration not recorded; excludes Jenkins setup' : 'Native run + evidence preparation + diagnostics; excludes Jenkins setup'
+    : 'Native checks not run; excludes Jenkins setup';
   const diagnosticTotal = Number(metrics.querySelector('.metric-0 strong')?.textContent || 0);
   const diagnosticPassRate = metrics.querySelector('.metric-1 strong')?.textContent.trim() || '—';
   const diagnosticAttention = metrics.querySelector('.metric-2 strong')?.textContent.trim() || '—';
@@ -90,7 +101,22 @@
     ['Diagnostic tests', String(diagnosticTotal), `${diagnosticPassRate} pass rate · ${diagnosticAttention} need attention · ${diagnosticTime}`, '#TabTests'],
     ['Release approval', 'Unavailable', 'Catalogue and deployment gaps remain', '#harness-application-coverage'],
   ];
-  metrics.replaceChildren();
+  if (native) {
+    const oldTiming = metrics.querySelector('.metric-3');
+    if (oldTiming?.children?.length >= 3) {
+      oldTiming.children[0].textContent = 'Diagnostic duration';
+      oldTiming.children[2].textContent = 'Playwright diagnostics only; Harness timing below';
+    }
+  }
+  const harnessMetrics = document.createElement('section');
+  harnessMetrics.className = 'report-metrics harness-assurance-summary';
+  harnessMetrics.setAttribute('aria-label', 'Harness evidence at a glance');
+  cards.push([
+    native ? 'Measured Harness execution' : 'Diagnostic-only execution',
+    runtimeDuration === null ? 'Not recorded' : formatDuration(runtimeDuration),
+    runtimeDetail,
+    '#harness-phase-timings',
+  ]);
   cards.forEach(([label, value, detail, href], index) => {
     const card = document.createElement(href ? 'a' : 'div');
     card.className = `report-metric metric-${index}`;
@@ -102,7 +128,7 @@
       element.textContent = content;
       card.append(element);
     });
-    metrics.append(card);
+    harnessMetrics.append(card);
   });
   if (supplements.length) {
     const summary = document.createElement('section');
@@ -127,7 +153,7 @@
       links.append(link);
     });
     summary.append(heading, explanation, links);
-    metrics.append(summary);
+    harnessMetrics.append(summary);
   }
   const map = document.createElement('nav');
   map.className = 'report-coverage-map';
@@ -151,7 +177,6 @@
   const note = document.createElement('p');
   note.className = 'report-metrics-note';
   note.textContent = 'Separate measures; counts are not additive. Service, jurisdiction and case type labels describe diagnostic associations, while accepted runtime evidence appears in the catalogue card.';
-  metrics.append(map, note);
-  const timeline = document.querySelector('#harness-phase-timings');
-  if (timeline) metrics.after(timeline);
+  harnessMetrics.append(map, note);
+  document.querySelector('#TabDashboard').after(harnessMetrics);
 })();
