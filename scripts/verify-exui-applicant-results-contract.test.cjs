@@ -10,8 +10,10 @@ test('applicant exact-row contract accounts for every own facet without granting
 });
 test('applicant aggregate policy requires all three effective faults and unique proof selection',async()=>{
  const {applicantResultsPolicy,APPLICANT_RESULTS_PROOF,APPLICANT_RESULTS_MUTATIONS}=await import('./lib/exui-applicant-results-contract.mjs');const policy=applicantResultsPolicy();
- assert.equal(policy.obligations.length,1);assert.deepEqual(policy.obligations[0].requiredMutationIds,[...APPLICANT_RESULTS_MUTATIONS]);
- assert.equal(policy.mutationDefinitions.length,3);assert(policy.mutationDefinitions.every(row=>row.baselineProofId===APPLICANT_RESULTS_PROOF));
+ assert.equal(policy.obligations.length,4);assert.deepEqual(policy.obligations[0].requiredProofIds,[APPLICANT_RESULTS_PROOF]);assert.deepEqual(policy.obligations[0].requiredMutationIds,[]);
+ assert.deepEqual(policy.obligations.slice(1).map(row=>row.id),['configuration-shape:d1594e44450b917d4f021dbb181b38553662cf59072a48bc4a52bf78ac78f375','configuration-shape:bff9082cbfe5b46c4f6462f9e5f0a870e8d02bd88408a65a1063086c541d60e7','configuration-shape:bd7af2a30355a565999d5484e4fd4e365167fd28ac1fcc6b118c4bbc8f637c89']);
+ assert.deepEqual(policy.obligations.slice(1).map(row=>row.requiredMutationIds[0]),[...APPLICANT_RESULTS_MUTATIONS]);
+ assert.equal(policy.mutationDefinitions.length,3);assert.deepEqual(policy.mutationDefinitions.map(row=>row.baselineProofId),policy.obligations.slice(1).map(row=>row.requiredProofIds[0]));
  assert.equal(new Set(policy.mutationDefinitions.map(row=>row.definitionDigest)).size,3);assert.equal(new Set(policy.mutationDefinitions.map(row=>row.mutantProofId)).size,3);
 });
 test('all native applicant workbook seals reproduce from the exact source and transformation',async()=>{

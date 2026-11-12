@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {buildResultColumnFixture} from './exui-result-columns.mjs';
 import {definitionDigest} from './exui-definition-references.mjs';
 import {APPLICANT_RESULT_VARIANTS,applicantResultDefinition} from './exui-applicant-results.mjs';
+import {applicantResultCatalogueContract,applicantResultCatalogueMutation} from './exui-applicant-results-catalogue.mjs';
 
 export const APPLICANT_RESULTS_SCOPE='exui-ccd-applicant-results-pilot';
 export const APPLICANT_RESULTS_OBLIGATION='ccd-applicant-results-two-views';
@@ -33,20 +34,25 @@ export function applicantResultsContract() {
   dispositions:{CaseTypeID:'normalized identity',ID:'exact backing binding',FieldType:'actual Text renderer',Label:'retained source; result heading comes from the result row',SecurityClassification:'retained source; no confidentiality or access-policy coverage',LiveFrom:'retained source; no temporal-activation coverage'},
   separateCaseFieldObligationSatisfied:false};
  assert(rows.every(row=>row.fieldDependency===dependency.rowDigest),'RESULT_APPLICANT_BACKING_BINDING');
- return {schemaVersion:1,kind:'applicant-result-exact-row-contract',releaseScopeId:APPLICANT_RESULTS_SCOPE,source:fixture.source,rows,dependency,
+ return {schemaVersion:1,kind:'applicant-result-exact-row-contract',releaseScopeId:APPLICANT_RESULTS_SCOPE,source:fixture.source,rows,catalogueRows:applicantResultCatalogueContract(),dependency,
   dependencyBoundary:'Explicit corrected local ARM64 CCD image, actual imported descriptors, SQL date retention and real candidate results. No deployed/default CCD image claim.',
   activationClaim:false,runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
 }
 export function applicantResultsMutation(variant) {
  assert(APPLICANT_RESULTS_MUTATIONS.includes(variant),'RESULT_APPLICANT_MUTATION');
- const contract=applicantResultsContract();
- return {mutationId:variant,obligationId:APPLICANT_RESULTS_OBLIGATION,
-  definitionDigest:definitionDigest({sourceRows:contract.rows.map(row=>({obligationId:row.obligationId,rowDigest:row.rowDigest})),transformation:variant,definition:applicantResultDefinition(variant)}),
-  expectedFailureId:APPLICANT_RESULTS_FAILURE,baselineProofId:APPLICANT_RESULTS_PROOF,mutantProofId:`${APPLICANT_RESULTS_PROOF}-${variant}`};
+ const target=applicantResultCatalogueMutation(variant);
+ return {mutationId:variant,obligationId:target.obligationId,
+  target:`${target.sourcePath}[${target.sourceIndex}] ${target.field}`,
+  definitionDigest:definitionDigest({sourceRows:[{obligationId:target.obligationId,rowDigest:target.rowDigest}],transformation:variant,definition:applicantResultDefinition(variant)}),
+  expectedFailureId:`result-catalogue-${variant}`,baselineProofId:target.proofId,mutantProofId:target.proofId};
 }
 export function applicantResultsPolicy() {
- const policy={releaseScopeId:APPLICANT_RESULTS_SCOPE,requiredObligationIds:[APPLICANT_RESULTS_OBLIGATION],
-  obligations:[{id:APPLICANT_RESULTS_OBLIGATION,boundary:'candidate',requiredProofIds:[APPLICANT_RESULTS_PROOF],requiredMutationIds:[...APPLICANT_RESULTS_MUTATIONS]}],
+ const catalogueRows=applicantResultCatalogueContract();
+ const policy={releaseScopeId:APPLICANT_RESULTS_SCOPE,requiredObligationIds:[APPLICANT_RESULTS_OBLIGATION,...catalogueRows.map(row=>row.obligationId)],
+  obligations:[
+   {id:APPLICANT_RESULTS_OBLIGATION,boundary:'candidate',requiredProofIds:[APPLICANT_RESULTS_PROOF],requiredMutationIds:[]},
+   ...catalogueRows.map(row=>({id:row.obligationId,boundary:'candidate',requiredProofIds:[row.proofId],requiredMutationIds:[row.mutationId]})),
+  ],
   mutationDefinitions:APPLICANT_RESULTS_MUTATIONS.map(applicantResultsMutation)};
  return {...policy,policyDigest:definitionDigest(policy)};
 }
@@ -54,9 +60,9 @@ export function applicantResultsPolicy() {
 // Deterministic workbook bytes; the regression test regenerates all four from the reviewed source.
 const workbookDigests={
  baseline:'sha256:0566f7e5953f1eeccb79f0e6ba4af5caff4f750968a9d9411148a495da1dd1b8',
- 'applicant-binding':'sha256:14a5062b742af4c0d5730fc88b6c17b865794acc2a3e4de205bbdb82f22e5c11',
- 'applicant-label':'sha256:9cfb4ee7fd658d0dacb5e87b776e1264f78a2f8f77f3916bd376e05d4fcf2a82',
- 'applicant-order':'sha256:8610856cd912a638e5c727c1096bcba4bbeca048c751ca3989679ed24010f6fb',
+ 'applicant-binding':'sha256:b01d20a05d25b2ecc70a8fc65b8d7a8b850782b66a67c9e18da4d88c62c5678a',
+ 'applicant-label':'sha256:8cd92f411eaa4510b7b9d0d5f2ca99ce3929d5da9b5c2db6652b07d475b11830',
+ 'applicant-order':'sha256:3e50c5edaac15d4e7739ba6d80d5f50fb16ee7fbd5f73c87ef6bacbee518f786',
 };
 export function applicantResultWorkbookDigest(variant='baseline') {
  assert(Object.hasOwn(workbookDigests,variant),'RESULT_APPLICANT_VARIANT');return workbookDigests[variant];

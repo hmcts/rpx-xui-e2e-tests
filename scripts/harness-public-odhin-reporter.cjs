@@ -196,7 +196,10 @@ function validateHtml(html, record, retiringPreviousRun = false) {
   if(record.sharedNestedAttemptEvidence&&!html.includes(require('./harness-shared-nested-report.cjs').renderSharedNestedAttempt(record.sharedNestedAttemptEvidence)))throw failure();
   if (Boolean(record.compatibilityEvidence) !== html.includes('id="harness-applicant-compatibility"')) throw failure();
   if (record.compatibilityEvidence) {
-    if (!record.nativeEvidence || !html.includes(require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(record.compatibilityEvidence))) throw failure();
+    const compatibility=record.compatibilityEvidence,join=compatibility.joint,coverage=record.nativeEvidence?.catalogueCoverage;
+    if (!record.nativeEvidence || !html.includes(require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(compatibility)) ||
+        !join || compatibility.catalogueCredit !== (join.status==='included') ||
+        (join.status==='included' ? JSON.stringify(coverage?.applicantResultsAdmission)!==JSON.stringify(join) : coverage?.applicantResultsAdmission!==undefined)) throw failure();
   }
   if (record.nativeElapsedMs !== undefined && (!Number.isSafeInteger(record.nativeElapsedMs) || record.nativeElapsedMs < 0 || !html.includes(`data-native-elapsed-ms="${record.nativeElapsedMs}"`))) throw failure();
   if (record.phaseTimings !== undefined) {
@@ -441,7 +444,10 @@ class HarnessPublicOdhinReporter {
   async prepareCompatibilityEvidence(descriptorPath) {
     if (this.begun || this.compatibilityEvidence || !this.nativeEvidence) this.reject();
     const { readApplicantCompatibilityEvidence } = await import("./lib/exui-applicant-results-report-evidence.mjs");
+    const { applyApplicantResultsAdmission } = await import("./lib/exui-applicant-results-admission.mjs");
     this.compatibilityEvidence = readApplicantCompatibilityEvidence(descriptorPath);
+    this.compatibilityEvidence.joint = applyApplicantResultsAdmission(this.nativeEvidence, this.compatibilityEvidence);
+    this.compatibilityEvidence.catalogueCredit = this.compatibilityEvidence.joint.status === 'included';
     require("./harness-applicant-results-report.cjs").renderApplicantCompatibility(this.compatibilityEvidence);
   }
   async prepareSharedNestedAttempt(descriptorPath) {
