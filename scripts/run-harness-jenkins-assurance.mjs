@@ -487,6 +487,27 @@ export function logNativeCompletion(output) {
     const completed = result.phaseResults
       .map((phase) => `${phase.phase} ${phase.status}`)
       .join(", ") || "none";
+    let profileStops = "";
+    try {
+      const file = path.join(output, "private/assurance-profile-attempts.json");
+      const info = fs.lstatSync(file);
+      assert(info.isFile() && !info.isSymbolicLink() && fs.realpathSync(file) === file && (info.mode & 0o077) === 0);
+      const packet = JSON.parse(fs.readFileSync(file, "utf8"));
+      assert.equal(packet.schemaVersion, 1);
+      assert.equal(packet.kind, "assurance-profile-attempts");
+      profileStops = ["cmcProfileAttempt", "frProfileAttempt"]
+        .filter((key) => packet[key]?.status === "BLOCKED")
+        .map((key) => {
+          const family = key === "cmcProfileAttempt" ? "CMC" : "FR";
+          const reason = /^(?:CMC|FR|SOURCE)_PROFILE_[A-Z0-9_]{1,100}$/.test(packet[key].reason ?? "")
+            ? ` (${packet[key].reason})`
+            : "";
+          return `${family} profile BLOCKED${reason}`;
+        })
+        .join(", ");
+    } catch {
+      // Profile attempt details stay private unless they contain a bounded reason code.
+    }
     let stopReason = "";
     try {
       const failure = JSON.parse(
@@ -497,7 +518,7 @@ export function logNativeCompletion(output) {
       // No orchestration failure was recorded.
     }
     console.log(
-      `[harness-assurance] Native ${result.status}; completed proofs: ${completed}${stopReason}; cleanup ${result.cleanupComplete ? "complete" : "incomplete"}.`,
+      `[harness-assurance] Native${profileStops ? " core" : ""} ${result.status}; completed proofs: ${completed}${profileStops ? `; profile gates: ${profileStops}` : ""}${stopReason}; cleanup ${result.cleanupComplete ? "complete" : "incomplete"}.`,
     );
   } catch {
     // Missing or malformed private evidence gets no native credit.
