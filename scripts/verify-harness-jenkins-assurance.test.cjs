@@ -398,18 +398,19 @@ test('owned timing child bounds missing readiness and forwards repeated cancella
  t.mock.timers.tick(5*1000);signals.emit('SIGTERM');signals.emit('SIGTERM');signals.emit('SIGINT');assert.deepEqual(kills,['SIGTERM']);child.emit('close',null,'SIGTERM');assert.equal((await terminal).status,2);assert.equal(withdrawals,1);assert.equal(signals.listenerCount('SIGTERM'),0);
 });
 
-test('Jenkins CLI bridge enables CMC and FR profiles plus mandatory email while preserving optional ST_CIC',async()=>{
+test('Jenkins CLI bridge supports profile opt-ins or team exclusions while preserving mandatory email and optional ST_CIC',async()=>{
  const {runTimedAssuranceChild}=await load(),{EventEmitter}=require('node:events');
- for(const enableStCic of [undefined,false,true])for(const cancel of [false,true])for(const buildSelfCheckHeld of [undefined,{path:'/private/held.json',digest:'sha256:'+'a'.repeat(64)}]){
+ for(const excludeKnownJurisdictionDefect of [false,true])for(const enableStCic of [undefined,false,true])for(const cancel of [false,true])for(const buildSelfCheckHeld of [undefined,{path:'/private/held.json',digest:'sha256:'+'a'.repeat(64)}]){
   const child=new EventEmitter(),signals=new EventEmitter(),sent=[];let argsSeen,kills=0,withdrawn=0,settled=false;
   child.send=(value,done)=>{sent.push(value);done?.();};child.kill=()=>{kills++;return true;};
-  const pending=runTimedAssuranceChild('/private/job.json',{...(enableStCic===undefined?{}:{enableStCic}),enableFrProfile:true,enableCmcProfile:true,buildSelfCheckHeld,snapshotAssuranceTiming:()=>({schemaVersion:2}),signals,withdraw:()=>{withdrawn++;},forkChild:(file,args,options)=>{argsSeen=args;assert.equal(file,'scripts/run-harness-assurance.mjs');assert.deepEqual(options.execArgv,[]);assert.equal(options.env.NODE_OPTIONS,undefined);return child;}}).then(value=>{settled=true;return value;});
-  assert.deepEqual(argsSeen,['--input','/private/job.json','--parent-timing','--mandatory-email',...(enableStCic?['--st-cic']:[]),'--fr-profile','--cmc-profile',...(buildSelfCheckHeld?['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest]:[])]);
+  const pending=runTimedAssuranceChild('/private/job.json',{...(enableStCic===undefined?{}:{enableStCic}),enableFrProfile:!excludeKnownJurisdictionDefect,enableCmcProfile:!excludeKnownJurisdictionDefect,excludeKnownJurisdictionDefect,buildSelfCheckHeld,snapshotAssuranceTiming:()=>({schemaVersion:2}),signals,withdraw:()=>{withdrawn++;},forkChild:(file,args,options)=>{argsSeen=args;assert.equal(file,'scripts/run-harness-assurance.mjs');assert.deepEqual(options.execArgv,[]);assert.equal(options.env.NODE_OPTIONS,undefined);return child;}}).then(value=>{settled=true;return value;});
+  assert.deepEqual(argsSeen,['--input','/private/job.json','--parent-timing','--mandatory-email',...(enableStCic?['--st-cic']:[]),...(excludeKnownJurisdictionDefect?['--exclude-known-jurisdiction-defect']:['--fr-profile','--cmc-profile']),...(buildSelfCheckHeld?['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest]:[])]);
   child.emit('message',{kind:'harness-preparation-ready'});child.emit('message',{kind:'harness-preparation-snapshot',token:sent[0].token});
   if(cancel)signals.emit('SIGTERM');await Promise.resolve();assert.equal(settled,false);child.emit('close',cancel?null:0,cancel?'SIGTERM':null);
   assert.equal((await pending).status,cancel?2:0);assert.equal(kills,cancel?1:0);assert.equal(withdrawn,cancel?1:0);assert.equal(signals.listenerCount('SIGTERM'),0);
  }
  for(const enableStCic of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableStCic,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid opt-in must never fork')}),/HARNESS_ST_CIC_ENABLE_REQUIRED/);
  for(const enableFrProfile of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableFrProfile,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid FR opt-in must never fork')}),/HARNESS_FR_PROFILE_ENABLE_REQUIRED/);
+ for(const options of [{enableFrProfile:true},{enableCmcProfile:true},{excludeKnownJurisdictionDefect:'true'}])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{excludeKnownJurisdictionDefect:true,...options,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('conflicting exclusion must not fork')}),/HARNESS_PROFILE_EXCLUSION_CONFLICT/);
  for(const enableCmcProfile of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableCmcProfile,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid CMC opt-in must never fork')}),/HARNESS_CMC_PROFILE_ENABLE_REQUIRED/);
 });

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import profileExclusion from './lib/exui-jurisdiction-exclusion.cjs';
 import {runMandatoryEmailAdmission} from './run-harness-mandatory-email-event-admission.mjs';
 import {verifyMandatoryEmailNativeCapture} from './lib/exui-mandatory-email-event-contract.mjs';
 import {runStCicProfileAdmission} from './run-harness-st-cic-profile-admission.mjs';
@@ -61,12 +62,14 @@ function validateFrAdmissionResult(result) {
   assert(typeof request.path==='string'&&path.isAbsolute(request.path)&&path.normalize(request.path)===request.path&&typeof request.digest==='string'&&/^sha256:[a-f0-9]{64}$/.test(request.digest)&&typeof request.runId==='string'&&/^fr-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89a-f][a-f0-9]{3}-[0-9a-f]{12}$/.test(request.runId),'ASSURANCE_FR_PROFILE_REQUEST_REQUIRED');
   return {request,accepted:result.accepted};
 }
-export async function runAssuranceSequence({ native, prepare, profile, personal, complex, stCic, mandatoryEmail, frProfile, cmcProfile, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, snapshotAssuranceTiming, clock = () => performance.now() }) {
+export async function runAssuranceSequence({ excludeKnownJurisdictionDefect = false, native, prepare, profile, personal, complex, stCic, mandatoryEmail, frProfile, cmcProfile, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, snapshotAssuranceTiming, clock = () => performance.now() }) {
+  assert(typeof excludeKnownJurisdictionDefect==='boolean'&&(!excludeKnownJurisdictionDefect||(!cmcProfile&&!frProfile)),'ASSURANCE_PROFILE_EXCLUSION_CONFLICT');
+  const exclusions=excludeKnownJurisdictionDefect?profileExclusion.knownJurisdictionDefectExclusions():{};
   assert(mandatoryEmail===undefined||typeof mandatoryEmail==='function','ASSURANCE_MANDATORY_CALLBACK_REQUIRED');
   assert(frProfile===undefined||typeof frProfile==='function','ASSURANCE_FR_PROFILE_CALLBACK_REQUIRED');
   assert(cmcProfile===undefined||typeof cmcProfile==='function','ASSURANCE_CMC_PROFILE_CALLBACK_REQUIRED');
   let stCicStarted=false,mandatoryStarted=false;
-  const finish=value=>{if(mandatoryEmail&&!Object.hasOwn(value,'mandatoryEmailStatus'))value={...value,mandatoryEmailStatus:mandatoryStarted?'BLOCKED':'NOT_RUN'};if(frProfile&&!Object.hasOwn(value,'frProfileStatus'))value={...value,frProfileStatus:'NOT_RUN'};if(cmcProfile&&!Object.hasOwn(value,'cmcProfileStatus'))value={...value,cmcProfileStatus:'NOT_RUN'};publish(value);return value;};
+  const finish=value=>{if(excludeKnownJurisdictionDefect)value={...value,...exclusions,cmcProfileStatus:'NOT_RUN',frProfileStatus:'NOT_RUN'};if(mandatoryEmail&&!Object.hasOwn(value,'mandatoryEmailStatus'))value={...value,mandatoryEmailStatus:mandatoryStarted?'BLOCKED':'NOT_RUN'};if(frProfile&&!Object.hasOwn(value,'frProfileStatus'))value={...value,frProfileStatus:'NOT_RUN'};if(cmcProfile&&!Object.hasOwn(value,'cmcProfileStatus'))value={...value,cmcProfileStatus:'NOT_RUN'};publish(value);return value;};
   if(signal?.aborted){withdraw();return finish({nativeStatus:'NOT_RUN',...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
   const nativeStartedAt = clock(), assuranceStartedAt = new Date().toISOString();
   const verdict = await native();
@@ -250,6 +253,7 @@ export async function runAssuranceSequence({ native, prepare, profile, personal,
   stopped = cancelled(); if (stopped) return stopped;
   let diagnostics;
   try{if(mandatoryEmail)mandatoryCollectionStarted=true;diagnostics = await collect(nativeEvidencePath, {
+    ...exclusions,
     snapshotAssuranceTiming: snapshotAssuranceTiming ?? (() => {
       const endedAt = clock(), elapsed = endedAt - nativeStartedAt;
       assert(Number.isFinite(nativeStartedAt) && Number.isFinite(endedAt) && Number.isFinite(elapsed) && elapsed >= 0 && Number.isSafeInteger(Math.round(elapsed)), 'ASSURANCE_TIMING_INVALID');
@@ -500,7 +504,7 @@ export function captureAssuranceExpectations(env = process.env) {
 }
 export function publishAssuranceSummary(job, captured, result) {
   assert([0,1,2].includes(result.exitCode),'ASSURANCE_EXIT_REQUIRED');
-  const attempts=Object.fromEntries(['frProfileAttempt','cmcProfileAttempt'].filter(key=>result[key]?.status==='BLOCKED').map(key=>[key,result[key]]));
+  const attempts=Object.fromEntries(['frProfileAttempt','cmcProfileAttempt'].filter(key=>result[key]?.status==='BLOCKED'||(result[key]?.status==='NOT_RUN'&&result[key]?.reason?.endsWith('_PROFILE_TEAM_EXCLUDED'))).map(key=>[key,result[key]]));
   if(Object.keys(attempts).length){
     const directory=path.join(job.output,'private'),file=path.join(directory,'assurance-profile-attempts.json');
     assert(fs.realpathSync(job.output)===job.output&&fs.lstatSync(directory).isDirectory()&&!fs.lstatSync(directory).isSymbolicLink()&&fs.realpathSync(directory)===directory&&(fs.statSync(directory).mode&0o077)===0,'ASSURANCE_PROFILE_ATTEMPTS_PRIVATE_DIRECTORY_REQUIRED');
@@ -516,7 +520,8 @@ export function publishAssuranceSummary(job, captured, result) {
   }
   writeHarnessPublicSummary(job.output,{status:['PASS','FAIL','BLOCKED'][result.exitCode],exitCode:result.exitCode,...(result.frProfileAttempt?.diagnostic?{frProfileDiagnostic:result.frProfileAttempt.diagnostic}:{})},result.exitCode===0);
 }
-export async function runHarnessAssurance(jobPath, { aat = false, env = process.env, profileOutput, personalOutput, stCicOutput, mandatoryEmailOutput, frProfileOutput, cmcProfileOutput, snapshotAssuranceTiming, buildSelfCheckHeld } = {}) {
+export async function runHarnessAssurance(jobPath, { excludeKnownJurisdictionDefect = false, aat = false, env = process.env, profileOutput, personalOutput, stCicOutput, mandatoryEmailOutput, frProfileOutput, cmcProfileOutput, snapshotAssuranceTiming, buildSelfCheckHeld } = {}) {
+  assert(typeof excludeKnownJurisdictionDefect==='boolean'&&(!excludeKnownJurisdictionDefect||(frProfileOutput===undefined&&cmcProfileOutput===undefined)),'ASSURANCE_PROFILE_EXCLUSION_CONFLICT');
   assert.equal(process.cwd(), ROOT, "ASSURANCE_REPOSITORY_CWD_REQUIRED");
   Reporter.resetPublicReport("harness");
   if(buildSelfCheckHeld!==undefined)buildSelfCheckHeld=structuredClone(buildSelfCheckHeld);
@@ -545,6 +550,7 @@ export async function runHarnessAssurance(jobPath, { aat = false, env = process.
   let result, mainDescriptor, published=false;
   try {
     result = await runAssuranceSequence({
+      excludeKnownJurisdictionDefect,
       native: () => runHarnessCi(jobPath, { ...(mandatoryEmailOutput===undefined?{}:{captureMandatoryEmailNative:value=>{captured.mandatoryEmailNativeCapture=structuredClone(value);}}), ...(stCicOutput===undefined?{}:{captureStCicNative:value=>{captured.stCicNativeCapture=value;}}), captureNativeCohort: value => { captured.nativeCohortCapture = value; }, capturePersonalNative:value=>{captured.personalNativeCapture=value;}, captureComplexNative:value=>{captured.complexNativeCapture=value;}, complexSourceConfiguration:complexConfiguration }),
       prepare: verdict => { assert(captured.nativeCohortCapture, 'ASSURANCE_PREFLIGHT_REQUIRED'); mainDescriptor = buildNativeDescriptor(job, captured, verdict, sharedRoleSourceInputs);return mandatoryEmailOutput===undefined?undefined:{jobRunId:mainDescriptor.expected.jobRunId}; },
       ...(profileOutput === undefined ? {} : {profile: signal => runDivorceProfileAdmission({ artifactPath: job.candidateManifest, browserRoot: job.browserCache, output: profileOutput, signal, nativeContext: { binding: captured.nativeCohortCapture.binding, expected: mainDescriptor.expected } })}),
@@ -625,8 +631,9 @@ export function parseAssuranceCli(argv) {
   }
   assert(args.length >= 2 && args.length <= 8 && args[0] === '--input' && path.isAbsolute(args[1])
     && new Set(args.slice(2)).size === args.length - 2
-    && args.slice(2).every(flag => ['--aat','--parent-timing','--st-cic','--mandatory-email','--fr-profile','--cmc-profile'].includes(flag)), 'ASSURANCE_INPUT_REQUIRED');
-  return {jobPath:args[1],aat:args.includes('--aat'),parentTiming:args.includes('--parent-timing'),stCic:args.includes('--st-cic'),frProfile:args.includes('--fr-profile'),cmcProfile:args.includes('--cmc-profile'),...(args.includes('--mandatory-email')?{mandatoryEmail:true}:{}),...(buildSelfCheckHeld===undefined?{}:{buildSelfCheckHeld})};
+    && args.slice(2).every(flag => ['--aat','--parent-timing','--st-cic','--mandatory-email','--fr-profile','--cmc-profile','--exclude-known-jurisdiction-defect'].includes(flag)), 'ASSURANCE_INPUT_REQUIRED');
+  assert(!args.includes('--exclude-known-jurisdiction-defect')||(!args.includes('--fr-profile')&&!args.includes('--cmc-profile')),'ASSURANCE_PROFILE_EXCLUSION_CONFLICT');
+  return {...(args.includes('--exclude-known-jurisdiction-defect')?{excludeKnownJurisdictionDefect:true}:{}),jobPath:args[1],aat:args.includes('--aat'),parentTiming:args.includes('--parent-timing'),stCic:args.includes('--st-cic'),frProfile:args.includes('--fr-profile'),cmcProfile:args.includes('--cmc-profile'),...(args.includes('--mandatory-email')?{mandatoryEmail:true}:{}),...(buildSelfCheckHeld===undefined?{}:{buildSelfCheckHeld})};
 }
 export async function createStCicCliOutput(jobPath) {
   const job = validateCiJob(read(jobPath).value);
@@ -759,6 +766,7 @@ if (
     }
     const result = await runHarnessAssurance(cli.jobPath, {
       aat: cli.aat,
+      ...(cli.excludeKnownJurisdictionDefect?{excludeKnownJurisdictionDefect:true}:{}),
       ...(stCicOutput === undefined ? {} : {stCicOutput}),
       ...(mandatoryEmailOutput===undefined?{}:{mandatoryEmailOutput}),
       ...(frProfileOutput===undefined?{}:{frProfileOutput}),

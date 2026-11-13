@@ -2139,3 +2139,12 @@ test('provider initializer substeps render as private non-credit details without
  assert.equal(malformedRecord.eventRuntimeLifecycleSummary.status,'unavailable');
  assert.match(fs.readFileSync(output(),'utf8'),/Lifecycle timings are unavailable; proof outcomes are unchanged/);
 });
+
+test('team-excluded jurisdiction profiles remain NOT RUN in the validated report',async t=>{
+ sandbox(t);const attempts=require('./harness-cmc-profile-report.cjs').knownJurisdictionDefectExclusions();
+ const Reporter=await complete('harness',[],'passed',0,undefined,attempts),record=Reporter.validatePublicReport('harness'),html=fs.readFileSync(output(),'utf8');
+ for(const family of ['cmc','fr']){assert.equal(record[family+'ProfileAttempt'].status,'NOT_RUN');assert.match(html,new RegExp(family.toUpperCase()+' profile: excluded by team'));}
+ assert.match(html,/@known-defect-jurisdiction-filter/);assert.match(html,/5628/);assert.match(html,/no catalogue or release credit/);assert(!html.includes('isolated runtime cleanup was verified'));
+ const render=require('./harness-cmc-profile-report.cjs').renderCmcProfileAttempt;
+ assert.throws(()=>render({...attempts.cmcProfileAttempt,reason:'OTHER'}));assert.throws(()=>render({...attempts.cmcProfileAttempt,accepted:1}));
+});

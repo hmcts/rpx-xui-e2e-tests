@@ -543,13 +543,14 @@ export function createPreparationTimingSnapshot({clock = () => performance.now()
   };
 }
 
-export function runTimedAssuranceChild(jobPath, {snapshotAssuranceTiming, enableStCic = false, enableFrProfile = false, enableCmcProfile = false, env = safeEnvironment(), forkChild = fork, signals = process, withdraw = () => Reporter.resetPublicReport('harness'), buildSelfCheckHeld} = {}) {
+export function runTimedAssuranceChild(jobPath, {snapshotAssuranceTiming, enableStCic = false, enableFrProfile = false, enableCmcProfile = false, excludeKnownJurisdictionDefect = false, env = safeEnvironment(), forkChild = fork, signals = process, withdraw = () => Reporter.resetPublicReport('harness'), buildSelfCheckHeld} = {}) {
   assert(typeof snapshotAssuranceTiming === 'function', 'HARNESS_PREPARATION_TIMING_REQUIRED');
   assert(typeof enableStCic === 'boolean', 'HARNESS_ST_CIC_ENABLE_REQUIRED');
   assert(typeof enableFrProfile === 'boolean', 'HARNESS_FR_PROFILE_ENABLE_REQUIRED');
   assert(typeof enableCmcProfile === 'boolean', 'HARNESS_CMC_PROFILE_ENABLE_REQUIRED');
+  assert(typeof excludeKnownJurisdictionDefect==='boolean'&&(!excludeKnownJurisdictionDefect||(!enableFrProfile&&!enableCmcProfile)),'HARNESS_PROFILE_EXCLUSION_CONFLICT');
   const token = randomUUID();
-  const child = forkChild('scripts/run-harness-assurance.mjs', ['--input',jobPath,'--parent-timing','--mandatory-email',...(enableStCic ? ['--st-cic'] : []),...(enableFrProfile?['--fr-profile']:[]),...(enableCmcProfile?['--cmc-profile']:[]),...(buildSelfCheckHeld===undefined?[]:['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest])], {execPath:process.execPath,execArgv:[],cwd:ROOT,env,stdio:['inherit','inherit','inherit','ipc']});
+  const child = forkChild('scripts/run-harness-assurance.mjs', ['--input',jobPath,'--parent-timing','--mandatory-email',...(enableStCic ? ['--st-cic'] : []),...(enableFrProfile?['--fr-profile']:[]),...(enableCmcProfile?['--cmc-profile']:[]),...(excludeKnownJurisdictionDefect?['--exclude-known-jurisdiction-defect']:[]),...(buildSelfCheckHeld===undefined?[]:['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest])], {execPath:process.execPath,execArgv:[],cwd:ROOT,env,stdio:['inherit','inherit','inherit','ipc']});
   return new Promise((resolve,reject) => {
     let state = 'ready', failed = false, cancelling = false;
     const cancel = signal => { failed = true; if (!cancelling) { cancelling = true; child.kill(signal); } };
@@ -611,10 +612,12 @@ async function main({requireBuildSelfChecks=false}={}) {
     provisionNativeImages(platform);
     const { jobPath, output, complexSourceInputs } = await prepareJob(privateRoot, platform);
     stage = "native candidate and CCD pilots";
+    console.log('[harness-assurance] NOT RUN: CMC and FR complete profiles tagged @known-defect-jurisdiction-filter; team declined the webapp fix (PR #5628). No catalogue or release credit.');
     const result = await runTimedAssuranceChild(jobPath, {
       enableStCic: false,
-      enableFrProfile: true,
-      enableCmcProfile: true,
+      enableFrProfile: false,
+      enableCmcProfile: false,
+      excludeKnownJurisdictionDefect: true,
       snapshotAssuranceTiming,
       buildSelfCheckHeld,
       env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}),

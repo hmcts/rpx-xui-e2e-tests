@@ -3,7 +3,14 @@ const {escape}=require('./harness-report-coverage.cjs');
 const sourceJurisdictions=['CMC','CIVIL','DIVORCE','EMPLOYMENT','FR','HRS','IA','PCS','PRIVATELAW','PROBATE','PUBLICLAW','SSCS'].sort();
 const diagnosedConsumerRevision='e47ccdf14eba61dce892bd49d9a460d55775f202';
 
+const {knownJurisdictionDefectExclusions}=require('./lib/exui-jurisdiction-exclusion.cjs');
+function renderTeamExclusion(value,family){
+ assert.deepEqual(value,knownJurisdictionDefectExclusions()[family+'ProfileAttempt'],'PROFILE_EXCLUSION_INVALID');
+ return `<section id="harness-${family}-profile-attempt" data-profile-attempt-status="NOT_RUN" class="odhin-thin-border p-3 mt-3"><h2>${family.toUpperCase()} profile: excluded by team</h2><p><strong>NOT RUN — <code>@known-defect-jurisdiction-filter</code></strong></p><p>The team declined the webapp jurisdiction-filter fix, reverted in <a href="https://github.com/hmcts/rpx-xui-webapp/pull/5628">webapp PR #5628</a>. This complete profile depends on that route and is excluded from Jenkins. FR staff and ABA2 facets are also not run as part of its complete profile.</p><p>This exclusion earns no catalogue or release credit. The catalogue requirement remains unsatisfied. Direct profile commands remain available; restore Jenkins selection when the team accepts and validates a product fix.</p></section>`;
+}
+
 function renderCmcProfileAttempt(value){
+ if(value?.status==='NOT_RUN')return renderTeamExclusion(value,'cmc');
  const fail='CMC_ATTEMPT_INVALID';
  assert.deepEqual(Object.keys(value??{}).sort(),['schemaVersion','kind','status','reason',...(value?.diagnostic?['consumerRevision','diagnostic']:[])].sort(),fail);
  assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'cmc-profile-attempt',fail);assert.equal(value.status,'BLOCKED',fail);assert(/^(?:CMC_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(value.reason),fail);
@@ -24,6 +31,7 @@ function renderCmcProfileAttempt(value){
 }
 
 function renderFrProfileAttempt(value){
+ if(value?.status==='NOT_RUN')return renderTeamExclusion(value,'fr');
  const fail='FR_ATTEMPT_INVALID',sourceJurisdictions=['CIVIL','CMC','DIVORCE','EMPLOYMENT','FR','HRS','IA','PCS','PRIVATELAW','PROBATE','PUBLICLAW','SSCS'];
  assert.deepEqual(Object.keys(value??{}).sort(),['schemaVersion','kind','status','reason',...(value?.diagnostic?['diagnostic']:[])].sort(),fail);
  assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'fr-profile-attempt',fail);assert.equal(value.status,'BLOCKED',fail);assert(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(value.reason),fail);
@@ -31,4 +39,4 @@ function renderFrProfileAttempt(value){
  return `<section id="harness-fr-profile-attempt" data-profile-attempt-status="BLOCKED" class="odhin-thin-border p-3 mt-3" aria-labelledby="harness-fr-profile-attempt-title"><h2 id="harness-fr-profile-attempt-title">FR profile: blocked</h2><p><strong>${escape(value.reason)}</strong> The candidate profile did not complete admission. This attempt earns no catalogue or release credit.</p>${classification}${mismatch}<p>The profile intended to check jurisdiction membership, staff-supported membership and the FR reference-data mapping to ABA2. A blocked attempt does not mean those slices passed. Cleanup and candidate/native binding are reported only when independently verified.</p></section>`;
 }
 
-module.exports={renderCmcProfileAttempt,renderFrProfileAttempt};
+module.exports={renderCmcProfileAttempt,renderFrProfileAttempt,knownJurisdictionDefectExclusions};

@@ -1,5 +1,25 @@
 # Current assurance gaps
 
+## Team exclusion: jurisdiction-filter defect (13 November 2026)
+
+Jenkins tags out the CMC complete profile and FR complete profile with
+`@known-defect-jurisdiction-filter`. The team chose not to apply the webapp fix,
+which was reverted in [webapp PR #5628](https://github.com/hmcts/rpx-xui-webapp/pull/5628).
+Both complete profiles depend on jurisdiction filtering. FR's staff and ABA2
+facets are consequently not executed within its complete profile either.
+
+The report records both profiles as **NOT RUN — excluded by team**, with zero
+catalogue or release credit. Their requirements remain in the catalogue and
+unsatisfied. Other native phases, mandatory-email proofs and diagnostics remain
+required; their failures still fail CI. A green Jenkins build does not grant
+release approval or satisfy these excluded requirements.
+
+Direct `--cmc-profile` and `--fr-profile` commands and their regression tests remain
+available. Jenkins uses `--exclude-known-jurisdiction-defect`; combining that
+switch with either profile opt-in is rejected. Re-enable the two profiles only
+when the team accepts a product repair and their baseline and fault proofs pass.
+
+
 Full EXUI release approval remains unavailable. Supporting checks and a passing bounded pilot cannot substitute for the source/runtime/owner obligations below.
 
 ## Latest local native run (synchronized Harness branch)

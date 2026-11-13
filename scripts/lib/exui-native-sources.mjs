@@ -1,5 +1,6 @@
 // Exact shared native-controller closure; collection remains constrained by the fixed pilot selection.
 export const NATIVE_HARNESS_SOURCE_FILES = Object.freeze([
+  "scripts/lib/exui-jurisdiction-exclusion.cjs",
   "scripts/lib/exui-business-scalar-detail.cjs",
   "scripts/lib/exui-business-scalar-detail.d.cts",
   "scripts/fixtures/ccd/mandatory-email-event-rows.source.json",

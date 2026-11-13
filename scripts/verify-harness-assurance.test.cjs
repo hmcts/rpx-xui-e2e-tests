@@ -139,6 +139,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   // Exercise the actual CLI and owned-report validator in a temporary root.
   // Only the native runner is replaced, so this regression cannot start Docker.
   fs.mkdirSync(path.join(root, "scripts/lib"), { recursive: true });
+  fs.writeFileSync(path.join(root,"scripts/lib/exui-jurisdiction-exclusion.cjs"),`module.exports=require(${JSON.stringify(path.join(__dirname,"lib/exui-jurisdiction-exclusion.cjs"))});`);
   fs.copyFileSync(
     path.join(__dirname, "run-harness-assurance.mjs"),
     path.join(root, "scripts/run-harness-assurance.mjs"),
@@ -856,4 +857,16 @@ test('report collection failure retains completed blocked profile attempts for f
  assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'incomplete');
  assert.equal(result.cmcProfileStatus,'BLOCKED');assert.deepEqual(result.cmcProfileAttempt,cmcAttempt);
  assert.equal(result.frProfileStatus,'BLOCKED');assert.deepEqual(result.frProfileAttempt,frAttempt);
+});
+
+test('team jurisdiction exclusion is explicit and does not suppress other failures',async()=>{
+ const {runAssuranceSequence,parseAssuranceCli}=await api();
+ const exclusions=require('./harness-cmc-profile-report.cjs').knownJurisdictionDefectExclusions();
+ for(const [nativeExit,diagnosticExit] of [[0,0],[0,1],[1,0]]){
+  const result=await runAssuranceSequence({excludeKnownJurisdictionDefect:true,native:async()=>({status:nativeExit?'FAIL':'PASS',exitCode:nativeExit,continuationSafe:true}),descriptor:async()=>'/private/native.json',collect:async(_file,options)=>{assert.deepEqual(options.cmcProfileAttempt,exclusions.cmcProfileAttempt);assert.deepEqual(options.frProfileAttempt,exclusions.frProfileAttempt);return{status:diagnosticExit?'failed':'passed',exitCode:diagnosticExit};}});
+  assert.equal(result.exitCode,Math.max(nativeExit,diagnosticExit));assert.equal(result.cmcProfileStatus,'NOT_RUN');assert.equal(result.frProfileStatus,'NOT_RUN');assert.deepEqual(result.cmcProfileAttempt,exclusions.cmcProfileAttempt);assert.equal(result.releaseApproval,false);
+ }
+ for(const family of ['cmcProfile','frProfile'])await assert.rejects(()=>runAssuranceSequence({excludeKnownJurisdictionDefect:true,[family]:()=>assert.fail('excluded profile cannot run')}),/ASSURANCE_PROFILE_EXCLUSION_CONFLICT/);
+ assert.equal(parseAssuranceCli(['--input','/private/job.json','--exclude-known-jurisdiction-defect']).excludeKnownJurisdictionDefect,true);
+ for(const flag of ['--fr-profile','--cmc-profile'])assert.throws(()=>parseAssuranceCli(['--input','/private/job.json','--exclude-known-jurisdiction-defect',flag]),/ASSURANCE_PROFILE_EXCLUSION_CONFLICT/);
 });

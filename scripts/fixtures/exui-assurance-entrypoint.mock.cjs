@@ -14,6 +14,7 @@ exports.runEntrypoint = function runEntrypoint(fixture, {profileOutput, cancelNa
  if(mutation==='omit-collector-progress')source=source.replace(/^(      collect: \(nativeEvidencePath, timing\) => )reportNativeProgress\("Evidence replay and diagnostic report", \(\) => (.*)\),$/m,'$1$2,');
  fs.writeFileSync(path.join(scripts,'run-harness-assurance.mjs'),source);
  const write = (name, bytes) => fs.writeFileSync(path.join(scripts, name), bytes);
+ write('lib/exui-jurisdiction-exclusion.cjs',`module.exports=require(${JSON.stringify(path.join(__dirname,'../lib/exui-jurisdiction-exclusion.cjs'))});`);
  for (const name of ['exui-evidence-io.mjs', 'exui-selector-event-row-evidence.mjs', 'exui-candidate-artifact.mjs'])
   write('lib/' + name, `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname, '../lib', name)).href)};`);
  write('lib/exui-complex-email-admission.mjs',"export const verifyComplexNativeCapture=()=>undefined;export const prepareComplexAdmissionInputs=()=>({attempt:{schemaVersion:1,kind:'complex-email-attempt',status:'NOT_RUN',reason:'SOURCE_INPUTS_NOT_CONFIGURED'}});");
