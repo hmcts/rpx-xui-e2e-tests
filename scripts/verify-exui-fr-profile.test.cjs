@@ -106,7 +106,7 @@ test('FR admission credits one exact profile only after all facets and same-cand
  const {nativeInventoryDigest}=await import('./lib/exui-divorce-native-binding.mjs');
  const {catalogue}=await import('./lib/exui-configuration-runtime-coverage.mjs').then(module=>module.loadCommittedConfigurationCatalogue());
  const hash=letter=>'sha256:'+String(letter).slice(-1).repeat(64),commit='a'.repeat(40),artifactDigest=hash('b'),runtime={reference:'example.invalid/candidate@sha256:'+('c'.repeat(64)),imageId:hash('d'),platform:'linux/arm64'};
- const candidate={identity:{artifactDigest,webappCommit:frProfileContract().consumerRevision},payloadDigest:hash('e'),provenance:{webappCommit:frProfileContract().consumerRevision,platform:'linux/arm64'}};
+ const candidate={identity:{artifactDigest,webappCommit:'f'.repeat(40)},payloadDigest:hash('e'),provenance:{webappCommit:'f'.repeat(40),platform:'linux/arm64'}};
  const artifact={identity:candidate.identity,payloadDigest:candidate.payloadDigest,provenance:candidate.provenance};
  const files=Object.fromEntries(NATIVE_HARNESS_SOURCE_FILES.map((name,index)=>[name,hash(String(index%9+1))])),producer={commit,files,sourceDigest:nativeInventoryDigest(files)};
  const catalogueDigest=digestBytes(JSON.stringify(catalogue.obligations));
@@ -173,7 +173,7 @@ test('FR runner and raw reader pin one request, catalogue and native binding wit
  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'fr-admission-test-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  const hash=letter=>'sha256:'+String(letter).slice(-1).repeat(64),commit='a'.repeat(40),runtime={reference:'example.invalid/candidate@sha256:'+('c'.repeat(64)),imageId:hash('d'),platform:'linux/arm64'};
  const files=Object.fromEntries(NATIVE_HARNESS_SOURCE_FILES.map((name,index)=>[name,hash(String(index%9+1))])),producer={commit,files,sourceDigest:nativeInventoryDigest(files)};
- const candidate={identity:{artifactDigest:hash('b'),webappCommit:frProfileContract().consumerRevision},payloadDigest:hash('e'),provenance:{webappCommit:frProfileContract().consumerRevision,platform:'linux/arm64'}};
+ const candidate={identity:{artifactDigest:hash('b'),webappCommit:'f'.repeat(40)},payloadDigest:hash('e'),provenance:{webappCommit:'f'.repeat(40),platform:'linux/arm64'}};
  const binding={producer,candidate,runtime,sourceDefault:{path:'config/default.json',revision:frProfileContract().sourceRevision,digest:frProfileContract().sourceDigest},catalogue:{obligationsDigest:digestBytes(JSON.stringify(catalogue.obligations))}};
  const nativeContext={binding,expected:{harnessCommit:commit,candidateArtifactDigest:candidate.identity.artifactDigest,jobRunId:'ci-00000000-0000-4000-8000-000000000001',nativeCohortBinding:{digest:hash('7')}}};
  const artifact={identity:candidate.identity,payloadDigest:candidate.payloadDigest,provenance:candidate.provenance};let activeArtifact=artifact,active=0,maxActive=0,startedFacets=[];

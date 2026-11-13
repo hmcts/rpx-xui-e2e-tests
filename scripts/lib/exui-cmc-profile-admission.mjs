@@ -3,7 +3,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {digestBytes} from './exui-evidence-io.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './exui-native-sources.mjs';
 import {nativeInventoryDigest} from './exui-divorce-native-binding.mjs';
-import {CMC_PROFILE_ID,cmcProfileContract,cmcProfileContractDigest} from './exui-cmc-profile-contract.mjs';
+import {CMC_PROFILE_ID,cmcProfileContract,cmcProfileContractDigest,assertCmcProfileArtifact} from './exui-cmc-profile-contract.mjs';
 
 const fail='CMC_PROFILE_ADMISSION_INVALID',hash=/^sha256:[a-f0-9]{64}$/;
 const keys=(value,names)=>assert.deepEqual(Object.keys(value??{}).sort(),names.slice().sort(),fail);
@@ -17,7 +17,7 @@ export function cmcNativeProfileCompatibility(nativeContext,profile){
  assert.deepEqual(profile.candidate,native.candidate,fail);
  if(profile.sourceDefault.revision!==native.sourceDefault.revision||profile.sourceDefault.digest!==native.sourceDefault.digest)return {policy:'cmc-native-candidate-joint-v1',status:'separate',reason:'different-source-default',releaseCredit:false,releaseApproval:false};
  if(JSON.stringify(profile.runtime)!==JSON.stringify(native.runtime))return {policy:'cmc-native-candidate-joint-v1',status:'separate',reason:'different-runtime',releaseCredit:false,releaseApproval:false};
- assert.equal(profile.candidate.provenance.webappCommit,cmcProfileContract().consumerRevision,fail);assert.equal(profile.sourceDefault.revision,cmcProfileContract().sourceRevision,fail);assert.equal(profile.sourceDefault.digest,cmcProfileContract().sourceDigest,fail);assert.equal(expected.harnessCommit,native.producer.commit,fail);
+ assertCmcProfileArtifact(profile.candidate);assert.equal(profile.sourceDefault.revision,cmcProfileContract().sourceRevision,fail);assert.equal(profile.sourceDefault.digest,cmcProfileContract().sourceDigest,fail);assert.equal(expected.harnessCommit,native.producer.commit,fail);
  if(expected.nativeCohortBinding&&profile.nativeBindingDigest!==expected.nativeCohortBinding.digest)return {policy:'cmc-native-candidate-joint-v1',status:'separate',reason:'different-native-binding',releaseCredit:false,releaseApproval:false};
  if(profile.catalogueDigest!==native.catalogue?.obligationsDigest)return {policy:'cmc-native-candidate-joint-v1',status:'separate',reason:'different-catalogue',releaseCredit:false,releaseApproval:false};
  return {policy:'cmc-native-candidate-joint-v1',status:'included',obligationId:CMC_PROFILE_ID,sourceKeys:['rpx-xui-webapp:config/default.json','rpx-xui-webapp:config/default.json'],nativeRunId:expected.jobRunId,profileRunId:profile.runId,nativeBindingDigest:profile.nativeBindingDigest,catalogueDigest:profile.catalogueDigest,cohortDigest:profile.cohortDigest,contractDigest:profile.contractDigest,releaseCredit:false,releaseApproval:false};

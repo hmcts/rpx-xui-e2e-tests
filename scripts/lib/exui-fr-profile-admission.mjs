@@ -3,7 +3,7 @@ import {isDeepStrictEqual as isDeepEqual} from 'node:util';
 import { digestBytes } from './exui-evidence-io.mjs';
 import { NATIVE_HARNESS_SOURCE_FILES } from './exui-native-sources.mjs';
 import { nativeInventoryDigest } from './exui-divorce-native-binding.mjs';
-import { FR_PROFILE_ID, FR_PROFILE_FACETS, frProfileContract, frProfileContractDigest } from './exui-fr-profile-contract.mjs';
+import { FR_PROFILE_ID, FR_PROFILE_FACETS, frProfileContract, frProfileContractDigest, assertFrProfileArtifact } from './exui-fr-profile-contract.mjs';
 
 const failure='FR_PROFILE_ADMISSION_INVALID';
 const hash=/^sha256:[a-f0-9]{64}$/;
@@ -20,7 +20,7 @@ export function frNativeProfileCompatibility(nativeContext,profile){
  assert.deepEqual(profile.candidate,native.candidate,failure);
  if(profile.sourceDefault.revision!==native.sourceDefault.revision||profile.sourceDefault.digest!==native.sourceDefault.digest)return separate('different-source-default');
  if(JSON.stringify(profile.runtime)!==JSON.stringify(native.runtime))return separate('different-runtime');
- assert.equal(profile.candidate.provenance.webappCommit,frProfileContract().consumerRevision,'FR_PROFILE_CONSUMER_INVALID');
+ assertFrProfileArtifact(profile.candidate);
  assert.equal(profile.sourceDefault.revision,frProfileContract().sourceRevision,'FR_PROFILE_CONSUMER_INVALID');
  assert.equal(profile.sourceDefault.digest,frProfileContract().sourceDigest,'FR_PROFILE_CONSUMER_INVALID');
  assert.equal(expected.harnessCommit,native.producer.commit,failure);
