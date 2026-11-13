@@ -735,3 +735,9 @@ test('actual two-file Node summaries retain parent tests in both modes without J
  const files=['parent.cjs','plain.cjs'].map((name,index)=>{const file=path.join(folder,name);fs.writeFileSync(file,index===0?sources.nestedParent:sources.passed);return path.relative(root,file);});const api=await import('./run-harness-self-check-evidence.mjs');
  for(const testConcurrency of [1,2]){const output=path.join(privateRoot,'mode-'+testConcurrency),value=await api.collectNodeSelfCheckEvidence({files,output,testConcurrency});assert.equal(value.status,'passed');assert.equal(value.counts.tests,3);assert.equal(value.counts.passed,3);assert.equal(value.fileResults.length,2);assert.deepEqual(value.fileResults.map(row=>row.counts.tests),[2,1]);assert.deepEqual(value.fileResults.map(row=>row.file),files.map(file=>path.join(root,file)));const summary=JSON.parse(fs.readFileSync(path.join(output,'structured-summary.json')));assert.equal(summary.fileSummaries.length,2);assert.equal(summary.counts.tests,3);assert(!JSON.stringify(summary).includes('private nested canary'));assert(!JSON.stringify(summary).includes('private parent canary'));}
 });
+
+test('Build failure summaries expose only configured file identities and numeric counts',async()=>{
+ const api=await import('./run-harness-self-check-evidence.mjs'),file=api.readConfiguredUnitFiles()[0];
+ const result={fileResults:[{file:path.join(root,file),counts:{failed:2,cancelled:0},error:'PRIVATE-CANARY'},{file:'/private/PRIVATE-CANARY.cjs',counts:{failed:1,cancelled:0}},{file:path.join(root,file),counts:{failed:'PRIVATE-CANARY',cancelled:0}}]};
+ const lines=api.formatSelfCheckFailures(result);assert.deepEqual(lines,[`[harness-self-checks] ${file}: failed=2, cancelled=0`]);assert(!lines.join().includes('PRIVATE-CANARY'));assert.deepEqual(api.formatSelfCheckFailures({fileResults:[]}),[]);
+});

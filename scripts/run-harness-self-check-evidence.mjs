@@ -691,6 +691,16 @@ export function readHeldBuildSelfChecks(held) {
     throw Error(fail);
   }
 }
+export function formatSelfCheckFailures(result) {
+  const selected=new Set(readConfiguredUnitFiles());
+  return (result.fileResults??[]).flatMap(row=>{
+    if(typeof row?.file!=='string')return [];
+    const file=path.relative(root,row.file),counts=row.counts;
+    if(!selected.has(file)||!Number.isSafeInteger(counts?.failed)||counts.failed<0||!Number.isSafeInteger(counts.cancelled)||counts.cancelled<0||counts.failed+counts.cancelled===0)return [];
+    return [`[harness-self-checks] ${file}: failed=${counts.failed}, cancelled=${counts.cancelled}`];
+  });
+}
+
 async function selfCheckMain() {
   const cancellation = new AbortController(),
     cancel = () => cancellation.abort();
@@ -705,6 +715,7 @@ async function selfCheckMain() {
     console.log(
       `[harness-self-checks] ${result.status}; tests ${result.counts?.tests ?? "not recorded"}; no application or release credit.`,
     );
+    for(const line of formatSelfCheckFailures(result))console.error(line);
     process.exitCode =
       result.status === "passed" ? 0 : result.status === "failed" ? 1 : 2;
   } catch {
