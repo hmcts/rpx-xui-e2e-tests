@@ -77,7 +77,7 @@ test.describe('Auth helper coverage - storage operations', { tag: '@svc-auth' },
     });
   });
 
-  test('ensureStorageStateWith reuses an authenticated state under the filesystem lock', async () => {
+  test('ensureStorageStateWith reuses fake validated state with an injected lock callback', async () => {
     await test.step('harness-check:auth-storage-authenticated-reuse', async () => {
       let createCalls = 0;
       let createdPath = '';

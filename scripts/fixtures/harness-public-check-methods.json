@@ -246,10 +246,10 @@
         "",
         "auth-coverage-storage.api.ts",
         "Auth helper coverage - storage operations",
-        "ensureStorageStateWith reuses an authenticated state under the filesystem lock"
+        "ensureStorageStateWith reuses fake validated state with an injected lock callback"
       ],
-      "purpose": "Reuse authenticated saved state while holding the filesystem lock.",
-      "boundary": "Harness helper check with test-owned inputs; no live service, case or authentication proof.",
+      "purpose": "Reuse fake validated storage with an injected lock callback.",
+      "boundary": "Harness helper check with test-owned inputs; no live service, case or authentication proof. No filesystem lock contention is exercised.",
       "steps": [
         {
           "id": "auth-storage-authenticated-reuse",

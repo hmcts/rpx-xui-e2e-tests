@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {verifyMandatoryEmailNativeCapture} from './lib/exui-mandatory-email-event-contract.mjs';
 import {runSelectorEventPhase} from './run-harness-selector-event-row.mjs';
 import {SELECTOR_EVENT_SCOPE} from './lib/exui-selector-event-row-contract.mjs';
 import {readSelectorPhaseAuthority} from './lib/exui-selector-event-row-evidence.mjs';
@@ -35,6 +36,7 @@ import { selectEventCapabilityRuntime, publishEventCapabilityRuntime } from "./l
 import { readEventBaselineCheckpoint, isKnownPostalBlock } from "./lib/exui-native-proof-validation.mjs";
 import { assertEventBaselineRemoved } from "./lib/exui-native-ci-ownership.mjs";
 import { inspectHostContainer } from "./lib/exui-host-invocation.mjs";
+import { timeEventRuntimePreparation } from "./lib/exui-event-runtime-timing.mjs";
 import {
   validateCiJob,
   createCiOutput,
@@ -85,6 +87,11 @@ export async function reportNativeProgress(label, operation) {
   }
 }
 
+export function appendPrivateEventLifecycleTimings(target, diagnostic) {
+  if (diagnostic?.kind === "private-event-runtime-lifecycle-timings" && diagnostic.proofAuthority === false && diagnostic.catalogueCredit === false && Array.isArray(diagnostic.records))
+    target.push(...diagnostic.records);
+}
+
 export function fixedCiPhasesPassed(results) {
   const phases = ['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback', 'selectorEventRow'];
   return results.length === phases.length && results.every((result, index) => result.phase === phases[index] && result.status === 'PASS');
@@ -94,7 +101,8 @@ export async function runFixedCiPilots(operations) {
   const progress = operations.progress ?? ((_label, operation) => operation());
   const results = [];
   const timings = [];
-  const timed = async (label, operation) => {
+  const deferredTimings = [];
+  const timed = async (label, operation, { deferReport = false } = {}) => {
     const startedAt = new Date().toISOString();
     const started = performance.now();
     let status = "stopped", nested;
@@ -107,15 +115,15 @@ export async function runFixedCiPilots(operations) {
       const selectorFallback = label === "Selector Page2 preparation, proofs and cleanup" && nested == null;
       const item = { label: selectorFallback ? "Selector CCD baseline preparation" : label,
         status: selectorFallback ? "stopped" : status, startedAt, durationMs: Math.round(performance.now() - started) };
-      for(const row of nested ?? [item]) {timings.push(row);operations.onTiming?.(row);}
+      for(const row of nested ?? [item]) {timings.push(row);if(deferReport)deferredTimings.push(row);else operations.onTiming?.(row);}
     }
   };
   const checkCancellation = () =>
     assert(!operations.isCancelled?.(), "CI_JOB_CANCELLED");
-  const phase = async (name) => {
+  const phase = async (name, options) => {
     checkCancellation();
     const labels = { family: "WA family", scope: "WA organisation scope", ccd: "CCD configuration and access", eventCapability: "CCD source event permissions", routing: "Application routing", recipientCallback: "Recipient callback validation and persistence", selectorEventRow: "Selector Page2 preparation, proofs and cleanup" };
-    const result = await timed(labels[name], () => operations.phase(name));
+    const result = await timed(labels[name], () => operations.phase(name), options);
     checkCancellation();
     results.push({ phase: name, ...result });
     return result;
@@ -124,10 +132,24 @@ export async function runFixedCiPilots(operations) {
     const exitCode = Math.max(...results.map((item) => item.exitCode));
     return { status: ["PASS", "FAIL", "BLOCKED"][exitCode], exitCode, results, timings };
   };
-  let result = await phase("family");
-  if (result.exitCode !== 0) return { ...result, results, timings };
-  checkCancellation();
-  await timed("Scope fault candidate preparation", () => operations.derive());
+  const familyRun = phase("family", { deferReport: true });
+  let scopePreparation;
+  try {
+    checkCancellation();
+    scopePreparation = timed("Scope fault candidate preparation", () => operations.derive(), { deferReport: true });
+  } catch (error) {
+    await Promise.allSettled([familyRun]);
+    throw error;
+  }
+  const [familyOutcome, scopeOutcome] = await Promise.allSettled([familyRun, scopePreparation]);
+  const overlappedTimings = deferredTimings;
+  overlappedTimings.sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt) || (a.label === "WA family" ? -1 : 1));
+  timings.splice(0, overlappedTimings.length, ...overlappedTimings);
+  for (const item of overlappedTimings) operations.onTiming?.(item);
+  if (familyOutcome.status === "rejected") throw familyOutcome.reason;
+  if (familyOutcome.value.exitCode !== 0) return { ...familyOutcome.value, results, timings };
+  if (scopeOutcome.status === "rejected") throw scopeOutcome.reason;
+  let result = familyOutcome.value;
   checkCancellation();
   result = await phase("scope");
   if (result.exitCode !== 0) return { ...result, results, timings };
@@ -191,7 +213,8 @@ export async function runSelectorCiPhase(job,context,directory,resource,{run=run
  return {directory,...selected,expected:{...selected.expected,receiptArtifactDigest:validated.receiptArtifactDigest}};
 }
 
-export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonalNative,captureComplexNative,complexSourceConfiguration} = {}) {
+export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonalNative,captureComplexNative,captureStCicNative,captureMandatoryEmailNative,complexSourceConfiguration} = {}) {
+  assert(captureMandatoryEmailNative===undefined||typeof captureMandatoryEmailNative==='function','MANDATORY_EMAIL_CAPTURE_CALLBACK');
   const job = validateCiJob(read(jobPath));
   const envelope = read(job.candidateManifest);
   assert(
@@ -207,9 +230,11 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
   ]);
   const resources = new Map(),
     phaseResults = [],
-    phaseTimings = [];
+    phaseTimings = [],
+    eventRuntimePreparationTimings = [],
+    eventRuntimeLifecycleTimings = [];
   let failedPhase, phaseTerminal, phaseFailure;
-  let context,
+  let context, mandatoryEmailCapture,
     verdict = blocked(),
     cleanupComplete = true,
     cancelled = false;
@@ -234,9 +259,10 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       throw error;
     }
   };
-  const startOwnedCcd = async (key, fixtureSelection, alive = () => true, phaseResource, callbackVariant) => {
+  const startOwnedCcd = async (key, fixtureSelection, alive = () => true, phaseResource, callbackVariant, onTiming) => {
     assert(callbackVariant === undefined || ["baseline","binding-omitted"].includes(callbackVariant),"CI_CALLBACK_VARIANT_REQUIRED");
     assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
+    const timed = (step, action) => onTiming ? onTiming(step, action) : action();
     const directory = path.join(privateRoot, key);
     assert(!fs.existsSync(directory), "CI_FRESH_CCD_DIRECTORY_REQUIRED");
     const resource = { kind: "ccd", directory };
@@ -245,7 +271,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       resources.delete(phaseResource.name);
       resources.set(phaseResource.name, phaseResource);
     }
-    resource.pendingStart = Promise.resolve().then(() => startCcdRuntime(directory, {
+    resource.pendingStart = Promise.resolve().then(() => timed("startup", () => startCcdRuntime(directory, {
       fixtureSelection,
       platform: context.artifact.provenance.platform,
       onCreateUncertainty: () => { cleanupComplete = false; },
@@ -255,15 +281,15 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
         if (args[0] === "create") resource.createAttempted = true;
         return docker(args, input);
       },
-    })).then(ccd => { resource.successfulStart = true; return ccd; });
+    }))).then(ccd => { resource.successfulStart = true; return ccd; });
     resource.pendingStart = resource.pendingStart.then(async ccd => {
       assert(!cancelled && alive(), "CI_EVENT_START_CANCELLED");
       if (callbackVariant === undefined) {
-        importCcdDefinition(ccd);
-        verifyCcdRuntimeIdentity(ccd);
+        timed("definition-import", () => importCcdDefinition(ccd));
+        timed("identity-verification", () => verifyCcdRuntimeIdentity(ccd));
       } else {
-        await importNativeCallbackDefinition(ccd,callbackVariant);
-        verifyNativeCallbackRuntime(ccd,callbackVariant);
+        await timed("definition-import", () => importNativeCallbackDefinition(ccd,callbackVariant));
+        timed("identity-verification", () => verifyNativeCallbackRuntime(ccd,callbackVariant));
       }
       assert(!cancelled && alive(), "CI_EVENT_IMPORT_CANCELLED");
       return ccd;
@@ -300,8 +326,10 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     },
   });
   try {
-    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration}));
+    context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration,stCicProfile:captureStCicNative!==undefined,mandatoryEmail:captureMandatoryEmailNative!==undefined}));
+    if(captureMandatoryEmailNative!==undefined){mandatoryEmailCapture=structuredClone(context.mandatoryEmailNativeCapture);verifyMandatoryEmailNativeCapture(job.output,mandatoryEmailCapture);captureMandatoryEmailNative(structuredClone(mandatoryEmailCapture));}
     captureNativeCohort?.(structuredClone(context.nativeCohortCapture));
+    captureStCicNative?.(structuredClone(context.stCicNativeCapture));
     capturePersonalNative?.(structuredClone(context.personalNativeCapture));
     captureComplexNative?.(structuredClone(context.complexNativeCapture));
     assert(!cancelled, "CI_JOB_CANCELLED");
@@ -394,6 +422,9 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
             ...(name === "eventCapability" ? {
               onEventTransition: async (request, handoff) => {
                 const alive = () => !handoff.isTerminated();
+                const timeFaultStep = (invocationId, step, action) => timeEventRuntimePreparation(eventRuntimePreparationTimings, {
+                  runId: handoff.input.runId, invocationId, step, action,
+                });
                 assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                 const checkpoint = readEventBaselineCheckpoint(directory, handoff.expected);
                 const native = assertEventBaselineRemoved(resource.expectedContainer, { inspect: inspectHostContainer });
@@ -411,10 +442,13 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
                   const prepared = await Promise.allSettled(batch.map(async invocationId => {
                     assert(!cancelled && alive(), "CI_EVENT_TRANSITION_CANCELLED");
                     const variant = eventCapabilityFaultVariant(invocationId);
-                    const fault = eventRuntimeData(await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource));
+                    const ccd = await startOwnedCcd(`event-${variant}-runtime`, `event-capability-${variant}`, alive, resource, undefined,
+                      (step, action) => timeFaultStep(invocationId, step, action));
+                    const fault = timeFaultStep(invocationId, "runtime-observation", () => eventRuntimeData(ccd));
                     const record = { schemaVersion: 1, runId: handoff.input.runId, invocationId,
                       requestDigest: digestBytes(JSON.stringify(request)), ...fault };
-                    return { invocationId, fault, record, selected: selectEventCapabilityRuntime(handoff.input, invocationId, record) };
+                    const selected = selectEventCapabilityRuntime(handoff.input, invocationId, record);
+                    return { invocationId, fault, record, selected };
                   }));
                   const failure = prepared.find(result => result.status === "rejected");
                   if (failure) throw failure.reason;
@@ -425,11 +459,11 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
                       assert(Object.values(fault.ccd.containers).every(id => !Object.values(state.containers).includes(id)), "CI_EVENT_FAULT_CID_REUSE");
                     }
                     states.push(fault.ccd);
-                    const faultOwnership = captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory, invocationId);
-                    resource.expectedContainer.invocations.push(...faultOwnership.invocations);
+                    const faultOwnership = timeFaultStep(invocationId, "ownership-capture", () => captureCiEventFaultOwnership(selected, handoff.handoff, { ...context, ccd: fault.ccd }, directory, invocationId));
                     records.push(record);
-                    faults.push({ invocationId, identity: eventIdentity(fault),
+                    faults.push({ invocationId, identity: timeFaultStep(invocationId, "transition-identity", () => eventIdentity(fault)),
                       runtimeRecord: { path: `${invocationId}/runtime-input.json`, digest: digestBytes(JSON.stringify(record, null, 2) + "\n") } });
+                    resource.expectedContainer.invocations.push(...faultOwnership.invocations);
                   }
                 }
                 const transition = {
@@ -554,6 +588,12 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
           }, child);
           throw error;
         } finally {
+          if (name === "eventCapability") {
+            try {
+              const diagnostic = read(path.join(directory, "event-runtime-lifecycle-timings.json"));
+              appendPrivateEventLifecycleTimings(eventRuntimeLifecycleTimings, diagnostic);
+            } catch { /* Optional lifecycle diagnostics do not affect phase outcomes. */ }
+          }
           await remove(name, resource);
         }
       },
@@ -675,13 +715,37 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       }
     uninstall();
     if (cancelled || !cleanupComplete) verdict = blocked();
+    try {
+      writeJsonAtomic(path.join(privateRoot, "event-runtime-preparation-timings.json"), {
+        schemaVersion: 1,
+        kind: "private-event-runtime-preparation-timings",
+        proofAuthority: false,
+        records: eventRuntimePreparationTimings,
+      });
+    } catch {
+      /* Private timing diagnostics do not determine proof outcomes. */
+    }
+    const jobRunId = `ci-${randomUUID()}`;
+    try {
+      writeJsonAtomic(path.join(job.output, "public", "native-stage-timings.json"), {
+        schemaVersion: 1,
+        kind: "native-stage-timings",
+        proofAuthority: false,
+        catalogueCredit: false,
+        jobRunId,
+        phaseTimings,
+      });
+    } catch {
+      /* Public timing diagnostics do not determine proof outcomes. */
+    }
     writeJsonAtomic(path.join(privateRoot, "ci-result.json"), {
       classification: "fixed-pilot-suite-no-full-release-approval",
-      jobRunId: `ci-${randomUUID()}`,
+      jobRunId,
       status: verdict.status,
       exitCode: verdict.exitCode,
       cleanupComplete,
       phaseResults,
+      ...(mandatoryEmailCapture?{mandatoryEmailNativeBinding:structuredClone(mandatoryEmailCapture.reference)}:{}),
     });
     writeCiPublicSummary(
       job.output,
@@ -689,7 +753,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
       fixedCiPhasesPassed(phaseResults),
     );
   }
-  return { ...verdict, phaseTimings, continuationSafe: cleanupComplete && !cancelled && resources.size === 0 };
+  return { ...verdict, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, continuationSafe: cleanupComplete && !cancelled && resources.size === 0 };
 }
 if (
   process.argv[1] &&

@@ -1,3 +1,5 @@
+import {captureMandatoryEmailNativeBinding} from './exui-mandatory-email-event-contract.mjs';
+import {captureStCicNativeBinding} from './exui-st-cic-profile-admission.mjs';
 import {captureComplexNativeBinding} from './exui-complex-email-admission.mjs';
 import {capturePersonalNativeBinding} from './exui-personal-service-admission.mjs';
 import {captureDivorceNativeBinding} from './exui-divorce-native-binding.mjs';
@@ -153,7 +155,9 @@ export function observeCiToolchain({
   };
 }
 
-export async function prepareCiJob(job, output, {complexSourceConfiguration=null} = {}) {
+export async function prepareCiJob(job, output, {complexSourceConfiguration=null,stCicProfile=false,mandatoryEmail=false} = {}) {
+  assert.equal(typeof stCicProfile,"boolean","ST_CIC_PROFILE_OPT_IN");
+  assert.equal(typeof mandatoryEmail,"boolean","MANDATORY_EMAIL_OPT_IN");
   const artifact = await verifyCandidateArtifact(job.candidateManifest);
   assert.equal(
     artifact.identity.artifactDigest,
@@ -240,6 +244,8 @@ export async function prepareCiJob(job, output, {complexSourceConfiguration=null
     playwrightVersion: dependencies.playwrightVersion,
   });
   context.nativeCohortCapture = captureDivorceNativeBinding(context, output);
+  if(mandatoryEmail) context.mandatoryEmailNativeCapture=captureMandatoryEmailNativeBinding(context,output,observations.ccdImages);
+  if(stCicProfile) context.stCicNativeCapture = captureStCicNativeBinding(context, output);
   context.personalNativeCapture = capturePersonalNativeBinding(context, output, observations.ccdImages);
   context.complexNativeCapture = captureComplexNativeBinding(context, output, observations.ccdImages, complexSourceConfiguration);
   return context;

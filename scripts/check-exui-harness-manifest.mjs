@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { validateGeneratedDefinitionSnapshot } from "./lib/exui-definition-discovery.mjs";
 
 const repoRoot = process.cwd();
 const sourcePath = path.join(repoRoot, "src/data/exui-central-assurance-source.json");
@@ -295,6 +296,9 @@ function checkServiceDefinitionProfiles() {
         failures.push(
           `serviceDefinitionProfiles.${profile.serviceFamily}.${repo.fullName} is service-backed but has no structured evidenceRefs.`
         );
+      }
+      if (repo.generatedDefinitions && !validateGeneratedDefinitionSnapshot(repo, repoRoot)) {
+        failures.push(`serviceDefinitionProfiles.${profile.serviceFamily}.${repo.fullName} has an invalid generated definition snapshot.`);
       }
     }
   }

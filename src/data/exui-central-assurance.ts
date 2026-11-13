@@ -328,6 +328,14 @@ export interface ExuiServiceDefinitionRepoEvidence {
   complexTypes: number;
   notes?: string;
   evidenceRefs?: readonly string[];
+  generatedDefinitions?: {
+    manifestPath: string;
+    generatorTask: string;
+    outputRoot: string;
+    fileCount: number;
+    bytes: number;
+    manifestDigest: string;
+  };
 }
 
 export interface ExuiServiceDefinitionProfile {
@@ -832,9 +840,9 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
         fullName: "hmcts/pcs-api",
         url: "https://github.com/hmcts/pcs-api",
         visibility: "public",
-        updatedAt: "2026-11-02T22:38:09Z",
+        updatedAt: "2026-11-06T22:13:07Z",
         defaultBranch: "master",
-        revision: "efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8",
+        revision: "6f96b528dc13b96f5ce66f3930fa5fc31c231748",
         definitionRoot: "src/main/java/uk/gov/hmcts/reform/pcs/ccd",
         jsonFiles: 0,
         caseEventToFields: 0,
@@ -842,17 +850,25 @@ export const EXUI_SERVICE_DEFINITION_PROFILES = [
         authorisationCaseField: 0,
         caseField: 0,
         complexTypes: 0,
-        notes: "Java CCD SDK configuration inputs generate build/definitions; the decentralised runtime uses PCS-owned relational case persistence. Repository metadata was observed separately from the pinned source revision; no generation, import or runtime evidence is claimed.",
+        notes: "The pinned Java CCD SDK source generated the 397-file output snapshot in the linked manifest. This is source-generation evidence only: it does not prove CCD import or EXUI candidate runtime behaviour; the decentralised runtime uses PCS-owned relational case persistence.",
         evidenceRefs: [
           "src/main/java/uk/gov/hmcts/reform/pcs/ccd/CaseType.java",
           "src/main/java/uk/gov/hmcts/reform/pcs/ccd/domain/PCSCase.java",
           "src/main/java/uk/gov/hmcts/reform/pcs/ccd/PCSCaseView.java",
           "build.gradle"
-        ]
+        ],
+        generatedDefinitions: {
+          manifestPath: "scripts/fixtures/exui-pcs-generated-definition-manifest.json",
+          generatorTask: "generateCCDConfig",
+          outputRoot: "build/definitions/PCS",
+          fileCount: 397,
+          bytes: 3955448,
+          manifestDigest: "3556df4962e5e51beeec67551c6f890ddf6f6710474cde2bde630e0c62c67e8e"
+        }
       }
     ],
-    rationale: "PCS is configured for global search, Work Allocation and staff/ref-data with AAA3. Verified hmcts/pcs-api Java sources declare base case type PCS and decentralised CCD participation with service-owned persistence; CASE_TYPE_SUFFIX remains unresolved and deployed identity is unverified. This source-owner record does not fulfil the required CCD-backed assurance gap.",
-    nextAction: "Resolve the deployed identity and review representative PCS shapes and its decentralised persistence boundary; establish generation, import and runtime evidence before considering CCD-backed assurance."
+    rationale: "PCS is configured for global search, Work Allocation and staff/ref-data with AAA3. Current pinned hmcts/pcs-api Java CCD SDK inputs generated a byte-pinned PCS definition snapshot. CASE_TYPE_SUFFIX and deployed identity remain unresolved; source generation does not prove definition import, access-control behaviour or EXUI runtime acceptance.",
+    nextAction: "Resolve the deployed PCS identity and suffix, review representative generated event and access-control shapes, then prove import and candidate-bound EXUI behaviour before granting any runtime or release credit."
   }
 ] as const satisfies readonly ExuiServiceDefinitionProfile[];
 
@@ -1417,7 +1433,7 @@ export const EXUI_SUPERSERVICE_SCENARIOS: readonly ExuiSuperserviceScenario[] = 
     priority: "must-run",
     executionMode: "api",
     serviceFamily: "PCS",
-    assertion: "PCS is configured for global search, WA and staff with AAA3; its verified source owner does not fulfil the required CCD-backed assurance gap",
+    assertion: "PCS is configured for global search, WA and staff with AAA3 and has a pinned generated CCD definition snapshot; candidate runtime and access-control evidence remain unavailable",
     source: "rpx-xui-webapp jurisdictions and serviceRefDataMapping",
     sourceRefs: [
       EXUI_SOURCE_OF_TRUTH_REFS.defaultConfig,

@@ -23,7 +23,7 @@ test('pinned decentralised case-type destinations and empty service map remain d
   });
   assert.equal(defaults.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
   assert.equal(source(snapshot, 'config/custom-environment-variables.json').fileDigest, '094eb0b44b3161095b0b8ec484ae3d047ad5d8a880d08d199d7aae4d2e2e4b9d');
-  for (const item of snapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) assert.equal(item.revision, '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0');
+  for (const item of snapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) assert.equal(item.revision, '20c6ec129fc1e81061c733e164198ec63a33e71a');
   const catalogue = build();
   const routes = catalogue.obligations.filter(item => item.kind === 'configuration-decentralisation');
   assert.equal(routes.length, 1);
@@ -388,7 +388,7 @@ test('current pinned seven-family source is accepted while the previous six-fami
   const expected = ['CIVIL', 'EMPLOYMENT', 'IA', 'PCS', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'];
   const current = source(snapshot, 'config/default.json');
   assert.deepEqual(current.document.waSupportedJurisdictions.split(',').sort(), expected);
-  assert.equal(current.revision, '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0');
+  assert.equal(current.revision, '20c6ec129fc1e81061c733e164198ec63a33e71a');
   assert.equal(current.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
   assert.deepEqual(current.document.serviceRefDataMapping.find((row) => row.service === 'PCS').serviceCodes, ['AAA3']);
   assert.deepEqual(api.validateConfigurationCatalogue({ snapshot, review, catalogue: build() }).errors, []);

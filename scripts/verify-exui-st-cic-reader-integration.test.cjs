@@ -1,0 +1,25 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
+const {jointOwnershipPacket}=require('./fixtures/exui-st-cic-joint-ownership.mock.cjs');
+test('complete synthetic raw joint packet admits exactly one ST_CIC row and renders its bounded scope',async t=>{
+ const x=await jointOwnershipPacket(t),{readNativeReportEvidence}=await import('./lib/exui-native-report-evidence.mjs');
+ const before=await readNativeReportEvidence(x.f.descriptorPath);
+ x.f.descriptor.stCicProfileAdmission=x.requestPath;
+ fs.writeFileSync(x.f.descriptorPath,JSON.stringify(x.f.descriptor,null,2)+'\n');
+ const after=await readNativeReportEvidence(x.f.descriptorPath);
+ assert.equal(after.stCicProfileAdmission.joint.status,'included');
+ assert.equal(after.catalogueCoverage.candidate,before.catalogueCoverage.candidate+1);
+ assert.equal(after.catalogueCoverage.missing,before.catalogueCoverage.missing-1);
+ assert.equal(after.catalogueCoverage.selected,112);
+ const id='configuration-profile:31fed7b5d70bd2e333287f0b982632381576d11fbc15d71e90f27c14d986983b';
+ assert.equal(after.stCicProfileAdmission.obligationId,id);
+ assert.equal(after.catalogueCoverage.creditedObligationIds.filter(row=>row===id).length,1);
+ const html=require('./harness-native-report.cjs').renderNativeEvidence(after);
+ assert.match(html,/data-st-cic-credited="1"/);assert.match(html,/data-st-cic-executions="10"/);
+ const originalRegistry=fs.readFileSync(x.familyFile);
+ const registry=JSON.parse(originalRegistry);registry[0].id=x.stCicRows[0].id;fs.writeFileSync(x.familyFile,JSON.stringify(registry));
+ await assert.rejects(readNativeReportEvidence(x.f.descriptorPath));
+ fs.writeFileSync(x.familyFile,originalRegistry);
+ delete x.f.descriptor.expected.stCicProfileRequest;
+ fs.writeFileSync(x.f.descriptorPath,JSON.stringify(x.f.descriptor,null,2)+'\n');
+ await assert.rejects(readNativeReportEvidence(x.f.descriptorPath));
+});
