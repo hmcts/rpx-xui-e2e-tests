@@ -9,7 +9,7 @@ const { buildConfig, selections } = require('./harness-diagnostic-config.cjs');
 test('Harness package engine and nvmrc require the same exact Node runtime', () => {
   const expected = readFileSync('.nvmrc', 'utf8').trim();
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-  assert.equal(expected, '24.22.2');
+  assert.equal(expected, '24.22.3');
   assert.equal(pkg.engines.node, expected);
 });
 
@@ -62,7 +62,7 @@ for (const pipeline of ['Jenkinsfile_CNP', 'Jenkinsfile_nightly']) {
     try {
       mkdirSync(join(directory, 'scripts'));
       mkdirSync(join(directory, 'node_modules/@playwright/test'), { recursive: true });
-      writeFileSync(join(directory, '.nvmrc'), '24.22.2\n');
+      writeFileSync(join(directory, '.nvmrc'), '24.22.3\n');
       writeFileSync(join(directory, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.18.1' }));
       writeFileSync(join(directory, 'scripts/verify-playwright-browsers.cjs'), readFileSync('scripts/verify-playwright-browsers.cjs'));
       writeFileSync(join(directory, 'node_modules/@playwright/test/index.js'), `exports.chromium={executablePath:()=>process.env.MISSING_BROWSER==='1'?'/missing/browser':process.execPath,launch:async()=>({close:async()=>{}})};`);
@@ -148,7 +148,7 @@ corepack() {
           env: {
             PATH: directory, HOME: process.env.HOME, FAKE_NVM: fakeNvm,
             REAL_NODE: process.execPath, CALLS_FILE: calls, FAIL_COMMAND: fail,
-            FAKE_NODE_VERSION: fail === 'node-version' ? '22.0.0' : '24.22.2',
+            FAKE_NODE_VERSION: fail === 'node-version' ? '22.0.0' : '24.22.3',
             FAKE_YARN_VERSION: fail === 'yarn-version' ? '1.22.0' : '4.18.1',
             MISSING_BROWSER: fail === 'browser' ? '1' : '0'
           }
