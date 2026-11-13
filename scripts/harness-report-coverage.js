@@ -54,7 +54,9 @@ if (window.jQuery)
         tests += count;
       });
       document.getElementById("harness-filter-count").textContent =
-        `${tests} matching tests across ${slices} slices`;
+        `${tests} matching ${tests === 1 ? "test" : "tests"} across ${slices} ${slices === 1 ? "slice" : "slices"}`;
+      const empty = root.querySelector("[data-harness-empty]");
+      if (empty) empty.hidden = tests !== 0;
     };
     const nativeFilters = [...root.querySelectorAll("[data-native-filter]")];
     nativeFilters.forEach((select) =>
