@@ -272,8 +272,8 @@ export async function runAssuranceSequence({ excludeKnownJurisdictionDefect = fa
     ...(cmcProfileAttempt?{cmcProfileAttempt:structuredClone(cmcProfileAttempt)}:{}),
   });}catch(error){
     const {nativeReportFailureDetails}=await import('./lib/exui-native-report-evidence.mjs');
-    const failure=nativeReportFailureDetails(error);
-    console.error('[harness-assurance] Evidence collection failed: '+(failure?failure.code+' at '+failure.stage:'UNCLASSIFIED_REPORT_FAILURE'));
+    const failure=nativeReportFailureDetails(error)??Reporter.reportFailureDetails?.(error);
+    console.error('[harness-assurance] Evidence collection failed: '+(failure?failure.code+' at '+failure.stage+(failure.overlap?'; overlap '+failure.overlap.left+' -> '+failure.overlap.right+': '+failure.overlap.milliseconds+'ms':''):'UNCLASSIFIED_REPORT_FAILURE'));
     if(mandatoryEmail)return blockMandatory();if(stCic)return blockStCic('BLOCKED');throw error;}
   if(mandatoryEmail)mandatoryCollectedStatus=diagnostics?.status;
   stopped = cancelled(); if (stopped) return stopped;

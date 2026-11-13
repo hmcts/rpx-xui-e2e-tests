@@ -47,6 +47,17 @@ test("native stage timing artifact is safe, ordered and explicit that it grants 
   }
 });
 
+test('millisecond-rounded serial phases allow 1ms precision overlap but reject larger overlaps', t => {
+ const root=sandbox(t),Reporter=require(reporterPath),file=path.join(root,'native-stage-timings.json');
+ const document={schemaVersion:1,kind:'native-stage-timings',proofAuthority:false,catalogueCredit:false,jobRunId:'ci-12345678-1234-4234-9234-123456789abc',phaseTimings:[
+  {label:'CCD source event permissions',status:'PASS',startedAt:'2026-11-13T11:00:00.000Z',durationMs:1000},
+  {label:'Source event CCD runtime cleanup',status:'completed',startedAt:'2026-11-13T11:00:00.999Z',durationMs:1000},
+ ]};
+ fs.writeFileSync(file,JSON.stringify(document));assert.deepEqual(Reporter.validateNativeStageTimings(file),document);
+ for(const overlap of [2,50,1000]){const changed=structuredClone(document);changed.phaseTimings[1].startedAt=new Date(Date.parse(document.phaseTimings[0].startedAt)+1000-overlap).toISOString();fs.writeFileSync(file,JSON.stringify(changed));assert.throws(()=>Reporter.validateNativeStageTimings(file),error=>{assert.deepEqual(Reporter.reportFailureDetails(error).overlap,{left:'CCD source event permissions',right:'Source event CCD runtime cleanup',milliseconds:overlap});return /PUBLIC_ODHIN_INVALID_OR_INCOMPLETE/.test(error.message);});}
+ assert.equal(Reporter.reportFailureDetails(Object.assign(Error(canary),{stage:'native-phase-timings',overlap:{left:canary}})),null);
+});
+
 function sandbox(t) {
   const previous = process.cwd();
   const root = fs.mkdtempSync(

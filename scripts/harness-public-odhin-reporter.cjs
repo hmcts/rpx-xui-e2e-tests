@@ -62,6 +62,7 @@ const htmlEscape = (text) =>
   );
 const key = (entry) => JSON.stringify([entry.file, entry.titlePath]);
 const failure = () => new Error("PUBLIC_ODHIN_INVALID_OR_INCOMPLETE");
+const reportFailures = new WeakMap();
 const assuranceTimingScopes = {1:'assurance-start-to-report-snapshot',2:'harness-preparation-start-to-report-snapshot'};
 const assuranceTimingNote = 'Assurance sequence start → report snapshot. Includes selected assurance phases, evidence verification and diagnostics. Excludes report sealing/publication after snapshot, wrapper bookkeeping and Jenkins checkout/build/queue.';
 function validateAssuranceTiming(timing) {
@@ -85,16 +86,22 @@ function assuranceRunInfo(timing) {
   ];
 }
 function validatePhaseOverlaps(timings) {
+  // ISO starts and rounded monotonic durations can overlap by 1ms at a serial boundary.
   const { overlapPairs } = calculateNativePhaseIntervals(timings);
   for (const [left, right] of overlapPairs) {
     const pair = `${left}|${right}`;
     const toleratedMs = pair === "WA family|Scope fault candidate preparation" ? Infinity :
-      ["WA organisation scope|CCD runtime startup", "Selector CCD baseline preparation|Selector baseline proof and cleanup"].includes(pair) ? 1000 : -1;
+      ["WA organisation scope|CCD runtime startup", "Selector CCD baseline preparation|Selector baseline proof and cleanup"].includes(pair) ? 1000 : 1;
     const first = timings.find((item) => item.label === left);
     const second = timings.find((item) => item.label === right);
     const overlapMs = Math.min(Date.parse(first.startedAt) + first.durationMs, Date.parse(second.startedAt) + second.durationMs) -
       Math.max(Date.parse(first.startedAt), Date.parse(second.startedAt));
-    if (overlapMs > toleratedMs) throw failure();
+    if (overlapMs > toleratedMs) {
+      const rejection = failure();
+      reportFailures.set(rejection, { code: rejection.message, stage: 'native-phase-timings',
+        overlap: { left, right, milliseconds: overlapMs } });
+      throw rejection;
+    }
   }
 }
 function validatePhaseTimings(timings, evidence, elapsed) {
@@ -837,7 +844,7 @@ class HarnessPublicOdhinReporter {
     this.globalErrors++;
   }
   async onEnd(result) {
-    let stage;
+    let stage, failureStage = "report-publication";
     const owned = [];
     try {
       if (
@@ -864,7 +871,9 @@ class HarnessPublicOdhinReporter {
       if (this.complexEmailAttempt && this.nativeEvidence?.complexEmailAdmission) throw failure();
       if(this.divorceProfileAttempt&&this.nativeEvidence?.divorceProfileAdmission)throw failure();
       if(this.cmcProfileAttempt&&this.nativeEvidence?.cmcProfileAdmission)throw failure();
+      failureStage = "native-phase-timings";
       if (this.phaseTimings !== undefined) validatePhaseTimings(this.phaseTimings, this.nativeEvidence, this.nativeElapsedMs);
+      failureStage = "report-publication";
       if (this.eventRuntimePreparationTimings !== undefined) {
         try { this.eventPreparationTimings = eventPreparationReport.validateEventRuntimePreparationTimings(this.eventRuntimePreparationTimings, this.nativeEvidence); }
         catch { this.eventPreparationTimings = eventPreparationReport.unavailableEventPreparationSummary(this.nativeEvidence); }
@@ -1139,15 +1148,18 @@ class HarnessPublicOdhinReporter {
       writeExclusive(p.record, `${JSON.stringify(record)}\n`, owned);
       writeExclusive(p.html, html, owned);
       validatePublicReport(this.selection);
-    } catch {
+    } catch (error) {
       withdraw(owned);
       this.invalid = true;
-      throw failure();
+      const rejection = failure();
+      reportFailures.set(rejection, reportFailures.get(error) ?? { code: rejection.message, stage: failureStage });
+      throw rejection;
     } finally {
       if (stage) fs.rmSync(stage, { recursive: true, force: true });
     }
   }
 }
+HarnessPublicOdhinReporter.reportFailureDetails = error => reportFailures.has(error) ? { ...reportFailures.get(error) } : null;
 HarnessPublicOdhinReporter.validateAssuranceTiming = validateAssuranceTiming;
 HarnessPublicOdhinReporter.validateNativeStageTimings = validateNativeStageTimings;
 HarnessPublicOdhinReporter.captureDiagnosticSource = captureDiagnosticSource;

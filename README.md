@@ -21,7 +21,7 @@ After `yarn lint` has captured Build evidence, check the complete report-collect
 yarn harness:report:smoke
 ```
 
-This developer check replays synthetic seven-phase native packets plus personal-service and mandatory-email companions through the real evidence readers. It runs the installed Playwright diagnostics, validates their step evidence and combined Odhín report, and proves that a coherently resealed ownership fault and a mismatched candidate cannot publish. It also checks the team-excluded CMC/FR profiles remain NOT RUN. It grants no application coverage or release approval; actual candidate/CCD execution is still required.
+This developer check replays synthetic seven-phase native packets plus personal-service and mandatory-email companions through the production descriptor writer and real evidence readers. It runs the installed Playwright diagnostics, validates their step evidence and combined Odhín report, and proves that a coherently resealed ownership fault and a mismatched candidate cannot publish. It also opens helper and Private Law Steps views in Chromium, checks that filtering survives the return navigation, and checks the team-excluded CMC/FR profiles remain NOT RUN. It exercises the production phase timer, accepts 1 ms timestamp-resolution boundaries, and rejects excessive timing overlaps. It grants no application coverage or release approval; actual candidate/CCD execution is still required.
 
 Use an idle checkout or a separate worktree. The check temporarily backs up and restores existing Harness reports. If its held Build evidence is absent or stale, rerun `yarn lint` first.
 
