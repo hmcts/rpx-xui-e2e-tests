@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const os = require('node:os');
 
 test('real collection smoke joins Build, personal and mandatory evidence; corrupt evidence cannot publish', async t => {
   const root = fs.realpathSync(path.resolve(__dirname, '..'));
@@ -15,13 +14,18 @@ test('real collection smoke joins Build, personal and mandatory evidence; corrup
 
   // shortcut: Use an idle checkout; use a separate worktree for concurrent collectors.
   const reportDirectory = path.join(root, 'functional-output/tests/harness');
-  const backup = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'harness-report-smoke-'));
+  fs.mkdirSync(path.dirname(reportDirectory), { recursive: true });
+  const backup = fs.mkdtempSync(path.join(path.dirname(reportDirectory), '.harness-report-smoke-'));
   const saved = path.join(backup, 'previous');
   if (fs.existsSync(reportDirectory)) fs.renameSync(reportDirectory, saved);
+  let completed = false;
   t.after(() => {
+    const failedOutput = path.join(backup, 'failed-output');
+    if (!completed && fs.existsSync(reportDirectory)) fs.renameSync(reportDirectory, failedOutput);
     fs.rmSync(reportDirectory, { recursive: true, force: true });
     if (fs.existsSync(saved)) fs.renameSync(saved, reportDirectory);
-    fs.rmSync(backup, { recursive: true, force: true });
+    if (fs.existsSync(failedOutput)) console.error('[report-smoke] Private failure output retained in ' + path.basename(backup));
+    else fs.rmSync(backup, { recursive: true, force: true });
   });
 
   const packet = await require('./fixtures/exui-mandatory-email-admission.mock.cjs')
@@ -43,12 +47,13 @@ test('real collection smoke joins Build, personal and mandatory evidence; corrup
     ...require('./lib/exui-jurisdiction-exclusion.cjs').knownJurisdictionDefectExclusions(),
   };
   try {
-    const result = await runHarnessCollection({ PATH: process.env.PATH }, options);
+    const result = await runHarnessCollection(process.env, options);
+    const report = Reporter.validatePublicReport();
+    if (result.status !== 'passed') console.error(report.checkMethods.checks.filter(check => check.status !== 'passed').map(({file,titlePath,status}) => ({file,titlePath,status})));
     assert.equal(result.status, 'passed');
     assert.equal(result.exitCode, 0);
     assert.equal(result.personalServiceInclusion, 'included');
     assert.equal(result.mandatoryEmailInclusion, 'included');
-    const report = Reporter.validatePublicReport();
     assert(report.buildSelfChecks);
     assert.equal(report.tests, 116);
     assert.equal(report.checkMethods.checks.length, 116);
@@ -65,15 +70,16 @@ test('real collection smoke joins Build, personal and mandatory evidence; corrup
         : 'Bearer synthetic-personal-smoke-' + variant + '-' + role,
     );
     packet.write(packet.main.descriptorPath, packet.descriptor);
-    await assert.rejects(runHarnessCollection({ PATH: process.env.PATH }, options), error =>
+    await assert.rejects(runHarnessCollection(process.env, options), error =>
       reader.nativeReportFailureDetails(error)?.stage === 'mandatory-email-joint');
     assert.equal(fs.existsSync(path.join(reportDirectory, 'public/odhin/index.html')), false);
 
     const changed = structuredClone(packet.descriptor);
     changed.expected.candidateArtifactDigest = 'sha256:' + '0'.repeat(64);
     packet.write(packet.main.descriptorPath, changed);
-    await assert.rejects(runHarnessCollection({ PATH: process.env.PATH }, options), /NATIVE_REPORT_/);
+    await assert.rejects(runHarnessCollection(process.env, options), /NATIVE_REPORT_/);
     assert.equal(fs.existsSync(path.join(reportDirectory, 'public/odhin/index.html')), false);
+    completed = true;
   } catch (error) {
     console.error(reader.nativeReportFailureDetails(error) ?? { code: 'REPORT_SMOKE_FAILED' });
     throw error;
