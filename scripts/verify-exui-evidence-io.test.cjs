@@ -282,6 +282,30 @@ test('public artifact validation rejects unknown fields and secret-bearing statu
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('public blocked summary can explain the bounded FR jurisdiction mismatch without raw responses', async () => {
+  const { writePublicSummary, validatePublicSummary } = await evidence();
+  const { SOURCE_JURISDICTIONS } = await import('./lib/exui-source-profile-jurisdictions.mjs');
+  assert.equal(Object.isFrozen(SOURCE_JURISDICTIONS), true);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-public-fr-diagnostic-'));
+  try {
+    const file = path.join(directory, 'summary.json');
+    const diagnostic = {
+      schemaVersion: 1,
+      kind: 'fr-jurisdiction-filter-diagnostic',
+      reasonCode: 'FR_PROFILE_OBSERVATIONS',
+      expectedIds: [...SOURCE_JURISDICTIONS].sort(),
+      observedIds: ['CIVIL', 'CMC', 'DIVORCE', 'EMPLOYMENT', 'FR', 'HRS', 'IA', 'PCS', 'PRIVATELAW', 'PROBATE', 'PUBLICLAW', 'SSCS', 'ST_CIC', 'UNREVIEWED'],
+      unexpectedIds: ['ST_CIC', 'UNREVIEWED'],
+      missingIds: [],
+    };
+    writePublicSummary(file, { status: 'BLOCKED', exitCode: 2, frProfileDiagnostic: diagnostic });
+    assert.deepEqual(validatePublicSummary(file).frProfileDiagnostic, diagnostic);
+    const unsafe = { ...diagnostic, observedIds: [...diagnostic.observedIds, 'private-user@example.invalid'] };
+    assert.throws(() => writePublicSummary(file, { status: 'BLOCKED', exitCode: 2, frProfileDiagnostic: unsafe }), /UNSAFE_PUBLIC_FR_DIAGNOSTIC/);
+    assert.throws(() => writePublicSummary(file, { status: 'BLOCKED', exitCode: 2, frProfileDiagnostic: { ...diagnostic, expectedIds: ['FR'], missingIds: [], unexpectedIds: ['ST_CIC'] } }), /UNSAFE_PUBLIC_FR_DIAGNOSTIC/);
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('a previous raw report cannot be rewrapped as evidence for a new run', async () => {
   const { loadRunEvidence } = await evidence();
   const releasePolicy = await policy();

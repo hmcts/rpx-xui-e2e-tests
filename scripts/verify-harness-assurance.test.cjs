@@ -1,10 +1,11 @@
+const {reviewedCsrfDetailChildren}=require('./fixtures/harness-reviewed-csrf-details.mock.cjs');
 // Fake presentation events use the independently reviewed literal IDs, not validator output.
 function reviewedFixtureSteps(test) {
   const path = require('node:path');
   const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
   const method = require('./fixtures/harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
   if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
-  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:reviewedCsrfDetailChildren(id)}));
 }
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
@@ -138,16 +139,19 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   // Exercise the actual CLI and owned-report validator in a temporary root.
   // Only the native runner is replaced, so this regression cannot start Docker.
   fs.mkdirSync(path.join(root, "scripts/lib"), { recursive: true });
+  fs.writeFileSync(path.join(root,"scripts/lib/exui-jurisdiction-exclusion.cjs"),`module.exports=require(${JSON.stringify(path.join(__dirname,"lib/exui-jurisdiction-exclusion.cjs"))});`);
   fs.copyFileSync(
     path.join(__dirname, "run-harness-assurance.mjs"),
     path.join(root, "scripts/run-harness-assurance.mjs"),
   );
   for (const name of [
     "exui-divorce-native-binding.mjs",
+    "exui-mandatory-email-event-contract.mjs",
     "exui-personal-service-admission.mjs",
     "exui-complex-email-admission.mjs",
     "exui-output-boundary.mjs",
     "exui-candidate-ci-inputs.mjs",
+    "exui-candidate-artifact.mjs",
     "exui-release-policy.mjs",
     "exui-evidence-io.mjs",
     "exui-selector-event-row-evidence.mjs",
@@ -163,6 +167,11 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   fs.writeFileSync(path.join(root,'scripts/run-harness-complex-email-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-complex-email-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-personal-service-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-personal-service-admission.mjs')).href)};`);
   fs.writeFileSync(path.join(root,'scripts/run-harness-divorce-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-divorce-profile-admission.mjs')).href)};`);
+  fs.writeFileSync(path.join(root,'scripts/run-harness-mandatory-email-event-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-mandatory-email-event-admission.mjs')).href)};`);
+  fs.writeFileSync(path.join(root,'scripts/run-harness-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-st-cic-profile-admission.mjs')).href)};`);
+  fs.writeFileSync(path.join(root,'scripts/run-harness-cmc-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-cmc-profile-admission.mjs')).href)};`);
+  fs.writeFileSync(path.join(root,'scripts/run-harness-fr-profile-admission.mjs'), `export const runFrProfileAdmission=()=>{throw Error('UNEXPECTED_FR_PROFILE_RUN');};`);
+  fs.writeFileSync(path.join(root,'scripts/lib/exui-st-cic-profile-admission.mjs'), `export * from ${JSON.stringify(pathToFileURL(path.join(__dirname,'lib/exui-st-cic-profile-admission.mjs')).href)};`);
   fs.writeFileSync(
     path.join(root, "scripts/run-harness-ci.mjs"),
     `import fs from "node:fs"; export {reportNativeProgress} from ${JSON.stringify(pathToFileURL(path.join(__dirname,"run-harness-ci.mjs")).href)}; export async function runHarnessCi() { fs.writeFileSync("native-started", "unexpected"); throw Error("UNEXPECTED_NATIVE_RUN"); }`,
@@ -217,112 +226,9 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   assert.equal(fs.existsSync(path.join(root, "native-started")), false);
   assert.equal(fs.readFileSync(unrelated, "utf8"), "preserve");
 });
-function fixture(t) {
-  const root = fs.mkdtempSync(
-    path.join(fs.realpathSync(os.tmpdir()), "assurance-descriptor-"),
-  );
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  fs.mkdirSync(path.join(root, "private"));
-  const digest = "sha256:" + "a".repeat(64),
-    commit = "b".repeat(40);
-  const phases = ["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"];
-  const captured = { harnessCommit: commit, policies: {} };
-  const write = (file, value) => {
-    const bytes = JSON.stringify(value);
-    fs.writeFileSync(path.join(root, "private", file), bytes);
-    return (
-      "sha256:" +
-      require("node:crypto").createHash("sha256").update(bytes).digest("hex")
-    );
-  };
-  for (const phase of phases) {
-    fs.mkdirSync(path.join(root, "private", phase));
-    captured.policies[phase] = { policyDigest: digest };
-    const routingInterpreter =
-      phase === "routing"
-        ? { contract: { pinDigest: digest }, implementation: { apiBundle: { digest } } }
-        : undefined;
-    const pre = {
-      harnessCommit: commit,
-      identity: { artifactDigest: digest },
-      policyDigest: digest,
-      ...(routingInterpreter ? { routingInterpreter } : {}),
-    };
-    write(`${phase}/independent-preexecution.json`, {
-      ...pre,
-      capturedBeforeGate: true,
-      capturedAt: "2026-11-03T12:00:00Z",
-    });
-    const transition =
-      phase === "eventCapability"
-        ? {
-            path: "independent-transition.json",
-            digest: write(`${phase}/independent-transition.json`, {
-              capturedBeforeFault: true,
-            }),
-          }
-        : undefined;
-    const callbackTransition = phase === "recipientCallback"
-      ? { path: "independent-callback-transition.json", digest: write(`${phase}/independent-callback-transition.json`, {
-          capturedBeforeFault: true,
-        }) }
-      : undefined;
-    let selectorAuthority;
-    if(phase==='selectorEventRow'){
-      selectorAuthority={...pre,
-        selectorEventCapture:{path:'independent-selector-capture.json',digest:write(`${phase}/independent-selector-capture.json`,{schemaVersion:1})},
-        selectorControllerTerminal:{path:'independent-controller-terminal.json',digest:write(`${phase}/independent-controller-terminal.json`,{schemaVersion:1,terminal:{code:0,signal:null}})}};
-      write(`${phase}/independent-selector-admission.json`,{schemaVersion:1,completedAfterController:true,expected:selectorAuthority});
-    }
-    write(`${phase}/promotion-expected.json`, {
-      ...(transition ? { eventTransition: transition } : {}),
-      ...(callbackTransition ? { callbackTransition } : {}),
-      ...pre,
-      ...(selectorAuthority??{}),
-      receiptArtifactDigest: digest,
-      evidenceManifestDigest: digest,
-    });
-    write(`${phase}/controller-terminal.json`, {
-      status: "completed",
-      cleanupComplete: true,
-      exitCode: phase === "ccd" ? 2 : 0,
-    });
-  }
-  write("ci-result.json", {
-    jobRunId: "ci-example",
-    status: "BLOCKED",
-    exitCode: 2,
-    cleanupComplete: true,
-    phaseResults: phases.map((phase) => ({
-      phase,
-      status: phase === "ccd" ? "BLOCKED" : "PASS",
-      exitCode: phase === "ccd" ? 2 : 0,
-      receiptArtifactDigest: digest,
-      ...(phase === "eventCapability"
-        ? {
-            eventTransition: JSON.parse(
-              fs.readFileSync(
-                path.join(root, "private", phase, "promotion-expected.json"),
-              ),
-            ).eventTransition,
-          }
-        : phase === "recipientCallback" ? {
-            callbackTransition: JSON.parse(fs.readFileSync(
-              path.join(root, "private", phase, "promotion-expected.json"),
-            )).callbackTransition,
-          } : {}),
-    })),
-  });
-  return {
-    root,
-    captured,
-    job: { output: root, expectedArtifactDigest: digest },
-    verdict: { status: "BLOCKED", exitCode: 2, continuationSafe: true },
-    write,
-  };
-}
+const {descriptorFixture:fixture}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
 test('default entrypoint does not attempt the explicitly qualified DIVORCE profile', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  const actual=runEntrypoint(fixture(t));
  assert.equal(actual.terminal.status,0,actual.terminal.stderr);
  assert.equal(actual.result.nativeStatus,'BLOCKED');
@@ -335,7 +241,7 @@ test('default entrypoint does not attempt the explicitly qualified DIVORCE profi
  assert.equal(actual.result.exitCode,2);
 });
 test('explicit profile output still attempts the strict profile and preserves its failure', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  const f=fixture(t),actual=runEntrypoint(f,{profileOutput:path.join(f.root,'profile')});
  assert.equal(actual.terminal.status,0,actual.terminal.stderr);
  assert.equal(actual.calls.filter(x=>x==='profile').length,1);
@@ -347,7 +253,7 @@ test('explicit profile output still attempts the strict profile and preserves it
  assert.equal(actual.result.exitCode,2);
 });
 test('an invalid explicit profile path cannot silently select main-only execution', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const profileOutput of ['', 'relative-profile']){
   const actual=runEntrypoint(fixture(t),{profileOutput});
   assert.equal(actual.terminal.status,0,actual.terminal.stderr);
@@ -357,7 +263,7 @@ test('an invalid explicit profile path cannot silently select main-only executio
  }
 });
 test('default entrypoint cancellation withdraws the report and launches no profile or diagnostics', async t => {
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  const actual=runEntrypoint(fixture(t),{cancelNative:true});
  assert.equal(actual.terminal.status,0,actual.terminal.stderr);
  assert.equal(actual.result.exitCode,2);
@@ -610,7 +516,7 @@ test('late personal capture replacement cannot leave a stale public PASS after c
  assert.throws(()=>publishAssuranceSummary(f.job,f.captured,{exitCode:0,personalStatus:'PASS'}));assert.equal(validatePublicSummary(path.join(f.root,'public/release-assurance-summary.json')).status,'BLOCKED');
 });
 test('controlled former profile wiring cannot satisfy default personal order',t=>{
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const mutation of ['unconditional-profile','profile-only-preparation']){
   const actual=runEntrypoint(fixture(t),{mutation});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
   if(mutation==='unconditional-profile')assert.equal(actual.calls.filter(x=>x==='profile').length,1);
@@ -621,7 +527,7 @@ test('controlled former profile wiring cannot satisfy default personal order',t=
 
 
 test('fixed parent progress exposes only stage lifecycle and preserves closed failure identity',t=>{
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const closedPersonalFailure of [false,true]){
   const actual=runEntrypoint(fixture(t),{closedPersonalFailure});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
   assert.deepEqual(actual.progress.map(line=>line.replace(/ \(\d+s elapsed\)\.$/,'')),[
@@ -635,7 +541,7 @@ test('fixed parent progress exposes only stage lifecycle and preserves closed fa
 });
 
 test('controlled old callback omission fails the fixed progress lifecycle expectation',t=>{
- const {runEntrypoint}=require('./fixtures/exui-assurance-entrypoint.mock.cjs');
+ const {runEntrypoint}=require('./fixtures/exui-mandatory-email-assurance.mock.cjs');
  for(const mutation of ['omit-personal-progress','omit-collector-progress']){
   const actual=runEntrypoint(fixture(t),{mutation});assert.equal(actual.terminal.status,0,actual.terminal.stderr);
   assert.equal(actual.calls.filter(x=>x==='personal').length,1);assert.equal(actual.calls.filter(x=>x.collect).length,1);
@@ -650,7 +556,8 @@ test('actual native preflight rejection reports fixed progress without later run
  const source=fs.readFileSync(path.join(__dirname,'run-harness-ci.mjs'),'utf8');
  for(const omitProgress of [false,true]){
   const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'native-progress-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
-  const old=source.replace("context = await reportNativeProgress('Native candidate preflight', () => prepareCiJob(job, job.output, {complexSourceConfiguration}));",'context = await prepareCiJob(job, job.output, {complexSourceConfiguration});');
+  // Remove only the progress wrapper, preserving every current preflight input.
+  const old=source.replace(/context = await reportNativeProgress\('Native candidate preflight', \(\) => (prepareCiJob\([^\n]+\))\);/,'context = await $1;');
   assert.notEqual(old,source);messages.length=0;const observed=await runNativeController(root,'no-start',omitProgress?old:source);
   assert.equal(observed.result.status,'BLOCKED');assert.equal(observed.result.continuationSafe,true);assert.deepEqual(observed.calls,[]);
   const expected=['[harness-native] Native candidate preflight: started','[harness-native] Native candidate preflight: stopped; details remain private'];
@@ -671,4 +578,295 @@ test('unused Complex capsule drift cannot poison the actual main descriptor or N
   assert.equal(collections,1);assert.equal(result.complexStatus,'NOT_RUN');assert.equal(result.diagnosticStatus,'passed');assert.deepEqual(fs.readFileSync(path.join(f.root,'private/ci-result.json')),original);
   assert.throws(()=>buildNativeDescriptor(f.job,f.captured,f.verdict,undefined,undefined,undefined,{path:'/unused-request',digest:'sha256:'+'a'.repeat(64),runId:'complex-00000000-0000-4000-8000-000000000000'}));
  }
+});
+
+test('assurance timing snapshot uses the owner clock through supplementary stages and collection', async () => {
+  const {runAssuranceSequence}=await api();let now=0;
+  const request=runId=>({path:'/private/'+runId+'.json',runId,digest:'sha256:'+'a'.repeat(64)});
+  const before=Date.now();let measured;
+  const value=await runAssuranceSequence({clock:()=>now,
+    native:async()=>{now+=100;return {status:'PASS',exitCode:0,continuationSafe:true};},
+    prepare:async()=>{now+=10;},
+    profile:async()=>{now+=5000;return {status:'passed',reportRequest:request('profile')};},
+    personal:async()=>{now+=2000;return {status:'passed',reportRequest:request('personal')};},
+    complex:async()=>{now+=3000;return {status:'passed',reportRequest:request('complex-00000000-0000-4000-8000-000000000001')};},
+    descriptor:async()=>{now+=20;return '/private/native.json';},
+    collect:async(_file,timing)=>{
+      assert.equal(timing.nativeElapsedMs,130);assert.equal(typeof timing.snapshotAssuranceTiming,'function');
+      now+=50;now+=300;measured=timing.snapshotAssuranceTiming();
+      return {status:'passed',exitCode:0,divorceProfileInclusion:'included',personalServiceInclusion:'included',complexEmailInclusion:'included'};
+    },
+  });
+  assert.deepEqual(Object.keys(measured).sort(),['clock','elapsedMs','schemaVersion','scope','startedAt']);
+  assert.equal(measured.elapsedMs,10480);assert.equal(measured.schemaVersion,1);assert.equal(measured.scope,'assurance-start-to-report-snapshot');assert.equal(measured.clock,'monotonic');
+  assert.equal(new Date(measured.startedAt).toISOString(),measured.startedAt);assert(Date.parse(measured.startedAt)>=before&&Date.parse(measured.startedAt)<=Date.now());
+  assert.equal(value.exitCode,0);assert.equal(value.releaseApproval,false);
+});
+
+test('assurance timing rejects owner clock backsteps and nonfinite values without changing withdrawal contracts', async () => {
+  const {runAssuranceSequence}=await api();
+  for(const invalid of [-0.1,NaN,Infinity,Number.MAX_SAFE_INTEGER+1,'10480',null,undefined]){
+    let now=0;
+    await assert.rejects(runAssuranceSequence({clock:()=>now,native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),descriptor:async()=>'/private/native.json',collect:async(_file,timing)=>{now=invalid;timing.snapshotAssuranceTiming();return {status:'passed',exitCode:0};}}),/ASSURANCE_TIMING/);
+  }
+});
+
+test('assurance timing records safe FAIL or BLOCKED without changing verdicts and skips already aborted work',async()=>{
+ const {runAssuranceSequence}=await api();
+ for(const [status,exitCode] of [['FAIL',1],['BLOCKED',2]]){
+  let now=0;const result=await runAssuranceSequence({clock:()=>now,native:async()=>{now+=100;return {status,exitCode,continuationSafe:true};},descriptor:async()=>'/private/native.json',collect:async(_file,timing)=>{now+=300;assert.equal(timing.snapshotAssuranceTiming().elapsedMs,400);return {status:'passed',exitCode:0};}});
+  assert.equal(result.nativeStatus,status);assert.equal(result.exitCode,exitCode);assert.equal(result.releaseApproval,false);
+ }
+ const controller=new AbortController();controller.abort();let withdrew=false;
+ const result=await runAssuranceSequence({signal:controller.signal,clock:()=>assert.fail('aborted work has no timing origin'),native:()=>assert.fail('aborted native'),descriptor:()=>assert.fail('aborted descriptor'),collect:()=>assert.fail('aborted collection'),withdraw:()=>{withdrew=true;}});
+ assert.equal(result.nativeStatus,'NOT_RUN');assert.equal(result.exitCode,2);assert.equal(withdrew,true);
+});
+
+test('preparation timing snapshot retains parent clock including candidate build rather than child origin',async()=>{
+ const {runAssuranceSequence}=await api();let parent=5000,child=900000,samples=0;const start=parent;parent+=329000;
+ const expected={schemaVersion:2,scope:'harness-preparation-start-to-report-snapshot',clock:'monotonic',startedAt:'2026-11-06T12:00:00.000Z',elapsedMs:329350};
+ await runAssuranceSequence({clock:()=>child,snapshotAssuranceTiming:async()=>{samples++;return {...expected,elapsedMs:parent-start};},native:async()=>{parent+=100;child+=100;return {status:'PASS',exitCode:0,continuationSafe:true};},descriptor:async()=>'/private/native.json',collect:async(_file,timing)=>{parent+=250;child+=250;assert.deepEqual(await timing.snapshotAssuranceTiming(),expected);return {status:'passed',exitCode:0};}});
+ assert.equal(samples,1);
+});
+
+test('preparation IPC rejects missing, malformed, stale or disconnected replies without local timing fallback',async()=>{
+ const {connectPreparationTiming}=await api(),{EventEmitter}=require('node:events');const token='00000000-0000-4000-8000-000000000001';
+ await assert.rejects(connectPreparationTiming({connected:false}),/PARENT_TIMING/);
+ for(const fault of ['missing','missing-reply','malformed-init','duplicate-init','duplicate-reply','stale-reply','invalid-timing','disconnect','send-error',null]){
+  const channel=new EventEmitter();channel.connected=true;channel.send=(message,done)=>{done?.(fault==='send-error'?Error('PRIVATE-CANARY'):undefined);queueMicrotask(()=>{
+   if(fault==='missing' || (fault==='missing-reply'&&message.kind!=='harness-preparation-ready'))return;
+   if(message.kind==='harness-preparation-ready')channel.emit('message',fault==='malformed-init'?{kind:'harness-preparation-init',token,extra:1}:{kind:'harness-preparation-init',token});
+   else if(fault==='disconnect')channel.emit('disconnect');
+   else channel.emit('message',{kind:'harness-preparation-timing',token:fault==='stale-reply'?'stale':token,timing:{schemaVersion:2,scope:'harness-preparation-start-to-report-snapshot',clock:'monotonic',startedAt:'2026-11-06T12:00:00.000Z',elapsedMs:fault==='invalid-timing'?-1:0}});
+   if((fault==='duplicate-init'&&message.kind==='harness-preparation-ready')||(fault==='duplicate-reply'&&message.kind==='harness-preparation-snapshot'))channel.emit('message',{kind:'duplicate'});
+  });};
+  if(['missing','malformed-init','send-error'].includes(fault))await assert.rejects(connectPreparationTiming(channel,{timeoutMs:10}),/PARENT_TIMING/);
+  else {const snapshot=await connectPreparationTiming(channel,{timeoutMs:10});if(fault)await assert.rejects(snapshot(),/PARENT_TIMING/);else {assert.equal((await snapshot()).elapsedMs,0);await assert.rejects(snapshot(),/PARENT_TIMING/);}snapshot.dispose();}
+  assert.equal(channel.listenerCount('message'),0);assert.equal(channel.listenerCount('disconnect'),0);
+ }
+});
+
+test('ST_CIC descriptor pins the captured capsule and rejects changed request bytes', async t => {
+ const {buildNativeDescriptor}=await api(),f=fixture(t);
+ const {stCicProfileContractDigest}=await import('./lib/exui-st-cic-profile-contract.mjs');
+ const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const binding={schemaVersion:1,kind:'st-cic-native-binding',policy:'st-cic-profile-joint-v1',contractDigest:stCicProfileContractDigest(),nativeBindingDigest:'sha256:'+'a'.repeat(64)};
+ const bytes=JSON.stringify(binding,null,2)+'\n',file=path.join(f.root,'private/st-cic-native-binding.json');fs.writeFileSync(file,bytes);
+ f.captured.stCicNativeCapture={binding,reference:{path:'private/st-cic-native-binding.json',digest:digestBytes(bytes)}};
+ const runId='st-cic-10000000-0000-4000-8000-000000000000',requestFile=path.join(f.root,'request.json'),requestBytes=JSON.stringify({expected:{runId}});fs.writeFileSync(requestFile,requestBytes);
+ const request={path:requestFile,digest:digestBytes(requestBytes),runId};
+ const render=()=>buildNativeDescriptor(f.job,f.captured,f.verdict,undefined,undefined,undefined,undefined,request);
+ const descriptor=render();assert.equal(descriptor.stCicProfileAdmission,requestFile);assert.deepEqual(descriptor.expected.stCicNativeBinding,f.captured.stCicNativeCapture.reference);assert.deepEqual(descriptor.expected.stCicProfileRequest,{runId,digest:request.digest});
+ fs.writeFileSync(requestFile,JSON.stringify({expected:{runId:'foreign-run'}}));assert.throws(render,/ASSURANCE_ST_CIC_REQUEST_CHANGED/);
+ fs.writeFileSync(requestFile,requestBytes);fs.writeFileSync(file,bytes+' ');assert.throws(render);
+});
+
+test('late ST_CIC capture replacement withdraws a stale public PASS',async t=>{
+ const {publishAssuranceSummary}=await api(),f=fixture(t),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs');
+ const binding={held:'native'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(f.root,'private/native-cohort-binding.json'),bytes);f.captured.nativeCohortCapture={binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}};publishAssuranceSummary(f.job,f.captured,{exitCode:0});
+ f.captured.stCicNativeCapture={binding:{held:'st-cic'},reference:{path:'private/st-cic-native-binding.json',digest:'sha256:'+'a'.repeat(64)}};fs.writeFileSync(path.join(f.root,'private/st-cic-native-binding.json'),JSON.stringify({late:'change'}));
+ assert.throws(()=>publishAssuranceSummary(f.job,f.captured,{exitCode:0,stCicStatus:'PASS'}));assert.equal(validatePublicSummary(path.join(f.root,'public/release-assurance-summary.json')).status,'BLOCKED');
+});
+
+test('ST_CIC CLI bridge parses only finite opt-in flags and preserves legacy arguments',async()=>{
+ const {parseAssuranceCli}=await api();
+ assert.deepEqual(parseAssuranceCli(['--input','/private/job.json']),{jobPath:'/private/job.json',aat:false,parentTiming:false,stCic:false,frProfile:false,cmcProfile:false});
+ assert.deepEqual(parseAssuranceCli(['--','--input','/private/job.json','--st-cic','--aat','--parent-timing','--fr-profile','--cmc-profile']),{jobPath:'/private/job.json',aat:true,parentTiming:true,stCic:true,frProfile:true,cmcProfile:true});
+ for(const args of [['--input','relative'],['--input','/private/job.json','--st-cic','--st-cic'],['--input','/private/job.json','--fr-profile','--fr-profile'],['--input','/private/job.json','--unknown'],['--input','/private/job.json','--st-cic-output','/foreign'],['--input','/private/job.json','--aat','--aat']])assert.throws(()=>parseAssuranceCli(args),/ASSURANCE_INPUT_REQUIRED/);
+});
+
+test('ST_CIC CLI bridge allocates owned external output and rejects stale or aliased inputs before execution',async t=>{
+ const {createStCicCliOutput}=await api();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'st-cic-cli-output-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const candidate=path.join(root,'candidate'),browser=path.join(root,'browser');fs.mkdirSync(candidate);fs.mkdirSync(browser);
+ const manifest=path.join(root,'candidate.json'),jobPath=path.join(root,'job.json'),output=path.join(root,'native-output');
+ fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));
+ const job={schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)};
+ const write=()=>fs.writeFileSync(jobPath,JSON.stringify(job));write();
+ const created=await createStCicCliOutput(jobPath),directory=path.dirname(created);t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert.equal(path.basename(created),'profile');assert.equal(fs.statSync(directory).mode&0o777,0o700);
+ assert.equal(fs.existsSync(created),false);assert.equal(fs.existsSync(output),false);
+ const receipt=path.join(root,'st-cic-cli-output.json');assert.equal(fs.statSync(receipt).mode&0o777,0o600);
+ assert.deepEqual(JSON.parse(fs.readFileSync(receipt)),{schemaVersion:1,kind:'st-cic-cli-owned-output',directory,output:created});
+ await assert.rejects(()=>createStCicCliOutput(jobPath),/ASSURANCE_ST_CIC_OUTPUT_ALREADY_OWNED/);
+ fs.unlinkSync(receipt);const alias=path.join(root,'alias');fs.symlinkSync(root,alias);job.output=path.join(alias,'native-output');write();await assert.rejects(()=>createStCicCliOutput(jobPath),/ASSURANCE_ST_CIC_OUTPUT_ALIAS/);
+ job.output=output;write();fs.writeFileSync(manifest,JSON.stringify({candidateRoot:root}));
+ // A failed overlap may not leave an unrecorded owned empty temp directory.
+ const before=fs.readdirSync(root).sort();
+ const realMkdtemp=fs.mkdtempSync;fs.mkdtempSync=prefix=>realMkdtemp(path.join(root,path.basename(prefix)));
+ try{await assert.rejects(()=>createStCicCliOutput(jobPath),/ASSURANCE_ST_CIC_OUTPUT_OVERLAP/);}finally{fs.mkdtempSync=realMkdtemp;}
+ assert.deepEqual(fs.readdirSync(root).sort(),before);
+ assert.equal(fs.existsSync(receipt),false);assert.equal(fs.existsSync(output),false);
+});
+
+test('FR CLI bridge allocates owned external output outside functional and candidate inputs',async t=>{
+ const {createFrProfileCliOutput}=await api();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'fr-cli-output-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const candidate=path.join(root,'candidate'),browser=path.join(root,'browser');fs.mkdirSync(candidate);fs.mkdirSync(browser);
+ const manifest=path.join(root,'candidate.json'),jobPath=path.join(root,'job.json'),output=path.join(root,'functional-output/tests/harness/private/native-output');fs.mkdirSync(path.dirname(output),{recursive:true});
+ const job={schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)};
+ fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify(job));
+ const created=await createFrProfileCliOutput(jobPath),directory=path.dirname(created);t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert.equal(path.basename(created),'profile');assert.equal(fs.statSync(directory).mode&0o777,0o700);
+ assert.equal(created.includes(`${path.sep}functional-output${path.sep}`),false);assert.equal(fs.existsSync(created),false);assert.equal(fs.existsSync(output),false);
+ const receipt=path.join(root,'fr-profile-cli-output.json');assert.equal(fs.statSync(receipt).mode&0o777,0o600);
+ assert.deepEqual(JSON.parse(fs.readFileSync(receipt)),{schemaVersion:1,kind:'fr-profile-cli-owned-output',directory,output:created});
+ await assert.rejects(()=>createFrProfileCliOutput(jobPath),/ASSURANCE_FR_PROFILE_OUTPUT_ALREADY_OWNED/);
+ fs.unlinkSync(receipt);const alias=path.join(root,'alias');fs.symlinkSync(root,alias);job.output=path.join(alias,'functional-output/tests/harness/private/native-output');fs.writeFileSync(jobPath,JSON.stringify(job));
+ await assert.rejects(()=>createFrProfileCliOutput(jobPath),/ASSURANCE_FR_PROFILE_OUTPUT_ALIAS/);assert.equal(fs.existsSync(receipt),false);
+});
+
+test('CMC CLI bridge allocates a separately owned output outside functional and candidate inputs',async t=>{
+ const {createCmcProfileCliOutput}=await api();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'cmc-cli-output-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const candidate=path.join(root,'candidate'),browser=path.join(root,'browser');fs.mkdirSync(candidate);fs.mkdirSync(browser);
+ const manifest=path.join(root,'candidate.json'),jobPath=path.join(root,'job.json'),output=path.join(root,'functional-output/tests/harness/private/native-output');fs.mkdirSync(path.dirname(output),{recursive:true});
+ const job={schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)};
+ fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify(job));
+ const created=await createCmcProfileCliOutput(jobPath),directory=path.dirname(created);t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ assert.equal(path.dirname(directory),fs.realpathSync(os.tmpdir()));assert.equal(path.basename(created),'profile');assert.equal(fs.statSync(directory).mode&0o777,0o700);
+ assert.equal(created.includes(`${path.sep}functional-output${path.sep}`),false);assert.equal(fs.existsSync(created),false);assert.equal(fs.existsSync(output),false);
+ const receipt=path.join(root,'cmc-profile-cli-output.json');assert.equal(fs.statSync(receipt).mode&0o777,0o600);
+ assert.deepEqual(JSON.parse(fs.readFileSync(receipt)),{schemaVersion:1,kind:'cmc-profile-cli-owned-output',directory,output:created});
+ await assert.rejects(()=>createCmcProfileCliOutput(jobPath),/ASSURANCE_CMC_PROFILE_OUTPUT_ALREADY_OWNED/);
+ fs.unlinkSync(receipt);const alias=path.join(root,'alias');fs.symlinkSync(root,alias);job.output=path.join(alias,'functional-output/tests/harness/private/native-output');fs.writeFileSync(jobPath,JSON.stringify(job));
+ await assert.rejects(()=>createCmcProfileCliOutput(jobPath),/ASSURANCE_CMC_PROFILE_OUTPUT_ALIAS/);assert.equal(fs.existsSync(receipt),false);
+});
+
+test('ST_CIC CLI bridge actual entry forwards parsed options and blocks collisions before the fake assurance boundary',async t=>{
+ const {spawnSync}=require('node:child_process');
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'st-cic-cli-entry-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const source=path.join(root,'source'),scripts=path.join(source,'scripts');fs.mkdirSync(scripts,{recursive:true});
+ const original=fs.readFileSync(path.join(__dirname,'run-harness-assurance.mjs'),'utf8'),needle='const result = await runHarnessAssurance(cli.jobPath, {';
+ assert.equal(original.split(needle).length,2);
+ // Only the expensive assurance API is a fake; run the real CLI parser/output preflight.
+ const edited=original.replace(needle,"const result = await (async (jobPath, options) => { fs.writeFileSync(path.join(ROOT,'cli-call.json'),JSON.stringify({jobPath,options})); return {nativeStatus:'PASS',diagnosticStatus:'passed',exitCode:0}; })(cli.jobPath, {");
+ fs.writeFileSync(path.join(scripts,'run-harness-assurance.mjs'),edited);
+ for(const name of fs.readdirSync(__dirname))if(name!=='run-harness-assurance.mjs')fs.symlinkSync(path.join(__dirname,name),path.join(scripts,name));
+ fs.unlinkSync(path.join(scripts,'run-harness-fr-profile-admission.mjs'));
+ fs.writeFileSync(path.join(scripts,'run-harness-fr-profile-admission.mjs'),"export const runFrProfileAdmission=()=>{throw Error('UNEXPECTED_FR_PROFILE_RUN');};");
+ const fakeDeps=path.join(root,'fake-deps');fs.mkdirSync(fakeDeps);fs.symlinkSync(fakeDeps,path.join(source,'node_modules'));
+ const candidate=path.join(root,'candidate'),browser=path.join(root,'browser');fs.mkdirSync(candidate);fs.mkdirSync(browser);
+ const jobDirectory=path.join(source,'functional-output/tests/harness/private/native-ci/job');fs.mkdirSync(jobDirectory,{recursive:true,mode:0o700});
+ const manifest=path.join(root,'candidate.json'),jobPath=path.join(jobDirectory,'job.json'),output=path.join(jobDirectory,'native-output');
+ fs.writeFileSync(manifest,JSON.stringify({candidateRoot:candidate}));fs.writeFileSync(jobPath,JSON.stringify({schemaVersion:1,candidateManifest:manifest,browserCache:browser,output,expectedArtifactDigest:'sha256:'+'a'.repeat(64)}));
+ const launch=(flags,{tmpdir,preload}={})=>spawnSync(process.execPath,[...(preload?['--require',preload]:[]),'scripts/run-harness-assurance.mjs','--input',jobPath,...flags],{cwd:source,env:{PATH:process.env.PATH,...(tmpdir?{TMPDIR:tmpdir}:{})},encoding:'utf8',timeout:10_000});
+ for(const flags of [[],['--mandatory-email'],['--st-cic','--mandatory-email','--aat'],['--fr-profile'],['--cmc-profile']]){
+  const terminal=launch(flags);assert.equal(terminal.status,0,`${flags.join(' ')}: ${terminal.stderr}`);assert.equal(terminal.signal,null);
+  const receipt=flags.includes('--st-cic')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'st-cic-cli-output.json'))):undefined;
+  if(receipt)t.after(()=>fs.rmSync(receipt.directory,{recursive:true,force:true}));
+  const mandatoryReceipt=flags.includes('--mandatory-email')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'mandatory-email-cli-output.json'))):undefined;
+  if(mandatoryReceipt)t.after(()=>fs.rmSync(mandatoryReceipt.directory,{recursive:true,force:true}));
+  const frReceipt=flags.includes('--fr-profile')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'fr-profile-cli-output.json'))):undefined;
+  if(frReceipt)t.after(()=>fs.rmSync(frReceipt.directory,{recursive:true,force:true}));
+  const cmcReceipt=flags.includes('--cmc-profile')?JSON.parse(fs.readFileSync(path.join(jobDirectory,'cmc-profile-cli-output.json'))):undefined;
+  if(cmcReceipt)t.after(()=>fs.rmSync(cmcReceipt.directory,{recursive:true,force:true}));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(source,'cli-call.json'))),{jobPath,options:{aat:flags.includes('--aat'),...(receipt?{stCicOutput:receipt.output}:{}),...(mandatoryReceipt?{mandatoryEmailOutput:mandatoryReceipt.output}:{}),...(frReceipt?{frProfileOutput:frReceipt.output}:{}),...(cmcReceipt?{cmcProfileOutput:cmcReceipt.output}:{})}});
+  if(mandatoryReceipt)fs.unlinkSync(path.join(jobDirectory,'mandatory-email-cli-output.json'));
+  if(frReceipt)fs.unlinkSync(path.join(jobDirectory,'fr-profile-cli-output.json'));
+  if(cmcReceipt)fs.unlinkSync(path.join(jobDirectory,'cmc-profile-cli-output.json'));
+  fs.unlinkSync(path.join(source,'cli-call.json'));
+ }
+ const terminal=launch(['--st-cic']);assert.equal(terminal.status,2);assert.match(terminal.stderr,/BLOCKED/);assert.equal(fs.existsSync(path.join(source,'cli-call.json')),false);assert.equal(fs.existsSync(output),false);
+ fs.unlinkSync(path.join(jobDirectory,'st-cic-cli-output.json'));
+ const allocations=path.join(root,'allocations.txt'),preload=path.join(root,'count-allocation.cjs');
+ fs.writeFileSync(preload,`const fs=require('node:fs'),actual=fs.mkdtempSync;fs.mkdtempSync=(...args)=>{fs.appendFileSync(${JSON.stringify(allocations)},'called');return actual(...args);};`);
+ const badTmp=path.join(fakeDeps,'tmp');fs.mkdirSync(badTmp);const dependencyBefore=fs.readdirSync(fakeDeps).sort();
+ for(const flag of ['--st-cic','--mandatory-email','--fr-profile']){const unsafe=launch([flag],{tmpdir:badTmp,preload});assert.equal(unsafe.status,2,unsafe.stderr);}
+ assert.equal(fs.existsSync(allocations),false,'reject before any mkdtemp under dependency input');assert.deepEqual(fs.readdirSync(fakeDeps).sort(),dependencyBefore);assert.deepEqual(fs.readdirSync(badTmp),[]);
+ assert.equal(fs.existsSync(path.join(source,'cli-call.json')),false);assert.equal(fs.existsSync(path.join(jobDirectory,'st-cic-cli-output.json')),false);
+ fs.unlinkSync(path.join(source,'node_modules'));const safeTmp=path.join(root,'safe-tmp');fs.mkdirSync(safeTmp);
+ for(const flag of ['--st-cic','--mandatory-email','--fr-profile']){const missing=launch([flag],{tmpdir:safeTmp,preload});assert.equal(missing.status,2,missing.stderr);}assert.equal(fs.existsSync(allocations),false,'missing dependency root must fail before allocation');assert.deepEqual(fs.readdirSync(safeTmp),[]);
+});
+
+test('combined assurance CLI preserves ST_CIC and the explicit held Build receipt without accepting malformed suffixes',async()=>{
+ const {parseAssuranceCli}=await api(),held={path:'/private/held.json',digest:'sha256:'+'a'.repeat(64)};
+ for(const flags of [[],['--st-cic'],['--aat','--parent-timing','--st-cic'],['--fr-profile'],['--st-cic','--fr-profile'],['--cmc-profile'],['--fr-profile','--cmc-profile']]){
+  const cli=parseAssuranceCli(['--input','/private/job.json',...flags,'--build-self-check-held',held.path,'--build-self-check-digest',held.digest]);
+  assert.deepEqual(cli,{jobPath:'/private/job.json',aat:flags.includes('--aat'),parentTiming:flags.includes('--parent-timing'),stCic:flags.includes('--st-cic'),frProfile:flags.includes('--fr-profile'),cmcProfile:flags.includes('--cmc-profile'),buildSelfCheckHeld:held});
+ }
+ for(const suffix of [['--build-self-check-held','relative.json','--build-self-check-digest',held.digest],['--build-self-check-held',held.path,'--build-self-check-digest','bad'],['--build-self-check-held',held.path,'--build-self-check-digest',held.digest,'--st-cic'],['--build-self-check-digest',held.digest]]){
+  assert.throws(()=>parseAssuranceCli(['--input','/private/job.json','--st-cic',...suffix]));
+ }
+ assert.throws(()=>parseAssuranceCli(['--input','/private/job.json','--st-cic','--st-cic','--build-self-check-held',held.path,'--build-self-check-digest',held.digest]));
+});
+
+test('FR profile request is pinned into the collector only after a completed admission',async()=>{
+ const {runAssuranceSequence}=await api(),request={path:'/private/fr/admission-request.json',digest:'sha256:'+'f'.repeat(64),runId:'fr-22222222-2222-4222-8222-222222222222'},order=[];
+ let observed;
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{order.push('fr');return{status:'passed',accepted:0,reportRequest:request};},descriptor:async(...args)=>{order.push('descriptor');observed=args.at(-1);return'/private/native.json';},collect:async(_file,timing)=>{order.push('collect');assert.deepEqual(timing.frProfileRequest,request);return{status:'passed',exitCode:0,frProfileInclusion:'separate'};}});
+ assert.deepEqual(order,['fr','descriptor','collect']);assert.deepEqual(observed,request);assert.equal(result.frProfileStatus,'SEPARATE');assert.equal(result.exitCode,2);
+});
+
+test('failed FR profile attempt blocks publication and never creates a report request',async()=>{
+ const {runAssuranceSequence}=await api(),{SOURCE_JURISDICTIONS}=await import('./lib/exui-source-profile-jurisdictions.mjs');let descriptors=0,collections=0,withdrawals=0;
+ const expectedIds=[...SOURCE_JURISDICTIONS].sort(),diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds:[...expectedIds,'ST_CIC'],unexpectedIds:['ST_CIC'],missingIds:[]};let publication;
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{const error=Error('FR_PROFILE_OBSERVATIONS');error.frProfileDiagnostic=diagnostic;throw error;},descriptor:async()=>{descriptors++;return'/private/native.json';},collect:async()=>{collections++;return{status:'passed',exitCode:0};},withdraw:()=>withdrawals++,publish:value=>publication=value});
+ assert.equal(result.frProfileStatus,'BLOCKED');assert.equal(result.frProfileAttempt.reason,'FR_PROFILE_OBSERVATIONS');assert.equal(result.exitCode,2);assert.equal(descriptors,0);assert.equal(collections,0);assert.equal(withdrawals,1);
+ assert.deepEqual(result.frProfileAttempt.diagnostic,diagnostic);assert.deepEqual(publication.frProfileAttempt.diagnostic,diagnostic);
+ const opaque=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),frProfile:async()=>{throw Error('private failure');},descriptor:async()=>assert.fail('blocked FR may not create a descriptor'),collect:async()=>assert.fail('blocked FR may not collect')});
+ assert.equal(opaque.frProfileAttempt.reason,'FR_PROFILE_RUN_INVALID');assert(!JSON.stringify(opaque).includes('private failure'));
+});
+
+test('FR cleanup-attested profile failure is reported while release remains blocked',async()=>{
+ const {runAssuranceSequence}=await api(),order=[],diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_MEMBERSHIP',expectedIds:['CIVIL'],observedIds:['CIVIL','FR'],unexpectedIds:['FR'],missingIds:[]};
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),cmcProfile:async()=>{const error=Error('CMC_PROFILE_FAULT_NOT_EFFECTIVE');error.cmcProfileCleanupVerified=true;error.cmcProfileAttempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:error.message};throw error;},frProfile:async()=>{order.push('fr');const error=Error('FR_PROFILE_MEMBERSHIP');error.frProfileCleanupVerified=true;error.frProfileDiagnostic=diagnostic;error.frProfileAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:error.message,diagnostic};throw error;},descriptor:async(_verdict,_profile,_personal,_complex,_stCic,_mandatory,_mandatoryTiming,frRequest,cmcRequest)=>{order.push('descriptor');assert.equal(frRequest,undefined);assert.equal(cmcRequest,undefined);return'/private/native.json';},collect:async(file,timing)=>{order.push('collect');assert.equal(file,'/private/native.json');assert.deepEqual(timing.frProfileAttempt.diagnostic,diagnostic);assert.equal(timing.cmcProfileAttempt.reason,'CMC_PROFILE_FAULT_NOT_EFFECTIVE');return{status:'passed',exitCode:0};}});
+ assert.deepEqual(order,['fr','descriptor','collect']);assert.equal(result.frProfileStatus,'BLOCKED');assert.equal(result.cmcProfileStatus,'BLOCKED');assert.equal(result.diagnosticStatus,'passed');assert.equal(result.exitCode,2);assert.equal(result.releaseApproval,false);
+});
+
+test('a blocked companion CMC admission produces a valid blocked FR report attempt',async()=>{
+ const {runAssuranceSequence}=await api();
+ const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),cmcProfile:async()=>{const error=Error('CMC_PROFILE_CONSUMER_INVALID');throw error;},frProfile:async()=>assert.fail('FR admission must not continue after companion CMC blocks'),profile:async()=>({status:'passed',reportRequest:{path:'/private/main.json',digest:'sha256:'+'a'.repeat(64),runId:'main-123'}}),descriptor:async()=>assert.fail('blocked profile must not create a descriptor'),collect:async()=>assert.fail('blocked profile must not collect')});
+ assert.equal(result.exitCode,2);
+ assert.equal(result.frProfileAttempt.reason,'FR_PROFILE_COMPANION_BLOCKED');
+ assert.doesNotThrow(()=>require('./harness-cmc-profile-report.cjs').renderFrProfileAttempt(result.frProfileAttempt));
+});
+
+test('public release summary preserves bounded FR mismatch details while remaining blocked',async t=>{
+ const {publishAssuranceSummary}=await api(),{digestBytes,validatePublicSummary}=await import('./lib/exui-evidence-io.mjs'),{SOURCE_JURISDICTIONS}=await import('./lib/exui-source-profile-jurisdictions.mjs');
+ const output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-fr-summary-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'),{mode:0o700});
+ const binding={synthetic:'parent-captured-output'},bytes=Buffer.from(JSON.stringify(binding));fs.writeFileSync(path.join(output,'private/native-cohort-binding.json'),bytes);
+ const expectedIds=[...SOURCE_JURISDICTIONS].sort(),diagnostic={schemaVersion:1,kind:'fr-jurisdiction-filter-diagnostic',reasonCode:'FR_PROFILE_OBSERVATIONS',expectedIds,observedIds:[...expectedIds,'ST_CIC'].sort(),unexpectedIds:['ST_CIC'],missingIds:[]};
+ const frProfileAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_OBSERVATIONS',diagnostic};
+ const cmcProfileAttempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_OBSERVATIONS',consumerRevision:'e47ccdf14eba61dce892bd49d9a460d55775f202',diagnostic:{...diagnostic,kind:'cmc-jurisdiction-filter-diagnostic',reasonCode:'CMC_PROFILE_OBSERVATIONS',observedIds:[...expectedIds,'ST_CIC','UNREVIEWED'].sort(),unexpectedIds:['ST_CIC','UNREVIEWED']}};
+ publishAssuranceSummary({output},{nativeCohortCapture:{binding,reference:{path:'private/native-cohort-binding.json',digest:digestBytes(bytes)}}},{exitCode:2,frProfileAttempt,cmcProfileAttempt});
+ const summary=validatePublicSummary(path.join(output,'public/release-assurance-summary.json'));assert.equal(summary.status,'BLOCKED');assert.equal(summary.releaseApproval,false);assert.deepEqual(summary.frProfileDiagnostic,diagnostic);
+ const profileAttemptsPath=path.join(output,'private','assurance-profile-attempts.json'),packet=JSON.parse(fs.readFileSync(profileAttemptsPath));assert.equal(fs.statSync(profileAttemptsPath).mode&0o777,0o600);assert.deepEqual(packet,{schemaVersion:1,kind:'assurance-profile-attempts',frProfileAttempt,cmcProfileAttempt});
+ const options=require('./harness-profile-attempt-report.cjs').buildProfileAttemptReporterOption({HARNESS_PROFILE_ATTEMPTS_PATH:profileAttemptsPath});assert.deepEqual(options,{frProfileAttempt,cmcProfileAttempt});
+});
+
+test('blocked profile attempts remain available to diagnostics when native capture is absent',async t=>{
+ const {publishAssuranceSummary}=await api(),output=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-profile-attempts-')));t.after(()=>fs.rmSync(output,{recursive:true,force:true}));fs.mkdirSync(path.join(output,'private'),{mode:0o700});
+ const attempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_FAULT_NOT_EFFECTIVE'};
+ publishAssuranceSummary({output},{},{exitCode:2,cmcProfileAttempt:attempt});
+ const file=path.join(output,'private','assurance-profile-attempts.json');assert.equal(fs.statSync(file).mode&0o777,0o600);assert.deepEqual(JSON.parse(fs.readFileSync(file,'utf8')),{schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:attempt});
+});
+
+test('report collection failure retains completed blocked profile attempts for fallback reporting',async()=>{
+ const {runAssuranceSequence}=await api(),runId='mandatory-admission-00000000-0000-4000-8000-000000000001';
+ const cmcAttempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_OBSERVATIONS'};
+ const frAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_OBSERVATIONS'};
+ const result=await runAssuranceSequence({
+  native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),
+  prepare:async()=>({jobRunId:'ci-00000000-0000-4000-8000-000000000001'}),
+  mandatoryEmail:async()=>({admission:{status:'passed',runId},reportRequest:{path:'/private/request.json',digest:'sha256:'+'a'.repeat(64),runId}}),
+  cmcProfile:async()=>{throw Object.assign(Error(cmcAttempt.reason),{cmcProfileCleanupVerified:true,cmcProfileAttempt:cmcAttempt});},
+  frProfile:async()=>{throw Object.assign(Error(frAttempt.reason),{frProfileCleanupVerified:true,frProfileAttempt:frAttempt});},
+  descriptor:async()=>'/private/native.json',collect:async()=>{throw Error('REPORT_FAILURE');}
+ });
+ assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'incomplete');
+ assert.equal(result.cmcProfileStatus,'BLOCKED');assert.deepEqual(result.cmcProfileAttempt,cmcAttempt);
+ assert.equal(result.frProfileStatus,'BLOCKED');assert.deepEqual(result.frProfileAttempt,frAttempt);
+});
+
+test('team jurisdiction exclusion is explicit and does not suppress other failures',async()=>{
+ const {runAssuranceSequence,parseAssuranceCli}=await api();
+ const exclusions=require('./harness-cmc-profile-report.cjs').knownJurisdictionDefectExclusions();
+ for(const [nativeExit,diagnosticExit] of [[0,0],[0,1],[1,0]]){
+  const result=await runAssuranceSequence({excludeKnownJurisdictionDefect:true,native:async()=>({status:nativeExit?'FAIL':'PASS',exitCode:nativeExit,continuationSafe:true}),descriptor:async()=>'/private/native.json',collect:async(_file,options)=>{assert.deepEqual(options.cmcProfileAttempt,exclusions.cmcProfileAttempt);assert.deepEqual(options.frProfileAttempt,exclusions.frProfileAttempt);return{status:diagnosticExit?'failed':'passed',exitCode:diagnosticExit};}});
+  assert.equal(result.exitCode,Math.max(nativeExit,diagnosticExit));assert.equal(result.cmcProfileStatus,'NOT_RUN');assert.equal(result.frProfileStatus,'NOT_RUN');assert.deepEqual(result.cmcProfileAttempt,exclusions.cmcProfileAttempt);assert.equal(result.releaseApproval,false);
+ }
+ for(const family of ['cmcProfile','frProfile'])await assert.rejects(()=>runAssuranceSequence({excludeKnownJurisdictionDefect:true,[family]:()=>assert.fail('excluded profile cannot run')}),/ASSURANCE_PROFILE_EXCLUSION_CONFLICT/);
+ assert.equal(parseAssuranceCli(['--input','/private/job.json','--exclude-known-jurisdiction-defect']).excludeKnownJurisdictionDefect,true);
+ for(const flag of ['--fr-profile','--cmc-profile'])assert.throws(()=>parseAssuranceCli(['--input','/private/job.json','--exclude-known-jurisdiction-defect',flag]),/ASSURANCE_PROFILE_EXCLUSION_CONFLICT/);
 });

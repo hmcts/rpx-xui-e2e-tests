@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import Reporter from "./harness-public-odhin-reporter.cjs";
+import {holdBuildSelfChecks,readHeldBuildSelfChecks} from "./run-harness-self-check-evidence.mjs";
 import {prepareComplexAdmissionInputs} from './lib/exui-complex-email-admission.mjs';
 import { classifyNativeFailure, formatNativeFailure } from "./lib/exui-native-failure-diagnostics.mjs";
 import assert from "node:assert/strict";
@@ -6,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { spawnSync } from "node:child_process";
+import { spawnSync, fork } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { browserExecutable } from "./lib/exui-oci-runtime.mjs";
 import { nativeRuntimeImages, nativeBrowserDonor, assertNativeRuntimeImage } from "./lib/exui-native-containers.mjs";
@@ -456,6 +458,11 @@ export function publishSummary(privateOutput, assuranceExitCode = 0) {
   return status;
 }
 
+export function diagnosticFallbackArguments(output,buildSelfCheckHeld){
+  const profileAttempts=path.join(output,'private','assurance-profile-attempts.json');
+  return ["scripts/run-harness-local-poc.mjs","--ci","--odhin",...(fs.existsSync(profileAttempts)?["--profile-attempts="+profileAttempts]:[]),...(buildSelfCheckHeld===undefined?[]:["--build-self-check="+buildSelfCheckHeld.path,"--build-self-check-sha256="+buildSelfCheckHeld.digest])];
+}
+
 function reportIsValid() {
   const result = spawnSync(
     process.execPath,
@@ -502,14 +509,7 @@ export function logNativeCompletion(output) {
           const reason = /^(?:CMC|FR|SOURCE)_PROFILE_[A-Z0-9_]{1,100}$/.test(packet[key].reason ?? "")
             ? ` (${packet[key].reason})`
             : "";
-          const diagnostic = packet[key].diagnostic;
-          const validIds = (ids) => Array.isArray(ids) && ids.length <= 128 && ids.every(id => typeof id === "string" && /^[A-Z][A-Z0-9_]{0,31}$/.test(id));
-          const details = diagnostic?.kind === `${family.toLowerCase()}-jurisdiction-filter-diagnostic` &&
-            diagnostic.reasonCode === packet[key].reason &&
-            [diagnostic.expectedIds, diagnostic.observedIds, diagnostic.unexpectedIds, diagnostic.missingIds].every(validIds)
-            ? `; expected ${diagnostic.expectedIds.length} jurisdictions, observed ${diagnostic.observedIds.length}${diagnostic.unexpectedIds.length ? `; unexpected: ${diagnostic.unexpectedIds.join(", ")}` : ""}${diagnostic.missingIds.length ? `; missing: ${diagnostic.missingIds.join(", ")}` : ""}`
-            : "";
-          return `${family} profile BLOCKED${reason}${details}`;
+          return `${family} profile BLOCKED${reason}`;
         })
         .join(", ");
     } catch {
@@ -532,29 +532,96 @@ export function logNativeCompletion(output) {
   }
 }
 
-async function main() {
+export function createPreparationTimingSnapshot({clock = () => performance.now(), startedAt = new Date().toISOString()} = {}) {
+  const start = clock(); let sampled = false;
+  return () => {
+    assert(!sampled, 'HARNESS_PREPARATION_TIMING_INVALID'); sampled = true;
+    const end = clock(), elapsed = end-start;
+    assert(Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(elapsed) && elapsed >= 0 && Number.isSafeInteger(Math.round(elapsed)), 'HARNESS_PREPARATION_TIMING_INVALID');
+    const timing = {schemaVersion:2,scope:'harness-preparation-start-to-report-snapshot',clock:'monotonic',startedAt,elapsedMs:Math.round(elapsed)};
+    Reporter.validateAssuranceTiming(timing); return timing;
+  };
+}
+
+export function runTimedAssuranceChild(jobPath, {snapshotAssuranceTiming, enableStCic = false, enableFrProfile = false, enableCmcProfile = false, excludeKnownJurisdictionDefect = false, env = safeEnvironment(), forkChild = fork, signals = process, withdraw = () => Reporter.resetPublicReport('harness'), buildSelfCheckHeld} = {}) {
+  assert(typeof snapshotAssuranceTiming === 'function', 'HARNESS_PREPARATION_TIMING_REQUIRED');
+  assert(typeof enableStCic === 'boolean', 'HARNESS_ST_CIC_ENABLE_REQUIRED');
+  assert(typeof enableFrProfile === 'boolean', 'HARNESS_FR_PROFILE_ENABLE_REQUIRED');
+  assert(typeof enableCmcProfile === 'boolean', 'HARNESS_CMC_PROFILE_ENABLE_REQUIRED');
+  assert(typeof excludeKnownJurisdictionDefect==='boolean'&&(!excludeKnownJurisdictionDefect||(!enableFrProfile&&!enableCmcProfile)),'HARNESS_PROFILE_EXCLUSION_CONFLICT');
+  const token = randomUUID();
+  const child = forkChild('scripts/run-harness-assurance.mjs', ['--input',jobPath,'--parent-timing','--mandatory-email',...(enableStCic ? ['--st-cic'] : []),...(enableFrProfile?['--fr-profile']:[]),...(enableCmcProfile?['--cmc-profile']:[]),...(excludeKnownJurisdictionDefect?['--exclude-known-jurisdiction-defect']:[]),...(buildSelfCheckHeld===undefined?[]:['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest])], {execPath:process.execPath,execArgv:[],cwd:ROOT,env,stdio:['inherit','inherit','inherit','ipc']});
+  return new Promise((resolve,reject) => {
+    let state = 'ready', failed = false, cancelling = false;
+    const cancel = signal => { failed = true; if (!cancelling) { cancelling = true; child.kill(signal); } };
+    const interrupt = () => cancel('SIGINT'), terminate = () => cancel('SIGTERM');
+    const fail = () => cancel('SIGTERM');
+    const timer = setTimeout(fail, 5 * 1000);
+    const send = value => { try { child.send(value, error => { if (error) fail(); }); } catch { fail(); } };
+    const message = value => {
+      try {
+        if (state === 'ready') {
+          assert.deepEqual(Object.keys(value ?? {}).sort(),['kind']); assert.equal(value.kind,'harness-preparation-ready');
+          clearTimeout(timer); state='snapshot'; send({kind:'harness-preparation-init',token});
+        } else {
+          assert.equal(state,'snapshot'); assert.deepEqual(Object.keys(value ?? {}).sort(),['kind','token']);
+          assert.equal(value.kind,'harness-preparation-snapshot'); assert.equal(value.token,token);
+          state='complete'; send({kind:'harness-preparation-timing',token,timing:snapshotAssuranceTiming()});
+        }
+      } catch { fail(); }
+    };
+    const disconnected = () => { if(state !== 'complete') fail(); };
+    child.on('message',message); child.on('error',fail); child.on('disconnect',disconnected);
+    signals.on('SIGINT',interrupt); signals.on('SIGTERM',terminate);
+    child.once('close',(code,signal) => {
+      clearTimeout(timer); child.removeListener('message',message); child.removeListener('error',fail); child.removeListener('disconnect',disconnected);
+      signals.removeListener('SIGINT',interrupt); signals.removeListener('SIGTERM',terminate);
+      if (failed || state !== 'complete' || signal) { try { withdraw(); resolve({status:2,signal}); } catch { reject(new Error('HARNESS_TIMING_WITHDRAWAL_FAILED')); } }
+      else resolve({status:code,signal});
+    });
+  });
+}
+
+async function main({requireBuildSelfChecks=false}={}) {
+  const snapshotAssuranceTiming = createPreparationTimingSnapshot();
   assert.equal(process.cwd(), ROOT, "HARNESS_REPOSITORY_CWD_REQUIRED");
-  process.umask(0o077);
+  const inheritedUmask = process.umask(0o077);
+  Reporter.resetPublicReport("harness");
   const publicDirectory = path.dirname(PUBLIC);
   fs.mkdirSync(publicDirectory, { recursive: true, mode: 0o700 });
   assert.equal(fs.realpathSync(publicDirectory), publicDirectory, "HARNESS_PUBLIC_DIRECTORY_REQUIRED");
   writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
 
-  let privateRoot;
+  let privateRoot,buildSelfCheckHeld,selfChecksInvalid=false;
   let exitCode = 2;
   try {
+    if(requireBuildSelfChecks){stage='Build self-check evidence';try{buildSelfCheckHeld=holdBuildSelfChecks({required:true});}catch(error){selfChecksInvalid=true;throw error;}}
+    privateRoot = createPrivateJobDirectory();
+    // Preserve the existing shell preparation permissions; private work resumes at 077.
+    process.umask(inheritedUmask);
+    try {
+      stage = "worker observation";
+      run(process.execPath, ['scripts/observe-harness-worker.mjs'], {env:process.env});
+      stage = "host Chromium preparation";
+      run('corepack', ['yarn','test:setup:playwright-install-chromium'], {env:process.env,stdio:'inherit'});
+      run(process.execPath, ['scripts/verify-playwright-browsers.cjs','chromium'], {env:process.env,stdio:'inherit'});
+    } finally { process.umask(0o077); }
     stage = "native worker platform";
     const platform = assertNativeWorkerPlatform();
-    privateRoot = createPrivateJobDirectory();
     stage = "pinned runtime provisioning";
     provisionNativeImages(platform);
     const { jobPath, output, complexSourceInputs } = await prepareJob(privateRoot, platform);
     stage = "native candidate and CCD pilots";
-    const result = spawnSync(
-      process.execPath,
-      ["scripts/run-harness-assurance.mjs", "--input", jobPath],
-      { cwd: ROOT, env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}), stdio: "inherit" },
-    );
+    console.log('[harness-assurance] NOT RUN: CMC and FR complete profiles tagged @known-defect-jurisdiction-filter; team declined the webapp fix (PR #5628). No catalogue or release credit.');
+    const result = await runTimedAssuranceChild(jobPath, {
+      enableStCic: false,
+      enableFrProfile: false,
+      enableCmcProfile: false,
+      excludeKnownJurisdictionDefect: true,
+      snapshotAssuranceTiming,
+      buildSelfCheckHeld,
+      env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}),
+    });
     exitCode = result.error || result.status === null ? 2 : result.status;
     logNativeCompletion(output);
     stage = "validated summary publication";
@@ -583,11 +650,13 @@ async function main() {
       exitCode = 2;
     }
   }
+  if(buildSelfCheckHeld!==undefined){try{readHeldBuildSelfChecks(buildSelfCheckHeld);}catch{selfChecksInvalid=true;}}
+  if(selfChecksInvalid){Reporter.resetPublicReport('harness');writePublicSummary(PUBLIC,{status:'BLOCKED',exitCode:2});return 2;}
   if (!reportIsValid()) {
     console.error("[harness-assurance] Combined Odhín report unavailable; generating diagnostics-only coverage.");
     const fallback = spawnSync(
       process.execPath,
-      ["scripts/run-harness-local-poc.mjs", "--ci", "--odhin"],
+      diagnosticFallbackArguments(path.join(privateRoot,"native-output"),buildSelfCheckHeld),
       { cwd: ROOT, env: safeEnvironment(), stdio: "inherit" },
     );
     if (fallback.error || fallback.status !== 0 || !reportIsValid()) {
@@ -601,5 +670,8 @@ async function main() {
   return exitCode;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url))
-  process.exitCode = await main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const args=process.argv.slice(2);
+  if(args.length>1||args.some(arg=>arg!=='--require-build-self-checks')){console.error('[harness-assurance] Invalid arguments.');process.exitCode=2;}
+  else process.exitCode=await main({requireBuildSelfChecks:args.includes('--require-build-self-checks')});
+}

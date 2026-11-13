@@ -15,6 +15,22 @@ test('missing launch handoff cannot certify forced, unobserved or signalled cont
   await cleanupCiPhase({directory},{},{terminate:async()=>terminal});
 });
 
+test('parent removes a planned candidate volume when child exits before writing launch handoff', async t => {
+ const { cleanupCiPhase } = await load(), directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'candidate-volume-orphan-'));
+ t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+ const owner = 'ccd-11111111-1111-4111-8111-111111111111', name = `harness-candidate-${owner.slice(4)}`;
+ fs.writeFileSync(path.join(directory, 'input.json'), JSON.stringify({ candidateVolumeExperiment: true, releaseScopeId: scope, runId: owner, browserRuntimeImage: `sha256:${'a'.repeat(64)}`, artifact: { candidateRoot: '/private/tmp/candidate' } }));
+ const volume = { Name: name, Driver: 'local', Labels: { 'exui.harness.owner': owner, 'exui.harness.service': 'candidate-input' } };
+ let present = true;
+ await cleanupCiPhase({ directory }, {}, {
+  terminate: async () => ({ started: false, observed: true, forced: false }),
+  inspect: () => null,
+  inspectVolume: () => present ? volume : null,
+  removeVolume: value => { assert.equal(value, name); present = false; },
+ });
+ assert.equal(present, false);
+});
+
 function controlledChild(t, mode = "valid", releaseScopeId = scope) {
   const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "ci-transition-"));
   const output = path.join(directory, "phase");

@@ -11,7 +11,7 @@ properties([
 // Harness checks and bounded native candidate/CCD pilots; full release approval remains unavailable.
 def runHarnessSupportingChecks = {
   stage('Harness assurance pilots — no full release approval') {
-    sh 'rm -f functional-output/tests/harness/public/release-assurance-summary.json'
+    sh 'rm -f functional-output/tests/harness/public/release-assurance-summary.json functional-output/tests/harness/public/native-stage-timings.json'
     sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --reset'
     sh 'bash scripts/harness-jenkins-node.sh scripts/observe-harness-worker.mjs --reset'
     try {
@@ -35,8 +35,7 @@ echo "Harness Yarn: $actual_yarn"
 if [ -z "${AZURE_CONFIG_DIR:-}" ] && [[ "${SUBSCRIPTION_NAME:-}" =~ ^[a-z0-9-]+$ ]] && [ -d "/opt/jenkins/.azure-${SUBSCRIPTION_NAME}" ]; then
   export AZURE_CONFIG_DIR="/opt/jenkins/.azure-${SUBSCRIPTION_NAME}"
 fi
-node scripts/observe-harness-worker.mjs
-corepack yarn test:setup:playwright-install-chromium && node scripts/verify-playwright-browsers.cjs chromium && node scripts/run-harness-jenkins-assurance.mjs && node scripts/manage-harness-public-reports.cjs --validate
+node scripts/run-harness-jenkins-assurance.mjs --require-build-self-checks && node scripts/manage-harness-public-reports.cjs --validate
 '''
     } finally {
       echo '[harness-report] Raw reports remain job-local; only validated summaries and safe Odhín reports may be published.'
@@ -47,6 +46,10 @@ corepack yarn test:setup:playwright-install-chromium && node scripts/verify-play
       if (fileExists('functional-output/tests/harness/public/native-ci-capabilities.json')) {
         sh 'bash scripts/harness-jenkins-node.sh scripts/observe-harness-worker.mjs --validate'
         archiveArtifacts allowEmptyArchive: false, artifacts: 'functional-output/tests/harness/public/native-ci-capabilities.json'
+      }
+      if (fileExists('functional-output/tests/harness/public/native-stage-timings.json')) {
+        sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --validate-stage-timings'
+        archiveArtifacts allowEmptyArchive: false, artifacts: 'functional-output/tests/harness/public/native-stage-timings.json'
       }
       if (fileExists('functional-output/tests/harness/public/odhin/index.html')) {
         sh 'bash scripts/harness-jenkins-node.sh scripts/manage-harness-public-reports.cjs --validate'

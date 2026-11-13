@@ -147,6 +147,15 @@ describe('definition file discovery', () => {
     assert.equal(blocked.canFocus, false);
     assert(blocked.gaps.some(g => g.includes('graph-unavailable')));
   });
+  test('macOS Finder metadata does not count as an unreviewed definition', (t) => {
+    const fixture = sourceRepository(t);
+    reviewed(fixture);
+    fs.writeFileSync(path.join(fixture.source, fixture.definitionRoot, '.DS_Store'), 'metadata');
+    const observed = api.collectDefinitionDiscovery({ repositoryRoot: fixture.source, review: fixture.review });
+    const result = api.validateDefinitionDiscovery({ discovery: observed, review: fixture.review });
+    assert.deepEqual(result.errors, []);
+    assert.equal(observed.entries.some(entry => entry.path.endsWith('/.DS_Store')), false);
+  });
   test('add remove and byte changes outside the former selected files are named before narrowing', (t) => {
     const fixture = sourceRepository(t), observed = reviewed(fixture);
     const added = `${fixture.definitionRoot}/ComplexTypes/new/ComplexTypes.json`;
@@ -202,7 +211,8 @@ describe('definition file discovery', () => {
 
     assert.equal(inventory.counts.declaredRoots, 15);
     assert.equal(inventory.counts.discoveredRoots, 1);
-    assert.equal(inventory.counts.unreviewedRoots, 14);
+    assert.equal(inventory.counts.generatedSnapshotRoots, 1);
+    assert.equal(inventory.counts.unreviewedRoots, 13);
     assert.equal(inventory.counts.unavailableFamilies, 1);
     assert.equal(inventory.roots.length, 16);
     assert.equal(inventory.roots.filter(item => item.status === 'discovered-and-byte-pinned').length, 1);
@@ -210,9 +220,30 @@ describe('definition file discovery', () => {
       { repository: 'hmcts/prl-ccd-definitions', root: 'definitions/private-law/json' },
     ]);
     assert.equal(inventory.roots.filter(item => item.serviceFamily === 'CIVIL').length, 2);
-    assert.equal(inventory.roots.find(item => item.repository === 'hmcts/pcs-api').declaredRevision, 'efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8');
-    assert.equal(inventory.roots.find(item => item.repository === 'hmcts/pcs-api').declaredRevisionBasis, 'source-catalogue-metadata-only');
-    assert.equal(inventory.roots.find(item => item.repository === 'hmcts/pcs-api').status, 'unreviewed');
+    const pcs = inventory.roots.find(item => item.repository === 'hmcts/pcs-api');
+    assert.equal(pcs.declaredRevision, '6f96b528dc13b96f5ce66f3930fa5fc31c231748');
+    assert.equal(pcs.declaredRevisionBasis, 'source-generated-output-snapshot');
+    assert.equal(pcs.status, 'pinned-generated-output-snapshot');
+    assert.deepEqual(pcs.generatedDefinitions, { fileCount: 397, bytes: 3955448, manifestDigest: '3556df4962e5e51beeec67551c6f890ddf6f6710474cde2bde630e0c62c67e8e', runtimeAcceptance: false });
+    const changedProfiles = structuredClone(profiles);
+    changedProfiles.find(item => item.serviceFamily === 'PCS').repos[0].generatedDefinitions.manifestDigest = '0'.repeat(64);
+    const changed = api.buildDefinitionRootInventory({ profiles: changedProfiles, discoveryValidation });
+    assert.equal(changed.roots.find(item => item.repository === 'hmcts/pcs-api').status, 'unreviewed');
+    assert(changed.gaps.includes('generated-definition-snapshot-invalid:hmcts/pcs-api'));
+    const sourceReview = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts/fixtures/exui-configuration-review.json'), 'utf8'));
+    assert.deepEqual(sourceReview.generatedDefinitionSnapshots.map(item => item.serviceFamily), ['PCS']);
+    const scopedReview = structuredClone(fixture.review);
+    scopedReview.families = ['PRIVATELAW', 'PCS'];
+    scopedReview.generatedDefinitionSnapshots = sourceReview.generatedDefinitionSnapshots;
+    const sourceValidation = api.validateDefinitionDiscovery({ discovery: observed, review: scopedReview });
+    assert(!sourceValidation.gaps.includes('definition-inventory-not-supplied:PCS'));
+    assert(sourceValidation.gaps.includes('definition-reference-graph-not-supplied:PCS'));
+    const forgedReview = structuredClone(scopedReview);
+    forgedReview.generatedDefinitionSnapshots[0].manifestDigest = '0'.repeat(64);
+    const forgedValidation = api.validateDefinitionDiscovery({ discovery: observed, review: forgedReview });
+    assert(forgedValidation.gaps.includes('generated-definition-snapshot-invalid:PCS'));
+    assert(forgedValidation.gaps.includes('definition-inventory-not-supplied:PCS'));
+    assert(forgedValidation.gaps.includes('definition-reference-graph-not-supplied:PCS') === false);
     assert(inventory.gaps.includes('definition-root-unavailable:HRS:no-repository-declared'));
 
     const expandedProfiles = JSON.parse(JSON.stringify(profiles));
@@ -229,6 +260,32 @@ describe('definition file discovery', () => {
     wrongFamilyProfiles.push({ serviceFamily: 'OTHER', repos: [{ fullName: 'hmcts/prl-ccd-definitions', definitionRoot: 'definitions/private-law/json' }] });
     const wrongFamily = api.buildDefinitionRootInventory({ profiles: wrongFamilyProfiles, discoveryValidation });
     assert.equal(wrongFamily.roots.find(item => item.serviceFamily === 'OTHER').status, 'unreviewed');
+  });
+
+  test('PCS generated CCD definition snapshot is source-pinned without claiming runtime evidence', () => {
+    const sourcePath = path.join(process.cwd(), 'src/data/exui-central-assurance-source.json');
+    const profiles = JSON.parse(fs.readFileSync(sourcePath, 'utf8')).serviceDefinitionProfiles.profiles;
+    const pcs = profiles.find(item => item.serviceFamily === 'PCS');
+    assert.equal(pcs.proofLevel, 'config-backed');
+    assert.deepEqual(pcs.repos[0].generatedDefinitions, {
+      manifestPath: 'scripts/fixtures/exui-pcs-generated-definition-manifest.json',
+      generatorTask: 'generateCCDConfig',
+      outputRoot: 'build/definitions/PCS',
+      fileCount: 397,
+      bytes: 3955448,
+      manifestDigest: '3556df4962e5e51beeec67551c6f890ddf6f6710474cde2bde630e0c62c67e8e',
+    });
+    const manifestPath = path.join(process.cwd(), pcs.repos[0].generatedDefinitions.manifestPath);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const { createHash } = require('node:crypto');
+    assert.equal(manifest.repository, 'hmcts/pcs-api');
+    assert.equal(manifest.revision, pcs.repos[0].revision);
+    assert.equal(manifest.files.length, pcs.repos[0].generatedDefinitions.fileCount);
+    assert.equal(manifest.files.reduce((sum, file) => sum + file.bytes, 0), pcs.repos[0].generatedDefinitions.bytes);
+    assert.equal(createHash('sha256').update(JSON.stringify(manifest.files)).digest('hex'), pcs.repos[0].generatedDefinitions.manifestDigest);
+    assert.equal(manifest.runtimeAcceptance, false);
+    assert.equal(manifest.releaseApproval, false);
+    assert.match(pcs.nextAction, /candidate|runtime|import/i);
   });
 });
 
@@ -325,7 +382,7 @@ describe('guarded catalogue impact selection', () => {
     const discoveryApi = await import('./lib/exui-definition-discovery.mjs');
     const { definitionDigest } = await import('./lib/exui-definition-references.mjs');
     const { snapshot, review } = load();
-    Object.assign(review, { definitionDiscovery: fixture.review.definitionDiscovery, ownerAcceptance: 'accepted', families: [], pilotRoles: [], knownValid: [], knownInvalid: [], distinctions: [], sourceSequences: [], knownValidSequences: [], knownInvalidSequences: [] });
+    Object.assign(review, { definitionDiscovery: fixture.review.definitionDiscovery, ownerAcceptance: 'accepted', families: [], generatedDefinitionSnapshots: [], pilotRoles: [], knownValid: [], knownInvalid: [], distinctions: [], sourceSequences: [], knownValidSequences: [], knownInvalidSequences: [] });
     delete review.decentralisedRouting;
     const discovery = discoveryApi.collectDefinitionDiscovery({ repositoryRoot: fixture.source, review });
     review.definitionDiscovery.pins = discoveryApi.summarizeDefinitionDiscovery(discovery).pins;

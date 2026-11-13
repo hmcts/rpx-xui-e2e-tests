@@ -17,7 +17,9 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
   fs.writeFileSync(preload, `
     const fs = require('node:fs');
     const path = require('node:path');
-    require('node:child_process').spawnSync = (command, args) => {
+    process.umask(0o022);
+    require('node:child_process').spawnSync = (command, args, options) => {
+      if (command === 'corepack' || (args[0] && ['scripts/observe-harness-worker.mjs','scripts/verify-playwright-browsers.cjs'].includes(args[0]))) { fs.appendFileSync(path.join(${JSON.stringify(root)},'host-preparation.txt'), JSON.stringify({command:command==='corepack'?'corepack':args[0],args:command==='corepack'?args:args.slice(1),environmentMatches:options.env===process.env,browserPath:options.env.PLAYWRIGHT_BROWSERS_PATH,downloadHost:options.env.PLAYWRIGHT_DOWNLOAD_HOST,extraCa:options.env.NODE_EXTRA_CA_CERTS,stdio:options.stdio??'pipe',umask:process.umask()})+'\\n'); return {status:0,stdout:''}; }
       if (command === 'docker' && args[0] === 'version')
         return {status: 0, stdout: JSON.stringify({Os: 'linux', Arch: 'arm64'})};
       if (command === 'docker' && args[0] === 'image') {
@@ -25,17 +27,22 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
         return {status: 0, stdout: JSON.stringify([{Id: digest, Os: 'linux', Architecture: 'arm64', RepoDigests: [reference.includes('@') ? reference : 'registry/image@' + digest]}])};
       }
       if (command === 'git' && args[0] === 'clone') {
+        fs.writeFileSync(path.join(${JSON.stringify(root)},'private-work-umask.txt'),String(process.umask()));
         fs.writeFileSync(path.join(path.dirname(args.at(-1)), 'preparation-evidence.txt'), 'child failed');
       }
       return {status: 1, stdout: ''};
     };
     require('node:module').syncBuiltinESMExports();
   `);
+  const extraCa=path.join(root,"fixture-ca.pem");fs.writeFileSync(extraCa,"");
   const result = spawnSync(process.execPath, ["--require", preload, "scripts/run-harness-jenkins-assurance.mjs"], {
-    cwd: root, env: { PATH: process.env.PATH }, encoding: "utf8", timeout: 30_000,
+    cwd: root, env: { PATH: process.env.PATH,PLAYWRIGHT_BROWSERS_PATH:"/private/fixture-browser",PLAYWRIGHT_DOWNLOAD_HOST:"https://fixture.invalid",NODE_EXTRA_CA_CERTS:extraCa }, encoding: "utf8", timeout: 30_000,
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 2, result.stderr);
+  const inherited={environmentMatches:true,browserPath:'/private/fixture-browser',downloadHost:'https://fixture.invalid',extraCa,umask:0o022};
+  assert.deepEqual(fs.readFileSync(path.join(root,'host-preparation.txt'),'utf8').trim().split('\n').map(line=>JSON.parse(line)),[{command:'scripts/observe-harness-worker.mjs',args:[],stdio:'pipe',...inherited},{command:'corepack',args:['yarn','test:setup:playwright-install-chromium'],stdio:'inherit',...inherited},{command:'scripts/verify-playwright-browsers.cjs',args:['chromium'],stdio:'inherit',...inherited}]);
+  assert.equal(fs.readFileSync(path.join(root,'private-work-umask.txt'),'utf8'),String(0o077));
   const privateRoot = path.join(root, "functional-output/tests/harness/private/native-ci");
   const jobs = fs.readdirSync(privateRoot);
   assert.equal(jobs.length, 1);
@@ -45,6 +52,12 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(job, "preparation-error.json"))), { stage: "webapp master fetch", reason: "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED" });
   const summary = JSON.parse(fs.readFileSync(path.join(root, "functional-output/tests/harness/public/release-assurance-summary.json"), "utf8"));
   assert.equal(summary.status, "BLOCKED");
+});
+
+test("diagnostics fallback carries only the owned blocked-profile attempt packet",async t=>{
+ const {diagnosticFallbackArguments}=await load(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'jenkins-profile-fallback-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'));
+ const held={path:'/private/build-self-check.json',digest:'sha256:'+'a'.repeat(64)},base=['scripts/run-harness-local-poc.mjs','--ci','--odhin'];
+ assert.deepEqual(diagnosticFallbackArguments(root),base);const attempt=path.join(root,'private','assurance-profile-attempts.json');fs.writeFileSync(attempt,'{}',{mode:0o600});assert.deepEqual(diagnosticFallbackArguments(root,held),[...base,'--profile-attempts='+attempt,'--build-self-check='+held.path,'--build-self-check-sha256='+held.digest]);
 });
 
 test("job-local native evidence uses distinct private directories and preserves prior runs", async (t) => {
@@ -295,6 +308,8 @@ test('native diagnostics preserve known failures and owned source lines without 
   assert.match(output,/EVENT_TRANSITION_ACK_TIMEOUT/);assert.match(output,/"baselineReport":true/);assert.match(output,/"code":2/);
   assert.doesNotMatch(output,/PRIVATE-CANARY|credentials|\/private|message|stack/);
  }
+ for(const reason of ['EVENT_TRANSITION_API_DRIFT_DATA','EVENT_TRANSITION_API_DRIFT_DEFINITION','EVENT_TRANSITION_API_DRIFT_DATA_DEFINITION','EVENT_TRANSITION_API_DRIFT_SHAPE'])
+  assert.deepEqual(classifyNativeFailure(new Error(reason)),{reason});
  assert.deepEqual(classifyNativeFailure({message:'PRIVATE_UPPERCASE_CANARY',code:'PRIVATE_CODE',stack:'Error\n at /foreign/exui-native-host.mjs:25:1'}),{reason:'NATIVE_OPERATION_FAILED'});
  assert.match(formatNativeFailure(nativePhaseFailure(new Error('CI_EVENT_TRANSITION_CANCELLED'), 'eventCapability', {code:2,signal:null}, {}, {reason:'EVENT_TRANSITION_ACK_TIMEOUT'})), /CI_EVENT_TRANSITION_CANCELLED.*EVENT_TRANSITION_ACK_TIMEOUT/);
  const forged=formatNativeFailure({reason:'PRIVATE_UPPERCASE_CANARY',code:'PRIVATE_CODE',source:'PRIVATE_SOURCE',line:1,phase:'PRIVATE_PHASE',terminal:{code:'PRIVATE_CODE',signal:'PRIVATE_SIGNAL'},artifacts:{run:'PRIVATE_PATH'},child:{reason:'PRIVATE_CHILD'}});
@@ -324,10 +339,13 @@ test('native completion logs all seven fixed phases and rejects foreign phase na
  result.phaseResults.push({phase:'PRIVATE-CANARY\nforeign',status:'PASS'});write();logNativeCompletion(root);assert.equal(messages.length,2);
 });
 
-test('native completion labels blocked profile gates beside a passing core result without exposing profile diagnostics',async t=>{
- const {logNativeCompletion}=await load();const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'native-profile-completion-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'),{mode:0o700});
- fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'PASS',phaseResults:[{phase:'family',status:'PASS'}],cleanupComplete:true}));fs.writeFileSync(path.join(root,'private/assurance-profile-attempts.json'),JSON.stringify({schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:{status:'BLOCKED',reason:'CMC_PROFILE_OBSERVATIONS',diagnostic:{kind:'cmc-jurisdiction-filter-diagnostic',reasonCode:'CMC_PROFILE_OBSERVATIONS',expectedIds:['CMC'],observedIds:['CMC','ST_CIC','UNREVIEWED'],unexpectedIds:['ST_CIC','UNREVIEWED'],missingIds:[],privateDetail:'PRIVATE-CANARY'}},frProfileAttempt:{status:'BLOCKED',reason:'FR_PROFILE_COMPANION_BLOCKED'}}),{mode:0o600});
- const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);assert.match(messages[0],/Native core PASS/);assert.match(messages[0],/profile gates: CMC profile BLOCKED \(CMC_PROFILE_OBSERVATIONS\); expected 1 jurisdictions, observed 3; unexpected: ST_CIC, UNREVIEWED, FR profile BLOCKED \(FR_PROFILE_COMPANION_BLOCKED\)/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|privateDetail|expectedIds/);
+test('native completion reports blocked profile reason codes without exposing diagnostics',async t=>{
+ const {logNativeCompletion}=await load();
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'native-profile-code-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'),{mode:0o700});
+ fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'PASS',phaseResults:[],cleanupComplete:true}));
+ fs.writeFileSync(path.join(root,'private/assurance-profile-attempts.json'),JSON.stringify({schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:{schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_CONSUMER_INVALID',diagnostic:{unexpectedIds:['PRIVATE-CANARY']}},frProfileAttempt:{schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_COMPANION_BLOCKED'}}),{mode:0o600});
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);
+ assert.equal(messages.length,1);assert.match(messages[0],/CMC profile BLOCKED \(CMC_PROFILE_CONSUMER_INVALID\)/);assert.match(messages[0],/FR profile BLOCKED \(FR_PROFILE_COMPANION_BLOCKED\)/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|unexpectedIds/);
 });
 
 test('Jenkins overall failure cannot publish a passing main-only summary',async t=>{
@@ -336,4 +354,71 @@ test('Jenkins overall failure cannot publish a passing main-only summary',async 
  const target=path.resolve(__dirname,'../functional-output/tests/harness/public/release-assurance-summary.json'),prior=fs.existsSync(target)?fs.readFileSync(target):null;fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o700});t.after(()=>{if(prior)fs.writeFileSync(target,prior);else fs.rmSync(target,{force:true});});
  assert.equal(publishSummary(root,2),'BLOCKED');assert.equal(validatePublicSummary(target).status,'BLOCKED');assert.equal(validatePublicSummary(target).receiptAvailable,false);assert.equal(validatePublicSummary(path.join(root,'public/release-assurance-summary.json')).status,'PASS');
  assert.equal(publishSummary(root,0),'PASS');assert.equal(validatePublicSummary(target).releaseApproval,false);assert.throws(()=>publishSummary(root,7),/ASSURANCE_EXIT_REQUIRED/);
+});
+
+test('preparation owner includes setup and candidate build on its monotonic clock and samples only once',async()=>{
+ const {createPreparationTimingSnapshot}=await load();let now=100;const snapshot=createPreparationTimingSnapshot({clock:()=>now,startedAt:'2026-11-06T12:00:00.000Z'});now+=329000;now+=10480;
+ assert.deepEqual(snapshot(),{schemaVersion:2,scope:'harness-preparation-start-to-report-snapshot',clock:'monotonic',startedAt:'2026-11-06T12:00:00.000Z',elapsedMs:339480});assert.throws(snapshot,/TIMING/);
+ for(const bad of [-1,NaN,Infinity,Number.MAX_SAFE_INTEGER+1]){let clock=0;const invalid=createPreparationTimingSnapshot({clock:()=>clock});clock=bad;assert.throws(invalid,/TIMING/);}
+ let zero=0;assert.equal(createPreparationTimingSnapshot({clock:()=>zero})().elapsedMs,0);
+});
+
+test('owned timing child uses finite one-shot IPC and waits for actual terminal, rejecting foreign or duplicate traffic',async()=>{
+ const {runTimedAssuranceChild}=await load(),{EventEmitter}=require('node:events');
+ for(const fault of [null,'wrong-token','unknown','duplicate-ready','duplicate-request','disconnect','signal','error']){
+  const child=new EventEmitter(),signals=new EventEmitter(),sent=[],kills=[];let sampled=0,withdrawn=0,settled=false;
+  child.send=(message,done)=>{sent.push(message);done?.();};child.kill=signal=>{kills.push(signal);return true;};
+  const result=runTimedAssuranceChild('/private/job.json',{snapshotAssuranceTiming:()=>{sampled++;return {schemaVersion:2};},signals,withdraw:()=>{withdrawn++;},forkChild:(file,args,options)=>{assert.equal(file,'scripts/run-harness-assurance.mjs');assert(args.includes('--parent-timing'));assert.deepEqual(options.stdio,['inherit','inherit','inherit','ipc']);assert.deepEqual(options.execArgv,[]);assert.equal(options.env.NODE_OPTIONS,undefined);return child;}}).then(value=>{settled=true;return value;});
+  child.emit('message',{kind:'harness-preparation-ready'});const token=sent[0].token;
+  if(fault==='unknown')child.emit('message',{kind:'foreign',token});
+  else if(fault==='duplicate-ready')child.emit('message',{kind:'harness-preparation-ready'});
+  else if(fault==='disconnect')child.emit('disconnect');
+  else if(fault==='signal')signals.emit('SIGTERM');
+  else if(fault==='error')child.emit('error',Error('PRIVATE-CANARY'));
+  else {child.emit('message',{kind:'harness-preparation-snapshot',token:fault==='wrong-token'?'stale':token});if(fault==='duplicate-request')child.emit('message',{kind:'harness-preparation-snapshot',token});}
+  await Promise.resolve();assert.equal(settled,false,'publication must wait for observed child close');child.emit('close',0,null);const terminal=await result;
+  assert.equal(terminal.status,fault?2:0);assert.equal(withdrawn,fault?1:0);assert.equal(sampled,[null,'duplicate-request'].includes(fault)?1:0);assert.equal(kills.length,fault?1:0);assert.equal(signals.listenerCount('SIGTERM'),0);assert.equal(child.listenerCount('message'),0);
+ }
+});
+
+test('actual small owned Node IPC child receives preparation interval from the live parent owner',async t=>{
+ const {runTimedAssuranceChild,createPreparationTimingSnapshot}=await load(),{fork}=require('node:child_process');
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'preparation-ipc-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const receipt=path.join(root,'result.json'),script=path.join(root,'child.mjs');
+ fs.writeFileSync(script,`import fs from 'node:fs';import {connectPreparationTiming} from ${JSON.stringify(pathToFileURL(path.join(__dirname,'run-harness-assurance.mjs')).href)};const snapshot=await connectPreparationTiming();fs.writeFileSync(${JSON.stringify(receipt)},JSON.stringify(await snapshot()));process.disconnect();`);
+ let now=0;const snapshotAssuranceTiming=createPreparationTimingSnapshot({clock:()=>now,startedAt:'2026-11-06T12:00:00.000Z'});now=329350;
+ const terminal=await runTimedAssuranceChild('/private/job.json',{snapshotAssuranceTiming,withdraw:()=>assert.fail('small IPC run withdrew'),forkChild:(_file,_args,options)=>fork(script,[],{...options,stdio:['ignore','ignore','ignore','ipc']})});
+ assert.equal(terminal.status,0);assert.equal(JSON.parse(fs.readFileSync(receipt)).elapsedMs,329350);assert.equal(JSON.parse(fs.readFileSync(receipt)).schemaVersion,2);
+});
+
+test('owned timing child bounds missing readiness and forwards repeated cancellation once until terminal',async t=>{
+ const {runTimedAssuranceChild}=await load(),{EventEmitter}=require('node:events');t.mock.timers.enable({apis:['setTimeout']});
+ const child=new EventEmitter(),signals=new EventEmitter(),kills=[];child.kill=signal=>{kills.push(signal);return true;};child.send=()=>assert.fail('missing readiness cannot initialize');let withdrawals=0;
+ const terminal=runTimedAssuranceChild('/private/job.json',{snapshotAssuranceTiming:()=>assert.fail('no snapshot'),signals,withdraw:()=>{withdrawals++;},forkChild:()=>child});
+ t.mock.timers.tick(5*1000);signals.emit('SIGTERM');signals.emit('SIGTERM');signals.emit('SIGINT');assert.deepEqual(kills,['SIGTERM']);child.emit('close',null,'SIGTERM');assert.equal((await terminal).status,2);assert.equal(withdrawals,1);assert.equal(signals.listenerCount('SIGTERM'),0);
+});
+
+test('Jenkins CLI bridge supports profile opt-ins or team exclusions while preserving mandatory email and optional ST_CIC',async()=>{
+ const {runTimedAssuranceChild}=await load(),{EventEmitter}=require('node:events');
+ for(const excludeKnownJurisdictionDefect of [false,true])for(const enableStCic of [undefined,false,true])for(const cancel of [false,true])for(const buildSelfCheckHeld of [undefined,{path:'/private/held.json',digest:'sha256:'+'a'.repeat(64)}]){
+  const child=new EventEmitter(),signals=new EventEmitter(),sent=[];let argsSeen,kills=0,withdrawn=0,settled=false;
+  child.send=(value,done)=>{sent.push(value);done?.();};child.kill=()=>{kills++;return true;};
+  const pending=runTimedAssuranceChild('/private/job.json',{...(enableStCic===undefined?{}:{enableStCic}),enableFrProfile:!excludeKnownJurisdictionDefect,enableCmcProfile:!excludeKnownJurisdictionDefect,excludeKnownJurisdictionDefect,buildSelfCheckHeld,snapshotAssuranceTiming:()=>({schemaVersion:2}),signals,withdraw:()=>{withdrawn++;},forkChild:(file,args,options)=>{argsSeen=args;assert.equal(file,'scripts/run-harness-assurance.mjs');assert.deepEqual(options.execArgv,[]);assert.equal(options.env.NODE_OPTIONS,undefined);return child;}}).then(value=>{settled=true;return value;});
+  assert.deepEqual(argsSeen,['--input','/private/job.json','--parent-timing','--mandatory-email',...(enableStCic?['--st-cic']:[]),...(excludeKnownJurisdictionDefect?['--exclude-known-jurisdiction-defect']:['--fr-profile','--cmc-profile']),...(buildSelfCheckHeld?['--build-self-check-held',buildSelfCheckHeld.path,'--build-self-check-digest',buildSelfCheckHeld.digest]:[])]);
+  child.emit('message',{kind:'harness-preparation-ready'});child.emit('message',{kind:'harness-preparation-snapshot',token:sent[0].token});
+  if(cancel)signals.emit('SIGTERM');await Promise.resolve();assert.equal(settled,false);child.emit('close',cancel?null:0,cancel?'SIGTERM':null);
+  assert.equal((await pending).status,cancel?2:0);assert.equal(kills,cancel?1:0);assert.equal(withdrawn,cancel?1:0);assert.equal(signals.listenerCount('SIGTERM'),0);
+ }
+ for(const enableStCic of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableStCic,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid opt-in must never fork')}),/HARNESS_ST_CIC_ENABLE_REQUIRED/);
+ for(const enableFrProfile of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableFrProfile,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid FR opt-in must never fork')}),/HARNESS_FR_PROFILE_ENABLE_REQUIRED/);
+ for(const options of [{enableFrProfile:true},{enableCmcProfile:true},{excludeKnownJurisdictionDefect:'true'}])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{excludeKnownJurisdictionDefect:true,...options,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('conflicting exclusion must not fork')}),/HARNESS_PROFILE_EXCLUSION_CONFLICT/);
+ for(const enableCmcProfile of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableCmcProfile,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid CMC opt-in must never fork')}),/HARNESS_CMC_PROFILE_ENABLE_REQUIRED/);
+});
+
+test('blocked profile details stay private even when jurisdiction labels look valid',async t=>{
+ const {logNativeCompletion}=await load();const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'native-profile-private-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'),{mode:0o700});
+ fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'PASS',phaseResults:[{phase:'family',status:'PASS'}],cleanupComplete:true}));
+ fs.writeFileSync(path.join(root,'private/assurance-profile-attempts.json'),JSON.stringify({schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:{status:'BLOCKED',reason:'CMC_PROFILE_OBSERVATIONS',diagnostic:{kind:'cmc-jurisdiction-filter-diagnostic',reasonCode:'CMC_PROFILE_OBSERVATIONS',expectedIds:['CMC'],observedIds:['CMC','ST_CIC','UNREVIEWED'],unexpectedIds:['ST_CIC','UNREVIEWED'],missingIds:[],privateDetail:'PRIVATE-CANARY'}}}),{mode:0o600});
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);
+ assert.equal(messages.length,1);assert.match(messages[0],/Native core PASS/);assert.match(messages[0],/profile gates: CMC profile BLOCKED \(CMC_PROFILE_OBSERVATIONS\)/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|privateDetail|expectedIds|UNREVIEWED|ST_CIC/);
 });

@@ -18,6 +18,20 @@
     "CMC",
     "PCS"
   ],
+  "generatedDefinitionSnapshots": [
+    {
+      "serviceFamily": "PCS",
+      "repository": "hmcts/pcs-api",
+      "revision": "6f96b528dc13b96f5ce66f3930fa5fc31c231748",
+      "root": "src/main/java/uk/gov/hmcts/reform/pcs/ccd",
+      "manifestPath": "scripts/fixtures/exui-pcs-generated-definition-manifest.json",
+      "generatorTask": "generateCCDConfig",
+      "outputRoot": "build/definitions/PCS",
+      "fileCount": 397,
+      "bytes": 3955448,
+      "manifestDigest": "3556df4962e5e51beeec67551c6f890ddf6f6710474cde2bde630e0c62c67e8e"
+    }
+  ],
   "pilotRoles": [
     "caseworker-privatelaw-courtadmin",
     "caseworker-privatelaw-readonly"
@@ -340,8 +354,8 @@
     "prl-ccd-definitions:definitions/private-law/json/WorkBasketResultFields.json": "fc8c5a0b67387c4ce65d679ae0b3acca86614a09c29d92697d3e7c9f118cfcdb"
   },
   "sourceRevisions": {
-    "rpx-xui-webapp:config/custom-environment-variables.json": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
-    "rpx-xui-webapp:config/default.json": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
+    "rpx-xui-webapp:config/custom-environment-variables.json": "20c6ec129fc1e81061c733e164198ec63a33e71a",
+    "rpx-xui-webapp:config/default.json": "20c6ec129fc1e81061c733e164198ec63a33e71a",
     "prl-ccd-definitions:definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json": "694b9951e94369f1394380506960c4f04f25755d",
     "prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json": "694b9951e94369f1394380506960c4f04f25755d",
     "prl-ccd-definitions:definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json": "694b9951e94369f1394380506960c4f04f25755d",
@@ -356,7 +370,7 @@
     "boundary": "checked-in-source-inventory",
     "ownerAcceptance": "pending",
     "renderedOrDeployedEnvironment": "unavailable",
-    "sourceRevision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
+    "sourceRevision": "20c6ec129fc1e81061c733e164198ec63a33e71a",
     "sourceFileDigests": {
       "charts/xui-webapp/Chart.yaml": "16a66a0aab713ca5ca979b16636e6c4e3a3ce4fb5cbffb09655b0d11bfe02139",
       "charts/xui-webapp/values.yaml": "8728f0fe4869cacaf1b4f926b25f5146ceef2daea364eff7737b96ef1d80d66d",
@@ -665,11 +679,11 @@
     "boundary": "reviewed-source-context-only",
     "knownValid": [
       {
-        "id": "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
+        "id": "configuration-decentralisation:24b0d8b94327dfc6b9e00f19814604c11c7fcbecc3171af4dd8b68c97a5b2e24",
         "signature": {
           "schemaVersion": 1,
           "profile": "config/default.json",
-          "sourceRevision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
+          "sourceRevision": "20c6ec129fc1e81061c733e164198ec63a33e71a",
           "caseTypePrefix": "PCS",
           "webUrl": "https://pcs.platform.hmcts.net",
           "nocBaseUrl": "http://pcs-api-prod.service.core-compute-prod.internal",
@@ -696,8 +710,8 @@
     "interpreterContext": "Pinned code references and hashes remain in the reviewed source design evidence; no interpreter source is freshly verified or executed by this catalogue.",
     "interpreterPin": {
       "repository": "hmcts/rpx-xui-webapp",
-      "revision": "3734db2bb8f4f6de62db3b42ade9ef6538b65eb0",
-      "sourceTree": "9dd5c79a959a70a3a9345e95abc57372e6678694",
+      "revision": "20c6ec129fc1e81061c733e164198ec63a33e71a",
+      "sourceTree": "5161ea54f3100168c9cb437d6f51ffc73b55f436",
       "sourceHashes": {
         "common/decentralisation/decentralised-redirect.util.ts": "sha256:73c5881e18ab7cfb258a97c1a3cd31a9ca92940d3983e48c15d51162e76a4e7b",
         "src/decentralisation/decentralised-redirect.service.ts": "sha256:f885d5107cf6fab99a25b80c7d9c6b55d45b2e4d195d60e68152338bd8500d80",

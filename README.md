@@ -15,6 +15,16 @@ yarn harness:diagnostic
 
 Bare `yarn playwright test` also selects portable model diagnostics. Setup installs project dependencies and Chromium; it does not fetch AAT credentials. `lint` checks Harness runtime/evidence code, CI contracts, TypeScript and ESLint. `harness:support` explicitly selects retained support tests, without global session warmup. Its generated-DOM report check needs Chromium. `harness:diagnostic` defaults to portable model checks.
 
+After `yarn lint` has captured Build evidence, check the complete report-collection path without restarting Docker or AAT:
+
+```bash
+yarn harness:report:smoke
+```
+
+This developer check replays synthetic seven-phase native packets plus personal-service and mandatory-email companions through the production descriptor writer and real evidence readers. It runs the installed Playwright diagnostics, validates their step evidence and combined Odhín report, and proves that a coherently resealed ownership fault and a mismatched candidate cannot publish. It also opens helper and Private Law Steps views in Chromium, checks that filtering survives the return navigation, and checks the team-excluded CMC/FR profiles remain NOT RUN. It exercises the production phase timer, accepts 1 ms timestamp-resolution boundaries, and rejects excessive timing overlaps. It grants no application coverage or release approval; actual candidate/CCD execution is still required.
+
+Use an idle checkout or a separate worktree. The check temporarily backs up and restores existing Harness reports. If its held Build evidence is absent or stale, rerun `yarn lint` first.
+
 ## Candidate-bound fixed job
 
 The native runner starts the built Angular/Node candidate with isolated synthetic personas and declared downstream seams. Fixed policies cover WA family selection, organisation/case location scope, real CCD nested persistence/access integrity, and source-defined event permissions. Every policy requires its baseline and intended failing mutations. The postal extension adds two-recipient validation/CYA/edit/readback plus loss of one optional child.

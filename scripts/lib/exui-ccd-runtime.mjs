@@ -1,3 +1,4 @@
+import {inspectHostContainer} from './exui-host-invocation.mjs';
 import { readStoredSourceShapeDates, assertStoredSourceShapeDates } from './exui-source-shape-dates.mjs';
 import { SOURCE_SHAPE_ROWS, validateSourceShapeFault, assertObservedSourceShape } from './exui-source-shape-contract.mjs';
 import {verifyLocalCcdRuntimeProfile,assertLocalCcdRuntimeScope} from './exui-local-ccd-runtime-profile.mjs';
@@ -187,7 +188,9 @@ export function registerCcdUserRoles(state,roles,{headers,request=ccdRequest,run
  return observed.statuses;
 }
 const save=(state)=>fs.writeFileSync(path.join(state.output,'runtime.json'),JSON.stringify(state,null,2)+'\n');
-export async function startCcdRuntime(output,{runDocker=docker,request=ccdRequest,fixtureSelection:selection='nested-prl',isCancelled=()=>false,onCreateUncertainty=()=>{},platform='linux/arm64',elasticsearch=false,localCcdProfile}={}) {
+export async function startCcdRuntime(output,{runDocker=docker,request=ccdRequest,fixtureSelection:selection='nested-prl',isCancelled=()=>false,onCreateUncertainty=()=>{},platform='linux/arm64',elasticsearch=false,localCcdProfile,beforeCreate,inspectBeforeCreate=inspectHostContainer}={}) {
+ assert(beforeCreate===undefined||typeof beforeCreate==='function','CCD_PRECREATE_CALLBACK_REQUIRED');
+ if(beforeCreate!==undefined)assert.equal(typeof inspectBeforeCreate,'function','CCD_PRECREATE_INSPECTION_REQUIRED');
  fixtureSelection(null,selection);
  let local;
  if(localCcdProfile!==undefined) { assertLocalCcdRuntimeScope({platform,elasticsearch,fixtureSelection:selection});local=verifyLocalCcdRuntimeProfile(localCcdProfile,{docker:runDocker}); }
@@ -214,6 +217,15 @@ export async function startCcdRuntime(output,{runDocker=docker,request=ccdReques
   state.images[service]={id:info.Id,architecture:info.Architecture,repoDigests:info.RepoDigests};
  }
  fs.writeFileSync(path.join(state.output,'recovery.json'),JSON.stringify(recovery(),null,2)+'\n');
+ if(beforeCreate!==undefined){
+  const heldRecovery=structuredClone(recovery());
+  const fresh=()=>{for(const resource of Object.values(heldRecovery.resources))assert.equal(inspectBeforeCreate(resource.name),null,'CCD_PRECREATE_NAME_OCCUPIED');};
+  fresh();
+  await beforeCreate(structuredClone({schemaVersion:1,kind:'ccd-before-create',owner:state.owner,output:state.output,platform,resources:heldRecovery.resources}));
+  checkCancellation();
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(state.output,'recovery.json'),'utf8')),heldRecovery,'CCD_PRECREATE_RECOVERY_DRIFT');
+  fresh();
+ }
  const attempts=[],journal=path.join(state.output,'creation-attempts.json');
  const saveAttempts=()=>fs.writeFileSync(journal,JSON.stringify(attempts,null,2)+'\n',{mode:0o600});
  function create(service,args) {
