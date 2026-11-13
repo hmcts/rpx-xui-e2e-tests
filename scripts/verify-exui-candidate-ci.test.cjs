@@ -15,6 +15,12 @@ const load = async () =>
     ])),
   );
 const digest = (c) => "sha256:" + c.repeat(64);
+
+test("native event capability keeps the experimental candidate volume opt-in", () => {
+  const source = fs.readFileSync(path.resolve("scripts/run-harness-ci.mjs"), "utf8");
+  assert.doesNotMatch(source, /args\.push\("--candidate-volume-experiment"\)/);
+});
+
 const job = {
   schemaVersion: 1,
   candidateManifest: "/inputs/candidate.json",
@@ -22,6 +28,28 @@ const job = {
   browserCache: "/inputs/browser",
   output: "/outputs/fresh",
 };
+
+test("support only: collector retains private lifecycle timings without granting proof authority", async () => {
+  const { appendPrivateEventLifecycleTimings } = await load();
+  const row = { sequence: 1, durationMs: 12 };
+  const records = [];
+  appendPrivateEventLifecycleTimings(records, {
+    kind: "private-event-runtime-lifecycle-timings",
+    proofAuthority: false,
+    catalogueCredit: false,
+    records: [row],
+  });
+  assert.deepEqual(records, [row]);
+  for (const diagnostic of [
+    { kind: "private-event-runtime-lifecycle-timings", proofAuthority: true, catalogueCredit: false, records: [row] },
+    { kind: "private-event-runtime-lifecycle-timings", proofAuthority: false, catalogueCredit: true, records: [row] },
+    { kind: "other", proofAuthority: false, catalogueCredit: false, records: [row] },
+    { kind: "private-event-runtime-lifecycle-timings", proofAuthority: false, catalogueCredit: false, records: {} },
+  ]) {
+    appendPrivateEventLifecycleTimings(records, diagnostic);
+  }
+  assert.deepEqual(records, [row]);
+});
 
 test("support only: actual CI phase accounting waits for controlled process completion and validated receipt transport", async () => {
   const { executeCiProcess } = await load();
@@ -227,6 +255,7 @@ test("support only: fixed pilot order stops on a validated failure and always cl
   const { runFixedCiPilots } = await load();
   for (const failed of [null, "family", "scope", "ccd", "startup", "eventCapability", "eventStartup", "routing", "recipientCallback", "callbackStartup", "selectorEventRow"]) {
     const calls = [];
+    const eventRuntimes = new Set();
     const operations = {
       phase: async (name) => {
         calls.push(name);
@@ -247,9 +276,11 @@ test("support only: fixed pilot order stops on a validated failure and always cl
       },
       startEvent: async () => {
         calls.push("startEvent");
+        eventRuntimes.add("baseline");
+        if (failed === "eventStartup") eventRuntimes.add("partially-started-fault");
         if (failed === "eventStartup") throw Error("startup");
       },
-      stopEvent: async () => calls.push("stopEvent"),
+      stopEvent: async () => { calls.push("stopEvent"); eventRuntimes.clear(); },
       startCallback: async () => {calls.push("startCallback");if(failed === "callbackStartup") throw Error("startup");},
       stopCallback: async () => calls.push("stopCallback"),
     };
@@ -268,7 +299,7 @@ test("support only: fixed pilot order stops on a validated failure and always cl
     assert.deepEqual(
       calls,
       failed === "family"
-        ? ["family"]
+        ? ["family", "derive"]
         : failed === "scope"
           ? ["family", "derive", "scope"]
           : failed === "startup"
@@ -288,7 +319,37 @@ test("support only: fixed pilot order stops on a validated failure and always cl
                     : ["eventCapability", "stopEvent", ...(failed === "eventCapability" ? [] : ["routing", ...(failed === "routing" ? [] : ["startCallback", ...(failed === "callbackStartup" ? [] : ["recipientCallback"]), "stopCallback", ...(["callbackStartup","recipientCallback"].includes(failed)?[]:["selectorEventRow"])])])]),
                 ],
     );
+    assert.equal(eventRuntimes.size, 0, "event phase cleanup releases baseline and partially started fault runtimes");
   }
+});
+
+test("support only: scope fault preparation overlaps the WA family proof and both finish before scope starts", async () => {
+  const { runFixedCiPilots } = await load();
+  const started = [], finished = [];
+  let finishFamily, finishDerive;
+  const pending = runFixedCiPilots({
+    phase: async (name) => {
+      started.push(name);
+      if (name === "family") await new Promise((resolve) => { finishFamily = resolve; });
+      if (name === "scope") assert.deepEqual(new Set(finished), new Set(["family", "derive"]));
+      finished.push(name);
+      return { status: "PASS", exitCode: 0 };
+    },
+    derive: async () => {
+      started.push("derive");
+      await new Promise((resolve) => { finishDerive = resolve; });
+      finished.push("derive");
+    },
+    start: async () => {}, stop: async () => {}, startEvent: async () => {}, stopEvent: async () => {},
+    startCallback: async () => {}, stopCallback: async () => {},
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const overlapped = started.includes("family") && started.includes("derive") && !started.includes("scope");
+  finishFamily();
+  await new Promise((resolve) => setImmediate(resolve));
+  finishDerive?.();
+  await pending;
+  assert(overlapped, "family proof and scope preparation should both be active before either gate is released");
 });
 
 test("support only: stale output is rejected without replacing historical evidence", async () => {
@@ -339,12 +400,13 @@ test("support only: independently recognized postal blockage permits the event s
   }
 });
 
-test("support only: actual event parent prepares fault runtimes in pairs before ACK and rejects partial preparation", async (t) => {
+test("support only: actual event parent captures all eleven fault runtimes before ACK and rejects partial preparation", async (t) => {
   const { digestBytes, writeJsonAtomic } = await import("./lib/exui-evidence-io.mjs");
+  const { timeEventRuntimePreparation } = await import('./lib/exui-event-runtime-timing.mjs');
   const { publishEventCapabilityRuntime } = await import("./lib/exui-ccd-event-transition.mjs");
   const { eventCapabilityFaultVariant, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS } = await import("./lib/exui-ccd-event-capability.mjs");
-  const faultInvocations = [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS];
-  const faultVariants = faultInvocations.map(eventCapabilityFaultVariant);
+  const faultInvocations=[EVENT_CAPABILITY_MUTATION,COURTADMIN_READ_MUTATION,READONLY_READ_MUTATION,READONLY_UPDATE_MUTATION,COURTADMIN_UPDATE_MUTATION,...SOURCE_SHAPE_MUTATIONS];
+  const faultVariants=faultInvocations.map(eventCapabilityFaultVariant);
   const source = fs.readFileSync(path.join(__dirname, "run-harness-ci.mjs"), "utf8");
   const callback = source.match(/onEventTransition: (async \(request, handoff\) => \{[\s\S]*?)\n\s*\},\n\s*\} : \{\}\)/)?.[1];
   assert(callback, "actual parent transition callback exists");
@@ -352,7 +414,9 @@ test("support only: actual event parent prepares fault runtimes in pairs before 
     const directory = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "parent-event-"));
     t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     fs.writeFileSync(path.join(directory, "input.json"), "immutable baseline input\n");
-    const calls = [], resource = { expectedContainer: { invocations: ["baseline"] } };
+    const calls = [], preparationTimings = [], resource = { expectedContainer: { invocations: ["baseline"] } };
+    const resources = new Map([["event-baseline-runtime", "owned-baseline"]]);
+    let fakeTime = 0;
     let activeStarts = 0, maxActiveStarts = 0;
     let cancelled = false;
     const step = name => { calls.push(name); if (stoppedAt === name) throw Error("controlled-" + name); };
@@ -361,29 +425,44 @@ test("support only: actual event parent prepares fault runtimes in pairs before 
     const handoff = { input, expected: { harnessCommit: "commit", harnessSourceDigest: digest("a") }, handoff: {}, isTerminated: () => cancelled };
     const deps = {
       assert, fs, path, digestBytes, writeJsonAtomic, directory, resource, context: {}, cancelled: false,
+      timeEventRuntimePreparation: (records, entry) => timeEventRuntimePreparation(records, entry, { clock: () => fakeTime += 1, timestamp: () => `time-${fakeTime}` }),
       EVENT_CAPABILITY_SCOPE: "exui-ccd-event-capability-pilot", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, SOURCE_SHAPE_MUTATIONS, eventCapabilityFaultVariant,
-      resources: new Map([["event-baseline-runtime", "owned-baseline"]]),
+      resources,
       inspectHostContainer: () => assert.fail("inspection delegated to ownership validator"),
       readEventBaselineCheckpoint: () => { step("checkpoint"); return { checkpointDigest: digest("b") }; },
       assertEventBaselineRemoved: () => { step("native-removed"); return { removed: ["native"] }; },
       remove: async (name, owned) => {
-        assert.equal(name, "event-baseline-runtime"); assert.equal(owned, "owned-baseline");
-        step("ccd-removed"); return { cleanupComplete: true };
+        if (name === "event-baseline-runtime") {
+          assert.equal(owned, "owned-baseline");
+          step("ccd-removed");
+        } else {
+          assert.match(name, /^event-.+-runtime$/);
+          resources.delete(name);
+        }
+        return { cleanupComplete: true };
       },
-      startOwnedCcd: async (name, fixture, alive, owner) => {
-        const variant = fixture.slice("event-capability-".length);
-        assert(["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `shape-${id.slice(10)}-mutant`)].includes(variant));
-        assert.equal(name, `event-${variant}-runtime`);
-        assert.equal(owner, resource); assert.equal(alive(), true);
-        step("start-" + variant);
+      startOwnedCcd: async (name, fixture, alive, owner, _callbackVariant, onTiming) => {
         activeStarts++;
         maxActiveStarts = Math.max(maxActiveStarts, activeStarts);
         try {
-          await new Promise(resolve => setTimeout(resolve, 5));
-          if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
-          return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
+          const variant = fixture.slice("event-capability-".length);
+          assert(["mutant", "read-mutant", "readonly-read-mutant", "readonly-update-mutant", "courtadmin-update-mutant", ...SOURCE_SHAPE_MUTATIONS.map(id => `shape-${id.slice(10)}-mutant`)].includes(variant));
+          assert.equal(name, `event-${variant}-runtime`);
+          assert.equal(owner, resource); assert.equal(alive(), true);
+          const runtime = await onTiming("startup", async () => {
+            step("start-" + variant);
+            if (variant === "read-mutant" && stoppedAt === "cancel-after-read") cancelled = true;
+            return { namespace: variant, owner: variant === "read-mutant" && stoppedAt === "reused-owner" ? "mutant" : variant,
             containers: { database: variant, data: variant === "read-mutant" && stoppedAt === "reused-cid" ? "mutant-data" : variant + "-data" } };
-        } finally { activeStarts--; }
+          });
+          await onTiming("definition-import", () => undefined);
+          await onTiming("identity-verification", () => undefined);
+          if (!alive()) throw new Error("CI_EVENT_IMPORT_CANCELLED");
+          resources.set(name, runtime);
+          return runtime;
+        } finally {
+          activeStarts--;
+        }
       },
       eventRuntimeData: ccd => ({ ccd, definition: { fixtureDigest: digest("c") } }),
       selectEventCapabilityRuntime: (baseline, invocation, record) => {
@@ -398,6 +477,7 @@ test("support only: actual event parent prepares fault runtimes in pairs before 
       },
       publishEventCapabilityRuntime: (output, record) => {
         step("ack-" + eventCapabilityFaultVariant(record.invocationId));
+        assert.equal(resources.size, 1 + faultVariants.length, "all fault CCD stacks stay live through browser ACK");
         const captured = JSON.parse(fs.readFileSync(path.join(output, "independent-transition.json")));
         assert.deepEqual(resource.expectedContainer.invocations, ["baseline", EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS]);
         assert.equal(resource.eventTransition.digest, digestBytes(fs.readFileSync(path.join(output, "independent-transition.json"))));
@@ -411,46 +491,82 @@ test("support only: actual event parent prepares fault runtimes in pairs before 
         return publishEventCapabilityRuntime(output, record);
       },
     };
+    deps.eventRuntimePreparationTimings = preparationTimings;
     const run = new Function(...Object.keys(deps), `return ${callback}\n}`)(...Object.values(deps));
-    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_TRANSITION_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
+    if (stoppedAt) await assert.rejects(run(request, handoff), /controlled-|CI_EVENT_(?:TRANSITION|IMPORT)_CANCELLED|CI_EVENT_FAULT_(?:OWNER|CID)_REUSE/);
     else await run(request, handoff);
     assert.equal(activeStarts, 0, "the callback waits for every started runtime to settle");
-    if (stoppedAt === null) assert.equal(maxActiveStarts, 2, "two independent CCD runtimes are prepared concurrently");
+    const preparationSteps=['startup','definition-import','identity-verification','runtime-observation','ownership-capture','transition-identity'];
+    if(stoppedAt===null){
+      assert.equal(maxActiveStarts, 2, "exactly two fault runtime preparations overlap");
+      for(const invocationId of faultInvocations)
+        assert.deepEqual(preparationTimings.filter(row=>row.invocationId===invocationId).map(({runId,step,status})=>({runId,step,status})),preparationSteps.map(step=>({runId:request.runId,step,status:'completed'})));
+    }else if(stoppedAt?.startsWith('start-')||stoppedAt?.startsWith('owned-')){
+      const variant=stoppedAt.slice(stoppedAt.indexOf('-')+1).replace(/^(shape-.+-mutant|.+-mutant)$/,'$1');
+      const invocationId=faultInvocations.find(id=>eventCapabilityFaultVariant(id)===variant);
+      assert(invocationId,'the injected fault belongs to a scheduled runtime');
+      const rows=preparationTimings.filter(row=>row.invocationId===invocationId);
+      if(stoppedAt.startsWith('start-'))assert.deepEqual(rows.map(({step,status})=>({step,status})),[{step:'startup',status:'failed'}]);
+      else assert.deepEqual(rows.map(({step,status})=>({step,status})),[
+        ...preparationSteps.slice(0,4).map(step=>({step,status:'completed'})),
+        {step:'ownership-capture',status:'failed'},
+      ]);
+    }else assert.equal(preparationTimings.some(row=>row.status==='failed'),false);
     for (const mutation of [EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, ...SOURCE_SHAPE_MUTATIONS])
       assert.equal(fs.existsSync(path.join(directory, mutation, "runtime-input.json")), stoppedAt === null);
-    const order = ["checkpoint", "native-removed", "ccd-removed"];
-    for (let offset = 0; offset < faultVariants.length; offset += 2) {
-      const batch = faultVariants.slice(offset, offset + 2);
-      order.push(...batch.map(variant => `start-${variant}`), ...batch.map(variant => `owned-${variant}`));
-    }
-    order.push(...faultVariants.map(variant => `ack-${variant}`));
-    let expectedCalls = order;
-    if (stoppedAt !== null) {
-      if (["checkpoint", "native-removed", "ccd-removed"].includes(stoppedAt)) {
-        expectedCalls = order.slice(0, ["checkpoint", "native-removed", "ccd-removed"].indexOf(stoppedAt) + 1);
-      } else {
-        expectedCalls = order.slice(0, 3);
+    const preflight = ["checkpoint", "native-removed", "ccd-removed"];
+    let expectedCalls = preflight;
+    if (preflight.includes(stoppedAt)) {
+      expectedCalls = preflight.slice(0, preflight.indexOf(stoppedAt) + 1);
+    } else if (stoppedAt !== null) {
+      const variant = stoppedAt === "cancel-after-read" || stoppedAt.startsWith("reused-")
+        ? "read-mutant"
+        : stoppedAt.slice(stoppedAt.indexOf("-") + 1);
+      const index = faultVariants.indexOf(variant);
+      assert(index >= 0, "the injected fault belongs to a scheduled runtime");
+      const batchStart = Math.floor(index / 2) * 2;
+      for (let offset = 0; offset < batchStart; offset += 2) {
+        const previous = faultVariants.slice(offset, offset + 2);
+        expectedCalls.push(...previous.map(value => `start-${value}`), ...previous.map(value => `owned-${value}`));
       }
-      if (stoppedAt === "cancel-after-read" || stoppedAt.startsWith("reused-")) {
-        expectedCalls.push(...faultVariants.slice(0, 2).map(variant => `start-${variant}`));
-        expectedCalls.push(...faultVariants.slice(0, stoppedAt === "reused-owner" || stoppedAt === "reused-cid" ? 1 : 2).map(variant => `owned-${variant}`));
-      } else if (stoppedAt.startsWith("start-") || stoppedAt.startsWith("owned-")) {
-        const variant = stoppedAt.slice(stoppedAt.indexOf("-") + 1);
-        const invocationIndex = faultVariants.indexOf(variant);
-        assert(invocationIndex >= 0, "the injected fault belongs to a scheduled runtime");
-        const batchStart = Math.floor(invocationIndex / 2) * 2;
-        for (let offset = 0; offset < batchStart; offset += 2) {
-          const previous = faultVariants.slice(offset, offset + 2);
-          expectedCalls.push(...previous.map(value => `start-${value}`), ...previous.map(value => `owned-${value}`));
-        }
-        const batch = faultVariants.slice(batchStart, batchStart + 2);
-        expectedCalls.push(...batch.map(value => `start-${value}`));
-        if (stoppedAt.startsWith("owned-"))
-          expectedCalls.push(...batch.slice(0, invocationIndex - batchStart + 1).map(value => `owned-${value}`));
+      const batch = faultVariants.slice(batchStart, batchStart + 2);
+      expectedCalls.push(...batch.map(value => `start-${value}`));
+      if (stoppedAt.startsWith("owned-"))
+        expectedCalls.push(...batch.slice(0, index - batchStart + 1).map(value => `owned-${value}`));
+      else if (stoppedAt.startsWith("reused-"))
+        expectedCalls.push(...batch.slice(0, index - batchStart).map(value => `owned-${value}`));
+    } else {
+      for (let offset = 0; offset < faultVariants.length; offset += 2) {
+        const batch = faultVariants.slice(offset, offset + 2);
+        expectedCalls.push(...batch.map(variant => `start-${variant}`), ...batch.map(variant => `owned-${variant}`));
       }
+      expectedCalls.push(...faultVariants.map(variant => `ack-${variant}`));
     }
-    assert.deepEqual(calls, expectedCalls, `stoppedAt=${stoppedAt}`);
+    assert.deepEqual(calls,expectedCalls,`stoppedAt=${stoppedAt}`);
   }
+});
+
+test('private event preparation timings preserve substep order and record failed work', async () => {
+ const {timeEventRuntimePreparation}=await import('./lib/exui-event-runtime-timing.mjs');
+ const records=[];let tick=0;
+ const options={clock:()=>tick+=10,timestamp:()=>`time-${tick}`};
+ await timeEventRuntimePreparation(records,{runId:'run-1',invocationId:'fault-1',step:'startup',action:async()=>{}},options);
+ await assert.rejects(timeEventRuntimePreparation(records,{runId:'run-1',invocationId:'fault-1',step:'definition-import',action:async()=>{throw Error('private failure');}},options),/private failure/);
+ assert.deepEqual(records.map(({runId,invocationId,step,status,durationMs})=>({runId,invocationId,step,status,durationMs})),[
+  {runId:'run-1',invocationId:'fault-1',step:'startup',status:'completed',durationMs:10},
+  {runId:'run-1',invocationId:'fault-1',step:'definition-import',status:'failed',durationMs:10},
+ ]);
+});
+
+test('private event preparation timing failures never replace or suppress proof actions', async () => {
+ const {timeEventRuntimePreparation}=await import('./lib/exui-event-runtime-timing.mjs');
+ const value={proof:'result'}, expectedError=Error('proof failed');let actions=0;
+ const unavailable=[];
+ assert.equal(timeEventRuntimePreparation(unavailable,{runId:'run',invocationId:'fault',step:'startup',action:()=>{actions++;return value;}},{clock:()=>{throw Error('clock failed');},timestamp:()=>{throw Error('timestamp failed');}}),value);
+ const brokenRecords=new Proxy([],{set(){throw Error('record storage failed');},get(target,key){if(key==='push')return ()=>{throw Error('record failed');};return Reflect.get(target,key);}});
+ assert.equal(timeEventRuntimePreparation(brokenRecords,{runId:'run',invocationId:'fault',step:'startup',action:()=>{actions++;return value;}},{clock:(()=>{let n=0;return()=>n++;})(),timestamp:()=> '2026-11-07T00:00:00.000Z'}),value);
+ assert.throws(()=>timeEventRuntimePreparation(unavailable,{runId:'run',invocationId:'fault',step:'startup',action:()=>{actions++;throw expectedError;}},{clock:()=>{throw Error('clock failed');},timestamp:()=> '2026-11-07T00:00:00.000Z'}),error=>error===expectedError);
+ assert.equal(actions,3);
 });
 
 test("support only: receipt consumption uses independent expected identity and re-evaluates raw evidence", async () => {
@@ -883,6 +999,7 @@ test("support only: independently declared artifact mismatch initializes BLOCKED
       /DECLARED_ARTIFACT_DIGEST_MISMATCH/,
     );
     assert.deepEqual(fs.readdirSync(path.join(output, "public")), [
+      "native-stage-timings.json",
       "release-assurance-summary.json",
     ]);
     const unreviewedOutput = path.join(directory, "unreviewed-configuration");
@@ -1488,15 +1605,17 @@ test('native progress reports waiting and terminal verdict without exposing oper
  const {runFixedCiPilots}=await load();
  const messages=[];t.mock.method(console,'log',message=>messages.push(message));
  t.mock.timers.enable({apis:['setInterval']});
- let release;const pending=new Promise(resolve=>{release=resolve;});
- const run=runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:()=>pending});
+ let releaseFamily,releaseDerive;const family=new Promise(resolve=>{releaseFamily=resolve;}),derivation=new Promise(resolve=>{releaseDerive=resolve;});
+ const run=runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:()=>family,derive:()=>derivation});
  assert.match(messages[0],/WA family: started/);
+ assert.match(messages[1],/Scope fault candidate preparation: started/);
  t.mock.timers.tick(60_000);
- assert.match(messages[1],/WA family: still running/);
- assert.equal(messages.length,2);
- release({status:'FAIL',exitCode:1,private:'PRIVATE-CANARY'});
+ assert.match(messages[2],/WA family: still running/);
+ assert.match(messages[3],/Scope fault candidate preparation: still running/);
+ assert.equal(messages.length,4);
+ releaseFamily({status:'FAIL',exitCode:1,private:'PRIVATE-CANARY'});releaseDerive();
  assert.equal((await run).exitCode,1);
- assert.match(messages.at(-1),/WA family: FAIL/);
+ assert(messages.some(message=>/WA family: FAIL/.test(message)));
  const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
  assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
 });
@@ -1504,8 +1623,8 @@ test('native progress reports waiting and terminal verdict without exposing oper
 test('native progress stops heartbeat after a rejected operation and keeps the error private',async t=>{
  const {runFixedCiPilots}=await load();const messages=[];
  t.mock.method(console,'log',message=>messages.push(message));t.mock.timers.enable({apis:['setInterval']});
- await assert.rejects(runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:async()=>{throw Error('PRIVATE-CANARY');}}),/PRIVATE-CANARY/);
- assert.match(messages.at(-1),/WA family: stopped/);
+ await assert.rejects(runFixedCiPilots({progress:(await load()).reportNativeProgress,phase:async()=>{throw Error('PRIVATE-CANARY');},derive:async()=>{}}),/PRIVATE-CANARY/);
+ assert(messages.some(message=>/WA family: stopped/.test(message)));
  const count=messages.length;t.mock.timers.tick(120_000);assert.equal(messages.length,count);
  assert.doesNotMatch(messages.join('\n'),/PRIVATE-CANARY/);
 });
@@ -1570,6 +1689,7 @@ function eventPreparationDeferred() {
 const eventPreparationTick = () => new Promise(setImmediate);
 
 test('owned CCD cleanup joins the actual callback import, identity and final cancellation boundary', { timeout: 2000 }, async t => {
+  const {timeEventRuntimePreparation}=await import('./lib/exui-event-runtime-timing.mjs');
   const source = fs.readFileSync(path.join(__dirname, 'run-harness-ci.mjs'), 'utf8');
   const before = '  const remove = async (_id, resource) => {', middle = '  const startOwnedCcd = async ', after = '  const eventRuntimeData = ';
   for (const marker of [before, middle, after]) assert.equal(source.split(marker).length, 2, 'unique actual owned-start/remove boundary');
@@ -1577,7 +1697,8 @@ test('owned CCD cleanup joins the actual callback import, identity and final can
   for (const fault of ['none', 'import', 'identity', 'startup-unknown']) {
     const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'event-owned-import-'));
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-    const importing = eventPreparationDeferred(), startup = eventPreparationDeferred(), events = [];
+    const importing = eventPreparationDeferred(), startup = eventPreparationDeferred(), events = [], timings = [];
+    let fakeTime=0;
     const expectedError = new Error('controlled-' + fault);
     const dependencies = {
       assert, fs, path, privateRoot: root, context: { artifact: { provenance: { platform: 'linux/arm64' } } },
@@ -1591,11 +1712,12 @@ test('owned CCD cleanup joins the actual callback import, identity and final can
       importCcdDefinition: () => assert.fail('callback branch expected'), verifyCcdRuntimeIdentity: () => assert.fail('callback branch expected'),
       importNativeCallbackDefinition: async () => { events.push('import'); await importing.promise; if (fault === 'import') throw expectedError; },
       verifyNativeCallbackRuntime: () => { events.push('identity'); if (fault === 'identity') throw expectedError; },
+      timeEventRuntimePreparation: (_records,entry) => timeEventRuntimePreparation(timings,{runId:'test-run',invocationId:'callback-runtime',...entry},{clock:()=>fakeTime+=1,timestamp:()=>`time-${fakeTime}`}),
       cleanupCiCcd: () => { events.push('cleanup'); return { cleanupComplete: true }; },
     };
     const api = new Function(...Object.keys(dependencies), `let cleanupComplete=true,cancelled=false;const resources=new Map();\n${block}\nreturn {startOwnedCcd,remove,resources,cancel:()=>{cancelled=true;},isClean:()=>cleanupComplete};`)(...Object.values(dependencies));
     const phase = { name: 'eventCapability' }; api.resources.set(phase.name, phase);
-    const start = api.startOwnedCcd('callback-runtime', 'event-capability-baseline', () => true, phase, 'baseline');
+    const start = api.startOwnedCcd('callback-runtime', 'event-capability-baseline', () => true, phase, 'baseline',(step,action)=>dependencies.timeEventRuntimePreparation([], {runId:'test-run',invocationId:'callback-runtime',step,action}));
     const observed = start.then(() => ({}), error => ({ error }));
     await eventPreparationTick();
     assert.deepEqual([...api.resources.keys()], ['callback-runtime', 'eventCapability'], 'phase child must remain first in reverse cleanup');
@@ -1609,6 +1731,11 @@ test('owned CCD cleanup joins the actual callback import, identity and final can
     importing.resolve();
     const result = await observed; await removal;
     assert.equal(removed, true); assert.equal(events.at(-1), 'cleanup');
+    assert.deepEqual(timings.map(({step,status})=>({step,status})),[
+      {step:'startup',status:fault==='startup-unknown'?'failed':'completed'},
+      ...(fault==='startup-unknown'?[]:[{step:'definition-import',status:fault==='import'?'failed':'completed'}]),
+      ...(fault==='startup-unknown'||fault==='import'?[]:[{step:'identity-verification',status:fault==='identity'?'failed':'completed'}]),
+    ]);
     if (fault === 'none') assert.match(result.error.message, /CI_EVENT_IMPORT_CANCELLED/); else assert.equal(result.error, expectedError);
     assert.equal(api.resources.has('callback-runtime'), false);
     assert.equal(api.isClean(), fault !== 'startup-unknown', 'unknown creation remains fail-closed after a settled promise');

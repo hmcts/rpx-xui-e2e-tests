@@ -5,8 +5,18 @@ import { isDeepStrictEqual } from 'node:util';
 import { validateRunManifest, evaluateReleaseEvidence, createGateReceipt } from './exui-release-evidence.mjs';
 
 export const digestBytes = (bytes) => 'sha256:' + createHash('sha256').update(bytes).digest('hex');
+export const SOURCE_JURISDICTIONS = Object.freeze(['DIVORCE','PROBATE','FR','PUBLICLAW','IA','SSCS','EMPLOYMENT','HRS','CIVIL','CMC','PRIVATELAW','PCS']);
 const requireFact = (condition, code) => { if (!condition) throw new Error(code); };
 const isWithin = (root, file) => file.startsWith(root + path.sep);
+const safeFrProfileDiagnostic = (value, status) => {
+  const ids = list => Array.isArray(list) && list.length <= 32 && list.every(item => typeof item === 'string' && /^[A-Z][A-Z0-9_]{0,31}$/.test(item)) && new Set(list).size === list.length && [...list].sort().every((item, index) => item === list[index]);
+  return status === 'BLOCKED' && value && Object.keys(value).sort().join(',') === 'expectedIds,kind,missingIds,observedIds,reasonCode,schemaVersion,unexpectedIds'
+    && value.schemaVersion === 1 && value.kind === 'fr-jurisdiction-filter-diagnostic' && value.reasonCode === 'FR_PROFILE_OBSERVATIONS'
+    && ids(value.expectedIds) && JSON.stringify(value.expectedIds) === JSON.stringify([...SOURCE_JURISDICTIONS].sort())
+    && ids(value.observedIds) && ids(value.missingIds) && ids(value.unexpectedIds)
+    && JSON.stringify(value.missingIds) === JSON.stringify(value.expectedIds.filter(id => !value.observedIds.includes(id)))
+    && JSON.stringify(value.unexpectedIds) === JSON.stringify(value.observedIds.filter(id => !value.expectedIds.includes(id)));
+};
 
 export function readEvidenceArtifactBytes(root, reference) {
   requireFact(reference && typeof reference.path === 'string' && /^sha256:[a-f0-9]{64}$/.test(reference.digest), 'INVALID_ARTIFACT_REFERENCE');
@@ -149,11 +159,17 @@ export function writeJsonAtomic(file, value) {
 
 export function writePublicSummary(file, verdict, receiptAvailable = false) {
   requireFact(['PASS', 'FAIL', 'BLOCKED'].includes(verdict.status), 'INVALID_PUBLIC_STATUS');
+  let frProfileDiagnostic;
+  if (verdict.frProfileDiagnostic !== undefined) {
+    requireFact(safeFrProfileDiagnostic(verdict.frProfileDiagnostic, verdict.status), 'UNSAFE_PUBLIC_FR_DIAGNOSTIC');
+    frProfileDiagnostic = verdict.frProfileDiagnostic;
+  }
   writeJsonAtomic(file, {
     schemaVersion: 1, kind: 'pilot-evidence-summary', status: verdict.status,
     releaseApproval: false, fullReleaseScopeAvailable: false,
     receiptAvailable: receiptAvailable === true,
-    reasonCodes: verdict.status === 'PASS' ? [] : ['EVIDENCE_REJECTED']
+    reasonCodes: verdict.status === 'PASS' ? [] : ['EVIDENCE_REJECTED'],
+    ...(frProfileDiagnostic ? { frProfileDiagnostic } : {})
   });
 }
 
@@ -161,12 +177,15 @@ export function validatePublicSummary(file) {
   const bytes = fs.readFileSync(file);
   const summary = JSON.parse(bytes);
   requireFact(summary && ['PASS', 'FAIL', 'BLOCKED'].includes(summary.status) && typeof summary.receiptAvailable === 'boolean', 'INVALID_PUBLIC_SUMMARY');
-  requireFact(isDeepStrictEqual(summary, {
+  const expected = {
     schemaVersion: 1, kind: 'pilot-evidence-summary', status: summary.status,
     releaseApproval: false, fullReleaseScopeAvailable: false,
     receiptAvailable: summary.receiptAvailable,
     reasonCodes: summary.status === 'PASS' ? [] : ['EVIDENCE_REJECTED']
-  }), 'UNSAFE_PUBLIC_SUMMARY');
+  };
+  if (Object.hasOwn(summary, 'frProfileDiagnostic')) expected.frProfileDiagnostic = summary.frProfileDiagnostic;
+  requireFact(isDeepStrictEqual(summary, expected), 'UNSAFE_PUBLIC_SUMMARY');
+  if (Object.hasOwn(summary, 'frProfileDiagnostic')) requireFact(safeFrProfileDiagnostic(summary.frProfileDiagnostic, summary.status), 'UNSAFE_PUBLIC_SUMMARY');
   requireFact(bytes.equals(Buffer.from(JSON.stringify(summary, null, 2) + '\n')), 'UNSAFE_PUBLIC_BYTES');
   return summary;
 }

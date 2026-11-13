@@ -56,3 +56,29 @@ test('method record binds identity/order/static source and aggregate statuses wi
   helper.validateMethodEvidence(record,entries,counts);
   for(const mutate of [r=>r.manifestDigest='sha256:foreign',r=>r.checks.pop(),r=>r.checks.reverse(),r=>r.checks[0].status='failed',r=>r.checks[0].extra=canary,r=>r.checks[0].steps=[],r=>r.schemaVersion=2]){const value=structuredClone(record);mutate(value);assert.throws(()=>helper.validateMethodEvidence(value,entries,counts),/PUBLIC_ODHIN_CHECK/);}
 });
+
+test('finite nested CSRF details preserve actual status/order/duration without disclosing parser inputs',()=>{
+ const details=require('./harness-public-check-details.cjs'),entry=entries.find(e=>helper.methodFor(e).steps[0].id==='auth-basic-csrf'),raw=actual(entry);raw[0].steps=details.declarationsFor(entry).map(row=>({title:'harness-detail:'+row.id,category:'test.step',duration:2,steps:[{category:'expect',title:canary,duration:1}]}));
+ const parents=helper.extractCheckSteps(entry,raw),safe=details.extractDetails(entry,raw,'framework',parents,'passed');assert.deepEqual(safe.map(r=>[r.id,r.parentId,r.status,r.durationMs,r.order]),[['csrf-present','auth-basic-csrf','passed',2,1],['csrf-absent','auth-basic-csrf','passed',2,2]]);assert(!JSON.stringify(safe).includes(canary));assert.match(details.renderDetails(entry,safe,parents,'passed'),/Source-defined expected assertion/);assert.match(details.renderDetails(entry,undefined,parents,'passed'),/Not recorded/);
+});
+
+test('nested detail parser denies unknown duplicate reversed orphan cross-test and automatic expectation events',()=>{
+ const details=require('./harness-public-check-details.cjs'),entry=entries.find(e=>helper.methodFor(e).steps[0].id==='auth-basic-csrf'),other=entries.find(e=>e.file!==entry.file),base=actual(entry);base[0].steps=['csrf-present','csrf-absent'].map(id=>({title:'harness-detail:'+id,category:'test.step',duration:1,steps:[]}));const parents=helper.extractCheckSteps(entry,base);
+ for(const mutate of [r=>r[0].steps[0].title='harness-detail:unknown',r=>r[0].steps.push(r[0].steps[0]),r=>r[0].steps.reverse(),r=>r.push(r[0].steps.shift()),r=>r[0].steps[0].category='expect',r=>r[0].steps[0].annotations=[{type:'skip'}],r=>r[0].steps=[{category:'expect',title:canary,duration:0,steps:r[0].steps}]]){const raw=structuredClone(base);mutate(raw);assert.throws(()=>details.extractDetails(entry,raw,'framework',parents,'passed'),/PUBLIC_ODHIN_CHECK_DETAILS/);}
+ assert.throws(()=>details.extractDetails(other,base,'framework',parents,'passed'),/PUBLIC_ODHIN_CHECK_DETAILS/);
+ const json=base.map(row=>({...row,category:undefined,steps:row.steps.map(child=>({...child,category:undefined}))}));assert.deepEqual(details.extractDetails(entry,json,'json',parents,'passed'),details.extractDetails(entry,base,'framework',parents,'passed'));
+});
+test('detail outcomes are never inferred from parent PASS and failed setup records no later assertion',()=>{
+ const details=require('./harness-public-check-details.cjs'),entry=entries.find(e=>helper.methodFor(e).steps[0].id==='auth-basic-csrf'),raw=actual(entry),parents=helper.extractCheckSteps(entry,raw);
+ assert.throws(()=>details.extractDetails(entry,raw,'framework',parents,'passed'),/PUBLIC_ODHIN_CHECK_DETAILS/);assert.deepEqual(details.extractDetails(entry,[],'framework',[],'failed'),[]);assert.match(details.renderDetails(entry,[],[],'failed'),/Not recorded/);
+ const rows=[{id:'csrf-present',parentId:'auth-basic-csrf',status:'passed',durationMs:1,order:1},{id:'csrf-absent',parentId:'auth-basic-csrf',status:'passed',durationMs:2,order:2}];
+ for(const mutate of [r=>r[0].payload=canary,r=>r[0].parentId='foreign',r=>r[1].order=1,r=>r[1].status='failed',r=>r[0].durationMs=NaN]){const value=structuredClone(rows);mutate(value);assert.throws(()=>details.validateDetails(entry,value,parents,'passed'),/PUBLIC_ODHIN_CHECK_DETAILS/);}
+ const results=new Map([[JSON.stringify([entry.file,overview.normalize(entry).titlePath]),{status:'passed',checkSteps:parents,checkDetails:rows}]]),document=details.detailEvidence([entry],results),methods=helper.methodEvidence([entry],results);details.validateEvidence(document,[entry],methods);
+ for(const mutate of [v=>v.checks.push(v.checks[0]),v=>v.checks[0].titlePath=['foreign'],v=>v.registryDigest='sha256:foreign',v=>v.checks[0].details=[],v=>v.checks[0].extra=canary]){const value=structuredClone(document);mutate(value);assert.throws(()=>details.validateEvidence(value,[entry],methods),/PUBLIC_ODHIN_CHECK_DETAILS/);}
+});
+
+
+test('completed nested child duration cannot exceed its actual completed parent and no sum or unknown span is invented',()=>{
+ const details=require('./harness-public-check-details.cjs'),entry=entries.find(e=>helper.methodFor(e).steps[0].id==='auth-basic-csrf'),parent=[{id:'auth-basic-csrf',status:'passed',durationMs:1,order:1}],rows=['csrf-present','csrf-absent'].map((id,index)=>({id,parentId:'auth-basic-csrf',status:'passed',durationMs:1,order:index+1}));
+ details.validateDetails(entry,rows,parent,'passed');const tooLong=structuredClone(rows);tooLong[0].durationMs=999;assert.throws(()=>details.validateDetails(entry,tooLong,parent,'passed'),/PUBLIC_ODHIN_CHECK_DETAILS/);details.validateDetails(entry,rows,[{...parent[0],status:'incomplete',durationMs:null}],'timedOut');
+});

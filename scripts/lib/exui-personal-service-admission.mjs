@@ -51,6 +51,7 @@ export function readPersonalNativeBinding(directory,expected,native){
 }
 // This fixed context is held by the canonical caller and bound into the pair before resources start.
 export function validatePersonalAdmissionContext(context){
+ if(Object.hasOwn(context.expected,'mandatoryEmailNativeBinding')){const ref=context.expected.mandatoryEmailNativeBinding;keys(ref,['path','digest']);assert.equal(ref.path,'private/mandatory-email-native-binding.json',fail);assert(hash.test(ref.digest),fail);}
  keys(context,['native','capture','expected']);keys(context.capture,['binding','reference']);
  assert.deepEqual(context.capture.reference,{path:PERSONAL_NATIVE_PATH,digest:digestBytes(JSON.stringify(context.capture.binding,null,2)+'\n')},fail);
  keys(context.capture.binding,['schemaVersion','kind','policy','contractDigest','nativeBindingDigest','ccdImages']);assert.equal(context.capture.binding.schemaVersion,1,fail);assert.equal(context.capture.binding.kind,'personal-service-native-binding',fail);
@@ -108,4 +109,4 @@ export function personalNativeJointAdmission(native,personalNative,packet,expect
  const compatibility=personalCohortCompatibility(context,packet.cohort);if(compatibility.status!=='included')return compatibility;
  return {...compatibility,obligationId:PERSONAL_SERVICE_ID,nativeRunId:expected.jobRunId,personalRunId:packet.admission.runId,nativeBindingDigest:expected.personalServiceNativeBinding.digest,requestDigest:expected.personalServiceRequest.digest,inputDigest:packet.admission.inputDigest,contractDigest:packet.admission.contractDigest};
 }
-export function expectedWithoutRequests(expected){const copy=structuredClone(expected);delete copy.divorceProfileRequest;delete copy.personalServiceRequest;delete copy.complexEmailRequest;return copy;}
+export function expectedWithoutRequests(expected){const copy=structuredClone(expected);delete copy.divorceProfileRequest;delete copy.personalServiceRequest;delete copy.complexEmailRequest;delete copy.stCicProfileRequest;delete copy.mandatoryEmailRequest;return copy;}

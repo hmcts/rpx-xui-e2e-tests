@@ -27,6 +27,9 @@ import {validateSelectorRowDescriptors,readSelectorStoredDate,assertSelectorUiOu
 import {classifyNativeFailure} from './lib/exui-native-failure-diagnostics.mjs';
 import {prepareComplexEmailImport,importComplexEmail,validateComplexEmailDefinition} from './lib/exui-complex-email-import.mjs';
 import {readComplexEmailStoredClassification} from './lib/exui-complex-email-classification.mjs';
+import {deriveMandatoryEmailEventRows,MANDATORY_EMAIL_EVENT_VARIANTS} from './lib/exui-mandatory-email-event-rows.mjs';
+import {validateMandatoryEmailDescriptors,readMandatoryEmailDates} from './lib/exui-mandatory-email-event-facets.mjs';
+import {captureMandatoryEmailPrepared,mandatoryEmailRawFiles,readMandatoryEmailEvidence} from './lib/exui-mandatory-email-event-evidence.mjs';
 import {browserExecutable} from './lib/exui-oci-runtime.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url)),read=p=>JSON.parse(fs.readFileSync(p,'utf8'));
 export const CALLBACK_UI_SOURCES=Object.freeze([...new Set([...NATIVE_HARNESS_SOURCE_FILES,'scripts/lib/exui-recipient-callback-facets.mjs','scripts/run-harness-recipient-callback-ui.mjs','scripts/lib/exui-recipient-callback-import.mjs','src/fixtures/harnessCallback.ts','playwright.callback-feasibility.config.mjs','scripts/recipient-callback-ui-tools.mjs','src/tests/harness/callback-feasibility/recipient-callback.spec.ts','src/tests/harness/callback-feasibility/selector-event-row.spec.ts','src/fixtures/harnessSelectorEventRow.ts','scripts/lib/exui-selector-event-row-contract.mjs','scripts/lib/exui-selector-event-row-facets.mjs','scripts/lib/exui-personal-service-contract.mjs','scripts/lib/exui-personal-service-facets.mjs','scripts/lib/exui-personal-service-evidence.mjs','scripts/fixtures/ccd/personal-service.source.json','src/fixtures/harnessPersonalService.ts','src/tests/harness/callback-feasibility/personal-service.spec.ts','scripts/run-harness-personal-service-cohort.mjs','scripts/run-harness-personal-service-invocation.mjs','scripts/lib/exui-personal-service-invocation-binding.mjs','scripts/lib/exui-feasibility-gateway.mjs','scripts/lib/exui-complex-email-classification.mjs','scripts/lib/exui-complex-email-transport.mjs','scripts/lib/exui-complex-email-text.mjs','scripts/lib/exui-complex-email-import.mjs','src/fixtures/harnessComplexEmail.ts','src/tests/harness/callback-feasibility/complex-email-text.spec.ts'])]);
@@ -91,10 +94,21 @@ export function createCallbackNativeWorkspace() {
  for(const kind of ['sessions','diagnostics']){const directory=stateRoot+'/baseline/'+kind;fs.mkdirSync(directory,{recursive:true,mode:0o777});fs.chmodSync(directory,0o777);}
  return {workspace,stagedHarness,stateRoot};
 }
-export async function runCallbackUi({candidate,browser,output,variant='baseline',scenario='recipient-callback',preparePersonal=false,signal,personalLifecycle,complexLifecycle}) {
+// A finite pre-proof barrier, kept separate so its join and snapshot semantics
+// can be tested without starting a browser or a CCD lifetime.
+export async function awaitMandatoryEmailPrepared(lifecycle,packet,isCancelled){
+ // Native plans contain one launch function. Keep it private to this controller;
+ // the parent independently recomputes the same serial plan and launch process.
+ const snapshot=structuredClone({...packet,...(packet.plan===undefined?{}:{plan:JSON.parse(JSON.stringify(packet.plan))})});
+ await lifecycle.prepared(snapshot);
+ assert(!isCancelled(),'CALLBACK_UI_CANCELLED');
+}
+export async function runCallbackUi({candidate,browser,output,variant='baseline',scenario='recipient-callback',preparePersonal=false,signal,personalLifecycle,complexLifecycle,mandatoryLifecycle}) {
  let cancelled=false;const isCancelled=()=>cancelled||Boolean(signal?.aborted),assertActive=()=>assert(!isCancelled(),'CALLBACK_UI_CANCELLED');assertActive();
  const invocationClock={startedAt:new Date().toISOString(),start:performance.now()};
- assert(['recipient-callback','selector-event-row','personal-service','complex-email-text'].includes(scenario),'CALLBACK_UI_SCENARIO');
+ assert(['recipient-callback','selector-event-row','personal-service','complex-email-text','mandatory-email-event'].includes(scenario),'CALLBACK_UI_SCENARIO');
+ const mandatory=scenario==='mandatory-email-event';
+ assert(mandatoryLifecycle===undefined||(mandatory&&mandatoryLifecycle&&Object.keys(mandatoryLifecycle).sort().join()===['creationStarted','prepared'].join()&&typeof mandatoryLifecycle.creationStarted==='function'&&typeof mandatoryLifecycle.prepared==='function'),'MANDATORY_EMAIL_LIFECYCLE');
  const selector=scenario==='selector-event-row',personal=scenario==='personal-service',complexEmail=scenario==='complex-email-text';
  assert(typeof preparePersonal==='boolean'&&(!preparePersonal||personal),'PERSONAL_SERVICE_PREPARATION_SCOPE');
  assert(personalLifecycle===undefined||preparePersonal&&typeof personalLifecycle.creationStarted==='function'&&typeof personalLifecycle.closed==='function','PERSONAL_SERVICE_LIFECYCLE');
@@ -102,10 +116,11 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
  const personalContract=personal?await import('./lib/exui-personal-service-contract.mjs'):undefined;
  const personalFacets=personal?await import('./lib/exui-personal-service-facets.mjs'):undefined;
  const personalEvidence=personal?await import('./lib/exui-personal-service-evidence.mjs'):undefined;
- assert((complexEmail?['baseline','email-type']:selector?SELECTOR_EVENT_VARIANTS:personal?personalContract.PERSONAL_SERVICE_VARIANTS:['baseline','binding-omitted']).includes(variant),'CALLBACK_UI_VARIANT');assert(path.isAbsolute(output)&&!fs.existsSync(output),'CALLBACK_UI_FRESH_OUTPUT');
+ assert((mandatory?MANDATORY_EMAIL_EVENT_VARIANTS:complexEmail?['baseline','email-type']:selector?SELECTOR_EVENT_VARIANTS:personal?personalContract.PERSONAL_SERVICE_VARIANTS:['baseline','binding-omitted']).includes(variant),'CALLBACK_UI_VARIANT');assert(path.isAbsolute(output)&&!fs.existsSync(output),'CALLBACK_UI_FRESH_OUTPUT');
  assertActive();const artifact=await verifyCandidateArtifact(path.resolve(candidate));assertActive();const browserRoot=fs.realpathSync(browser);
  output=createFreshHarnessRuntimeOutput(output,root,[artifact.candidateRoot,path.resolve(candidate),browserRoot,path.join(root,'node_modules')]);
- const receipt={kind:complexEmail?'complex-email-text-ui-feasibility':personal?'personal-service-ui-feasibility':selector?'selector-event-row-ui-feasibility':'recipient-callback-ui-feasibility',scenario,variant,status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
+ const mandatoryRunId=mandatory?'ccd-'+randomUUID():undefined;
+ const receipt={kind:mandatory?'mandatory-email-event-ui-feasibility':complexEmail?'complex-email-text-ui-feasibility':personal?'personal-service-ui-feasibility':selector?'selector-event-row-ui-feasibility':'recipient-callback-ui-feasibility',scenario,variant,status:'in-progress',runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
  const save=()=>{writeJsonAtomic(output+'/receipt.json',receipt);fs.chmodSync(output+'/receipt.json',0o600);};save();
  const resources=new Map();const cancel=()=>{cancelled=true;for(const resource of resources.values())if(resource.kind==='process')resource.child?.kill('SIGTERM');};process.once('SIGINT',cancel);process.once('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
  let complexPrepared;
@@ -124,6 +139,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   assertActive();phase='start-runtime';personalLifecycle?.creationStarted();complexLifecycle?.creationStarted({variant,runtimeDirectory:runtime});
   const ccd=await startCcdRuntime(runtime,{
    fixtureSelection:'event-capability-baseline',platform:artifact.provenance.platform,isCancelled,
+   ...(mandatoryLifecycle?{beforeCreate:async intent=>{await mandatoryLifecycle.creationStarted(structuredClone({schemaVersion:1,kind:'mandatory-email-creation-intent',runId:mandatoryRunId,variant,runtimeDirectory:runtime,ccd:intent,nativeNames:[mandatoryRunId+'-baseline-candidate',mandatoryRunId+'-baseline-tools']}));assertActive();}}:{}),
    onCreateUncertainty:()=>{creationUncertain=true;},
    runDocker:(args,input)=>{
     assertActive();const creating=args[0]==='create';if(creating)createAttempted=true;
@@ -141,21 +157,21 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
    callbackObservedDigests={definition:digestBytes(JSON.stringify(imported.observations.definition.body))};
    receipt.facets={descriptor:validateComplexEmailDefinition(imported.observations.definition.body,variant),metadata:imported.metadata};
   }else{
-  phase='import-callback';const importOptions={variant:(selector||personal)?'binding-omitted':variant,rowFacets:true,...(selector?{selectorEventVariant:variant}:personal?{personalServiceVariant:variant}:{})};assertActive();await prepareRecipientCallbackImport(output+'/fixture',importOptions);assertActive();
+  phase='import-callback';const importOptions={variant:(selector||personal||mandatory)?'binding-omitted':variant,rowFacets:true,...(mandatory?{mandatoryEmailEventVariant:variant}:selector?{selectorEventVariant:variant}:personal?{personalServiceVariant:variant}:{})};assertActive();await prepareRecipientCallbackImport(output+'/fixture',importOptions);assertActive();
   imported=await importRecipientCallback(ccd,{fixtureDirectory:output+'/fixture',...importOptions});assertActive();receipt.import=imported;save();callbackObservedDigests=verifyCallbackUiRuntime(ccd,imported);
-  phase='verify-row-facets';receipt.facets=personal?{descriptor:personalFacets.validatePersonalServiceDescriptors(imported.observations.definition.body,imported.observations.pages.body,variant),date:personalFacets.readPersonalServiceDate(ccd,imported.observations.definition.body.version.number)}:selector?{descriptor:validateSelectorRowDescriptors(imported.observations.definition.body,imported.observations.pages.body,variant),date:readSelectorStoredDate(ccd,imported.observations.definition.body.version.number)}:{descriptor:validateCallbackRowDescriptors(imported.observations.definition.body,imported.observations.pages.body),date:readCallbackStoredDate(ccd,imported.observations.definition.body.version.number)};save();
+  phase='verify-row-facets';receipt.facets=mandatory?{descriptor:validateMandatoryEmailDescriptors(imported.observations.definition.body,imported.observations.pages.body,deriveMandatoryEmailEventRows(variant)),date:readMandatoryEmailDates(ccd,imported.observations.definition.body.version.number)}:personal?{descriptor:personalFacets.validatePersonalServiceDescriptors(imported.observations.definition.body,imported.observations.pages.body,variant),date:personalFacets.readPersonalServiceDate(ccd,imported.observations.definition.body.version.number)}:selector?{descriptor:validateSelectorRowDescriptors(imported.observations.definition.body,imported.observations.pages.body,variant),date:readSelectorStoredDate(ccd,imported.observations.definition.body.version.number)}:{descriptor:validateCallbackRowDescriptors(imported.observations.definition.body,imported.observations.pages.body),date:readCallbackStoredDate(ccd,imported.observations.definition.body.version.number)};save();
   }
   receipt.import=imported;save();
   assert(!cancelled,'CALLBACK_UI_CANCELLED');
   phase='prepare-actors';const credentials=Object.fromEntries(['allowed','courtadmin','judge','readonly','observer'].map(actor=>[actor,ccdCredentials(ccd,actor)]));
   phase='prepare-api-contracts';const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(ccd,port,'/v3/api-docs');assert.equal(response.status,200);return[name,digestBytes(JSON.stringify(response.body))];}));
   const definition={fixtureDigest:imported.seal.definitionDigest,observedDefinitionDigest:digestBytes(JSON.stringify(imported.observations.definition.body)),definitionVersion:imported.observations.definition.body.version.number};
-  phase='stage-native-sources';const runId='ccd-'+randomUUID();const {workspace,stagedHarness,stateRoot}=createCallbackNativeWorkspace();privateWorkspace=workspace;receipt.privateWorkspace=workspace;save();
+  phase='stage-native-sources';const runId=mandatoryRunId??('ccd-'+randomUUID());const {workspace,stagedHarness,stateRoot}=createCallbackNativeWorkspace();privateWorkspace=workspace;receipt.privateWorkspace=workspace;save();
   for(const file of CALLBACK_UI_SOURCES){const source=path.join(root,file);assert.equal(fs.realpathSync(source),source);assert(fs.lstatSync(source).isFile());const target=path.join(stagedHarness,file);fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});fs.copyFileSync(source,target);fs.chmodSync(target,0o444);}
   const harnessSourceDigest=digestBytes(JSON.stringify(CALLBACK_UI_SOURCES.map(file=>[file,digestBytes(fs.readFileSync(path.join(stagedHarness,file)))])));
   if(personal)assert.equal(harnessSourceDigest,personalPreexecution.harnessSourceDigest,'PERSONAL_SERVICE_PREEXECUTION_SOURCE_DRIFT');
   const chromium=read(root+'/node_modules/playwright-core/browsers.json').browsers.find(item=>item.name==='chromium-headless-shell');
-  phase='inspect-native-images';const input={kind:receipt.kind,scenario,variant,...(complexEmail?{complexEmailBinding:imported.seal.binding,complexEmailFacets:receipt.facets}:{}),...(selector?{selectorEventBinding:imported.seal.selectorEventBinding,selectorFacets:receipt.facets}:personal?{personalServiceBinding:imported.seal.personalServiceBinding,personalServiceFacets:receipt.facets}:{}),runId,artifact,releaseScopeId:'exui-ccd-event-capability-pilot',ccd,credentials,definition,apiContracts,browserRoot,browserDigest,browserExecutable:'/browser/'+browserExecutable({browsers:[chromium]},artifact.provenance.platform),harnessDependencies,harnessSources:CALLBACK_UI_SOURCES,harnessSourceDigest,gatewayDigest:digestBytes(fs.readFileSync(root+'/scripts/lib/exui-ccd-browser-runtime.mjs')),callbackObservedDigests,nativeRuntime:inspectNativeApiRuntime(artifact.provenance.platform),browserRuntimeImage:inspectNativeBrowserRuntime(artifact.provenance.platform)};
+  phase='inspect-native-images';const input={kind:receipt.kind,scenario,variant,...(mandatory?{mandatoryEmailEventBinding:imported.seal.mandatoryEmailEventBinding,mandatoryEmailEventFacets:receipt.facets}:{}),...(complexEmail?{complexEmailBinding:imported.seal.binding,complexEmailFacets:receipt.facets}:{}),...(selector?{selectorEventBinding:imported.seal.selectorEventBinding,selectorFacets:receipt.facets}:personal?{personalServiceBinding:imported.seal.personalServiceBinding,personalServiceFacets:receipt.facets}:{}),runId,artifact,releaseScopeId:'exui-ccd-event-capability-pilot',ccd,credentials,definition,apiContracts,browserRoot,browserDigest,browserExecutable:'/browser/'+browserExecutable({browsers:[chromium]},artifact.provenance.platform),harnessDependencies,harnessSources:CALLBACK_UI_SOURCES,harnessSourceDigest,gatewayDigest:digestBytes(fs.readFileSync(root+'/scripts/lib/exui-ccd-browser-runtime.mjs')),callbackObservedDigests,nativeRuntime:inspectNativeApiRuntime(artifact.provenance.platform),browserRuntimeImage:inspectNativeBrowserRuntime(artifact.provenance.platform)};
   writeJsonAtomic(output+'/input.json',input);fs.chmodSync(output+'/input.json',0o600);
   const heldInputDigest=digestBytes(fs.readFileSync(output+'/input.json'));
   const directory=output+'/baseline';fs.mkdirSync(directory,{mode:0o700});
@@ -167,13 +183,19 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   const manifest={schemaVersion:1,kind:receipt.kind,identity,runId,variant,catalogueCredit:false,releaseCredit:false,runtimeMetadata:{rowFacetDigest:digestBytes(JSON.stringify(receipt.facets)),callbackImportDigest:digestBytes(fs.readFileSync(runtime+(complexEmail?'/complex-email-import/receipt.json':'/recipient-callback-import/receipt.json'))),harnessSourceDigest,browserDigest}};
   if(complexLifecycle){complexPrepared={input,handoff,plan,manifest,privateWorkspace,ccd,imported,actorId:credentials.allowed.userId};complexLifecycle.prepared(complexPrepared);}
   if(preparePersonal){assertActive();preparedPersonal={input,handoff,plan,manifest,privateWorkspace,preexecution:personalPreexecution};return preparedPersonal;}
+  const mandatoryPrepared=mandatory?captureMandatoryEmailPrepared(output):undefined;
+  if(mandatoryLifecycle)await awaitMandatoryEmailPrepared(mandatoryLifecycle,{input,handoff,plan,manifest,privateWorkspace,imported,held:mandatoryPrepared},isCancelled);
   assertActive();phase='execute-candidate';const result=await runHostInvocation({...plan,manifest,payloadDigest:artifact.payloadDigest},{resources,isCancelled});receipt.runnerExitCode=result.terminal.code;
   if(personal)writeJsonAtomic(output+'/personal-service-observed-terminal.json',{runId,terminal:result.terminal});
   phase='evaluate-browser-proof';const report=read(directory+'/report.json');
   assert.equal(result.terminal.code,variant==='baseline'?0:1,'CALLBACK_UI_BROWSER_ASSERTION_FAILED');
-  const observed=read(directory+(complexEmail?'/complex-email-text-observation.json':personal?'/personal-service-observation.json':selector?'/selector-event-row-observation.json':'/callback-ui-observation.json'));
+  const observed=mandatory?undefined:read(directory+(complexEmail?'/complex-email-text-observation.json':personal?'/personal-service-observation.json':selector?'/selector-event-row-observation.json':'/callback-ui-observation.json'));
   if(complexEmail){phase='verify-generated-classification';receipt.classification=readComplexEmailStoredClassification(ccd,imported,observed);if(complexLifecycle)complexLifecycle.completed({...complexPrepared,execution:result,classification:receipt.classification,observed});}
-  if(personal){
+  if(mandatory){
+   const names=mandatoryEmailRawFiles(variant),expected={variant,derivation:deriveMandatoryEmailEventRows(variant),actorId:credentials.courtadmin.userId,owner:ccd.owner,namespace:ccd.namespace,images:ccd.images,definitionVersion:definition.definitionVersion,terminal:result.terminal,held:mandatoryPrepared,files:Object.fromEntries(names.map(name=>[name,digestBytes(fs.readFileSync(path.join(output,name)))]))};
+   writeJsonAtomic(output+'/mandatory-email-reader-input.json',expected);fs.chmodSync(output+'/mandatory-email-reader-input.json',0o600);
+   receipt.mandatoryEmailEvent=readMandatoryEmailEvidence(output,expected);receipt.status=receipt.mandatoryEmailEvent.status;
+  }else if(personal){
    const names=['input.json','baseline/personal-service-observation.json','baseline/ccd-requests.jsonl','baseline/report.json','runtime/recipient-callback-import/receipt.json','runtime/recipient-callback-import/personal-service-stored-row-date.json'];
    const expected={variant,actorId:credentials.courtadmin.userId,terminal:result.terminal,files:Object.fromEntries(names.map(name=>[name,name==='input.json'?heldInputDigest:digestBytes(fs.readFileSync(path.join(output,name)))])),sourceBinding:input.personalServiceBinding,definitionVersion:definition.definitionVersion,owner:ccd.owner,namespace:ccd.namespace,images:ccd.images};
    writeJsonAtomic(output+'/personal-service-reader-input.json',expected);
@@ -198,5 +220,5 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
  return receipt;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
- const args=process.argv.slice(2);try{assert([8,10].includes(args.length));assert.deepEqual(args.filter((_,i)=>i%2===0),['--candidate','--browser','--output','--variant',...(args.length===10?['--scenario']:[])]);const result=await runCallbackUi({candidate:args[1],browser:args[3],output:args[5],variant:args[7],scenario:args[9]});console.log(JSON.stringify({status:result.status,cleanupComplete:result.cleanup?.cleanupComplete===true&&result.nativeCleanupComplete}));if(!['candidate-ui-feasibility-observed','callback-binding-omission-detected','selector-event-row-feasibility-observed','selector-summary-omission-detected','personal-service-feasibility-observed','personal-service-required-fault-detected','complex-email-text-feasibility-observed','complex-email-type-tightening-observed'].includes(result.status))process.exitCode=2;}catch{console.error('Callback UI feasibility arguments rejected.');process.exitCode=2;}
+ const args=process.argv.slice(2);try{assert([8,10].includes(args.length));assert.deepEqual(args.filter((_,i)=>i%2===0),['--candidate','--browser','--output','--variant',...(args.length===10?['--scenario']:[])]);const result=await runCallbackUi({candidate:args[1],browser:args[3],output:args[5],variant:args[7],scenario:args[9]});console.log(JSON.stringify({status:result.status,cleanupComplete:result.cleanup?.cleanupComplete===true&&result.nativeCleanupComplete}));if(!['candidate-ui-feasibility-observed','callback-binding-omission-detected','selector-event-row-feasibility-observed','selector-summary-omission-detected','personal-service-feasibility-observed','personal-service-required-fault-detected','complex-email-text-feasibility-observed','complex-email-type-tightening-observed','mandatory-email-event-feasibility-observed','mandatory-email-optional-fault-detected'].includes(result.status))process.exitCode=2;}catch{console.error('Callback UI feasibility arguments rejected.');process.exitCode=2;}
 }

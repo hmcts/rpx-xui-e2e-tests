@@ -7,7 +7,7 @@ exports.personalAdmissionFixture=async t=>{
  // The old main fixture has no full CCD input for its generic phase; supply the
  // same standard images used by its actual event/callback/selector raw fixtures.
  const ccdImages=Object.fromEntries(Object.entries(f.event.input.ccd.images).map(([key,value])=>[key,{image:value.id,os:'linux',architecture:value.architecture}]));
- const ccdFile=path.join(f.directory,'private/ccd/input.json'),ccdInput=JSON.parse(fs.readFileSync(ccdFile));ccdInput.ccd={images:f.event.input.ccd.images};write(ccdFile,ccdInput);
+ const ccdFile=path.join(f.directory,'private/ccd/input.json'),ccdInput=JSON.parse(fs.readFileSync(ccdFile));ccdInput.ccd={...ccdInput.ccd,images:f.event.input.ccd.images};write(ccdFile,ccdInput);
  const capture=m.capturePersonalNativeBinding({nativeCohortCapture:{binding:f.native,reference:f.descriptor.expected.nativeCohortBinding}},f.directory,ccdImages);
  f.descriptor.expected.personalServiceNativeBinding=capture.reference;f.save();
  const context={native:f.native,capture,expected:m.expectedWithoutRequests(f.descriptor.expected)};

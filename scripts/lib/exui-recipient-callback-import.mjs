@@ -11,20 +11,23 @@ import { assertFreshCandidateDerivationOutput } from "./exui-candidate-artifact.
 import { digestBytes } from "./exui-evidence-io.mjs";
 import { ccdCredentials, ccdRequest, verifyCcdContainerIdentity, validateCcdDefinition } from "./exui-ccd-runtime.mjs";
 const fixtureRoot = fileURLToPath(new URL("../fixtures/ccd/", import.meta.url));
-export async function prepareRecipientCallbackImport(output,{variant="baseline",rowFacets=false,selectorEventVariant,personalServiceVariant}={}) {
+export async function prepareRecipientCallbackImport(output,{variant="baseline",rowFacets=false,selectorEventVariant,personalServiceVariant,mandatoryEmailEventVariant}={}) {
   assert(["baseline","binding-omitted"].includes(variant),"CALLBACK_IMPORT_VARIANT_REQUIRED");
   if(selectorEventVariant!==undefined)assert(variant==='binding-omitted'&&rowFacets===true,'SELECTOR_CALLBACK_CONTEXT_REQUIRED');
-  assert(selectorEventVariant===undefined||personalServiceVariant===undefined,'CALLBACK_EXCLUSIVE_ROW_SCENARIO');
+  assert([selectorEventVariant,personalServiceVariant,mandatoryEmailEventVariant].filter(v=>v!==undefined).length<=1,'CALLBACK_EXCLUSIVE_ROW_SCENARIO');
+  if(mandatoryEmailEventVariant!==undefined)assert(variant==='binding-omitted'&&rowFacets===true,'MANDATORY_EMAIL_CALLBACK_CONTEXT');
   if(personalServiceVariant!==undefined)assert(variant==='binding-omitted'&&rowFacets===true,'PERSONAL_SERVICE_CALLBACK_CONTEXT');
+  const mandatory=mandatoryEmailEventVariant===undefined?undefined:(await import('./exui-mandatory-email-event-rows.mjs')).deriveMandatoryEmailEventRows(mandatoryEmailEventVariant);
+  if(mandatory)(await import('./exui-mandatory-email-event-validation.mjs')).validateMandatoryEmailEventDerivation(mandatory,mandatoryEmailEventVariant);
   const selected=personalServiceVariant!==undefined?(await import('./exui-personal-service-contract.mjs')).derivePersonalServiceFixture(personalServiceVariant):selectorEventVariant===undefined?undefined:deriveSelectorEventRowFixture(selectorEventVariant);
-  const derivative = selected ? {fixture:selected.fixture,binding:selected.callbackBinding} : deriveRecipientCallbackImport(variant,rowFacets);
+  const derivative = mandatory ? {fixture:mandatory.fixture,binding:deriveRecipientCallbackImport('binding-omitted',true).binding} : selected ? {fixture:selected.fixture,binding:selected.callbackBinding} : deriveRecipientCallbackImport(variant,rowFacets);
   const destination = await assertFreshCandidateDerivationOutput({ baseline: { candidateRoot: fixtureRoot }, manifestPath: path.join(fixtureRoot,"event-capability.source.json"), output });
   fs.mkdirSync(destination, {mode:0o700});
   const definition = path.join(destination,"definition.json"), workbook = path.join(destination,"definition.xlsx");
   fs.writeFileSync(definition,JSON.stringify(derivative.fixture,null,2)+"\n",{flag:"wx",mode:0o600});
   const result=spawnSync("python3",[path.join(fixtureRoot,"workbook.py"),definition,workbook],{encoding:"utf8",timeout:30000,maxBuffer:1024*1024});
   assert(!result.error&&result.status===0,"CALLBACK_WORKBOOK_FAILED");fs.chmodSync(workbook,0o600);
-  const seal={schemaVersion:1,kind:"recipient-callback-import",...(rowFacets?{rowFacets:true,syntheticPredecessor:"protectedValue:READONLY:serviceOfDocumentsharnessBefore:order1"}:{}),...(variant==="binding-omitted"?{variant,mutation:"omit-page2-mid-event-binding"}:{}),...(selected?{[personalServiceVariant===undefined?"selectorEventBinding":"personalServiceBinding"]:selected.binding}:{}),binding:derivative.binding,definitionDigest:digestBytes(fs.readFileSync(definition)),workbookDigest:digestBytes(fs.readFileSync(workbook)),runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
+  const seal={schemaVersion:1,kind:"recipient-callback-import",...(rowFacets?{rowFacets:true,syntheticPredecessor:"protectedValue:READONLY:serviceOfDocumentsharnessBefore:order1"}:{}),...(variant==="binding-omitted"?{variant,mutation:"omit-page2-mid-event-binding"}:{}),...(selected?{[personalServiceVariant===undefined?"selectorEventBinding":"personalServiceBinding"]:selected.binding}:{}),...(mandatory?{mandatoryEmailEventBinding:mandatory.binding}:{}),binding:derivative.binding,definitionDigest:digestBytes(fs.readFileSync(definition)),workbookDigest:digestBytes(fs.readFileSync(workbook)),runtimeAcceptance:false,catalogueCredit:false,releaseCredit:false};
   fs.writeFileSync(path.join(destination,"binding.json"),JSON.stringify(seal,null,2)+"\n",{flag:"wx",mode:0o600});
   return seal;
 }
@@ -51,12 +54,12 @@ export function validateObservedRecipientCallback(definition, pages, binding, va
   for(const event of definition.events) for(const [key,value] of Object.entries(event))
     if(/callback/i.test(key)) assert(value==null||value==="","CALLBACK_UNEXPECTED_EVENT_STAGE");
 }
-export async function importRecipientCallback(state,{fixtureDirectory,request=ccdRequest,inspectContainer,variant="baseline",rowFacets=false,selectorEventVariant,personalServiceVariant}={}) {
+export async function importRecipientCallback(state,{fixtureDirectory,request=ccdRequest,inspectContainer,variant="baseline",rowFacets=false,selectorEventVariant,personalServiceVariant,mandatoryEmailEventVariant}={}) {
   assert(typeof fixtureDirectory==="string","CALLBACK_IMPORT_DIRECTORY_REQUIRED");
   const temp=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),"callback-import-canonical-"));
   let seal,workbook;
   try {
-    const canonical=path.join(temp,"definition"); await prepareRecipientCallbackImport(canonical,{variant,rowFacets,selectorEventVariant,personalServiceVariant});
+    const canonical=path.join(temp,"definition"); await prepareRecipientCallbackImport(canonical,{variant,rowFacets,selectorEventVariant,personalServiceVariant,mandatoryEmailEventVariant});
     for(const file of ["definition.json","definition.xlsx","binding.json"])
       assert.deepEqual(fs.readFileSync(path.join(fixtureDirectory,file)),fs.readFileSync(path.join(canonical,file)),"CALLBACK_IMPORT_SEAL_MISMATCH");
     seal=JSON.parse(fs.readFileSync(path.join(canonical,"binding.json")));workbook=fs.readFileSync(path.join(canonical,"definition.xlsx"));

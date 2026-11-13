@@ -13,6 +13,8 @@ try {
     args[1] === "local-aat"
   ) {
     Reporter.validatePublicReport("local-aat");
+  } else if (args.length === 1 && args[0] === "--validate-stage-timings") {
+    Reporter.validateNativeStageTimings("functional-output/tests/harness/public/native-stage-timings.json");
   } else {
     throw new Error("INVALID_PUBLIC_REPORT_COMMAND");
   }

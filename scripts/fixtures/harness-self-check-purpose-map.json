@@ -1,0 +1,1059 @@
+{
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "id": "evidence-admission",
+      "label": "Evidence and admission guards",
+      "purpose": "Checks source, candidate and run bindings, raw evidence validation and admission decisions with controlled fixtures."
+    },
+    {
+      "id": "runtime-lifecycle",
+      "label": "Runtime lifecycle and isolation",
+      "purpose": "Checks process orchestration, ownership, cancellation and cleanup mechanisms; these self-checks do not run downstream services."
+    },
+    {
+      "id": "source-fixtures",
+      "label": "Source definitions and fixture contracts",
+      "purpose": "Checks pinned source rows, derived fixtures and controlled changes; this is not deployed configuration coverage."
+    },
+    {
+      "id": "candidate-artifacts",
+      "label": "Candidate build and artifact identity",
+      "purpose": "Checks candidate preparation, file identity, package and runtime boundaries with controlled fixtures."
+    },
+    {
+      "id": "domain-mechanisms",
+      "label": "Domain proof mechanisms",
+      "purpose": "Checks Harness proof clients, provider contracts and replay mechanisms; synthetic fixtures are not additional application executions."
+    },
+    {
+      "id": "report-delivery",
+      "label": "Reporting and delivery integration",
+      "purpose": "Checks report normalization, privacy, readback, selections and delivery orchestration; no application or release credit follows."
+    }
+  ],
+  "files": [
+    {
+      "file": "scripts/verify-exui-native-stage-telemetry.test.cjs",
+      "id": "unit-native-stage-telemetry",
+      "label": "Native stage telemetry",
+      "group": "report-delivery",
+      "purpose": "Checks named-stage ordering, repeated instances, durations and unreached fault stages without inventing extra executions."
+    },
+    {
+      "file": "scripts/verify-harness-worker-capabilities.test.cjs",
+      "id": "unit-worker-capabilities",
+      "label": "Worker capabilities",
+      "group": "report-delivery",
+      "purpose": "Checks finite worker/platform observations and safe handling of missing or malformed Docker metadata."
+    },
+    {
+      "file": "scripts/verify-harness-public-odhin.test.cjs",
+      "id": "unit-public-odhin",
+      "label": "Public odhin",
+      "group": "report-delivery",
+      "purpose": "Checks public outcome preservation, report ownership, private-data removal and coherent report tamper rejection."
+    },
+    {
+      "file": "scripts/verify-harness-public-check-steps.test.cjs",
+      "id": "unit-public-check-steps",
+      "label": "Public check steps",
+      "group": "report-delivery",
+      "purpose": "Checks the reviewed check registry and extraction of actual ordered framework events without automatic hook data."
+    },
+    {
+      "file": "scripts/verify-harness-local-aat.test.cjs",
+      "id": "unit-local-aat",
+      "label": "Local AAT",
+      "group": "report-delivery",
+      "purpose": "Checks phase completeness, result identity, exit consistency and rejection of stale or retried diagnostic output."
+    },
+    {
+      "file": "scripts/verify-exui-native-report-evidence.test.cjs",
+      "id": "unit-native-report-evidence",
+      "label": "Native report evidence",
+      "group": "evidence-admission",
+      "purpose": "Checks complete native proof projection, exact fault attribution and refusal to credit an unhealthy baseline."
+    },
+    {
+      "file": "scripts/verify-exui-aat-profile.test.cjs",
+      "id": "unit-aat-profile",
+      "label": "AAT profile",
+      "group": "report-delivery",
+      "purpose": "Checks source-specific AAT service memberships without changing source-default model expectations."
+    },
+    {
+      "file": "scripts/verify-exui-definition-discovery.test.cjs",
+      "id": "unit-definition-discovery",
+      "label": "Definition discovery",
+      "group": "evidence-admission",
+      "purpose": "Checks private definition discovery output, fresh ownership and preservation of existing destinations."
+    },
+    {
+      "file": "scripts/verify-exui-release-evidence.test.cjs",
+      "id": "unit-release-evidence",
+      "label": "Release evidence",
+      "group": "evidence-admission",
+      "purpose": "Checks policy provenance, required witnesses and the distinction between a bounded pilot and release approval."
+    },
+    {
+      "file": "scripts/verify-exui-evidence-io.test.cjs",
+      "id": "unit-evidence-io",
+      "label": "Evidence io",
+      "group": "evidence-admission",
+      "purpose": "Checks raw framework completion, retries, teardown and assertion attribution before evidence can satisfy policy."
+    },
+    {
+      "file": "scripts/verify-exui-catalogue.test.cjs",
+      "id": "unit-catalogue",
+      "label": "Catalogue",
+      "group": "evidence-admission",
+      "purpose": "Checks catalogue metadata and historical supporting checks without treating either as release evidence."
+    },
+    {
+      "file": "scripts/verify-harness-runtime-safety.test.cjs",
+      "id": "unit-runtime-safety",
+      "label": "Runtime safety",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks diagnostic selection and separation of private execution artifacts from portable model output."
+    },
+    {
+      "file": "scripts/verify-exui-candidate-artifact.test.cjs",
+      "id": "unit-candidate-artifact",
+      "label": "Candidate artifact",
+      "group": "candidate-artifacts",
+      "purpose": "Checks complete candidate payload identity, platform provenance and rejection of byte or configuration substitutions."
+    },
+    {
+      "file": "scripts/verify-exui-parallel-candidate-tree.test.cjs",
+      "id": "unit-parallel-candidate-tree",
+      "label": "Parallel candidate tree",
+      "group": "candidate-artifacts",
+      "purpose": "Checks bounded parallel hashing against the original ordered identity transcript and its failure precedence."
+    },
+    {
+      "file": "scripts/verify-exui-candidate-build.test.cjs",
+      "id": "unit-candidate-build",
+      "label": "Candidate build",
+      "group": "candidate-artifacts",
+      "purpose": "Checks committed build tool selection, Node engine compatibility and pinned build-image requirements."
+    },
+    {
+      "file": "scripts/verify-exui-oci-candidate.test.cjs",
+      "id": "unit-oci-candidate",
+      "label": "OCI candidate",
+      "group": "candidate-artifacts",
+      "purpose": "Checks OCI image/configuration/platform identity and derivation of candidate provenance from observed bytes."
+    },
+    {
+      "file": "scripts/verify-exui-oci-runtime.test.cjs",
+      "id": "unit-oci-runtime",
+      "label": "OCI runtime",
+      "group": "candidate-artifacts",
+      "purpose": "Checks immutable mount containment and cancellation cleanup for the owned OCI runtime controller."
+    },
+    {
+      "file": "scripts/verify-exui-candidate-runtime.test.cjs",
+      "id": "unit-candidate-runtime",
+      "label": "Candidate runtime",
+      "group": "candidate-artifacts",
+      "purpose": "Checks runtime destination and environment boundaries before a candidate child can execute."
+    },
+    {
+      "file": "scripts/verify-exui-configuration-catalogue.test.cjs",
+      "id": "unit-configuration-catalogue",
+      "label": "Configuration catalogue",
+      "group": "evidence-admission",
+      "purpose": "Checks source catalogue projection while retaining distinct routing and environment-profile requirements."
+    },
+    {
+      "file": "scripts/verify-exui-configuration-runtime-coverage.test.cjs",
+      "id": "unit-configuration-runtime-coverage",
+      "label": "Configuration runtime coverage",
+      "group": "evidence-admission",
+      "purpose": "Checks exact source-bound catalogue accounting and refusal to turn supporting checks into runtime acceptance."
+    },
+    {
+      "file": "scripts/verify-exui-external-evidence.test.cjs",
+      "id": "unit-external-evidence",
+      "label": "External evidence",
+      "group": "evidence-admission",
+      "purpose": "Checks external result provenance, original bytes and policy-owned mapping without accepting modified receipts."
+    },
+    {
+      "file": "scripts/verify-exui-ccd-runtime.test.cjs",
+      "id": "unit-ccd-runtime",
+      "label": "CCD runtime",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks pre-creation ownership gates, cancellation and foreign-name rejection before CCD allocation."
+    },
+    {
+      "file": "scripts/verify-exui-ccd-browser-runtime.test.cjs",
+      "id": "unit-ccd-browser-runtime",
+      "label": "CCD browser runtime",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks browser-runtime input selection and navigation derived from the actually imported CCD case type."
+    },
+    {
+      "file": "scripts/verify-exui-ccd-role-transition.test.cjs",
+      "id": "unit-ccd-role-transition",
+      "label": "CCD role transition",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks synthetic actor identity provisioning and rejection of malformed or mismatched IDAM identifiers."
+    },
+    {
+      "file": "scripts/verify-exui-candidate-ci.test.cjs",
+      "id": "unit-candidate-ci",
+      "label": "Candidate ci",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks CI phase sequencing, observed child completion and strict native job inputs."
+    },
+    {
+      "file": "scripts/verify-exui-native-isolation.test.cjs",
+      "id": "unit-native-isolation",
+      "label": "Native isolation",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks separation of candidate execution from evidence, source, socket and writable-parent authority."
+    },
+    {
+      "file": "scripts/verify-exui-host-invocation.test.cjs",
+      "id": "unit-host-invocation",
+      "label": "Host invocation",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks host-invocation lifetimes, observed framework terminals and completion of final owned cleanup."
+    },
+    {
+      "file": "scripts/verify-exui-provider-readiness-timing.test.cjs",
+      "id": "unit-provider-readiness-timing",
+      "label": "Provider readiness timing",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks diagnostic initializer substep ordering, failure handling and non-credit reporting without changing provider proof outcomes."
+    },
+    {
+      "file": "scripts/verify-exui-routing-runtime.test.cjs",
+      "id": "unit-routing-runtime",
+      "label": "Routing runtime",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks fixed routing obligations and isolated configuration omissions while retaining unchanged origins."
+    },
+    {
+      "file": "scripts/verify-exui-deployment-profiles.test.cjs",
+      "id": "unit-deployment-profiles",
+      "label": "Deployment profiles",
+      "group": "report-delivery",
+      "purpose": "Checks deployment source distinctions, typed values and gaps kept outside the reviewed catalogue denominator."
+    },
+    {
+      "file": "scripts/verify-exui-producer-finalization.test.cjs",
+      "id": "unit-producer-finalization",
+      "label": "Producer finalization",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks preservation of the original producer failure while source and payload cleanup are attempted."
+    },
+    {
+      "file": "scripts/verify-exui-global-search-runtime.test.cjs",
+      "id": "unit-global-search-runtime",
+      "label": "Global search runtime",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks Global Search configuration composition and the identity of its fixed capability omission."
+    },
+    {
+      "file": "scripts/verify-exui-private-evidence.test.cjs",
+      "id": "unit-private-evidence",
+      "label": "Private evidence",
+      "group": "evidence-admission",
+      "purpose": "Checks private native CLI admission and refusal to export blocked evidence as successful acceptance."
+    },
+    {
+      "file": "scripts/verify-exui-hearing-publication.test.cjs",
+      "id": "unit-hearing-publication",
+      "label": "Hearing publication",
+      "group": "source-fixtures",
+      "purpose": "Checks Unicode-safe Hearing payload transformation and rejection of ambiguous or executable source changes."
+    },
+    {
+      "file": "scripts/verify-exui-hearing-publication-proof.test.cjs",
+      "id": "unit-hearing-publication-proof",
+      "label": "Hearing publication proof",
+      "group": "domain-mechanisms",
+      "purpose": "Checks the Hearing API proof and attribution of its one declared semantic fault after healthy controls."
+    },
+    {
+      "file": "scripts/verify-exui-shared-policy-contracts.test.cjs",
+      "id": "unit-shared-policy-contracts",
+      "label": "Shared policy contracts",
+      "group": "evidence-admission",
+      "purpose": "Checks fixed shared policy IDs, source vectors, role cells and evidence-root containment."
+    },
+    {
+      "file": "scripts/verify-exui-shared-role-binding.test.cjs",
+      "id": "unit-shared-role-binding",
+      "label": "Shared role binding",
+      "group": "evidence-admission",
+      "purpose": "Checks bounded role observations and exact source, import and invocation identities without raw response leakage."
+    },
+    {
+      "file": "scripts/verify-exui-hearing-publication-wiring.test.cjs",
+      "id": "unit-hearing-publication-wiring",
+      "label": "Hearing publication wiring",
+      "group": "evidence-admission",
+      "purpose": "Checks Hearing policy/source wiring and preservation of effective configuration across derived artifacts."
+    },
+    {
+      "file": "scripts/verify-harness-assurance.test.cjs",
+      "id": "unit-assurance",
+      "label": "Assurance",
+      "group": "report-delivery",
+      "purpose": "Checks whole-assurance status consistency and refusal to hide blocked native work behind diagnostics."
+    },
+    {
+      "file": "scripts/verify-playwright-pipeline.test.cjs",
+      "id": "unit-playwright-pipeline",
+      "label": "Playwright pipeline",
+      "group": "report-delivery",
+      "purpose": "Checks pipeline test selection, generated-output exclusions and preservation of Build failure semantics."
+    },
+    {
+      "file": "scripts/verify-harness-jenkins-assurance.test.cjs",
+      "id": "unit-jenkins-assurance",
+      "label": "Jenkins assurance",
+      "group": "report-delivery",
+      "purpose": "Checks private Jenkins preparation, job-local outputs and child-failure evidence retention."
+    },
+    {
+      "file": "scripts/verify-exui-source-shape-contract.test.cjs",
+      "id": "unit-source-shape-contract",
+      "label": "Source shape contract",
+      "group": "source-fixtures",
+      "purpose": "Checks every source-shape facet and isolation of each single-cell fault from actor or bootstrap changes."
+    },
+    {
+      "file": "scripts/verify-exui-event-capability-fixture.test.cjs",
+      "id": "unit-event-capability-fixture",
+      "label": "Event capability fixture",
+      "group": "source-fixtures",
+      "purpose": "Checks independent source role vectors and the exact judge-event permission mutation."
+    },
+    {
+      "file": "scripts/verify-exui-readonly-update-proof.test.cjs",
+      "id": "unit-readonly-update-proof",
+      "label": "Readonly update proof",
+      "group": "domain-mechanisms",
+      "purpose": "Checks read-only update-denial proof data and effective write faults against unchanged controls."
+    },
+    {
+      "file": "scripts/verify-exui-courtadmin-update-proof.test.cjs",
+      "id": "unit-courtadmin-update-proof",
+      "label": "Courtadmin update proof",
+      "group": "domain-mechanisms",
+      "purpose": "Checks court-administrator form, navigation and persisted-shape proof contracts with exact permission faults."
+    },
+    {
+      "file": "scripts/verify-exui-event-capability-wiring.test.cjs",
+      "id": "unit-event-capability-wiring",
+      "label": "Event capability wiring",
+      "group": "source-fixtures",
+      "purpose": "Checks selection of event-capability proofs and their exact source-shape faults without changing classic CCD policy."
+    },
+    {
+      "file": "scripts/verify-exui-event-transition.test.cjs",
+      "id": "unit-event-transition",
+      "label": "Event transition",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks fresh fault namespaces, imported definitions and baseline-to-fault transition identity."
+    },
+    {
+      "file": "scripts/verify-exui-ci-transition-process.test.cjs",
+      "id": "unit-ci-transition-process",
+      "label": "CI transition process",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks fixed transition handoff, watcher single-use behavior and observed child termination boundaries."
+    },
+    {
+      "file": "scripts/verify-exui-native-proof-validation.test.cjs",
+      "id": "unit-native-proof-validation",
+      "label": "Native proof validation",
+      "group": "evidence-admission",
+      "purpose": "Checks raw proof checkpoints, complete artifact binding and coherent framework/execution terminals."
+    },
+    {
+      "file": "scripts/verify-exui-event-transition-evidence.test.cjs",
+      "id": "unit-event-transition-evidence",
+      "label": "Event transition evidence",
+      "group": "evidence-admission",
+      "purpose": "Checks offline parent-bound transition replay and rejection of stale, aliased or substituted captures."
+    },
+    {
+      "file": "scripts/verify-exui-result-columns.test.cjs",
+      "id": "unit-result-columns",
+      "label": "Result columns",
+      "group": "source-fixtures",
+      "purpose": "Checks result metadata projection for all selected source columns and field types."
+    },
+    {
+      "file": "scripts/verify-exui-result-columns-definition.test.cjs",
+      "id": "unit-result-columns-definition",
+      "label": "Result columns definition",
+      "group": "source-fixtures",
+      "purpose": "Checks result-definition retention of source attributes and separation of synthetic scaffolding from source claims."
+    },
+    {
+      "file": "scripts/verify-exui-ccd-elasticsearch.test.cjs",
+      "id": "unit-ccd-elasticsearch",
+      "label": "CCD elasticsearch",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks optional Elasticsearch image identity, lifecycle setup and owned cleanup ordering."
+    },
+    {
+      "file": "scripts/verify-exui-result-columns-import.test.cjs",
+      "id": "unit-result-columns-import",
+      "label": "Result columns import",
+      "group": "source-fixtures",
+      "purpose": "Checks result importer route separation and retention of observed metadata without inventing credit."
+    },
+    {
+      "file": "scripts/verify-exui-workbasket-input-definition.test.cjs",
+      "id": "unit-workbasket-input-definition",
+      "label": "Workbasket input definition",
+      "group": "source-fixtures",
+      "purpose": "Checks all pinned Work Basket input rows and their dependent-field relationships."
+    },
+    {
+      "file": "scripts/verify-exui-recipient-callback.test.cjs",
+      "id": "unit-recipient-callback",
+      "label": "Recipient callback",
+      "group": "source-fixtures",
+      "purpose": "Checks callback fixture page, stage, path, condition and source identity."
+    },
+    {
+      "file": "scripts/verify-exui-result-row-seed.test.cjs",
+      "id": "unit-result-row-seed",
+      "label": "Result row seed",
+      "group": "domain-mechanisms",
+      "purpose": "Checks persisted result-row metadata and refusal to accept foreign index references or changed date types."
+    },
+    {
+      "file": "scripts/verify-exui-result-ccd-search.test.cjs",
+      "id": "unit-result-ccd-search",
+      "label": "Result CCD search",
+      "group": "domain-mechanisms",
+      "purpose": "Checks CCD search request constraints and typed persisted associations without claiming renderer execution."
+    },
+    {
+      "file": "scripts/verify-exui-recipient-callback-auth.test.cjs",
+      "id": "unit-recipient-callback-auth",
+      "label": "Recipient callback auth",
+      "group": "domain-mechanisms",
+      "purpose": "Checks fixed callback service identity and rejection of invalid synthetic S2S authority."
+    },
+    {
+      "file": "scripts/verify-exui-recipient-callback-transition.test.cjs",
+      "id": "unit-recipient-callback-transition",
+      "label": "Recipient callback transition",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks callback import/descriptor transition identity and atomic, non-replacing acknowledgement publication."
+    },
+    {
+      "file": "scripts/verify-exui-recipient-callback-import.test.cjs",
+      "id": "unit-recipient-callback-import",
+      "label": "Recipient callback import",
+      "group": "source-fixtures",
+      "purpose": "Checks deterministic callback workbook import and observed page/schema binding."
+    },
+    {
+      "file": "scripts/verify-exui-recipient-callback-backend.test.cjs",
+      "id": "unit-recipient-callback-backend",
+      "label": "Recipient callback backend",
+      "group": "domain-mechanisms",
+      "purpose": "Checks backend callback normalization, healthy persistence and refusal to submit a business-rejected event."
+    },
+    {
+      "file": "scripts/verify-exui-local-ccd-oci.test.cjs",
+      "id": "unit-local-ccd-oci",
+      "label": "Local CCD OCI",
+      "group": "candidate-artifacts",
+      "purpose": "Checks local OCI archive/config/rootfs verification with bounded positive and tampered inputs."
+    },
+    {
+      "file": "scripts/verify-exui-shared-role-ccd-provenance.test.cjs",
+      "id": "unit-shared-role-ccd-provenance",
+      "label": "Shared role CCD provenance",
+      "group": "evidence-admission",
+      "purpose": "Checks fixed source archive/class provenance for the selected shared-role consumers."
+    },
+    {
+      "file": "scripts/verify-exui-shared-role-event-replay.test.cjs",
+      "id": "unit-shared-role-event-replay",
+      "label": "Shared role event replay",
+      "group": "evidence-admission",
+      "purpose": "Checks role-event file sealing and safe actor projection without token retention."
+    },
+    {
+      "file": "scripts/verify-exui-source-profile-jurisdictions.test.cjs",
+      "id": "unit-source-profile-jurisdictions",
+      "label": "Source profile jurisdictions",
+      "group": "domain-mechanisms",
+      "purpose": "Checks jurisdiction partition and omission observations without treating one facet as a complete family profile."
+    },
+    {
+      "file": "scripts/verify-exui-source-profile-feasibility.test.cjs",
+      "id": "unit-source-profile-feasibility",
+      "label": "Source profile feasibility",
+      "group": "evidence-admission",
+      "purpose": "Checks staged source closure, fixed process/configuration identity and candidate/evidence separation."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-profile.test.cjs",
+      "id": "unit-st-cic-profile",
+      "label": "ST_CIC profile",
+      "group": "source-fixtures",
+      "purpose": "Checks the fixed ST_CIC five-facet contract and isolation of each declared setting change."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-profile-runtime.test.cjs",
+      "id": "unit-st-cic-profile-runtime",
+      "label": "ST_CIC profile runtime",
+      "group": "domain-mechanisms",
+      "purpose": "Checks ST_CIC runtime scope and separation of declared semantic faults from unrelated failures."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-profile-admission.test.cjs",
+      "id": "unit-st-cic-profile-admission",
+      "label": "ST_CIC profile admission",
+      "group": "evidence-admission",
+      "purpose": "Checks complete raw ST_CIC cohort admission, identity, lifecycle and late-journal rejection."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-global-browser.test.cjs",
+      "id": "unit-st-cic-global-browser",
+      "label": "ST_CIC global browser",
+      "group": "domain-mechanisms",
+      "purpose": "Checks ST_CIC browser observations, healthy controls, real selection and exact effective omission attribution."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-profile-provider.test.cjs",
+      "id": "unit-st-cic-profile-provider",
+      "label": "ST_CIC profile provider",
+      "group": "domain-mechanisms",
+      "purpose": "Checks finite ST_CIC provider routes, health observations and narrowly normalized query matching."
+    },
+    {
+      "file": "scripts/verify-exui-profile-system-auth-provider.test.cjs",
+      "id": "unit-profile-system-auth-provider",
+      "label": "Profile system auth provider",
+      "group": "domain-mechanisms",
+      "purpose": "Checks the complete fixed synthetic authentication form, expiry behavior and request-size boundary."
+    },
+    {
+      "file": "scripts/verify-exui-source-profile-wa-membership.test.cjs",
+      "id": "unit-source-profile-wa-membership",
+      "label": "Source profile wa membership",
+      "group": "domain-mechanisms",
+      "purpose": "Checks negative Work Allocation membership routes alongside an independent healthy IA control."
+    },
+    {
+      "file": "scripts/verify-exui-source-profile-ia-wa.test.cjs",
+      "id": "unit-source-profile-ia-wa",
+      "label": "Source profile ia wa",
+      "group": "domain-mechanisms",
+      "purpose": "Checks positive IA Work Allocation routes alongside an independent healthy Civil control."
+    },
+    {
+      "file": "scripts/verify-exui-local-ccd-runtime.test.cjs",
+      "id": "unit-local-ccd-runtime",
+      "label": "Local CCD runtime",
+      "group": "candidate-artifacts",
+      "purpose": "Checks explicit local CCD profile/platform selection and immutable image identity requirements."
+    },
+    {
+      "file": "scripts/verify-exui-results-ui.test.cjs",
+      "id": "unit-results-ui",
+      "label": "Results ui",
+      "group": "domain-mechanisms",
+      "purpose": "Checks result UI scaffolding and the finite gateway routes for real typed result discovery."
+    },
+    {
+      "file": "scripts/verify-exui-applicant-results.test.cjs",
+      "id": "unit-applicant-results",
+      "label": "Applicant results",
+      "group": "domain-mechanisms",
+      "purpose": "Checks fixed applicant-result transformations against independent expectations in both result views."
+    },
+    {
+      "file": "scripts/verify-exui-applicant-result-dates.test.cjs",
+      "id": "unit-applicant-result-dates",
+      "label": "Applicant result dates",
+      "group": "evidence-admission",
+      "purpose": "Checks typed result-date retention, exact source versions and matching dependency/image witnesses."
+    },
+    {
+      "file": "scripts/verify-exui-applicant-results-contract.test.cjs",
+      "id": "unit-applicant-results-contract",
+      "label": "Applicant results contract",
+      "group": "evidence-admission",
+      "purpose": "Checks applicant-row facets and the aggregate requirement for distinct effective fault witnesses."
+    },
+    {
+      "file": "scripts/verify-exui-applicant-results-transition.test.cjs",
+      "id": "unit-applicant-results-transition",
+      "label": "Applicant results transition",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks result transition order, fresh runtime identity and one-shot acknowledgement handling."
+    },
+    {
+      "file": "scripts/verify-exui-applicant-results-wiring.test.cjs",
+      "id": "unit-applicant-results-wiring",
+      "label": "Applicant results wiring",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks applicant slice selection and refusal to substitute synthetic gateway faults for native transport."
+    },
+    {
+      "file": "scripts/verify-exui-applicant-results-evidence.test.cjs",
+      "id": "unit-applicant-results-evidence",
+      "label": "Applicant results evidence",
+      "group": "evidence-admission",
+      "purpose": "Checks healthy applicant observations, persisted associations and clean-source launcher boundaries."
+    },
+    {
+      "file": "scripts/verify-exui-applicant-results-report.test.cjs",
+      "id": "unit-applicant-results-report",
+      "label": "Applicant results report",
+      "group": "report-delivery",
+      "purpose": "Checks compatibility report scope, separate-cohort counts and rejection of overstated result-row claims."
+    },
+    {
+      "file": "scripts/verify-exui-source-profile-divorce-consumers.test.cjs",
+      "id": "unit-source-profile-divorce-consumers",
+      "label": "Source profile divorce consumers",
+      "group": "domain-mechanisms",
+      "purpose": "Checks bounded DIVORCE consumers and exact service-mapping route associations."
+    },
+    {
+      "file": "scripts/verify-exui-selector-event-row.test.cjs",
+      "id": "unit-selector-event-row",
+      "label": "Selector event row",
+      "group": "source-fixtures",
+      "purpose": "Checks selector source attributes and isolation of its one summary-cell fault."
+    },
+    {
+      "file": "scripts/verify-exui-selector-event-evidence.test.cjs",
+      "id": "unit-selector-event-evidence",
+      "label": "Selector event evidence",
+      "group": "domain-mechanisms",
+      "purpose": "Checks optional selector navigation, persisted associations and unchanged-state fault observations."
+    },
+    {
+      "file": "scripts/verify-exui-selector-event-transition.test.cjs",
+      "id": "unit-selector-event-transition",
+      "label": "Selector event transition",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks selector transition source, namespace, actor and immutable request bindings."
+    },
+    {
+      "file": "scripts/verify-exui-selector-event-runtime.test.cjs",
+      "id": "unit-selector-event-runtime",
+      "label": "Selector event runtime",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks selector import identity, descriptor/version relationships and typed source-date evidence."
+    },
+    {
+      "file": "scripts/verify-exui-selector-validation-projection.test.cjs",
+      "id": "unit-selector-validation-projection",
+      "label": "Selector validation projection",
+      "group": "domain-mechanisms",
+      "purpose": "Checks the finite synthetic semantics retained from selector validation observations."
+    },
+    {
+      "file": "scripts/verify-exui-shared-nested-renderer.test.cjs",
+      "id": "unit-shared-nested-renderer",
+      "label": "Shared nested renderer",
+      "group": "source-fixtures",
+      "purpose": "Checks nested-recipient source normalization and healthy controls before a cardinality fault can be attributed."
+    },
+    {
+      "file": "scripts/verify-exui-shared-nested-wiring.test.cjs",
+      "id": "unit-shared-nested-wiring",
+      "label": "Shared nested wiring",
+      "group": "source-fixtures",
+      "purpose": "Checks standalone nested-renderer selection while preserving default policy objects and digests."
+    },
+    {
+      "file": "scripts/verify-exui-shared-nested-report.test.cjs",
+      "id": "unit-shared-nested-report",
+      "label": "Shared nested report",
+      "group": "report-delivery",
+      "purpose": "Checks blocked nested-renderer reporting without inventing missing fault results or catalogue credit."
+    },
+    {
+      "file": "scripts/verify-exui-divorce-profile.test.cjs",
+      "id": "unit-divorce-profile",
+      "label": "Divorce profile",
+      "group": "domain-mechanisms",
+      "purpose": "Checks the fixed DIVORCE profile pairs and exact browser/API observation contracts."
+    },
+    {
+      "file": "scripts/verify-exui-fr-profile.test.cjs",
+      "id": "unit-fr-profile",
+      "label": "FR profile",
+      "group": "evidence-admission",
+      "purpose": "Checks FR jurisdiction, staff and ABA2 consumer slices, effective faults, raw evidence integrity and same-candidate catalogue admission."
+    },
+    {
+      "file": "scripts/verify-exui-divorce-joint.test.cjs",
+      "id": "unit-divorce-joint",
+      "label": "Divorce joint",
+      "group": "evidence-admission",
+      "purpose": "Checks joint DIVORCE/native compatibility and coherent substitution rejection before counting one row."
+    },
+    {
+      "file": "scripts/verify-exui-selector-ci.test.cjs",
+      "id": "unit-selector-ci",
+      "label": "Selector ci",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks selector CI input/signal transport and observed cleanup before controller completion."
+    },
+    {
+      "file": "scripts/verify-exui-personal-service.test.cjs",
+      "id": "unit-personal-service",
+      "label": "Personal service",
+      "group": "source-fixtures",
+      "purpose": "Checks the personal-service source row, supporting enum and its single optional-field mutation."
+    },
+    {
+      "file": "scripts/verify-exui-personal-service-invocation-binding.test.cjs",
+      "id": "unit-personal-service-invocation-binding",
+      "label": "Personal service invocation binding",
+      "group": "evidence-admission",
+      "purpose": "Checks complete parent-bound personal-service raw pairs and preservation of standalone no-credit flags."
+    },
+    {
+      "file": "scripts/verify-exui-personal-service-admission.test.cjs",
+      "id": "unit-personal-service-admission",
+      "label": "Personal service admission",
+      "group": "evidence-admission",
+      "purpose": "Checks exact personal-service admission facets and the one-row joint catalogue decision."
+    },
+    {
+      "file": "scripts/verify-exui-complex-email-text.test.cjs",
+      "id": "unit-complex-email-text",
+      "label": "Complex email text",
+      "group": "source-fixtures",
+      "purpose": "Checks Complex Email source/type facets and importer rejection before unsupported network activity."
+    },
+    {
+      "file": "scripts/verify-exui-complex-email-mapping.test.cjs",
+      "id": "unit-complex-email-mapping",
+      "label": "Complex email mapping",
+      "group": "domain-mechanisms",
+      "purpose": "Checks the selected Complex mapping cell effect only after both independent healthy controls."
+    },
+    {
+      "file": "scripts/verify-exui-complex-email-source.test.cjs",
+      "id": "unit-complex-email-source",
+      "label": "Complex email source",
+      "group": "source-fixtures",
+      "purpose": "Checks application-source byte/class verification and safe fixed-profile CLI rejection."
+    },
+    {
+      "file": "scripts/verify-exui-authorisation-row.test.cjs",
+      "id": "unit-authorisation-row",
+      "label": "Authorisation row",
+      "group": "source-fixtures",
+      "purpose": "Checks source authorisation attributes and imported actor ACLs without claiming row admission."
+    },
+    {
+      "file": "scripts/verify-exui-authorisation-create.test.cjs",
+      "id": "unit-authorisation-create",
+      "label": "Authorisation create",
+      "group": "source-fixtures",
+      "purpose": "Checks the create-permission carrier and the exact grouped effective fault across its flattened actors."
+    },
+    {
+      "file": "scripts/verify-exui-conditional-warning.test.cjs",
+      "id": "unit-conditional-warning",
+      "label": "Conditional warning",
+      "group": "source-fixtures",
+      "purpose": "Checks conditional-warning source interpolation dependencies and one-cell fault isolation."
+    },
+    {
+      "file": "scripts/verify-exui-complex-cohort.test.cjs",
+      "id": "unit-complex-cohort",
+      "label": "Complex cohort",
+      "group": "evidence-admission",
+      "purpose": "Checks compiler caller cancellation and observed child termination at launch boundaries."
+    },
+    {
+      "file": "scripts/verify-exui-complex-email-observation.test.cjs",
+      "id": "unit-complex-email-observation",
+      "label": "Complex email observation",
+      "group": "domain-mechanisms",
+      "purpose": "Checks measured Complex journey observations, restored controls and honest missing CYA/validation data."
+    },
+    {
+      "file": "scripts/verify-exui-authorisation-read.test.cjs",
+      "id": "unit-authorisation-read",
+      "label": "Authorisation read",
+      "group": "domain-mechanisms",
+      "purpose": "Checks read-permission carrier preservation and actor-specific access/history controls."
+    },
+    {
+      "file": "scripts/verify-exui-authorisation-source.test.cjs",
+      "id": "unit-authorisation-source",
+      "label": "Authorisation source",
+      "group": "source-fixtures",
+      "purpose": "Checks fixed authorisation source/class inventory, shadow rejection and compiler closure identity."
+    },
+    {
+      "file": "scripts/verify-exui-authorisation-update.test.cjs",
+      "id": "unit-authorisation-update",
+      "label": "Authorisation update",
+      "group": "source-fixtures",
+      "purpose": "Checks update-permission carrier isolation and healthy creation/read controls before update attribution."
+    },
+    {
+      "file": "scripts/verify-exui-complex-admission-report.test.cjs",
+      "id": "unit-complex-admission-report",
+      "label": "Complex admission report",
+      "group": "report-delivery",
+      "purpose": "Checks separate Complex browser/mapping/source result units without overstating worker observations or dates."
+    },
+    {
+      "file": "scripts/verify-exui-complex-email-admission.test.cjs",
+      "id": "unit-complex-email-admission",
+      "label": "Complex email admission",
+      "group": "evidence-admission",
+      "purpose": "Checks exact Complex row admission and fixed source-byte replay without giving source dates unsupported meaning."
+    },
+    {
+      "file": "scripts/verify-harness-reporting.test.cjs",
+      "id": "unit-reporting",
+      "label": "Reporting",
+      "group": "report-delivery",
+      "purpose": "Checks retention of diagnostic JSON, JUnit and failure-terminal artifacts."
+    },
+    {
+      "file": "scripts/verify-harness-transform-benchmark.test.cjs",
+      "id": "unit-transform-benchmark",
+      "label": "Transform benchmark",
+      "group": "report-delivery",
+      "purpose": "Checks benchmark input identity, byte accounting, stable IDs and rejection of source drift."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-parent-context.test.cjs",
+      "id": "unit-st-cic-parent-context",
+      "label": "ST_CIC parent context",
+      "group": "evidence-admission",
+      "purpose": "Checks optional ST_CIC parent context before preparation and preservation of standalone no-credit status."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-assurance-sequence.test.cjs",
+      "id": "unit-st-cic-assurance-sequence",
+      "label": "ST_CIC assurance sequence",
+      "group": "report-delivery",
+      "purpose": "Checks serial optional ST_CIC assurance and the requirement for independently confirmed joint inclusion."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-ci-capture.test.cjs",
+      "id": "unit-st-cic-ci-capture",
+      "label": "ST_CIC CI capture",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks that ST_CIC preflight capture occurs only after explicit opt-in and trusted common capture."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-native-joint.test.cjs",
+      "id": "unit-st-cic-native-joint",
+      "label": "ST_CIC native joint",
+      "group": "evidence-admission",
+      "purpose": "Checks exact ST_CIC/main compatibility while keeping historical or standalone contexts separate."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-reader-integration.test.cjs",
+      "id": "unit-st-cic-reader-integration",
+      "label": "ST_CIC reader integration",
+      "group": "evidence-admission",
+      "purpose": "Checks the strict reader integration that counts only one ST_CIC requirement from a complete synthetic raw packet."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-profile-report.test.cjs",
+      "id": "unit-st-cic-profile-report",
+      "label": "ST_CIC profile report",
+      "group": "report-delivery",
+      "purpose": "Checks ST_CIC presentation aggregates, source-defined methods and strict public projection fields."
+    },
+    {
+      "file": "scripts/verify-harness-mandatory-email-report.test.cjs",
+      "id": "unit-mandatory-email-report",
+      "label": "Mandatory email report binding",
+      "group": "report-delivery",
+      "purpose": "Checks finite mandatory-email rows, phase timing and coverage admission bindings, including changed identities and rejected evidence."
+    },
+    {
+      "file": "scripts/verify-exui-st-cic-ownership.test.cjs",
+      "id": "unit-st-cic-ownership",
+      "label": "ST_CIC ownership",
+      "group": "evidence-admission",
+      "purpose": "Checks disjoint mutable ownership across main and ST_CIC cohorts while allowing immutable shared inputs."
+    },
+    {
+      "file": "scripts/verify-exui-self-check-evidence.test.cjs",
+      "id": "unit-self-check-evidence",
+      "label": "Self check evidence",
+      "group": "report-delivery",
+      "purpose": "Checks actual tiny Node summary collection, parent-inclusive counts and safe incomplete/failure handling."
+    },
+    {
+      "file": "scripts/verify-exui-build-self-check-integration.test.cjs",
+      "id": "unit-build-self-check-integration",
+      "label": "Build self check integration",
+      "group": "report-delivery",
+      "purpose": "Checks fresh same-Build held self-check evidence, source binding, configured workers and report readback integrity."
+    },
+    {
+      "file": "scripts/verify-harness-build-self-check-report.test.cjs",
+      "id": "unit-build-self-check-report",
+      "label": "Build self check report",
+      "group": "report-delivery",
+      "purpose": "Checks Build count/status/time disclosure, coherent tamper rejection and exact legacy retirement."
+    },
+    {
+      "file": "scripts/verify-exui-source-shape-capture.test.cjs",
+      "id": "unit-source-shape-capture",
+      "label": "Source shape capture",
+      "group": "source-fixtures",
+      "purpose": "Checks source-shape capture field selection and measurement without substituting expected DOM values."
+    },
+    {
+      "file": "scripts/verify-exui-mandatory-email-event-rows.test.cjs",
+      "id": "unit-mandatory-email-event-rows",
+      "label": "Mandatory email event rows",
+      "group": "source-fixtures",
+      "purpose": "Checks both mandatory-email source rows and isolation of each one-cell optional-field fault."
+    },
+    {
+      "file": "scripts/verify-exui-mandatory-email-event-observation.test.cjs",
+      "id": "unit-mandatory-email-event-observation",
+      "label": "Mandatory email event observation",
+      "group": "domain-mechanisms",
+      "purpose": "Checks mandatory-email baseline/empty/filled case identity and independent initial-state expectations."
+    },
+    {
+      "file": "scripts/verify-exui-mandatory-email-runtime.test.cjs",
+      "id": "unit-mandatory-email-runtime",
+      "label": "Mandatory email runtime",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks finite mandatory-email importer selection and rejection of mixed source/callback scenarios."
+    },
+    {
+      "file": "scripts/verify-exui-mandatory-email-cohort.test.cjs",
+      "id": "unit-mandatory-email-cohort",
+      "label": "Mandatory email cohort",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks fixed mandatory child commands, observed close and parent-owned cohort lifecycle."
+    },
+    {
+      "file": "scripts/verify-exui-mandatory-email-admission.test.cjs",
+      "id": "unit-mandatory-email-admission",
+      "label": "Mandatory email admission",
+      "group": "evidence-admission",
+      "purpose": "Checks full mandatory-email raw replay and exact two-row main-cohort admission."
+    },
+    {
+      "file": "scripts/verify-exui-mandatory-email-assurance.test.cjs",
+      "id": "unit-mandatory-email-assurance",
+      "label": "Mandatory email assurance orchestration",
+      "group": "report-delivery",
+      "purpose": "Checks opt-in mandatory-email orchestration, cancellation, captured evidence and report inclusion with controlled fixtures; no live execution."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-judge-domain.test.cjs",
+      "id": "unit-event-v3-judge-domain",
+      "label": "Event v3 judge domain",
+      "group": "evidence-admission",
+      "purpose": "Checks sealed judge-denial domain observations and exact effective fault replay without whole-chain authority."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-role-domain.test.cjs",
+      "id": "unit-event-v3-role-domain",
+      "label": "Event v3 role domain",
+      "group": "evidence-admission",
+      "purpose": "Checks role-domain sealed artifact membership and refusal to replace observation replay with a structured table."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-source-shape-domain.test.cjs",
+      "id": "unit-event-v3-source-shape-domain",
+      "label": "Event v3 source shape domain",
+      "group": "evidence-admission",
+      "purpose": "Checks double-pinned source-shape domain files and exact finite baseline/fault reference sets."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-source-shape-observations.test.cjs",
+      "id": "unit-event-v3-source-shape-observations",
+      "label": "Event v3 source shape observations",
+      "group": "domain-mechanisms",
+      "purpose": "Checks independent six-shape observations and rejection of ineffective or incorrectly attributed faults."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-policy-semantics.test.cjs",
+      "id": "unit-event-v3-policy-semantics",
+      "label": "Event v3 policy semantics",
+      "group": "evidence-admission",
+      "purpose": "Checks each finite v3 selector against current policy and the exact held source/fault identity."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-fault-semantics.test.cjs",
+      "id": "unit-event-v3-fault-semantics",
+      "label": "Event v3 fault semantics",
+      "group": "evidence-admission",
+      "purpose": "Checks one selected v3 fault replay without inferring complete chain or runtime acceptance."
+    },
+    {
+      "file": "scripts/verify-exui-ccd-event-transition-v3.test.cjs",
+      "id": "unit-ccd-event-transition-v3",
+      "label": "CCD event transition v3",
+      "group": "evidence-admission",
+      "purpose": "Checks ordered v3 baseline/fault captures, retirement boundaries and schema/pin rejection."
+    },
+    {
+      "file": "scripts/verify-exui-event-import-validation.test.cjs",
+      "id": "unit-event-import-validation",
+      "label": "Event import validation",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks fixed import validation metadata across baseline and all declared variants."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-judge-ui-capture.test.cjs",
+      "id": "unit-event-v3-judge-ui-capture",
+      "label": "Event v3 judge ui capture",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks judge UI capture of measured response, actor, text and visibility through a finite private saver."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-host-writer.test.cjs",
+      "id": "unit-event-v3-host-writer",
+      "label": "Event v3 host writer",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks v3 writer artifact groups, original file bytes and completion seals without fabricated foreign groups."
+    },
+    {
+      "file": "scripts/verify-exui-event-v3-controller.test.cjs",
+      "id": "unit-event-v3-controller",
+      "label": "Event v3 controller",
+      "group": "runtime-lifecycle",
+      "purpose": "Checks serial v3 controller acknowledgement/completion/retirement order and cancellation before the next fault."
+    },
+    {
+      "file": "scripts/verify-exui-business-scalar-detail.test.cjs",
+      "id": "unit-business-scalar-detail",
+      "label": "Business scalar report detail",
+      "group": "report-delivery",
+      "purpose": "Checks finite object-derived nested and IA scope scalar capture, sealed attachment identity, privacy, unavailable states and report readback; synthetic observations are not native acceptance."
+    },
+    {
+      "file": "scripts/verify-exui-cmc-profile.test.cjs",
+      "id": "unit-cmc-profile",
+      "label": "CMC jurisdiction profile",
+      "group": "evidence-admission",
+      "purpose": "Checks the source-backed CMC jurisdiction selection, its effective CMC-only fault, same-candidate admission and cleanup-gated blocked reporting without catalogue credit."
+    }
+  ]
+}

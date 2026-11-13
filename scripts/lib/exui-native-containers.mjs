@@ -156,6 +156,10 @@ function buildNativeContainerPlan(input, handoff, invocationId, toolsNamespace, 
     namespace = input.ccd?.namespace;
   const sessions = path.join(handoff.stateRoot, invocationId, "sessions"),
     diagnostics = path.join(handoff.stateRoot, invocationId, "diagnostics"),
+    candidateVolume = handoff.candidateVolume,
+    candidateMount = candidateVolume
+      ? { source: candidateVolume.name, target: "/candidate", writable: false, type: "volume" }
+      : planMount(candidateRoot, "/candidate", false),
     guard = path.join(
       handoff.stagedHarness,
       "scripts/lib/exui-runtime-network-guard.cjs",
@@ -163,13 +167,13 @@ function buildNativeContainerPlan(input, handoff, invocationId, toolsNamespace, 
   const toolsMounts = [
     planMount(handoff.stagedHarness, "/harness", false),
     planMount(dependenciesRoot, "/harness/node_modules", false),
-    planMount(candidateRoot, "/candidate", false),
+    candidateMount,
     planMount(output, "/output", true),
     planMount(input.browserRoot, "/browser", false),
     planMount(sessions, "/tmp/.sessions", true),
   ];
   const candidateMounts = [
-    planMount(candidateRoot, "/candidate", false),
+    candidateMount,
     planMount(sessions, "/tmp/.sessions", true),
     planMount(diagnostics, "/diagnostics", true),
     planMount(guard, "/harness-network-guard.cjs", false),
@@ -206,6 +210,7 @@ function buildNativeContainerPlan(input, handoff, invocationId, toolsNamespace, 
         native: true,
         namespace,
         releaseScopeId: input.releaseScopeId,
+        candidateVolume,
       }),
     },
     candidate: {
@@ -238,6 +243,7 @@ function buildNativeContainerPlan(input, handoff, invocationId, toolsNamespace, 
           releaseScopeId: input.releaseScopeId,
           evidenceRoot: output,
           harnessRoot: handoff.stagedHarness,
+          candidateVolume,
         }),
     },
     proofArguments: [

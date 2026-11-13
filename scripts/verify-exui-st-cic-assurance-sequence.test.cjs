@@ -1,0 +1,48 @@
+const test=require('node:test'),assert=require('node:assert/strict');
+const request=()=>({path:'/synthetic/st-cic/admission-request.json',digest:'sha256:'+'a'.repeat(64),runId:'st-cic-10000000-0000-4000-8000-000000000000'});
+const profileRequest=()=>({path:'/synthetic/divorce/admission-request.json',digest:'sha256:'+'b'.repeat(64),runId:'divorce-10000000-0000-4000-8000-000000000000'});
+const personalRequest=()=>({path:'/synthetic/personal/admission-request.json',digest:'sha256:'+'c'.repeat(64),runId:'personal-10000000-0000-4000-8000-000000000000'});
+const complexRequest=()=>({path:'/synthetic/complex/admission-request.json',digest:'sha256:'+'d'.repeat(64),runId:'complex-10000000-0000-4000-8000-000000000000'});
+async function sequence(overrides={}){
+ const {runAssuranceSequence}=await import(process.env.ST_CIC_SEQUENCE_TEST_MODULE??'./run-harness-assurance.mjs'),events=[],published=[],descriptors=[],collections=[];
+ const result=await runAssuranceSequence({native:async()=>{events.push('native');return {status:'PASS',exitCode:0,continuationSafe:true};},prepare:async()=>{events.push('prepare');},stCic:async()=>{events.push('st-cic');return {status:'passed',reportRequest:request(),private:'must not be returned'};},descriptor:async(...args)=>{events.push('descriptor');descriptors.push(args);return '/synthetic/native-request.json';},collect:async(...args)=>{events.push('collect');collections.push(args);return {status:'passed',exitCode:0,stCicProfileInclusion:'included'};},withdraw:()=>events.push('withdraw'),publish:value=>{events.push('publish');published.push(value);},...overrides});
+ return {result,events,published,descriptors,collections};
+}
+test('optional ST_CIC stage runs before descriptor and requires collector joint inclusion',async()=>{
+ const p=await sequence();assert.deepEqual(p.events,['native','prepare','st-cic','descriptor','collect','publish']);assert.equal(p.descriptors[0].length,5);assert.deepEqual(p.descriptors[0][4],request());assert.equal(p.result.stCicStatus,'PASS');assert.equal(p.result.exitCode,0);assert.equal(p.result.releaseApproval,false);assert.equal(p.result.private,undefined);assert.equal(p.published.length,1);
+});
+test('no optional ST_CIC preserves legacy descriptor arity status and collection behavior',async()=>{
+ const p=await sequence({stCic:undefined,collect:async()=>({status:'passed',exitCode:0})});assert.equal(p.descriptors[0].length,4);assert.deepEqual(p.result,{nativeStatus:'PASS',diagnosticStatus:'passed',exitCode:0,releaseApproval:false});assert(!p.events.includes('st-cic'));
+});
+test('ST_CIC follows each requested successful predecessor and forwards their independent pins',async()=>{
+ const order=[],p=await sequence({profile:async()=>{order.push('profile');return {status:'passed',reportRequest:profileRequest()};},personal:async()=>{order.push('personal');return {status:'passed',reportRequest:personalRequest()};},complex:async()=>{order.push('complex');return {status:'passed',reportRequest:complexRequest()};},stCic:async()=>{order.push('st-cic');return {status:'passed',reportRequest:request()};},collect:async()=>({status:'passed',exitCode:0,divorceProfileInclusion:'included',personalServiceInclusion:'included',complexEmailInclusion:'included',stCicProfileInclusion:'included'})});
+ assert.deepEqual(order,['profile','personal','complex','st-cic']);assert.deepEqual(p.descriptors[0].slice(1),[profileRequest(),personalRequest(),complexRequest(),request()]);assert.equal(p.result.exitCode,0);assert.equal(p.result.stCicStatus,'PASS');
+});
+test('failed missing foreign and unknown ST_CIC results stop before descriptor without fallback',async()=>{
+ const invalid=[undefined,null,[],{}, {status:'failed',reportRequest:request()},{status:'unknown',reportRequest:request()},{status:'passed'},{status:'passed',reportRequest:[]},...[
+ r=>{r.extra='private';},r=>{r.path='relative.json';},r=>{r.path='/synthetic/../foreign.json';},r=>{r.digest='foreign';},r=>{r.runId=profileRequest().runId;},r=>{r.runId=new String(r.runId);}
+ ].map(mutate=>{const reportRequest=request();mutate(reportRequest);return {status:'passed',reportRequest};})];
+ for(const result of invalid){const p=await sequence({stCic:async()=>result});assert.equal(p.result.stCicStatus,'BLOCKED');assert.equal(p.result.exitCode,2);assert.equal(p.descriptors.length,0);assert.equal(p.collections.length,0);assert.deepEqual(p.events,['native','prepare','withdraw','publish']);assert.equal(p.published.length,1);}
+ const p=await sequence({stCic:async()=>{throw Error('PRIVATE_STAGE_DIAGNOSTIC');}});assert.equal(p.result.stCicStatus,'BLOCKED');assert(!JSON.stringify(p.result).includes('PRIVATE_STAGE_DIAGNOSTIC'));
+});
+test('ineligible or failed predecessors never start ST_CIC or invent collector authority',async()=>{
+ for(const overrides of [{prepare:async()=>{throw Error('bad preparation');}},{profile:async()=>{throw Error('profile unclosed');}},{personal:async()=>{throw Error('personal unclosed');}},{complex:async()=>{throw Error('complex unclosed');}},{native:async()=>({status:'BLOCKED',exitCode:2,continuationSafe:false})}]){let starts=0;const p=await sequence({...overrides,stCic:async()=>{starts++;return {status:'passed',reportRequest:request()};}});assert.equal(starts,0);assert.equal(p.result.stCicStatus,'NOT_RUN');assert.equal(p.result.exitCode,2);assert.equal(p.descriptors.length,0);assert.equal(p.collections.length,0);assert.equal(p.published.length,1);}
+});
+test('cancellation before during or after ST_CIC prevents later stages and marks attempted work blocked',async()=>{
+ for(const when of ['before-native','prepare','stage','collector']){const controller=new AbortController();if(when==='before-native')controller.abort();let starts=0,descriptors=0,collections=0;
+  const p=await sequence({signal:controller.signal,prepare:async()=>{if(when==='prepare')controller.abort();},stCic:async signal=>{starts++;assert.equal(signal,controller.signal);if(when==='stage')controller.abort();return {status:'passed',reportRequest:request()};},descriptor:async()=>{descriptors++;return '/synthetic/native-request.json';},collect:async()=>{collections++;if(when==='collector')controller.abort();return {status:'passed',exitCode:0,stCicProfileInclusion:'included'};}});
+  assert.equal(p.result.exitCode,2);assert.equal(p.result.stCicStatus,starts?'BLOCKED':'NOT_RUN');assert.equal(p.published.length,1);if(when!=='collector'){assert.equal(descriptors,0);assert.equal(collections,0);}
+ }
+ const {runAssuranceSequence}=await import(process.env.ST_CIC_SEQUENCE_TEST_MODULE??'./run-harness-assurance.mjs'),controller=new AbortController();let release,started=false,done=false,later=0;const held=new Promise(resolve=>{release=resolve;});const running=runAssuranceSequence({signal:controller.signal,native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),stCic:async()=>{started=true;await held;return {status:'passed',reportRequest:request()};},descriptor:async()=>{later++;},collect:async()=>{later++;}}).then(value=>{done=true;return value;});while(!started)await new Promise(resolve=>setImmediate(resolve));controller.abort();await new Promise(resolve=>setImmediate(resolve));assert.equal(done,false);release();const result=await running;assert.equal(result.stCicStatus,'BLOCKED');assert.equal(later,0);
+});
+test('descriptor failure after ST_CIC has no weakened retry or diagnostics-only success',async()=>{
+ for(const descriptor of [async()=>{throw Error('bad descriptor');},async()=>undefined,async()=>'',async()=>'relative.json',async()=>'/synthetic/../foreign.json']){let calls=0;const p=await sequence({descriptor:async(...args)=>{calls++;assert.deepEqual(args[4],request());return descriptor();}});assert.equal(calls,1);assert.equal(p.result.stCicStatus,'BLOCKED');assert.equal(p.result.exitCode,2);assert.equal(p.collections.length,0);assert.equal(p.published.length,1);}
+});
+test('only independently reported included ST_CIC permits its PASS and combined zero',async()=>{
+ for(const inclusion of [undefined,'separate','foreign',true,{status:'included'}]){const p=await sequence({collect:async()=>({status:'passed',exitCode:0,stCicProfileInclusion:inclusion})});assert.equal(p.result.stCicStatus,'BLOCKED');assert.equal(p.result.exitCode,2);}
+ const failed=await sequence({collect:async()=>({status:'failed',exitCode:1,stCicProfileInclusion:'included'})});assert.equal(failed.result.exitCode,1);assert.equal(failed.result.stCicStatus,'PASS');const nativeBlocked=await sequence({native:async()=>({status:'BLOCKED',exitCode:2,continuationSafe:true})});assert.equal(nativeBlocked.result.exitCode,2);
+ const thrown=await sequence({collect:async()=>{throw Error('PRIVATE_COLLECTOR_ERROR');}});assert.equal(thrown.result.stCicStatus,'BLOCKED');assert.equal(thrown.result.exitCode,2);assert.equal(thrown.published.length,1);assert(!JSON.stringify(thrown.result).includes('PRIVATE_COLLECTOR_ERROR'));
+});
+test('request is independently cloned and elapsed uses actual parent clock rather than stage claims',async()=>{
+ let now=0,observedRequest;const supplied=request();const p=await sequence({clock:()=>now,native:async()=>{now+=7;return {status:'PASS',exitCode:0,continuationSafe:true};},stCic:async()=>{now+=23;return {status:'passed',durationMs:999999,reportRequest:supplied};},descriptor:async(...args)=>{observedRequest=args[4];supplied.path='/foreign/changed.json';now+=5;return '/synthetic/native-request.json';}});assert.notEqual(observedRequest,supplied);assert.deepEqual(observedRequest,request());assert.equal(p.collections[0][1].nativeElapsedMs,35);assert.equal(p.result.durationMs,undefined);assert.equal(p.result.stCicStatus,'PASS');
+});

@@ -5,6 +5,14 @@ const os = require("node:os");
 const path = require("node:path");
 const sha = (c) => "sha256:" + c.repeat(64);
 
+test('Docker Desktop bind source translation is accepted only for a declared macOS path', { skip: process.platform !== 'darwin' }, async () => {
+  const { assertOwnedContainerAuthority } = await import('./lib/exui-oci-runtime.mjs');
+  const expected = { owner: 'ccd-11111111-1111-4111-8111-111111111111', service: 'candidate', image: sha('a'), namespace: 'b'.repeat(64), mounts: [{ source: '/private/tmp/sealed', target: '/candidate', writable: false }] };
+  const info = { Name: `/${expected.owner}-baseline-candidate`, Image: expected.image, Config: { Labels: { 'exui.harness.owner': expected.owner, 'exui.harness.service': expected.service } }, HostConfig: { NetworkMode: `container:${expected.namespace}`, ReadonlyRootfs: true, Init: true, Privileged: false, PidMode: '', CapDrop: ['ALL'], SecurityOpt: ['no-new-privileges'], PidsLimit: 256, Memory: 4294967296, NanoCpus: 2000000000, PortBindings: {} }, Mounts: [{ Type: 'bind', Source: '/host_mnt/private/tmp/sealed', Destination: '/candidate', RW: false }] };
+  assert.doesNotThrow(() => assertOwnedContainerAuthority(info, expected));
+  assert.throws(() => assertOwnedContainerAuthority({ ...info, Mounts: [{ ...info.Mounts[0], Source: '/host_mnt/private/tmp/other' }] }, expected), /OCI_CONTAINER_MOUNT_MISMATCH/);
+});
+
 test("support only: native API gets sealed application and narrow state, with no evidence, source or Docker socket authority", async () => {
   const { candidateArchiveArguments } =
     await import("./lib/exui-oci-runtime.mjs");
@@ -819,6 +827,30 @@ test('every event policy mutation constructs both owned tools and candidate plan
  }
  assert.throws(()=>toolContainerArguments({...tools,invocationId:'ccd-shape-unknown'}),/UNSUPPORTED_OCI_INVOCATION/);
  assert.throws(()=>candidateArchiveArguments({...candidate,invocationId:'ccd-shape-unknown'}),/UNSUPPORTED_NATIVE_INVOCATION/);
+});
+test('candidate-volume experiment mounts only the owner-bound event input read-only', async t => {
+ const f=await eventOwnershipFixture(t), volume={name:`harness-candidate-${f.input.runId.slice(4)}`,owner:f.input.runId};
+ const {nativeContainerPlan}=await import('./lib/exui-native-containers.mjs');
+ const {nativeInvocations}=await import('./lib/exui-native-contract.mjs');
+ const handoff={...f.handoff,candidateVolume:volume};
+ for(const {invocationId} of nativeInvocations(f.input.releaseScopeId)){
+  for(const name of ['sessions','diagnostics'])fs.mkdirSync(path.join(f.handoff.stateRoot,invocationId,name),{recursive:true});
+  const plan=nativeContainerPlan(f.input,handoff,invocationId);
+  assert.deepEqual(plan.tools.mounts.find(item=>item.target==='/candidate'),{source:volume.name,target:'/candidate',writable:false,type:'volume'});
+  assert.deepEqual(plan.candidate.mounts.find(item=>item.target==='/candidate'),{source:volume.name,target:'/candidate',writable:false,type:'volume'});
+  assert(plan.tools.args.includes(`type=volume,src=${volume.name},dst=/candidate,readonly`));
+  assert(plan.candidate.arguments(f.input.ccd.namespace).includes(`type=volume,src=${volume.name},dst=/candidate,readonly`));
+ }
+ const foreign={...f.input,releaseScopeId:'exui-ccd-pilot'};
+ assert.throws(()=>nativeContainerPlan(foreign,handoff,'baseline'),/CANDIDATE_VOLUME_SCOPE_REQUIRED/);
+});
+test('parent recovery removes a run-owned candidate copy container before its volume', async () => {
+ const {cleanupOwnedCandidateVolume}=await import('./lib/exui-native-ci-ownership.mjs');
+ const owner='ccd-11111111-1111-4111-8111-111111111111',name='harness-candidate-11111111-1111-4111-8111-111111111111',image='sha256:'+'a'.repeat(64),sourceRoot='/private/tmp/candidate';
+ const copy={Name:`/${owner}-candidate-copy`,Id:'b'.repeat(64),Image:image,Config:{User:'',Labels:{'exui.harness.owner':owner,'exui.harness.service':'candidate-input-copy'},Entrypoint:['/bin/sh'],Cmd:['-ec','cp -a /source/. /candidate/ && chown -R "$1:$2" /candidate','volume-copy',String(process.getuid()),String(process.getgid())]},HostConfig:{NetworkMode:'none',ReadonlyRootfs:true,Privileged:false,PidsLimit:256,Memory:4294967296,NanoCpus:2000000000,PortBindings:{},Tmpfs:{'/tmp':'rw,nosuid,size=512m'},CapDrop:['ALL'],CapAdd:['CHOWN'],SecurityOpt:['no-new-privileges']},Mounts:[{Type:'bind',Source:sourceRoot,Destination:'/source',RW:false},{Type:'volume',Name:name,Destination:'/candidate',RW:true}]};
+ const volume={Name:name,Driver:'local',Labels:{'exui.harness.owner':owner,'exui.harness.service':'candidate-input'}},calls=[];let copyPresent=true,volumePresent=true;
+ const result=cleanupOwnedCandidateVolume(name,owner,{image,sourceRoot,inspectContainer:key=>copyPresent&&(key===`${owner}-candidate-copy`||key===copy.Id)?copy:null,removeContainer:()=>{calls.push('copy');copyPresent=false;},inspectVolume:()=>volumePresent?volume:null,removeVolume:()=>{calls.push('volume');volumePresent=false;}});
+ assert.deepEqual(calls,['copy','volume']);assert.deepEqual(result,{name,absent:false,removed:true});
 });
 test('callback policy pair constructs both owned plans and rejects foreign scope or event invocations',async t=>{
  const f=await eventOwnershipFixture(t);

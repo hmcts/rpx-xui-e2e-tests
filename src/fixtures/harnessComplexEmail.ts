@@ -134,11 +134,12 @@ export async function runComplexEmailText({page,playwright,variant,step}: {
       ]).toContain(validation.body.details.field_errors[0].message);
       await expect(cya).toBeHidden();
       await expect(input(page,'emailAddress',0)).toHaveClass(/govuk-input--error/);
+      const rejectedControls=await captureComplexEmailControls(page,addresses.length);
       expect(submissions.slice(startSubmissions)).toHaveLength(0);
       const after=await observe(caseId,'after');expect(after).toEqual(before);
       return {caseId,before,controls,validation,validationResponses,after,submissions:submissions.slice(startSubmissions),status:null,cyaRows:[],
         cya:{visible:await cya.isVisible(),rows:[]},restored:[],restoredControls:[],secondCya:null,
-        rejectedControls:await captureComplexEmailControls(page,addresses.length),outgoing:null,sent:null};
+        rejectedControls,outgoing:null,sent:null};
     }
     expect(validation.status).toBe(200);
     await expect(cya).toBeVisible();

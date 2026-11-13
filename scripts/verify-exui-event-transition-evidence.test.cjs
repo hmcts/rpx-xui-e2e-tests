@@ -68,6 +68,21 @@ test("mutant execution, actual manifest and one-cell derivation stay bound to th
 
 });
 
+test("API drift failure classification identifies the changed service without exposing the contract", async t => {
+  const { validateEventTransitionEvidence: validate } = await load();
+  const f = await fixture(t), loaded = await f.loaded();
+  const changedDigest = digest("0");
+  f.runtimeRecord.apiContracts = { ...f.runtimeRecord.apiContracts, data: changedDigest };
+  f.write();
+
+  assert.throws(
+    () => validate(f.directory, f.expected, loaded),
+    error => error.message.includes("EVENT_TRANSITION_API_DRIFT") &&
+      error.message.split("\n", 1)[0] === "EVENT_TRANSITION_API_DRIFT_DATA" &&
+      !error.message.includes("PRIVATE-CANARY"),
+  );
+});
+
 test("changed original input, missing baseline proof and rehashed imported permission drift cannot replay", async t => {
   const { validateEventTransitionEvidence: validate } = await load();
   assert.equal(typeof validate, "function");

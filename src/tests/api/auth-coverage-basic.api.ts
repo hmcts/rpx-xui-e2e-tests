@@ -26,8 +26,15 @@ test.describe('Auth helper coverage - basic utilities', { tag: '@svc-auth' }, ()
 
   test('extractCsrf parses token and returns undefined when missing', async () => {
     await test.step('harness-check:auth-basic-csrf', async () => {
-      expect(authTest.extractCsrf('<input name="_csrf" value="token">')).toBe('token');
-      expect(authTest.extractCsrf('<html></html>')).toBeUndefined();
+      // eslint-disable-next-line playwright/no-nested-step -- Preserve the reviewed parent stage while recording its actual assertion details.
+      await test.step('harness-detail:csrf-present', async () => {
+        expect(authTest.extractCsrf('<input name="_csrf" value="token">')).toBe('token');
+      });
+
+      // eslint-disable-next-line playwright/no-nested-step -- Child events do not add top-level method stages.
+      await test.step('harness-detail:csrf-absent', async () => {
+        expect(authTest.extractCsrf('<html></html>')).toBeUndefined();
+      });
     });
   });
 

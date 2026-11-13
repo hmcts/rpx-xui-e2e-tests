@@ -17,7 +17,7 @@ import { digestBytes, writeJsonAtomic } from "./exui-evidence-io.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
 import { validateEventCapabilityTransitionRequest } from "./exui-ccd-event-transition.mjs";
 import { writeCiPublicSummary } from "./exui-candidate-ci-inputs.mjs";
-import { cleanupNativeOwnership } from "./exui-native-ci-ownership.mjs";
+import { cleanupNativeOwnership, cleanupOwnedCandidateVolume } from "./exui-native-ci-ownership.mjs";
 import { captureCiOwnership } from "./exui-candidate-ci-evidence.mjs";
 import { terminateOwnedChild } from "./exui-candidate-runtime.mjs";
 const ROOT = path.resolve(
@@ -99,6 +99,8 @@ export function removeCiContainer(
   expected,
   {
     inspect = inspectContainer,
+    inspectVolume,
+    removeVolume,
     remove = (id) => command("docker", ["rm", "-f", id]),
   } = {},
 ) {
@@ -248,6 +250,8 @@ export async function cleanupCiPhase(
   context,
   {
     inspect = inspectContainer,
+    inspectVolume,
+    removeVolume,
     remove = (id) => command("docker", ["rm", "-f", id]),
     reconcileMs = 1000,
     terminate = terminateOwnedChild,
@@ -258,6 +262,21 @@ export async function cleanupCiPhase(
   });
   const handoff = path.join(resource.directory, "container-launch.json");
   if (!fs.existsSync(handoff)) {
+    const inputPath = path.join(resource.directory, "input.json");
+    if (fs.existsSync(inputPath)) {
+      const input = read(inputPath);
+      if (input.candidateVolumeExperiment === true) {
+        assert.equal(input.releaseScopeId, EVENT_CAPABILITY_SCOPE, "CI_CANDIDATE_VOLUME_SCOPE");
+        cleanupOwnedCandidateVolume(`harness-candidate-${input.runId.slice(4)}`, input.runId, {
+          ...(inspectVolume ? { inspectVolume } : {}),
+          ...(removeVolume ? { removeVolume } : {}),
+          image: input.browserRuntimeImage,
+          sourceRoot: input.artifact.candidateRoot,
+          inspectContainer: inspect,
+          removeContainer: remove,
+        });
+      }
+    }
     assert(terminal.observed === true && terminal.forced === false && terminal.cancelled !== true
       && (!terminal.started || (Number.isInteger(terminal.code) && !terminal.signal)), 'CI_NO_HANDOFF_TERMINATION_UNCERTAIN');
     return;
@@ -272,7 +291,7 @@ export async function cleanupCiPhase(
       resource.name,
     );
   if (expected.mode === "native-separate-api") {
-    await cleanupNativeOwnership(expected, { inspect, remove });
+    await cleanupNativeOwnership(expected, { inspect, remove, ...(inspectVolume ? { inspectVolume } : {}), ...(removeVolume ? { removeVolume } : {}) });
     assert(
       !terminal.forced,
       "CI_NATIVE_CONTROLLER_FORCED_TERMINATION_UNCERTAIN",

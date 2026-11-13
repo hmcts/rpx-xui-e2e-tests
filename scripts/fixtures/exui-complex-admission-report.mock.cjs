@@ -1,10 +1,11 @@
+const {reviewedCsrfDetailChildren}=require('./harness-reviewed-csrf-details.mock.cjs');
 // Fake presentation events use the independently reviewed literal IDs, not validator output.
 function reviewedFixtureSteps(test) {
   const path = require('node:path');
   const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
   const method = require('./harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
   if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
-  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:reviewedCsrfDetailChildren(id)}));
 }
 function admission() {
   const hash = 'sha256:' + 'a'.repeat(64);
@@ -42,8 +43,7 @@ async function renderReport(t, {attempt, complex} = {}) {
   const reporter = new Reporter({selection:'harness', complexEmailAttempt:attempt});
   if (complex) {
     const f = await require('./exui-native-report-packet.mock.cjs').fixture(t);
-    const {readNativeReportEvidence} = await import('../lib/exui-native-report-evidence.mjs');
-    reporter.nativeEvidence = await readNativeReportEvidence(f.descriptorPath);
+    await reporter.prepareNativeEvidence(f.descriptorPath);
     reporter.nativeEvidence.complexEmailAdmission = complex;
   }
   const tests = require('../harness-public-overview.cjs').profiles.harness.map((entry, index) => ({
