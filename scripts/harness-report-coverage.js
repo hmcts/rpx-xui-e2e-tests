@@ -4,6 +4,10 @@ if (window.jQuery)
     const root = document.getElementById("harness-overview");
     if (!root) return;
     const selects = [...root.querySelectorAll("[data-harness-filter]")];
+    const caseTypeLabels = new Map(
+      [...(selects.find(select => select.dataset.harnessFilter === "caseTypes")?.options || [])]
+        .map(option => [option.value, option.textContent]),
+    );
     const filter = () => {
       const values = Object.fromEntries(
         selects.map((select) => [select.dataset.harnessFilter, select.value]),
@@ -31,6 +35,7 @@ if (window.jQuery)
             ...new Set(visible.flatMap((row) => JSON.parse(row.dataset[key]))),
           ]
             .sort()
+            .map(value => key === "caseTypes" ? caseTypeLabels.get(value) || value : value)
             .join(", ");
         }
         const result = slice.querySelector("[data-slice-outcomes]");

@@ -819,6 +819,7 @@ test('slice filters explain zero matches and Clear filters restores populated sl
     const cells = { '[data-slice-services]': {}, '[data-slice-cases]': {}, '.harness-match-count': {}, '[data-slice-outcomes]': { replaceChildren() {}, append() {} } };
     return { row, querySelectorAll: () => [row], querySelector: selector => cells[selector] };
   };
+  selects[2].options = [{ value: 'not-case-specific', textContent: 'Not case-specific' }];
   const slices = [makeSlice('model', 'CIVIL', 'CIVIL'), makeSlice('framework', 'Shared Harness', 'not-case-specific')];
   const root = {
     querySelectorAll: selector => ({ '[data-harness-filter]': selects, '[data-harness-slice]': slices })[selector] || [],
@@ -834,6 +835,7 @@ test('slice filters explain zero matches and Clear filters restores populated sl
   selects[2].value = 'not-case-specific'; listeners.caseTypes();
   assert.equal(empty.hidden, false);
   listeners.clear(); assert.equal(empty.hidden, true); assert(slices.every(slice => !slice.row.hidden));
+  assert.equal(slices[1].querySelector('[data-slice-cases]').textContent, 'Not case-specific');
 });
 
 test("coverage map breaks out each unique AAT diagnostic by lane, slice, service, jurisdiction and case type", () => {
