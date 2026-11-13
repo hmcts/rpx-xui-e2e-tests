@@ -840,3 +840,20 @@ test('blocked profile attempts remain available to diagnostics when native captu
  publishAssuranceSummary({output},{},{exitCode:2,cmcProfileAttempt:attempt});
  const file=path.join(output,'private','assurance-profile-attempts.json');assert.equal(fs.statSync(file).mode&0o777,0o600);assert.deepEqual(JSON.parse(fs.readFileSync(file,'utf8')),{schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:attempt});
 });
+
+test('report collection failure retains completed blocked profile attempts for fallback reporting',async()=>{
+ const {runAssuranceSequence}=await api(),runId='mandatory-admission-00000000-0000-4000-8000-000000000001';
+ const cmcAttempt={schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_OBSERVATIONS'};
+ const frAttempt={schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_OBSERVATIONS'};
+ const result=await runAssuranceSequence({
+  native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),
+  prepare:async()=>({jobRunId:'ci-00000000-0000-4000-8000-000000000001'}),
+  mandatoryEmail:async()=>({admission:{status:'passed',runId},reportRequest:{path:'/private/request.json',digest:'sha256:'+'a'.repeat(64),runId}}),
+  cmcProfile:async()=>{throw Object.assign(Error(cmcAttempt.reason),{cmcProfileCleanupVerified:true,cmcProfileAttempt:cmcAttempt});},
+  frProfile:async()=>{throw Object.assign(Error(frAttempt.reason),{frProfileCleanupVerified:true,frProfileAttempt:frAttempt});},
+  descriptor:async()=>'/private/native.json',collect:async()=>{throw Error('REPORT_FAILURE');}
+ });
+ assert.equal(result.exitCode,2);assert.equal(result.diagnosticStatus,'incomplete');
+ assert.equal(result.cmcProfileStatus,'BLOCKED');assert.deepEqual(result.cmcProfileAttempt,cmcAttempt);
+ assert.equal(result.frProfileStatus,'BLOCKED');assert.deepEqual(result.frProfileAttempt,frAttempt);
+});

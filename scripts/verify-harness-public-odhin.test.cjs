@@ -156,7 +156,7 @@ test("diagnostics-only fallback report retains blocked CMC and FR profile outcom
     kind: "cmc-profile-attempt",
     status: "BLOCKED",
     reason: "CMC_PROFILE_OBSERVATIONS",
-    consumerRevision: "e47ccdf14eba61dce892bd49d9a460d55775f202",
+    consumerRevision: "1a986f4dc87e6ea4598e30c042bf2b3072122b75",
     diagnostic: {
       schemaVersion: 1,
       kind: "cmc-jurisdiction-filter-diagnostic",
@@ -1602,7 +1602,7 @@ test('blocked CMC profile observations are visible without catalogue credit',asy
  const reporter=new Reporter({selection:'harness',cmcProfileAttempt:attempt}),tests=overview.entries.map(entry=>({location:{file:path.join(root,entry.file)},titlePath:()=>entry.titlePath,retries:0,expectedStatus:'passed'}));reporter.onBegin({}, {allTests:()=>tests});const startTime=new Date('2026-11-05T12:00:00Z');for(const item of tests)reporter.onTestEnd(item,{...result('passed',tests.indexOf(item)),duration:1,startTime});await reporter.onEnd({status:'passed',startTime,duration:1000});
  const published=Reporter.validatePublicReport();assert.equal(published.tests,116);assert.equal(published.nativeEvidence,null);assert.deepEqual(published.cmcProfileAttempt,attempt);const html=fs.readFileSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.match(html,/CMC profile: blocked/);assert.match(html,/Observed on the candidate route/);assert.match(html,/Unexpected rows/);assert.match(html,/Source review of candidate e47ccdf/);assert.match(html,/response interceptor passes UTF-8 text/);assert.match(html,/filter returns non-array input unchanged/);assert.match(html,/source explanation, not additional runtime evidence/);assert.match(html,/earns no catalogue or release credit/);assert(!html.includes('releaseApproval":true'));
  const render=require('./harness-cmc-profile-report.cjs').renderCmcProfileAttempt;assert.throws(()=>render({...attempt,diagnostic:{...attempt.diagnostic,unexpectedIds:['PRIVATE-CANARY']}}),/CMC_ATTEMPT_INVALID/);assert.throws(()=>render({...attempt,accepted:1}),/CMC_ATTEMPT_INVALID/);
- assert.throws(()=>render({...attempt,consumerRevision:'f'.repeat(40)}),/CMC_ATTEMPT_INVALID/);
+ const newer=render({...attempt,consumerRevision:'f'.repeat(40)});assert.match(newer,/ffffffff/);assert.match(newer,/Observed on the candidate route/);assert(!newer.includes('Source review of candidate e47ccdf'));assert(!newer.includes('proxy response interceptor passes UTF-8 text'));assert.throws(()=>render({...attempt,consumerRevision:'invalid'}),/CMC_ATTEMPT_INVALID/);
  const faultAttempt={...attempt,reason:'CMC_PROFILE_FAULT_NOT_EFFECTIVE',diagnostic:{...attempt.diagnostic,reasonCode:'CMC_PROFILE_FAULT_NOT_EFFECTIVE',expectedIds:expectedIds.filter(id=>id!=='CMC'),unexpectedIds:['CMC','ST_CIC','UNREVIEWED']}};
  const faultHtml=render(faultAttempt);assert.match(faultHtml,/Expected jurisdiction rows after removing CMC/);assert.match(faultHtml,/CMC, ST_CIC, UNREVIEWED/);
   assert.throws(()=>render({...faultAttempt,diagnostic:{...faultAttempt.diagnostic,expectedIds,unexpectedIds:['ST_CIC','UNREVIEWED']}}),/CMC_ATTEMPT_INVALID/);
