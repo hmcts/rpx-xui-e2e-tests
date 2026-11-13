@@ -337,6 +337,32 @@ test('termination after tests leaves no finalized report and cannot authorize pr
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('promotion rejects matching but unregistered scope or policy identities', async () => {
+  const { loadRunEvidence, writeJsonAtomic } = await evidence();
+  const releasePolicy = await policy();
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-policy-consumer-'));
+  try {
+    const { runPath } = writeRunBundle(directory, releasePolicy);
+    const original = loadRunEvidence(runPath, releasePolicy).receipt;
+    for (const [label, changes, status] of [
+      ['registered', {}, 0],
+      ['unknown scope', { releaseScopeId: 'unregistered-exui-release' }, 2],
+      ['wrong registered policy', { policyDigest: 'sha256:' + '9'.repeat(64) }, 2],
+    ]) {
+      const receipt = { ...original, ...changes };
+      const receiptPath = path.join(directory, 'gate.json');
+      const expectedPath = path.join(directory, 'expected.json');
+      writeJsonAtomic(receiptPath, receipt);
+      const { verdict, schemaVersion, ...expected } = receipt;
+      expected.receiptArtifactDigest = hash(fs.readFileSync(receiptPath));
+      writeJsonAtomic(expectedPath, expected);
+      const result = spawnSync(process.execPath, [path.resolve('scripts/verify-exui-release-gate.mjs'), '--receipt', receiptPath, '--expected', expectedPath], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+      assert.equal(result.status, status, label);
+      assert.equal(result.stdout.trim(), `[harness-release-gate] ${status === 0 ? 'PASS' : 'BLOCKED'}`, label);
+    }
+  } finally { fs.rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('promotion verifies independent deployment identity and immutable receipt bytes', async () => {
   const { loadRunEvidence, writeJsonAtomic } = await evidence();
   const releasePolicy = await policy();
