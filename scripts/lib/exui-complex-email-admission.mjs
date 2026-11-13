@@ -53,6 +53,7 @@ export function readComplexNativeBinding(directory,expected,native){
  return binding;
 }
 export function validateComplexAdmissionContext(context){
+ if(Object.hasOwn(context.expected,'mandatoryEmailNativeBinding')){const ref=context.expected.mandatoryEmailNativeBinding;keys(ref,['path','digest']);assert.equal(ref.path,'private/mandatory-email-native-binding.json',fail);assert(/^sha256:[a-f0-9]{64}$/.test(ref.digest),fail);}
  keys(context,['native','capture','expected']);keys(context.capture,['binding','reference']);const {binding}=context.capture;
  assert.deepEqual(context.capture.reference,{path:COMPLEX_NATIVE_PATH,digest:digestBytes(JSON.stringify(binding,null,2)+'\n')},fail);
  keys(binding,['schemaVersion','kind','policy','contractDigest','nativeBindingDigest','ccdImages','sourceConfiguration']);assert.equal(binding.schemaVersion,1,fail);assert.equal(binding.kind,'complex-email-native-binding',fail);assert.equal(binding.policy,COMPLEX_ADMISSION_POLICY,fail);assert.equal(binding.contractDigest,complexAdmissionDigest(),fail);
@@ -90,7 +91,7 @@ export function replayComplexSource(expected){
  assert(!result.error&&result.status===0&&result.signal===null,'COMPLEX_SOURCE_REPLAY_FAILED');const value=JSON.parse(result.stdout);
  assert.deepEqual(value,{kind:'complex-email-source-replay',status:'PASS',applicationClasses:635,sourceFiles:560,compiledInputs:772,imageIndexDigest:commonImages.definition.id,sourceCommit:complexAdmissionContract().sourceProof.sourceCommit,...COMPLEX_FLAGS},fail);return value;
 }
-function withoutRequests(expected){const copy=structuredClone(expected);delete copy.divorceProfileRequest;delete copy.personalServiceRequest;delete copy.complexEmailRequest;return copy;}
+function withoutRequests(expected){const copy=structuredClone(expected);delete copy.divorceProfileRequest;delete copy.personalServiceRequest;delete copy.complexEmailRequest;delete copy.stCicProfileRequest;delete copy.mandatoryEmailRequest;return copy;}
 export function complexCohortCompatibility(context,expected){
  validateComplexAdmissionContext(context);const {native,capture}=context,separate=reason=>({policy:COMPLEX_ADMISSION_POLICY,status:'separate',reason});
  if(native.producer.commit!==expected.producer.commit)return separate('different-producer');

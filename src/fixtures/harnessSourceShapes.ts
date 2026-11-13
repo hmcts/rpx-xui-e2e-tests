@@ -5,6 +5,7 @@ import {
   openCcdEventCase, openServiceOfDocuments, submitServiceOfDocuments,
   saveCcdEventObservation, ccdEventPersonas, eventProofInputs, EVENT_SCOPE,
 } from './harnessCcdEvent';
+import { sourceShapeCapture, type SourceShapeCapture } from './harnessSourceShapeCapture';
 
 export const shapes = ['recipient-collection', 'case-field-recipient-selector', 'required-delivery-radio', 'conditional-email-complex', 'postal-recipient-name', 'optional-postal-line-two'] as const;
 const mutation = process.env.EXUI_HARNESS_MUTATION;
@@ -72,11 +73,12 @@ async function assertRecipientCollectionReadback(page: Page, values: {emailName:
     await expect(rows.nth(index).getByText(values[1-index].emailName,{exact:true})).toHaveCount(0);
   }
 }
-async function runRecipientCollection(page: Page, caseId: string, actor: unknown, before: Awaited<ReturnType<typeof observeCcd>>) {
+async function runRecipientCollection(page: Page, caseId: string, actor: unknown, before: Awaited<ReturnType<typeof observeCcd>>, capture: SourceShapeCapture) {
   const add = page.getByRole('button', {name:'Add new',exact:true});
   if (mutation) {
     await expect(page.getByLabel('Email',{exact:true})).toBeVisible();
     await expect(add).toHaveCount(0);
+    await capture.stage('singular-form',page);
     await page.getByLabel('Email',{exact:true}).check();
     await page.locator('input[id$="_emailName"]').fill('Synthetic singular recipient');
     await page.locator('input[id$="_emailAddress"]').fill('singular-recipient@harness.example.com');
@@ -84,7 +86,8 @@ async function runRecipientCollection(page: Page, caseId: string, actor: unknown
     await expect(page.getByText('Check your answers',{exact:false})).toBeVisible();
     await expect(page.getByText('Synthetic singular recipient',{exact:true})).toBeVisible();
     await expect(page.getByText('singular-recipient@harness.example.com',{exact:true})).toBeVisible();
-    expect((await submitServiceOfDocuments(page,caseId)).status()).toBe(201);
+    await capture.stage('singular-cya',page);
+    expect(capture.response('submit',await submitServiceOfDocuments(page,caseId)).status()).toBe(201);
     const after = await observeCcd(caseId);
     expect(after.state.case_data.sodAdditionalRecipientsList).toMatchObject({serveByPostOrEmail:'email',emailInformation:{emailName:'Synthetic singular recipient',emailAddress:'singular-recipient@harness.example.com'}});
     expect(after.state.case_data.protectedValue).toBe(control);
@@ -93,6 +96,7 @@ async function runRecipientCollection(page: Page, caseId: string, actor: unknown
     expect(after.history.filter((event: {id:string})=>event.id!=='serviceOfDocuments')).toEqual(before.history);
     expect(after.history.filter((event: {id:string})=>event.id==='serviceOfDocuments')).toHaveLength(1);
     saveCcdEventObservation('source-shape-recipient-collection',{shape:'recipient-collection',actor,caseId,before,after,singularComplex:true,contractSatisfied:false});
+    capture.save(process.env.EXUI_CCD_EVIDENCE!);
 
     await test.step('harness-assertion:source-shape-recipient-collection',async()=>{expect(Array.isArray(after.state.case_data.sodAdditionalRecipientsList)).toBe(true);});
 
@@ -111,7 +115,8 @@ async function runRecipientCollection(page: Page, caseId: string, actor: unknown
   await page.getByRole('button',{name:'Continue',exact:true}).click();
   await expect(page.getByText('Check your answers',{exact:false})).toBeVisible();
   await assertRecipientCollectionReadback(page,values);
-  expect((await submitServiceOfDocuments(page,caseId)).status()).toBe(201);
+  await capture.stage('collection-cya',page);
+  expect(capture.response('submit',await submitServiceOfDocuments(page,caseId)).status()).toBe(201);
   const after = await observeCcd(caseId);
   const recipients = after.state.case_data.sodAdditionalRecipientsList;
   expect(recipients).toHaveLength(2);
@@ -126,10 +131,14 @@ async function runRecipientCollection(page: Page, caseId: string, actor: unknown
   expect(after.state.version).toBe(before.state.version+1);
   expect(after.history.filter((event: {id:string})=>event.id!=='serviceOfDocuments')).toEqual(before.history);
   expect(after.history.filter((event: {id:string})=>event.id==='serviceOfDocuments')).toHaveLength(1);
-  expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
+  expect(capture.response('collection-reopened',await openCcdEventCase(page,caseId)).status()).toBe(200);
   await assertRecipientCollectionReadback(page,values);
-  expect(await observeCcd(caseId)).toEqual(after);
+  await capture.stage('collection-reopened',page);
+  const reopenedObservation = await observeCcd(caseId);
+  expect(reopenedObservation).toEqual(after);
+  capture.readback('collection-reopened',reopenedObservation);
   saveCcdEventObservation('source-shape-recipient-collection',{shape:'recipient-collection',actor,caseId,before,after,contractSatisfied:true});
+  capture.save(process.env.EXUI_CCD_EVIDENCE!);
 
   await test.step('harness-assertion:source-shape-recipient-collection',async()=>{expect(recipients).toHaveLength(2);});
 }
@@ -156,12 +165,17 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     const actor = (await details.json()).userInfo;
     expect(actor.id ?? actor.uid).toBe(personas.credentials.courtadmin.userId);
     expect([...actor.roles].sort()).toEqual(roles);
-    expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
+    const capture = sourceShapeCapture(shape,actor,caseId,mutation);
+    capture.response('bootstrap',bootstrap.created);
+    capture.response('user-details',details);
+    expect(capture.response('case-opened',await openCcdEventCase(page,caseId)).status()).toBe(200);
     await expect(page.getByText(control,{exact:true})).toBeVisible();
-    expect((await openServiceOfDocuments(page,caseId)).status()).toBe(200);
+    await capture.stage('case-opened',page);
+    expect(capture.response('event-opened',await openServiceOfDocuments(page,caseId)).status()).toBe(200);
     await page.getByLabel('Additional recipients (optional)',{exact:true}).check();
+    await capture.stage('event-opened',page);
     if (shape === 'recipient-collection') {
-      await runRecipientCollection(page, caseId, actor, before);
+      await runRecipientCollection(page, caseId, actor, before, capture);
       return;
     }
     await page.getByRole('button',{name:'Add new',exact:true}).last().click();
@@ -181,13 +195,16 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
 
     if (shape === 'required-delivery-radio') {
       await assertSourceShapeRadioLabel(page, Boolean(mutation));
+      await capture.stage('radio-unselected',page);
       await continueButton.click();
       if (mutation) {
         // The missing required selection must genuinely reach CYA and persist.
         await expect(cya).toBeVisible();
+        await capture.stage('first-continue',page);
       } else {
         await expect(cya).toHaveCount(0);
         await expect(page.locator('.error-summary, .govuk-error-summary')).toBeVisible();
+        await capture.stage('first-continue',page);
         contractSatisfied = true;
         await email.check();
         await expect(name).toHaveAccessibleName(/Name/);
@@ -195,6 +212,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
         await name.fill(emailName);
         await address.fill(emailAddress);
         expectedChannel = 'email';
+        await capture.stage('email-filled',page);
         await continueButton.click();
       }
     } else if (shape === 'case-field-recipient-selector') {
@@ -203,14 +221,17 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       await name.fill(emailName);
       await address.fill(emailAddress);
       expectedChannel = 'email';
+      await capture.stage('email-filled',page);
     } else if (shape === 'conditional-email-complex') {
       await email.check();
       if (mutation) {
         await assertSourceShapeHiddenControls(name, address);
+        await capture.stage('email-selected',page);
         await post.check();
         const visibleFaultNames = page.locator('input[id$="_emailName"]:visible');
         const visibleFaultAddresses = page.locator('input[id$="_emailAddress"]:visible');
         await expect(visibleFaultNames).toHaveCount(await visibleFaultAddresses.count());
+        await capture.stage('post-selected',page);
         if (await visibleFaultNames.count()) {
           await expect(visibleFaultNames).toHaveCount(1);
           await visibleFaultNames.fill('Synthetic fault email recipient');
@@ -224,26 +245,34 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
         const complex = page.locator('div.form-group[id$="_emailInformation"]');
         await expect(complex).toHaveCount(1);
         expect((await complex.locator(':scope > fieldset > legend').allTextContents()).join('').trim()).toBe('');
+        await capture.stage('email-selected',page);
         await post.check();
         await assertSourceShapeHiddenControls(name, address);
+        await capture.stage('post-selected',page);
         await email.check();
         await expect(name).toHaveAccessibleName(/Name/);
         await assertControlOrder([email,name,address]);
+        await capture.stage('email-returned',page);
         await name.fill(emailName);
         await address.fill(emailAddress);
+        await capture.stage('email-filled',page);
         contractSatisfied = true;
         expectedChannel = 'email';
       }
     } else if (shape === 'postal-recipient-name') {
       await email.check();
       await assertSourceShapeHiddenControls(postalName);
+      await capture.stage('email-selected',page);
       await post.check();
       await expect(postalName).toBeVisible();
+      await capture.stage('post-selected',page);
       expectedChannel = 'post';
     } else {
       await email.check();
       await assertSourceShapeHiddenControls(line2);
+      await capture.stage('email-selected',page);
       await post.check();
+      await capture.stage('post-selected',page);
       expectedChannel = 'post';
     }
     if (expectedChannel === 'post') {
@@ -260,6 +289,7 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       postalLabel=await assertSourceShapePostalLabel(line2,shape === 'optional-postal-line-two' && Boolean(mutation));
       await assertControlOrder([page.locator('input[id$="AddressLine1"]'),line2,page.locator('input[id$="PostCode"]')]);
       await line2.fill('');
+      await capture.stage('post-filled',page);
       await continueButton.click();
       if (shape === 'optional-postal-line-two') {
         contractSatisfied = postalLabel === 'Address Line 2 (Optional)';
@@ -268,7 +298,8 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
       await continueButton.click();
     }
     await expect(cya).toBeVisible();
-    const submitted = await submitServiceOfDocuments(page,caseId);
+    await capture.stage('cya',page);
+    const submitted = capture.response('submit',await submitServiceOfDocuments(page,caseId));
     expect(submitted.status()).toBe(201);
     const after = await observeCcd(caseId);
     expect(after.state.state).toBe(before.state.state);
@@ -299,14 +330,17 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
 
     let filledObservation;
     if (shape === 'optional-postal-line-two') {
-      expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
-      expect((await openServiceOfDocuments(page,caseId)).status()).toBe(200);
+      expect(capture.response('line2-case-reopened',await openCcdEventCase(page,caseId)).status()).toBe(200);
+      expect(capture.response('line2-event-reopened',await openServiceOfDocuments(page,caseId)).status()).toBe(200);
       await expect(line2).toBeVisible();
       await assertSourceShapePostalLabel(line2,Boolean(mutation));
+      await capture.stage('line2-reopened',page);
       await line2.fill(optionalValue);
+      await capture.stage('line2-filled',page);
       await continueButton.click();
       await expect(cya).toBeVisible();
-      expect((await submitServiceOfDocuments(page,caseId)).status()).toBe(201);
+      await capture.stage('second-cya',page);
+      expect(capture.response('second-submit',await submitServiceOfDocuments(page,caseId)).status()).toBe(201);
       filledObservation = await observeCcd(caseId);
       const filledRecipients = filledObservation.state.case_data.sodAdditionalRecipientsList;
       expect(filledRecipients).toHaveLength(1);
@@ -324,12 +358,14 @@ export async function runSourceShape(shape: (typeof shapes)[number], page: Page,
     }
 
     if (shape === 'case-field-recipient-selector') {
-      expect((await openCcdEventCase(page,caseId)).status()).toBe(200);
+      expect(capture.response('selector-reopened',await openCcdEventCase(page,caseId)).status()).toBe(200);
       await expect(page.getByText(mutation ? 'Harness changed recipient selector' : 'Select additional recipients who needs to be served', {exact:true})).toBeVisible();
       contractSatisfied = !mutation;
+      await capture.stage('selector-reopened',page);
     }
 
     saveCcdEventObservation(`source-shape-${shape}`,{shape,actor,caseId,before,after,filledObservation,postalLabel,contractSatisfied});
+    capture.save(process.env.EXUI_CCD_EVIDENCE!);
 
     await test.step(`harness-assertion:source-shape-${shape}`,async () => {
       expect(contractSatisfied).toBe(true);

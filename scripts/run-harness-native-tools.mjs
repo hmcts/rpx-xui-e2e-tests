@@ -17,6 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { createHmac } from "node:crypto";
+import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import {
   nativeInvocation,
@@ -50,6 +51,47 @@ import { startGlobalSearchProviders } from "./lib/exui-global-search-provider.mj
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 const arg = (name) => process.argv[process.argv.indexOf(name) + 1];
+const providerInitializationSteps = [
+  "harness-source-validation",
+  "dependency-seal",
+  "browser-seal",
+  "candidate-seal",
+  "candidate-identity",
+  "configuration-source-validation",
+  "ccd-contract-validation",
+  "persona-session-preparation",
+  "gateway-startup",
+];
+
+export async function timeProviderInitializationStep(records, step, action, clock = () => performance.now()) {
+  let started;
+  try { started = clock(); } catch { /* Timing is diagnostic only. */ }
+  let status = "completed";
+  try {
+    return await action();
+  } catch (error) {
+    status = "failed";
+    throw error;
+  } finally {
+    if (started !== undefined) {
+      try {
+        records.push({ step, status, durationMs: Math.max(0, Math.round(clock() - started)) });
+      } catch { /* Timing is diagnostic only. */ }
+    }
+  }
+}
+
+export function providerInitializationDiagnostic(records) {
+  const byStep = new Map(records.map((record) => [record.step, record]));
+  const steps = providerInitializationSteps.flatMap((step) => byStep.has(step) ? [byStep.get(step)] : []);
+  return {
+    schemaVersion: 1,
+    proofAuthority: false,
+    catalogueCredit: false,
+    status: steps.some((step) => step.status === "failed") ? "failed" : steps.length === providerInitializationSteps.length ? "complete" : steps.length ? "partial" : "not-run",
+    steps,
+  };
+}
 
 export function validateApplicantResultsInput(input, invocation, directory) {
   assert.equal(input.variant, invocation.mutation ?? 'baseline', 'APPLICANT_RESULTS_VARIANT');
@@ -65,43 +107,54 @@ export function validateApplicantResultsInput(input, invocation, directory) {
 }
 
 async function providers(input, invocation, directory) {
-  const source = digestBytes(
-    JSON.stringify(
-      input.harnessSources.map((file) => [
-        file,
-        digestBytes(fs.readFileSync(path.join(root, file))),
-      ]),
-    ),
-  );
-  assert.equal(
-    source,
-    input.harnessSourceDigest,
-    "HARNESS_SOURCE_SNAPSHOT_MISMATCH",
-  );
+  const timings = input.releaseScopeId === EVENT_CAPABILITY_SCOPE ? [] : null;
+  const time = (step, action) => timings ? timeProviderInitializationStep(timings, step, action) : action();
+  const saveTimings = () => {
+    if (!timings) return;
+    try {
+      writeJsonAtomic(path.join(directory, "provider-initialization-timings.json"), providerInitializationDiagnostic(timings));
+    } catch { /* Timing is diagnostic only. */ }
+  };
+  try {
+  const source = await time("harness-source-validation", () => {
+    const digest = digestBytes(
+      JSON.stringify(
+        input.harnessSources.map((file) => [
+          file,
+          digestBytes(fs.readFileSync(path.join(root, file))),
+        ]),
+      ),
+    );
+    assert.equal(digest, input.harnessSourceDigest, "HARNESS_SOURCE_SNAPSHOT_MISMATCH");
+    return digest;
+  });
   let artifact;
   const [dependencySeal, browserSeal, candidateSeal] = await Promise.allSettled([
-    verifyHarnessDependencies(
+    time("dependency-seal", () => verifyHarnessDependencies(
       "/harness/node_modules",
       path.join(root, "package.json"),
       path.join(root, "yarn.lock"),
       input.harnessDependencies.digest,
-    ),
-    digestCandidateTree("/browser"),
-    (async () => {
+    )),
+    time("browser-seal", async () => {
+      const digest = await digestCandidateTree("/browser");
+      assert.equal(digest, input.browserDigest, "BROWSER_ARTIFACT_MISMATCH");
+      return digest;
+    }),
+    time("candidate-seal", async () => {
       artifact = selectedArtifact(input, invocation);
       return describeCandidateArtifact("/candidate", artifact.provenance);
-    })(),
+    }),
   ]);
   if (dependencySeal.status === "rejected") throw dependencySeal.reason;
   if (browserSeal.status === "rejected") throw browserSeal.reason;
-  assert.equal(browserSeal.value, input.browserDigest, "BROWSER_ARTIFACT_MISMATCH");
   if (candidateSeal.status === "rejected") throw candidateSeal.reason;
   const observed = candidateSeal.value;
-  assertRuntimeIdentity(artifact.identity, observed.identity);
-  assertCandidateConfigurationSources(
+  await time("candidate-identity", () => assertRuntimeIdentity(artifact.identity, observed.identity));
+  await time("configuration-source-validation", () => assertCandidateConfigurationSources(
     "/candidate",
     read(path.join(root, "scripts/fixtures/exui-configuration-review.json")),
-  );
+  ));
   let server, cookie;
   if (input.releaseScopeId === GLOBAL_SEARCH_SCOPE) {
     ({ server, cookie } = await startGlobalSearchProviders(directory));
@@ -121,6 +174,7 @@ async function providers(input, invocation, directory) {
     );
     ({ server, cookie } = await startRoutingProviders(directory));
   } else if (["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, APPLICANT_RESULTS_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(input.releaseScopeId)) {
+    await time("ccd-contract-validation", async () => {
     for (const [service, port] of [
       ["data", 4452],
       ["definition", 4451],
@@ -159,24 +213,28 @@ async function providers(input, invocation, directory) {
       assert(pages.ok, "CALLBACK_NATIVE_PAGES_REQUIRED");
       assert.equal(digestBytes(JSON.stringify(canonicalRecipientCallbackPages(await pages.json()))), input.definition.observedPagesDigest, "CALLBACK_NATIVE_PAGES_DRIFT");
     }
-    const credentials = { ...input.credentials };
+    });
+    let credentials, sessions;
+    await time("persona-session-preparation", async () => {
+    credentials = { ...input.credentials };
     if (input.releaseScopeId === "exui-ccd-pilot" && (!invocation.mutation || invocation.mutation === "ccd-stale-revoked-bearer"))
       credentials.transitioning = await provisionRoleTransitionActor({
         serviceAuthorization: input.credentials.allowed.headers.ServiceAuthorization,
       });
-    const sessions = input.releaseScopeId === APPLICANT_RESULTS_SCOPE
+    sessions = input.releaseScopeId === APPLICANT_RESULTS_SCOPE
       ? {allowed:seedCcdSession('allowed',credentials.allowed)}
       : seedAppCcdSessions(credentials, seedCcdSession, input.releaseScopeId);
-    cookie = sessions.allowed;
     writeJsonAtomic(path.join(directory, "personas.json"), {
       credentials,
       sessions,
     });
-    server = await startCcdGateway(
+    });
+    cookie = sessions.allowed;
+    server = await time("gateway-startup", () => startCcdGateway(
       directory,
       credentials,
       ...nativeCcdGatewayArguments(input, invocation),
-    );
+    ));
   } else {
     const assignments = invocation.persona
       ? scopeRoleAssignments(invocation.persona.toUpperCase())
@@ -185,6 +243,7 @@ async function providers(input, invocation, directory) {
     const persona = seedSyntheticSession(assignments);
     cookie = `s:${persona.id}.${createHmac("sha256", "synthetic-session-value").update(persona.id).digest("base64").replace(/=+$/, "")}`;
   }
+  saveTimings();
   writeJsonAtomic(path.join(directory, "provider-ready.json"), {
     cookie,
     sourceDigest: source,
@@ -200,6 +259,10 @@ async function providers(input, invocation, directory) {
       process.exit(0);
     });
   });
+  } catch (error) {
+    saveTimings();
+    throw error;
+  }
 }
 export function nativeCcdGatewayArguments(input, invocation) {
   return [

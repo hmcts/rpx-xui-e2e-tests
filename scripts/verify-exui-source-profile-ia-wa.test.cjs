@@ -138,6 +138,7 @@ async function controller(t, extraMutation = false) {
   const artifactPath=path.join(parent,'artifact.json');fs.writeFileSync(artifactPath,JSON.stringify(artifact));
   const output=path.join(parent,'output'),image='sha256:'+'c'.repeat(64),seen=[];let resourceId=0;
   const result=await runSourceProfileFeasibility({artifactPath,output,facet:'ia-wa-positive'},{
+    inspectOwner:()=>null,
     verifyArtifact:async()=>structuredClone(artifact),inspectRuntime:()=>({imageId:image,platform:'linux/arm64'}),
     configuration:(_root,mutation)=>{const config={waSupportedJurisdictions:mutation?'CIVIL':'IA,CIVIL',feature:{workAllocationEnabled:false}};if(extraMutation&&mutation)config.feature.workAllocationEnabled=true;return{config,digest:digestBytes(JSON.stringify(config)),contract:{mutation}};},
     runInvocation:async(spec,{resources})=>{
@@ -163,6 +164,16 @@ test('controller selects isolated membership pair and preserves source WA=false 
   assert.equal(result.cleanup.complete,true);assert.equal(result.privateStateRemoved,true);
   assert.equal(result.cleanup.containers.length,4);
   for(const key of ['runtimeAcceptance','catalogueCredit','wholeProfileSatisfied','releaseCredit'])assert.equal(result[key],false);
+});
+test('an occupied IA owner rejects before artifact verification or invocation',async()=>{
+  const {runSourceProfileFeasibility}=await import('./run-harness-source-profile-jurisdictions.mjs');
+  let inspections=0;
+  await assert.rejects(runSourceProfileFeasibility({facet:'ia-wa-positive'},{
+    inspectOwner:()=>{inspections++;return {Id:'occupied-test-container'};},
+    verifyArtifact:async()=>assert.fail('artifact verification must not start'),
+    runInvocation:async()=>assert.fail('runtime must not start'),
+  }),/SOURCE_PROFILE_OWNER_NOT_FRESH/);
+  assert.equal(inspections,1);
 });
 test('controller rejects a IA removal fault that also enables WA before launching runtime',async t=>{
   const {result,seen}=await controller(t,true);assert.deepEqual(seen,[]);

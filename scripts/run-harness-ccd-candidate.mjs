@@ -38,6 +38,10 @@ const arg = (key) => {
 };
 async function launch() {
   const releaseScopeId = arg("--scope") ?? "exui-ccd-pilot";
+  const candidateVolumeExperiment = process.argv.includes("--candidate-volume-experiment");
+  assert(process.argv.filter(value => value.startsWith("--candidate-volume-experiment")).every(value => value === "--candidate-volume-experiment") && process.argv.filter(value => value === "--candidate-volume-experiment").length <= 1 && (!candidateVolumeExperiment || releaseScopeId === EVENT_CAPABILITY_SCOPE), "CANDIDATE_VOLUME_EXPERIMENT_SCOPE");
+  const eventSerialV3=process.argv.includes('--event-serial-v3');
+  assert(process.argv.filter(arg=>arg.startsWith('--event-serial-v3')).every(arg=>arg==='--event-serial-v3')&&process.argv.filter(arg=>arg==='--event-serial-v3').length<=1&&(!eventSerialV3||releaseScopeId===EVENT_CAPABILITY_SCOPE),'EVENT_V3_OPT_IN_SCOPE');
   if (!["exui-ccd-pilot", EVENT_CAPABILITY_SCOPE, CALLBACK_SCOPE, SELECTOR_EVENT_SCOPE, SHARED_NESTED_SCOPE].includes(releaseScopeId))
     throw new Error("UNKNOWN_CCD_SCOPE");
   if (releaseScopeId === SELECTOR_EVENT_SCOPE && arg("--only")) throw new Error("COMPLETE_SELECTOR_SCOPE_REQUIRED");
@@ -188,6 +192,7 @@ async function launch() {
     artifact,
     browserRoot,
     releaseScopeId,
+    ...(candidateVolumeExperiment ? { candidateVolumeExperiment: true } : {}),
     ccd,
     credentials,
     definition,
@@ -210,6 +215,7 @@ async function launch() {
     harnessSources,
     harnessSourceDigest,
     runId,
+    ...(eventSerialV3?{eventSerialV3:{schemaVersion:3,experimental:true}}:{}),
     only: arg("--only"),
   });
   fs.chmodSync(`${output}/input.json`, 0o600);
@@ -223,14 +229,15 @@ async function launch() {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.copyFileSync(path.join(root, file), target);
   }
-  const verdict = await runNativeHostPhase(output, stagedHarness);
+  const verdict = await runNativeHostPhase(output, stagedHarness, {eventSerialV3});
   process.exitCode = verdict.exitCode;
-  console.log(`Candidate evidence: ${output}`);
+  if(eventSerialV3)console.log('Experimental event chain finished; no admission or release credit.');
+  else console.log(`Candidate evidence: ${output}`);
 }
 try {
   await launch();
 } catch (error) {
   console.error(nativeFailurePrefix + JSON.stringify(classifyNativeFailure(error)));
-  console.error(`BLOCKED: ${error.message}`);
+  console.error(process.argv.includes('--event-serial-v3')?'EVENT_V3_HOST_FAILED':`BLOCKED: ${error.message}`);
   process.exitCode = 2;
 }

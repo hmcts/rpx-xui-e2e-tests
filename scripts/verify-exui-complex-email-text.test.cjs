@@ -213,3 +213,38 @@ test('unobserved feasibility host stop retains ownership and prevents CCD or wor
  assert(!observed.calls.includes('cleanup'));assert.equal(observed.receipt.nativeCleanupComplete,false);assert.equal(observed.receipt.cleanup.cleanupComplete,false);
  assert.equal(observed.receipt.status,'cleanup-uncertain');assert.equal(observed.workspaceExists,true);
 });
+
+test('Complex rejection captures actual field-error controls before observer work changes the DOM',async()=>{
+ const {stripTypeScriptTypes}=require('node:module');
+ const source=stripTypeScriptTypes(fs.readFileSync(path.join(__dirname,'../src/fixtures/harnessComplexEmail.ts'),'utf8'));
+ const inputSource=source.slice(source.indexOf('const input ='),source.indexOf('const observerStateFields='));
+ const realInput=new Function(inputSource+';return input;')();
+ const captureStart=source.indexOf('export async function captureComplexEmailControls('),captureEnd=source.indexOf('export async function runComplexEmailText(',captureStart);
+ assert(captureStart>=0&&captureEnd>captureStart);
+ const capture=new Function('input',source.slice(captureStart,captureEnd).replace(/^export /,'')+';return captureComplexEmailControls;')(realInput);
+ const branchStart=source.indexOf('    if(reject) {'),branchEnd=source.indexOf('    expect(validation.status).toBe(200);',branchStart);
+ assert(branchStart>=0&&branchEnd>branchStart);
+ const branch=source.slice(branchStart,branchEnd),AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+ async function run(mode='healthy'){
+  const events=[],addresses=['not-an-email','healthy@example.test'],all=[],elements=new Map();
+  for(let index=0;index<2;index++)for(const field of ['emailName','emailAddress']){
+   const element={id:`recipients_${index}_${field}`,type:field==='emailAddress'?'email':'text',value:field==='emailAddress'?addresses[index]:`Synthetic contact probe ${index+1}`,labels:[{textContent:field==='emailAddress'?'Email address':'Name'}],classList:field==='emailAddress'&&index===0&&mode!=='initial-class-missing'?['govuk-input--error']:[]};
+   all.push(element);elements.set(`${field}:${index}`,element);
+  }
+  for(const element of all)element.ownerDocument={querySelectorAll:()=>all};
+  const first=elements.get('emailAddress:0');
+  const locator=(field,index)=>({evaluate:async fn=>{events.push(`capture:${field}:${index}`);return fn(elements.get(`${field}:${index}`));},count:async()=>field==='postalName'?0:1,isHidden:async()=>true,isVisible:async()=>true});
+  const page={locator:selector=>({nth:index=>locator(selector.includes('_emailAddress')?'emailAddress':selector.includes('_emailName')?'emailName':'postalName',index)}),getByLabel:name=>({nth:index=>({isChecked:async()=>name==='Email',getAttribute:async()=>`${name}-${index}`,inputValue:async()=>name.toLowerCase()})})};
+  const expect=value=>({toBe:expected=>assert.equal(value,expected),toHaveLength:n=>assert.equal(value.length,n),toContain:item=>assert(value.includes(item)),toEqual:expected=>assert.deepEqual(value,expected),toBeHidden:async()=>assert.equal(value.visible,false),toHaveClass:async pattern=>{events.push('field-error-assertion');assert.match(first.classList.join(' '),pattern);}});
+  const before={state:{version:1},history:[]},caseId='1234567890123456',controls=await capture(page,2);events.length=0;
+  const validation={status:mode==='wrong-status'?200:422,body:{details:{field_errors:[{id:mode==='wrong-leaf'?'foreign.leaf':'sodAdditionalRecipientsList.0.emailInformation.emailAddress',message:'not-an-email is not a valid Email address'}]}}};
+  const context={reject:true,expect,validation,validationResponses:[validation],addresses,page,input:realInput,captureComplexEmailControls:capture,submissions:mode==='post-attempt'?['/data/cases/'+caseId+'/events']:[],startSubmissions:0,before,caseId,controls,cya:{visible:mode==='cya-reached',isVisible:async()=>mode==='cya-reached'},observe:async(id,stage)=>{assert.equal(id,caseId);assert.equal(stage,'after');events.push('observer-after');first.classList=[];return mode==='state-changed'?{...before,state:{version:2}}:structuredClone(before);}};
+  const result=await new AsyncFunction(...Object.keys(context),branch)(...Object.values(context));
+  return{result,events,liveClasses:first.classList};
+ }
+ const {result,events,liveClasses}=await run();
+ assert(result.rejectedControls[0].classes.includes('govuk-input--error'),'captured rejection must retain the measured field error');
+ assert.equal(events[0],'field-error-assertion');assert(events.indexOf('capture:emailAddress:0')<events.indexOf('observer-after'));
+ assert.deepEqual(liveClasses,[]);assert.deepEqual(result.after,result.before);assert.deepEqual(result.submissions,[]);
+ for(const mode of ['initial-class-missing','wrong-status','wrong-leaf','cya-reached','post-attempt','state-changed'])await assert.rejects(run(mode),{code:'ERR_ASSERTION'},mode);
+});

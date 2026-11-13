@@ -3,6 +3,7 @@ import {SHARED_NESTED_SCOPE,SHARED_NESTED_MUTATIONS,sharedNestedRemovedStatePath
 import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_MUTATIONS} from './exui-applicant-results-contract.mjs';
 import {CALLBACK_SCOPE,CALLBACK_MUTATION} from './exui-recipient-callback-contract.mjs';
 import { SOURCE_SHAPE_MUTATIONS } from './exui-source-shape-contract.mjs';
+import { EVENT_CAPABILITY_SCOPE } from './exui-ccd-event-capability.mjs';
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -36,6 +37,11 @@ const mount = (source, target, readonly = false) => {
     "--mount",
     `type=bind,src=${source},dst=${target}${readonly ? ",readonly" : ""}`,
   ];
+};
+const volumeMount = (name, target) => {
+  if (!/^harness-candidate-[a-f0-9-]{36}$/.test(name ?? ""))
+    throw new Error("OWNED_CANDIDATE_VOLUME_REQUIRED");
+  return ["--mount", `type=volume,src=${name},dst=${target},readonly`];
 };
 const ownerFlags = (owner, service) => {
   if (!/^(?:harness-oci|candidate|ccd)-[a-f0-9-]+$/.test(owner))
@@ -144,10 +150,13 @@ function buildToolContainerArguments({
   native = false,
   namespace,
   releaseScopeId,
+  candidateVolume,
 },checkIsolation) {
   if (!digest(image)) throw new Error("PINNED_BROWSER_RUNTIME_REQUIRED");
   if (namespace && !/^[a-f0-9]{64}$/.test(namespace))
     throw new Error("OWNED_TOOLS_NAMESPACE_REQUIRED");
+  if (candidateVolume && (releaseScopeId !== EVENT_CAPABILITY_SCOPE || candidateVolume.owner !== owner))
+    throw new Error("CANDIDATE_VOLUME_SCOPE_REQUIRED");
   if (
     !(
       native
@@ -209,7 +218,7 @@ function buildToolContainerArguments({
     ...ownerFlags(owner, "browser-provider"),
     ...mount(harnessRoot, "/harness", true),
     ...mount(dependenciesRoot, "/harness/node_modules", true),
-    ...mount(candidateRoot, "/candidate", true),
+    ...(candidateVolume ? volumeMount(candidateVolume.name, "/candidate") : mount(candidateRoot, "/candidate", true)),
     ...mount(output, "/output"),
     ...mount(browserRoot, "/browser", true),
     ...mount(sessions, "/tmp/.sessions"),
@@ -262,10 +271,13 @@ export function candidateArchiveArguments({
   releaseScopeId,
   evidenceRoot,
   harnessRoot,
+  candidateVolume,
 }) {
   assert(["linux/arm64", "linux/amd64"].includes(platform), "UNSUPPORTED_NATIVE_PLATFORM");
   if (!digest(image) || !/^[a-f0-9]{64}$/.test(namespace))
     throw Error("PINNED_NATIVE_RUNTIME_AND_NAMESPACE_REQUIRED");
+  if (candidateVolume && (releaseScopeId !== EVENT_CAPABILITY_SCOPE || candidateVolume.owner !== owner))
+    throw new Error("CANDIDATE_VOLUME_SCOPE_REQUIRED");
   if (
     ![
       "baseline",
@@ -352,7 +364,7 @@ export function candidateArchiveArguments({
     platform,
     ...hardened,
     ...ownerFlags(owner, "candidate"),
-    ...mount(candidateRoot, "/candidate", true),
+    ...(candidateVolume ? volumeMount(candidateVolume.name, "/candidate") : mount(candidateRoot, "/candidate", true)),
     ...mount(sessions, "/tmp/.sessions"),
     ...mount(diagnostics, "/diagnostics"),
     ...mount(guard, "/harness-network-guard.cjs", true),
@@ -512,15 +524,23 @@ export function assertOwnedContainerAuthority(
     "OCI_CONTAINER_PUBLISHED_PORT",
   );
   const actual = info.Mounts.filter((item) => item.Type !== "tmpfs")
-    .map((item) => [item.Source, item.Destination, item.RW])
+    .map((item) => {
+      let source = item.Type === "volume" ? item.Name : item.Source;
+      // Docker Desktop reports host binds beneath /host_mnt; accept only a declared exact source.
+      if (item.Type === "bind" && process.platform === "darwin") {
+        const declared = mounts.find((expected) => (expected.type ?? "bind") === "bind" && item.Source === `/host_mnt${expected.source}`);
+        if (declared) source = declared.source;
+      }
+      return [source, item.Destination, item.RW, item.Type];
+    })
     .sort();
   assert.deepEqual(
     actual,
-    mounts.map((item) => [item.source, item.target, item.writable]).sort(),
+    mounts.map((item) => [item.source, item.target, item.writable, item.type ?? "bind"]).sort(),
     "OCI_CONTAINER_MOUNT_MISMATCH",
   );
   assert(
-    info.Mounts.every((item) => item.Type === "bind" || item.Type === "tmpfs"),
+    info.Mounts.every((item) => item.Type === "bind" || item.Type === "tmpfs" || (item.Type === "volume" && mounts.some(expected => expected.type === "volume" && expected.source === item.Name && expected.writable === false))),
     "OCI_CONTAINER_SHARED_VOLUME",
   );
 }

@@ -11,11 +11,17 @@ const filename = path.resolve(__dirname, '../src/fixtures/harnessSourceShapes.ts
 const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
+const captureFilename = path.resolve(__dirname, '../src/fixtures/harnessSourceShapeCapture.ts');
+const capture = new Module(captureFilename, module);
+capture.paths = module.paths;
+capture._compile(ts.transpileModule(fs.readFileSync(captureFilename, 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+}).outputText, captureFilename);
 const fixture = new Module(filename, module);
 fixture.paths = module.paths;
 fixture.require = (id) => id === './harnessCcdEvent'
   ? { expect: expect.configure({ timeout: 150 }) }
-  : require(id);
+  : id === './harnessSourceShapeCapture' ? capture.exports : require(id);
 fixture._compile(compiled, filename);
 const { assertSourceShapeHiddenControls } = fixture.exports;
 
