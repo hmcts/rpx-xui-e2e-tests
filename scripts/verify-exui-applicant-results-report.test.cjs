@@ -69,3 +69,15 @@ test('compatibility attachment requires the validated main native cohort and can
  await assert.rejects(()=>reporter.prepareCompatibilityEvidence('/not-read-without-main-native'));
  assert.equal(reporter.compatibilityEvidence,null);assert.equal(reporter.nativeEvidence,null);
 });
+
+test('a different catalogue stays separate and publishes zero credit without mutating native coverage',async()=>{
+ const {applyApplicantResultsAdmission}=await import('./lib/exui-applicant-results-admission.mjs');
+ const {loadCommittedConfigurationCatalogue}=await import('./lib/exui-configuration-runtime-coverage.mjs');
+ const {digestBytes}=await import('./lib/exui-evidence-io.mjs');
+ const {catalogue}=loadCommittedConfigurationCatalogue(),value=projection();
+ const native={source:{},releaseApproval:false,catalogueCoverage:{selected:112,catalogueDigest:digestBytes(JSON.stringify(catalogue.obligations)),releaseCredit:false}};
+ assert.notEqual(value.catalogueDigest,native.catalogueCoverage.catalogueDigest);
+ const before=structuredClone(native);value.joint=applyApplicantResultsAdmission(native,value);
+ assert.equal(value.joint.status,'separate');assert.equal(value.joint.reason,'different-catalogue');assert.equal(value.catalogueCredit,false);assert.deepEqual(native,before);
+ const html=renderApplicantCompatibility(value);assert(html.includes('0 catalogue credit; runtime proof remains separate'));assert(!html.includes('3 catalogue requirements included in candidate coverage'));
+});

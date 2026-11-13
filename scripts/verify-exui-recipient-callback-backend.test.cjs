@@ -45,7 +45,7 @@ test('support only: diagnostic codes preserve known assertion cause without raw 
 
 test('support only: staged worker loads its complete module graph outside checkout and safely rejects invalid input',async t=>{
  const {stageCallbackProbe,callbackProbeFiles}=await import('./run-harness-recipient-callback-backend.mjs');
- for(const dependency of ['scripts/lib/exui-complex-email-transport.mjs','scripts/lib/exui-evidence-io.mjs','scripts/lib/exui-release-evidence.mjs','scripts/lib/exui-external-evidence.mjs'])assert.equal(callbackProbeFiles.filter(file=>file===dependency).length,1);
+ for(const dependency of ['scripts/lib/exui-applicant-results-catalogue.mjs','scripts/lib/exui-complex-email-transport.mjs','scripts/lib/exui-evidence-io.mjs','scripts/lib/exui-release-evidence.mjs','scripts/lib/exui-external-evidence.mjs'])assert.equal(callbackProbeFiles.filter(file=>file===dependency).length,1);
  const temp=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'callback-worker-'));t.after(()=>fs.rmSync(temp,{recursive:true,force:true}));
  const staged=path.join(temp,'sources');stageCallbackProbe(staged);
  const run=()=>require('node:child_process').spawnSync(process.execPath,[path.join(staged,'scripts/recipient-callback-backend-worker.mjs')],{cwd:temp,input:'not-json-private-credential',encoding:'utf8',timeout:5000,maxBuffer:65536});

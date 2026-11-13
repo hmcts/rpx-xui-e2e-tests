@@ -17,6 +17,13 @@ const titles = {
 };
 const canary = "PRIVATE_AUTH_cookie_QuerySecret_7f38";
 
+function applicantCompatibilityProjection() {
+ const hash='sha256:'+'a'.repeat(64);
+ const ids=['d1594e44450b917d4f021dbb181b38553662cf59072a48bc4a52bf78ac78f375','bff9082cbfe5b46c4f6462f9e5f0a870e8d02bd88408a65a1063086c541d60e7','bd7af2a30355a565999d5484e4fd4e365167fd28ac1fcc6b118c4bbc8f637c89'];
+ return {schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,harnessDependencyDigest:hash,browserDigest:hash,candidate:{artifactDigest:hash,webappCommit:'c'.repeat(40),dependencyLockDigest:hash,toolkitVersion:'1.2.3',toolkitDigest:hash},dependencies:{ccd:{artifactDigest:hash,apiContractDigest:hash},'ccd-definition':{artifactDigest:hash,apiContractDigest:hash}},dataImageDigest:hash,profileDigest:hash,ccdRuntime:{elasticsearch:true,localProfile:true,profileDigest:hash},catalogueDigest:hash,catalogueRows:ids.map((id,index)=>({obligationId:'configuration-shape:'+id,family:'PRIVATELAW',kind:'definition-shape',requiredBoundary:'candidate',sourceKeys:['prl-ccd-definitions:definitions/private-law/json/'+(index===0?'SearchResultFields':'WorkBasketResultFields')+'.json']})),descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:4,effectiveFaults:3,sourceRows:3,cleanupComplete:true,catalogueCredit:false,releaseCredit:false,joint:{policy:'applicant-results-native-candidate-v1',status:'separate',reason:'different-ccd-runtime',releaseCredit:false,releaseApproval:false}};
+}
+
+
 test("native stage timing artifact is safe, ordered and explicit that it grants no proof credit", t => {
   const root = sandbox(t), reporter = require(reporterPath), file = path.join(root, "native-stage-timings.json");
   const start = "2026-11-09T03:00:00.000Z";
@@ -1420,8 +1427,8 @@ test("callback presentation cannot credit a missing phase, wrong source row or e
 test('supplementary compatibility evidence stays outside primary counts and is bound into the one public report',async(t)=>{
  const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'});
  await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter);
- const primary=structuredClone(reporter.nativeEvidence),hash='sha256:'+'a'.repeat(64);
- reporter.compatibilityEvidence={schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,dataImageDigest:hash,profileDigest:hash,descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
+ const primary=structuredClone(reporter.nativeEvidence);
+ reporter.compatibilityEvidence=applicantCompatibilityProjection();
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  const record=Reporter.validatePublicReport();assert.equal(record.tests,tests.length);assert.deepEqual(record.nativeEvidence,primary);
  const htmlFile=path.join(root,'functional-output/tests/harness/public/odhin/index.html');
@@ -1524,10 +1531,9 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
 
 test('applicant compatibility publishes only validated dashboard count attributes', () => {
  const {renderApplicantCompatibility}=require('./harness-applicant-results-report.cjs');
- const hash='sha256:'+'a'.repeat(64);
- const value={schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',runId:'ccd-11111111-1111-4111-8111-111111111111',producerCommit:'b'.repeat(40),candidateCommit:'c'.repeat(40),candidateArtifactDigest:hash,sourceDigest:hash,dataImageDigest:hash,profileDigest:hash,descriptorDigest:hash,receiptArtifactDigest:hash,baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false};
+ const value=applicantCompatibilityProjection();
  const section=require('node-html-parser').parse(renderApplicantCompatibility(value)).querySelector('#harness-applicant-compatibility');
- assert.equal(section.getAttribute('data-compatibility-status'),'PASS');assert.equal(section.getAttribute('data-compatibility-baselines'),'1');assert.equal(section.getAttribute('data-compatibility-faults'),'3');
+ assert.equal(section.getAttribute('data-compatibility-status'),'PASS');assert.equal(section.getAttribute('data-compatibility-baselines'),'4');assert.equal(section.getAttribute('data-compatibility-faults'),'3');
  for(const changed of [{...value,baselineProofs:2},{...value,effectiveFaults:4},{...value,catalogueCredit:true},{...value,status:'FAIL'}])assert.throws(()=>renderApplicantCompatibility(changed));
 });
 
