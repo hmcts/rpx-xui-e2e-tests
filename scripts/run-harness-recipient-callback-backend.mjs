@@ -12,6 +12,7 @@ import {prepareRecipientCallbackImport,importRecipientCallback} from './lib/exui
 const root=fileURLToPath(new URL('../',import.meta.url));
 export const callbackProbeFiles=Object.freeze([
  'scripts/lib/exui-applicant-results-contract.mjs','scripts/lib/exui-applicant-results.mjs',
+ 'scripts/lib/exui-applicant-results-catalogue.mjs',
  'scripts/lib/exui-result-columns.mjs','scripts/lib/exui-result-columns-definition.mjs',
  'scripts/lib/exui-definition-references.mjs','scripts/fixtures/ccd/result-columns.source.json',
  'scripts/lib/exui-complex-email-transport.mjs','scripts/lib/exui-evidence-io.mjs',

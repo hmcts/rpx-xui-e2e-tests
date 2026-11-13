@@ -13,5 +13,8 @@ for(const useCase of ['SEARCH','WORKBASKET'] as const) {
   const observed=await observeResultTable(page,useCase,input.resultExpected[useCase]);
   fs.writeFileSync(path.join(directory,`results-ui-${useCase}.json`),JSON.stringify({kind:'result-columns-ui-feasibility-observation',...observed,variant:input.variant,catalogueCredit:false,releaseCredit:false}),{mode:0o600});
   expect(observed.applicantObserved,'RESULT_APPLICANT_SOURCE_CONTRACT').toEqual(observed.applicantExpected);
+  for(const row of observed.catalogueRows){
+   await test.step(`harness-assertion:${row.proofId}`,async()=>expect(row.observed,'RESULT_CATALOGUE_SOURCE_CONTRACT').toEqual(row.expected));
+  }
  });
 }

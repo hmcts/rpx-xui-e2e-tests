@@ -11,9 +11,10 @@ const heldPath=args.filter(arg=>arg.startsWith('--build-self-check=')),heldDiges
 const heldPresent=heldPath.length>0||heldDigest.length>0;
 const allowedHeld=arg=>arg.startsWith('--build-self-check=')||arg.startsWith('--build-self-check-sha256=');
 const native = args.filter((arg) => arg.startsWith("--native-evidence="));
+const compatibility = args.filter((arg) => arg.startsWith("--compatibility-evidence="));
 const selected = args.filter((arg) => arg.startsWith("--selection="));
 const profileAttempts=args.filter(arg=>arg.startsWith('--profile-attempts='));
-if ((heldPresent&&(heldPath.length!==1||heldDigest.length!==1||!heldPath[0].slice('--build-self-check='.length)||!/^sha256:[a-f0-9]{64}$/.test(heldDigest[0].slice('--build-self-check-sha256='.length)))) || native.length > 1 || native.some(arg => !arg.slice("--native-evidence=".length)) || selected.length > 1 || profileAttempts.length>1 || profileAttempts.some(arg=>!path.isAbsolute(arg.slice('--profile-attempts='.length))) || args.some((arg) => !switches.has(arg) && !arg.startsWith("--selection=") && !arg.startsWith("--native-evidence=") && !arg.startsWith('--profile-attempts=') && !allowedHeld(arg))) {
+if ((heldPresent&&(heldPath.length!==1||heldDigest.length!==1||!heldPath[0].slice('--build-self-check='.length)||!/^sha256:[a-f0-9]{64}$/.test(heldDigest[0].slice('--build-self-check-sha256='.length)))) || native.length > 1 || native.some(arg => !arg.slice("--native-evidence=".length)) || compatibility.length > 1 || compatibility.some(arg => !arg.slice("--compatibility-evidence=".length)) || selected.length > 1 || profileAttempts.length>1 || profileAttempts.some(arg=>!path.isAbsolute(arg.slice('--profile-attempts='.length))) || args.some((arg) => !switches.has(arg) && !arg.startsWith("--selection=") && !arg.startsWith("--native-evidence=") && !arg.startsWith('--profile-attempts=') && !arg.startsWith("--compatibility-evidence=") && !allowedHeld(arg))) {
   console.error("[harness-diagnostic] BLOCKED: diagnostic POC only; candidate/release execution requires an isolated candidate runner.");
   process.exit(2);
 }
@@ -21,7 +22,7 @@ const selection = selected[0]?.slice("--selection=".length) || "model";
 const runCi = args.includes("--ci");
 const local = args.includes("--local");
 const aat = args.includes("--aat");
-if ((heldPresent&&(!runCi||!args.includes("--odhin"))) || (native.length && !aat) || (aat && args.some(arg => arg !== "--aat" && !arg.startsWith("--native-evidence="))) || !Object.hasOwn(diagnosticConfig.selections, selection) || (local && (runCi || selected.length)) || (runCi && selection !== "model")) {
+if ((heldPresent&&(!runCi||!args.includes("--odhin"))) || (native.length && !aat) || (compatibility.length && (!aat || !native.length)) || (aat && args.some(arg => arg !== "--aat" && !arg.startsWith("--native-evidence=") && !arg.startsWith("--compatibility-evidence="))) || !Object.hasOwn(diagnosticConfig.selections, selection) || (local && (runCi || selected.length)) || (runCi && selection !== "model")) {
   console.error("[harness-diagnostic] BLOCKED: invalid diagnostic selection.");
   process.exit(2);
 }
@@ -36,7 +37,7 @@ try {
 if (aat) {
   try {
     const { runLocalAat } = (await import("./run-harness-local-aat.cjs")).default;
-    const result = await runLocalAat(process.env, { nativeEvidencePath: native[0]?.slice("--native-evidence=".length) });
+    const result = await runLocalAat(process.env, { nativeEvidencePath: native[0]?.slice("--native-evidence=".length), compatibilityEvidencePath: compatibility[0]?.slice("--compatibility-evidence=".length) });
     console.log(`[harness-aat] Diagnostics ${result.status}${result.nativeStatus ? ` / Native ${result.nativeStatus}` : ""}; no release approval.`);
     process.exit(result.exitCode);
   } catch {

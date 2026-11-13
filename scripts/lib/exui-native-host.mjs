@@ -125,7 +125,7 @@ function derivations(input, output, policy, identities, artifactDerivation) {
                 ).config.waSupportedJurisdictions,
               }
             : input.releaseScopeId === APPLICANT_RESULTS_SCOPE
-              ? { target:"SearchResultFields+WorkBasketResultFields applicantName", transformationRecord:applicantResultsMutation(definition.mutationId), beforeDigest:baseline.identity.definitionDigests.HarnessResultsPRL, afterDigest:mutant.identity.definitionDigests.HarnessResultsPRL, baselineRuntimeMetadata:baseline.runtimeMetadata, mutantRuntimeMetadata:mutant.runtimeMetadata, runtimeRecord:ref(output,path.join(output,definition.mutationId,"runtime-input.json")) }
+              ? { target:definition.target, transformationRecord:applicantResultsMutation(definition.mutationId), beforeDigest:baseline.identity.definitionDigests.HarnessResultsPRL, afterDigest:mutant.identity.definitionDigests.HarnessResultsPRL, baselineRuntimeMetadata:baseline.runtimeMetadata, mutantRuntimeMetadata:mutant.runtimeMetadata, runtimeRecord:ref(output,path.join(output,definition.mutationId,"runtime-input.json")) }
             : input.releaseScopeId === SELECTOR_EVENT_SCOPE
               ? {target:selectorEventMutation().target,transformationRecord:selectorEventMutation(),selectorObservations:selectorObservationReferences(output),beforeDigest:baseline.identity.definitionDigests.HarnessNestedPRL,afterDigest:mutant.identity.definitionDigests.HarnessNestedPRL,baselineRuntimeMetadata:baseline.runtimeMetadata,mutantRuntimeMetadata:mutant.runtimeMetadata,runtimeRecord:ref(output,path.join(output,definition.mutationId,"runtime-input.json"))}
             : input.releaseScopeId === CALLBACK_SCOPE

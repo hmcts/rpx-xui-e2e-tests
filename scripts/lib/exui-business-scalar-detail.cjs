@@ -342,8 +342,11 @@ module.exports = {
 // test payloads enter the public projection.
 function scalarProjection(evidence) {
   assert(evidence && typeof evidence.jobRunId === 'string' && /^sha256:[a-f0-9]{64}$/.test(evidence.descriptorDigest),'BUSINESS_SCALAR_SOURCE');
-  const source=evidence.source;
-  assert(exact(source,['harnessCommit','harnessSourceDigest','candidateArtifactDigest','webappCommit'])&&/^[a-f0-9]{40}$/.test(source.harnessCommit)&&/^[a-f0-9]{40}$/.test(source.webappCommit)&&[source.harnessSourceDigest,source.candidateArtifactDigest].every(x=>/^sha256:[a-f0-9]{64}$/.test(x)),'BUSINESS_SCALAR_SOURCE');
+  const sourceKeys=['harnessCommit','harnessSourceDigest','candidateArtifactDigest','webappCommit'];
+  assert(exact(evidence.source,sourceKeys)||exact(evidence.source,[...sourceKeys,'harnessDependencyDigest','browserDigest','candidate','ccdDependencies','ccdRuntime']),'BUSINESS_SCALAR_SOURCE');
+  // Applicant-result admission adds binding metadata; this readback still holds only its four fixed source pins.
+  const source=Object.fromEntries(sourceKeys.map(key=>[key,evidence.source[key]]));
+  assert(exact(source,sourceKeys)&&/^[a-f0-9]{40}$/.test(source.harnessCommit)&&/^[a-f0-9]{40}$/.test(source.webappCommit)&&[source.harnessSourceDigest,source.candidateArtifactDigest].every(x=>/^sha256:[a-f0-9]{64}$/.test(x)),'BUSINESS_SCALAR_SOURCE');
   const rows=[...nested,...scope,...denial].map(proofId=>{
     const phase=evidence.phases.find(p=>p.phase===(scope.includes(proofId)?'scope':'ccd'));
     const matches=[...phase.baselineProofs,...phase.faults].filter(p=>p.proofId===proofId);assert.equal(matches.length,1,'BUSINESS_SCALAR_OWNER');

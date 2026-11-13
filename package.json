@@ -57,6 +57,7 @@
     "harness:diagnostic:environment": "node scripts/run-harness-local-poc.mjs --selection=environment",
     "harness:diagnostic:toolkit": "node scripts/run-harness-local-poc.mjs --selection=toolkit",
     "harness:support": "./node_modules/.bin/playwright test -c playwright.harness-support.config.ts",
+    "harness:applicant-results:attempt": "node scripts/run-harness-applicant-results.mjs",
     "harness:assurance": "node scripts/run-harness-assurance.mjs",
     "harness:source-profile:feasibility": "node scripts/run-harness-source-profile-jurisdictions.mjs",
     "harness:shared-nested:attempt": "node scripts/run-harness-shared-nested.mjs",

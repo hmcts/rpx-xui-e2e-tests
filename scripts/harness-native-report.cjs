@@ -7,6 +7,11 @@ const canonical = value => Array.isArray(value) ? value.map(canonical) : value &
 const workbasketSource = require("./fixtures/ccd/workbasket-input.source.json").sources[0];
 const workbasketRows = new Set(workbasketSource.rows.map(({ row }) => "configuration-shape:" +
   objectDigest(canonical({ source: "prl-ccd-definitions:" + workbasketSource.path, row }))));
+const APPLICANT_RESULTS_IDS = [
+  "configuration-shape:d1594e44450b917d4f021dbb181b38553662cf59072a48bc4a52bf78ac78f375",
+  "configuration-shape:bff9082cbfe5b46c4f6462f9e5f0a870e8d02bd88408a65a1063086c541d60e7",
+  "configuration-shape:bd7af2a30355a565999d5484e4fd4e365167fd28ac1fcc6b118c4bbc8f637c89",
+];
 const { escape } = require("./harness-report-coverage.cjs");
 const { ST_CIC_PROFILE_ID, renderStCicProfileAdmission, renderStCicExecutionInfo } = require('./harness-st-cic-profile-report.cjs');
 const mandatoryReport = require('./harness-mandatory-email-report.cjs');
@@ -503,6 +508,7 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
       if(id===PERSONAL_SERVICE_ID)return personal?.joint?.status!=="included";
       if (id === COMPLEX_EMAIL_ID) return complex?.joint?.status !== 'included';
       if (id === "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce") return evidence.divorceProfileAdmission?.joint?.status !== "included";
+      if (APPLICANT_RESULTS_IDS.includes(id)) return coverage.applicantResultsAdmission?.status !== 'included' || !coverage.applicantResultsAdmission.obligationIds?.includes(id);
       if (id === FR_PROFILE_ID) return evidence.frProfileAdmission?.joint?.status !== "included";
       if (id === CMC_PROFILE_ID) return evidence.cmcProfileAdmission?.joint?.status !== "included";
       const phase =
@@ -549,6 +555,29 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
     })
   )
     throw new Error("PUBLIC_ODHIN_NATIVE_CATALOGUE_MISMATCH");
+  const applicantJoin = coverage.applicantResultsAdmission;
+  if (applicantJoin) {
+    assert.deepEqual(Object.keys(applicantJoin).sort(), ['browserDigest','candidateArtifactDigest','candidateCommit','catalogueDigest','harnessDependencyDigest','nativeRunId','obligationIds','policy','producerCommit','producerDigest','profileRunId','releaseApproval','releaseCredit','sourceRows','status'].sort(), 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.policy, 'applicant-results-native-candidate-v1', 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.status, 'included', 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.deepEqual(applicantJoin.obligationIds, APPLICANT_RESULTS_IDS, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.nativeRunId, evidence.jobRunId, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.producerCommit, evidence.source.harnessCommit, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.producerDigest, evidence.source.harnessSourceDigest, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.candidateArtifactDigest, evidence.source.candidateArtifactDigest, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.candidateCommit, evidence.source.webappCommit, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.harnessDependencyDigest, evidence.source.harnessDependencyDigest, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.browserDigest, evidence.source.browserDigest, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.catalogueDigest, coverage.catalogueDigest, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.releaseCredit, false, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(applicantJoin.releaseApproval, false, 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.deepEqual(applicantJoin.sourceRows, [
+      {obligationId:APPLICANT_RESULTS_IDS[0],sourceKeys:['prl-ccd-definitions:definitions/private-law/json/SearchResultFields.json']},
+      {obligationId:APPLICANT_RESULTS_IDS[1],sourceKeys:['prl-ccd-definitions:definitions/private-law/json/WorkBasketResultFields.json']},
+      {obligationId:APPLICANT_RESULTS_IDS[2],sourceKeys:['prl-ccd-definitions:definitions/private-law/json/WorkBasketResultFields.json']},
+    ], 'NATIVE_REPORT_APPLICANT_JOIN');
+    assert.equal(coverage.creditedObligationIds.filter(id => APPLICANT_RESULTS_IDS.includes(id)).length, APPLICANT_RESULTS_IDS.length, 'NATIVE_REPORT_APPLICANT_JOIN');
+  } else if (coverage.creditedObligationIds.some(id => APPLICANT_RESULTS_IDS.includes(id))) throw new Error('NATIVE_REPORT_APPLICANT_JOIN');
   const profileId = "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce";
   assert.equal(coverage.creditedObligationIds.includes(profileId), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
   assert.equal(Boolean(coverage.divorceProfileAdmission), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");

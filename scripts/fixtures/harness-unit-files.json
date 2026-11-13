@@ -83,6 +83,7 @@
   "scripts/verify-exui-applicant-results-wiring.test.cjs",
   "scripts/verify-exui-applicant-results-evidence.test.cjs",
   "scripts/verify-exui-applicant-results-report.test.cjs",
+  "scripts/verify-exui-applicant-results-admission.test.cjs",
   "scripts/verify-exui-source-profile-divorce-consumers.test.cjs",
   "scripts/verify-exui-selector-event-row.test.cjs",
   "scripts/verify-exui-selector-event-evidence.test.cjs",

@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import {buildResultColumnDefinition} from './exui-result-columns-definition.mjs';
+import {applicantResultCatalogueMutation,applicantResultCatalogueObserved} from './exui-applicant-results-catalogue.mjs';
 
 export const APPLICANT_RESULT_VARIANTS = Object.freeze(['baseline','applicant-binding','applicant-label','applicant-order']);
 const sheets = {SEARCH:'SearchResultFields',WORKBASKET:'WorkBasketResultFields'};
+const catalogueFaults={
+  'applicant-binding':{sheet:'SearchResultFields',index:0,field:'applicantCaseName',attribute:'CaseFieldID',value:'familymanCaseNumber'},
+  'applicant-label':{sheet:'WorkBasketResultFields',index:0,field:'applicantCaseName',attribute:'Label',value:'Harness wrong case label'},
+  'applicant-order':{sheet:'WorkBasketResultFields',index:1,field:'familymanCaseNumber',attribute:'DisplayOrder',value:8},
+};
 export function applicantResultContract(view) {
   assert(Object.hasOwn(sheets,view),'RESULT_APPLICANT_VIEW');
   const row=buildResultColumnDefinition().sheets[sheets[view]].find(row=>row.CaseFieldID==='applicantName');
@@ -12,11 +18,11 @@ export function applicantResultDefinition(variant='baseline') {
   assert(APPLICANT_RESULT_VARIANTS.includes(variant),'RESULT_APPLICANT_VARIANT');
   const definition=buildResultColumnDefinition();
   if(variant==='baseline')return definition;
-  for(const [view,sheet] of Object.entries(sheets)) {
-    const row=definition.sheets[sheet].find(row=>row.CaseFieldID==='applicantName');
-    if(variant==='applicant-binding')row.CaseFieldID=view==='SEARCH'?'familymanCaseNumber':'childName';
-    if(variant==='applicant-label')row.Label='Synthetic wrong applicant heading';
-    if(variant==='applicant-order')row.DisplayOrder=9;
+  const fault=catalogueFaults[variant];
+  if(fault){
+    const row=definition.sheets[fault.sheet][fault.index];
+    assert.equal(row.CaseFieldID,fault.field,'RESULT_APPLICANT_CATALOGUE_FAULT_ROW');
+    row[fault.attribute]=fault.value;
   }
   return definition;
 }
@@ -52,16 +58,20 @@ export function validateApplicantResultOutcome({variant,terminal,report,observat
     assert.deepEqual(observed.applicantExpected,applicantResultContract(view),'RESULT_UI_SOURCE_ORACLE');
     const sheet=view==='SEARCH'?'SearchResultFields':'WorkBasketResultFields';
     const columns=applicantResultDefinition(variant).sheets[sheet].map(row=>({case_field_id:row.CaseFieldID,label:row.Label,order:row.DisplayOrder}));
-    assert.deepEqual(observed.applicantObserved,applicantResultObserved(view,columns),'RESULT_UI_EFFECTIVE_FAULT_REQUIRED');
-    if(variant==='baseline')assert.equal(result.status,'passed','RESULT_UI_BASELINE_FAILED');
-    else {
-      assert.equal(result.status,'failed','RESULT_UI_FAULT_NOT_DETECTED');
-      assert(result.errors?.length===1&&result.errors[0].message.includes('RESULT_APPLICANT_SOURCE_CONTRACT'),'RESULT_UI_WRONG_FAILURE');
-      assert.notDeepEqual(observed.applicantObserved,observed.applicantExpected,'RESULT_UI_INEFFECTIVE_FAULT');
+    assert.deepEqual(observed.applicantObserved,applicantResultObserved(view,columns),'RESULT_UI_APPLICANT_SOURCE_DRIFT');
+    assert.deepEqual(observed.catalogueRows,applicantResultCatalogueObserved(view,columns),'RESULT_UI_CATALOGUE_OBSERVATION');
+    const target=variant==='baseline'?null:applicantResultCatalogueMutation(variant);
+    const isMutated=target?.view===view;
+    for(const row of observed.catalogueRows){
+      if(isMutated&&row.obligationId===target.obligationId)assert.notDeepEqual(row.observed,row.expected,'RESULT_UI_INEFFECTIVE_FAULT');
+      else assert.deepEqual(row.observed,row.expected,'RESULT_UI_CATALOGUE_BASELINE_FAILED');
     }
+    assert.equal(result.status,isMutated?'failed':'passed','RESULT_UI_VIEW_OUTCOME');
+    if(isMutated)assert(result.errors?.length===1&&result.errors[0].message.includes('RESULT_CATALOGUE_SOURCE_CONTRACT'),'RESULT_UI_WRONG_FAILURE');
+    else assert.equal(result.errors?.length??0,0,'RESULT_UI_UNEXPECTED_ERROR');
   }
   assert.equal(terminal.code,variant==='baseline'?0:1,'RESULT_UI_EXIT');
-  assert.equal(report.stats.expected,variant==='baseline'?2:0,'RESULT_UI_EXPECTED_COUNT');
-  assert.equal(report.stats.unexpected,variant==='baseline'?0:2,'RESULT_UI_UNEXPECTED_COUNT');
+  assert.equal(report.stats.expected,variant==='baseline'?2:1,'RESULT_UI_EXPECTED_COUNT');
+  assert.equal(report.stats.unexpected,variant==='baseline'?0:1,'RESULT_UI_UNEXPECTED_COUNT');
   return variant==='baseline'?'two-candidate-result-tables-observed':'applicant-result-fault-observed';
 }

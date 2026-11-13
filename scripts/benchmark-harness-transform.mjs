@@ -36,7 +36,7 @@ export function freezeBenchmarkIdentity(repository) {
 }
 
 export function benchmark() {
-  assert.equal(process.versions.node, '24.22.2', 'use the deliberate controller Node pin');
+  assert.equal(process.versions.node, '24.22.3', 'use the deliberate controller Node pin');
   const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
   const output = mkdtempSync(path.join(tmpdir(), 'harness-transform-'));
   const { frozen, assertUnchanged } = freezeBenchmarkIdentity(repository);
