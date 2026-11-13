@@ -21,6 +21,7 @@
     "lint": "yarn harness:unit && yarn tsc -p tsconfig.json && node ./node_modules/eslint/bin/eslint.js .",
     "ui:session": "node ./scripts/record-ui-session.mjs",
     "harness:local:shell": "node ./scripts/local-exui-static-proxy.mjs",
+    "harness:report:smoke": "node --test scripts/verify-harness-report-smoke.test.cjs",
     "harness:manifest": "node ./scripts/check-exui-harness-manifest.mjs",
     "harness:catalogue": "node scripts/check-exui-configuration-catalogue.mjs",
     "harness:release-summary": "node ./scripts/write-exui-release-assurance-summary.mjs",

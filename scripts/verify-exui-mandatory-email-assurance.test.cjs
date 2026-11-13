@@ -57,3 +57,16 @@ test('actual full API rejects mandatory collisions and aliases before the explic
  assert.equal(f.calls(),'nativenative');assert.equal(fs.existsSync(frProfileOutput),false,'API metadata checks do not precreate the FR output');
  fs.rmSync(path.dirname(frProfileOutput),{recursive:true,force:true});fs.unlinkSync(path.join(path.dirname(f.jobPath),'fr-profile-cli-output.json'));
 });
+
+test('collection failure logs only branded native evidence diagnostics and retains blocked verdict',async()=>{
+ const {runAssuranceSequence}=await load();
+ const {readNativeReportEvidence}=await import('./lib/exui-native-report-evidence.mjs');
+ let branded;try{await readNativeReportEvidence('PRIVATE_CANARY');}catch(error){branded=error;}
+ const logs=[],original=console.error;console.error=value=>logs.push(value);
+ try{for(const error of [branded,Error('PRIVATE_CANARY')]){
+  const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),prepare:async()=>({jobRunId:mock.ciRunId}),mandatoryEmail:async()=>mock.mandatoryResult(),descriptor:async()=>'/owned/native.json',collect:async()=>{throw error;}});
+  assert.equal(result.exitCode,2);assert.equal(result.mandatoryEmailStatus,'BLOCKED');
+ }}finally{console.error=original;}
+ assert.deepEqual(logs,['[harness-assurance] Evidence collection failed: NATIVE_REPORT_ABSOLUTE_CANONICAL_PATH_REQUIRED at descriptor','[harness-assurance] Evidence collection failed: UNCLASSIFIED_REPORT_FAILURE']);
+ assert(!JSON.stringify(logs).includes('PRIVATE_CANARY'));
+});

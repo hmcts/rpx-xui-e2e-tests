@@ -250,10 +250,16 @@ async function runHarnessCollection(
   Reporter.resetPublicReport("harness");
   const timingSnapshot = mandatoryEmailTiming === undefined ? undefined : structuredClone(mandatoryEmailTiming);
   const reporter = new Reporter({ selection: profile, diagnosticSource, nativeElapsedMs, phaseTimings, eventRuntimePreparationTimings, eventRuntimeLifecycleTimings, divorceProfileAttempt, personalServiceAttempt, complexEmailAttempt, frProfileAttempt, cmcProfileAttempt, mandatoryEmailTiming: timingSnapshot });
-  if(buildSelfCheckHeld!==undefined)await reporter.prepareBuildSelfChecks(buildSelfCheckHeld);
+  if(buildSelfCheckHeld!==undefined){
+    try{await reporter.prepareBuildSelfChecks(buildSelfCheckHeld);}
+    catch(error){console.error('[harness-assurance] Build self-check evidence replay failed');throw error;}
+  }
   if (nativeEvidencePath !== undefined || compatibilityEvidencePath !== undefined || sharedNestedAttemptPath !== undefined) {
     const verificationStartedAt=new Date().toISOString(),verificationStarted=performance.now();
-    if(nativeEvidencePath !== undefined) await reporter.prepareNativeEvidence(nativeEvidencePath);
+    if(nativeEvidencePath !== undefined){
+      try{await reporter.prepareNativeEvidence(nativeEvidencePath);}
+      catch(error){console.error('[harness-assurance] Native evidence replay or rendering failed');throw error;}
+    }
     if(signal?.aborted)throw fail();
     if(compatibilityEvidencePath !== undefined) await reporter.prepareCompatibilityEvidence(compatibilityEvidencePath);
     if(signal?.aborted)throw fail();

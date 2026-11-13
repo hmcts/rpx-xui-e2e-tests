@@ -2,7 +2,7 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{randomUUID,createHash}=require('node:crypto');
 const digest=bytes=>'sha256:'+createHash('sha256').update(bytes).digest('hex');
 const write=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify(value,null,2)+'\n');return digest(fs.readFileSync(file));};
-exports.admissionPacket=async t=>{
+exports.admissionPacket=async (t,{personal=false}={})=>{
  const root=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'mandatory-admission-unit-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
  const {jointOwnershipPacket}=require('./exui-st-cic-joint-ownership.mock.cjs'),main=await jointOwnershipPacket(t);
  const previousMain=await main.replayMain();
@@ -11,6 +11,12 @@ exports.admissionPacket=async t=>{
  const sourceInput=JSON.parse(fs.readFileSync(path.join(main.f.directory,'private/eventCapability/input.json')));
  for(const phase of ['ccd','eventCapability','recipientCallback','selectorEventRow']){const file=path.join(main.f.directory,'private',phase,'input.json'),value=JSON.parse(fs.readFileSync(file));const before=JSON.stringify(value);if(!value.ccd)value.ccd=structuredClone(sourceInput.ccd);if(!value.credentials)value.credentials=structuredClone(sourceInput.credentials);if(JSON.stringify(value)!==before)write(file,value);}
  const images=sourceInput.ccd.images,projected=leaf.mandatoryEmailImageProjection(images);
+ if(personal){
+  const api=await import('../lib/exui-personal-service-admission.mjs');
+  const images=Object.fromEntries(Object.entries(sourceInput.ccd.images).map(([name,image])=>[name,{image:image.id,os:'linux',architecture:image.architecture}]));
+  expected.personalServiceNativeBinding=api.capturePersonalNativeBinding({nativeCohortCapture:{binding:native,reference:expected.nativeCohortBinding}},main.f.directory,images).reference;
+ }
+
  const capture=leaf.captureMandatoryEmailNativeBinding({nativeCohortCapture:{binding:native,reference:expected.nativeCohortBinding}},main.f.directory,projected);
  expected.mandatoryEmailNativeBinding=capture.reference;
  const ciFile=path.join(main.f.directory,'private/ci-result.json'),ci=JSON.parse(fs.readFileSync(ciFile));ci.mandatoryEmailNativeBinding=capture.reference;expected.ciResultDigest=write(ciFile,ci);
@@ -49,7 +55,14 @@ exports.admissionPacket=async t=>{
   const completionFile=path.join(cohortDirectory,variant+'-completion.json'),completion=JSON.parse(fs.readFileSync(completionFile));for(const name of Object.keys(completion.files))completion.files[name]=digest(fs.readFileSync(path.join(binding.directory,name)));write(completionFile,completion);
   const receiptFile=path.join(cohortDirectory,'mandatory-email-cohort.json'),receipt=JSON.parse(fs.readFileSync(receiptFile)),record=receipt.records.find(row=>row.variant===variant);for(const name of Object.keys(record.files))record.files[name]=digest(fs.readFileSync(path.join(cohortDirectory,name)));write(receiptFile,receipt);reseal();
  };
- return{root,directory,cohortDirectory,cohort,context,native,capture,expected,descriptor,previousMain,main:main.f,packets,requestPath,requestPin,write,read:file=>JSON.parse(fs.readFileSync(file)),reseal,rehashVariant};
+
+ let personalFixture;
+ if(personal){
+  main.f.native=native;main.f.descriptor=descriptor;main.f.save=()=>write(main.f.descriptorPath,descriptor);
+  personalFixture=await currentSiblingFactory('exui-personal-service-admission.mock.cjs',async()=>main.f).personalAdmissionFixture(t);
+  await exports.resealPersonalHeaders(personalFixture,(variant,role)=>'Bearer synthetic-personal-smoke-'+variant+'-'+role);
+ }
+ return{personal:personalFixture,root,directory,cohortDirectory,cohort,context,native,capture,expected,descriptor,previousMain,main:main.f,packets,requestPath,requestPin,write,read:file=>JSON.parse(fs.readFileSync(file)),reseal,rehashVariant};
 };
 
 // Exercise the actual wrapper body; substitute only Git/asset/process system boundaries.
@@ -105,10 +118,10 @@ async function currentMandatoryMain(t){
  const ciFile=path.join(f.directory,'private/ci-result.json'),ci=JSON.parse(fs.readFileSync(ciFile));ci.mandatoryEmailNativeBinding=capture.reference;f.descriptor.expected.ciResultDigest=write(ciFile,ci);
  f.save=()=>write(f.descriptorPath,f.descriptor);f.save();return f;
 }
-function currentSiblingFactory(name){
+function currentSiblingFactory(name,mainFactory=currentMandatoryMain){
  const Module=require('node:module'),file=path.join(__dirname,name),loaded=new Module(file,module),originalRequire=Module.createRequire(file);
  loaded.filename=file;loaded.paths=Module._nodeModulePaths(__dirname);
- loaded.require=specifier=>specifier==='./exui-divorce-joint-packet.mock.cjs'?{jointFixture:currentMandatoryMain}:originalRequire(specifier);
+ loaded.require=specifier=>specifier==='./exui-divorce-joint-packet.mock.cjs'?{jointFixture:mainFactory}:originalRequire(specifier);
  loaded._compile(fs.readFileSync(file,'utf8'),file);return loaded.exports;
 }
 exports.currentPersonalAdmissionFixture=t=>currentSiblingFactory('exui-personal-service-admission.mock.cjs').personalAdmissionFixture(t);

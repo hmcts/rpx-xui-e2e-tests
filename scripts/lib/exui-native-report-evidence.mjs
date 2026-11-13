@@ -34,6 +34,9 @@ import { validateNativePhaseFinalization } from "./exui-native-ci-ownership.mjs"
 import { assertRoutingInterpreter, ROUTING_SCOPE } from "./exui-routing-contract.mjs";
 import { admitSharedRoleNative } from "./exui-shared-role-native-binding.mjs";
 
+const reportFailures=new WeakMap();
+export function nativeReportFailureDetails(error){return reportFailures.has(error)?{...reportFailures.get(error)}:null;}
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const scopes = {
   family: "exui-wa-family-pilot",
@@ -375,6 +378,7 @@ function phaseProjection(directory, selection, ciPhase, expected) {
 
 /** Independent expectations are caller-owned launch/terminal captures, never inferred from the receipt. */
 export async function readNativeReportEvidence(descriptorPath, {profileConfigurationFor} = {}) {
+  let validationStage="descriptor";
   try {
     const descriptor = read(descriptorPath);
     const { directory, expected } = descriptor.value;
@@ -415,14 +419,14 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       Object.keys(scopes),
       "CI_PHASE_SELECTION_REQUIRED",
     );
-    const phases = expected.phases.map((item, index) =>
-      phaseProjection(
+    const phases = expected.phases.map((item, index) => {
+      validationStage="phase:"+Object.keys(scopes)[index];return phaseProjection(
         canonical(path.join(directory, "private", item.phase), true),
         item,
         ci.phaseResults[index],
         expected,
-      ),
-    );
+      );
+    });
     fact(
       phases
         .slice(0, 2)
@@ -435,6 +439,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       { status: ["PASS", "FAIL", "BLOCKED"][worstExit], exitCode: worstExit },
       "CI_OUTCOME_MISMATCH",
     );
+    validationStage="catalogue-coverage";
     const accounting = projectConfigurationCoverage({
       phaseDirectory: path.join(directory, "private/ccd"),
       eventPhaseDirectory: path.join(directory, "private/eventCapability"),
@@ -471,6 +476,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         "COVERAGE_PHASE_MISMATCH",
       );
     }
+    validationStage="shared-role";
     let sharedRoleAdmission;
     if (descriptor.value.sharedRoleAdmission) {
       const admission = descriptor.value.sharedRoleAdmission;
@@ -510,9 +516,11 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       releaseCredit: false,
     };
     // Validate both complete raw packets and every supplied parent pin before classifying compatibility.
+    validationStage="native-binding";
     const nativeBinding = readDivorceNativeBinding(directory, expected);
     fact(!expected.divorceProfileRequest || descriptor.value.divorceProfileAdmission, "PROFILE_REQUEST_REQUIRED");
     fact(!nativeBinding || !descriptor.value.divorceProfileAdmission || expected.divorceProfileRequest, "PROFILE_REQUEST_REQUIRED");
+    validationStage="divorce-profile";
     const profilePacket = descriptor.value.divorceProfileAdmission ? readDivorceProfileAdmissionPacket(descriptor.value.divorceProfileAdmission, expected.divorceProfileRequest, profileConfigurationFor) : undefined;
     let divorceProfileAdmission;
     if (profilePacket) {
@@ -530,6 +538,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
     fact(!expected.frProfileRequest||descriptor.value.frProfileAdmission,"FR_PROFILE_REQUEST_REQUIRED");
     fact(!descriptor.value.frProfileAdmission||expected.frProfileRequest,"FR_PROFILE_REQUEST_REQUIRED");
     if(descriptor.value.frProfileAdmission)fact(nativeBinding,"FR_PROFILE_NATIVE_BINDING_REQUIRED");
+    validationStage="fr-profile";
     const frPacket=descriptor.value.frProfileAdmission?readFrProfileAdmissionPacket(descriptor.value.frProfileAdmission,expected.frProfileRequest,{binding:nativeBinding,expected},accounting.catalogue):undefined;
     let frProfileAdmission;
     if(frPacket){
@@ -546,6 +555,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
     fact(!expected.cmcProfileRequest||descriptor.value.cmcProfileAdmission,'CMC_PROFILE_REQUEST_REQUIRED');
     fact(!descriptor.value.cmcProfileAdmission||expected.cmcProfileRequest,'CMC_PROFILE_REQUEST_REQUIRED');
     if(descriptor.value.cmcProfileAdmission)fact(nativeBinding,'CMC_PROFILE_NATIVE_BINDING_REQUIRED');
+    validationStage="cmc-profile";
     const cmcPacket=descriptor.value.cmcProfileAdmission?readCmcProfileAdmissionPacket(descriptor.value.cmcProfileAdmission,expected.cmcProfileRequest,{binding:nativeBinding,expected},accounting.catalogue):undefined;
     let cmcProfileAdmission;
     if(cmcPacket){
@@ -559,6 +569,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.cmcProfileAdmission=cmcPacket.joint;
       }
     }
+    validationStage="personal-service";
     const personalNative=(expected.personalServiceRequest||descriptor.value.personalServiceAdmission)?readPersonalNativeBinding(directory,expected,nativeBinding):undefined;
     fact(!expected.personalServiceRequest||descriptor.value.personalServiceAdmission,'PERSONAL_REQUEST_REQUIRED');
     fact(!descriptor.value.personalServiceAdmission||expected.personalServiceRequest,'PERSONAL_REQUEST_REQUIRED');
@@ -575,14 +586,17 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.personalServiceAdmission=joint;
       }
     }
+    validationStage="st-cic-profile";
     fact(!expected.stCicProfileRequest||descriptor.value.stCicProfileAdmission,'ST_CIC_REQUEST_REQUIRED');
     fact(!descriptor.value.stCicProfileAdmission||expected.stCicProfileRequest,'ST_CIC_REQUEST_REQUIRED');
     const stCicNative=(expected.stCicProfileRequest||descriptor.value.stCicProfileAdmission)?readStCicNativeBinding(directory,expected,nativeBinding):undefined;
     const stCicPacket=descriptor.value.stCicProfileAdmission?readStCicProfileAdmissionPacket(descriptor.value.stCicProfileAdmission,expected.stCicProfileRequest):undefined;
     let stCicProfileAdmission;
+    validationStage="mandatory-email";
     const mandatoryNative=mandatorySelected?readMandatoryEmailNativeBinding(directory,expected,nativeBinding):undefined;
     const mandatoryPacket=mandatorySelected?readMandatoryEmailAdmissionPacket(descriptor.value.mandatoryEmailAdmission,expected.mandatoryEmailRequest):undefined;
     let mandatoryEmailAdmission;
+    validationStage="complex-email";
     const complexNative=(expected.complexEmailRequest||descriptor.value.complexEmailAdmission)?readComplexNativeBinding(directory,expected,nativeBinding):undefined;
     fact(!expected.complexEmailRequest||descriptor.value.complexEmailAdmission,'COMPLEX_REQUEST_REQUIRED');
     fact(!descriptor.value.complexEmailAdmission||expected.complexEmailRequest,'COMPLEX_REQUEST_REQUIRED');
@@ -593,6 +607,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       const joint=complexNativeJointAdmission(nativeBinding,complexNative,complexPacket,expected);complexEmailAdmission={...complexPacket.admission,joint};
       if(joint.status==='included')creditComplexEmailRow(catalogueCoverage,accounting.catalogue,accounting.report.coverage.missingCandidateOrCcd,complexEmailAdmission);
     }
+    validationStage="st-cic-joint";
     if(stCicPacket){
       assertStCicOwnership(directory,expected,{stCicRequestPath:descriptor.value.stCicProfileAdmission,divorceRequestPath:descriptor.value.divorceProfileAdmission,personalRequestPath:descriptor.value.personalServiceAdmission,complexRequestPath:descriptor.value.complexEmailAdmission,complexPacket,mandatoryRequestPath:descriptor.value.mandatoryEmailAdmission});
       const joint=stCicNativeJointAdmission(nativeBinding,stCicNative,stCicPacket,expected);
@@ -606,6 +621,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.stCicProfileAdmission=joint;
       }
     }
+    validationStage="mandatory-email-joint";
     if(mandatoryPacket){
       assertMandatoryEmailOwnership(directory,expected,{mandatoryRequestPath:descriptor.value.mandatoryEmailAdmission,stCicRequestPath:descriptor.value.stCicProfileAdmission,divorceRequestPath:descriptor.value.divorceProfileAdmission,personalRequestPath:descriptor.value.personalServiceAdmission,complexRequestPath:descriptor.value.complexEmailAdmission,complexPacket});
       // Reopen the held main capsule after every companion raw replay and ownership read.
@@ -613,6 +629,7 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
       const joint=mandatoryEmailNativeJointAdmission(nativeBinding,mandatoryNative,mandatoryPacket,expected);mandatoryEmailAdmission={...mandatoryPacket.admission,joint};
       if(joint.status==='included')creditMandatoryEmailRows(catalogueCoverage,accounting.catalogue,accounting.report.coverage.missingCandidateOrCcd,mandatoryEmailAdmission);
     }
+    validationStage="cross-phase-binding";
     const first = expected.phases[0].expected;
     for (const { expected: pin } of expected.phases) {
       equal(
@@ -667,11 +684,13 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
   } catch (error) {
     // Filesystem/library errors can contain private paths or raw evidence; expose fixed codes only.
     // eslint-disable-next-line preserve-caught-error -- A public consumer must not retain private filesystem/evidence causes.
-    throw new Error(
+    const failure=new Error(
       /^NATIVE_REPORT_[A-Z_]+$/.test(error?.message)
         ? error.message
         : "NATIVE_REPORT_INVALID_EVIDENCE",
     );
+    reportFailures.set(failure,{code:failure.message,stage:validationStage});
+    throw failure;
   }
 }
 

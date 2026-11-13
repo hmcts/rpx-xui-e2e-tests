@@ -270,7 +270,11 @@ export async function runAssuranceSequence({ excludeKnownJurisdictionDefect = fa
     ...(cmcProfileRequest?{cmcProfileRequest:structuredClone(cmcProfileRequest)}:{}),
     ...(frProfileAttempt?{frProfileAttempt:structuredClone(frProfileAttempt)}:{}),
     ...(cmcProfileAttempt?{cmcProfileAttempt:structuredClone(cmcProfileAttempt)}:{}),
-  });}catch(error){if(mandatoryEmail)return blockMandatory();if(stCic)return blockStCic('BLOCKED');throw error;}
+  });}catch(error){
+    const {nativeReportFailureDetails}=await import('./lib/exui-native-report-evidence.mjs');
+    const failure=nativeReportFailureDetails(error);
+    console.error('[harness-assurance] Evidence collection failed: '+(failure?failure.code+' at '+failure.stage:'UNCLASSIFIED_REPORT_FAILURE'));
+    if(mandatoryEmail)return blockMandatory();if(stCic)return blockStCic('BLOCKED');throw error;}
   if(mandatoryEmail)mandatoryCollectedStatus=diagnostics?.status;
   stopped = cancelled(); if (stopped) return stopped;
   assert(["passed", "failed"].includes(diagnostics.status) && [0, 1, 2].includes(diagnostics.exitCode) && (diagnostics.status !== "failed" || diagnostics.exitCode !== 0), "ASSURANCE_DIAGNOSTIC_VERDICT_REQUIRED");

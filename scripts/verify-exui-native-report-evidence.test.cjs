@@ -778,3 +778,11 @@ test('actual denial reporter emitted reports pass sealed-role projection for all
   assert.equal(Object.hasOwn(report.tests.find(p=>p.proofId===id),'businessScalars'),false);assert.equal(rows.find(p=>p.proofId===id).businessScalars.availability,'recorded');
  }
 });
+
+test('native replay exposes only its own sanitized failure code and fixed validation stage',async()=>{
+ const api=await import('./lib/exui-native-report-evidence.mjs');let observed;
+ try{await api.readNativeReportEvidence('PRIVATE-CANARY');}catch(error){observed=error;}
+ assert.deepEqual(api.nativeReportFailureDetails(observed),{code:'NATIVE_REPORT_ABSOLUTE_CANONICAL_PATH_REQUIRED',stage:'descriptor'});
+ assert.equal(api.nativeReportFailureDetails(Object.assign(Error('NATIVE_REPORT_PRIVATE_CANARY'),{stage:'PRIVATE-CANARY'})),null);
+ assert(!JSON.stringify(api.nativeReportFailureDetails(observed)).includes('PRIVATE-CANARY'));
+});
