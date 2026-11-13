@@ -1442,7 +1442,7 @@ test("native headline shows the actual status and reserves green for passing evi
  for (const status of [null,'PASS','FAIL','BLOCKED']) {
   const metrics=make(); metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
   const native=status?{dataset:{nativeStatus:status},querySelectorAll:()=>[{},{}]}:null;
-  const document={createElement:make,querySelector:selector=>selector==='#TabDashboard'?{after:section=>{metrics.following=section}}:({'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':native})[selector]||null,querySelectorAll:()=>[]};
+  const document={createElement:make,querySelector:selector=>selector==='#harness-overview'?{before:section=>{metrics.following=section}}:({'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':native})[selector]||null,querySelectorAll:()=>[]};
   vm.runInNewContext(script,{document});
   const card=metrics.following.children[1];
   assert.equal(card.dataset.nativeStatus,status||'NOT_RUN');
@@ -1483,7 +1483,7 @@ test('dashboard exposes supplementary runs without adding them to main counts', 
  const render=(supplements,main=true)=>{
   const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
   const elements={'#harness-public-run':{dataset:{nativeElapsedMs:'60000'}},'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,...(main?{'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}}:{}),...supplements};
-  const document={createElement:make,querySelector:selector=>selector==='#TabDashboard'?{after:section=>{metrics.following=section}}:elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'35'}}]:[]};
+  const document={createElement:make,querySelector:selector=>selector==='#harness-overview'?{before:section=>{metrics.following=section}}:elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'35'}}]:[]};
   vm.runInNewContext(script,{document});return metrics.following;
  };
  const text=node=>[node.textContent||'',...node.children.map(text)].join(' ');
@@ -1684,7 +1684,7 @@ function assuranceDashboard(data={}) {
  const make=()=>({dataset:{},children:[],attributes:{},classList:{add(){}},append(...items){this.children.push(...items)},setAttribute(name,value){this.attributes[name]=value}});
  const metrics=make();metrics.querySelector=selector=>({textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'});metrics.replaceChildren=()=>{metrics.children=[]};
  const elements={'#harness-public-run':{dataset:{nativeElapsedMs:'180',...data}},'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-native-evidence':{dataset:{nativeStatus:'PASS'},querySelectorAll:()=>[{},{}]}};
- require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8'),{document:{createElement:make,querySelector:selector=>selector==='#TabDashboard'?{after:section=>{metrics.following=section}}:elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'39'}}]:[]}});
+ require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8'),{document:{createElement:make,querySelector:selector=>selector==='#harness-overview'?{before:section=>{metrics.following=section}}:elements[selector]||null,querySelectorAll:selector=>selector.includes('data-catalogue-kind')?[{dataset:{catalogueAccepted:'39'}}]:[]}});
  return metrics.following.children;
 }
 

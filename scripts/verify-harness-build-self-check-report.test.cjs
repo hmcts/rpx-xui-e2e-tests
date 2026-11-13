@@ -389,7 +389,7 @@ function buildDashboard(summary) {
     movedTimeline = element;
   };
   const elements = {
-    "#TabDashboard": {after: (section) => { metrics.following = section; }},
+    "#harness-overview": {before: (section) => { metrics.following = section; }},
     "#harness-public-run": {
       dataset: {
         assuranceVersion: "1",

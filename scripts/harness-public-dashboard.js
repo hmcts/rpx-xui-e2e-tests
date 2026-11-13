@@ -233,6 +233,6 @@
   note.textContent = 'Separate measures; counts are not additive. Service, jurisdiction and case type labels describe diagnostic associations, while accepted runtime evidence appears in the catalogue card.';
   harnessMetrics.append(map, note);
   const timeline = document.querySelector('#harness-phase-timings');
-  document.querySelector('#TabDashboard').after(harnessMetrics);
+  document.querySelector('#harness-overview').before(harnessMetrics);
   if (timeline) harnessMetrics.after(timeline);
 })();

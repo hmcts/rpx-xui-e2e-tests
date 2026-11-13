@@ -44,7 +44,7 @@ test('Complex dashboard activity preserves main totals and the main duration', (
       '#harness-native-evidence':{dataset:{nativeStatus:'PASS'}, querySelectorAll:() => [{}, {}]},
       '#harness-complex-email-admission':{dataset:{complexStatus:'PASS', complexBrowserContexts:'2', complexMappingContexts:'2', complexEffectiveFaults:'2', complexDurationMs:'265374', complexInclusion:included ? 'included' : 'separate'}},
     };
-    const document = {createElement:make, querySelector:selector => selector === '#TabDashboard' ? {after:section=>{metrics.following=section}} : elements[selector] || null, querySelectorAll:() => [{dataset:{catalogueAccepted:included ? '39' : '38'}}]};
+    const document = {createElement:make, querySelector:selector => selector === '#harness-overview' ? {before:section=>{metrics.following=section}} : elements[selector] || null, querySelectorAll:() => [{dataset:{catalogueAccepted:included ? '39' : '38'}}]};
     vm.runInNewContext(script, {document});
     assert.equal(metrics.following.children[0].children[1].textContent, `${included ? 39 : 38} / 112`);
     assert.equal(metrics.following.children[1].children[1].textContent, '2 + 2');
@@ -102,7 +102,7 @@ test('keeps the Odhín summary above separate Harness cards and uses only record
     const metrics=make();metrics.children.push(...originalCards);
     metrics.querySelector=selector=>selector==='.metric-3'?originalCards[3]:{textContent:selector.includes('metric-0')?'116':selector.includes('metric-1')?'100%':'0'};
     const dataset={nativeElapsedMs:'1920000',diagnosticElapsedMs:'6100',assuranceVersion:'2',assuranceScope:'harness-preparation-start-to-report-snapshot',assuranceClock:'monotonic',...(elapsed===undefined?{}:{assuranceElapsedMs:elapsed})};
-    const elements={'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-public-run':{dataset},'#harness-native-evidence':{dataset:{nativeStatus:'BLOCKED'},querySelectorAll:()=>[]},'#TabDashboard':{after:section=>{metrics.following=section}}};
+    const elements={'#harness-application-coverage':{dataset:{runtimeObligations:'112'}},'.report-metrics':metrics,'#harness-public-run':{dataset},'#harness-native-evidence':{dataset:{nativeStatus:'BLOCKED'},querySelectorAll:()=>[]},'#harness-overview':{before:section=>{metrics.following=section}}};
     vm.runInNewContext(script,{document:{createElement:make,querySelector:selector=>elements[selector]||null,querySelectorAll:()=>[]}});
     assert.deepEqual(metrics.children,originalCards);
     assert.equal(originalCards[3].children[0].textContent,'Diagnostic duration');
@@ -114,4 +114,27 @@ test('keeps the Odhín summary above separate Harness cards and uses only record
     assert.match(timings[0].children[2].textContent,/Excludes earlier Jenkins shell\/bootstrap/);
     assert(!metrics.following.children.some(card=>card.children[0]?.textContent==='Measured Harness execution'));
   }
+});
+
+test('real Odhín template keeps Harness overview and timeline owned by Dashboard after original summary', t => {
+  const {parse,HTMLElement}=require('node-html-parser');
+  const prototype=HTMLElement.prototype, previous={};
+  for(const [key,descriptor] of Object.entries({
+    dataset:{get(){return Object.fromEntries(Object.entries(this.attributes).filter(([name])=>name.startsWith('data-')).map(([name,value])=>[name.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase()),value]));}},
+    className:{get(){return this.getAttribute('class')||'';},set(value){this.setAttribute('class',value);}},
+  })){previous[key]=Object.getOwnPropertyDescriptor(prototype,key);Object.defineProperty(prototype,key,{...descriptor,configurable:true});}
+  t.after(()=>{for(const [key,descriptor] of Object.entries(previous)){if(descriptor)Object.defineProperty(prototype,key,descriptor);else delete prototype[key];}});
+  const template=fs.readFileSync(path.join(__dirname,'../node_modules/odhin-reports-playwright/lib/html/base.html'),'utf8');
+  const dom=parse(template),dashboard=dom.querySelector('#TabDashboard'),original=dashboard.firstElementChild;
+  original.insertAdjacentHTML('afterbegin','<div class="report-metrics"><div class="metric-0"><strong>116</strong></div><div class="metric-1"><strong>100%</strong></div><div class="metric-2"><strong>0</strong></div><div class="metric-3"><span>Execution time</span><strong>5s</strong><span>Diagnostics</span></div></div>');
+  const originalChildren=original.childNodes.slice();
+  dashboard.insertAdjacentHTML('beforeend','<section id="harness-overview"><section id="harness-application-coverage" data-runtime-obligations="112"></section></section><section id="harness-phase-timings">Recorded phases</section>');
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'harness-public-dashboard.js'),'utf8'),{document:{createElement:tag=>parse(`<${tag}></${tag}>`).firstChild,querySelector:selector=>dom.querySelector(selector),querySelectorAll:selector=>dom.querySelectorAll(selector)}});
+  const summary=dom.querySelector('.harness-assurance-summary'),timeline=dom.querySelector('#harness-phase-timings'),details=dom.querySelector('#harness-overview');
+  assert.equal(summary.parentNode,dashboard);
+  assert.equal(timeline.parentNode,dashboard);
+  assert.equal(dashboard.firstElementChild,original);
+  assert.deepEqual(original.childNodes,originalChildren);
+  assert.deepEqual(dashboard.children,[original,summary,timeline,details]);
+  assert.equal(dom.querySelector('#TabTests').querySelector('.harness-assurance-summary'),null);
 });
