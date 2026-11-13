@@ -93,6 +93,7 @@ export function collectDefinitionDiscovery({ repositoryRoot, review }) {
       const file = path.join(current, name), rel = path.relative(root, file).split(path.sep).join('/');
       assert(relative(rel), 'INVALID_DEFINITION_PATH');
       const info = fs.lstatSync(file);
+      if (name === '.DS_Store' && info.isFile()) continue;
       if (info.isDirectory()) { assert.equal(fs.realpathSync(file), file, 'DEFINITION_SOURCE_ALIAS'); walk(file); continue; }
       if (!info.isFile()) {
         entries.push({ path: rel, kind: info.isSymbolicLink() ? 'symlink' : 'special' });
@@ -151,6 +152,32 @@ export function summarizeDefinitionDiscovery(discovery) {
       edges: discovery.graph.edges.length, graphGaps: discovery.graph.gaps.length } };
 }
 
+export function validateGeneratedDefinitionSnapshot(repository, root = process.cwd()) {
+  const evidence = repository.generatedDefinitions;
+  if (!evidence) return null;
+  try {
+    assert(relative(evidence.manifestPath) && relative(evidence.outputRoot), 'INVALID_GENERATED_DEFINITION_PIN');
+    const base = fs.realpathSync(root), file = path.resolve(base, evidence.manifestPath);
+    assert(file.startsWith(`${base}${path.sep}`) && fs.lstatSync(file).isFile() && fs.realpathSync(file) === file, 'INVALID_GENERATED_DEFINITION_PIN');
+    const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert(manifest.schemaVersion === 1 && manifest.repository === repository.fullName && manifest.revision === repository.revision &&
+      manifest.outputRoot === evidence.outputRoot && manifest.sourceRoot === repository.definitionRoot &&
+      manifest.generator?.task === evidence.generatorTask && Array.isArray(manifest.files) && manifest.files.length === evidence.fileCount &&
+      manifest.runtimeAcceptance === false && manifest.catalogueCredit === false && manifest.releaseApproval === false, 'INVALID_GENERATED_DEFINITION_PIN');
+    let previous = '';
+    for (const entry of manifest.files) {
+      assert(relative(entry.path) && entry.path > previous && Number.isSafeInteger(entry.bytes) && entry.bytes >= 0 && /^[a-f0-9]{64}$/.test(entry.sha256), 'INVALID_GENERATED_DEFINITION_PIN');
+      previous = entry.path;
+    }
+    const manifestDigest = sha(Buffer.from(JSON.stringify(manifest.files)));
+    const bytes = manifest.files.reduce((sum, entry) => sum + entry.bytes, 0);
+    assert(manifestDigest === evidence.manifestDigest && manifest.manifestDigest === evidence.manifestDigest && bytes === evidence.bytes, 'INVALID_GENERATED_DEFINITION_PIN');
+    return { fileCount: manifest.files.length, bytes, manifestDigest, runtimeAcceptance: false };
+  } catch {
+    return null;
+  }
+}
+
 export function buildDefinitionRootInventory({ profiles, discoveryValidation }) {
   assert(Array.isArray(profiles) && profiles.length, 'SERVICE_DEFINITION_PROFILES_REQUIRED');
   const live = discoveryValidation?.inventory;
@@ -176,23 +203,27 @@ export function buildDefinitionRootInventory({ profiles, discoveryValidation }) 
         `INVALID_SERVICE_DEFINITION_ROOT:${profile.serviceFamily}`);
       const discovered = profile.serviceFamily === 'PRIVATELAW' && pinned &&
         repository.fullName === discoveredRepository && repository.definitionRoot === live.root;
+      const generatedDefinitions = validateGeneratedDefinitionSnapshot(repository);
       const root = { serviceFamily: profile.serviceFamily, repository: repository.fullName, root: repository.definitionRoot,
         declaredRevision: repository.revision ?? null,
-        declaredRevisionBasis: repository.revision ? 'source-catalogue-metadata-only' : 'not-declared',
-        status: discovered ? 'discovered-and-byte-pinned' : 'unreviewed' };
+        declaredRevisionBasis: generatedDefinitions ? 'source-generated-output-snapshot' : repository.revision ? 'source-catalogue-metadata-only' : 'not-declared',
+        status: discovered ? 'discovered-and-byte-pinned' : generatedDefinitions ? 'pinned-generated-output-snapshot' : 'unreviewed',
+        ...(generatedDefinitions ? { generatedDefinitions } : {}) };
       if (discovered) {
         root.discoveryRevision = live.revision;
         root.discoveryGitTree = live.gitTree;
         root.referenceGaps = discoveryValidation.graph?.gaps?.length ?? null;
-      } else gaps.push(`definition-root-unreviewed:${repository.fullName}:${repository.definitionRoot}`);
+      } else if (!generatedDefinitions) gaps.push(`definition-root-unreviewed:${repository.fullName}:${repository.definitionRoot}`);
+      if (repository.generatedDefinitions && !generatedDefinitions) gaps.push(`generated-definition-snapshot-invalid:${repository.fullName}`);
       roots.push(root);
     }
   }
   const discoveredRoots = roots.filter(item => item.status === 'discovered-and-byte-pinned').length;
+  const generatedSnapshotRoots = roots.filter(item => item.status === 'pinned-generated-output-snapshot').length;
   return { schemaVersion: 1, source: 'src/data/exui-central-assurance-source.json#serviceDefinitionProfiles',
     evidenceMode: 'declared-metadata-with-reviewed-root-match',
     counts: { declaredProfiles: profiles.length, declaredRoots: roots.filter(item => item.repository).length,
-      discoveredRoots, unreviewedRoots: roots.filter(item => item.status === 'unreviewed').length,
+      discoveredRoots, generatedSnapshotRoots, unreviewedRoots: roots.filter(item => item.status === 'unreviewed').length,
       unavailableFamilies: roots.filter(item => item.status === 'unavailable').length }, roots, gaps };
 }
 
@@ -230,7 +261,24 @@ export function validateDefinitionDiscovery({ discovery, review }) {
       if (matches.length !== 1) errors.push(`definition-reference-witness-drift:${witness.sourcePath}#${witness.row}:${witness.kind}:${witness.target}`);
     }
   }
-  for (const family of review.families ?? []) if (family !== 'PRIVATELAW') gaps.push(`definition-inventory-not-supplied:${family}`);
+  const generatedSnapshots = review.generatedDefinitionSnapshots ?? [];
+  if (!Array.isArray(generatedSnapshots)) errors.push('invalid-generated-definition-snapshots');
+  const snapshots = Array.isArray(generatedSnapshots) ? generatedSnapshots : [];
+  for (const family of review.families ?? []) {
+    if (family === 'PRIVATELAW') continue;
+    const matches = snapshots.filter(item => item?.serviceFamily === family);
+    const snapshot = matches.length === 1 ? matches[0] : null;
+    const valid = snapshot && validateGeneratedDefinitionSnapshot({
+      fullName: snapshot.repository, revision: snapshot.revision, definitionRoot: snapshot.root,
+      generatedDefinitions: Object.fromEntries(['manifestPath', 'generatorTask', 'outputRoot', 'fileCount', 'bytes', 'manifestDigest'].map(key => [key, snapshot[key]])),
+    });
+    if (valid) gaps.push(`definition-reference-graph-not-supplied:${family}`);
+    else {
+      if (matches.length) gaps.push(`generated-definition-snapshot-invalid:${family}`);
+      gaps.push(`definition-inventory-not-supplied:${family}`);
+    }
+  }
+  for (const snapshot of snapshots) if (!review.families?.includes(snapshot?.serviceFamily)) errors.push(`generated-definition-snapshot-family-unreviewed:${snapshot?.serviceFamily ?? 'unknown'}`);
   const inventory = actual.evidenceMode === 'live-source' ? Object.fromEntries(
     ['schemaVersion', 'repository', 'revision', 'root', 'observedHead', 'gitTree', 'entries', 'baseline', 'gaps'].map(key => [key, actual[key]])) : null;
   if (inventory) inventory.summary = summary;

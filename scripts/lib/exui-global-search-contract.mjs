@@ -42,7 +42,7 @@ export function isGlobalSearchRequest(body) {
   }));
 }
 export const globalSearchContract = () => ({
-  reviewedSourceRevision: '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0',
+  reviewedSourceRevision: '20c6ec129fc1e81061c733e164198ec63a33e71a',
   referenceDataDigest: digestBytes(JSON.stringify(globalSearchReferenceRows())),
   scope: 'literal Global Search nine versus WA seven; synthetic labels; no profile/CCD/cache/auth credit',
 });

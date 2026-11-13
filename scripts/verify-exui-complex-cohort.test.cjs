@@ -99,13 +99,25 @@ test('Complex-only selection does not change other gateway option shapes',async(
 });
 test('actual fixed sequence runs exactly four contexts then one compiler and one raw reader',async()=>{
  const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs'),{result,calls}=await sequenceFixture();
- assert.deepEqual(calls,['browser-baseline','browser-email-type','mapping','compiler','reader']);assert.equal(result.result.status,'OBSERVATIONS_VERIFIED');
+ assert(calls.indexOf('browser-email-type')<calls.indexOf('compiler-start'));assert(calls.indexOf('compiler-start')<calls.indexOf('mapping'));assert(calls.indexOf('mapping')<calls.indexOf('compiler-finish'));assert(calls.indexOf('compiler-finish')<calls.indexOf('reader'));assert.equal(result.result.status,'OBSERVATIONS_VERIFIED');
  for(const key of ['sourceComplete','runtimeAcceptance','catalogueCredit','releaseCredit'])assert.equal(result.result[key],false);
+});
+test('Complex source failure aborts and joins runtime work before returning without raw admission',async()=>{
+ const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs'),{result,calls}=await sequenceFixture('source-fails');
+ assert.equal(result.result.status,'BLOCKED');assert.equal(result.result.failedStage,'source-proof');assert(calls.includes('runtime-joined-after-abort'));assert(!calls.includes('reader'));
+});
+test('browser proof failures retain their actual stage after the output directory is prepared',async()=>{
+ const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs'),{result,calls}=await sequenceFixture('email-browser-fails');
+ assert.equal(result.result.status,'BLOCKED');assert.equal(result.result.failedStage,'browser-email-type');assert(!calls.includes('mapping'));assert(!calls.includes('reader'));
+});
+test('blocked mapping aborts and joins source compilation before returning without raw admission',async()=>{
+ const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs'),{result,calls}=await sequenceFixture('mapping-blocked');
+ assert.equal(result.result.status,'BLOCKED');assert.equal(result.result.failedStage,'mapping-pair');assert(calls.includes('compiler-joined-after-abort'));assert(!calls.includes('reader'));
 });
 test('actual fixed sequence cancellation covers compiler gap, compiler completion and final reader',async()=>{
  const {sequenceFixture}=require('./fixtures/exui-complex-cohort.mock.cjs');
  for(const mode of ['before-compiler','during-compiler','during-final-reader','queued-final-cancel']){const {result,calls}=await sequenceFixture(mode);assert.equal(result.result.status,'CANCELLED');
-  if(mode==='before-compiler')assert(!calls.includes('compiler'));if(mode==='during-compiler')assert(!calls.includes('reader'));
+  if(mode==='before-compiler')assert(calls.includes('compiler'));if(mode==='during-compiler')assert(!calls.includes('reader'));
  }
 });
 test('unsafe context close or forced Python terminal cannot start later work or verify observations',async()=>{

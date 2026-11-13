@@ -1,6 +1,25 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const runtime = import('./lib/exui-ccd-runtime.mjs');
+test('optional pre-create gate observes actual owned names before allocation and cannot mutate private recovery',async t=>{
+ const api=await runtime,fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const parent=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'ccd-before-create-'));t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ let creates=0,packet,inspections=0;
+ const runDocker=args=>{if(args[0]==='image')return JSON.stringify([{Id:args[2],Architecture:'arm64',RepoDigests:['fixture@'+args[2]]}]);if(args[0]==='create')return (++creates).toString(16).padStart(64,'0');if(args[0]==='exec'&&args[2]==='node')return JSON.stringify([{host:'synthetic',connected:false}]);return '';};
+ const state=await api.startCcdRuntime(parent+'/runtime',{runDocker,request:()=>({status:200}),inspectBeforeCreate:()=>{inspections++;return null;},beforeCreate:async value=>{assert.equal(creates,0);packet=structuredClone(value);value.resources.database.name='mutated-callback-copy';}});
+ assert.equal(state.ready,true);assert.equal(packet.owner,state.owner);assert.equal(packet.resources.database.name,state.owner+'-database');assert.equal(creates,Object.keys(api.CCD_IMAGES).length);assert.equal(inspections,2*creates);
+ assert(!JSON.stringify(packet).includes('PASSWORD'));assert.equal(JSON.parse(fs.readFileSync(parent+'/runtime/recovery.json')).resources.database.name,packet.resources.database.name);
+});
+test('pre-create rejection, pending cancellation and newly foreign name prevent every allocation',async t=>{
+ const api=await runtime,fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+ const parent=fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()),'ccd-gate-cancel-'));t.after(()=>fs.rmSync(parent,{recursive:true,force:true}));
+ for(const mode of ['reject','cancel','foreign']){
+  let created=0,cancelled=false,ack=false;const runDocker=args=>{if(args[0]==='image')return JSON.stringify([{Id:args[2],Architecture:'arm64',RepoDigests:['fixture@'+args[2]]}]);if(args[0]==='create'){created++;throw Error('allocation must not occur');}assert.fail('unexpected command');};
+  const output=parent+'/'+mode;
+  await assert.rejects(api.startCcdRuntime(output,{runDocker,isCancelled:()=>cancelled,inspectBeforeCreate:()=>ack&&mode==='foreign'?{Id:'foreign-resource'}:null,beforeCreate:async()=>{assert.equal(created,0);await new Promise(resolve=>setImmediate(resolve));assert.equal(created,0);ack=true;if(mode==='reject')throw Error('CONTROLLED_ACK_REJECTED');if(mode==='cancel')cancelled=true;}}),mode==='reject'?/CONTROLLED_ACK_REJECTED/:mode==='cancel'?/CCD_START_CANCELLED/:/CCD_PRECREATE_NAME_OCCUPIED/);
+  assert.equal(created,0);assert(!fs.existsSync(output+'/creation-attempts.json'));
+ }
+});
 test('CCD sidecars require a pinned image, owned namespace and loopback configuration', async () => {
  const {sidecarArguments, validateCcdDefinition, CCD_IMAGES} = await runtime;
  assert.throws(() => sidecarArguments({owner:'harness-test', namespace:'abc', image:'latest', service:'data', env:{}}), /PINNED/);

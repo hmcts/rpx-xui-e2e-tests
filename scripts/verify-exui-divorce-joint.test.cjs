@@ -1,10 +1,11 @@
+const {reviewedCsrfDetailChildren}=require('./fixtures/harness-reviewed-csrf-details.mock.cjs');
 // Fake presentation events use the independently reviewed literal IDs, not validator output.
 function reviewedFixtureSteps(test) {
   const path = require('node:path');
   const file = path.relative(process.cwd(), test.location.file).split(path.sep).join('/');
   const method = require('./fixtures/harness-public-check-methods.json').checks.find(row => row.file === file && JSON.stringify(row.titlePath.slice(3)) === JSON.stringify(test.titlePath().slice(3)));
   if (!method) throw new Error('REVIEWED_PRESENTATION_FIXTURE_IDENTITY_MISSING');
-  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:[]}));
+  return method.steps.map(({id}) => ({title:'harness-check:' + id, category:'test.step', duration:1, steps:reviewedCsrfDetailChildren(id)}));
 }
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {temp}=require('./fixtures/exui-divorce-cohort-packet.mock.cjs');
@@ -21,11 +22,14 @@ test('complete native seven plus raw DIVORCE twelve admits exactly one candidate
  const render=require('./harness-native-report.cjs');const html=render.renderNativeEvidence(joined);assert.match(html,/1 requirement included in main candidate coverage/);assert.match(html,/already included once/);
  const reportRoot=temp(t),previous=process.cwd();process.chdir(reportRoot);
  try{
-  const Reporter=require('./harness-public-odhin-reporter.cjs'),overview=require('./harness-public-overview.cjs'),reporter=new Reporter({selection:'harness'});reporter.nativeEvidence=joined;
+  const Reporter=require('./fixtures/exui-native-report-packet.mock.cjs').reporterForReaderOptions(t,{profileConfigurationFor:f.c.configurationFor}),overview=require('./harness-public-overview.cjs'),reporter=new Reporter({selection:'harness'});await reporter.prepareNativeEvidence(f.descriptorPath);
   const tests=overview.entries.map(entry=>({location:{file:path.join(reportRoot,entry.file)},titlePath:()=>entry.titlePath,retries:0,expectedStatus:'passed'}));reporter.onBegin({}, {allTests:()=>tests});
   const startTime=new Date('2026-11-05T12:00:00Z');for(const item of tests)reporter.onTestEnd(item,{steps:reviewedFixtureSteps(item),status:'passed',retry:0,duration:1,startTime,workerIndex:0,parallelIndex:0});await reporter.onEnd({status:'passed',startTime,duration:1000});
   const recorded=Reporter.validatePublicReport();assert.equal(recorded.tests,tests.length);assert.deepEqual(recorded.nativeEvidence.catalogueCoverage,joined.catalogueCoverage);
   const published=fs.readFileSync(path.join(reportRoot,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.equal((published.match(/id="harness-divorce-profile-admission"/g)||[]).length,1);assert.match(published,/DIVORCE profile: 1 requirement included in main candidate coverage/);assert.match(published,/data-profile-inclusion="included"/);assert.match(published,/Postal proof BLOCKED/);
+ const recordFile=path.join(reportRoot,'functional-output/tests/harness/private/public-odhin-harness.json'),htmlFile=path.join(reportRoot,'functional-output/tests/harness/public/odhin/index.html'),recordBytes=fs.readFileSync(recordFile),htmlBytes=fs.readFileSync(htmlFile,'utf8');
+ for(const mode of ['copied-scalar','withdraw-intent']){const value=JSON.parse(recordBytes),page=require('node-html-parser').parse(htmlBytes);if(mode==='copied-scalar'){value.nativeEvidence.phases.find(p=>p.phase==='ccd').baselineProofs.find(p=>p.proofId==='ccd-nested-roundtrip').businessScalars=require('./fixtures/exui-business-scalar-detail.mock.cjs').recorded('ccd-nested-roundtrip');page.querySelector('#harness-native-evidence').replaceWith(render.renderNativeEvidence(value.nativeEvidence));}else delete value.nativeBusinessScalarHeld;const changed=page.toString();value.sha256=createHash('sha256').update(changed).digest('hex');fs.writeFileSync(htmlFile,changed);fs.writeFileSync(recordFile,JSON.stringify(value));assert.throws(()=>Reporter.validatePublicReport(),/PUBLIC_ODHIN/,mode);fs.writeFileSync(htmlFile,htmlBytes);fs.writeFileSync(recordFile,recordBytes);}
+ Reporter.validatePublicReport();
  }finally{process.chdir(previous);}
 });
 test('parent binding and raw twelve reject coherent substitutions before any separate-context classification',async t=>{

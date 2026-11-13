@@ -329,7 +329,7 @@ test("support only: finalized exact CCD sequence credits only one of112 and pres
     assert.equal(result.coverage.missingCandidateOrCcd.length, 111);
     assert(
       result.coverage.missingCandidateOrCcd.includes(
-        "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c",
+        "configuration-decentralisation:24b0d8b94327dfc6b9e00f19814604c11c7fcbecc3171af4dd8b68c97a5b2e24",
       ),
     );
     assert(!result.coverage.missingCandidateOrCcd.includes(id));
@@ -742,7 +742,7 @@ test("support only: native committed-summary loading needs no source checkout or
 const eventCell =
   "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313";
 const routingCell =
-  "configuration-decentralisation:52f63ce0d43f0422438b698894746ce1dc0e7062288fc8a09fcfd93b84cf2f1c";
+  "configuration-decentralisation:24b0d8b94327dfc6b9e00f19814604c11c7fcbecc3171af4dd8b68c97a5b2e24";
 async function completeRoutingBundle(root, values = {}) {
   const { createRoutingPhaseFixture } = require(
     "./fixtures/exui-routing-phase-evidence.mock.cjs",
@@ -836,7 +836,7 @@ test("support only: complete event phase credits the exact courtadmin edit and r
     api.loadCommittedConfigurationCatalogue().catalogue.obligations;
   assert.equal(
     digestBytes(JSON.stringify(before.map(item => item.kind === "shared-policy" ? {...item, sourceKeys: []} : item))),
-    "sha256:66ab9952a57c8e9ae728e075d132302a0a80b66c0d798f7d03f6f79599b945bb",
+    "sha256:f19597e37478be7ac1ca3f69e8d4c9e03538575bb96fadf2e3de75f76044c1f0",
   );
   const projected = api.projectConfigurationCoverage({
     eventPhaseDirectory: event.directory,

@@ -125,7 +125,7 @@ async function launch() {
     runId,
     browserExecutable: `/browser/${browserRelative}`,
     browserDigest,
-    browserVersion: `playwright-1.64.1-chromium-${revision}-${artifact.provenance.platform.replace("/", "-")}`,
+    browserVersion: `playwright-${harnessDependencies.playwrightVersion}-chromium-${revision}-${artifact.provenance.platform.replace("/", "-")}`,
   });
   const stagedHarness = fs.mkdtempSync(
     path.join(fs.realpathSync(os.tmpdir()), "exui-harness-sources-"),

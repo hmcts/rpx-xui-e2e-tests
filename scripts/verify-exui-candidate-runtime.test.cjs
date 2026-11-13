@@ -1,3 +1,4 @@
+require("./fixtures/exui-self-check-fixed-port-lock.cjs").installFixedPortHooks("provider");
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -640,7 +641,7 @@ test("scope derivation rejects aliased targets, overlap and stale output before 
 // These tests deliberately fail closed if those unique source boundaries change.
 function providerSealPrefix(kind) {
   const definitions = {
-    native: ['run-harness-native-tools.mjs', '    "HARNESS_SOURCE_SNAPSHOT_MISMATCH",\n  );\n', '  let server, cookie;\n'],
+    native: ['run-harness-native-tools.mjs', '  let artifact;\n', '  let server, cookie;\n'],
     callback: ['recipient-callback-ui-tools.mjs', "input.harnessSourceDigest,'HARNESS_SOURCE_SNAPSHOT_MISMATCH');\n", " for(const [name,port] of"],
     profile: ['source-profile-jurisdictions-worker.mjs', '  verifyProfileSources(root,input.sources.digest);\n', '  return {browser:input.browser,facet,directory:'],
   };
@@ -669,8 +670,8 @@ for (const kind of ['native', 'callback', 'profile']) test(`provider root seals 
     const input = { artifact, harnessDependencies: { digest: 'deps' }, browserDigest: 'browser', browser: { digest: 'browser', dependencies: { digest: 'deps' } }, configurations: { baseline: { digest: 'config' } }, sources: { digest: 'source' } };
     const begin = name => { started.push(name); return seals[name].promise; };
     const bindings = {
-      input, invocation: {}, invocationId: 'baseline', root: '/harness', path, assert,
-      facet: 'divorce-jurisdiction', browserFacet: true, divorce: null, health: false, membership: false, fault: 'fault',
+      input, invocation: {}, invocationId: 'baseline', root: '/harness', path, assert, time: (_step, action) => action(),
+      facet: 'divorce-jurisdiction', fr: false, cmc: false, browserFacet: true, divorce: null, health: false, membership: false, fault: 'fault', stCicApi: () => false,
       verifyHarnessDependencies: (...args) => { assert.deepEqual(args, ['/harness/node_modules', '/harness/package.json', '/harness/yarn.lock', 'deps']); return begin('deps'); },
       digestCandidateTree: root => { assert.equal(root, '/browser'); return begin('browser'); },
       selectedArtifact: () => artifact,
@@ -711,7 +712,7 @@ test('provider root seals leave nonbrowser profile on its single candidate check
   let ready = false, configurationCalls = 0;
   const bindings = {
     input: { artifact, configurations: { baseline: { digest: 'config' } }, sources: { digest: 'source' } },
-    invocationId: 'baseline', root: '/harness', path, assert, facet: 'jurisdictions', browserFacet: false, divorce: null, health: false, membership: false, fault: 'fault',
+    invocationId: 'baseline', root: '/harness', path, assert, facet: 'jurisdictions', fr: false, cmc: false, browserFacet: false, divorce: null, health: false, membership: false, fault: 'fault', stCicApi: () => false,
     describeCandidateArtifact: () => candidate.promise,
     digestCandidateTree: () => assert.fail('nonbrowser profile must not read browser'),
     verifyHarnessDependencies: () => assert.fail('nonbrowser profile must not read browser dependencies'),
@@ -758,4 +759,28 @@ test('provider root seals settle callback reads for missing or null artifact bef
       await outcome;
     }
   }
+});
+
+test('standalone candidate launch emits browser identity from verified dependencies before host execution',async()=>{
+ const source=fs.readFileSync(path.join(__dirname,'run-harness-candidate.mjs'),'utf8'),open='async function launch() {',close='\n}\ntry {\n  await launch();';
+ assert.equal(source.split(open).length,2,'actual launch entry is unique');assert.equal(source.split(close).length,2,'actual launch/CLI boundary is unique');
+ const body=source.slice(source.indexOf(open)+open.length,source.indexOf(close)),AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+ for(const [version,platform,rejectDependencies]of [['1.65.0','linux/arm64',false],['1.66.2','linux/amd64',false],['1.65.0','linux/arm64',true]]){
+  const calls=[],writes=[],copies=[],artifact={candidateRoot:'/fixture/candidate',provenance:{platform}},dependencies={digest:'sha256:'+'d'.repeat(64),playwrightVersion:version},fakeProcess={env:{PATH:'controlled-fake-path'}},browsers={browsers:[{name:'chromium-headless-shell',revision:'1254'}]};
+  const bindings={root:'/harness',path,process:fakeProcess,console:{log:()=>calls.push('log')},arg:key=>({'--candidate':'/fixture/artifact.json','--browser':'/fixture/browser','--output':'/fixture/output'}[key]),getReleasePolicy:scope=>assert.equal(scope,'exui-wa-family-pilot'),
+   verifyCandidateArtifact:async file=>{assert.equal(file,'/fixture/artifact.json');calls.push('candidate-verified');return artifact;},
+   assertCandidateConfigurationSources:async(candidate,review)=>{assert.equal(candidate,artifact.candidateRoot);assert.deepEqual(review,{});calls.push('configuration-verified');},ROUTING_SCOPE:'exui-decentralised-routing-pilot',assertRoutingInterpreter:()=>assert.fail('unselected routing'),verifyHearingPublicationMutant:()=>assert.fail('unselected hearing'),
+   fs:{realpathSync:file=>file,readFileSync:file=>file.endsWith('exui-configuration-review.json')?'{}':file.endsWith('browsers.json')?JSON.stringify(browsers):'controlled source bytes',existsSync:file=>{assert.equal(file,'/fixture/browser/controlled-browser');return true;},mkdtempSync:prefix=>{assert.equal(prefix,'/fixture/tmp/exui-harness-sources-');calls.push('stage-created');return '/fixture/staged';},chmodSync:()=>{},mkdirSync:()=>{},copyFileSync:(from,to)=>copies.push([from,to])},os:{tmpdir:()=>'/fixture/tmp'},
+   createFreshHarnessOutput:(output,readOnly)=>{assert.equal(output,'/fixture/output');assert.deepEqual(readOnly,['/fixture/candidate','/fixture/artifact.json','/fixture/browser','/harness/node_modules']);return output;},
+   spawnSync:(command,args)=>{assert.equal(command,'git');return {status:0,stdout:args[0]==='rev-parse'?'b'.repeat(40)+'\n':''};},
+   browserExecutable:(value,selectedPlatform)=>{assert.deepEqual(value,browsers);assert.equal(selectedPlatform,platform);return 'controlled-browser';},digestCandidateTree:async root=>{assert.equal(root,'/fixture/browser');calls.push('browser-verified');return 'sha256:'+'c'.repeat(64);},
+   verifyHarnessDependencies:async(...args)=>{assert.deepEqual(args,['/harness/node_modules','/harness/package.json','/harness/yarn.lock']);calls.push('dependencies-verified');if(rejectDependencies)throw Error('CONTROLLED_DEPENDENCY_REJECTION');return dependencies;},
+   HARNESS_SOURCE_FILES:['scripts/run-harness-candidate.mjs','package.json'],digestBytes:()=> 'sha256:'+'e'.repeat(64),randomUUID:()=> '00000000-0000-4000-8000-000000000000',
+   writeJsonAtomic:(file,value)=>{assert.equal(file,'/fixture/output/input.json');assert.strictEqual(value.harnessDependencies,dependencies);assert(calls.includes('dependencies-verified'));writes.push(structuredClone(value));calls.push('input-written');},
+   runNativeHostPhase:async(output,stage)=>{assert.equal(output,'/fixture/output');assert.equal(stage,'/fixture/staged');assert.equal(writes.length,1);assert.equal(copies.length,2);calls.push('host');return {exitCode:0};}
+  };
+  const launch=new AsyncFunction('bindings',`const {${Object.keys(bindings).join(',')}}=bindings;\n${body}`);
+  if(rejectDependencies){await assert.rejects(launch(bindings),/CONTROLLED_DEPENDENCY_REJECTION/);assert.deepEqual(writes,[]);assert.deepEqual(copies,[]);assert(!calls.includes('host'));continue;}
+  await launch(bindings);assert.equal(fakeProcess.exitCode,0);assert.equal(writes[0].browserVersion,['playwright',version,'chromium','1254',...platform.split('/')].join('-'));assert.equal(writes[0].harnessDependencies.playwrightVersion,version);assert(calls.indexOf('dependencies-verified')<calls.indexOf('input-written'));assert(calls.indexOf('input-written')<calls.indexOf('host'));
+ }
 });

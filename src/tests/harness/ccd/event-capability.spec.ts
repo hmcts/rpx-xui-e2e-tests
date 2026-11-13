@@ -151,6 +151,17 @@ test(
     await expect(
       page.getByText("event@harness.example.com", { exact: true }),
     ).toBeVisible();
+    saveCcdEventObservation("judge-event-ui", {
+      schemaVersion: 1,
+      kind: "judge-event-ui-observation",
+      caseId,
+      actorId: sessionUser.id ?? sessionUser.uid,
+      userDetailsStatus: sessionResponse.status(),
+      visibleMarkers: [{
+        text: await page.getByText("event@harness.example.com", { exact: true }).textContent(),
+        visible: await page.getByText("event@harness.example.com", { exact: true }).isVisible(),
+      }],
+    });
     const menuOptions = await page
       .locator("ccd-event-trigger #next-step option")
       .allTextContents();

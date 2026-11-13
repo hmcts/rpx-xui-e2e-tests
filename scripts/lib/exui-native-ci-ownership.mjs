@@ -11,7 +11,7 @@ import path from "node:path";
 import { nativeInvocations } from "./exui-native-contract.mjs";
 import { nativeContainerPlan } from "./exui-native-containers.mjs";
 import { assertOwnedContainerAuthority } from "./exui-oci-runtime.mjs";
-import { assertCandidateWriteDenial } from "./exui-host-invocation.mjs";
+import { assertCandidateWriteDenial, assertOwnedCandidateCopy, inspectHostContainer, inspectHostVolume, hostDocker } from "./exui-host-invocation.mjs";
 import { digestBytes, writeJsonAtomic } from "./exui-evidence-io.mjs";
 import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, eventCapabilityFaultVariant } from "./exui-ccd-event-capability.mjs";
 
@@ -44,6 +44,16 @@ function captureOwnership(
     "CI_NATIVE_OWNER_REQUIRED",
   );
   assert.equal(handoff.output, directory, "CI_NATIVE_OUTPUT_MISMATCH");
+  assert.equal(Boolean(handoff.candidateVolume), input.candidateVolumeExperiment === true, "CI_NATIVE_CANDIDATE_VOLUME_MODE");
+  if (handoff.candidateVolume) {
+    assert.equal(name, "eventCapability", "CI_NATIVE_CANDIDATE_VOLUME_SCOPE");
+    assert.deepEqual(handoff.candidateVolume, {
+      name: `harness-candidate-${input.runId.slice(4)}`,
+      owner: input.runId,
+      sourceRoot: input.artifact.candidateRoot,
+      image: input.browserRuntimeImage,
+    }, "CI_NATIVE_CANDIDATE_VOLUME_BINDING");
+  }
   assert.equal(fs.realpathSync(directory), directory, "CI_NATIVE_OUTPUT_ALIAS");
   assert.equal(
     input.browserRoot,
@@ -123,7 +133,7 @@ function captureOwnership(
       plan: nativeContainerPlan(input, handoff, invocationId),
     }),
   );
-  return { mode: handoff.mode, directory, owner: input.runId, invocations };
+  return { mode: handoff.mode, directory, owner: input.runId, invocations, ...(handoff.candidateVolume ? { candidateVolume: handoff.candidateVolume } : {}) };
 }
 
 export function captureNativeOwnership(input, handoff, context, directory, name) {
@@ -179,7 +189,7 @@ export function assertEventBaselineRemoved(expected, { inspect }) {
   return { removed, bindings };
 }
 
-export async function cleanupNativeOwnership(expected, { inspect, remove }) {
+export async function cleanupNativeOwnership(expected, { inspect, remove, inspectVolume = inspectHostVolume, removeVolume = value => hostDocker(["volume", "rm", value]) }) {
   const registryPath = path.join(expected.directory, "owned-resources.json");
   const terminalPath = path.join(
     expected.directory,
@@ -287,6 +297,18 @@ export async function cleanupNativeOwnership(expected, { inspect, remove }) {
       }
     }
   }
+  const candidateVolumes = [...new Map(expected.invocations.flatMap(({ plan }) =>
+    plan.candidate.mounts.filter((item) => item.type === "volume").map((item) => [item.source, item]),
+  )).values()];
+  assert(candidateVolumes.length <= 1, "CI_NATIVE_CANDIDATE_VOLUME_COUNT");
+  for (const volume of candidateVolumes) {
+    try {
+      assert(expected.candidateVolume, "CI_NATIVE_CANDIDATE_VOLUME_BINDING");
+      cleanupOwnedCandidateVolume(volume.source, expected.owner, { inspectVolume, removeVolume, inspectContainer: inspect, removeContainer: value => remove(value), image: expected.candidateVolume.image, sourceRoot: expected.candidateVolume.sourceRoot });
+    } catch (error) {
+      errors.push(error);
+    }
+  }
   writeJsonAtomic(path.join(expected.directory, "container-cleanup.json"), {
     mode: "native-separate-api",
     removed,
@@ -294,6 +316,27 @@ export async function cleanupNativeOwnership(expected, { inspect, remove }) {
   });
   if (errors.length)
     throw new AggregateError(errors, "CI_NATIVE_CLEANUP_INCOMPLETE");
+}
+
+export function cleanupOwnedCandidateVolume(name, owner, { inspectVolume = inspectHostVolume, removeVolume = value => hostDocker(["volume", "rm", value]), inspectContainer = inspectHostContainer, removeContainer = value => hostDocker(["rm", "-f", "-v", value]), image, sourceRoot } = {}) {
+  assert(/^harness-candidate-[a-f0-9-]{36}$/.test(name ?? ""), "CI_NATIVE_CANDIDATE_VOLUME_NAME");
+  assert(/^ccd-[a-f0-9-]{36}$/.test(owner ?? ""), "CI_NATIVE_CANDIDATE_VOLUME_OWNER");
+  const copyName = `${owner}-candidate-copy`, copy = inspectContainer(copyName);
+  if (copy) {
+    assert(/^sha256:[a-f0-9]{64}$/.test(image ?? "") && path.isAbsolute(sourceRoot ?? ""), "CI_NATIVE_CANDIDATE_COPY_INPUTS");
+    assertOwnedCandidateCopy(copy, { owner, image, sourceRoot, volumeName: name });
+    removeContainer(copy.Id);
+    assert.equal(inspectContainer(copy.Id), null, "CI_NATIVE_CANDIDATE_COPY_REMOVAL");
+  }
+  const volume = inspectVolume(name);
+  if (!volume) return { name, absent: true, removed: false };
+  assert.equal(volume.Name, name, "CI_NATIVE_CANDIDATE_VOLUME_NAME");
+  assert.equal(volume.Driver, "local", "CI_NATIVE_CANDIDATE_VOLUME_DRIVER");
+  assert.equal(volume.Labels?.["exui.harness.owner"], owner, "CI_NATIVE_CANDIDATE_VOLUME_OWNER");
+  assert.equal(volume.Labels?.["exui.harness.service"], "candidate-input", "CI_NATIVE_CANDIDATE_VOLUME_SERVICE");
+  removeVolume(name);
+  assert.equal(inspectVolume(name), null, "CI_NATIVE_CANDIDATE_VOLUME_REMOVAL");
+  return { name, absent: false, removed: true };
 }
 
 // Structural authority/lifecycle requirements supplement the common product evaluator; they do not decide proof outcomes.

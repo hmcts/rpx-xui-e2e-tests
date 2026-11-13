@@ -72,9 +72,11 @@ function runManifest({ strict = false, duplicateProfile = false, fromPinnedProje
     const source = JSON.parse(readFileSync(resolve('src/data/exui-central-assurance-source.json'), 'utf8'));
     if (duplicateProfile) source.serviceDefinitionProfiles.profiles.push(source.serviceDefinitionProfiles.profiles[0]);
     mkdirSync(join(fixture, 'src/data'), { recursive: true });
+    mkdirSync(join(fixture, 'scripts/fixtures'), { recursive: true });
     mkdirSync(join(fixture, 'webapp/config'), { recursive: true });
     writeFileSync(join(fixture, 'src/data/exui-central-assurance-source.json'), JSON.stringify(source));
     copyFileSync(resolve('src/data/exui-release-assurance-evidence.json'), join(fixture, 'src/data/exui-release-assurance-evidence.json'));
+    copyFileSync(resolve('scripts/fixtures/exui-pcs-generated-definition-manifest.json'), join(fixture, 'scripts/fixtures/exui-pcs-generated-definition-manifest.json'));
     const expected = source.rpxXuiWebapp['config/default.json'];
     const hearings = { hearingsJurisdictions: expected.hearings.hearingsJurisdictions.join(',') };
     for (const [family, caseTypes] of Object.entries(expected.hearings.caseTypesByJurisdiction)) {
@@ -107,10 +109,11 @@ function runManifest({ strict = false, duplicateProfile = false, fromPinnedProje
   }
 }
 
-test('source-aligned manifest remains a blocked diagnostic while required source evidence is missing', () => {
+test('source-aligned manifest keeps the PCS CCD evidence gap while reporting a diagnostic', () => {
   const result = runManifest();
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stdout, /catalogue diagnostic/i);
+  assert.match(result.stderr, /PCS: required configured family has no CCD-backed source profile/);
   assert.doesNotMatch(result.stdout, /release assurance verdict=/i);
   assert.doesNotMatch(result.stdout, /normalized slice\(s\) are present/i);
 });
@@ -127,7 +130,7 @@ test('source manifest rejects duplicate family profiles hidden by set comparison
   assert.match(result.stderr, /duplicate.*profile/i);
 });
 
-test('PCS records its pinned Java definition source owner without gaining CCD-backed or release coverage', () => {
+test('PCS generated CCD definition snapshot is source-backed but grants no runtime or release credit', () => {
   // Owning webapp config/default.json at the current reviewed source revision.
   assert.deepEqual(catalogue.EXUI_SERVICE_REF_DATA_MAPPING.PCS, ['AAA3']);
   const source = JSON.parse(readFileSync(resolve('src/data/exui-central-assurance-source.json'), 'utf8'));
@@ -141,10 +144,10 @@ test('PCS records its pinned Java definition source owner without gaining CCD-ba
   const repo = profile.repos[0];
   assert.equal(repo.fullName, 'hmcts/pcs-api');
   assert.equal(repo.url, 'https://github.com/hmcts/pcs-api');
-  assert.equal(repo.revision, 'efa1a8a4f46682a7e369d9ffc1bb8047a659c9c8');
+  assert.equal(repo.revision, '6f96b528dc13b96f5ce66f3930fa5fc31c231748');
   assert.equal(repo.visibility, 'public');
   assert.equal(repo.defaultBranch, 'master');
-  assert.equal(repo.updatedAt, '2026-11-02T22:38:09Z');
+  assert.equal(repo.updatedAt, '2026-11-06T22:13:07Z');
   assert.equal(repo.definitionRoot, 'src/main/java/uk/gov/hmcts/reform/pcs/ccd');
   assert.deepEqual(repo.evidenceRefs, [
     'src/main/java/uk/gov/hmcts/reform/pcs/ccd/CaseType.java',
@@ -154,15 +157,20 @@ test('PCS records its pinned Java definition source owner without gaining CCD-ba
   ]);
   for (const metric of ['jsonFiles', 'caseEventToFields', 'caseEventToComplexTypes', 'authorisationCaseField', 'caseField', 'complexTypes'])
     assert.equal(repo[metric], 0, metric);
-  assert.match(repo.notes, /decentralised.*PCS-owned.*persistence/i);
-  assert.match(repo.notes, /metadata.*separate.*pinned.*revision/i);
-  assert.match(profile.rationale, /CASE_TYPE_SUFFIX.*unresolved.*deployed identity.*unverified/);
-  assert.match(profile.nextAction, /generation.*import.*runtime/i);
+  assert.deepEqual(repo.generatedDefinitions, {
+    manifestPath: 'scripts/fixtures/exui-pcs-generated-definition-manifest.json',
+    generatorTask: 'generateCCDConfig', outputRoot: 'build/definitions/PCS', fileCount: 397, bytes: 3955448,
+    manifestDigest: '3556df4962e5e51beeec67551c6f890ddf6f6710474cde2bde630e0c62c67e8e'
+  });
+  assert.match(repo.notes, /397-file.*source-generation.*does not prove.*runtime/i);
+  assert.match(profile.rationale, /CASE_TYPE_SUFFIX.*deployed identity.*remain unresolved/);
+  assert.match(profile.nextAction, /generated event.*import.*candidate-bound EXUI behaviour/i);
   assert.deepEqual(profile, source.serviceDefinitionProfiles.profiles.find(item => item.serviceFamily === 'PCS'));
   assert.deepEqual(catalogue.findReleaseBlockingFamiliesWithoutCcdBackedProfile(), ['PCS']);
   const verdict = catalogue.buildReleaseAssuranceVerdict();
   assert(verdict.knownGaps.includes('release-blocking family without CCD-backed profile: PCS'));
   assert(!verdict.releaseBlockingSourceProfiles.includes('PCS'));
+  assert(verdict.executionGaps.includes('No real CCD import/persistence evidence is supplied by the catalogue.'));
   assert.equal(verdict.releaseApproval, false);
 });
 
@@ -174,7 +182,7 @@ for (const [key, exported] of [
 ]) {
   test(`independent committed projection requires current ${key} in JSON and model`, () => {
     const projection = JSON.parse(readFileSync(resolve('scripts/fixtures/exui-configuration-source.json'), 'utf8')).sources.find(item => item.repository === 'rpx-xui-webapp' && item.path === 'config/default.json');
-    assert.equal(projection.revision, '3734db2bb8f4f6de62db3b42ade9ef6538b65eb0');
+    assert.equal(projection.revision, '20c6ec129fc1e81061c733e164198ec63a33e71a');
     const expected = projection.document[key].split(',');
     const legacy = JSON.parse(readFileSync(resolve('src/data/exui-central-assurance-source.json'), 'utf8'));
     assert.deepEqual(legacy.rpxXuiWebapp['config/default.json'][key], expected);
@@ -182,14 +190,14 @@ for (const [key, exported] of [
   });
 }
 
-test('independent pinned source matches while required PCS assurance gap remains BLOCKED', () => {
+test('pinned source and generated PCS definitions match while runtime evidence remains unavailable', () => {
   const result = runManifest({ fromPinnedProjection: true });
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stdout, /config matches/);
   assert.match(result.stdout, /global=9, wa=7, staff=12/);
   assert.doesNotMatch(result.stderr, /drift detected|globalSearchServices drifted|waSupportedJurisdictions drifted|staffSupportedJurisdictions drifted/);
-  assert.match(result.stderr, /Assurance gaps remain/);
-  assert.match(result.stderr, /PCS.*CCD-backed/);
+  assert.match(result.stderr, /PCS: required configured family has no CCD-backed source profile/);
+  assert.match(result.stdout, /does not prove candidate\/CCD execution/);
 });
 
 test('unreviewed source membership still fails drift checking and preserves known assurance gap', () => {
@@ -197,5 +205,5 @@ test('unreviewed source membership still fails drift checking and preserves know
   assert.equal(result.status, 1);
   assert.match(result.stderr, /globalSearchServices drifted/);
   assert.match(result.stderr, /UNREVIEWED_FAMILY/);
-  assert.match(result.stderr, /PCS.*CCD-backed/);
+  assert.match(result.stderr, /PCS: required configured family has no CCD-backed source profile/);
 });

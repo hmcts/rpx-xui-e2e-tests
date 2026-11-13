@@ -7,36 +7,65 @@ import path from 'node:path';
 const hash = (value) => `sha256:${createHash('sha256').update(value).digest('hex')}`;
 // Bound per-file buffering while avoiding stream setup for the many small dependency files.
 const MAX_BUFFERED_FILE_BYTES = 1024 * 1024;
+const MAX_PENDING_ENTRIES = 16;
 const inside = (root, target) => target === root || target.startsWith(`${root}${path.sep}`);
 
-// Sorted paths, entry kinds, executable bits and content make the seal independent of timestamps.
+// Sixteen pending entries overlap I/O while preserving the sealed transcript and error order.
 export async function digestCandidateTree(directory, replacements = new Map()) {
   const root = await realpath(directory);
   const digest = createHash('sha256');
-  async function visit(relative) {
+  async function* visit(relative) {
     const absolute = path.join(root, relative);
     const stat = await lstat(absolute);
     const kind = stat.isSymbolicLink() ? 'link' : stat.isDirectory() ? 'directory' : 'file';
     if (!stat.isSymbolicLink() && !stat.isDirectory() && !stat.isFile()) throw new Error(`Unsupported artifact entry: ${relative}`);
-    digest.update(JSON.stringify([relative, kind, stat.mode & 0o111]));
+    const prefix = JSON.stringify([relative, kind, stat.mode & 0o111]);
     if (stat.isSymbolicLink()) {
       const target = await realpath(absolute);
       if (!inside(root, target)) throw new Error(`Artifact symlink escapes root: ${relative}`);
-      digest.update(await readlink(absolute));
+      yield { prefix, value: await readlink(absolute) };
     } else if (stat.isDirectory()) {
-      for (const name of (await readdir(absolute)).sort()) await visit(relative ? `${relative}/${name}` : name);
-    } else {
-      const replacement = replacements.get(relative);
-      if (replacement != null) digest.update(hash(replacement));
-      else if (stat.size <= MAX_BUFFERED_FILE_BYTES) digest.update(hash(await readFile(absolute)));
-      else {
-        const fileDigest = createHash('sha256');
-        for await (const chunk of createReadStream(absolute)) fileDigest.update(chunk);
-        digest.update(`sha256:${fileDigest.digest('hex')}`);
-      }
-    }
+      yield { prefix };
+      for (const name of (await readdir(absolute)).sort()) yield* visit(relative ? `${relative}/${name}` : name);
+    } else yield { prefix, absolute, relative, size: stat.size };
   }
-  await visit('');
+  async function contents(entry) {
+    if (!entry.absolute) return entry.value;
+    const replacement = replacements.get(entry.relative);
+    if (replacement != null) return hash(replacement);
+    if (entry.size <= MAX_BUFFERED_FILE_BYTES) return hash(await readFile(entry.absolute));
+    const fileDigest = createHash('sha256');
+    for await (const chunk of createReadStream(entry.absolute)) fileDigest.update(chunk);
+    return `sha256:${fileDigest.digest('hex')}`;
+  }
+  const pending = [];
+  let failed = false, firstError, hasError = false, walkError, walkFailed = false;
+  const drain = async () => {
+    const result = await pending.shift();
+    if (!result.ok && !hasError) { firstError = result.error; hasError = true; }
+    else if (result.ok && !hasError) {
+      digest.update(result.prefix);
+      if (result.value !== undefined) digest.update(result.value);
+    }
+  };
+  try {
+    for await (const entry of visit('')) {
+      if (failed) break;
+      // Convert every task rejection immediately; no speculative task can escape the join.
+      pending.push(contents(entry).then(value => ({ ok: true, prefix: entry.prefix, value }), error => {
+        failed = true;
+        return { ok: false, error };
+      }));
+      if (pending.length === MAX_PENDING_ENTRIES) await drain();
+      if (failed) break;
+    }
+  } catch (error) {
+    walkError = error;
+    walkFailed = true;
+  }
+  while (pending.length) await drain();
+  if (hasError) throw firstError;
+  if (walkFailed) throw walkError;
   return `sha256:${digest.digest('hex')}`;
 }
 

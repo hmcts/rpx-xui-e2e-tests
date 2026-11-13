@@ -10,7 +10,7 @@ export const DIVORCE_PROFILE_FACETS=Object.freeze([
  {facet:'divorce-wa',fault:'source-profile-add-divorce-wa-membership',browser:false},
  {facet:'wa-health',fault:'source-profile-enable-wa-health',browser:false},
 ]);
-export const divorceProfileContract=()=>({schemaVersion:1,obligationId:DIVORCE_PROFILE_ID,profile:'default.json',family:'DIVORCE',sourceRevision:'3734db2bb8f4f6de62db3b42ade9ef6538b65eb0',consumerRevision:'26d17ebea1b7b470b6cc11409564ce296e8ec621',
+export const divorceProfileContract=()=>({schemaVersion:1,obligationId:DIVORCE_PROFILE_ID,profile:'default.json',family:'DIVORCE',sourceRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',consumerRevision:'26d17ebea1b7b470b6cc11409564ce296e8ec621',
  claim:'Source-default DIVORCE capability selection and ABA1 mapping through the listed candidate entrypoints',
  browserFlags:{flag:'feature-global-search',evaluationFlags:{},routeFallback:true,liveProvider:false},
  capabilities:['jurisdictions','globalSearchServices','staffSupportedJurisdictions','serviceRefDataMapping'],facets:structuredClone(DIVORCE_PROFILE_FACETS),

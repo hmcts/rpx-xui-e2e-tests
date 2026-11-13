@@ -1,0 +1,42 @@
+const assert=require('node:assert/strict');
+const {escape}=require('./harness-report-coverage.cjs');
+const sourceJurisdictions=['CMC','CIVIL','DIVORCE','EMPLOYMENT','FR','HRS','IA','PCS','PRIVATELAW','PROBATE','PUBLICLAW','SSCS'].sort();
+const diagnosedConsumerRevision='e47ccdf14eba61dce892bd49d9a460d55775f202';
+
+const {knownJurisdictionDefectExclusions}=require('./lib/exui-jurisdiction-exclusion.cjs');
+function renderTeamExclusion(value,family){
+ assert.deepEqual(value,knownJurisdictionDefectExclusions()[family+'ProfileAttempt'],'PROFILE_EXCLUSION_INVALID');
+ return `<section id="harness-${family}-profile-attempt" data-profile-attempt-status="NOT_RUN" class="odhin-thin-border p-3 mt-3"><h2>${family.toUpperCase()} profile: excluded by team</h2><p><strong>NOT RUN — <code>@known-defect-jurisdiction-filter</code></strong></p><p>The team declined the webapp jurisdiction-filter fix, reverted in <a href="https://github.com/hmcts/rpx-xui-webapp/pull/5628">webapp PR #5628</a>. This complete profile depends on that route and is excluded from Jenkins. FR staff and ABA2 facets are also not run as part of its complete profile.</p><p>This exclusion earns no catalogue or release credit. The catalogue requirement remains unsatisfied. Direct profile commands remain available; restore Jenkins selection when the team accepts and validates a product fix.</p></section>`;
+}
+
+function renderCmcProfileAttempt(value){
+ if(value?.status==='NOT_RUN')return renderTeamExclusion(value,'cmc');
+ const fail='CMC_ATTEMPT_INVALID';
+ assert.deepEqual(Object.keys(value??{}).sort(),['schemaVersion','kind','status','reason',...(value?.diagnostic?['consumerRevision','diagnostic']:[])].sort(),fail);
+ assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'cmc-profile-attempt',fail);assert.equal(value.status,'BLOCKED',fail);assert(/^(?:CMC_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(value.reason),fail);
+ let mismatch='';
+ if(value.diagnostic){
+  const d=value.diagnostic,ids=list=>Array.isArray(list)&&list.length<=32&&list.every(id=>typeof id==='string'&&/^[A-Z][A-Z0-9_]{0,31}$/.test(id))&&new Set(list).size===list.length&&[...list].sort().every((id,index)=>id===list[index]);
+  assert.deepEqual(Object.keys(d).sort(),['schemaVersion','kind','reasonCode','expectedIds','observedIds','missingIds','unexpectedIds'].sort(),fail);
+  assert.equal(d.schemaVersion,1,fail);assert.equal(d.kind,'cmc-jurisdiction-filter-diagnostic',fail);assert.equal(d.reasonCode,value.reason,fail);
+  for(const key of ['expectedIds','observedIds','missingIds','unexpectedIds'])assert(ids(d[key]),fail);
+  assert.deepEqual(d.expectedIds,value.reason==='CMC_PROFILE_FAULT_NOT_EFFECTIVE'?sourceJurisdictions.filter(id=>id!=='CMC'):sourceJurisdictions,fail);
+  assert.deepEqual(d.missingIds,d.expectedIds.filter(id=>!d.observedIds.includes(id)),fail);assert.deepEqual(d.unexpectedIds,d.observedIds.filter(id=>!d.expectedIds.includes(id)),fail);
+  assert(typeof value.consumerRevision==='string'&&/^[a-f0-9]{40}$/.test(value.consumerRevision),fail);
+  mismatch=`<dl><dt>Expected jurisdiction rows${d.reasonCode==='CMC_PROFILE_FAULT_NOT_EFFECTIVE'?' after removing CMC':''}</dt><dd>${d.expectedIds.length}: ${d.expectedIds.map(escape).join(', ')}</dd><dt>Observed on the candidate route</dt><dd>${d.observedIds.length}: ${d.observedIds.map(escape).join(', ')}</dd><dt>Unexpected rows</dt><dd>${d.unexpectedIds.length}: ${d.unexpectedIds.map(escape).join(', ')||'none'}</dd><dt>Missing rows</dt><dd>${d.missingIds.length}: ${d.missingIds.map(escape).join(', ')||'none'}</dd></dl>`;
+  if(value.consumerRevision===diagnosedConsumerRevision)mismatch+=`<h3>What the pinned source suggests</h3><p>Source review of candidate ${escape(diagnosedConsumerRevision.slice(0,7))} found a path consistent with the observed rows: the proxy response interceptor passes UTF-8 text to the <code>/aggregated</code> jurisdiction filter, and that filter returns non-array input unchanged. See <code>api/lib/middleware/proxy.ts:106–112</code>, <code>api/proxy.config.ts:96–104</code> and <code>api/amendedJurisdictions/index.ts:25–28</code>.</p><p><strong>This is a source explanation, not additional runtime evidence.</strong> The runtime finding remains the captured jurisdiction mismatch above.</p>`;
+  else mismatch+=`<p>Candidate revision: <code>${escape(value.consumerRevision)}</code>.</p>`;
+ }
+ return `<section id="harness-cmc-profile-attempt" data-profile-attempt-status="BLOCKED" class="odhin-thin-border p-3 mt-3" aria-labelledby="harness-cmc-profile-attempt-title"><h2 id="harness-cmc-profile-attempt-title">CMC profile: blocked</h2><p><strong>${escape(value.reason)}</strong> The profile stopped before admission. Its isolated runtime cleanup was verified, but completed proof counts are unavailable and whole-profile completion is not inferred. It earns no catalogue or release credit.</p>${mismatch}<p>The main native evidence is reported separately. This profile covers only the candidate CMC jurisdictions route; it does not prove staff, Work Allocation, hearings, CCD authorisations, or production CMC readiness.</p></section>`;
+}
+
+function renderFrProfileAttempt(value){
+ if(value?.status==='NOT_RUN')return renderTeamExclusion(value,'fr');
+ const fail='FR_ATTEMPT_INVALID',sourceJurisdictions=['CIVIL','CMC','DIVORCE','EMPLOYMENT','FR','HRS','IA','PCS','PRIVATELAW','PROBATE','PUBLICLAW','SSCS'];
+ assert.deepEqual(Object.keys(value??{}).sort(),['schemaVersion','kind','status','reason',...(value?.diagnostic?['diagnostic']:[])].sort(),fail);
+ assert.equal(value.schemaVersion,1,fail);assert.equal(value.kind,'fr-profile-attempt',fail);assert.equal(value.status,'BLOCKED',fail);assert(/^(?:FR_PROFILE|SOURCE_PROFILE)_[A-Z0-9_]+$/.test(value.reason),fail);
+ let mismatch='',classification='';if(value.diagnostic){const d=value.diagnostic,ids=list=>Array.isArray(list)&&list.length<=32&&list.every(id=>typeof id==='string'&&/^[A-Z][A-Z0-9_]{0,31}$/.test(id))&&new Set(list).size===list.length&&[...list].sort().every((id,index)=>id===list[index]);assert.deepEqual(Object.keys(d).sort(),['schemaVersion','kind','reasonCode','expectedIds','observedIds','missingIds','unexpectedIds'].sort(),fail);assert.equal(d.schemaVersion,1,fail);assert.equal(d.kind,'fr-jurisdiction-filter-diagnostic',fail);assert(d.reasonCode===value.reason||(value.reason==='FR_PROFILE_MEMBERSHIP'&&d.reasonCode==='FR_PROFILE_OBSERVATIONS'),fail);for(const key of ['expectedIds','observedIds','missingIds','unexpectedIds'])assert(ids(d[key]),fail);assert.deepEqual(d.expectedIds,d.reasonCode==='FR_PROFILE_MEMBERSHIP'?sourceJurisdictions.filter(id=>id!=='FR'):sourceJurisdictions,fail);assert.deepEqual(d.missingIds,d.expectedIds.filter(id=>!d.observedIds.includes(id)),fail);assert.deepEqual(d.unexpectedIds,d.observedIds.filter(id=>!d.expectedIds.includes(id)),fail);if(d.reasonCode!==value.reason)classification=`<p>Diagnostic classification: <code>${escape(d.reasonCode)}</code>.</p>`;mismatch=`<dl><dt>Expected jurisdiction rows${d.reasonCode==='FR_PROFILE_MEMBERSHIP'?' after removing FR':''}</dt><dd>${d.expectedIds.length}: ${d.expectedIds.map(escape).join(', ')}</dd><dt>Observed on the candidate route</dt><dd>${d.observedIds.length}: ${d.observedIds.map(escape).join(', ')}</dd><dt>Unexpected rows</dt><dd>${d.unexpectedIds.length}: ${d.unexpectedIds.map(escape).join(', ')||'none'}</dd><dt>Missing rows</dt><dd>${d.missingIds.length}: ${d.missingIds.map(escape).join(', ')||'none'}</dd></dl>`;}
+ return `<section id="harness-fr-profile-attempt" data-profile-attempt-status="BLOCKED" class="odhin-thin-border p-3 mt-3" aria-labelledby="harness-fr-profile-attempt-title"><h2 id="harness-fr-profile-attempt-title">FR profile: blocked</h2><p><strong>${escape(value.reason)}</strong> The candidate profile did not complete admission. This attempt earns no catalogue or release credit.</p>${classification}${mismatch}<p>The profile intended to check jurisdiction membership, staff-supported membership and the FR reference-data mapping to ABA2. A blocked attempt does not mean those slices passed. Cleanup and candidate/native binding are reported only when independently verified.</p></section>`;
+}
+
+module.exports={renderCmcProfileAttempt,renderFrProfileAttempt,knownJurisdictionDefectExclusions};

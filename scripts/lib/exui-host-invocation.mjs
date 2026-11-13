@@ -9,6 +9,25 @@ import {
 } from "./exui-oci-runtime.mjs";
 import { terminateOwnedChild } from "./exui-candidate-runtime.mjs";
 import { writeJsonAtomic } from "./exui-evidence-io.mjs";
+import { performance } from "node:perf_hooks";
+
+const PROVIDER_SETUP_STEPS = ['provider-container-create','provider-container-start','provider-readiness','provider-ownership-check','provider-egress-probes'];
+
+function timeLifecycle(onTiming, runId, invocationId, step, action, details) {
+  if (typeof onTiming !== "function") return action();
+  let startedAt, started;
+  try { startedAt = new Date().toISOString(); started = performance.now(); } catch { /* Diagnostics never control proof. */ }
+  const record = (status) => {
+    if (startedAt === undefined || started === undefined) return;
+    try { onTiming({ runId, invocationId, step, status, startedAt, durationMs: Math.max(0, Math.round(performance.now() - started)), ...(details ? {details:details()} : {}) }); } catch { /* Diagnostics never control proof. */ }
+  };
+  try {
+    const result = action();
+    return result && typeof result.then === "function"
+      ? result.then(value => { record("completed"); return value; }, error => { record("failed"); throw error; })
+      : (record("completed"), result);
+  } catch (error) { record("failed"); throw error; }
+}
 
 export function hostDocker(args, options = {}) {
   const result = spawnSync("docker", args, {
@@ -39,7 +58,40 @@ export function inspectHostContainer(id) {
     return null;
   if (result.error || result.status !== 0)
     throw Error("HOST_DOCKER_INSPECTION_FAILED");
-  return JSON.parse(result.stdout)[0];
+  const values = JSON.parse(result.stdout);
+  assert.equal(values.length, 1, "HOST_DOCKER_INSPECTION_CARDINALITY");
+  return values[0];
+}
+export function inspectHostVolume(name) {
+  const result = spawnSync("docker", ["volume", "inspect", name], {
+    env: { PATH: process.env.PATH }, encoding: "utf8", timeout: 10000, killSignal: "SIGKILL",
+  });
+  if (result.status === 1 && /no such volume/i.test(result.stderr)) return null;
+  if (result.error || result.status !== 0) throw Error("HOST_VOLUME_INSPECTION_FAILED");
+  const values = JSON.parse(result.stdout);
+  assert.equal(values.length, 1, "HOST_VOLUME_INSPECTION_CARDINALITY");
+  return values[0];
+}
+export function assertOwnedCandidateCopy(info, { owner, image, sourceRoot, volumeName }) {
+  assert.equal(info.Name, `/${owner}-candidate-copy`, "HOST_VOLUME_COPY_NAME");
+  assert.equal(info.Image, image, "HOST_VOLUME_COPY_IMAGE");
+  assert.equal(info.Config.Labels?.["exui.harness.owner"], owner, "HOST_VOLUME_COPY_OWNER");
+  assert.equal(info.Config.Labels?.["exui.harness.service"], "candidate-input-copy", "HOST_VOLUME_COPY_SERVICE");
+  assert.equal(info.HostConfig.NetworkMode, "none", "HOST_VOLUME_COPY_NETWORK");
+  assert.equal(info.HostConfig.ReadonlyRootfs, true, "HOST_VOLUME_COPY_ROOTFS");
+  assert.equal(info.HostConfig.Privileged || false, false, "HOST_VOLUME_COPY_PRIVILEGED");
+  assert.deepEqual(info.HostConfig.CapAdd || [], ["CHOWN"], "HOST_VOLUME_COPY_CAPABILITIES_ADDED");
+  assert.equal(info.HostConfig.PidsLimit, 256, "HOST_VOLUME_COPY_PID_LIMIT");
+  assert.equal(info.HostConfig.Memory, 4294967296, "HOST_VOLUME_COPY_MEMORY_LIMIT");
+  assert.equal(info.HostConfig.NanoCpus, 2000000000, "HOST_VOLUME_COPY_CPU_LIMIT");
+  assert.deepEqual(info.HostConfig.PortBindings || {}, {}, "HOST_VOLUME_COPY_PUBLISHED_PORT");
+  assert.equal(info.HostConfig.Tmpfs?.["/tmp"], "rw,nosuid,size=512m", "HOST_VOLUME_COPY_TMPFS");
+  assert(info.HostConfig.CapDrop?.includes("ALL"), "HOST_VOLUME_COPY_CAPABILITIES");
+  assert(info.HostConfig.SecurityOpt?.some(value => /^no-new-privileges(?::true)?$/.test(value)), "HOST_VOLUME_COPY_ESCALATION");
+  assert.deepEqual(info.Config.Entrypoint, ["/bin/sh"], "HOST_VOLUME_COPY_ENTRYPOINT");
+  assert.equal(info.Config.User, "", "HOST_VOLUME_COPY_USER");
+  assert.deepEqual(info.Config.Cmd, ["-ec", 'cp -a /source/. /candidate/ && chown -R "$1:$2" /candidate', "volume-copy", String(process.getuid()), String(process.getgid())], "HOST_VOLUME_COPY_COMMAND");
+  assert.deepEqual(info.Mounts.filter(item => item.Type !== "tmpfs").map(item => [item.Type === "volume" ? item.Name : item.Source, item.Destination, item.RW, item.Type]).sort(), [[sourceRoot, "/source", false, "bind"], [volumeName, "/candidate", true, "volume"]].sort(), "HOST_VOLUME_COPY_MOUNTS");
 }
 export const WRITE_DENIAL_PATHS = [
   "/output/report.json",
@@ -67,10 +119,36 @@ export function removeHostResource(
   resources,
   key,
   output,
-  { docker = hostDocker, inspect = inspectHostContainer } = {},
+  { docker = hostDocker, inspect = inspectHostContainer, inspectVolume = inspectHostVolume } = {},
 ) {
   const resource = resources.get(key);
   if (!resource) return;
+  if (resource.kind === "volume") {
+    const volume = inspectVolume(resource.name);
+    if (volume) {
+      assert.equal(volume.Name, resource.name, "HOST_VOLUME_NAME_MISMATCH");
+      assert.equal(volume.Driver, "local", "HOST_VOLUME_DRIVER_MISMATCH");
+      assert.equal(volume.Labels?.["exui.harness.owner"], resource.owner, "HOST_VOLUME_OWNER_MISMATCH");
+      assert.equal(volume.Labels?.["exui.harness.service"], "candidate-input", "HOST_VOLUME_SERVICE_MISMATCH");
+      writeJsonAtomic(path.join(output, "candidate-volume-receipt.json"), { ...resource.receipt, status: "removing" });
+      docker(["volume", "rm", resource.name]);
+    }
+    assert.equal(inspectVolume(resource.name), null, "HOST_VOLUME_REMOVAL_INCOMPLETE");
+    resource.removed = true;
+    writeJsonAtomic(path.join(output, "candidate-volume-receipt.json"), { ...resource.receipt, status: "removed", cleanupComplete: true });
+    resources.delete(key);
+    return;
+  }
+  if (resource.kind === "volume-copy") {
+    const info = inspect(resource.name);
+    if (info) {
+      assertOwnedCandidateCopy(info, resource);
+      docker(["rm", "-f", "-v", info.Id]);
+      assert.equal(inspect(info.Id), null, "HOST_VOLUME_COPY_REMOVAL");
+    }
+    resources.delete(key);
+    return;
+  }
   if (resource.kind === "process")
     return terminateOwnedChild(resource.child).then((terminal) => {
       assert(!terminal.forced, "HOST_PROOF_CLIENT_FORCED");
@@ -126,11 +204,19 @@ const resourcesProbe =
 const runtimeProbe =
   "console.log(JSON.stringify({nodeVersion:process.version,platform:process.platform,architecture:process.arch,osRelease:require('fs').readFileSync('/etc/os-release','utf8')}))";
 const writeProbe = `const fs=require('fs');const paths=${JSON.stringify(WRITE_DENIAL_PATHS)};const attempts=paths.map(path=>{try{fs.mkdirSync(require('path').dirname(path),{recursive:true});fs.writeFileSync(path,'candidate-must-not-author-evidence');return {path,denied:false};}catch(error){return {path,denied:['EROFS','EACCES','ENOENT'].includes(error.code),code:error.code};}});console.log(JSON.stringify({attempts,controllerSourceVisible:fs.existsSync('/harness/playwright.harness.config.ts')}));`;
-async function waitForReady(file, id, inspect) {
+async function waitForReady(file, id, inspect, isCancelled) {
   const until = Date.now() + 180000;
+  let lastInspection = 0;
   while (Date.now() < until) {
-    assert(inspect(id)?.State.Running, "HOST_PROVIDER_STARTUP_EXIT");
-    if (fs.existsSync(file)) return;
+    assert(!isCancelled(), "HOST_INVOCATION_CANCELLED");
+    if (fs.existsSync(file)) {
+      assert(inspect(id)?.State.Running, "HOST_PROVIDER_STARTUP_EXIT");
+      return;
+    }
+    if (Date.now() - lastInspection >= 1000) {
+      assert(inspect(id)?.State.Running, "HOST_PROVIDER_STARTUP_EXIT");
+      lastInspection = Date.now();
+    }
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw Error("HOST_PROVIDER_STARTUP_TIMEOUT");
@@ -146,12 +232,19 @@ export async function runHostInvocation(
     runProof,
     spawnProof = spawn,
     isCancelled = () => false,
+    eventSerialV3 = false,
+    onLifecycleTiming,
   } = {},
 ) {
   const checkCancellation = () =>
     assert(!isCancelled(), "HOST_INVOCATION_CANCELLED");
   checkCancellation();
   const { directory, output, owner, invocationId } = spec;
+  const timed = (step, action, details) => timeLifecycle(onLifecycleTiming, owner, invocationId, step, action, details);
+  const providerDetails = typeof onLifecycleTiming === 'function' ? PROVIDER_SETUP_STEPS.map(step => ({step,status:'not-run',durationMs:null})) : undefined;
+  const timeProviderStage = (index, action, details) => providerDetails ? timeLifecycle(record => {
+    providerDetails[index] = {step:PROVIDER_SETUP_STEPS[index],status:record.status,durationMs:record.durationMs,...(record.details?{initialization:record.details}:{})};
+  }, owner, invocationId, PROVIDER_SETUP_STEPS[index], action, details) : action();
   const toolsName = `${owner}-${invocationId}-tools`,
     candidateName = `${owner}-${invocationId}-candidate`;
   const tools = resource(toolsName, {
@@ -161,25 +254,37 @@ export async function runHostInvocation(
     namespace: spec.namespace,
     mounts: spec.tools.mounts,
   });
-  let candidate;
+  let candidate, runtime;
   const started = Date.now();
+  const v3Creators = [];
+  // Opt-in receipts derive code0 from the existing guarded synchronous create contract.
+  const created = value => { if(eventSerialV3) v3Creators.push({name:value.name,id:value.id,terminal:{started:true,observed:true,forced:false,cancelled:false,code:0,signal:null}}); };
   const register = (value) => {
     resources.set(value.name, value);
     saveRegistry(output, resources);
   };
   try {
+    await timed("browser-provider-setup", async () => {
     register(tools);
-    tools.id = docker(namedArguments(spec.tools.args, toolsName));
-    assert(/^[a-f0-9]{64}$/.test(tools.id), "HOST_TOOLS_CID_REQUIRED");
+    timeProviderStage(0, () => {
+      tools.id = docker(namedArguments(spec.tools.args, toolsName));
+      assert(/^[a-f0-9]{64}$/.test(tools.id), "HOST_TOOLS_CID_REQUIRED");
+    });
+    created(tools);
     saveRegistry(output, resources);
-    docker(["start", tools.id]);
-    await waitForReady(
+    timeProviderStage(1, () => docker(["start", tools.id]));
+    await timeProviderStage(2, () => waitForReady(
       path.join(directory, "provider-ready.json"),
       tools.id,
       inspect,
-    );
+      isCancelled,
+    ), () => {
+      try { return read(path.join(directory, "provider-initialization-timings.json")); }
+      catch { return undefined; }
+    });
     checkCancellation();
-    assertOwnedContainer(inspect(tools.id), { ...tools, running: true });
+    timeProviderStage(3, () => assertOwnedContainer(inspect(tools.id), { ...tools, running: true }));
+    timeProviderStage(4, () => {
     const probes = JSON.parse(
       docker([
         "exec",
@@ -193,6 +298,8 @@ export async function runHostInvocation(
       probes.length === 2 && probes.every((value) => value === false),
       "HOST_NAMESPACE_EGRESS_AVAILABLE",
     );
+    });
+    }, () => providerDetails);
     const namespace = spec.namespace ?? tools.id;
     candidate = resource(candidateName, {
       owner,
@@ -204,18 +311,20 @@ export async function runHostInvocation(
         ? { launchProcess: spec.candidate.launchProcess }
         : {}),
     });
+    await timed("candidate-runtime-setup", async () => {
     register(candidate);
     candidate.id = docker(
       namedArguments(spec.candidate.arguments(namespace), candidateName),
     );
     assert(/^[a-f0-9]{64}$/.test(candidate.id), "HOST_CANDIDATE_CID_REQUIRED");
+    created(candidate);
     saveRegistry(output, resources);
     docker(["start", candidate.id]);
     assertOwnedContainer(inspect(candidate.id), {
       ...candidate,
       running: true,
     });
-    const runtime = JSON.parse(
+    runtime = JSON.parse(
       docker(["exec", candidate.id, spec.candidate.node, "-e", runtimeProbe]),
     );
     assert.equal(runtime.platform, "linux", "HOST_CANDIDATE_RUNTIME_OS");
@@ -262,6 +371,8 @@ export async function runHostInvocation(
       observedImageId: spec.candidate.image,
       runtime,
     });
+    });
+    await timed("application-readiness", () =>
     docker(
       [
         "exec",
@@ -272,7 +383,7 @@ export async function runHostInvocation(
         "let ready=false;for(let i=0;i<120;i++){try{if((await fetch('http://127.0.0.1:3100/external/config/ui')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,250));}if(!ready)process.exit(2)",
       ],
       { timeout: 35000 },
-    );
+    ));
     assertOwnedContainer(inspect(candidate.id), {
       ...candidate,
       running: true,
@@ -302,50 +413,56 @@ export async function runHostInvocation(
           resources.delete(proofKey);
         }
       });
-    const terminal = await execute();
-    checkCancellation();
-    assertOwnedContainer(inspect(candidate.id), {
-      ...candidate,
-      running: true,
+    const terminal = await timed("playwright-proof", execute);
+    let measured;
+    await timed("post-proof-resource-observation", () => {
+      checkCancellation();
+      assertOwnedContainer(inspect(candidate.id), {
+        ...candidate,
+        running: true,
+      });
+      measured = {
+        candidate: JSON.parse(
+          docker([
+            "exec",
+            candidate.id,
+            spec.candidate.node,
+            "-e",
+            resourcesProbe,
+          ]),
+        ),
+        browserProvider: JSON.parse(
+          docker(["exec", tools.id, "node", "-e", resourcesProbe]),
+        ),
+      };
     });
-    const measured = {
-      candidate: JSON.parse(
-        docker([
-          "exec",
-          candidate.id,
-          spec.candidate.node,
-          "-e",
-          resourcesProbe,
-        ]),
-      ),
-      browserProvider: JSON.parse(
-        docker(["exec", tools.id, "node", "-e", resourcesProbe]),
-      ),
-    };
-    const lifecycle = await stopCandidateAndObserve({
+    const lifecycle = await timed("candidate-graceful-shutdown", () => stopCandidateAndObserve({
       inspect: () => inspect(candidate.id),
       signal: () => {
         docker(["kill", "--signal", "SIGTERM", candidate.id]);
         return true;
       },
       wait: () => docker(["wait", candidate.id]),
-    });
+    }));
     checkCancellation();
     assertOwnedContainer(lifecycle.after, { ...candidate, running: false });
     writeJsonAtomic(
       path.join(directory, "candidate-lifecycle.json"),
       lifecycle,
     );
-    docker(["kill", "--signal", "SIGTERM", tools.id]);
-    docker(["wait", tools.id]);
-    const toolFinal = inspect(tools.id);
-    assertOwnedContainer(toolFinal, { ...tools, running: false });
-    assert.equal(toolFinal.State.ExitCode, 0, "HOST_PROVIDER_SHUTDOWN_FAILED");
-    assert.equal(
-      read(path.join(directory, "provider-stopped.json")).closed,
-      true,
-      "HOST_PROVIDER_SHUTDOWN_FAILED",
-    );
+    let providerWait, toolFinal;
+    await timed("provider-graceful-shutdown", () => {
+      docker(["kill", "--signal", "SIGTERM", tools.id]);
+      providerWait = docker(["wait", tools.id]);
+      toolFinal = inspect(tools.id);
+      assertOwnedContainer(toolFinal, { ...tools, running: false });
+      assert.equal(toolFinal.State.ExitCode, 0, "HOST_PROVIDER_SHUTDOWN_FAILED");
+      assert.equal(
+        read(path.join(directory, "provider-stopped.json")).closed,
+        true,
+        "HOST_PROVIDER_SHUTDOWN_FAILED",
+      );
+    });
     for (const file of [
       path.join(spec.diagnostics, "network-rejections.jsonl"),
       path.join(directory, "provider-rejections.jsonl"),
@@ -365,8 +482,14 @@ export async function runHostInvocation(
         "separate API and browser/controller containers in owned network-none namespace",
       perContainerLimits: { memoryBytes: 4294967296, cpus: 2, pids: 256 },
     });
-    return { terminal, runtime, lifecycle };
+    if(eventSerialV3) assert(String(toolFinal.State.ExitCode)===providerWait && terminal.signal===null,'HOST_V3_TERMINAL_REQUIRED');
+    return { terminal, runtime, lifecycle, ...(eventSerialV3?{v3Finalization:{
+      host:{started:true,observed:true,forced:false,cancelled:false,code:terminal.code,signal:terminal.signal},
+      fixture:{started:true,observed:true,forced:false,cancelled:false,code:toolFinal.State.ExitCode,signal:null},
+      creators:v3Creators,
+    }}:{}) };
   } finally {
+    const finishCleanup = async () => {
     const errors = [];
     for (const value of [candidate, tools])
       if (value) {
@@ -393,5 +516,7 @@ export async function runHostInvocation(
       }
     if (errors.length)
       throw new AggregateError(errors, "HOST_OWNED_RESOURCE_CLEANUP_FAILED");
+    };
+    await timed("resource-cleanup", finishCleanup);
   }
 }
