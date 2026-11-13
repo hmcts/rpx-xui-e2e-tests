@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { digestBytes } from './lib/exui-evidence-io.mjs';
 import { validatePromotionReceipt } from './lib/exui-release-evidence.mjs';
+import { getReleasePolicy } from './lib/exui-release-policy.mjs';
 
 let verdict = { status: 'BLOCKED', exitCode: 2 };
 try {
@@ -14,6 +15,7 @@ try {
   const expected = JSON.parse(fs.readFileSync(expectedPath, 'utf8'));
   // The deployment job obtains this digest from the immutable producer artifact, independently of these bytes.
   if (expected.receiptArtifactDigest !== digestBytes(bytes)) throw new Error('RECEIPT_ARTIFACT_MISMATCH');
+  if (getReleasePolicy(expected.releaseScopeId).policyDigest !== expected.policyDigest) throw new Error('UNREGISTERED_RELEASE_POLICY');
   verdict = validatePromotionReceipt(JSON.parse(bytes), expected);
 } catch {
   verdict = { status: 'BLOCKED', exitCode: 2 };
