@@ -799,6 +799,45 @@ test("dashboard separates diagnostic run info from unexecuted candidate evidence
   assert.equal(Reporter.validatePublicReport('harness').tests, 116);
 });
 
+test('slice lane options identify unexecuted lanes and include an explanatory empty row', () => {
+  const { renderCoverage } = require('./harness-report-coverage.cjs');
+  const records = titles.harness.map(entry => ({ entry, observed: { status: 'passed' } }));
+  const dom = require('node-html-parser').parse(renderCoverage(records));
+  const live = dom.querySelector('[data-harness-filter="lane"] option[value="liveAPI"]');
+  assert(live.hasAttribute('disabled'));
+  assert.match(live.textContent, /not run/);
+  assert.match(dom.querySelector('[data-harness-filter="lane"] option[value="model"]').textContent, /\(\d+\)/);
+  assert(dom.querySelector('[data-harness-empty]').hasAttribute('hidden'));
+  assert.match(dom.querySelector('[data-harness-empty]').textContent, /No diagnostic checks match/);
+});
+
+test('slice filters explain zero matches and Clear filters restores populated slices', () => {
+  const listeners = {}, count = {}, empty = { hidden: true };
+  const selects = ['lane', 'services', 'caseTypes'].map(key => ({ dataset: { harnessFilter: key }, value: '', addEventListener: (_event, callback) => { listeners[key] = callback; } }));
+  const makeSlice = (lane, service, caseType) => {
+    const row = { dataset: { lane, services: JSON.stringify([service]), caseTypes: JSON.stringify([caseType]), status: 'passed' }, hidden: false };
+    const cells = { '[data-slice-services]': {}, '[data-slice-cases]': {}, '.harness-match-count': {}, '[data-slice-outcomes]': { replaceChildren() {}, append() {} } };
+    return { row, querySelectorAll: () => [row], querySelector: selector => cells[selector] };
+  };
+  selects[2].options = [{ value: 'not-case-specific', textContent: 'Not case-specific' }];
+  const slices = [makeSlice('model', 'CIVIL', 'CIVIL'), makeSlice('framework', 'Shared Harness', 'not-case-specific')];
+  const root = {
+    querySelectorAll: selector => ({ '[data-harness-filter]': selects, '[data-harness-slice]': slices })[selector] || [],
+    querySelector: selector => selector === '[data-harness-empty]' ? empty : { addEventListener: (_event, callback) => { listeners.clear = callback; } },
+  };
+  require('node:vm').runInNewContext(fs.readFileSync(path.join(__dirname, 'harness-report-coverage.js'), 'utf8'), { window: { jQuery: true }, document: { getElementById: id => id === 'harness-overview' ? root : count, createElement: () => ({}) }, $: () => ({ ready: callback => callback() }) });
+  selects[0].value = 'liveAPI'; listeners.lane();
+  assert.equal(count.textContent, '0 matching tests across 0 slices'); assert.equal(empty.hidden, false);
+  listeners.clear();
+  assert.equal(count.textContent, '2 matching tests across 2 slices'); assert.equal(empty.hidden, true); assert(slices.every(slice => !slice.hidden));
+  selects[1].value = 'CIVIL'; listeners.services();
+  assert.equal(count.textContent, '1 matching test across 1 slice');
+  selects[2].value = 'not-case-specific'; listeners.caseTypes();
+  assert.equal(empty.hidden, false);
+  listeners.clear(); assert.equal(empty.hidden, true); assert(slices.every(slice => !slice.row.hidden));
+  assert.equal(slices[1].querySelector('[data-slice-cases]').textContent, 'Not case-specific');
+});
+
 test("coverage map breaks out each unique AAT diagnostic by lane, slice, service, jurisdiction and case type", () => {
   const overview = require("./harness-public-overview.cjs");
   const { renderCoverage } = require("./harness-report-coverage.cjs");
