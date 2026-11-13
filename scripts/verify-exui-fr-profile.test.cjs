@@ -114,6 +114,12 @@ test('FR admission credits one exact profile only after all facets and same-cand
  const nativeContext={binding:{producer,candidate,runtime,sourceDefault:profile.sourceDefault,catalogue:{obligationsDigest:catalogueDigest}},expected:{harnessCommit:commit,candidateArtifactDigest:artifactDigest,jobRunId:'ci-00000000-0000-4000-8000-000000000001'}};
  const result=admission.admitFrProfile(profile,nativeContext,catalogue);
  assert.equal(result.accepted,1);assert.equal(result.joint.status,'included');assert.equal(result.releaseApproval,false);
+
+ for(const revision of ['', 'not-a-commit', 'b'.repeat(40)]){
+  const invalid=structuredClone(profile),context=structuredClone(nativeContext);
+  invalid.candidate.provenance.webappCommit=revision;context.binding.candidate=structuredClone(invalid.candidate);
+  assert.throws(()=>admission.admitFrProfile(invalid,context,catalogue),/FR_PROFILE_CONSUMER_INVALID/);
+ }
  assert.deepEqual(result.joint.sourceKeys,['rpx-xui-webapp:config/default.json','rpx-xui-webapp:config/default.json']);
  for(const mutate of [value=>value.facets.pop(),value=>value.family='DIVORCE',value=>value.facets[0].fault.status='observed',value=>value.facets[1].fault.configDigest=value.facets[1].baseline.configDigest]){
   const invalid=structuredClone(profile);mutate(invalid);assert.throws(()=>admission.admitFrProfile(invalid,nativeContext,catalogue),/FR_PROFILE_ADMISSION_INVALID/);

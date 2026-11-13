@@ -102,6 +102,12 @@ test('CMC native profile evidence is admitted only for the exact catalogue row a
  const profile={schemaVersion:1,kind:'cmc-profile-cohort',status:'validated-for-admission',runId:'cmc-00000000-0000-4000-8000-000000000001',obligationId:CMC_PROFILE_ID,family:'CMC',contract:cmcProfileContract(),contractDigest:cmcProfileContractDigest(),candidate,producer,sourceDefault,runtime,facets,nativeBindingDigest:hash('1'),catalogueDigest,cohortDigest:digestBytes(JSON.stringify(facets))};
  const result=admitCmcProfile(profile,nativeContext,catalogue);
  assert.equal(result.accepted,1);assert.equal(result.joint.status,'included');assert.equal(result.releaseApproval,false);
+
+ for(const revision of ['', 'not-a-commit', 'b'.repeat(40)]){
+  const invalid=structuredClone(profile),context=structuredClone(nativeContext);
+  invalid.candidate.provenance.webappCommit=revision;context.binding.candidate=structuredClone(invalid.candidate);
+  assert.throws(()=>admitCmcProfile(invalid,context,catalogue),/CMC_PROFILE_CONSUMER_INVALID/);
+ }
  const foreign={...nativeContext,expected:{...nativeContext.expected,candidateArtifactDigest:hash('9')}};
  assert.equal(cmcNativeProfileCompatibility(foreign,profile).status,'separate');
  const incomplete=structuredClone(profile);incomplete.facets[0].faultEvidence.status='observed';assert.throws(()=>admitCmcProfile(incomplete,nativeContext,catalogue),/CMC_PROFILE_ADMISSION_INVALID/);
