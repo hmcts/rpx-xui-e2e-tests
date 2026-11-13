@@ -1,5 +1,6 @@
 import {expect,type Page} from '@playwright/test';
 
+import {applicantResultCatalogueObserved} from '../../scripts/lib/exui-applicant-results-catalogue.mjs';
 import {applicantResultContract,applicantResultObserved} from '../../scripts/lib/exui-applicant-results.mjs';
 import {expectedResultFieldType,validateResultCandidateColumns} from '../../scripts/lib/exui-result-field-types.mjs';
 
@@ -52,5 +53,5 @@ export async function observeResultTable(page:Page,useCase:ResultView,expected:E
    }
   }
   expect([...references].sort()).toEqual(expected.cases.map((item: {case_id:string})=>item.case_id).sort());
-  return {useCase,applicantObserved:applicantResultObserved(useCase,body.columns),applicantExpected:applicantResultContract(useCase),columns:columns.map(c=>c.case_field_id),cells:21,rows:3,references};
+  return {useCase,applicantObserved:applicantResultObserved(useCase,body.columns),applicantExpected:applicantResultContract(useCase),catalogueRows:applicantResultCatalogueObserved(useCase,body.columns),columns:columns.map(c=>c.case_field_id),cells:21,rows:3,references};
 }

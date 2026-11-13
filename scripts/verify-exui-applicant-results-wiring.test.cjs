@@ -51,19 +51,22 @@ test('provider binds expectations to the parent-captured backend receipt and typ
  ]) {const altered=structuredClone(input);change(altered);assert.throws(()=>validateApplicantResultsInput(altered,invocation,output));}
 });
 
-test('Playwright discovers one aggregate applicant proof and rejects cross-scope selection',async t=>{
+test('Playwright discovers baseline rows and only the targeted mutation row, then rejects cross-scope selection',async t=>{
  const root=directory(t),{manifest}=completeRun();
  const policy=(await import('./lib/exui-release-policy.mjs')).getReleasePolicy(SCOPE);
  Object.assign(manifest,{releaseScopeId:SCOPE,policyDigest:policy.policyDigest,requiredObligationIds:policy.requiredObligationIds});
  const file=path.join(root,'manifest.json');fs.writeFileSync(file,JSON.stringify(manifest));
  const collect=extra=>spawnSync(process.execPath,[path.join(ROOT,'node_modules/@playwright/test/cli.js'),'test','--config','playwright.harness.config.ts','--list','--reporter=json'],{cwd:ROOT,encoding:'utf8',env:{PATH:process.env.PATH,EXUI_HARNESS_SELECTION:'ccd',EXUI_HARNESS_SLICE:'ccd-applicant-results',EXUI_CANDIDATE_RUN_MANIFEST:file,EXUI_CANDIDATE_URL:'http://127.0.0.1:3100',EXUI_EVIDENCE_CONTEXT:path.join(root,'context.json'),EXUI_EVIDENCE_REPORT:path.join(root,'report.json'),...extra}});
+ const {applicantResultCatalogueContract}=await import('./lib/exui-applicant-results-catalogue.mjs');
  for(const variant of variants) {
   const result=collect(variant==='baseline'?{}:{EXUI_HARNESS_MUTATION:variant});assert.equal(result.status,0,result.stderr+result.stdout);
   const report=JSON.parse(result.stdout),specs=[];const visit=s=>{specs.push(...(s.specs??[]));for(const child of s.suites??[])visit(child);};report.suites.forEach(visit);
-  assert.equal(specs.length,1);assert.equal(path.basename(specs[0].file),'applicant-results.spec.ts');
-  const proof=specs[0].tests[0].annotations.filter(a=>a.type==='harness-proof').map(a=>a.description);
-  assert.deepEqual(proof,['ccd-applicant-results-source-contract'+(variant==='baseline'?'':'-'+variant)]);
-  assert.equal(specs[0].tests[0].results.length,0);
+  const expected=variant==='baseline'?['ccd-applicant-results-source-contract',...applicantResultCatalogueContract().map(row=>row.proofId)]:[applicantResultCatalogueContract().find(row=>row.mutationId===variant).proofId];
+  assert.equal(specs.length,expected.length);assert(specs.every(spec=>path.basename(spec.file)==='applicant-results.spec.ts'));
+  const tests=specs.flatMap(spec=>spec.tests);
+  const proofs=tests.map(item=>item.annotations.filter(a=>a.type==='harness-proof').map(a=>a.description));
+  assert.deepEqual(proofs,expected.map(id=>[id]));
+  assert.equal(tests.every(item=>item.results.length===0),true);
  }
  for(const extra of [{EXUI_HARNESS_SELECTION:'candidate'},{EXUI_HARNESS_SLICE:'ccd-event-capability'},{EXUI_HARNESS_MUTATION:'ccd-drop-child'}]) assert.notEqual(collect(extra).status,0);
 });

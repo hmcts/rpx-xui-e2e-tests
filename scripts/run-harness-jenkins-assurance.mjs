@@ -525,7 +525,7 @@ export function logNativeCompletion(output) {
       // No orchestration failure was recorded.
     }
     console.log(
-      `[harness-assurance] Native ${result.status}; completed proofs: ${completed}${profileStops ? `; ${profileStops}` : ""}${stopReason}; cleanup ${result.cleanupComplete ? "complete" : "incomplete"}.`,
+      `[harness-assurance] Native${profileStops ? " core" : ""} ${result.status}; completed proofs: ${completed}${profileStops ? `; profile gates: ${profileStops}` : ""}${stopReason}; cleanup ${result.cleanupComplete ? "complete" : "incomplete"}.`,
     );
   } catch {
     // Missing or malformed private evidence gets no native credit.

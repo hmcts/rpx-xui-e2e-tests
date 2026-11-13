@@ -4,6 +4,8 @@ import path from 'node:path';
 import {validateCiPhase} from './exui-candidate-ci-evidence.mjs';
 import {digestBytes} from './exui-evidence-io.mjs';
 import {APPLICANT_RESULTS_SCOPE} from './exui-applicant-results-contract.mjs';
+import {loadCommittedConfigurationCatalogue} from './exui-configuration-runtime-coverage.mjs';
+import {applicantResultCatalogueContract} from './exui-applicant-results-catalogue.mjs';
 
 const fail='APPLICANT_REPORT_EVIDENCE_INVALID';
 function read(file) {
@@ -30,7 +32,7 @@ export function readApplicantCompatibilityEvidence(descriptorPath) {
  assert.equal(expected.releaseScopeId,APPLICANT_RESULTS_SCOPE,fail);
  assert.equal(expected.runId,pins.runId,fail);assert.equal(expected.harnessCommit,pins.producerCommit,fail);assert.equal(expected.identity.artifactDigest,pins.candidateArtifactDigest,fail);
  assert.equal(summary.value.kind,'standalone-applicant-results-pilot',fail);
- for(const [key,value] of Object.entries({status:'PASS',nativeRuntimeAcceptance:true,cleanupComplete:true,catalogueCredit:false,releaseCredit:false,invocations:4,proposedCatalogueRows:2}))assert.equal(summary.value[key],value,fail);
+ for(const [key,value] of Object.entries({status:'PASS',nativeRuntimeAcceptance:true,cleanupComplete:true,catalogueCredit:false,releaseCredit:false,invocations:4,proposedCatalogueRows:3}))assert.equal(summary.value[key],value,fail);
  const verdict=validateCiPhase(directory,expected,observed.value.terminal);
  assert.equal(verdict.status,'PASS',fail);assert.equal(verdict.receiptArtifactDigest,pins.receiptArtifactDigest,fail);
  assert.equal(summary.value.receiptArtifactDigest,pins.receiptArtifactDigest,fail);
@@ -41,12 +43,24 @@ export function readApplicantCompatibilityEvidence(descriptorPath) {
  const baseline=baselineRecord.value;
  assert.equal(baseline.ccd.images.data.architecture,'arm64',fail);
  assert.equal(baseline.correctedDependency.imageId,expected.identity.dependencyIdentities.ccd.artifactDigest,fail);
+ const {catalogue}=loadCommittedConfigurationCatalogue();
+ const catalogueRows=applicantResultCatalogueContract().map(source=>{
+  const row=catalogue.obligations.find(item=>item.id===source.obligationId);
+  assert(row,fail);
+  return {obligationId:row.id,family:row.family,kind:row.kind,requiredBoundary:row.requiredBoundary,sourceKeys:row.sourceKeys};
+ });
+ const ccd=baseline.ccd;
+ const ccdRuntime={elasticsearch:ccd.elasticsearch===true,localProfile:ccd.localCcdProfile!==undefined,profileDigest:baseline.correctedDependency.profileDigest};
  return {
   schemaVersion:1,kind:'applicant-results-compatibility',status:'PASS',
   runId:expected.runId,producerCommit:expected.harnessCommit,candidateCommit:expected.identity.webappCommit,
   candidateArtifactDigest:expected.identity.artifactDigest,sourceDigest:expected.harnessSourceDigest,
+  harnessDependencyDigest:expected.harnessDependencyDigest,browserDigest:expected.browserDigest,
+  candidate:Object.fromEntries(['artifactDigest','webappCommit','dependencyLockDigest','toolkitVersion','toolkitDigest'].map(key=>[key,expected.identity[key]])),
+  dependencies:expected.identity.dependencyIdentities,
   dataImageDigest:baseline.correctedDependency.imageId,profileDigest:baseline.correctedDependency.profileDigest,
+  ccdRuntime,catalogueDigest:digestBytes(JSON.stringify(catalogue.obligations)),catalogueRows,
   descriptorDigest:descriptor.digest,receiptArtifactDigest:verdict.receiptArtifactDigest,
-  baselineProofs:1,effectiveFaults:3,sourceRows:2,cleanupComplete:true,catalogueCredit:false,releaseCredit:false,
+  baselineProofs:4,effectiveFaults:3,sourceRows:3,cleanupComplete:true,catalogueCredit:false,releaseCredit:false,
  };
 }

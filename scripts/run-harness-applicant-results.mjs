@@ -12,7 +12,6 @@ import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
 import {inspectNativeApiRuntime,inspectNativeBrowserRuntime} from './lib/exui-native-containers.mjs';
 import {nativeIdentity} from './lib/exui-native-contract.mjs';
 import {prepareApplicantResultRuntime,copyApplicantRuntimeEvidence,assertCopiedApplicantRuntimeEvidence} from './lib/exui-applicant-results-runtime.mjs';
-import {APPLICANT_RESULTS_SCOPE} from './lib/exui-applicant-results-contract.mjs';
 import {validateApplicantResultRuntime,publishApplicantResultRuntime} from './lib/exui-applicant-results-transition.mjs';
 import {readApplicantCheckpoint,assertApplicantInvocationRemoved} from './lib/exui-applicant-results-evidence.mjs';
 import {captureCiPhaseExpectation,captureCiOwnership,captureCiApplicantFaultOwnership,validateCiPhase} from './lib/exui-candidate-ci-evidence.mjs';
@@ -23,6 +22,19 @@ import {terminateOwnedChild} from './lib/exui-candidate-runtime.mjs';
 import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const reference=(directory,file)=>({path:path.relative(directory,file),digest:digestBytes(fs.readFileSync(file))});
+export function writeApplicantResultsCompatibilityRequest(output,directory) {
+ assert(path.isAbsolute(output)&&path.isAbsolute(directory),'RESULT_REPORT_HANDOFF_INVALID');
+ assert.equal(fs.realpathSync(output),output,'RESULT_REPORT_HANDOFF_INVALID');assert.equal(fs.realpathSync(directory),directory,'RESULT_REPORT_HANDOFF_INVALID');
+ const summaryBytes=fs.readFileSync(path.join(output,'summary.json')),summary=JSON.parse(summaryBytes);
+ assert.deepEqual([summary.status,summary.nativeRuntimeAcceptance,summary.cleanupComplete,summary.catalogueCredit,summary.releaseCredit],['PASS',true,true,false,false],'RESULT_REPORT_HANDOFF_INVALID');
+ const admissionBytes=fs.readFileSync(path.join(directory,'independent-results-admission.json')),terminalBytes=fs.readFileSync(path.join(directory,'independent-controller-terminal.json'));
+ const admission=JSON.parse(admissionBytes),terminal=JSON.parse(terminalBytes),expected=admission.expected;
+ assert.equal(admission.schemaVersion,1,'RESULT_REPORT_HANDOFF_INVALID');assert.equal(admission.completedAfterController,true,'RESULT_REPORT_HANDOFF_INVALID');
+ assert.equal(terminal.runId,expected.runId,'RESULT_REPORT_HANDOFF_INVALID');assert.deepEqual(terminal.terminal,{code:0,signal:null},'RESULT_REPORT_HANDOFF_INVALID');
+ const file=path.join(output,'compatibility-request.json');
+ writeJsonAtomic(file,{schemaVersion:1,kind:'applicant-results-compatibility-request',directory,expected:{runId:expected.runId,producerCommit:expected.harnessCommit,candidateArtifactDigest:expected.identity.artifactDigest,receiptArtifactDigest:summary.receiptArtifactDigest,admissionDigest:digestBytes(admissionBytes),controllerTerminalDigest:digestBytes(terminalBytes),summaryDigest:digestBytes(summaryBytes)}});
+ return file;
+}
 export async function runApplicantResults({candidate,browser,profile,output}) {
  assert(path.isAbsolute(output),'RESULT_JOB_FRESH_OUTPUT');
  const artifact=await verifyCandidateArtifact(candidate),browserRoot=fs.realpathSync(browser);
@@ -75,7 +87,7 @@ export async function runApplicantResults({candidate,browser,profile,output}) {
   const file=path.join(directory,'independent-results-capture.json');writeJsonAtomic(file,{schemaVersion:1,completedAfterController:true,baselineInputDigest:digestBytes(fs.readFileSync(path.join(directory,'input.json'))),invocations:captures});expected.applicantResultsCapture=reference(directory,file);
   writeJsonAtomic(path.join(directory,'independent-results-admission.json'),{schemaVersion:1,completedAfterController:true,expected});
   phase='independent-admission';const verdict=validateCiPhase(directory,expected,execution.terminal);
-  summary.status=verdict.status;summary.nativeRuntimeAcceptance=verdict.status==='PASS';summary.invocations=4;summary.proposedCatalogueRows=2;summary.receiptArtifactDigest=verdict.receiptArtifactDigest;
+  summary.status=verdict.status;summary.nativeRuntimeAcceptance=verdict.status==='PASS';summary.invocations=4;summary.proposedCatalogueRows=3;summary.receiptArtifactDigest=verdict.receiptArtifactDigest;
  }catch(error){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;summary.diagnostic=classifyNativeFailure(error);summary.phase=phase;summary.failure=cancelled?'RESULT_JOB_CANCELLED':'RESULT_JOB_FAILED';}
  finally{
   let clean=true;
@@ -83,7 +95,11 @@ export async function runApplicantResults({candidate,browser,profile,output}) {
   if(!ownership&&context&&baseline&&fs.existsSync(path.join(directory,"container-launch.json")))try{const launched=JSON.parse(fs.readFileSync(path.join(directory,"input.json"),"utf8")),handoff=JSON.parse(fs.readFileSync(path.join(directory,"container-launch.json"),"utf8"));ownership=captureCiOwnership(launched,handoff,{...context,ccd:baseline.ccd},directory,"applicantResults");}catch{clean=false;}
   if(ownership)try{await cleanupNativeOwnership(ownership,{inspect:inspectHostContainer,remove:id=>hostDocker(['rm','-f',id])});}catch{clean=false;}
   for(const variant of [...runtimes.keys()].reverse())try{removeRuntime(variant);}catch{clean=false;}
-  summary.cleanupComplete=clean;if(!clean){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;}process.off('SIGINT',cancel);process.off('SIGTERM',cancel);persist();
+  summary.cleanupComplete=clean;if(!clean){summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;}process.off('SIGINT',cancel);process.off('SIGTERM',cancel);
+  if(summary.status==='PASS'&&summary.nativeRuntimeAcceptance&&clean)try{
+   persist();writeApplicantResultsCompatibilityRequest(output,directory);
+  }catch{summary.status='BLOCKED';summary.nativeRuntimeAcceptance=false;summary.failure='RESULT_REPORT_HANDOFF_FAILED';summary.phase='report-handoff';}
+  persist();
  }
  return summary;
 }

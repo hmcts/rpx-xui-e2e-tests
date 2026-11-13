@@ -345,7 +345,7 @@ test('native completion reports blocked profile reason codes without exposing di
  fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'PASS',phaseResults:[],cleanupComplete:true}));
  fs.writeFileSync(path.join(root,'private/assurance-profile-attempts.json'),JSON.stringify({schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:{schemaVersion:1,kind:'cmc-profile-attempt',status:'BLOCKED',reason:'CMC_PROFILE_CONSUMER_INVALID',diagnostic:{unexpectedIds:['PRIVATE-CANARY']}},frProfileAttempt:{schemaVersion:1,kind:'fr-profile-attempt',status:'BLOCKED',reason:'FR_PROFILE_COMPANION_BLOCKED'}}),{mode:0o600});
  const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);
- assert.equal(messages.length,1);assert.match(messages[0],/CMC profile BLOCKED \(CMC_PROFILE_CONSUMER_INVALID\)/);assert.match(messages[0],/FR profile BLOCKED \(FR_PROFILE_COMPANION_BLOCKED\)/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|unexpectedIds/);
+ assert.equal(messages.length,1);assert.match(messages[0],/Native core PASS/);assert.match(messages[0],/profile gates: CMC profile BLOCKED/);assert.match(messages[0],/CMC profile BLOCKED \(CMC_PROFILE_CONSUMER_INVALID\)/);assert.match(messages[0],/FR profile BLOCKED \(FR_PROFILE_COMPANION_BLOCKED\)/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|unexpectedIds/);
 });
 
 test('Jenkins overall failure cannot publish a passing main-only summary',async t=>{
@@ -413,4 +413,12 @@ test('Jenkins CLI bridge supports profile opt-ins or team exclusions while prese
  for(const enableFrProfile of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableFrProfile,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid FR opt-in must never fork')}),/HARNESS_FR_PROFILE_ENABLE_REQUIRED/);
  for(const options of [{enableFrProfile:true},{enableCmcProfile:true},{excludeKnownJurisdictionDefect:'true'}])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{excludeKnownJurisdictionDefect:true,...options,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('conflicting exclusion must not fork')}),/HARNESS_PROFILE_EXCLUSION_CONFLICT/);
  for(const enableCmcProfile of [null,0,1,'true',{},[]])assert.throws(()=>runTimedAssuranceChild('/private/job.json',{enableCmcProfile,snapshotAssuranceTiming:()=>({}),forkChild:()=>assert.fail('invalid CMC opt-in must never fork')}),/HARNESS_CMC_PROFILE_ENABLE_REQUIRED/);
+});
+
+test('blocked profile details stay private even when jurisdiction labels look valid',async t=>{
+ const {logNativeCompletion}=await load();const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'native-profile-private-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'),{mode:0o700});
+ fs.writeFileSync(path.join(root,'private/ci-result.json'),JSON.stringify({status:'PASS',phaseResults:[{phase:'family',status:'PASS'}],cleanupComplete:true}));
+ fs.writeFileSync(path.join(root,'private/assurance-profile-attempts.json'),JSON.stringify({schemaVersion:1,kind:'assurance-profile-attempts',cmcProfileAttempt:{status:'BLOCKED',reason:'CMC_PROFILE_OBSERVATIONS',diagnostic:{kind:'cmc-jurisdiction-filter-diagnostic',reasonCode:'CMC_PROFILE_OBSERVATIONS',expectedIds:['CMC'],observedIds:['CMC','ST_CIC','UNREVIEWED'],unexpectedIds:['ST_CIC','UNREVIEWED'],missingIds:[],privateDetail:'PRIVATE-CANARY'}}}),{mode:0o600});
+ const messages=[];t.mock.method(console,'log',message=>messages.push(message));logNativeCompletion(root);
+ assert.equal(messages.length,1);assert.match(messages[0],/Native core PASS/);assert.match(messages[0],/profile gates: CMC profile BLOCKED \(CMC_PROFILE_OBSERVATIONS\)/);assert.doesNotMatch(messages[0],/PRIVATE-CANARY|privateDetail|expectedIds|UNREVIEWED|ST_CIC/);
 });

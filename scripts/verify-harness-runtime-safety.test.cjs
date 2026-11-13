@@ -168,3 +168,36 @@ test('CI reporting overrides cannot send raw Harness artifacts to conventional p
     PW_ODHIN_START_SERVER: 'true'
   });
 });
+
+test('AAT diagnostics forward both exact native and applicant compatibility evidence paths', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'harness-aat-evidence-'));
+  try {
+    const preload = join(directory, 'stub-aat.mjs');
+    writeFileSync(preload, `
+      import { createRequire } from 'node:module';
+      import { writeFileSync } from 'node:fs';
+      const require = createRequire(${JSON.stringify(resolve('scripts/run-harness-local-aat.cjs'))});
+      const aat = require(${JSON.stringify(resolve('scripts/run-harness-local-aat.cjs'))});
+      aat.runLocalAat = async (_env, options) => {
+        writeFileSync('aat-options.json', JSON.stringify(options));
+        return { status: 'passed', exitCode: 0 };
+      };
+    `);
+    const options = { cwd: directory, encoding: 'utf8', timeout: 5000, env: { PATH: process.env.PATH } };
+    const result = spawnSync(process.execPath, ['--import', preload, runner, '--aat', '--native-evidence=/tmp/native.json', '--compatibility-evidence=/tmp/compatibility.json'], options);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(readFileSync(join(directory, 'aat-options.json'), 'utf8')), {
+      nativeEvidencePath: '/tmp/native.json', compatibilityEvidencePath: '/tmp/compatibility.json'
+    });
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('applicant compatibility evidence is rejected without its required native cohort', () => {
+  runDiagnostic(['--aat', '--compatibility-evidence=/tmp/compatibility.json'], (result, directory) => {
+    assert.equal(result.status, 2, result.stderr);
+    assert.match(result.stderr, /invalid diagnostic selection/i);
+    assert.equal(existsSync(join(directory, 'contacts.jsonl')), false);
+  });
+});

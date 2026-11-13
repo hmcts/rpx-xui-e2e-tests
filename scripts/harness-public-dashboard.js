@@ -23,7 +23,7 @@
   const baselines = native?.querySelectorAll('[data-native-table="baseline"] tr[data-native-phase]').length || 0;
   const faults = native?.querySelectorAll('[data-native-table="fault"] tr[data-native-phase]').length || 0;
   const nativeElapsed = Number(run?.dataset.nativeElapsedMs);
-  const nativeTime = Number.isFinite(nativeElapsed) && nativeElapsed > 0
+  const nativeTime = Number.isSafeInteger(nativeElapsed) && nativeElapsed > 0
     ? ` · ${(nativeElapsed / 60000).toFixed(1)} min recorded native interval` : '';
   const diagnosticTotal = Number(metrics.querySelector('.metric-0 strong')?.textContent || 0);
   const diagnosticPassRate = metrics.querySelector('.metric-1 strong')?.textContent.trim() || '—';
@@ -124,7 +124,16 @@
     ['Diagnostic tests', String(diagnosticTotal), `${diagnosticPassRate} pass rate · ${diagnosticAttention} need attention · ${diagnosticTime}`, '#TabTests'],
     ['Release approval', 'Unavailable', 'Catalogue and deployment gaps remain', '#harness-application-coverage'],
   ];
-  metrics.replaceChildren();
+  if (native) {
+    const oldTiming = metrics.querySelector('.metric-3');
+    if (oldTiming?.children?.length >= 3) {
+      oldTiming.children[0].textContent = 'Diagnostic duration';
+      oldTiming.children[2].textContent = 'Playwright diagnostics only; Harness timing below';
+    }
+  }
+  const harnessMetrics = document.createElement('section');
+  harnessMetrics.className = 'report-metrics harness-assurance-summary';
+  harnessMetrics.setAttribute('aria-label', 'Harness evidence at a glance');
   cards.forEach(([label, value, detail, href], index) => {
     const card = document.createElement(href ? 'a' : 'div');
     card.className = `report-metric metric-${index}`;
@@ -136,7 +145,7 @@
       element.textContent = content;
       card.append(element);
     });
-    metrics.append(card);
+    harnessMetrics.append(card);
   });
   const elapsedSummary = document.createElement('section');
   elapsedSummary.className = 'report-metric report-supplement-summary report-assurance-elapsed';
@@ -148,7 +157,7 @@
     element.textContent = content;
     elapsedSummary.append(element);
   });
-  metrics.append(elapsedSummary);
+  harnessMetrics.append(elapsedSummary);
   const build = document.querySelector('#harness-build-self-check-summary');
   if (build) {
     const data = build.dataset, status = data.buildSelfCheckStatus;
@@ -173,7 +182,7 @@
       element.textContent = content;
       measure.append(element);
     });
-    metrics.append(measure);
+    harnessMetrics.append(measure);
   }
   if (supplements.length) {
     const summary = document.createElement('section');
@@ -198,7 +207,7 @@
       links.append(link);
     });
     summary.append(heading, explanation, links);
-    metrics.append(summary);
+    harnessMetrics.append(summary);
   }
   const map = document.createElement('nav');
   map.className = 'report-coverage-map';
@@ -222,7 +231,8 @@
   const note = document.createElement('p');
   note.className = 'report-metrics-note';
   note.textContent = 'Separate measures; counts are not additive. Service, jurisdiction and case type labels describe diagnostic associations, while accepted runtime evidence appears in the catalogue card.';
-  metrics.append(map, note);
+  harnessMetrics.append(map, note);
   const timeline = document.querySelector('#harness-phase-timings');
-  if (timeline) metrics.after(timeline);
+  document.querySelector('#harness-overview').before(harnessMetrics);
+  if (timeline) harnessMetrics.after(timeline);
 })();

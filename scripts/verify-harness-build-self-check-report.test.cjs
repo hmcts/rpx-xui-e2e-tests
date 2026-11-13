@@ -389,6 +389,7 @@ function buildDashboard(summary) {
     movedTimeline = element;
   };
   const elements = {
+    "#harness-overview": {before: (section) => { metrics.following = section; }},
     "#harness-public-run": {
       dataset: {
         assuranceVersion: "1",
@@ -433,7 +434,7 @@ function buildDashboard(summary) {
     ),
     {
       document: {
-        createElement: make,
+        createElement: () => ({...make(), after: element => { movedTimeline = element; }}),
         querySelector: (selector) => elements[selector] ?? null,
         querySelectorAll: (selector) =>
           selector.includes("data-catalogue-kind")
@@ -443,7 +444,7 @@ function buildDashboard(summary) {
     },
   );
   return {
-    metrics,
+    metrics: metrics.following,
     movedTimeline,
     timeline,
     text: (node) => {

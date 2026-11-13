@@ -2,17 +2,25 @@ const test=require('node:test'),assert=require('node:assert/strict');
 test('native result observations require both healthy views, exact transformation and persisted associations',async()=>{
  const {assertApplicantObservation}=await import('./lib/exui-applicant-results-evidence.mjs');
  const {applicantResultDefinition,applicantResultObserved,applicantResultContract}=await import('./lib/exui-applicant-results.mjs');
+ const {applicantResultCatalogueMutation,applicantResultCatalogueObserved}=await import('./lib/exui-applicant-results-catalogue.mjs');
  for(const variant of ['baseline','applicant-binding','applicant-label','applicant-order']){
   const definition=applicantResultDefinition(variant),observation={schemaVersion:1,kind:'native-applicant-results-observation',invocationId:variant,variant,views:{}};
   for(const [view,sheet] of [['SEARCH','SearchResultFields'],['WORKBASKET','WorkBasketResultFields']]){
    const columns=definition.sheets[sheet].map(row=>({case_field_id:row.CaseFieldID,label:row.Label,order:row.DisplayOrder}));
-   observation.views[view]={useCase:view,cells:21,rows:3,references:['1111111111111111','2222222222222222','3333333333333333'],columns:columns.slice().sort((a,b)=>a.order-b.order).map(row=>row.case_field_id),applicantObserved:applicantResultObserved(view,columns),applicantExpected:applicantResultContract(view)};
+   observation.views[view]={useCase:view,cells:21,rows:3,references:['1111111111111111','2222222222222222','3333333333333333'],columns:columns.slice().sort((a,b)=>a.order-b.order).map(row=>row.case_field_id),applicantObserved:applicantResultObserved(view,columns),applicantExpected:applicantResultContract(view),catalogueRows:applicantResultCatalogueObserved(view,columns)};
   }
   assertApplicantObservation(observation,variant);
   for(const change of [r=>delete r.views.WORKBASKET,r=>r.views.SEARCH.cells=0,r=>r.views.WORKBASKET.rows=0,r=>r.views.WORKBASKET.references[0]='4444444444444444',r=>r.views.SEARCH.references[1]=r.views.SEARCH.references[0],r=>r.views.WORKBASKET.columns.reverse(),r=>r.views.SEARCH.applicantExpected.label='wrong',r=>r.views.WORKBASKET.applicantObserved.label='wrong']){
    const broken=structuredClone(observation);change(broken);assert.throws(()=>assertApplicantObservation(broken,variant),/RESULT_EVIDENCE/);
   }
-  if(variant!=='baseline'){const broken=structuredClone(observation);broken.views.WORKBASKET.applicantObserved=applicantResultContract('WORKBASKET');assert.throws(()=>assertApplicantObservation(broken,variant),/RESULT_EVIDENCE/);}
+  if(variant!=='baseline'){
+   const target=applicantResultCatalogueMutation(variant);
+   for(const view of ['SEARCH','WORKBASKET'])for(const row of observation.views[view].catalogueRows){
+    const broken=structuredClone(observation),observed=broken.views[view].catalogueRows.find(item=>item.obligationId===row.obligationId);
+    if(row.obligationId===target.obligationId)observed.observed=structuredClone(observed.expected);else observed.observed={CaseFieldID:'tampered',Label:'tampered',DisplayOrder:-1};
+    assert.throws(()=>assertApplicantObservation(broken,variant),/RESULT_EVIDENCE/);
+   }
+  }
  }
 });
 test('native applicant launcher preserves omitted default ARM64 and refuses dirty source',()=>{

@@ -622,6 +622,13 @@
       "purpose": "Checks compatibility report scope, separate-cohort counts and rejection of overstated result-row claims."
     },
     {
+      "file": "scripts/verify-exui-applicant-results-admission.test.cjs",
+      "id": "unit-applicant-results-admission",
+      "label": "Applicant results admission",
+      "group": "evidence-admission",
+      "purpose": "Checks exact candidate, producer, CCD runtime and catalogue binding before applicant-result evidence can receive bounded row credit."
+    },
+    {
       "file": "scripts/verify-exui-source-profile-divorce-consumers.test.cjs",
       "id": "unit-source-profile-divorce-consumers",
       "label": "Source profile divorce consumers",

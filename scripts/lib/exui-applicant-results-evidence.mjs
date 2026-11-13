@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {digestBytes,readExecutionEvidence} from './exui-evidence-io.mjs';
-import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_PROOF,APPLICANT_RESULTS_FAILURE,applicantResultsPolicy} from './exui-applicant-results-contract.mjs';
+import {APPLICANT_RESULTS_SCOPE,APPLICANT_RESULTS_PROOF,applicantResultsPolicy} from './exui-applicant-results-contract.mjs';
 import {applicantResultSequence,validateApplicantResultRuntime,validateApplicantResultTransitionRequest,selectApplicantResultRuntime} from './exui-applicant-results-transition.mjs';
 import {applicantResultDefinition,applicantResultObserved,applicantResultContract} from './exui-applicant-results.mjs';
+import {applicantResultCatalogueMutation,applicantResultCatalogueObserved} from './exui-applicant-results-catalogue.mjs';
 import {validateNativeInvocationFinalization} from './exui-native-ci-ownership.mjs';
 import {assertOwnedContainerAuthority} from './exui-oci-runtime.mjs';
 export function readApplicantArtifact(directory,relative) {
@@ -28,7 +29,14 @@ export function assertApplicantObservation(observation,invocationId) {
   assert.deepEqual(item.applicantExpected,applicantResultContract(view),'RESULT_EVIDENCE_SOURCE_ORACLE');
   const columns=definition.sheets[sheet].map(row=>({case_field_id:row.CaseFieldID,label:row.Label,order:row.DisplayOrder}));
   assert.deepEqual(item.applicantObserved,applicantResultObserved(view,columns),'RESULT_EVIDENCE_EFFECTIVE_VARIANT');
-  if(invocationId!=='baseline')assert.notDeepEqual(item.applicantObserved,item.applicantExpected,'RESULT_EVIDENCE_UNCHANGED_VIEW');
+  assert.deepEqual(item.applicantObserved,item.applicantExpected,'RESULT_EVIDENCE_APPLICANT_NAME');
+  const catalogueRows=applicantResultCatalogueObserved(view,definition.sheets[sheet].map(row=>({case_field_id:row.CaseFieldID,label:row.Label,order:row.DisplayOrder})));
+  assert.deepEqual(item.catalogueRows,catalogueRows,'RESULT_EVIDENCE_CATALOGUE_ROWS');
+  for(const row of catalogueRows){
+   const mutated=invocationId!=='baseline'&&applicantResultCatalogueMutation(invocationId).obligationId===row.obligationId;
+   if(mutated)assert.notDeepEqual(row.observed,row.expected,'RESULT_EVIDENCE_INEFFECTIVE_FAULT');
+   else assert.deepEqual(row.observed,row.expected,'RESULT_EVIDENCE_BASELINE_ROW');
+  }
  }
 }
 export function readApplicantCheckpoint(directory,expected,invocationId) {
@@ -39,9 +47,15 @@ export function readApplicantCheckpoint(directory,expected,invocationId) {
  assert.equal(manifest.value.runtimeMetadata.harnessSourceState,'clean','RESULT_CHECKPOINT_SOURCE');assert.equal(manifest.value.runtimeMetadata.isolation,'native-separate-api-owned-network-none','RESULT_CHECKPOINT_ISOLATION');
  const policy=applicantResultsPolicy();assert.equal(expected.policyDigest,policy.policyDigest,'RESULT_CHECKPOINT_POLICY');assert.deepEqual(manifest.value.requiredObligationIds,policy.requiredObligationIds,'RESULT_CHECKPOINT_OBLIGATIONS');
  const loaded=readExecutionEvidence(directory,raw.reference,manifest.value,policy),baseline=invocationId==='baseline';
- assert.equal(loaded.results.length,1,'RESULT_CHECKPOINT_PROOF_COUNT');const result=loaded.results[0];
- assert.equal(result.proofId,baseline?APPLICANT_RESULTS_PROOF:`${APPLICANT_RESULTS_PROOF}-${invocationId}`,'RESULT_CHECKPOINT_PROOF');
- assert.equal(result.outcome,baseline?'passed':'failed','RESULT_CHECKPOINT_OUTCOME');assert.equal(result.failureId,baseline?null:APPLICANT_RESULTS_FAILURE,'RESULT_CHECKPOINT_FAILURE');
+ const mutation=policy.mutationDefinitions.find(item=>item.mutationId===invocationId);
+ assert(baseline||mutation,'RESULT_CHECKPOINT_INVOCATION');
+ const expectedProofIds=baseline?[APPLICANT_RESULTS_PROOF,...policy.mutationDefinitions.map(item=>item.baselineProofId)]:[mutation?.mutantProofId];
+ assert.deepEqual(loaded.results.map(item=>item.proofId).sort(),expectedProofIds.sort(),'RESULT_CHECKPOINT_PROOFS');
+ for(const result of loaded.results){
+  const fault=mutation?.mutantProofId===result.proofId;
+  assert.equal(result.outcome,fault?'failed':'passed','RESULT_CHECKPOINT_OUTCOME');
+  assert.equal(result.failureId,fault?mutation.expectedFailureId:null,'RESULT_CHECKPOINT_FAILURE');
+ }
  assert.equal(loaded.execution.invocationId,invocationId,'RESULT_CHECKPOINT_INVOCATION');assert.equal(loaded.execution.runId,expected.runId,'RESULT_CHECKPOINT_RUN');assert.deepEqual(loaded.execution.identity,expected.identity,'RESULT_CHECKPOINT_EXECUTION_IDENTITY');
  assert.equal(loaded.execution.kind,baseline?'baseline':'mutation','RESULT_CHECKPOINT_KIND');assert.equal(loaded.execution.terminalState,'completed','RESULT_CHECKPOINT_TERMINAL');assert.deepEqual(loaded.execution.unexpectedGlobalErrors,[],'RESULT_CHECKPOINT_GLOBAL_ERRORS');
  assert.deepEqual(readApplicantArtifact(directory,`${invocationId}/framework-terminal.json`).value,{code:baseline?0:1,signal:null},'RESULT_CHECKPOINT_FRAMEWORK');assert.equal(loaded.execution.runnerExitCode,baseline?0:1,'RESULT_CHECKPOINT_EXIT');
