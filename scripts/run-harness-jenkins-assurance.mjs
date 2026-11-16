@@ -202,15 +202,23 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
           },
         );
       }
-      try {
-        runCommand("docker", ["pull", "--platform", platform, pin.reference], {
-          env: safeEnvironment(
-            registryDirectory ? { DOCKER_CONFIG: registryDirectory } : {},
-          ),
-          timeout: 900_000,
-        });
-      } catch (error) {
-        throw new Error(`NATIVE_${pin.name}_${controlledFailureCode(error.message, "PINNED_IMAGE_PULL_FAILED_UNKNOWN")}`);
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          runCommand("docker", ["pull", "--platform", platform, pin.reference], {
+            env: safeEnvironment(
+              registryDirectory ? { DOCKER_CONFIG: registryDirectory } : {},
+            ),
+            timeout: 900_000,
+          });
+          break;
+        } catch (error) {
+          const reason = controlledFailureCode(error.message, "PINNED_IMAGE_PULL_FAILED_UNKNOWN");
+          if (attempt === 0 && reason === "NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK") {
+            console.warn(`[harness-assurance] retrying pinned ${pin.name} image pull after a network failure.`);
+            continue;
+          }
+          throw new Error(`NATIVE_${pin.name}_${reason}`);
+        }
       }
       const inspected = JSON.parse(
         runCommand("docker", ["image", "inspect", pin.reference]),

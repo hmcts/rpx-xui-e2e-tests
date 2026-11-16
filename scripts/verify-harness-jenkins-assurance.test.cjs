@@ -182,6 +182,51 @@ test('AMD64 provisioning pulls immutable images and removes temporary registry c
   }
 });
 
+test('AMD64 provisioning retries one registry network failure and stays blocked if it persists', async t => {
+  const context=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'registry-retry-context-')));
+  const previous=process.env.AZURE_CONFIG_DIR;process.env.AZURE_CONFIG_DIR=context;
+  t.after(()=>{if(previous===undefined)delete process.env.AZURE_CONFIG_DIR;else process.env.AZURE_CONFIG_DIR=previous;fs.rmSync(context,{recursive:true,force:true});});
+  const { provisionNativeImages } = await load();
+  const { nativeRuntimeImages, nativeBrowserDonor } = await import('./lib/exui-native-containers.mjs');
+  const { ccdImagePins } = await import('./lib/exui-ccd-runtime.mjs');
+  const pins=[...Object.values(nativeRuntimeImages('linux/amd64')),nativeBrowserDonor('linux/amd64'),...Object.values(ccdImagePins('linux/amd64'))];
+  const idamPin=ccdImagePins('linux/amd64').idam;
+  assert(idamPin);
+
+  for(const recover of [true,false]) {
+    const present=new Set(),pulls=[];let failedOnce=false,authDirectory;
+    const runCommand=(command,args,options={})=>{
+      if(command==='az')return JSON.stringify({loginServer:'hmctsprod.azurecr.io',accessToken:'synthetic-private-registry-token'});
+      if(args[0]==='image') {
+        if(!present.has(args[2]))throw Error('not cached');
+        const pin=pins.find(pin=>pin.reference===args[2]);
+        return JSON.stringify([{Id:pin.configDigest,Os:'linux',Architecture:'amd64',RepoDigests:[pin.reference]}]);
+      }
+      if(args[0]==='login') {
+        authDirectory=options.env.DOCKER_CONFIG;
+        fs.writeFileSync(path.join(authDirectory,'config.json'),'synthetic credential');
+        return '';
+      }
+      if(args[0]==='pull') {
+        pulls.push(args.at(-1));
+        if(args.at(-1)===idamPin.reference&&(!recover||!failedOnce)) {
+          failedOnce=true;
+          throw Error('NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK');
+        }
+        present.add(args.at(-1));return '';
+      }
+      assert.fail('unexpected provisioning command');
+    };
+
+    if(recover) provisionNativeImages('linux/amd64',{runCommand});
+    else assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}),/NATIVE_IDAM_NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK/);
+    assert.equal(pulls.filter(reference=>reference===idamPin.reference).length,2);
+    assert(authDirectory);
+    assert.equal(fs.existsSync(authDirectory),false);
+    assert(pulls.every(reference=>/@sha256:[a-f0-9]{64}$/.test(reference)));
+  }
+});
+
 test('pin pull diagnostics expose only a fixed cause, never registry output', async () => {
   const { classifyPinPullFailure } = await load();
   for (const [message, expected] of [
