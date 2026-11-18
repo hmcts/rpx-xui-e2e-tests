@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
+import {idamProfileFromEnvironment} from './lib/exui-ccd-runtime.mjs';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {digestBytes} from './lib/exui-evidence-io.mjs';
@@ -13,10 +13,10 @@ import {divorceCandidateContent} from './lib/exui-divorce-native-binding.mjs';
 import {mandatoryEmailProducer,MANDATORY_EMAIL_ROOT,readMandatoryEmailCohort} from './lib/exui-mandatory-email-event-invocation-binding.mjs';
 import {mandatoryEmailSerialized,mandatoryEmailReadFile,validateMandatoryEmailAdmissionContext,readMandatoryEmailAdmissionInput} from './lib/exui-mandatory-email-event-contract.mjs';
 import {mandatoryEmailControllerCommand,mandatoryEmailCohortPins,mandatoryEmailAdmissionPins,readMandatoryEmailAdmissionPacket} from './lib/exui-mandatory-email-event-admission.mjs';
-import {assertMandatoryEmailAbsent,reconcileMandatoryEmailFailure} from './run-harness-mandatory-email-event-cohort.mjs';
+import {assertMandatoryEmailAbsent,reconcileMandatoryEmailFailure,mandatoryEmailChildEnvironment} from './run-harness-mandatory-email-event-cohort.mjs';
 const save=(file,value,mode=0o400)=>fs.writeFileSync(file,mandatoryEmailSerialized(value),{mode,flag:'wx'});
 export async function executeMandatoryEmailController(command,{log,signal,signalTarget=process,launch=spawn,terminate=terminateOwnedChild}={}){
- assert.deepEqual(command,mandatoryEmailControllerCommand({candidate:command.args?.[1],browser:command.args?.[3],output:path.dirname(command.args?.[5]??''),inputDigest:command.args?.[9]}),'MANDATORY_EMAIL_CONTROLLER_COMMAND');
+ assert.deepEqual(command,mandatoryEmailControllerCommand({candidate:command.args?.[1],browser:command.args?.[3],output:path.dirname(command.args?.[5]??''),inputDigest:command.args?.[9],withIdamProfile:Boolean(idamProfileFromEnvironment())}),'MANDATORY_EMAIL_CONTROLLER_COMMAND');
  let child,started=false,observed=false,closed=false,cancelled=false,forced=false,termination,timer,exitCode,exitSignal,protocolError=false,resolve;
  const completion=new Promise(r=>{resolve=r;});
  const arm=()=>{timer??=setTimeout(()=>resolve({closed:false,code:null,signal:null}),2000);};
@@ -24,7 +24,7 @@ export async function executeMandatoryEmailController(command,{log,signal,signal
  signalTarget.on('SIGINT',cancel);signalTarget.on('SIGTERM',cancel);signal?.addEventListener('abort',cancel,{once:true});
  try{
   assert(!signal?.aborted,'MANDATORY_EMAIL_ADMISSION_CANCELLED');
-  try{child=launch(command.executable,[command.script,...command.args],{cwd:command.cwd,env:{HOME:os.homedir(),PATH:path.dirname(process.execPath)+path.delimiter+process.env.PATH,TMPDIR:fs.realpathSync(os.tmpdir())},stdio:['ignore',log,log]});}catch{return{started:false,observed:false,closed:false,forced:false,cancelled:false,code:null,signal:null};}
+  try{child=launch(command.executable,[command.script,...command.args],{cwd:command.cwd,env:mandatoryEmailChildEnvironment(),stdio:['ignore',log,log]});}catch{return{started:false,observed:false,closed:false,forced:false,cancelled:false,code:null,signal:null};}
   child.once('spawn',()=>{started=true;if(cancelled)cancel();});child.once('error',()=>{protocolError=true;cancel();arm();});
   child.once('exit',(code,value)=>{observed=true;exitCode=code;exitSignal=value;arm();});
   child.once('close',(code,value)=>{closed=true;if(observed&&(code!==exitCode||value!==exitSignal))protocolError=true;resolve({closed:true,code,signal:value});});
@@ -51,7 +51,7 @@ export async function runMandatoryEmailAdmission({candidate,browser,output,admis
  const browserRoot=fs.realpathSync(browser),dependencyRoot=fs.realpathSync(path.join(MANDATORY_EMAIL_ROOT,'node_modules'));
  output=createFreshHarnessRuntimeOutput(output,MANDATORY_EMAIL_ROOT,[candidate,artifact.candidateRoot,browserRoot,dependencyRoot]);
  const runId='mandatory-admission-'+randomUUID(),input={schemaVersion:1,kind:'mandatory-email-admission-input',runId,context,candidateManifest:candidate,browserRoot},inputFile=path.join(output,'expected-input.json');save(inputFile,input);
- const inputDigest=mandatoryEmailReadFile(inputFile).digest,command=mandatoryEmailControllerCommand({candidate,browser:browserRoot,output,inputDigest}),producer=mandatoryEmailProducer();assert.equal(producer.commit,context.native.producer.commit,'MANDATORY_EMAIL_ADMISSION_PRODUCER');assert.deepEqual(Object.fromEntries(producer.files),context.native.producer.files,'MANDATORY_EMAIL_ADMISSION_PRODUCER');
+ const inputDigest=mandatoryEmailReadFile(inputFile).digest,command=mandatoryEmailControllerCommand({candidate,browser:browserRoot,output,inputDigest,withIdamProfile:Boolean(idamProfileFromEnvironment())}),producer=mandatoryEmailProducer();assert.equal(producer.commit,context.native.producer.commit,'MANDATORY_EMAIL_ADMISSION_PRODUCER');assert.deepEqual(Object.fromEntries(producer.files),context.native.producer.files,'MANDATORY_EMAIL_ADMISSION_PRODUCER');
  const launch={schemaVersion:1,runId,inputDigest,producer:context.native.producer,command,contextDigest:digestBytes(JSON.stringify(context))};save(path.join(output,'independent-controller-launch.json'),launch);const launchDigest=mandatoryEmailReadFile(path.join(output,'independent-controller-launch.json')).digest;
  const log=fs.openSync(path.join(output,'controller.log'),'wx',0o600);let terminal;
  try{

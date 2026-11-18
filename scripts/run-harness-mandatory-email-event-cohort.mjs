@@ -11,17 +11,17 @@ import {mandatoryEmailChildCommand,mandatoryEmailDigest,mandatoryEmailProducer,m
 import {verifyCandidateArtifact,digestCandidateTree} from './lib/exui-candidate-artifact.mjs';
 import {verifyHarnessDependencies} from './lib/exui-harness-dependencies.mjs';
 import {inspectNativeApiRuntime,inspectNativeBrowserRuntime} from './lib/exui-native-containers.mjs';
-import {ccdImagePins,assertCcdImageIdentity,docker} from './lib/exui-ccd-runtime.mjs';
+import {ccdImagePins,assertCcdImageIdentity,idamProfileFromEnvironment,docker} from './lib/exui-ccd-runtime.mjs';
 import {inspectHostContainer} from './lib/exui-host-invocation.mjs';
 import {createFreshHarnessRuntimeOutput} from './lib/exui-output-boundary.mjs';
 import {writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {cleanupPersonalInvocation} from './run-harness-personal-service-cohort.mjs';
 import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 
-export function mandatoryEmailChildEnvironment(){return{HOME:os.homedir(),PATH:path.dirname(process.execPath)+path.delimiter+process.env.PATH,TMPDIR:fs.realpathSync(os.tmpdir()),...(process.env.HARNESS_IDAM_PROFILE?{HARNESS_IDAM_PROFILE:process.env.HARNESS_IDAM_PROFILE,HARNESS_IDAM_PROFILE_DIGEST:process.env.HARNESS_IDAM_PROFILE_DIGEST}:{})};}
+export function mandatoryEmailChildEnvironment(){const profile=idamProfileFromEnvironment();return{HOME:os.homedir(),PATH:path.dirname(process.execPath)+path.delimiter+process.env.PATH,TMPDIR:fs.realpathSync(os.tmpdir()),...(profile?{HARNESS_IDAM_PROFILE:profile.path,HARNESS_IDAM_PROFILE_DIGEST:profile.digest}:{})};}
 // One owned IPC child and two finite barriers. Exit does not prove IPC/log handles closed.
 export async function executeMandatoryEmailChild(command,{log,signal,onCreation,onPrepared,signalTarget=process,launch=spawn,terminate=terminateOwnedChild}={}){
-  assert.deepEqual(command,mandatoryEmailChildCommand(command.args?.[1],command.args?.[3]),'MANDATORY_EMAIL_FIXED_CHILD');
+  assert.deepEqual(command,mandatoryEmailChildCommand(command.args?.[1],command.args?.[3],Boolean(idamProfileFromEnvironment())),'MANDATORY_EMAIL_FIXED_CHILD');
   assert.equal(typeof onCreation,'function');assert.equal(typeof onPrepared,'function');
   let child,started=false,exited=false,exitCode,exitSignal,cancelled=false,termination,forced=false,protocol=0,protocolError=false,closeTimer;
   let resolveClose;const closed=new Promise(resolve=>{resolveClose=resolve;});
@@ -77,8 +77,8 @@ export async function reconcileMandatoryEmailFailure(active,{cleanupBinding=clea
   assert(active.creation,'MANDATORY_EMAIL_FAILURE_OWNERSHIP_UNKNOWN');
   const {ccd,nativeNames}=active.creation;
   for(const name of nativeNames)assert.equal(inspect(name),null,'MANDATORY_EMAIL_UNACKNOWLEDGED_NATIVE_RESOURCE');
-  const recovery=mandatoryEmailJson(ccd.output,'recovery.json');
-  assert.deepEqual(recovery,{owner:ccd.owner,output:ccd.output,...(ccd.platform==='linux/arm64'?{}:{platform:ccd.platform}),resources:ccd.resources},'MANDATORY_EMAIL_FAILURE_RECOVERY_DRIFT');
+  const recovery=mandatoryEmailJson(ccd.output,'recovery.json'),idamProfile=idamProfileFromEnvironment();
+  assert.deepEqual(recovery,{owner:ccd.owner,output:ccd.output,...(ccd.platform==='linux/arm64'?{}:{platform:ccd.platform}),...(idamProfile?{idamProfile}:{}),resources:ccd.resources},'MANDATORY_EMAIL_FAILURE_RECOVERY_DRIFT');
   const attempts=fs.existsSync(path.join(ccd.output,'creation-attempts.json'))?mandatoryEmailJson(ccd.output,'creation-attempts.json'):[];
   assert(Array.isArray(attempts),'MANDATORY_EMAIL_FAILURE_CREATION_UNKNOWN');
   for(const row of attempts)assert(row.state==='settled'&&Object.hasOwn(ccd.resources,row.service)&&row.name===ccd.resources[row.service].name&&/^[a-f0-9]{64}$/.test(row.containerId),'MANDATORY_EMAIL_FAILURE_CREATION_UNCERTAIN');
@@ -101,7 +101,7 @@ export async function runMandatoryEmailSequence(suppliedCohort,{output,signal,ex
       const directory=path.join(output,variant),requestFile=path.join(output,variant+'-expected.json');
       active={variant,directory};
       const request={schemaVersion:1,cohort,variant,directory,environment};privateJson(requestFile,request,0o400);
-      const requestDigest=mandatoryEmailFile(output,path.basename(requestFile)).digest,command=mandatoryEmailChildCommand(requestFile,requestDigest);
+      const requestDigest=mandatoryEmailFile(output,path.basename(requestFile)).digest,command=mandatoryEmailChildCommand(requestFile,requestDigest,Boolean(idamProfileFromEnvironment()));
       const launch={command,environment,requestDigest,source:cohort.producer,candidate:cohort.artifact,browser:cohort.browser,dependencies:cohort.dependencies};
       const launchFile=variant+'-launch.json';privateJson(path.join(output,launchFile),launch,0o400);const launchDigest=mandatoryEmailFile(output,launchFile).digest;
       let creation,binding;const log=fs.openSync(path.join(output,variant+'.log'),'wx',0o600);
