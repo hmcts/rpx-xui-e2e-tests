@@ -686,6 +686,33 @@ const state=JSON.parse(fs.readFileSync(${JSON.stringify(path.join(output, "runti
   assert.equal(JSON.parse(fs.readFileSync(probes, "utf8").trim()).url, "http://127.0.0.1:5000/health");
 });
 
+test('a sealed IDAM profile binds the same image through runtime validation and rejects tampering', async t => {
+ const {ccdImagePins,ccdRuntimeImageIds}=await runtime;
+ const directory=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'idam-profile-')));
+ t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+ const manifest='sha256:'+'a'.repeat(64),config='sha256:'+'b'.repeat(64),repository='hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator';
+ const pin={reference:repository+'@'+manifest,manifestDigest:manifest,configDigest:config,platform:'linux/amd64'};
+ const file=path.join(directory,'idam.json'),bytes=JSON.stringify(pin);fs.writeFileSync(file,bytes,{mode:0o600});
+ const profile={path:file,digest:'sha256:'+require('node:crypto').createHash('sha256').update(bytes).digest('hex')};
+ const pins=ccdImagePins('linux/amd64',{idamProfile:profile});assert.deepEqual(pins.idam,pin);
+ const images=Object.fromEntries(Object.entries(pins).map(([name,value])=>[name,{id:value.configDigest,architecture:'amd64',repoDigests:[value.reference]}]));
+ const state={platform:'linux/amd64',idamProfile:profile,images};assert.equal(ccdRuntimeImageIds(state).idam,config);
+ const {cleanupCiCcd}=await import('./lib/exui-candidate-ci-process.mjs');
+ const previousPath=process.env.HARNESS_IDAM_PROFILE,previousDigest=process.env.HARNESS_IDAM_PROFILE_DIGEST;
+ t.after(()=>{if(previousPath===undefined)delete process.env.HARNESS_IDAM_PROFILE;else process.env.HARNESS_IDAM_PROFILE=previousPath;if(previousDigest===undefined)delete process.env.HARNESS_IDAM_PROFILE_DIGEST;else process.env.HARNESS_IDAM_PROFILE_DIGEST=previousDigest;});
+ process.env.HARNESS_IDAM_PROFILE=file;process.env.HARNESS_IDAM_PROFILE_DIGEST=profile.digest;
+ assert.throws(()=>ccdRuntimeImageIds({...state,idamProfile:undefined}),/CCD_IDAM_PROFILE_DRIFT/);
+ const output=path.join(directory,'runtime'),runDocker=args=>{const selected=Object.values(pins).find(value=>value.reference===args[2]);assert(selected);return JSON.stringify([{Id:selected.configDigest,Os:'linux',Architecture:'amd64',RepoDigests:[selected.reference]}]);};
+ await assert.rejects((await runtime).startCcdRuntime(output,{platform:'linux/amd64',runDocker,inspectBeforeCreate:()=>null,beforeCreate:()=>{throw Error('STOP_BEFORE_CREATE');}}),/STOP_BEFORE_CREATE/);
+ const recovery=JSON.parse(fs.readFileSync(path.join(output,'recovery.json'))),saved=JSON.parse(fs.readFileSync(path.join(output,'runtime.json')));
+ assert.deepEqual(recovery.idamProfile,profile);assert.deepEqual(saved.idamProfile,profile);assert.equal(recovery.resources.idam.image,config);
+ delete process.env.HARNESS_IDAM_PROFILE;delete process.env.HARNESS_IDAM_PROFILE_DIGEST;
+ const cleaned=cleanupCiCcd(output,{inspect:()=>null,stop:()=>{}});assert.equal(cleaned.cleanupComplete,true);
+ fs.writeFileSync(file,JSON.stringify({...pin,configDigest:'sha256:'+'c'.repeat(64)}));
+ assert.throws(()=>cleanupCiCcd(output,{inspect:()=>null,stop:()=>{}}),/IDAM_PROFILE_DIGEST_MISMATCH/);
+ assert.throws(()=>ccdRuntimeImageIds(state),/IDAM_PROFILE_DIGEST_MISMATCH/);
+});
+
 test('AMD64 CCD image records bind each immutable manifest and reject relabelled state',async()=>{
  const {ccdImagePins,assertCcdImageIdentity,ccdRuntimeImageIds,CCD_IMAGES}=await runtime;
  const pins=ccdImagePins('linux/amd64');

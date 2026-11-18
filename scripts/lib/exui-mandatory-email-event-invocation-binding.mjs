@@ -20,9 +20,18 @@ export const MANDATORY_EMAIL_NO_CREDIT=Object.freeze({sourceComplete:false,nativ
 export const mandatoryEmailProducer=personalProducer;
 export const mandatoryEmailDigest=personalDigest;
 export {personalFile as mandatoryEmailFile,personalJson as mandatoryEmailJson};
-export function mandatoryEmailChildCommand(expectedFile,expectedDigest){
+export function validateMandatoryEmailChildEnvironment(environment, actual) {
+  const hasProfile=Object.hasOwn(environment ?? {},'HARNESS_IDAM_PROFILE');
+  const keys=['HOME','PATH','TMPDIR',...(hasProfile?['HARNESS_IDAM_PROFILE','HARNESS_IDAM_PROFILE_DIGEST']:[])];
+  assert.deepEqual(Object.keys(environment ?? {}).sort(),keys.slice().sort(),'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS');
+  for(const key of keys) assert(typeof environment[key]==='string'&&environment[key].length>0&&(!actual||actual[key]===environment[key]),'MANDATORY_EMAIL_CHILD_ENVIRONMENT');
+  if(actual) for(const key of ['HARNESS_IDAM_PROFILE','HARNESS_IDAM_PROFILE_DIGEST']) assert.equal(actual[key],environment[key],'MANDATORY_EMAIL_CHILD_ENVIRONMENT');
+  if(hasProfile) assert(path.isAbsolute(environment.HARNESS_IDAM_PROFILE)&&/^sha256:[a-f0-9]{64}$/.test(environment.HARNESS_IDAM_PROFILE_DIGEST),'MANDATORY_EMAIL_CHILD_IDAM_PROFILE');
+  return hasProfile;
+}
+export function mandatoryEmailChildCommand(expectedFile,expectedDigest,withIdamProfile=false){
   assert(path.isAbsolute(expectedFile)&&path.resolve(expectedFile)===expectedFile&&/^(baseline|name-optional|address-optional)-expected\.json$/.test(path.basename(expectedFile))&&/^sha256:[a-f0-9]{64}$/.test(expectedDigest),'MANDATORY_EMAIL_CHILD_ARGUMENT');
-  return{executable:process.execPath,cwd:MANDATORY_EMAIL_ROOT,script:path.join(MANDATORY_EMAIL_ROOT,'scripts/run-harness-mandatory-email-event-invocation.mjs'),args:['--expected',expectedFile,'--digest',expectedDigest],environmentKeys:['HOME','PATH','TMPDIR']};
+  return{executable:process.execPath,cwd:MANDATORY_EMAIL_ROOT,script:path.join(MANDATORY_EMAIL_ROOT,'scripts/run-harness-mandatory-email-event-invocation.mjs'),args:['--expected',expectedFile,'--digest',expectedDigest],environmentKeys:['HOME','PATH','TMPDIR',...(withIdamProfile?['HARNESS_IDAM_PROFILE','HARNESS_IDAM_PROFILE_DIGEST']:[])]};
 }
 export function validateMandatoryEmailCreation(packet,cohort,directory,variant,{inspect=inspectHostContainer}={}){
   assert(MANDATORY_EMAIL_EVENT_VARIANTS.includes(variant),'MANDATORY_EMAIL_CREATION_VARIANT');
@@ -128,9 +137,10 @@ export function readMandatoryEmailCohort(directory,held){
   keys(record,['variant','baselineProofs','effectiveFaults','files']);assert.deepEqual([record.baselineProofs,record.effectiveFaults],variant==='baseline'?[2,0]:[0,1],fail);
   const fixed=['expected','launch','creation','binding','terminal','completion','absence'].map(kind=>variant+'-'+kind+'.json');keys(record.files,fixed);
   for(const name of fixed){assert.equal(personalFile(directory,name).digest,record.files[name],fail);snapshots.set(name,record.files[name]);}
-  const request=personalJson(directory,variant+'-expected.json');keys(request,['schemaVersion','cohort','variant','directory','environment']);assert.equal(request.schemaVersion,1,fail);assert.deepEqual(request.cohort,cohort,fail);assert.equal(request.variant,variant,fail);assert.equal(request.directory,folder,fail);keys(request.environment,['HOME','PATH','TMPDIR']);for(const value of Object.values(request.environment))assert(typeof value==='string'&&value.length>0,fail);
-  const launch=personalJson(directory,variant+'-launch.json');keys(launch,['command','environment','requestDigest','source','candidate','browser','dependencies']);assert.deepEqual(launch,{command:mandatoryEmailChildCommand(path.join(directory,variant+'-expected.json'),record.files[variant+'-expected.json']),environment:request.environment,requestDigest:record.files[variant+'-expected.json'],source:cohort.producer,candidate:cohort.artifact,browser:cohort.browser,dependencies:cohort.dependencies},fail);
+  const request=personalJson(directory,variant+'-expected.json');keys(request,['schemaVersion','cohort','variant','directory','environment']);assert.equal(request.schemaVersion,1,fail);assert.deepEqual(request.cohort,cohort,fail);assert.equal(request.variant,variant,fail);assert.equal(request.directory,folder,fail);const withIdamProfile=validateMandatoryEmailChildEnvironment(request.environment);
+  const launch=personalJson(directory,variant+'-launch.json');keys(launch,['command','environment','requestDigest','source','candidate','browser','dependencies']);assert.deepEqual(launch,{command:mandatoryEmailChildCommand(path.join(directory,variant+'-expected.json'),record.files[variant+'-expected.json'],withIdamProfile),environment:request.environment,requestDigest:record.files[variant+'-expected.json'],source:cohort.producer,candidate:cohort.artifact,browser:cohort.browser,dependencies:cohort.dependencies},fail);
   const binding=personalJson(directory,variant+'-binding.json'),creation=personalJson(directory,variant+'-creation.json'),terminal=personalJson(directory,variant+'-terminal.json');
+  assert.deepEqual(binding.ccd?.idamProfile,withIdamProfile?{path:request.environment.HARNESS_IDAM_PROFILE,digest:request.environment.HARNESS_IDAM_PROFILE_DIGEST}:undefined,'MANDATORY_EMAIL_PROFILE_BINDING');
   keys(binding,['schemaVersion','kind','cohortDigest','variant','runId','directory','privateWorkspace','handoff','plan','manifest','candidateProcess','ccd','ccdInspection','creation','inputDigest','files','noCredit']);assert.equal(binding.schemaVersion,1,fail);assert.equal(binding.kind,'mandatory-email-parent-held-invocation',fail);keys(binding.files,[...mandatoryEmailRawFiles(variant).filter(name=>!name.startsWith('baseline/')),...extraPrepared]);
   keys(creation,['schemaVersion','kind','runId','variant','runtimeDirectory','ccd','nativeNames']);assert.equal(creation.schemaVersion,1,fail);assert.equal(creation.kind,'mandatory-email-creation-intent',fail);
   assert.equal(binding.variant,variant,fail);assert.equal(binding.directory,folder,fail);assert.equal(binding.ccd.output,path.join(folder,'runtime'),fail);assert.deepEqual(binding.creation,creation,fail);assert.deepEqual(creation.nativeNames,[binding.runId+'-baseline-candidate',binding.runId+'-baseline-tools'],fail);assert.equal(creation.variant,variant,fail);assert.equal(creation.runId,binding.runId,fail);assert.equal(creation.ccd.owner,binding.ccd.owner,fail);

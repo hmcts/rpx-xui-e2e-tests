@@ -108,6 +108,7 @@ exports.descriptorFixture=fixture;
 // Legacy fake entrypoint gains only stubs for the two new imports; off-path behavior stays unchanged.
 exports.runEntrypoint=(fixture,options)=>{
  const lib=path.join(fixture.root,'scripts/lib');fs.mkdirSync(lib,{recursive:true});
+ fs.writeFileSync(path.join(lib,'exui-native-failure-diagnostics.mjs'),`export * from ${JSON.stringify(require('node:url').pathToFileURL(path.join(__dirname,'../lib/exui-native-failure-diagnostics.mjs')).href)};`);
  fs.writeFileSync(path.join(lib,'exui-mandatory-email-event-contract.mjs'),"export const verifyMandatoryEmailNativeCapture=()=>{throw Error('UNEXPECTED_MANDATORY_CAPTURE');};");
  fs.writeFileSync(path.join(fixture.root,'scripts/run-harness-mandatory-email-event-admission.mjs'),"export const runMandatoryEmailAdmission=()=>{throw Error('UNEXPECTED_MANDATORY_RUN');};");
  return require('./exui-assurance-entrypoint.mock.cjs').runEntrypoint(fixture,options);
@@ -131,7 +132,7 @@ exports.invokeActualCallbacks=async(api,t)=>{
   writeNativeDescriptor:(...args)=>{events.push('descriptor');assert.deepEqual(args[8],request.reportRequest);return '/owned/native-request.json';},
   runHarnessCollection:async(_,options)=>{events.push('collect');collectorOptions=options;return {status:'passed',exitCode:0,personalServiceInclusion:'included',mandatoryEmailInclusion:'included'};},
   reportNativeProgress:(_,operation)=>operation(),Reporter:{resetPublicReport:()=>events.push('withdraw')},publishAssuranceSummary:()=>events.push('publish')};
- const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const result=await new AsyncFunction(...Object.keys(deps),'let result,mainDescriptor,published=false;'+exports.actualCallbackSlice()+'return result;')(...Object.values(deps));
+ const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;const result=await new AsyncFunction(...Object.keys(deps),'let result,mainDescriptor,published=false,failureRecord;'+exports.actualCallbackSlice()+'return result;')(...Object.values(deps));
  return{result,events,collectorOptions,timing:JSON.parse(fs.readFileSync(path.join(f.root,'private/mandatory-email-phase-timing.json')))};
 };
 

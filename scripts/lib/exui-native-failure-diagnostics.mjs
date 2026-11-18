@@ -1,14 +1,25 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const codes = new Set(['ENOENT', 'EACCES', 'EPERM', 'ENOSPC', 'ENOMEM', 'ENOBUFS', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'EPIPE', 'ERR_ASSERTION', 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER']);
 const contracts = new Set(['COMPLEX_MAPPING_CANCELLED', 'COMPLEX_MAPPING_DEFINITION_IMAGE', 'COMPLEX_MAPPING_SOURCE_CLEAN', 'COMPLEX_MAPPING_SOURCE_GIT', 'COMPLEX_MAPPING_SOURCE_CHANGED', 'COMPLEX_MAPPING_IMPORT_REQUIRED', 'COMPLEX_MAPPING_ES_REQUIRED', 'COMPLEX_MAPPING_FAIL_IMPORT_REQUIRED', 'COMPLEX_MAPPING_CLUSTER_REQUIRED', 'COMPLEX_MAPPING_CLUSTER_OWNER', 'COMPLEX_MAPPING_ES_VERSION', 'COMPLEX_MAPPING_FRESH_ALIAS', 'COMPLEX_MAPPING_FRESH_INDICES', 'COMPLEX_MAPPING_ALIAS_REQUIRED', 'COMPLEX_MAPPING_READ_REQUIRED', 'COMPLEX_MAPPING_VARIANT', 'COMPLEX_MAPPING_ONE_INDEX', 'COMPLEX_MAPPING_FRESH_INDEX', 'COMPLEX_MAPPING_WRITE_ALIAS', 'COMPLEX_MAPPING_INDEX_BINDING', 'COMPLEX_MAPPING_CONTROL', 'COMPLEX_MAPPING_MASKED_PARENT', 'COMPLEX_MAPPING_DIRECT_PARENT', 'COMPLEX_MAPPING_PARENT_CLASSIFICATION', 'COMPLEX_MAPPING_SOURCE_N', 'COMPLEX_MAPPING_SOURCE_Y', 'COMPLEX_MAPPING_UNRELATED_DELTA', 'COMPLEX_MAPPING_N_FAULT_NOT_DETECTED', 'COMPLEX_EMAIL_NEW_RECIPIENT_ID', 'COMPLEX_EMAIL_RECIPIENT_ASSOCIATION', 'COMPLEX_EMAIL_OBSERVER_DATA', 'COMPLEX_EMAIL_OBSERVER_CLASSIFICATION', 'COMPLEX_EMAIL_STORED_VERSION', 'COMPLEX_EMAIL_STORED_CASE_TYPE', 'COMPLEX_EMAIL_STORED_RECIPIENTS', 'COMPLEX_EMAIL_STORED_IMPORT', 'COMPLEX_EMAIL_STORED_RESPONSE', 'COMPLEX_EMAIL_RUNTIME_IDENTITY', 'COMPLEX_EMAIL_GENERATED_CLASSIFICATION', 'COMPLEX_EMAIL_STORED_CASES', 'COMPLEX_EMAIL_STORED_DATA', 'COMPLEX_EMAIL_STORED_EVENTS', 'COMPLEX_EMAIL_CLASSIFICATION_ASSOCIATION', 'COMPLEX_EMAIL_ROLE_REGISTRATION', 'COMPLEX_EMAIL_IMPORT_REJECTED', 'COMPLEX_EMAIL_DESCRIPTOR_FAILED', 'COMPLEX_EMAIL_METADATA_ROWS', 'COMPLEX_EMAIL_CLASSIFICATION', 'COMPLEX_EMAIL_FIELD_TYPE', 'COMPLEX_EMAIL_PROBE_TYPE', 'COMPLEX_EMAIL_WORKBOOK_FAILED', 'CI_SELECTOR_COMPLETION_REQUIRED', 'CI_SELECTOR_CLEANUP_INCOMPLETE', 'CI_SELECTOR_NATIVE_PHASE_REQUIRED', 'CI_SELECTOR_JOB_IDENTITY', 'CI_SELECTOR_JOB_CANDIDATE', 'CI_SELECTOR_RECEIPT_CHANGED', 'SELECTOR_CONTROLLER_FAILED', 'SELECTOR_TRANSITION_ACK_TIMEOUT', 'SELECTOR_TRANSITION_CANCELLED', 'SELECTOR_SOURCE_NOT_CLEAN', 'RESULT_CONTROLLER_FAILED', 'LOCAL_CCD_OCI_VERIFICATION_FAILED', 'CI_CLEAN_HARNESS_REQUIRED', 'CI_JOB_CANCELLED', 'CI_EVENT_TRANSITION_CHILD_TERMINATED', 'CI_EVENT_TRANSITION_CANCELLED', 'CI_PHASE_LAUNCH_INPUTS_REQUIRED', 'EVENT_TRANSITION_ACK_TIMEOUT', 'EVENT_TRANSITION_CANCELLED', 'NATIVE_CONTROLLER_INTERRUPTED', 'CI_CONTAINER_INSPECTION_FAILED', 'CI_TOOL_COMMAND_FAILED']);
+for (const code of ['HARNESS_ODHIN_REPORT_UNAVAILABLE','HARNESS_REPORT_PUBLICATION_FAILED','HARNESS_DIAGNOSTIC_FALLBACK_FAILED','HARNESS_NATIVE_PREPARATION_FAILED','HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED','HARNESS_SELF_CHECK_EVIDENCE_INVALID','MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS','MANDATORY_EMAIL_CHILD_ENVIRONMENT','MANDATORY_EMAIL_CHILD_IDAM_PROFILE','MANDATORY_EMAIL_COHORT_CHILD_NOT_CLOSED','MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY','MANDATORY_EMAIL_FAILURE_RECOVERY_DRIFT','MANDATORY_EMAIL_COHORT_FAILED','MANDATORY_EMAIL_BOUND_COHORT_FAILED','MANDATORY_EMAIL_BOUND_INVOCATION_FAILED','IDAM_PROFILE_DIGEST_MISMATCH','IDAM_PROFILE_PRIVATE_FILE_REQUIRED','IDAM_PROFILE_INVALID','CCD_IMAGE_IDENTITY_MISMATCH','CI_TOOL_COMMAND_FAILED']) contracts.add(code);
+for (const image of ['API','BROWSER','BROWSERDONOR','DATA','DEFINITION','PROFILE','S2S','IDAM','DATABASE','CLIENT']) for (const cause of ['NETWORK_DNS','NETWORK_TLS','NETWORK_CONNECTION','NETWORK_PROXY','NETWORK','RATE_LIMIT','ACCESS_DENIED','MANIFEST_UNAVAILABLE','TIMEOUT','UNKNOWN']) contracts.add(`NATIVE_${image}_NATIVE_PINNED_IMAGE_PULL_FAILED_${cause}`);
 for (const code of ['EVENT_TRANSITION_API_DRIFT_DATA', 'EVENT_TRANSITION_API_DRIFT_DEFINITION', 'EVENT_TRANSITION_API_DRIFT_DATA_DEFINITION', 'EVENT_TRANSITION_API_DRIFT_SHAPE']) contracts.add(code);
-const sources = new Set(['exui-complex-email-mapping.mjs', 'run-harness-complex-email-mapping.mjs', 'exui-complex-email-classification.mjs', 'exui-complex-email-text.mjs', 'exui-complex-email-import.mjs', 'run-harness-selector-event-row.mjs', 'exui-selector-event-row-runtime.mjs', 'exui-selector-event-row-transition.mjs', 'exui-selector-event-row-evidence.mjs', 'exui-selector-event-row-observations.mjs', 'run-harness-recipient-callback-ui.mjs', 'exui-selector-event-row-contract.mjs', 'exui-selector-event-row-facets.mjs', 'exui-recipient-callback-import.mjs', 'exui-local-ccd-oci.mjs', 'exui-local-ccd-runtime-profile.mjs', 'run-harness-applicant-results.mjs', 'run-harness-applicant-results-candidate.mjs', 'exui-applicant-results-runtime.mjs', 'exui-applicant-results-transition.mjs', 'exui-applicant-results-evidence.mjs', 'exui-applicant-results-watch.mjs', 'exui-applicant-result-dates.mjs', 'run-harness-ci.mjs', 'run-harness-candidate.mjs', 'run-harness-ccd-candidate.mjs', 'exui-native-host.mjs', 'exui-host-invocation.mjs', 'exui-ccd-event-transition.mjs', 'exui-native-proof-validation.mjs', 'exui-candidate-ci-process.mjs', 'exui-candidate-ci-evidence.mjs', 'exui-ccd-runtime.mjs']);
+const sources = new Set(['exui-complex-email-mapping.mjs', 'run-harness-complex-email-mapping.mjs', 'exui-complex-email-classification.mjs', 'exui-complex-email-text.mjs', 'exui-complex-email-import.mjs', 'run-harness-selector-event-row.mjs', 'exui-selector-event-row-runtime.mjs', 'exui-selector-event-row-transition.mjs', 'exui-selector-event-row-evidence.mjs', 'exui-selector-event-row-observations.mjs', 'run-harness-recipient-callback-ui.mjs', 'exui-selector-event-row-contract.mjs', 'exui-selector-event-row-facets.mjs', 'exui-recipient-callback-import.mjs', 'exui-local-ccd-oci.mjs', 'exui-local-ccd-runtime-profile.mjs', 'run-harness-applicant-results.mjs', 'run-harness-applicant-results-candidate.mjs', 'exui-applicant-results-runtime.mjs', 'exui-applicant-results-transition.mjs', 'exui-applicant-results-evidence.mjs', 'exui-applicant-results-watch.mjs', 'exui-applicant-result-dates.mjs', 'run-harness-ci.mjs', 'run-harness-candidate.mjs', 'run-harness-ccd-candidate.mjs', 'exui-native-host.mjs', 'exui-host-invocation.mjs', 'exui-ccd-event-transition.mjs', 'exui-native-proof-validation.mjs', 'exui-candidate-ci-process.mjs', 'exui-candidate-ci-evidence.mjs', 'exui-ccd-runtime.mjs', 'run-harness-mandatory-email-event-invocation.mjs', 'run-harness-mandatory-email-event-cohort.mjs', 'run-harness-mandatory-email-event-admission.mjs', 'run-harness-jenkins-assurance.mjs']);
 const phases = new Set(['family', 'scope', 'ccd', 'eventCapability', 'routing', 'recipientCallback', 'selectorEventRow']);
 const signals = new Set(['SIGTERM', 'SIGKILL', 'SIGINT', 'SIGABRT', 'SIGSEGV']);
 export const nativeFailurePrefix = '[harness-native-failure] ';
+const mandatoryFailureDetails = new WeakMap();
+export function holdMandatoryFailure(error, child, cleanup) {
+  if (!error || typeof error !== 'object') return;
+  mandatoryFailureDetails.set(error,{...(child?{child:sanitizeNativeFailure(child)}:{}),cleanup:['complete','incomplete'].includes(cleanup)?cleanup:'unknown'});
+}
+export function readMandatoryFailure(error) {
+  return error && typeof error === 'object' ? mandatoryFailureDetails.get(error) : undefined;
+}
 
 // Only fixed classifications and owned source locations cross the private-log boundary.
 export function classifyNativeFailure(error) {
@@ -61,4 +72,19 @@ export function formatNativeFailure(value) {
   const failure = nativePhaseFailure({message: value?.reason, code: value?.code}, value?.phase, value?.terminal, value?.artifacts, value?.child);
   Object.assign(failure, sanitizeNativeFailure(value));
   return JSON.stringify(failure);
+}
+
+// Inspect only a bounded tail of an owned private log after its child closes.
+export function readOwnedFailure(file) {
+  try {
+    const info=fs.lstatSync(file);
+    if(!info.isFile()||info.isSymbolicLink()||fs.realpathSync(file)!==file||info.uid!==process.getuid()||(info.mode&0o077)!==0)return undefined;
+    const fd=fs.openSync(file,'r');let bytes;
+    try {const current=fs.fstatSync(fd);if(current.dev!==info.dev||current.ino!==info.ino)return undefined;bytes=Buffer.alloc(Math.min(current.size,65536));fs.readSync(fd,bytes,0,bytes.length,current.size-bytes.length);} finally {fs.closeSync(fd);}
+    for(const line of bytes.toString('utf8').split('\n').reverse()) {
+      if(!line.startsWith(nativeFailurePrefix))continue;
+      const value=JSON.parse(line.slice(nativeFailurePrefix.length));
+      return {failure:sanitizeNativeFailure(value),...(value.child?{child:sanitizeNativeFailure(value.child)}:{})};
+    }
+  } catch { /* Unavailable or malformed logs are not evidence. */ }
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import {classifyNativeFailure,sanitizeNativeFailure,readMandatoryFailure} from './lib/exui-native-failure-diagnostics.mjs';
 import profileExclusion from './lib/exui-jurisdiction-exclusion.cjs';
 import {runMandatoryEmailAdmission} from './run-harness-mandatory-email-event-admission.mjs';
 import {verifyMandatoryEmailNativeCapture} from './lib/exui-mandatory-email-event-contract.mjs';
@@ -62,14 +63,21 @@ function validateFrAdmissionResult(result) {
   assert(typeof request.path==='string'&&path.isAbsolute(request.path)&&path.normalize(request.path)===request.path&&typeof request.digest==='string'&&/^sha256:[a-f0-9]{64}$/.test(request.digest)&&typeof request.runId==='string'&&/^fr-[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89a-f][a-f0-9]{3}-[0-9a-f]{12}$/.test(request.runId),'ASSURANCE_FR_PROFILE_REQUEST_REQUIRED');
   return {request,accepted:result.accepted};
 }
-export async function runAssuranceSequence({ excludeKnownJurisdictionDefect = false, native, prepare, profile, personal, complex, stCic, mandatoryEmail, frProfile, cmcProfile, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, snapshotAssuranceTiming, clock = () => performance.now() }) {
+export function writeAssuranceFailure(output, value) {
+  const directory=path.join(output,'private');
+  assert(path.isAbsolute(output)&&fs.realpathSync(output)===output&&fs.realpathSync(directory)===directory&&fs.lstatSync(directory).isDirectory(),'ASSURANCE_FAILURE_PRIVATE_DIRECTORY_REQUIRED');
+  assert(value?.schemaVersion===1&&['mandatoryEmail','assurance'].includes(value.phase)&&['complete','incomplete','unknown'].includes(value.cleanup),'ASSURANCE_FAILURE_SCHEMA_REQUIRED');
+  const record={schemaVersion:1,phase:value.phase,failure:sanitizeNativeFailure(value.failure),...(value.child?{child:sanitizeNativeFailure(value.child)}:{}),cleanup:value.cleanup};
+  fs.writeFileSync(path.join(directory,'assurance-failure.json'),JSON.stringify(record,null,2)+'\n',{flag:'wx',mode:0o600});
+}
+export async function runAssuranceSequence({ excludeKnownJurisdictionDefect = false, native, prepare, profile, personal, complex, stCic, mandatoryEmail, frProfile, cmcProfile, complexAttempt: configuredComplexAttempt, descriptor, collect, signal, withdraw = () => {}, publish = () => {}, recordFailure = () => {}, snapshotAssuranceTiming, clock = () => performance.now() }) {
   assert(typeof excludeKnownJurisdictionDefect==='boolean'&&(!excludeKnownJurisdictionDefect||(!cmcProfile&&!frProfile)),'ASSURANCE_PROFILE_EXCLUSION_CONFLICT');
   const exclusions=excludeKnownJurisdictionDefect?profileExclusion.knownJurisdictionDefectExclusions():{};
   assert(mandatoryEmail===undefined||typeof mandatoryEmail==='function','ASSURANCE_MANDATORY_CALLBACK_REQUIRED');
   assert(frProfile===undefined||typeof frProfile==='function','ASSURANCE_FR_PROFILE_CALLBACK_REQUIRED');
   assert(cmcProfile===undefined||typeof cmcProfile==='function','ASSURANCE_CMC_PROFILE_CALLBACK_REQUIRED');
   let stCicStarted=false,mandatoryStarted=false;
-  const finish=value=>{if(excludeKnownJurisdictionDefect)value={...value,...exclusions,cmcProfileStatus:'NOT_RUN',frProfileStatus:'NOT_RUN'};if(mandatoryEmail&&!Object.hasOwn(value,'mandatoryEmailStatus'))value={...value,mandatoryEmailStatus:mandatoryStarted?'BLOCKED':'NOT_RUN'};if(frProfile&&!Object.hasOwn(value,'frProfileStatus'))value={...value,frProfileStatus:'NOT_RUN'};if(cmcProfile&&!Object.hasOwn(value,'cmcProfileStatus'))value={...value,cmcProfileStatus:'NOT_RUN'};publish(value);return value;};
+  const finish=(value,failure)=>{if(value.exitCode===2)recordFailure(failure??{schemaVersion:1,phase:'assurance',failure:{reason:'NATIVE_OPERATION_FAILED'},cleanup:'unknown'});if(excludeKnownJurisdictionDefect)value={...value,...exclusions,cmcProfileStatus:'NOT_RUN',frProfileStatus:'NOT_RUN'};if(mandatoryEmail&&!Object.hasOwn(value,'mandatoryEmailStatus'))value={...value,mandatoryEmailStatus:mandatoryStarted?'BLOCKED':'NOT_RUN'};if(frProfile&&!Object.hasOwn(value,'frProfileStatus'))value={...value,frProfileStatus:'NOT_RUN'};if(cmcProfile&&!Object.hasOwn(value,'cmcProfileStatus'))value={...value,cmcProfileStatus:'NOT_RUN'};publish(value);return value;};
   if(signal?.aborted){withdraw();return finish({nativeStatus:'NOT_RUN',...(profile?{profileStatus:'NOT_RUN'}:{}),...(personal?{personalStatus:'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicStarted?'BLOCKED':'NOT_RUN'}:{}),diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});}
   const nativeStartedAt = clock(), assuranceStartedAt = new Date().toISOString();
   const verdict = await native();
@@ -87,7 +95,7 @@ export async function runAssuranceSequence({ excludeKnownJurisdictionDefect = fa
   return finish({ nativeStatus: verdict.status, ...(profile ? { profileStatus: "NOT_RUN" } : {}), ...(personal ? { personalStatus: "NOT_RUN" } : {}), ...(stCic?{stCicStatus:stCicStarted?"BLOCKED":"NOT_RUN"}:{}),diagnosticStatus: mandatoryEmail?mandatoryDiagnosticStatus():"not-run", exitCode: 2, releaseApproval: false });
   };
   const blockStCic=status=>{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...((complex||complexAttempt)?{complexStatus:complexRequest?'PASS':complexAttempt?.status??'NOT_RUN'}:{}),stCicStatus:status,diagnosticStatus:'not-run',exitCode:2,releaseApproval:false});};
-  const blockMandatory=()=>{withdraw();return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...((complex||complexAttempt)?{complexStatus:complexRequest?'PASS':complexAttempt?.status??'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicRequest?'PASS':stCicStarted?'BLOCKED':'NOT_RUN'}:{}),...(cmcProfileAttempt?{cmcProfileStatus:cmcProfileAttempt.status,cmcProfileAttempt}:{}),...(frProfileAttempt?{frProfileStatus:frProfileAttempt.status,frProfileAttempt}:{}),diagnosticStatus:mandatoryDiagnosticStatus(),exitCode:2,releaseApproval:false});};
+  const blockMandatory=(error)=>{withdraw();const held=readMandatoryFailure(error),failure=error?{schemaVersion:1,phase:'mandatoryEmail',failure:classifyNativeFailure(error),...(held?.child?{child:held.child}:{}),cleanup:held?.cleanup??'unknown'}:undefined;return finish({nativeStatus:verdict.status,...(profile?{profileStatus:profileRequest?'PASS':profileAttempt?.status??'NOT_RUN'}:{}),...(personal?{personalStatus:personalRequest?'PASS':personalAttempt?.status??'NOT_RUN'}:{}),...((complex||complexAttempt)?{complexStatus:complexRequest?'PASS':complexAttempt?.status??'NOT_RUN'}:{}),...(stCic?{stCicStatus:stCicRequest?'PASS':stCicStarted?'BLOCKED':'NOT_RUN'}:{}),...(cmcProfileAttempt?{cmcProfileStatus:cmcProfileAttempt.status,cmcProfileAttempt}:{}),...(frProfileAttempt?{frProfileStatus:frProfileAttempt.status,frProfileAttempt}:{}),diagnosticStatus:mandatoryDiagnosticStatus(),exitCode:2,releaseApproval:false},failure);};
   let stopped = cancelled(); if (stopped) return stopped;
   if (prepare) {
     const started = clock();
@@ -163,7 +171,7 @@ export async function runAssuranceSequence({ excludeKnownJurisdictionDefect = fa
       assert.equal(result.admission.runId,request.runId,'ASSURANCE_MANDATORY_REQUEST_REQUIRED');
       mandatoryRequest=structuredClone(request);const elapsedMs=Math.round(clock()-started);assert(Number.isSafeInteger(elapsedMs)&&elapsedMs>=0,'ASSURANCE_MANDATORY_TIMING_REQUIRED');
       mandatoryEmailTiming={schemaVersion:1,scope:'mandatory-email-admission-call',clock:'monotonic',startedAt,elapsedMs,mainRunId:mandatoryMainRunId,mandatoryRunId:mandatoryRequest.runId,requestDigest:mandatoryRequest.digest};
-    }catch{return blockMandatory();}
+    }catch(error){return blockMandatory(error);}
   }
   stopped=cancelled();if(stopped)return stopped;
   const profileAdmissionsEligible=eligible&&(!profile||profileRequest)&&(!personal||personalRequest)&&(!complex||complexRequest)&&(!stCic||stCicRequest)&&(!mandatoryEmail||mandatoryRequest);
@@ -551,7 +559,7 @@ export async function runHarnessAssurance(jobPath, { excludeKnownJurisdictionDef
   const { runHarnessCollection } = await import("./run-harness-local-aat.cjs");
   const cancellation = new AbortController(), cancel = () => cancellation.abort();
   process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
-  let result, mainDescriptor, published=false;
+  let result, mainDescriptor, published=false, failureRecord;
   try {
     result = await runAssuranceSequence({
       excludeKnownJurisdictionDefect,
@@ -575,7 +583,8 @@ export async function runHarnessAssurance(jobPath, { excludeKnownJurisdictionDef
       signal: cancellation.signal,
       snapshotAssuranceTiming,
       withdraw: () => Reporter.resetPublicReport('harness'),
-      publish: value => {published=true;publishAssuranceSummary(job,captured,value);},
+      recordFailure: value => {failureRecord=structuredClone(value);},
+      publish: value => {published=true;if(failureRecord&&fs.existsSync(path.join(job.output,'private')))writeAssuranceFailure(job.output,failureRecord);publishAssuranceSummary(job,captured,value);},
     });
     return result;
   } finally {

@@ -179,17 +179,19 @@ corepack() {
       'native execution must use the guarded job-local orchestration entry point');
   });
 
-  test(`${pipeline}: only validated summary and scoped Odhín HTML can be published; no raw artifacts or swallowed failure`, () => {
+  test(`${pipeline}: only validated summaries and scoped reports can be published; failure reporting survives Odhín rejection`, () => {
     const source = readFileSync(pipeline, 'utf8');
     const archived = [...source.matchAll(/archiveArtifacts[^\n]*artifacts:\s*'([^']+)'/g)].map((match) => match[1]);
     assert.deepEqual(archived, [
       'functional-output/tests/harness/public/release-assurance-summary.json',
       'functional-output/tests/harness/public/native-ci-capabilities.json',
       'functional-output/tests/harness/public/native-stage-timings.json',
-      'functional-output/tests/harness/public/odhin/index.html'
+      'functional-output/tests/harness/public/odhin/index.html',
+      'functional-output/tests/harness/public/failure/failure.json,functional-output/tests/harness/public/failure/index.html'
     ]);
-    assert.ok(source.indexOf('manage-harness-public-reports.cjs --reset') < source.indexOf('try {'));
-    assert.ok(source.indexOf('observe-harness-worker.mjs --reset') < source.indexOf('try {'));
+    assert.ok(source.indexOf('try {') < source.indexOf('manage-harness-public-reports.cjs --reset'));
+    assert.ok(source.indexOf('manage-harness-failure-report.mjs --reset') < source.indexOf('manage-harness-public-reports.cjs --reset'));
+    assert.ok(source.indexOf('observe-harness-worker.mjs --reset') < source.indexOf("sh '''"));
     const workerValidation = source.indexOf('observe-harness-worker.mjs --validate', source.indexOf('finally {'));
     const workerArchive = source.indexOf("artifacts: 'functional-output/tests/harness/public/native-ci-capabilities.json'");
     assert.ok(workerValidation >= 0 && workerValidation < workerArchive);
@@ -201,9 +203,19 @@ corepack() {
     const publication = source.indexOf("reportDir: 'functional-output/tests/harness/public/odhin'");
     assert.ok(validation >= 0 && validation < publication);
     assert.ok(source.includes("fileExists('functional-output/tests/harness/public/odhin/index.html')"));
-    assert.equal((source.match(/publishHTML\(/g) ?? []).length, 1);
+    assert.equal((source.match(/publishHTML\(/g) ?? []).length, 2);
     assert.equal((source.match(/includes: 'index.html'/g) ?? []).length, 1);
-    assert.equal((source.match(/allowMissing: false/g) ?? []).length, 1);
+    assert.equal((source.match(/allowMissing: false/g) ?? []).length, 2);
+    const failurePublication = source.indexOf("reportName: 'Harness failure investigation'");
+    const failureFinally = source.lastIndexOf('finally {',failurePublication);
+    const failureEnsure = source.indexOf('manage-harness-failure-report.mjs --ensure',failureFinally);
+    const failureValidation = source.indexOf('manage-harness-failure-report.mjs --validate',failureFinally);
+    assert.ok(failureFinally > publication && failureEnsure > failureFinally && failureValidation > failureEnsure && failurePublication > failureValidation);
+    assert.match(source.slice(failureFinally,failurePublication),/if \(harnessFailed \|\| !publicationComplete\)/);
+    assert.ok(source.indexOf('publicationComplete = true') > publication);
+    assert.ok(source.indexOf('publicationComplete = true') < failureFinally);
+    assert.match(source.slice(failureFinally,failurePublication),/--ensure functional-output\/tests\/harness\/public\/failure reporting/);
+    assert.ok(source.indexOf('harnessFailed = false') > source.indexOf('node scripts/run-harness-jenkins-assurance.mjs'));
     assert.doesNotMatch(source, /odhin-support|odhin-model|yarn harness:support|yarn harness:diagnostic:ci/);
     assert.doesNotMatch(source, /loadVaultSecrets|junit\(|unstable\(|catch\s*\(|test:(?:api|ui|integration|crossbrowser)/);
     assert.ok(source.indexOf('--validate-public-summary') < source.indexOf('archiveArtifacts'));

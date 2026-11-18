@@ -70,3 +70,22 @@ test('collection failure logs only branded native evidence diagnostics and retai
  assert.deepEqual(logs,['[harness-assurance] Evidence collection failed: NATIVE_REPORT_ABSOLUTE_CANONICAL_PATH_REQUIRED at descriptor','[harness-assurance] Evidence collection failed: UNCLASSIFIED_REPORT_FAILURE']);
  assert(!JSON.stringify(logs).includes('PRIVATE_CANARY'));
 });
+
+test('mandatory failure retains sanitized leaf, wrapper and cleanup while blocking release',async()=>{
+ const {runAssuranceSequence}=await load();
+ const {holdMandatoryFailure}=await import('./lib/exui-native-failure-diagnostics.mjs');const failure=Error('MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY');holdMandatoryFailure(failure,{reason:'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS',message:'SECRET_CANARY'},'complete');
+ let recorded;const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),prepare:async()=>({jobRunId:mock.ciRunId}),mandatoryEmail:async()=>{throw failure;},recordFailure:value=>{recorded=value;}});
+ assert.equal(result.exitCode,2);assert.equal(result.mandatoryEmailStatus,'BLOCKED');assert.deepEqual(recorded,{schemaVersion:1,phase:'mandatoryEmail',failure:{reason:'MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY'},child:{reason:'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS'},cleanup:'complete'});assert(!JSON.stringify(result).includes('SECRET_CANARY'));
+});
+
+test('owned failure writer rejects foreign path and never writes arbitrary child text',async t=>{
+ const {writeAssuranceFailure}=await load(),fs=require('node:fs'),path=require('node:path'),os=require('node:os'),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'assurance-failure-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.mkdirSync(path.join(root,'private'));
+ const value={schemaVersion:1,phase:'mandatoryEmail',failure:{reason:'ARBITRARY_SECRET',message:'PRIVATE_CANARY'},child:{reason:'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS',token:'PRIVATE_CANARY'},cleanup:'complete'};
+ writeAssuranceFailure(root,value);const written=JSON.parse(fs.readFileSync(path.join(root,'private/assurance-failure.json')));assert.equal(written.failure.reason,'NATIVE_OPERATION_FAILED');assert(!JSON.stringify(written).includes('PRIVATE_CANARY'));assert.throws(()=>writeAssuranceFailure(root,value));
+});
+
+test('unbranded errors cannot attest cleanup or invent child diagnostics',async()=>{
+ const {runAssuranceSequence}=await load(),failure=Error('MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY');failure.nativeChildFailure={reason:'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS'};failure.mandatoryCleanup='complete';
+ let recorded;const result=await runAssuranceSequence({native:async()=>({status:'PASS',exitCode:0,continuationSafe:true}),prepare:async()=>({jobRunId:mock.ciRunId}),mandatoryEmail:async()=>{throw failure;},recordFailure:value=>{recorded=value;}});
+ assert.equal(recorded.cleanup,'unknown');assert(!Object.hasOwn(recorded,'child'));assert.equal(result.exitCode,2);
+});

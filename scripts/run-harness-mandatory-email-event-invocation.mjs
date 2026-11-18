@@ -1,9 +1,10 @@
+import {classifyNativeFailure,formatNativeFailure,nativeFailurePrefix} from './lib/exui-native-failure-diagnostics.mjs';
 import {readMandatoryEmailRunContext} from './lib/exui-mandatory-email-event-contract.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {mandatoryEmailFile,mandatoryEmailDigest,mandatoryEmailProducer,mandatoryEmailChildCommand} from './lib/exui-mandatory-email-event-invocation-binding.mjs';
+import {mandatoryEmailFile,mandatoryEmailDigest,mandatoryEmailProducer,mandatoryEmailChildCommand,validateMandatoryEmailChildEnvironment} from './lib/exui-mandatory-email-event-invocation-binding.mjs';
 import {runCallbackUi} from './run-harness-recipient-callback-ui.mjs';
 import {writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 
@@ -35,12 +36,12 @@ export async function runMandatoryEmailInvocation(expectedFile,digest){
   const request=mandatoryEmailFile(path.dirname(expectedFile),path.basename(expectedFile));assert.equal(request.digest,digest,'MANDATORY_EMAIL_CHILD_EXPECTED_DIGEST');
   const expected=JSON.parse(request.bytes),{cohort,variant,directory}=expected;
   assert.deepEqual(Object.keys(expected).sort(),['schemaVersion','cohort','variant','directory','environment'].sort(),'MANDATORY_EMAIL_CHILD_REQUEST_SCHEMA');assert.equal(expected.schemaVersion,1,'MANDATORY_EMAIL_CHILD_REQUEST_VERSION');
-  assert.deepEqual(Object.keys(expected.environment).sort(),['HOME','PATH','TMPDIR'],'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS');
+  validateMandatoryEmailChildEnvironment(expected.environment,process.env);
   assert(['baseline','name-optional','address-optional'].includes(variant),'MANDATORY_EMAIL_CHILD_VARIANT');
   assert.equal(path.basename(expectedFile),variant+'-expected.json','MANDATORY_EMAIL_CHILD_FILE');assert.equal(directory,path.join(path.dirname(expectedFile),variant),'MANDATORY_EMAIL_CHILD_DIRECTORY');
   readMandatoryEmailRunContext(cohort);
   assert.deepEqual(mandatoryEmailProducer(),cohort.producer,'MANDATORY_EMAIL_CHILD_SOURCE');
-  for(const key of ['HOME','PATH','TMPDIR'])assert.equal(process.env[key],expected.environment[key],'MANDATORY_EMAIL_CHILD_ENVIRONMENT');
+
   const cancellation=new AbortController(),cancel=()=>{if(!cancellation.signal.aborted)cancellation.abort();};process.on('SIGINT',cancel);process.on('SIGTERM',cancel);
   try{
     const receipt=await runCallbackUi({candidate:cohort.candidateManifest,browser:cohort.browser.root,output:directory,variant,scenario:'mandatory-email-event',signal:cancellation.signal,mandatoryLifecycle:{
@@ -60,6 +61,6 @@ export async function runMandatoryEmailInvocation(expectedFile,digest){
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   process.umask(0o077);
   try{const args=process.argv.slice(2);assert.equal(args.length,4);assert.deepEqual([args[0],args[2]],['--expected','--digest']);await runMandatoryEmailInvocation(args[1],args[3]);}
-  catch{console.error('MANDATORY_EMAIL_BOUND_INVOCATION_FAILED');process.exitCode=2;}
+  catch(error){console.error(nativeFailurePrefix+formatNativeFailure(classifyNativeFailure(error)));process.exitCode=2;}
   finally{if(process.connected)process.disconnect();}
 }

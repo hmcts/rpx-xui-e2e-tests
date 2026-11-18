@@ -163,3 +163,60 @@ test('supplied malformed mandatory main context rejects before first owned child
  await assert.rejects(api.runMandatoryEmailSequence(f.cohort,f.options),/MANDATORY_EMAIL_ADMISSION_CONTEXT/);
  assert.equal(f.events.filter(event=>event.startsWith('start:')).length,0);
 });
+
+test('AMD64 selected IDAM profile reaches controller and invocation without credentials', async t => {
+ const admission=await import('./run-harness-mandatory-email-event-admission.mjs'),cohort=await load(),m=await import('./lib/exui-mandatory-email-event-admission.mjs'),invocation=await import('./lib/exui-mandatory-email-event-invocation-binding.mjs');
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mandatory-profile-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const repository='hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator',manifest='sha256:'+'a'.repeat(64),pin={reference:repository+'@'+manifest,manifestDigest:manifest,configDigest:'sha256:'+'b'.repeat(64),platform:'linux/amd64'},file=path.join(root,'profile.json');fs.writeFileSync(file,JSON.stringify(pin),{mode:0o600});
+ const digest='sha256:'+require('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex'),previous={...process.env};
+ process.env.HARNESS_IDAM_PROFILE=file;process.env.HARNESS_IDAM_PROFILE_DIGEST=digest;process.env.SECRET_CANARY='not-for-child';
+ t.after(()=>{for(const key of ['HARNESS_IDAM_PROFILE','HARNESS_IDAM_PROFILE_DIGEST','SECRET_CANARY']){if(previous[key]===undefined)delete process.env[key];else process.env[key]=previous[key];}});
+ const command=m.mandatoryEmailControllerCommand({candidate:root+'/candidate',browser:root+'/browser',output:root+'/out',inputDigest:'sha256:'+'c'.repeat(64),withIdamProfile:true}),child=fakeChild();let captured;
+ const pending=admission.executeMandatoryEmailController(command,{log:1,launch:(_file,_args,options)=>{captured=options.env;return child;}});
+ child.emit('spawn');child.emit('exit',0,null);child.emit('close',0,null);await pending;
+ assert.equal(captured.HARNESS_IDAM_PROFILE,file);assert.equal(captured.HARNESS_IDAM_PROFILE_DIGEST,digest);assert(!Object.hasOwn(captured,'SECRET_CANARY'));
+ const saved={...process.env};process.env=captured;try{
+  const next=cohort.mandatoryEmailChildEnvironment(),pins=(await import('./lib/exui-ccd-runtime.mjs')).ccdImagePins('linux/amd64');
+  assert.equal(pins.idam.configDigest,pin.configDigest);assert.equal(next.HARNESS_IDAM_PROFILE,file);
+  invocation.validateMandatoryEmailChildEnvironment(next,next);
+  const withoutProfile={HOME:next.HOME,PATH:next.PATH,TMPDIR:next.TMPDIR};assert.throws(()=>invocation.validateMandatoryEmailChildEnvironment(withoutProfile,next),/CHILD_ENVIRONMENT/);
+  assert.throws(()=>invocation.validateMandatoryEmailChildEnvironment(next,withoutProfile),/CHILD_ENVIRONMENT/);
+  for(const bad of [{...next,HARNESS_IDAM_PROFILE_DIGEST:undefined},{...next,EXTRA:'bad'},{...next,HARNESS_IDAM_PROFILE_DIGEST:'sha256:'+'0'.repeat(64)}])assert.throws(()=>invocation.validateMandatoryEmailChildEnvironment(bad,next));
+ }finally{process.env=saved;}
+});
+
+test('failed AMD64 creator reconciles its held IDAM profile',async t=>{
+ const {reconcileMandatoryEmailFailure}=await load(),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mandatory-recover-profile-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const profile={path:root+'/profile.json',digest:'sha256:'+'1'.repeat(64)},owner='harness-'+'a'.repeat(16),output=root+'/runtime',resources={idam:{name:owner+'-idam',image:'sha256:'+'2'.repeat(64)}};fs.mkdirSync(output);
+ fs.writeFileSync(output+'/recovery.json',JSON.stringify({owner,output,platform:'linux/amd64',idamProfile:profile,resources}));
+ const active={terminal:{closed:true,observed:true},creation:{ccd:{owner,output,platform:'linux/amd64',resources},nativeNames:[]}};
+ const old={...process.env};process.env.HARNESS_IDAM_PROFILE=profile.path;process.env.HARNESS_IDAM_PROFILE_DIGEST=profile.digest;t.after(()=>{for(const key of ['HARNESS_IDAM_PROFILE','HARNESS_IDAM_PROFILE_DIGEST']){if(old[key]===undefined)delete process.env[key];else process.env[key]=old[key];}});
+ const result=await reconcileMandatoryEmailFailure(active,{inspect:()=>null,cleanupCcd:()=>({cleanupComplete:true})});assert.equal(result.status,'held-creation-reconciled');
+ fs.writeFileSync(output+'/recovery.json',JSON.stringify({owner,output,platform:'linux/amd64',idamProfile:{...profile,digest:'sha256:'+'3'.repeat(64)},resources}));
+ await assert.rejects(reconcileMandatoryEmailFailure(active,{inspect:()=>null,cleanupCcd:()=>assert.fail('must not clean forged profile')}),/RECOVERY_DRIFT/);
+});
+
+test('invocation accepts only its exact captured IDAM profile environment',async t=>{
+ const {runMandatoryEmailInvocation}=await import('./run-harness-mandatory-email-event-invocation.mjs'),root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mandatory-invocation-profile-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const file=root+'/baseline-expected.json',environment={HOME:root,PATH:process.env.PATH,TMPDIR:fs.realpathSync(os.tmpdir()),HARNESS_IDAM_PROFILE:root+'/image-profile.json',HARNESS_IDAM_PROFILE_DIGEST:'sha256:'+'a'.repeat(64)};
+ fs.writeFileSync(file,JSON.stringify({schemaVersion:1,cohort:{},variant:'baseline',directory:root+'/baseline',environment}));
+ const digest='sha256:'+require('node:crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+ const original={...process.env};for(const [key,value] of Object.entries(environment))process.env[key]=value;
+ try{await assert.rejects(runMandatoryEmailInvocation(file,digest),error=>!error.message.includes('MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS'));}
+ finally{process.env=original;}
+});
+
+test('spawned AMD64 controller passes the sealed latest IDAM selection to its child',async t=>{
+ const {spawn}=require('node:child_process'),{pathToFileURL}=require('node:url'),crypto=require('node:crypto');
+ const controller=await import('./run-harness-mandatory-email-event-admission.mjs'),commands=await import('./lib/exui-mandatory-email-event-admission.mjs');
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'mandatory-profile-process-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const pin={reference:'hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator@sha256:'+'a'.repeat(64),manifestDigest:'sha256:'+'a'.repeat(64),configDigest:'sha256:'+'b'.repeat(64),platform:'linux/amd64'},file=root+'/profile.json';fs.writeFileSync(file,JSON.stringify(pin),{mode:0o600});
+ const prior={...process.env};process.env.HARNESS_IDAM_PROFILE=file;process.env.HARNESS_IDAM_PROFILE_DIGEST='sha256:'+crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');process.env.SECRET_CANARY='private';
+ t.after(()=>{for(const key of ['HARNESS_IDAM_PROFILE','HARNESS_IDAM_PROFILE_DIGEST','SECRET_CANARY']){if(prior[key]===undefined)delete process.env[key];else process.env[key]=prior[key];}});
+ const output=root+'/result.json',child=root+'/invocation.mjs',parent=root+'/controller.mjs',cohort=pathToFileURL(path.join(__dirname,'run-harness-mandatory-email-event-cohort.mjs')).href,invocation=pathToFileURL(path.join(__dirname,'lib/exui-mandatory-email-event-invocation-binding.mjs')).href,ccd=pathToFileURL(path.join(__dirname,'lib/exui-ccd-runtime.mjs')).href;
+ fs.writeFileSync(child,`import fs from 'node:fs';import {ccdImagePins} from ${JSON.stringify(ccd)};import * as validation from ${JSON.stringify(invocation)};const expected=JSON.parse(fs.readFileSync(${JSON.stringify(root+'/environment.json')}));validation.validateMandatoryEmailChildEnvironment?.(expected,process.env);fs.writeFileSync(${JSON.stringify(output)},JSON.stringify({pin:ccdImagePins('linux/amd64').idam,secret:process.env.SECRET_CANARY??null}));`);
+ fs.writeFileSync(parent,`import fs from 'node:fs';import {spawnSync} from 'node:child_process';import {mandatoryEmailChildEnvironment} from ${JSON.stringify(cohort)};const env=mandatoryEmailChildEnvironment();fs.writeFileSync(${JSON.stringify(root+'/environment.json')},JSON.stringify(env));const r=spawnSync(process.execPath,[${JSON.stringify(child)}],{env,stdio:'inherit'});process.exitCode=r.status??2;`);
+ const command=commands.mandatoryEmailControllerCommand({candidate:root+'/candidate',browser:root+'/browser',output:root+'/out',inputDigest:'sha256:'+'c'.repeat(64),withIdamProfile:true});
+ const log=fs.openSync(root+'/child.log','wx',0o600);let terminal;try{terminal=await controller.executeMandatoryEmailController(command,{log,launch:(exe,_args,options)=>spawn(exe,[parent],options)});}finally{fs.closeSync(log);}
+ assert.equal(terminal.code,0,fs.readFileSync(root+'/child.log','utf8'));assert.deepEqual(JSON.parse(fs.readFileSync(output)),{pin,secret:null});
+});

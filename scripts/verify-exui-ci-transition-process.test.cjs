@@ -55,7 +55,11 @@ function controlledChild(t, mode = "valid", releaseScopeId = scope) {
 const fs = require('node:fs'), path = require('node:path');
 const output = process.argv[2], fixture = JSON.parse(fs.readFileSync(process.argv[3]));
 const file = name => path.join(output, name);
-const write = (name, value) => fs.writeFileSync(file(name), JSON.stringify(value));
+const write = (name, value) => {
+  const staged = file(name + '.tmp');
+  fs.writeFileSync(staged, JSON.stringify(value));
+  fs.renameSync(staged, file(name));
+};
 fs.mkdirSync(output);
 setTimeout(() => process.exit(93), 1500);
 if (fixture.mode === 'early') write('event-transition-request.json', fixture.request);

@@ -2,9 +2,10 @@
 import Reporter from "./harness-public-odhin-reporter.cjs";
 import {holdBuildSelfChecks,readHeldBuildSelfChecks} from "./run-harness-self-check-evidence.mjs";
 import {prepareComplexAdmissionInputs} from './lib/exui-complex-email-admission.mjs';
-import { classifyNativeFailure, formatNativeFailure } from "./lib/exui-native-failure-diagnostics.mjs";
+import { classifyNativeFailure, formatNativeFailure, sanitizeNativeFailure } from "./lib/exui-native-failure-diagnostics.mjs";
+import { writeFailureReport, resetFailureReport } from "./lib/exui-harness-failure-report.mjs";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -51,6 +52,8 @@ function safeEnvironment(extra = {}) {
     "NO_PROXY",
     "HARNESS_SHARED_ROLE_SOURCE_INPUTS",
     "HARNESS_COMPLEX_SOURCE_INPUTS",
+    "HARNESS_IDAM_PROFILE",
+    "HARNESS_IDAM_PROFILE_DIGEST",
     "http_proxy",
     "https_proxy",
     "no_proxy",
@@ -64,7 +67,11 @@ export function classifyPinPullFailure(output, errorCode) {
   if (/unauthorized|authentication required|access denied|forbidden|\b40[13]\b/i.test(output)) return "ACCESS_DENIED";
   if (/manifest unknown|no such manifest|manifest.*not found|\b404\b/i.test(output)) return "MANIFEST_UNAVAILABLE";
   if (/timed? out|deadline exceeded/i.test(output) || errorCode === "ETIMEDOUT") return "TIMEOUT";
-  if (/connection|network|tls|certificate|resolve|no such host/i.test(output)) return "NETWORK";
+  if (/proxyconnect|proxy error|proxy connection/i.test(output)) return "NETWORK_PROXY";
+  if (/no such host|temporary failure in name resolution|name or service not known|dns lookup/i.test(output)) return "NETWORK_DNS";
+  if (/x509|tls|certificate/i.test(output)) return "NETWORK_TLS";
+  if (/connection refused|connection reset/i.test(output)) return "NETWORK_CONNECTION";
+  if (/connection|network/i.test(output)) return "NETWORK";
   return "UNKNOWN";
 }
 
@@ -85,7 +92,9 @@ function run(command, args, { cwd = ROOT, env = safeEnvironment(), ...options } 
   return result.stdout?.trim() ?? "";
 }
 
-export function provisionNativeImages(platform, { runCommand = run } = {}) {
+export function provisionNativeImages(platform, { runCommand = run, latestIdam = false } = {}) {
+  assert(!latestIdam || platform === "linux/amd64", "IDAM_LATEST_PLATFORM_REQUIRED");
+  let selectedIdam;
   const native = { ...nativeRuntimeImages(platform), browserDonor: nativeBrowserDonor(platform) };
   const targets = [
     ...Object.entries(native).map(([name, pin]) => ({
@@ -119,8 +128,9 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
     for (const pin of new Map(
       targets.map((pin) => [pin.reference, pin]),
     ).values()) {
+      const resolveIdam = latestIdam && pin.name === "IDAM";
       let cached;
-      try {
+      if (!resolveIdam) try {
         cached = JSON.parse(
           runCommand("docker", ["image", "inspect", pin.reference]),
         );
@@ -202,9 +212,11 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
           },
         );
       }
+      let pullOutput;
+      const pullReference = resolveIdam ? pin.reference.split("@")[0] + ":latest" : pin.reference;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          runCommand("docker", ["pull", "--platform", platform, pin.reference], {
+          pullOutput = runCommand("docker", ["pull", "--platform", platform, pullReference], {
             env: safeEnvironment(
               registryDirectory ? { DOCKER_CONFIG: registryDirectory } : {},
             ),
@@ -213,19 +225,31 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
           break;
         } catch (error) {
           const reason = controlledFailureCode(error.message, "PINNED_IMAGE_PULL_FAILED_UNKNOWN");
-          if (attempt === 0 && reason === "NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK") {
+          if (attempt === 0 && /^NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK(?:_(?:DNS|TLS|CONNECTION|PROXY))?$/.test(reason)) {
             console.warn(`[harness-assurance] retrying pinned ${pin.name} image pull after a network failure.`);
             continue;
           }
           throw new Error(`NATIVE_${pin.name}_${reason}`);
         }
       }
-      const inspected = JSON.parse(
-        runCommand("docker", ["image", "inspect", pin.reference]),
-      );
-      assert.equal(inspected.length, 1);
-      pin.verify(inspected[0]);
+      if (resolveIdam) {
+        const digests = [...pullOutput.matchAll(/^Digest: (sha256:[a-f0-9]{64})\r?$/gm)];
+        assert.equal(digests.length, 1, "IDAM_LATEST_DIGEST_REQUIRED");
+        const manifestDigest = digests[0][1];
+        const reference = pin.reference.split("@")[0] + "@" + manifestDigest;
+        const inspected = JSON.parse(runCommand("docker", ["image", "inspect", reference]));
+        assert.equal(inspected.length, 1, "IDAM_LATEST_INSPECTION_REQUIRED");
+        selectedIdam = { reference, manifestDigest, configDigest: inspected[0].Id, platform };
+        assert(/^sha256:[a-f0-9]{64}$/.test(selectedIdam.configDigest), "IDAM_LATEST_CONFIG_REQUIRED");
+        assertCcdImageIdentity(inspected[0], selectedIdam, platform);
+        assert(inspected[0].RepoDigests.includes(reference), "IDAM_LATEST_REPOSITORY_MISMATCH");
+      } else {
+        const inspected = JSON.parse(runCommand("docker", ["image", "inspect", pin.reference]));
+        assert.equal(inspected.length, 1);
+        pin.verify(inspected[0]);
+      }
     }
+    return selectedIdam;
   } finally {
     try {
       cleanup();
@@ -480,6 +504,49 @@ function reportIsValid() {
   return !result.error && result.status === 0;
 }
 
+function readFailureEvidence(output, name) {
+  if (!output) return undefined;
+  try {
+    const file = path.join(output, "private", name), info = fs.lstatSync(file);
+    assert(info.isFile() && !info.isSymbolicLink() && info.size <= 256 * 1024 &&
+      info.uid === process.getuid() && (info.mode & 0o077) === 0 && fs.realpathSync(file) === file);
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch { return undefined; }
+}
+
+export function publishFailureInvestigation(directory, { output, primary, reportingFailure, commit = process.env.GIT_COMMIT, buildNumber = process.env.BUILD_NUMBER } = {}) {
+  const phases = new Set(["family", "scope", "ccd", "eventCapability", "routing", "recipientCallback", "selectorEventRow"]);
+  const statuses = new Set(["PASS", "FAIL", "BLOCKED"]);
+  const result = readFailureEvidence(output, "ci-result.json");
+  const reportedPhases = Array.isArray(result?.phaseResults) && result.phaseResults.every(row => phases.has(row.phase) && statuses.has(row.status)) &&
+    new Set(result.phaseResults.map(row => row.phase)).size === result.phaseResults.length
+    ? result.phaseResults.map(({ phase, status }) => ({ phase, status })) : [];
+  const held = readFailureEvidence(output, "assurance-failure.json");
+  let selected = held?.schemaVersion === 1 ? held : primary;
+  const orchestration = readFailureEvidence(output, "orchestration-error.json");
+  if ((!selected || (selected.phase === "assurance" && selected.failure?.reason === "NATIVE_OPERATION_FAILED")) && orchestration?.diagnostic) {
+    selected = {
+      phase: "native", failure: sanitizeNativeFailure(orchestration.diagnostic),
+      ...(orchestration.diagnostic.child ? {child:sanitizeNativeFailure(orchestration.diagnostic.child)} : {}),
+      cleanup: result?.cleanupComplete === true ? "complete" : result?.cleanupComplete === false ? "incomplete" : "unknown",
+    };
+  }
+  const allowed = new Set(["preparation", "native", "mandatoryEmail", "reporting", "diagnostics", "unknown"]);
+  const investigation = {
+    schemaVersion: 1, status: "BLOCKED", releaseApproval: false,
+    ...(/^[a-f0-9]{40}$/.test(commit ?? "") ? { commit } : {}),
+    ...(/^[1-9][0-9]{0,9}$/.test(buildNumber ?? "") ? { buildNumber } : {}),
+    primary: {
+      phase: selected?.phase === "assurance" ? "native" : allowed.has(selected?.phase) ? selected.phase : "unknown",
+      failure: sanitizeNativeFailure(selected?.failure),
+      ...(selected?.child ? { child: sanitizeNativeFailure(selected.child) } : {}),
+      cleanup: ["complete", "incomplete", "unknown"].includes(selected?.cleanup) ? selected.cleanup : "unknown",
+    }, reportedPhases,
+    ...(reportingFailure ? { reportingFailure: sanitizeNativeFailure(reportingFailure) } : {}),
+  };
+  return writeFailureReport(directory, investigation);
+}
+
 function controlledFailureCode(message, fallback) {
   const firstLine = typeof message === "string" ? message.split("\n", 1)[0] : "";
   return /^[A-Z][A-Z0-9_]{0,199}$/.test(firstLine) ? firstLine : fallback;
@@ -594,17 +661,20 @@ async function main({requireBuildSelfChecks=false}={}) {
   const snapshotAssuranceTiming = createPreparationTimingSnapshot();
   assert.equal(process.cwd(), ROOT, "HARNESS_REPOSITORY_CWD_REQUIRED");
   const inheritedUmask = process.umask(0o077);
-  Reporter.resetPublicReport("harness");
   const publicDirectory = path.dirname(PUBLIC);
   fs.mkdirSync(publicDirectory, { recursive: true, mode: 0o700 });
   assert.equal(fs.realpathSync(publicDirectory), publicDirectory, "HARNESS_PUBLIC_DIRECTORY_REQUIRED");
-  writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
+  const failureDirectory = path.join(publicDirectory, "failure");
+  resetFailureReport(failureDirectory);
 
-  let privateRoot,buildSelfCheckHeld,selfChecksInvalid=false;
+  let privateRoot,buildSelfCheckHeld,selfChecksInvalid=false,nativeOutput,primary,reportingFailure;
   let exitCode = 2;
   try {
+    Reporter.resetPublicReport("harness");
+    writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
     if(requireBuildSelfChecks){stage='Build self-check evidence';try{buildSelfCheckHeld=holdBuildSelfChecks({required:true});}catch(error){selfChecksInvalid=true;throw error;}}
     privateRoot = createPrivateJobDirectory();
+    nativeOutput = path.join(privateRoot, "native-output");
     // Preserve the existing shell preparation permissions; private work resumes at 077.
     process.umask(inheritedUmask);
     try {
@@ -617,7 +687,15 @@ async function main({requireBuildSelfChecks=false}={}) {
     stage = "native worker platform";
     const platform = assertNativeWorkerPlatform();
     stage = "pinned runtime provisioning";
-    provisionNativeImages(platform);
+    delete process.env.HARNESS_IDAM_PROFILE;
+    delete process.env.HARNESS_IDAM_PROFILE_DIGEST;
+    const idamPin = provisionNativeImages(platform, {latestIdam: platform === "linux/amd64"});
+    if (idamPin) {
+      const file = path.join(privateRoot, "idam-image-profile.json");
+      writePrivateJob(file, idamPin);
+      process.env.HARNESS_IDAM_PROFILE = file;
+      process.env.HARNESS_IDAM_PROFILE_DIGEST = "sha256:" + createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+    }
     const { jobPath, output, complexSourceInputs } = await prepareJob(privateRoot, platform);
     stage = "native candidate and CCD pilots";
     console.log('[harness-assurance] NOT RUN: CMC and FR complete profiles tagged @known-defect-jurisdiction-filter; team declined the webapp fix (PR #5628). No catalogue or release credit.');
@@ -630,18 +708,25 @@ async function main({requireBuildSelfChecks=false}={}) {
       buildSelfCheckHeld,
       env: safeEnvironment(complexSourceInputs?{HARNESS_COMPLEX_SOURCE_INPUTS:complexSourceInputs}:{}),
     });
-    exitCode = result.error || result.status === null ? 2 : result.status;
+    exitCode = result.error || !Number.isInteger(result.status) ? 2 : result.status;
+    if (exitCode !== 0) primary = { phase: "native", failure: classifyNativeFailure(new Error("NATIVE_OPERATION_FAILED")) };
     logNativeCompletion(output);
     stage = "validated summary publication";
     try {
       const summaryStatus = publishSummary(output, exitCode);
-      if (exitCode === 0 && summaryStatus !== "PASS") exitCode = 2;
+      if (exitCode === 0 && summaryStatus !== "PASS") {
+        primary = { phase: "reporting", failure: classifyNativeFailure(new Error("HARNESS_ODHIN_REPORT_UNAVAILABLE")) };
+        exitCode = 2;
+      }
     } catch {
+      reportingFailure = classifyNativeFailure(new Error("HARNESS_ODHIN_REPORT_UNAVAILABLE"));
+      primary ??= { phase: "reporting", failure: reportingFailure };
       console.error("[harness-assurance] No validated native summary was available; release approval remains blocked.");
       writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
       exitCode = Math.max(exitCode, 2);
     }
   } catch (error) {
+    primary = { phase: stage === "validated summary publication" ? "reporting" : stage === "native candidate and CCD pilots" ? "native" : "preparation", failure: classifyNativeFailure(error) };
     const reason = controlledFailureCode(error.message, "HARNESS_NATIVE_PREPARATION_FAILED");
     if (privateRoot) {
       assertPrivateDirectory(privateRoot);
@@ -653,21 +738,28 @@ async function main({requireBuildSelfChecks=false}={}) {
     try {
       if (privateRoot) assertPrivateDirectory(privateRoot);
     } catch {
+      primary ??= { phase: "preparation", failure: classifyNativeFailure(new Error("HARNESS_NATIVE_PREPARATION_FAILED")) };
       console.error("[harness-assurance] BLOCKED: private job evidence permissions could not be verified.");
       writePublicSummary(PUBLIC, { status: "BLOCKED", exitCode: 2 });
       exitCode = 2;
     }
   }
   if(buildSelfCheckHeld!==undefined){try{readHeldBuildSelfChecks(buildSelfCheckHeld);}catch{selfChecksInvalid=true;}}
-  if(selfChecksInvalid){Reporter.resetPublicReport('harness');writePublicSummary(PUBLIC,{status:'BLOCKED',exitCode:2});return 2;}
-  if (!reportIsValid()) {
+  if(selfChecksInvalid){
+    primary = {phase:"preparation",failure:classifyNativeFailure(new Error("HARNESS_SELF_CHECK_EVIDENCE_INVALID"))};
+    try { Reporter.resetPublicReport('harness'); } catch { /* The independent failure report does not use Odhín. */ }
+    writePublicSummary(PUBLIC,{status:'BLOCKED',exitCode:2});exitCode=2;
+  } else if (!reportIsValid()) {
+    reportingFailure = classifyNativeFailure(new Error("HARNESS_ODHIN_REPORT_UNAVAILABLE"));
+    primary ??= { phase: "reporting", failure: reportingFailure };
     console.error("[harness-assurance] Combined Odhín report unavailable; generating diagnostics-only coverage.");
     const fallback = spawnSync(
       process.execPath,
-      diagnosticFallbackArguments(path.join(privateRoot,"native-output"),buildSelfCheckHeld),
+      diagnosticFallbackArguments(nativeOutput ?? path.join(publicDirectory,"not-run"),buildSelfCheckHeld),
       { cwd: ROOT, env: safeEnvironment(), stdio: "inherit" },
     );
     if (fallback.error || fallback.status !== 0 || !reportIsValid()) {
+      reportingFailure = classifyNativeFailure(new Error("HARNESS_DIAGNOSTIC_FALLBACK_FAILED"));
       console.error("[harness-assurance] No validated Odhín report could be generated.");
       exitCode = 2;
     } else {
@@ -675,11 +767,19 @@ async function main({requireBuildSelfChecks=false}={}) {
       exitCode = 2;
     }
   }
+  if (exitCode !== 0) {
+    writePublicSummary(PUBLIC, {status:"BLOCKED",exitCode:2});
+    publishFailureInvestigation(failureDirectory, {output:nativeOutput,primary,reportingFailure});
+    console.error("[harness-assurance] Investigation report: functional-output/tests/harness/public/failure/index.html");
+  }
   return exitCode;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args=process.argv.slice(2);
   if(args.length>1||args.some(arg=>arg!=='--require-build-self-checks')){console.error('[harness-assurance] Invalid arguments.');process.exitCode=2;}
-  else process.exitCode=await main({requireBuildSelfChecks:args.includes('--require-build-self-checks')});
+  else {
+    try { process.exitCode=await main({requireBuildSelfChecks:args.includes('--require-build-self-checks')}); }
+    catch(error) {console.error('[harness-assurance] Investigation publication unavailable; reason '+classifyNativeFailure(error).reason);process.exitCode=2;}
+  }
 }

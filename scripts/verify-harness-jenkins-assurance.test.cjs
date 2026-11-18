@@ -52,6 +52,52 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(job, "preparation-error.json"))), { stage: "webapp master fetch", reason: "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED" });
   const summary = JSON.parse(fs.readFileSync(path.join(root, "functional-output/tests/harness/public/release-assurance-summary.json"), "utf8"));
   assert.equal(summary.status, "BLOCKED");
+  const failureDirectory = path.join(root, "functional-output/tests/harness/public/failure");
+  const investigation = JSON.parse(fs.readFileSync(path.join(failureDirectory, "failure.json"), "utf8"));
+  assert.equal(investigation.primary.phase, "preparation");
+  assert.equal(investigation.primary.failure.reason, "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED");
+  assert.equal(investigation.reportingFailure.reason, "HARNESS_DIAGNOSTIC_FALLBACK_FAILED");
+  assert.equal(investigation.releaseApproval, false);
+  const page = fs.readFileSync(path.join(failureDirectory, "index.html"), "utf8");
+  assert(page.includes("Harness failure investigation"));
+  assert(!page.includes(root) && !page.includes(extraCa) && !page.includes("/private/fixture-browser"));
+  const validated = spawnSync(process.execPath, [path.join(root, "scripts/manage-harness-failure-report.mjs"), "--validate", failureDirectory], {encoding:"utf8"});
+  assert.equal(validated.status, 0, validated.stderr);
+});
+
+test('independent failure report preserves a mandatory leaf and reported phases when Odhín fails', async t => {
+  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'failure-investigation-')));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const output=path.join(root,'run');fs.mkdirSync(path.join(output,'private'),{recursive:true});
+  const save=(name,value)=>fs.writeFileSync(path.join(output,'private',name),JSON.stringify(value),{mode:0o600});
+  save('ci-result.json',{phaseResults:[{phase:'family',status:'PASS'},{phase:'ccd',status:'PASS'}]});
+  save('assurance-failure.json',{schemaVersion:1,phase:'mandatoryEmail',failure:{reason:'MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY'},child:{reason:'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS'},cleanup:'unknown'});
+  const {publishFailureInvestigation}=await load();
+  const directory=path.join(root,'failure');
+  publishFailureInvestigation(directory,{output,commit:'a'.repeat(40),buildNumber:'2',reportingFailure:{reason:'HARNESS_DIAGNOSTIC_FALLBACK_FAILED'},primary:{phase:'native',failure:{reason:'CI_TOOL_COMMAND_FAILED'}}});
+  const value=JSON.parse(fs.readFileSync(path.join(directory,'failure.json')));
+  assert.equal(value.primary.phase,'mandatoryEmail');
+  assert.equal(value.primary.child.reason,'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS');
+  assert.equal(value.primary.failure.reason,'MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY');
+  assert.equal(value.primary.cleanup,'unknown');
+  assert.deepEqual(value.reportedPhases,[{phase:'family',status:'PASS'},{phase:'ccd',status:'PASS'}]);
+  assert.equal(value.reportingFailure.reason,'HARNESS_DIAGNOSTIC_FALLBACK_FAILED');
+  assert.equal(value.releaseApproval,false);
+  const html=fs.readFileSync(path.join(directory,'index.html'),'utf8');
+  assert(html.includes('unverified')&&!html.includes(root));
+});
+
+test('native failure investigation uses classified orchestration evidence and excludes raw errors',async t=>{
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'native-failure-investigation-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const output=path.join(root,'run');fs.mkdirSync(path.join(output,'private'),{recursive:true});
+ const save=(name,value)=>fs.writeFileSync(path.join(output,'private',name),JSON.stringify(value),{mode:0o600});
+ save('assurance-failure.json',{schemaVersion:1,phase:'assurance',failure:{reason:'NATIVE_OPERATION_FAILED'},cleanup:'unknown'});
+ save('orchestration-error.json',{message:'secret-canary /private/raw',diagnostic:{reason:'CI_TOOL_COMMAND_FAILED',child:{reason:'CCD_IMAGE_IDENTITY_MISMATCH'}}});
+ save('ci-result.json',{cleanupComplete:false,phaseResults:[{phase:'family',status:'PASS'}]});
+ const {publishFailureInvestigation}=await load();const directory=path.join(root,'failure');publishFailureInvestigation(directory,{output});
+ const record=JSON.parse(fs.readFileSync(path.join(directory,'failure.json')));
+ assert.equal(record.primary.phase,'native');assert.equal(record.primary.failure.reason,'CI_TOOL_COMMAND_FAILED');assert.equal(record.primary.child.reason,'CCD_IMAGE_IDENTITY_MISMATCH');assert.equal(record.primary.cleanup,'incomplete');
+ for(const file of ['failure.json','index.html'])assert(!fs.readFileSync(path.join(directory,file),'utf8').includes('secret-canary'));
 });
 
 test("diagnostics fallback carries only the owned blocked-profile attempt packet",async t=>{
@@ -193,7 +239,7 @@ test('AMD64 provisioning retries one registry network failure and stays blocked 
   const idamPin=ccdImagePins('linux/amd64').idam;
   assert(idamPin);
 
-  for(const recover of [true,false]) {
+  for(const [cause, recover] of [['NETWORK', true], ['NETWORK', false], ['NETWORK_DNS', true], ['NETWORK_TLS', false], ['NETWORK_CONNECTION', true], ['NETWORK_PROXY', false]]) {
     const present=new Set(),pulls=[];let failedOnce=false,authDirectory;
     const runCommand=(command,args,options={})=>{
       if(command==='az')return JSON.stringify({loginServer:'hmctsprod.azurecr.io',accessToken:'synthetic-private-registry-token'});
@@ -211,7 +257,7 @@ test('AMD64 provisioning retries one registry network failure and stays blocked 
         pulls.push(args.at(-1));
         if(args.at(-1)===idamPin.reference&&(!recover||!failedOnce)) {
           failedOnce=true;
-          throw Error('NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK');
+          throw Error(`NATIVE_PINNED_IMAGE_PULL_FAILED_${cause}`);
         }
         present.add(args.at(-1));return '';
       }
@@ -219,12 +265,52 @@ test('AMD64 provisioning retries one registry network failure and stays blocked 
     };
 
     if(recover) provisionNativeImages('linux/amd64',{runCommand});
-    else assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}),/NATIVE_IDAM_NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK/);
+    else assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}), error => error.message === `NATIVE_IDAM_NATIVE_PINNED_IMAGE_PULL_FAILED_${cause}`);
     assert.equal(pulls.filter(reference=>reference===idamPin.reference).length,2);
     assert(authDirectory);
     assert.equal(fs.existsSync(authDirectory),false);
     assert(pulls.every(reference=>/@sha256:[a-f0-9]{64}$/.test(reference)));
   }
+});
+
+test('latest IDAM is resolved once to an immutable platform identity', async t => {
+  const context=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'registry-latest-context-')));
+  const previous=process.env.AZURE_CONFIG_DIR;process.env.AZURE_CONFIG_DIR=context;
+  t.after(()=>{if(previous===undefined)delete process.env.AZURE_CONFIG_DIR;else process.env.AZURE_CONFIG_DIR=previous;fs.rmSync(context,{recursive:true,force:true});});
+  const {provisionNativeImages}=await load();
+  const {nativeRuntimeImages,nativeBrowserDonor}=await import('./lib/exui-native-containers.mjs');
+  const {ccdImagePins}=await import('./lib/exui-ccd-runtime.mjs');
+  const pins=[...Object.values(nativeRuntimeImages('linux/amd64')),nativeBrowserDonor('linux/amd64'),...Object.values(ccdImagePins('linux/amd64'))];
+  let manifest='sha256:'+'a'.repeat(64),config='sha256:'+'b'.repeat(64);
+  const repository='hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator';
+  const pulled=[],inspected=[];let inspectionOverride={},pullOverride;
+  const runCommand=(command,args)=>{
+    if(command==='az')return JSON.stringify({loginServer:'hmctsprod.azurecr.io',accessToken:'synthetic'});
+    if(args[0]==='login')return '';
+    if(args[0]==='pull'){pulled.push(args.at(-1));return args.at(-1)===repository+':latest'?(pullOverride??'Digest: '+manifest):'';}
+    if(args[0]==='image'){
+      inspected.push(args[2]);
+      if(args[2]===repository+'@'+manifest)return JSON.stringify([{Id:config,Os:'linux',Architecture:'amd64',RepoDigests:[repository+'@'+manifest],...inspectionOverride}]);
+      const pin=pins.find(value=>value.reference===args[2]);
+      if(pin)return JSON.stringify([{Id:pin.configDigest,Os:'linux',Architecture:'amd64',RepoDigests:[pin.reference]}]);
+    }
+    assert.fail('unexpected command');
+  };
+  const resolved=provisionNativeImages('linux/amd64',{runCommand,latestIdam:true});
+  assert.deepEqual(resolved,{reference:repository+'@'+manifest,manifestDigest:manifest,configDigest:config,platform:'linux/amd64'});
+  assert.deepEqual(pulled,[repository+':latest']);
+  assert(inspected.includes(repository+'@'+manifest));
+  assert(!inspected.includes(repository+':latest'));
+  manifest='sha256:'+'c'.repeat(64);config='sha256:'+'d'.repeat(64);
+  const next=provisionNativeImages('linux/amd64',{runCommand,latestIdam:true});
+  assert.equal(next.reference,repository+'@'+manifest);assert.notEqual(next.reference,resolved.reference);
+  assert.deepEqual(pulled,[repository+':latest',repository+':latest']);
+  for(const bad of [{Architecture:'arm64'},{Os:'windows'},{Id:'bad'},{RepoDigests:['other@'+manifest]}]) {
+    inspectionOverride=bad;
+    assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand,latestIdam:true}),/IDAM_LATEST_CONFIG_REQUIRED|CCD_IMAGE_IDENTITY_MISMATCH|IDAM_LATEST_REPOSITORY_MISMATCH/);
+  }
+  inspectionOverride={};pullOverride='unauthorised secret-canary';
+  assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand,latestIdam:true}),error=>error.message.startsWith('IDAM_LATEST_DIGEST_REQUIRED')&&!error.message.includes('secret-canary'));
 });
 
 test('pin pull diagnostics expose only a fixed cause, never registry output', async () => {
@@ -235,8 +321,20 @@ test('pin pull diagnostics expose only a fixed cause, never registry output', as
     ['manifest unknown: token=private', 'MANIFEST_UNAVAILABLE'],
     ['failed to resolve reference: no such manifest', 'MANIFEST_UNAVAILABLE'],
     ['context deadline exceeded: token=private', 'TIMEOUT'],
-    ['TLS connection failed: token=private', 'NETWORK'],
+    ['TLS connection failed: token=private', 'NETWORK_TLS'],
     ['token=private', 'UNKNOWN'],
+  ]) assert.equal(classifyPinPullFailure(message), expected);
+});
+
+test('pin pull diagnostics distinguish network causes without exposing output', async () => {
+  const { classifyPinPullFailure } = await load();
+  for (const [message, expected] of [
+    ['lookup registry.example: no such host secret-canary', 'NETWORK_DNS'],
+    ['x509: certificate signed by unknown authority secret-canary', 'NETWORK_TLS'],
+    ['dial tcp: connect: connection refused secret-canary', 'NETWORK_CONNECTION'],
+    ['read: connection reset by peer secret-canary', 'NETWORK_CONNECTION'],
+    ['proxyconnect tcp: proxy error secret-canary', 'NETWORK_PROXY'],
+    ['failed to resolve reference: unexpected response secret-canary', 'UNKNOWN'],
   ]) assert.equal(classifyPinPullFailure(message), expected);
 });
 

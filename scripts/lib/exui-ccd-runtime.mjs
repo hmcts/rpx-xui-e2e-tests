@@ -33,7 +33,23 @@ export const CCD_IMAGES = {
  database:'sha256:19edba91a88d4a3d532e11d16c8cfa4b0e26e67d1b90467220cd5672c6cbd0f7',
  client:'sha256:0bab91d6a954a4a75de4a887edfda7386ed8711aa8b1eb5fb309ee0f0a2c544f'
 };
-export function ccdImagePins(platform = 'linux/arm64', { elasticsearch = false } = {}) {
+export function idamProfileFromEnvironment() {
+ const file=process.env.HARNESS_IDAM_PROFILE, digest=process.env.HARNESS_IDAM_PROFILE_DIGEST;
+ if(file===undefined&&digest===undefined)return undefined;
+ assert(file&&digest,'IDAM_PROFILE_REFERENCE_REQUIRED');
+ return {path:file,digest};
+}
+function readIdamProfile(profile) {
+ assert(profile&&Object.keys(profile).sort().join(',')==='digest,path'&&path.isAbsolute(profile.path)&&/^sha256:[a-f0-9]{64}$/.test(profile.digest),'IDAM_PROFILE_REFERENCE_REQUIRED');
+ const info=fs.lstatSync(profile.path);
+ assert(info.isFile()&&!info.isSymbolicLink()&&fs.realpathSync(profile.path)===profile.path&&info.uid===process.getuid()&&(info.mode&0o077)===0,'IDAM_PROFILE_PRIVATE_FILE_REQUIRED');
+ const bytes=fs.readFileSync(profile.path);
+ assert.equal('sha256:'+crypto.createHash('sha256').update(bytes).digest('hex'),profile.digest,'IDAM_PROFILE_DIGEST_MISMATCH');
+ const pin=JSON.parse(bytes);
+ assert(Object.keys(pin).sort().join(',')==='configDigest,manifestDigest,platform,reference'&&pin.platform==='linux/amd64'&&/^sha256:[a-f0-9]{64}$/.test(pin.manifestDigest)&&/^sha256:[a-f0-9]{64}$/.test(pin.configDigest)&&pin.reference==='hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator@'+pin.manifestDigest,'IDAM_PROFILE_INVALID');
+ return pin;
+}
+export function ccdImagePins(platform = 'linux/arm64', { elasticsearch = false, idamProfile = idamProfileFromEnvironment() } = {}) {
   assert.equal(typeof elasticsearch, 'boolean', 'CCD_ELASTICSEARCH_SELECTION_REQUIRED');
   assert(['linux/arm64', 'linux/amd64'].includes(platform), 'UNSUPPORTED_CCD_PLATFORM');
   const pins = platform === 'linux/arm64'
@@ -53,6 +69,7 @@ export function ccdImagePins(platform = 'linux/arm64', { elasticsearch = false }
     Object.keys(CCD_IMAGES).sort(),
     'CCD_IMAGE_PROFILE_INVENTORY',
   );
+  if (idamProfile && platform === 'linux/amd64') pins.idam = readIdamProfile(idamProfile);
   if (elasticsearch)
     pins.elasticsearch = JSON.parse(fs.readFileSync(new URL('../fixtures/ccd/elasticsearch-images.json', import.meta.url)))[platform];
   for (const [name, pin] of Object.entries(pins)) {
@@ -85,8 +102,9 @@ export function ccdRuntimeImageIds(state) {
     local=verifyLocalCcdRuntimeProfile(state.localCcdProfile);
     assert.equal(state.images?.data?.id,local.imageId,'LOCAL_CCD_RUNTIME_IMAGE_DRIFT');
   }
-  const platform = state.platform ?? 'linux/arm64',
-    pins = ccdImagePins(platform, { elasticsearch: state.elasticsearch ?? false });
+  const platform = state.platform ?? 'linux/arm64', selected = idamProfileFromEnvironment();
+  if (platform === 'linux/amd64' && selected) assert.deepEqual(state.idamProfile, selected, 'CCD_IDAM_PROFILE_DRIFT');
+  const pins = ccdImagePins(platform, { elasticsearch: state.elasticsearch ?? false, idamProfile: state.idamProfile ?? null });
   return Object.fromEntries(
     Object.entries(pins).map(([name, pin]) => {
       if(name==='data'&&local)return [name,local.imageId];
@@ -194,7 +212,8 @@ export async function startCcdRuntime(output,{runDocker=docker,request=ccdReques
  fixtureSelection(null,selection);
  let local;
  if(localCcdProfile!==undefined) { assertLocalCcdRuntimeScope({platform,elasticsearch,fixtureSelection:selection});local=verifyLocalCcdRuntimeProfile(localCcdProfile,{docker:runDocker}); }
- const pins=ccdImagePins(platform,{elasticsearch}),images=Object.fromEntries(Object.entries(pins).map(([name,pin])=>[name,pin.manifestDigest]));
+ const idamProfile=platform==='linux/amd64'?idamProfileFromEnvironment():undefined;
+ const pins=ccdImagePins(platform,{elasticsearch,idamProfile}),images=Object.fromEntries(Object.entries(pins).map(([name,pin])=>[name,pin.manifestDigest]));
  if(local)images.data=local.imageId;
  const checkCancellation=()=>assert(!isCancelled(),'CCD_START_CANCELLED');
  checkCancellation();
@@ -203,10 +222,11 @@ export async function startCcdRuntime(output,{runDocker=docker,request=ccdReques
  const state={schemaVersion:1,ready:false,owner:`harness-${crypto.randomBytes(8).toString('hex')}`,output:path.resolve(output),containers:{},images:{},caseType:'HarnessNestedPRL',jurisdiction:'HARNESS',policy:'real CCD RBAC; synthetic IDAM simulator; no ABAC/provider credit'};
  if(local) {state.policy='local corrected CCD results feasibility; synthetic IDAM; no catalogue or release credit';state.localCcdProfile=local.profilePath;state.localOnly=true;state.runtimeAcceptance=false;state.catalogueCredit=false;state.releaseCredit=false;}
  if(platform!=='linux/arm64')state.platform=platform;
+ if(idamProfile)state.idamProfile=idamProfile;
  if(elasticsearch)state.elasticsearch=true;
  if(selection!=='nested-prl')state.fixtureSelection=selection;
  const resources=Object.fromEntries(Object.entries(images).map(([service,image])=>[service,{name:`${state.owner}-${service}`,image}]));
- const recovery=()=>({owner:state.owner,output:state.output,...(state.platform?{platform}:{}),...(elasticsearch?{elasticsearch:true}:{}),...(local?{localCcdProfile:local.profilePath}:{}),resources});
+ const recovery=()=>({owner:state.owner,output:state.output,...(state.platform?{platform}:{}),...(elasticsearch?{elasticsearch:true}:{}),...(local?{localCcdProfile:local.profilePath}:{}),...(idamProfile?{idamProfile}:{}),resources});
  fs.writeFileSync(path.join(state.output,'recovery.json'),JSON.stringify(recovery(),null,2)+'\n',{flag:'wx'});
  save(state);
  prepareCcdImport(fixtureRoot,selection);
