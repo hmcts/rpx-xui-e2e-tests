@@ -64,7 +64,11 @@ export function classifyPinPullFailure(output, errorCode) {
   if (/unauthorized|authentication required|access denied|forbidden|\b40[13]\b/i.test(output)) return "ACCESS_DENIED";
   if (/manifest unknown|no such manifest|manifest.*not found|\b404\b/i.test(output)) return "MANIFEST_UNAVAILABLE";
   if (/timed? out|deadline exceeded/i.test(output) || errorCode === "ETIMEDOUT") return "TIMEOUT";
-  if (/connection|network|tls|certificate|resolve|no such host/i.test(output)) return "NETWORK";
+  if (/proxyconnect|proxy error|proxy connection/i.test(output)) return "NETWORK_PROXY";
+  if (/no such host|temporary failure in name resolution|name or service not known|dns lookup/i.test(output)) return "NETWORK_DNS";
+  if (/x509|tls|certificate/i.test(output)) return "NETWORK_TLS";
+  if (/connection refused|connection reset/i.test(output)) return "NETWORK_CONNECTION";
+  if (/connection|network/i.test(output)) return "NETWORK";
   return "UNKNOWN";
 }
 
@@ -213,7 +217,7 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
           break;
         } catch (error) {
           const reason = controlledFailureCode(error.message, "PINNED_IMAGE_PULL_FAILED_UNKNOWN");
-          if (attempt === 0 && reason === "NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK") {
+          if (attempt === 0 && /^NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK(?:_(?:DNS|TLS|CONNECTION|PROXY))?$/.test(reason)) {
             console.warn(`[harness-assurance] retrying pinned ${pin.name} image pull after a network failure.`);
             continue;
           }

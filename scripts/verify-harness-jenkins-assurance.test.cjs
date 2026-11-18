@@ -193,7 +193,7 @@ test('AMD64 provisioning retries one registry network failure and stays blocked 
   const idamPin=ccdImagePins('linux/amd64').idam;
   assert(idamPin);
 
-  for(const recover of [true,false]) {
+  for(const [cause, recover] of [['NETWORK', true], ['NETWORK', false], ['NETWORK_DNS', true], ['NETWORK_TLS', false], ['NETWORK_CONNECTION', true], ['NETWORK_PROXY', false]]) {
     const present=new Set(),pulls=[];let failedOnce=false,authDirectory;
     const runCommand=(command,args,options={})=>{
       if(command==='az')return JSON.stringify({loginServer:'hmctsprod.azurecr.io',accessToken:'synthetic-private-registry-token'});
@@ -211,7 +211,7 @@ test('AMD64 provisioning retries one registry network failure and stays blocked 
         pulls.push(args.at(-1));
         if(args.at(-1)===idamPin.reference&&(!recover||!failedOnce)) {
           failedOnce=true;
-          throw Error('NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK');
+          throw Error(`NATIVE_PINNED_IMAGE_PULL_FAILED_${cause}`);
         }
         present.add(args.at(-1));return '';
       }
@@ -219,7 +219,7 @@ test('AMD64 provisioning retries one registry network failure and stays blocked 
     };
 
     if(recover) provisionNativeImages('linux/amd64',{runCommand});
-    else assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}),/NATIVE_IDAM_NATIVE_PINNED_IMAGE_PULL_FAILED_NETWORK/);
+    else assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand}), error => error.message === `NATIVE_IDAM_NATIVE_PINNED_IMAGE_PULL_FAILED_${cause}`);
     assert.equal(pulls.filter(reference=>reference===idamPin.reference).length,2);
     assert(authDirectory);
     assert.equal(fs.existsSync(authDirectory),false);
@@ -235,8 +235,20 @@ test('pin pull diagnostics expose only a fixed cause, never registry output', as
     ['manifest unknown: token=private', 'MANIFEST_UNAVAILABLE'],
     ['failed to resolve reference: no such manifest', 'MANIFEST_UNAVAILABLE'],
     ['context deadline exceeded: token=private', 'TIMEOUT'],
-    ['TLS connection failed: token=private', 'NETWORK'],
+    ['TLS connection failed: token=private', 'NETWORK_TLS'],
     ['token=private', 'UNKNOWN'],
+  ]) assert.equal(classifyPinPullFailure(message), expected);
+});
+
+test('pin pull diagnostics distinguish network causes without exposing output', async () => {
+  const { classifyPinPullFailure } = await load();
+  for (const [message, expected] of [
+    ['lookup registry.example: no such host secret-canary', 'NETWORK_DNS'],
+    ['x509: certificate signed by unknown authority secret-canary', 'NETWORK_TLS'],
+    ['dial tcp: connect: connection refused secret-canary', 'NETWORK_CONNECTION'],
+    ['read: connection reset by peer secret-canary', 'NETWORK_CONNECTION'],
+    ['proxyconnect tcp: proxy error secret-canary', 'NETWORK_PROXY'],
+    ['failed to resolve reference: unexpected response secret-canary', 'UNKNOWN'],
   ]) assert.equal(classifyPinPullFailure(message), expected);
 });
 
