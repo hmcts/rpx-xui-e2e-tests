@@ -227,6 +227,46 @@ test('AMD64 provisioning retries one registry network failure and stays blocked 
   }
 });
 
+test('latest IDAM is resolved once to an immutable platform identity', async t => {
+  const context=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'registry-latest-context-')));
+  const previous=process.env.AZURE_CONFIG_DIR;process.env.AZURE_CONFIG_DIR=context;
+  t.after(()=>{if(previous===undefined)delete process.env.AZURE_CONFIG_DIR;else process.env.AZURE_CONFIG_DIR=previous;fs.rmSync(context,{recursive:true,force:true});});
+  const {provisionNativeImages}=await load();
+  const {nativeRuntimeImages,nativeBrowserDonor}=await import('./lib/exui-native-containers.mjs');
+  const {ccdImagePins}=await import('./lib/exui-ccd-runtime.mjs');
+  const pins=[...Object.values(nativeRuntimeImages('linux/amd64')),nativeBrowserDonor('linux/amd64'),...Object.values(ccdImagePins('linux/amd64'))];
+  let manifest='sha256:'+'a'.repeat(64),config='sha256:'+'b'.repeat(64);
+  const repository='hmctsprod.azurecr.io/hmcts/rse/rse-idam-simulator';
+  const pulled=[],inspected=[];let inspectionOverride={},pullOverride;
+  const runCommand=(command,args)=>{
+    if(command==='az')return JSON.stringify({loginServer:'hmctsprod.azurecr.io',accessToken:'synthetic'});
+    if(args[0]==='login')return '';
+    if(args[0]==='pull'){pulled.push(args.at(-1));return args.at(-1)===repository+':latest'?(pullOverride??'Digest: '+manifest):'';}
+    if(args[0]==='image'){
+      inspected.push(args[2]);
+      if(args[2]===repository+'@'+manifest)return JSON.stringify([{Id:config,Os:'linux',Architecture:'amd64',RepoDigests:[repository+'@'+manifest],...inspectionOverride}]);
+      const pin=pins.find(value=>value.reference===args[2]);
+      if(pin)return JSON.stringify([{Id:pin.configDigest,Os:'linux',Architecture:'amd64',RepoDigests:[pin.reference]}]);
+    }
+    assert.fail('unexpected command');
+  };
+  const resolved=provisionNativeImages('linux/amd64',{runCommand,latestIdam:true});
+  assert.deepEqual(resolved,{reference:repository+'@'+manifest,manifestDigest:manifest,configDigest:config,platform:'linux/amd64'});
+  assert.deepEqual(pulled,[repository+':latest']);
+  assert(inspected.includes(repository+'@'+manifest));
+  assert(!inspected.includes(repository+':latest'));
+  manifest='sha256:'+'c'.repeat(64);config='sha256:'+'d'.repeat(64);
+  const next=provisionNativeImages('linux/amd64',{runCommand,latestIdam:true});
+  assert.equal(next.reference,repository+'@'+manifest);assert.notEqual(next.reference,resolved.reference);
+  assert.deepEqual(pulled,[repository+':latest',repository+':latest']);
+  for(const bad of [{Architecture:'arm64'},{Os:'windows'},{Id:'bad'},{RepoDigests:['other@'+manifest]}]) {
+    inspectionOverride=bad;
+    assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand,latestIdam:true}),/IDAM_LATEST_CONFIG_REQUIRED|CCD_IMAGE_IDENTITY_MISMATCH|IDAM_LATEST_REPOSITORY_MISMATCH/);
+  }
+  inspectionOverride={};pullOverride='unauthorised secret-canary';
+  assert.throws(()=>provisionNativeImages('linux/amd64',{runCommand,latestIdam:true}),error=>error.message.startsWith('IDAM_LATEST_DIGEST_REQUIRED')&&!error.message.includes('secret-canary'));
+});
+
 test('pin pull diagnostics expose only a fixed cause, never registry output', async () => {
   const { classifyPinPullFailure } = await load();
   for (const [message, expected] of [

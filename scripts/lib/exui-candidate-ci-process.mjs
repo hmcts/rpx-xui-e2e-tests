@@ -11,7 +11,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawn, spawnSync } from "node:child_process";
-import { ccdImagePins, stopCcdRuntime } from "./exui-ccd-runtime.mjs";
+import { ccdImagePins, idamProfileFromEnvironment, stopCcdRuntime } from "./exui-ccd-runtime.mjs";
 import { installCancellationCleanup } from "./exui-oci-runtime.mjs";
 import { digestBytes, writeJsonAtomic } from "./exui-evidence-io.mjs";
 import { EVENT_CAPABILITY_SCOPE } from "./exui-ccd-event-capability.mjs";
@@ -132,7 +132,7 @@ export async function executeCiProcess({
   );
   const child = spawn(process.execPath, [script, ...args], {
     cwd: ROOT,
-    env: { ...transportEnv(), TMPDIR: fs.realpathSync(os.tmpdir()) },
+    env: { ...transportEnv(), TMPDIR: fs.realpathSync(os.tmpdir()), ...(process.env.HARNESS_IDAM_PROFILE ? { HARNESS_IDAM_PROFILE: process.env.HARNESS_IDAM_PROFILE, HARNESS_IDAM_PROFILE_DIGEST: process.env.HARNESS_IDAM_PROFILE_DIGEST } : {}) },
     stdio: ["ignore", log, log],
   });
   onChild(child);
@@ -364,7 +364,9 @@ export function cleanupCiCcd(
   );
   assert.equal(recovery.output, directory, "CI_CCD_RECOVERY_PATH_MISMATCH");
   const elasticsearch = recovery.elasticsearch ?? false;
-  const pins = ccdImagePins(recovery.platform ?? "linux/arm64", { elasticsearch });
+  const selected = idamProfileFromEnvironment();
+  if ((recovery.platform ?? "linux/arm64") === "linux/amd64" && selected) assert.deepEqual(recovery.idamProfile, selected, "CI_CCD_RECOVERY_IDAM_PROFILE_MISMATCH");
+  const pins = ccdImagePins(recovery.platform ?? "linux/arm64", { elasticsearch, idamProfile: recovery.idamProfile ?? null });
   assert.deepEqual(
     Object.keys(recovery.resources).sort(),
     Object.keys(pins).sort(),
@@ -373,10 +375,11 @@ export function cleanupCiCcd(
   const statePath = path.join(directory, "runtime.json");
   const state = fs.existsSync(statePath)
     ? read(statePath)
-    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}), ...(elasticsearch ? { elasticsearch } : {}), ...(localCcdProfile ? { localCcdProfile } : {}) };
+    : { owner: recovery.owner, output: directory, containers: {}, ...(recovery.platform ? { platform: recovery.platform } : {}), ...(elasticsearch ? { elasticsearch } : {}), ...(localCcdProfile ? { localCcdProfile } : {}), ...(recovery.idamProfile ? { idamProfile: recovery.idamProfile } : {}) };
   assert.equal(state.elasticsearch ?? false, elasticsearch, "CI_CCD_RECOVERY_ELASTICSEARCH_MISMATCH");
   assert.equal(state.platform ?? "linux/arm64", recovery.platform ?? "linux/arm64", "CI_CCD_RECOVERY_PLATFORM_MISMATCH");
   assert.equal(state.localCcdProfile,recovery.localCcdProfile,"LOCAL_CCD_RECOVERY_PROFILE_MISMATCH");
+  assert.deepEqual(state.idamProfile,recovery.idamProfile,"CI_CCD_RECOVERY_IDAM_PROFILE_MISMATCH");
   assert.equal(state.owner, recovery.owner, "CI_CCD_RECOVERY_OWNER_MISMATCH");
   assert.equal(state.output, directory, "CI_CCD_RECOVERY_PATH_MISMATCH");
   assert(

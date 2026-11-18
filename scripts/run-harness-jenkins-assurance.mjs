@@ -4,7 +4,7 @@ import {holdBuildSelfChecks,readHeldBuildSelfChecks} from "./run-harness-self-ch
 import {prepareComplexAdmissionInputs} from './lib/exui-complex-email-admission.mjs';
 import { classifyNativeFailure, formatNativeFailure } from "./lib/exui-native-failure-diagnostics.mjs";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -51,6 +51,8 @@ function safeEnvironment(extra = {}) {
     "NO_PROXY",
     "HARNESS_SHARED_ROLE_SOURCE_INPUTS",
     "HARNESS_COMPLEX_SOURCE_INPUTS",
+    "HARNESS_IDAM_PROFILE",
+    "HARNESS_IDAM_PROFILE_DIGEST",
     "http_proxy",
     "https_proxy",
     "no_proxy",
@@ -89,7 +91,9 @@ function run(command, args, { cwd = ROOT, env = safeEnvironment(), ...options } 
   return result.stdout?.trim() ?? "";
 }
 
-export function provisionNativeImages(platform, { runCommand = run } = {}) {
+export function provisionNativeImages(platform, { runCommand = run, latestIdam = false } = {}) {
+  assert(!latestIdam || platform === "linux/amd64", "IDAM_LATEST_PLATFORM_REQUIRED");
+  let selectedIdam;
   const native = { ...nativeRuntimeImages(platform), browserDonor: nativeBrowserDonor(platform) };
   const targets = [
     ...Object.entries(native).map(([name, pin]) => ({
@@ -123,8 +127,9 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
     for (const pin of new Map(
       targets.map((pin) => [pin.reference, pin]),
     ).values()) {
+      const resolveIdam = latestIdam && pin.name === "IDAM";
       let cached;
-      try {
+      if (!resolveIdam) try {
         cached = JSON.parse(
           runCommand("docker", ["image", "inspect", pin.reference]),
         );
@@ -206,9 +211,11 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
           },
         );
       }
+      let pullOutput;
+      const pullReference = resolveIdam ? pin.reference.split("@")[0] + ":latest" : pin.reference;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          runCommand("docker", ["pull", "--platform", platform, pin.reference], {
+          pullOutput = runCommand("docker", ["pull", "--platform", platform, pullReference], {
             env: safeEnvironment(
               registryDirectory ? { DOCKER_CONFIG: registryDirectory } : {},
             ),
@@ -224,12 +231,24 @@ export function provisionNativeImages(platform, { runCommand = run } = {}) {
           throw new Error(`NATIVE_${pin.name}_${reason}`);
         }
       }
-      const inspected = JSON.parse(
-        runCommand("docker", ["image", "inspect", pin.reference]),
-      );
-      assert.equal(inspected.length, 1);
-      pin.verify(inspected[0]);
+      if (resolveIdam) {
+        const digests = [...pullOutput.matchAll(/^Digest: (sha256:[a-f0-9]{64})\r?$/gm)];
+        assert.equal(digests.length, 1, "IDAM_LATEST_DIGEST_REQUIRED");
+        const manifestDigest = digests[0][1];
+        const reference = pin.reference.split("@")[0] + "@" + manifestDigest;
+        const inspected = JSON.parse(runCommand("docker", ["image", "inspect", reference]));
+        assert.equal(inspected.length, 1, "IDAM_LATEST_INSPECTION_REQUIRED");
+        selectedIdam = { reference, manifestDigest, configDigest: inspected[0].Id, platform };
+        assert(/^sha256:[a-f0-9]{64}$/.test(selectedIdam.configDigest), "IDAM_LATEST_CONFIG_REQUIRED");
+        assertCcdImageIdentity(inspected[0], selectedIdam, platform);
+        assert(inspected[0].RepoDigests.includes(reference), "IDAM_LATEST_REPOSITORY_MISMATCH");
+      } else {
+        const inspected = JSON.parse(runCommand("docker", ["image", "inspect", pin.reference]));
+        assert.equal(inspected.length, 1);
+        pin.verify(inspected[0]);
+      }
     }
+    return selectedIdam;
   } finally {
     try {
       cleanup();
@@ -621,7 +640,15 @@ async function main({requireBuildSelfChecks=false}={}) {
     stage = "native worker platform";
     const platform = assertNativeWorkerPlatform();
     stage = "pinned runtime provisioning";
-    provisionNativeImages(platform);
+    delete process.env.HARNESS_IDAM_PROFILE;
+    delete process.env.HARNESS_IDAM_PROFILE_DIGEST;
+    const idamPin = provisionNativeImages(platform, {latestIdam: platform === "linux/amd64"});
+    if (idamPin) {
+      const file = path.join(privateRoot, "idam-image-profile.json");
+      writePrivateJob(file, idamPin);
+      process.env.HARNESS_IDAM_PROFILE = file;
+      process.env.HARNESS_IDAM_PROFILE_DIGEST = "sha256:" + createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+    }
     const { jobPath, output, complexSourceInputs } = await prepareJob(privateRoot, platform);
     stage = "native candidate and CCD pilots";
     console.log('[harness-assurance] NOT RUN: CMC and FR complete profiles tagged @known-defect-jurisdiction-filter; team declined the webapp fix (PR #5628). No catalogue or release credit.');

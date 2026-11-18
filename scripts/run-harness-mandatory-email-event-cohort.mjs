@@ -18,7 +18,7 @@ import {writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {cleanupPersonalInvocation} from './run-harness-personal-service-cohort.mjs';
 import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 
-export function mandatoryEmailChildEnvironment(){return{HOME:os.homedir(),PATH:path.dirname(process.execPath)+path.delimiter+process.env.PATH,TMPDIR:fs.realpathSync(os.tmpdir())};}
+export function mandatoryEmailChildEnvironment(){return{HOME:os.homedir(),PATH:path.dirname(process.execPath)+path.delimiter+process.env.PATH,TMPDIR:fs.realpathSync(os.tmpdir()),...(process.env.HARNESS_IDAM_PROFILE?{HARNESS_IDAM_PROFILE:process.env.HARNESS_IDAM_PROFILE,HARNESS_IDAM_PROFILE_DIGEST:process.env.HARNESS_IDAM_PROFILE_DIGEST}:{})};}
 // One owned IPC child and two finite barriers. Exit does not prove IPC/log handles closed.
 export async function executeMandatoryEmailChild(command,{log,signal,onCreation,onPrepared,signalTarget=process,launch=spawn,terminate=terminateOwnedChild}={}){
   assert.deepEqual(command,mandatoryEmailChildCommand(command.args?.[1],command.args?.[3]),'MANDATORY_EMAIL_FIXED_CHILD');
