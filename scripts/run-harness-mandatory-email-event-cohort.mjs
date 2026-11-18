@@ -1,3 +1,4 @@
+import {classifyNativeFailure,formatNativeFailure,nativeFailurePrefix,readOwnedFailure,holdMandatoryFailure,readMandatoryFailure} from './lib/exui-native-failure-diagnostics.mjs';
 import {validateMandatoryEmailAdmissionContext,readMandatoryEmailAdmissionInput,readMandatoryEmailRunContext} from './lib/exui-mandatory-email-event-contract.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -149,7 +150,9 @@ export async function runMandatoryEmailSequence(suppliedCohort,{output,signal,ex
     }
     readMandatoryEmailRunContext(cohort);
     return{schemaVersion:1,kind:'mandatory-email-three-invocation-cohort',status:'observed-three-invocation-cohort',records,baselineProofs:records.reduce((sum,row)=>sum+row.baselineProofs,0),effectiveFaults:records.reduce((sum,row)=>sum+row.effectiveFaults,0),...MANDATORY_EMAIL_NO_CREDIT};
-  }catch(error){let reconciliation={status:'unproved-no-cleanup-authority'};
+  }catch(error){
+    if(active?.terminal?.closed&&active.terminal.observed){const child=readOwnedFailure(path.join(output,active.variant+'.log'));if(child)holdMandatoryFailure(error,child.child??child.failure,'unknown');}
+    let reconciliation={status:'unproved-no-cleanup-authority'};
     if(active?.terminal?.closed&&active.terminal.observed){try{reconciliation=await reconcileFailure(active,{inspect});}catch{reconciliation={status:'owned-cleanup-uncertain'};}}
     const first=typeof error?.message==='string'?error.message.split('\n',1)[0]:'';
     privateJson(path.join(output,'cohort-failure.json'),{kind:'mandatory-email-cohort-failure',cancelled:cancelled||Boolean(signal?.aborted),completed:records.map(row=>row.variant),stage:active?.variant??'final-replay',code:/^MANDATORY_EMAIL_[A-Z_]+$/.test(first)?first:'MANDATORY_EMAIL_COHORT_FAILED',reconciliation,...MANDATORY_EMAIL_NO_CREDIT});throw error;}
@@ -175,5 +178,5 @@ export async function runMandatoryEmailCohort({candidate,browser,output,signal,a
   privateJson(path.join(output,'mandatory-email-cohort.json'),{cohortDigest:mandatoryEmailDigest(cohort),inputDigest,...result});return result;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  process.umask(0o077);try{const args=process.argv.slice(2);assert([6,10].includes(args.length));assert.deepEqual(args.filter((_,index)=>index%2===0),args.length===6?['--candidate','--browser','--output']:['--candidate','--browser','--output','--admission-input','--digest']);const result=await runMandatoryEmailCohort({candidate:args[1],browser:args[3],output:args[5],...(args.length===10?{admissionInput:{path:args[7],digest:args[9]}}:{})});console.log(JSON.stringify(result));}catch{console.error('MANDATORY_EMAIL_BOUND_COHORT_FAILED');process.exitCode=2;}
+  process.umask(0o077);try{const args=process.argv.slice(2);assert([6,10].includes(args.length));assert.deepEqual(args.filter((_,index)=>index%2===0),args.length===6?['--candidate','--browser','--output']:['--candidate','--browser','--output','--admission-input','--digest']);const result=await runMandatoryEmailCohort({candidate:args[1],browser:args[3],output:args[5],...(args.length===10?{admissionInput:{path:args[7],digest:args[9]}}:{})});console.log(JSON.stringify(result));}catch(error){console.error(nativeFailurePrefix+formatNativeFailure({...classifyNativeFailure(error),...(readMandatoryFailure(error)?.child?{child:readMandatoryFailure(error).child}:{})}));process.exitCode=2;}
 }

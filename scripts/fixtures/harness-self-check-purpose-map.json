@@ -321,6 +321,13 @@
       "purpose": "Checks private Jenkins preparation, job-local outputs and child-failure evidence retention."
     },
     {
+      "file": "scripts/verify-harness-failure-report.test.cjs",
+      "id": "unit-harness-failure-report",
+      "label": "Harness failure investigation",
+      "group": "report-delivery",
+      "purpose": "Checks safe independent failure reports, validation, tampering rejection and fallback publication without assurance credit."
+    },
+    {
       "file": "scripts/verify-exui-source-shape-contract.test.cjs",
       "id": "unit-source-shape-contract",
       "label": "Source shape contract",
@@ -970,6 +977,13 @@
       "label": "Mandatory email assurance orchestration",
       "group": "report-delivery",
       "purpose": "Checks opt-in mandatory-email orchestration, cancellation, captured evidence and report inclusion with controlled fixtures; no live execution."
+    },
+    {
+      "file": "scripts/verify-exui-mandatory-failure-capture.test.cjs",
+      "id": "unit-mandatory-failure-capture",
+      "label": "Mandatory email failure capture",
+      "group": "report-delivery",
+      "purpose": "Checks safe nested process failure diagnostics, retained primary causes and cleanup confidence."
     },
     {
       "file": "scripts/verify-exui-event-v3-judge-domain.test.cjs",

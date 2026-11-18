@@ -146,6 +146,7 @@ test("malformed job with valid CLI syntax withdraws the earlier owned report bef
   );
   for (const name of [
     "exui-divorce-native-binding.mjs",
+    "exui-native-failure-diagnostics.mjs",
     "exui-mandatory-email-event-contract.mjs",
     "exui-personal-service-admission.mjs",
     "exui-complex-email-admission.mjs",

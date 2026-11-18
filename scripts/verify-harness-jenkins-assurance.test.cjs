@@ -52,6 +52,52 @@ test("actual Jenkins CLI preserves private preparation evidence when a child fai
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(job, "preparation-error.json"))), { stage: "webapp master fetch", reason: "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED" });
   const summary = JSON.parse(fs.readFileSync(path.join(root, "functional-output/tests/harness/public/release-assurance-summary.json"), "utf8"));
   assert.equal(summary.status, "BLOCKED");
+  const failureDirectory = path.join(root, "functional-output/tests/harness/public/failure");
+  const investigation = JSON.parse(fs.readFileSync(path.join(failureDirectory, "failure.json"), "utf8"));
+  assert.equal(investigation.primary.phase, "preparation");
+  assert.equal(investigation.primary.failure.reason, "HARNESS_JENKINS_ASSURANCE_COMMAND_FAILED");
+  assert.equal(investigation.reportingFailure.reason, "HARNESS_DIAGNOSTIC_FALLBACK_FAILED");
+  assert.equal(investigation.releaseApproval, false);
+  const page = fs.readFileSync(path.join(failureDirectory, "index.html"), "utf8");
+  assert(page.includes("Harness failure investigation"));
+  assert(!page.includes(root) && !page.includes(extraCa) && !page.includes("/private/fixture-browser"));
+  const validated = spawnSync(process.execPath, [path.join(root, "scripts/manage-harness-failure-report.mjs"), "--validate", failureDirectory], {encoding:"utf8"});
+  assert.equal(validated.status, 0, validated.stderr);
+});
+
+test('independent failure report preserves a mandatory leaf and reported phases when Odhín fails', async t => {
+  const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'failure-investigation-')));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const output=path.join(root,'run');fs.mkdirSync(path.join(output,'private'),{recursive:true});
+  const save=(name,value)=>fs.writeFileSync(path.join(output,'private',name),JSON.stringify(value),{mode:0o600});
+  save('ci-result.json',{phaseResults:[{phase:'family',status:'PASS'},{phase:'ccd',status:'PASS'}]});
+  save('assurance-failure.json',{schemaVersion:1,phase:'mandatoryEmail',failure:{reason:'MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY'},child:{reason:'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS'},cleanup:'unknown'});
+  const {publishFailureInvestigation}=await load();
+  const directory=path.join(root,'failure');
+  publishFailureInvestigation(directory,{output,commit:'a'.repeat(40),buildNumber:'2',reportingFailure:{reason:'HARNESS_DIAGNOSTIC_FALLBACK_FAILED'},primary:{phase:'native',failure:{reason:'CI_TOOL_COMMAND_FAILED'}}});
+  const value=JSON.parse(fs.readFileSync(path.join(directory,'failure.json')));
+  assert.equal(value.primary.phase,'mandatoryEmail');
+  assert.equal(value.primary.child.reason,'MANDATORY_EMAIL_CHILD_ENVIRONMENT_KEYS');
+  assert.equal(value.primary.failure.reason,'MANDATORY_EMAIL_CONTROLLER_NOT_CLOSED_SUCCESSFULLY');
+  assert.equal(value.primary.cleanup,'unknown');
+  assert.deepEqual(value.reportedPhases,[{phase:'family',status:'PASS'},{phase:'ccd',status:'PASS'}]);
+  assert.equal(value.reportingFailure.reason,'HARNESS_DIAGNOSTIC_FALLBACK_FAILED');
+  assert.equal(value.releaseApproval,false);
+  const html=fs.readFileSync(path.join(directory,'index.html'),'utf8');
+  assert(html.includes('unverified')&&!html.includes(root));
+});
+
+test('native failure investigation uses classified orchestration evidence and excludes raw errors',async t=>{
+ const root=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'native-failure-investigation-')));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ const output=path.join(root,'run');fs.mkdirSync(path.join(output,'private'),{recursive:true});
+ const save=(name,value)=>fs.writeFileSync(path.join(output,'private',name),JSON.stringify(value),{mode:0o600});
+ save('assurance-failure.json',{schemaVersion:1,phase:'assurance',failure:{reason:'NATIVE_OPERATION_FAILED'},cleanup:'unknown'});
+ save('orchestration-error.json',{message:'secret-canary /private/raw',diagnostic:{reason:'CI_TOOL_COMMAND_FAILED',child:{reason:'CCD_IMAGE_IDENTITY_MISMATCH'}}});
+ save('ci-result.json',{cleanupComplete:false,phaseResults:[{phase:'family',status:'PASS'}]});
+ const {publishFailureInvestigation}=await load();const directory=path.join(root,'failure');publishFailureInvestigation(directory,{output});
+ const record=JSON.parse(fs.readFileSync(path.join(directory,'failure.json')));
+ assert.equal(record.primary.phase,'native');assert.equal(record.primary.failure.reason,'CI_TOOL_COMMAND_FAILED');assert.equal(record.primary.child.reason,'CCD_IMAGE_IDENTITY_MISMATCH');assert.equal(record.primary.cleanup,'incomplete');
+ for(const file of ['failure.json','index.html'])assert(!fs.readFileSync(path.join(directory,file),'utf8').includes('secret-canary'));
 });
 
 test("diagnostics fallback carries only the owned blocked-profile attempt packet",async t=>{

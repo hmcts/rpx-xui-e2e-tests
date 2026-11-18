@@ -1,3 +1,4 @@
+import {classifyNativeFailure,formatNativeFailure,nativeFailurePrefix} from './lib/exui-native-failure-diagnostics.mjs';
 import {readMandatoryEmailRunContext} from './lib/exui-mandatory-email-event-contract.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -60,6 +61,6 @@ export async function runMandatoryEmailInvocation(expectedFile,digest){
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   process.umask(0o077);
   try{const args=process.argv.slice(2);assert.equal(args.length,4);assert.deepEqual([args[0],args[2]],['--expected','--digest']);await runMandatoryEmailInvocation(args[1],args[3]);}
-  catch{console.error('MANDATORY_EMAIL_BOUND_INVOCATION_FAILED');process.exitCode=2;}
+  catch(error){console.error(nativeFailurePrefix+formatNativeFailure(classifyNativeFailure(error)));process.exitCode=2;}
   finally{if(process.connected)process.disconnect();}
 }
