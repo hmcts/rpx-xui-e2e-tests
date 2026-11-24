@@ -9,7 +9,7 @@ const { spawnSync } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const scope = "exui-global-search-pilot";
 const nine = ["IA","CIVIL","PRIVATELAW","PUBLICLAW","EMPLOYMENT","ST_CIC","PROBATE","PCS","DIVORCE"];
-const seven = ["IA","CIVIL","PRIVATELAW","PUBLICLAW","EMPLOYMENT","ST_CIC","PCS"];
+const eight = ["IA","CIVIL","PRIVATELAW","PUBLICLAW","EMPLOYMENT","ST_CIC","PCS","DIVORCE"];
 
 test("support only: Global Search has one composition obligation and two fixed native invocations outside default CI", async () => {
   const {getReleasePolicy}=await import("./lib/exui-release-policy.mjs");
@@ -28,9 +28,9 @@ test("support only: Global Search has one composition obligation and two fixed n
 test("support only: wrong-capability mutation changes only globalSearchServices and its effective identity", async()=>{
   const {globalSearchConfiguration}=await import("./lib/exui-global-search-contract.mjs");
   const {nativeIdentity}=await import("./lib/exui-native-contract.mjs");
-  const config={now:false,globalSearchServices:nine.join(","),waSupportedJurisdictions:seven.join(","),staffSupportedJurisdictions:"unchanged",feature:{},services:{idam:{}}};
+  const config={now:false,globalSearchServices:nine.join(","),waSupportedJurisdictions:eight.join(","),staffSupportedJurisdictions:"unchanged",feature:{},services:{idam:{}}};
   assert.deepEqual(globalSearchConfiguration(config),config);
-  const expected=structuredClone(config);expected.globalSearchServices=seven.join(",");
+  const expected=structuredClone(config);expected.globalSearchServices=eight.join(",");
   assert.deepEqual(globalSearchConfiguration(config,"global-search-wa-capability"),expected);
   assert.equal(config.globalSearchServices,nine.join(","));
   assert.throws(()=>globalSearchConfiguration(config,"unknown"),/UNSUPPORTED/);
@@ -38,7 +38,7 @@ test("support only: wrong-capability mutation changes only globalSearchServices 
   try{fs.mkdirSync(path.join(root,"config"));fs.writeFileSync(path.join(root,"config/default.json"),JSON.stringify(config));
     const input={releaseScopeId:scope,artifact:{identity:{artifactDigest:"sha256:"+"a".repeat(64)}}};
     const a=nativeIdentity(input,{mutation:null},root),b=nativeIdentity(input,{mutation:"global-search-wa-capability"},root);
-    const changed=structuredClone(a.config);changed.globalSearchServices=seven.join(",");
+    const changed=structuredClone(a.config);changed.globalSearchServices=eight.join(",");
     assert.deepEqual(b.config,changed);assert.equal(b.config.now,false);assert.notEqual(a.identity.configurationDigest,b.identity.configurationDigest);assert.equal(a.identity.artifactDigest,b.identity.artifactDigest);
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
@@ -46,19 +46,19 @@ test("support only: wrong-capability mutation changes only globalSearchServices 
 function body(ids){return{searchCriteria:{CCDCaseTypeIds:null,CCDJurisdictionIds:ids,caseManagementBaseLocationIds:null,caseManagementRegionIds:null,caseReferences:["1111222233334444"],otherReferences:null,parties:[],stateIds:null},sortCriteria:null,maxReturnRecordCount:25,startRecordNumber:1};}
 const request=(method,route,value)=>new Promise((resolve,reject)=>{const req=http.request({host:"127.0.0.1",port:3101,method,path:route,agent:false,headers:{Host:"127.0.0.1:3103",...(value?{"content-type":"application/json"}:{})}},res=>{let text="";res.on("data",x=>text+=x);res.on("end",()=>resolve({status:res.statusCode,body:text}));});req.on("error",reject);req.end(value?JSON.stringify(value):undefined);});
 
-test("support only: scoped provider accepts real nine/seven POSTs and exact auxiliary read; rejects other contracts",async()=>{
+test("support only: scoped provider accepts real nine/eight POSTs and exact auxiliary read; rejects other contracts",async()=>{
   const {startGlobalSearchProviders}=await import("./lib/exui-global-search-provider.mjs");
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"global-provider-"));const sessions=[];
   const {server}=await startGlobalSearchProviders(root,{seed:(_assignments,id)=>{sessions.push(id);return{id}}});
   try{
     const rows=await request("GET","/refdata/location/orgServices");assert.equal(rows.status,200);
     assert.deepEqual(JSON.parse(rows.body).map(x=>x.ccd_service_name).sort(),[...nine,"SSCS"].sort());
-    for(const ids of [nine,seven])assert.equal((await request("POST","/globalSearch",body(ids))).status,200);
+    for(const ids of [nine,eight])assert.equal((await request("POST","/globalSearch",body(ids))).status,200);
     assert.equal((await request("GET","/aggregated/caseworkers/harness-supervisor/jurisdictions?access=read")).body,"[]");
     for(const [method,url,value]of[
       ["POST","/refdata/location/orgServices",{}],["GET","/refdata/location/orgServices?extra=true"],
       ["GET","/globalSearch"],["POST","/globalSearch?extra=true",body(nine)],
-      ["POST","/globalSearch",body([...seven,"SSCS"])],["POST","/globalSearch",{...body(nine),extra:true}],
+      ["POST","/globalSearch",body([...eight,"SSCS"])],["POST","/globalSearch",{...body(nine),extra:true}],
       ["POST","/globalSearch",{...body(nine),searchCriteria:{...body(nine).searchCriteria,caseReferences:["9999000011112222"]}}],
       ["POST","/aggregated/caseworkers/harness-supervisor/jurisdictions?access=read",{}],
       ["GET","/aggregated/caseworkers/foreign/jurisdictions?access=read"],
@@ -69,7 +69,7 @@ test("support only: scoped provider accepts real nine/seven POSTs and exact auxi
     ])assert.equal((await request(method,url,value)).status,501,url);
     const journal=fs.readFileSync(path.join(root,"global-search-destinations.jsonl"),"utf8").trim().split("\n").map(JSON.parse);
     assert.equal(journal.length,4);assert(journal.every(x=>x.port===3101));
-    assert.deepEqual(journal.filter(x=>x.method==="POST").map(x=>x.body.searchCriteria.CCDJurisdictionIds),[nine,seven]);
+    assert.deepEqual(journal.filter(x=>x.method==="POST").map(x=>x.body.searchCriteria.CCDJurisdictionIds),[nine,eight]);
     assert.equal(new Set(sessions).size,1);assert.match(sessions[0],/^harness-global-search-[a-f0-9-]{36}$/);
   }finally{await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});}
 });
@@ -87,11 +87,11 @@ test("support only: literal browser oracle is independent; future lazy scripts a
     assert.throws(()=>api.observeGlobalSearchPost("http://127.0.0.1:3101/api/globalsearch/results","POST",{"x-xsrf-token":"token"}),/POST_CONTRACT/);
     // DOM7 alone cannot attribute the intended fault when the actual accepted POST still has nine IDs.
     let membershipStepReached=false;
-    const mutantProof=(upstreamIds)=>{api.assertGlobalSearchMutationSubmission(upstreamIds,"global-search-wa-capability");membershipStepReached=true;assert.deepEqual([...seven].sort(),[...nine].sort());};
-    assert.throws(()=>mutantProof(nine),/GLOBAL_SEARCH_MUTANT_POST_MUST_BE_WA_SEVEN/);
+    const mutantProof=(upstreamIds)=>{api.assertGlobalSearchMutationSubmission(upstreamIds,"global-search-wa-capability");membershipStepReached=true;assert.deepEqual([...eight].sort(),[...nine].sort());};
+    assert.throws(()=>mutantProof(nine),/GLOBAL_SEARCH_MUTANT_POST_MUST_BE_WA_EIGHT/);
     assert.equal(membershipStepReached,false);
-    assert.throws(()=>mutantProof(seven),assert.AssertionError);assert.equal(membershipStepReached,true);
-    assert.throws(()=>api.assertGlobalSearchMutationSubmission([...seven,"IA"],"global-search-wa-capability"),/GLOBAL_SEARCH_MUTANT_POST_MUST_BE_WA_SEVEN/);
+    assert.throws(()=>mutantProof(eight),assert.AssertionError);assert.equal(membershipStepReached,true);
+    assert.throws(()=>api.assertGlobalSearchMutationSubmission([...eight,"IA"],"global-search-wa-capability"),/GLOBAL_SEARCH_MUTANT_POST_MUST_BE_WA_EIGHT/);
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 

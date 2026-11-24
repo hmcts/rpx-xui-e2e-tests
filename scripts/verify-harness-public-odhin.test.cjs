@@ -174,7 +174,7 @@ test("diagnostics-only fallback report retains blocked CMC and FR profile outcom
     kind: "cmc-profile-attempt",
     status: "BLOCKED",
     reason: "CMC_PROFILE_OBSERVATIONS",
-    consumerRevision: "1a986f4dc87e6ea4598e30c042bf2b3072122b75",
+    consumerRevision: "02c16611cb863100701af639ddb446b88e0097f1",
     diagnostic: {
       schemaVersion: 1,
       kind: "cmc-jurisdiction-filter-diagnostic",
@@ -1006,7 +1006,7 @@ async function nativePresentationFixture(blocked = true) {
         ...(blocked ? [] : [catalogue.sequences[0].id]),
         "configuration-cell:a6d5e8421152eca670bc39912f6781824bfc3190d2b78ed9ea7757b5f168e313",
         "configuration-cell:8c1a3f11d156a5557c5400305414da596d644a4d2378aa539753a7e9fc88d76a",
-        "configuration-decentralisation:24b0d8b94327dfc6b9e00f19814604c11c7fcbecc3171af4dd8b68c97a5b2e24",
+        "configuration-decentralisation:03325d951c934d84d8cf1450eb67b58990ee24778fadc0e9c4fb3b4a7d29aa66",
       ],
       missing: catalogue.obligations.length - (blocked ? 5 : 6),
       sourceArtifactDigests,
@@ -1503,7 +1503,7 @@ test("native headline shows the actual status and reserves green for passing evi
 test('separately admitted DIVORCE profile stays outside main totals in the same report',async t=>{
  const root=sandbox(t),Reporter=api(),reporter=new Reporter({selection:'harness'}),hash='sha256:'+'a'.repeat(64);
  await require('./fixtures/exui-native-report-packet.mock.cjs').preparePublication(t,reporter,{postalFailure:true});const primary=structuredClone(reporter.nativeEvidence);
- reporter.nativeEvidence.divorceProfileAdmission={schemaVersion:1,kind:'divorce-profile-admission',status:'passed',obligationId:'configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce',boundary:'candidate',family:'DIVORCE',baselineProofs:6,effectiveFaults:6,selected:1,accepted:1,catalogueSize:112,releaseCredit:false,releaseApproval:false,runId:'divorce-00000000-0000-4000-8000-000000000001',producerCommit:'e'.repeat(40),candidateCommit:'f'.repeat(40),...Object.fromEntries(['producerDigest','candidateArtifactDigest','inputDigest','bindingDigest','receiptDigest','terminalDigest','launchDigest','cleanupDigest','contractDigest'].map(key=>[key,hash]))};
+ reporter.nativeEvidence.divorceProfileAdmission={schemaVersion:1,kind:'divorce-profile-admission',status:'passed',obligationId:'configuration-profile:a850151055dc0f5c267d19fa265a7a5b3dfb624ad3d42782e1828a345d85f061',boundary:'candidate',family:'DIVORCE',baselineProofs:6,effectiveFaults:6,selected:1,accepted:1,catalogueSize:112,releaseCredit:false,releaseApproval:false,runId:'divorce-00000000-0000-4000-8000-000000000001',producerCommit:'e'.repeat(40),candidateCommit:'f'.repeat(40),...Object.fromEntries(['producerDigest','candidateArtifactDigest','inputDigest','bindingDigest','receiptDigest','terminalDigest','launchDigest','cleanupDigest','contractDigest'].map(key=>[key,hash]))};
  const tests=testsFor();reporter.onBegin({}, {allTests:()=>tests});tests.forEach((item,index)=>reporter.onTestEnd(item,result('passed',index)));await reporter.onEnd(fullResult());
  const record=Reporter.validatePublicReport();assert.equal(record.tests,tests.length);assert.deepEqual(record.nativeEvidence.catalogueCoverage,primary.catalogueCoverage);assert.deepEqual(record.nativeEvidence.source,primary.source);assert.equal(record.nativeEvidence.status,primary.status);
  const html=fs.readFileSync(path.join(root,'functional-output/tests/harness/public/odhin/index.html'),'utf8');assert.equal((html.match(/id="harness-divorce-profile-admission"/g)||[]).length,1);assert.match(html,/1\/1 profile accepted in a separate run/);assert.match(html,/Postal proof BLOCKED/);assert.match(html,/Separate profile run: 1\/1 accepted; excluded from main cohort count/);assert.match(html,/Standalone total duration not recorded/);assert.match(html,/data-profile-status="PASS" data-profile-baselines="6" data-profile-faults="6" data-profile-accepted="1" data-profile-selected="1"/);assert(html.includes('data-profile-producer="'+'e'.repeat(40)+'"'));assert(html.includes('data-profile-run="divorce-00000000-0000-4000-8000-000000000001"'));

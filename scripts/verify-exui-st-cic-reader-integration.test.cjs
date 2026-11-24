@@ -10,7 +10,7 @@ test('complete synthetic raw joint packet admits exactly one ST_CIC row and rend
  assert.equal(after.catalogueCoverage.candidate,before.catalogueCoverage.candidate+1);
  assert.equal(after.catalogueCoverage.missing,before.catalogueCoverage.missing-1);
  assert.equal(after.catalogueCoverage.selected,112);
- const id='configuration-profile:31fed7b5d70bd2e333287f0b982632381576d11fbc15d71e90f27c14d986983b';
+ const id='configuration-profile:03ae2c4f20f27a93d350eaab94c9e46e4947ecb2096c9e3df03a514661ede29e';
  assert.equal(after.stCicProfileAdmission.obligationId,id);
  assert.equal(after.catalogueCoverage.creditedObligationIds.filter(row=>row===id).length,1);
  const html=require('./harness-native-report.cjs').renderNativeEvidence(after);

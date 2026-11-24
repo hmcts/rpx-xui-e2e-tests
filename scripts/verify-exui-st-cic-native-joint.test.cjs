@@ -13,7 +13,7 @@ function refreshPacket(packet){const {admission:a,binding:b,admissionContext:c}=
 
 test('complete raw five-pair and seven-phase unit packets compare as exactly the fixed ST_CIC profile without promotion',async t=>{
  const x=await jointPacket(t),{stCicNativeJointAdmission}=await load(),before=JSON.stringify(x.packet),result=stCicNativeJointAdmission(x.native,x.capsule,x.packet,x.expected);
- assert.equal(result.status,'included');assert.equal(result.obligationId,'configuration-profile:31fed7b5d70bd2e333287f0b982632381576d11fbc15d71e90f27c14d986983b');assert.equal(result.nativeRunId,x.expected.jobRunId);assert.equal(result.profileRunId,x.packet.admission.runId);assert.equal(result.requestDigest,x.requestPin.digest);assert.deepEqual(result.sourceKeys,['rpx-xui-webapp:config/default.json','rpx-xui-webapp:config/default.json']);
+ assert.equal(result.status,'included');assert.equal(result.obligationId,'configuration-profile:03ae2c4f20f27a93d350eaab94c9e46e4947ecb2096c9e3df03a514661ede29e');assert.equal(result.nativeRunId,x.expected.jobRunId);assert.equal(result.profileRunId,x.packet.admission.runId);assert.equal(result.requestDigest,x.requestPin.digest);assert.deepEqual(result.sourceKeys,['rpx-xui-webapp:config/default.json','rpx-xui-webapp:config/default.json']);
  assert.equal(JSON.stringify(x.packet),before);for(const key of ['runtimeAcceptance','catalogueCredit','wholeProfileSatisfied','releaseCredit','releaseApproval'])assert.equal(x.packet.admission[key],false);assert.equal(result.releaseApproval,false);assert.equal(result.releaseCredit,false);
 });
 test('missing main authority or historical standalone context remains separate with no row decision',async t=>{

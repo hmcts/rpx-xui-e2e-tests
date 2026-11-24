@@ -27,7 +27,7 @@ export function observeGlobalSearchPost(url: string, method: string, headers: Re
 export function assertGlobalSearchMutationSubmission(ids: string[], mutation: string | undefined) {
   if (mutation !== 'global-search-wa-capability') return;
   // The fault is eligible only after its independently expected seven-service request completed.
-  assert.deepEqual(ids.slice().sort(), ['IA', 'CIVIL', 'PRIVATELAW', 'PUBLICLAW', 'EMPLOYMENT', 'ST_CIC', 'PCS'].sort(), 'GLOBAL_SEARCH_MUTANT_POST_MUST_BE_WA_SEVEN');
+  assert.deepEqual(ids.slice().sort(), ['IA', 'CIVIL', 'PRIVATELAW', 'PUBLICLAW', 'EMPLOYMENT', 'ST_CIC', 'PCS', 'DIVORCE'].sort(), 'GLOBAL_SEARCH_MUTANT_POST_MUST_BE_WA_EIGHT');
 }
 export interface GlobalSearchJournalEntry {
   port: number;

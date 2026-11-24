@@ -20,7 +20,8 @@ export const EXUI_WA_SUPPORTED_SERVICE_FAMILIES = [
   "PUBLICLAW",
   "EMPLOYMENT",
   "ST_CIC",
-  "PCS"
+  "PCS",
+  "DIVORCE"
 ] as const;
 
 export const EXUI_STAFF_SUPPORTED_SERVICE_FAMILIES = [
@@ -81,9 +82,8 @@ export const EXUI_SERVICE_LABELS: Record<string, string> = {
 
 export const EXUI_SERVICE_REF_DATA_MAPPING: Record<string, readonly string[]> = {
   CIVIL: ["AAA6", "AAA7"],
-  DIVORCE: ["ABA1"],
+  DIVORCE: ["ABA1", "ABA2"],
   EMPLOYMENT: ["BHA1"],
-  FR: ["ABA2"],
   HRS: ["HRS"],
   IA: ["BFA1"],
   PCS: ["AAA3"],

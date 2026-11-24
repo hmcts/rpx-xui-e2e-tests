@@ -46,7 +46,7 @@ export function divorceConfigurationBindings(candidateRoot,configurationFor=cand
   if(facet==='divorce-global-search')expected.globalSearchServices=expected.globalSearchServices.split(',').filter(id=>id!=='DIVORCE').join(',');
   if(facet==='divorce-staff')expected.staffSupportedJurisdictions=expected.staffSupportedJurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');
   if(facet==='divorce-mapping')expected.serviceRefDataMapping=expected.serviceRefDataMapping.map(row=>row.service==='DIVORCE'?{...row,serviceCodes:['ZZZ1']}:row);
-  if(facet==='divorce-wa')expected.waSupportedJurisdictions+=',DIVORCE';
+  if(facet==='divorce-wa')expected.waSupportedJurisdictions=expected.waSupportedJurisdictions.split(',').filter(id=>id!=='DIVORCE').join(',');
   if(facet==='wa-health')expected.feature.workAllocationEnabled=true;
   assert.deepEqual(mutant.config,expected,'DIVORCE_COHORT_FOREIGN_CONFIG');
   result[facet]={baseline:base.digest,[fault]:mutant.digest};

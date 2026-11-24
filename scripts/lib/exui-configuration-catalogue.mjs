@@ -9,7 +9,7 @@ import { collectDefinitionDiscovery, selectReviewedDefinitionSources, summarizeD
 import { validateDefinitionProjection } from './exui-definition-references.mjs';
 
 const routingKeys = ['decentralisedCaseTypeConfig', 'decentralisedServiceMap'];
-const configurationKeys = ['jurisdictions', 'globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping', 'wildcardSearchFields', 'wildcardSearchRoles', ...routingKeys];
+const configurationKeys = ['jurisdictions', 'globalSearchServices', 'waSupportedJurisdictions', 'waSupportedJurisdictionUsers', 'staffSupportedJurisdictions', 'serviceRefDataMapping', 'wildcardSearchFields', 'wildcardSearchRoles', ...routingKeys];
 const sharedIds = ['configuration-shared:nested-renderer', 'configuration-shared:role-policy'];
 const boundaries = ['model', 'candidate', 'ccd', 'external'];
 const sourceKey = (source) => `${source.repository}:${source.path}`;
@@ -34,6 +34,14 @@ function validateRoutingConfiguration(source) {
       if (!entryKey || !objectMap(entry) || properties.some((property) => property in entry && typeof entry[property] !== 'string') ||
           key === routingKeys[1] && typeof entry.baseUrl !== 'string') throw new Error(`invalid-decentralised-entry:${key}:${entryKey}`);
     }
+  }
+}
+function validateWorkAllocationOverrideConfiguration(source) {
+  const value = source.document.waSupportedJurisdictionUsers;
+  if (source.path === 'config/custom-environment-variables.json') {
+    if (value?.__name !== 'WA_SUPPORTED_JURISDICTION_USERS' || value.__format !== 'json') throw new Error('INVALID_WA_USER_OVERRIDE_MAPPING');
+  } else if (source.path === 'config/default.json' && (!Array.isArray(value) || value.length !== 0)) {
+    throw new Error('INVALID_WA_USER_OVERRIDE_DEFAULT');
   }
 }
 function routingSignature(source, caseTypePrefix, entry) {
@@ -106,7 +114,7 @@ function familiesInConfiguration(config) {
     if (typeof family !== 'string' || !/^[A-Z][A-Z0-9_]*$/.test(family)) throw new Error('Invalid configuration family');
     capabilities.set(family, unique([...(capabilities.get(family) ?? []), capability]));
   };
-  for (const key of configurationKeys.slice(0, 4)) {
+  for (const key of ['jurisdictions', 'globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions']) {
     if (config[key] !== undefined) {
       if (typeof config[key] !== 'string') throw new Error(`Invalid configuration list: ${key}`);
       for (const family of config[key].split(',').map((item) => item.trim()).filter(Boolean)) add(family, key);
@@ -142,6 +150,7 @@ export function buildConfigurationCatalogue(snapshot, review) {
   const definitionPaths = new Set(projection.map(item => item.path));
   const configurations = snapshot.sources.filter((source) => source.repository === 'rpx-xui-webapp');
   configurations.forEach(validateRoutingConfiguration);
+  configurations.forEach(validateWorkAllocationOverrideConfiguration);
   const defaults = configurations.find((source) => source.path === 'config/default.json');
   if (!defaults) throw new Error('Missing default configuration');
   const configurationProfiles = [];

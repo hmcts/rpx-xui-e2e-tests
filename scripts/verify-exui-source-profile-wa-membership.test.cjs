@@ -29,6 +29,15 @@ test('WA membership oracle proves both negative routes and independent IA contro
   assert.deepEqual(result,{facet:'WA completable-task jurisdiction membership',families:['CMC','IA'],runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false});
   const changed=evidence(fault);assert.throws(()=>validate(changed.observations,changed.journal,fault),/^Error: SOURCE_PROFILE_WA_MEMBERSHIP_ASSERTION$/);
 });
+test('Divorce WA is present, and removing it fails while IA remains available',async()=>{
+  const {validateWaMembershipObservations:validate,DIVORCE_WA_FAULT}=await import('./lib/exui-source-profile-wa-membership.mjs');
+  const calls=vectors.map(row=>row[1]==='CMC'?[row[0],'DIVORCE',row[2],'HarnessMembershipDIVORCE',row[4],row[5].replace('cmc','divorce')]:row);
+  const make=mutation=>({observations:calls.map(row=>({route:row[0],family:row[1],status:200,body:mutation&&row[1]==='DIVORCE'?[]:marker(row)})),journal:calls.filter(row=>!mutation||row[1]==='IA').map(row=>({method:'POST',path:'/task/search-for-completable',body:payload(row)}))});
+  const baseline=make(null),mutant=make(DIVORCE_WA_FAULT);
+  assert.equal(validate(baseline.observations,baseline.journal,null,'DIVORCE').families[0],'DIVORCE');
+  assert.throws(()=>validate(mutant.observations,mutant.journal,DIVORCE_WA_FAULT,'DIVORCE'),/SOURCE_PROFILE_WA_MEMBERSHIP_ASSERTION/);
+  assert.throws(()=>validate(baseline.observations,baseline.journal,DIVORCE_WA_FAULT,'DIVORCE'),/SOURCE_PROFILE_MEMBERSHIP_/);
+});
 
 for(const [name,change] of [
   ['missing positive response',e=>e.observations[1].body=[]],

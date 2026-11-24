@@ -10,8 +10,8 @@ const temp = t => { const root = fs.mkdtempSync(path.join(fs.realpathSync(os.tmp
 
 test('fixed ST_CIC contract identifies one published consumer and five no-credit facets', async () => {
   const m = await contract(), value = m.stCicProfileContract();
-  assert.equal(value.obligationId, 'configuration-profile:31fed7b5d70bd2e333287f0b982632381576d11fbc15d71e90f27c14d986983b');
-  assert.equal(value.consumerRevision, '1a986f4dc87e6ea4598e30c042bf2b3072122b75');
+  assert.equal(value.obligationId, 'configuration-profile:03ae2c4f20f27a93d350eaab94c9e46e4947ecb2096c9e3df03a514661ede29e');
+  assert.equal(value.consumerRevision, '02c16611cb863100701af639ddb446b88e0097f1');
   assert.equal(value.sourceKey, 'rpx-xui-webapp:config/default.json');
   assert.deepEqual(value.capabilities, ['globalSearchServices','waSupportedJurisdictions','staffSupportedJurisdictions','serviceRefDataMapping']);
   assert.equal(value.facets.length, 5); assert.equal(new Set(value.facets.map(row => row.fault)).size, 5);
@@ -48,7 +48,7 @@ test('each declared configuration fault changes exactly its setting and never a 
   for (const { facet, fault } of m.ST_CIC_PROFILE_FACETS) {
     const expected = structuredClone(source);
     if (facet === 'st-cic-global-search') expected.globalSearchServices = 'IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,PROBATE,PCS,DIVORCE';
-    if (facet === 'st-cic-wa') expected.waSupportedJurisdictions = 'IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,PCS';
+    if (facet === 'st-cic-wa') expected.waSupportedJurisdictions = 'IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,PCS,DIVORCE';
     if (facet === 'st-cic-staff') expected.staffSupportedJurisdictions = 'CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS';
     if (facet === 'st-cic-mapping') expected.serviceRefDataMapping.find(row => row.service === 'ST_CIC').serviceCodes = ['ZZZ1'];
     if (facet === 'st-cic-wa-health') expected.feature.workAllocationEnabled = true;

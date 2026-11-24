@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { sourceProfileJurisdictionConfiguration } from './exui-source-profile-jurisdictions.mjs';
 import { digestBytes } from './exui-evidence-io.mjs';
 
-export const ST_CIC_PROFILE_ID = 'configuration-profile:31fed7b5d70bd2e333287f0b982632381576d11fbc15d71e90f27c14d986983b';
+export const ST_CIC_PROFILE_ID = 'configuration-profile:03ae2c4f20f27a93d350eaab94c9e46e4947ecb2096c9e3df03a514661ede29e';
 export const ST_CIC_PROFILE_FACETS = Object.freeze([
   { facet: 'st-cic-global-search', fault: 'source-profile-drop-st-cic-global-search', browser: true },
   { facet: 'st-cic-wa', fault: 'source-profile-remove-st-cic-wa-membership', browser: false },
@@ -12,9 +12,9 @@ export const ST_CIC_PROFILE_FACETS = Object.freeze([
 ].map(Object.freeze));
 export const stCicProfileContract = () => ({
   schemaVersion: 1, obligationId: ST_CIC_PROFILE_ID, profile: 'config/default.json', family: 'ST_CIC',
-  sourceKey: 'rpx-xui-webapp:config/default.json', sourceRevision: '20c6ec129fc1e81061c733e164198ec63a33e71a',
-  sourceDigest: 'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
-  consumerRevision: '1a986f4dc87e6ea4598e30c042bf2b3072122b75',
+  sourceKey: 'rpx-xui-webapp:config/default.json', sourceRevision: '02c16611cb863100701af639ddb446b88e0097f1',
+  sourceDigest: 'sha256:dfa4df801a06ded03cae6acf9145344207a0fb0c5b6680f360df66b495e2eb73',
+  consumerRevision: '02c16611cb863100701af639ddb446b88e0097f1',
   capabilities: ['globalSearchServices', 'waSupportedJurisdictions', 'staffSupportedJurisdictions', 'serviceRefDataMapping'],
   facets: structuredClone(ST_CIC_PROFILE_FACETS),
   dispositions: ['ST_CIC absent from jurisdictions: no jurisdiction selector/filter/cache credit',

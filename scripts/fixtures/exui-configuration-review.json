@@ -229,8 +229,8 @@
     }
   ],
   "sourceFragmentDigests": {
-    "rpx-xui-webapp:config/custom-environment-variables.json": "ddea9a69450902d3d539672005f8aa0618b4be6c83da60f32fe25ed3b60892cd",
-    "rpx-xui-webapp:config/default.json": "32a1990fe094d06d992dadc20d875430cd621986e9567631c04da746e402e68a",
+    "rpx-xui-webapp:config/custom-environment-variables.json": "e238adb70023ea4ba03f4463098b858f60900cf4a1855f0a4a8f34de91fa1623",
+    "rpx-xui-webapp:config/default.json": "b1c45ca0372a0c2ba456ae424f5d3e50cf32d31348c49f805f7005694ba3657d",
     "prl-ccd-definitions:definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json": "4dfa04d11acf86a8c3e7de6061df101b0c96fd05ca5a28811bbd42602cf2b3ff",
     "prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json": "9f54fd332e7a436b32a456faee128c202a6bc630b327e189e817f8fed95f8414",
     "prl-ccd-definitions:definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json": "18c9d59c81a33136a4877b38469d92d4e14edda205d0a578e9b9c9ecf73a618f",
@@ -341,8 +341,8 @@
     ]
   },
   "sourceFileDigests": {
-    "rpx-xui-webapp:config/custom-environment-variables.json": "094eb0b44b3161095b0b8ec484ae3d047ad5d8a880d08d199d7aae4d2e2e4b9d",
-    "rpx-xui-webapp:config/default.json": "ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1",
+    "rpx-xui-webapp:config/custom-environment-variables.json": "8297a65e139303521c90dabd014a05692dbfdf882df2b98369172a6b90e2b286",
+    "rpx-xui-webapp:config/default.json": "dfa4df801a06ded03cae6acf9145344207a0fb0c5b6680f360df66b495e2eb73",
     "prl-ccd-definitions:definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json": "685707c79e49ee0b51883c5d06187e38a584ce3e4cd526124f72b3fbfe4a9748",
     "prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json": "c169af98fa7ea2b08bb97b63d75ad7411513c28982f54aeba84740cbe859e5f6",
     "prl-ccd-definitions:definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json": "246b111d163ec15d3e9303c807b9ede7c987133de336bc541a483b0f3bbb90c1",
@@ -354,8 +354,8 @@
     "prl-ccd-definitions:definitions/private-law/json/WorkBasketResultFields.json": "fc8c5a0b67387c4ce65d679ae0b3acca86614a09c29d92697d3e7c9f118cfcdb"
   },
   "sourceRevisions": {
-    "rpx-xui-webapp:config/custom-environment-variables.json": "20c6ec129fc1e81061c733e164198ec63a33e71a",
-    "rpx-xui-webapp:config/default.json": "20c6ec129fc1e81061c733e164198ec63a33e71a",
+    "rpx-xui-webapp:config/custom-environment-variables.json": "02c16611cb863100701af639ddb446b88e0097f1",
+    "rpx-xui-webapp:config/default.json": "02c16611cb863100701af639ddb446b88e0097f1",
     "prl-ccd-definitions:definitions/private-law/json/CaseField/ServiceOfDocuments/CaseField.json": "694b9951e94369f1394380506960c4f04f25755d",
     "prl-ccd-definitions:definitions/private-law/json/ComplexTypes/ManageOrders/OrderDetails/ComplexTypes.json": "694b9951e94369f1394380506960c4f04f25755d",
     "prl-ccd-definitions:definitions/private-law/json/CaseEventToFields/ServiceOfDocuments/Page2/CaseEventToFields.json": "694b9951e94369f1394380506960c4f04f25755d",
@@ -679,11 +679,11 @@
     "boundary": "reviewed-source-context-only",
     "knownValid": [
       {
-        "id": "configuration-decentralisation:24b0d8b94327dfc6b9e00f19814604c11c7fcbecc3171af4dd8b68c97a5b2e24",
+        "id": "configuration-decentralisation:03325d951c934d84d8cf1450eb67b58990ee24778fadc0e9c4fb3b4a7d29aa66",
         "signature": {
           "schemaVersion": 1,
           "profile": "config/default.json",
-          "sourceRevision": "20c6ec129fc1e81061c733e164198ec63a33e71a",
+          "sourceRevision": "02c16611cb863100701af639ddb446b88e0097f1",
           "caseTypePrefix": "PCS",
           "webUrl": "https://pcs.platform.hmcts.net",
           "nocBaseUrl": "http://pcs-api-prod.service.core-compute-prod.internal",
@@ -710,7 +710,7 @@
     "interpreterContext": "Pinned code references and hashes remain in the reviewed source design evidence; no interpreter source is freshly verified or executed by this catalogue.",
     "interpreterPin": {
       "repository": "hmcts/rpx-xui-webapp",
-      "revision": "20c6ec129fc1e81061c733e164198ec63a33e71a",
+      "revision": "02c16611cb863100701af639ddb446b88e0097f1",
       "sourceTree": "5161ea54f3100168c9cb437d6f51ffc73b55f436",
       "sourceHashes": {
         "common/decentralisation/decentralised-redirect.util.ts": "sha256:73c5881e18ab7cfb258a97c1a3cd31a9ca92940d3983e48c15d51162e76a4e7b",

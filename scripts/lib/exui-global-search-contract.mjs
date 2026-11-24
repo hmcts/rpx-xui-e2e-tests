@@ -4,7 +4,7 @@ import { digestBytes } from './exui-evidence-io.mjs';
 export const GLOBAL_SEARCH_SCOPE = 'exui-global-search-pilot';
 export const GLOBAL_SEARCH_MUTATION = 'global-search-wa-capability';
 const nine = ['IA','CIVIL','PRIVATELAW','PUBLICLAW','EMPLOYMENT','ST_CIC','PROBATE','PCS','DIVORCE'];
-const seven = ['IA','CIVIL','PRIVATELAW','PUBLICLAW','EMPLOYMENT','ST_CIC','PCS'];
+const eight = ['IA','CIVIL','PRIVATELAW','PUBLICLAW','EMPLOYMENT','ST_CIC','PCS','DIVORCE'];
 // Independently authored upstream rows: deliberately shuffled, with one non-Global-Search service.
 export function globalSearchReferenceRows() {
   return [
@@ -34,7 +34,7 @@ export function isGlobalSearchRequest(body) {
   if (!Array.isArray(ids) || !ids.every(id => typeof id === 'string')) return false;
   const normalized = structuredClone(body);
   normalized.searchCriteria.CCDJurisdictionIds = [...ids].sort();
-  return [nine, seven].some(services => isDeepStrictEqual(normalized, {
+  return [nine, eight].some(services => isDeepStrictEqual(normalized, {
     searchCriteria: { CCDCaseTypeIds: null, CCDJurisdictionIds: [...services].sort(),
       caseManagementBaseLocationIds: null, caseManagementRegionIds: null,
       caseReferences: ['1111222233334444'], otherReferences: null, parties: [], stateIds: null },
@@ -42,7 +42,7 @@ export function isGlobalSearchRequest(body) {
   }));
 }
 export const globalSearchContract = () => ({
-  reviewedSourceRevision: '20c6ec129fc1e81061c733e164198ec63a33e71a',
+  reviewedSourceRevision: '02c16611cb863100701af639ddb446b88e0097f1',
   referenceDataDigest: digestBytes(JSON.stringify(globalSearchReferenceRows())),
-  scope: 'literal Global Search nine versus WA seven; synthetic labels; no profile/CCD/cache/auth credit',
+  scope: 'literal Global Search nine versus WA eight; synthetic labels; no profile/CCD/cache/auth credit',
 });

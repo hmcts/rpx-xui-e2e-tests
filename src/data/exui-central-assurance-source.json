@@ -19,8 +19,10 @@
         "PUBLICLAW",
         "EMPLOYMENT",
         "ST_CIC",
-        "PCS"
+        "PCS",
+        "DIVORCE"
       ],
+      "waSupportedJurisdictionUsers": [],
       "staffSupportedJurisdictions": [
         "ST_CIC",
         "CIVIL",
@@ -119,12 +121,7 @@
         {
           "service": "DIVORCE",
           "serviceCodes": [
-            "ABA1"
-          ]
-        },
-        {
-          "service": "FR",
-          "serviceCodes": [
+            "ABA1",
             "ABA2"
           ]
         },
@@ -151,6 +148,7 @@
     "config/custom-environment-variables.json": {
       "globalSearchServices": "GLOBAL_SEARCH_SERVICES",
       "waSupportedJurisdictions": "WA_SUPPORTED_JURISDICTIONS",
+      "waSupportedJurisdictionUsers": "WA_SUPPORTED_JURISDICTION_USERS",
       "staffSupportedJurisdictions": "STAFF_SUPPORTED_JURISDICTIONS",
       "jurisdictions": "JURISDICTIONS",
       "serviceRefDataMapping": "SERVICE_REF_DATA_MAPPING",

@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Module } = require('node:module');
 const hash = letter => 'sha256:' + letter.repeat(64);
-const ID = 'configuration-profile:31fed7b5d70bd2e333287f0b982632381576d11fbc15d71e90f27c14d986983b';
+const ID = 'configuration-profile:03ae2c4f20f27a93d350eaab94c9e46e4947ecb2096c9e3df03a514661ede29e';
 const sourceKeys = ['rpx-xui-webapp:config/default.json', 'rpx-xui-webapp:config/default.json'];
 function reportModule(file) {
   const mutation = process.env.ST_CIC_PROFILE_REPORT_TEST_MUTATION;

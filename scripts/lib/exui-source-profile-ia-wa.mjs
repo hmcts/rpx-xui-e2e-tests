@@ -7,7 +7,7 @@ import {digestBytes} from './exui-evidence-io.mjs';
 
 export const IA_WA_SCOPE='exui-source-profile-ia-wa-positive-feasibility';
 export const IA_WA_FAULT='source-profile-remove-ia-wa-membership';
-const membership='IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS';
+const membership='IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS,DIVORCE';
 const calls=[
   {route:'case-event',family:'IA',caseId:'3333444455556666',caseType:'HarnessPositiveIA',eventId:'positiveRouteIA',marker:'positive-ia-route'},
   {route:'case-event',family:'CIVIL',caseId:'7777888899990000',caseType:'HarnessPositiveCIVIL',eventId:'positiveRouteCIVIL',marker:'positive-civil-route'},

@@ -15,8 +15,8 @@ const APPLICANT_RESULTS_IDS = [
 const { escape } = require("./harness-report-coverage.cjs");
 const { ST_CIC_PROFILE_ID, renderStCicProfileAdmission, renderStCicExecutionInfo } = require('./harness-st-cic-profile-report.cjs');
 const mandatoryReport = require('./harness-mandatory-email-report.cjs');
-const FR_PROFILE_ID = "configuration-profile:51928e898baad9d4eea1dab7b8a57f8c3af624e735f0b3df5ee6863ca0061c49";
-const CMC_PROFILE_ID = "configuration-profile:9f8861dc4397f038730d2e35ba50dbab6de81313c46f8978298511a2420b3a0c";
+const FR_PROFILE_ID = "configuration-profile:3b1c3a1c7c3082ca986bbb8d1ce6f625ba1d54aa831e31f1678845db95229fbe";
+const CMC_PROFILE_ID = "configuration-profile:57daf2b4a9f9cc6465db5cdeec7e1024dd4dc4e20bd20086e47102b521199449";
 
 // Reviewed labels describe the fixed proof, never infer per-service execution from a PASS.
 const proofs = {
@@ -453,7 +453,7 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
   if(frProfile){
     assert.equal(frProfile.obligationId,FR_PROFILE_ID,'NATIVE_REPORT_FR_PROFILE_JOIN');
     assert.equal(frProfile.status,'passed','NATIVE_REPORT_FR_PROFILE_JOIN');
-    assert.equal(frProfile.accepted,frProfile.joint.status==='included'?1:0,'NATIVE_REPORT_FR_PROFILE_JOIN');
+    assert.equal(frProfile.accepted,0,'NATIVE_REPORT_FR_PROFILE_JOIN');
     if(frProfile.joint.status==='included')assert.equal(frProfile.joint.nativeRunId,evidence.jobRunId,'NATIVE_REPORT_FR_PROFILE_JOIN');
     assert.equal(frProfile.candidateArtifactDigest,evidence.source.candidateArtifactDigest,'NATIVE_REPORT_FR_PROFILE_JOIN');
     assert.equal(frProfile.candidateCommit,evidence.source.webappCommit,'NATIVE_REPORT_FR_PROFILE_JOIN');
@@ -461,15 +461,15 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
     assert.equal(frProfile.catalogueDigest,evidence.catalogueCoverage.catalogueDigest,'NATIVE_REPORT_FR_PROFILE_JOIN');
     if(frProfile.joint.status==='included'){
       assert.equal(frProfile.producerDigest,evidence.source.harnessSourceDigest,'NATIVE_REPORT_FR_PROFILE_JOIN');
-      assert.deepEqual(evidence.catalogueCoverage.frProfileAdmission,frProfile.joint,'NATIVE_REPORT_FR_PROFILE_JOIN');
-      assert.equal(evidence.catalogueCoverage.creditedObligationIds.filter(id=>id===FR_PROFILE_ID).length,1,'NATIVE_REPORT_FR_PROFILE_JOIN');
+      assert.equal(evidence.catalogueCoverage.creditedObligationIds.includes(FR_PROFILE_ID),false,'NATIVE_REPORT_FR_PROFILE_JOIN');
+      assert.equal(Object.hasOwn(evidence.catalogueCoverage,'frProfileAdmission'),false,'NATIVE_REPORT_FR_PROFILE_JOIN');
     }else{
       assert.equal(frProfile.joint.status,'separate','NATIVE_REPORT_FR_PROFILE_JOIN');
       assert.equal(evidence.catalogueCoverage.creditedObligationIds.includes(FR_PROFILE_ID),false,'NATIVE_REPORT_FR_PROFILE_JOIN');
       assert.equal(Object.hasOwn(evidence.catalogueCoverage,'frProfileAdmission'),false,'NATIVE_REPORT_FR_PROFILE_JOIN');
     }
   }
-  const frProfileReport=frProfile?`<section id="harness-fr-profile-admission" class="odhin-thin-border p-3 mt-3" aria-labelledby="harness-fr-profile-title"><h2 id="harness-fr-profile-title">FR configuration profile: ${frProfile.joint.status==='included'?'1 requirement included':'not included in this native run'}</h2><p><strong>${frProfile.accepted} / 1 catalogue requirements accepted.</strong> Three candidate consumer slices checked jurisdiction membership, staff-supported membership, and the FR reference-data mapping to ABA2. Each slice has a baseline and an effective controlled fault.</p><p>${frProfile.joint.status==='included'?'The profile is joined to the candidate, Harness producer, runtime, catalogue and native run shown above.':'The profile evidence belongs to a separate candidate or source binding; it adds no catalogue credit and the release gate remains unavailable.'}</p><details><summary>FR evidence identity and boundaries</summary><dl>${[['FR proof run',frProfile.runId],['Native run',evidence.jobRunId],['Candidate commit',frProfile.candidateCommit],['Candidate artifact',frProfile.candidateArtifactDigest],['Harness producer',frProfile.producerCommit],['Harness source digest',frProfile.producerDigest],['Configuration catalogue',frProfile.catalogueDigest],['Profile contract',frProfile.contractDigest],['Three-slice cohort',frProfile.cohortDigest]].map(([label,value])=>`<dt>${label}</dt><dd><code>${escape(value)}</code></dd>`).join('')}</dl></details><p>Jurisdiction evidence: two GET responses per access value (read, create and default) must agree with the exact source-derived baseline or fault jurisdiction IDs. Extra or missing jurisdiction IDs fail; FR must be present at baseline and absent after its controlled fault.</p><p><strong>Limits:</strong> candidate EXUI configuration and consumers only, with synthetic sessions and reference providers. This does not prove deployed overlays, CCD definitions or authorisations, production reference-data correctness, global search, WA, hearings, or a full FR case journey. No release approval.</p></section>`:'';
+  const frProfileReport=frProfile?`<section id="harness-fr-profile-admission" class="odhin-thin-border p-3 mt-3" aria-labelledby="harness-fr-profile-title"><h2 id="harness-fr-profile-title">FR and DIVORCE candidate diagnostic: ${frProfile.joint.status==='included'?'joined to this native run':'separate from this native run'}</h2><p><strong>${frProfile.accepted} / 1 catalogue requirements accepted.</strong> Three candidate consumer slices checked FR jurisdiction membership, FR staff-supported membership, and the DIVORCE reference-data mapping to ABA2. The mixed-family evidence grants no FR catalogue credit. Each slice has a baseline and an effective controlled fault.</p><p>${frProfile.joint.status==='included'?'The diagnostic is joined to the candidate, Harness producer, runtime, catalogue and native run shown above; the FR catalogue requirement remains uncredited.':'The profile evidence belongs to a separate candidate or source binding; it adds no catalogue credit and the release gate remains unavailable.'}</p><details><summary>FR evidence identity and boundaries</summary><dl>${[['FR proof run',frProfile.runId],['Native run',evidence.jobRunId],['Candidate commit',frProfile.candidateCommit],['Candidate artifact',frProfile.candidateArtifactDigest],['Harness producer',frProfile.producerCommit],['Harness source digest',frProfile.producerDigest],['Configuration catalogue',frProfile.catalogueDigest],['Profile contract',frProfile.contractDigest],['Three-slice cohort',frProfile.cohortDigest]].map(([label,value])=>`<dt>${label}</dt><dd><code>${escape(value)}</code></dd>`).join('')}</dl></details><p>Jurisdiction evidence: two GET responses per access value (read, create and default) must agree with the exact source-derived baseline or fault jurisdiction IDs. Extra or missing jurisdiction IDs fail; FR must be present at baseline and absent after its controlled fault.</p><p><strong>Limits:</strong> candidate EXUI configuration and consumers only, with synthetic sessions and reference providers. This does not prove deployed overlays, CCD definitions or authorisations, production reference-data correctness, global search, WA, hearings, or a full FR case journey. No release approval.</p></section>`:'';
   const cmcProfile=evidence.cmcProfileAdmission;
   if(cmcProfile){
     assert.equal(cmcProfile.obligationId,CMC_PROFILE_ID,'NATIVE_REPORT_CMC_PROFILE_JOIN');assert.equal(cmcProfile.status,'passed','NATIVE_REPORT_CMC_PROFILE_JOIN');assert.equal(cmcProfile.accepted,cmcProfile.joint.status==='included'?1:0,'NATIVE_REPORT_CMC_PROFILE_JOIN');
@@ -507,9 +507,9 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
       if (id === ST_CIC_PROFILE_ID) return stCic?.joint.status !== 'included';
       if(id===PERSONAL_SERVICE_ID)return personal?.joint?.status!=="included";
       if (id === COMPLEX_EMAIL_ID) return complex?.joint?.status !== 'included';
-      if (id === "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce") return evidence.divorceProfileAdmission?.joint?.status !== "included";
+      if (id === "configuration-profile:a850151055dc0f5c267d19fa265a7a5b3dfb624ad3d42782e1828a345d85f061") return evidence.divorceProfileAdmission?.joint?.status !== "included";
       if (APPLICANT_RESULTS_IDS.includes(id)) return coverage.applicantResultsAdmission?.status !== 'included' || !coverage.applicantResultsAdmission.obligationIds?.includes(id);
-      if (id === FR_PROFILE_ID) return evidence.frProfileAdmission?.joint?.status !== "included";
+      if (id === FR_PROFILE_ID) return true;
       if (id === CMC_PROFILE_ID) return evidence.cmcProfileAdmission?.joint?.status !== "included";
       const phase =
         id === "configuration-shared:role-policy" ? "ccd" :
@@ -536,7 +536,7 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
               "configuration-cell:f7f66f942a035e26181e64394e37d1a02fb113bff32db52c94906c1842222bbb"].includes(id)
             ? "eventCapability"
             : id ===
-                "configuration-decentralisation:24b0d8b94327dfc6b9e00f19814604c11c7fcbecc3171af4dd8b68c97a5b2e24"
+                "configuration-decentralisation:03325d951c934d84d8cf1450eb67b58990ee24778fadc0e9c4fb3b4a7d29aa66"
               ? "routing"
               : id === "configuration-shape:4872034ffec23e993a49315123c3a22472baf5411d8010f31d3d01644f23cd94"
                 ? "recipientCallback"
@@ -578,11 +578,11 @@ function renderNativeEvidence(evidence, mandatoryEmailTiming) {
     ], 'NATIVE_REPORT_APPLICANT_JOIN');
     assert.equal(coverage.creditedObligationIds.filter(id => APPLICANT_RESULTS_IDS.includes(id)).length, APPLICANT_RESULTS_IDS.length, 'NATIVE_REPORT_APPLICANT_JOIN');
   } else if (coverage.creditedObligationIds.some(id => APPLICANT_RESULTS_IDS.includes(id))) throw new Error('NATIVE_REPORT_APPLICANT_JOIN');
-  const profileId = "configuration-profile:2260b5331c599e46abfb999b6daeb8612a342c884dd0b88e1c23c04adecc79ce";
+  const profileId = "configuration-profile:a850151055dc0f5c267d19fa265a7a5b3dfb624ad3d42782e1828a345d85f061";
   assert.equal(coverage.creditedObligationIds.includes(profileId), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
   assert.equal(Boolean(coverage.divorceProfileAdmission), evidence.divorceProfileAdmission?.joint?.status === "included", "NATIVE_REPORT_PROFILE_JOIN");
-  assert.equal(coverage.creditedObligationIds.includes(FR_PROFILE_ID),frProfile?.joint?.status==='included','NATIVE_REPORT_FR_PROFILE_JOIN');
-  assert.equal(Object.hasOwn(coverage,'frProfileAdmission'),frProfile?.joint?.status==='included','NATIVE_REPORT_FR_PROFILE_JOIN');
+  assert.equal(coverage.creditedObligationIds.includes(FR_PROFILE_ID),false,'NATIVE_REPORT_FR_PROFILE_JOIN');
+  assert.equal(Object.hasOwn(coverage,'frProfileAdmission'),false,'NATIVE_REPORT_FR_PROFILE_JOIN');
   assert.equal(coverage.creditedObligationIds.includes(CMC_PROFILE_ID),cmcProfile?.joint?.status==='included','NATIVE_REPORT_CMC_PROFILE_JOIN');
   assert.equal(Object.hasOwn(coverage,'cmcProfileAdmission'),cmcProfile?.joint?.status==='included','NATIVE_REPORT_CMC_PROFILE_JOIN');
   assert.equal(coverage.creditedObligationIds.includes(PERSONAL_SERVICE_ID),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');assert.equal(Boolean(coverage.personalServiceAdmission),personal?.joint?.status==='included','NATIVE_REPORT_PERSONAL_JOIN');

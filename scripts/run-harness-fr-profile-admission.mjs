@@ -93,6 +93,6 @@ export function readFrProfileAdmissionPacket(requestPath,requestPin,nativeContex
   }
  }
  const admission=admitFrProfile(profile,nativeContext,catalogue);assert.deepEqual(stored,admission,fail);
- const joint=frNativeProfileCompatibility(nativeContext,profile);assert.equal(stored.accepted,joint.status==='included'?1:0,fail);assert.deepEqual(stored.joint,joint,fail);
+ const joint=frNativeProfileCompatibility(nativeContext,profile);assert.equal(stored.accepted,0,fail);assert.deepEqual(stored.joint,joint,fail);
  return {admission,joint,profile};
 }

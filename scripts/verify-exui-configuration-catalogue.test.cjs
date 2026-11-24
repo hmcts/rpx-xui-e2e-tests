@@ -21,9 +21,11 @@ test('pinned decentralised case-type destinations and empty service map remain d
     caseTypes: 'SERVICES_HEARINGS_CASETYPES_PCS',
     serviceApiEnvironment: 'SERVICES_HEARINGS_COMPONENT_API_PCS',
   });
-  assert.equal(defaults.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
-  assert.equal(source(snapshot, 'config/custom-environment-variables.json').fileDigest, '094eb0b44b3161095b0b8ec484ae3d047ad5d8a880d08d199d7aae4d2e2e4b9d');
-  for (const item of snapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) assert.equal(item.revision, '20c6ec129fc1e81061c733e164198ec63a33e71a');
+  assert.equal(defaults.fileDigest, 'dfa4df801a06ded03cae6acf9145344207a0fb0c5b6680f360df66b495e2eb73');
+  assert.deepEqual(defaults.document.waSupportedJurisdictionUsers, []);
+  assert.deepEqual(env.waSupportedJurisdictionUsers, { __name: 'WA_SUPPORTED_JURISDICTION_USERS', __format: 'json' });
+  assert.equal(source(snapshot, 'config/custom-environment-variables.json').fileDigest, '8297a65e139303521c90dabd014a05692dbfdf882df2b98369172a6b90e2b286');
+  for (const item of snapshot.sources.filter(item => item.repository === 'rpx-xui-webapp')) assert.equal(item.revision, '02c16611cb863100701af639ddb446b88e0097f1');
   const catalogue = build();
   const routes = catalogue.obligations.filter(item => item.kind === 'configuration-decentralisation');
   assert.equal(routes.length, 1);
@@ -140,6 +142,17 @@ test('candidate source validation requires reviewed config bytes before any runt
     delete localReview.sourceFileDigests['rpx-xui-webapp:config/default.json'];
     assert.throws(() => api.assertCandidateConfigurationSources(directory, localReview), /MISSING_REVIEWED/);
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('work allocation user override source requires an empty default and a JSON environment mapping', () => {
+  for (const [path, value] of [
+    ['config/default.json', [{ uid: 'user-1', jurisdictions: 'DIVORCE' }]],
+    ['config/custom-environment-variables.json', { __name: 'WA_SUPPORTED_JURISDICTION_USERS', __format: 'string' }],
+  ]) {
+    const changed = structuredClone(snapshot);
+    source(changed, path).document.waSupportedJurisdictionUsers = value;
+    assert.throws(() => build(changed), /INVALID_WA_USER_OVERRIDE/);
+  }
 });
 
 test('catalogue command requires explicit actual source paths and rejects unsupported input', () => {
@@ -384,12 +397,12 @@ test('event authorisation for another case type cannot satisfy PRLAPPS pilot exa
   assert.equal(result.denominator.cataloguedPilotCells, 0);
 });
 
-test('current pinned seven-family source is accepted while the previous six-family source and missing PCS are rejected', () => {
-  const expected = ['CIVIL', 'EMPLOYMENT', 'IA', 'PCS', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'];
+test('current pinned eight-family source is accepted while the previous seven-family source and missing PCS are rejected', () => {
+  const expected = ['CIVIL', 'DIVORCE', 'EMPLOYMENT', 'IA', 'PCS', 'PRIVATELAW', 'PUBLICLAW', 'ST_CIC'];
   const current = source(snapshot, 'config/default.json');
   assert.deepEqual(current.document.waSupportedJurisdictions.split(',').sort(), expected);
-  assert.equal(current.revision, '20c6ec129fc1e81061c733e164198ec63a33e71a');
-  assert.equal(current.fileDigest, 'ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1');
+  assert.equal(current.revision, '02c16611cb863100701af639ddb446b88e0097f1');
+  assert.equal(current.fileDigest, 'dfa4df801a06ded03cae6acf9145344207a0fb0c5b6680f360df66b495e2eb73');
   assert.deepEqual(current.document.serviceRefDataMapping.find((row) => row.service === 'PCS').serviceCodes, ['AAA3']);
   assert.deepEqual(api.validateConfigurationCatalogue({ snapshot, review, catalogue: build() }).errors, []);
   for (const historical of [false, true]) {
@@ -445,7 +458,7 @@ test('routing projection preserves historical IDs and non-profile objects apart 
   const original = previous.obligations.filter(item => item.id !== id).map(item => item.id).sort();
   assert.equal(previous.obligations.length, 111);
   assert.equal(catalogue.obligations.length, 112);
-  assert.equal(createHash('sha256').update(JSON.stringify(original)).digest('hex'), 'f5671fcc666657de7ca663d3763754ad4698020dceca8e8659e8af7f90aa7207');
+  assert.equal(createHash('sha256').update(JSON.stringify(original)).digest('hex'), '2b8ee51e6cc9a26d480862e690881b6ecf0d86ac7107a752310d8e96c91c1915');
   const remaining = catalogue.obligations.filter(item => !['configuration-profile', 'configuration-decentralisation'].includes(item.kind));
   assert.equal(remaining.length, 98);
   assert.deepEqual(remaining, previous.obligations.filter(item => item.kind !== 'configuration-profile'));

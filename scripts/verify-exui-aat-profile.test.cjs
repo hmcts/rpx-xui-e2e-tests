@@ -7,7 +7,7 @@ function api() {
   assert.ok(fs.existsSync(helper), "reviewed AAT profile oracle must exist");
   return require(helper);
 }
-test("AAT declared8/8/12 differ from default9/7/12 without changing the model defaults", () => {
+test("AAT declared8/8/12 differ from default9/8/12 without changing the model defaults", () => {
   const { readAatProfile, compareAatFamilies } = api();
   const profile = readAatProfile();
   assert.equal(profile.families.globalSearchServices.length, 8);
@@ -19,7 +19,7 @@ test("AAT declared8/8/12 differ from default9/7/12 without changing the model de
   const defaults = require("../src/data/exui-central-assurance-source.json")
     .rpxXuiWebapp["config/default.json"];
   assert.equal(defaults.globalSearchServices.length, 9);
-  assert.equal(defaults.waSupportedJurisdictions.length, 7);
+  assert.equal(defaults.waSupportedJurisdictions.length, 8);
   assert.equal(
     compareAatFamilies(
       "globalSearchServices",
