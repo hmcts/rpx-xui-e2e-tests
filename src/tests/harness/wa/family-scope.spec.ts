@@ -5,6 +5,7 @@ import { test, expect } from "../../../fixtures/harness";
 // Reviewed independently of candidate constants and refdata: this fixture defines the pilot obligation.
 const families = [
   "CIVIL",
+  "DIVORCE",
   "EMPLOYMENT",
   "IA",
   "PCS",
