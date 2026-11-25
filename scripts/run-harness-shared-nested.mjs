@@ -13,7 +13,7 @@ import {cleanupNativeOwnership} from './lib/exui-native-ci-ownership.mjs';
 import {inspectHostContainer,hostDocker} from './lib/exui-host-invocation.mjs';
 import {terminateOwnedChild} from './lib/exui-candidate-runtime.mjs';
 import {effectiveCandidateConfiguration} from './lib/exui-candidate-runtime.mjs';
-import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {digestBytes,digestCcdApiContract,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {SHARED_NESTED_SCOPE} from './lib/exui-shared-nested-contract.mjs';
 const root=fileURLToPath(new URL('../',import.meta.url));
 const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));
@@ -31,7 +31,7 @@ export async function runSharedNestedAttempt(value) {
   context.ccd=await startCcdRuntime(runtime,{platform:context.artifact.provenance.platform,isCancelled:()=>cancelled});importCcdDefinition(context.ccd);
   const observed=verifyCcdRuntimeIdentity(context.ccd),config=effectiveCandidateConfiguration(context.artifact.candidateRoot).config;
   config.now=false;config.jurisdictions=`${config.jurisdictions},HARNESS`;
-  const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(context.ccd,port,'/v3/api-docs');assert.equal(response.status,200,'SHARED_NESTED_API_REQUIRED');return [name,digestBytes(JSON.stringify(response.body))];}));
+  const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(context.ccd,port,'/v3/api-docs');assert.equal(response.status,200,'SHARED_NESTED_API_REQUIRED');return [name,digestCcdApiContract(response.body)];}));
   context.ccdIdentity={...context.artifact.identity,configurationDigest:digestBytes(JSON.stringify({config,gatewayDigest:digestBytes(fs.readFileSync(path.join(root,'scripts/lib/exui-ccd-browser-runtime.mjs'))),mutation:null})),definitionDigests:{HarnessNestedPRL:observed.fixtureDigest},dependencyIdentities:Object.fromEntries([['data','ccd'],['definition','ccd-definition']].map(([name,key])=>[key,{artifactDigest:context.ccd.images[name].id,apiContractDigest:apiContracts[name]}]))};
   terminal=await executeSharedNestedController({script:path.join(root,'scripts/run-harness-ccd-candidate.mjs'),args:['--candidate',job.candidateManifest,'--browser',job.browserCache,'--output',directory,'--ccd-state',path.join(runtime,'runtime.json'),'--scope',SHARED_NESTED_SCOPE],output:directory,onChild:running=>child=running,capturePrepared:(input,handoff)=>{
    assert(!cancelled,'SHARED_NESTED_CANCELLED');

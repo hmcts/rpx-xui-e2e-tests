@@ -18,7 +18,7 @@ import {
 } from "./lib/exui-candidate-artifact.mjs";
 import { verifyHarnessDependencies } from "./lib/exui-harness-dependencies.mjs";
 import { assertCandidateConfigurationSources } from "./lib/exui-configuration-catalogue.mjs";
-import { digestBytes, writeJsonAtomic } from "./lib/exui-evidence-io.mjs";
+import { digestBytes,digestCcdApiContract, writeJsonAtomic } from "./lib/exui-evidence-io.mjs";
 import { createFreshHarnessOutput } from "./lib/exui-output-boundary.mjs";
 import { runNativeHostPhase } from "./lib/exui-native-host.mjs";
 import {
@@ -167,7 +167,7 @@ async function launch() {
     ].map(([service, port]) => {
       const response = ccdRequest(ccd, port, "/v3/api-docs");
       if (response.status !== 200) throw new Error("CCD_API_CONTRACT_REQUIRED");
-      return [service, digestBytes(JSON.stringify(response.body))];
+      return [service, digestCcdApiContract(response.body)];
     }),
   );
   const commit = spawnSync("git", ["rev-parse", "HEAD"], {

@@ -17,7 +17,7 @@ import {startCcdRuntime,docker,ccdCredentials,ccdRequest,verifyCcdContainerIdent
 import {cleanupCiCcd} from './lib/exui-candidate-ci-process.mjs';
 import {prepareRecipientCallbackImport,importRecipientCallback,validateObservedRecipientCallback} from './lib/exui-recipient-callback-import.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
-import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {digestBytes,digestCcdApiContract,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {validateCallbackRowDescriptors,readCallbackStoredDate} from './lib/exui-recipient-callback-facets.mjs';
 import {canonicalRecipientCallbackPages} from './lib/exui-recipient-callback-fixture.mjs';
 import {createFreshHarnessRuntimeOutput} from './lib/exui-output-boundary.mjs';
@@ -164,7 +164,7 @@ export async function runCallbackUi({candidate,browser,output,variant='baseline'
   receipt.import=imported;save();
   assert(!cancelled,'CALLBACK_UI_CANCELLED');
   phase='prepare-actors';const credentials=Object.fromEntries(['allowed','courtadmin','judge','readonly','observer'].map(actor=>[actor,ccdCredentials(ccd,actor)]));
-  phase='prepare-api-contracts';const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(ccd,port,'/v3/api-docs');assert.equal(response.status,200);return[name,digestBytes(JSON.stringify(response.body))];}));
+  phase='prepare-api-contracts';const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(ccd,port,'/v3/api-docs');assert.equal(response.status,200);return[name,digestCcdApiContract(response.body)];}));
   const definition={fixtureDigest:imported.seal.definitionDigest,observedDefinitionDigest:digestBytes(JSON.stringify(imported.observations.definition.body)),definitionVersion:imported.observations.definition.body.version.number};
   phase='stage-native-sources';const runId=mandatoryRunId??('ccd-'+randomUUID());const {workspace,stagedHarness,stateRoot}=createCallbackNativeWorkspace();privateWorkspace=workspace;receipt.privateWorkspace=workspace;save();
   for(const file of CALLBACK_UI_SOURCES){const source=path.join(root,file);assert.equal(fs.realpathSync(source),source);assert(fs.lstatSync(source).isFile());const target=path.join(stagedHarness,file);fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});fs.copyFileSync(source,target);fs.chmodSync(target,0o444);}

@@ -49,7 +49,7 @@ import {
 import { readEventSerialV3SourceShapeSemantics } from "./lib/exui-event-v3-source-shape-semantics.mjs";
 import { inspectHostContainer } from "./lib/exui-host-invocation.mjs";
 import { terminateOwnedChild } from "./lib/exui-candidate-runtime.mjs";
-import { digestBytes } from "./lib/exui-evidence-io.mjs";
+import { digestBytes,digestCcdApiContract } from "./lib/exui-evidence-io.mjs";
 import { nativeIdentity } from "./lib/exui-native-contract.mjs";
 import {
   EVENT_V3_IDS,
@@ -354,7 +354,7 @@ export async function runEventSerialV3(jobPath, { signal } = {}) {
       ].map(([service, port]) => {
         const response = ccdRequest(ccd, port, "/v3/api-docs");
         assert.equal(response.status, 200);
-        return [service, digestBytes(JSON.stringify(response.body))];
+        return [service, digestCcdApiContract(response.body)];
       }),
     );
     return {

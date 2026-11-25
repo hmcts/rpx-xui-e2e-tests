@@ -9,6 +9,16 @@ const hash = value => "sha256:" + createHash("sha256").update(value).digest("hex
 const digest = letter => "sha256:" + letter.repeat(64);
 const load = () => import("./lib/exui-ccd-event-transition.mjs");
 
+test("CCD API digest ignores JSON object order but detects contract changes", async () => {
+  const { digestCcdApiContract } = await import("./lib/exui-evidence-io.mjs");
+  const baseline = { paths: { "/cases": { get: { responses: { 200: { description: "OK" } } } } }, components: { securitySchemes: { bearer: { type: "http" } } } };
+  const reordered = { components: { securitySchemes: { bearer: { type: "http" } } }, paths: { "/cases": { get: { responses: { 200: { description: "OK" } } } } } };
+  assert.notEqual(hash(JSON.stringify(baseline)), hash(JSON.stringify(reordered)));
+  assert.equal(digestCcdApiContract(baseline), digestCcdApiContract(reordered));
+  assert.notEqual(digestCcdApiContract(baseline), digestCcdApiContract({ ...baseline, paths: {} }));
+  assert.notEqual(digestCcdApiContract(baseline), digestCcdApiContract({ ...baseline, components: { securitySchemes: {} } }));
+});
+
 
 test("offline transition replay requires the parent-bound baseline/removal/import/fault chain and returns only safe identity", async t => {
   const { validateEventTransitionEvidence } = await load();

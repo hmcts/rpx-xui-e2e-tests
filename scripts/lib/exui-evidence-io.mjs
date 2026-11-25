@@ -5,6 +5,9 @@ import { isDeepStrictEqual } from 'node:util';
 import { validateRunManifest, evaluateReleaseEvidence, createGateReceipt } from './exui-release-evidence.mjs';
 
 export const digestBytes = (bytes) => 'sha256:' + createHash('sha256').update(bytes).digest('hex');
+const canonicalJson = value => Array.isArray(value) ? value.map(canonicalJson)
+  : value && typeof value === 'object' ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonicalJson(value[key])])) : value;
+export const digestCcdApiContract = value => digestBytes(JSON.stringify(canonicalJson(value)));
 export const SOURCE_JURISDICTIONS = Object.freeze(['DIVORCE','PROBATE','FR','PUBLICLAW','IA','SSCS','EMPLOYMENT','HRS','CIVIL','CMC','PRIVATELAW','PCS']);
 const requireFact = (condition, code) => { if (!condition) throw new Error(code); };
 const isWithin = (root, file) => file.startsWith(root + path.sep);

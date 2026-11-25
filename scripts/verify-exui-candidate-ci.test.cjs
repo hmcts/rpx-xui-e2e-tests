@@ -1756,7 +1756,7 @@ test('owned baseline CCD cleanup joins deferred workbasket import and preserves 
     const dependencies = {
       assert, fs, path, context, privateRoot: root, ROOT: path.resolve(__dirname, '..'),
       docker: () => assert.fail('no Docker'), cleanupCiPhase: () => assert.fail('CCD only'), stopSelectorCiResource: () => assert.fail('CCD only'),
-      writeJsonAtomic: (file, value) => fs.writeFileSync(file, JSON.stringify(value)), digestBytes: () => digest('a'),
+      writeJsonAtomic: (file, value) => fs.writeFileSync(file, JSON.stringify(value)), digestBytes: () => digest('a'), digestCcdApiContract: () => digest('a'),
       startCcdRuntime: async directory => { fs.mkdirSync(directory); events.push('start'); return { output: directory, images: { data: { id: 'data-image' }, definition: { id: 'definition-image' } } }; },
       importCcdDefinition: () => events.push('definition'),
       importWorkbasketInputs: async () => { events.push('workbasket'); await gate.promise; if (fault === 'import') throw expectedError; return { binding: { workbookDigest: 'workbasket-digest' } }; },

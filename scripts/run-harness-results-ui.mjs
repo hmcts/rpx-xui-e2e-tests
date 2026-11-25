@@ -16,7 +16,7 @@ import {importResultColumns} from './lib/exui-result-columns-import.mjs';
 import {seedResultRows} from './lib/exui-result-row-seed.mjs';
 import {proveResultCcdSearch} from './lib/exui-result-ccd-search.mjs';
 import {NATIVE_HARNESS_SOURCE_FILES} from './lib/exui-native-sources.mjs';
-import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {digestBytes,digestCcdApiContract,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {createFreshHarnessOutput} from './lib/exui-output-boundary.mjs';
 import {browserExecutable} from './lib/exui-oci-runtime.mjs';
 import {createCallbackNativeWorkspace,callbackUiFailureCode} from './run-harness-recipient-callback-ui.mjs';
@@ -45,7 +45,7 @@ export async function runResultsUi({candidate,browser,output,profile,variant='ba
   assert(!cancelled,'RESULT_UI_CANCELLED');phase='prove-backend';await proveResultCcdSearch(ccd);
   const backend=read(runtime+'/result-ccd-search/receipt.json');const resultExpected=Object.fromEntries(Object.entries(backend.observations).map(([view,value])=>[view,value.body]));
   assert(!cancelled,'RESULT_UI_CANCELLED');phase='prepare-actor';const observer=ccdCredentials(ccd,'observer');const credentials={allowed:observer,observer};
-  phase='prepare-api-contracts';const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(ccd,port,'/v3/api-docs');assert.equal(response.status,200);return[name,digestBytes(JSON.stringify(response.body))];}));
+  phase='prepare-api-contracts';const apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(ccd,port,'/v3/api-docs');assert.equal(response.status,200);return[name,digestCcdApiContract(response.body)];}));
   const definition={fixtureDigest:digestBytes(fs.readFileSync(fixtureDirectory+'/definition.xlsx')),observedDefinitionDigest:digestBytes(JSON.stringify(imported.observations.definition.body)),definitionVersion:imported.observations.definition.body.version.number};
   phase='stage-native-sources';const runId='ccd-'+randomUUID();const {workspace,stagedHarness,stateRoot}=createCallbackNativeWorkspace();privateWorkspace=workspace;receipt.privateWorkspace=workspace;save();
   for(const file of RESULTS_UI_SOURCES){const source=path.join(root,file);assert.equal(fs.realpathSync(source),source);assert(fs.lstatSync(source).isFile());const target=path.join(stagedHarness,file);fs.mkdirSync(path.dirname(target),{recursive:true,mode:0o755});fs.copyFileSync(source,target);fs.chmodSync(target,0o444);}
