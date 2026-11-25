@@ -6,7 +6,7 @@ import { prepareRecipientCallbackImport, importRecipientCallback } from './exui-
 import { canonicalRecipientCallbackPages } from './exui-recipient-callback-fixture.mjs';
 import { deriveSelectorEventRowFixture, SELECTOR_EVENT_SCOPE, SELECTOR_EVENT_MUTATION } from './exui-selector-event-row-contract.mjs';
 import { validateSelectorRowDescriptors, validateSelectorStoredDate, readSelectorStoredDate } from './exui-selector-event-row-facets.mjs';
-import { digestBytes, writeJsonAtomic } from './exui-evidence-io.mjs';
+import { digestBytes,digestCcdApiContract, writeJsonAtomic } from './exui-evidence-io.mjs';
 
 const read = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 export const selectorVariant = id => {
@@ -66,7 +66,7 @@ export function verifySelectorRuntime(ccd, invocationId = 'baseline') {
   const apiContracts = Object.fromEntries([['data', 4452], ['definition', 4451]].map(([name, port]) => {
     const response = ccdRequest(ccd, port, '/v3/api-docs');
     assert.equal(response.status, 200, 'SELECTOR_NATIVE_API_CONTRACT');
-    return [name, digestBytes(JSON.stringify(response.body))];
+    return [name, digestCcdApiContract(response.body)];
   }));
   return { ccd, credentials, definition: expected, definitionImportDigest: digestBytes(fs.readFileSync(definitionFile)), selectorEventBinding: expected.sourceBinding, apiContracts };
 }

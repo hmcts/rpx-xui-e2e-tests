@@ -28,7 +28,7 @@ import {
   ccdCredentials,
   docker,
 } from "./lib/exui-ccd-runtime.mjs";
-import { digestBytes, writeJsonAtomic, loadRunEvidence } from "./lib/exui-evidence-io.mjs";
+import { digestBytes,digestCcdApiContract, writeJsonAtomic, loadRunEvidence } from "./lib/exui-evidence-io.mjs";
 import { getReleasePolicy } from "./lib/exui-release-policy.mjs";
 import { nativeIdentity } from "./lib/exui-native-contract.mjs";
 import { EVENT_CAPABILITY_SCOPE, EVENT_CAPABILITY_MUTATION, COURTADMIN_READ_MUTATION, READONLY_READ_MUTATION, READONLY_UPDATE_MUTATION, COURTADMIN_UPDATE_MUTATION, eventCapabilityFaultVariant } from "./lib/exui-ccd-event-capability.mjs";
@@ -302,7 +302,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
     const apiContracts = Object.fromEntries([["data", 4452], ["definition", 4451]].map(([service, port]) => {
       const response = ccdRequest(ccd, port, "/v3/api-docs");
       assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
-      return [service, digestBytes(JSON.stringify(response.body))];
+      return [service, digestCcdApiContract(response.body)];
     }));
     return {
       ccd,
@@ -639,7 +639,7 @@ export async function runHarnessCi(jobPath, {captureNativeCohort,capturePersonal
             ].map(([service, port]) => {
               const response = ccdRequest(context.ccd, port, "/v3/api-docs");
               assert.equal(response.status, 200, "CI_CCD_API_REQUIRED");
-              return [service, digestBytes(JSON.stringify(response.body))];
+              return [service, digestCcdApiContract(response.body)];
             }),
           );
           context.ccdIdentity = {

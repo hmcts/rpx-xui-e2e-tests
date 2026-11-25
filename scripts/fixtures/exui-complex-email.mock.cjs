@@ -44,10 +44,10 @@ exports.runFeasibilityCleanup = async function(root,mode,scenario='complex-email
  const repo=path.resolve(__dirname,'../..'),source=sourceOverride??fs.readFileSync(path.join(repo,'scripts/run-harness-recipient-callback-ui.mjs'),'utf8');
  const start=source.indexOf('export async function runCallbackUi('),end=source.indexOf('\nif(process.argv',start);assert(start>=0&&end>start);
  const {cleanupCiCcd}=await import('../lib/exui-candidate-ci-process.mjs');
- const {writeJsonAtomic,digestBytes}=await import('../lib/exui-evidence-io.mjs');
+ const {writeJsonAtomic,digestBytes,digestCcdApiContract}=await import('../lib/exui-evidence-io.mjs');
  const calls=[],output=path.join(root,'output');let held;
  const fail=()=>{throw Error('CONTROLLED_IMPORT_FAILURE');};
- const context={assert,fs,path,root:repo,process,randomUUID:()=> 'fixed',SELECTOR_EVENT_VARIANTS:['baseline'],CALLBACK_UI_SOURCES:[],writeJsonAtomic,digestBytes,
+ const context={assert,fs,path,root:repo,process,randomUUID:()=> 'fixed',SELECTOR_EVENT_VARIANTS:['baseline'],CALLBACK_UI_SOURCES:[],writeJsonAtomic,digestBytes,digestCcdApiContract,
   verifyCandidateArtifact:async()=>({candidateRoot:root,provenance:{platform:'linux/arm64'}}),createFreshHarnessRuntimeOutput:p=>{fs.mkdirSync(p);return p;},
   verifyHarnessDependencies:async()=>{if(mode==='no-start')throw Error('CONTROLLED_NO_START');return{};},assertCandidateConfigurationSources:()=>{},digestCandidateTree:async()=> 'digest',read:()=>({browsers:[{name:'chromium-headless-shell'}]}),
   startCcdRuntime:async(directory,options)=>{calls.push('start');

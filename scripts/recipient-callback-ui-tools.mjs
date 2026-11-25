@@ -8,7 +8,7 @@ import {verifyHarnessDependencies} from './lib/exui-harness-dependencies.mjs';
 import {describeCandidateArtifact,digestCandidateTree} from './lib/exui-candidate-artifact.mjs';
 import {assertRuntimeIdentity} from './lib/exui-candidate-runtime.mjs';
 import {assertCandidateConfigurationSources} from './lib/exui-configuration-catalogue.mjs';
-import {digestBytes,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
+import {digestBytes,digestCcdApiContract,writeJsonAtomic} from './lib/exui-evidence-io.mjs';
 import {assertApplicantResultDates} from './lib/exui-applicant-result-dates.mjs';
 import {feasibilityGatewaySelection} from './lib/exui-feasibility-gateway.mjs';
 import {deriveComplexEmailFixture} from './lib/exui-complex-email-text.mjs';
@@ -47,7 +47,7 @@ if(process.argv.includes('--inside-providers')) {
  const observed=candidateSeal.value;assertRuntimeIdentity(input.artifact.identity,observed.identity);
  assertCandidateConfigurationSources('/candidate',read('/harness/scripts/fixtures/exui-configuration-review.json'));
  for(const [name,port] of [['data',4452],['definition',4451]]) {
-  const response=await fetch(`http://127.0.0.1:${port}/v3/api-docs`,{redirect:'error'});assert(response.ok);assert.equal(digestBytes(JSON.stringify(await response.json())),input.apiContracts[name]);
+  const response=await fetch(`http://127.0.0.1:${port}/v3/api-docs`,{redirect:'error'});assert(response.ok);assert.equal(digestCcdApiContract(await response.json()),input.apiContracts[name]);
  }
  const selectorDescriptors={};
  if(!results&&!complexEmail)for(const [name,route] of [['definition','/api/data/case-type/HarnessNestedPRL'],['pages','/api/display/wizard-page-structure/case-types/HarnessNestedPRL/event-triggers/serviceOfDocuments']]){

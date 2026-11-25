@@ -40,7 +40,7 @@ import {
   startCcdGateway,
   seedCcdSession,
 } from "./lib/exui-ccd-browser-runtime.mjs";
-import { digestBytes, writeJsonAtomic, readEvidenceArtifact } from "./lib/exui-evidence-io.mjs";
+import { digestBytes,digestCcdApiContract, writeJsonAtomic, readEvidenceArtifact } from "./lib/exui-evidence-io.mjs";
 import {
   ROUTING_SCOPE,
   assertRoutingInterpreter,
@@ -184,7 +184,7 @@ async function providers(input, invocation, directory) {
       });
       assert(response.ok, "CCD_API_CONTRACT_REQUIRED");
       assert.equal(
-        digestBytes(JSON.stringify(await response.json())),
+        digestCcdApiContract(await response.json()),
         input.apiContracts[service],
         "CCD_API_CONTRACT_MISMATCH",
       );

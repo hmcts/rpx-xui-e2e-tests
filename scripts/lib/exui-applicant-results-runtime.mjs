@@ -11,7 +11,7 @@ import {readApplicantResultDates,assertApplicantResultDates} from './exui-applic
 import {applicantResultDefinition} from './exui-applicant-results.mjs';
 import {APPLICANT_RESULTS_SCOPE,applicantResultsContract,applicantResultWorkbookDigest} from './exui-applicant-results-contract.mjs';
 import {resultsSupportingScaffold,resultsSupportingScaffoldDigest} from './exui-results-ui-contract.mjs';
-import {digestBytes,writeJsonAtomic} from './exui-evidence-io.mjs';
+import {digestBytes,digestCcdApiContract,writeJsonAtomic} from './exui-evidence-io.mjs';
 const read=file=>JSON.parse(fs.readFileSync(file,'utf8'));
 export async function prepareApplicantResultRuntime(output,{profile,variant='baseline',platform='linux/arm64',isCancelled=()=>false}) {
  const alive=()=>assert(!isCancelled(),'RESULT_TRANSITION_CANCELLED');alive();
@@ -56,7 +56,7 @@ export function readApplicantResultRuntime(output,{profile,variant='baseline',li
   for(const [name,route] of [['definition','/api/data/case-type/HarnessResultsPRL'],['search','/api/display/search-result-definition/HarnessResultsPRL'],['workbasket','/api/display/work-basket-definition/HarnessResultsPRL']]){
    const response=ccdRequest(state,4451,route,{headers:actor.headers});assert.equal(response.status,200,'RESULT_RUNTIME_DESCRIPTOR_READ');assert.deepEqual(response.body,observations[name],'RESULT_RUNTIME_DESCRIPTOR_DRIFT');
   }
-  apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(state,port,'/v3/api-docs');assert.equal(response.status,200,'RESULT_RUNTIME_API');return[name,digestBytes(JSON.stringify(response.body))];}));
+  apiContracts=Object.fromEntries([['data',4452],['definition',4451]].map(([name,port])=>{const response=ccdRequest(state,port,'/v3/api-docs');assert.equal(response.status,200,'RESULT_RUNTIME_API');return[name,digestCcdApiContract(response.body)];}));
  }
  const resultExpected=Object.fromEntries(Object.entries(backend.observations).map(([view,value])=>[view,value.body]));
  return {releaseScopeId:APPLICANT_RESULTS_SCOPE,variant,ccd:state,definition,definitionImportDigest:digestBytes(fs.readFileSync(path.join(output,'applicant-result-native-import.json'))),
