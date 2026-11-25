@@ -3,10 +3,10 @@
   "sources": [
     {
       "repository": "rpx-xui-webapp",
-      "revision": "20c6ec129fc1e81061c733e164198ec63a33e71a",
+      "revision": "02c16611cb863100701af639ddb446b88e0097f1",
       "path": "config/custom-environment-variables.json",
       "tracked": true,
-      "fileDigest": "094eb0b44b3161095b0b8ec484ae3d047ad5d8a880d08d199d7aae4d2e2e4b9d",
+      "fileDigest": "8297a65e139303521c90dabd014a05692dbfdf882df2b98369172a6b90e2b286",
       "document": {
         "jurisdictions": "JURISDICTIONS",
         "globalSearchServices": "GLOBAL_SEARCH_SERVICES",
@@ -58,19 +58,23 @@
         "decentralisedServiceMap": {
           "__name": "DECENTRALISED_SERVICE_MAP",
           "__format": "json"
+        },
+        "waSupportedJurisdictionUsers": {
+          "__name": "WA_SUPPORTED_JURISDICTION_USERS",
+          "__format": "json"
         }
       }
     },
     {
       "repository": "rpx-xui-webapp",
-      "revision": "20c6ec129fc1e81061c733e164198ec63a33e71a",
+      "revision": "02c16611cb863100701af639ddb446b88e0097f1",
       "path": "config/default.json",
       "tracked": true,
-      "fileDigest": "ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1",
+      "fileDigest": "dfa4df801a06ded03cae6acf9145344207a0fb0c5b6680f360df66b495e2eb73",
       "document": {
         "jurisdictions": "DIVORCE,PROBATE,FR,PUBLICLAW,IA,SSCS,EMPLOYMENT,HRS,CIVIL,CMC,PRIVATELAW,PCS",
         "globalSearchServices": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PROBATE,PCS,DIVORCE",
-        "waSupportedJurisdictions": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS",
+        "waSupportedJurisdictions": "IA,CIVIL,PRIVATELAW,PUBLICLAW,EMPLOYMENT,ST_CIC,PCS,DIVORCE",
         "staffSupportedJurisdictions": "ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS",
         "serviceRefDataMapping": [
           {
@@ -119,12 +123,7 @@
           {
             "service": "DIVORCE",
             "serviceCodes": [
-              "ABA1"
-            ]
-          },
-          {
-            "service": "FR",
-            "serviceCodes": [
+              "ABA1",
               "ABA2"
             ]
           },
@@ -191,7 +190,8 @@
             "nocBaseUrl": "http://pcs-api-prod.service.core-compute-prod.internal"
           }
         },
-        "decentralisedServiceMap": {}
+        "decentralisedServiceMap": {},
+        "waSupportedJurisdictionUsers": []
       }
     },
     {

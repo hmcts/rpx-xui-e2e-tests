@@ -547,9 +547,8 @@ export async function readNativeReportEvidence(descriptorPath, {profileConfigura
         const id=frPacket.joint.obligationId,rows=accounting.catalogue.obligations.filter(row=>row.id===id);
         fact(rows.length===1&&rows[0].family==='FR'&&rows[0].kind==='configuration-profile'&&rows[0].requiredBoundary==='candidate','FR_PROFILE_CATALOGUE_ROW');
         equal(rows[0].sourceKeys,frPacket.joint.sourceKeys,'FR_PROFILE_CATALOGUE_SOURCE');
-        fact(catalogueCoverage.selected===112&&!creditedObligationIds.includes(id),'FR_PROFILE_DUPLICATE_CREDIT');
+        fact(frPacket.admission.accepted===0&&catalogueCoverage.selected===112&&!creditedObligationIds.includes(id),'FR_PROFILE_DIAGNOSTIC_ONLY');
         fact(accounting.report.coverage.missingCandidateOrCcd.some(row=>(typeof row==='string'?row:row.id)===id),'FR_PROFILE_NOT_MISSING');
-        creditedObligationIds.push(id);catalogueCoverage.candidate++;catalogueCoverage.missing--;catalogueCoverage.frProfileAdmission=frPacket.joint;
       }
     }
     fact(!expected.cmcProfileRequest||descriptor.value.cmcProfileAdmission,'CMC_PROFILE_REQUEST_REQUIRED');

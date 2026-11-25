@@ -387,7 +387,7 @@ describe('guarded catalogue impact selection', () => {
     const discovery = discoveryApi.collectDefinitionDiscovery({ repositoryRoot: fixture.source, review });
     review.definitionDiscovery.pins = discoveryApi.summarizeDefinitionDiscovery(discovery).pins;
     const defaults = structuredClone(snapshot.sources.find(item => item.path === 'config/default.json'));
-    defaults.document = {};
+    defaults.document = {waSupportedJurisdictionUsers: []};
     snapshot.sources = [defaults, ...discoveryApi.selectReviewedDefinitionSources({ discovery, review })];
     snapshot.definitionDiscovery = discovery;
     for (const key of ['sourceFileDigests', 'sourceFragmentDigests', 'sourceRevisions', 'definitionRowDigests']) review[key] = {};

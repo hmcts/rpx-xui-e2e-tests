@@ -9,13 +9,13 @@ export { FR_PROFILE_FACETS };
 const staff='ST_CIC,CIVIL,EMPLOYMENT,PRIVATELAW,PUBLICLAW,IA,SSCS,DIVORCE,FR,PROBATE,HRS,PCS';
 const roles=['hearing-centre-admin','case-manager','ctsc','tribunal-caseworker','hmcts-legal-operations','task-supervisor','hmcts-admin','national-business-centre','senior-tribunal-caseworker','case-allocator','regional-centre-admin'];
 const mappings=Object.freeze([
- {path:'/workallocation/findPerson',body:{searchOptions:{searchTerm:'Synthetic',userRole:'Judicial',services:['FR']}}},
- {path:'/workallocation/getJudicialUsers',body:{userIds:['profile-judge'],services:['FR']}},
- {path:'/workallocation/location?serviceCodes=FR'},
- {path:'/workallocation/full-location?serviceCodes=FR'},
- {path:'/workallocation/region-location',body:{serviceIds:['FR']}},
- {path:'/am/getBookings',body:{userId:'profile-judge',bookableServices:['FR']}},
- {path:'/api/locations/getLocations',body:{searchTerm:'Synthetic',serviceIds:['FR'],locationType:'case_management',userLocations:[]}},
+ {path:'/workallocation/findPerson',body:{searchOptions:{searchTerm:'Synthetic',userRole:'Judicial',services:['DIVORCE']}}},
+ {path:'/workallocation/getJudicialUsers',body:{userIds:['profile-judge'],services:['DIVORCE']}},
+ {path:'/workallocation/location?serviceCodes=DIVORCE'},
+ {path:'/workallocation/full-location?serviceCodes=DIVORCE'},
+ {path:'/workallocation/region-location',body:{serviceIds:['DIVORCE']}},
+ {path:'/am/getBookings',body:{userId:'profile-judge',bookableServices:['DIVORCE']}},
+ {path:'/api/locations/getLocations',body:{searchTerm:'Synthetic',serviceIds:['DIVORCE'],locationType:'case_management',userLocations:[]}},
 ]);
 const get=path=>({method:'GET',path}),post=(path,body)=>({method:'POST',path,body});
 const user=family=>({email:`${family.toLowerCase()}@example.invalid`,firstName:`Synthetic ${family}`,idamId:`profile-${family.toLowerCase()}`,lastName:'Staff',location:{id:'100001',locationName:'Synthetic staff location'},roleCategories:['LEGAL_OPERATIONS'],service:family});

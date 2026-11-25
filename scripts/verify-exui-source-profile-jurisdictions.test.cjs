@@ -3,6 +3,14 @@ const {test}=require('node:test');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
+test('FR mapping receipt identifies the Divorce ABA2 change',async()=>{
+ const {frMappingMutationReceipt}=await import('./run-harness-source-profile-jurisdictions.mjs');
+ const baseline={serviceRefDataMapping:[{service:'DIVORCE',serviceCodes:['ABA1','ABA2']}]};
+ const mutant={serviceRefDataMapping:[{service:'DIVORCE',serviceCodes:['ABA1','ZZZ1']}]};
+ assert.deepEqual(frMappingMutationReceipt(baseline,mutant,'source-profile-change-divorce-aba2-code'),{
+  id:'source-profile-change-divorce-aba2-code',target:'NODE_CONFIG.serviceRefDataMapping[DIVORCE].serviceCodes',before:['ABA1','ABA2'],after:['ABA1','ZZZ1']
+ });
+});
 async function evidence(mutation=null) {
  const lib=await import('./lib/exui-source-profile-jurisdictions.mjs');
  const ids=lib.SOURCE_JURISDICTIONS.filter(id=>!mutation||id!=='DIVORCE');

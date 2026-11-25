@@ -182,7 +182,7 @@ for (const [key, exported] of [
 ]) {
   test(`independent committed projection requires current ${key} in JSON and model`, () => {
     const projection = JSON.parse(readFileSync(resolve('scripts/fixtures/exui-configuration-source.json'), 'utf8')).sources.find(item => item.repository === 'rpx-xui-webapp' && item.path === 'config/default.json');
-    assert.equal(projection.revision, '20c6ec129fc1e81061c733e164198ec63a33e71a');
+    assert.equal(projection.revision, '02c16611cb863100701af639ddb446b88e0097f1');
     const expected = projection.document[key].split(',');
     const legacy = JSON.parse(readFileSync(resolve('src/data/exui-central-assurance-source.json'), 'utf8'));
     assert.deepEqual(legacy.rpxXuiWebapp['config/default.json'][key], expected);
@@ -194,7 +194,7 @@ test('pinned source and generated PCS definitions match while runtime evidence r
   const result = runManifest({ fromPinnedProjection: true });
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stdout, /config matches/);
-  assert.match(result.stdout, /global=9, wa=7, staff=12/);
+  assert.match(result.stdout, /global=9, wa=8, staff=12/);
   assert.doesNotMatch(result.stderr, /drift detected|globalSearchServices drifted|waSupportedJurisdictions drifted|staffSupportedJurisdictions drifted/);
   assert.match(result.stderr, /PCS: required configured family has no CCD-backed source profile/);
   assert.match(result.stdout, /does not prove candidate\/CCD execution/);

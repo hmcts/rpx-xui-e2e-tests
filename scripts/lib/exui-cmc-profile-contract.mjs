@@ -2,13 +2,13 @@ import assert from 'node:assert/strict';
 import {digestBytes} from './exui-evidence-io.mjs';
 import {sourceProfileJurisdictionConfiguration} from './exui-source-profile-jurisdictions.mjs';
 
-export const CMC_PROFILE_ID='configuration-profile:9f8861dc4397f038730d2e35ba50dbab6de81313c46f8978298511a2420b3a0c';
+export const CMC_PROFILE_ID='configuration-profile:57daf2b4a9f9cc6465db5cdeec7e1024dd4dc4e20bd20086e47102b521199449';
 export const CMC_PROFILE_FACET=Object.freeze({facet:'cmc-jurisdiction',fault:'source-profile-drop-cmc-jurisdiction'});
 const credits={runtimeAcceptance:false,catalogueCredit:false,wholeProfileSatisfied:false,releaseCredit:false,releaseApproval:false};
 
 export function cmcProfileContract(){
  return {schemaVersion:1,kind:'source-defined-family-profile',obligationId:CMC_PROFILE_ID,profile:'config/default.json',family:'CMC',
-  sourceRevision:'20c6ec129fc1e81061c733e164198ec63a33e71a',sourceDigest:'sha256:ab78791c4a5ced4341e79cd6fabe114e12e06b667f59936d66ffb513433c65d1',
+  sourceRevision:'02c16611cb863100701af639ddb446b88e0097f1',sourceDigest:'sha256:dfa4df801a06ded03cae6acf9145344207a0fb0c5b6680f360df66b495e2eb73',
   consumerRevision:'e47ccdf14eba61dce892bd49d9a460d55775f202',claim:'Candidate default configuration selects CMC in the jurisdiction list served by the EXUI candidate.',
   capabilities:['jurisdictions'],facets:[CMC_PROFILE_FACET],
   noClaims:['staffSupportedJurisdictions','globalSearchServices','waSupportedJurisdictions','serviceRefDataMapping','hearings jurisdictions or case types','deployed overlays','CCD definitions or authorisations','production CMC readiness','full CMC case journey'],
